@@ -357,6 +357,7 @@ func TestASI(t *testing.T) {
 
 	// This is a weird corner case where ASI applies without a newline
 	expectPrinted(t, "do x;while(y)z", "do\n  x;\nwhile (y);\nz;\n")
+	expectPrinted(t, "do x;while(y);z", "do\n  x;\nwhile (y);\nz;\n")
 	expectPrinted(t, "{do x;while(y)}", "{\n  do\n    x;\n  while (y);\n}\n")
 }
 
