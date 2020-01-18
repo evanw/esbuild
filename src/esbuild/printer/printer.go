@@ -1176,12 +1176,20 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 			p.printExpr(*e.Tag, ast.LPostfix)
 		}
 		p.print("`")
-		p.print(quoteUTF16(e.Head, '`'))
+		if e.Tag != nil {
+			p.print(e.HeadRaw)
+		} else {
+			p.print(quoteUTF16(e.Head, '`'))
+		}
 		for _, part := range e.Parts {
 			p.print("${")
 			p.printExpr(part.Value, ast.LLowest)
 			p.print("}")
-			p.print(quoteUTF16(part.Tail, '`'))
+			if e.Tag != nil {
+				p.print(part.TailRaw)
+			} else {
+				p.print(quoteUTF16(part.Tail, '`'))
+			}
 		}
 		p.print("`")
 

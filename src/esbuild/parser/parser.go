@@ -842,12 +842,12 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 	case lexer.TNoSubstitutionTemplateLiteral:
 		head := p.lexer.StringLiteral
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.ETemplate{nil, head, []ast.TemplatePart{}}}
+		return ast.Expr{loc, &ast.ETemplate{nil, head, "", []ast.TemplatePart{}}}
 
 	case lexer.TTemplateHead:
 		head := p.lexer.StringLiteral
-		parts := p.parseTemplateParts()
-		return ast.Expr{loc, &ast.ETemplate{nil, head, parts}}
+		parts := p.parseTemplateParts(false /* includeRaw */)
+		return ast.Expr{loc, &ast.ETemplate{nil, head, "", parts}}
 
 	case lexer.TNumericLiteral:
 		value := p.lexer.Number
@@ -1165,18 +1165,20 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 				return left
 			}
 			head := p.lexer.StringLiteral
+			headRaw := p.lexer.RawTemplateContents()
 			p.lexer.Next()
 			tag := left
-			left = ast.Expr{left.Loc, &ast.ETemplate{&tag, head, []ast.TemplatePart{}}}
+			left = ast.Expr{left.Loc, &ast.ETemplate{&tag, head, headRaw, []ast.TemplatePart{}}}
 
 		case lexer.TTemplateHead:
 			if level >= ast.LPrefix {
 				return left
 			}
 			head := p.lexer.StringLiteral
-			parts := p.parseTemplateParts()
+			headRaw := p.lexer.RawTemplateContents()
+			parts := p.parseTemplateParts(true /* includeRaw */)
 			tag := left
-			left = ast.Expr{left.Loc, &ast.ETemplate{&tag, head, parts}}
+			left = ast.Expr{left.Loc, &ast.ETemplate{&tag, head, headRaw, parts}}
 
 		case lexer.TOpenBracket:
 			p.lexer.Next()
@@ -1719,14 +1721,18 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 	}
 }
 
-func (p *parser) parseTemplateParts() []ast.TemplatePart {
+func (p *parser) parseTemplateParts(includeRaw bool) []ast.TemplatePart {
 	parts := []ast.TemplatePart{}
 	for {
 		p.lexer.Next()
 		value := p.parseExpr(ast.LLowest)
 		p.lexer.RescanCloseBraceAsTemplateToken()
 		tail := p.lexer.StringLiteral
-		parts = append(parts, ast.TemplatePart{value, tail})
+		tailRaw := ""
+		if includeRaw {
+			tailRaw = p.lexer.RawTemplateContents()
+		}
+		parts = append(parts, ast.TemplatePart{value, tail, tailRaw})
 		if p.lexer.Token == lexer.TTemplateTail {
 			p.lexer.Next()
 			break
@@ -3907,7 +3913,7 @@ func foldStringAddition(left ast.Expr, right ast.Expr) *ast.Expr {
 
 		case *ast.ETemplate:
 			if r.Tag == nil {
-				return &ast.Expr{left.Loc, &ast.ETemplate{nil, joinStrings(l.Value, r.Head), r.Parts}}
+				return &ast.Expr{left.Loc, &ast.ETemplate{nil, joinStrings(l.Value, r.Head), "", r.Parts}}
 			}
 		}
 
@@ -3924,7 +3930,7 @@ func foldStringAddition(left ast.Expr, right ast.Expr) *ast.Expr {
 					copy(parts, l.Parts)
 					parts[n-1].Tail = joinStrings(parts[n-1].Tail, r.Value)
 				}
-				return &ast.Expr{left.Loc, &ast.ETemplate{nil, head, parts}}
+				return &ast.Expr{left.Loc, &ast.ETemplate{nil, head, "", parts}}
 
 			case *ast.ETemplate:
 				if r.Tag == nil {
@@ -3938,7 +3944,7 @@ func foldStringAddition(left ast.Expr, right ast.Expr) *ast.Expr {
 						copy(parts[:n], l.Parts)
 						parts[n-1].Tail = joinStrings(parts[n-1].Tail, r.Head)
 					}
-					return &ast.Expr{left.Loc, &ast.ETemplate{nil, head, parts}}
+					return &ast.Expr{left.Loc, &ast.ETemplate{nil, head, "", parts}}
 				}
 			}
 		}

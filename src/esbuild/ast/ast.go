@@ -395,14 +395,16 @@ type ESpread struct{ Value Expr }
 type EString struct{ Value []uint16 }
 
 type TemplatePart struct {
-	Value Expr
-	Tail  []uint16
+	Value   Expr
+	Tail    []uint16
+	TailRaw string // This is only filled out for tagged template literals
 }
 
 type ETemplate struct {
-	Tag   *Expr
-	Head  []uint16
-	Parts []TemplatePart
+	Tag     *Expr
+	Head    []uint16
+	HeadRaw string // This is only filled out for tagged template literals
+	Parts   []TemplatePart
 }
 
 type ERegExp struct{ Value string }

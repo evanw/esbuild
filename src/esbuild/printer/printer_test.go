@@ -138,6 +138,26 @@ func TestString(t *testing.T) {
 	expectPrinted(t, "let x = '\\uD801\\uDC02\\uDC03\\uD804'", "let x = \"\U00010402\\uDC03\\uD804\";\n")
 }
 
+func TestTemplate(t *testing.T) {
+	expectPrinted(t, "let x = `\\1`", "let x = `\x01`;\n")
+	expectPrinted(t, "let x = `\\x01`", "let x = `\x01`;\n")
+	expectPrinted(t, "let x = `\\1${0}`", "let x = `\x01${0}`;\n")
+	expectPrinted(t, "let x = `\\x01${0}`", "let x = `\x01${0}`;\n")
+	expectPrinted(t, "let x = `${0}\\1`", "let x = `${0}\x01`;\n")
+	expectPrinted(t, "let x = `${0}\\x01`", "let x = `${0}\x01`;\n")
+	expectPrinted(t, "let x = `${0}\\1${1}`", "let x = `${0}\x01${1}`;\n")
+	expectPrinted(t, "let x = `${0}\\x01${1}`", "let x = `${0}\x01${1}`;\n")
+
+	expectPrinted(t, "let x = String.raw`\\1`", "let x = String.raw`\\1`;\n")
+	expectPrinted(t, "let x = String.raw`\\x01`", "let x = String.raw`\\x01`;\n")
+	expectPrinted(t, "let x = String.raw`\\1${0}`", "let x = String.raw`\\1${0}`;\n")
+	expectPrinted(t, "let x = String.raw`\\x01${0}`", "let x = String.raw`\\x01${0}`;\n")
+	expectPrinted(t, "let x = String.raw`${0}\\1`", "let x = String.raw`${0}\\1`;\n")
+	expectPrinted(t, "let x = String.raw`${0}\\x01`", "let x = String.raw`${0}\\x01`;\n")
+	expectPrinted(t, "let x = String.raw`${0}\\1${1}`", "let x = String.raw`${0}\\1${1}`;\n")
+	expectPrinted(t, "let x = String.raw`${0}\\x01${1}`", "let x = String.raw`${0}\\x01${1}`;\n")
+}
+
 func TestObject(t *testing.T) {
 	expectPrinted(t, "let x = {'(':')'}", "let x = {\n  \"(\": \")\"\n};\n")
 }

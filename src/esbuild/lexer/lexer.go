@@ -253,6 +253,21 @@ func (lexer *Lexer) Raw() string {
 	return lexer.source.Contents[lexer.start:lexer.end]
 }
 
+func (lexer *Lexer) RawTemplateContents() string {
+	switch lexer.Token {
+	case TNoSubstitutionTemplateLiteral, TTemplateTail:
+		// "`x`" or "}x`"
+		return lexer.source.Contents[lexer.start+1 : lexer.end-1]
+
+	case TTemplateHead, TTemplateMiddle:
+		// "`x${" or "}x${"
+		return lexer.source.Contents[lexer.start+1 : lexer.end-2]
+
+	default:
+		return ""
+	}
+}
+
 func (lexer *Lexer) IsIdentifierOrKeyword() bool {
 	return lexer.Token >= TIdentifier
 }
