@@ -980,21 +980,26 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print("(")
 		}
 		p.printSpaceBeforeIdentifier()
-		p.print("import(")
 		if p.resolvedImports != nil {
 			// If we're bundling require calls, convert the string to a source index
 			sourceIndex, ok := p.resolvedImports[e.Path.Text]
 			if !ok {
 				panic("Internal error")
 			}
-			p.print(fmt.Sprintf("%d", sourceIndex))
-			if !p.minify {
-				p.print(fmt.Sprintf(" /* %s */", e.Path.Text))
+			if p.minify {
+				p.print("Promise.resolve().then(()=>")
+				p.printSymbol(p.requireRef)
+				p.print(fmt.Sprintf("(%d))", sourceIndex))
+			} else {
+				p.print("Promise.resolve().then(() => ")
+				p.printSymbol(p.requireRef)
+				p.print(fmt.Sprintf("(%d /* %s */))", sourceIndex, e.Path.Text))
 			}
 		} else {
+			p.print("import(")
 			p.print(Quote(e.Path.Text))
+			p.print(")")
 		}
-		p.print(")")
 		if wrap {
 			p.print(")")
 		}
