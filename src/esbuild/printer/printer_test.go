@@ -174,6 +174,23 @@ func TestObject(t *testing.T) {
 	expectPrinted(t, "let x = {'(':')'}", "let x = {\n  \"(\": \")\"\n};\n")
 }
 
+func TestFor(t *testing.T) {
+	// Make sure "in" expressions are forbidden in the right places
+	expectPrinted(t, "for ((a in b);;);", "for ((a in b); ; )\n  ;\n")
+	expectPrinted(t, "for (a ? b : (c in d);;);", "for (a ? b : (c in d); ; )\n  ;\n")
+	expectPrinted(t, "for ((a ? b : c in d).foo;;);", "for ((a ? b : c in d).foo; ; )\n  ;\n")
+	expectPrinted(t, "for (var x = (a in b);;);", "for (var x = (a in b); ; )\n  ;\n")
+	expectPrinted(t, "for (x = (a in b);;);", "for (x = (a in b); ; )\n  ;\n")
+	expectPrinted(t, "for (x == (a in b);;);", "for (x == (a in b); ; )\n  ;\n")
+	expectPrinted(t, "for (1 * (x == a in b);;);", "for (1 * (x == a in b); ; )\n  ;\n")
+	expectPrinted(t, "for (a ? b : x = (c in d);;);", "for (a ? b : x = (c in d); ; )\n  ;\n")
+	expectPrinted(t, "for (var x = y = (a in b);;);", "for (var x = y = (a in b); ; )\n  ;\n")
+	expectPrinted(t, "for ([a in b];;);", "for ([a in b]; ; )\n  ;\n")
+	expectPrinted(t, "for (x(a in b);;);", "for (x(a in b); ; )\n  ;\n")
+	expectPrinted(t, "for (x[a in b];;);", "for (x[a in b]; ; )\n  ;\n")
+	expectPrinted(t, "for (x?.[a in b];;);", "for (x?.[a in b]; ; )\n  ;\n")
+}
+
 func TestFunction(t *testing.T) {
 	expectPrinted(t,
 		"function foo(a = (b, c), ...d) {}",

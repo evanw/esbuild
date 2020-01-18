@@ -859,7 +859,8 @@ func (p *printer) bestQuoteCharForString(data []uint16) string {
 }
 
 const (
-	forbidCall = 1
+	forbidCall = 1 << iota
+	forbidIn
 )
 
 func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
@@ -1023,8 +1024,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		wrap := level >= ast.LConditional
 		if wrap {
 			p.print("(")
+			flags &= ^forbidIn
 		}
-		p.printExpr(e.Test, ast.LConditional, 0)
+		p.printExpr(e.Test, ast.LConditional, flags&forbidIn)
 		p.printSpace()
 		p.print("?")
 		p.printSpace()
@@ -1032,7 +1034,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printSpace()
 		p.print(":")
 		p.printSpace()
-		p.printExpr(e.No, ast.LYield, 0)
+		p.printExpr(e.No, ast.LYield, flags&forbidIn)
 		if wrap {
 			p.print(")")
 		}
@@ -1353,7 +1355,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.EBinary:
 		entry := ast.OpTable[e.Op]
-		wrap := level >= entry.Level
+		wrap := level >= entry.Level || (e.Op == ast.BinOpIn && (flags&forbidIn) != 0)
 
 		// Destructuring assignments must be parenthesized
 		if p.stmtStart == len(p.js) {
@@ -1364,6 +1366,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 		if wrap {
 			p.print("(")
+			flags &= ^forbidIn
 		}
 
 		leftLevel := entry.Level - 1
@@ -1386,7 +1389,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			}
 		}
 
-		p.printExpr(e.Left, leftLevel, 0)
+		p.printExpr(e.Left, leftLevel, flags&forbidIn)
 
 		if e.Op != ast.BinOpComma {
 			p.printSpace()
@@ -1404,7 +1407,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 		p.printSpace()
 
-		p.printExpr(e.Right, rightLevel, 0)
+		p.printExpr(e.Right, rightLevel, flags&forbidIn)
 
 		if wrap {
 			p.print(")")
@@ -1421,26 +1424,26 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []ast.Decl)
 	if isExport {
 		p.print("export ")
 	}
-	p.printDecls(keyword, decls)
+	p.printDecls(keyword, decls, 0)
 	p.printSemicolonAfterStatement()
 }
 
 func (p *printer) printForLoopInit(init ast.Stmt) {
 	switch s := init.Data.(type) {
 	case *ast.SExpr:
-		p.printExpr(s.Value, ast.LLowest, 0)
+		p.printExpr(s.Value, ast.LLowest, forbidIn)
 	case *ast.SVar:
-		p.printDecls("var", s.Decls)
+		p.printDecls("var", s.Decls, forbidIn)
 	case *ast.SLet:
-		p.printDecls("let", s.Decls)
+		p.printDecls("let", s.Decls, forbidIn)
 	case *ast.SConst:
-		p.printDecls("const", s.Decls)
+		p.printDecls("const", s.Decls, forbidIn)
 	default:
 		panic("Internal error")
 	}
 }
 
-func (p *printer) printDecls(keyword string, decls []ast.Decl) {
+func (p *printer) printDecls(keyword string, decls []ast.Decl, flags int) {
 	p.print(keyword)
 	p.printSpace()
 
@@ -1455,7 +1458,7 @@ func (p *printer) printDecls(keyword string, decls []ast.Decl) {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*decl.Value, ast.LComma, 0)
+			p.printExpr(*decl.Value, ast.LComma, flags)
 		}
 	}
 }

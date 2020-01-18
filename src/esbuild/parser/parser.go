@@ -1140,7 +1140,15 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			switch p.lexer.Token {
 			case lexer.TOpenBracket:
 				p.lexer.Next()
+
+				// Allow "in" inside the brackets
+				oldAllowIn := p.allowIn
+				p.allowIn = true
+
 				index := p.parseExpr(ast.LLowest)
+
+				p.allowIn = oldAllowIn
+
 				p.lexer.Expect(lexer.TCloseBracket)
 				left = ast.Expr{left.Loc, &ast.EIndex{left, index, true}}
 
@@ -1182,7 +1190,15 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 
 		case lexer.TOpenBracket:
 			p.lexer.Next()
+
+			// Allow "in" inside the brackets
+			oldAllowIn := p.allowIn
+			p.allowIn = true
+
 			index := p.parseExpr(ast.LLowest)
+
+			p.allowIn = oldAllowIn
+
 			p.lexer.Expect(lexer.TCloseBracket)
 			left = ast.Expr{left.Loc, &ast.EIndex{left, index, false}}
 
