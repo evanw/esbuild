@@ -59,6 +59,13 @@ func TestNew(t *testing.T) {
 	expectPrinted(t, "new (new x())", "new new x()();\n")
 	expectPrinted(t, "new (x + x)", "new (x + x)();\n")
 	expectPrinted(t, "(new x)()", "new x()();\n")
+
+	expectPrinted(t, "new foo().bar", "new foo().bar;\n")
+	expectPrinted(t, "new (foo().bar)", "new (foo()).bar();\n")
+	expectPrinted(t, "new (foo()).bar", "new (foo()).bar();\n")
+	expectPrinted(t, "new foo()[bar]", "new foo()[bar];\n")
+	expectPrinted(t, "new (foo()[bar])", "new (foo())[bar]();\n")
+	expectPrinted(t, "new (foo())[bar]", "new (foo())[bar]();\n")
 }
 
 func TestCall(t *testing.T) {

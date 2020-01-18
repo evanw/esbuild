@@ -858,6 +858,10 @@ func (p *printer) bestQuoteCharForString(data []uint16) string {
 	return c
 }
 
+const (
+	forbidCall = 1
+)
+
 func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	p.addSourceMapping(expr.Loc)
 
@@ -905,7 +909,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printSpaceBeforeIdentifier()
 		p.print("new")
 		p.printSpace()
-		p.printExpr(e.Target, ast.LNew, 0)
+		p.printExpr(e.Target, ast.LNew, forbidCall)
 
 		// TODO: Omit this while minifying
 		p.print("(")
@@ -923,7 +927,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.ECall:
-		wrap := level >= ast.LNew
+		wrap := level >= ast.LNew || (flags&forbidCall) != 0
 		if wrap {
 			p.print("(")
 		}
@@ -995,7 +999,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EDot:
-		p.printExpr(e.Target, ast.LPostfix, 0)
+		p.printExpr(e.Target, ast.LPostfix, flags)
 		if e.IsOptionalChain {
 			p.print("?")
 		} else if p.prevNumEnd == len(p.js) {
@@ -1007,7 +1011,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.print(e.Name)
 
 	case *ast.EIndex:
-		p.printExpr(e.Target, ast.LPostfix, 0)
+		p.printExpr(e.Target, ast.LPostfix, flags)
 		if e.IsOptionalChain {
 			p.print("?.")
 		}
