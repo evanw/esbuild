@@ -506,7 +506,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 				p.printSpace()
 				p.print("=")
 				p.printSpace()
-				p.printExpr(*item.DefaultValue, ast.LComma)
+				p.printExpr(*item.DefaultValue, ast.LComma, 0)
 			}
 
 			// Make sure there's a comma after trailing missing items
@@ -529,7 +529,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 			} else {
 				if item.IsComputed {
 					p.print("[")
-					p.printExpr(item.Key, ast.LLowest)
+					p.printExpr(item.Key, ast.LLowest, 0)
 					p.print("]:")
 					p.printSpace()
 					p.printBinding(item.Value)
@@ -538,7 +538,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 						p.printSpace()
 						p.print("=")
 						p.printSpace()
-						p.printExpr(*item.DefaultValue, ast.LComma)
+						p.printExpr(*item.DefaultValue, ast.LComma, 0)
 					}
 					continue
 				}
@@ -555,15 +555,15 @@ func (p *printer) printBinding(binding ast.Binding) {
 								p.printSpace()
 								p.print("=")
 								p.printSpace()
-								p.printExpr(*item.DefaultValue, ast.LComma)
+								p.printExpr(*item.DefaultValue, ast.LComma, 0)
 							}
 							continue
 						}
 					} else {
-						p.printExpr(item.Key, ast.LLowest)
+						p.printExpr(item.Key, ast.LLowest, 0)
 					}
 				} else {
-					p.printExpr(item.Key, ast.LLowest)
+					p.printExpr(item.Key, ast.LLowest, 0)
 				}
 
 				p.print(":")
@@ -575,7 +575,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 				p.printSpace()
 				p.print("=")
 				p.printSpace()
-				p.printExpr(*item.DefaultValue, ast.LComma)
+				p.printExpr(*item.DefaultValue, ast.LComma, 0)
 			}
 		}
 
@@ -670,7 +670,7 @@ func (p *printer) printFnArgs(args []ast.Arg, hasRestArg bool, isArrow bool) {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*arg.Default, ast.LComma)
+			p.printExpr(*arg.Default, ast.LComma, 0)
 		}
 	}
 
@@ -689,7 +689,7 @@ func (p *printer) printClass(class ast.Class) {
 	if class.Extends != nil {
 		p.print(" extends")
 		p.printSpace()
-		p.printExpr(*class.Extends, ast.LNew)
+		p.printExpr(*class.Extends, ast.LNew, 0)
 	}
 	p.printSpace()
 
@@ -711,7 +711,7 @@ func (p *printer) printClass(class ast.Class) {
 func (p *printer) printProperty(item ast.Property) {
 	if item.Kind == ast.PropertySpread {
 		p.print("...")
-		p.printExpr(item.Value, ast.LComma)
+		p.printExpr(item.Value, ast.LComma, 0)
 		return
 	}
 
@@ -745,19 +745,19 @@ func (p *printer) printProperty(item ast.Property) {
 
 	if item.IsComputed {
 		p.print("[")
-		p.printExpr(item.Key, ast.LLowest)
+		p.printExpr(item.Key, ast.LLowest, 0)
 		p.print("]")
 		if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
 			p.printFn(fn.Fn)
 		} else {
 			p.print(":")
 			p.printSpace()
-			p.printExpr(item.Value, ast.LComma)
+			p.printExpr(item.Value, ast.LComma, 0)
 			if item.DefaultValue != nil {
 				p.printSpace()
 				p.print("=")
 				p.printSpace()
-				p.printExpr(*item.DefaultValue, ast.LComma)
+				p.printExpr(*item.DefaultValue, ast.LComma, 0)
 			}
 		}
 		return
@@ -777,7 +777,7 @@ func (p *printer) printProperty(item ast.Property) {
 						p.printSpace()
 						p.print("=")
 						p.printSpace()
-						p.printExpr(*item.DefaultValue, ast.LComma)
+						p.printExpr(*item.DefaultValue, ast.LComma, 0)
 					}
 					return
 				}
@@ -789,16 +789,16 @@ func (p *printer) printProperty(item ast.Property) {
 						p.printSpace()
 						p.print("=")
 						p.printSpace()
-						p.printExpr(*item.DefaultValue, ast.LComma)
+						p.printExpr(*item.DefaultValue, ast.LComma, 0)
 					}
 					return
 				}
 			}
 		} else {
-			p.printExpr(item.Key, ast.LLowest)
+			p.printExpr(item.Key, ast.LLowest, 0)
 		}
 	} else {
-		p.printExpr(item.Key, ast.LLowest)
+		p.printExpr(item.Key, ast.LLowest, 0)
 	}
 
 	if item.Kind != ast.PropertyNormal {
@@ -814,12 +814,12 @@ func (p *printer) printProperty(item ast.Property) {
 	} else {
 		p.print(":")
 		p.printSpace()
-		p.printExpr(item.Value, ast.LComma)
+		p.printExpr(item.Value, ast.LComma, 0)
 		if item.DefaultValue != nil {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*item.DefaultValue, ast.LComma)
+			p.printExpr(*item.DefaultValue, ast.LComma, 0)
 		}
 	}
 }
@@ -858,7 +858,7 @@ func (p *printer) bestQuoteCharForString(data []uint16) string {
 	return c
 }
 
-func (p *printer) printExpr(expr ast.Expr, level ast.L) {
+func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	p.addSourceMapping(expr.Loc)
 
 	switch e := expr.Data.(type) {
@@ -887,7 +887,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 
 	case *ast.ESpread:
 		p.print("...")
-		p.printExpr(e.Value, ast.LLowest)
+		p.printExpr(e.Value, ast.LLowest, 0)
 
 	case *ast.ENewTarget:
 		p.printSpaceBeforeIdentifier()
@@ -905,7 +905,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		p.printSpaceBeforeIdentifier()
 		p.print("new")
 		p.printSpace()
-		p.printExpr(e.Target, ast.LNew)
+		p.printExpr(e.Target, ast.LNew, 0)
 
 		// TODO: Omit this while minifying
 		p.print("(")
@@ -914,7 +914,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 				p.print(",")
 				p.printSpace()
 			}
-			p.printExpr(arg, ast.LComma)
+			p.printExpr(arg, ast.LComma, 0)
 		}
 		p.print(")")
 
@@ -927,7 +927,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		if wrap {
 			p.print("(")
 		}
-		p.printExpr(e.Target, ast.LPostfix)
+		p.printExpr(e.Target, ast.LPostfix, 0)
 		if e.IsOptionalChain {
 			p.print("?.")
 		}
@@ -937,7 +937,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 				p.print(",")
 				p.printSpace()
 			}
-			p.printExpr(arg, ast.LComma)
+			p.printExpr(arg, ast.LComma, 0)
 		}
 		p.print(")")
 		if wrap {
@@ -995,7 +995,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		}
 
 	case *ast.EDot:
-		p.printExpr(e.Target, ast.LPostfix)
+		p.printExpr(e.Target, ast.LPostfix, 0)
 		if e.IsOptionalChain {
 			p.print("?")
 		} else if p.prevNumEnd == len(p.js) {
@@ -1007,12 +1007,12 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		p.print(e.Name)
 
 	case *ast.EIndex:
-		p.printExpr(e.Target, ast.LPostfix)
+		p.printExpr(e.Target, ast.LPostfix, 0)
 		if e.IsOptionalChain {
 			p.print("?.")
 		}
 		p.print("[")
-		p.printExpr(e.Index, ast.LLowest)
+		p.printExpr(e.Index, ast.LLowest, 0)
 		p.print("]")
 
 	case *ast.EIf:
@@ -1020,15 +1020,15 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		if wrap {
 			p.print("(")
 		}
-		p.printExpr(e.Test, ast.LConditional)
+		p.printExpr(e.Test, ast.LConditional, 0)
 		p.printSpace()
 		p.print("?")
 		p.printSpace()
-		p.printExpr(e.Yes, ast.LYield)
+		p.printExpr(e.Yes, ast.LYield, 0)
 		p.printSpace()
 		p.print(":")
 		p.printSpace()
-		p.printExpr(e.No, ast.LYield)
+		p.printExpr(e.No, ast.LYield, 0)
 		if wrap {
 			p.print(")")
 		}
@@ -1049,7 +1049,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		p.printSpace()
 		if e.Expr != nil {
 			p.arrowExprStart = len(p.js)
-			p.printExpr(*e.Expr, ast.LComma)
+			p.printExpr(*e.Expr, ast.LComma, 0)
 		} else {
 			p.printBlock(e.Stmts)
 		}
@@ -1101,7 +1101,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 				p.print(",")
 				p.printSpace()
 			}
-			p.printExpr(item, ast.LComma)
+			p.printExpr(item, ast.LComma, 0)
 
 			// Make sure there's a comma after trailing missing items
 			_, ok := item.Data.(*ast.EMissing)
@@ -1173,7 +1173,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 
 	case *ast.ETemplate:
 		if e.Tag != nil {
-			p.printExpr(*e.Tag, ast.LPostfix)
+			p.printExpr(*e.Tag, ast.LPostfix, 0)
 		}
 		p.print("`")
 		if e.Tag != nil {
@@ -1183,7 +1183,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		}
 		for _, part := range e.Parts {
 			p.print("${")
-			p.printExpr(part.Value, ast.LLowest)
+			p.printExpr(part.Value, ast.LLowest, 0)
 			p.print("}")
 			if e.Tag != nil {
 				p.print(part.TailRaw)
@@ -1288,7 +1288,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		p.printSpaceBeforeIdentifier()
 		p.print("await")
 		p.printSpace()
-		p.printExpr(e.Value, ast.LPrefix)
+		p.printExpr(e.Value, ast.LPrefix, 0)
 
 		if wrap {
 			p.print(")")
@@ -1309,7 +1309,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 				p.print("*")
 			}
 			p.printSpace()
-			p.printExpr(*e.Value, ast.LYield)
+			p.printExpr(*e.Value, ast.LYield, 0)
 		}
 
 		if wrap {
@@ -1325,7 +1325,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		}
 
 		if !e.Op.IsPrefix() {
-			p.printExpr(e.Value, ast.LPostfix-1)
+			p.printExpr(e.Value, ast.LPostfix-1, 0)
 		}
 
 		if entry.IsKeyword {
@@ -1340,7 +1340,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		}
 
 		if e.Op.IsPrefix() {
-			p.printExpr(e.Value, ast.LPrefix-1)
+			p.printExpr(e.Value, ast.LPrefix-1, 0)
 		}
 
 		if wrap {
@@ -1382,7 +1382,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 			}
 		}
 
-		p.printExpr(e.Left, leftLevel)
+		p.printExpr(e.Left, leftLevel, 0)
 
 		if e.Op != ast.BinOpComma {
 			p.printSpace()
@@ -1400,7 +1400,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 
 		p.printSpace()
 
-		p.printExpr(e.Right, rightLevel)
+		p.printExpr(e.Right, rightLevel, 0)
 
 		if wrap {
 			p.print(")")
@@ -1424,7 +1424,7 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []ast.Decl)
 func (p *printer) printForLoopInit(init ast.Stmt) {
 	switch s := init.Data.(type) {
 	case *ast.SExpr:
-		p.printExpr(s.Value, ast.LLowest)
+		p.printExpr(s.Value, ast.LLowest, 0)
 	case *ast.SVar:
 		p.printDecls("var", s.Decls)
 	case *ast.SLet:
@@ -1451,7 +1451,7 @@ func (p *printer) printDecls(keyword string, decls []ast.Decl) {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*decl.Value, ast.LComma)
+			p.printExpr(*decl.Value, ast.LComma, 0)
 		}
 	}
 }
@@ -1520,7 +1520,7 @@ func (p *printer) printIf(s *ast.SIf) {
 	p.print("if")
 	p.printSpace()
 	p.print("(")
-	p.printExpr(s.Test, ast.LLowest)
+	p.printExpr(s.Test, ast.LLowest, 0)
 	p.print(")")
 
 	if yes, ok := s.Yes.Data.(*ast.SBlock); ok {
@@ -1637,7 +1637,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			if wrap {
 				p.print("(")
 			}
-			p.printExpr(*s.Value.Expr, ast.LComma)
+			p.printExpr(*s.Value.Expr, ast.LComma, 0)
 			if wrap {
 				p.print(")")
 			}
@@ -1772,7 +1772,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print("while")
 		p.printSpace()
 		p.print("(")
-		p.printExpr(s.Test, ast.LLowest)
+		p.printExpr(s.Test, ast.LLowest, 0)
 		p.print(")")
 		p.printSemicolonAfterStatement()
 
@@ -1787,7 +1787,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("in")
 		p.printSpace()
-		p.printExpr(s.Value, ast.LLowest)
+		p.printExpr(s.Value, ast.LLowest, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
@@ -1805,7 +1805,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("of")
 		p.printSpace()
-		p.printExpr(s.Value, ast.LLowest)
+		p.printExpr(s.Value, ast.LLowest, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
@@ -1815,7 +1815,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print("while")
 		p.printSpace()
 		p.print("(")
-		p.printExpr(s.Test, ast.LLowest)
+		p.printExpr(s.Test, ast.LLowest, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
@@ -1825,7 +1825,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print("with")
 		p.printSpace()
 		p.print("(")
-		p.printExpr(s.Value, ast.LLowest)
+		p.printExpr(s.Value, ast.LLowest, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
@@ -1876,12 +1876,12 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print(";")
 		p.printSpace()
 		if s.Test != nil {
-			p.printExpr(*s.Test, ast.LLowest)
+			p.printExpr(*s.Test, ast.LLowest, 0)
 		}
 		p.print(";")
 		p.printSpace()
 		if s.Update != nil {
-			p.printExpr(*s.Update, ast.LLowest)
+			p.printExpr(*s.Update, ast.LLowest, 0)
 		}
 		p.print(")")
 		p.printBody(s.Body)
@@ -1892,7 +1892,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print("switch")
 		p.printSpace()
 		p.print("(")
-		p.printExpr(s.Test, ast.LLowest)
+		p.printExpr(s.Test, ast.LLowest, 0)
 		p.print(")")
 		p.printSpace()
 		p.print("{")
@@ -1906,7 +1906,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			if c.Value != nil {
 				p.print("case")
 				p.printSpace()
-				p.printExpr(*c.Value, ast.LLogicalAnd)
+				p.printExpr(*c.Value, ast.LLogicalAnd, 0)
 			} else {
 				p.print("default")
 			}
@@ -2031,7 +2031,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print("return")
 		if s.Value != nil {
 			p.printSpace()
-			p.printExpr(*s.Value, ast.LLowest)
+			p.printExpr(*s.Value, ast.LLowest, 0)
 		}
 		p.printSemicolonAfterStatement()
 
@@ -2040,13 +2040,13 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("throw")
 		p.printSpace()
-		p.printExpr(s.Value, ast.LLowest)
+		p.printExpr(s.Value, ast.LLowest, 0)
 		p.printSemicolonAfterStatement()
 
 	case *ast.SExpr:
 		p.printIndent()
 		p.stmtStart = len(p.js)
-		p.printExpr(s.Value, ast.LLowest)
+		p.printExpr(s.Value, ast.LLowest, 0)
 		p.printSemicolonAfterStatement()
 
 	default:
@@ -2147,6 +2147,6 @@ func PrintExpr(expr ast.Expr, symbols *ast.SymbolMap, requireRef ast.Ref, option
 	// Always add a mapping at the beginning of the file
 	p.addSourceMapping(ast.Loc{0})
 
-	p.printExpr(expr, ast.LLowest)
+	p.printExpr(expr, ast.LLowest, 0)
 	return p.js, SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart}
 }
