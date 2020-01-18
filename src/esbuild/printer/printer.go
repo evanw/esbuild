@@ -974,7 +974,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EImport:
-		wrap := level >= ast.LNew
+		wrap := level >= ast.LNew || (flags&forbidCall) != 0
 		if wrap {
 			p.print("(")
 		}

@@ -4267,41 +4267,39 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 		// Track calls to require() and import() so we can use them while bundling
-		if b.isBundling {
-			if id, ok := e.Target.Data.(*ast.EIdentifier); ok && (id.Ref == b.requireRef || id.Ref == b.importRef) {
-				// There must be one argument
-				if len(e.Args) != 1 {
-					b.log.AddError(b.source, expr.Loc,
-						fmt.Sprintf("Calls to %s() must take a single argument", b.symbols[id.Ref.InnerIndex].Name))
-					return expr
-				}
-				arg := e.Args[0]
+		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && (id.Ref == b.requireRef || id.Ref == b.importRef) {
+			// There must be one argument
+			if len(e.Args) != 1 {
+				b.log.AddError(b.source, expr.Loc,
+					fmt.Sprintf("Calls to %s() must take a single argument", b.symbols[id.Ref.InnerIndex].Name))
+				return expr
+			}
+			arg := e.Args[0]
 
-				// The argument must be a string
-				str, ok := arg.Data.(*ast.EString)
-				if !ok {
-					b.log.AddError(b.source, arg.Loc,
-						fmt.Sprintf("The argument to %s() must be a string literal", b.symbols[id.Ref.InnerIndex].Name))
-					return expr
-				}
+			// The argument must be a string
+			str, ok := arg.Data.(*ast.EString)
+			if !ok {
+				b.log.AddError(b.source, arg.Loc,
+					fmt.Sprintf("The argument to %s() must be a string literal", b.symbols[id.Ref.InnerIndex].Name))
+				return expr
+			}
 
-				// Ignore calls to require() and import() if the control flow is provably
-				// dead here. We don't want to spend time scanning the required files
-				// if they will never be used.
-				if b.isControlFlowDead {
-					return ast.Expr{expr.Loc, &ast.ENull{}}
-				}
+			// Ignore calls to require() and import() if the control flow is provably
+			// dead here. We don't want to spend time scanning the required files
+			// if they will never be used.
+			if b.isControlFlowDead {
+				return ast.Expr{expr.Loc, &ast.ENull{}}
+			}
 
-				path := ast.Path{arg.Loc, lexer.UTF16ToString(str.Value)}
+			path := ast.Path{arg.Loc, lexer.UTF16ToString(str.Value)}
 
-				// Create a new expression to represent the operation
-				if id.Ref == b.requireRef {
-					b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
-					return ast.Expr{expr.Loc, &ast.ERequire{path}}
-				} else {
-					b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
-					return ast.Expr{expr.Loc, &ast.EImport{path}}
-				}
+			// Create a new expression to represent the operation
+			if id.Ref == b.requireRef {
+				b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
+				return ast.Expr{expr.Loc, &ast.ERequire{path}}
+			} else {
+				b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
+				return ast.Expr{expr.Loc, &ast.EImport{path}}
 			}
 		}
 
@@ -4504,8 +4502,10 @@ func newBinder(source logging.Source, options ParseOptions) *binder {
 		b.scope.Members["exports"] = b.exportsRef
 		b.scope.Members["require"] = b.requireRef
 		b.scope.Members["module"] = b.moduleRef
-		b.scope.Members["import"] = b.importRef
 	}
+
+	// This symbol must always be declared because import() calls are special syntax
+	b.scope.Members["import"] = b.importRef
 
 	return b
 }

@@ -66,6 +66,11 @@ func TestNew(t *testing.T) {
 	expectPrinted(t, "new foo()[bar]", "new foo()[bar];\n")
 	expectPrinted(t, "new (foo()[bar])", "new (foo())[bar]();\n")
 	expectPrinted(t, "new (foo())[bar]", "new (foo())[bar]();\n")
+
+	expectPrinted(t, "new (import('foo').bar)", "new (import(\"foo\")).bar();\n")
+	expectPrinted(t, "new (import('foo')).bar", "new (import(\"foo\")).bar();\n")
+	expectPrinted(t, "new (import('foo')[bar])", "new (import(\"foo\"))[bar]();\n")
+	expectPrinted(t, "new (import('foo'))[bar]", "new (import(\"foo\"))[bar]();\n")
 }
 
 func TestCall(t *testing.T) {
