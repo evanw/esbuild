@@ -3089,6 +3089,12 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 						right = &ast.Expr{lastStmt.Loc, &ast.EUndefined{}}
 					}
 
+					// "if (!a) return b; return c;" => "return a ? c : b;"
+					if not, ok := prevS.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
+						prevS.Test = not.Value
+						left, right = right, left
+					}
+
 					// Handle the returned values being the same
 					if boolean, ok := checkEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
 						// "if (a) return b; return b;" => "return a, b;"
@@ -3136,8 +3142,17 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 						break throwLoop
 					}
 
+					left := prevThrow.Value
+					right := lastThrow.Value
+
+					// "if (!a) throw b; throw c;" => "throw a ? c : b;"
+					if not, ok := prevS.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
+						prevS.Test = not.Value
+						left, right = right, left
+					}
+
 					// Merge the last two statements
-					lastThrow = &ast.SThrow{ast.Expr{prevS.Test.Loc, &ast.EIf{prevS.Test, prevThrow.Value, lastThrow.Value}}}
+					lastThrow = &ast.SThrow{ast.Expr{prevS.Test.Loc, &ast.EIf{prevS.Test, left, right}}}
 					lastStmt = ast.Stmt{prevStmt.Loc, lastThrow}
 					result[prevIndex] = lastStmt
 					result = result[:len(result)-1]
@@ -3427,6 +3442,16 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 				s.Test = ast.Expr{s.Test.Loc, &ast.EUnary{ast.UnOpNot, s.Test}}
 				s.Yes = *s.No
 				s.No = nil
+			}
+		}
+	} else {
+		// "yes" is not missing (and is not an expression)
+		if s.No != nil {
+			// "yes" is not missing (and is not an expression) and "no" is not missing
+			if not, ok := s.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
+				// "if (!a) return b; else return c;" => "if (a) return c; else return b;"
+				s.Test = not.Value
+				s.Yes, *s.No = *s.No, s.Yes
 			}
 		}
 	}
