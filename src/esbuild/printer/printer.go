@@ -355,7 +355,6 @@ type printer struct {
 	prevOp         ast.OpCode
 	prevOpEnd      int
 	prevNumEnd     int
-	lineLengthHint int
 
 	// For imports
 	resolvedImports     map[string]uint32
@@ -463,7 +462,6 @@ func (p *printer) printBinding(binding ast.Binding) {
 			if i != 0 {
 				p.print(",")
 				p.printSpace()
-				p.printMinifiedNewlineIfNeeded()
 			}
 			if b.HasSpread && i+1 == len(b.Items) {
 				p.print("...")
@@ -594,24 +592,12 @@ func (p *printer) printSemicolonAfterStatement() {
 	}
 }
 
-func (p *printer) printMinifiedNewlineIfNeeded() {
-	if p.minify && len(p.js)-p.prevLineStart > p.lineLengthHint {
-		p.print("\n")
-
-		// For speed, this isn't normally updated when source maps are off
-		if !p.writeSourceMap {
-			p.prevLineStart = len(p.js)
-		}
-	}
-}
-
 func (p *printer) printSemicolonIfNeeded() {
 	if p.needsSemicolon {
 		p.print(";")
 		p.needsSemicolon = false
 	}
 
-	p.printMinifiedNewlineIfNeeded()
 }
 
 func (p *printer) printSpaceBeforeIdentifier() {
@@ -1080,7 +1066,6 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 			if i != 0 {
 				p.print(",")
 				p.printSpace()
-				p.printMinifiedNewlineIfNeeded()
 			}
 			p.printExpr(item, ast.LComma)
 
@@ -1105,7 +1090,6 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 			for i, item := range e.Properties {
 				if i != 0 {
 					p.print(",")
-					p.printMinifiedNewlineIfNeeded()
 				}
 
 				p.printNewline()
@@ -1373,7 +1357,6 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L) {
 		}
 
 		p.printSpace()
-		p.printMinifiedNewlineIfNeeded()
 
 		p.printExpr(e.Right, rightLevel)
 
@@ -1419,7 +1402,6 @@ func (p *printer) printDecls(keyword string, decls []ast.Decl) {
 		if i != 0 {
 			p.print(",")
 			p.printSpace()
-			p.printMinifiedNewlineIfNeeded()
 		}
 		p.printBinding(decl.Binding)
 
@@ -1452,7 +1434,6 @@ func (p *printer) printBlock(stmts []ast.Stmt) {
 	p.indent++
 	for _, stmt := range stmts {
 		p.printSemicolonIfNeeded()
-		p.printMinifiedNewlineIfNeeded()
 		p.printStmt(stmt)
 	}
 	p.indent--
@@ -1902,7 +1883,6 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.indent++
 			for _, stmt := range c.Body {
 				p.printSemicolonIfNeeded()
-				p.printMinifiedNewlineIfNeeded()
 				p.printStmt(stmt)
 			}
 			p.indent--
@@ -2069,7 +2049,6 @@ func createPrinter(
 		resolvedImports:     options.ResolvedImports,
 		indent:              options.Indent,
 		prevOpEnd:           -1,
-		lineLengthHint:      1024,
 		prevLoc:             ast.Loc{-1},
 		requireRef:          requireRef,
 	}
@@ -2107,7 +2086,6 @@ func Print(tree ast.AST, options Options) ([]byte, SourceMapChunk) {
 
 	for _, stmt := range tree.Stmts {
 		p.printSemicolonIfNeeded()
-		p.printMinifiedNewlineIfNeeded()
 		p.printStmt(stmt)
 	}
 

@@ -301,8 +301,14 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 			// Save the offset to the start of the stored JavaScript
 			generatedOffsets[sourceIndex] = computeLineColumnOffset(js[prevOffset:])
 
+			// Strip the trailing newline if there is one
+			moduleJs := compileResults[sourceIndex].js
+			if len(moduleJs) > 0 && moduleJs[len(moduleJs)-1] == '\n' {
+				moduleJs = moduleJs[:len(moduleJs)-1]
+			}
+
 			// Append the stored JavaScript
-			js = append(js, compileResults[sourceIndex].js...)
+			js = append(js, moduleJs...)
 			prevOffset = len(js)
 		}
 
