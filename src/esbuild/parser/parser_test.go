@@ -887,12 +887,12 @@ func TestReplacementCharacter(t *testing.T) {
 	expectPrinted(t, "//\uFFFD\n123", "123;\n")
 	expectPrinted(t, "/*\uFFFD*/123", "123;\n")
 
-	expectPrinted(t, "'\uFFFD'", "\"\\uFFFD\";\n")
-	expectPrinted(t, "\"\uFFFD\"", "\"\\uFFFD\";\n")
-	expectPrinted(t, "`\uFFFD`", "`\\uFFFD`;\n")
+	expectPrinted(t, "'\uFFFD'", "\"\uFFFD\";\n")
+	expectPrinted(t, "\"\uFFFD\"", "\"\uFFFD\";\n")
+	expectPrinted(t, "`\uFFFD`", "`\uFFFD`;\n")
 	expectPrinted(t, "/\uFFFD/", "/\uFFFD/;\n")
 
-	expectPrintedJSX(t, "<a>\uFFFD</a>", "React.createElement(\"a\", null, \"\\uFFFD\");\n")
+	expectPrintedJSX(t, "<a>\uFFFD</a>", "React.createElement(\"a\", null, \"\uFFFD\");\n")
 }
 
 func TestNewTarget(t *testing.T) {

@@ -281,6 +281,14 @@ func quoteUTF16(text []uint16, quote rune) string {
 		i++
 
 		switch c {
+		case '\x00':
+			// We don't want "\x001" to be written as "\01"
+			if i >= n || text[i] < '0' || text[i] > '9' {
+				b.WriteString("\\0")
+			} else {
+				b.WriteString("\\x00")
+			}
+
 		case '\b':
 			b.WriteString("\\b")
 
@@ -296,9 +304,6 @@ func quoteUTF16(text []uint16, quote rune) string {
 
 		case '\r':
 			b.WriteString("\\r")
-
-		case '\t':
-			b.WriteByte('\t')
 
 		case '\v':
 			b.WriteString("\\v")
@@ -324,19 +329,48 @@ func quoteUTF16(text []uint16, quote rune) string {
 			}
 			b.WriteByte('`')
 
+		case '\u2028':
+			b.WriteString("\\u2028")
+
+		case '\u2029':
+			b.WriteString("\\u2029")
+
 		default:
-			if c >= 0x20 && c <= 0x7E {
-				b.WriteByte(byte(c))
-			} else if c <= 0xFF {
-				b.WriteString("\\x")
-				b.WriteByte(hexChars[c>>4])
-				b.WriteByte(hexChars[c&15])
-			} else {
+			switch {
+			// Is this a high surrogate?
+			case c >= 0xD800 && c <= 0xDBFF:
+				// Is there a next character?
+				if i < n {
+					c2 := text[i]
+
+					// Is it a low surrogate?
+					if c2 >= 0xDC00 && c2 <= 0xDFFF {
+						i++
+						b.WriteRune((rune(c) << 10) + rune(c2) + (0x10000 - (0xD800 << 10) - 0xDC00))
+						continue
+					}
+				}
+
+				// Write an escaped character
 				b.WriteString("\\u")
 				b.WriteByte(hexChars[c>>12])
 				b.WriteByte(hexChars[(c>>8)&15])
 				b.WriteByte(hexChars[(c>>4)&15])
 				b.WriteByte(hexChars[c&15])
+				continue
+
+			// Is this a low surrogate?
+			case c >= 0xDC00 && c <= 0xDFFF:
+				// Write an escaped character
+				b.WriteString("\\u")
+				b.WriteByte(hexChars[c>>12])
+				b.WriteByte(hexChars[(c>>8)&15])
+				b.WriteByte(hexChars[(c>>4)&15])
+				b.WriteByte(hexChars[c&15])
+				continue
+
+			default:
+				b.WriteRune(rune(c))
 			}
 		}
 	}
