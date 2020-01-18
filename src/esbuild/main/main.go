@@ -139,7 +139,7 @@ Example:
 	for _, arg := range os.Args[1:] {
 		switch {
 		case arg == "--bundle":
-			args.parseOptions.ScanForDependencies = true
+			args.parseOptions.IsBundling = true
 			args.bundleOptions.Bundle = true
 
 		case arg == "--minify":

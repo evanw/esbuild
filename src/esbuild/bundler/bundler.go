@@ -1059,8 +1059,19 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 	for sourceIndex, _ := range b.files {
 		waitGroup.Add(1)
 		go func(sourceIndex uint32) {
-			file := b.files[sourceIndex]
-			result := b.compileFile(&options, sourceIndex, file, []uint32{})
+			f := b.files[sourceIndex]
+			group := []uint32{sourceIndex}
+
+			// Optionally minify symbols
+			if options.MinifyIdentifiers {
+				files := []file{f}
+				symbols := b.mergeAllSymbolsIntoOneMap(files)
+				b.renameOrMinifyAllSymbols(files, symbols, group, &options)
+				f.ast.Symbols = symbols
+			}
+
+			// Print the JavaScript code
+			result := b.compileFile(&options, sourceIndex, f, []uint32{})
 
 			// Make a filename for the resulting JavaScript file
 			jsName := b.outputFileForEntryPoint(sourceIndex, &options)
@@ -1074,7 +1085,7 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 			if options.SourceMap {
 				compileResults := map[uint32]*compileResult{sourceIndex: &result}
 				generatedOffsets := map[uint32]lineColumnOffset{sourceIndex: lineColumnOffset{}}
-				groups := [][]uint32{[]uint32{sourceIndex}}
+				groups := [][]uint32{group}
 				b.generateSourceMapForEntryPoint(compileResults, generatedOffsets, groups, &options, item)
 			}
 

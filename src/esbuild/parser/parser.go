@@ -2643,7 +2643,7 @@ type binder struct {
 	allocatedNames    []string
 	tryBodyCount      int
 
-	scanForDependencies     bool
+	isBundling              bool
 	indirectImportItems     map[ast.Ref]bool
 	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
 	exprForImportItem       map[ast.Ref]*ast.ENamespaceImport
@@ -3981,7 +3981,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		*ast.ERegExp, *ast.ENewTarget, *ast.EUndefined:
 
 	case *ast.EImportMeta:
-		if b.scanForDependencies {
+		if b.isBundling {
 			// Replace "import.meta" with a dummy object when bundling
 			return ast.Expr{expr.Loc, &ast.EObject{}}
 		}
@@ -4267,7 +4267,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 		// Track calls to require() and import() so we can use them while bundling
-		if b.scanForDependencies {
+		if b.isBundling {
 			if id, ok := e.Target.Data.(*ast.EIdentifier); ok && (id.Ref == b.requireRef || id.Ref == b.importRef) {
 				// There must be one argument
 				if len(e.Args) != 1 {
@@ -4380,7 +4380,7 @@ type JSXOptions struct {
 }
 
 type ParseOptions struct {
-	ScanForDependencies  bool
+	IsBundling           bool
 	Defines              map[string]ast.E
 	MangleSyntax         bool
 	KeepSingleExpression bool
@@ -4420,13 +4420,9 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{allowImportAndExport: true})
 
 	// Load user-specified defines
-	b := newBinder(source)
+	b := newBinder(source, options)
 	b.log = log
-	b.jsx = options.JSX
-	b.omitWarnings = options.OmitWarnings
-	b.mangleSyntax = options.MangleSyntax
 	b.allocatedNames = p.allocatedNames
-	b.scanForDependencies = options.ScanForDependencies
 
 	if options.Defines != nil {
 		for k, v := range options.Defines {
@@ -4461,7 +4457,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	}
 
 	// Clear the import paths if we don't want any dependencies
-	if !options.ScanForDependencies {
+	if !options.IsBundling {
 		p.importPaths = []ast.ImportPath{}
 	}
 
@@ -4469,7 +4465,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	return
 }
 
-func newBinder(source logging.Source) *binder {
+func newBinder(source logging.Source, options ParseOptions) *binder {
 	b := &binder{
 		identifierDefines: make(map[string]ast.E),
 		dotDefines:        make(map[string]dotDefine),
@@ -4478,6 +4474,11 @@ func newBinder(source logging.Source) *binder {
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),
 		exportAliases:           make(map[string]bool),
+
+		jsx:          options.JSX,
+		omitWarnings: options.OmitWarnings,
+		mangleSyntax: options.MangleSyntax,
+		isBundling:   options.IsBundling,
 	}
 
 	b.pushScope(ast.ScopeModule)
@@ -4497,10 +4498,14 @@ func newBinder(source logging.Source) *binder {
 	b.requireRef = b.newSymbol(ast.SymbolHoisted, "require")
 	b.moduleRef = b.newSymbol(ast.SymbolHoisted, "module")
 	b.importRef = b.newSymbol(ast.SymbolHoisted, "import")
-	b.scope.Members["exports"] = b.exportsRef
-	b.scope.Members["require"] = b.requireRef
-	b.scope.Members["module"] = b.moduleRef
-	b.scope.Members["import"] = b.importRef
+
+	// Only declare these symbols if we're bundling
+	if b.isBundling {
+		b.scope.Members["exports"] = b.exportsRef
+		b.scope.Members["require"] = b.requireRef
+		b.scope.Members["module"] = b.moduleRef
+		b.scope.Members["import"] = b.importRef
+	}
 
 	return b
 }

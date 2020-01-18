@@ -109,7 +109,7 @@ func ParseJson(log logging.Log, source logging.Source) (result ast.Expr, ok bool
 }
 
 func ModuleExportsAST(source logging.Source, expr ast.Expr) ast.AST {
-	b := newBinder(source)
+	b := newBinder(source, ParseOptions{})
 
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}

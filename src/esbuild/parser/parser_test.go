@@ -166,6 +166,12 @@ func TestIdentifierEscapes(t *testing.T) {
 	expectPrinted(t, "foo.\\u0076\\u0061\\u0072", "foo.var;\n")
 }
 
+func TestSpecialIdentifiers(t *testing.T) {
+	expectPrinted(t, "exports", "exports;\n")
+	expectPrinted(t, "require", "require;\n")
+	expectPrinted(t, "module", "module;\n")
+}
+
 func TestDecls(t *testing.T) {
 	expectParseError(t, "var x = 0", "")
 	expectParseError(t, "let x = 0", "")

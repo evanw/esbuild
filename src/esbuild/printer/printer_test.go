@@ -351,4 +351,9 @@ func TestMinify(t *testing.T) {
 	expectPrintedMinify(t, "(a) => {}", "a=>{};\n")
 	expectPrintedMinify(t, "(a = 0) => {}", "(a=0)=>{};\n")
 	expectPrintedMinify(t, "(a, b) => {}", "(a,b)=>{};\n")
+
+	// Special identifiers must not be minified
+	expectPrintedMinify(t, "exports", "exports;\n")
+	expectPrintedMinify(t, "require", "require;\n")
+	expectPrintedMinify(t, "module", "module;\n")
 }
