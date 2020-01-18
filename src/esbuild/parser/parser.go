@@ -3045,71 +3045,106 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 
 		if lastReturn, ok := lastStmt.Data.(*ast.SReturn); ok {
 			// "if (a) return b; if (c) return d; return e;" => "return a ? b : c ? d : e;"
+		returnLoop:
 			for len(result) >= 2 {
 				prevIndex := len(result) - 2
 				prevStmt := result[prevIndex]
 
-				// The previous statement must be an if statement with no else clause
-				prevIf, ok := prevStmt.Data.(*ast.SIf)
-				if !ok || prevIf.No != nil {
-					break
-				}
+				switch prevS := prevStmt.Data.(type) {
+				case *ast.SExpr:
+					// This return statement must have a value
+					if lastReturn.Value == nil {
+						break returnLoop
+					}
 
-				// The then clause must be a return
-				prevReturn, ok := prevIf.Yes.Data.(*ast.SReturn)
-				if !ok {
-					break
-				}
+					// "a(); return b;" => "return a(), b;"
+					lastReturn = &ast.SReturn{&ast.Expr{prevStmt.Loc, &ast.EBinary{ast.BinOpComma, prevS.Value, *lastReturn.Value}}}
 
-				// Handle some or all of the values being undefined
-				left := prevReturn.Value
-				right := lastReturn.Value
-				if left == nil {
-					// "if (a) return; return b;" => "return a ? void 0 : b;"
-					left = &ast.Expr{prevIf.Yes.Loc, &ast.EUndefined{}}
-				}
-				if right == nil {
-					// "if (a) return a; return;" => "return a ? b : void 0;"
-					right = &ast.Expr{lastStmt.Loc, &ast.EUndefined{}}
-				}
+					// Merge the last two statements
+					lastStmt = ast.Stmt{prevStmt.Loc, lastReturn}
+					result[prevIndex] = lastStmt
+					result = result[:len(result)-1]
 
-				// Handle the returned values being the same
-				if boolean, ok := checkEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
-					// "if (a) return b; return b;" => "return a, b;"
-					lastReturn = &ast.SReturn{&ast.Expr{prevIf.Test.Loc, &ast.EBinary{ast.BinOpComma, prevIf.Test, *left}}}
-				} else {
-					// "if (a) return b; return c;" => "return a ? b : c;"
-					lastReturn = &ast.SReturn{&ast.Expr{prevIf.Test.Loc, &ast.EIf{prevIf.Test, *left, *right}}}
-				}
+				case *ast.SIf:
+					// The previous statement must be an if statement with no else clause
+					if prevS.No != nil {
+						break returnLoop
+					}
 
-				// Merge the last two statements
-				lastStmt = ast.Stmt{prevStmt.Loc, lastReturn}
-				result[prevIndex] = lastStmt
-				result = result[:len(result)-1]
+					// The then clause must be a return
+					prevReturn, ok := prevS.Yes.Data.(*ast.SReturn)
+					if !ok {
+						break returnLoop
+					}
+
+					// Handle some or all of the values being undefined
+					left := prevReturn.Value
+					right := lastReturn.Value
+					if left == nil {
+						// "if (a) return; return b;" => "return a ? void 0 : b;"
+						left = &ast.Expr{prevS.Yes.Loc, &ast.EUndefined{}}
+					}
+					if right == nil {
+						// "if (a) return a; return;" => "return a ? b : void 0;"
+						right = &ast.Expr{lastStmt.Loc, &ast.EUndefined{}}
+					}
+
+					// Handle the returned values being the same
+					if boolean, ok := checkEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
+						// "if (a) return b; return b;" => "return a, b;"
+						lastReturn = &ast.SReturn{&ast.Expr{prevS.Test.Loc, &ast.EBinary{ast.BinOpComma, prevS.Test, *left}}}
+					} else {
+						// "if (a) return b; return c;" => "return a ? b : c;"
+						lastReturn = &ast.SReturn{&ast.Expr{prevS.Test.Loc, &ast.EIf{prevS.Test, *left, *right}}}
+					}
+
+					// Merge the last two statements
+					lastStmt = ast.Stmt{prevStmt.Loc, lastReturn}
+					result[prevIndex] = lastStmt
+					result = result[:len(result)-1]
+
+				default:
+					break returnLoop
+				}
 			}
 		} else if lastThrow, ok := lastStmt.Data.(*ast.SThrow); ok {
 			// "if (a) throw b; if (c) throw d; throw e;" => "throw a ? b : c ? d : e;"
+		throwLoop:
 			for len(result) >= 2 {
 				prevIndex := len(result) - 2
 				prevStmt := result[prevIndex]
 
-				// The previous statement must be an if statement with no else clause
-				prevIf, ok := prevStmt.Data.(*ast.SIf)
-				if !ok || prevIf.No != nil {
-					break
-				}
+				switch prevS := prevStmt.Data.(type) {
+				case *ast.SExpr:
+					// "a(); throw b;" => "throw a(), b;"
+					lastThrow = &ast.SThrow{ast.Expr{prevStmt.Loc, &ast.EBinary{ast.BinOpComma, prevS.Value, lastThrow.Value}}}
 
-				// The then clause must be a throw
-				prevThrow, ok := prevIf.Yes.Data.(*ast.SThrow)
-				if !ok {
-					break
-				}
+					// Merge the last two statements
+					lastStmt = ast.Stmt{prevStmt.Loc, lastThrow}
+					result[prevIndex] = lastStmt
+					result = result[:len(result)-1]
 
-				// Merge the last two statements
-				lastThrow = &ast.SThrow{ast.Expr{prevIf.Test.Loc, &ast.EIf{prevIf.Test, prevThrow.Value, lastThrow.Value}}}
-				lastStmt = ast.Stmt{prevStmt.Loc, lastThrow}
-				result[prevIndex] = lastStmt
-				result = result[:len(result)-1]
+				case *ast.SIf:
+					// The previous statement must be an if statement with no else clause
+					if prevS.No != nil {
+						break throwLoop
+					}
+
+					// The then clause must be a throw
+					prevThrow, ok := prevS.Yes.Data.(*ast.SThrow)
+					if !ok {
+						break throwLoop
+					}
+
+					// Merge the last two statements
+					lastThrow = &ast.SThrow{ast.Expr{prevS.Test.Loc, &ast.EIf{prevS.Test, prevThrow.Value, lastThrow.Value}}}
+					lastStmt = ast.Stmt{prevStmt.Loc, lastThrow}
+					result[prevIndex] = lastStmt
+					result = result[:len(result)-1]
+
+				default:
+					break throwLoop
+				}
 			}
 		}
 	}

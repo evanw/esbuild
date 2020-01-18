@@ -831,6 +831,16 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "if (!a) {} else throw b", "if (a)\n  throw b;\n")
 }
 
+func TestMangleReturn(t *testing.T) {
+	expectPrintedMangle(t, "function foo() { a = b; if (a) return; if (b) c = b; return c; }",
+		"function foo() {\n  return a = b, a ? void 0 : (b && (c = b), c);\n}\n")
+}
+
+func TestMangleThrow(t *testing.T) {
+	expectPrintedMangle(t, "function foo() { a = b; if (a) throw a; if (b) c = b; throw c; }",
+		"function foo() {\n  throw a = b, a ? a : (b && (c = b), c);\n}\n")
+}
+
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { ; }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { b() }", "a();\n")
