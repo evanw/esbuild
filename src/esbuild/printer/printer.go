@@ -750,8 +750,21 @@ func (p *printer) printProperty(item ast.Property) {
 			p.print(text)
 
 			// Use a shorthand property if the names are the same
-			if id, ok := item.Value.Data.(*ast.EIdentifier); ok {
-				if text == p.symbolName(id.Ref) {
+			switch e := item.Value.Data.(type) {
+			case *ast.EIdentifier:
+				if text == p.symbolName(e.Ref) {
+					if item.DefaultValue != nil {
+						p.printSpace()
+						p.print("=")
+						p.printSpace()
+						p.printExpr(*item.DefaultValue, ast.LComma)
+					}
+					return
+				}
+
+			case *ast.ENamespaceImport:
+				// Make sure we're not using a property access instead of an identifier
+				if !p.indirectImportItems[e.ItemRef] && text == p.symbolName(e.ItemRef) {
 					if item.DefaultValue != nil {
 						p.printSpace()
 						p.print("=")
