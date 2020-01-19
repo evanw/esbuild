@@ -80,6 +80,7 @@ Options:
   --outdir=...          The output directory (for multiple entry points)
   --sourcemap           Emit a source map
   --error-limit=...     Maximum error count or 0 to disable (default 10)
+  --target=...          Language target (default esnext)
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace

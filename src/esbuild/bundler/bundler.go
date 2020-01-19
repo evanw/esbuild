@@ -1072,14 +1072,12 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 		go func(sourceIndex uint32) {
 			f := b.files[sourceIndex]
 			group := []uint32{sourceIndex}
+			files := []file{f}
 
-			// Optionally minify symbols
-			if options.MinifyIdentifiers {
-				files := []file{f}
-				symbols := b.mergeAllSymbolsIntoOneMap(files)
-				b.renameOrMinifyAllSymbols(files, symbols, group, &options)
-				f.ast.Symbols = symbols
-			}
+			// Rename symbols
+			symbols := b.mergeAllSymbolsIntoOneMap(files)
+			b.renameOrMinifyAllSymbols(files, symbols, group, &options)
+			f.ast.Symbols = symbols
 
 			// Print the JavaScript code
 			result := b.compileFile(&options, sourceIndex, f, []uint32{})

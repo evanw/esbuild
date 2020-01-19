@@ -2678,6 +2678,8 @@ type binder struct {
 	jsx               JSXOptions
 	allocatedNames    []string
 	tryBodyCount      int
+	canonicalTempRef  ast.Ref // A temporary variable used for lowering
+	target            LanguageTarget
 
 	isBundling              bool
 	indirectImportItems     map[ast.Ref]bool
@@ -2695,6 +2697,18 @@ func (b *binder) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
 	ref := ast.Ref{b.source.Index, uint32(len(b.symbols))}
 	b.symbols = append(b.symbols, ast.Symbol{kind, 0, name, ast.InvalidRef})
 	return ref
+}
+
+func (b *binder) generateTempRef() ast.Ref {
+	if b.canonicalTempRef == ast.InvalidRef {
+		scope := b.scope
+		for scope.Kind != ast.ScopeFunction && scope.Kind != ast.ScopeModule {
+			scope = scope.Parent
+		}
+		b.canonicalTempRef = b.newSymbol(ast.SymbolHoisted, "_")
+		scope.Generated = append(scope.Generated, b.canonicalTempRef)
+	}
+	return b.canonicalTempRef
 }
 
 func (b *binder) pushScope(kind ast.ScopeKind) {
@@ -2896,6 +2910,23 @@ func shouldKeepStmtInDeadControlFlow(stmt ast.Stmt) bool {
 		// Everything else must be kept
 		return true
 	}
+}
+
+func (b *binder) declareAndVisitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
+	oldTempRef := b.canonicalTempRef
+	b.canonicalTempRef = ast.InvalidRef
+
+	stmts = b.declareAndVisitStmts(stmts)
+
+	// Append the temporary variable to the end of the function or module
+	if b.canonicalTempRef != ast.InvalidRef {
+		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SVar{Decls: []ast.Decl{
+			ast.Decl{ast.Binding{ast.Loc{}, &ast.BIdentifier{b.canonicalTempRef}}, nil},
+		}}})
+	}
+
+	b.canonicalTempRef = oldTempRef
+	return stmts
 }
 
 func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
@@ -4153,13 +4184,50 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 			}
 
 		case ast.BinOpNullishCoalescing:
-			switch e.Left.Data.(type) {
+			switch e2 := e.Left.Data.(type) {
 			case *ast.EBoolean, *ast.ENumber, *ast.EString, *ast.ERegExp,
 				*ast.EObject, *ast.EArray, *ast.EFunction, *ast.EArrow, *ast.EClass:
 				return e.Left
 
 			case *ast.ENull, *ast.EUndefined:
 				return e.Right
+
+			case *ast.EIdentifier:
+				if b.target != ESNext {
+					// "a ?? b" => "a != null ? a : b"
+					return ast.Expr{expr.Loc, &ast.EIf{
+						ast.Expr{expr.Loc, &ast.EBinary{
+							ast.BinOpLooseNe,
+							ast.Expr{expr.Loc, &ast.EIdentifier{e2.Ref}},
+							ast.Expr{expr.Loc, &ast.ENull{}},
+						}},
+						e.Left,
+						e.Right,
+					}}
+				}
+
+			default:
+				if b.target != ESNext {
+					// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
+					ref := b.generateTempRef()
+					return ast.Expr{expr.Loc, &ast.EBinary{
+						ast.BinOpComma,
+						ast.Expr{expr.Loc, &ast.EBinary{
+							ast.BinOpAssign,
+							ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
+							e.Left,
+						}},
+						ast.Expr{e.Right.Loc, &ast.EIf{
+							ast.Expr{expr.Loc, &ast.EBinary{
+								ast.BinOpLooseNe,
+								ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
+								ast.Expr{expr.Loc, &ast.ENull{}},
+							}},
+							ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
+							e.Right,
+						}},
+					}}
+				}
 			}
 
 		case ast.BinOpLogicalOr:
@@ -4401,11 +4469,23 @@ func (b *binder) visitFn(fn *ast.Fn) {
 
 	b.pushScope(ast.ScopeFunction)
 	b.visitArgs(fn.Args)
-	fn.Stmts = b.declareAndVisitStmts(fn.Stmts)
+	fn.Stmts = b.declareAndVisitFnOrModuleStmts(fn.Stmts)
 	b.popScope()
 
 	b.tryBodyCount = oldTryBodyCount
 }
+
+type LanguageTarget uint8
+
+const (
+	ESNext LanguageTarget = iota
+	ES2015
+	ES2016
+	ES2017
+	ES2018
+	ES2019
+	ES2020
+)
 
 type JSXOptions struct {
 	Parse    bool
@@ -4420,6 +4500,7 @@ type ParseOptions struct {
 	KeepSingleExpression bool
 	OmitWarnings         bool
 	JSX                  JSXOptions
+	Target               LanguageTarget
 }
 
 func Parse(log logging.Log, source logging.Source, options ParseOptions) (result ast.AST, ok bool) {
@@ -4487,7 +4568,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		}
 		b.visitExpr(expr.Value)
 	} else {
-		stmts = b.declareAndVisitStmts(stmts)
+		stmts = b.declareAndVisitFnOrModuleStmts(stmts)
 	}
 
 	// Clear the import paths if we don't want any dependencies
@@ -4503,6 +4584,7 @@ func newBinder(source logging.Source, options ParseOptions) *binder {
 	b := &binder{
 		identifierDefines: make(map[string]ast.E),
 		dotDefines:        make(map[string]dotDefine),
+		canonicalTempRef:  ast.InvalidRef,
 
 		indirectImportItems:     make(map[ast.Ref]bool),
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
@@ -4513,6 +4595,7 @@ func newBinder(source logging.Source, options ParseOptions) *binder {
 		omitWarnings: options.OmitWarnings,
 		mangleSyntax: options.MangleSyntax,
 		isBundling:   options.IsBundling,
+		target:       options.Target,
 	}
 
 	b.pushScope(ast.ScopeModule)

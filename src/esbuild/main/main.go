@@ -116,6 +116,7 @@ Options:
   --outdir=...          The output directory (for multiple entry points)
   --sourcemap           Emit a source map
   --error-limit=...     Maximum error count or 0 to disable (default 10)
+  --target=...          Language target (default esnext)
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -200,6 +201,26 @@ Example:
 			}
 			if !args.parseDefine(text[:equals], text[equals+1:]) {
 				args.exitWithError(fmt.Sprintf("Invalid define: %s", arg))
+			}
+
+		case strings.HasPrefix(arg, "--target="):
+			switch arg[len("--target="):] {
+			case "esnext":
+				args.parseOptions.Target = parser.ESNext
+			case "es6", "es2015":
+				args.parseOptions.Target = parser.ES2015
+			case "es2016":
+				args.parseOptions.Target = parser.ES2016
+			case "es2017":
+				args.parseOptions.Target = parser.ES2017
+			case "es2018":
+				args.parseOptions.Target = parser.ES2018
+			case "es2019":
+				args.parseOptions.Target = parser.ES2019
+			case "es2020":
+				args.parseOptions.Target = parser.ES2020
+			default:
+				args.exitWithError("Valid targets: es6, es2015, es2016, es2017, es2018, es2019, es2020, esnext")
 			}
 
 		case strings.HasPrefix(arg, "--jsx-factory="):

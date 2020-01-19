@@ -81,6 +81,32 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedTarget(t *testing.T, target LanguageTarget, contents string, expected string) {
+	t.Run(contents, func(t *testing.T) {
+		log, join := logging.NewDeferLog()
+		ast, ok := Parse(log, logging.Source{
+			Index:        0,
+			AbsolutePath: "<stdin>",
+			PrettyPath:   "<stdin>",
+			Contents:     contents,
+		}, ParseOptions{
+			OmitWarnings: true,
+			Target:       target,
+		})
+		msgs := join()
+		text := ""
+		for _, msg := range msgs {
+			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+		}
+		assertEqual(t, text, "")
+		if !ok {
+			t.Fatal("Parse error")
+		}
+		js, _ := printer.Print(ast, printer.Options{})
+		assertEqual(t, string(js), expected)
+	})
+}
+
 func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log, join := logging.NewDeferLog()
@@ -980,4 +1006,11 @@ func TestJSX(t *testing.T) {
 	expectParseErrorJSX(t, "<a.b-c>", "<stdin>: error: Unexpected \"-\"\n")
 	expectParseErrorJSX(t, "<a:b>", "<stdin>: error: Expected \">\" but found \":\"\n")
 	expectParseErrorJSX(t, "<a>{...children}</a>", "<stdin>: error: Unexpected \"...\"\n")
+}
+
+func TestLowerNullishCoalescing(t *testing.T) {
+	expectPrintedTarget(t, ES2015, "a ?? b", "a != null ? a : b;\n")
+	expectPrintedTarget(t, ES2015, "a() ?? b()", "_ = a(), _ != null ? _ : b();\nvar _;\n")
+	expectPrintedTarget(t, ES2015, "function foo() { if (x) { a() ?? b() ?? c() } }",
+		"function foo() {\n  if (x) {\n    _ = (_ = a(), _ != null ? _ : b()), _ != null ? _ : c();\n  }\n  var _;\n}\n")
 }
