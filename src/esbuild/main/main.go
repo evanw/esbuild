@@ -3,6 +3,7 @@ package main
 import (
 	"esbuild/ast"
 	"esbuild/bundler"
+	"esbuild/fs"
 	"esbuild/lexer"
 	"esbuild/logging"
 	"esbuild/parser"
@@ -293,7 +294,7 @@ func main() {
 		}
 
 		// Parse all files in the bundle
-		resolver := resolver.CreateFileSystemResolver()
+		resolver := resolver.NewResolver(fs.RealFS())
 		log, join := logging.NewStderrLog(args.logOptions)
 		bundle := bundler.ScanBundle(log, resolver, args.entryPaths, args.parseOptions)
 
