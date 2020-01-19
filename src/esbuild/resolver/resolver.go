@@ -68,27 +68,37 @@ func (r *resolver) PrettyPath(path string) string {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (r *resolver) loadAsFile(path string) (string, bool) {
-	if r.FileExists(path) {
-		return path, true
-	}
+	// Read the directory entries once to minimize locking
+	entries := r.fs.ReadDirectory(r.fs.Dir(path))
 
-	for _, ext := range r.extensionOrder {
-		extPath := path + ext
-		if r.FileExists(extPath) {
-			return extPath, true
+	if entries != nil {
+		base := r.fs.Base(path)
+
+		// Try the plain path without any extensions
+		if entries[base] {
+			return path, true
+		}
+
+		// Try the path with extensions
+		for _, ext := range r.extensionOrder {
+			if entries[base+ext] {
+				return path + ext, true
+			}
 		}
 	}
 
 	return "", false
 }
 
-func (r *resolver) loadAsIndex(path string) (string, bool) {
-	path = r.fs.Join(path, "index")
-
+// We want to minimize the number of times directory contents are listed. For
+// this reason, the directory entries are computed by the caller and then
+// passed down to us.
+func (r *resolver) loadAsIndex(path string, entries map[string]bool) (string, bool) {
+	// Try the "index" file with extensions
 	for _, ext := range r.extensionOrder {
-		extPath := path + ext
-		if r.FileExists(extPath) {
-			return extPath, true
+		base := "index" + ext
+		if entries[base] {
+			return r.fs.Join(path, base), true
 		}
 	}
 
@@ -123,29 +133,41 @@ func (r *resolver) parseMainFromJson(path string) (result string, found bool) {
 }
 
 func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
+	// Is this a file?
 	absolute, ok := r.loadAsFile(path)
 	if ok {
 		return absolute, true
 	}
 
-	packageJson := r.fs.Join(path, "package.json")
-	if r.FileExists(packageJson) {
-		if main, ok := r.parseMainFromJson(packageJson); ok {
+	// Is this a directory?
+	entries := r.fs.ReadDirectory(path)
+	if entries == nil {
+		return "", false
+	}
+
+	// Does this directory have a "package.json" file?
+	if entries["package.json"] {
+		if main, ok := r.parseMainFromJson(r.fs.Join(path, "package.json")); ok {
 			mainPath := r.fs.Join(path, main)
 
+			// Is it a file?
 			absolute, ok := r.loadAsFile(mainPath)
 			if ok {
 				return absolute, true
 			}
 
-			absolute, ok = r.loadAsIndex(mainPath)
-			if ok {
-				return absolute, true
+			// Is it a directory?
+			mainEntries := r.fs.ReadDirectory(mainPath)
+			if mainEntries != nil {
+				absolute, ok = r.loadAsIndex(mainPath, mainEntries)
+				if ok {
+					return absolute, true
+				}
 			}
 		}
 	}
 
-	return r.loadAsIndex(path)
+	return r.loadAsIndex(path, entries)
 }
 
 func (r *resolver) loadNodeModules(path string, start string) (string, bool) {
