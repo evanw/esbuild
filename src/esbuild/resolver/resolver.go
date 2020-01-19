@@ -17,11 +17,12 @@ type Resolver interface {
 }
 
 type resolver struct {
-	fs fs.FS
+	fs             fs.FS
+	extensionOrder []string
 }
 
-func NewResolver(fs fs.FS) Resolver {
-	return &resolver{fs}
+func NewResolver(fs fs.FS, extensionOrder []string) Resolver {
+	return &resolver{fs, extensionOrder}
 }
 
 func (r *resolver) Resolve(sourcePath string, importPath string) (string, bool) {
@@ -66,14 +67,12 @@ func (r *resolver) PrettyPath(path string) string {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var extensionOrder = []string{".jsx", ".js", ".json"}
-
 func (r *resolver) loadAsFile(path string) (string, bool) {
 	if r.FileExists(path) {
 		return path, true
 	}
 
-	for _, ext := range extensionOrder {
+	for _, ext := range r.extensionOrder {
 		extPath := path + ext
 		if r.FileExists(extPath) {
 			return extPath, true
@@ -84,14 +83,15 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 }
 
 func (r *resolver) loadAsIndex(path string) (string, bool) {
-	jsPath := r.fs.Join(path, "index.js")
-	if r.FileExists(jsPath) {
-		return jsPath, true
+	path = r.fs.Join(path, "index")
+
+	for _, ext := range r.extensionOrder {
+		extPath := path + ext
+		if r.FileExists(extPath) {
+			return extPath, true
+		}
 	}
-	jsonPath := r.fs.Join(path, "index.json")
-	if r.FileExists(jsonPath) {
-		return jsonPath, true
-	}
+
 	return "", false
 }
 
