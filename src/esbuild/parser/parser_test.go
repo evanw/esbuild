@@ -429,6 +429,8 @@ func TestObject(t *testing.T) {
 	expectPrinted(t, "({*if() {}})", "({\n  *if() {\n  }\n});\n")
 	expectPrinted(t, "({get if() {}})", "({\n  get if() {\n  }\n});\n")
 	expectPrinted(t, "({set if() {}})", "({\n  set if() {\n  }\n});\n")
+
+	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
 }
 
 func TestClass(t *testing.T) {

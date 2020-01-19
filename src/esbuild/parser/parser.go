@@ -310,7 +310,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 					}
 
 				case "static":
-					if !opts.isStatic && !opts.isAsync {
+					if !opts.isStatic && !opts.isAsync && context == propertyContextClass {
 						opts.isStatic = true
 						return p.parseProperty(context, kind, opts, nil)
 					}
