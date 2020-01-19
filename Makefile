@@ -23,7 +23,7 @@ platform-wasm:
 	GOOS=js GOARCH=wasm GOPATH=`pwd` go build -o npm/esbuild-wasm/esbuild.wasm esbuild/main
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 
-publish-all: platform-all
+publish-all: test
 	make -j4 publish-windows publish-darwin publish-linux publish-wasm
 
 publish-windows: platform-windows
