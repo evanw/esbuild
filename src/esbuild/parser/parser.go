@@ -5290,12 +5290,17 @@ type JSXOptions struct {
 	Fragment []string
 }
 
+type TypeScriptOptions struct {
+	Parse bool
+}
+
 type ParseOptions struct {
 	IsBundling           bool
 	Defines              map[string]ast.E
 	MangleSyntax         bool
 	KeepSingleExpression bool
 	OmitWarnings         bool
+	TS                   TypeScriptOptions
 	JSX                  JSXOptions
 	Target               LanguageTarget
 }

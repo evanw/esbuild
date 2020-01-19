@@ -66,6 +66,17 @@ func parseFile(
 		ast, ok := parser.Parse(log, source, parseOptions)
 		results <- parseResult{source.Index, ast, ok}
 
+	case LoaderTS:
+		parseOptions.TS.Parse = true
+		ast, ok := parser.Parse(log, source, parseOptions)
+		results <- parseResult{source.Index, ast, ok}
+
+	case LoaderTSX:
+		parseOptions.TS.Parse = true
+		parseOptions.JSX.Parse = true
+		ast, ok := parser.Parse(log, source, parseOptions)
+		results <- parseResult{source.Index, ast, ok}
+
 	case LoaderJSON:
 		expr, ok := parser.ParseJson(log, source)
 		ast := parser.ModuleExportsAST(log, source, expr)
@@ -171,6 +182,8 @@ const (
 	LoaderNone Loader = iota
 	LoaderJS
 	LoaderJSX
+	LoaderTS
+	LoaderTSX
 	LoaderJSON
 	LoaderText
 	LoaderBase64
@@ -180,6 +193,8 @@ func DefaultExtensionToLoaderMap() map[string]Loader {
 	return map[string]Loader{
 		".js":   LoaderJS,
 		".jsx":  LoaderJSX,
+		".ts":   LoaderTS,
+		".tsx":  LoaderTSX,
 		".json": LoaderJSON,
 		".txt":  LoaderText,
 	}

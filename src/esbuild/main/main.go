@@ -370,7 +370,7 @@ func main() {
 
 		// Parse all files in the bundle
 		fs := fs.RealFS()
-		resolver := resolver.NewResolver(fs, []string{".jsx", ".js", ".json"})
+		resolver := resolver.NewResolver(fs, []string{".tsx", ".ts", ".jsx", ".js", ".json"})
 		log, join := logging.NewStderrLog(args.logOptions)
 		bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
 
