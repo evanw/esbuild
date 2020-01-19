@@ -879,7 +879,7 @@ func (b *Bundle) bindImportsAndExports(
 			}
 			properties = append(properties, ast.Property{
 				Key:   ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
-				Value: ast.Expr{ast.Loc{}, &ast.EArrow{Expr: &value}},
+				Value: &ast.Expr{ast.Loc{}, &ast.EArrow{Expr: &value}},
 			})
 		}
 

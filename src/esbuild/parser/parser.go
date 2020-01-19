@@ -327,20 +327,39 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 			value := ast.Expr{key.Loc, &ast.EIdentifier{ref}}
 
 			// Destructuring patterns have an optional default value
-			var defaultValue *ast.Expr = nil
+			var initializer *ast.Expr = nil
 			if errors != nil && p.lexer.Token == lexer.TEquals {
 				errors.invalidExprDefaultValue = p.lexer.Range()
 				p.lexer.Next()
 				value := p.parseExpr(ast.LComma)
-				defaultValue = &value
+				initializer = &value
 			}
 
 			return ast.Property{
-				Kind:         kind,
-				Key:          key,
-				Value:        value,
-				DefaultValue: defaultValue,
+				Kind:        kind,
+				Key:         key,
+				Value:       &value,
+				Initializer: initializer,
 			}
+		}
+	}
+
+	// Parse a field
+	if context == propertyContextClass && kind == ast.PropertyNormal &&
+		!opts.isAsync && !opts.isGenerator && p.lexer.Token != lexer.TOpenParen {
+		var initializer *ast.Expr
+		if p.lexer.Token == lexer.TEquals {
+			p.lexer.Next()
+			value := p.parseExpr(ast.LComma)
+			initializer = &value
+		}
+		p.lexer.ExpectOrInsertSemicolon()
+		return ast.Property{
+			Kind:        kind,
+			IsComputed:  isComputed,
+			IsStatic:    opts.isStatic,
+			Key:         key,
+			Initializer: initializer,
 		}
 	}
 
@@ -359,7 +378,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 			IsMethod:   true,
 			IsStatic:   opts.isStatic,
 			Key:        key,
-			Value:      value,
+			Value:      &value,
 		}
 	}
 
@@ -369,7 +388,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		Kind:       kind,
 		IsComputed: isComputed,
 		Key:        key,
-		Value:      value,
+		Value:      &value,
 	}
 }
 
@@ -618,8 +637,8 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			if spread, ok := item.Data.(*ast.ESpread); ok {
 				item = spread.Value
 			}
-			binding, defaultValue := p.convertExprToBindingAndDefaultValue(item)
-			args = append(args, ast.Arg{binding, defaultValue})
+			binding, initializer := p.convertExprToBindingAndInitializer(item)
+			args = append(args, ast.Arg{binding, initializer})
 		}
 		stmts, expr := p.parseArrowBody(fnOpts{allowAwait: isAsync})
 		return ast.Expr{loc, &ast.EArrow{
@@ -657,9 +676,9 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	return ast.Expr{}
 }
 
-func (p *parser) convertExprToBindingAndDefaultValue(expr ast.Expr) (binding ast.Binding, defaultValue *ast.Expr) {
+func (p *parser) convertExprToBindingAndInitializer(expr ast.Expr) (binding ast.Binding, initializer *ast.Expr) {
 	if assign, ok := expr.Data.(*ast.EBinary); ok && assign.Op == ast.BinOpAssign {
-		defaultValue = &assign.Right
+		initializer = &assign.Right
 		expr = assign.Left
 	}
 	binding = p.convertExprToBinding(expr)
@@ -682,8 +701,8 @@ func (p *parser) convertExprToBinding(expr ast.Expr) ast.Binding {
 				isSpread = true
 				item = i.Value
 			}
-			binding, defaultValue := p.convertExprToBindingAndDefaultValue(item)
-			items = append(items, ast.ArrayBinding{binding, defaultValue})
+			binding, initializer := p.convertExprToBindingAndInitializer(item)
+			items = append(items, ast.ArrayBinding{binding, initializer})
 		}
 		return ast.Binding{expr.Loc, &ast.BArray{
 			Items:     items,
@@ -694,20 +713,20 @@ func (p *parser) convertExprToBinding(expr ast.Expr) ast.Binding {
 		items := []ast.PropertyBinding{}
 		for _, item := range e.Properties {
 			if item.Kind == ast.PropertyGet || item.IsMethod ||
-				item.Kind == ast.PropertySet || item.IsStatic {
+				item.Kind == ast.PropertySet {
 				p.addError(item.Key.Loc, "Invalid binding pattern")
 				panic(lexer.LexerPanic{})
 			}
-			binding, defaultValue := p.convertExprToBindingAndDefaultValue(item.Value)
-			if defaultValue == nil {
-				defaultValue = item.DefaultValue
+			binding, initializer := p.convertExprToBindingAndInitializer(*item.Value)
+			if initializer == nil {
+				initializer = item.Initializer
 			}
 			items = append(items, ast.PropertyBinding{
 				IsSpread:     item.Kind == ast.PropertySpread,
 				IsComputed:   item.IsComputed,
 				Key:          item.Key,
 				Value:        binding,
-				DefaultValue: defaultValue,
+				DefaultValue: initializer,
 			})
 		}
 		return ast.Binding{expr.Loc, &ast.BObject{items}}
@@ -1004,9 +1023,10 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		for p.lexer.Token != lexer.TCloseBrace {
 			if p.lexer.Token == lexer.TDotDotDot {
 				p.lexer.Next()
+				value := p.parseExpr(ast.LComma)
 				properties = append(properties, ast.Property{
 					Kind:  ast.PropertySpread,
-					Value: p.parseExpr(ast.LComma),
+					Value: &value,
 				})
 
 				// Commas are not allowed here when destructuring
@@ -1668,7 +1688,7 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 				// Add a property
 				properties = append(properties, ast.Property{
 					Key:   key,
-					Value: value,
+					Value: &value,
 				})
 
 			case lexer.TOpenBrace:
@@ -1678,7 +1698,7 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 				value := p.parseExpr(ast.LComma)
 				properties = append(properties, ast.Property{
 					Kind:  ast.PropertySpread,
-					Value: value,
+					Value: &value,
 				})
 
 				// Use NextInsideJSXElement() not Next() so we can parse ">>" as ">"
@@ -3831,7 +3851,12 @@ func (b *binder) visitStmt(stmt ast.Stmt) ast.Stmt {
 		}
 		for i, property := range s.Class.Properties {
 			s.Class.Properties[i].Key = b.visitExpr(property.Key)
-			s.Class.Properties[i].Value = b.visitExpr(property.Value)
+			if property.Value != nil {
+				*property.Value = b.visitExpr(*property.Value)
+			}
+			if property.Initializer != nil {
+				*property.Initializer = b.visitExpr(*property.Initializer)
+			}
 		}
 
 	default:
@@ -4113,7 +4138,12 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 			if p.Kind != ast.PropertySpread {
 				p.Key = b.visitExpr(p.Key)
 			}
-			p.Value = b.visitExpr(p.Value)
+			if p.Value != nil {
+				*p.Value = b.visitExpr(*p.Value)
+			}
+			if p.Initializer != nil {
+				*p.Initializer = b.visitExpr(*p.Initializer)
+			}
 			e.Properties[i] = p
 		}
 
@@ -4357,9 +4387,11 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 			if property.Kind != ast.PropertySpread {
 				e.Properties[i].Key = b.visitExpr(property.Key)
 			}
-			e.Properties[i].Value = b.visitExpr(property.Value)
-			if property.DefaultValue != nil {
-				*property.DefaultValue = b.visitExpr(*property.DefaultValue)
+			if property.Value != nil {
+				*property.Value = b.visitExpr(*property.Value)
+			}
+			if property.Initializer != nil {
+				*property.Initializer = b.visitExpr(*property.Initializer)
 			}
 		}
 
@@ -4450,7 +4482,12 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		}
 		for i, property := range e.Class.Properties {
 			e.Class.Properties[i].Key = b.visitExpr(property.Key)
-			e.Class.Properties[i].Value = b.visitExpr(property.Value)
+			if property.Value != nil {
+				*property.Value = b.visitExpr(*property.Value)
+			}
+			if property.Initializer != nil {
+				*property.Initializer = b.visitExpr(*property.Initializer)
+			}
 		}
 		if e.Class.Name != nil {
 			b.popScope()

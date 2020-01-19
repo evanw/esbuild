@@ -68,7 +68,7 @@ func (p *jsonParser) parseExpr() ast.Expr {
 			property := ast.Property{
 				Kind:  ast.PropertyNormal,
 				Key:   key,
-				Value: value,
+				Value: &value,
 			}
 			properties = append(properties, property)
 

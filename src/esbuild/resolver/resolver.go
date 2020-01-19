@@ -284,7 +284,7 @@ func (r *resolver) parsePackageJson(path string) *packageJson {
 
 			// Remap all files in the browser field
 			for _, prop := range browser.Properties {
-				if key, ok := getString(prop.Key); ok {
+				if key, ok := getString(prop.Key); ok && prop.Value != nil {
 					isNonModulePath := isNonModulePath(key)
 
 					// Make this an absolute path if it's not a module
@@ -292,14 +292,14 @@ func (r *resolver) parsePackageJson(path string) *packageJson {
 						key = r.fs.Join(path, key)
 					}
 
-					if value, ok := getString(prop.Value); ok {
+					if value, ok := getString(*prop.Value); ok {
 						// If this is a string, it's a replacement module
 						if isNonModulePath {
 							browserNonModuleMap[key] = &value
 						} else {
 							browserModuleMap[key] = &value
 						}
-					} else if value, ok := getBool(prop.Value); ok && !value {
+					} else if value, ok := getBool(*prop.Value); ok && !value {
 						// If this is false, it means the module is disabled
 						if isNonModulePath {
 							browserNonModuleMap[key] = nil
@@ -384,8 +384,9 @@ func (r *resolver) parseJson(path string) (ast.Expr, bool) {
 func getProperty(json ast.Expr, name string) (ast.Expr, bool) {
 	if obj, ok := json.Data.(*ast.EObject); ok {
 		for _, prop := range obj.Properties {
-			if key, ok := prop.Key.Data.(*ast.EString); ok && len(key.Value) == len(name) && lexer.UTF16ToString(key.Value) == name {
-				return prop.Value, true
+			if key, ok := prop.Key.Data.(*ast.EString); ok && key.Value != nil &&
+				len(key.Value) == len(name) && lexer.UTF16ToString(key.Value) == name {
+				return *prop.Value, true
 			}
 		}
 	}

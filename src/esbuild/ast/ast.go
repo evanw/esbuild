@@ -228,14 +228,20 @@ type Property struct {
 	IsMethod   bool
 	IsStatic   bool
 	Key        Expr
-	Value      Expr
+
+	// This is omitted for class fields
+	Value *Expr
 
 	// This is used when parsing a pattern that uses default values:
 	//
 	//   [a = 1] = [];
 	//   ({a = 1} = {});
 	//
-	DefaultValue *Expr
+	// It's also used for class fields:
+	//
+	//   class Foo { a = 1 }
+	//
+	Initializer *Expr
 }
 
 type PropertyBinding struct {

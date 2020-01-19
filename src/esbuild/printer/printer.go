@@ -698,9 +698,16 @@ func (p *printer) printClass(class ast.Class) {
 	p.indent++
 
 	for _, item := range class.Properties {
+		p.printSemicolonIfNeeded()
 		p.printIndent()
 		p.printProperty(item)
-		p.printNewline()
+
+		// Need semicolons after class fields
+		if item.Value == nil {
+			p.printSemicolonAfterStatement()
+		} else {
+			p.printNewline()
+		}
 	}
 
 	p.indent--
@@ -711,7 +718,7 @@ func (p *printer) printClass(class ast.Class) {
 func (p *printer) printProperty(item ast.Property) {
 	if item.Kind == ast.PropertySpread {
 		p.print("...")
-		p.printExpr(item.Value, ast.LComma, 0)
+		p.printExpr(*item.Value, ast.LComma, 0)
 		return
 	}
 
@@ -732,14 +739,16 @@ func (p *printer) printProperty(item ast.Property) {
 		p.printSpace()
 	}
 
-	if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
-		if fn.Fn.IsAsync {
-			p.printSpaceBeforeIdentifier()
-			p.print("async")
-			p.printSpace()
-		}
-		if fn.Fn.IsGenerator {
-			p.print("*")
+	if item.Value != nil {
+		if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
+			if fn.Fn.IsAsync {
+				p.printSpaceBeforeIdentifier()
+				p.print("async")
+				p.printSpace()
+			}
+			if fn.Fn.IsGenerator {
+				p.print("*")
+			}
 		}
 	}
 
@@ -747,18 +756,23 @@ func (p *printer) printProperty(item ast.Property) {
 		p.print("[")
 		p.printExpr(item.Key, ast.LLowest, 0)
 		p.print("]")
-		if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
-			p.printFn(fn.Fn)
-		} else {
+
+		if item.Value != nil {
+			if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
+				p.printFn(fn.Fn)
+				return
+			}
+
 			p.print(":")
 			p.printSpace()
-			p.printExpr(item.Value, ast.LComma, 0)
-			if item.DefaultValue != nil {
-				p.printSpace()
-				p.print("=")
-				p.printSpace()
-				p.printExpr(*item.DefaultValue, ast.LComma, 0)
-			}
+			p.printExpr(*item.Value, ast.LComma, 0)
+		}
+
+		if item.Initializer != nil {
+			p.printSpace()
+			p.print("=")
+			p.printSpace()
+			p.printExpr(*item.Initializer, ast.LComma, 0)
 		}
 		return
 	}
@@ -770,28 +784,30 @@ func (p *printer) printProperty(item ast.Property) {
 			p.print(text)
 
 			// Use a shorthand property if the names are the same
-			switch e := item.Value.Data.(type) {
-			case *ast.EIdentifier:
-				if text == p.symbolName(e.Ref) {
-					if item.DefaultValue != nil {
-						p.printSpace()
-						p.print("=")
-						p.printSpace()
-						p.printExpr(*item.DefaultValue, ast.LComma, 0)
+			if item.Value != nil {
+				switch e := item.Value.Data.(type) {
+				case *ast.EIdentifier:
+					if text == p.symbolName(e.Ref) {
+						if item.Initializer != nil {
+							p.printSpace()
+							p.print("=")
+							p.printSpace()
+							p.printExpr(*item.Initializer, ast.LComma, 0)
+						}
+						return
 					}
-					return
-				}
 
-			case *ast.ENamespaceImport:
-				// Make sure we're not using a property access instead of an identifier
-				if !p.indirectImportItems[e.ItemRef] && text == p.symbolName(e.ItemRef) {
-					if item.DefaultValue != nil {
-						p.printSpace()
-						p.print("=")
-						p.printSpace()
-						p.printExpr(*item.DefaultValue, ast.LComma, 0)
+				case *ast.ENamespaceImport:
+					// Make sure we're not using a property access instead of an identifier
+					if !p.indirectImportItems[e.ItemRef] && text == p.symbolName(e.ItemRef) {
+						if item.Initializer != nil {
+							p.printSpace()
+							p.print("=")
+							p.printSpace()
+							p.printExpr(*item.Initializer, ast.LComma, 0)
+						}
+						return
 					}
-					return
 				}
 			}
 		} else {
@@ -809,18 +825,22 @@ func (p *printer) printProperty(item ast.Property) {
 		}
 	}
 
-	if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
-		p.printFn(fn.Fn)
-	} else {
+	if item.Value != nil {
+		if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
+			p.printFn(fn.Fn)
+			return
+		}
+
 		p.print(":")
 		p.printSpace()
-		p.printExpr(item.Value, ast.LComma, 0)
-		if item.DefaultValue != nil {
-			p.printSpace()
-			p.print("=")
-			p.printSpace()
-			p.printExpr(*item.DefaultValue, ast.LComma, 0)
-		}
+		p.printExpr(*item.Value, ast.LComma, 0)
+	}
+
+	if item.Initializer != nil {
+		p.printSpace()
+		p.print("=")
+		p.printSpace()
+		p.printExpr(*item.Initializer, ast.LComma, 0)
 	}
 }
 
