@@ -75,13 +75,9 @@ async function main() {
 
     if (yaml.features) {
       if (yaml.features.includes('class-fields-private')) return
-      if (yaml.features.includes('class-fields-public')) return
       if (yaml.features.includes('class-methods-private')) return
-      if (yaml.features.includes('class-methods-public')) return
       if (yaml.features.includes('class-static-fields-private')) return
-      if (yaml.features.includes('class-static-fields-public')) return
       if (yaml.features.includes('class-static-methods-private')) return
-      if (yaml.features.includes('class-static-methods-public')) return
       if (yaml.features.includes('hashbang')) return
       if (yaml.features.includes('regexp-match-indices')) return
       if (yaml.features.includes('regexp-named-groups')) return
