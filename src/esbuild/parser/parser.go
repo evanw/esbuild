@@ -415,9 +415,76 @@ func (p *parser) loadNameFromRef(ref ast.Ref) string {
 	}
 }
 
-func (p *parser) skipTypeScriptType() {
-	p.addRangeError(p.lexer.Range(), "TODO: Parse TypeScript types")
-	panic(lexer.LexerPanic{})
+func (p *parser) skipTypeScriptType(level ast.L) {
+	p.skipTypeScriptTypePrefix()
+	p.skipTypeScriptTypeSuffix(level)
+}
+
+func (p *parser) skipTypeScriptTypePrefix() {
+	switch p.lexer.Token {
+	case lexer.TIdentifier, lexer.TNumericLiteral, lexer.TStringLiteral,
+		lexer.TTrue, lexer.TFalse, lexer.TNull, lexer.TVoid:
+		p.lexer.Next()
+
+	case lexer.TOpenBracket:
+		p.lexer.Next()
+		for p.lexer.Token != lexer.TCloseBracket {
+			p.skipTypeScriptType(ast.LLowest)
+			if p.lexer.Token != lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+		}
+		p.lexer.Expect(lexer.TCloseBracket)
+
+	default:
+		p.lexer.Unexpected()
+	}
+}
+
+func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
+	for {
+		switch p.lexer.Token {
+		case lexer.TBar:
+			if level >= ast.LBitwiseOr {
+				return
+			}
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LBitwiseOr)
+
+		case lexer.TAmpersand:
+			if level >= ast.LBitwiseAnd {
+				return
+			}
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LBitwiseAnd)
+
+		case lexer.TDot:
+			p.lexer.Next()
+			if !p.lexer.IsIdentifierOrKeyword() {
+				p.lexer.Expect(lexer.TIdentifier)
+			}
+			p.lexer.Next()
+
+		case lexer.TOpenBracket:
+			p.lexer.Next()
+			p.lexer.Expect(lexer.TCloseBracket)
+
+		case lexer.TLessThan:
+			p.lexer.Next()
+			for {
+				p.skipTypeScriptType(ast.LLowest)
+				if p.lexer.Token != lexer.TComma {
+					break
+				}
+				p.lexer.Next()
+			}
+			p.lexer.ExpectGreaterThan()
+
+		default:
+			return
+		}
+	}
 }
 
 // Due to ES6 destructuring patterns, there are many cases where it's
@@ -1595,6 +1662,16 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			no := p.parseExpr(ast.LComma)
 			left = ast.Expr{left.Loc, &ast.EIf{left, yes, no}}
 
+		case lexer.TExclamation:
+			// Skip over TypeScript non-null assertions
+			if !p.ts.Parse {
+				p.lexer.Unexpected()
+			}
+			if p.lexer.HasNewlineBefore || level >= ast.LPostfix {
+				return left
+			}
+			p.lexer.Next()
+
 		case lexer.TMinusMinus:
 			if p.lexer.HasNewlineBefore || level >= ast.LPostfix {
 				return left
@@ -2142,7 +2219,7 @@ func (p *parser) parseAndDeclareDecls(kind ast.SymbolKind, isExport bool) []ast.
 
 		if p.ts.Parse && p.lexer.Token == lexer.TColon {
 			p.lexer.Next()
-			p.skipTypeScriptType()
+			p.skipTypeScriptType(ast.LLowest)
 		}
 
 		if p.lexer.Token == lexer.TEquals {
@@ -2385,9 +2462,17 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) ast.Fn {
 		arg := p.parseBinding()
 		p.declareBinding(ast.SymbolHoisted, arg, false /* isExport */)
 
-		if p.ts.Parse && p.lexer.Token == lexer.TColon {
-			p.lexer.Next()
-			p.skipTypeScriptType()
+		if p.ts.Parse {
+			// "function foo(a?) {}"
+			if p.lexer.Token == lexer.TQuestion {
+				p.lexer.Next()
+			}
+
+			// "function foo(a: any) {}"
+			if p.lexer.Token == lexer.TColon {
+				p.lexer.Next()
+				p.skipTypeScriptType(ast.LLowest)
+			}
 		}
 
 		var defaultValue *ast.Expr
@@ -2408,6 +2493,13 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) ast.Fn {
 	}
 
 	p.lexer.Expect(lexer.TCloseParen)
+
+	// "function foo(): any {}"
+	if p.ts.Parse && p.lexer.Token == lexer.TColon {
+		p.lexer.Next()
+		p.skipTypeScriptType(ast.LLowest)
+	}
+
 	stmts := p.parseFnBodyStmts(opts)
 
 	return ast.Fn{
@@ -2427,6 +2519,17 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 		p.lexer.Next()
 		value := p.parseExpr(ast.LNew)
 		extends = &value
+	}
+
+	if p.ts.Parse && p.lexer.Token == lexer.TImplements {
+		p.lexer.Next()
+		for {
+			p.skipTypeScriptType(ast.LLowest)
+			if p.lexer.Token != lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+		}
 	}
 
 	p.lexer.Expect(lexer.TOpenBrace)
@@ -2503,6 +2606,13 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	return ast.Stmt{loc, &ast.SFunction{fn, opts.isExport}}
 }
 
+func (p *parser) skipTypeScriptTypeStmt() {
+	p.lexer.Expect(lexer.TIdentifier)
+	p.lexer.Expect(lexer.TEquals)
+	p.skipTypeScriptType(ast.LLowest)
+	p.lexer.ExpectOrInsertSemicolon()
+}
+
 type parseStmtOpts struct {
 	allowLexicalDecl     bool
 	allowImportAndExport bool
@@ -2542,10 +2652,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			if p.ts.Parse && p.lexer.IsContextualKeyword("type") {
 				// "export type foo = ..."
 				p.lexer.Next()
-				p.lexer.Expect(lexer.TIdentifier)
-				p.lexer.Expect(lexer.TEquals)
-				p.skipTypeScriptType()
-				p.lexer.ExpectOrInsertSemicolon()
+				p.skipTypeScriptTypeStmt()
+				return ast.Stmt{loc, &ast.STypeScript{}}
 			}
 
 			p.lexer.Unexpected()
@@ -3139,14 +3247,23 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 
 		// Parse a labeled statement
-		if ident, ok := expr.Data.(*ast.EIdentifier); ok && isIdentifier && p.lexer.Token == lexer.TColon {
-			p.pushScopeForParsePass(ast.ScopeLabel, loc)
-			defer p.popScope()
+		if ident, ok := expr.Data.(*ast.EIdentifier); ok && isIdentifier {
+			switch p.lexer.Token {
+			case lexer.TColon:
+				p.pushScopeForParsePass(ast.ScopeLabel, loc)
+				defer p.popScope()
 
-			p.lexer.Next()
-			name := ast.LocRef{expr.Loc, ident.Ref}
-			stmt := p.parseStmt(parseStmtOpts{})
-			return ast.Stmt{loc, &ast.SLabel{name, stmt}}
+				p.lexer.Next()
+				name := ast.LocRef{expr.Loc, ident.Ref}
+				stmt := p.parseStmt(parseStmtOpts{})
+				return ast.Stmt{loc, &ast.SLabel{name, stmt}}
+
+			case lexer.TIdentifier:
+				if p.ts.Parse {
+					p.skipTypeScriptTypeStmt()
+					return ast.Stmt{loc, &ast.STypeScript{}}
+				}
+			}
 		}
 
 		p.lexer.ExpectOrInsertSemicolon()
@@ -3192,6 +3309,14 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 
 	for p.lexer.Token != end {
 		stmt := p.parseStmt(opts)
+
+		// Skip TypeScript types entirely
+		if p.ts.Parse {
+			if _, ok := stmt.Data.(*ast.STypeScript); ok {
+				continue
+			}
+		}
+
 		stmts = append(stmts, stmt)
 
 		// Warn about ASI and return statements
@@ -3986,6 +4111,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	switch s := stmt.Data.(type) {
 	case *ast.SDebugger, *ast.SEmpty, *ast.SDirective:
 		// These don't contain anything to traverse
+
+	case *ast.STypeScript:
+		// Erase TypeScript constructs from the output completely
+		return stmts
 
 	case *ast.SImport:
 		// This was already handled in "declareStmt"

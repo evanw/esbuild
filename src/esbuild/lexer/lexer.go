@@ -340,6 +340,16 @@ func (lexer *Lexer) ExpectOrInsertSemicolon() {
 	}
 }
 
+func (lexer *Lexer) ExpectGreaterThan() {
+	switch lexer.Token {
+	case TGreaterThan:
+		lexer.Next()
+
+	default:
+		lexer.Expected(TGreaterThan)
+	}
+}
+
 func NumberToMinifiedName(i int) string {
 	j := i % 54
 	name := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$"[j : j+1]
