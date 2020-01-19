@@ -529,3 +529,403 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageJsonBrowserString(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"browser": "./browser"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/browser.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  0(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/browser.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  1(require) {
+    // /Users/user/project/src/entry.js
+    const demo_pkg = require(0 /* demo-pkg */);
+    console.log(demo_pkg.default());
+  }
+}, 1);
+`,
+		},
+	})
+}
+
+func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main",
+					"browser": {
+						"./main.js": "./main-browser",
+						"./util.js": "./util-browser"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				const util = require('./util')
+				module.exports = function() {
+					return ['main', util]
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main-browser.js": `
+				const util = require('./util')
+				module.exports = function() {
+					return ['main-browser', util]
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/util.js": `
+				module.exports = 'util'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/util-browser.js": `
+				module.exports = 'util-browser'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  1(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/util-browser.js
+    module.exports = "util-browser";
+  },
+
+  0(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/main-browser.js
+    const util = require(1 /* ./util */);
+    module.exports = function() {
+      return ["main-browser", util];
+    };
+  },
+
+  2(require) {
+    // /Users/user/project/src/entry.js
+    const demo_pkg = require(0 /* demo-pkg */);
+    console.log(demo_pkg.default());
+  }
+}, 2);
+`,
+		},
+	})
+}
+
+func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main",
+					"browser": {
+						"./util.js": "util-browser"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				const util = require('./util')
+				module.exports = function() {
+					return ['main', util]
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/util.js": `
+				module.exports = 'util'
+			`,
+			"/Users/user/project/node_modules/util-browser/index.js": `
+				module.exports = 'util-browser'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  1(require, exports, module) {
+    // /Users/user/project/node_modules/util-browser/index.js
+    module.exports = "util-browser";
+  },
+
+  0(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/main.js
+    const util = require(1 /* ./util */);
+    module.exports = function() {
+      return ["main", util];
+    };
+  },
+
+  2(require) {
+    // /Users/user/project/src/entry.js
+    const demo_pkg = require(0 /* demo-pkg */);
+    console.log(demo_pkg.default());
+  }
+}, 2);
+`,
+		},
+	})
+}
+
+func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main",
+					"browser": {
+						"./util-node.js": false
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				const util = require('./util-node')
+				module.exports = function(obj) {
+					return util.inspect(obj)
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/util-node.js": `
+				module.exports = require('util')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  1() {
+    // /Users/user/project/node_modules/demo-pkg/util-node.js
+  },
+
+  0(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/main.js
+    const util = require(1 /* ./util-node */);
+    module.exports = function(obj) {
+      return util.inspect(obj);
+    };
+  },
+
+  2(require) {
+    // /Users/user/project/src/entry.js
+    const demo_pkg = require(0 /* demo-pkg */);
+    console.log(demo_pkg.default());
+  }
+}, 2);
+`,
+		},
+	})
+}
+
+func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"browser": {
+						"node-pkg": "./node-pkg-browser"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/node-pkg-browser.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				const fn = require('node-pkg')
+				module.exports = function() {
+					return fn()
+				}
+			`,
+			"/Users/user/project/node_modules/node-pkg/index.js": `
+				module.exports = function() {
+					return 234
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  1(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/node-pkg-browser.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  0(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/index.js
+    const fn = require(1 /* node-pkg */);
+    module.exports = function() {
+      return fn();
+    };
+  },
+
+  2(require) {
+    // /Users/user/project/src/entry.js
+    const demo_pkg = require(0 /* demo-pkg */);
+    console.log(demo_pkg.default());
+  }
+}, 2);
+`,
+		},
+	})
+}
+
+func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"browser": {
+						"node-pkg": "node-pkg-browser"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/node-pkg-browser/index.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				const fn = require('node-pkg')
+				module.exports = function() {
+					return fn()
+				}
+			`,
+			"/Users/user/project/node_modules/node-pkg/index.js": `
+				module.exports = function() {
+					return 234
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  1(require, exports, module) {
+    // /Users/user/project/node_modules/node-pkg-browser/index.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  0(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/index.js
+    const fn = require(1 /* node-pkg */);
+    module.exports = function() {
+      return fn();
+    };
+  },
+
+  2(require) {
+    // /Users/user/project/src/entry.js
+    const demo_pkg = require(0 /* demo-pkg */);
+    console.log(demo_pkg.default());
+  }
+}, 2);
+`,
+		},
+	})
+}
+
+func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"browser": {
+						"node-pkg": false
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				const fn = require('node-pkg')
+				module.exports = function() {
+					return fn()
+				}
+			`,
+			"/Users/user/project/node_modules/node-pkg/index.js": `
+				module.exports = function() {
+					return 234
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  1() {
+    // /Users/user/project/node_modules/node-pkg/index.js
+  },
+
+  0(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/index.js
+    const fn = require(1 /* node-pkg */);
+    module.exports = function() {
+      return fn();
+    };
+  },
+
+  2(require) {
+    // /Users/user/project/src/entry.js
+    const demo_pkg = require(0 /* demo-pkg */);
+    console.log(demo_pkg.default());
+  }
+}, 2);
+`,
+		},
+	})
+}

@@ -10,8 +10,16 @@ import (
 	"sync"
 )
 
+type ResolveStatus uint8
+
+const (
+	ResolveMissing ResolveStatus = iota
+	ResolveEnabled
+	ResolveDisabled
+)
+
 type Resolver interface {
-	Resolve(sourcePath string, importPath string) (string, bool)
+	Resolve(sourcePath string, importPath string) (string, ResolveStatus)
 	Read(path string) (string, bool)
 	PrettyPath(path string) string
 }
@@ -34,34 +42,81 @@ func NewResolver(fs fs.FS, extensionOrder []string) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourcePath string, importPath string) (string, bool) {
+func (r *resolver) Resolve(sourcePath string, importPath string) (string, ResolveStatus) {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
-
-	sourceDir := r.fs.Dir(sourcePath)
-	startsWithSlash := strings.HasPrefix(importPath, "/")
-
-	if startsWithSlash {
-		sourceDir = "/"
-	}
-
-	if startsWithSlash || strings.HasPrefix(importPath, "./") || strings.HasPrefix(importPath, "../") {
-		return r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath))
-	}
+	result := ""
 
 	// Get the cached information for this directory and all parent directories
-	sourceInfo := r.dirInfoCached(sourceDir)
-	if sourceInfo == nil {
-		return "", false
+	sourceDir := r.fs.Dir(sourcePath)
+
+	if isNonModulePath(importPath) {
+		absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath))
+		if !ok {
+			return "", ResolveMissing
+		}
+		result = absolute
+	} else {
+		sourceDirInfo := r.dirInfoCached(sourceDir)
+		if sourceDirInfo == nil {
+			// Bail no if the directory is missing for some reason
+			return "", ResolveMissing
+		}
+
+		absolute, ok := r.loadNodeModules(importPath, sourceDirInfo)
+		if !ok {
+			// Note: node's "self references" are not currently supported
+			return "", ResolveMissing
+		}
+
+		// Support remapping one module path to another via the "browser" field
+		if sourceDirInfo.enclosingBrowserScope != nil {
+			packageJson := sourceDirInfo.enclosingBrowserScope.packageJson
+			if packageJson.browserModuleMap != nil {
+				if remapped, ok := packageJson.browserModuleMap[importPath]; ok {
+					if remapped == nil {
+						return absolute, ResolveDisabled
+					}
+					absolute, ok = r.resolveWithoutRemapping(sourceDirInfo, *remapped)
+					if !ok {
+						return "", ResolveMissing
+					}
+				}
+			}
+		}
+
+		result = absolute
 	}
 
-	absolute, ok := r.loadNodeModules(importPath, sourceInfo)
-	if ok {
-		return absolute, true
+	// Check the directory that contains this file
+	resultDir := r.fs.Dir(result)
+	resultDirInfo := r.dirInfoCached(resultDir)
+
+	// Support remapping one non-module path to another via the "browser" field
+	if resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
+		packageJson := resultDirInfo.enclosingBrowserScope.packageJson
+		if packageJson.browserNonModuleMap != nil {
+			if remapped, ok := packageJson.browserNonModuleMap[result]; ok {
+				if remapped == nil {
+					return result, ResolveDisabled
+				}
+				result, ok = r.resolveWithoutRemapping(resultDirInfo, *remapped)
+				if !ok {
+					return "", ResolveMissing
+				}
+			}
+		}
 	}
 
-	// Note: node's "self references" are not currently supported
-	return "", false
+	return result, ResolveEnabled
+}
+
+func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string) (string, bool) {
+	if isNonModulePath(importPath) {
+		return r.loadAsFileOrDirectory(r.fs.Join(sourceDirInfo.absPath, importPath))
+	} else {
+		return r.loadNodeModules(importPath, sourceDirInfo)
+	}
 }
 
 func (r *resolver) Read(path string) (string, bool) {
@@ -79,7 +134,16 @@ func (r *resolver) PrettyPath(path string) string {
 ////////////////////////////////////////////////////////////////////////////////
 
 type packageJson struct {
-	absPathMain *string // The absolute path of the "main" entry point
+	// The absolute path of the "main" entry point
+	absPathMain *string
+
+	// Present if the "browser" field is present. This contains a mapping of
+	// absolute paths to absolute paths. Mapping to an empty path indicates that
+	// the module is disabled. As far as I can tell, the official spec is a random
+	// GitHub repo: https://github.com/defunctzombie/package-browser-field-spec.
+	// The npm docs say almost nothing: https://docs.npmjs.com/files/package.json.
+	browserNonModuleMap map[string]*string
+	browserModuleMap    map[string]*string
 }
 
 type tsConfigJson struct {
@@ -90,6 +154,10 @@ type dirInfo struct {
 	// These objects are immutable, so we can just point to the parent directory
 	// and avoid having to lock the cache again
 	parent *dirInfo
+
+	// A pointer to the enclosing dirInfo with a valid "browser" field in
+	// package.json. We need this to remap paths after they have been resolved.
+	enclosingBrowserScope *dirInfo
 
 	// All relevant information about this directory
 	absPath        string
@@ -144,29 +212,21 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		parent:  parentInfo,
 	}
 
+	// Propagate the browser scope into child directories
+	if parentInfo != nil {
+		info.enclosingBrowserScope = parentInfo.enclosingBrowserScope
+	}
+
 	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
 	info.hasNodeModules = entries["node_modules"] == fs.DirEntry && r.fs.Base(path) != "node_modules"
 
 	// Record if this directory has a package.json file
 	if entries["package.json"] == fs.FileEntry {
-		info.packageJson = &packageJson{}
-		if json, ok := r.parseJson(r.fs.Join(path, "package.json")); ok {
-			if main, ok := getStringProperty(json, "main"); ok {
-				mainPath := r.fs.Join(path, main)
+		info.packageJson = r.parsePackageJson(path)
 
-				// Is it a file?
-				if absolute, ok := r.loadAsFile(mainPath); ok {
-					info.packageJson.absPathMain = &absolute
-				} else {
-					// Is it a directory?
-					if mainEntries := r.fs.ReadDirectory(mainPath); mainEntries != nil {
-						// Look for an "index" file with known extensions
-						if absolute, ok = r.loadAsIndex(mainPath, mainEntries); ok {
-							info.packageJson.absPathMain = &absolute
-						}
-					}
-				}
-			}
+		// Propagate this browser scope into child directories
+		if info.packageJson != nil && (info.packageJson.browserModuleMap != nil || info.packageJson.browserNonModuleMap != nil) {
+			info.enclosingBrowserScope = info
 		}
 	}
 
@@ -174,10 +234,12 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	if entries["tsconfig.json"] == fs.FileEntry {
 		info.tsConfigJson = &tsConfigJson{}
 		if json, ok := r.parseJson(r.fs.Join(path, "tsconfig.json")); ok {
-			if compilerOptions, ok := getProperty(json, "compilerOptions"); ok {
-				if baseUrl, ok := getStringProperty(compilerOptions, "baseUrl"); ok {
-					baseUrl := r.fs.Join(path, baseUrl)
-					info.tsConfigJson.absPathBaseUrl = &baseUrl
+			if compilerOptionsJson, ok := getProperty(json, "compilerOptions"); ok {
+				if baseUrlJson, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
+					if baseUrl, ok := getString(baseUrlJson); ok {
+						baseUrl := r.fs.Join(path, baseUrl)
+						info.tsConfigJson.absPathBaseUrl = &baseUrl
+					}
 				}
 			}
 		}
@@ -192,6 +254,84 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	return info
+}
+
+func (r *resolver) parsePackageJson(path string) *packageJson {
+	json, ok := r.parseJson(r.fs.Join(path, "package.json"))
+	if !ok {
+		return nil
+	}
+
+	packageJson := &packageJson{}
+
+	// Read the "main" property
+	mainPath := ""
+	if mainJson, ok := getProperty(json, "main"); ok {
+		if main, ok := getString(mainJson); ok {
+			mainPath = r.fs.Join(path, main)
+		}
+	}
+
+	// Read the "browser" property
+	if browserJson, ok := getProperty(json, "browser"); ok {
+		if browser, ok := getString(browserJson); ok {
+			// The value is a string
+			mainPath = r.fs.Join(path, browser)
+		} else if browser, ok := browserJson.Data.(*ast.EObject); ok {
+			// The value is an object
+			browserModuleMap := make(map[string]*string)
+			browserNonModuleMap := make(map[string]*string)
+
+			// Remap all files in the browser field
+			for _, prop := range browser.Properties {
+				if key, ok := getString(prop.Key); ok {
+					isNonModulePath := isNonModulePath(key)
+
+					// Make this an absolute path if it's not a module
+					if isNonModulePath {
+						key = r.fs.Join(path, key)
+					}
+
+					if value, ok := getString(prop.Value); ok {
+						// If this is a string, it's a replacement module
+						if isNonModulePath {
+							browserNonModuleMap[key] = &value
+						} else {
+							browserModuleMap[key] = &value
+						}
+					} else if value, ok := getBool(prop.Value); ok && !value {
+						// If this is false, it means the module is disabled
+						if isNonModulePath {
+							browserNonModuleMap[key] = nil
+						} else {
+							browserModuleMap[key] = nil
+						}
+					}
+				}
+			}
+
+			packageJson.browserModuleMap = browserModuleMap
+			packageJson.browserNonModuleMap = browserNonModuleMap
+		}
+	}
+
+	// Delay parsing "main" into an absolute path in case "browser" replaces it
+	if mainPath != "" {
+		// Is it a file?
+		if absolute, ok := r.loadAsFile(mainPath); ok {
+			packageJson.absPathMain = &absolute
+		} else {
+			// Is it a directory?
+			if mainEntries := r.fs.ReadDirectory(mainPath); mainEntries != nil {
+				// Look for an "index" file with known extensions
+				if absolute, ok = r.loadAsIndex(mainPath, mainEntries); ok {
+					packageJson.absPathMain = &absolute
+				}
+			}
+		}
+	}
+
+	return packageJson
 }
 
 func (r *resolver) loadAsFile(path string) (string, bool) {
@@ -252,13 +392,18 @@ func getProperty(json ast.Expr, name string) (ast.Expr, bool) {
 	return ast.Expr{}, false
 }
 
-func getStringProperty(json ast.Expr, name string) (string, bool) {
-	if prop, ok := getProperty(json, name); ok {
-		if value, ok := prop.Data.(*ast.EString); ok {
-			return lexer.UTF16ToString(value.Value), true
-		}
+func getString(json ast.Expr) (string, bool) {
+	if value, ok := json.Data.(*ast.EString); ok {
+		return lexer.UTF16ToString(value.Value), true
 	}
 	return "", false
+}
+
+func getBool(json ast.Expr) (bool, bool) {
+	if value, ok := json.Data.(*ast.EBoolean); ok {
+		return value.Value, true
+	}
+	return false, false
 }
 
 func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
@@ -313,4 +458,8 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 	}
 
 	return "", false
+}
+
+func isNonModulePath(path string) bool {
+	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
 }

@@ -67,27 +67,33 @@ func parseFile(log logging.Log, source logging.Source, options parser.ParseOptio
 	}
 }
 
-func ScanBundle(log logging.Log, resolver resolver.Resolver, entryPaths []string, options parser.ParseOptions) Bundle {
+func ScanBundle(log logging.Log, res resolver.Resolver, entryPaths []string, options parser.ParseOptions) Bundle {
 	sources := []logging.Source{}
 	files := []file{}
 	visited := make(map[string]uint32)
 	results := make(chan parseResult)
 	remaining := 0
 
-	maybeParseFile := func(path string, source logging.Source, pathRange ast.Range) (uint32, bool) {
+	maybeParseFile := func(path string, source logging.Source, pathRange ast.Range, isDisabled bool) (uint32, bool) {
 		sourceIndex, ok := visited[path]
 		if !ok {
 			sourceIndex = uint32(len(sources))
 			visited[path] = sourceIndex
-			contents, ok := resolver.Read(path)
-			if !ok {
-				log.AddRangeError(source, pathRange, fmt.Sprintf("Could not read from file: %s", path))
-				return 0, false
+			contents := ""
+
+			// Disabled files are left empty
+			if !isDisabled {
+				contents, ok = res.Read(path)
+				if !ok {
+					log.AddRangeError(source, pathRange, fmt.Sprintf("Could not read from file: %s", path))
+					return 0, false
+				}
 			}
+
 			source := logging.Source{
 				Index:        sourceIndex,
 				AbsolutePath: path,
-				PrettyPath:   resolver.PrettyPath(path),
+				PrettyPath:   res.PrettyPath(path),
 				Contents:     contents,
 			}
 			sources = append(sources, source)
@@ -100,7 +106,7 @@ func ScanBundle(log logging.Log, resolver resolver.Resolver, entryPaths []string
 
 	entryPoints := []uint32{}
 	for _, path := range entryPaths {
-		if sourceIndex, ok := maybeParseFile(path, logging.Source{}, ast.Range{}); ok {
+		if sourceIndex, ok := maybeParseFile(path, logging.Source{}, ast.Range{}, false /* isDisabled */); ok {
 			entryPoints = append(entryPoints, sourceIndex)
 		}
 	}
@@ -116,8 +122,8 @@ func ScanBundle(log logging.Log, resolver resolver.Resolver, entryPaths []string
 				pathText := importPath.Path.Text
 				pathRange := source.RangeOfString(importPath.Path.Loc)
 
-				if path, ok := resolver.Resolve(sourcePath, pathText); ok {
-					if sourceIndex, ok := maybeParseFile(path, source, pathRange); ok {
+				if path, status := res.Resolve(sourcePath, pathText); status != resolver.ResolveMissing {
+					if sourceIndex, ok := maybeParseFile(path, source, pathRange, status == resolver.ResolveDisabled); ok {
 						resolvedImports[pathText] = sourceIndex
 					}
 				} else {
