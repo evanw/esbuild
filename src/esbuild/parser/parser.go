@@ -415,6 +415,14 @@ func (p *parser) loadNameFromRef(ref ast.Ref) string {
 	}
 }
 
+func (p *parser) skipTypeScriptReturnType() {
+	p.skipTypeScriptType(ast.LLowest)
+	if p.lexer.IsContextualKeyword("is") {
+		p.lexer.Next()
+		p.skipTypeScriptType(ast.LLowest)
+	}
+}
+
 func (p *parser) skipTypeScriptType(level ast.L) {
 	p.skipTypeScriptTypePrefix()
 	p.skipTypeScriptTypeSuffix(level)
@@ -477,7 +485,17 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			p.lexer.Expect(lexer.TCloseBracket)
 
 		case lexer.TLessThan:
-			p.skipTypeScriptTypeParameters()
+			p.lexer.Next()
+
+			for {
+				p.skipTypeScriptType(ast.LLowest)
+				if p.lexer.Token != lexer.TComma {
+					break
+				}
+				p.lexer.Next()
+			}
+
+			p.lexer.ExpectGreaterThan()
 
 		default:
 			return
@@ -542,16 +560,33 @@ func (p *parser) skipTypeScriptObjectType() {
 	p.lexer.Expect(lexer.TCloseBrace)
 }
 
+// This is the type parameter declarations that go with other symbol
+// declarations (class, function, type, etc.)
 func (p *parser) skipTypeScriptTypeParameters() {
 	if p.lexer.Token == lexer.TLessThan {
 		p.lexer.Next()
+
 		for {
-			p.skipTypeScriptType(ast.LLowest)
+			p.lexer.Expect(lexer.TIdentifier)
+
+			// "class Foo<T extends number> {}"
+			if p.lexer.Token == lexer.TExtends {
+				p.lexer.Next()
+				p.skipTypeScriptType(ast.LLowest)
+			}
+
+			// "class Foo<T = void> {}"
+			if p.lexer.Token == lexer.TEquals {
+				p.lexer.Next()
+				p.skipTypeScriptType(ast.LLowest)
+			}
+
 			if p.lexer.Token != lexer.TComma {
 				break
 			}
 			p.lexer.Next()
 		}
+
 		p.lexer.ExpectGreaterThan()
 	}
 }
@@ -703,6 +738,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		!opts.isAsync && !opts.isGenerator && p.lexer.Token != lexer.TOpenParen {
 		var initializer *ast.Expr
 
+		// Skip over types
 		if p.ts.Parse && p.lexer.Token == lexer.TColon {
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LLowest)
@@ -986,6 +1022,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	items := []ast.Expr{}
 	errors := deferredErrors{}
 	spreadRange := ast.Range{}
+	typeColonRange := ast.Range{}
 
 	// Scan over the comma-separated arguments or expressions
 	for p.lexer.Token != lexer.TCloseParen {
@@ -1006,6 +1043,13 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			item = ast.Expr{itemLoc, &ast.ESpread{item}}
 		}
 
+		// Skip over types
+		if p.ts.Parse && p.lexer.Token == lexer.TColon {
+			typeColonRange = p.lexer.Range()
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LLowest)
+		}
+
 		items = append(items, item)
 		if p.lexer.Token != lexer.TComma {
 			break
@@ -1023,6 +1067,13 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 
 	// The parenthetical construct must end with a close parenthesis
 	p.lexer.Expect(lexer.TCloseParen)
+
+	// Skip over types
+	if p.ts.Parse && p.lexer.Token == lexer.TColon {
+		typeColonRange = p.lexer.Range()
+		p.lexer.Next()
+		p.skipTypeScriptReturnType()
+	}
 
 	// Are these arguments to an arrow function?
 	if p.lexer.Token == lexer.TEqualsGreaterThan {
@@ -1044,6 +1095,12 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 		arrow.IsAsync = isAsync
 		arrow.HasRestArg = spreadRange.Len > 0
 		return ast.Expr{loc, arrow}
+	}
+
+	// If this isn't an arrow function, then types aren't allowed
+	if typeColonRange.Len > 0 {
+		p.addRangeError(typeColonRange, "Unexpected \":\"")
+		panic(lexer.LexerPanic{})
 	}
 
 	// Are these arguments for a call to a function named "async"?
@@ -2319,6 +2376,7 @@ func (p *parser) parseAndDeclareDecls(kind ast.SymbolKind, isExport bool) []ast.
 		local := p.parseBinding()
 		p.declareBinding(kind, local, isExport)
 
+		// Skip over types
 		if p.ts.Parse && p.lexer.Token == lexer.TColon {
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LLowest)
@@ -2599,7 +2657,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) ast.Fn {
 	// "function foo(): any {}"
 	if p.ts.Parse && p.lexer.Token == lexer.TColon {
 		p.lexer.Next()
-		p.skipTypeScriptType(ast.LLowest)
+		p.skipTypeScriptReturnType()
 	}
 
 	stmts := p.parseFnBodyStmts(opts)
@@ -2710,6 +2768,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 
 func (p *parser) skipTypeScriptTypeStmt() {
 	p.lexer.Expect(lexer.TIdentifier)
+	p.skipTypeScriptTypeParameters()
 	p.lexer.Expect(lexer.TEquals)
 	p.skipTypeScriptType(ast.LLowest)
 	p.lexer.ExpectOrInsertSemicolon()
