@@ -8,10 +8,17 @@ import (
 	"sync"
 )
 
+type Entry uint8
+
+const (
+	DirEntry  Entry = 1
+	FileEntry Entry = 2
+)
+
 type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
 	// mutate it.
-	ReadDirectory(path string) map[string]bool
+	ReadDirectory(path string) map[string]Entry
 	ReadFile(path string) (string, bool)
 
 	// This is part of the interface because the mock interface used for tests
@@ -26,12 +33,12 @@ type FS interface {
 ////////////////////////////////////////////////////////////////////////////////
 
 type mockFS struct {
-	dirs  map[string]map[string]bool
+	dirs  map[string]map[string]Entry
 	files map[string]string
 }
 
 func MockFS(input map[string]string) FS {
-	dirs := make(map[string]map[string]bool)
+	dirs := make(map[string]map[string]Entry)
 	files := make(map[string]string)
 
 	for k, v := range input {
@@ -43,14 +50,16 @@ func MockFS(input map[string]string) FS {
 			kDir := path.Dir(k)
 			dir, ok := dirs[kDir]
 			if !ok {
-				dir = make(map[string]bool)
+				dir = make(map[string]Entry)
 				dirs[kDir] = dir
-			}
-			if k == original {
-				dir[path.Base(k)] = true
 			}
 			if kDir == k {
 				break
+			}
+			if k == original {
+				dir[path.Base(k)] = FileEntry
+			} else {
+				dir[path.Base(k)] = DirEntry
 			}
 			k = kDir
 		}
@@ -59,7 +68,7 @@ func MockFS(input map[string]string) FS {
 	return &mockFS{dirs, files}
 }
 
-func (fs *mockFS) ReadDirectory(path string) map[string]bool {
+func (fs *mockFS) ReadDirectory(path string) map[string]Entry {
 	return fs.dirs[path]
 }
 
@@ -88,8 +97,8 @@ func (*mockFS) RelativeToCwd(path string) (string, bool) {
 
 type realFS struct {
 	// Stores the file entries for directories we've listed before
-	fileEntriesMutex sync.RWMutex
-	fileEntries      map[string]map[string]bool
+	entriesMutex sync.RWMutex
+	entries      map[string]map[string]Entry
 
 	// Stores the contents of files we've read before
 	fileContentsMutex sync.RWMutex
@@ -103,19 +112,19 @@ type realFS struct {
 func RealFS() FS {
 	cwd, cwdErr := os.Getwd()
 	return &realFS{
-		fileEntries:  make(map[string]map[string]bool),
+		entries:      make(map[string]map[string]Entry),
 		fileContents: make(map[string]*string),
 		cwd:          cwd,
 		cwdOk:        cwdErr == nil,
 	}
 }
 
-func (fs *realFS) ReadDirectory(dir string) map[string]bool {
+func (fs *realFS) ReadDirectory(dir string) map[string]Entry {
 	// First, check the cache
-	cached, ok := func() (map[string]bool, bool) {
-		fs.fileEntriesMutex.RLock()
-		defer fs.fileEntriesMutex.RUnlock()
-		cached, ok := fs.fileEntries[dir]
+	cached, ok := func() (map[string]Entry, bool) {
+		fs.entriesMutex.RLock()
+		defer fs.entriesMutex.RUnlock()
+		cached, ok := fs.entries[dir]
 		return cached, ok
 	}()
 
@@ -126,26 +135,30 @@ func (fs *realFS) ReadDirectory(dir string) map[string]bool {
 
 	// Cache miss: read the directory entries
 	names, err := readdir(dir)
-	fileEntries := make(map[string]bool)
+	entries := make(map[string]Entry)
 	if err == nil {
 		for _, name := range names {
 			// Use "stat", not "lstat", because we want to follow symbolic links
-			if stat, err := os.Stat(filepath.Join(dir, name)); err == nil && !stat.IsDir() {
-				fileEntries[name] = true
+			if stat, err := os.Stat(filepath.Join(dir, name)); err == nil {
+				if stat.IsDir() {
+					entries[name] = DirEntry
+				} else {
+					entries[name] = FileEntry
+				}
 			}
 		}
 	}
 
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
-	fs.fileEntriesMutex.Lock()
-	defer fs.fileEntriesMutex.Unlock()
+	fs.entriesMutex.Lock()
+	defer fs.entriesMutex.Unlock()
 	if err != nil {
-		fs.fileEntries[dir] = nil
+		fs.entries[dir] = nil
 		return nil
 	}
-	fs.fileEntries[dir] = fileEntries
-	return fileEntries
+	fs.entries[dir] = entries
+	return entries
 }
 
 func (fs *realFS) ReadFile(path string) (string, bool) {

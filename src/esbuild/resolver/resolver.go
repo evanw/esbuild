@@ -21,7 +21,10 @@ type resolver struct {
 }
 
 func NewResolver(fs fs.FS, extensionOrder []string) Resolver {
-	return &resolver{fs, extensionOrder}
+	return &resolver{
+		fs:             fs,
+		extensionOrder: extensionOrder,
+	}
 }
 
 func (r *resolver) Resolve(sourcePath string, importPath string) (string, bool) {
@@ -69,13 +72,13 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 		base := r.fs.Base(path)
 
 		// Try the plain path without any extensions
-		if entries[base] {
+		if entries[base] == fs.FileEntry {
 			return path, true
 		}
 
 		// Try the path with extensions
 		for _, ext := range r.extensionOrder {
-			if entries[base+ext] {
+			if entries[base+ext] == fs.FileEntry {
 				return path + ext, true
 			}
 		}
@@ -87,11 +90,11 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 // We want to minimize the number of times directory contents are listed. For
 // this reason, the directory entries are computed by the caller and then
 // passed down to us.
-func (r *resolver) loadAsIndex(path string, entries map[string]bool) (string, bool) {
+func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string, bool) {
 	// Try the "index" file with extensions
 	for _, ext := range r.extensionOrder {
 		base := "index" + ext
-		if entries[base] {
+		if entries[base] == fs.FileEntry {
 			return r.fs.Join(path, base), true
 		}
 	}
@@ -140,7 +143,7 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 	}
 
 	// Does this directory have a "package.json" file?
-	if entries["package.json"] {
+	if entries["package.json"] == fs.FileEntry {
 		if main, ok := r.parseMainFromJson(r.fs.Join(path, "package.json")); ok {
 			mainPath := r.fs.Join(path, main)
 
