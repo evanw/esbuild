@@ -12,7 +12,6 @@ import (
 type Resolver interface {
 	Resolve(sourcePath string, importPath string) (string, bool)
 	Read(path string) (string, bool)
-	FileExists(path string) bool
 	PrettyPath(path string) string
 }
 
@@ -51,11 +50,6 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, bool) 
 func (r *resolver) Read(path string) (string, bool) {
 	contents, ok := r.fs.ReadFile(path)
 	return contents, ok
-}
-
-func (r *resolver) FileExists(path string) bool {
-	entries := r.fs.ReadDirectory(r.fs.Dir(path))
-	return entries != nil && entries[r.fs.Base(path)]
 }
 
 func (r *resolver) PrettyPath(path string) string {
