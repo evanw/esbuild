@@ -345,6 +345,26 @@ func (lexer *Lexer) ExpectGreaterThan() {
 	case TGreaterThan:
 		lexer.Next()
 
+	case TGreaterThanEquals:
+		lexer.Token = TEquals
+		lexer.start++
+
+	case TGreaterThanGreaterThan:
+		lexer.Token = TGreaterThan
+		lexer.start++
+
+	case TGreaterThanGreaterThanEquals:
+		lexer.Token = TGreaterThanEquals
+		lexer.start++
+
+	case TGreaterThanGreaterThanGreaterThan:
+		lexer.Token = TGreaterThanGreaterThan
+		lexer.start++
+
+	case TGreaterThanGreaterThanGreaterThanEquals:
+		lexer.Token = TGreaterThanGreaterThanEquals
+		lexer.start++
+
 	default:
 		lexer.Expected(TGreaterThan)
 	}

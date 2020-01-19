@@ -437,6 +437,9 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		}
 		p.lexer.Expect(lexer.TCloseBracket)
 
+	case lexer.TOpenBrace:
+		p.skipTypeScriptObjectType()
+
 	default:
 		p.lexer.Unexpected()
 	}
@@ -468,22 +471,88 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 
 		case lexer.TOpenBracket:
 			p.lexer.Next()
+			if p.lexer.Token != lexer.TCloseBracket {
+				p.skipTypeScriptType(ast.LLowest)
+			}
 			p.lexer.Expect(lexer.TCloseBracket)
 
 		case lexer.TLessThan:
-			p.lexer.Next()
-			for {
-				p.skipTypeScriptType(ast.LLowest)
-				if p.lexer.Token != lexer.TComma {
-					break
-				}
-				p.lexer.Next()
-			}
-			p.lexer.ExpectGreaterThan()
+			p.skipTypeScriptTypeParameters()
 
 		default:
 			return
 		}
+	}
+}
+
+func (p *parser) skipTypeScriptObjectType() {
+	p.lexer.Expect(lexer.TOpenBrace)
+
+	for p.lexer.Token != lexer.TCloseBrace {
+		// Skip over modifiers and the property identifier
+		foundIdentifier := false
+		for p.lexer.IsIdentifierOrKeyword() {
+			p.lexer.Next()
+			foundIdentifier = true
+		}
+
+		// "?" indicates an optional property
+		if foundIdentifier && p.lexer.Token == lexer.TQuestion {
+			p.lexer.Next()
+		}
+
+		switch p.lexer.Token {
+		case lexer.TColon:
+			// Regular property
+			if !foundIdentifier {
+				p.lexer.Expect(lexer.TIdentifier)
+			}
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LLowest)
+
+		case lexer.TOpenBracket:
+			// Index signature
+			p.lexer.Next()
+			p.lexer.Expect(lexer.TIdentifier)
+			if p.lexer.Token == lexer.TColon {
+				p.lexer.Next()
+				p.skipTypeScriptType(ast.LLowest)
+			}
+			p.lexer.Expect(lexer.TCloseBracket)
+			p.lexer.Expect(lexer.TColon)
+			p.skipTypeScriptType(ast.LLowest)
+
+		default:
+			p.lexer.Unexpected()
+		}
+
+		switch p.lexer.Token {
+		case lexer.TCloseBrace:
+
+		case lexer.TComma, lexer.TSemicolon:
+			p.lexer.Next()
+
+		default:
+			if !p.lexer.HasNewlineBefore {
+				p.lexer.Unexpected()
+			}
+		}
+	}
+
+	p.lexer.Expect(lexer.TCloseBrace)
+}
+
+func (p *parser) skipTypeScriptTypeParameters() {
+	if p.lexer.Token == lexer.TLessThan {
+		p.lexer.Next()
+		for {
+			p.skipTypeScriptType(ast.LLowest)
+			if p.lexer.Token != lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+		}
+		p.lexer.ExpectGreaterThan()
 	}
 }
 
@@ -593,6 +662,12 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 						opts.isStatic = true
 						return p.parseProperty(context, kind, opts, nil)
 					}
+
+				case "private", "protected", "public", "readonly":
+					// Skip over TypeScript keywords
+					if context == propertyContextClass && p.ts.Parse {
+						return p.parseProperty(context, kind, opts, nil)
+					}
 				}
 			}
 		}
@@ -627,11 +702,18 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 	if context == propertyContextClass && kind == ast.PropertyNormal &&
 		!opts.isAsync && !opts.isGenerator && p.lexer.Token != lexer.TOpenParen {
 		var initializer *ast.Expr
+
+		if p.ts.Parse && p.lexer.Token == lexer.TColon {
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LLowest)
+		}
+
 		if p.lexer.Token == lexer.TEquals {
 			p.lexer.Next()
 			value := p.parseExpr(ast.LComma)
 			initializer = &value
 		}
+
 		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Property{
 			Kind:        kind,
@@ -868,6 +950,10 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 		nameLoc := p.lexer.Loc()
 		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 		p.lexer.Next()
+
+		if p.ts.Parse {
+			p.skipTypeScriptTypeParameters()
+		}
 	}
 
 	p.pushScopeForParsePass(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
@@ -1293,6 +1379,10 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			nameLoc := p.lexer.Loc()
 			name = &ast.LocRef{loc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 			p.lexer.Next()
+
+			if p.ts.Parse {
+				p.skipTypeScriptTypeParameters()
+			}
 		}
 
 		class := p.parseClass(name)
@@ -1300,6 +1390,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		if name != nil {
 			p.popScope()
 		}
+
 		return ast.Expr{loc, &ast.EClass{class}}
 
 	case lexer.TNew:
@@ -1980,6 +2071,17 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpInstanceof, left, p.parseExpr(ast.LCompare)}}
 
 		default:
+			// Handle the TypeScript "as" operator
+			if p.ts.Parse && p.lexer.IsContextualKeyword("as") {
+				p.lexer.Next()
+				if p.lexer.Token == lexer.TConst {
+					p.lexer.Next()
+				} else {
+					p.skipTypeScriptType(ast.LLowest)
+				}
+				continue
+			}
+
 			return left
 		}
 	}
@@ -2618,6 +2720,7 @@ type parseStmtOpts struct {
 	allowImportAndExport bool
 	isExport             bool
 	isNameOptional       bool // For "export default" pseudo-statements
+	isTypeScriptDeclare  bool
 }
 
 func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
@@ -2638,6 +2741,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		case lexer.TClass, lexer.TConst, lexer.TFunction, lexer.TLet, lexer.TVar:
 			opts.isExport = true
 			return p.parseStmt(opts)
+
+		case lexer.TInterface:
+			if p.ts.Parse {
+				opts.isExport = true
+				return p.parseStmt(opts)
+			}
+			p.lexer.Unexpected()
+			return ast.Stmt{}
 
 		case lexer.TIdentifier:
 			if p.lexer.IsContextualKeyword("async") {
@@ -2725,12 +2836,49 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		return p.parseFnStmt(loc, opts, false /* isAsync */)
 
+	case lexer.TInterface:
+		if !p.ts.Parse {
+			p.lexer.Unexpected()
+			return ast.Stmt{}
+		}
+
+		p.lexer.Next()
+		p.lexer.Expect(lexer.TIdentifier)
+		p.skipTypeScriptTypeParameters()
+
+		if p.lexer.Token == lexer.TExtends {
+			p.lexer.Next()
+			for {
+				p.skipTypeScriptType(ast.LLowest)
+				if p.lexer.Token != lexer.TComma {
+					break
+				}
+				p.lexer.Next()
+			}
+		}
+
+		if p.lexer.Token == lexer.TImplements {
+			p.lexer.Next()
+			for {
+				p.skipTypeScriptType(ast.LLowest)
+				if p.lexer.Token != lexer.TComma {
+					break
+				}
+				p.lexer.Next()
+			}
+		}
+
+		p.skipTypeScriptObjectType()
+		p.lexer.ExpectOrInsertSemicolon()
+		return ast.Stmt{loc, &ast.STypeScript{}}
+
 	case lexer.TClass:
 		if !opts.allowLexicalDecl {
 			p.forbidLexicalDecl(loc)
 		}
 		p.lexer.Next()
 		var name *ast.LocRef
+
 		if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
 			nameLoc := p.lexer.Loc()
 			nameText := p.lexer.Identifier
@@ -2739,7 +2887,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			if opts.isExport {
 				p.recordExport(nameLoc, nameText)
 			}
+			if p.ts.Parse {
+				p.skipTypeScriptTypeParameters()
+			}
 		}
+
 		class := p.parseClass(name)
 		return ast.Stmt{loc, &ast.SClass{class, opts.isExport}}
 
@@ -2773,7 +2925,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts.isExport)
 		p.lexer.ExpectOrInsertSemicolon()
-		p.requireInitializers(decls)
+		if !opts.isTypeScriptDeclare {
+			p.requireInitializers(decls)
+		}
 		return ast.Stmt{loc, &ast.SLocal{
 			Kind:     ast.LocalConst,
 			Decls:    decls,
@@ -3098,7 +3252,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					ast.Binding{stmt.DefaultName.Loc, &ast.BIdentifier{stmt.DefaultName.Ref}},
 					&value,
 				}}
-				return ast.Stmt{loc, &ast.SConst{decls, false}}
+				return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
 			}
 
 			if p.lexer.Token == lexer.TComma {
@@ -3230,10 +3384,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 	default:
 		isIdentifier := p.lexer.Token == lexer.TIdentifier
+		name := p.lexer.Identifier
 
 		// Parse either an async function, an async expression, or a normal expression
 		var expr ast.Expr
-		if isIdentifier && p.lexer.Identifier == "async" {
+		if isIdentifier && name == "async" {
 			asyncRange := p.lexer.Range()
 			p.lexer.Next()
 			if p.lexer.Token == lexer.TFunction {
@@ -3247,21 +3402,31 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 
 		// Parse a labeled statement
-		if ident, ok := expr.Data.(*ast.EIdentifier); ok && isIdentifier {
-			switch p.lexer.Token {
-			case lexer.TColon:
-				p.pushScopeForParsePass(ast.ScopeLabel, loc)
-				defer p.popScope()
+		if isIdentifier {
+			if ident, ok := expr.Data.(*ast.EIdentifier); ok {
+				switch p.lexer.Token {
+				case lexer.TColon:
+					p.pushScopeForParsePass(ast.ScopeLabel, loc)
+					defer p.popScope()
 
-				p.lexer.Next()
-				name := ast.LocRef{expr.Loc, ident.Ref}
-				stmt := p.parseStmt(parseStmtOpts{})
-				return ast.Stmt{loc, &ast.SLabel{name, stmt}}
+					p.lexer.Next()
+					name := ast.LocRef{expr.Loc, ident.Ref}
+					stmt := p.parseStmt(parseStmtOpts{})
+					return ast.Stmt{loc, &ast.SLabel{name, stmt}}
 
-			case lexer.TIdentifier:
-				if p.ts.Parse {
-					p.skipTypeScriptTypeStmt()
-					return ast.Stmt{loc, &ast.STypeScript{}}
+				case lexer.TIdentifier:
+					if p.ts.Parse && name == "type" {
+						// "type Foo = any"
+						p.skipTypeScriptTypeStmt()
+						return ast.Stmt{loc, &ast.STypeScript{}}
+					}
+
+				default:
+					if p.ts.Parse && name == "declare" {
+						// "declare const x: any"
+						p.parseStmt(parseStmtOpts{isTypeScriptDeclare: true})
+						return ast.Stmt{loc, &ast.STypeScript{}}
+					}
 				}
 			}
 		}
