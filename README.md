@@ -43,6 +43,8 @@ Currently supported:
 * Full source map support when `--sourcemap` is enabled
 * JSX-to-JavaScript conversion for `.jsx` files
 * Compile-time identifier substitutions via `--define`
+* Path substitution using the `browser` field in `package.json`
+* Automatic detection of `baseUrl` in `tsconfig.json`
 
 This is a hobby project that I wrote over the 2019-2020 winter break. I believe that it's relatively complete and functional. However, it's brand new code and probably has a lot of bugs. It also hasn't yet been used in production by anyone. Use at your own risk.
 
