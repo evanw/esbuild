@@ -60,7 +60,8 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, bool) 
 		return absolute, true
 	}
 
-	return r.loadSelfReference(importPath, sourceDir)
+	// Note: node's "self references" are not currently supported
+	return "", false
 }
 
 func (r *resolver) Read(path string) (string, bool) {
@@ -81,6 +82,10 @@ type packageJson struct {
 	absPathMain *string // The absolute path of the "main" entry point
 }
 
+type tsConfigJson struct {
+	absPathBaseUrl *string // The absolute path of "compilerOptions.baseUrl"
+}
+
 type dirInfo struct {
 	// These objects are immutable, so we can just point to the parent directory
 	// and avoid having to lock the cache again
@@ -91,6 +96,7 @@ type dirInfo struct {
 	hasNodeModules bool         // Is there a "node_modules" subdirectory?
 	absPathIndex   *string      // Is there an "index.js" file?
 	packageJson    *packageJson // Is there a "package.json" file?
+	tsConfigJson   *tsConfigJson
 }
 
 func (r *resolver) dirInfoCached(path string) *dirInfo {
@@ -143,24 +149,38 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 	// Record if this directory has a package.json file
 	if entries["package.json"] == fs.FileEntry {
-		packageJson := &packageJson{}
-		if main, ok := r.parseMainFromJson(r.fs.Join(path, "package.json")); ok {
-			mainPath := r.fs.Join(path, main)
+		info.packageJson = &packageJson{}
+		if json, ok := r.parseJson(r.fs.Join(path, "package.json")); ok {
+			if main, ok := getStringProperty(json, "main"); ok {
+				mainPath := r.fs.Join(path, main)
 
-			// Is it a file?
-			if absolute, ok := r.loadAsFile(mainPath); ok {
-				packageJson.absPathMain = &absolute
-			} else {
-				// Is it a directory?
-				if mainEntries := r.fs.ReadDirectory(mainPath); mainEntries != nil {
-					// Look for an "index" file with known extensions
-					if absolute, ok = r.loadAsIndex(mainPath, mainEntries); ok {
-						packageJson.absPathMain = &absolute
+				// Is it a file?
+				if absolute, ok := r.loadAsFile(mainPath); ok {
+					info.packageJson.absPathMain = &absolute
+				} else {
+					// Is it a directory?
+					if mainEntries := r.fs.ReadDirectory(mainPath); mainEntries != nil {
+						// Look for an "index" file with known extensions
+						if absolute, ok = r.loadAsIndex(mainPath, mainEntries); ok {
+							info.packageJson.absPathMain = &absolute
+						}
 					}
 				}
 			}
 		}
-		info.packageJson = packageJson
+	}
+
+	// Record if this directory has a tsconfig.json file
+	if entries["tsconfig.json"] == fs.FileEntry {
+		info.tsConfigJson = &tsConfigJson{}
+		if json, ok := r.parseJson(r.fs.Join(path, "tsconfig.json")); ok {
+			if compilerOptions, ok := getProperty(json, "compilerOptions"); ok {
+				if baseUrl, ok := getStringProperty(compilerOptions, "baseUrl"); ok {
+					baseUrl := r.fs.Join(path, baseUrl)
+					info.tsConfigJson.absPathBaseUrl = &baseUrl
+				}
+			}
+		}
 	}
 
 	// Is the "main" field from "package.json" missing?
@@ -212,31 +232,33 @@ func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string
 	return "", false
 }
 
-func (r *resolver) parseMainFromJson(path string) (result string, found bool) {
-	// Read the file
-	contents, ok := r.Read(path)
-	if ok {
-		// Parse the JSON
+func (r *resolver) parseJson(path string) (ast.Expr, bool) {
+	if contents, ok := r.fs.ReadFile(path); ok {
 		log, _ := logging.NewDeferLog()
 		source := logging.Source{Contents: contents}
-		parsed, ok := parser.ParseJson(log, source)
-		if ok {
-			// Check for a top-level object
-			if obj, ok := parsed.Data.(*ast.EObject); ok {
-				for _, prop := range obj.Properties {
-					// Find the key that says "main"
-					if key, ok := prop.Key.Data.(*ast.EString); ok && len(key.Value) == 4 && lexer.UTF16ToString(key.Value) == "main" {
-						if value, ok := prop.Value.Data.(*ast.EString); ok {
-							// Return the value for this key if it's a string
-							result = lexer.UTF16ToString(value.Value)
-							found = true
-						}
-					}
-				}
+		return parser.ParseJson(log, source)
+	}
+	return ast.Expr{}, false
+}
+
+func getProperty(json ast.Expr, name string) (ast.Expr, bool) {
+	if obj, ok := json.Data.(*ast.EObject); ok {
+		for _, prop := range obj.Properties {
+			if key, ok := prop.Key.Data.(*ast.EString); ok && len(key.Value) == len(name) && lexer.UTF16ToString(key.Value) == name {
+				return prop.Value, true
 			}
 		}
 	}
-	return
+	return ast.Expr{}, false
+}
+
+func getStringProperty(json ast.Expr, name string) (string, bool) {
+	if prop, ok := getProperty(json, name); ok {
+		if value, ok := prop.Data.(*ast.EString); ok {
+			return lexer.UTF16ToString(value.Value), true
+		}
+	}
+	return "", false
 }
 
 func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
@@ -267,6 +289,14 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
 	for {
+		// Handle TypeScript base URLs for TypeScript code
+		if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
+			basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+			if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+				return absolute, true
+			}
+		}
+
 		// Skip "node_modules" folders
 		if dirInfo.hasNodeModules {
 			absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(dirInfo.absPath, "node_modules", path))
@@ -280,29 +310,6 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 		if dirInfo == nil {
 			break
 		}
-	}
-
-	return "", false
-}
-
-func (r *resolver) loadSelfReference(path string, start string) (string, bool) {
-	// Note: this is modified from how node's resolution algorithm works. Instead
-	// of just checking the closest enclosing directory with a "package.json"
-	// file, it checks all enclosing directories.
-
-	for {
-		// Check this directory
-		absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(start, path))
-		if ok {
-			return absolute, true
-		}
-
-		// Go to the parent directory, stopping at the file system root
-		dir := r.fs.Dir(start)
-		if start == dir {
-			break
-		}
-		start = dir
 	}
 
 	return "", false

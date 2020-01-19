@@ -86,7 +86,7 @@ func (*mockFS) Base(p string) string {
 }
 
 func (*mockFS) Join(parts ...string) string {
-	return path.Join(parts...)
+	return path.Clean(path.Join(parts...))
 }
 
 func (*mockFS) RelativeToCwd(path string) (string, bool) {
@@ -203,7 +203,7 @@ func (*realFS) Base(p string) string {
 }
 
 func (*realFS) Join(parts ...string) string {
-	return filepath.Join(parts...)
+	return filepath.Clean(filepath.Join(parts...))
 }
 
 func (fs *realFS) RelativeToCwd(path string) (string, bool) {

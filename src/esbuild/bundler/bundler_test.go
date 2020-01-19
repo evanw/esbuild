@@ -421,13 +421,6 @@ func TestNodeModules(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			JSX: parser.JSXOptions{
-				Parse:    true,
-				Factory:  []string{"elem"},
-				Fragment: []string{"frag"},
-			},
-		},
 		bundleOptions: BundleOptions{
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -459,7 +452,9 @@ func TestPackageJsonMain(t *testing.T) {
 				console.log(fn())
 			`,
 			"/Users/user/project/node_modules/demo-pkg/package.json": `
-				{ "main": "./custom-main.js" }
+				{
+					"main": "./custom-main.js"
+				}
 			`,
 			"/Users/user/project/node_modules/demo-pkg/custom-main.js": `
 				module.exports = function() {
@@ -468,13 +463,6 @@ func TestPackageJsonMain(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			JSX: parser.JSXOptions{
-				Parse:    true,
-				Factory:  []string{"elem"},
-				Fragment: []string{"frag"},
-			},
-		},
 		bundleOptions: BundleOptions{
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -493,6 +481,50 @@ func TestPackageJsonMain(t *testing.T) {
     console.log(demo_pkg.default());
   }
 }, 1);
+`,
+		},
+	})
+}
+
+func TestTsconfigJsonBaseUrl(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.js": `
+				import fn from 'lib/util'
+				console.log(fn())
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "."
+					}
+				}
+			`,
+			"/Users/user/project/src/lib/util.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  1(require, exports, module) {
+    // /Users/user/project/src/lib/util.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  0(require) {
+    // /Users/user/project/src/app/entry.js
+    const util = require(1 /* lib/util */);
+    console.log(util.default());
+  }
+}, 0);
 `,
 		},
 	})
