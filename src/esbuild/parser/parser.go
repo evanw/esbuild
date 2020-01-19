@@ -1123,7 +1123,7 @@ func (p *parser) parseIndexExpr() ast.Expr {
 	//   [a, b].forEach(() => ...)
 	//
 	// This warning will trigger in this case too, which should catch some errors.
-	if p.lexer.Token == lexer.TComma {
+	if !p.omitWarnings && p.lexer.Token == lexer.TComma {
 		p.log.AddRangeWarning(p.source, p.lexer.Range(),
 			"Use of \",\" inside a property access is misleading because JavaScript doesn't have multidimensional arrays")
 		p.lexer.Next()
