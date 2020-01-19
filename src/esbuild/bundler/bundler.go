@@ -796,7 +796,7 @@ func addExportStar(moduleInfos []moduleInfo, visited map[uint32]bool, sourceInde
 }
 
 func (b *Bundle) bindImportsAndExports(
-	files []file, symbols *ast.SymbolMap, group []uint32, moduleInfos []moduleInfo,
+	log logging.Log, files []file, symbols *ast.SymbolMap, group []uint32, moduleInfos []moduleInfo,
 ) {
 	// Track any imports that may be re-exported
 	namespaceImportMap := make(map[ast.Ref]ast.ENamespaceImport)
@@ -828,6 +828,10 @@ func (b *Bundle) bindImportsAndExports(
 			} else {
 				if target, ok := moduleInfos[i.importSourceIndex].exports[i.alias]; ok {
 					ast.MergeSymbols(symbols, i.name.Ref, target)
+				} else {
+					source := b.sources[sourceIndex]
+					r := lexer.RangeOfIdentifier(source, i.aliasLoc)
+					log.AddRangeError(source, r, fmt.Sprintf("No matching export for import %q", i.alias))
 				}
 			}
 		}
@@ -1133,7 +1137,7 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 			// It's important to wait to rename symbols until after imports and
 			// exports have been handled. Exports need to use the original un-renamed
 			// names of the symbols.
-			b.bindImportsAndExports(files, symbols, group, moduleInfos)
+			b.bindImportsAndExports(log, files, symbols, group, moduleInfos)
 			b.renameOrMinifyAllSymbols(files, symbols, group, &options)
 			importExportGroup.Done()
 		}(group)

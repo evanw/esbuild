@@ -15,18 +15,19 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	}
 }
 
-func assertEmptyLog(t *testing.T, msgs []logging.Msg) {
+func assertLog(t *testing.T, msgs []logging.Msg, expected string) {
 	text := ""
 	for _, msg := range msgs {
 		text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 	}
-	assertEqual(t, text, "")
+	assertEqual(t, text, expected)
 }
 
 type bundled struct {
 	files         map[string]string
 	entryPaths    []string
 	expected      map[string]string
+	expectedLog   string
 	parseOptions  parser.ParseOptions
 	bundleOptions BundleOptions
 }
@@ -38,7 +39,7 @@ func expectBundled(t *testing.T, args bundled) {
 		log, join := logging.NewDeferLog()
 		args.parseOptions.IsBundling = true
 		bundle := ScanBundle(log, resolver, args.entryPaths, args.parseOptions)
-		assertEmptyLog(t, join())
+		assertLog(t, join(), "")
 
 		log, join = logging.NewDeferLog()
 		args.bundleOptions.Bundle = true
@@ -47,7 +48,7 @@ func expectBundled(t *testing.T, args bundled) {
 			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
 		}
 		results := bundle.Compile(log, args.bundleOptions)
-		assertEmptyLog(t, join())
+		assertLog(t, join(), args.expectedLog)
 
 		assertEqual(t, len(results), len(args.expected))
 		for _, result := range results {
@@ -925,6 +926,72 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
     console.log(demo_pkg.default());
   }
 }, 2);
+`,
+		},
+	})
+}
+
+func TestPackageImportMissingES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import fn, {x as a, y as b} from './foo'
+				console.log(fn(a, b))
+			`,
+			"/foo.js": `
+				export const x = 132
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/out.js",
+		},
+		expectedLog: `/entry.js: error: No matching export for import "default"
+/entry.js: error: No matching export for import "y"
+`,
+		expected: map[string]string{
+			"/out.js": `loader({
+  0() {
+    // /foo.js
+    const x = 132;
+
+    // /entry.js
+    console.log(fn(x, b));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestPackageImportMissingCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import fn, {x as a, y as b} from './foo'
+				console.log(fn(a, b))
+			`,
+			"/foo.js": `
+				exports.x = 132
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `loader({
+  1(require, exports) {
+    // /foo.js
+    exports.x = 132;
+  },
+
+  0(require) {
+    // /entry.js
+    const foo = require(1 /* ./foo */);
+    console.log(foo.default(foo.x, foo.y));
+  }
+}, 0);
 `,
 		},
 	})
