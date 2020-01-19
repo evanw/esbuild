@@ -1113,6 +1113,26 @@ func (p *parser) parseImportExpr(loc ast.Loc, name string) ast.Expr {
 	return ast.Expr{loc, &ast.ECall{target, args, false}}
 }
 
+func (p *parser) parseIndexExpr() ast.Expr {
+	value := p.parseExpr(ast.LComma)
+
+	// Warn about commas inside index expressions. In addition to being confusing,
+	// these can happen because of mistakes due to automatic semicolon insertion:
+	//
+	//   console.log('...')
+	//   [a, b].forEach(() => ...)
+	//
+	// This warning will trigger in this case too, which should catch some errors.
+	if p.lexer.Token == lexer.TComma {
+		p.log.AddRangeWarning(p.source, p.lexer.Range(),
+			"Use of \",\" inside a property access is misleading because JavaScript doesn't have multidimensional arrays")
+		p.lexer.Next()
+		value = ast.Expr{value.Loc, &ast.EBinary{ast.BinOpComma, value, p.parseExpr(ast.LComma)}}
+	}
+
+	return value
+}
+
 func (p *parser) parseExprOrBindings(level ast.L, errors *deferredErrors) ast.Expr {
 	return p.parseSuffix(p.parsePrefix(level, errors), level)
 }
@@ -1145,7 +1165,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 				oldAllowIn := p.allowIn
 				p.allowIn = true
 
-				index := p.parseExpr(ast.LLowest)
+				index := p.parseIndexExpr()
 
 				p.allowIn = oldAllowIn
 
@@ -1195,7 +1215,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			oldAllowIn := p.allowIn
 			p.allowIn = true
 
-			index := p.parseExpr(ast.LLowest)
+			index := p.parseIndexExpr()
 
 			p.allowIn = oldAllowIn
 
