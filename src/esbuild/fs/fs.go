@@ -100,10 +100,6 @@ type realFS struct {
 	entriesMutex sync.RWMutex
 	entries      map[string]map[string]Entry
 
-	// Stores the contents of files we've read before
-	fileContentsMutex sync.RWMutex
-	fileContents      map[string]*string
-
 	// For the current working directory
 	cwd   string
 	cwdOk bool
@@ -112,10 +108,9 @@ type realFS struct {
 func RealFS() FS {
 	cwd, cwdErr := os.Getwd()
 	return &realFS{
-		entries:      make(map[string]map[string]Entry),
-		fileContents: make(map[string]*string),
-		cwd:          cwd,
-		cwdOk:        cwdErr == nil,
+		entries: make(map[string]map[string]Entry),
+		cwd:     cwd,
+		cwdOk:   cwdErr == nil,
 	}
 }
 
@@ -162,36 +157,8 @@ func (fs *realFS) ReadDirectory(dir string) map[string]Entry {
 }
 
 func (fs *realFS) ReadFile(path string) (string, bool) {
-	// First, check the cache
-	cached, ok := func() (*string, bool) {
-		fs.fileContentsMutex.RLock()
-		defer fs.fileContentsMutex.RUnlock()
-		cached, ok := fs.fileContents[path]
-		return cached, ok
-	}()
-
-	// Cache hit: stop now
-	if ok {
-		if cached == nil {
-			return "", false
-		}
-		return *cached, true
-	}
-
-	// Cache miss: read the file
 	buffer, err := ioutil.ReadFile(path)
-
-	// Update the cache unconditionally. Even if the read failed, we don't want to
-	// retry again later. The file is inaccessible so trying again is wasted.
-	fs.fileContentsMutex.Lock()
-	defer fs.fileContentsMutex.Unlock()
-	if err != nil {
-		fs.fileContents[path] = nil
-		return "", false
-	}
-	contents := string(buffer)
-	fs.fileContents[path] = &contents
-	return contents, true
+	return string(buffer), err == nil
 }
 
 func (*realFS) Dir(p string) string {
