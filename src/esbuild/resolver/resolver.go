@@ -7,6 +7,7 @@ import (
 	"esbuild/logging"
 	"esbuild/parser"
 	"strings"
+	"sync"
 )
 
 type Resolver interface {
@@ -18,12 +19,18 @@ type Resolver interface {
 type resolver struct {
 	fs             fs.FS
 	extensionOrder []string
+
+	// This cache maps a directory path to information about that directory and
+	// all parent directories
+	dirCacheMutex sync.RWMutex
+	dirCache      map[string]*dirInfo
 }
 
 func NewResolver(fs fs.FS, extensionOrder []string) Resolver {
 	return &resolver{
 		fs:             fs,
 		extensionOrder: extensionOrder,
+		dirCache:       make(map[string]*dirInfo),
 	}
 }
 
@@ -42,7 +49,13 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, bool) 
 		return r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath))
 	}
 
-	absolute, ok := r.loadNodeModules(importPath, sourceDir)
+	// Get the cached information for this directory and all parent directories
+	sourceInfo := r.dirInfoCached(sourceDir)
+	if sourceInfo == nil {
+		return "", false
+	}
+
+	absolute, ok := r.loadNodeModules(importPath, sourceInfo)
 	if ok {
 		return absolute, true
 	}
@@ -63,6 +76,103 @@ func (r *resolver) PrettyPath(path string) string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type packageJson struct {
+	absPathMain *string // The absolute path of the "main" entry point
+}
+
+type dirInfo struct {
+	// These objects are immutable, so we can just point to the parent directory
+	// and avoid having to lock the cache again
+	parent *dirInfo
+
+	// All relevant information about this directory
+	absPath        string
+	hasNodeModules bool         // Is there a "node_modules" subdirectory?
+	absPathIndex   *string      // Is there an "index.js" file?
+	packageJson    *packageJson // Is there a "package.json" file?
+}
+
+func (r *resolver) dirInfoCached(path string) *dirInfo {
+	// First, check the cache
+	cached, ok := func() (*dirInfo, bool) {
+		r.dirCacheMutex.RLock()
+		defer r.dirCacheMutex.RUnlock()
+		cached, ok := r.dirCache[path]
+		return cached, ok
+	}()
+
+	// Cache hit: stop now
+	if ok {
+		return cached
+	}
+
+	// Cache miss: read the info
+	info := r.dirInfoUncached(path)
+
+	// Update the cache unconditionally. Even if the read failed, we don't want to
+	// retry again later. The directory is inaccessible so trying again is wasted.
+	r.dirCacheMutex.Lock()
+	defer r.dirCacheMutex.Unlock()
+	r.dirCache[path] = info
+	return info
+}
+
+func (r *resolver) dirInfoUncached(path string) *dirInfo {
+	// Get the info for the parent directory
+	var parentInfo *dirInfo
+	parentDir := r.fs.Dir(path)
+	if parentDir != path {
+		parentInfo = r.dirInfoCached(parentDir)
+
+		// Stop now if the parent directory doesn't exist
+		if parentInfo == nil {
+			return nil
+		}
+	}
+
+	// List the directories
+	entries := r.fs.ReadDirectory(path)
+	info := &dirInfo{
+		absPath: path,
+		parent:  parentInfo,
+	}
+
+	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
+	info.hasNodeModules = entries["node_modules"] == fs.DirEntry && r.fs.Base(path) != "node_modules"
+
+	// Record if this directory has a package.json file
+	if entries["package.json"] == fs.FileEntry {
+		packageJson := &packageJson{}
+		if main, ok := r.parseMainFromJson(r.fs.Join(path, "package.json")); ok {
+			mainPath := r.fs.Join(path, main)
+
+			// Is it a file?
+			if absolute, ok := r.loadAsFile(mainPath); ok {
+				packageJson.absPathMain = &absolute
+			} else {
+				// Is it a directory?
+				if mainEntries := r.fs.ReadDirectory(mainPath); mainEntries != nil {
+					// Look for an "index" file with known extensions
+					if absolute, ok = r.loadAsIndex(mainPath, mainEntries); ok {
+						packageJson.absPathMain = &absolute
+					}
+				}
+			}
+		}
+		info.packageJson = packageJson
+	}
+
+	// Is the "main" field from "package.json" missing?
+	if info.packageJson == nil || info.packageJson.absPathMain == nil {
+		// Look for an "index" file with known extensions
+		if absolute, ok := r.loadAsIndex(path, entries); ok {
+			info.absPathIndex = &absolute
+		}
+	}
+
+	return info
+}
 
 func (r *resolver) loadAsFile(path string) (string, bool) {
 	// Read the directory entries once to minimize locking
@@ -137,52 +247,39 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 	}
 
 	// Is this a directory?
-	entries := r.fs.ReadDirectory(path)
-	if entries == nil {
+	dirInfo := r.dirInfoCached(path)
+	if dirInfo == nil {
 		return "", false
 	}
 
-	// Does this directory have a "package.json" file?
-	if entries["package.json"] == fs.FileEntry {
-		if main, ok := r.parseMainFromJson(r.fs.Join(path, "package.json")); ok {
-			mainPath := r.fs.Join(path, main)
-
-			// Is it a file?
-			absolute, ok := r.loadAsFile(mainPath)
-			if ok {
-				return absolute, true
-			}
-
-			// Is it a directory?
-			mainEntries := r.fs.ReadDirectory(mainPath)
-			if mainEntries != nil {
-				absolute, ok = r.loadAsIndex(mainPath, mainEntries)
-				if ok {
-					return absolute, true
-				}
-			}
-		}
+	// Return the "main" field from "package.json"
+	if dirInfo.packageJson != nil && dirInfo.packageJson.absPathMain != nil {
+		return *dirInfo.packageJson.absPathMain, true
 	}
 
-	return r.loadAsIndex(path, entries)
+	// Return the "index.js" file
+	if dirInfo.absPathIndex != nil {
+		return *dirInfo.absPathIndex, true
+	}
+
+	return "", false
 }
 
-func (r *resolver) loadNodeModules(path string, start string) (string, bool) {
+func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
 	for {
 		// Skip "node_modules" folders
-		if r.fs.Base(start) != "node_modules" {
-			absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(start, "node_modules", path))
+		if dirInfo.hasNodeModules {
+			absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(dirInfo.absPath, "node_modules", path))
 			if ok {
 				return absolute, true
 			}
 		}
 
 		// Go to the parent directory, stopping at the file system root
-		dir := r.fs.Dir(start)
-		if start == dir {
+		dirInfo = dirInfo.parent
+		if dirInfo == nil {
 			break
 		}
-		start = dir
 	}
 
 	return "", false
