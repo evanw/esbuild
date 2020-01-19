@@ -108,6 +108,9 @@ func TestIdentifier(t *testing.T) {
 	expectLexerError(t, "t\\u006.", "<stdin>: error: Syntax error \".\"\n")
 	expectLexerError(t, "t\\u{.", "<stdin>: error: Syntax error \".\"\n")
 	expectLexerError(t, "t\\u{0.", "<stdin>: error: Syntax error \".\"\n")
+
+	expectIdentifier(t, "a\u200C", "a\u200C")
+	expectIdentifier(t, "a\u200D", "a\u200D")
 }
 
 func expectNumber(t *testing.T, contents string, expected float64) {

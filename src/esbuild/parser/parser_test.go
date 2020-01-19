@@ -190,6 +190,9 @@ func TestIdentifierEscapes(t *testing.T) {
 
 	expectPrinted(t, "foo._\\u0076\\u0061\\u0072", "foo._var;\n")
 	expectPrinted(t, "foo.\\u0076\\u0061\\u0072", "foo.var;\n")
+
+	expectParseError(t, "\u200Ca", "<stdin>: error: Unexpected \"\\u200c\"\n")
+	expectParseError(t, "\u200Da", "<stdin>: error: Unexpected \"\\u200d\"\n")
 }
 
 func TestSpecialIdentifiers(t *testing.T) {

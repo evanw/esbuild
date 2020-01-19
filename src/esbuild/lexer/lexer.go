@@ -382,6 +382,11 @@ func IsIdentifierContinue(codePoint rune) bool {
 		return false
 	}
 
+	// ZWNJ and ZWJ are allowed in identifiers
+	if codePoint == 0x200C || codePoint == 0x200D {
+		return true
+	}
+
 	return unicode.Is(idContinue, codePoint)
 }
 
