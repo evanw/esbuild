@@ -88,31 +88,33 @@ func (*mockFS) RelativeToCwd(path string) (string, bool) {
 
 type realFS struct {
 	// Stores the file entries for directories we've listed before
-	fileEntriesMutex sync.Mutex
+	fileEntriesMutex sync.RWMutex
 	fileEntries      map[string]map[string]bool
 
 	// Stores the contents of files we've read before
-	fileContentsMutex sync.Mutex
+	fileContentsMutex sync.RWMutex
 	fileContents      map[string]*string
 
 	// For the current working directory
-	cwdMutex sync.Mutex
-	cwd      *string
-	cwdTried bool
+	cwd   string
+	cwdOk bool
 }
 
 func RealFS() FS {
+	cwd, cwdErr := os.Getwd()
 	return &realFS{
 		fileEntries:  make(map[string]map[string]bool),
 		fileContents: make(map[string]*string),
+		cwd:          cwd,
+		cwdOk:        cwdErr == nil,
 	}
 }
 
 func (fs *realFS) ReadDirectory(dir string) map[string]bool {
 	// First, check the cache
 	cached, ok := func() (map[string]bool, bool) {
-		fs.fileEntriesMutex.Lock()
-		defer fs.fileEntriesMutex.Unlock()
+		fs.fileEntriesMutex.RLock()
+		defer fs.fileEntriesMutex.RUnlock()
 		cached, ok := fs.fileEntries[dir]
 		return cached, ok
 	}()
@@ -149,8 +151,8 @@ func (fs *realFS) ReadDirectory(dir string) map[string]bool {
 func (fs *realFS) ReadFile(path string) (string, bool) {
 	// First, check the cache
 	cached, ok := func() (*string, bool) {
-		fs.fileContentsMutex.Lock()
-		defer fs.fileContentsMutex.Unlock()
+		fs.fileContentsMutex.RLock()
+		defer fs.fileContentsMutex.RUnlock()
 		cached, ok := fs.fileContents[path]
 		return cached, ok
 	}()
@@ -192,44 +194,12 @@ func (*realFS) Join(parts ...string) string {
 }
 
 func (fs *realFS) RelativeToCwd(path string) (string, bool) {
-	if cwd, ok := fs.getCwd(); ok {
-		if rel, err := filepath.Rel(cwd, path); err == nil {
+	if fs.cwdOk {
+		if rel, err := filepath.Rel(fs.cwd, path); err == nil {
 			return rel, true
 		}
 	}
 	return "", false
-}
-
-func (fs *realFS) getCwd() (string, bool) {
-	// First, check the cache
-	cached, ok := func() (*string, bool) {
-		fs.cwdMutex.Lock()
-		defer fs.cwdMutex.Unlock()
-		return fs.cwd, fs.cwdTried
-	}()
-
-	// Cache hit: stop now
-	if ok {
-		if cached == nil {
-			return "", false
-		}
-		return *cached, true
-	}
-
-	// Cache miss: read the current working directory
-	cwd, err := os.Getwd()
-
-	// Update the cache unconditionally. Even if the read failed, we don't want to
-	// retry again later. The current working directory is inaccessible so trying
-	// again is wasted.
-	fs.cwdMutex.Lock()
-	defer fs.cwdMutex.Unlock()
-	fs.cwdTried = true
-	if err != nil {
-		return "", false
-	}
-	fs.cwd = &cwd
-	return cwd, true
 }
 
 func readdir(dirname string) ([]string, error) {
