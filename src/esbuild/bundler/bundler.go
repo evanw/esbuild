@@ -132,14 +132,15 @@ func ScanBundle(log logging.Log, resolver resolver.Resolver, entryPaths []string
 }
 
 type BundleOptions struct {
-	Bundle            bool
-	AbsOutputFile     string
-	AbsOutputDir      string
-	RemoveWhitespace  bool
-	MinifyIdentifiers bool
-	MangleSyntax      bool
-	SourceMap         bool
-	ModuleName        string
+	Bundle             bool
+	AbsOutputFile      string
+	AbsOutputDir       string
+	RemoveWhitespace   bool
+	MinifyIdentifiers  bool
+	MangleSyntax       bool
+	SourceMap          bool
+	ModuleName         string
+	omitLoaderForTests bool
 }
 
 type BundleResult struct {
@@ -218,9 +219,13 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		}
 		js = append(js, ("let " + options.ModuleName + equals)...)
 	}
-	js = append(js, "("...)
-	js = append(js, jsPrefix...)
-	js = append(js, ")({"...)
+	if options.omitLoaderForTests {
+		js = append(js, "loader({"...)
+	} else {
+		js = append(js, '(')
+		js = append(js, jsPrefix...)
+		js = append(js, ")({"...)
+	}
 
 	// This is the line and column offset since the previous JavaScript string
 	// or the start of the file if this is the first JavaScript string.
