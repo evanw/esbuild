@@ -567,7 +567,7 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 				}
 				p.lexer.Next()
 			}
-			p.lexer.ExpectGreaterThan()
+			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
 
 		case lexer.TExtends:
 			p.lexer.Next()
@@ -701,11 +701,11 @@ func (p *parser) skipTypeScriptTypeParameters() {
 			p.lexer.Next()
 		}
 
-		p.lexer.ExpectGreaterThan()
+		p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
 	}
 }
 
-func (p *parser) skipTypeScriptTypeArguments() bool {
+func (p *parser) skipTypeScriptTypeArguments(isInsideJSXElement bool) bool {
 	if p.lexer.Token != lexer.TLessThan {
 		return false
 	}
@@ -721,7 +721,7 @@ func (p *parser) skipTypeScriptTypeArguments() bool {
 	}
 
 	// This type argument list must end with a ">"
-	p.lexer.ExpectGreaterThan()
+	p.lexer.ExpectGreaterThan(isInsideJSXElement)
 	return true
 }
 
@@ -739,7 +739,7 @@ func (p *parser) trySkipTypeScriptTypeArgumentsWithBacktracking() bool {
 		}
 	}()
 
-	p.skipTypeScriptTypeArguments()
+	p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
 
 	// Check the token after this and backtrack if it's the wrong one
 	if !p.canFollowTypeArgumentsInExpression() {
@@ -2510,7 +2510,11 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 
 	// The tag may have TypeScript type arguments: "<Foo<T>/>"
 	if p.ts.Parse {
-		p.skipTypeScriptTypeArguments()
+		// Pass a flag to the type argument skipper because we need to call
+		// lexer.NextInsideJSXElement() after we hit the closing ">". The next
+		// token after the ">" might be an attribute name with a dash in it
+		// like this: "<Foo<T> data-disabled/>"
+		p.skipTypeScriptTypeArguments(true /* isInsideJSXElement */)
 	}
 
 	// Parse attributes
@@ -2996,7 +3000,7 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 		// does and it probably doesn't have that high of a performance overhead
 		// because "extends" clauses aren't that frequent, so it should be ok.
 		if p.ts.Parse {
-			p.skipTypeScriptTypeArguments()
+			p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
 		}
 	}
 
