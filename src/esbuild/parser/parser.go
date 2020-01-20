@@ -430,8 +430,25 @@ func (p *parser) skipTypeScriptType(level ast.L) {
 
 func (p *parser) skipTypeScriptTypePrefix() {
 	switch p.lexer.Token {
-	case lexer.TIdentifier, lexer.TNumericLiteral, lexer.TStringLiteral,
-		lexer.TTrue, lexer.TFalse, lexer.TNull, lexer.TVoid:
+	case lexer.TBar:
+		// Support things like "type Foo = | number | string"
+		p.lexer.Next()
+		p.skipTypeScriptTypePrefix()
+
+	case lexer.TIdentifier:
+		if p.lexer.Identifier == "keyof" {
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LPrefix)
+		} else {
+			p.lexer.Next()
+		}
+
+	case lexer.TTypeof:
+		p.lexer.Next()
+		p.skipTypeScriptType(ast.LPrefix)
+
+	case lexer.TNumericLiteral, lexer.TStringLiteral,
+		lexer.TTrue, lexer.TFalse, lexer.TNull, lexer.TVoid, lexer.TConst:
 		p.lexer.Next()
 
 	case lexer.TOpenBracket:
@@ -486,7 +503,6 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 
 		case lexer.TLessThan:
 			p.lexer.Next()
-
 			for {
 				p.skipTypeScriptType(ast.LLowest)
 				if p.lexer.Token != lexer.TComma {
@@ -494,8 +510,20 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 				}
 				p.lexer.Next()
 			}
-
 			p.lexer.ExpectGreaterThan()
+
+		case lexer.TExtends:
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LCompare)
+
+		case lexer.TQuestion:
+			if level >= ast.LConditional {
+				return
+			}
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LLowest)
+			p.lexer.Expect(lexer.TColon)
+			p.skipTypeScriptType(ast.LLowest)
 
 		default:
 			return
@@ -2131,11 +2159,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			// Handle the TypeScript "as" operator
 			if p.ts.Parse && p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
-				if p.lexer.Token == lexer.TConst {
-					p.lexer.Next()
-				} else {
-					p.skipTypeScriptType(ast.LLowest)
-				}
+				p.skipTypeScriptType(ast.LLowest)
 				continue
 			}
 
@@ -2614,6 +2638,20 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) ast.Fn {
 	p.lexer.Expect(lexer.TOpenParen)
 
 	for p.lexer.Token != lexer.TCloseParen {
+		// Skip over "this" type annotations
+		if p.ts.Parse && p.lexer.Token == lexer.TThis {
+			p.lexer.Next()
+			if p.lexer.Token == lexer.TColon {
+				p.lexer.Next()
+				p.skipTypeScriptType(ast.LLowest)
+			}
+			if p.lexer.Token != lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+			continue
+		}
+
 		if !hasRestArg && p.lexer.Token == lexer.TDotDotDot {
 			p.lexer.Next()
 			hasRestArg = true
@@ -2744,6 +2782,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	if isGenerator {
 		p.lexer.Next()
 	}
+
 	var name *ast.LocRef
 	if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
 		nameLoc := p.lexer.Loc()
@@ -2752,6 +2791,9 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)}
 		if opts.isExport {
 			p.recordExport(nameLoc, nameText)
+		}
+		if p.ts.Parse {
+			p.skipTypeScriptTypeParameters()
 		}
 	}
 
