@@ -870,6 +870,11 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		}
 	}
 
+	// Skip over type parameters
+	if p.ts.Parse && context == propertyContextClass {
+		p.skipTypeScriptTypeParameters()
+	}
+
 	// Parse a field
 	if context == propertyContextClass && kind == ast.PropertyNormal &&
 		!opts.isAsync && !opts.isGenerator && p.lexer.Token != lexer.TOpenParen {
