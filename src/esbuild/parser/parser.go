@@ -1181,7 +1181,7 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		// "async => {}"
 	case lexer.TEqualsGreaterThan:
 		p.lexer.Next()
-		arg := ast.Arg{ast.Binding{asyncRange.Loc, &ast.BIdentifier{p.storeNameInRef("async")}}, nil}
+		arg := ast.Arg{Binding: ast.Binding{asyncRange.Loc, &ast.BIdentifier{p.storeNameInRef("async")}}}
 
 		p.pushScopeForParsePass(ast.ScopeEntry, asyncRange.Loc)
 		defer p.popScope()
@@ -1192,7 +1192,7 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 	case lexer.TIdentifier:
 		p.warnAboutFutureSyntax(ES2017, asyncRange)
 		ref := p.storeNameInRef(p.lexer.Identifier)
-		arg := ast.Arg{ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}, nil}
+		arg := ast.Arg{Binding: ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}}
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TEqualsGreaterThan)
 
@@ -1326,7 +1326,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			}
 			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog)
 			invalidLog = log
-			args = append(args, ast.Arg{binding, initializer})
+			args = append(args, ast.Arg{Binding: binding, Default: initializer})
 		}
 
 		// Avoid parsing TypeScript code like "a ? (1 + 2) : (3 + 4)" as an arrow
@@ -1585,7 +1585,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		if p.lexer.Token == lexer.TEqualsGreaterThan {
 			p.lexer.Next()
 			ref := p.storeNameInRef(name)
-			arg := ast.Arg{ast.Binding{loc, &ast.BIdentifier{ref}}, nil}
+			arg := ast.Arg{Binding: ast.Binding{loc, &ast.BIdentifier{ref}}}
 
 			p.pushScopeForParsePass(ast.ScopeEntry, loc)
 			defer p.popScope()
@@ -2925,10 +2925,31 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			hasRestArg = true
 		}
 
+		// Potentially parse a TypeScript accessibility modifier
+		isTypeScriptField := false
+		if p.ts.Parse {
+			switch p.lexer.Token {
+			case lexer.TPrivate, lexer.TProtected, lexer.TPublic:
+				isTypeScriptField = true
+				p.lexer.Next()
+			}
+		}
+
+		isIdentifier := p.lexer.Token == lexer.TIdentifier
+		identifierText := p.lexer.Identifier
+
 		arg := p.parseBinding()
 		p.declareBinding(ast.SymbolHoisted, arg, false /* isExport */)
 
 		if p.ts.Parse {
+			// Skip over "readonly"
+			if p.lexer.Token == lexer.TIdentifier && isIdentifier && identifierText == "readonly" {
+				isTypeScriptField = true
+
+				// Re-parse the binding (the current binding is the "readonly" keyword)
+				arg = p.parseBinding()
+			}
+
 			// "function foo(a?) {}"
 			if p.lexer.Token == lexer.TQuestion {
 				p.lexer.Next()
@@ -2948,7 +2969,14 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			defaultValue = &value
 		}
 
-		args = append(args, ast.Arg{arg, defaultValue})
+		args = append(args, ast.Arg{
+			Binding: arg,
+			Default: defaultValue,
+
+			// We need to track this because it affects code generation
+			IsTypeScriptCtorField: isTypeScriptField,
+		})
+
 		if p.lexer.Token != lexer.TComma {
 			break
 		}

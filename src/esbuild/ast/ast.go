@@ -261,6 +261,9 @@ type PropertyBinding struct {
 }
 
 type Arg struct {
+	// "constructor(public x: boolean) {}"
+	IsTypeScriptCtorField bool
+
 	Binding Binding
 	Default *Expr
 }
