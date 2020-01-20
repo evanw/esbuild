@@ -2802,6 +2802,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			opts.isExport = true
 			return p.parseStmt(opts)
 
+		case lexer.TEnum:
+			if !p.ts.Parse {
+				p.lexer.Unexpected()
+			}
+			opts.isExport = true
+			return p.parseStmt(opts)
+
 		case lexer.TInterface:
 			if p.ts.Parse {
 				opts.isExport = true
@@ -2916,10 +2923,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		return p.parseFnStmt(loc, opts, false /* isAsync */)
 
+	case lexer.TEnum:
+		if !p.ts.Parse {
+			p.lexer.Unexpected()
+		}
+		return p.parseEnumStmt(loc, opts.isExport)
+
 	case lexer.TInterface:
 		if !p.ts.Parse {
 			p.lexer.Unexpected()
-			return ast.Stmt{}
 		}
 
 		p.lexer.Next()
@@ -3003,6 +3015,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.forbidLexicalDecl(loc)
 		}
 		p.lexer.Next()
+
+		if p.ts.Parse && p.lexer.Token == lexer.TEnum {
+			return p.parseEnumStmt(loc, opts.isExport)
+		}
+
 		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts.isExport)
 		p.lexer.ExpectOrInsertSemicolon()
 		if !opts.isTypeScriptDeclare {
@@ -3551,6 +3568,61 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		return ast.Stmt{loc, &ast.SExpr{expr}}
 	}
+}
+
+func (p *parser) parseEnumStmt(loc ast.Loc, isExport bool) ast.Stmt {
+	p.lexer.Expect(lexer.TEnum)
+	nameLoc := p.lexer.Loc()
+	nameText := p.lexer.Identifier
+	p.lexer.Expect(lexer.TIdentifier)
+	name := ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)}
+	p.lexer.Expect(lexer.TOpenBrace)
+
+	values := []ast.EnumValue{}
+	nextNumericValue := float64(0)
+	hasNumericValue := true
+
+	for p.lexer.Token != lexer.TCloseBrace {
+		value := ast.EnumValue{Loc: p.lexer.Loc()}
+
+		// Parse the name
+		if p.lexer.Token == lexer.TStringLiteral {
+			value.Name = p.lexer.StringLiteral
+		} else if p.lexer.IsIdentifierOrKeyword() {
+			value.Name = lexer.StringToUTF16(p.lexer.Identifier)
+		} else {
+			p.lexer.Expect(lexer.TIdentifier)
+		}
+		nameRange := p.lexer.Range()
+		p.lexer.Next()
+
+		// Parse the value
+		if p.lexer.Token == lexer.TEquals {
+			p.lexer.Next()
+			value.Value = p.parseExpr(ast.LComma)
+			if number, ok := value.Value.Data.(*ast.ENumber); ok {
+				hasNumericValue = true
+				nextNumericValue = number.Value + 1
+			} else {
+				hasNumericValue = false
+			}
+		} else if hasNumericValue {
+			value.Value = ast.Expr{ast.Loc{nameRange.Loc.Start + nameRange.Len}, &ast.ENumber{nextNumericValue}}
+			nextNumericValue++
+		} else {
+			value.Value = ast.Expr{ast.Loc{nameRange.Loc.Start + nameRange.Len}, &ast.EUndefined{}}
+		}
+
+		values = append(values, value)
+
+		if p.lexer.Token != lexer.TComma && p.lexer.Token != lexer.TSemicolon {
+			break
+		}
+		p.lexer.Next()
+	}
+
+	p.lexer.Expect(lexer.TCloseBrace)
+	return ast.Stmt{loc, &ast.SEnum{name, values, isExport}}
 }
 
 func (p *parser) parseFnBodyStmts(opts fnOpts) []ast.Stmt {
@@ -4679,6 +4751,48 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 		}
 		return stmts
+
+	case *ast.SEnum:
+		stmts := []ast.Stmt{}
+
+		for _, value := range s.Values {
+			value.Value = p.visitExpr(value.Value)
+			stmts = append(stmts, ast.Stmt{value.Loc, &ast.SExpr{ast.Expr{value.Loc, &ast.EBinary{
+				ast.BinOpAssign,
+				ast.Expr{value.Loc, &ast.EIndex{
+					Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Name.Ref}},
+					Index: ast.Expr{value.Loc, &ast.EBinary{
+						ast.BinOpAssign,
+						ast.Expr{value.Loc, &ast.EIndex{
+							Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Name.Ref}},
+							Index:  ast.Expr{value.Loc, &ast.EString{value.Name}},
+						}},
+						value.Value,
+					}},
+				}},
+				ast.Expr{value.Loc, &ast.EString{value.Name}},
+			}}}})
+		}
+
+		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
+			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Name.Ref}}}},
+			Stmts: stmts,
+		}}}
+
+		argExpr := ast.Expr{s.Name.Loc, &ast.EBinary{
+			ast.BinOpLogicalOr,
+			ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
+			ast.Expr{s.Name.Loc, &ast.EBinary{
+				ast.BinOpAssign,
+				ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
+				ast.Expr{s.Name.Loc, &ast.EObject{}},
+			}},
+		}}
+
+		stmt = ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
+			Target: fnExpr,
+			Args:   []ast.Expr{argExpr},
+		}}}}
 
 	case *ast.SNamespace:
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
