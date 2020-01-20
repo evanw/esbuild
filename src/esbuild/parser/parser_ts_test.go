@@ -262,4 +262,20 @@ func TestTSJSX(t *testing.T) {
 
 	expectPrintedTSX(t, "const x = <Foo<T>></Foo>", "const x = React.createElement(Foo, null);\n")
 	expectPrintedTSX(t, "const x = <Foo<T> data-foo></Foo>", "const x = React.createElement(Foo, {\n  \"data-foo\": true\n});\n")
+	expectParseErrorTSX(t, "const x = <Foo<T>=>", "<stdin>: error: Expected \">\" but found \"=\"\n")
+
+	expectPrintedTS(t, "const x = <T>() => {}", "const x = () => {\n};\n")
+	expectPrintedTS(t, "const x = <T>(y)", "const x = y;\n")
+	expectPrintedTS(t, "const x = <T>(y, z)", "const x = (y, z);\n")
+	expectPrintedTS(t, "const x = <T>(y, z) => {}", "const x = (y, z) => {\n};\n")
+
+	expectPrintedTS(t, "const x = <{}>() => {}", "const x = () => {\n};\n")
+	expectPrintedTS(t, "const x = <{}>(y)", "const x = y;\n")
+	expectPrintedTS(t, "const x = <{}>(y, z)", "const x = (y, z);\n")
+	expectPrintedTS(t, "const x = <{}>(y, z) => {}", "const x = (y, z) => {\n};\n")
+
+	expectPrintedTS(t, "const x = <[]>() => {}", "const x = () => {\n};\n")
+	expectPrintedTS(t, "const x = <[]>(y)", "const x = y;\n")
+	expectPrintedTS(t, "const x = <[]>(y, z)", "const x = (y, z);\n")
+	expectPrintedTS(t, "const x = <[]>(y, z) => {}", "const x = (y, z) => {\n};\n")
 }

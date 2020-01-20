@@ -1883,6 +1883,39 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		return ast.Expr{loc, &ast.EObject{properties}}
 
 	case lexer.TLessThan:
+		// This is a very complicated and highly ambiguous area of TypeScript
+		// syntax. Many similar-looking things are overloaded.
+		//
+		// TS:
+		//
+		//   A type cast:
+		//     <A>(x)
+		//     <[]>(x)
+		//     <A[]>(x)
+		//
+		//   An arrow function with type arguments:
+		//     <A>(x) => {}
+		//     <A, B>(x) => {}
+		//     <A = B>(x) => {}
+		//     <A extends B>(x) => {}
+		//
+		// TSX:
+		//
+		//   A JSX element:
+		//     <A>(x) => {}</A>
+		//     <A extends>(x) => {}</A>
+		//     <A extends={false}>(x) => {}</A>
+		//
+		//   An arrow function with type arguments:
+		//     <A>(x) => {}
+		//     <A, B>(x) => {}
+		//     <A extends B>(x) => {}
+		//
+		//   A syntax error:
+		//     <[]>(x)
+		//     <A[]>(x)
+		//     <A = B>(x) => {}
+
 		if p.jsx.Parse {
 			// Use NextInsideJSXElement() instead of Next() so we parse "<<" as "<"
 			p.lexer.NextInsideJSXElement()
