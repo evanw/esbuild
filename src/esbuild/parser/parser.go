@@ -275,7 +275,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 
 	// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
 	if kind == ast.SymbolHoisted {
-		for scope.Kind != ast.ScopeFunction && scope.Kind != ast.ScopeModule {
+		for scope.Kind != ast.ScopeEntry {
 			if existing, ok := scope.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
 				switch symbol.Kind {
@@ -313,7 +313,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 
 	// Hoist "var" symbols up to the enclosing function scope
 	if kind == ast.SymbolHoisted {
-		for s := p.currentScope; s.Kind != ast.ScopeFunction && s.Kind != ast.ScopeModule; s = s.Parent {
+		for s := p.currentScope; s.Kind != ast.ScopeEntry; s = s.Parent {
 			if existing, ok := s.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
 				if symbol.Kind == ast.SymbolUnbound {
@@ -765,7 +765,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		context == propertyContextClass || opts.isAsync || opts.isGenerator {
 		loc := p.lexer.Loc()
 
-		p.pushScopeForParsePass(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
+		p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
 		defer p.popScope()
 
 		fn := p.parseFn(nil, fnOpts{
@@ -934,7 +934,7 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		p.lexer.Next()
 		arg := ast.Arg{ast.Binding{asyncRange.Loc, &ast.BIdentifier{p.storeNameInRef("async")}}, nil}
 
-		p.pushScopeForParsePass(ast.ScopeFunction, asyncRange.Loc)
+		p.pushScopeForParsePass(ast.ScopeEntry, asyncRange.Loc)
 		defer p.popScope()
 
 		return ast.Expr{asyncRange.Loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
@@ -947,7 +947,7 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TEqualsGreaterThan)
 
-		p.pushScopeForParsePass(ast.ScopeFunction, asyncRange.Loc)
+		p.pushScopeForParsePass(ast.ScopeEntry, asyncRange.Loc)
 		defer p.popScope()
 
 		arrow := p.parseArrowBody([]ast.Arg{arg}, fnOpts{allowAwait: true})
@@ -992,7 +992,7 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 		}
 	}
 
-	p.pushScopeForParsePass(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
+	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
 	fn := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
 		allowYield: isGenerator,
@@ -1088,7 +1088,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			args = append(args, ast.Arg{binding, initializer})
 		}
 
-		p.pushScopeForParsePass(ast.ScopeFunction, loc)
+		p.pushScopeForParsePass(ast.ScopeEntry, loc)
 		defer p.popScope()
 
 		arrow := p.parseArrowBody(args, fnOpts{allowAwait: isAsync})
@@ -1319,7 +1319,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			ref := p.storeNameInRef(name)
 			arg := ast.Arg{ast.Binding{loc, &ast.BIdentifier{ref}}, nil}
 
-			p.pushScopeForParsePass(ast.ScopeFunction, loc)
+			p.pushScopeForParsePass(ast.ScopeEntry, loc)
 			defer p.popScope()
 
 			return ast.Expr{loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
@@ -2755,7 +2755,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 		}
 	}
 
-	p.pushScopeForParsePass(ast.ScopeFunction, loc)
+	p.pushScopeForParsePass(ast.ScopeEntry, loc)
 	defer p.popScope()
 
 	fn := p.parseFn(name, fnOpts{
@@ -2775,11 +2775,12 @@ func (p *parser) skipTypeScriptTypeStmt() {
 }
 
 type parseStmtOpts struct {
-	allowLexicalDecl     bool
-	allowImportAndExport bool
-	isExport             bool
-	isNameOptional       bool // For "export default" pseudo-statements
-	isTypeScriptDeclare  bool
+	allowLexicalDecl    bool
+	isModuleScope       bool
+	isNamespaceScope    bool
+	isExport            bool
+	isNameOptional      bool // For "export default" pseudo-statements
+	isTypeScriptDeclare bool
 }
 
 func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
@@ -2791,7 +2792,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SEmpty{}}
 
 	case lexer.TExport:
-		if !opts.allowImportAndExport {
+		if !opts.isModuleScope && !opts.isNamespaceScope {
 			p.lexer.Unexpected()
 		}
 		p.lexer.Next()
@@ -2819,17 +2820,29 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				return p.parseFnStmt(loc, opts, true /* isAsync */)
 			}
 
-			if p.ts.Parse && p.lexer.IsContextualKeyword("type") {
-				// "export type foo = ..."
-				p.lexer.Next()
-				p.skipTypeScriptTypeStmt()
-				return ast.Stmt{loc, &ast.STypeScript{}}
+			if p.ts.Parse {
+				if p.lexer.IsContextualKeyword("type") {
+					// "export type foo = ..."
+					p.lexer.Next()
+					p.skipTypeScriptTypeStmt()
+					return ast.Stmt{loc, &ast.STypeScript{}}
+				}
+
+				if (opts.isModuleScope || opts.isNamespaceScope) && p.lexer.IsContextualKeyword("namespace") {
+					// "export namespace Foo {}"
+					opts.isExport = true
+					return p.parseStmt(opts)
+				}
 			}
 
 			p.lexer.Unexpected()
 			return ast.Stmt{}
 
 		case lexer.TDefault:
+			if !opts.isModuleScope {
+				p.lexer.Unexpected()
+			}
+
 			defaultName := ast.LocRef{p.lexer.Loc(), p.newSymbol(ast.SymbolOther, "default")}
 			p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
 			p.recordExport(defaultName.Loc, "default")
@@ -2859,6 +2872,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
 
 		case lexer.TAsterisk:
+			if !opts.isModuleScope {
+				p.lexer.Unexpected()
+			}
+
 			p.lexer.Next()
 			var item *ast.ClauseItem
 			if p.lexer.IsContextualKeyword("as") {
@@ -2875,6 +2892,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			return ast.Stmt{loc, &ast.SExportStar{item, path}}
 
 		case lexer.TOpenBrace:
+			if !opts.isModuleScope {
+				p.lexer.Unexpected()
+			}
+
 			items := p.parseExportClause()
 			if p.lexer.IsContextualKeyword("from") {
 				p.lexer.Next()
@@ -3261,14 +3282,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		case lexer.TStringLiteral, lexer.TNoSubstitutionTemplateLiteral:
 			// "import 'path'"
-			if !opts.allowImportAndExport {
+			if !opts.isModuleScope {
 				p.lexer.Unexpected()
 				return ast.Stmt{}
 			}
 
 		case lexer.TAsterisk:
 			// "import * as ns from 'path'"
-			if !opts.allowImportAndExport {
+			if !opts.isModuleScope {
 				p.lexer.Unexpected()
 				return ast.Stmt{}
 			}
@@ -3283,7 +3304,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		case lexer.TOpenBrace:
 			// "import {item1, item2} from 'path'"
-			if !opts.allowImportAndExport {
+			if !opts.isModuleScope {
 				p.lexer.Unexpected()
 				return ast.Stmt{}
 			}
@@ -3294,7 +3315,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		case lexer.TIdentifier:
 			// "import defaultItem from 'path'"
-			if !opts.allowImportAndExport {
+			if !opts.isModuleScope {
 				p.lexer.Unexpected()
 				return ast.Stmt{}
 			}
@@ -3460,7 +3481,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			expr = p.parseExpr(ast.LLowest)
 		}
 
-		// Parse a labeled statement
 		if isIdentifier {
 			if ident, ok := expr.Data.(*ast.EIdentifier); ok {
 				switch p.lexer.Token {
@@ -3468,16 +3488,39 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					p.pushScopeForParsePass(ast.ScopeLabel, loc)
 					defer p.popScope()
 
+					// Parse a labeled statement
 					p.lexer.Next()
 					name := ast.LocRef{expr.Loc, ident.Ref}
 					stmt := p.parseStmt(parseStmtOpts{})
 					return ast.Stmt{loc, &ast.SLabel{name, stmt}}
 
 				case lexer.TIdentifier:
-					if p.ts.Parse && name == "type" {
-						// "type Foo = any"
-						p.skipTypeScriptTypeStmt()
-						return ast.Stmt{loc, &ast.STypeScript{}}
+					if p.ts.Parse {
+						if name == "type" {
+							// "type Foo = any"
+							p.skipTypeScriptTypeStmt()
+							return ast.Stmt{loc, &ast.STypeScript{}}
+						}
+
+						if (opts.isModuleScope || opts.isNamespaceScope) && name == "namespace" {
+							// "namespace Foo {}"
+							nameLoc := p.lexer.Loc()
+							nameText := p.lexer.Identifier
+							p.lexer.Next()
+
+							name := ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)}
+							if opts.isExport {
+								p.recordExport(nameLoc, nameText)
+							}
+
+							p.pushScopeForParsePass(ast.ScopeEntry, loc)
+							defer p.popScope()
+
+							p.lexer.Expect(lexer.TOpenBrace)
+							stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{isNamespaceScope: true})
+							p.lexer.Next()
+							return ast.Stmt{loc, &ast.SNamespace{name, stmts, opts.isExport}}
+						}
 					}
 
 				default:
@@ -3569,7 +3612,7 @@ type dotDefine struct {
 
 func (p *parser) generateTempRef() ast.Ref {
 	scope := p.currentScope
-	for scope.Kind != ast.ScopeFunction && scope.Kind != ast.ScopeModule {
+	for scope.Kind != ast.ScopeEntry {
 		scope = scope.Parent
 	}
 	ref := p.newSymbol(ast.SymbolHoisted, "_"+lexer.NumberToMinifiedName(len(p.tempRefs)))
@@ -3622,7 +3665,7 @@ func (p *parser) findSymbol(name string) ast.Ref {
 }
 
 func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
-	for s := p.currentScope; s != nil && s.Kind != ast.ScopeFunction; s = s.Parent {
+	for s := p.currentScope; s != nil && s.Kind != ast.ScopeEntry; s = s.Parent {
 		if s.Kind == ast.ScopeLabel && name == p.symbols[s.LabelRef.InnerIndex].Name {
 			// Track how many times we've referenced this symbol
 			if !p.isControlFlowDead {
@@ -3703,7 +3746,7 @@ func shouldKeepStmtInDeadControlFlow(stmt ast.Stmt) bool {
 	}
 }
 
-func (p *parser) visitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
+func (p *parser) visitEntryStmts(stmts []ast.Stmt) []ast.Stmt {
 	oldTempRefs := p.tempRefs
 	p.tempRefs = []ast.Ref{}
 
@@ -4637,6 +4680,31 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 		return stmts
 
+	case *ast.SNamespace:
+		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
+		stmts := p.visitEntryStmts(s.Stmts)
+		p.popScope()
+
+		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
+			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Name.Ref}}}},
+			Stmts: stmts,
+		}}}
+
+		argExpr := ast.Expr{s.Name.Loc, &ast.EBinary{
+			ast.BinOpLogicalOr,
+			ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
+			ast.Expr{s.Name.Loc, &ast.EBinary{
+				ast.BinOpAssign,
+				ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
+				ast.Expr{s.Name.Loc, &ast.EObject{}},
+			}},
+		}}
+
+		stmt = ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
+			Target: fnExpr,
+			Args:   []ast.Expr{argExpr},
+		}}}}
+
 	default:
 		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
 	}
@@ -5568,7 +5636,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		oldTryBodyCount := p.tryBodyCount
 		p.tryBodyCount = 0
 
-		p.pushScopeForVisitPass(ast.ScopeFunction, expr.Loc)
+		p.pushScopeForVisitPass(ast.ScopeEntry, expr.Loc)
 		p.visitArgs(e.Args)
 		if e.Expr != nil {
 			*e.Expr = p.visitExpr(*e.Expr)
@@ -5646,9 +5714,9 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	oldTryBodyCount := p.tryBodyCount
 	p.tryBodyCount = 0
 
-	p.pushScopeForVisitPass(ast.ScopeFunction, scopeLoc)
+	p.pushScopeForVisitPass(ast.ScopeEntry, scopeLoc)
 	p.visitArgs(fn.Args)
-	fn.Stmts = p.visitFnOrModuleStmts(fn.Stmts)
+	fn.Stmts = p.visitEntryStmts(fn.Stmts)
 	p.popScope()
 
 	p.tryBodyCount = oldTryBodyCount
@@ -5720,7 +5788,7 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 		dotDefines:              make(map[string]dotDefine),
 	}
 
-	p.pushScopeForParsePass(ast.ScopeModule, ast.Loc{locModuleScope})
+	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{locModuleScope})
 
 	// The bundler pre-declares these symbols
 	p.exportsRef = p.newSymbol(ast.SymbolHoisted, "exports")
@@ -5768,7 +5836,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	}
 
 	// Parse the file in the first pass, but do not bind symbols
-	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{allowImportAndExport: true})
+	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{isModuleScope: true})
 	p.prepareForVisitPass()
 
 	// Load user-specified defines
@@ -5799,7 +5867,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		}
 		p.visitExpr(expr.Value)
 	} else {
-		stmts = p.visitFnOrModuleStmts(stmts)
+		stmts = p.visitEntryStmts(stmts)
 	}
 
 	// Clear the import paths if we don't want any dependencies
@@ -5838,7 +5906,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, expr ast.Expr) ast
 }
 
 func (p *parser) prepareForVisitPass() {
-	p.pushScopeForVisitPass(ast.ScopeModule, ast.Loc{locModuleScope})
+	p.pushScopeForVisitPass(ast.ScopeEntry, ast.Loc{locModuleScope})
 	p.moduleScope = p.currentScope
 
 	// Swap in certain literal values because those can be constant folded
