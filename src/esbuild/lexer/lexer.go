@@ -552,8 +552,54 @@ func (lexer *Lexer) NextInsideJSXElement() {
 			lexer.Token = TGreaterThan
 
 		case '/':
+			// '/' or '//' or '/* ... */'
 			lexer.step()
-			lexer.Token = TSlash
+			switch lexer.codePoint {
+			case '/':
+			singleLineComment:
+				for {
+					lexer.step()
+					switch lexer.codePoint {
+					case '\r', '\n', '\u2028', '\u2029':
+						break singleLineComment
+
+					case -1: // This indicates the end of the file
+						break singleLineComment
+					}
+				}
+				continue
+
+			case '*':
+				lexer.step()
+			multiLineComment:
+				for {
+					switch lexer.codePoint {
+					case '*':
+						lexer.step()
+						if lexer.codePoint == '/' {
+							lexer.step()
+							break multiLineComment
+						}
+
+					case '\r', '\n', '\u2028', '\u2029':
+						lexer.step()
+						lexer.HasNewlineBefore = true
+
+					case -1: // This indicates the end of the file
+						lexer.start = lexer.end
+						lexer.addError(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment")
+						lexer.Token = TSyntaxError
+						break multiLineComment
+
+					default:
+						lexer.step()
+					}
+				}
+				continue
+
+			default:
+				lexer.Token = TSlash
+			}
 
 		case '\'', '"':
 			quote := lexer.codePoint

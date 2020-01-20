@@ -1041,6 +1041,23 @@ func TestJSX(t *testing.T) {
 	expectParseErrorJSX(t, "<a.b-c>", "<stdin>: error: Unexpected \"-\"\n")
 	expectParseErrorJSX(t, "<a:b>", "<stdin>: error: Expected \">\" but found \":\"\n")
 	expectParseErrorJSX(t, "<a>{...children}</a>", "<stdin>: error: Unexpected \"...\"\n")
+
+	expectPrintedJSX(t, "< /**/ a/>", "React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "< //\n a/>", "React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a /**/ />", "React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a //\n />", "React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/ /**/ >", "React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/ //\n >", "React.createElement(\"a\", null);\n")
+
+	expectPrintedJSX(t, "<a>b< /**/ /a>", "React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b< //\n /a>", "React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b</ /**/ a>", "React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b</ //\n a>", "React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b</a /**/ >", "React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b</a //\n >", "React.createElement(\"a\", null, \"b\");\n")
+
+	expectPrintedJSX(t, "<a> /**/ </a>", "React.createElement(\"a\", null, \" /**/ \");\n")
+	expectPrintedJSX(t, "<a> //\n </a>", "React.createElement(\"a\", null, \" //\");\n")
 }
 
 func TestLowerNullishCoalescing(t *testing.T) {
