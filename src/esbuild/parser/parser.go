@@ -96,6 +96,9 @@ type scopeOrder struct {
 type fnOpts struct {
 	allowAwait bool
 	allowYield bool
+
+	// In TypeScript, forward declarations of functions have no bodies
+	allowMissingBodyForTypeScript bool
 }
 
 func isJumpStatement(data ast.S) bool {
@@ -1001,7 +1004,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
 		defer p.popScope()
 
-		fn := p.parseFn(nil, fnOpts{
+		fn, _ := p.parseFn(nil, fnOpts{
 			allowAwait: opts.isAsync,
 			allowYield: opts.isGenerator,
 		})
@@ -1228,7 +1231,7 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	}
 
 	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
-	fn := p.parseFn(name, fnOpts{
+	fn, _ := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
 		allowYield: isGenerator,
 	})
@@ -2880,7 +2883,7 @@ func (p *parser) parseBinding() ast.Binding {
 	return ast.Binding{}
 }
 
-func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) ast.Fn {
+func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool) {
 	args := []ast.Arg{}
 	hasRestArg := false
 	p.lexer.Expect(lexer.TOpenParen)
@@ -2940,22 +2943,28 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) ast.Fn {
 
 	p.lexer.Expect(lexer.TCloseParen)
 
+	fn = ast.Fn{
+		Name:        name,
+		Args:        args,
+		HasRestArg:  hasRestArg,
+		IsAsync:     opts.allowAwait,
+		IsGenerator: opts.allowYield,
+	}
+
 	// "function foo(): any {}"
 	if p.ts.Parse && p.lexer.Token == lexer.TColon {
 		p.lexer.Next()
 		p.skipTypeScriptReturnType()
 	}
 
-	stmts := p.parseFnBodyStmts(opts)
-
-	return ast.Fn{
-		Name:        name,
-		Args:        args,
-		HasRestArg:  hasRestArg,
-		IsAsync:     opts.allowAwait,
-		IsGenerator: opts.allowYield,
-		Stmts:       stmts,
+	// "function foo(): any;"
+	if opts.allowMissingBodyForTypeScript && p.lexer.Token != lexer.TOpenBrace {
+		return
 	}
+
+	fn.Stmts = p.parseFnBodyStmts(opts)
+	hadBody = true
+	return
 }
 
 func (p *parser) parseClass(name *ast.LocRef) ast.Class {
@@ -3043,6 +3052,8 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	}
 
 	var name *ast.LocRef
+
+	// The name is optional for "export default function() {}" pseudo-statements
 	if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
 		nameLoc := p.lexer.Loc()
 		nameText := p.lexer.Identifier
@@ -3059,10 +3070,23 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	p.pushScopeForParsePass(ast.ScopeEntry, loc)
 	defer p.popScope()
 
-	fn := p.parseFn(name, fnOpts{
+	// Even anonymous functions can have TypeScript type parameters
+	if p.ts.Parse {
+		p.skipTypeScriptTypeParameters()
+	}
+
+	fn, hadBody := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
 		allowYield: isGenerator,
+
+		// Only allow omitting the body if we're parsing TypeScript
+		allowMissingBodyForTypeScript: p.ts.Parse,
 	})
+
+	// Don't output anything if it's just a forward declaration of a function
+	if !hadBody {
+		return ast.Stmt{loc, &ast.STypeScript{}}
+	}
 
 	return ast.Stmt{loc, &ast.SFunction{fn, opts.isExport}}
 }
