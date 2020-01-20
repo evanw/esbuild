@@ -471,6 +471,10 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		lexer.TTrue, lexer.TFalse, lexer.TNull, lexer.TVoid, lexer.TConst:
 		p.lexer.Next()
 
+	case lexer.TMinus:
+		p.lexer.Next()
+		p.lexer.Expect(lexer.TNumericLiteral)
+
 	case lexer.TBar:
 		// Support things like "type Foo = | number | string"
 		p.lexer.Next()
@@ -481,7 +485,7 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		p.lexer.Next()
 		p.skipTypeScriptParenType()
 		p.lexer.Expect(lexer.TEqualsGreaterThan)
-		p.skipTypeScriptType(ast.LLowest)
+		p.skipTypeScriptReturnType()
 
 	case lexer.TOpenParen:
 		p.skipTypeScriptParenType()
@@ -489,11 +493,11 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		// "() => void"
 		if p.lexer.Token == lexer.TEqualsGreaterThan {
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptReturnType()
 		}
 
 	case lexer.TIdentifier:
-		if p.lexer.Identifier == "keyof" {
+		if p.lexer.Identifier == "keyof" || p.lexer.Identifier == "readonly" || p.lexer.Identifier == "infer" {
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LPrefix)
 		} else {
@@ -507,6 +511,9 @@ func (p *parser) skipTypeScriptTypePrefix() {
 	case lexer.TOpenBracket:
 		p.lexer.Next()
 		for p.lexer.Token != lexer.TCloseBracket {
+			if p.lexer.Token == lexer.TDotDotDot {
+				p.lexer.Next()
+			}
 			p.skipTypeScriptType(ast.LLowest)
 			if p.lexer.Token != lexer.TComma {
 				break
@@ -582,7 +589,8 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			// Stop now if we're parsing one of these:
 			// "(a?) => void"
 			// "(a?: b) => void"
-			if p.lexer.Token == lexer.TColon || p.lexer.Token == lexer.TCloseParen {
+			// "(a?, b?) => void"
+			if p.lexer.Token == lexer.TColon || p.lexer.Token == lexer.TCloseParen || p.lexer.Token == lexer.TComma {
 				return
 			}
 
@@ -608,7 +616,8 @@ func (p *parser) skipTypeScriptObjectType() {
 		}
 
 		// "?" indicates an optional property
-		if foundIdentifier && p.lexer.Token == lexer.TQuestion {
+		// "!" indicates an initialization assertion
+		if foundIdentifier && (p.lexer.Token == lexer.TQuestion || p.lexer.Token == lexer.TExclamation) {
 			p.lexer.Next()
 		}
 
@@ -818,7 +827,7 @@ func (p *parser) skipTypeScriptTypeStmt() {
 type deferredErrors struct {
 	// These are errors for expressions
 	invalidExprDefaultValue  ast.Range
-	invalidExprQuestionColon ast.Range
+	invalidExprAfterQuestion ast.Range
 
 	// These are errors for destructuring patterns
 	invalidBindingCommaAfterSpread ast.Range
@@ -828,8 +837,8 @@ func (from *deferredErrors) mergeInto(to *deferredErrors) {
 	if from.invalidExprDefaultValue.Len > 0 {
 		to.invalidExprDefaultValue = from.invalidExprDefaultValue
 	}
-	if from.invalidExprQuestionColon.Len > 0 {
-		to.invalidExprQuestionColon = from.invalidExprQuestionColon
+	if from.invalidExprAfterQuestion.Len > 0 {
+		to.invalidExprAfterQuestion = from.invalidExprAfterQuestion
 	}
 	if from.invalidBindingCommaAfterSpread.Len > 0 {
 		to.invalidBindingCommaAfterSpread = from.invalidBindingCommaAfterSpread
@@ -840,8 +849,10 @@ func (p *parser) logExprErrors(errors *deferredErrors) {
 	if errors.invalidExprDefaultValue.Len > 0 {
 		p.addRangeError(errors.invalidExprDefaultValue, "Unexpected \"=\"")
 	}
-	if errors.invalidExprQuestionColon.Len > 0 {
-		p.addRangeError(errors.invalidExprQuestionColon, "Unexpected \":\"")
+
+	if errors.invalidExprAfterQuestion.Len > 0 {
+		r := errors.invalidExprAfterQuestion
+		p.addRangeError(r, fmt.Sprintf("Unexpected %q", p.source.Contents[r.Loc.Start:r.Loc.Start+r.Len]))
 	}
 }
 
@@ -972,12 +983,13 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 	}
 
 	if p.ts.Parse {
-		// "let x: { foo?: number }"
-		if context == propertyContextClass && p.lexer.Token == lexer.TQuestion {
+		// "class X { foo?: number }"
+		// "class X { foo!: number }"
+		if context == propertyContextClass && (p.lexer.Token == lexer.TQuestion || p.lexer.Token == lexer.TExclamation) {
 			p.lexer.Next()
 		}
 
-		// "let x: { foo?<T>(): T }"
+		// "class X { foo?<T>(): T }"
 		// "const x = { foo<T>(): T {} }"
 		p.skipTypeScriptTypeParameters()
 	}
@@ -1868,6 +1880,15 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			p.lexer.Next()
 			return element
 		}
+
+		if p.ts.Parse {
+			// This is an old-style type cast
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LLowest)
+			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
+			return p.parsePrefix(level, errors)
+		}
+
 		p.lexer.Unexpected()
 		return ast.Expr{}
 
@@ -2079,14 +2100,16 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			}
 			p.lexer.Next()
 
-			// Bail now if we're parsing TypeScript and we see a ":", since it's
-			// obviously not an expression and could be an arrow function argument
-			// like this: "(arg?: string) => {}"
-			if p.ts.Parse && p.lexer.Token == lexer.TColon && left.Loc == p.latestArrowArgLoc {
+			// Stop now if we're parsing one of these:
+			// "(a?) => {}"
+			// "(a?: b) => {}"
+			// "(a?, b?) => {}"
+			if p.ts.Parse && left.Loc == p.latestArrowArgLoc && (p.lexer.Token == lexer.TColon ||
+				p.lexer.Token == lexer.TCloseParen || p.lexer.Token == lexer.TComma) {
 				if errors == nil {
 					p.lexer.Unexpected()
 				}
-				errors.invalidExprQuestionColon = p.lexer.Range()
+				errors.invalidExprAfterQuestion = p.lexer.Range()
 				return left
 			}
 
