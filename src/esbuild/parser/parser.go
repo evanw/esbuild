@@ -609,15 +609,31 @@ func (p *parser) skipTypeScriptObjectType() {
 
 	for p.lexer.Token != lexer.TCloseBrace {
 		// Skip over modifiers and the property identifier
-		foundIdentifier := false
+		foundKey := false
 		for p.lexer.IsIdentifierOrKeyword() || p.lexer.Token == lexer.TStringLiteral {
 			p.lexer.Next()
-			foundIdentifier = true
+			foundKey = true
+		}
+
+		if p.lexer.Token == lexer.TOpenBracket {
+			// Index signature or computed property
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LLowest)
+
+			// "{ [key: string]: number }"
+			// "{ readonly [K in keyof T]: T[K] }"
+			if p.lexer.Token == lexer.TColon || p.lexer.Token == lexer.TIn {
+				p.lexer.Next()
+				p.skipTypeScriptType(ast.LLowest)
+			}
+
+			p.lexer.Expect(lexer.TCloseBracket)
+			foundKey = true
 		}
 
 		// "?" indicates an optional property
 		// "!" indicates an initialization assertion
-		if foundIdentifier && (p.lexer.Token == lexer.TQuestion || p.lexer.Token == lexer.TExclamation) {
+		if foundKey && (p.lexer.Token == lexer.TQuestion || p.lexer.Token == lexer.TExclamation) {
 			p.lexer.Next()
 		}
 
@@ -627,7 +643,7 @@ func (p *parser) skipTypeScriptObjectType() {
 		switch p.lexer.Token {
 		case lexer.TColon:
 			// Regular property
-			if !foundIdentifier {
+			if !foundKey {
 				p.lexer.Expect(lexer.TIdentifier)
 			}
 			p.lexer.Next()
@@ -640,28 +656,6 @@ func (p *parser) skipTypeScriptObjectType() {
 				p.lexer.Next()
 				p.skipTypeScriptReturnType()
 			}
-
-		case lexer.TOpenBracket:
-			// Index signature
-			p.lexer.Next()
-			p.skipTypeScriptType(ast.LLowest)
-
-			// "{ [key: string]: number }"
-			// "{ readonly [K in keyof T]: T[K] }"
-			if p.lexer.Token == lexer.TColon || p.lexer.Token == lexer.TIn {
-				p.lexer.Next()
-				p.skipTypeScriptType(ast.LLowest)
-			}
-
-			p.lexer.Expect(lexer.TCloseBracket)
-
-			// "{ [key: string]?: number }"
-			if p.lexer.Token == lexer.TQuestion {
-				p.lexer.Next()
-			}
-
-			p.lexer.Expect(lexer.TColon)
-			p.skipTypeScriptType(ast.LLowest)
 
 		default:
 			p.lexer.Unexpected()
