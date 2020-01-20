@@ -476,6 +476,13 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		p.lexer.Next()
 		p.skipTypeScriptTypePrefix()
 
+	case lexer.TNew:
+		// "new () => void"
+		p.lexer.Next()
+		p.skipTypeScriptParenType()
+		p.lexer.Expect(lexer.TEqualsGreaterThan)
+		p.skipTypeScriptType(ast.LLowest)
+
 	case lexer.TOpenParen:
 		p.skipTypeScriptParenType()
 
@@ -941,8 +948,8 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		key = ast.Expr{loc, &ast.EString{lexer.StringToUTF16(name)}}
 
 		// Parse a shorthand property
-		if context == propertyContextObject && kind == ast.PropertyNormal &&
-			p.lexer.Token != lexer.TColon && p.lexer.Token != lexer.TOpenParen && !opts.isGenerator {
+		if context == propertyContextObject && kind == ast.PropertyNormal && p.lexer.Token != lexer.TColon &&
+			p.lexer.Token != lexer.TOpenParen && p.lexer.Token != lexer.TLessThan && !opts.isGenerator {
 			ref := p.storeNameInRef(name)
 			value := ast.Expr{key.Loc, &ast.EIdentifier{ref}}
 
@@ -964,8 +971,14 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		}
 	}
 
-	// Skip over type parameters
-	if p.ts.Parse && context == propertyContextClass {
+	if p.ts.Parse {
+		// "let x: { foo?: number }"
+		if context == propertyContextClass && p.lexer.Token == lexer.TQuestion {
+			p.lexer.Next()
+		}
+
+		// "let x: { foo?<T>(): T }"
+		// "const x = { foo<T>(): T {} }"
 		p.skipTypeScriptTypeParameters()
 	}
 
