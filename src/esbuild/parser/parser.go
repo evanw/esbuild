@@ -1207,6 +1207,12 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			p.skipTypeScriptType(ast.LLowest)
 		}
 
+		// There may be a "=" after the type
+		if p.ts.Parse && p.lexer.Token == lexer.TEquals {
+			p.lexer.Next()
+			item = ast.Expr{item.Loc, &ast.EBinary{ast.BinOpAssign, item, p.parseExpr(ast.LComma)}}
+		}
+
 		items = append(items, item)
 		if p.lexer.Token != lexer.TComma {
 			break
