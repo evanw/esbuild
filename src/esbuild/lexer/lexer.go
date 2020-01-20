@@ -230,6 +230,9 @@ type Lexer struct {
 	Identifier                      string
 	Number                          float64
 	rescanCloseBraceAsTemplateToken bool
+
+	// The log is disabled during speculative scans that may backtrack
+	IsLogDisabled bool
 }
 
 type LexerPanic struct{}
@@ -340,6 +343,9 @@ func (lexer *Lexer) ExpectOrInsertSemicolon() {
 	}
 }
 
+// This parses a single ">" token. If that is the first part of a longer token,
+// this function splits off the first ">" and leaves the remainder of the
+// current token as another, smaller token. For example, ">>=" becomes ">=".
 func (lexer *Lexer) ExpectGreaterThan() {
 	switch lexer.Token {
 	case TGreaterThan:
@@ -1255,7 +1261,7 @@ func (lexer *Lexer) scanIdentifierWithEscapes() (string, T) {
 
 	// Even though it was escaped, it must still be a valid identifier
 	if !IsIdentifier(text) {
-		lexer.log.AddRangeError(lexer.source, ast.Range{ast.Loc{int32(lexer.start)}, int32(lexer.end - lexer.start)},
+		lexer.addRangeError(ast.Range{ast.Loc{int32(lexer.start)}, int32(lexer.end - lexer.start)},
 			fmt.Sprintf("Invalid identifier: %q", text))
 	}
 
@@ -1908,11 +1914,15 @@ func (lexer *Lexer) step() {
 }
 
 func (lexer *Lexer) addError(loc ast.Loc, text string) {
-	lexer.log.AddError(lexer.source, loc, text)
+	if !lexer.IsLogDisabled {
+		lexer.log.AddError(lexer.source, loc, text)
+	}
 }
 
 func (lexer *Lexer) addRangeError(r ast.Range, text string) {
-	lexer.log.AddRangeError(lexer.source, r, text)
+	if !lexer.IsLogDisabled {
+		lexer.log.AddRangeError(lexer.source, r, text)
+	}
 }
 
 func StringToUTF16(text string) []uint16 {

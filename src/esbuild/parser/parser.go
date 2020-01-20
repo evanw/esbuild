@@ -619,6 +619,111 @@ func (p *parser) skipTypeScriptTypeParameters() {
 	}
 }
 
+func (p *parser) skipTypeScriptTypeArguments() bool {
+	if p.lexer.Token != lexer.TLessThan {
+		return false
+	}
+
+	p.lexer.Next()
+
+	for {
+		p.skipTypeScriptType(ast.LLowest)
+		if p.lexer.Token != lexer.TComma {
+			break
+		}
+		p.lexer.Next()
+	}
+
+	// This type argument list must end with a ">"
+	p.lexer.ExpectGreaterThan()
+	return true
+}
+
+func (p *parser) trySkipTypeScriptTypeArgumentsWithBacktracking() bool {
+	oldLexer := p.lexer
+	p.lexer.IsLogDisabled = true
+
+	// Implement backtracking by restoring the lexer's memory to its original state
+	defer func() {
+		r := recover()
+		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+			p.lexer = oldLexer
+		} else if r != nil {
+			panic(r)
+		}
+	}()
+
+	p.skipTypeScriptTypeArguments()
+
+	// Check the token after this and backtrack if it's the wrong one
+	if !p.canFollowTypeArgumentsInExpression() {
+		p.lexer.Unexpected()
+	}
+
+	// Restore the log disabled flag. Note that we can't just set it back to false
+	// because it may have been true to start with.
+	p.lexer.IsLogDisabled = oldLexer.IsLogDisabled
+	return true
+}
+
+// This function is taken from the official TypeScript compiler source code:
+// https://github.com/microsoft/TypeScript/blob/master/src/compiler/parser.ts
+func (p *parser) canFollowTypeArgumentsInExpression() bool {
+	switch p.lexer.Token {
+	case
+		// These are the only tokens can legally follow a type argument list. So we
+		// definitely want to treat them as type arg lists.
+		lexer.TOpenParen,                     // foo<x>(
+		lexer.TNoSubstitutionTemplateLiteral, // foo<T> `...`
+		lexer.TTemplateHead:                  // foo<T> `...${100}...`
+		return true
+
+	case
+		// These cases can't legally follow a type arg list. However, they're not
+		// legal expressions either. The user is probably in the middle of a
+		// generic type. So treat it as such.
+		lexer.TDot,                     // foo<x>.
+		lexer.TCloseParen,              // foo<x>)
+		lexer.TCloseBracket,            // foo<x>]
+		lexer.TColon,                   // foo<x>:
+		lexer.TSemicolon,               // foo<x>;
+		lexer.TQuestion,                // foo<x>?
+		lexer.TEqualsEquals,            // foo<x> ==
+		lexer.TEqualsEqualsEquals,      // foo<x> ===
+		lexer.TExclamationEquals,       // foo<x> !=
+		lexer.TExclamationEqualsEquals, // foo<x> !==
+		lexer.TAmpersandAmpersand,      // foo<x> &&
+		lexer.TBarBar,                  // foo<x> ||
+		lexer.TQuestionQuestion,        // foo<x> ??
+		lexer.TCaret,                   // foo<x> ^
+		lexer.TAmpersand,               // foo<x> &
+		lexer.TBar,                     // foo<x> |
+		lexer.TCloseBrace,              // foo<x> }
+		lexer.TEndOfFile:               // foo<x>
+		return true
+
+	case
+		// We don't want to treat these as type arguments. Otherwise we'll parse
+		// this as an invocation expression. Instead, we want to parse out the
+		// expression in isolation from the type arguments.
+		lexer.TComma,     // foo<x>,
+		lexer.TOpenBrace: // foo<x> {
+		return false
+
+	default:
+		// Anything else treat as an expression.
+		return false
+	}
+}
+
+func (p *parser) skipTypeScriptTypeStmt() {
+	p.lexer.Expect(lexer.TIdentifier)
+	p.skipTypeScriptTypeParameters()
+	p.lexer.Expect(lexer.TEquals)
+	p.skipTypeScriptType(ast.LLowest)
+	p.lexer.ExpectOrInsertSemicolon()
+}
+
 // Due to ES6 destructuring patterns, there are many cases where it's
 // impossible to distinguish between an array or object literal and a
 // destructuring assignment until we hit the "=" operator later on.
@@ -1987,6 +2092,14 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			if level >= ast.LCompare {
 				return left
 			}
+
+			// TypeScript allows type arguments to be specified with angle brackets
+			// inside an expression. Unlike in other languages, this unfortunately
+			// appears to require backtracking to parse.
+			if p.ts.Parse && p.trySkipTypeScriptTypeArgumentsWithBacktracking() {
+				continue
+			}
+
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLt, left, p.parseExpr(ast.LCompare)}}
 
@@ -2717,6 +2830,17 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 		p.lexer.Next()
 		value := p.parseExpr(ast.LNew)
 		extends = &value
+
+		// TypeScript's type argument parser inside expressions backtracks if the
+		// first token after the end of the type parameter list is "{", so the
+		// parsed expression above will have backtracked if there are any type
+		// arguments. This means we have to re-parse for any type arguments here.
+		// This seems kind of wasteful to me but it's what the official compiler
+		// does and it probably doesn't have that high of a performance overhead
+		// because "extends" clauses aren't that frequent, so it should be ok.
+		if p.ts.Parse {
+			p.skipTypeScriptTypeArguments()
+		}
 	}
 
 	if p.ts.Parse && p.lexer.Token == lexer.TImplements {
@@ -2806,14 +2930,6 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	})
 
 	return ast.Stmt{loc, &ast.SFunction{fn, opts.isExport}}
-}
-
-func (p *parser) skipTypeScriptTypeStmt() {
-	p.lexer.Expect(lexer.TIdentifier)
-	p.skipTypeScriptTypeParameters()
-	p.lexer.Expect(lexer.TEquals)
-	p.skipTypeScriptType(ast.LLowest)
-	p.lexer.ExpectOrInsertSemicolon()
 }
 
 type parseStmtOpts struct {
