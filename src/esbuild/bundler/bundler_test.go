@@ -996,3 +996,36 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 		},
 	})
 }
+
+func TestDotImport(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {x} from '.'
+				console.log(x)
+			`,
+			"/index.js": `
+				exports.x = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `loader({
+  1(require, exports) {
+    // /index.js
+    exports.x = 123;
+  },
+
+  0(require) {
+    // /entry.js
+    const _ = require(1 /* . */);
+    console.log(_.x);
+  }
+}, 0);
+`,
+		},
+	})
+}

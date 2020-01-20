@@ -462,5 +462,5 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 }
 
 func isNonModulePath(path string) bool {
-	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
+	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") || path == "."
 }
