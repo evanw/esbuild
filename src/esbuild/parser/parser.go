@@ -560,10 +560,14 @@ func (p *parser) skipTypeScriptObjectType() {
 			// Index signature
 			p.lexer.Next()
 			p.lexer.Expect(lexer.TIdentifier)
-			if p.lexer.Token == lexer.TColon {
+
+			// "{ [key: string]: number }"
+			// "{ readonly [K in keyof T]: T[K] }"
+			if p.lexer.Token == lexer.TColon || p.lexer.Token == lexer.TIn {
 				p.lexer.Next()
 				p.skipTypeScriptType(ast.LLowest)
 			}
+
 			p.lexer.Expect(lexer.TCloseBracket)
 			p.lexer.Expect(lexer.TColon)
 			p.skipTypeScriptType(ast.LLowest)
