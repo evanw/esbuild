@@ -43,6 +43,7 @@ type parser struct {
 	exportsRef               ast.Ref
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
+	enclosingNamespaceRef    ast.Ref
 	indirectImportItems      map[ast.Ref]bool
 	importItemsForNamespace  map[ast.Ref]map[string]ast.Ref
 	exprForImportItem        map[ast.Ref]*ast.ENamespaceImport
@@ -380,12 +381,15 @@ func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, isExpo
 }
 
 func (p *parser) recordExport(loc ast.Loc, alias string) {
-	if p.exportAliases[alias] {
-		// Warn about duplicate exports
-		p.log.AddRangeError(p.source, lexer.RangeOfIdentifier(p.source, loc),
-			fmt.Sprintf("Multiple exports with the same name %q", alias))
-	} else {
-		p.exportAliases[alias] = true
+	// This is only an ES6 export if we're not inside a TypeScript namespace
+	if p.enclosingNamespaceRef == ast.InvalidRef {
+		if p.exportAliases[alias] {
+			// Warn about duplicate exports
+			p.log.AddRangeError(p.source, lexer.RangeOfIdentifier(p.source, loc),
+				fmt.Sprintf("Multiple exports with the same name %q", alias))
+		} else {
+			p.exportAliases[alias] = true
+		}
 	}
 }
 
@@ -5262,9 +5266,14 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}}}}
 
 	case *ast.SNamespace:
+		oldEnclosingNamespaceRef := p.enclosingNamespaceRef
+		p.enclosingNamespaceRef = s.Name.Ref
+
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
 		stmts := p.visitEntryStmts(s.Stmts)
 		p.popScope()
+
+		p.enclosingNamespaceRef = oldEnclosingNamespaceRef
 
 		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
 			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Name.Ref}}}},
@@ -6361,6 +6370,7 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 		mangleSyntax: options.MangleSyntax,
 		isBundling:   options.IsBundling,
 
+		enclosingNamespaceRef:   ast.InvalidRef,
 		indirectImportItems:     make(map[ast.Ref]bool),
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),
