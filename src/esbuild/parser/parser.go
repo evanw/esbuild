@@ -864,7 +864,7 @@ type propertyOpts struct {
 	isStatic    bool
 }
 
-func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors) ast.Property {
+func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors) (ast.Property, bool) {
 	var key ast.Expr
 	isComputed := false
 
@@ -936,7 +936,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 						return p.parseProperty(context, kind, opts, nil)
 					}
 
-				case "private", "protected", "public", "readonly":
+				case "private", "protected", "public", "readonly", "abstract":
 					// Skip over TypeScript keywords
 					if context == propertyContextClass && p.ts.Parse {
 						return p.parseProperty(context, kind, opts, nil)
@@ -967,7 +967,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 				Key:         key,
 				Value:       &value,
 				Initializer: initializer,
-			}
+			}, true
 		}
 	}
 
@@ -1006,7 +1006,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 			IsStatic:    opts.isStatic,
 			Key:         key,
 			Initializer: initializer,
-		}
+		}, true
 	}
 
 	// Parse a method expression
@@ -1017,10 +1017,20 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
 		defer p.popScope()
 
-		fn, _ := p.parseFn(nil, fnOpts{
+		fn, hadBody := p.parseFn(nil, fnOpts{
 			allowAwait: opts.isAsync,
 			allowYield: opts.isGenerator,
+
+			// Only allow omitting the body if we're parsing TypeScript class
+			allowMissingBodyForTypeScript: p.ts.Parse && context == propertyContextClass,
 		})
+
+		// "class Foo { foo(): void; foo(): void {} }"
+		if !hadBody {
+			// Skip this property entirely
+			return ast.Property{}, false
+		}
+
 		value := ast.Expr{loc, &ast.EFunction{fn}}
 		return ast.Property{
 			Kind:       kind,
@@ -1029,7 +1039,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 			IsStatic:   opts.isStatic,
 			Key:        key,
 			Value:      &value,
-		}
+		}, true
 	}
 
 	p.lexer.Expect(lexer.TColon)
@@ -1039,7 +1049,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		IsComputed: isComputed,
 		Key:        key,
 		Value:      &value,
-	}
+	}, true
 }
 
 func (p *parser) parsePropertyBinding() ast.PropertyBinding {
@@ -1816,8 +1826,10 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 					selfErrors.invalidBindingCommaAfterSpread = p.lexer.Range()
 				}
 			} else {
-				property := p.parseProperty(propertyContextObject, ast.PropertyNormal, propertyOpts{}, &selfErrors)
-				properties = append(properties, property)
+				// This property may turn out to be a type in TypeScript, which should be ignored
+				if property, ok := p.parseProperty(propertyContextObject, ast.PropertyNormal, propertyOpts{}, &selfErrors); ok {
+					properties = append(properties, property)
+				}
 			}
 
 			if p.lexer.Token != lexer.TComma {
@@ -3012,6 +3024,28 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 	return
 }
 
+func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
+	var name *ast.LocRef
+
+	if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
+		nameLoc := p.lexer.Loc()
+		nameText := p.lexer.Identifier
+		p.lexer.Expect(lexer.TIdentifier)
+		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, nameText)}
+
+		if opts.isExport {
+			p.recordExport(nameLoc, nameText)
+		}
+
+		if p.ts.Parse {
+			p.skipTypeScriptTypeParameters()
+		}
+	}
+
+	class := p.parseClass(name)
+	return ast.Stmt{loc, &ast.SClass{class, opts.isExport}}
+}
+
 func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 	var extends *ast.Expr
 
@@ -3056,8 +3090,10 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 			continue
 		}
 
-		property := p.parseProperty(propertyContextClass, ast.PropertyNormal, propertyOpts{}, nil)
-		properties = append(properties, property)
+		// This property may turn out to be a type in TypeScript, which should be ignored
+		if property, ok := p.parseProperty(propertyContextClass, ast.PropertyNormal, propertyOpts{}, nil); ok {
+			properties = append(properties, property)
+		}
 	}
 
 	p.allowIn = oldAllowIn
@@ -3197,7 +3233,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					return ast.Stmt{loc, &ast.STypeScript{}}
 				}
 
-				if (opts.isModuleScope || opts.isNamespaceScope) && p.lexer.IsContextualKeyword("namespace") {
+				if p.lexer.IsContextualKeyword("abstract") || p.lexer.IsContextualKeyword("namespace") {
+					// "export abstract class Foo {}"
 					// "export namespace Foo {}"
 					opts.isExport = true
 					return p.parseStmt(opts)
@@ -3331,23 +3368,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.forbidLexicalDecl(loc)
 		}
 		p.lexer.Next()
-		var name *ast.LocRef
-
-		if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
-			nameLoc := p.lexer.Loc()
-			nameText := p.lexer.Identifier
-			p.lexer.Expect(lexer.TIdentifier)
-			name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, nameText)}
-			if opts.isExport {
-				p.recordExport(nameLoc, nameText)
-			}
-			if p.ts.Parse {
-				p.skipTypeScriptTypeParameters()
-			}
-		}
-
-		class := p.parseClass(name)
-		return ast.Stmt{loc, &ast.SClass{class, opts.isExport}}
+		return p.parseClassStmt(loc, opts)
 
 	case lexer.TVar:
 		p.lexer.Next()
@@ -3872,6 +3893,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					name := ast.LocRef{expr.Loc, ident.Ref}
 					stmt := p.parseStmt(parseStmtOpts{})
 					return ast.Stmt{loc, &ast.SLabel{name, stmt}}
+
+				case lexer.TClass:
+					if p.ts.Parse && name == "abstract" {
+						p.lexer.Next()
+						return p.parseClassStmt(loc, opts)
+					}
 
 				case lexer.TIdentifier:
 					if p.ts.Parse {
