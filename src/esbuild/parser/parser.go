@@ -416,8 +416,41 @@ func (p *parser) loadNameFromRef(ref ast.Ref) string {
 	}
 }
 
+func (p *parser) skipTypeScriptParenType() {
+	p.lexer.Expect(lexer.TOpenParen)
+
+	for {
+		switch p.lexer.Token {
+		case lexer.TCloseParen:
+			p.lexer.Next()
+			return
+
+			// "(a, b)"
+			// "(a: b)"
+			// "(...a)"
+		case lexer.TComma, lexer.TColon, lexer.TDotDotDot:
+			p.lexer.Next()
+
+		default:
+			p.skipTypeScriptType(ast.LLowest)
+		}
+	}
+}
+
 func (p *parser) skipTypeScriptReturnType() {
+	// Skip over "function assert(x: boolean): asserts x"
+	if p.lexer.IsContextualKeyword("asserts") {
+		p.lexer.Next()
+
+		// "function assert(x: boolean): asserts" is also valid
+		if p.lexer.Token == lexer.TIdentifier {
+			p.lexer.Next()
+		}
+		return
+	}
+
 	p.skipTypeScriptType(ast.LLowest)
+
 	if p.lexer.IsContextualKeyword("is") {
 		p.lexer.Next()
 		p.skipTypeScriptType(ast.LLowest)
@@ -431,10 +464,23 @@ func (p *parser) skipTypeScriptType(level ast.L) {
 
 func (p *parser) skipTypeScriptTypePrefix() {
 	switch p.lexer.Token {
+	case lexer.TNumericLiteral, lexer.TStringLiteral, lexer.TThis,
+		lexer.TTrue, lexer.TFalse, lexer.TNull, lexer.TVoid, lexer.TConst:
+		p.lexer.Next()
+
 	case lexer.TBar:
 		// Support things like "type Foo = | number | string"
 		p.lexer.Next()
 		p.skipTypeScriptTypePrefix()
+
+	case lexer.TOpenParen:
+		p.skipTypeScriptParenType()
+
+		// "() => void"
+		if p.lexer.Token == lexer.TEqualsGreaterThan {
+			p.lexer.Next()
+			p.skipTypeScriptType(ast.LLowest)
+		}
 
 	case lexer.TIdentifier:
 		if p.lexer.Identifier == "keyof" {
@@ -447,10 +493,6 @@ func (p *parser) skipTypeScriptTypePrefix() {
 	case lexer.TTypeof:
 		p.lexer.Next()
 		p.skipTypeScriptType(ast.LPrefix)
-
-	case lexer.TNumericLiteral, lexer.TStringLiteral,
-		lexer.TTrue, lexer.TFalse, lexer.TNull, lexer.TVoid, lexer.TConst:
-		p.lexer.Next()
 
 	case lexer.TOpenBracket:
 		p.lexer.Next()
@@ -496,6 +538,10 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			p.lexer.Next()
 
 		case lexer.TOpenBracket:
+			// "{ ['x']: string \n ['y']: string }" must not become a single type
+			if p.lexer.HasNewlineBefore {
+				return
+			}
 			p.lexer.Next()
 			if p.lexer.Token != lexer.TCloseBracket {
 				p.skipTypeScriptType(ast.LLowest)
@@ -522,6 +568,14 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 				return
 			}
 			p.lexer.Next()
+
+			// Stop now if we're parsing one of these:
+			// "(a?) => void"
+			// "(a?: b) => void"
+			if p.lexer.Token == lexer.TColon || p.lexer.Token == lexer.TCloseParen {
+				return
+			}
+
 			p.skipTypeScriptType(ast.LLowest)
 			p.lexer.Expect(lexer.TColon)
 			p.skipTypeScriptType(ast.LLowest)
@@ -538,7 +592,7 @@ func (p *parser) skipTypeScriptObjectType() {
 	for p.lexer.Token != lexer.TCloseBrace {
 		// Skip over modifiers and the property identifier
 		foundIdentifier := false
-		for p.lexer.IsIdentifierOrKeyword() {
+		for p.lexer.IsIdentifierOrKeyword() || p.lexer.Token == lexer.TStringLiteral {
 			p.lexer.Next()
 			foundIdentifier = true
 		}
@@ -547,6 +601,9 @@ func (p *parser) skipTypeScriptObjectType() {
 		if foundIdentifier && p.lexer.Token == lexer.TQuestion {
 			p.lexer.Next()
 		}
+
+		// Type parameters come right after the optional mark
+		p.skipTypeScriptTypeParameters()
 
 		switch p.lexer.Token {
 		case lexer.TColon:
@@ -557,10 +614,18 @@ func (p *parser) skipTypeScriptObjectType() {
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LLowest)
 
+		case lexer.TOpenParen:
+			// Method signature
+			p.skipTypeScriptParenType()
+			if p.lexer.Token == lexer.TColon {
+				p.lexer.Next()
+				p.skipTypeScriptReturnType()
+			}
+
 		case lexer.TOpenBracket:
 			// Index signature
 			p.lexer.Next()
-			p.lexer.Expect(lexer.TIdentifier)
+			p.skipTypeScriptType(ast.LLowest)
 
 			// "{ [key: string]: number }"
 			// "{ readonly [K in keyof T]: T[K] }"
@@ -571,7 +636,7 @@ func (p *parser) skipTypeScriptObjectType() {
 
 			p.lexer.Expect(lexer.TCloseBracket)
 
-			// "{ [K in keyof T]?: T[K] }"
+			// "{ [key: string]?: number }"
 			if p.lexer.Token == lexer.TQuestion {
 				p.lexer.Next()
 			}
@@ -1149,15 +1214,17 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	}
 	var name *ast.LocRef
 
+	// The name is optional
 	if p.lexer.Token == lexer.TIdentifier {
 		p.pushScopeForParsePass(ast.ScopeFunctionName, loc)
 		nameLoc := p.lexer.Loc()
 		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 		p.lexer.Next()
+	}
 
-		if p.ts.Parse {
-			p.skipTypeScriptTypeParameters()
-		}
+	// Even anonymous functions can have TypeScript type parameters
+	if p.ts.Parse {
+		p.skipTypeScriptTypeParameters()
 	}
 
 	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
@@ -2424,6 +2491,11 @@ func (p *parser) parseJSXTag() (ast.Range, string, *ast.Expr) {
 func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 	// Parse the tag
 	_, startText, startTag := p.parseJSXTag()
+
+	// The tag may have TypeScript type arguments: "<Foo<T>/>"
+	if p.ts.Parse {
+		p.skipTypeScriptTypeArguments()
+	}
 
 	// Parse attributes
 	properties := []ast.Property{}
