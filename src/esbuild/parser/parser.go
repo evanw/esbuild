@@ -3020,6 +3020,11 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			case lexer.TPrivate, lexer.TProtected, lexer.TPublic:
 				isTypeScriptField = true
 				p.lexer.Next()
+
+				// TypeScript requires an identifier binding
+				if p.lexer.Token != lexer.TIdentifier {
+					p.lexer.Expect(lexer.TIdentifier)
+				}
 			}
 		}
 
@@ -3029,8 +3034,14 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 
 		if p.ts.Parse {
 			// Skip over "readonly"
-			if p.lexer.Token == lexer.TIdentifier && isIdentifier && identifierText == "readonly" {
+			isBeforeBinding := p.lexer.Token == lexer.TIdentifier || p.lexer.Token == lexer.TOpenBrace || p.lexer.Token == lexer.TOpenBracket
+			if isBeforeBinding && isIdentifier && identifierText == "readonly" {
 				isTypeScriptField = true
+
+				// TypeScript requires an identifier binding
+				if p.lexer.Token != lexer.TIdentifier {
+					p.lexer.Expect(lexer.TIdentifier)
+				}
 
 				// Re-parse the binding (the current binding is the "readonly" keyword)
 				arg = p.parseBinding()
@@ -4609,7 +4620,7 @@ func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 // Lower class fields for environments that don't support them
 func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (staticFields []ast.Expr, tempRef ast.Ref) {
 	tempRef = ast.InvalidRef
-	if p.target >= ESNext {
+	if !p.ts.Parse && p.target >= ESNext {
 		return
 	}
 
@@ -4621,11 +4632,20 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 
 	var ctor *ast.EFunction
 	props := class.Properties
+	parameterFields := []ast.Stmt{}
 	instanceFields := []ast.Stmt{}
 	end := 0
 
 	for _, prop := range props {
-		if prop.IsStatic || prop.Value == nil {
+		// Instance and static fields are a JavaScript feature
+		if p.target < ESNext && (prop.IsStatic || prop.Value == nil) {
+			// The TypeScript compiler doesn't follow the JavaScript spec for
+			// uninitialized fields. They are supposed to be set to undefined but the
+			// TypeScript compiler just omits them entirely.
+			if p.ts.Parse && prop.Initializer == nil && prop.Value == nil {
+				continue
+			}
+
 			// Determine where to store the field
 			var target ast.Expr
 			if prop.IsStatic {
@@ -4678,6 +4698,25 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 			if str, ok := prop.Key.Data.(*ast.EString); ok && lexer.UTF16ToString(str.Value) == "constructor" {
 				if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
 					ctor = fn
+
+					// Initialize TypeScript constructor parameter fields
+					if p.ts.Parse {
+						for _, arg := range ctor.Fn.Args {
+							if arg.IsTypeScriptCtorField {
+								if id, ok := arg.Binding.Data.(*ast.BIdentifier); ok {
+									parameterFields = append(parameterFields, ast.Stmt{arg.Binding.Loc, &ast.SExpr{ast.Expr{arg.Binding.Loc, &ast.EBinary{
+										ast.BinOpAssign,
+										ast.Expr{arg.Binding.Loc, &ast.EDot{
+											Target:  ast.Expr{arg.Binding.Loc, &ast.EThis{}},
+											Name:    p.symbols[id.Ref.InnerIndex].Name,
+											NameLoc: arg.Binding.Loc,
+										}},
+										ast.Expr{arg.Binding.Loc, &ast.EIdentifier{id.Ref}},
+									}}}})
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -4691,7 +4730,7 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 	props = props[:end]
 
 	// Insert instance field initializers into the constructor
-	if len(instanceFields) > 0 {
+	if len(instanceFields) > 0 || len(parameterFields) > 0 {
 		// Create a constructor if one doesn't already exist
 		if ctor == nil {
 			ctor = &ast.EFunction{}
@@ -4729,6 +4768,7 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 				}
 			}
 		}
+		stmtsTo = append(stmtsTo, parameterFields...)
 		stmtsTo = append(stmtsTo, instanceFields...)
 		ctor.Fn.Stmts = append(stmtsTo, stmtsFrom...)
 
