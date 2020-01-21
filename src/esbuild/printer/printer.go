@@ -1679,6 +1679,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 
 		switch s2 := s.Value.Stmt.Data.(type) {
 		case *ast.SFunction:
+			p.printSpaceBeforeIdentifier()
 			p.print("function")
 			if s2.Fn.IsGenerator {
 				p.print("*")
@@ -1691,6 +1692,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.printNewline()
 
 		case *ast.SClass:
+			p.printSpaceBeforeIdentifier()
 			p.print("class")
 			if s2.Class.Name != nil {
 				p.printSymbol(s2.Class.Name.Ref)

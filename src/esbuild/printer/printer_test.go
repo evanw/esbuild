@@ -315,10 +315,16 @@ func TestExportDefault(t *testing.T) {
 	expectPrinted(t, "export default function foo() {}", "export default function foo() {\n}\n")
 	expectPrinted(t, "export default class {}", "export default class {\n}\n")
 	expectPrinted(t, "export default class foo {}", "export default class foo {\n}\n")
+
 	expectPrinted(t, "export default (function() {})", "export default (function() {\n});\n")
 	expectPrinted(t, "export default (function foo() {})", "export default (function foo() {\n});\n")
 	expectPrinted(t, "export default (class {})", "export default (class {\n});\n")
 	expectPrinted(t, "export default (class foo {})", "export default (class foo {\n});\n")
+
+	expectPrintedMinify(t, "export default function() {}", "export default function(){}\n")
+	expectPrintedMinify(t, "export default function foo() {}", "export default function foo(){}\n")
+	expectPrintedMinify(t, "export default class {}", "export default class{}\n")
+	expectPrintedMinify(t, "export default class foo {}", "export default class foo{}\n")
 }
 
 func TestWhitespace(t *testing.T) {
