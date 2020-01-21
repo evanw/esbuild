@@ -1062,14 +1062,27 @@ func TestJSX(t *testing.T) {
 
 func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "a ?? b", "a != null ? a : b;\n")
-	expectPrintedTarget(t, ES2015, "a() ?? b()", "_ = a(), _ != null ? _ : b();\nvar _;\n")
+	expectPrintedTarget(t, ES2015, "a() ?? b()", "var _a;\n_a = a(), _a != null ? _a : b();\n")
 	expectPrintedTarget(t, ES2015, "function foo() { if (x) { a() ?? b() ?? c() } }",
-		"function foo() {\n  if (x) {\n    _ = (_ = a(), _ != null ? _ : b()), _ != null ? _ : c();\n  }\n  var _;\n}\n")
+		"function foo() {\n  var _a, _b;\n  if (x) {\n    _b = (_a = a(), _a != null ? _a : b()), _b != null ? _b : c();\n  }\n}\n")
 }
 
 func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "class Foo { static foo }", "class Foo {\n}\nFoo.foo = void 0;\n")
 	expectPrintedTarget(t, ES2015, "class Foo { static foo = 123 }", "class Foo {\n}\nFoo.foo = 123;\n")
 	expectPrintedTarget(t, ES2015, "class Foo { static foo(a, b) {} }", "class Foo {\n}\nFoo.foo = function(a, b) {\n};\n")
+
+	expectPrintedTarget(t, ES2015, "export default class Foo { static foo }", "export default class Foo {\n}\nFoo.foo = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static foo = 123 }", "export default class Foo {\n}\nFoo.foo = 123;\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static foo(a, b) {} }", "export default class Foo {\n}\nFoo.foo = function(a, b) {\n};\n")
+
+	expectPrintedTarget(t, ES2015, "(class Foo { static foo })", "var _a;\n_a = class Foo {\n}, _a.foo = void 0, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static foo = 123 })", "var _a;\n_a = class Foo {\n}, _a.foo = 123, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static foo(a, b) {} })", "var _a;\n_a = class Foo {\n}, _a.foo = function(a, b) {\n}, _a;\n")
+
+	expectPrintedTarget(t, ES2015, "(class { static foo })", "var _a;\n_a = class {\n}, _a.foo = void 0, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static foo = 123 })", "var _a;\n_a = class {\n}, _a.foo = 123, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static foo(a, b) {} })", "var _a;\n_a = class {\n}, _a.foo = function(a, b) {\n}, _a;\n")
+
 	expectPrintedTarget(t, ES2015, "if (a) class Foo { static foo = 123 }", "if (a) {\n  class Foo {\n  }\n  Foo.foo = 123;\n}\n")
 }

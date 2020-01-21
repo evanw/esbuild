@@ -7,21 +7,6 @@ import (
 	"strconv"
 )
 
-func numberToMinifiedName(i int) string {
-	j := i % 54
-	name := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$"[j : j+1]
-	i = i / 54
-
-	for i > 0 {
-		i--
-		j := i % 64
-		name += "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$0123456789"[j : j+1]
-		i = i / 64
-	}
-
-	return name
-}
-
 func reservedNames(moduleScopes []*ast.Scope, symbols *ast.SymbolMap) map[string]bool {
 	names := make(map[string]bool)
 
@@ -187,12 +172,12 @@ func minifyAllSymbols(moduleScopes []*ast.Scope, symbols *ast.SymbolMap) {
 	// Assign names sequentially in order so the most frequent symbols get the
 	// shortest names
 	for _, slot := range sorted {
-		name := numberToMinifiedName(nextName)
+		name := lexer.NumberToMinifiedName(nextName)
 		nextName++
 
 		// Make sure we never generate a reserved name
 		for reservedNames[name] {
-			name = numberToMinifiedName(nextName)
+			name = lexer.NumberToMinifiedName(nextName)
 			nextName++
 		}
 

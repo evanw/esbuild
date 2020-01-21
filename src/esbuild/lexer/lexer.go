@@ -331,6 +331,21 @@ func (lexer *Lexer) ExpectOrInsertSemicolon() {
 	}
 }
 
+func NumberToMinifiedName(i int) string {
+	j := i % 54
+	name := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$"[j : j+1]
+	i = i / 54
+
+	for i > 0 {
+		i--
+		j := i % 64
+		name += "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$0123456789"[j : j+1]
+		i = i / 64
+	}
+
+	return name
+}
+
 func IsIdentifier(text string) bool {
 	if len(text) == 0 {
 		return false

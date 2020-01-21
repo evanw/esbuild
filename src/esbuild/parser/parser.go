@@ -2698,7 +2698,7 @@ type binder struct {
 	jsx               JSXOptions
 	allocatedNames    []string
 	tryBodyCount      int
-	canonicalTempRef  ast.Ref // A temporary variable used for lowering
+	tempRefs          []ast.Ref // Temporary variables used for lowering
 	target            LanguageTarget
 
 	isBundling              bool
@@ -2720,15 +2720,14 @@ func (b *binder) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
 }
 
 func (b *binder) generateTempRef() ast.Ref {
-	if b.canonicalTempRef == ast.InvalidRef {
-		scope := b.scope
-		for scope.Kind != ast.ScopeFunction && scope.Kind != ast.ScopeModule {
-			scope = scope.Parent
-		}
-		b.canonicalTempRef = b.newSymbol(ast.SymbolHoisted, "_")
-		scope.Generated = append(scope.Generated, b.canonicalTempRef)
+	scope := b.scope
+	for scope.Kind != ast.ScopeFunction && scope.Kind != ast.ScopeModule {
+		scope = scope.Parent
 	}
-	return b.canonicalTempRef
+	ref := b.newSymbol(ast.SymbolHoisted, "_"+lexer.NumberToMinifiedName(len(b.tempRefs)))
+	b.tempRefs = append(b.tempRefs, ref)
+	scope.Generated = append(scope.Generated, ref)
+	return ref
 }
 
 func (b *binder) pushScope(kind ast.ScopeKind) {
@@ -2933,19 +2932,21 @@ func shouldKeepStmtInDeadControlFlow(stmt ast.Stmt) bool {
 }
 
 func (b *binder) declareAndVisitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
-	oldTempRef := b.canonicalTempRef
-	b.canonicalTempRef = ast.InvalidRef
+	oldTempRefs := b.tempRefs
+	b.tempRefs = []ast.Ref{}
 
 	stmts = b.declareAndVisitStmts(stmts)
 
 	// Append the temporary variable to the end of the function or module
-	if b.canonicalTempRef != ast.InvalidRef {
-		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SVar{Decls: []ast.Decl{
-			ast.Decl{ast.Binding{ast.Loc{}, &ast.BIdentifier{b.canonicalTempRef}}, nil},
-		}}})
+	if len(b.tempRefs) > 0 {
+		decls := []ast.Decl{}
+		for _, ref := range b.tempRefs {
+			decls = append(decls, ast.Decl{ast.Binding{ast.Loc{}, &ast.BIdentifier{ref}}, nil})
+		}
+		stmts = append([]ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SVar{Decls: decls}}}, stmts...)
 	}
 
-	b.canonicalTempRef = oldTempRef
+	b.tempRefs = oldTempRefs
 	return stmts
 }
 
@@ -2954,35 +2955,10 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 		b.declareStmt(stmt)
 	}
 
-	// If this is in a dead branch, trim as much dead code as we can
-	if b.mangleSyntax && b.isControlFlowDead {
-		end := 0
-		for _, stmt := range stmts {
-			stmt = b.visitStmt(stmt)
-			if !shouldKeepStmtInDeadControlFlow(stmt) {
-				continue
-			}
-
-			// Merge adjacent var statements
-			if s, ok := stmt.Data.(*ast.SVar); ok && end > 0 {
-				prevStmt := stmts[end-1]
-				if prevS, ok := prevStmt.Data.(*ast.SVar); ok {
-					prevS.Decls = append(prevS.Decls, s.Decls...)
-					continue
-				}
-			}
-
-			stmts[end] = stmt
-			end++
-		}
-		return stmts[:end]
-	}
-
 	// Visit all statements first
 	visited := make([]ast.Stmt, 0, len(stmts))
 	for _, stmt := range stmts {
-		stmt = b.visitStmt(stmt)
-		visited = b.appendStmtWithLowering(visited, stmt)
+		visited = b.visitAndAppendStmt(visited, stmt)
 	}
 
 	// Stop now if we're not mangling
@@ -2990,7 +2966,30 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 		return visited
 	}
 
-	// Then merge adjacent statements
+	// If this is in a dead branch, trim as much dead code as we can
+	if b.isControlFlowDead {
+		end := 0
+		for _, stmt := range visited {
+			if !shouldKeepStmtInDeadControlFlow(stmt) {
+				continue
+			}
+
+			// Merge adjacent var statements
+			if s, ok := stmt.Data.(*ast.SVar); ok && end > 0 {
+				prevStmt := visited[end-1]
+				if prevS, ok := prevStmt.Data.(*ast.SVar); ok {
+					prevS.Decls = append(prevS.Decls, s.Decls...)
+					continue
+				}
+			}
+
+			visited[end] = stmt
+			end++
+		}
+		return visited[:end]
+	}
+
+	// Merge adjacent statements during mangling
 	result := make([]ast.Stmt, 0, len(visited))
 	for _, stmt := range visited {
 		switch s := stmt.Data.(type) {
@@ -3260,17 +3259,9 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 }
 
 func (b *binder) declareAndVisitStmt(stmt ast.Stmt) ast.Stmt {
-	b.declareStmt(stmt)
-	stmt = b.visitStmt(stmt)
+	stmts := b.declareAndVisitStmts([]ast.Stmt{stmt})
 
-	// If this is in a dead branch, trim as much dead code as we can
-	if b.isControlFlowDead && !shouldKeepStmtInDeadControlFlow(stmt) {
-		return ast.Stmt{stmt.Loc, &ast.SEmpty{}}
-	}
-
-	stmts := b.appendStmtWithLowering([]ast.Stmt{}, stmt)
-
-	// This statement could potentially expand to several statements when lowered
+	// This statement could potentially expand to several statements
 	switch len(stmts) {
 	case 0:
 		return ast.Stmt{stmt.Loc, &ast.SEmpty{}}
@@ -3281,35 +3272,21 @@ func (b *binder) declareAndVisitStmt(stmt ast.Stmt) ast.Stmt {
 	}
 }
 
-func (b *binder) appendStmtWithLowering(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt {
-	switch s := stmt.Data.(type) {
-	case *ast.SClass:
-		stmts = append(stmts, stmt)
-		for _, expr := range b.lowerClass(&s.Class, true /* isStmt */) {
-			stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
-		}
-
-	default:
-		stmts = append(stmts, stmt)
-	}
-
-	return stmts
-}
-
 // Lower class fields for environments that don't support them
-func (b *binder) lowerClass(class *ast.Class, isStmt bool) []ast.Expr {
+func (b *binder) lowerClass(class *ast.Class, isStmt bool) (extraExprs []ast.Expr, tempRef ast.Ref) {
+	tempRef = ast.InvalidRef
 	if b.target == ESNext {
-		return []ast.Expr{}
+		return
 	}
 
 	var ref ast.Ref
 	if class.Name != nil && isStmt {
 		ref = class.Name.Ref
 	} else {
-		ref = b.generateTempRef()
+		tempRef = b.generateTempRef()
+		ref = tempRef
 	}
 
-	extraExprs := []ast.Expr{}
 	props := class.Properties
 	end := 0
 
@@ -3355,7 +3332,7 @@ func (b *binder) lowerClass(class *ast.Class, isStmt bool) []ast.Expr {
 	}
 
 	class.Properties = props[:end]
-	return extraExprs
+	return
 }
 
 func (b *binder) declareBinding(kind ast.SymbolKind, binding ast.Binding, isExport bool) {
@@ -3491,14 +3468,16 @@ func (b *binder) declareStmt(stmt ast.Stmt) {
 
 		// Track the items for this namespace
 		b.importItemsForNamespace[s.NamespaceRef] = itemRefs
-	}
-}
 
-func (b *binder) visitExprOrStmt(init ast.ExprOrStmt) {
-	if init.Expr != nil {
-		*init.Expr = b.visitExpr(*init.Expr)
-	} else if init.Stmt != nil {
-		*init.Stmt = b.declareAndVisitStmt(*init.Stmt)
+	case *ast.SExportDefault:
+		if s.Value.Stmt != nil {
+			b.declareStmt(*s.Value.Stmt)
+		}
+		name := b.loadNameFromRef(s.DefaultName.Ref)
+		ref := b.newSymbol(ast.SymbolOther, name)
+		s.DefaultName.Ref = ref
+		b.scope.Generated = append(b.scope.Generated, ref)
+		b.recordExport(s.DefaultName.Loc, name)
 	}
 }
 
@@ -3638,7 +3617,7 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 	return ast.Stmt{loc, s}
 }
 
-func (b *binder) visitStmt(stmt ast.Stmt) ast.Stmt {
+func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt {
 	switch s := stmt.Data.(type) {
 	case *ast.SDebugger, *ast.SEmpty:
 		// These don't contain anything to traverse
@@ -3683,12 +3662,30 @@ func (b *binder) visitStmt(stmt ast.Stmt) ast.Stmt {
 		}
 
 	case *ast.SExportDefault:
-		b.visitExprOrStmt(s.Value)
-		name := b.loadNameFromRef(s.DefaultName.Ref)
-		ref := b.newSymbol(ast.SymbolOther, name)
-		s.DefaultName.Ref = ref
-		b.scope.Generated = append(b.scope.Generated, ref)
-		b.recordExport(s.DefaultName.Loc, name)
+		switch {
+		case s.Value.Expr != nil:
+			*s.Value.Expr = b.visitExpr(*s.Value.Expr)
+
+		case s.Value.Stmt != nil:
+			switch s2 := s.Value.Stmt.Data.(type) {
+			case *ast.SFunction:
+				b.visitFn(&s2.Fn)
+
+			case *ast.SClass:
+				b.visitClass(&s2.Class)
+				stmts = append(stmts, stmt)
+
+				// Lower class field syntax for browsers that don't support it
+				extraExprs, _ := b.lowerClass(&s2.Class, true /* isStmt */)
+				for _, expr := range extraExprs {
+					stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+				}
+				return stmts
+
+			default:
+				panic("Internal error")
+			}
+		}
 
 	case *ast.SBreak:
 		if s.Name != nil {
@@ -3754,7 +3751,7 @@ func (b *binder) visitStmt(stmt ast.Stmt) ast.Stmt {
 
 		// Trim expressions without side effects
 		if b.mangleSyntax && hasNoSideEffects(s.Value.Data) {
-			return ast.Stmt{stmt.Loc, &ast.SEmpty{}}
+			stmt = ast.Stmt{stmt.Loc, &ast.SEmpty{}}
 		}
 
 	case *ast.SThrow:
@@ -3778,14 +3775,12 @@ func (b *binder) visitStmt(stmt ast.Stmt) ast.Stmt {
 		b.popScope()
 
 		if b.mangleSyntax {
-			// Unwrap blocks containing a single statement
 			if len(s.Stmts) == 1 {
-				return s.Stmts[0]
-			}
-
-			// Trim empty blocks
-			if len(s.Stmts) == 0 {
-				return ast.Stmt{stmt.Loc, &ast.SEmpty{}}
+				// Unwrap blocks containing a single statement
+				stmt = s.Stmts[0]
+			} else if len(s.Stmts) == 0 {
+				// Trim empty blocks
+				stmt = ast.Stmt{stmt.Loc, &ast.SEmpty{}}
 			}
 		}
 
@@ -3803,7 +3798,7 @@ func (b *binder) visitStmt(stmt ast.Stmt) ast.Stmt {
 			if boolean, ok := toBooleanWithoutSideEffects(s.Test.Data); ok && boolean {
 				test = nil
 			}
-			return ast.Stmt{stmt.Loc, &ast.SFor{Test: test, Body: s.Body}}
+			stmt = ast.Stmt{stmt.Loc, &ast.SFor{Test: test, Body: s.Body}}
 		}
 
 	case *ast.SDoWhile:
@@ -3847,7 +3842,7 @@ func (b *binder) visitStmt(stmt ast.Stmt) ast.Stmt {
 		}
 
 		if b.mangleSyntax {
-			return mangleIf(stmt.Loc, s, ok, boolean)
+			stmt = mangleIf(stmt.Loc, s, ok, boolean)
 		}
 
 	case *ast.SFor:
@@ -3932,24 +3927,37 @@ func (b *binder) visitStmt(stmt ast.Stmt) ast.Stmt {
 		b.visitFn(&s.Fn)
 
 	case *ast.SClass:
-		if s.Class.Extends != nil {
-			*s.Class.Extends = b.visitExpr(*s.Class.Extends)
+		b.visitClass(&s.Class)
+		stmts = append(stmts, stmt)
+
+		// Lower class field syntax for browsers that don't support it
+		extraExprs, _ := b.lowerClass(&s.Class, true /* isStmt */)
+		for _, expr := range extraExprs {
+			stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 		}
-		for i, property := range s.Class.Properties {
-			s.Class.Properties[i].Key = b.visitExpr(property.Key)
-			if property.Value != nil {
-				*property.Value = b.visitExpr(*property.Value)
-			}
-			if property.Initializer != nil {
-				*property.Initializer = b.visitExpr(*property.Initializer)
-			}
-		}
+		return stmts
 
 	default:
 		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
 	}
 
-	return stmt
+	stmts = append(stmts, stmt)
+	return stmts
+}
+
+func (b *binder) visitClass(class *ast.Class) {
+	if class.Extends != nil {
+		*class.Extends = b.visitExpr(*class.Extends)
+	}
+	for i, property := range class.Properties {
+		class.Properties[i].Key = b.visitExpr(property.Key)
+		if property.Value != nil {
+			*property.Value = b.visitExpr(*property.Value)
+		}
+		if property.Initializer != nil {
+			*property.Initializer = b.visitExpr(*property.Initializer)
+		}
+	}
 }
 
 func (b *binder) visitArgs(args []ast.Arg) {
@@ -4563,20 +4571,27 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 			name := b.loadNameFromRef(e.Class.Name.Ref)
 			e.Class.Name.Ref = b.declareSymbol(ast.SymbolOther, e.Class.Name.Loc, name)
 		}
-		if e.Class.Extends != nil {
-			*e.Class.Extends = b.visitExpr(*e.Class.Extends)
-		}
-		for i, property := range e.Class.Properties {
-			e.Class.Properties[i].Key = b.visitExpr(property.Key)
-			if property.Value != nil {
-				*property.Value = b.visitExpr(*property.Value)
-			}
-			if property.Initializer != nil {
-				*property.Initializer = b.visitExpr(*property.Initializer)
-			}
-		}
+		b.visitClass(&e.Class)
 		if e.Class.Name != nil {
 			b.popScope()
+		}
+
+		// Lower class field syntax for browsers that don't support it
+		extraExprs, tempRef := b.lowerClass(&e.Class, false /* isStmt */)
+		if len(extraExprs) > 0 {
+			expr = ast.Expr{expr.Loc, &ast.EBinary{
+				ast.BinOpAssign,
+				ast.Expr{expr.Loc, &ast.EIdentifier{tempRef}},
+				expr,
+			}}
+			for _, extra := range extraExprs {
+				expr = ast.Expr{expr.Loc, &ast.EBinary{ast.BinOpComma, expr, extra}}
+			}
+			expr = ast.Expr{expr.Loc, &ast.EBinary{
+				ast.BinOpComma,
+				expr,
+				ast.Expr{expr.Loc, &ast.EIdentifier{tempRef}},
+			}}
 		}
 
 	default:
@@ -4707,7 +4722,6 @@ func newBinder(source logging.Source, options ParseOptions) *binder {
 	b := &binder{
 		identifierDefines: make(map[string]ast.E),
 		dotDefines:        make(map[string]dotDefine),
-		canonicalTempRef:  ast.InvalidRef,
 
 		indirectImportItems:     make(map[ast.Ref]bool),
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
