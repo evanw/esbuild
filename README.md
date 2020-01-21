@@ -48,7 +48,7 @@ Currently supported:
 
 This is a hobby project that I wrote over the 2019-2020 winter break. I believe that it's relatively complete and functional. However, it's brand new code and probably has a lot of bugs. It also hasn't yet been used in production by anyone. Use at your own risk.
 
-Also keep in mind that this doesn't currently do any lowering to e.g. ES6 or ES5. All syntax is passed through unmodified so the latest JavaScript features won't work in older browsers. This is easy to add but I haven't gotten to it yet.
+Also keep in mind that this doesn't have complete support for lowering modern language syntax to earlier language versions. Right now only class fields and the nullish coalescing operator are lowered.
 
 I don't personally want to run a large open source project, so I'm not looking for contributions at this time.
 

@@ -3273,36 +3273,47 @@ func (b *binder) declareAndVisitStmt(stmt ast.Stmt) ast.Stmt {
 }
 
 // Lower class fields for environments that don't support them
-func (b *binder) lowerClass(class *ast.Class, isStmt bool) (extraExprs []ast.Expr, tempRef ast.Ref) {
+func (b *binder) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (staticFields []ast.Expr, tempRef ast.Ref) {
 	tempRef = ast.InvalidRef
 	if b.target == ESNext {
 		return
 	}
 
-	var ref ast.Ref
-	if class.Name != nil && isStmt {
+	// We don't need to generate a name if this is a class statement with a name
+	ref := ast.InvalidRef
+	if isStmt && class.Name != nil {
 		ref = class.Name.Ref
-	} else {
-		tempRef = b.generateTempRef()
-		ref = tempRef
 	}
 
+	var ctor *ast.EFunction
 	props := class.Properties
+	instanceFields := []ast.Stmt{}
 	end := 0
 
 	for _, prop := range props {
-		if prop.IsStatic {
-			// Generate the assignment target
+		if prop.IsStatic || prop.Value == nil {
+			// Determine where to store the field
 			var target ast.Expr
+			if prop.IsStatic {
+				if ref == ast.InvalidRef {
+					tempRef = b.generateTempRef()
+					ref = tempRef
+				}
+				target = ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}
+			} else {
+				target = ast.Expr{prop.Key.Loc, &ast.EThis{}}
+			}
+
+			// Generate the assignment target
 			if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
 				target = ast.Expr{prop.Key.Loc, &ast.EDot{
-					Target:  ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}},
+					Target:  target,
 					Name:    lexer.UTF16ToString(key.Value),
 					NameLoc: prop.Key.Loc,
 				}}
 			} else {
 				target = ast.Expr{prop.Key.Loc, &ast.EIndex{
-					Target: ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}},
+					Target: target,
 					Index:  prop.Key,
 				}}
 			}
@@ -3317,13 +3328,24 @@ func (b *binder) lowerClass(class *ast.Class, isStmt bool) (extraExprs []ast.Exp
 				init = ast.Expr{prop.Key.Loc, &ast.EUndefined{}}
 			}
 
-			// Move this property to an assignment after the class ends
-			extraExprs = append(extraExprs, ast.Expr{prop.Key.Loc, &ast.EBinary{
-				ast.BinOpAssign,
-				target,
-				init,
-			}})
+			expr := ast.Expr{prop.Key.Loc, &ast.EBinary{ast.BinOpAssign, target, init}}
+			if prop.IsStatic {
+				// Move this property to an assignment after the class ends
+				staticFields = append(staticFields, expr)
+			} else {
+				// Move this property to an assignment inside the class constructor
+				instanceFields = append(instanceFields, ast.Stmt{prop.Key.Loc, &ast.SExpr{expr}})
+			}
 			continue
+		}
+
+		// Remember where the constructor is for later
+		if prop.IsMethod && prop.Value != nil {
+			if str, ok := prop.Key.Data.(*ast.EString); ok && lexer.UTF16ToString(str.Value) == "constructor" {
+				if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
+					ctor = fn
+				}
+			}
 		}
 
 		// Keep this property
@@ -3331,7 +3353,65 @@ func (b *binder) lowerClass(class *ast.Class, isStmt bool) (extraExprs []ast.Exp
 		end++
 	}
 
-	class.Properties = props[:end]
+	// Finish the filtering operation
+	props = props[:end]
+
+	// Insert instance field initializers into the constructor
+	if len(instanceFields) > 0 {
+		// Create a constructor if one doesn't already exist
+		if ctor == nil {
+			ctor = &ast.EFunction{}
+
+			// Append it to the list to reuse existing allocation space
+			props = append(props, ast.Property{
+				IsMethod: true,
+				Key:      ast.Expr{classLoc, &ast.EString{lexer.StringToUTF16("constructor")}},
+				Value:    &ast.Expr{classLoc, ctor},
+			})
+
+			// Make sure the constructor has a super() call if needed
+			if class.Extends != nil {
+				argumentsRef := b.newSymbol(ast.SymbolUnbound, "arguments")
+				b.scope.Generated = append(b.scope.Generated, argumentsRef)
+				ctor.Fn.Stmts = append(ctor.Fn.Stmts, ast.Stmt{classLoc, &ast.SExpr{ast.Expr{classLoc, &ast.ECall{
+					Target: ast.Expr{classLoc, &ast.ESuper{}},
+					Args: []ast.Expr{
+						ast.Expr{classLoc, &ast.ESpread{ast.Expr{classLoc, &ast.EIdentifier{argumentsRef}}}},
+					},
+				}}}})
+			}
+		}
+
+		// Insert the instance field initializers after the super call if there is one
+		stmtsFrom := ctor.Fn.Stmts
+		stmtsTo := []ast.Stmt{}
+		if len(stmtsFrom) > 0 {
+			if expr, ok := stmtsFrom[0].Data.(*ast.SExpr); ok {
+				if call, ok := expr.Value.Data.(*ast.ECall); ok {
+					if _, ok := call.Target.Data.(*ast.ESuper); ok {
+						stmtsTo = append(stmtsTo, stmtsFrom[0])
+						stmtsFrom = stmtsFrom[1:]
+					}
+				}
+			}
+		}
+		stmtsTo = append(stmtsTo, instanceFields...)
+		ctor.Fn.Stmts = append(stmtsTo, stmtsFrom...)
+
+		// Sort the constructor first to match the TypeScript compiler's output
+		for i := 0; i < len(props); i++ {
+			if props[i].Value != nil && props[i].Value.Data == ctor {
+				ctorProp := props[i]
+				for j := i; j > 0; j-- {
+					props[j] = props[j-1]
+				}
+				props[0] = ctorProp
+				break
+			}
+		}
+	}
+
+	class.Properties = props
 	return
 }
 
@@ -3676,7 +3756,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				stmts = append(stmts, stmt)
 
 				// Lower class field syntax for browsers that don't support it
-				extraExprs, _ := b.lowerClass(&s2.Class, true /* isStmt */)
+				extraExprs, _ := b.lowerClass(s.Value.Stmt.Loc, &s2.Class, true /* isStmt */)
 				for _, expr := range extraExprs {
 					stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 				}
@@ -3931,7 +4011,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		stmts = append(stmts, stmt)
 
 		// Lower class field syntax for browsers that don't support it
-		extraExprs, _ := b.lowerClass(&s.Class, true /* isStmt */)
+		extraExprs, _ := b.lowerClass(stmt.Loc, &s.Class, true /* isStmt */)
 		for _, expr := range extraExprs {
 			stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 		}
@@ -4577,7 +4657,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 		// Lower class field syntax for browsers that don't support it
-		extraExprs, tempRef := b.lowerClass(&e.Class, false /* isStmt */)
+		extraExprs, tempRef := b.lowerClass(expr.Loc, &e.Class, false /* isStmt */)
 		if len(extraExprs) > 0 {
 			expr = ast.Expr{expr.Loc, &ast.EBinary{
 				ast.BinOpAssign,

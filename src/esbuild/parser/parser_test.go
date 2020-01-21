@@ -1067,22 +1067,97 @@ func TestLowerNullishCoalescing(t *testing.T) {
 		"function foo() {\n  var _a, _b;\n  if (x) {\n    _b = (_a = a(), _a != null ? _a : b()), _b != null ? _b : c();\n  }\n}\n")
 }
 
+func TestLowerClassInstance(t *testing.T) {
+	expectPrintedTarget(t, ES2015, "class Foo {}", "class Foo {\n}\n")
+	expectPrintedTarget(t, ES2015, "class Foo { foo }", "class Foo {\n  constructor() {\n    this.foo = void 0;\n  }\n}\n")
+	expectPrintedTarget(t, ES2015, "class Foo { foo = null }", "class Foo {\n  constructor() {\n    this.foo = null;\n  }\n}\n")
+	expectPrintedTarget(t, ES2015, "class Foo { 123 }", "class Foo {\n  constructor() {\n    this[123] = void 0;\n  }\n}\n")
+	expectPrintedTarget(t, ES2015, "class Foo { 123 = null }", "class Foo {\n  constructor() {\n    this[123] = null;\n  }\n}\n")
+	expectPrintedTarget(t, ES2015, "class Foo { [foo] }", "class Foo {\n  constructor() {\n    this[foo] = void 0;\n  }\n}\n")
+	expectPrintedTarget(t, ES2015, "class Foo { [foo] = null }", "class Foo {\n  constructor() {\n    this[foo] = null;\n  }\n}\n")
+
+	expectPrintedTarget(t, ES2015, "(class {})", "(class {\n});\n")
+	expectPrintedTarget(t, ES2015, "(class { foo })", "(class {\n  constructor() {\n    this.foo = void 0;\n  }\n});\n")
+	expectPrintedTarget(t, ES2015, "(class { foo = null })", "(class {\n  constructor() {\n    this.foo = null;\n  }\n});\n")
+	expectPrintedTarget(t, ES2015, "(class { 123 })", "(class {\n  constructor() {\n    this[123] = void 0;\n  }\n});\n")
+	expectPrintedTarget(t, ES2015, "(class { 123 = null })", "(class {\n  constructor() {\n    this[123] = null;\n  }\n});\n")
+	expectPrintedTarget(t, ES2015, "(class { [foo] })", "(class {\n  constructor() {\n    this[foo] = void 0;\n  }\n});\n")
+	expectPrintedTarget(t, ES2015, "(class { [foo] = null })", "(class {\n  constructor() {\n    this[foo] = null;\n  }\n});\n")
+
+	expectPrintedTarget(t, ES2015, "class Foo extends Bar {}", `class Foo extends Bar {
+}
+`)
+	expectPrintedTarget(t, ES2015, "class Foo extends Bar { bar() {} constructor() { super() } }", `class Foo extends Bar {
+  bar() {
+  }
+  constructor() {
+    super();
+  }
+}
+`)
+	expectPrintedTarget(t, ES2015, "class Foo extends Bar { bar() {} foo }", `class Foo extends Bar {
+  constructor() {
+    super(...arguments);
+    this.foo = void 0;
+  }
+  bar() {
+  }
+}
+`)
+	expectPrintedTarget(t, ES2015, "class Foo extends Bar { bar() {} foo; constructor() { super() } }", `class Foo extends Bar {
+  constructor() {
+    super();
+    this.foo = void 0;
+  }
+  bar() {
+  }
+}
+`)
+}
+
 func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "class Foo { static foo }", "class Foo {\n}\nFoo.foo = void 0;\n")
-	expectPrintedTarget(t, ES2015, "class Foo { static foo = 123 }", "class Foo {\n}\nFoo.foo = 123;\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static foo = null }", "class Foo {\n}\nFoo.foo = null;\n")
 	expectPrintedTarget(t, ES2015, "class Foo { static foo(a, b) {} }", "class Foo {\n}\nFoo.foo = function(a, b) {\n};\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static 123 }", "class Foo {\n}\nFoo[123] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static 123 = null }", "class Foo {\n}\nFoo[123] = null;\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static 123(a, b) {} }", "class Foo {\n}\nFoo[123] = function(a, b) {\n};\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static [foo] }", "class Foo {\n}\nFoo[foo] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static [foo] = null }", "class Foo {\n}\nFoo[foo] = null;\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static [foo](a, b) {} }", "class Foo {\n}\nFoo[foo] = function(a, b) {\n};\n")
 
 	expectPrintedTarget(t, ES2015, "export default class Foo { static foo }", "export default class Foo {\n}\nFoo.foo = void 0;\n")
-	expectPrintedTarget(t, ES2015, "export default class Foo { static foo = 123 }", "export default class Foo {\n}\nFoo.foo = 123;\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static foo = null }", "export default class Foo {\n}\nFoo.foo = null;\n")
 	expectPrintedTarget(t, ES2015, "export default class Foo { static foo(a, b) {} }", "export default class Foo {\n}\nFoo.foo = function(a, b) {\n};\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static 123 }", "export default class Foo {\n}\nFoo[123] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static 123 = null }", "export default class Foo {\n}\nFoo[123] = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static 123(a, b) {} }", "export default class Foo {\n}\nFoo[123] = function(a, b) {\n};\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static [foo] }", "export default class Foo {\n}\nFoo[foo] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static [foo] = null }", "export default class Foo {\n}\nFoo[foo] = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class Foo { static [foo](a, b) {} }", "export default class Foo {\n}\nFoo[foo] = function(a, b) {\n};\n")
 
 	expectPrintedTarget(t, ES2015, "(class Foo { static foo })", "var _a;\n_a = class Foo {\n}, _a.foo = void 0, _a;\n")
-	expectPrintedTarget(t, ES2015, "(class Foo { static foo = 123 })", "var _a;\n_a = class Foo {\n}, _a.foo = 123, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static foo = null })", "var _a;\n_a = class Foo {\n}, _a.foo = null, _a;\n")
 	expectPrintedTarget(t, ES2015, "(class Foo { static foo(a, b) {} })", "var _a;\n_a = class Foo {\n}, _a.foo = function(a, b) {\n}, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static 123 })", "var _a;\n_a = class Foo {\n}, _a[123] = void 0, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static 123 = null })", "var _a;\n_a = class Foo {\n}, _a[123] = null, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static 123(a, b) {} })", "var _a;\n_a = class Foo {\n}, _a[123] = function(a, b) {\n}, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static [foo] })", "var _a;\n_a = class Foo {\n}, _a[foo] = void 0, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static [foo] = null })", "var _a;\n_a = class Foo {\n}, _a[foo] = null, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class Foo { static [foo](a, b) {} })", "var _a;\n_a = class Foo {\n}, _a[foo] = function(a, b) {\n}, _a;\n")
 
 	expectPrintedTarget(t, ES2015, "(class { static foo })", "var _a;\n_a = class {\n}, _a.foo = void 0, _a;\n")
-	expectPrintedTarget(t, ES2015, "(class { static foo = 123 })", "var _a;\n_a = class {\n}, _a.foo = 123, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static foo = null })", "var _a;\n_a = class {\n}, _a.foo = null, _a;\n")
 	expectPrintedTarget(t, ES2015, "(class { static foo(a, b) {} })", "var _a;\n_a = class {\n}, _a.foo = function(a, b) {\n}, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static 123 })", "var _a;\n_a = class {\n}, _a[123] = void 0, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static 123 = null })", "var _a;\n_a = class {\n}, _a[123] = null, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static 123(a, b) {} })", "var _a;\n_a = class {\n}, _a[123] = function(a, b) {\n}, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static [foo] })", "var _a;\n_a = class {\n}, _a[foo] = void 0, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static [foo] = null })", "var _a;\n_a = class {\n}, _a[foo] = null, _a;\n")
+	expectPrintedTarget(t, ES2015, "(class { static [foo](a, b) {} })", "var _a;\n_a = class {\n}, _a[foo] = function(a, b) {\n}, _a;\n")
 
-	expectPrintedTarget(t, ES2015, "if (a) class Foo { static foo = 123 }", "if (a) {\n  class Foo {\n  }\n  Foo.foo = 123;\n}\n")
+	expectPrintedTarget(t, ES2015, "(class {})", "(class {\n});\n")
+	expectPrintedTarget(t, ES2015, "class Foo {}", "class Foo {\n}\n")
+	expectPrintedTarget(t, ES2015, "(class Foo {})", "(class Foo {\n});\n")
+	expectPrintedTarget(t, ES2015, "if (a) class Foo { static foo = null }", "if (a) {\n  class Foo {\n  }\n  Foo.foo = null;\n}\n")
 }
