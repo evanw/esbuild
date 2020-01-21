@@ -162,6 +162,7 @@ type parser struct {
 	omitWarnings             bool
 	allowIn                  bool
 	currentFnOpts            fnOpts
+	target                   LanguageTarget
 	jsx                      JSXOptions
 	latestReturnHadSemicolon bool
 	allocatedNames           []string
@@ -398,6 +399,7 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 
 	switch p.lexer.Token {
 	case lexer.TDotDotDot:
+		p.warnAboutFutureSyntax(ES2018, p.lexer.Range())
 		p.lexer.Next()
 		value := ast.Binding{p.lexer.Loc(), &ast.BIdentifier{p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Expect(lexer.TIdentifier)
@@ -507,30 +509,32 @@ func (p *parser) isAsyncExprSuffix() bool {
 
 // This parses an expression. This assumes we've already parsed the "async"
 // keyword and are currently looking at the following token.
-func (p *parser) parseAsyncExpr(loc ast.Loc, level ast.L) ast.Expr {
+func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 	var expr ast.Expr
 
 	// Make sure this matches the switch statement in isAsyncExprSuffix()
 	switch p.lexer.Token {
 	// "async function() {}"
 	case lexer.TFunction:
-		return p.parseFnExpr(loc, true /* isAsync */)
+		p.warnAboutFutureSyntax(ES2017, asyncRange)
+		return p.parseFnExpr(asyncRange.Loc, true /* isAsync */)
 
 		// "async => {}"
 	case lexer.TEqualsGreaterThan:
 		p.lexer.Next()
-		arg := ast.Arg{ast.Binding{loc, &ast.BIdentifier{p.storeNameInRef("async")}}, nil}
+		arg := ast.Arg{ast.Binding{asyncRange.Loc, &ast.BIdentifier{p.storeNameInRef("async")}}, nil}
 		stmts, expr := p.parseArrowBody(fnOpts{})
-		return ast.Expr{loc, &ast.EArrow{Args: []ast.Arg{arg}, Stmts: stmts, Expr: expr}}
+		return ast.Expr{asyncRange.Loc, &ast.EArrow{Args: []ast.Arg{arg}, Stmts: stmts, Expr: expr}}
 
 		// "async x => {}"
 	case lexer.TIdentifier:
+		p.warnAboutFutureSyntax(ES2017, asyncRange)
 		ref := p.storeNameInRef(p.lexer.Identifier)
 		arg := ast.Arg{ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}, nil}
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TEqualsGreaterThan)
 		stmts, expr := p.parseArrowBody(fnOpts{allowAwait: true})
-		return ast.Expr{loc, &ast.EArrow{
+		return ast.Expr{asyncRange.Loc, &ast.EArrow{
 			IsAsync: true,
 			Args:    []ast.Arg{arg},
 			Stmts:   stmts,
@@ -541,12 +545,16 @@ func (p *parser) parseAsyncExpr(loc ast.Loc, level ast.L) ast.Expr {
 		// "async () => {}"
 	case lexer.TOpenParen:
 		p.lexer.Next()
-		return p.parseParenExpr(loc, true /* isAsync */)
+		expr := p.parseParenExpr(asyncRange.Loc, true /* isAsync */)
+		if _, ok := expr.Data.(*ast.EArrow); ok {
+			p.warnAboutFutureSyntax(ES2017, asyncRange)
+		}
+		return expr
 
 		// "async"
 		// "async + 1"
 	default:
-		expr = ast.Expr{loc, &ast.EIdentifier{p.storeNameInRef("async")}}
+		expr = ast.Expr{asyncRange.Loc, &ast.EIdentifier{p.storeNameInRef("async")}}
 	}
 
 	return p.parseSuffix(expr, level)
@@ -832,11 +840,12 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 	case lexer.TIdentifier:
 		name := p.lexer.Identifier
+		nameRange := p.lexer.Range()
 		p.lexer.Next()
 
 		// Handle async and await expressions
 		if name == "async" {
-			return p.parseAsyncExpr(loc, level)
+			return p.parseAsyncExpr(nameRange, level)
 		} else if p.currentFnOpts.allowAwait && name == "await" {
 			return ast.Expr{loc, &ast.EAwait{p.parseExpr(ast.LPrefix)}}
 		}
@@ -875,6 +884,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 	case lexer.TBigIntegerLiteral:
 		value := p.lexer.Identifier
+		p.warnAboutFutureSyntax(ES2020, p.lexer.Range())
 		p.lexer.Next()
 		return ast.Expr{p.lexer.Loc(), &ast.EBigInt{value}}
 
@@ -1022,6 +1032,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 		for p.lexer.Token != lexer.TCloseBrace {
 			if p.lexer.Token == lexer.TDotDotDot {
+				p.warnAboutFutureSyntax(ES2018, p.lexer.Range())
 				p.lexer.Next()
 				value := p.parseExpr(ast.LComma)
 				properties = append(properties, ast.Property{
@@ -1106,6 +1117,14 @@ func (p *parser) willNeedBindingPattern() bool {
 	}
 }
 
+func (p *parser) warnAboutFutureSyntax(target LanguageTarget, r ast.Range) {
+	if p.target < target {
+		p.log.AddRangeWarning(p.source, r,
+			fmt.Sprintf("This syntax is from %s and is not available in %s",
+				targetTable[target], targetTable[p.target]))
+	}
+}
+
 func (p *parser) parseImportExpr(loc ast.Loc, name string) ast.Expr {
 	// Parse an "import.meta" expression
 	if p.lexer.Token == lexer.TDot {
@@ -1175,6 +1194,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			left = ast.Expr{left.Loc, &ast.EDot{left, name, nameLoc, false}}
 
 		case lexer.TQuestionDot:
+			p.warnAboutFutureSyntax(ES2020, p.lexer.Range())
 			p.lexer.Next()
 
 			switch p.lexer.Token {
@@ -1326,6 +1346,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			if level >= ast.LExponentiation {
 				return left
 			}
+			p.warnAboutFutureSyntax(ES2016, p.lexer.Range())
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpPow, left, p.parseExpr(ast.LExponentiation - 1)}}
 
@@ -1333,6 +1354,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			if level >= ast.LAssign {
 				return left
 			}
+			p.warnAboutFutureSyntax(ES2016, p.lexer.Range())
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpPowAssign, left, p.parseExpr(ast.LAssign - 1)}}
 
@@ -1968,6 +1990,11 @@ func (p *parser) parseBinding() ast.Binding {
 				if p.lexer.Token == lexer.TDotDotDot {
 					p.lexer.Next()
 					hasSpread = true
+
+					// This was a bug in the ES2015 spec that was fixed in ES2016
+					if p.lexer.Token != lexer.TIdentifier {
+						p.warnAboutFutureSyntax(ES2016, p.lexer.Range())
+					}
 				}
 
 				binding := p.parseBinding()
@@ -2165,6 +2192,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		case lexer.TIdentifier:
 			if p.lexer.IsContextualKeyword("async") {
+				p.warnAboutFutureSyntax(ES2017, p.lexer.Range())
 				p.lexer.Next()
 				p.lexer.Expect(lexer.TFunction)
 				opts.isExport = true
@@ -2350,7 +2378,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			var binding *ast.Binding
 
 			// The catch binding is optional, and can be omitted
-			if p.lexer.Token != lexer.TOpenBrace {
+			if p.lexer.Token == lexer.TOpenBrace {
+				p.warnAboutFutureSyntax(ES2019, p.lexer.Range())
+			} else {
 				p.lexer.Expect(lexer.TOpenParen)
 				value := p.parseBinding()
 				binding = &value
@@ -2615,12 +2645,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		var expr ast.Expr
 		if isIdentifier && p.lexer.Identifier == "async" {
+			asyncRange := p.lexer.Range()
 			p.lexer.Next()
 			if p.lexer.Token == lexer.TFunction {
+				p.warnAboutFutureSyntax(ES2017, asyncRange)
 				p.lexer.Next()
-				return p.parseFnStmt(loc, opts, true /* isAsync */)
+				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */)
 			}
-			expr = p.parseAsyncExpr(loc, ast.LLowest)
+			expr = p.parseAsyncExpr(asyncRange, ast.LLowest)
 		} else {
 			expr = p.parseExpr(ast.LLowest)
 		}
@@ -3275,7 +3307,7 @@ func (b *binder) declareAndVisitStmt(stmt ast.Stmt) ast.Stmt {
 // Lower class fields for environments that don't support them
 func (b *binder) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (staticFields []ast.Expr, tempRef ast.Ref) {
 	tempRef = ast.InvalidRef
-	if b.target == ESNext {
+	if b.target >= ESNext {
 		return
 	}
 
@@ -4397,7 +4429,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				return e.Right
 
 			case *ast.EIdentifier:
-				if b.target != ESNext {
+				if b.target < ESNext {
 					// "a ?? b" => "a != null ? a : b"
 					return ast.Expr{expr.Loc, &ast.EIf{
 						ast.Expr{expr.Loc, &ast.EBinary{
@@ -4411,7 +4443,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				}
 
 			default:
-				if b.target != ESNext {
+				if b.target < ESNext {
 					// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
 					ref := b.generateTempRef()
 					return ast.Expr{expr.Loc, &ast.EBinary{
@@ -4693,17 +4725,29 @@ func (b *binder) visitFn(fn *ast.Fn) {
 	b.tryBodyCount = oldTryBodyCount
 }
 
-type LanguageTarget uint8
+type LanguageTarget int8
 
 const (
-	ESNext LanguageTarget = iota
-	ES2015
-	ES2016
-	ES2017
-	ES2018
-	ES2019
-	ES2020
+	// These are arranged such that ESNext is the default zero value and such
+	// that earlier releases are less than later releases
+	ES2015 = -6
+	ES2016 = -5
+	ES2017 = -4
+	ES2018 = -3
+	ES2019 = -2
+	ES2020 = -1
+	ESNext = 0
 )
+
+var targetTable = map[LanguageTarget]string{
+	ES2015: "ES2015",
+	ES2016: "ES2016",
+	ES2017: "ES2017",
+	ES2018: "ES2018",
+	ES2019: "ES2019",
+	ES2020: "ES2020",
+	ESNext: "ESNext",
+}
 
 type JSXOptions struct {
 	Parse    bool
@@ -4745,6 +4789,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		source:       source,
 		lexer:        lexer.NewLexer(log, source),
 		allowIn:      true,
+		target:       options.Target,
 		jsx:          options.JSX,
 		omitWarnings: options.OmitWarnings,
 	}
