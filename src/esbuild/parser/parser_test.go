@@ -1066,3 +1066,10 @@ func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "function foo() { if (x) { a() ?? b() ?? c() } }",
 		"function foo() {\n  if (x) {\n    _ = (_ = a(), _ != null ? _ : b()), _ != null ? _ : c();\n  }\n  var _;\n}\n")
 }
+
+func TestLowerClassStatic(t *testing.T) {
+	expectPrintedTarget(t, ES2015, "class Foo { static foo }", "class Foo {\n}\nFoo.foo = void 0;\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static foo = 123 }", "class Foo {\n}\nFoo.foo = 123;\n")
+	expectPrintedTarget(t, ES2015, "class Foo { static foo(a, b) {} }", "class Foo {\n}\nFoo.foo = function(a, b) {\n};\n")
+	expectPrintedTarget(t, ES2015, "if (a) class Foo { static foo = 123 }", "if (a) {\n  class Foo {\n  }\n  Foo.foo = 123;\n}\n")
+}

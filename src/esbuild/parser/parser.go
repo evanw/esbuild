@@ -2954,17 +2954,8 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 		b.declareStmt(stmt)
 	}
 
-	// Don't allocate extra memory for a copy of the statement slice if we
-	// aren't mangling syntax, since it's not needed and uses more memory
-	if !b.mangleSyntax {
-		for i, stmt := range stmts {
-			stmts[i] = b.visitStmt(stmt)
-		}
-		return stmts
-	}
-
 	// If this is in a dead branch, trim as much dead code as we can
-	if b.isControlFlowDead {
+	if b.mangleSyntax && b.isControlFlowDead {
 		end := 0
 		for _, stmt := range stmts {
 			stmt = b.visitStmt(stmt)
@@ -2987,13 +2978,21 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 		return stmts[:end]
 	}
 
-	// If we're mangling syntax, create a copy of the statement slice since the
-	// number of statements may increase during mangling
-	result := []ast.Stmt{}
-
+	// Visit all statements first
+	visited := make([]ast.Stmt, 0, len(stmts))
 	for _, stmt := range stmts {
 		stmt = b.visitStmt(stmt)
+		visited = b.appendStmtWithLowering(visited, stmt)
+	}
 
+	// Stop now if we're not mangling
+	if !b.mangleSyntax {
+		return visited
+	}
+
+	// Then merge adjacent statements
+	result := make([]ast.Stmt, 0, len(visited))
+	for _, stmt := range visited {
 		switch s := stmt.Data.(type) {
 		case *ast.SEmpty:
 			// Strip empty statements
@@ -3269,7 +3268,94 @@ func (b *binder) declareAndVisitStmt(stmt ast.Stmt) ast.Stmt {
 		return ast.Stmt{stmt.Loc, &ast.SEmpty{}}
 	}
 
-	return stmt
+	stmts := b.appendStmtWithLowering([]ast.Stmt{}, stmt)
+
+	// This statement could potentially expand to several statements when lowered
+	switch len(stmts) {
+	case 0:
+		return ast.Stmt{stmt.Loc, &ast.SEmpty{}}
+	case 1:
+		return stmts[0]
+	default:
+		return ast.Stmt{stmt.Loc, &ast.SBlock{stmts}}
+	}
+}
+
+func (b *binder) appendStmtWithLowering(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt {
+	switch s := stmt.Data.(type) {
+	case *ast.SClass:
+		stmts = append(stmts, stmt)
+		for _, expr := range b.lowerClass(&s.Class, true /* isStmt */) {
+			stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+		}
+
+	default:
+		stmts = append(stmts, stmt)
+	}
+
+	return stmts
+}
+
+// Lower class fields for environments that don't support them
+func (b *binder) lowerClass(class *ast.Class, isStmt bool) []ast.Expr {
+	if b.target == ESNext {
+		return []ast.Expr{}
+	}
+
+	var ref ast.Ref
+	if class.Name != nil && isStmt {
+		ref = class.Name.Ref
+	} else {
+		ref = b.generateTempRef()
+	}
+
+	extraExprs := []ast.Expr{}
+	props := class.Properties
+	end := 0
+
+	for _, prop := range props {
+		if prop.IsStatic {
+			// Generate the assignment target
+			var target ast.Expr
+			if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
+				target = ast.Expr{prop.Key.Loc, &ast.EDot{
+					Target:  ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}},
+					Name:    lexer.UTF16ToString(key.Value),
+					NameLoc: prop.Key.Loc,
+				}}
+			} else {
+				target = ast.Expr{prop.Key.Loc, &ast.EIndex{
+					Target: ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}},
+					Index:  prop.Key,
+				}}
+			}
+
+			// Generate the assignment initializer
+			var init ast.Expr
+			if prop.Initializer != nil {
+				init = *prop.Initializer
+			} else if prop.Value != nil {
+				init = *prop.Value
+			} else {
+				init = ast.Expr{prop.Key.Loc, &ast.EUndefined{}}
+			}
+
+			// Move this property to an assignment after the class ends
+			extraExprs = append(extraExprs, ast.Expr{prop.Key.Loc, &ast.EBinary{
+				ast.BinOpAssign,
+				target,
+				init,
+			}})
+			continue
+		}
+
+		// Keep this property
+		props[end] = prop
+		end++
+	}
+
+	class.Properties = props[:end]
+	return extraExprs
 }
 
 func (b *binder) declareBinding(kind ast.SymbolKind, binding ast.Binding, isExport bool) {
