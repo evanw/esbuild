@@ -499,6 +499,10 @@ type SEmpty struct{}
 
 type SDebugger struct{}
 
+type SDirective struct {
+	Value []uint16
+}
+
 type SExportClause struct {
 	Items []ClauseItem
 }
@@ -654,6 +658,7 @@ type SContinue struct {
 func (*SBlock) isStmt()         {}
 func (*SConst) isStmt()         {}
 func (*SDebugger) isStmt()      {}
+func (*SDirective) isStmt()     {}
 func (*SEmpty) isStmt()         {}
 func (*SExportClause) isStmt()  {}
 func (*SExportFrom) isStmt()    {}

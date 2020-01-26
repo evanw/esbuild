@@ -955,6 +955,11 @@ func TestMangleInitializer(t *testing.T) {
 	expectPrintedMangle(t, "var [] = undefined", "var [] = void 0;\n")
 }
 
+func TestMangleUseStrict(t *testing.T) {
+	// The mangler should not remove "use strict" or join it with other expressions
+	expectPrintedMangle(t, "'use strict'; 'use loose'; a; b", "\"use strict\";\na, b;\n")
+}
+
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { ; }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { b() }", "a();\n")

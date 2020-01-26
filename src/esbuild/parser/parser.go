@@ -2657,6 +2657,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 	default:
 		isIdentifier := p.lexer.Token == lexer.TIdentifier
 
+		// Parse either an async function, an async expression, or a normal expression
 		var expr ast.Expr
 		if isIdentifier && p.lexer.Identifier == "async" {
 			asyncRange := p.lexer.Range()
@@ -2680,6 +2681,21 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 
 		p.lexer.ExpectOrInsertSemicolon()
+
+		// Parse a "use strict" directive
+		if str, ok := expr.Data.(*ast.EString); ok && len(str.Value) == len("use strict") {
+			isEqual := true
+			for i, c := range str.Value {
+				if c != uint16("use strict"[i]) {
+					isEqual = false
+					break
+				}
+			}
+			if isEqual {
+				return ast.Stmt{loc, &ast.SDirective{Value: str.Value}}
+			}
+		}
+
 		return ast.Stmt{loc, &ast.SExpr{expr}}
 	}
 }
@@ -3612,7 +3628,7 @@ func statementCaresAboutScope(stmt ast.Stmt) bool {
 	case *ast.SBlock, *ast.SEmpty, *ast.SDebugger, *ast.SExpr, *ast.SIf,
 		*ast.SFor, *ast.SForIn, *ast.SForOf, *ast.SDoWhile, *ast.SWhile,
 		*ast.SWith, *ast.STry, *ast.SSwitch, *ast.SReturn, *ast.SThrow,
-		*ast.SVar, *ast.SBreak, *ast.SContinue:
+		*ast.SVar, *ast.SBreak, *ast.SContinue, *ast.SDirective:
 		return false
 
 	default:
@@ -3745,7 +3761,7 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 
 func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt {
 	switch s := stmt.Data.(type) {
-	case *ast.SDebugger, *ast.SEmpty:
+	case *ast.SDebugger, *ast.SEmpty, *ast.SDirective:
 		// These don't contain anything to traverse
 
 	case *ast.SImport:

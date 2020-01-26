@@ -633,7 +633,6 @@ func (p *printer) printSemicolonIfNeeded() {
 		p.print(";")
 		p.needsSemicolon = false
 	}
-
 }
 
 func (p *printer) printSpaceBeforeIdentifier() {
@@ -2046,6 +2045,15 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("debugger")
+		p.printSemicolonAfterStatement()
+
+	case *ast.SDirective:
+		c := p.bestQuoteCharForString(s.Value, false /* allowBacktick */)
+		p.printIndent()
+		p.printSpaceBeforeIdentifier()
+		p.print(c)
+		p.print(quoteUTF16(s.Value, rune(c[0])))
+		p.print(c)
 		p.printSemicolonAfterStatement()
 
 	case *ast.SBreak:
