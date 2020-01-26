@@ -1434,7 +1434,13 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			if left, ok := e.Left.Data.(*ast.EUnary); ok && !left.Op.IsUnaryUpdate() {
 				leftLevel = ast.LCall
 			} else if _, ok := e.Left.Data.(*ast.EUndefined); ok {
+				// Undefined is printed as "void 0"
 				leftLevel = ast.LCall
+			} else if p.minify {
+				// When minifying, booleans are printed as "!0 and "!1"
+				if _, ok := e.Left.Data.(*ast.EBoolean); ok {
+					leftLevel = ast.LCall
+				}
 			}
 		}
 
