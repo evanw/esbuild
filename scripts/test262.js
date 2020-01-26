@@ -74,7 +74,7 @@ async function main() {
       return;
     }
     const yaml = jsYaml.safeLoad(content.slice(start + 5, end));
-    const shouldWork = !yaml.negative;
+    const shouldParse = !yaml.negative || yaml.negative.phase === 'runtime';
 
     if (yaml.features) {
       if (yaml.features.includes('class-fields-private')) return
@@ -92,17 +92,17 @@ async function main() {
     const output1 = path.join(process.env.HOME, '.Trash', hash + '-1.js');
     const output2 = path.join(process.env.HOME, '.Trash', hash + '-2.js');
     const result = await esbuildFile(file, output1, {minify: false});
-    const worked = result.status === 0;
+    const parsed = result.status === 0;
 
-    if (worked !== shouldWork) {
-      if (!worked) shouldHavePassed++;
+    if (parsed !== shouldParse) {
+      if (!parsed) shouldHavePassed++;
       else shouldHaveFailed++;
       if (!result.stderr.includes(path.basename(file))) {
         console.log(`${file}: error: ${(yaml.description || '').trim()}`);
       } else {
         process.stdout.write(result.stderr);
       }
-    } else if (worked) {
+    } else if (parsed) {
       const result2 = await esbuildFile(output1, output2, {minify: false});
       if (result2.status !== 0) {
         console.log(`!!! REPARSE ERROR: ${file} !!!`);
