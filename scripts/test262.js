@@ -30,12 +30,15 @@ async function main() {
   let shouldHaveFailed = 0;
   let reparseCount = 0;
   let reprintCount = 0;
+  let minifyCount = 0;
 
-  function esbuildFile(file, outfile) {
+  function esbuildFile(file, outfile, {minify}) {
     const child = child_process.spawn(esbuild, [
       file,
       `--outfile=${outfile}`,
-    ], {
+    ].concat(
+      minify ? ['--minify'] : []
+    ), {
       stdio: ['inherit', 'pipe', 'pipe'],
     });
     let done = false;
@@ -88,7 +91,7 @@ async function main() {
     const hash = crypto.createHash('md5').update(file).digest('hex');
     const output1 = path.join(process.env.HOME, '.Trash', hash + '-1.js');
     const output2 = path.join(process.env.HOME, '.Trash', hash + '-2.js');
-    const result = await esbuildFile(file, output1);
+    const result = await esbuildFile(file, output1, {minify: false});
     const worked = result.status === 0;
 
     if (worked !== shouldWork) {
@@ -100,7 +103,7 @@ async function main() {
         process.stdout.write(result.stderr);
       }
     } else if (worked) {
-      const result2 = await esbuildFile(output1, output2);
+      const result2 = await esbuildFile(output1, output2, {minify: false});
       if (result2.status !== 0) {
         console.log(`!!! REPARSE ERROR: ${file} !!!`);
         process.stdout.write(result2.stderr);
@@ -108,6 +111,17 @@ async function main() {
       } else if (fs.readFileSync(output1, 'utf8') !== fs.readFileSync(output2, 'utf8')) {
         console.log(`!!! REPRINT ERROR: ${file} !!!`);
         reprintCount++;
+      } else {
+        const result3 = await esbuildFile(file, output1, {minify: true});
+        if (result3.status !== 0) {
+          throw new Error('This should have succeeded');
+        }
+        const result4 = await esbuildFile(output1, output2, {minify: true});
+        if (result4.status !== 0) {
+          console.log(`!!! MINIFY ERROR: ${file} !!!`);
+          process.stdout.write(result4.stderr);
+          minifyCount++;
+        }
       }
     }
     runCount++;
@@ -141,6 +155,7 @@ async function main() {
   console.log(`tests skipped: ${files.length - runCount}`);
   console.log(`reparse failures: ${reparseCount}`);
   console.log(`reprint failures: ${reprintCount}`);
+  console.log(`minify failures: ${minifyCount}`);
 }
 
 main().catch(e => setTimeout(() => {
