@@ -1037,11 +1037,19 @@ func (lexer *Lexer) Next() {
 					hasEscape = true
 					lexer.step()
 
+					// Handle Windows CRLF
+					if lexer.codePoint == '\r' {
+						lexer.step()
+						if lexer.codePoint == '\n' {
+							lexer.step()
+						}
+						continue
+					}
+
 				case -1: // This indicates the end of the file
 					lexer.SyntaxError()
 
-				case '\r', '\n', '\u2028', '\u2029':
-					// Newline
+				case '\r', '\n':
 					if quote != '`' {
 						lexer.addError(ast.Loc{int32(lexer.end)}, "Unterminated string literal")
 						panic(LexerPanic{})
@@ -1793,7 +1801,15 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				}
 				c = value
 
-			case '\n':
+			case '\r':
+				// Ignore line continuations. A line continuation is not an escaped newline.
+				if i < len(text) && text[i] == '\n' {
+					// Make sure Windows CRLF counts as a single newline
+					i++
+				}
+				continue
+
+			case '\n', '\u2028', '\u2029':
 				// Ignore line continuations. A line continuation is not an escaped newline.
 				continue
 

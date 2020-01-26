@@ -432,14 +432,20 @@ func TestStringLiteral(t *testing.T) {
 	// Line continuation
 	expectLexerError(t, "'\n'", "<stdin>: error: Unterminated string literal\n")
 	expectLexerError(t, "'\r'", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "'\u2028'", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "'\u2029'", "<stdin>: error: Unterminated string literal\n")
 	expectLexerError(t, "\"\n\"", "<stdin>: error: Unterminated string literal\n")
 	expectLexerError(t, "\"\r\"", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "\"\u2028\"", "<stdin>: error: Unterminated string literal\n")
-	expectLexerError(t, "\"\u2029\"", "<stdin>: error: Unterminated string literal\n")
+
+	expectString(t, "'\u2028'", "\u2028")
+	expectString(t, "'\u2029'", "\u2029")
+	expectString(t, "\"\u2028\"", "\u2028")
+	expectString(t, "\"\u2029\"", "\u2029")
+
+	expectString(t, "'1\\\r2'", "12")
 	expectString(t, "'1\\\n2'", "12")
-	expectString(t, "\"1\\\n2\"", "12")
+	expectString(t, "'1\\\r\n2'", "12")
+	expectString(t, "'1\\\u20282'", "12")
+	expectString(t, "'1\\\u20292'", "12")
+	expectLexerError(t, "'1\\\n\r2'", "<stdin>: error: Unterminated string literal\n")
 
 	expectLexerError(t, "\"'", "<stdin>: error: Unexpected end of file\n")
 	expectLexerError(t, "'\"", "<stdin>: error: Unexpected end of file\n")
