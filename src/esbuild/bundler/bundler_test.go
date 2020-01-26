@@ -37,12 +37,10 @@ func expectBundled(t *testing.T, args bundled) {
 		resolver := resolver.NewResolver(fs.MockFS(args.files), []string{".jsx", ".js", ".json"})
 
 		log, join := logging.NewDeferLog()
-		args.parseOptions.IsBundling = true
 		bundle := ScanBundle(log, resolver, args.entryPaths, args.parseOptions)
 		assertLog(t, join(), "")
 
 		log, join = logging.NewDeferLog()
-		args.bundleOptions.Bundle = true
 		args.bundleOptions.omitLoaderForTests = true
 		if args.bundleOptions.AbsOutputFile != "" {
 			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
@@ -73,7 +71,11 @@ func TestSimpleES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -107,7 +109,11 @@ func TestSimpleCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -144,7 +150,11 @@ func TestCommonJSFromES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -184,7 +194,11 @@ func TestES6FromCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -229,7 +243,11 @@ func TestExportForms(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -281,7 +299,11 @@ func TestExportSelf(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -308,7 +330,11 @@ func TestExportSelfAsNamespace(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -340,6 +366,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
+			IsBundling: true,
 			JSX: parser.JSXOptions{
 				Parse:    true,
 				Factory:  []string{"elem"},
@@ -347,6 +374,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 			},
 		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -381,6 +409,7 @@ func TestJSXImportsES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
+			IsBundling: true,
 			JSX: parser.JSXOptions{
 				Parse:    true,
 				Factory:  []string{"elem"},
@@ -388,6 +417,7 @@ func TestJSXImportsES6(t *testing.T) {
 			},
 		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -422,7 +452,11 @@ func TestNodeModules(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -464,7 +498,11 @@ func TestPackageJsonMain(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -508,7 +546,11 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -550,7 +592,11 @@ func TestPackageJsonBrowserString(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -609,7 +655,11 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -667,7 +717,11 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -722,7 +776,11 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -782,7 +840,11 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -845,7 +907,11 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -903,7 +969,11 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -943,7 +1013,11 @@ func TestPackageImportMissingES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expectedLog: `/entry.js: error: No matching export for import "default"
@@ -976,7 +1050,11 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1009,7 +1087,11 @@ func TestDotImport(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
 		bundleOptions: BundleOptions{
+			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
