@@ -3990,7 +3990,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		b.popScope()
 
 		if b.mangleSyntax {
-			if len(s.Stmts) == 1 {
+			if len(s.Stmts) == 1 && !statementCaresAboutScope(s.Stmts[0]) {
 				// Unwrap blocks containing a single statement
 				stmt = s.Stmts[0]
 			} else if len(s.Stmts) == 0 {

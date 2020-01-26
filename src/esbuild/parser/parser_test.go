@@ -946,6 +946,18 @@ func TestMangleUndefined(t *testing.T) {
 	expectPrintedMangle(t, "function foo(a) { if (!a) return undefined; a() }", "function foo(a) {\n  if (!a)\n    return;\n  a();\n}\n")
 }
 
+func TestMangleBlock(t *testing.T) {
+	expectPrintedMangle(t, "while(1) { while (1) {} }", "for (; ; )\n  for (; ; )\n    ;\n")
+	expectPrintedMangle(t, "while(1) { const x = 0; }", "for (; ; ) {\n  const x = 0;\n}\n")
+	expectPrintedMangle(t, "while(1) { let x; }", "for (; ; ) {\n  let x;\n}\n")
+	expectPrintedMangle(t, "while(1) { var x; }", "for (; ; )\n  var x;\n")
+	expectPrintedMangle(t, "while(1) { class X {} }", "for (; ; ) {\n  class X {\n  }\n}\n")
+	expectPrintedMangle(t, "while(1) { function x() {} }", "for (; ; ) {\n  function x() {\n  }\n}\n")
+	expectPrintedMangle(t, "while(1) { function* x() {} }", "for (; ; ) {\n  function* x() {\n  }\n}\n")
+	expectPrintedMangle(t, "while(1) { async function x() {} }", "for (; ; ) {\n  async function x() {\n  }\n}\n")
+	expectPrintedMangle(t, "while(1) { async function* x() {} }", "for (; ; ) {\n  async function* x() {\n  }\n}\n")
+}
+
 func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "1 ? a() : b()", "a();\n")
 	expectPrintedMangle(t, "0 ? a() : b()", "b();\n")
@@ -1040,7 +1052,7 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { var a = b }", "if (1)\n  a();\nelse\n  var a;\n")
 	expectPrintedMangle(t, "if (1) a(); else { var [a] = b }", "if (1)\n  a();\nelse\n  var a;\n")
 	expectPrintedMangle(t, "if (1) a(); else { var {x: a} = b }", "if (1)\n  a();\nelse\n  var a;\n")
-	expectPrintedMangle(t, "if (1) a(); else { function a() {} }", "if (1)\n  a();\nelse\n  function a() {\n  }\n")
+	expectPrintedMangle(t, "if (1) a(); else { function a() {} }", "if (1)\n  a();\nelse {\n  function a() {\n  }\n}\n")
 	expectPrintedMangle(t, "if (1) a(); else { for(;;){var a} }", "if (1)\n  a();\nelse\n  for (; ; )\n    var a;\n")
 	expectPrintedMangle(t, "if (1) { a(); b() } else { var a; var b; }", "if (1)\n  a(), b();\nelse\n  var a, b;\n")
 }
