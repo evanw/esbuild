@@ -174,6 +174,38 @@ func TestBinOp(t *testing.T) {
 	}
 }
 
+func TestExponentiation(t *testing.T) {
+	expectPrinted(t, "--x ** 2", "--x ** 2;\n")
+	expectPrinted(t, "++x ** 2", "++x ** 2;\n")
+	expectPrinted(t, "x-- ** 2", "x-- ** 2;\n")
+	expectPrinted(t, "x++ ** 2", "x++ ** 2;\n")
+
+	expectPrinted(t, "(-x) ** 2", "(-x) ** 2;\n")
+	expectPrinted(t, "(+x) ** 2", "(+x) ** 2;\n")
+	expectPrinted(t, "(~x) ** 2", "(~x) ** 2;\n")
+	expectPrinted(t, "(!x) ** 2", "(!x) ** 2;\n")
+	expectPrinted(t, "(void x) ** 2", "(void x) ** 2;\n")
+	expectPrinted(t, "(delete x) ** 2", "(delete x) ** 2;\n")
+	expectPrinted(t, "(typeof x) ** 2", "(typeof x) ** 2;\n")
+	expectPrinted(t, "undefined ** 2", "(void 0) ** 2;\n")
+
+	expectParseError(t, "-x ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "+x ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "~x ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "!x ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "void x ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "delete x ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "typeof x ** 2", "<stdin>: error: Unexpected \"**\"\n")
+
+	expectParseError(t, "-x.y() ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "+x.y() ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "~x.y() ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "!x.y() ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "void x.y() ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "delete x.y() ** 2", "<stdin>: error: Unexpected \"**\"\n")
+	expectParseError(t, "typeof x.y() ** 2", "<stdin>: error: Unexpected \"**\"\n")
+}
+
 func TestRegExp(t *testing.T) {
 	expectPrinted(t, "/x/g", "/x/g;\n")
 	expectPrinted(t, "/x/i", "/x/i;\n")

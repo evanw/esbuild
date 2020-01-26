@@ -54,6 +54,10 @@ func (op OpCode) IsPrefix() bool {
 	return op < UnOpPostDec
 }
 
+func (op OpCode) IsUnaryUpdate() bool {
+	return op >= UnOpPreDec && op <= UnOpPostInc
+}
+
 func (op OpCode) IsLeftAssociative() bool {
 	return op >= BinOpAdd && op < BinOpComma && op != BinOpPow
 }
@@ -69,13 +73,15 @@ const (
 	UnOpNeg
 	UnOpCpl
 	UnOpNot
-	UnOpPreDec
-	UnOpPreInc
 	UnOpVoid
 	UnOpTypeOf
 	UnOpDelete
 
-	// Postfix
+	// Prefix update
+	UnOpPreDec
+	UnOpPreInc
+
+	// Postfix update
 	UnOpPostDec
 	UnOpPostInc
 
@@ -137,13 +143,15 @@ var OpTable = []opTableEntry{
 	{"-", LPrefix, false},
 	{"~", LPrefix, false},
 	{"!", LPrefix, false},
-	{"--", LPrefix, false},
-	{"++", LPrefix, false},
 	{"void", LPrefix, true},
 	{"typeof", LPrefix, true},
 	{"delete", LPrefix, true},
 
-	// Postfix
+	// Prefix update
+	{"--", LPrefix, false},
+	{"++", LPrefix, false},
+
+	// Postfix update
 	{"--", LPostfix, false},
 	{"++", LPostfix, false},
 

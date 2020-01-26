@@ -103,7 +103,7 @@ async function main() {
       const result2 = await esbuildFile(output1, output2);
       if (result2.status !== 0) {
         console.log(`!!! REPARSE ERROR: ${file} !!!`);
-        process.stdout.write(result.stderr);
+        process.stdout.write(result2.stderr);
         reparseCount++;
       } else if (fs.readFileSync(output1, 'utf8') !== fs.readFileSync(output2, 'utf8')) {
         console.log(`!!! REPRINT ERROR: ${file} !!!`);

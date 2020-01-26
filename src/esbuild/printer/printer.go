@@ -1419,13 +1419,22 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			rightLevel = entry.Level
 		}
 
-		// "??" can't directly contain "||" or "&&" without being wrapped in parentheses
-		if e.Op == ast.BinOpNullishCoalescing {
+		switch e.Op {
+		case ast.BinOpNullishCoalescing:
+			// "??" can't directly contain "||" or "&&" without being wrapped in parentheses
 			if left, ok := e.Left.Data.(*ast.EBinary); ok && (left.Op == ast.BinOpLogicalOr || left.Op == ast.BinOpLogicalAnd) {
 				leftLevel = ast.LPrefix
 			}
 			if right, ok := e.Right.Data.(*ast.EBinary); ok && (right.Op == ast.BinOpLogicalOr || right.Op == ast.BinOpLogicalAnd) {
 				rightLevel = ast.LPrefix
+			}
+
+		case ast.BinOpPow:
+			// "**" can't contain certain unary expressions
+			if left, ok := e.Left.Data.(*ast.EUnary); ok && !left.Op.IsUnaryUpdate() {
+				leftLevel = ast.LCall
+			} else if _, ok := e.Left.Data.(*ast.EUndefined); ok {
+				leftLevel = ast.LCall
 			}
 		}
 

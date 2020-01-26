@@ -896,31 +896,59 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 	case lexer.TVoid:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpVoid, p.parseExpr(ast.LPrefix)}}
+		value := p.parseExpr(ast.LPrefix)
+		if p.lexer.Token == lexer.TAsteriskAsterisk {
+			p.lexer.Unexpected()
+		}
+		return ast.Expr{loc, &ast.EUnary{ast.UnOpVoid, value}}
 
 	case lexer.TTypeOf:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpTypeOf, p.parseExpr(ast.LPrefix)}}
+		value := p.parseExpr(ast.LPrefix)
+		if p.lexer.Token == lexer.TAsteriskAsterisk {
+			p.lexer.Unexpected()
+		}
+		return ast.Expr{loc, &ast.EUnary{ast.UnOpTypeOf, value}}
 
 	case lexer.TDelete:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpDelete, p.parseExpr(ast.LPrefix)}}
+		value := p.parseExpr(ast.LPrefix)
+		if p.lexer.Token == lexer.TAsteriskAsterisk {
+			p.lexer.Unexpected()
+		}
+		return ast.Expr{loc, &ast.EUnary{ast.UnOpDelete, value}}
 
 	case lexer.TPlus:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpPos, p.parseExpr(ast.LPrefix)}}
+		value := p.parseExpr(ast.LPrefix)
+		if p.lexer.Token == lexer.TAsteriskAsterisk {
+			p.lexer.Unexpected()
+		}
+		return ast.Expr{loc, &ast.EUnary{ast.UnOpPos, value}}
 
 	case lexer.TMinus:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpNeg, p.parseExpr(ast.LPrefix)}}
+		value := p.parseExpr(ast.LPrefix)
+		if p.lexer.Token == lexer.TAsteriskAsterisk {
+			p.lexer.Unexpected()
+		}
+		return ast.Expr{loc, &ast.EUnary{ast.UnOpNeg, value}}
 
 	case lexer.TTilde:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpCpl, p.parseExpr(ast.LPrefix)}}
+		value := p.parseExpr(ast.LPrefix)
+		if p.lexer.Token == lexer.TAsteriskAsterisk {
+			p.lexer.Unexpected()
+		}
+		return ast.Expr{loc, &ast.EUnary{ast.UnOpCpl, value}}
 
 	case lexer.TExclamation:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpNot, p.parseExpr(ast.LPrefix)}}
+		value := p.parseExpr(ast.LPrefix)
+		if p.lexer.Token == lexer.TAsteriskAsterisk {
+			p.lexer.Unexpected()
+		}
+		return ast.Expr{loc, &ast.EUnary{ast.UnOpNot, value}}
 
 	case lexer.TMinusMinus:
 		p.lexer.Next()
