@@ -339,6 +339,8 @@ func TestBigIntegerLiteral(t *testing.T) {
 	expectLexerError(t, ".1n", "<stdin>: error: Syntax error \"n\"\n")
 	expectLexerError(t, "000n", "<stdin>: error: Syntax error \"n\"\n")
 	expectLexerError(t, "0123n", "<stdin>: error: Syntax error \"n\"\n")
+	expectLexerError(t, "089n", "<stdin>: error: Syntax error \"n\"\n")
+	expectLexerError(t, "0_1n", "<stdin>: error: Syntax error \"n\"\n")
 }
 
 func expectString(t *testing.T, contents string, expected string) {

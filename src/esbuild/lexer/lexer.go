@@ -1466,6 +1466,11 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 		}
 
 		if lexer.codePoint == 'n' && !hasDotOrExponent {
+			// The only bigint literal that can start with 0 is "0n"
+			if len(text) > 1 && first == '0' {
+				lexer.SyntaxError()
+			}
+
 			// Store bigints as text to avoid precision loss
 			lexer.Identifier = text
 		} else if !hasDotOrExponent && lexer.end-lexer.start < 10 {
