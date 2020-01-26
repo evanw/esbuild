@@ -290,6 +290,79 @@ func TestExportForms(t *testing.T) {
 	})
 }
 
+func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				export default 123
+				export var varName = 234
+				export let letName = 234
+				export const constName = 234
+				function Func2() {}
+				class Class2 {}
+				export {Class as Cls, Func2 as Fn2, Class2 as Cls2}
+				export function Func() {}
+				export class Class {}
+				export * from './a'
+				export * as fromB from './b'
+			`,
+			"/b.js": `
+				export default function() {}
+			`,
+			"/c.js": `
+				export default function foo() {}
+			`,
+			"/d.js": `
+				export default class {}
+			`,
+			"/e.js": `
+				export default class Foo {}
+			`,
+		},
+		entryPaths: []string{
+			"/a.js",
+			"/b.js",
+			"/c.js",
+			"/d.js",
+			"/e.js",
+		},
+		bundleOptions: BundleOptions{
+			MinifyIdentifiers: true,
+			AbsOutputDir:      "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `export default 123;
+export var varName = 234;
+export let letName = 234;
+export const constName = 234;
+function a() {
+}
+class b {
+}
+export {Class as Cls, a as Fn2, b as Cls2};
+export function Func() {
+}
+export class Class {
+}
+export * from "./a";
+export * as fromB from "./b";
+`,
+			"/out/b.js": `export default function() {
+}
+`,
+			"/out/c.js": `export default function b() {
+}
+`,
+			"/out/d.js": `export default class {
+}
+`,
+			"/out/e.js": `export default class b {
+}
+`,
+		},
+	})
+}
+
 func TestExportSelf(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

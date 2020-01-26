@@ -905,6 +905,81 @@ func (b *Bundle) bindImportsAndExports(
 	}
 }
 
+func markExportsAsUnboundInDecls(decls []ast.Decl, symbols *ast.SymbolMap) {
+	var visitBinding func(ast.Binding)
+
+	visitBinding = func(binding ast.Binding) {
+		switch b := binding.Data.(type) {
+		case *ast.BMissing:
+
+		case *ast.BIdentifier:
+			symbol := symbols.Get(b.Ref)
+			symbol.Kind = ast.SymbolUnbound
+			symbols.Set(b.Ref, symbol)
+
+		case *ast.BArray:
+			for _, i := range b.Items {
+				visitBinding(i.Binding)
+			}
+
+		case *ast.BObject:
+			for _, p := range b.Properties {
+				visitBinding(p.Value)
+			}
+
+		default:
+			panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+		}
+	}
+
+	for _, decl := range decls {
+		visitBinding(decl.Binding)
+	}
+}
+
+func (b *Bundle) markExportsAsUnbound(f file, symbols *ast.SymbolMap) {
+	for _, stmt := range f.ast.Stmts {
+		switch s := stmt.Data.(type) {
+		case *ast.SExportStar:
+			if s.Item == nil {
+			} else {
+				// "export * as ns from 'path'"
+			}
+
+		case *ast.SConst:
+			if s.IsExport {
+				markExportsAsUnboundInDecls(s.Decls, symbols)
+			}
+
+		case *ast.SLet:
+			if s.IsExport {
+				markExportsAsUnboundInDecls(s.Decls, symbols)
+			}
+
+		case *ast.SVar:
+			if s.IsExport {
+				markExportsAsUnboundInDecls(s.Decls, symbols)
+			}
+
+		case *ast.SFunction:
+			if s.IsExport {
+				ref := s.Fn.Name.Ref
+				symbol := symbols.Get(ref)
+				symbol.Kind = ast.SymbolUnbound
+				symbols.Set(ref, symbol)
+			}
+
+		case *ast.SClass:
+			if s.IsExport {
+				ref := s.Class.Name.Ref
+				symbol := symbols.Get(ref)
+				symbol.Kind = ast.SymbolUnbound
+				symbols.Set(ref, symbol)
+			}
+		}
+	}
+}
+
 // Ensures all symbol names are valid non-colliding identifiers
 func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols *ast.SymbolMap, group []uint32, options *BundleOptions) {
 	moduleScopes := make([]*ast.Scope, len(group))
@@ -1071,20 +1146,22 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 	// Spawn parallel jobs to print the AST of each file in the bundle
 	results := make([]BundleResult, len(b.sources))
 	waitGroup := sync.WaitGroup{}
-	for sourceIndex, _ := range b.files {
+	files := []file(b.files)
+	for sourceIndex, _ := range files {
 		waitGroup.Add(1)
 		go func(sourceIndex uint32) {
-			f := b.files[sourceIndex]
 			group := []uint32{sourceIndex}
-			files := []file{f}
+
+			// Make sure we don't rename exports
+			symbols := b.mergeAllSymbolsIntoOneMap(files)
+			b.markExportsAsUnbound(files[sourceIndex], symbols)
 
 			// Rename symbols
-			symbols := b.mergeAllSymbolsIntoOneMap(files)
 			b.renameOrMinifyAllSymbols(files, symbols, group, &options)
-			f.ast.Symbols = symbols
+			files[sourceIndex].ast.Symbols = symbols
 
 			// Print the JavaScript code
-			result := b.compileFile(&options, sourceIndex, f, []uint32{})
+			result := b.compileFile(&options, sourceIndex, files[sourceIndex], []uint32{})
 
 			// Make a filename for the resulting JavaScript file
 			jsName := b.outputFileForEntryPoint(sourceIndex, &options)
