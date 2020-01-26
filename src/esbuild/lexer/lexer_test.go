@@ -428,7 +428,16 @@ func TestStringLiteral(t *testing.T) {
 	expectLexerError(t, "'\\u{FFFFFFFF}'", "<stdin>: error: Unicode escape sequence is out of range\n")
 
 	// Line continuation
+	expectLexerError(t, "'\n'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerError(t, "'\r'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerError(t, "'\u2028'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerError(t, "'\u2029'", "<stdin>: error: Unterminated string literal\n")
+	expectLexerError(t, "\"\n\"", "<stdin>: error: Unterminated string literal\n")
+	expectLexerError(t, "\"\r\"", "<stdin>: error: Unterminated string literal\n")
+	expectLexerError(t, "\"\u2028\"", "<stdin>: error: Unterminated string literal\n")
+	expectLexerError(t, "\"\u2029\"", "<stdin>: error: Unterminated string literal\n")
 	expectString(t, "'1\\\n2'", "12")
+	expectString(t, "\"1\\\n2\"", "12")
 
 	expectLexerError(t, "\"'", "<stdin>: error: Unexpected end of file\n")
 	expectLexerError(t, "'\"", "<stdin>: error: Unexpected end of file\n")

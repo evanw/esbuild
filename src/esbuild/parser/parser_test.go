@@ -1119,6 +1119,11 @@ func TestJSX(t *testing.T) {
 
 	expectPrintedJSX(t, "<a> /**/ </a>", "React.createElement(\"a\", null, \" /**/ \");\n")
 	expectPrintedJSX(t, "<a> //\n </a>", "React.createElement(\"a\", null, \" //\");\n")
+
+	// Unicode tests
+	expectPrintedJSX(t, "<\U00020000/>", "React.createElement(\U00020000, null);\n")
+	expectPrintedJSX(t, "<a>\U00020000</a>", "React.createElement(\"a\", null, \"\U00020000\");\n")
+	expectPrintedJSX(t, "<a \U00020000={0}/>", "React.createElement(\"a\", {\n  \U00020000: 0\n});\n")
 }
 
 func TestLowerNullishCoalescing(t *testing.T) {

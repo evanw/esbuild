@@ -289,7 +289,13 @@ func (lexer *Lexer) SyntaxError() {
 	message := "Unexpected end of file"
 	if lexer.end < len(lexer.source.Contents) {
 		c, _ := utf8.DecodeRuneInString(lexer.source.Contents[lexer.end:])
-		message = fmt.Sprintf("Syntax error \"%c\"", c)
+		if c < 0x20 {
+			message = fmt.Sprintf("Syntax error \"\\x%02X\"", c)
+		} else if c >= 0x80 {
+			message = fmt.Sprintf("Syntax error \"\\u{%x}\"", c)
+		} else {
+			message = fmt.Sprintf("Syntax error \"%c\"", c)
+		}
 	}
 	lexer.addError(loc, message)
 	panic(LexerPanic{})
@@ -636,8 +642,9 @@ func (lexer *Lexer) NextInsideJSXElement() {
 					break stringLiteral
 
 				default:
+					// Non-ASCII strings need the slow path
 					if lexer.codePoint >= 0x80 {
-						needsDecode = false
+						needsDecode = true
 					}
 					lexer.step()
 				}
@@ -1033,6 +1040,13 @@ func (lexer *Lexer) Next() {
 				case -1: // This indicates the end of the file
 					lexer.SyntaxError()
 
+				case '\r', '\n', '\u2028', '\u2029':
+					// Newline
+					if quote != '`' {
+						lexer.addError(ast.Loc{int32(lexer.end)}, "Unterminated string literal")
+						panic(LexerPanic{})
+					}
+
 				case '$':
 					if quote == '`' {
 						lexer.step()
@@ -1054,6 +1068,7 @@ func (lexer *Lexer) Next() {
 					break stringLiteral
 
 				default:
+					// Non-ASCII strings need the slow path
 					if lexer.codePoint >= 0x80 {
 						isASCII = false
 					}
