@@ -647,7 +647,7 @@ func (p *printer) printFnArgs(args []ast.Arg, hasRestArg bool, isArrow bool) {
 	wrap := true
 
 	// Minify "(a) => {}" as "a=>{}"
-	if p.minify && isArrow && len(args) == 1 {
+	if p.minify && !hasRestArg && isArrow && len(args) == 1 {
 		if _, ok := args[0].Binding.Data.(*ast.BIdentifier); ok && args[0].Default == nil {
 			wrap = false
 		}

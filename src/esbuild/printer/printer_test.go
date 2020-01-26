@@ -401,6 +401,7 @@ func TestMinify(t *testing.T) {
 
 	expectPrintedMinify(t, "() => {}", "()=>{};\n")
 	expectPrintedMinify(t, "(a) => {}", "a=>{};\n")
+	expectPrintedMinify(t, "(...a) => {}", "(...a)=>{};\n")
 	expectPrintedMinify(t, "(a = 0) => {}", "(a=0)=>{};\n")
 	expectPrintedMinify(t, "(a, b) => {}", "(a,b)=>{};\n")
 
