@@ -3834,10 +3834,20 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			if d.Value != nil {
 				*d.Value = b.visitExpr(*d.Value)
 
-				// Initializing to undefined is implicit
+				// Initializing to undefined is implicit, but be careful to not
+				// accidentally cause a syntax error by removing the value
+				//
+				// Good:
+				//   "let a = undefined;" => "let a;"
+				//
+				// Bad (a syntax error):
+				//   "let {} = undefined;" => "let {};"
+				//
 				if b.mangleSyntax {
-					if _, ok := d.Value.Data.(*ast.EUndefined); ok {
-						s.Decls[i].Value = nil
+					if _, ok := d.Binding.Data.(*ast.BIdentifier); ok {
+						if _, ok := d.Value.Data.(*ast.EUndefined); ok {
+							s.Decls[i].Value = nil
+						}
 					}
 				}
 			}
@@ -3849,10 +3859,20 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			if d.Value != nil {
 				*d.Value = b.visitExpr(*d.Value)
 
-				// Initializing to undefined is implicit
+				// Initializing to undefined is implicit, but be careful to not
+				// accidentally cause a syntax error by removing the value
+				//
+				// Good:
+				//   "var a = undefined;" => "var a;"
+				//
+				// Bad (a syntax error):
+				//   "var {} = undefined;" => "var {};"
+				//
 				if b.mangleSyntax {
-					if _, ok := d.Value.Data.(*ast.EUndefined); ok {
-						s.Decls[i].Value = nil
+					if _, ok := d.Binding.Data.(*ast.BIdentifier); ok {
+						if _, ok := d.Value.Data.(*ast.EUndefined); ok {
+							s.Decls[i].Value = nil
+						}
 					}
 				}
 			}

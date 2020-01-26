@@ -931,6 +931,16 @@ func TestMangleThrow(t *testing.T) {
 	expectPrintedMangle(t, "if (!!!a) throw b(); else throw c()", "throw a ? c() : b();\n")
 }
 
+func TestMangleInitializer(t *testing.T) {
+	expectPrintedMangle(t, "const a = undefined", "const a = void 0;\n")
+	expectPrintedMangle(t, "let a = undefined", "let a;\n")
+	expectPrintedMangle(t, "let {} = undefined", "let {} = void 0;\n")
+	expectPrintedMangle(t, "let [] = undefined", "let [] = void 0;\n")
+	expectPrintedMangle(t, "var a = undefined", "var a;\n")
+	expectPrintedMangle(t, "var {} = undefined", "var {} = void 0;\n")
+	expectPrintedMangle(t, "var [] = undefined", "var [] = void 0;\n")
+}
+
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { ; }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { b() }", "a();\n")
