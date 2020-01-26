@@ -375,6 +375,9 @@ func TestWhitespace(t *testing.T) {
 	expectPrintedMinify(t, "1 - -Infinity", "1- -Infinity;\n")
 
 	expectPrintedMinify(t, "/x/ / /y/", "/x// /y/;\n")
+	expectPrintedMinify(t, "/x/ + Foo", "/x/+Foo;\n")
+	expectPrintedMinify(t, "/x/ instanceof Foo", "/x/ instanceof Foo;\n")
+	expectPrintedMinify(t, "[x] instanceof Foo", "[x]instanceof Foo;\n")
 
 	expectPrintedMinify(t, "throw x", "throw x;\n")
 	expectPrintedMinify(t, "throw typeof x", "throw typeof x;\n")

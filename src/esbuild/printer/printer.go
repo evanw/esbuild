@@ -390,6 +390,7 @@ type printer struct {
 	prevOp             ast.OpCode
 	prevOpEnd          int
 	prevNumEnd         int
+	prevRegExpEnd      int
 
 	// For imports
 	resolvedImports     map[string]uint32
@@ -638,7 +639,7 @@ func (p *printer) printSemicolonIfNeeded() {
 func (p *printer) printSpaceBeforeIdentifier() {
 	buffer := p.js
 	n := len(buffer)
-	if n > 0 && lexer.IsIdentifierContinue(rune(buffer[n-1])) {
+	if n > 0 && (lexer.IsIdentifierContinue(rune(buffer[n-1])) || n == p.prevRegExpEnd) {
 		p.print(" ")
 	}
 }
@@ -1240,6 +1241,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(" ")
 		}
 		p.print(e.Value)
+
+		// Need a space before the next identifier to avoid it turning into flags
+		p.prevRegExpEnd = len(p.js)
 
 	case *ast.EBigInt:
 		p.printSpaceBeforeIdentifier()
@@ -2091,9 +2095,6 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 	default:
 		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
 	}
-}
-
-type ModuleInfo struct {
 }
 
 type Options struct {
