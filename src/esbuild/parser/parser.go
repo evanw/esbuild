@@ -4687,7 +4687,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 		// Track calls to require() and import() so we can use them while bundling
-		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && (id.Ref == b.requireRef || id.Ref == b.importRef) {
+		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && (id.Ref == b.requireRef || id.Ref == b.importRef) && b.isBundling {
 			// There must be one argument
 			if len(e.Args) != 1 {
 				b.log.AddError(b.source, expr.Loc,
