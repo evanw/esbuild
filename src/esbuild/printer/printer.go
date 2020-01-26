@@ -1263,6 +1263,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 			// Make sure to preserve negative zero so constant-folding doesn't change semantics
 			if value == 0 && math.Signbit(value) && text[0] != '-' {
+				p.printSpaceBeforeOperator(ast.UnOpNeg)
 				p.print("-")
 			}
 
@@ -1278,6 +1279,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.printSpaceBeforeIdentifier()
 			p.print("Infinity")
 		} else if value == negativeInfinity {
+			p.printSpaceBeforeOperator(ast.UnOpNeg)
 			p.print("-Infinity")
 		} else {
 			text := fmt.Sprintf("%v", value)
@@ -1287,6 +1289,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				text = text[1:]
 			}
 
+			if text[0] == '-' {
+				p.printSpaceBeforeOperator(ast.UnOpNeg)
+			}
 			p.printSpaceBeforeIdentifier()
 			p.print(text)
 
