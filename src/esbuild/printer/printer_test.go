@@ -369,6 +369,11 @@ func TestWhitespace(t *testing.T) {
 	expectPrintedMinify(t, "x > !--y", "x>!--y;\n")
 	expectPrintedMinify(t, "!--y", "!--y;\n")
 
+	expectPrintedMinify(t, "1 + -0", "1+-0;\n")
+	expectPrintedMinify(t, "1 - -0", "1- -0;\n")
+	expectPrintedMinify(t, "1 + -Infinity", "1+-Infinity;\n")
+	expectPrintedMinify(t, "1 - -Infinity", "1- -Infinity;\n")
+
 	expectPrintedMinify(t, "/x/ / /y/", "/x// /y/;\n")
 
 	expectPrintedMinify(t, "throw x", "throw x;\n")
@@ -394,16 +399,14 @@ func TestWhitespace(t *testing.T) {
 func TestMinify(t *testing.T) {
 	expectPrintedMinify(t, "0.1", ".1;\n")
 	expectPrintedMinify(t, "1.2", "1.2;\n")
-	expectPrintedMinify(t, "1 + -0", "1+-0;\n")
-	expectPrintedMinify(t, "1 - -0", "1- -0;\n")
-	expectPrintedMinify(t, "1 + -Infinity", "1+-Infinity;\n")
-	expectPrintedMinify(t, "1 - -Infinity", "1- -Infinity;\n")
 
 	expectPrintedMinify(t, "() => {}", "()=>{};\n")
 	expectPrintedMinify(t, "(a) => {}", "a=>{};\n")
 	expectPrintedMinify(t, "(...a) => {}", "(...a)=>{};\n")
 	expectPrintedMinify(t, "(a = 0) => {}", "(a=0)=>{};\n")
 	expectPrintedMinify(t, "(a, b) => {}", "(a,b)=>{};\n")
+
+	expectPrintedMinify(t, "export * as ns from 'path'", "export*as ns from\"path\";\n")
 
 	// Print some strings using template literals when minifying
 	expectPrinted(t, "'\\n'", "\"\\n\";\n")

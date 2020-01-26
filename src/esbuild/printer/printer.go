@@ -1721,6 +1721,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.printSpaceBeforeIdentifier()
 			p.print(s.Item.Alias)
 			p.printSpace()
+			p.printSpaceBeforeIdentifier()
 		}
 		p.print("from")
 		p.printSpace()
