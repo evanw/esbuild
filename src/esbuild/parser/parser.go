@@ -2178,6 +2178,9 @@ func (p *parser) parsePath() ast.Path {
 // This assumes the "function" token has already been parsed
 func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.Stmt {
 	isGenerator := p.lexer.Token == lexer.TAsterisk
+	if !opts.allowLexicalDecl && (isGenerator || isAsync) {
+		p.forbidLexicalDecl(loc)
+	}
 	if isGenerator {
 		p.lexer.Next()
 	}
@@ -2194,6 +2197,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 }
 
 type parseStmtOpts struct {
+	allowLexicalDecl     bool
 	allowImportAndExport bool
 	isExport             bool
 	isNameOptional       bool // For "export default" pseudo-statements
@@ -2237,12 +2241,19 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.warnAboutFutureSyntax(ES2017, p.lexer.Range())
 				p.lexer.Next()
 				p.lexer.Expect(lexer.TFunction)
-				stmt := p.parseFnStmt(loc, parseStmtOpts{isExport: true, isNameOptional: true}, true /* isAsync */)
+				stmt := p.parseFnStmt(loc, parseStmtOpts{
+					isExport:         true,
+					isNameOptional:   true,
+					allowLexicalDecl: true,
+				}, true /* isAsync */)
 				return ast.Stmt{loc, &ast.SExportDefault{name, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
 			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass {
-				stmt := p.parseStmt(parseStmtOpts{isNameOptional: true})
+				stmt := p.parseStmt(parseStmtOpts{
+					isNameOptional:   true,
+					allowLexicalDecl: true,
+				})
 				return ast.Stmt{loc, &ast.SExportDefault{name, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
@@ -2288,6 +2299,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return p.parseFnStmt(loc, opts, false /* isAsync */)
 
 	case lexer.TClass:
+		if !opts.allowLexicalDecl {
+			p.forbidLexicalDecl(loc)
+		}
 		p.lexer.Next()
 		var name *ast.LocRef
 		if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
@@ -2304,12 +2318,18 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SVar{decls, opts.isExport}}
 
 	case lexer.TLet:
+		if !opts.allowLexicalDecl {
+			p.forbidLexicalDecl(loc)
+		}
 		p.lexer.Next()
 		decls := p.parseDecls()
 		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Stmt{loc, &ast.SLet{decls, opts.isExport}}
 
 	case lexer.TConst:
+		if !opts.allowLexicalDecl {
+			p.forbidLexicalDecl(loc)
+		}
 		p.lexer.Next()
 		decls := p.parseDecls()
 		p.lexer.ExpectOrInsertSemicolon()
@@ -2396,7 +2416,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					break caseBody
 
 				default:
-					body = append(body, p.parseStmt(parseStmtOpts{}))
+					body = append(body, p.parseStmt(parseStmtOpts{allowLexicalDecl: true}))
 				}
 			}
 
@@ -2740,9 +2760,14 @@ func (p *parser) parseFnBodyStmts(opts fnOpts) []ast.Stmt {
 	return stmts
 }
 
+func (p *parser) forbidLexicalDecl(loc ast.Loc) {
+	p.addError(loc, "Cannot use a declaration in a single-statement context")
+}
+
 func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 	stmts := []ast.Stmt{}
 	returnWithoutSemicolonStart := int32(-1)
+	opts.allowLexicalDecl = true
 
 	for p.lexer.Token != end {
 		stmt := p.parseStmt(opts)

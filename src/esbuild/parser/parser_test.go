@@ -4,6 +4,7 @@ import (
 	"esbuild/ast"
 	"esbuild/logging"
 	"esbuild/printer"
+	"fmt"
 	"testing"
 )
 
@@ -467,6 +468,33 @@ func TestObject(t *testing.T) {
 
 	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
+}
+
+func TestLexicalDecl(t *testing.T) {
+	expectPrinted(t, "if (1) var x", "if (1)\n  var x;\n")
+	expectPrinted(t, "if (1) function x() {}", "if (1)\n  function x() {\n  }\n")
+	expectPrinted(t, "if (1) {} else function x() {}", "if (1) {\n} else\n  function x() {\n  }\n")
+	expectPrinted(t, "switch (1) { case 1: const x = 1 }", "switch (1) {\n  case 1:\n    const x = 1;\n}\n")
+	expectPrinted(t, "switch (1) { default: const x = 1 }", "switch (1) {\n  default:\n    const x = 1;\n}\n")
+
+	singleStmtContext := []string{
+		"label: %s",
+		"for (;;) %s",
+		"if (1) %s",
+		"while (1) %s",
+		"with ({}) %s",
+		"if (1) {} else %s",
+		"do %s \n while(0)",
+	}
+
+	for _, context := range singleStmtContext {
+		expectParseError(t, fmt.Sprintf(context, "const x = 0"), "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+		expectParseError(t, fmt.Sprintf(context, "let x"), "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+		expectParseError(t, fmt.Sprintf(context, "class X {}"), "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+		expectParseError(t, fmt.Sprintf(context, "function* x() {}"), "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+		expectParseError(t, fmt.Sprintf(context, "async function x() {}"), "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+		expectParseError(t, fmt.Sprintf(context, "async function* x() {}"), "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	}
 }
 
 func TestClass(t *testing.T) {
@@ -1225,5 +1253,4 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "(class {})", "(class {\n});\n")
 	expectPrintedTarget(t, ES2015, "class Foo {}", "class Foo {\n}\n")
 	expectPrintedTarget(t, ES2015, "(class Foo {})", "(class Foo {\n});\n")
-	expectPrintedTarget(t, ES2015, "if (a) class Foo { static foo = null }", "if (a) {\n  class Foo {\n  }\n  Foo.foo = null;\n}\n")
 }
