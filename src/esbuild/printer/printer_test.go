@@ -405,6 +405,13 @@ func TestMinify(t *testing.T) {
 	expectPrintedMinify(t, "(a = 0) => {}", "(a=0)=>{};\n")
 	expectPrintedMinify(t, "(a, b) => {}", "(a,b)=>{};\n")
 
+	// Print some strings using template literals when minifying
+	expectPrinted(t, "'\\n'", "\"\\n\";\n")
+	expectPrintedMinify(t, "'\\n'", "`\n`;\n")
+	expectPrintedMinify(t, "({'\\n': 0})", "({\"\\n\":0});\n")
+	expectPrintedMinify(t, "(class{'\\n' = 0})", "(class{\"\\n\"=0});\n")
+	expectPrintedMinify(t, "class Foo{'\\n' = 0}", "class Foo{\"\\n\"=0}\n")
+
 	// Special identifiers must not be minified
 	expectPrintedMinify(t, "exports", "exports;\n")
 	expectPrintedMinify(t, "require", "require;\n")

@@ -711,6 +711,7 @@ func (p *printer) printClass(class ast.Class) {
 		}
 	}
 
+	p.needsSemicolon = false
 	p.indent--
 	p.printIndent()
 	p.print("}")
@@ -812,7 +813,10 @@ func (p *printer) printProperty(item ast.Property) {
 				}
 			}
 		} else {
-			p.printExpr(item.Key, ast.LLowest, 0)
+			c := p.bestQuoteCharForString(str.Value, false /* allowBacktick */)
+			p.print(c)
+			p.print(quoteUTF16(str.Value, rune(c[0])))
+			p.print(c)
 		}
 	} else {
 		p.printExpr(item.Key, ast.LLowest, 0)
@@ -845,7 +849,7 @@ func (p *printer) printProperty(item ast.Property) {
 	}
 }
 
-func (p *printer) bestQuoteCharForString(data []uint16) string {
+func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) string {
 	singleCost := 0
 	doubleCost := 0
 	backtickCost := 0
@@ -870,10 +874,10 @@ func (p *printer) bestQuoteCharForString(data []uint16) string {
 	c := "\""
 	if doubleCost > singleCost {
 		c = "'"
-		if singleCost > backtickCost {
+		if singleCost > backtickCost && allowBacktick {
 			c = "`"
 		}
-	} else if doubleCost > backtickCost {
+	} else if doubleCost > backtickCost && allowBacktick {
 		c = "`"
 	}
 	return c
@@ -1200,7 +1204,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EString:
-		c := p.bestQuoteCharForString(e.Value)
+		c := p.bestQuoteCharForString(e.Value, true /* allowBacktick */)
 		p.print(c)
 		p.print(quoteUTF16(e.Value, rune(c[0])))
 		p.print(c)

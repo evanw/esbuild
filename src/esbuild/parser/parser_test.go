@@ -434,6 +434,7 @@ func TestObject(t *testing.T) {
 	expectPrinted(t, "({set if() {}})", "({\n  set if() {\n  }\n});\n")
 
 	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
+	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 }
 
 func TestClass(t *testing.T) {
@@ -474,6 +475,8 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { a() {} static async b() {} }", "class Foo {\n  a() {\n  }\n  static async b() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { a() {} static async *b() {} }", "class Foo {\n  a() {\n  }\n  static async *b() {\n  }\n}\n")
 	expectParseError(t, "class Foo { a() {} async static b() {} }", "<stdin>: error: Expected \"(\" but found \"b\"\n")
+
+	expectParseError(t, "class Foo { `a`() {} }", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 }
 
 func TestClassFields(t *testing.T) {
@@ -504,6 +507,8 @@ func TestClassFields(t *testing.T) {
 	expectParseError(t, "class Foo { get a = 1 }", "<stdin>: error: Expected \"(\" but found \"=\"\n")
 	expectParseError(t, "class Foo { set a = 1 }", "<stdin>: error: Expected \"(\" but found \"=\"\n")
 	expectParseError(t, "class Foo { async a = 1 }", "<stdin>: error: Expected \"(\" but found \"=\"\n")
+
+	expectParseError(t, "class Foo { `a` = 0 }", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 }
 
 func TestGenerator(t *testing.T) {
