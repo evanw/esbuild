@@ -586,6 +586,11 @@ func TestTemplate(t *testing.T) {
 	expectPrinted(t, "`a${1 + `b${2}c` + 3}d`", "`a${1 + `b${2}c` + 3}d`;\n")
 }
 
+func TestSwitch(t *testing.T) {
+	expectPrinted(t, "switch (x) { default: }", "switch (x) {\n  default:\n}\n")
+	expectParseError(t, "switch (x) { default: default: }", "<stdin>: error: Multiple default clauses are not allowed\n")
+}
+
 func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "!false", "true;\n")
 	expectPrinted(t, "!true", "false;\n")

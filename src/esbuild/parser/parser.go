@@ -2340,12 +2340,18 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Expect(lexer.TCloseParen)
 		p.lexer.Expect(lexer.TOpenBrace)
 		cases := []ast.Case{}
+		foundDefault := false
 
 		for p.lexer.Token != lexer.TCloseBrace {
 			var value *ast.Expr = nil
 			body := []ast.Stmt{}
 
 			if p.lexer.Token == lexer.TDefault {
+				if foundDefault {
+					p.log.AddRangeError(p.source, p.lexer.Range(), "Multiple default clauses are not allowed")
+					panic(lexer.LexerPanic{})
+				}
+				foundDefault = true
 				p.lexer.Next()
 				p.lexer.Expect(lexer.TColon)
 			} else {
