@@ -1093,10 +1093,10 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
+		p.printSpaceBeforeIdentifier()
 		if e.Fn.IsAsync {
 			p.print("async ")
 		}
-		p.printSpaceBeforeIdentifier()
 		p.print("function")
 		if e.Fn.IsGenerator {
 			p.print("*")
@@ -1680,6 +1680,9 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		switch s2 := s.Value.Stmt.Data.(type) {
 		case *ast.SFunction:
 			p.printSpaceBeforeIdentifier()
+			if s2.Fn.IsAsync {
+				p.print("async ")
+			}
 			p.print("function")
 			if s2.Fn.IsGenerator {
 				p.print("*")

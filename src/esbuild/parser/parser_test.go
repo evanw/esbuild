@@ -811,6 +811,10 @@ func TestExportDefault(t *testing.T) {
 	expectPrinted(t, "export default function*() {} - after", "export default function* () {\n}\n-after;\n")
 	expectPrinted(t, "export default function foo() {} - after", "export default function foo() {\n}\n-after;\n")
 	expectPrinted(t, "export default function* foo() {} - after", "export default function* foo() {\n}\n-after;\n")
+	expectPrinted(t, "export default async function() {} - after", "export default async function() {\n}\n-after;\n")
+	expectPrinted(t, "export default async function*() {} - after", "export default async function* () {\n}\n-after;\n")
+	expectPrinted(t, "export default async function foo() {} - after", "export default async function foo() {\n}\n-after;\n")
+	expectPrinted(t, "export default async function* foo() {} - after", "export default async function* foo() {\n}\n-after;\n")
 	expectPrinted(t, "export default class {} - after", "export default class {\n}\n-after;\n")
 	expectPrinted(t, "export default class Foo {} - after", "export default class Foo {\n}\n-after;\n")
 }

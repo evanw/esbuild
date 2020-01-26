@@ -2205,6 +2205,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			name := ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Raw())}
 			p.lexer.Next()
 
+			if p.lexer.IsContextualKeyword("async") {
+				p.warnAboutFutureSyntax(ES2017, p.lexer.Range())
+				p.lexer.Next()
+				p.lexer.Expect(lexer.TFunction)
+				stmt := p.parseFnStmt(loc, parseStmtOpts{isExport: true, isNameOptional: true}, true /* isAsync */)
+				return ast.Stmt{loc, &ast.SExportDefault{name, ast.ExprOrStmt{Stmt: &stmt}}}
+			}
+
 			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass {
 				stmt := p.parseStmt(parseStmtOpts{isNameOptional: true})
 				return ast.Stmt{loc, &ast.SExportDefault{name, ast.ExprOrStmt{Stmt: &stmt}}}
