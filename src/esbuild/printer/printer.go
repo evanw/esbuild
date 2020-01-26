@@ -379,16 +379,17 @@ func quoteUTF16(text []uint16, quote rune) string {
 }
 
 type printer struct {
-	symbols        *ast.SymbolMap
-	minify         bool
-	needsSemicolon bool
-	indent         int
-	js             []byte
-	stmtStart      int
-	arrowExprStart int
-	prevOp         ast.OpCode
-	prevOpEnd      int
-	prevNumEnd     int
+	symbols            *ast.SymbolMap
+	minify             bool
+	needsSemicolon     bool
+	indent             int
+	js                 []byte
+	stmtStart          int
+	exportDefaultStart int
+	arrowExprStart     int
+	prevOp             ast.OpCode
+	prevOpEnd          int
+	prevNumEnd         int
 
 	// For imports
 	resolvedImports     map[string]uint32
@@ -1089,7 +1090,8 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EFunction:
-		wrap := p.stmtStart == len(p.js)
+		n := len(p.js)
+		wrap := p.stmtStart == n || p.exportDefaultStart == n
 		if wrap {
 			p.print("(")
 		}
@@ -1111,7 +1113,8 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EClass:
-		wrap := p.stmtStart == len(p.js)
+		n := len(p.js)
+		wrap := p.stmtStart == n || p.exportDefaultStart == n
 		if wrap {
 			p.print("(")
 		}
@@ -1658,21 +1661,10 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpace()
 
 		if s.Value.Expr != nil {
-			wrap := false
+			// Functions and classes must be wrapped to avoid confusion with their statement forms
+			p.exportDefaultStart = len(p.js)
 
-			// These must be wrapped to avoid confusion with their statement forms
-			switch s.Value.Expr.Data.(type) {
-			case *ast.EFunction, *ast.EClass:
-				wrap = true
-			}
-
-			if wrap {
-				p.print("(")
-			}
 			p.printExpr(*s.Value.Expr, ast.LComma, 0)
-			if wrap {
-				p.print(")")
-			}
 			p.printSemicolonAfterStatement()
 			return
 		}

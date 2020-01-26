@@ -313,16 +313,29 @@ func TestImport(t *testing.T) {
 func TestExportDefault(t *testing.T) {
 	expectPrinted(t, "export default function() {}", "export default function() {\n}\n")
 	expectPrinted(t, "export default function foo() {}", "export default function foo() {\n}\n")
+	expectPrinted(t, "export default async function() {}", "export default async function() {\n}\n")
+	expectPrinted(t, "export default async function foo() {}", "export default async function foo() {\n}\n")
 	expectPrinted(t, "export default class {}", "export default class {\n}\n")
 	expectPrinted(t, "export default class foo {}", "export default class foo {\n}\n")
 
 	expectPrinted(t, "export default (function() {})", "export default (function() {\n});\n")
 	expectPrinted(t, "export default (function foo() {})", "export default (function foo() {\n});\n")
+	expectPrinted(t, "export default (async function() {})", "export default (async function() {\n});\n")
+	expectPrinted(t, "export default (async function foo() {})", "export default (async function foo() {\n});\n")
 	expectPrinted(t, "export default (class {})", "export default (class {\n});\n")
 	expectPrinted(t, "export default (class foo {})", "export default (class foo {\n});\n")
 
+	expectPrinted(t, "export default (function() {}.toString())", "export default (function() {\n}).toString();\n")
+	expectPrinted(t, "export default (function foo() {}.toString())", "export default (function foo() {\n}).toString();\n")
+	expectPrinted(t, "export default (async function() {}.toString())", "export default (async function() {\n}).toString();\n")
+	expectPrinted(t, "export default (async function foo() {}.toString())", "export default (async function foo() {\n}).toString();\n")
+	expectPrinted(t, "export default (class {}.toString())", "export default (class {\n}).toString();\n")
+	expectPrinted(t, "export default (class foo {}.toString())", "export default (class foo {\n}).toString();\n")
+
 	expectPrintedMinify(t, "export default function() {}", "export default function(){}\n")
 	expectPrintedMinify(t, "export default function foo() {}", "export default function foo(){}\n")
+	expectPrintedMinify(t, "export default async function() {}", "export default async function(){}\n")
+	expectPrintedMinify(t, "export default async function foo() {}", "export default async function foo(){}\n")
 	expectPrintedMinify(t, "export default class {}", "export default class{}\n")
 	expectPrintedMinify(t, "export default class foo {}", "export default class foo{}\n")
 }
