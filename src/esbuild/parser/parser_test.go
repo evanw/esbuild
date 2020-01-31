@@ -1032,6 +1032,16 @@ func TestMangleUseStrict(t *testing.T) {
 	expectPrintedMangle(t, "'use strict'; 'use loose'; a; b", "\"use strict\";\na, b;\n")
 }
 
+func TestMangleArrow(t *testing.T) {
+	expectPrintedMangle(t, "var a = () => {}", "var a = () => {\n};\n")
+	expectPrintedMangle(t, "var a = () => 123", "var a = () => 123;\n")
+	expectPrintedMangle(t, "var a = () => void 0", "var a = () => {\n};\n")
+	expectPrintedMangle(t, "var a = () => undefined", "var a = () => {\n};\n")
+	expectPrintedMangle(t, "var a = () => {return}", "var a = () => {\n};\n")
+	expectPrintedMangle(t, "var a = () => {return 123}", "var a = () => 123;\n")
+	expectPrintedMangle(t, "var a = () => {throw 123}", "var a = () => {\n  throw 123;\n};\n")
+}
+
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { ; }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { b() }", "a();\n")

@@ -4762,8 +4762,28 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		b.visitArgs(e.Args)
 		if e.Expr != nil {
 			*e.Expr = b.visitExpr(*e.Expr)
+
+			if b.mangleSyntax {
+				// "() => void 0" => "() => {}"
+				if _, ok := e.Expr.Data.(*ast.EUndefined); ok {
+					e.Expr = nil
+					e.Stmts = []ast.Stmt{}
+				}
+			}
 		} else {
 			e.Stmts = b.declareAndVisitStmts(e.Stmts)
+
+			if b.mangleSyntax && len(e.Stmts) == 1 {
+				if s, ok := e.Stmts[0].Data.(*ast.SReturn); ok {
+					if s.Value != nil {
+						// "() => { return 123 }" => "() => 123"
+						e.Expr = s.Value
+					} else {
+						// "() => { return }" => "() => {}"
+					}
+					e.Stmts = []ast.Stmt{}
+				}
+			}
 		}
 		b.popScope()
 
