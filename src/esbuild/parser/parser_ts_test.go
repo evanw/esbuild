@@ -265,6 +265,23 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "(x: any): x is number => {}", "(x) => {\n};\n")
 }
 
+func TestTSImport(t *testing.T) {
+	expectPrintedTS(t, "import {x} from 'foo'", "")
+	expectPrintedTS(t, "import {x} from 'foo'; log(x)", "import {x} from \"foo\";\nlog(x);\n")
+	expectPrintedTS(t, "import {x, y as z} from 'foo'; log(z)", "import {y as z} from \"foo\";\nlog(z);\n")
+
+	expectPrintedTS(t, "import x from 'foo'", "")
+	expectPrintedTS(t, "import x from 'foo'; log(x)", "import x from \"foo\";\nlog(x);\n")
+
+	expectPrintedTS(t, "import * as ns from 'foo'", "")
+	expectPrintedTS(t, "import * as ns from 'foo'; log(ns)", "import * as ns from \"foo\";\nlog(ns);\n")
+
+	// Dead control flow must not affect usage tracking
+	expectPrintedTS(t, "import {x} from 'foo'; if (false) log(x)", "import \"foo\";\nif (false)\n  log(x);\n")
+	expectPrintedTS(t, "import x from 'foo'; if (false) log(x)", "import \"foo\";\nif (false)\n  log(x);\n")
+	expectPrintedTS(t, "import * as ns from 'foo'; if (false) log(ns)", "import \"foo\";\nif (false)\n  log(ns);\n")
+}
+
 func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <number>1", "const x = 1;\n")
 	expectPrintedTSX(t, "const x = <number>1</number>", "const x = React.createElement(\"number\", null, \"1\");\n")

@@ -40,6 +40,7 @@ type parser struct {
 	latestArrowArgLoc        ast.Loc
 	currentScope             *ast.Scope
 	symbols                  []ast.Symbol
+	tsUseCounts              []uint32
 	exportsRef               ast.Ref
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
@@ -292,6 +293,9 @@ func (p *parser) popAndDiscardScope(scopeIndex int) {
 func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
 	ref := ast.Ref{p.source.Index, uint32(len(p.symbols))}
 	p.symbols = append(p.symbols, ast.Symbol{kind, 0, name, ast.InvalidRef})
+	if p.ts.Parse {
+		p.tsUseCounts = append(p.tsUseCounts, 0)
+	}
 	return ref
 }
 
@@ -390,6 +394,22 @@ func (p *parser) recordExport(loc ast.Loc, alias string) {
 		} else {
 			p.exportAliases[alias] = true
 		}
+	}
+}
+
+func (p *parser) recordUsage(ref ast.Ref) {
+	// The use count stored in the symbol is used for generating symbol names
+	// during minification. These counts shouldn't include references inside dead
+	// code regions since those will be culled.
+	if !p.isControlFlowDead {
+		p.symbols[ref.InnerIndex].UseCountEstimate++
+	}
+
+	// The correctness of TypeScript-to-JavaScript conversion relies on accurate
+	// symbol use counts for the whole file, including dead code regions. This is
+	// tracked separately in a parser-only data structure.
+	if p.ts.Parse {
+		p.tsUseCounts[ref.InnerIndex]++
 	}
 }
 
@@ -3390,7 +3410,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.ExpectContextualKeyword("from")
 			path := p.parsePath()
 			p.lexer.ExpectOrInsertSemicolon()
-			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path})
 			return ast.Stmt{loc, &ast.SExportStar{item, path}}
 
 		case lexer.TOpenBrace:
@@ -3402,7 +3421,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			if p.lexer.IsContextualKeyword("from") {
 				p.lexer.Next()
 				path := p.parsePath()
-				p.importPaths = append(p.importPaths, ast.ImportPath{Path: path})
 				p.lexer.ExpectOrInsertSemicolon()
 				return ast.Stmt{loc, &ast.SExportFrom{items, ast.InvalidRef, path}}
 			}
@@ -3862,7 +3880,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		stmt.Path = p.parsePath()
 		p.lexer.ExpectOrInsertSemicolon()
-		p.importPaths = append(p.importPaths, ast.ImportPath{Path: stmt.Path})
+
+		// Only track import paths if we want dependencies
+		if p.isBundling {
+			p.importPaths = append(p.importPaths, ast.ImportPath{Path: stmt.Path})
+		}
 
 		if stmt.StarLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
@@ -4201,9 +4223,7 @@ func (p *parser) findSymbol(name string) ast.Ref {
 		ref, ok := s.Members[name]
 		if ok {
 			// Track how many times we've referenced this symbol
-			if !p.isControlFlowDead {
-				p.symbols[ref.InnerIndex].UseCountEstimate++
-			}
+			p.recordUsage(ref)
 			return ref
 		}
 
@@ -4215,9 +4235,7 @@ func (p *parser) findSymbol(name string) ast.Ref {
 			p.unbound = append(p.unbound, ref)
 
 			// Track how many times we've referenced this symbol
-			if !p.isControlFlowDead {
-				p.symbols[ref.InnerIndex].UseCountEstimate++
-			}
+			p.recordUsage(ref)
 			return ref
 		}
 	}
@@ -4227,9 +4245,7 @@ func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
 	for s := p.currentScope; s != nil && s.Kind != ast.ScopeEntry; s = s.Parent {
 		if s.Kind == ast.ScopeLabel && name == p.symbols[s.LabelRef.InnerIndex].Name {
 			// Track how many times we've referenced this symbol
-			if !p.isControlFlowDead {
-				p.symbols[s.LabelRef.InnerIndex].UseCountEstimate++
-			}
+			p.recordUsage(s.LabelRef)
 			return s.LabelRef
 		}
 	}
@@ -4242,9 +4258,7 @@ func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
 	p.unbound = append(p.unbound, ref)
 
 	// Track how many times we've referenced this symbol
-	if !p.isControlFlowDead {
-		p.symbols[ref.InnerIndex].UseCountEstimate++
-	}
+	p.recordUsage(ref)
 	return ref
 }
 
@@ -5471,17 +5485,8 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 				p.indirectImportItems[itemRef] = true
 			}
 
-			// Move the use count from the namespace import over to the generated
-			// import item. This lets us easily tell if a namespace import is ever
-			// captured and used directly or not. If it's not, then we can omit it
-			// from the generated code entirely. This is worth doing because the
-			// generated code for a namespace import is pretty big (it creates an
-			// object with all exports as properties).
-			if !p.isControlFlowDead {
-				p.symbols[id.Ref.InnerIndex].UseCountEstimate--
-				p.symbols[itemRef.InnerIndex].UseCountEstimate++
-			}
-
+			// Track how many times we've referenced this symbol
+			p.recordUsage(itemRef)
 			return ast.Expr{loc, importData}
 		}
 	}
@@ -6194,7 +6199,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 			path := ast.Path{e.Expr.Loc, lexer.UTF16ToString(str.Value)}
-			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
+
+			// Only track import paths if we want dependencies
+			if p.isBundling {
+				p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
+			}
 		}
 
 	case *ast.ECall:
@@ -6251,7 +6260,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 			path := ast.Path{arg.Loc, lexer.UTF16ToString(str.Value)}
-			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
+
+			// Only track import paths if we want dependencies
+			if p.isBundling {
+				p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
+			}
 
 			// Create a new expression to represent the operation
 			return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}, exprOut{}
@@ -6355,6 +6368,123 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.popScope()
 
 	p.tryBodyCount = oldTryBodyCount
+}
+
+func (p *parser) scanForImportPaths(stmts []ast.Stmt, isBundling bool) []ast.Stmt {
+	stmtsEnd := 0
+
+	for _, stmt := range stmts {
+		switch s := stmt.Data.(type) {
+		case *ast.SImport:
+			// TypeScript always trims unused imports. This is important for
+			// correctness since some imports might be fake (only in the type
+			// system and used for type-only imports).
+			if p.mangleSyntax || p.ts.Parse {
+				foundImports := false
+				isUnusedInTypeScript := true
+
+				// Remove the default name if it's unused
+				if s.DefaultName != nil {
+					foundImports = true
+					symbol := p.symbols[s.DefaultName.Ref.InnerIndex]
+
+					// TypeScript has a separate definition of unused
+					if p.ts.Parse && p.tsUseCounts[s.DefaultName.Ref.InnerIndex] != 0 {
+						isUnusedInTypeScript = false
+					}
+
+					// Remove the symbol if it's never used outside a dead code region
+					if symbol.UseCountEstimate == 0 {
+						s.DefaultName = nil
+					}
+				}
+
+				// Remove the star import if it's unused
+				if s.StarLoc != nil {
+					foundImports = true
+					symbol := p.symbols[s.NamespaceRef.InnerIndex]
+
+					// TypeScript has a separate definition of unused
+					if p.ts.Parse && p.tsUseCounts[s.NamespaceRef.InnerIndex] != 0 {
+						isUnusedInTypeScript = false
+					}
+
+					// Remove the symbol if it's never used outside a dead code region
+					if symbol.UseCountEstimate == 0 {
+						s.StarLoc = nil
+					}
+				}
+
+				// Remove items if they are unused
+				if s.Items != nil {
+					foundImports = true
+					itemsEnd := 0
+
+					for _, item := range *s.Items {
+						symbol := p.symbols[item.Name.Ref.InnerIndex]
+
+						// TypeScript has a separate definition of unused
+						if p.ts.Parse && p.tsUseCounts[item.Name.Ref.InnerIndex] != 0 {
+							isUnusedInTypeScript = false
+						}
+
+						// Remove the symbol if it's never used outside a dead code region
+						if symbol.UseCountEstimate != 0 {
+							(*s.Items)[itemsEnd] = item
+							itemsEnd++
+						}
+					}
+
+					// Filter the array by taking a slice
+					if itemsEnd == 0 {
+						s.Items = nil
+					} else {
+						*s.Items = (*s.Items)[:itemsEnd]
+					}
+				}
+
+				// Omit this statement if we're parsing TypeScript and all imports are
+				// unused. Note that this is distinct from the case where there were
+				// no imports at all (e.g. "import 'foo'"). In that case we want to keep
+				// the statement because the user is clearly trying to import the module
+				// for side effects.
+				//
+				// This culling is important for correctness when parsing TypeScript
+				// because a) the TypeScript compiler does ths and we want to match it
+				// and b) this may be a fake module that only exists in the type system
+				// and doesn't actually exist in reality.
+				//
+				// We do not want to do this culling in JavaScript though because the
+				// module may have side effects even if all imports are unused.
+				if p.ts.Parse && foundImports && isUnusedInTypeScript {
+					continue
+				}
+			}
+
+			// Only track import paths if we want dependencies
+			if isBundling {
+				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
+			}
+
+		case *ast.SExportStar:
+			// Only track import paths if we want dependencies
+			if isBundling {
+				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
+			}
+
+		case *ast.SExportFrom:
+			// Only track import paths if we want dependencies
+			if isBundling {
+				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
+			}
+		}
+
+		// Filter out statements we skipped over
+		stmts[stmtsEnd] = stmt
+		stmtsEnd++
+	}
+
+	return stmts[:stmtsEnd]
 }
 
 type LanguageTarget int8
@@ -6506,12 +6636,8 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		stmts = p.visitEntryStmts(stmts)
 	}
 
-	// Clear the import paths if we don't want any dependencies
-	if !options.IsBundling {
-		p.importPaths = []ast.ImportPath{}
-	}
-
-	result = p.toAST(source, stmts, p.importPaths, hashbang)
+	stmts = p.scanForImportPaths(stmts, options.IsBundling)
+	result = p.toAST(source, stmts, hashbang)
 	return
 }
 
@@ -6538,7 +6664,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, expr ast.Expr) ast
 	// Mark that we used the "module" variable
 	p.symbols[p.moduleRef.InnerIndex].UseCountEstimate++
 
-	return p.toAST(source, []ast.Stmt{stmt}, []ast.ImportPath{}, "")
+	return p.toAST(source, []ast.Stmt{stmt}, "")
 }
 
 func (p *parser) prepareForVisitPass() {
@@ -6551,7 +6677,7 @@ func (p *parser) prepareForVisitPass() {
 	p.identifierDefines["Infinity"] = &ast.ENumber{math.Inf(1)}
 }
 
-func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, importPaths []ast.ImportPath, hashbang string) ast.AST {
+func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string) ast.AST {
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
 	symbols.Outer[source.Index] = p.symbols
@@ -6562,7 +6688,7 @@ func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, importPaths []as
 		symbols.Get(p.moduleRef).UseCountEstimate > 0
 
 	return ast.AST{
-		ImportPaths:         append(importPaths, p.importPaths...),
+		ImportPaths:         p.importPaths,
 		IndirectImportItems: p.indirectImportItems,
 		HasCommonJsExports:  hasCommonJsExports,
 		Stmts:               stmts,
