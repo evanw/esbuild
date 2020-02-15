@@ -77,7 +77,7 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, Resolv
 					if remapped == nil {
 						return absolute, ResolveDisabled
 					}
-					absolute, ok = r.resolveWithoutRemapping(sourceDirInfo, *remapped)
+					absolute, ok = r.resolveWithoutRemapping(sourceDirInfo.enclosingBrowserScope, *remapped)
 					if !ok {
 						return "", ResolveMissing
 					}
@@ -100,7 +100,7 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, Resolv
 				if remapped == nil {
 					return result, ResolveDisabled
 				}
-				result, ok = r.resolveWithoutRemapping(resultDirInfo, *remapped)
+				result, ok = r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped)
 				if !ok {
 					return "", ResolveMissing
 				}

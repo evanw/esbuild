@@ -704,26 +704,26 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 					"main": "./main",
 					"browser": {
 						"./main.js": "./main-browser",
-						"./util.js": "./util-browser"
+						"./lib/util.js": "./lib/util-browser"
 					}
 				}
 			`,
 			"/Users/user/project/node_modules/demo-pkg/main.js": `
-				const util = require('./util')
+				const util = require('./lib/util')
 				module.exports = function() {
 					return ['main', util]
 				}
 			`,
 			"/Users/user/project/node_modules/demo-pkg/main-browser.js": `
-				const util = require('./util')
+				const util = require('./lib/util')
 				module.exports = function() {
 					return ['main-browser', util]
 				}
 			`,
-			"/Users/user/project/node_modules/demo-pkg/util.js": `
+			"/Users/user/project/node_modules/demo-pkg/lib/util.js": `
 				module.exports = 'util'
 			`,
-			"/Users/user/project/node_modules/demo-pkg/util-browser.js": `
+			"/Users/user/project/node_modules/demo-pkg/lib/util-browser.js": `
 				module.exports = 'util-browser'
 			`,
 		},
@@ -737,14 +737,14 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `loader({
-  1(require, exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/util-browser.js
+  0(require, exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/lib/util-browser.js
     module.exports = "util-browser";
   },
 
-  0(require, exports, module) {
+  1(require, exports, module) {
     // /Users/user/project/node_modules/demo-pkg/main-browser.js
-    const util = require(1 /* ./util */);
+    const util = require(0 /* ./lib/util */);
     module.exports = function() {
       return ["main-browser", util];
     };
@@ -752,7 +752,7 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 
   2(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(1 /* demo-pkg */);
     console.log(demo_pkg.default());
   }
 }, 2);
