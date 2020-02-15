@@ -89,8 +89,7 @@ node_modules/.bin/parcel:
 
 github/three:
 	mkdir -p github
-	git clone https://github.com/mrdoob/three.js.git github/three
-	cd github/three && git checkout f0a4e02cb7f2003229c9d1b7af2723935b0643a7
+	git clone --depth 1 --branch r108 https://github.com/mrdoob/three.js.git github/three
 
 demo/three: | github/three
 	mkdir -p demo/three
