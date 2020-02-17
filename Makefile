@@ -76,6 +76,21 @@ PARCEL_FLAGS += --no-autoinstall
 PARCEL_FLAGS += --out-dir .
 PARCEL_FLAGS += --public-url ./
 
+FUSEBOX_RUN += const { FuseBox, QuantumPlugin } = require('fuse-box');
+FUSEBOX_RUN += const [,, entryPoint, bundleName] = process.argv;
+FUSEBOX_RUN += const fuse = FuseBox.init({
+FUSEBOX_RUN +=   homeDir: '..',
+FUSEBOX_RUN +=   target: 'browser@esnext',
+FUSEBOX_RUN +=   output: './$$name.js',
+FUSEBOX_RUN +=   package: { name: 'THREE', main: entryPoint },
+FUSEBOX_RUN +=   globals: { THREE: 'THREE' },
+FUSEBOX_RUN +=   sourceMaps: true,
+FUSEBOX_RUN +=   useTypescriptCompiler: true,
+FUSEBOX_RUN +=   plugins: [QuantumPlugin({ bakeApiIntoBundle: true, containedAPI: true, uglify: { es6: true } })],
+FUSEBOX_RUN += });
+FUSEBOX_RUN += fuse.bundle(bundleName).instructions('>' + entryPoint);
+FUSEBOX_RUN += fuse.run();
+
 node_modules/.bin/rollup:
 	npm ci
 
@@ -83,6 +98,9 @@ node_modules/.bin/webpack:
 	npm ci
 
 node_modules/.bin/parcel:
+	npm ci
+
+node_modules/.bin/fuse:
 	npm ci
 
 ################################################################################
@@ -100,6 +118,7 @@ bench/three: | github/three
 	echo > bench/three/entry.js
 	for i in 1 2 3 4 5 6 7 8 9 10; do test -d "bench/three/copy$$i" || cp -r github/three/src "bench/three/copy$$i"; done
 	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/entry.js; done
+	find bench/three -name '*.js' | xargs wc -l
 
 ################################################################################
 
@@ -129,6 +148,14 @@ demo-three-parcel: node_modules/.bin/parcel | demo/three
 	mkdir -p demo/three/parcel
 	cd demo/three/parcel && time -p ../../../node_modules/.bin/parcel build ../src/Three.js $(PARCEL_FLAGS) --out-file Three.parcel.js
 	du -h demo/three/parcel/Three.parcel.js*
+
+demo-three-fusebox: node_modules/.bin/fuse | demo/three
+	rm -fr demo/three/fusebox .fusebox
+	mkdir -p demo/three/fusebox
+	echo "$(FUSEBOX_RUN)" > demo/three/fusebox/run.js
+	cd demo/three/fusebox && time -p node run.js src/Three.js Three.fusebox.js
+	rm -f demo/three/tsconfig.json
+	du -h demo/three/fusebox/Three.fusebox.js*
 
 ################################################################################
 
@@ -160,3 +187,11 @@ bench-three-parcel: node_modules/.bin/parcel | bench/three
 	mkdir -p bench/three/parcel
 	cd bench/three/parcel && time -p ../../../node_modules/.bin/parcel build ../entry.js $(PARCEL_FLAGS) --out-file entry.parcel.js
 	du -h bench/three/parcel/entry.parcel.js*
+
+bench-three-fusebox: node_modules/.bin/fuse | bench/three
+	rm -fr bench/three/fusebox .fusebox
+	mkdir -p bench/three/fusebox
+	echo "$(FUSEBOX_RUN)" > bench/three/fusebox/run.js
+	cd bench/three/fusebox && time -p node --max-old-space-size=8192 run.js entry.js entry.fusebox.js
+	rm -f bench/three/tsconfig.json
+	du -h bench/three/fusebox/entry.fusebox.js*
