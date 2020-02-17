@@ -1,4 +1,5 @@
 {
+  "version": "0.0.8",
   "private": true,
   "devDependencies": {
     "fuse-box": "3.7.1",
