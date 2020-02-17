@@ -24,12 +24,13 @@ func assertLog(t *testing.T, msgs []logging.Msg, expected string) {
 }
 
 type bundled struct {
-	files         map[string]string
-	entryPaths    []string
-	expected      map[string]string
-	expectedLog   string
-	parseOptions  parser.ParseOptions
-	bundleOptions BundleOptions
+	files              map[string]string
+	entryPaths         []string
+	expected           map[string]string
+	expectedScanLog    string
+	expectedCompileLog string
+	parseOptions       parser.ParseOptions
+	bundleOptions      BundleOptions
 }
 
 func expectBundled(t *testing.T, args bundled) {
@@ -39,7 +40,13 @@ func expectBundled(t *testing.T, args bundled) {
 
 		log, join := logging.NewDeferLog()
 		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions)
-		assertLog(t, join(), "")
+		msgs := join()
+		assertLog(t, msgs, args.expectedScanLog)
+
+		// Stop now if there were any errors during the scan
+		if len(msgs) > 0 {
+			return
+		}
 
 		log, join = logging.NewDeferLog()
 		args.bundleOptions.omitLoaderForTests = true
@@ -47,7 +54,7 @@ func expectBundled(t *testing.T, args bundled) {
 			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
 		}
 		results := bundle.Compile(log, args.bundleOptions)
-		assertLog(t, join(), args.expectedLog)
+		assertLog(t, join(), args.expectedCompileLog)
 
 		assertEqual(t, len(results), len(args.expected))
 		for _, result := range results {
@@ -1094,7 +1101,7 @@ func TestPackageImportMissingES6(t *testing.T) {
 			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
-		expectedLog: `/entry.js: error: No matching export for import "default"
+		expectedCompileLog: `/entry.js: error: No matching export for import "default"
 /entry.js: error: No matching export for import "y"
 `,
 		expected: map[string]string{
@@ -1183,6 +1190,103 @@ func TestDotImport(t *testing.T) {
 }, 0);
 `,
 		},
+	})
+}
+
+func TestRequireJson(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.json'))
+			`,
+			"/test.json": `
+				{
+					"a": true,
+					"b": 123,
+					"c": [null]
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `loader({
+  1(require, exports, module) {
+    // /test.json
+    module.exports = {
+      a: true,
+      b: 123,
+      c: [null]
+    };
+  },
+
+  0(require) {
+    // /entry.js
+    console.log(require(1 /* ./test.json */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestRequireTxt(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.txt'))
+			`,
+			"/test.txt": `This is a test.`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `loader({
+  1(require, exports, module) {
+    // /test.txt
+    module.exports = "This is a test.";
+  },
+
+  0(require) {
+    // /entry.js
+    console.log(require(1 /* ./test.txt */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestRequireBadExtension(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test'))
+			`,
+			"/test": `This is a test.`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: File extension not supported: /test
+`,
 	})
 }
 

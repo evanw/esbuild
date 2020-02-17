@@ -43,7 +43,10 @@ type parseResult struct {
 	ok          bool
 }
 
-func parseFile(log logging.Log, source logging.Source, options parser.ParseOptions, results chan parseResult) {
+func parseFile(
+	log logging.Log, source logging.Source, importSource logging.Source,
+	pathRange ast.Range, options parser.ParseOptions, results chan parseResult,
+) {
 	path := source.AbsolutePath
 
 	switch {
@@ -61,10 +64,14 @@ func parseFile(log logging.Log, source logging.Source, options parser.ParseOptio
 		ast := parser.ModuleExportsAST(source, expr)
 		results <- parseResult{source.Index, ast, ok}
 
-	default:
+	case strings.HasSuffix(path, ".txt"):
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(source.Contents)}}
 		ast := parser.ModuleExportsAST(source, expr)
 		results <- parseResult{source.Index, ast, true}
+
+	default:
+		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", path))
+		results <- parseResult{}
 	}
 }
 
@@ -75,7 +82,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 	results := make(chan parseResult)
 	remaining := 0
 
-	maybeParseFile := func(path string, source logging.Source, pathRange ast.Range, isDisabled bool) (uint32, bool) {
+	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, isDisabled bool) (uint32, bool) {
 		sourceIndex, ok := visited[path]
 		if !ok {
 			sourceIndex = uint32(len(sources))
@@ -86,7 +93,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 			if !isDisabled {
 				contents, ok = res.Read(path)
 				if !ok {
-					log.AddRangeError(source, pathRange, fmt.Sprintf("Could not read from file: %s", path))
+					log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", path))
 					return 0, false
 				}
 			}
@@ -100,7 +107,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 			sources = append(sources, source)
 			files = append(files, file{})
 			remaining++
-			go parseFile(log, source, options, results)
+			go parseFile(log, source, importSource, pathRange, options, results)
 		}
 		return sourceIndex, true
 	}
