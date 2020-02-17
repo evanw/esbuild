@@ -3,13 +3,13 @@ package bundler
 import (
 	"bytes"
 	"esbuild/ast"
+	"esbuild/fs"
 	"esbuild/lexer"
 	"esbuild/logging"
 	"esbuild/parser"
 	"esbuild/printer"
 	"esbuild/resolver"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -31,6 +31,7 @@ type file struct {
 }
 
 type Bundle struct {
+	fs          fs.FS
 	sources     []logging.Source
 	files       []file
 	entryPoints []uint32
@@ -67,7 +68,7 @@ func parseFile(log logging.Log, source logging.Source, options parser.ParseOptio
 	}
 }
 
-func ScanBundle(log logging.Log, res resolver.Resolver, entryPaths []string, options parser.ParseOptions) Bundle {
+func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options parser.ParseOptions) Bundle {
 	sources := []logging.Source{}
 	files := []file{}
 	visited := make(map[string]uint32)
@@ -134,7 +135,7 @@ func ScanBundle(log logging.Log, res resolver.Resolver, entryPaths []string, opt
 		}
 	}
 
-	return Bundle{sources, files, entryPoints}
+	return Bundle{fs, sources, files, entryPoints}
 }
 
 type BundleOptions struct {
@@ -416,7 +417,7 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 	// Finish the source map
 	item.SourceMapAbsPath = item.JsAbsPath + ".map"
 	item.SourceMapContents = append(buffer, ",\n  \"names\": []\n}\n"...)
-	item.JsContents = append(item.JsContents, ("//# sourceMappingURL=" + item.SourceMapAbsPath + "\n")...)
+	item.JsContents = append(item.JsContents, ("//# sourceMappingURL=" + b.fs.Base(item.SourceMapAbsPath) + "\n")...)
 }
 
 func (b *Bundle) mergeAllSymbolsIntoOneMap(files []file) *ast.SymbolMap {
@@ -1350,9 +1351,9 @@ func (b *Bundle) deterministicDependenciesOfEntryPoint(
 
 func (b *Bundle) outputFileForEntryPoint(entryPoint uint32, options *BundleOptions) string {
 	if options.AbsOutputFile != "" {
-		return filepath.Base(options.AbsOutputFile)
+		return b.fs.Base(options.AbsOutputFile)
 	}
-	name := filepath.Base(b.sources[entryPoint].AbsolutePath)
+	name := b.fs.Base(b.sources[entryPoint].AbsolutePath)
 
 	// Strip known file extensions
 	for _, ext := range []string{".min.js", ".js", ".jsx", ".mjs"} {
@@ -1372,9 +1373,9 @@ func (b *Bundle) outputFileForEntryPoint(entryPoint uint32, options *BundleOptio
 
 func (b *Bundle) outputPathForEntryPoint(entryPoint uint32, jsName string, options *BundleOptions) string {
 	if options.AbsOutputDir != "" {
-		return filepath.Join(options.AbsOutputDir, jsName)
+		return b.fs.Join(options.AbsOutputDir, jsName)
 	} else {
-		return filepath.Join(filepath.Dir(b.sources[entryPoint].AbsolutePath), jsName)
+		return b.fs.Join(b.fs.Dir(b.sources[entryPoint].AbsolutePath), jsName)
 	}
 }
 

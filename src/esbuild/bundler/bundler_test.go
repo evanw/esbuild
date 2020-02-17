@@ -34,10 +34,11 @@ type bundled struct {
 
 func expectBundled(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
-		resolver := resolver.NewResolver(fs.MockFS(args.files), []string{".jsx", ".js", ".json"})
+		fs := fs.MockFS(args.files)
+		resolver := resolver.NewResolver(fs, []string{".jsx", ".js", ".json"})
 
 		log, join := logging.NewDeferLog()
-		bundle := ScanBundle(log, resolver, args.entryPaths, args.parseOptions)
+		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions)
 		assertLog(t, join(), "")
 
 		log, join = logging.NewDeferLog()
@@ -1180,6 +1181,48 @@ func TestDotImport(t *testing.T) {
     console.log(_.x);
   }
 }, 0);
+`,
+		},
+	})
+}
+
+func TestSourceMap(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {bar} from './bar'
+				function foo() { bar() }
+				foo()
+			`,
+			"/Users/user/project/src/bar.js": `
+				export function bar() { throw new Error('test') }
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			SourceMap:     true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `loader({
+  1() {
+    // /Users/user/project/src/bar.js
+    function bar2() {
+      throw new Error("test");
+    }
+
+    // /Users/user/project/src/entry.js
+    function foo() {
+      bar2();
+    }
+    foo();
+  }
+}, 1);
+//# sourceMappingURL=out.js.map
 `,
 		},
 	})
