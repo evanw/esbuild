@@ -98,8 +98,8 @@ demo/three: | github/three
 bench/three: | github/three
 	mkdir -p bench/three
 	echo > bench/three/entry.js
-	for i in {1..10}; do test -d "bench/three/copy$$i" || cp -r github/three/src "bench/three/copy$$i"; done
-	for i in {1..10}; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/entry.js; done
+	for i in 1 2 3 4 5 6 7 8 9 10; do test -d "bench/three/copy$$i" || cp -r github/three/src "bench/three/copy$$i"; done
+	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/entry.js; done
 
 ################################################################################
 
