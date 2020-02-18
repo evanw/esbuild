@@ -439,7 +439,8 @@ type EIf struct {
 }
 
 type ERequire struct {
-	Path Path
+	Path        Path
+	IsES6Import bool
 }
 
 type EImport struct {

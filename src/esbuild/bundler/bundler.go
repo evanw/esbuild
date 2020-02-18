@@ -146,15 +146,15 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 }
 
 type BundleOptions struct {
-	Bundle             bool
-	AbsOutputFile      string
-	AbsOutputDir       string
-	RemoveWhitespace   bool
-	MinifyIdentifiers  bool
-	MangleSyntax       bool
-	SourceMap          bool
-	ModuleName         string
-	omitLoaderForTests bool
+	Bundle                bool
+	AbsOutputFile         string
+	AbsOutputDir          string
+	RemoveWhitespace      bool
+	MinifyIdentifiers     bool
+	MangleSyntax          bool
+	SourceMap             bool
+	ModuleName            string
+	omitBootstrapForTests bool
 }
 
 type BundleResult struct {
@@ -233,8 +233,8 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		}
 		js = append(js, ("let " + options.ModuleName + equals)...)
 	}
-	if options.omitLoaderForTests {
-		js = append(js, "loader({"...)
+	if options.omitBootstrapForTests {
+		js = append(js, "bootstrap({"...)
 	} else {
 		js = append(js, '(')
 		js = append(js, jsPrefix...)
@@ -567,14 +567,15 @@ func (b *Bundle) extractImportsAndExports(
 	// these now for two reasons: a) we don't want to reallocate later and b)
 	// we don't want to have to shift all statements over by one to prepend
 	// an import or export statement.
-	stmts := make([]ast.Stmt, 2, len(file.ast.Stmts)+2)
+	stmtStart := 2
+	stmts := make([]ast.Stmt, stmtStart, len(file.ast.Stmts)+stmtStart)
 	importDecls := []ast.Decl{}
 
 	// Certain import and export statements need to generate require() calls
 	addRequireCall := func(loc ast.Loc, ref ast.Ref, path ast.Path) {
 		importDecls = append(importDecls, ast.Decl{
 			ast.Binding{loc, &ast.BIdentifier{ref}},
-			&ast.Expr{path.Loc, &ast.ERequire{path}},
+			&ast.Expr{path.Loc, &ast.ERequire{Path: path, IsES6Import: true}},
 		})
 		symbols.IncrementUseCountEstimate(file.ast.RequireRef)
 	}
@@ -764,19 +765,18 @@ func (b *Bundle) extractImportsAndExports(
 		stmts = append(stmts, stmt)
 	}
 
-	// Prepend imports if there are any, and make sure the slot we reserved for
-	// our exports comes first in the statement array. It will be used or
-	// discarded by our caller.
+	// Prepend imports if there are any
 	if len(importDecls) > 0 {
-		// stmts = [exports, imports, ...]
-		stmts[1] = ast.Stmt{ast.Loc{}, &ast.SConst{Decls: importDecls}}
-	} else {
-		// stmts = [exports, ...]
-		stmts = stmts[1:]
+		stmtStart--
+		stmts[stmtStart] = ast.Stmt{ast.Loc{}, &ast.SConst{Decls: importDecls}}
 	}
 
+	// Reserve a slot at the beginning for our exports, which will be used or
+	// discarded by our caller
+	stmtStart--
+
 	// Update the file
-	file.ast.Stmts = stmts
+	file.ast.Stmts = stmts[stmtStart:]
 	file.ast.IndirectImportItems = indirectImportItems
 }
 
@@ -1250,8 +1250,8 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 		}(uint32(sourceIndex), result)
 	}
 
-	// All bundles use the same loader prefix
-	jsPrefix := generateLoaderPrefix(&options)
+	// All bundles use the same bootstrap prefix
+	jsPrefix := generateBootstrapPrefix(&options)
 
 	// Wait for all compile jobs to finish
 	compileGroup.Wait()
@@ -1386,39 +1386,62 @@ func (b *Bundle) outputPathForEntryPoint(entryPoint uint32, jsName string, optio
 	}
 }
 
-func generateLoaderPrefix(options *BundleOptions) []byte {
-	// The require() function serves two independent purposes:
+func generateBootstrapPrefix(options *BundleOptions) []byte {
+	// The require() function serves a few independent purposes:
 	//
-	//   // Import an exports object from another module
-	//   require(sourceIndex: number): ExportsObject;
+	//   // Import an exports object from another module. If "isES6Import" is
+	//   // truthy and the module referenced by "sourceIndex" is a CommonJS
+	//   // module, a conversion is done to correct for "default" exports.
+	//   require(sourceIndex: number, isES6Import?: boolean): ExportsObject;
 	//
-	//   // Add properties to an exports object
+	//   // Add properties to an exports object. These are added as ES6 getters
+	//   // so the bindings are live and can't be overwritten.
 	//   require(exports: ExportsObject, getters: {[name: string]: () => any}): void;
 	//
 	// It's overloaded like this to make the code slightly smaller as well as to
 	// prevent the module from being able to mess with the export mechanism
 	// (since the "require" symbol is special-cased by the parser).
-	loader := `
+	bootstrap := `
 		((modules, entryPoint) => {
 			let global = function() { return this }()
 			let cache = {}
 
-			let require = (target, getters) => {
-				if (!getters) {
-					let module = cache[target]
+			let require = (target, arg) => {
+				// If the first argument is a number, this is an import
+				if (typeof target === 'number') {
+					let module = cache[target], exports
+
+					// Evaluate the module if needed
 					if (!module) {
 						module = cache[target] = {exports: {}}
 						modules[target].call(global, require, module.exports, module)
-						if (module.exports instanceof Function) {
-							module.exports.default = module.exports
+					}
+
+					// Return the exports object off the module in case it was overwritten
+					exports = module.exports
+
+					// Convert CommonJS exports to ES6 exports
+					if (arg && (!exports || !exports.__esModule)) {
+						if (!exports || typeof exports !== 'object') {
+							exports = {}
+						}
+						if (!('default' in exports)) {
+							Object.defineProperty(exports, 'default', {
+								get: () => module.exports,
+								enumerable: true,
+							})
 						}
 					}
-					return module.exports
+
+					return exports
 				}
 
-				for (let name in getters) {
+				// Mark this module as an ES6 module
+				arg.__esModule = () => true;
+
+				for (let name in arg) {
 					Object.defineProperty(target, name, {
-						get: getters[name],
+						get: arg[name],
 						enumerable: true,
 					})
 				}
@@ -1428,13 +1451,13 @@ func generateLoaderPrefix(options *BundleOptions) []byte {
 		})
 	`
 
-	// Parse the loader
+	// Parse the bootstrap code
 	log := logging.Log{}
 	source := logging.Source{
 		Index:        0,
 		AbsolutePath: "",
 		PrettyPath:   "",
-		Contents:     loader,
+		Contents:     bootstrap,
 	}
 	result, ok := parser.Parse(log, source, parser.ParseOptions{
 		MangleSyntax:         options.MangleSyntax,
@@ -1449,7 +1472,7 @@ func generateLoaderPrefix(options *BundleOptions) []byte {
 		minifyAllSymbols([]*ast.Scope{result.ModuleScope}, result.Symbols)
 	}
 
-	// Print the loader
+	// Print the bootstrap code
 	stmt, ok := result.Stmts[0].Data.(*ast.SExpr)
 	if !ok {
 		panic("Internal error")

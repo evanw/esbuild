@@ -49,7 +49,7 @@ func expectBundled(t *testing.T, args bundled) {
 		}
 
 		log, join = logging.NewDeferLog()
-		args.bundleOptions.omitLoaderForTests = true
+		args.bundleOptions.omitBootstrapForTests = true
 		if args.bundleOptions.AbsOutputFile != "" {
 			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
 		}
@@ -87,7 +87,7 @@ func TestSimpleES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   0() {
     // /foo.js
     function fn() {
@@ -125,7 +125,7 @@ func TestSimpleCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   1(require, exports, module) {
     // /foo.js
     module.exports = function() {
@@ -166,7 +166,7 @@ func TestCommonJSFromES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   1(require, exports) {
     // /foo.js
     require(exports, {
@@ -210,7 +210,7 @@ func TestES6FromCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   1(require, exports) {
     // /foo.js
     exports.fn = function() {
@@ -220,7 +220,7 @@ func TestES6FromCommonJS(t *testing.T) {
 
   0(require) {
     // /entry.js
-    const foo = require(1 /* ./foo */);
+    const foo = require(1 /* ./foo */, true /* ES6 import */);
     console.log(foo.fn());
   }
 }, 0);
@@ -259,7 +259,7 @@ func TestExportForms(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   2(require, exports) {
     // /a.js
     const abc = void 0;
@@ -388,7 +388,7 @@ func TestExportSelf(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   0(require, exports) {
     // /entry.js
     require(exports, {
@@ -419,7 +419,7 @@ func TestExportSelfAsNamespace(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   0(require, exports) {
     // /entry.js
     require(exports, {
@@ -459,7 +459,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   0(require, exports, module) {
     // /custom-react.js
     module.exports = {};
@@ -467,7 +467,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 
   1(require) {
     // /entry.js
-    const custom_react = require(0 /* ./custom-react */);
+    const custom_react = require(0 /* ./custom-react */, true /* ES6 import */);
     console.log(custom_react.elem("div", null), custom_react.elem(custom_react.frag, null, "fragment"));
   }
 }, 1);
@@ -502,7 +502,7 @@ func TestJSXImportsES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   1() {
     // /custom-react.js
     function elem() {
@@ -541,7 +541,7 @@ func TestNodeModules(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   0(require, exports, module) {
     // /Users/user/project/node_modules/demo-pkg/index.js
     module.exports = function() {
@@ -551,7 +551,7 @@ func TestNodeModules(t *testing.T) {
 
   1(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(0 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 1);
@@ -587,7 +587,7 @@ func TestPackageJsonMain(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   0(require, exports, module) {
     // /Users/user/project/node_modules/demo-pkg/custom-main.js
     module.exports = function() {
@@ -597,7 +597,7 @@ func TestPackageJsonMain(t *testing.T) {
 
   1(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(0 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 1);
@@ -635,7 +635,7 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   1(require, exports, module) {
     // /Users/user/project/src/lib/util.js
     module.exports = function() {
@@ -645,7 +645,7 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 
   0(require) {
     // /Users/user/project/src/app/entry.js
-    const util = require(1 /* lib/util */);
+    const util = require(1 /* lib/util */, true /* ES6 import */);
     console.log(util.default());
   }
 }, 0);
@@ -681,7 +681,7 @@ func TestPackageJsonBrowserString(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   0(require, exports, module) {
     // /Users/user/project/node_modules/demo-pkg/browser.js
     module.exports = function() {
@@ -691,7 +691,7 @@ func TestPackageJsonBrowserString(t *testing.T) {
 
   1(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(0 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 1);
@@ -744,7 +744,7 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   0(require, exports, module) {
     // /Users/user/project/node_modules/demo-pkg/lib/util-browser.js
     module.exports = "util-browser";
@@ -760,7 +760,7 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 
   2(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(1 /* demo-pkg */);
+    const demo_pkg = require(1 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 2);
@@ -806,7 +806,7 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   1(require, exports, module) {
     // /Users/user/project/node_modules/util-browser/index.js
     module.exports = "util-browser";
@@ -822,7 +822,7 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 
   2(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(0 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 2);
@@ -865,7 +865,7 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   1() {
     // /Users/user/project/node_modules/demo-pkg/util-node.js
   },
@@ -880,7 +880,7 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 
   2(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(0 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 2);
@@ -929,7 +929,7 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   1(require, exports, module) {
     // /Users/user/project/node_modules/demo-pkg/node-pkg-browser.js
     module.exports = function() {
@@ -947,7 +947,7 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 
   2(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(0 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 2);
@@ -996,7 +996,7 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   1(require, exports, module) {
     // /Users/user/project/node_modules/node-pkg-browser/index.js
     module.exports = function() {
@@ -1014,7 +1014,7 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 
   2(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(0 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 2);
@@ -1058,7 +1058,7 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   1() {
     // /Users/user/project/node_modules/node-pkg/index.js
   },
@@ -1073,7 +1073,7 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 
   2(require) {
     // /Users/user/project/src/entry.js
-    const demo_pkg = require(0 /* demo-pkg */);
+    const demo_pkg = require(0 /* demo-pkg */, true /* ES6 import */);
     console.log(demo_pkg.default());
   }
 }, 2);
@@ -1105,7 +1105,7 @@ func TestPackageImportMissingES6(t *testing.T) {
 /entry.js: error: No matching export for import "y"
 `,
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   0() {
     // /foo.js
     const x = 132;
@@ -1139,7 +1139,7 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   1(require, exports) {
     // /foo.js
     exports.x = 132;
@@ -1147,7 +1147,7 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 
   0(require) {
     // /entry.js
-    const foo = require(1 /* ./foo */);
+    const foo = require(1 /* ./foo */, true /* ES6 import */);
     console.log(foo.default(foo.x, foo.y));
   }
 }, 0);
@@ -1176,7 +1176,7 @@ func TestDotImport(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   1(require, exports) {
     // /index.js
     exports.x = 123;
@@ -1184,7 +1184,7 @@ func TestDotImport(t *testing.T) {
 
   0(require) {
     // /entry.js
-    const _ = require(1 /* . */);
+    const _ = require(1 /* . */, true /* ES6 import */);
     console.log(_.x);
   }
 }, 0);
@@ -1216,7 +1216,7 @@ func TestRequireJson(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   1(require, exports, module) {
     // /test.json
     module.exports = {
@@ -1253,7 +1253,7 @@ func TestRequireTxt(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `loader({
+			"/out.js": `bootstrap({
   1(require, exports, module) {
     // /test.txt
     module.exports = "This is a test.";
@@ -1312,7 +1312,7 @@ func TestSourceMap(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `loader({
+			"/Users/user/project/out.js": `bootstrap({
   1() {
     // /Users/user/project/src/bar.js
     function bar2() {

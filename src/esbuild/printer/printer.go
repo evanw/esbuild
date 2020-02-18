@@ -994,6 +994,19 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		} else {
 			p.print(Quote(e.Path.Text))
 		}
+
+		// If this require() call used to be an ES6 import, let the bootstrap code
+		// know so it can convert the default export format from CommonJS to ES6
+		if e.IsES6Import {
+			p.print(",")
+			p.printSpace()
+			if p.minify {
+				p.print("1")
+			} else {
+				p.print("true /* ES6 import */")
+			}
+		}
+
 		p.print(")")
 		if wrap {
 			p.print(")")

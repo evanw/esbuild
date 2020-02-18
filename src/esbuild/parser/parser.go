@@ -4741,7 +4741,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 			// Create a new expression to represent the operation
 			if id.Ref == b.requireRef {
 				b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
-				return ast.Expr{expr.Loc, &ast.ERequire{path}}
+				return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}
 			} else {
 				b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
 				return ast.Expr{expr.Loc, &ast.EImport{path}}
