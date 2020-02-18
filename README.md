@@ -99,3 +99,39 @@ Example:
   # Produces dist/entry_point.js and dist/entry_point.js.map
   esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
 ```
+
+## Using with React
+
+To use esbuild with [React](https://reactjs.org/):
+
+* Make sure all JSX syntax is put in `.jsx` files instead of `.js` files because esbuild uses the file extension to determine what syntax to parse.
+
+* If you're using TypeScript, run `tsc` first to convert `.tsx` files into either `.jsx` or `.js` files.
+
+* If you're using esbuild to bundle React yourself instead of including it with a `<script>` tag in your HTML, you'll need to pass `'--define:process.env.NODE_ENV="development"'` or `'--define:process.env.NODE_ENV="production"'` to esbuild on the command line.
+
+* If you're using [Preact](https://preactjs.com/) instead of React, you'll also need to pass `--jsx-factory=preact.h --jsx-fragment=preact.Fragment` to esbuild on the command line.
+
+For example, if you have a file called `example.jsx` with the following contents:
+
+```js
+import * as React from 'react'
+import * as ReactDOM from 'react-dom'
+
+ReactDOM.render(
+  <h1>Hello, world!</h1>,
+  document.getElementById('root')
+);
+```
+
+Use this for a development build:
+
+```
+esbuild example.jsx --bundle '--define:process.env.NODE_ENV="development"' --outfile=out.js
+```
+
+Use this for a production build:
+
+```
+esbuild example.jsx --bundle '--define:process.env.NODE_ENV="production"' --minify --outfile=out.js
+```
