@@ -76,31 +76,14 @@ PARCEL_FLAGS += --no-autoinstall
 PARCEL_FLAGS += --out-dir .
 PARCEL_FLAGS += --public-url ./
 
-FUSEBOX_RUN += const { FuseBox, QuantumPlugin } = require('fuse-box');
-FUSEBOX_RUN += const [,, entryPoint, bundleName] = process.argv;
-FUSEBOX_RUN += const fuse = FuseBox.init({
-FUSEBOX_RUN +=   homeDir: '..',
-FUSEBOX_RUN +=   target: 'browser@esnext',
-FUSEBOX_RUN +=   output: './$$name.js',
-FUSEBOX_RUN +=   package: { name: 'THREE', main: entryPoint },
-FUSEBOX_RUN +=   globals: { THREE: 'THREE' },
-FUSEBOX_RUN +=   sourceMaps: true,
-FUSEBOX_RUN +=   useTypescriptCompiler: true,
-FUSEBOX_RUN +=   plugins: [QuantumPlugin({ bakeApiIntoBundle: true, containedAPI: true, uglify: { es6: true } })],
-FUSEBOX_RUN += });
-FUSEBOX_RUN += fuse.bundle(bundleName).instructions('>' + entryPoint);
-FUSEBOX_RUN += fuse.run();
+FUSEBOX_RUN += require('fuse-box').fusebox({
+FUSEBOX_RUN +=   target: 'browser',
+FUSEBOX_RUN +=   entry: './fusebox-entry.js',
+FUSEBOX_RUN +=   useSingleBundle: true,
+FUSEBOX_RUN +=   output: './dist',
+FUSEBOX_RUN += }).runProd();
 
-node_modules/.bin/rollup:
-	npm ci
-
-node_modules/.bin/webpack:
-	npm ci
-
-node_modules/.bin/parcel:
-	npm ci
-
-node_modules/.bin/fuse:
+node_modules:
 	npm ci
 
 ################################################################################
@@ -130,32 +113,32 @@ demo-three-esbuild: esbuild | demo/three
 	cd demo/three/esbuild && time -p ../../../esbuild --bundle --name=THREE --sourcemap --minify ../src/Three.js --outfile=Three.esbuild.js
 	du -h demo/three/esbuild/Three.esbuild.js*
 
-demo-three-rollup: node_modules/.bin/rollup | demo/three
+demo-three-rollup: | node_modules demo/three
 	rm -fr demo/three/rollup
 	mkdir -p demo/three/rollup
 	echo "$(ROLLUP_CONFIG)" > demo/three/rollup/config.js
 	cd demo/three/rollup && time -p ../../../node_modules/.bin/rollup ../src/Three.js -o Three.rollup.js -c config.js
 	du -h demo/three/rollup/Three.rollup.js*
 
-demo-three-webpack: node_modules/.bin/webpack | demo/three
+demo-three-webpack: | node_modules demo/three
 	rm -fr demo/three/webpack node_modules/.cache/terser-webpack-plugin
 	mkdir -p demo/three/webpack
 	cd demo/three/webpack && time -p ../../../node_modules/.bin/webpack ../src/Three.js $(WEBPACK_FLAGS) -o Three.webpack.js
 	du -h demo/three/webpack/Three.webpack.js*
 
-demo-three-parcel: node_modules/.bin/parcel | demo/three
+demo-three-parcel: | node_modules demo/three
 	rm -fr demo/three/parcel
 	mkdir -p demo/three/parcel
 	cd demo/three/parcel && time -p ../../../node_modules/.bin/parcel build ../src/Three.js $(PARCEL_FLAGS) --out-file Three.parcel.js
 	du -h demo/three/parcel/Three.parcel.js*
 
-demo-three-fusebox: node_modules/.bin/fuse | demo/three
-	rm -fr demo/three/fusebox .fusebox
+demo-three-fusebox: | node_modules demo/three
+	rm -fr demo/three/fusebox
 	mkdir -p demo/three/fusebox
 	echo "$(FUSEBOX_RUN)" > demo/three/fusebox/run.js
-	cd demo/three/fusebox && time -p node run.js src/Three.js Three.fusebox.js
-	rm -f demo/three/tsconfig.json
-	du -h demo/three/fusebox/Three.fusebox.js*
+	echo 'import * as THREE from "../src/Three.js"; window.THREE = THREE' > demo/three/fusebox/fusebox-entry.js
+	cd demo/three/fusebox && time -p node run.js
+	du -h demo/three/fusebox/dist/app.js*
 
 ################################################################################
 
@@ -169,29 +152,29 @@ bench-three-esbuild: esbuild | bench/three
 	cd bench/three/esbuild && time -p ../../../esbuild --bundle --name=THREE --sourcemap --minify ../entry.js --outfile=entry.esbuild.js
 	du -h bench/three/esbuild/entry.esbuild.js*
 
-bench-three-rollup: node_modules/.bin/rollup | bench/three
+bench-three-rollup: | node_modules bench/three
 	rm -fr bench/three/rollup
 	mkdir -p bench/three/rollup
 	echo "$(ROLLUP_CONFIG)" > bench/three/rollup/config.js
 	cd bench/three/rollup && time -p ../../../node_modules/.bin/rollup ../entry.js -o entry.rollup.js -c config.js
 	du -h bench/three/rollup/entry.rollup.js*
 
-bench-three-webpack: node_modules/.bin/webpack | bench/three
+bench-three-webpack: | node_modules bench/three
 	rm -fr bench/three/webpack node_modules/.cache/terser-webpack-plugin
 	mkdir -p bench/three/webpack
 	cd bench/three/webpack && time -p ../../../node_modules/.bin/webpack ../entry.js $(WEBPACK_FLAGS) -o entry.webpack.js
 	du -h bench/three/webpack/entry.webpack.js*
 
-bench-three-parcel: node_modules/.bin/parcel | bench/three
+bench-three-parcel: | node_modules bench/three
 	rm -fr bench/three/parcel
 	mkdir -p bench/three/parcel
 	cd bench/three/parcel && time -p ../../../node_modules/.bin/parcel build ../entry.js $(PARCEL_FLAGS) --out-file entry.parcel.js
 	du -h bench/three/parcel/entry.parcel.js*
 
-bench-three-fusebox: node_modules/.bin/fuse | bench/three
-	rm -fr bench/three/fusebox .fusebox
+bench-three-fusebox: | node_modules bench/three
+	rm -fr bench/three/fusebox
 	mkdir -p bench/three/fusebox
 	echo "$(FUSEBOX_RUN)" > bench/three/fusebox/run.js
-	cd bench/three/fusebox && time -p node --max-old-space-size=8192 run.js entry.js entry.fusebox.js
-	rm -f bench/three/tsconfig.json
-	du -h bench/three/fusebox/entry.fusebox.js*
+	echo 'import * as THREE from "../entry.js"; window.THREE = THREE' > bench/three/fusebox/fusebox-entry.js
+	cd bench/three/fusebox && time -p node --max-old-space-size=8192 run.js
+	du -h bench/three/fusebox/dist/app.js*
