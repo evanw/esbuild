@@ -101,11 +101,11 @@ bench/three: | github/three
 	echo > bench/three/entry.js
 	for i in 1 2 3 4 5 6 7 8 9 10; do test -d "bench/three/copy$$i" || cp -r github/three/src "bench/three/copy$$i"; done
 	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/entry.js; done
-	find bench/three -name '*.js' | xargs wc -l
+	echo 'Line count:' && find bench/three -name '*.js' | xargs wc -l | tail -n 1
 
 ################################################################################
 
-demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-parcel
+demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-parcel demo-three-fusebox
 
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
@@ -142,9 +142,7 @@ demo-three-fusebox: | node_modules demo/three
 
 ################################################################################
 
-bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-parcel
-	echo 'Line count:'
-	find bench/three -name '*.js' | xargs wc -l | tail -n 1
+bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-parcel bench-three-fusebox
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
