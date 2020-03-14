@@ -144,6 +144,56 @@ func TestSimpleCommonJS(t *testing.T) {
 	})
 }
 
+// This test makes sure that require() calls are still recognized in nested
+// scopes. It guards against bugs where require() calls are only recognized in
+// the top-level module scope.
+func TestNestedCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function nestedScope() {
+					const fn = require('./foo')
+					console.log(fn())
+				}
+				nestedScope()
+			`,
+			"/foo.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports, module) {
+    // /foo.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  0(require) {
+    // /entry.js
+    function nestedScope() {
+      const fn = require(1 /* ./foo */);
+      console.log(fn());
+    }
+    nestedScope();
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestCommonJSFromES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
@@ -222,6 +272,54 @@ func TestES6FromCommonJS(t *testing.T) {
     // /entry.js
     const foo = require(1 /* ./foo */, true /* ES6 import */);
     console.log(foo.fn());
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+// This test makes sure that ES6 imports are still recognized in nested
+// scopes. It guards against bugs where require() calls are only recognized in
+// the top-level module scope.
+func TestNestedES6FromCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {fn} from './foo'
+				(() => {
+					console.log(fn())
+				})()
+			`,
+			"/foo.js": `
+				exports.fn = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports) {
+    // /foo.js
+    exports.fn = function() {
+      return 123;
+    };
+  },
+
+  0(require) {
+    // /entry.js
+    const foo = require(1 /* ./foo */, true /* ES6 import */);
+    (() => {
+      console.log(foo.fn());
+    })();
   }
 }, 0);
 `,
@@ -1290,6 +1388,117 @@ func TestRequireBadExtension(t *testing.T) {
 	})
 }
 
+func TestFalseRequire(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				(require => require('/test.txt'))()
+			`,
+			"/test.txt": `This is a test.`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(require) {
+    // /entry.js
+    (require => require('/test.txt'))();
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestRequireWithoutCall(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const req = require
+				req('./entry')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: "require" must not be called indirectly
+`,
+	})
+}
+
+func TestNestedRequireWithoutCall(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				(() => {
+					const req = require
+					req('./entry')
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: "require" must not be called indirectly
+`,
+	})
+}
+
+// Test a workaround for the "moment" library
+func TestRequireWithoutCallInsideTry(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				try {
+					oldLocale = globalLocale._abbr;
+					var aliasedRequire = require;
+					aliasedRequire('./locale/' + name);
+					getSetGlobalLocale(oldLocale);
+				} catch (e) {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(require) {
+    // /entry.js
+    try {
+      oldLocale = globalLocale._abbr;
+      var aliasedRequire = require;
+      aliasedRequire("./locale/" + name);
+      getSetGlobalLocale(oldLocale);
+    } catch (e) {
+    }
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestSourceMap(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
@@ -1327,6 +1536,55 @@ func TestSourceMap(t *testing.T) {
   }
 }, 1);
 //# sourceMappingURL=out.js.map
+`,
+		},
+	})
+}
+
+// This test covers a bug where a "var" in a nested scope did not correctly
+// bind with references to that symbol in sibling scopes. Instead, the
+// references were incorrectly considered to be unbound even though the symbol
+// should be hoisted. This caused the renamer to name them different things to
+// avoid a collision, which changed the meaning of the code.
+func TestNestedScopeBug(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				(() => {
+					function a() {
+						b()
+					}
+					{
+						var b = () => {}
+					}
+					a()
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.js
+    (() => {
+      function a() {
+        b();
+      }
+      {
+        var b = () => {
+        };
+      }
+      a();
+    })();
+  }
+}, 0);
 `,
 		},
 	})
