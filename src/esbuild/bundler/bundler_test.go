@@ -1624,9 +1624,9 @@ func TestFalseRequire(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `bootstrap({
-  0() {
+  0(require) {
     // /entry.js
-    ((require2) => require2("/test.txt"))();
+    (require => require('/test.txt'))();
   }
 }, 0);
 `,
@@ -1754,6 +1754,55 @@ func TestSourceMap(t *testing.T) {
   }
 }, 1);
 //# sourceMappingURL=out.js.map
+`,
+		},
+	})
+}
+
+// This test covers a bug where a "var" in a nested scope did not correctly
+// bind with references to that symbol in sibling scopes. Instead, the
+// references were incorrectly considered to be unbound even though the symbol
+// should be hoisted. This caused the renamer to name them different things to
+// avoid a collision, which changed the meaning of the code.
+func TestNestedScopeBug(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				(() => {
+					function a() {
+						b()
+					}
+					{
+						var b = () => {}
+					}
+					a()
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.js
+    (() => {
+      function a() {
+        b();
+      }
+      {
+        var b = () => {
+        };
+      }
+      a();
+    })();
+  }
+}, 0);
 `,
 		},
 	})
