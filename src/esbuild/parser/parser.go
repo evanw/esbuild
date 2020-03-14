@@ -2848,7 +2848,7 @@ func (b *binder) pushScope(kind ast.ScopeKind) {
 		Parent:   parent,
 		Children: []*ast.Scope{},
 		Members:  make(map[string]ast.Ref),
-		ScopeRef: ast.InvalidRef,
+		LabelRef: ast.InvalidRef,
 	}
 	if parent != nil {
 		parent.Children = append(parent.Children, scope)
@@ -2898,12 +2898,12 @@ func (b *binder) findSymbol(name string) ast.Ref {
 
 func (b *binder) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
 	for s := b.scope; s != nil && s.Kind != ast.ScopeFunction; s = s.Parent {
-		if s.Kind == ast.ScopeLabel && name == b.symbols[s.ScopeRef.InnerIndex].Name {
+		if s.Kind == ast.ScopeLabel && name == b.symbols[s.LabelRef.InnerIndex].Name {
 			// Track how many times we've referenced this symbol
 			if !b.isControlFlowDead {
-				b.symbols[s.ScopeRef.InnerIndex].UseCountEstimate++
+				b.symbols[s.LabelRef.InnerIndex].UseCountEstimate++
 			}
-			return s.ScopeRef
+			return s.LabelRef
 		}
 	}
 
@@ -3895,7 +3895,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		name := b.loadNameFromRef(s.Name.Ref)
 		ref := b.newSymbol(ast.SymbolOther, name)
 		s.Name.Ref = ref
-		b.scope.ScopeRef = ref
+		b.scope.LabelRef = ref
 		s.Stmt = b.declareAndVisitStmt(s.Stmt)
 		b.popScope()
 

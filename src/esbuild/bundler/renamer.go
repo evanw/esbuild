@@ -242,8 +242,8 @@ func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols *ast.Symbo
 
 	// Labels are in a separate namespace from symbols
 	if scope.Kind == ast.ScopeLabel {
-		symbol := symbols.Get(scope.ScopeRef)
-		g.countSymbol(labelCount, scope.ScopeRef, symbol.UseCountEstimate+1)
+		symbol := symbols.Get(scope.LabelRef)
+		g.countSymbol(labelCount, scope.LabelRef, symbol.UseCountEstimate+1)
 		labelCount += 1
 	}
 

@@ -802,9 +802,8 @@ type Scope struct {
 	Members   map[string]Ref
 	Generated []Ref
 
-	// This is the ref of the scope itself. This is currently only used to store
-	// the ref of the label symbol for ScopeLabel scopes.
-	ScopeRef Ref
+	// This is used to store the ref of the label symbol for ScopeLabel scopes.
+	LabelRef Ref
 }
 
 type SymbolMap struct {
