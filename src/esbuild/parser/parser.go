@@ -2239,7 +2239,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Next()
 				p.lexer.Expect(lexer.TFunction)
 				stmt := p.parseFnStmt(loc, parseStmtOpts{
-					isExport:         true,
 					isNameOptional:   true,
 					allowLexicalDecl: true,
 				}, true /* isAsync */)

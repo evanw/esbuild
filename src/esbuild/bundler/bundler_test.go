@@ -341,12 +341,8 @@ func TestExportForms(t *testing.T) {
 				export * from './a'
 				export * as b from './b'
 			`,
-			"/a.js": `
-				export const abc = undefined
-			`,
-			"/b.js": `
-				export const xyz = null
-			`,
+			"/a.js": "export const abc = undefined",
+			"/b.js": "export const xyz = null",
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
@@ -412,18 +408,10 @@ func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 				export * from './a'
 				export * as fromB from './b'
 			`,
-			"/b.js": `
-				export default function() {}
-			`,
-			"/c.js": `
-				export default function foo() {}
-			`,
-			"/d.js": `
-				export default class {}
-			`,
-			"/e.js": `
-				export default class Foo {}
-			`,
+			"/b.js": "export default function() {}",
+			"/c.js": "export default function foo() {}",
+			"/d.js": "export default class {}",
+			"/e.js": "export default class Foo {}",
 		},
 		entryPaths: []string{
 			"/a.js",
@@ -464,6 +452,157 @@ export * as fromB from "./b";
 `,
 			"/out/e.js": `export default class a {
 }
+`,
+		},
+	})
+}
+
+func TestExportFormsCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require('./commonjs')
+				require('./c')
+				require('./d')
+				require('./e')
+				require('./f')
+				require('./g')
+				require('./h')
+			`,
+			"/commonjs.js": `
+				export default 123
+				export var v = 234
+				export let l = 234
+				export const c = 234
+				export {Class as C}
+				export function Fn() {}
+				export class Class {}
+				export * from './a'
+				export * as b from './b'
+			`,
+			"/a.js": "export const abc = undefined",
+			"/b.js": "export const xyz = null",
+			"/c.js": "export default class {}",
+			"/d.js": "export default class Foo {}",
+			"/e.js": "export default function() {}",
+			"/f.js": "export default function foo() {}",
+			"/g.js": "export default async function() {}",
+			"/h.js": "export default async function foo() {}",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(require, exports) {
+    // /a.js
+    require(exports, {
+      abc: () => abc
+    });
+    const abc = void 0;
+  },
+
+  1(require, exports) {
+    // /b.js
+    require(exports, {
+      xyz: () => xyz
+    });
+    const xyz = null;
+  },
+
+  3(require, exports) {
+    // /commonjs.js
+    require(exports, {
+      C: () => Class,
+      Class: () => Class,
+      Fn: () => Fn,
+      b: () => b,
+      c: () => c,
+      default: () => default2,
+      l: () => l,
+      v: () => v
+    });
+    const b = require(1 /* ./b */, true /* ES6 import */);
+    const default2 = 123;
+    var v = 234;
+    let l = 234;
+    const c = 234;
+    function Fn() {
+    }
+    class Class {
+    }
+  },
+
+  2(require, exports) {
+    // /c.js
+    require(exports, {
+      default: () => default2
+    });
+    class default2 {
+    }
+  },
+
+  4(require, exports) {
+    // /d.js
+    require(exports, {
+      default: () => Foo
+    });
+    class Foo {
+    }
+  },
+
+  5(require, exports) {
+    // /e.js
+    require(exports, {
+      default: () => default2
+    });
+    function default2() {
+    }
+  },
+
+  7(require, exports) {
+    // /f.js
+    require(exports, {
+      default: () => foo
+    });
+    function foo() {
+    }
+  },
+
+  8(require, exports) {
+    // /g.js
+    require(exports, {
+      default: () => default2
+    });
+    async function default2() {
+    }
+  },
+
+  9(require, exports) {
+    // /h.js
+    require(exports, {
+      default: () => foo
+    });
+    async function foo() {
+    }
+  },
+
+  6(require) {
+    // /entry.js
+    require(3 /* ./commonjs */);
+    require(2 /* ./c */);
+    require(4 /* ./d */);
+    require(5 /* ./e */);
+    require(7 /* ./f */);
+    require(8 /* ./g */);
+    require(9 /* ./h */);
+  }
+}, 6);
 `,
 		},
 	})

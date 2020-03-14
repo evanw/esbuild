@@ -692,12 +692,16 @@ func (b *Bundle) extractImportsAndExports(
 					if s2.Fn.Name == nil {
 						s2 = &ast.SFunction{s2.Fn, false}
 						s2.Fn.Name = &s.DefaultName
+					} else {
+						ast.MergeSymbols(symbols, s.DefaultName.Ref, s2.Fn.Name.Ref)
 					}
 					stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
 				case *ast.SClass:
 					if s2.Class.Name == nil {
 						s2 = &ast.SClass{s2.Class, false}
 						s2.Class.Name = &s.DefaultName
+					} else {
+						ast.MergeSymbols(symbols, s.DefaultName.Ref, s2.Class.Name.Ref)
 					}
 					stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
 				default:
