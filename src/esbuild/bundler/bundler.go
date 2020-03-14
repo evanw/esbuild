@@ -1436,8 +1436,10 @@ func generateBootstrapPrefix(options *BundleOptions) []byte {
 					return exports
 				}
 
-				// Mark this module as an ES6 module
-				arg.__esModule = () => true;
+				// Mark this module as an ES6 module using a non-enumerable property
+				Object.defineProperty(target, '__esModule', {
+					value: true,
+				})
 
 				for (let name in arg) {
 					Object.defineProperty(target, name, {
