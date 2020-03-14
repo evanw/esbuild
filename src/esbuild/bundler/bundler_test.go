@@ -456,13 +456,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function b() {
+			"/out/c.js": `export default function a() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class b {
+			"/out/e.js": `export default class a {
 }
 `,
 		},

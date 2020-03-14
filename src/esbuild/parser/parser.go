@@ -1165,19 +1165,16 @@ func (p *parser) parseImportExpr(loc ast.Loc, name string) ast.Expr {
 		}
 	}
 
-	// Parse a function call for now, then resolve to EImport in the binding pass
-	target := ast.Expr{loc, &ast.EIdentifier{p.storeNameInRef(name)}}
-
 	// Allow "in" inside call arguments
 	oldAllowIn := p.allowIn
 	p.allowIn = true
 
 	p.lexer.Expect(lexer.TOpenParen)
-	args := []ast.Expr{p.parseExpr(ast.LComma)}
+	value := p.parseExpr(ast.LComma)
 	p.lexer.Expect(lexer.TCloseParen)
 
 	p.allowIn = oldAllowIn
-	return ast.Expr{loc, &ast.ECall{target, args, false}}
+	return ast.Expr{loc, &ast.EImport{value}}
 }
 
 func (p *parser) parseIndexExpr() ast.Expr {
@@ -2803,7 +2800,6 @@ type binder struct {
 	exportsRef        ast.Ref
 	requireRef        ast.Ref
 	moduleRef         ast.Ref
-	importRef         ast.Ref
 	callTarget        ast.E
 	identifierDefines map[string]ast.E
 	dotDefines        map[string]dotDefine
@@ -4704,6 +4700,29 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 			}
 		}
 
+	case *ast.EImport:
+		e.Expr = b.visitExpr(e.Expr)
+
+		// Track calls to import() so we can use them while bundling
+		if b.isBundling {
+			// The argument must be a string
+			str, ok := e.Expr.Data.(*ast.EString)
+			if !ok {
+				b.log.AddError(b.source, e.Expr.Loc, "The argument to import() must be a string literal")
+				return expr
+			}
+
+			// Ignore calls to import() if the control flow is provably dead here.
+			// We don't want to spend time scanning the required files if they will
+			// never be used.
+			if b.isControlFlowDead {
+				return ast.Expr{expr.Loc, &ast.ENull{}}
+			}
+
+			path := ast.Path{e.Expr.Loc, lexer.UTF16ToString(str.Value)}
+			b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
+		}
+
 	case *ast.ECall:
 		b.callTarget = e.Target.Data
 		e.Target = b.visitExpr(e.Target)
@@ -4711,8 +4730,8 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 			e.Args[i] = b.visitExpr(arg)
 		}
 
-		// Track calls to require() and import() so we can use them while bundling
-		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && (id.Ref == b.requireRef || id.Ref == b.importRef) && b.isBundling {
+		// Track calls to require() so we can use them while bundling
+		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && id.Ref == b.requireRef && b.isBundling {
 			// There must be one argument
 			if len(e.Args) != 1 {
 				b.log.AddError(b.source, expr.Loc,
@@ -4729,23 +4748,18 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				return expr
 			}
 
-			// Ignore calls to require() and import() if the control flow is provably
-			// dead here. We don't want to spend time scanning the required files
-			// if they will never be used.
+			// Ignore calls to require() if the control flow is provably dead here.
+			// We don't want to spend time scanning the required files if they will
+			// never be used.
 			if b.isControlFlowDead {
 				return ast.Expr{expr.Loc, &ast.ENull{}}
 			}
 
 			path := ast.Path{arg.Loc, lexer.UTF16ToString(str.Value)}
+			b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
 
 			// Create a new expression to represent the operation
-			if id.Ref == b.requireRef {
-				b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
-				return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}
-			} else {
-				b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
-				return ast.Expr{expr.Loc, &ast.EImport{path}}
-			}
+			return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}
 		}
 
 	case *ast.ENew:
@@ -4999,7 +5013,6 @@ func newBinder(source logging.Source, options ParseOptions) *binder {
 	b.exportsRef = b.newSymbol(ast.SymbolHoisted, "exports")
 	b.requireRef = b.newSymbol(ast.SymbolHoisted, "require")
 	b.moduleRef = b.newSymbol(ast.SymbolHoisted, "module")
-	b.importRef = b.newSymbol(ast.SymbolHoisted, "import")
 
 	// Only declare these symbols if we're bundling
 	if b.isBundling {
@@ -5007,9 +5020,6 @@ func newBinder(source logging.Source, options ParseOptions) *binder {
 		b.scope.Members["require"] = b.requireRef
 		b.scope.Members["module"] = b.moduleRef
 	}
-
-	// This symbol must always be declared because import() calls are special syntax
-	b.scope.Members["import"] = b.importRef
 
 	return b
 }

@@ -444,7 +444,7 @@ type ERequire struct {
 }
 
 type EImport struct {
-	Path Path
+	Expr Expr
 }
 
 func (*EArray) isExpr()           {}

@@ -1018,9 +1018,10 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print("(")
 		}
 		p.printSpaceBeforeIdentifier()
-		if p.resolvedImports != nil {
+		if s, ok := e.Expr.Data.(*ast.EString); ok && p.resolvedImports != nil {
 			// If we're bundling require calls, convert the string to a source index
-			sourceIndex, ok := p.resolvedImports[e.Path.Text]
+			path := lexer.UTF16ToString(s.Value)
+			sourceIndex, ok := p.resolvedImports[path]
 			if !ok {
 				panic("Internal error")
 			}
@@ -1031,11 +1032,11 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			} else {
 				p.print("Promise.resolve().then(() => ")
 				p.printSymbol(p.requireRef)
-				p.print(fmt.Sprintf("(%d /* %s */))", sourceIndex, e.Path.Text))
+				p.print(fmt.Sprintf("(%d /* %s */))", sourceIndex, path))
 			}
 		} else {
 			p.print("import(")
-			p.print(Quote(e.Path.Text))
+			p.printExpr(e.Expr, ast.LComma, 0)
 			p.print(")")
 		}
 		if wrap {
