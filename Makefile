@@ -1,5 +1,5 @@
-esbuild: src/esbuild/*/*.go
-	GOPATH=`pwd` go build -o esbuild esbuild/main
+esbuild:
+	go build -o esbuild ./pkg/main
 
 test:
 	GOPATH=`pwd` go test ./...
