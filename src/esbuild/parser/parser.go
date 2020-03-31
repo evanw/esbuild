@@ -4588,7 +4588,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				return *result
 			}
 
-			if left, ok := e.Left.Data.(*ast.EBinary); ok {
+			if left, ok := e.Left.Data.(*ast.EBinary); ok && left.Op == ast.BinOpAdd {
 				// "x + 'abc' + 'xyz'" => "x + 'abcxyz'"
 				if result := foldStringAddition(left.Right, e.Right); result != nil {
 					return ast.Expr{expr.Loc, &ast.EBinary{left.Op, left.Left, *result}}

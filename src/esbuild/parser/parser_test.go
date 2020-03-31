@@ -760,6 +760,7 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x + 'a' + 'bc'", "x + \"abc\";\n")
 	expectPrinted(t, "x + 'ab' + 'c'", "x + \"abc\";\n")
 	expectPrinted(t, "'a' + 1", "\"a\" + 1;\n")
+	expectPrinted(t, "x * 'a' + 'b'", "x * \"a\" + \"b\";\n")
 
 	expectPrinted(t, "'string' + `template`", "`stringtemplate`;\n")
 	expectPrinted(t, "'string' + `a${foo}b`", "`stringa${foo}b`;\n")
