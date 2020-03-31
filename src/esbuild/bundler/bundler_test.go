@@ -457,6 +457,85 @@ export * as fromB from "./b";
 	})
 }
 
+func TestImportFormsWithNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import 'foo'
+				import {} from 'foo'
+				import * as ns from 'foo'
+				import {a, b as c} from 'foo'
+				import def from 'foo'
+				import def2, * as ns2 from 'foo'
+				import def3, {a2, b as c3} from 'foo'
+				const imp = [
+					import('foo'),
+					function nested() { return import('foo') },
+				]
+				console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `import "foo";
+import {} from "foo";
+import * as ns from "foo";
+import {a, b as c} from "foo";
+import def from "foo";
+import def2, * as ns2 from "foo";
+import def3, {a2, b as c3} from "foo";
+const imp = [import("foo"), function nested() {
+  return import("foo");
+}];
+console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp);
+`,
+		},
+	})
+}
+
+func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import 'foo'
+				import {} from 'foo'
+				import * as ns from 'foo'
+				import {a, b as c} from 'foo'
+				import def from 'foo'
+				import def2, * as ns2 from 'foo'
+				import def3, {a2, b as c3} from 'foo'
+				const imp = [
+					import('foo'),
+					function nested() { return import('foo') },
+				]
+				console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		bundleOptions: BundleOptions{
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `import "foo";
+import {} from "foo";
+import * as a from "foo";
+import {a as b, b as c} from "foo";
+import d from "foo";
+import f, * as e from "foo";
+import g, {a2 as h, b as i} from "foo";
+const j = [import("foo"), function p() {
+  return import("foo");
+}];
+console.log(a, b, c, d, f, e, g, h, i, j);
+`,
+		},
+	})
+}
+
 func TestExportFormsCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

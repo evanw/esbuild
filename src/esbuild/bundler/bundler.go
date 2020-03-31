@@ -200,9 +200,12 @@ func (b *Bundle) compileFile(
 	}
 
 	// Remap source indices to make the output deterministic
-	remappedResolvedImports := make(map[string]uint32)
-	for k, v := range f.resolvedImports {
-		remappedResolvedImports[k] = sourceIndexToOutputIndex[v]
+	var remappedResolvedImports map[string]uint32
+	if options.Bundle {
+		remappedResolvedImports = make(map[string]uint32)
+		for k, v := range f.resolvedImports {
+			remappedResolvedImports[k] = sourceIndexToOutputIndex[v]
+		}
 	}
 
 	js, chunk := printer.Print(tree, printer.Options{
