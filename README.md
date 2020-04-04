@@ -66,6 +66,18 @@ npm install -g esbuild-wasm       # for all other platforms
 
 This adds a command called `esbuild`.
 
+If you'd like to install `esbuild` locally then it's better to specify it as an optional dependency in `package.json`: 
+```json
+"optionalDependencies": {
+    "esbuild-linux-64": "^0.0.10",
+    "esbuild-darwin-64": "^0.0.10",
+    "esbuild-windows-64": "^0.0.10"
+}
+```
+
+That way developers on different platforms could get the appropriate prebuilt binary installed automatically.
+
+
 ## Usage
 
 The command-line interface takes a list of entry points and produces one bundle file per entry point. Here are the available options:
