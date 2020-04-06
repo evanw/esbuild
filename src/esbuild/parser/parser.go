@@ -11,6 +11,73 @@ import (
 	"unsafe"
 )
 
+// This parser does two passes:
+//
+// 1. Parse the source into an AST, create the scope tree, and declare symbols.
+//
+// 2. Visit each node in the AST, bind identifiers to declared symbols, do
+//    constant folding, substitute compile-time variable definitions, and
+//    lower certain syntactic constructs as appropriate given the language
+//    target.
+//
+// So many things have been put in so few passes because we want to minimize
+// the number of full-tree passes to improve performance. However, we need
+// to have at least two separate passes to handle variable hoisting. See the
+// comment about scopesInOrder below for more information.
+type parser struct {
+	log                      logging.Log
+	source                   logging.Source
+	lexer                    lexer.Lexer
+	importPaths              []ast.ImportPath
+	omitWarnings             bool
+	allowIn                  bool
+	currentFnOpts            fnOpts
+	target                   LanguageTarget
+	jsx                      JSXOptions
+	latestReturnHadSemicolon bool
+	allocatedNames           []string
+	currentScope             *ast.Scope
+	symbols                  []ast.Symbol
+	exportsRef               ast.Ref
+	requireRef               ast.Ref
+	moduleRef                ast.Ref
+	indirectImportItems      map[ast.Ref]bool
+	importItemsForNamespace  map[ast.Ref]map[string]ast.Ref
+	exprForImportItem        map[ast.Ref]*ast.ENamespaceImport
+	exportAliases            map[string]bool
+
+	// The parser does two passes and we need to pass the scope tree information
+	// from the first pass to the second pass. That's done by tracking the calls
+	// to pushScopeForParsePass() and popScope() during the first pass in
+	// scopesInOrder.
+	//
+	// Then, when the second pass calls pushScopeForVisitPass() and popScope(),
+	// we consume entries from scopesInOrder and make sure they are in the same
+	// order. This way the second pass can efficiently use the same scope tree
+	// as the first pass without having to attach the scope tree to the AST.
+	//
+	// We need to split this into two passes because the pass that declares the
+	// symbols must be separate from the pass that binds identifiers to declared
+	// symbols to handle declaring a hoisted "var" symbol in a nested scope and
+	// binding a name to it in a parent or sibling scope.
+	scopesInOrder []scopeOrder
+
+	// These properties are for the visit pass, which runs after the parse pass.
+	// The visit pass binds identifiers to declared symbols, does constant
+	// folding, substitutes compile-time variable definitions, and lowers certain
+	// syntactic constructs as appropriate.
+	mangleSyntax      bool
+	isBundling        bool
+	tryBodyCount      int
+	callTarget        ast.E
+	moduleScope       *ast.Scope
+	unbound           []ast.Ref
+	isControlFlowDead bool
+	tempRefs          []ast.Ref // Temporary variables used for lowering
+	identifierDefines map[string]ast.E
+	dotDefines        map[string]dotDefine
+}
+
 const (
 	locModuleScope = -1
 
@@ -21,6 +88,11 @@ const (
 type scopeOrder struct {
 	loc   ast.Loc
 	scope *ast.Scope
+}
+
+type fnOpts struct {
+	allowAwait bool
+	allowYield bool
 }
 
 func isJumpStatement(data ast.S) bool {
@@ -161,56 +233,8 @@ func checkEqualityIfNoSideEffects(left ast.E, right ast.E) (bool, bool) {
 	return false, false
 }
 
-type fnOpts struct {
-	allowAwait bool
-	allowYield bool
-}
-
-type parser struct {
-	log                      logging.Log
-	source                   logging.Source
-	lexer                    lexer.Lexer
-	importPaths              []ast.ImportPath
-	omitWarnings             bool
-	allowIn                  bool
-	currentFnOpts            fnOpts
-	target                   LanguageTarget
-	jsx                      JSXOptions
-	latestReturnHadSemicolon bool
-	allocatedNames           []string
-	exportsRef               ast.Ref
-	requireRef               ast.Ref
-	moduleRef                ast.Ref
-
-	indirectImportItems     map[ast.Ref]bool
-	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
-	exprForImportItem       map[ast.Ref]*ast.ENamespaceImport
-	exportAliases           map[string]bool
-
-	// In addition to the current scope, we also track a map containing all
-	// scopes created during the parser pass. These scopes will later be
-	// referenced during the binder pass.
-	//
-	// The reason for this is that we need two passes to bind symbols, one for
-	// setting up scopes and declaring symbols and one for binding them. This is
-	// necessary to handle declaring a hoisted "var" symbol in a nested scope
-	// and binding a name to it in a parent or sibling scope.
-	//
-	// Instead of doing the scope setup and symbol declaring in a third pass in
-	// between parsing and binding, this is folded into the parser pass. It's
-	// less clean to do things that way but it's faster because it means fewer
-	// passes over the data.
-	//
-	// The scope tree that is set up in the parser pass is passed to the binder
-	// pass using the location of the corresponding statement (i.e. the byte
-	// index from the start of the file).
-	scope         *ast.Scope
-	symbols       []ast.Symbol
-	scopesInOrder []scopeOrder
-}
-
-func (p *parser) pushScope(kind ast.ScopeKind, loc ast.Loc) {
-	parent := p.scope
+func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) {
+	parent := p.currentScope
 	scope := &ast.Scope{
 		Kind:     kind,
 		Parent:   parent,
@@ -220,8 +244,10 @@ func (p *parser) pushScope(kind ast.ScopeKind, loc ast.Loc) {
 	if parent != nil {
 		parent.Children = append(parent.Children, scope)
 	}
-	p.scope = scope
+	p.currentScope = scope
 
+	// Enforce that scope locations are strictly increasing to help catch bugs
+	// where the pushed scopes are mistmatched between the first and second passes
 	if len(p.scopesInOrder) > 0 {
 		prevStart := p.scopesInOrder[len(p.scopesInOrder)-1].loc.Start
 		if prevStart >= loc.Start {
@@ -233,15 +259,7 @@ func (p *parser) pushScope(kind ast.ScopeKind, loc ast.Loc) {
 }
 
 func (p *parser) popScope() {
-	p.scope = p.scope.Parent
-}
-
-func (p *parser) loadNameFromRef(ref ast.Ref) string {
-	if ref.OuterIndex == 0x80000000 {
-		return p.allocatedNames[ref.InnerIndex]
-	} else {
-		return p.source.Contents[ref.InnerIndex : int32(ref.InnerIndex)-int32(ref.OuterIndex)]
-	}
+	p.currentScope = p.currentScope.Parent
 }
 
 func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
@@ -251,7 +269,7 @@ func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
 }
 
 func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) ast.Ref {
-	scope := p.scope
+	scope := p.currentScope
 
 	// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
 	if kind == ast.SymbolHoisted {
@@ -293,7 +311,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 
 	// Hoist "var" symbols up to the enclosing function scope
 	if kind == ast.SymbolHoisted {
-		for s := p.scope; s.Kind != ast.ScopeFunction && s.Kind != ast.ScopeModule; s = s.Parent {
+		for s := p.currentScope; s.Kind != ast.ScopeFunction && s.Kind != ast.ScopeModule; s = s.Parent {
 			if existing, ok := s.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
 				if symbol.Kind == ast.SymbolUnbound {
@@ -383,6 +401,15 @@ func (p *parser) storeNameInRef(name string) ast.Ref {
 		ref := ast.Ref{0x80000000, uint32(len(p.allocatedNames))}
 		p.allocatedNames = append(p.allocatedNames, name)
 		return ref
+	}
+}
+
+// This is the inverse of storeNameInRef() above
+func (p *parser) loadNameFromRef(ref ast.Ref) string {
+	if ref.OuterIndex == 0x80000000 {
+		return p.allocatedNames[ref.InnerIndex]
+	} else {
+		return p.source.Contents[ref.InnerIndex : int32(ref.InnerIndex)-int32(ref.OuterIndex)]
 	}
 }
 
@@ -546,7 +573,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		context == propertyContextClass || opts.isAsync || opts.isGenerator {
 		loc := p.lexer.Loc()
 
-		p.pushScope(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
+		p.pushScopeForParsePass(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
 		defer p.popScope()
 
 		fn := p.parseFn(nil, fnOpts{
@@ -715,7 +742,7 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		p.lexer.Next()
 		arg := ast.Arg{ast.Binding{asyncRange.Loc, &ast.BIdentifier{p.storeNameInRef("async")}}, nil}
 
-		p.pushScope(ast.ScopeFunction, asyncRange.Loc)
+		p.pushScopeForParsePass(ast.ScopeFunction, asyncRange.Loc)
 		defer p.popScope()
 
 		return ast.Expr{asyncRange.Loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
@@ -728,7 +755,7 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TEqualsGreaterThan)
 
-		p.pushScope(ast.ScopeFunction, asyncRange.Loc)
+		p.pushScopeForParsePass(ast.ScopeFunction, asyncRange.Loc)
 		defer p.popScope()
 
 		arrow := p.parseArrowBody([]ast.Arg{arg}, fnOpts{allowAwait: true})
@@ -763,13 +790,13 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	var name *ast.LocRef
 
 	if p.lexer.Token == lexer.TIdentifier {
-		p.pushScope(ast.ScopeFunctionName, loc)
+		p.pushScopeForParsePass(ast.ScopeFunctionName, loc)
 		nameLoc := p.lexer.Loc()
 		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 		p.lexer.Next()
 	}
 
-	p.pushScope(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
+	p.pushScopeForParsePass(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
 	fn := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
 		allowYield: isGenerator,
@@ -850,7 +877,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			args = append(args, ast.Arg{binding, initializer})
 		}
 
-		p.pushScope(ast.ScopeFunction, loc)
+		p.pushScopeForParsePass(ast.ScopeFunction, loc)
 		defer p.popScope()
 
 		arrow := p.parseArrowBody(args, fnOpts{allowAwait: isAsync})
@@ -1057,7 +1084,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			ref := p.storeNameInRef(name)
 			arg := ast.Arg{ast.Binding{loc, &ast.BIdentifier{ref}}, nil}
 
-			p.pushScope(ast.ScopeFunction, loc)
+			p.pushScopeForParsePass(ast.ScopeFunction, loc)
 			defer p.popScope()
 
 			return ast.Expr{loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
@@ -1170,7 +1197,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		var name *ast.LocRef
 
 		if p.lexer.Token == lexer.TIdentifier {
-			p.pushScope(ast.ScopeClassName, loc)
+			p.pushScopeForParsePass(ast.ScopeClassName, loc)
 			nameLoc := p.lexer.Loc()
 			name = &ast.LocRef{loc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 			p.lexer.Next()
@@ -2402,7 +2429,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 		}
 	}
 
-	p.pushScope(ast.ScopeFunction, loc)
+	p.pushScopeForParsePass(ast.ScopeFunction, loc)
 	defer p.popScope()
 
 	fn := p.parseFn(name, fnOpts{
@@ -2452,7 +2479,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		case lexer.TDefault:
 			defaultName := ast.LocRef{p.lexer.Loc(), p.newSymbol(ast.SymbolOther, "default")}
-			p.scope.Generated = append(p.scope.Generated, defaultName.Ref)
+			p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
 			p.recordExport(defaultName.Loc, "default")
 			p.lexer.Next()
 
@@ -2605,7 +2632,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SWith{test, body}}
 
 	case lexer.TSwitch:
-		p.pushScope(ast.ScopeBlock, loc)
+		p.pushScopeForParsePass(ast.ScopeBlock, loc)
 		defer p.popScope()
 
 		p.lexer.Next()
@@ -2655,7 +2682,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 	case lexer.TTry:
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TOpenBrace)
-		p.pushScope(ast.ScopeBlock, loc)
+		p.pushScopeForParsePass(ast.ScopeBlock, loc)
 		body := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 		p.popScope()
 		p.lexer.Next()
@@ -2665,7 +2692,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		if p.lexer.Token == lexer.TCatch {
 			catchLoc := p.lexer.Loc()
-			p.pushScope(ast.ScopeBlock, catchLoc)
+			p.pushScopeForParsePass(ast.ScopeBlock, catchLoc)
 			p.lexer.Next()
 			var binding *ast.Binding
 
@@ -2695,7 +2722,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		if p.lexer.Token == lexer.TFinally || catch == nil {
 			finallyLoc := p.lexer.Loc()
-			p.pushScope(ast.ScopeBlock, finallyLoc)
+			p.pushScopeForParsePass(ast.ScopeBlock, finallyLoc)
 			p.lexer.Expect(lexer.TFinally)
 			p.lexer.Expect(lexer.TOpenBrace)
 			stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
@@ -2707,7 +2734,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.STry{body, catch, finally}}
 
 	case lexer.TFor:
-		p.pushScope(ast.ScopeBlock, loc)
+		p.pushScopeForParsePass(ast.ScopeBlock, loc)
 		defer p.popScope()
 
 		p.lexer.Next()
@@ -2905,7 +2932,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			// Generate a symbol for the namespace
 			name := ast.GenerateNonUniqueNameFromPath(stmt.Path.Text)
 			stmt.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
-			p.scope.Generated = append(p.scope.Generated, stmt.NamespaceRef)
+			p.currentScope.Generated = append(p.currentScope.Generated, stmt.NamespaceRef)
 		}
 		itemRefs := make(map[string]ast.Ref)
 
@@ -2984,7 +3011,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SDebugger{}}
 
 	case lexer.TOpenBrace:
-		p.pushScope(ast.ScopeBlock, loc)
+		p.pushScopeForParsePass(ast.ScopeBlock, loc)
 		defer p.popScope()
 
 		p.lexer.Next()
@@ -3012,7 +3039,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		// Parse a labeled statement
 		if ident, ok := expr.Data.(*ast.EIdentifier); ok && isIdentifier && p.lexer.Token == lexer.TColon {
-			p.pushScope(ast.ScopeLabel, loc)
+			p.pushScopeForParsePass(ast.ScopeLabel, loc)
 			defer p.popScope()
 
 			p.lexer.Next()
@@ -3085,95 +3112,44 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 	return stmts
 }
 
-type binder struct {
-	log               logging.Log
-	source            logging.Source
-	moduleScope       *ast.Scope
-	scope             *ast.Scope
-	unbound           []ast.Ref
-	importPaths       []ast.ImportPath
-	exportsRef        ast.Ref
-	requireRef        ast.Ref
-	moduleRef         ast.Ref
-	callTarget        ast.E
-	identifierDefines map[string]ast.E
-	dotDefines        map[string]dotDefine
-	mangleSyntax      bool
-	isControlFlowDead bool
-	omitWarnings      bool
-	jsx               JSXOptions
-	allocatedNames    []string
-	tryBodyCount      int
-	tempRefs          []ast.Ref // Temporary variables used for lowering
-	target            LanguageTarget
-
-	// These are copies from the parser
-	scopesInOrder []scopeOrder
-	symbols       []ast.Symbol
-
-	isBundling              bool
-	indirectImportItems     map[ast.Ref]bool
-	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
-	exprForImportItem       map[ast.Ref]*ast.ENamespaceImport
-	exportAliases           map[string]bool
-}
-
 type dotDefine struct {
 	parts []string
 	value ast.E
 }
 
-func (b *binder) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
-	ref := ast.Ref{b.source.Index, uint32(len(b.symbols))}
-	b.symbols = append(b.symbols, ast.Symbol{kind, 0, name, ast.InvalidRef})
-	return ref
-}
-
-func (b *binder) generateTempRef() ast.Ref {
-	scope := b.scope
+func (p *parser) generateTempRef() ast.Ref {
+	scope := p.currentScope
 	for scope.Kind != ast.ScopeFunction && scope.Kind != ast.ScopeModule {
 		scope = scope.Parent
 	}
-	ref := b.newSymbol(ast.SymbolHoisted, "_"+lexer.NumberToMinifiedName(len(b.tempRefs)))
-	b.tempRefs = append(b.tempRefs, ref)
+	ref := p.newSymbol(ast.SymbolHoisted, "_"+lexer.NumberToMinifiedName(len(p.tempRefs)))
+	p.tempRefs = append(p.tempRefs, ref)
 	scope.Generated = append(scope.Generated, ref)
 	return ref
 }
 
-func (b *binder) pushScope(kind ast.ScopeKind, loc ast.Loc) {
-	order := b.scopesInOrder[0]
+func (p *parser) pushScopeForVisitPass(kind ast.ScopeKind, loc ast.Loc) {
+	order := p.scopesInOrder[0]
 
-	// Sanity-check that the scopes generated by the parser and the binder match
+	// Sanity-check that the scopes generated by the first and second passes match
 	if order.loc != loc || order.scope.Kind != kind {
 		panic(fmt.Sprintf("Expected scope (%d, %d), found scope (%d, %d)",
 			kind, loc.Start,
 			order.scope.Kind, order.loc.Start))
 	}
 
-	b.scopesInOrder = b.scopesInOrder[1:]
-	b.scope = order.scope
+	p.scopesInOrder = p.scopesInOrder[1:]
+	p.currentScope = order.scope
 }
 
-func (b *binder) popScope() {
-	b.scope = b.scope.Parent
-}
-
-func (b *binder) loadNameFromRef(ref ast.Ref) string {
-	if ref.OuterIndex == 0x80000000 {
-		return b.allocatedNames[ref.InnerIndex]
-	} else {
-		return b.source.Contents[ref.InnerIndex : int32(ref.InnerIndex)-int32(ref.OuterIndex)]
-	}
-}
-
-func (b *binder) findSymbol(name string) ast.Ref {
-	s := b.scope
+func (p *parser) findSymbol(name string) ast.Ref {
+	s := p.currentScope
 	for {
 		ref, ok := s.Members[name]
 		if ok {
 			// Track how many times we've referenced this symbol
-			if !b.isControlFlowDead {
-				b.symbols[ref.InnerIndex].UseCountEstimate++
+			if !p.isControlFlowDead {
+				p.symbols[ref.InnerIndex].UseCountEstimate++
 			}
 			return ref
 		}
@@ -3181,111 +3157,42 @@ func (b *binder) findSymbol(name string) ast.Ref {
 		s = s.Parent
 		if s == nil {
 			// Allocate an "unbound" symbol
-			ref = b.newSymbol(ast.SymbolUnbound, name)
-			b.moduleScope.Members[name] = ref
-			b.unbound = append(b.unbound, ref)
+			ref = p.newSymbol(ast.SymbolUnbound, name)
+			p.moduleScope.Members[name] = ref
+			p.unbound = append(p.unbound, ref)
 
 			// Track how many times we've referenced this symbol
-			if !b.isControlFlowDead {
-				b.symbols[ref.InnerIndex].UseCountEstimate++
+			if !p.isControlFlowDead {
+				p.symbols[ref.InnerIndex].UseCountEstimate++
 			}
 			return ref
 		}
 	}
 }
 
-func (b *binder) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
-	for s := b.scope; s != nil && s.Kind != ast.ScopeFunction; s = s.Parent {
-		if s.Kind == ast.ScopeLabel && name == b.symbols[s.LabelRef.InnerIndex].Name {
+func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
+	for s := p.currentScope; s != nil && s.Kind != ast.ScopeFunction; s = s.Parent {
+		if s.Kind == ast.ScopeLabel && name == p.symbols[s.LabelRef.InnerIndex].Name {
 			// Track how many times we've referenced this symbol
-			if !b.isControlFlowDead {
-				b.symbols[s.LabelRef.InnerIndex].UseCountEstimate++
+			if !p.isControlFlowDead {
+				p.symbols[s.LabelRef.InnerIndex].UseCountEstimate++
 			}
 			return s.LabelRef
 		}
 	}
 
-	r := lexer.RangeOfIdentifier(b.source, loc)
-	b.log.AddRangeError(b.source, r, fmt.Sprintf("There is no containing label named %q", name))
+	r := lexer.RangeOfIdentifier(p.source, loc)
+	p.log.AddRangeError(p.source, r, fmt.Sprintf("There is no containing label named %q", name))
 
 	// Allocate an "unbound" symbol
-	ref := b.newSymbol(ast.SymbolUnbound, name)
-	b.unbound = append(b.unbound, ref)
+	ref := p.newSymbol(ast.SymbolUnbound, name)
+	p.unbound = append(p.unbound, ref)
 
 	// Track how many times we've referenced this symbol
-	if !b.isControlFlowDead {
-		b.symbols[ref.InnerIndex].UseCountEstimate++
+	if !p.isControlFlowDead {
+		p.symbols[ref.InnerIndex].UseCountEstimate++
 	}
 	return ref
-}
-
-func (b *binder) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) ast.Ref {
-	scope := b.scope
-
-	// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
-	if kind == ast.SymbolHoisted {
-		for scope.Kind != ast.ScopeFunction && scope.Kind != ast.ScopeModule {
-			if existing, ok := scope.Members[name]; ok {
-				symbol := b.symbols[existing.InnerIndex]
-				switch symbol.Kind {
-				case ast.SymbolUnbound, ast.SymbolHoisted:
-					// Continue on to the parent scope
-				case ast.SymbolCatchIdentifier:
-					// This is a weird special case. Silently reuse this symbol.
-					return existing
-				default:
-					r := lexer.RangeOfIdentifier(b.source, loc)
-					b.log.AddRangeError(b.source, r, fmt.Sprintf("%q has already been declared", name))
-					return existing
-				}
-			}
-			scope = scope.Parent
-		}
-	}
-
-	// Allocate a new symbol
-	ref := b.newSymbol(kind, name)
-
-	// Check for a collision in the declaring scope
-	if existing, ok := scope.Members[name]; ok {
-		symbol := b.symbols[existing.InnerIndex]
-		if symbol.Kind == ast.SymbolUnbound {
-			b.symbols[existing.InnerIndex].Link = ref
-		} else if kind != ast.SymbolHoisted || symbol.Kind != ast.SymbolHoisted {
-			r := lexer.RangeOfIdentifier(b.source, loc)
-			b.log.AddRangeError(b.source, r, fmt.Sprintf("%q has already been declared", name))
-			return existing
-		} else {
-			ref = existing
-		}
-	}
-
-	// Hoist "var" symbols up to the enclosing function scope
-	if kind == ast.SymbolHoisted {
-		for s := b.scope; s.Kind != ast.ScopeFunction && s.Kind != ast.ScopeModule; s = s.Parent {
-			if existing, ok := s.Members[name]; ok {
-				symbol := b.symbols[existing.InnerIndex]
-				if symbol.Kind == ast.SymbolUnbound {
-					b.symbols[existing.InnerIndex].Link = ref
-				}
-			}
-			s.Members[name] = ref
-		}
-	}
-
-	// Overwrite this name in the declaring scope
-	scope.Members[name] = ref
-	return ref
-}
-
-func (b *binder) recordExport(loc ast.Loc, alias string) {
-	if b.exportAliases[alias] {
-		// Warn about duplicate exports
-		b.log.AddRangeError(b.source, lexer.RangeOfIdentifier(b.source, loc),
-			fmt.Sprintf("Multiple exports with the same name %q", alias))
-	} else {
-		b.exportAliases[alias] = true
-	}
 }
 
 func findIdentifiers(binding ast.Binding, identifiers []ast.Decl) []ast.Decl {
@@ -3340,39 +3247,39 @@ func shouldKeepStmtInDeadControlFlow(stmt ast.Stmt) bool {
 	}
 }
 
-func (b *binder) visitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
-	oldTempRefs := b.tempRefs
-	b.tempRefs = []ast.Ref{}
+func (p *parser) visitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
+	oldTempRefs := p.tempRefs
+	p.tempRefs = []ast.Ref{}
 
-	stmts = b.visitStmts(stmts)
+	stmts = p.visitStmts(stmts)
 
 	// Append the temporary variable to the end of the function or module
-	if len(b.tempRefs) > 0 {
+	if len(p.tempRefs) > 0 {
 		decls := []ast.Decl{}
-		for _, ref := range b.tempRefs {
+		for _, ref := range p.tempRefs {
 			decls = append(decls, ast.Decl{ast.Binding{ast.Loc{}, &ast.BIdentifier{ref}}, nil})
 		}
 		stmts = append([]ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SVar{Decls: decls}}}, stmts...)
 	}
 
-	b.tempRefs = oldTempRefs
+	p.tempRefs = oldTempRefs
 	return stmts
 }
 
-func (b *binder) visitStmts(stmts []ast.Stmt) []ast.Stmt {
+func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 	// Visit all statements first
 	visited := make([]ast.Stmt, 0, len(stmts))
 	for _, stmt := range stmts {
-		visited = b.visitAndAppendStmt(visited, stmt)
+		visited = p.visitAndAppendStmt(visited, stmt)
 	}
 
 	// Stop now if we're not mangling
-	if !b.mangleSyntax {
+	if !p.mangleSyntax {
 		return visited
 	}
 
 	// If this is in a dead branch, trim as much dead code as we can
-	if b.isControlFlowDead {
+	if p.isControlFlowDead {
 		end := 0
 		for _, stmt := range visited {
 			if !shouldKeepStmtInDeadControlFlow(stmt) {
@@ -3663,8 +3570,8 @@ func (b *binder) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 	return result
 }
 
-func (b *binder) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
-	stmts := b.visitStmts([]ast.Stmt{stmt})
+func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
+	stmts := p.visitStmts([]ast.Stmt{stmt})
 
 	// This statement could potentially expand to several statements
 	switch len(stmts) {
@@ -3678,9 +3585,9 @@ func (b *binder) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 }
 
 // Lower class fields for environments that don't support them
-func (b *binder) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (staticFields []ast.Expr, tempRef ast.Ref) {
+func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (staticFields []ast.Expr, tempRef ast.Ref) {
 	tempRef = ast.InvalidRef
-	if b.target >= ESNext {
+	if p.target >= ESNext {
 		return
 	}
 
@@ -3701,7 +3608,7 @@ func (b *binder) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 			var target ast.Expr
 			if prop.IsStatic {
 				if ref == ast.InvalidRef {
-					tempRef = b.generateTempRef()
+					tempRef = p.generateTempRef()
 					ref = tempRef
 				}
 				target = ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}
@@ -3776,8 +3683,8 @@ func (b *binder) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 
 			// Make sure the constructor has a super() call if needed
 			if class.Extends != nil {
-				argumentsRef := b.newSymbol(ast.SymbolUnbound, "arguments")
-				b.scope.Generated = append(b.scope.Generated, argumentsRef)
+				argumentsRef := p.newSymbol(ast.SymbolUnbound, "arguments")
+				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
 				ctor.Fn.Stmts = append(ctor.Fn.Stmts, ast.Stmt{classLoc, &ast.SExpr{ast.Expr{classLoc, &ast.ECall{
 					Target: ast.Expr{classLoc, &ast.ESuper{}},
 					Args: []ast.Expr{
@@ -3820,28 +3727,28 @@ func (b *binder) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 	return
 }
 
-func (b *binder) visitBinding(binding ast.Binding) {
+func (p *parser) visitBinding(binding ast.Binding) {
 	switch d := binding.Data.(type) {
 	case *ast.BMissing, *ast.BIdentifier:
 
 	case *ast.BArray:
 		for _, i := range d.Items {
-			b.visitBinding(i.Binding)
+			p.visitBinding(i.Binding)
 			if i.DefaultValue != nil {
-				*i.DefaultValue = b.visitExpr(*i.DefaultValue)
+				*i.DefaultValue = p.visitExpr(*i.DefaultValue)
 			}
 		}
 
 	case *ast.BObject:
-		for i, p := range d.Properties {
-			if !p.IsSpread {
-				p.Key = b.visitExpr(p.Key)
+		for i, property := range d.Properties {
+			if !property.IsSpread {
+				property.Key = p.visitExpr(property.Key)
 			}
-			b.visitBinding(p.Value)
-			if p.DefaultValue != nil {
-				*p.DefaultValue = b.visitExpr(*p.DefaultValue)
+			p.visitBinding(property.Value)
+			if property.DefaultValue != nil {
+				*property.DefaultValue = p.visitExpr(*property.DefaultValue)
 			}
-			d.Properties[i] = p
+			d.Properties[i] = property
 		}
 
 	default:
@@ -3985,7 +3892,7 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 	return ast.Stmt{loc, s}
 }
 
-func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt {
+func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt {
 	switch s := stmt.Data.(type) {
 	case *ast.SDebugger, *ast.SEmpty, *ast.SDirective:
 		// These don't contain anything to traverse
@@ -3995,56 +3902,56 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SExportClause:
 		for i, item := range s.Items {
-			name := b.loadNameFromRef(item.Name.Ref)
-			s.Items[i].Name.Ref = b.findSymbol(name)
-			b.recordExport(item.AliasLoc, item.Alias)
+			name := p.loadNameFromRef(item.Name.Ref)
+			s.Items[i].Name.Ref = p.findSymbol(name)
+			p.recordExport(item.AliasLoc, item.Alias)
 		}
 
 	case *ast.SExportFrom:
 		// Generate a symbol for the namespace
 		name := ast.GenerateNonUniqueNameFromPath(s.Path.Text)
-		namespaceRef := b.newSymbol(ast.SymbolOther, name)
-		b.scope.Generated = append(b.scope.Generated, namespaceRef)
+		namespaceRef := p.newSymbol(ast.SymbolOther, name)
+		p.currentScope.Generated = append(p.currentScope.Generated, namespaceRef)
 		s.NamespaceRef = namespaceRef
 
 		// Path: this is a re-export and the names are symbols in another file
 		for i, item := range s.Items {
-			name := b.loadNameFromRef(item.Name.Ref)
-			s.Items[i].Name.Ref = b.newSymbol(ast.SymbolUnbound, name)
-			b.unbound = append(b.unbound, item.Name.Ref)
-			b.recordExport(item.AliasLoc, item.Alias)
+			name := p.loadNameFromRef(item.Name.Ref)
+			s.Items[i].Name.Ref = p.newSymbol(ast.SymbolUnbound, name)
+			p.unbound = append(p.unbound, item.Name.Ref)
+			p.recordExport(item.AliasLoc, item.Alias)
 		}
 
 	case *ast.SExportStar:
 		if s.Item != nil {
 			// "export * as ns from 'path'"
-			name := b.loadNameFromRef(s.Item.Name.Ref)
-			ref := b.newSymbol(ast.SymbolOther, name)
+			name := p.loadNameFromRef(s.Item.Name.Ref)
+			ref := p.newSymbol(ast.SymbolOther, name)
 
 			// This name isn't ever declared in this scope, so code in this module
 			// must not be able to get to it. Still, we need to associate it with
 			// the scope somehow so it will be minified.
-			b.scope.Generated = append(b.scope.Generated, ref)
+			p.currentScope.Generated = append(p.currentScope.Generated, ref)
 			s.Item.Name.Ref = ref
-			b.recordExport(s.Item.AliasLoc, s.Item.Alias)
+			p.recordExport(s.Item.AliasLoc, s.Item.Alias)
 		}
 
 	case *ast.SExportDefault:
 		switch {
 		case s.Value.Expr != nil:
-			*s.Value.Expr = b.visitExpr(*s.Value.Expr)
+			*s.Value.Expr = p.visitExpr(*s.Value.Expr)
 
 		case s.Value.Stmt != nil:
 			switch s2 := s.Value.Stmt.Data.(type) {
 			case *ast.SFunction:
-				b.visitFn(&s2.Fn, s.Value.Stmt.Loc)
+				p.visitFn(&s2.Fn, s.Value.Stmt.Loc)
 
 			case *ast.SClass:
-				b.visitClass(&s2.Class)
+				p.visitClass(&s2.Class)
 				stmts = append(stmts, stmt)
 
 				// Lower class field syntax for browsers that don't support it
-				extraExprs, _ := b.lowerClass(s.Value.Stmt.Loc, &s2.Class, true /* isStmt */)
+				extraExprs, _ := p.lowerClass(s.Value.Stmt.Loc, &s2.Class, true /* isStmt */)
 				for _, expr := range extraExprs {
 					stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 				}
@@ -4057,38 +3964,38 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SBreak:
 		if s.Name != nil {
-			name := b.loadNameFromRef(s.Name.Ref)
-			s.Name.Ref = b.findLabelSymbol(s.Name.Loc, name)
+			name := p.loadNameFromRef(s.Name.Ref)
+			s.Name.Ref = p.findLabelSymbol(s.Name.Loc, name)
 		}
 
 	case *ast.SContinue:
 		if s.Name != nil {
-			name := b.loadNameFromRef(s.Name.Ref)
-			s.Name.Ref = b.findLabelSymbol(s.Name.Loc, name)
+			name := p.loadNameFromRef(s.Name.Ref)
+			s.Name.Ref = p.findLabelSymbol(s.Name.Loc, name)
 		}
 
 	case *ast.SLabel:
-		b.pushScope(ast.ScopeLabel, stmt.Loc)
-		name := b.loadNameFromRef(s.Name.Ref)
-		ref := b.newSymbol(ast.SymbolOther, name)
+		p.pushScopeForVisitPass(ast.ScopeLabel, stmt.Loc)
+		name := p.loadNameFromRef(s.Name.Ref)
+		ref := p.newSymbol(ast.SymbolOther, name)
 		s.Name.Ref = ref
-		b.scope.LabelRef = ref
-		s.Stmt = b.visitSingleStmt(s.Stmt)
-		b.popScope()
+		p.currentScope.LabelRef = ref
+		s.Stmt = p.visitSingleStmt(s.Stmt)
+		p.popScope()
 
 	case *ast.SConst:
 		for _, d := range s.Decls {
-			b.visitBinding(d.Binding)
+			p.visitBinding(d.Binding)
 			if d.Value != nil {
-				*d.Value = b.visitExpr(*d.Value)
+				*d.Value = p.visitExpr(*d.Value)
 			}
 		}
 
 	case *ast.SLet:
 		for i, d := range s.Decls {
-			b.visitBinding(d.Binding)
+			p.visitBinding(d.Binding)
 			if d.Value != nil {
-				*d.Value = b.visitExpr(*d.Value)
+				*d.Value = p.visitExpr(*d.Value)
 
 				// Initializing to undefined is implicit, but be careful to not
 				// accidentally cause a syntax error by removing the value
@@ -4099,7 +4006,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				// Bad (a syntax error):
 				//   "let {} = undefined;" => "let {};"
 				//
-				if b.mangleSyntax {
+				if p.mangleSyntax {
 					if _, ok := d.Binding.Data.(*ast.BIdentifier); ok {
 						if _, ok := d.Value.Data.(*ast.EUndefined); ok {
 							s.Decls[i].Value = nil
@@ -4111,9 +4018,9 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SVar:
 		for i, d := range s.Decls {
-			b.visitBinding(d.Binding)
+			p.visitBinding(d.Binding)
 			if d.Value != nil {
-				*d.Value = b.visitExpr(*d.Value)
+				*d.Value = p.visitExpr(*d.Value)
 
 				// Initializing to undefined is implicit, but be careful to not
 				// accidentally cause a syntax error by removing the value
@@ -4124,7 +4031,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				// Bad (a syntax error):
 				//   "var {} = undefined;" => "var {};"
 				//
-				if b.mangleSyntax {
+				if p.mangleSyntax {
 					if _, ok := d.Binding.Data.(*ast.BIdentifier); ok {
 						if _, ok := d.Value.Data.(*ast.EUndefined); ok {
 							s.Decls[i].Value = nil
@@ -4135,22 +4042,22 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SExpr:
-		s.Value = b.visitExpr(s.Value)
+		s.Value = p.visitExpr(s.Value)
 
 		// Trim expressions without side effects
-		if b.mangleSyntax && hasNoSideEffects(s.Value.Data) {
+		if p.mangleSyntax && hasNoSideEffects(s.Value.Data) {
 			stmt = ast.Stmt{stmt.Loc, &ast.SEmpty{}}
 		}
 
 	case *ast.SThrow:
-		s.Value = b.visitExpr(s.Value)
+		s.Value = p.visitExpr(s.Value)
 
 	case *ast.SReturn:
 		if s.Value != nil {
-			*s.Value = b.visitExpr(*s.Value)
+			*s.Value = p.visitExpr(*s.Value)
 
 			// Returning undefined is implicit
-			if b.mangleSyntax {
+			if p.mangleSyntax {
 				if _, ok := s.Value.Data.(*ast.EUndefined); ok {
 					s.Value = nil
 				}
@@ -4158,11 +4065,11 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SBlock:
-		b.pushScope(ast.ScopeBlock, stmt.Loc)
-		s.Stmts = b.visitStmts(s.Stmts)
-		b.popScope()
+		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
+		s.Stmts = p.visitStmts(s.Stmts)
+		p.popScope()
 
-		if b.mangleSyntax {
+		if p.mangleSyntax {
 			if len(s.Stmts) == 1 && !statementCaresAboutScope(s.Stmts[0]) {
 				// Unwrap blocks containing a single statement
 				stmt = s.Stmts[0]
@@ -4173,14 +4080,14 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SWith:
-		s.Value = b.visitExpr(s.Value)
-		s.Body = b.visitSingleStmt(s.Body)
+		s.Value = p.visitExpr(s.Value)
+		s.Body = p.visitSingleStmt(s.Body)
 
 	case *ast.SWhile:
-		s.Test = b.visitBooleanExpr(s.Test)
-		s.Body = b.visitSingleStmt(s.Body)
+		s.Test = p.visitBooleanExpr(s.Test)
+		s.Body = p.visitSingleStmt(s.Body)
 
-		if b.mangleSyntax {
+		if p.mangleSyntax {
 			// "while (a) {}" => "for (;a;) {}"
 			test := &s.Test
 			if boolean, ok := toBooleanWithoutSideEffects(s.Test.Data); ok && boolean {
@@ -4190,60 +4097,60 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SDoWhile:
-		s.Body = b.visitSingleStmt(s.Body)
-		s.Test = b.visitBooleanExpr(s.Test)
+		s.Body = p.visitSingleStmt(s.Body)
+		s.Test = p.visitBooleanExpr(s.Test)
 
 	case *ast.SIf:
-		s.Test = b.visitBooleanExpr(s.Test)
+		s.Test = p.visitBooleanExpr(s.Test)
 
 		// Fold constants
 		boolean, ok := toBooleanWithoutSideEffects(s.Test.Data)
 
 		// Mark the control flow as dead if the branch is never taken
 		if ok && !boolean {
-			old := b.isControlFlowDead
-			b.isControlFlowDead = true
-			s.Yes = b.visitSingleStmt(s.Yes)
-			b.isControlFlowDead = old
+			old := p.isControlFlowDead
+			p.isControlFlowDead = true
+			s.Yes = p.visitSingleStmt(s.Yes)
+			p.isControlFlowDead = old
 		} else {
-			s.Yes = b.visitSingleStmt(s.Yes)
+			s.Yes = p.visitSingleStmt(s.Yes)
 		}
 
 		// The "else" clause is optional
 		if s.No != nil {
 			// Mark the control flow as dead if the branch is never taken
 			if ok && boolean {
-				old := b.isControlFlowDead
-				b.isControlFlowDead = true
-				*s.No = b.visitSingleStmt(*s.No)
-				b.isControlFlowDead = old
+				old := p.isControlFlowDead
+				p.isControlFlowDead = true
+				*s.No = p.visitSingleStmt(*s.No)
+				p.isControlFlowDead = old
 			} else {
-				*s.No = b.visitSingleStmt(*s.No)
+				*s.No = p.visitSingleStmt(*s.No)
 			}
 
 			// Trim unnecessary "else" clauses
-			if b.mangleSyntax {
+			if p.mangleSyntax {
 				if _, ok := s.No.Data.(*ast.SEmpty); ok {
 					s.No = nil
 				}
 			}
 		}
 
-		if b.mangleSyntax {
+		if p.mangleSyntax {
 			stmt = mangleIf(stmt.Loc, s, ok, boolean)
 		}
 
 	case *ast.SFor:
-		b.pushScope(ast.ScopeBlock, stmt.Loc)
+		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
 		if s.Init != nil {
-			b.visitSingleStmt(*s.Init)
+			p.visitSingleStmt(*s.Init)
 		}
 
 		if s.Test != nil {
-			*s.Test = b.visitBooleanExpr(*s.Test)
+			*s.Test = p.visitBooleanExpr(*s.Test)
 
 			// A true value is implied
-			if b.mangleSyntax {
+			if p.mangleSyntax {
 				if boolean, ok := toBooleanWithoutSideEffects(s.Test.Data); ok && boolean {
 					s.Test = nil
 				}
@@ -4251,70 +4158,70 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 		if s.Update != nil {
-			*s.Update = b.visitExpr(*s.Update)
+			*s.Update = p.visitExpr(*s.Update)
 		}
-		s.Body = b.visitSingleStmt(s.Body)
-		b.popScope()
+		s.Body = p.visitSingleStmt(s.Body)
+		p.popScope()
 
 	case *ast.SForIn:
-		b.pushScope(ast.ScopeBlock, stmt.Loc)
-		b.visitSingleStmt(s.Init)
-		s.Value = b.visitExpr(s.Value)
-		s.Body = b.visitSingleStmt(s.Body)
-		b.popScope()
+		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
+		p.visitSingleStmt(s.Init)
+		s.Value = p.visitExpr(s.Value)
+		s.Body = p.visitSingleStmt(s.Body)
+		p.popScope()
 
 	case *ast.SForOf:
-		b.pushScope(ast.ScopeBlock, stmt.Loc)
-		b.visitSingleStmt(s.Init)
-		s.Value = b.visitExpr(s.Value)
-		s.Body = b.visitSingleStmt(s.Body)
-		b.popScope()
+		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
+		p.visitSingleStmt(s.Init)
+		s.Value = p.visitExpr(s.Value)
+		s.Body = p.visitSingleStmt(s.Body)
+		p.popScope()
 
 	case *ast.STry:
-		b.pushScope(ast.ScopeBlock, stmt.Loc)
-		b.tryBodyCount++
-		s.Body = b.visitStmts(s.Body)
-		b.tryBodyCount--
-		b.popScope()
+		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
+		p.tryBodyCount++
+		s.Body = p.visitStmts(s.Body)
+		p.tryBodyCount--
+		p.popScope()
 
 		if s.Catch != nil {
-			b.pushScope(ast.ScopeBlock, s.Catch.Loc)
+			p.pushScopeForVisitPass(ast.ScopeBlock, s.Catch.Loc)
 			if s.Catch.Binding != nil {
-				b.visitBinding(*s.Catch.Binding)
+				p.visitBinding(*s.Catch.Binding)
 			}
-			s.Catch.Body = b.visitStmts(s.Catch.Body)
-			b.popScope()
+			s.Catch.Body = p.visitStmts(s.Catch.Body)
+			p.popScope()
 		}
 
 		if s.Finally != nil {
-			b.pushScope(ast.ScopeBlock, s.Finally.Loc)
-			s.Finally.Stmts = b.visitStmts(s.Finally.Stmts)
-			b.popScope()
+			p.pushScopeForVisitPass(ast.ScopeBlock, s.Finally.Loc)
+			s.Finally.Stmts = p.visitStmts(s.Finally.Stmts)
+			p.popScope()
 		}
 
 	case *ast.SSwitch:
-		b.pushScope(ast.ScopeBlock, stmt.Loc)
-		s.Test = b.visitExpr(s.Test)
+		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
+		s.Test = p.visitExpr(s.Test)
 		for i, c := range s.Cases {
 			if c.Value != nil {
-				*c.Value = b.visitExpr(*c.Value)
+				*c.Value = p.visitExpr(*c.Value)
 			}
-			c.Body = b.visitStmts(c.Body)
+			c.Body = p.visitStmts(c.Body)
 
 			// Make sure the assignment to the body above is preserved
 			s.Cases[i] = c
 		}
-		b.popScope()
+		p.popScope()
 
 	case *ast.SFunction:
-		b.visitFn(&s.Fn, stmt.Loc)
+		p.visitFn(&s.Fn, stmt.Loc)
 
 	case *ast.SClass:
-		b.visitClass(&s.Class)
+		p.visitClass(&s.Class)
 		stmts = append(stmts, stmt)
 
 		// Lower class field syntax for browsers that don't support it
-		extraExprs, _ := b.lowerClass(stmt.Loc, &s.Class, true /* isStmt */)
+		extraExprs, _ := p.lowerClass(stmt.Loc, &s.Class, true /* isStmt */)
 		for _, expr := range extraExprs {
 			stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 		}
@@ -4328,36 +4235,36 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	return stmts
 }
 
-func (b *binder) visitClass(class *ast.Class) {
+func (p *parser) visitClass(class *ast.Class) {
 	if class.Extends != nil {
-		*class.Extends = b.visitExpr(*class.Extends)
+		*class.Extends = p.visitExpr(*class.Extends)
 	}
 	for i, property := range class.Properties {
-		class.Properties[i].Key = b.visitExpr(property.Key)
+		class.Properties[i].Key = p.visitExpr(property.Key)
 		if property.Value != nil {
-			*property.Value = b.visitExpr(*property.Value)
+			*property.Value = p.visitExpr(*property.Value)
 		}
 		if property.Initializer != nil {
-			*property.Initializer = b.visitExpr(*property.Initializer)
+			*property.Initializer = p.visitExpr(*property.Initializer)
 		}
 	}
 }
 
-func (b *binder) visitArgs(args []ast.Arg) {
+func (p *parser) visitArgs(args []ast.Arg) {
 	for _, arg := range args {
-		b.visitBinding(arg.Binding)
+		p.visitBinding(arg.Binding)
 		if arg.Default != nil {
-			*arg.Default = b.visitExpr(*arg.Default)
+			*arg.Default = p.visitExpr(*arg.Default)
 		}
 	}
 }
 
-func (b *binder) isDotDefineMatch(expr ast.Expr, parts []string) bool {
+func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 	if len(parts) > 1 {
 		// Intermediates must be dot expressions
 		e, ok := expr.Data.(*ast.EDot)
 		last := len(parts) - 1
-		return ok && parts[last] == e.Name && b.isDotDefineMatch(e.Target, parts[:last])
+		return ok && parts[last] == e.Name && p.isDotDefineMatch(e.Target, parts[:last])
 	}
 
 	// The last expression must be an identifier
@@ -4367,44 +4274,44 @@ func (b *binder) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 	}
 
 	// The name must match
-	name := b.loadNameFromRef(e.Ref)
+	name := p.loadNameFromRef(e.Ref)
 	if name != parts[0] {
 		return false
 	}
 
 	// The last symbol must be unbound
-	ref := b.findSymbol(name)
-	return b.symbols[ref.InnerIndex].Kind == ast.SymbolUnbound
+	ref := p.findSymbol(name)
+	return p.symbols[ref.InnerIndex].Kind == ast.SymbolUnbound
 }
 
-func (b *binder) stringsToMemberExpression(loc ast.Loc, parts []string) ast.Expr {
-	ref := b.findSymbol(parts[0])
+func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string) ast.Expr {
+	ref := p.findSymbol(parts[0])
 	value := ast.Expr{loc, &ast.EIdentifier{ref}}
 
 	// Substitute an EImportNamespace now if this is an import item
-	if importData, ok := b.exprForImportItem[ref]; ok {
+	if importData, ok := p.exprForImportItem[ref]; ok {
 		value.Data = importData
 	}
 
 	for i := 1; i < len(parts); i++ {
-		value = b.maybeRewriteDot(loc, &ast.EDot{value, parts[i], loc, false})
+		value = p.maybeRewriteDot(loc, &ast.EDot{value, parts[i], loc, false})
 	}
 	return value
 }
 
-func (b *binder) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc ast.Loc) bool {
+func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc ast.Loc) bool {
 	switch e := value.Data.(type) {
 	case *ast.ENumber:
 		if e.Value == 0 && math.Signbit(e.Value) {
-			b.log.AddWarning(b.source, value.Loc,
+			p.log.AddWarning(p.source, value.Loc,
 				fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op))
 			return true
 		}
 
 	case *ast.EArray, *ast.EArrow, *ast.EClass,
 		*ast.EFunction, *ast.EObject, *ast.ERegExp:
-		index := strings.LastIndex(b.source.Contents[:afterOpLoc.Start], op)
-		b.log.AddRangeWarning(b.source, ast.Range{ast.Loc{int32(index)}, int32(len(op))},
+		index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
+		p.log.AddRangeWarning(p.source, ast.Range{ast.Loc{int32(index)}, int32(len(op))},
 			fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!'))
 		return true
 	}
@@ -4415,24 +4322,24 @@ func (b *binder) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 // EDot nodes represent a property access. This function may return an
 // expression to replace the property access with. It assumes that the
 // target of the EDot expression has already been visited.
-func (b *binder) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
+func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 	// Rewrite property accesses on explicit namespace imports as an identifier.
 	// This lets us replace them easily in the printer to rebind them to
 	// something else without paying the cost of a whole-tree traversal during
 	// module linking just to rewrite these EDot expressions.
 	if id, ok := data.Target.Data.(*ast.EIdentifier); ok {
-		if importItems, ok := b.importItemsForNamespace[id.Ref]; ok {
+		if importItems, ok := p.importItemsForNamespace[id.Ref]; ok {
 			var itemRef ast.Ref
 			var importData *ast.ENamespaceImport
 
 			// Cache translation so each property access resolves to the same import
 			itemRef, ok := importItems[data.Name]
 			if ok {
-				importData = b.exprForImportItem[itemRef]
+				importData = p.exprForImportItem[itemRef]
 			} else {
 				// Generate a new import item symbol in the module scope
-				itemRef = b.newSymbol(ast.SymbolOther, data.Name)
-				b.moduleScope.Generated = append(b.moduleScope.Generated, itemRef)
+				itemRef = p.newSymbol(ast.SymbolOther, data.Name)
+				p.moduleScope.Generated = append(p.moduleScope.Generated, itemRef)
 
 				// Link the namespace import and the import item together
 				importItems[data.Name] = itemRef
@@ -4441,10 +4348,10 @@ func (b *binder) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 					ItemRef:      itemRef,
 					Alias:        data.Name,
 				}
-				b.exprForImportItem[itemRef] = importData
+				p.exprForImportItem[itemRef] = importData
 
 				// Make sure the printer prints this as a property access
-				b.indirectImportItems[itemRef] = true
+				p.indirectImportItems[itemRef] = true
 			}
 
 			// Move the use count from the namespace import over to the generated
@@ -4453,9 +4360,9 @@ func (b *binder) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 			// from the generated code entirely. This is worth doing because the
 			// generated code for a namespace import is pretty big (it creates an
 			// object with all exports as properties).
-			if !b.isControlFlowDead {
-				b.symbols[id.Ref.InnerIndex].UseCountEstimate--
-				b.symbols[itemRef.InnerIndex].UseCountEstimate++
+			if !p.isControlFlowDead {
+				p.symbols[id.Ref.InnerIndex].UseCountEstimate--
+				p.symbols[itemRef.InnerIndex].UseCountEstimate++
 			}
 
 			return ast.Expr{loc, importData}
@@ -4521,11 +4428,11 @@ func foldStringAddition(left ast.Expr, right ast.Expr) *ast.Expr {
 	return nil
 }
 
-func (b *binder) visitBooleanExpr(expr ast.Expr) ast.Expr {
-	expr = b.visitExpr(expr)
+func (p *parser) visitBooleanExpr(expr ast.Expr) ast.Expr {
+	expr = p.visitExpr(expr)
 
 	// Simplify syntax when we know it's used inside a boolean context
-	if b.mangleSyntax {
+	if p.mangleSyntax {
 		for {
 			// "!!a" => "a"
 			if not, ok := expr.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
@@ -4542,42 +4449,42 @@ func (b *binder) visitBooleanExpr(expr ast.Expr) ast.Expr {
 	return expr
 }
 
-func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
+func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
 		*ast.EBoolean, *ast.ENumber, *ast.EBigInt, *ast.EThis,
 		*ast.ERegExp, *ast.ENewTarget, *ast.EUndefined:
 
 	case *ast.EImportMeta:
-		if b.isBundling {
+		if p.isBundling {
 			// Replace "import.meta" with a dummy object when bundling
 			return ast.Expr{expr.Loc, &ast.EObject{}}
 		}
 
 	case *ast.ESpread:
-		e.Value = b.visitExpr(e.Value)
+		e.Value = p.visitExpr(e.Value)
 
 	case *ast.EIdentifier:
-		name := b.loadNameFromRef(e.Ref)
-		e.Ref = b.findSymbol(name)
+		name := p.loadNameFromRef(e.Ref)
+		e.Ref = p.findSymbol(name)
 
 		// Substitute an EImportNamespace now if this is an import item
-		if importData, ok := b.exprForImportItem[e.Ref]; ok {
+		if importData, ok := p.exprForImportItem[e.Ref]; ok {
 			return ast.Expr{expr.Loc, importData}
 		}
 
 		// Substitute user-specified defines for unbound symbols
-		if b.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound {
-			if value, ok := b.identifierDefines[name]; ok {
+		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound {
+			if value, ok := p.identifierDefines[name]; ok {
 				return ast.Expr{expr.Loc, value}
 			}
 		}
 
 		// Disallow capturing the "require" variable without calling it
-		if e.Ref == b.requireRef && e != b.callTarget {
-			if b.tryBodyCount == 0 {
-				r := lexer.RangeOfIdentifier(b.source, expr.Loc)
-				b.log.AddRangeError(b.source, r, "\"require\" must not be called indirectly")
+		if e.Ref == p.requireRef && e != p.callTarget {
+			if p.tryBodyCount == 0 {
+				r := lexer.RangeOfIdentifier(p.source, expr.Loc)
+				p.log.AddRangeError(p.source, r, "\"require\" must not be called indirectly")
 			} else {
 				// The "moment" library contains code that looks like this:
 				//
@@ -4603,24 +4510,24 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		// A missing tag is a fragment
 		tag := e.Tag
 		if tag == nil {
-			value := b.stringsToMemberExpression(expr.Loc, b.jsx.Fragment)
+			value := p.stringsToMemberExpression(expr.Loc, p.jsx.Fragment)
 			tag = &value
 		} else {
-			*tag = b.visitExpr(*tag)
+			*tag = p.visitExpr(*tag)
 		}
 
 		// Visit properties
-		for i, p := range e.Properties {
-			if p.Kind != ast.PropertySpread {
-				p.Key = b.visitExpr(p.Key)
+		for i, property := range e.Properties {
+			if property.Kind != ast.PropertySpread {
+				property.Key = p.visitExpr(property.Key)
 			}
-			if p.Value != nil {
-				*p.Value = b.visitExpr(*p.Value)
+			if property.Value != nil {
+				*property.Value = p.visitExpr(*property.Value)
 			}
-			if p.Initializer != nil {
-				*p.Initializer = b.visitExpr(*p.Initializer)
+			if property.Initializer != nil {
+				*property.Initializer = p.visitExpr(*property.Initializer)
 			}
-			e.Properties[i] = p
+			e.Properties[i] = property
 		}
 
 		// Arguments to createElement()
@@ -4632,60 +4539,60 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		}
 		if len(e.Children) > 0 {
 			for _, child := range e.Children {
-				args = append(args, b.visitExpr(child))
+				args = append(args, p.visitExpr(child))
 			}
 		}
 
 		// Call createElement()
-		return ast.Expr{expr.Loc, &ast.ECall{b.stringsToMemberExpression(expr.Loc, b.jsx.Factory), args, false}}
+		return ast.Expr{expr.Loc, &ast.ECall{p.stringsToMemberExpression(expr.Loc, p.jsx.Factory), args, false}}
 
 	case *ast.ETemplate:
 		if e.Tag != nil {
-			*e.Tag = b.visitExpr(*e.Tag)
+			*e.Tag = p.visitExpr(*e.Tag)
 		}
 		for i, part := range e.Parts {
-			e.Parts[i].Value = b.visitExpr(part.Value)
+			e.Parts[i].Value = p.visitExpr(part.Value)
 		}
 
 	case *ast.EBinary:
-		e.Left = b.visitExpr(e.Left)
-		e.Right = b.visitExpr(e.Right)
+		e.Left = p.visitExpr(e.Left)
+		e.Right = p.visitExpr(e.Right)
 
 		// Fold constants
 		switch e.Op {
 		case ast.BinOpLooseEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EBoolean{result}}
-			} else if !b.omitWarnings {
-				if !b.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
-					b.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
+			} else if !p.omitWarnings {
+				if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
+					p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
 				}
 			}
 
 		case ast.BinOpStrictEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EBoolean{result}}
-			} else if !b.omitWarnings {
-				if !b.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
-					b.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
+			} else if !p.omitWarnings {
+				if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
+					p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
 				}
 			}
 
 		case ast.BinOpLooseNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}
-			} else if !b.omitWarnings {
-				if !b.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
-					b.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
+			} else if !p.omitWarnings {
+				if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
+					p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
 				}
 			}
 
 		case ast.BinOpStrictNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}
-			} else if !b.omitWarnings {
-				if !b.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
-					b.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
+			} else if !p.omitWarnings {
+				if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
+					p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
 				}
 			}
 
@@ -4699,7 +4606,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				return e.Right
 
 			case *ast.EIdentifier:
-				if b.target < ESNext {
+				if p.target < ESNext {
 					// "a ?? b" => "a != null ? a : b"
 					return ast.Expr{expr.Loc, &ast.EIf{
 						ast.Expr{expr.Loc, &ast.EBinary{
@@ -4713,9 +4620,9 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				}
 
 			default:
-				if b.target < ESNext {
+				if p.target < ESNext {
 					// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
-					ref := b.generateTempRef()
+					ref := p.generateTempRef()
 					return ast.Expr{expr.Loc, &ast.EBinary{
 						ast.BinOpComma,
 						ast.Expr{expr.Loc, &ast.EBinary{
@@ -4769,21 +4676,21 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 	case *ast.EIndex:
-		e.Target = b.visitExpr(e.Target)
-		e.Index = b.visitExpr(e.Index)
+		e.Target = p.visitExpr(e.Target)
+		e.Index = p.visitExpr(e.Index)
 
-		if b.mangleSyntax {
+		if p.mangleSyntax {
 			// "a['b']" => "a.b"
 			if id, ok := e.Index.Data.(*ast.EString); ok {
 				text := lexer.UTF16ToString(id.Value)
 				if lexer.IsIdentifier(text) {
-					return b.maybeRewriteDot(expr.Loc, &ast.EDot{e.Target, text, e.Index.Loc, false})
+					return p.maybeRewriteDot(expr.Loc, &ast.EDot{e.Target, text, e.Index.Loc, false})
 				}
 			}
 		}
 
 	case *ast.EUnary:
-		e.Value = b.visitExpr(e.Value)
+		e.Value = p.visitExpr(e.Value)
 
 		// Fold constants
 		switch e.Op {
@@ -4815,29 +4722,29 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 
 	case *ast.EDot:
 		// Substitute user-specified defines
-		if define, ok := b.dotDefines[e.Name]; ok && b.isDotDefineMatch(expr, define.parts) {
+		if define, ok := p.dotDefines[e.Name]; ok && p.isDotDefineMatch(expr, define.parts) {
 			return ast.Expr{expr.Loc, define.value}
 		}
 
-		e.Target = b.visitExpr(e.Target)
-		return b.maybeRewriteDot(expr.Loc, e)
+		e.Target = p.visitExpr(e.Target)
+		return p.maybeRewriteDot(expr.Loc, e)
 
 	case *ast.EIf:
-		e.Test = b.visitBooleanExpr(e.Test)
+		e.Test = p.visitBooleanExpr(e.Test)
 
 		// Fold constants
 		if boolean, ok := toBooleanWithoutSideEffects(e.Test.Data); ok {
 			if boolean {
-				return b.visitExpr(e.Yes)
+				return p.visitExpr(e.Yes)
 			} else {
-				return b.visitExpr(e.No)
+				return p.visitExpr(e.No)
 			}
 		}
 
-		e.Yes = b.visitExpr(e.Yes)
-		e.No = b.visitExpr(e.No)
+		e.Yes = p.visitExpr(e.Yes)
+		e.No = p.visitExpr(e.No)
 
-		if b.mangleSyntax {
+		if p.mangleSyntax {
 			// "!a ? b : c" => "a ? c : b"
 			if not, ok := e.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
 				e.Test = not.Value
@@ -4846,67 +4753,67 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 	case *ast.EAwait:
-		e.Value = b.visitExpr(e.Value)
+		e.Value = p.visitExpr(e.Value)
 
 	case *ast.EYield:
 		if e.Value != nil {
-			*e.Value = b.visitExpr(*e.Value)
+			*e.Value = p.visitExpr(*e.Value)
 		}
 
 	case *ast.EArray:
 		for i, item := range e.Items {
-			e.Items[i] = b.visitExpr(item)
+			e.Items[i] = p.visitExpr(item)
 		}
 
 	case *ast.EObject:
 		for i, property := range e.Properties {
 			if property.Kind != ast.PropertySpread {
-				e.Properties[i].Key = b.visitExpr(property.Key)
+				e.Properties[i].Key = p.visitExpr(property.Key)
 			}
 			if property.Value != nil {
-				*property.Value = b.visitExpr(*property.Value)
+				*property.Value = p.visitExpr(*property.Value)
 			}
 			if property.Initializer != nil {
-				*property.Initializer = b.visitExpr(*property.Initializer)
+				*property.Initializer = p.visitExpr(*property.Initializer)
 			}
 		}
 
 	case *ast.EImport:
-		e.Expr = b.visitExpr(e.Expr)
+		e.Expr = p.visitExpr(e.Expr)
 
 		// Track calls to import() so we can use them while bundling
-		if b.isBundling {
+		if p.isBundling {
 			// The argument must be a string
 			str, ok := e.Expr.Data.(*ast.EString)
 			if !ok {
-				b.log.AddError(b.source, e.Expr.Loc, "The argument to import() must be a string literal")
+				p.log.AddError(p.source, e.Expr.Loc, "The argument to import() must be a string literal")
 				return expr
 			}
 
 			// Ignore calls to import() if the control flow is provably dead here.
 			// We don't want to spend time scanning the required files if they will
 			// never be used.
-			if b.isControlFlowDead {
+			if p.isControlFlowDead {
 				return ast.Expr{expr.Loc, &ast.ENull{}}
 			}
 
 			path := ast.Path{e.Expr.Loc, lexer.UTF16ToString(str.Value)}
-			b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
+			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
 		}
 
 	case *ast.ECall:
-		b.callTarget = e.Target.Data
-		e.Target = b.visitExpr(e.Target)
+		p.callTarget = e.Target.Data
+		e.Target = p.visitExpr(e.Target)
 		for i, arg := range e.Args {
-			e.Args[i] = b.visitExpr(arg)
+			e.Args[i] = p.visitExpr(arg)
 		}
 
 		// Track calls to require() so we can use them while bundling
-		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && id.Ref == b.requireRef && b.isBundling {
+		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef && p.isBundling {
 			// There must be one argument
 			if len(e.Args) != 1 {
-				b.log.AddError(b.source, expr.Loc,
-					fmt.Sprintf("Calls to %s() must take a single argument", b.symbols[id.Ref.InnerIndex].Name))
+				p.log.AddError(p.source, expr.Loc,
+					fmt.Sprintf("Calls to %s() must take a single argument", p.symbols[id.Ref.InnerIndex].Name))
 				return expr
 			}
 			arg := e.Args[0]
@@ -4914,41 +4821,41 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 			// The argument must be a string
 			str, ok := arg.Data.(*ast.EString)
 			if !ok {
-				b.log.AddError(b.source, arg.Loc,
-					fmt.Sprintf("The argument to %s() must be a string literal", b.symbols[id.Ref.InnerIndex].Name))
+				p.log.AddError(p.source, arg.Loc,
+					fmt.Sprintf("The argument to %s() must be a string literal", p.symbols[id.Ref.InnerIndex].Name))
 				return expr
 			}
 
 			// Ignore calls to require() if the control flow is provably dead here.
 			// We don't want to spend time scanning the required files if they will
 			// never be used.
-			if b.isControlFlowDead {
+			if p.isControlFlowDead {
 				return ast.Expr{expr.Loc, &ast.ENull{}}
 			}
 
 			path := ast.Path{arg.Loc, lexer.UTF16ToString(str.Value)}
-			b.importPaths = append(b.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
+			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
 
 			// Create a new expression to represent the operation
 			return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}
 		}
 
 	case *ast.ENew:
-		e.Target = b.visitExpr(e.Target)
+		e.Target = p.visitExpr(e.Target)
 		for i, arg := range e.Args {
-			e.Args[i] = b.visitExpr(arg)
+			e.Args[i] = p.visitExpr(arg)
 		}
 
 	case *ast.EArrow:
-		oldTryBodyCount := b.tryBodyCount
-		b.tryBodyCount = 0
+		oldTryBodyCount := p.tryBodyCount
+		p.tryBodyCount = 0
 
-		b.pushScope(ast.ScopeFunction, expr.Loc)
-		b.visitArgs(e.Args)
+		p.pushScopeForVisitPass(ast.ScopeFunction, expr.Loc)
+		p.visitArgs(e.Args)
 		if e.Expr != nil {
-			*e.Expr = b.visitExpr(*e.Expr)
+			*e.Expr = p.visitExpr(*e.Expr)
 
-			if b.mangleSyntax {
+			if p.mangleSyntax {
 				// "() => void 0" => "() => {}"
 				if _, ok := e.Expr.Data.(*ast.EUndefined); ok {
 					e.Expr = nil
@@ -4956,9 +4863,9 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				}
 			}
 		} else {
-			e.Stmts = b.visitStmts(e.Stmts)
+			e.Stmts = p.visitStmts(e.Stmts)
 
-			if b.mangleSyntax && len(e.Stmts) == 1 {
+			if p.mangleSyntax && len(e.Stmts) == 1 {
 				if s, ok := e.Stmts[0].Data.(*ast.SReturn); ok {
 					if s.Value != nil {
 						// "() => { return 123 }" => "() => 123"
@@ -4970,30 +4877,30 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				}
 			}
 		}
-		b.popScope()
+		p.popScope()
 
-		b.tryBodyCount = oldTryBodyCount
+		p.tryBodyCount = oldTryBodyCount
 
 	case *ast.EFunction:
 		if e.Fn.Name != nil {
-			b.pushScope(ast.ScopeFunctionName, expr.Loc)
+			p.pushScopeForVisitPass(ast.ScopeFunctionName, expr.Loc)
 		}
-		b.visitFn(&e.Fn, ast.Loc{expr.Loc.Start + locOffsetFunctionExpr})
+		p.visitFn(&e.Fn, ast.Loc{expr.Loc.Start + locOffsetFunctionExpr})
 		if e.Fn.Name != nil {
-			b.popScope()
+			p.popScope()
 		}
 
 	case *ast.EClass:
 		if e.Class.Name != nil {
-			b.pushScope(ast.ScopeClassName, expr.Loc)
+			p.pushScopeForVisitPass(ast.ScopeClassName, expr.Loc)
 		}
-		b.visitClass(&e.Class)
+		p.visitClass(&e.Class)
 		if e.Class.Name != nil {
-			b.popScope()
+			p.popScope()
 		}
 
 		// Lower class field syntax for browsers that don't support it
-		extraExprs, tempRef := b.lowerClass(expr.Loc, &e.Class, false /* isStmt */)
+		extraExprs, tempRef := p.lowerClass(expr.Loc, &e.Class, false /* isStmt */)
 		if len(extraExprs) > 0 {
 			expr = ast.Expr{expr.Loc, &ast.EBinary{
 				ast.BinOpAssign,
@@ -5017,16 +4924,16 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 	return expr
 }
 
-func (b *binder) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
-	oldTryBodyCount := b.tryBodyCount
-	b.tryBodyCount = 0
+func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
+	oldTryBodyCount := p.tryBodyCount
+	p.tryBodyCount = 0
 
-	b.pushScope(ast.ScopeFunction, scopeLoc)
-	b.visitArgs(fn.Args)
-	fn.Stmts = b.visitFnOrModuleStmts(fn.Stmts)
-	b.popScope()
+	p.pushScopeForVisitPass(ast.ScopeFunction, scopeLoc)
+	p.visitArgs(fn.Args)
+	fn.Stmts = p.visitFnOrModuleStmts(fn.Stmts)
+	p.popScope()
 
-	b.tryBodyCount = oldTryBodyCount
+	p.tryBodyCount = oldTryBodyCount
 }
 
 type LanguageTarget int8
@@ -5078,14 +4985,18 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 		target:       options.Target,
 		jsx:          options.JSX,
 		omitWarnings: options.OmitWarnings,
+		mangleSyntax: options.MangleSyntax,
+		isBundling:   options.IsBundling,
 
 		indirectImportItems:     make(map[ast.Ref]bool),
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),
 		exportAliases:           make(map[string]bool),
+		identifierDefines:       make(map[string]ast.E),
+		dotDefines:              make(map[string]dotDefine),
 	}
 
-	p.pushScope(ast.ScopeModule, ast.Loc{locModuleScope})
+	p.pushScopeForParsePass(ast.ScopeModule, ast.Loc{locModuleScope})
 
 	// The bundler pre-declares these symbols
 	p.exportsRef = p.newSymbol(ast.SymbolHoisted, "exports")
@@ -5094,9 +5005,9 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 
 	// Only declare these symbols if we're bundling
 	if options.IsBundling {
-		p.scope.Members["exports"] = p.exportsRef
-		p.scope.Members["require"] = p.requireRef
-		p.scope.Members["module"] = p.moduleRef
+		p.currentScope.Members["exports"] = p.exportsRef
+		p.currentScope.Members["require"] = p.requireRef
+		p.currentScope.Members["module"] = p.moduleRef
 	}
 
 	return p
@@ -5125,16 +5036,16 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	p := newParser(log, source, options)
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{allowImportAndExport: true})
 
-	b := newBinder(options, p)
+	p.prepareForVisitPass()
 
 	// Load user-specified defines
 	if options.Defines != nil {
 		for k, v := range options.Defines {
 			parts := strings.Split(k, ".")
 			if len(parts) == 1 {
-				b.identifierDefines[k] = v
+				p.identifierDefines[k] = v
 			} else {
-				b.dotDefines[parts[len(parts)-1]] = dotDefine{parts, v}
+				p.dotDefines[parts[len(parts)-1]] = dotDefine{parts, v}
 			}
 		}
 	}
@@ -5153,9 +5064,9 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		if !ok {
 			panic("Internal error")
 		}
-		b.visitExpr(expr.Value)
+		p.visitExpr(expr.Value)
 	} else {
-		stmts = b.visitFnOrModuleStmts(stmts)
+		stmts = p.visitFnOrModuleStmts(stmts)
 	}
 
 	// Clear the import paths if we don't want any dependencies
@@ -5163,88 +5074,61 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		p.importPaths = []ast.ImportPath{}
 	}
 
-	result = b.toAST(source, stmts, p.importPaths)
+	result = p.toAST(source, stmts, p.importPaths)
 	return
 }
 
 func ModuleExportsAST(log logging.Log, source logging.Source, expr ast.Expr) ast.AST {
 	options := ParseOptions{}
 	p := newParser(log, source, options)
-	b := newBinder(options, p)
+	p.prepareForVisitPass()
 
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
-	symbols.Outer[source.Index] = b.symbols
+	symbols.Outer[source.Index] = p.symbols
 
 	// "module.exports = [expr]"
 	stmt := ast.Stmt{expr.Loc, &ast.SExpr{ast.Expr{expr.Loc, &ast.EBinary{
 		ast.BinOpAssign,
-		ast.Expr{expr.Loc, &ast.EDot{ast.Expr{expr.Loc, &ast.EIdentifier{b.moduleRef}}, "exports", expr.Loc, false}},
+		ast.Expr{expr.Loc, &ast.EDot{ast.Expr{expr.Loc, &ast.EIdentifier{p.moduleRef}}, "exports", expr.Loc, false}},
 		expr,
 	}}}}
 
 	// Mark that we used the "module" variable
-	b.symbols[b.moduleRef.InnerIndex].UseCountEstimate++
+	p.symbols[p.moduleRef.InnerIndex].UseCountEstimate++
 
-	return b.toAST(source, []ast.Stmt{stmt}, []ast.ImportPath{})
+	return p.toAST(source, []ast.Stmt{stmt}, []ast.ImportPath{})
 }
 
-func newBinder(options ParseOptions, p *parser) *binder {
-	b := &binder{
-		identifierDefines: make(map[string]ast.E),
-		dotDefines:        make(map[string]dotDefine),
-
-		indirectImportItems:     p.indirectImportItems,
-		importItemsForNamespace: p.importItemsForNamespace,
-		exprForImportItem:       p.exprForImportItem,
-		exportAliases:           p.exportAliases,
-
-		jsx:          options.JSX,
-		omitWarnings: options.OmitWarnings,
-		mangleSyntax: options.MangleSyntax,
-		isBundling:   options.IsBundling,
-		target:       options.Target,
-
-		symbols:        p.symbols,
-		log:            p.log,
-		allocatedNames: p.allocatedNames,
-		scopesInOrder:  p.scopesInOrder,
-		exportsRef:     p.exportsRef,
-		requireRef:     p.requireRef,
-		moduleRef:      p.moduleRef,
-		source:         p.source,
-	}
-
-	b.pushScope(ast.ScopeModule, ast.Loc{locModuleScope})
-	b.moduleScope = b.scope
+func (p *parser) prepareForVisitPass() {
+	p.pushScopeForVisitPass(ast.ScopeModule, ast.Loc{locModuleScope})
+	p.moduleScope = p.currentScope
 
 	// Swap in certain literal values because those can be constant folded
-	b.identifierDefines["undefined"] = &ast.EUndefined{}
-	b.identifierDefines["NaN"] = &ast.ENumber{math.NaN()}
-	b.identifierDefines["Infinity"] = &ast.ENumber{math.Inf(1)}
-
-	return b
+	p.identifierDefines["undefined"] = &ast.EUndefined{}
+	p.identifierDefines["NaN"] = &ast.ENumber{math.NaN()}
+	p.identifierDefines["Infinity"] = &ast.ENumber{math.Inf(1)}
 }
 
-func (b *binder) toAST(source logging.Source, stmts []ast.Stmt, importPaths []ast.ImportPath) ast.AST {
+func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, importPaths []ast.ImportPath) ast.AST {
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
-	symbols.Outer[source.Index] = b.symbols
+	symbols.Outer[source.Index] = p.symbols
 
 	// Consider this module to have CommonJS exports if the "exports" or "module"
 	// variables were referenced somewhere in the module
-	hasCommonJsExports := symbols.Get(b.exportsRef).UseCountEstimate > 0 ||
-		symbols.Get(b.moduleRef).UseCountEstimate > 0
+	hasCommonJsExports := symbols.Get(p.exportsRef).UseCountEstimate > 0 ||
+		symbols.Get(p.moduleRef).UseCountEstimate > 0
 
 	return ast.AST{
-		ImportPaths:         append(importPaths, b.importPaths...),
-		IndirectImportItems: b.indirectImportItems,
+		ImportPaths:         append(importPaths, p.importPaths...),
+		IndirectImportItems: p.indirectImportItems,
 		HasCommonJsExports:  hasCommonJsExports,
 		Stmts:               stmts,
-		ModuleScope:         b.moduleScope,
+		ModuleScope:         p.moduleScope,
 		Symbols:             &symbols,
-		ExportsRef:          b.exportsRef,
-		RequireRef:          b.requireRef,
-		ModuleRef:           b.moduleRef,
+		ExportsRef:          p.exportsRef,
+		RequireRef:          p.requireRef,
+		ModuleRef:           p.moduleRef,
 	}
 }
