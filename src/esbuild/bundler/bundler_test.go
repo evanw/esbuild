@@ -444,13 +444,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function a() {
+			"/out/c.js": `export default function b() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class a {
+			"/out/e.js": `export default class b {
 }
 `,
 		},
@@ -1624,9 +1624,9 @@ func TestFalseRequire(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `bootstrap({
-  0(require) {
+  0() {
     // /entry.js
-    (require => require('/test.txt'))();
+    ((require2) => require2("/test.txt"))();
   }
 }, 0);
 `,

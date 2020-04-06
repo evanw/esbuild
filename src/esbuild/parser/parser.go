@@ -16,10 +16,6 @@ const (
 
 	// Offset ScopeFunction for EFunction to come after ScopeFunctionName
 	locOffsetFunctionExpr = 1
-
-	// Offset ScopeBlock for "catch" and "finally" to come after "try"
-	locOffsetTryCatch   = 1
-	locOffsetTryFinally = 2
 )
 
 type scopeOrder struct {
@@ -182,6 +178,14 @@ type parser struct {
 	jsx                      JSXOptions
 	latestReturnHadSemicolon bool
 	allocatedNames           []string
+	exportsRef               ast.Ref
+	requireRef               ast.Ref
+	moduleRef                ast.Ref
+
+	indirectImportItems     map[ast.Ref]bool
+	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
+	exprForImportItem       map[ast.Ref]*ast.ENamespaceImport
+	exportAliases           map[string]bool
 
 	// In addition to the current scope, we also track a map containing all
 	// scopes created during the parser pass. These scopes will later be
@@ -201,6 +205,7 @@ type parser struct {
 	// pass using the location of the corresponding statement (i.e. the byte
 	// index from the start of the file).
 	scope         *ast.Scope
+	symbols       []ast.Symbol
 	scopesInOrder []scopeOrder
 }
 
@@ -229,6 +234,115 @@ func (p *parser) pushScope(kind ast.ScopeKind, loc ast.Loc) {
 
 func (p *parser) popScope() {
 	p.scope = p.scope.Parent
+}
+
+func (p *parser) loadNameFromRef(ref ast.Ref) string {
+	if ref.OuterIndex == 0x80000000 {
+		return p.allocatedNames[ref.InnerIndex]
+	} else {
+		return p.source.Contents[ref.InnerIndex : int32(ref.InnerIndex)-int32(ref.OuterIndex)]
+	}
+}
+
+func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
+	ref := ast.Ref{p.source.Index, uint32(len(p.symbols))}
+	p.symbols = append(p.symbols, ast.Symbol{kind, 0, name, ast.InvalidRef})
+	return ref
+}
+
+func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) ast.Ref {
+	scope := p.scope
+
+	// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
+	if kind == ast.SymbolHoisted {
+		for scope.Kind != ast.ScopeFunction && scope.Kind != ast.ScopeModule {
+			if existing, ok := scope.Members[name]; ok {
+				symbol := p.symbols[existing.InnerIndex]
+				switch symbol.Kind {
+				case ast.SymbolUnbound, ast.SymbolHoisted:
+					// Continue on to the parent scope
+				case ast.SymbolCatchIdentifier:
+					// This is a weird special case. Silently reuse this symbol.
+					return existing
+				default:
+					r := lexer.RangeOfIdentifier(p.source, loc)
+					p.log.AddRangeError(p.source, r, fmt.Sprintf("%q has already been declared", name))
+					return existing
+				}
+			}
+			scope = scope.Parent
+		}
+	}
+
+	// Allocate a new symbol
+	ref := p.newSymbol(kind, name)
+
+	// Check for a collision in the declaring scope
+	if existing, ok := scope.Members[name]; ok {
+		symbol := p.symbols[existing.InnerIndex]
+		if symbol.Kind == ast.SymbolUnbound {
+			p.symbols[existing.InnerIndex].Link = ref
+		} else if kind != ast.SymbolHoisted || symbol.Kind != ast.SymbolHoisted {
+			r := lexer.RangeOfIdentifier(p.source, loc)
+			p.log.AddRangeError(p.source, r, fmt.Sprintf("%q has already been declared", name))
+			return existing
+		} else {
+			ref = existing
+		}
+	}
+
+	// Hoist "var" symbols up to the enclosing function scope
+	if kind == ast.SymbolHoisted {
+		for s := p.scope; s.Kind != ast.ScopeFunction && s.Kind != ast.ScopeModule; s = s.Parent {
+			if existing, ok := s.Members[name]; ok {
+				symbol := p.symbols[existing.InnerIndex]
+				if symbol.Kind == ast.SymbolUnbound {
+					p.symbols[existing.InnerIndex].Link = ref
+				}
+			}
+			s.Members[name] = ref
+		}
+	}
+
+	// Overwrite this name in the declaring scope
+	scope.Members[name] = ref
+	return ref
+}
+
+func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, isExport bool) {
+	switch d := binding.Data.(type) {
+	case *ast.BMissing:
+
+	case *ast.BIdentifier:
+		name := p.loadNameFromRef(d.Ref)
+		d.Ref = p.declareSymbol(kind, binding.Loc, name)
+		if isExport {
+			p.recordExport(binding.Loc, name)
+		}
+
+	case *ast.BArray:
+		for _, i := range d.Items {
+			p.declareBinding(kind, i.Binding, isExport)
+		}
+
+	case *ast.BObject:
+		for _, property := range d.Properties {
+			p.declareBinding(kind, property.Value, isExport)
+		}
+
+	default:
+		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+	}
+}
+
+func (p *parser) recordExport(loc ast.Loc, alias string) {
+	if p.exportAliases[alias] {
+		// Warn about duplicate exports
+		p.log.AddRangeError(p.source, lexer.RangeOfIdentifier(p.source, loc),
+			fmt.Sprintf("Multiple exports with the same name %q", alias))
+	} else {
+		p.exportAliases[alias] = true
+	}
 }
 
 func (p *parser) addError(loc ast.Loc, text string) {
@@ -553,17 +667,27 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 }
 
 // This assumes that the "=>" token has already been parsed by the caller
-func (p *parser) parseArrowBody(opts fnOpts) ([]ast.Stmt, *ast.Expr) {
+func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
+	for _, arg := range args {
+		p.declareBinding(ast.SymbolHoisted, arg.Binding, false /* isExport */)
+	}
+
 	if p.lexer.Token == lexer.TOpenBrace {
 		stmts := p.parseFnBodyStmts(opts)
-		return stmts, nil
+		return &ast.EArrow{
+			Args:  args,
+			Stmts: stmts,
+		}
 	}
 
 	oldFnOpts := p.currentFnOpts
 	p.currentFnOpts = opts
 	expr := p.parseExpr(ast.LComma)
 	p.currentFnOpts = oldFnOpts
-	return []ast.Stmt{}, &expr
+	return &ast.EArrow{
+		Args: args,
+		Expr: &expr,
+	}
 }
 
 func (p *parser) isAsyncExprSuffix() bool {
@@ -594,8 +718,7 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		p.pushScope(ast.ScopeFunction, asyncRange.Loc)
 		defer p.popScope()
 
-		stmts, expr := p.parseArrowBody(fnOpts{})
-		return ast.Expr{asyncRange.Loc, &ast.EArrow{Args: []ast.Arg{arg}, Stmts: stmts, Expr: expr}}
+		return ast.Expr{asyncRange.Loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
 
 		// "async x => {}"
 	case lexer.TIdentifier:
@@ -608,13 +731,9 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		p.pushScope(ast.ScopeFunction, asyncRange.Loc)
 		defer p.popScope()
 
-		stmts, expr := p.parseArrowBody(fnOpts{allowAwait: true})
-		return ast.Expr{asyncRange.Loc, &ast.EArrow{
-			IsAsync: true,
-			Args:    []ast.Arg{arg},
-			Stmts:   stmts,
-			Expr:    expr,
-		}}
+		arrow := p.parseArrowBody([]ast.Arg{arg}, fnOpts{allowAwait: true})
+		arrow.IsAsync = true
+		return ast.Expr{asyncRange.Loc, arrow}
 
 		// "async()"
 		// "async () => {}"
@@ -645,8 +764,8 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 
 	if p.lexer.Token == lexer.TIdentifier {
 		p.pushScope(ast.ScopeFunctionName, loc)
-		temp := ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
-		name = &temp
+		nameLoc := p.lexer.Loc()
+		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 		p.lexer.Next()
 	}
 
@@ -734,14 +853,10 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 		p.pushScope(ast.ScopeFunction, loc)
 		defer p.popScope()
 
-		stmts, expr := p.parseArrowBody(fnOpts{allowAwait: isAsync})
-		return ast.Expr{loc, &ast.EArrow{
-			IsAsync:    isAsync,
-			Args:       args,
-			HasRestArg: spreadRange.Len > 0,
-			Stmts:      stmts,
-			Expr:       expr,
-		}}
+		arrow := p.parseArrowBody(args, fnOpts{allowAwait: isAsync})
+		arrow.IsAsync = isAsync
+		arrow.HasRestArg = spreadRange.Len > 0
+		return ast.Expr{loc, arrow}
 	}
 
 	// Are these arguments for a call to a function named "async"?
@@ -945,8 +1060,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			p.pushScope(ast.ScopeFunction, loc)
 			defer p.popScope()
 
-			stmts, expr := p.parseArrowBody(fnOpts{})
-			return ast.Expr{loc, &ast.EArrow{Args: []ast.Arg{arg}, Stmts: stmts, Expr: expr}}
+			return ast.Expr{loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
 		}
 
 		ref := p.storeNameInRef(name)
@@ -1057,8 +1171,8 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 		if p.lexer.Token == lexer.TIdentifier {
 			p.pushScope(ast.ScopeClassName, loc)
-			temp := ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
-			name = &temp
+			nameLoc := p.lexer.Loc()
+			name = &ast.LocRef{loc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 			p.lexer.Next()
 		}
 
@@ -1938,12 +2052,13 @@ func (p *parser) parseTemplateParts(includeRaw bool) []ast.TemplatePart {
 	return parts
 }
 
-func (p *parser) parseDecls() []ast.Decl {
+func (p *parser) parseAndDeclareDecls(kind ast.SymbolKind, isExport bool) []ast.Decl {
 	decls := []ast.Decl{}
 
 	for {
 		var value *ast.Expr
 		local := p.parseBinding()
+		p.declareBinding(kind, local, isExport)
 
 		if p.lexer.Token == lexer.TEquals {
 			p.lexer.Next()
@@ -2183,6 +2298,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) ast.Fn {
 		}
 
 		arg := p.parseBinding()
+		p.declareBinding(ast.SymbolHoisted, arg, false /* isExport */)
 
 		var defaultValue *ast.Expr
 		if !hasRestArg && p.lexer.Token == lexer.TEquals {
@@ -2268,9 +2384,6 @@ func (p *parser) parsePath() ast.Path {
 
 // This assumes the "function" token has already been parsed
 func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.Stmt {
-	p.pushScope(ast.ScopeFunction, loc)
-	defer p.popScope()
-
 	isGenerator := p.lexer.Token == lexer.TAsterisk
 	if !opts.allowLexicalDecl && (isGenerator || isAsync) {
 		p.forbidLexicalDecl(loc)
@@ -2280,9 +2393,17 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	}
 	var name *ast.LocRef
 	if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
-		name = &ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
+		nameLoc := p.lexer.Loc()
+		nameText := p.lexer.Identifier
 		p.lexer.Expect(lexer.TIdentifier)
+		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)}
+		if opts.isExport {
+			p.recordExport(nameLoc, nameText)
+		}
 	}
+
+	p.pushScope(ast.ScopeFunction, loc)
+	defer p.popScope()
 
 	fn := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
@@ -2330,7 +2451,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			return ast.Stmt{}
 
 		case lexer.TDefault:
-			name := ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Raw())}
+			defaultName := ast.LocRef{p.lexer.Loc(), p.newSymbol(ast.SymbolOther, "default")}
+			p.scope.Generated = append(p.scope.Generated, defaultName.Ref)
+			p.recordExport(defaultName.Loc, "default")
 			p.lexer.Next()
 
 			if p.lexer.IsContextualKeyword("async") {
@@ -2341,7 +2464,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					isNameOptional:   true,
 					allowLexicalDecl: true,
 				}, true /* isAsync */)
-				return ast.Stmt{loc, &ast.SExportDefault{name, ast.ExprOrStmt{Stmt: &stmt}}}
+				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
 			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass {
@@ -2349,12 +2472,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					isNameOptional:   true,
 					allowLexicalDecl: true,
 				})
-				return ast.Stmt{loc, &ast.SExportDefault{name, ast.ExprOrStmt{Stmt: &stmt}}}
+				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
 			expr := p.parseExpr(ast.LComma)
 			p.lexer.ExpectOrInsertSemicolon()
-			return ast.Stmt{loc, &ast.SExportDefault{name, ast.ExprOrStmt{Expr: &expr}}}
+			return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
 
 		case lexer.TAsterisk:
 			p.lexer.Next()
@@ -2400,15 +2523,20 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		var name *ast.LocRef
 		if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
-			name = &ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
+			nameLoc := p.lexer.Loc()
+			nameText := p.lexer.Identifier
 			p.lexer.Expect(lexer.TIdentifier)
+			name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, nameText)}
+			if opts.isExport {
+				p.recordExport(nameLoc, nameText)
+			}
 		}
 		class := p.parseClass(name)
 		return ast.Stmt{loc, &ast.SClass{class, opts.isExport}}
 
 	case lexer.TVar:
 		p.lexer.Next()
-		decls := p.parseDecls()
+		decls := p.parseAndDeclareDecls(ast.SymbolHoisted, opts.isExport)
 		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Stmt{loc, &ast.SVar{decls, opts.isExport}}
 
@@ -2417,7 +2545,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.forbidLexicalDecl(loc)
 		}
 		p.lexer.Next()
-		decls := p.parseDecls()
+		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts.isExport)
 		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Stmt{loc, &ast.SLet{decls, opts.isExport}}
 
@@ -2426,7 +2554,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.forbidLexicalDecl(loc)
 		}
 		p.lexer.Next()
-		decls := p.parseDecls()
+		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts.isExport)
 		p.lexer.ExpectOrInsertSemicolon()
 		p.requireInitializers(decls)
 		return ast.Stmt{loc, &ast.SConst{decls, opts.isExport}}
@@ -2478,7 +2606,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 	case lexer.TSwitch:
 		p.pushScope(ast.ScopeBlock, loc)
-		p.popScope()
+		defer p.popScope()
 
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TOpenParen)
@@ -2533,10 +2661,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 
 		var catch *ast.Catch = nil
-		var finally *[]ast.Stmt = nil
+		var finally *ast.Finally = nil
 
 		if p.lexer.Token == lexer.TCatch {
-			p.pushScope(ast.ScopeBlock, ast.Loc{loc.Start + locOffsetTryCatch})
+			catchLoc := p.lexer.Loc()
+			p.pushScope(ast.ScopeBlock, catchLoc)
 			p.lexer.Next()
 			var binding *ast.Binding
 
@@ -2546,24 +2675,32 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			} else {
 				p.lexer.Expect(lexer.TOpenParen)
 				value := p.parseBinding()
-				binding = &value
 				p.lexer.Expect(lexer.TCloseParen)
+
+				// Bare identifiers are a special case
+				kind := ast.SymbolOther
+				if _, ok := value.Data.(*ast.BIdentifier); ok {
+					kind = ast.SymbolCatchIdentifier
+				}
+				p.declareBinding(kind, value, false /* isExport */)
+				binding = &value
 			}
 
 			p.lexer.Expect(lexer.TOpenBrace)
 			stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 			p.lexer.Next()
-			catch = &ast.Catch{binding, stmts}
+			catch = &ast.Catch{catchLoc, binding, stmts}
 			p.popScope()
 		}
 
 		if p.lexer.Token == lexer.TFinally || catch == nil {
-			p.pushScope(ast.ScopeBlock, ast.Loc{loc.Start + locOffsetTryFinally})
+			finallyLoc := p.lexer.Loc()
+			p.pushScope(ast.ScopeBlock, finallyLoc)
 			p.lexer.Expect(lexer.TFinally)
 			p.lexer.Expect(lexer.TOpenBrace)
 			stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 			p.lexer.Next()
-			finally = &stmts
+			finally = &ast.Finally{finallyLoc, stmts}
 			p.popScope()
 		}
 
@@ -2599,17 +2736,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		switch p.lexer.Token {
 		case lexer.TVar:
 			p.lexer.Next()
-			decls = p.parseDecls()
+			decls = p.parseAndDeclareDecls(ast.SymbolHoisted, false /* isExport */)
 			init = &ast.Stmt{initLoc, &ast.SVar{decls, false}}
 
 		case lexer.TLet:
 			p.lexer.Next()
-			decls = p.parseDecls()
+			decls = p.parseAndDeclareDecls(ast.SymbolOther, false /* isExport */)
 			init = &ast.Stmt{initLoc, &ast.SLet{decls, false}}
 
 		case lexer.TConst:
 			p.lexer.Next()
-			decls = p.parseDecls()
+			decls = p.parseAndDeclareDecls(ast.SymbolOther, false /* isExport */)
 			init = &ast.Stmt{initLoc, &ast.SConst{decls, false}}
 
 		case lexer.TSemicolon:
@@ -2677,7 +2814,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 	case lexer.TImport:
 		name := p.lexer.Identifier
 		p.lexer.Next()
-		stmt := ast.SImport{NamespaceRef: ast.InvalidRef}
+		stmt := ast.SImport{}
 
 		switch p.lexer.Token {
 		case lexer.TOpenParen, lexer.TDot:
@@ -2760,6 +2897,49 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		stmt.Path = p.parsePath()
 		p.lexer.ExpectOrInsertSemicolon()
 		p.importPaths = append(p.importPaths, ast.ImportPath{Path: stmt.Path})
+
+		if stmt.StarLoc != nil {
+			name := p.loadNameFromRef(stmt.NamespaceRef)
+			stmt.NamespaceRef = p.declareSymbol(ast.SymbolOther, *stmt.StarLoc, name)
+		} else {
+			// Generate a symbol for the namespace
+			name := ast.GenerateNonUniqueNameFromPath(stmt.Path.Text)
+			stmt.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
+			p.scope.Generated = append(p.scope.Generated, stmt.NamespaceRef)
+		}
+		itemRefs := make(map[string]ast.Ref)
+
+		// Link the default item to the namespace
+		if stmt.DefaultName != nil {
+			name := p.loadNameFromRef(stmt.DefaultName.Ref)
+			ref := p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, name)
+			p.exprForImportItem[ref] = &ast.ENamespaceImport{
+				NamespaceRef: stmt.NamespaceRef,
+				ItemRef:      ref,
+				Alias:        "default",
+			}
+			stmt.DefaultName.Ref = ref
+			itemRefs["default"] = ref
+		}
+
+		// Link each import item to the namespace
+		if stmt.Items != nil {
+			for i, item := range *stmt.Items {
+				name := p.loadNameFromRef(item.Name.Ref)
+				ref := p.declareSymbol(ast.SymbolOther, item.Name.Loc, name)
+				p.exprForImportItem[ref] = &ast.ENamespaceImport{
+					NamespaceRef: stmt.NamespaceRef,
+					ItemRef:      ref,
+					Alias:        item.Alias,
+				}
+				(*stmt.Items)[i].Name.Ref = ref
+				itemRefs[item.Alias] = ref
+			}
+		}
+
+		// Track the items for this namespace
+		p.importItemsForNamespace[stmt.NamespaceRef] = itemRefs
+
 		return ast.Stmt{loc, &stmt}
 
 	case lexer.TBreak:
@@ -2910,8 +3090,6 @@ type binder struct {
 	source            logging.Source
 	moduleScope       *ast.Scope
 	scope             *ast.Scope
-	scopesInOrder     []scopeOrder // This is a copy from the parser
-	symbols           []ast.Symbol
 	unbound           []ast.Ref
 	importPaths       []ast.ImportPath
 	exportsRef        ast.Ref
@@ -2928,6 +3106,10 @@ type binder struct {
 	tryBodyCount      int
 	tempRefs          []ast.Ref // Temporary variables used for lowering
 	target            LanguageTarget
+
+	// These are copies from the parser
+	scopesInOrder []scopeOrder
+	symbols       []ast.Symbol
 
 	isBundling              bool
 	indirectImportItems     map[ast.Ref]bool
@@ -3158,11 +3340,11 @@ func shouldKeepStmtInDeadControlFlow(stmt ast.Stmt) bool {
 	}
 }
 
-func (b *binder) declareAndVisitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
+func (b *binder) visitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
 	oldTempRefs := b.tempRefs
 	b.tempRefs = []ast.Ref{}
 
-	stmts = b.declareAndVisitStmts(stmts)
+	stmts = b.visitStmts(stmts)
 
 	// Append the temporary variable to the end of the function or module
 	if len(b.tempRefs) > 0 {
@@ -3177,11 +3359,7 @@ func (b *binder) declareAndVisitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
 	return stmts
 }
 
-func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
-	for _, stmt := range stmts {
-		b.declareStmt(stmt)
-	}
-
+func (b *binder) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 	// Visit all statements first
 	visited := make([]ast.Stmt, 0, len(stmts))
 	for _, stmt := range stmts {
@@ -3485,8 +3663,8 @@ func (b *binder) declareAndVisitStmts(stmts []ast.Stmt) []ast.Stmt {
 	return result
 }
 
-func (b *binder) declareAndVisitStmt(stmt ast.Stmt) ast.Stmt {
-	stmts := b.declareAndVisitStmts([]ast.Stmt{stmt})
+func (b *binder) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
+	stmts := b.visitStmts([]ast.Stmt{stmt})
 
 	// This statement could potentially expand to several statements
 	switch len(stmts) {
@@ -3642,32 +3820,6 @@ func (b *binder) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 	return
 }
 
-func (b *binder) declareBinding(kind ast.SymbolKind, binding ast.Binding, isExport bool) {
-	switch d := binding.Data.(type) {
-	case *ast.BMissing:
-
-	case *ast.BIdentifier:
-		name := b.loadNameFromRef(d.Ref)
-		d.Ref = b.declareSymbol(kind, binding.Loc, name)
-		if isExport {
-			b.recordExport(binding.Loc, name)
-		}
-
-	case *ast.BArray:
-		for _, i := range d.Items {
-			b.declareBinding(kind, i.Binding, isExport)
-		}
-
-	case *ast.BObject:
-		for _, p := range d.Properties {
-			b.declareBinding(kind, p.Value, isExport)
-		}
-
-	default:
-		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
-	}
-}
-
 func (b *binder) visitBinding(binding ast.Binding) {
 	switch d := binding.Data.(type) {
 	case *ast.BMissing, *ast.BIdentifier:
@@ -3694,97 +3846,6 @@ func (b *binder) visitBinding(binding ast.Binding) {
 
 	default:
 		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
-	}
-}
-
-// Declare anything up front that could potentially be bound by sibling statements
-func (b *binder) declareStmt(stmt ast.Stmt) {
-	switch s := stmt.Data.(type) {
-	case *ast.SConst:
-		for _, d := range s.Decls {
-			b.declareBinding(ast.SymbolOther, d.Binding, s.IsExport)
-		}
-
-	case *ast.SLet:
-		for _, d := range s.Decls {
-			b.declareBinding(ast.SymbolOther, d.Binding, s.IsExport)
-		}
-
-	case *ast.SVar:
-		for _, d := range s.Decls {
-			b.declareBinding(ast.SymbolHoisted, d.Binding, s.IsExport)
-		}
-
-	case *ast.SFunction:
-		if s.Fn.Name != nil {
-			name := b.loadNameFromRef(s.Fn.Name.Ref)
-			s.Fn.Name.Ref = b.declareSymbol(ast.SymbolHoisted, s.Fn.Name.Loc, name)
-			if s.IsExport {
-				b.recordExport(s.Fn.Name.Loc, name)
-			}
-		}
-
-	case *ast.SClass:
-		if s.Class.Name != nil {
-			name := b.loadNameFromRef(s.Class.Name.Ref)
-			s.Class.Name.Ref = b.declareSymbol(ast.SymbolOther, s.Class.Name.Loc, name)
-			if s.IsExport {
-				b.recordExport(s.Class.Name.Loc, name)
-			}
-		}
-
-	case *ast.SImport:
-		if s.StarLoc != nil {
-			name := b.loadNameFromRef(s.NamespaceRef)
-			s.NamespaceRef = b.declareSymbol(ast.SymbolOther, *s.StarLoc, name)
-		} else {
-			// Generate a symbol for the namespace
-			name := ast.GenerateNonUniqueNameFromPath(s.Path.Text)
-			s.NamespaceRef = b.newSymbol(ast.SymbolOther, name)
-			b.scope.Generated = append(b.scope.Generated, s.NamespaceRef)
-		}
-		itemRefs := make(map[string]ast.Ref)
-
-		// Link the default item to the namespace
-		if s.DefaultName != nil {
-			name := b.loadNameFromRef(s.DefaultName.Ref)
-			ref := b.declareSymbol(ast.SymbolOther, s.DefaultName.Loc, name)
-			b.exprForImportItem[ref] = &ast.ENamespaceImport{
-				NamespaceRef: s.NamespaceRef,
-				ItemRef:      ref,
-				Alias:        "default",
-			}
-			s.DefaultName.Ref = ref
-			itemRefs["default"] = ref
-		}
-
-		// Link each import item to the namespace
-		if s.Items != nil {
-			for i, item := range *s.Items {
-				name := b.loadNameFromRef(item.Name.Ref)
-				ref := b.declareSymbol(ast.SymbolOther, item.Name.Loc, name)
-				b.exprForImportItem[ref] = &ast.ENamespaceImport{
-					NamespaceRef: s.NamespaceRef,
-					ItemRef:      ref,
-					Alias:        item.Alias,
-				}
-				(*s.Items)[i].Name.Ref = ref
-				itemRefs[item.Alias] = ref
-			}
-		}
-
-		// Track the items for this namespace
-		b.importItemsForNamespace[s.NamespaceRef] = itemRefs
-
-	case *ast.SExportDefault:
-		if s.Value.Stmt != nil {
-			b.declareStmt(*s.Value.Stmt)
-		}
-		name := b.loadNameFromRef(s.DefaultName.Ref)
-		ref := b.newSymbol(ast.SymbolOther, name)
-		s.DefaultName.Ref = ref
-		b.scope.Generated = append(b.scope.Generated, ref)
-		b.recordExport(s.DefaultName.Loc, name)
 	}
 }
 
@@ -4012,7 +4073,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		ref := b.newSymbol(ast.SymbolOther, name)
 		s.Name.Ref = ref
 		b.scope.LabelRef = ref
-		s.Stmt = b.declareAndVisitStmt(s.Stmt)
+		s.Stmt = b.visitSingleStmt(s.Stmt)
 		b.popScope()
 
 	case *ast.SConst:
@@ -4098,7 +4159,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SBlock:
 		b.pushScope(ast.ScopeBlock, stmt.Loc)
-		s.Stmts = b.declareAndVisitStmts(s.Stmts)
+		s.Stmts = b.visitStmts(s.Stmts)
 		b.popScope()
 
 		if b.mangleSyntax {
@@ -4113,11 +4174,11 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SWith:
 		s.Value = b.visitExpr(s.Value)
-		s.Body = b.declareAndVisitStmt(s.Body)
+		s.Body = b.visitSingleStmt(s.Body)
 
 	case *ast.SWhile:
 		s.Test = b.visitBooleanExpr(s.Test)
-		s.Body = b.declareAndVisitStmt(s.Body)
+		s.Body = b.visitSingleStmt(s.Body)
 
 		if b.mangleSyntax {
 			// "while (a) {}" => "for (;a;) {}"
@@ -4129,7 +4190,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SDoWhile:
-		s.Body = b.declareAndVisitStmt(s.Body)
+		s.Body = b.visitSingleStmt(s.Body)
 		s.Test = b.visitBooleanExpr(s.Test)
 
 	case *ast.SIf:
@@ -4142,10 +4203,10 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		if ok && !boolean {
 			old := b.isControlFlowDead
 			b.isControlFlowDead = true
-			s.Yes = b.declareAndVisitStmt(s.Yes)
+			s.Yes = b.visitSingleStmt(s.Yes)
 			b.isControlFlowDead = old
 		} else {
-			s.Yes = b.declareAndVisitStmt(s.Yes)
+			s.Yes = b.visitSingleStmt(s.Yes)
 		}
 
 		// The "else" clause is optional
@@ -4154,10 +4215,10 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			if ok && boolean {
 				old := b.isControlFlowDead
 				b.isControlFlowDead = true
-				*s.No = b.declareAndVisitStmt(*s.No)
+				*s.No = b.visitSingleStmt(*s.No)
 				b.isControlFlowDead = old
 			} else {
-				*s.No = b.declareAndVisitStmt(*s.No)
+				*s.No = b.visitSingleStmt(*s.No)
 			}
 
 			// Trim unnecessary "else" clauses
@@ -4175,7 +4236,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SFor:
 		b.pushScope(ast.ScopeBlock, stmt.Loc)
 		if s.Init != nil {
-			b.declareAndVisitStmt(*s.Init)
+			b.visitSingleStmt(*s.Init)
 		}
 
 		if s.Test != nil {
@@ -4192,58 +4253,53 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		if s.Update != nil {
 			*s.Update = b.visitExpr(*s.Update)
 		}
-		s.Body = b.declareAndVisitStmt(s.Body)
+		s.Body = b.visitSingleStmt(s.Body)
 		b.popScope()
 
 	case *ast.SForIn:
 		b.pushScope(ast.ScopeBlock, stmt.Loc)
-		b.declareAndVisitStmt(s.Init)
+		b.visitSingleStmt(s.Init)
 		s.Value = b.visitExpr(s.Value)
-		s.Body = b.declareAndVisitStmt(s.Body)
+		s.Body = b.visitSingleStmt(s.Body)
 		b.popScope()
 
 	case *ast.SForOf:
 		b.pushScope(ast.ScopeBlock, stmt.Loc)
-		b.declareAndVisitStmt(s.Init)
+		b.visitSingleStmt(s.Init)
 		s.Value = b.visitExpr(s.Value)
-		s.Body = b.declareAndVisitStmt(s.Body)
+		s.Body = b.visitSingleStmt(s.Body)
 		b.popScope()
 
 	case *ast.STry:
 		b.pushScope(ast.ScopeBlock, stmt.Loc)
 		b.tryBodyCount++
-		s.Body = b.declareAndVisitStmts(s.Body)
+		s.Body = b.visitStmts(s.Body)
 		b.tryBodyCount--
 		b.popScope()
 
 		if s.Catch != nil {
-			b.pushScope(ast.ScopeBlock, ast.Loc{stmt.Loc.Start + locOffsetTryCatch})
+			b.pushScope(ast.ScopeBlock, s.Catch.Loc)
 			if s.Catch.Binding != nil {
-				kind := ast.SymbolOther
-				if _, ok := s.Catch.Binding.Data.(*ast.BIdentifier); ok {
-					kind = ast.SymbolCatchIdentifier
-				}
-				b.declareBinding(kind, *s.Catch.Binding, false /* isExport */)
 				b.visitBinding(*s.Catch.Binding)
 			}
-			s.Catch.Body = b.declareAndVisitStmts(s.Catch.Body)
+			s.Catch.Body = b.visitStmts(s.Catch.Body)
 			b.popScope()
 		}
 
 		if s.Finally != nil {
-			b.pushScope(ast.ScopeBlock, ast.Loc{stmt.Loc.Start + locOffsetTryFinally})
-			*s.Finally = b.declareAndVisitStmts(*s.Finally)
+			b.pushScope(ast.ScopeBlock, s.Finally.Loc)
+			s.Finally.Stmts = b.visitStmts(s.Finally.Stmts)
 			b.popScope()
 		}
 
 	case *ast.SSwitch:
-		s.Test = b.visitExpr(s.Test)
 		b.pushScope(ast.ScopeBlock, stmt.Loc)
+		s.Test = b.visitExpr(s.Test)
 		for i, c := range s.Cases {
 			if c.Value != nil {
 				*c.Value = b.visitExpr(*c.Value)
 			}
-			c.Body = b.declareAndVisitStmts(c.Body)
+			c.Body = b.visitStmts(c.Body)
 
 			// Make sure the assignment to the body above is preserved
 			s.Cases[i] = c
@@ -4289,7 +4345,6 @@ func (b *binder) visitClass(class *ast.Class) {
 
 func (b *binder) visitArgs(args []ast.Arg) {
 	for _, arg := range args {
-		b.declareBinding(ast.SymbolHoisted, arg.Binding, false /* isExport */)
 		b.visitBinding(arg.Binding)
 		if arg.Default != nil {
 			*arg.Default = b.visitExpr(*arg.Default)
@@ -4901,7 +4956,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 				}
 			}
 		} else {
-			e.Stmts = b.declareAndVisitStmts(e.Stmts)
+			e.Stmts = b.visitStmts(e.Stmts)
 
 			if b.mangleSyntax && len(e.Stmts) == 1 {
 				if s, ok := e.Stmts[0].Data.(*ast.SReturn); ok {
@@ -4922,8 +4977,6 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 	case *ast.EFunction:
 		if e.Fn.Name != nil {
 			b.pushScope(ast.ScopeFunctionName, expr.Loc)
-			name := b.loadNameFromRef(e.Fn.Name.Ref)
-			e.Fn.Name.Ref = b.declareSymbol(ast.SymbolOther, e.Fn.Name.Loc, name)
 		}
 		b.visitFn(&e.Fn, ast.Loc{expr.Loc.Start + locOffsetFunctionExpr})
 		if e.Fn.Name != nil {
@@ -4933,8 +4986,6 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 	case *ast.EClass:
 		if e.Class.Name != nil {
 			b.pushScope(ast.ScopeClassName, expr.Loc)
-			name := b.loadNameFromRef(e.Class.Name.Ref)
-			e.Class.Name.Ref = b.declareSymbol(ast.SymbolOther, e.Class.Name.Loc, name)
 		}
 		b.visitClass(&e.Class)
 		if e.Class.Name != nil {
@@ -4972,7 +5023,7 @@ func (b *binder) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 
 	b.pushScope(ast.ScopeFunction, scopeLoc)
 	b.visitArgs(fn.Args)
-	fn.Stmts = b.declareAndVisitFnOrModuleStmts(fn.Stmts)
+	fn.Stmts = b.visitFnOrModuleStmts(fn.Stmts)
 	b.popScope()
 
 	b.tryBodyCount = oldTryBodyCount
@@ -5018,6 +5069,39 @@ type ParseOptions struct {
 	Target               LanguageTarget
 }
 
+func newParser(log logging.Log, source logging.Source, options ParseOptions) *parser {
+	p := &parser{
+		log:          log,
+		source:       source,
+		lexer:        lexer.NewLexer(log, source),
+		allowIn:      true,
+		target:       options.Target,
+		jsx:          options.JSX,
+		omitWarnings: options.OmitWarnings,
+
+		indirectImportItems:     make(map[ast.Ref]bool),
+		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
+		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),
+		exportAliases:           make(map[string]bool),
+	}
+
+	p.pushScope(ast.ScopeModule, ast.Loc{locModuleScope})
+
+	// The bundler pre-declares these symbols
+	p.exportsRef = p.newSymbol(ast.SymbolHoisted, "exports")
+	p.requireRef = p.newSymbol(ast.SymbolHoisted, "require")
+	p.moduleRef = p.newSymbol(ast.SymbolHoisted, "module")
+
+	// Only declare these symbols if we're bundling
+	if options.IsBundling {
+		p.scope.Members["exports"] = p.exportsRef
+		p.scope.Members["require"] = p.requireRef
+		p.scope.Members["module"] = p.moduleRef
+	}
+
+	return p
+}
+
 func Parse(log logging.Log, source logging.Source, options ParseOptions) (result ast.AST, ok bool) {
 	ok = true
 	defer func() {
@@ -5037,26 +5121,13 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		options.JSX.Fragment = []string{"React", "Fragment"}
 	}
 
-	p := &parser{
-		log:          log,
-		source:       source,
-		lexer:        lexer.NewLexer(log, source),
-		allowIn:      true,
-		target:       options.Target,
-		jsx:          options.JSX,
-		omitWarnings: options.OmitWarnings,
-	}
-
-	// Parse the file in the first pass, but do not declare and bind symbols.
-	p.pushScope(ast.ScopeModule, ast.Loc{locModuleScope})
+	// Parse the file in the first pass, but do not bind symbols.
+	p := newParser(log, source, options)
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{allowImportAndExport: true})
-	p.popScope()
+
+	b := newBinder(options, p)
 
 	// Load user-specified defines
-	b := newBinder(source, options, p.scopesInOrder)
-	b.log = log
-	b.allocatedNames = p.allocatedNames
-
 	if options.Defines != nil {
 		for k, v := range options.Defines {
 			parts := strings.Split(k, ".")
@@ -5068,25 +5139,23 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		}
 	}
 
-	// Declare and bind symbols in a second pass over the AST. I started off
-	// doing this in a single pass, but it turns out it's pretty much impossible
-	// to do this correctly while handling arrow functions because of the grammar
-	// ambiguities. This pass traverses the parse tree, builds scopes, and declares
-	// all symbols.
+	// Bind symbols in a second pass over the AST. I started off doing this in a
+	// single pass, but it turns out it's pretty much impossible to do this
+	// correctly while handling arrow functions because of the grammar
+	// ambiguities.
 	if options.KeepSingleExpression {
 		// Sometimes it's helpful to parse a top-level function expression without
 		// trimming it as dead code. This is used to parse the bundle loader.
 		if len(stmts) != 1 {
 			panic("Internal error")
 		}
-		b.declareStmt(stmts[0])
 		expr, ok := stmts[0].Data.(*ast.SExpr)
 		if !ok {
 			panic("Internal error")
 		}
 		b.visitExpr(expr.Value)
 	} else {
-		stmts = b.declareAndVisitFnOrModuleStmts(stmts)
+		stmts = b.visitFnOrModuleStmts(stmts)
 	}
 
 	// Clear the import paths if we don't want any dependencies
@@ -5098,15 +5167,37 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	return
 }
 
-func newBinder(source logging.Source, options ParseOptions, scopesInOrder []scopeOrder) *binder {
+func ModuleExportsAST(log logging.Log, source logging.Source, expr ast.Expr) ast.AST {
+	options := ParseOptions{}
+	p := newParser(log, source, options)
+	b := newBinder(options, p)
+
+	// Make a symbol map that contains our file's symbols
+	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
+	symbols.Outer[source.Index] = b.symbols
+
+	// "module.exports = [expr]"
+	stmt := ast.Stmt{expr.Loc, &ast.SExpr{ast.Expr{expr.Loc, &ast.EBinary{
+		ast.BinOpAssign,
+		ast.Expr{expr.Loc, &ast.EDot{ast.Expr{expr.Loc, &ast.EIdentifier{b.moduleRef}}, "exports", expr.Loc, false}},
+		expr,
+	}}}}
+
+	// Mark that we used the "module" variable
+	b.symbols[b.moduleRef.InnerIndex].UseCountEstimate++
+
+	return b.toAST(source, []ast.Stmt{stmt}, []ast.ImportPath{})
+}
+
+func newBinder(options ParseOptions, p *parser) *binder {
 	b := &binder{
 		identifierDefines: make(map[string]ast.E),
 		dotDefines:        make(map[string]dotDefine),
 
-		indirectImportItems:     make(map[ast.Ref]bool),
-		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
-		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),
-		exportAliases:           make(map[string]bool),
+		indirectImportItems:     p.indirectImportItems,
+		importItemsForNamespace: p.importItemsForNamespace,
+		exprForImportItem:       p.exprForImportItem,
+		exportAliases:           p.exportAliases,
 
 		jsx:          options.JSX,
 		omitWarnings: options.OmitWarnings,
@@ -5114,32 +5205,23 @@ func newBinder(source logging.Source, options ParseOptions, scopesInOrder []scop
 		isBundling:   options.IsBundling,
 		target:       options.Target,
 
-		scopesInOrder: scopesInOrder,
+		symbols:        p.symbols,
+		log:            p.log,
+		allocatedNames: p.allocatedNames,
+		scopesInOrder:  p.scopesInOrder,
+		exportsRef:     p.exportsRef,
+		requireRef:     p.requireRef,
+		moduleRef:      p.moduleRef,
+		source:         p.source,
 	}
 
 	b.pushScope(ast.ScopeModule, ast.Loc{locModuleScope})
 	b.moduleScope = b.scope
 
-	// This must be set before we call newSymbol() below or the generated refs
-	// will be the same for all files
-	b.source = source
-
 	// Swap in certain literal values because those can be constant folded
 	b.identifierDefines["undefined"] = &ast.EUndefined{}
 	b.identifierDefines["NaN"] = &ast.ENumber{math.NaN()}
 	b.identifierDefines["Infinity"] = &ast.ENumber{math.Inf(1)}
-
-	// The bundler pre-declares these symbols
-	b.exportsRef = b.newSymbol(ast.SymbolHoisted, "exports")
-	b.requireRef = b.newSymbol(ast.SymbolHoisted, "require")
-	b.moduleRef = b.newSymbol(ast.SymbolHoisted, "module")
-
-	// Only declare these symbols if we're bundling
-	if b.isBundling {
-		b.scope.Members["exports"] = b.exportsRef
-		b.scope.Members["require"] = b.requireRef
-		b.scope.Members["module"] = b.moduleRef
-	}
 
 	return b
 }

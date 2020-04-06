@@ -61,12 +61,12 @@ func parseFile(
 
 	case strings.HasSuffix(path, ".json"):
 		expr, ok := parser.ParseJson(log, source)
-		ast := parser.ModuleExportsAST(source, expr)
+		ast := parser.ModuleExportsAST(log, source, expr)
 		results <- parseResult{source.Index, ast, ok}
 
 	case strings.HasSuffix(path, ".txt"):
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(source.Contents)}}
-		ast := parser.ModuleExportsAST(source, expr)
+		ast := parser.ModuleExportsAST(log, source, expr)
 		results <- parseResult{source.Index, ast, true}
 
 	default:

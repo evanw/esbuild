@@ -593,14 +593,20 @@ type SWith struct {
 }
 
 type Catch struct {
+	Loc     Loc
 	Binding *Binding
 	Body    []Stmt
+}
+
+type Finally struct {
+	Loc   Loc
+	Stmts []Stmt
 }
 
 type STry struct {
 	Body    []Stmt
 	Catch   *Catch
-	Finally *[]Stmt
+	Finally *Finally
 }
 
 type Case struct {

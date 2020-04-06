@@ -107,29 +107,3 @@ func ParseJson(log logging.Log, source logging.Source) (result ast.Expr, ok bool
 	result = p.parseExpr()
 	return
 }
-
-func ModuleExportsAST(source logging.Source, expr ast.Expr) ast.AST {
-	b := newBinder(source, ParseOptions{}, []scopeOrder{
-		scopeOrder{ast.Loc{locModuleScope}, &ast.Scope{
-			Kind:     ast.ScopeModule,
-			Members:  make(map[string]ast.Ref),
-			LabelRef: ast.InvalidRef,
-		}},
-	})
-
-	// Make a symbol map that contains our file's symbols
-	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
-	symbols.Outer[source.Index] = b.symbols
-
-	// "module.exports = [expr]"
-	stmt := ast.Stmt{expr.Loc, &ast.SExpr{ast.Expr{expr.Loc, &ast.EBinary{
-		ast.BinOpAssign,
-		ast.Expr{expr.Loc, &ast.EDot{ast.Expr{expr.Loc, &ast.EIdentifier{b.moduleRef}}, "exports", expr.Loc, false}},
-		expr,
-	}}}}
-
-	// Mark that we used the "module" variable
-	b.symbols[b.moduleRef.InnerIndex].UseCountEstimate++
-
-	return b.toAST(source, []ast.Stmt{stmt}, []ast.ImportPath{})
-}

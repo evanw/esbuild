@@ -1930,7 +1930,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.printSpace()
 			p.print("finally")
 			p.printSpace()
-			p.printBlock(*s.Finally)
+			p.printBlock(s.Finally.Stmts)
 		}
 
 		p.printNewline()
