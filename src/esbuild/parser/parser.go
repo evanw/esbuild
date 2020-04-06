@@ -11,6 +11,22 @@ import (
 	"unsafe"
 )
 
+const (
+	locModuleScope = -1
+
+	// Offset ScopeFunction for EFunction to come after ScopeFunctionName
+	locOffsetFunctionExpr = 1
+
+	// Offset ScopeBlock for "catch" and "finally" to come after "try"
+	locOffsetTryCatch   = 1
+	locOffsetTryFinally = 2
+)
+
+type scopeOrder struct {
+	loc   ast.Loc
+	scope *ast.Scope
+}
+
 func isJumpStatement(data ast.S) bool {
 	switch data.(type) {
 	case *ast.SBreak, *ast.SContinue, *ast.SReturn, *ast.SThrow:
@@ -166,6 +182,53 @@ type parser struct {
 	jsx                      JSXOptions
 	latestReturnHadSemicolon bool
 	allocatedNames           []string
+
+	// In addition to the current scope, we also track a map containing all
+	// scopes created during the parser pass. These scopes will later be
+	// referenced during the binder pass.
+	//
+	// The reason for this is that we need two passes to bind symbols, one for
+	// setting up scopes and declaring symbols and one for binding them. This is
+	// necessary to handle declaring a hoisted "var" symbol in a nested scope
+	// and binding a name to it in a parent or sibling scope.
+	//
+	// Instead of doing the scope setup and symbol declaring in a third pass in
+	// between parsing and binding, this is folded into the parser pass. It's
+	// less clean to do things that way but it's faster because it means fewer
+	// passes over the data.
+	//
+	// The scope tree that is set up in the parser pass is passed to the binder
+	// pass using the location of the corresponding statement (i.e. the byte
+	// index from the start of the file).
+	scope         *ast.Scope
+	scopesInOrder []scopeOrder
+}
+
+func (p *parser) pushScope(kind ast.ScopeKind, loc ast.Loc) {
+	parent := p.scope
+	scope := &ast.Scope{
+		Kind:     kind,
+		Parent:   parent,
+		Members:  make(map[string]ast.Ref),
+		LabelRef: ast.InvalidRef,
+	}
+	if parent != nil {
+		parent.Children = append(parent.Children, scope)
+	}
+	p.scope = scope
+
+	if len(p.scopesInOrder) > 0 {
+		prevStart := p.scopesInOrder[len(p.scopesInOrder)-1].loc.Start
+		if prevStart >= loc.Start {
+			panic(fmt.Sprintf("Scope location %d must be greater than %d", loc.Start, prevStart))
+		}
+	}
+
+	p.scopesInOrder = append(p.scopesInOrder, scopeOrder{loc, scope})
+}
+
+func (p *parser) popScope() {
+	p.scope = p.scope.Parent
 }
 
 func (p *parser) addError(loc ast.Loc, text string) {
@@ -368,6 +431,10 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 	if p.lexer.Token == lexer.TOpenParen || kind != ast.PropertyNormal ||
 		context == propertyContextClass || opts.isAsync || opts.isGenerator {
 		loc := p.lexer.Loc()
+
+		p.pushScope(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
+		defer p.popScope()
+
 		fn := p.parseFn(nil, fnOpts{
 			allowAwait: opts.isAsync,
 			allowYield: opts.isGenerator,
@@ -523,6 +590,10 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 	case lexer.TEqualsGreaterThan:
 		p.lexer.Next()
 		arg := ast.Arg{ast.Binding{asyncRange.Loc, &ast.BIdentifier{p.storeNameInRef("async")}}, nil}
+
+		p.pushScope(ast.ScopeFunction, asyncRange.Loc)
+		defer p.popScope()
+
 		stmts, expr := p.parseArrowBody(fnOpts{})
 		return ast.Expr{asyncRange.Loc, &ast.EArrow{Args: []ast.Arg{arg}, Stmts: stmts, Expr: expr}}
 
@@ -533,6 +604,10 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		arg := ast.Arg{ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}, nil}
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TEqualsGreaterThan)
+
+		p.pushScope(ast.ScopeFunction, asyncRange.Loc)
+		defer p.popScope()
+
 		stmts, expr := p.parseArrowBody(fnOpts{allowAwait: true})
 		return ast.Expr{asyncRange.Loc, &ast.EArrow{
 			IsAsync: true,
@@ -569,15 +644,22 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	var name *ast.LocRef
 
 	if p.lexer.Token == lexer.TIdentifier {
+		p.pushScope(ast.ScopeFunctionName, loc)
 		temp := ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
 		name = &temp
 		p.lexer.Next()
 	}
 
+	p.pushScope(ast.ScopeFunction, ast.Loc{loc.Start + locOffsetFunctionExpr})
 	fn := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
 		allowYield: isGenerator,
 	})
+	p.popScope()
+
+	if name != nil {
+		p.popScope()
+	}
 	return ast.Expr{loc, &ast.EFunction{fn}}
 }
 
@@ -648,6 +730,10 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			binding, initializer := p.convertExprToBindingAndInitializer(item)
 			args = append(args, ast.Arg{binding, initializer})
 		}
+
+		p.pushScope(ast.ScopeFunction, loc)
+		defer p.popScope()
+
 		stmts, expr := p.parseArrowBody(fnOpts{allowAwait: isAsync})
 		return ast.Expr{loc, &ast.EArrow{
 			IsAsync:    isAsync,
@@ -855,6 +941,10 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			p.lexer.Next()
 			ref := p.storeNameInRef(name)
 			arg := ast.Arg{ast.Binding{loc, &ast.BIdentifier{ref}}, nil}
+
+			p.pushScope(ast.ScopeFunction, loc)
+			defer p.popScope()
+
 			stmts, expr := p.parseArrowBody(fnOpts{})
 			return ast.Expr{loc, &ast.EArrow{Args: []ast.Arg{arg}, Stmts: stmts, Expr: expr}}
 		}
@@ -966,6 +1056,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		var name *ast.LocRef
 
 		if p.lexer.Token == lexer.TIdentifier {
+			p.pushScope(ast.ScopeClassName, loc)
 			temp := ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
 			name = &temp
 			p.lexer.Next()
@@ -973,6 +1064,9 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 		class := p.parseClass(name)
 
+		if name != nil {
+			p.popScope()
+		}
 		return ast.Expr{loc, &ast.EClass{class}}
 
 	case lexer.TNew:
@@ -2174,6 +2268,9 @@ func (p *parser) parsePath() ast.Path {
 
 // This assumes the "function" token has already been parsed
 func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.Stmt {
+	p.pushScope(ast.ScopeFunction, loc)
+	defer p.popScope()
+
 	isGenerator := p.lexer.Token == lexer.TAsterisk
 	if !opts.allowLexicalDecl && (isGenerator || isAsync) {
 		p.forbidLexicalDecl(loc)
@@ -2186,10 +2283,12 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 		name = &ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
 		p.lexer.Expect(lexer.TIdentifier)
 	}
+
 	fn := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
 		allowYield: isGenerator,
 	})
+
 	return ast.Stmt{loc, &ast.SFunction{fn, opts.isExport}}
 }
 
@@ -2378,6 +2477,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SWith{test, body}}
 
 	case lexer.TSwitch:
+		p.pushScope(ast.ScopeBlock, loc)
+		p.popScope()
+
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TOpenParen)
 		test := p.parseExpr(ast.LLowest)
@@ -2425,13 +2527,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 	case lexer.TTry:
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TOpenBrace)
+		p.pushScope(ast.ScopeBlock, loc)
 		body := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
+		p.popScope()
 		p.lexer.Next()
 
 		var catch *ast.Catch = nil
 		var finally *[]ast.Stmt = nil
 
 		if p.lexer.Token == lexer.TCatch {
+			p.pushScope(ast.ScopeBlock, ast.Loc{loc.Start + locOffsetTryCatch})
 			p.lexer.Next()
 			var binding *ast.Binding
 
@@ -2449,19 +2554,25 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 			p.lexer.Next()
 			catch = &ast.Catch{binding, stmts}
+			p.popScope()
 		}
 
 		if p.lexer.Token == lexer.TFinally || catch == nil {
+			p.pushScope(ast.ScopeBlock, ast.Loc{loc.Start + locOffsetTryFinally})
 			p.lexer.Expect(lexer.TFinally)
 			p.lexer.Expect(lexer.TOpenBrace)
 			stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 			p.lexer.Next()
 			finally = &stmts
+			p.popScope()
 		}
 
 		return ast.Stmt{loc, &ast.STry{body, catch, finally}}
 
 	case lexer.TFor:
+		p.pushScope(ast.ScopeBlock, loc)
+		defer p.popScope()
+
 		p.lexer.Next()
 
 		// "for await (let x of y) {}"
@@ -2693,6 +2804,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SDebugger{}}
 
 	case lexer.TOpenBrace:
+		p.pushScope(ast.ScopeBlock, loc)
+		defer p.popScope()
+
 		p.lexer.Next()
 		stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 		p.lexer.Next()
@@ -2718,6 +2832,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		// Parse a labeled statement
 		if ident, ok := expr.Data.(*ast.EIdentifier); ok && isIdentifier && p.lexer.Token == lexer.TColon {
+			p.pushScope(ast.ScopeLabel, loc)
+			defer p.popScope()
+
 			p.lexer.Next()
 			name := ast.LocRef{expr.Loc, ident.Ref}
 			stmt := p.parseStmt(parseStmtOpts{})
@@ -2793,6 +2910,7 @@ type binder struct {
 	source            logging.Source
 	moduleScope       *ast.Scope
 	scope             *ast.Scope
+	scopesInOrder     []scopeOrder // This is a copy from the parser
 	symbols           []ast.Symbol
 	unbound           []ast.Ref
 	importPaths       []ast.ImportPath
@@ -2840,19 +2958,18 @@ func (b *binder) generateTempRef() ast.Ref {
 	return ref
 }
 
-func (b *binder) pushScope(kind ast.ScopeKind) {
-	parent := b.scope
-	scope := &ast.Scope{
-		Kind:     kind,
-		Parent:   parent,
-		Children: []*ast.Scope{},
-		Members:  make(map[string]ast.Ref),
-		LabelRef: ast.InvalidRef,
+func (b *binder) pushScope(kind ast.ScopeKind, loc ast.Loc) {
+	order := b.scopesInOrder[0]
+
+	// Sanity-check that the scopes generated by the parser and the binder match
+	if order.loc != loc || order.scope.Kind != kind {
+		panic(fmt.Sprintf("Expected scope (%d, %d), found scope (%d, %d)",
+			kind, loc.Start,
+			order.scope.Kind, order.loc.Start))
 	}
-	if parent != nil {
-		parent.Children = append(parent.Children, scope)
-	}
-	b.scope = scope
+
+	b.scopesInOrder = b.scopesInOrder[1:]
+	b.scope = order.scope
 }
 
 func (b *binder) popScope() {
@@ -3859,7 +3976,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		case s.Value.Stmt != nil:
 			switch s2 := s.Value.Stmt.Data.(type) {
 			case *ast.SFunction:
-				b.visitFn(&s2.Fn)
+				b.visitFn(&s2.Fn, s.Value.Stmt.Loc)
 
 			case *ast.SClass:
 				b.visitClass(&s2.Class)
@@ -3890,7 +4007,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SLabel:
-		b.pushScope(ast.ScopeLabel)
+		b.pushScope(ast.ScopeLabel, stmt.Loc)
 		name := b.loadNameFromRef(s.Name.Ref)
 		ref := b.newSymbol(ast.SymbolOther, name)
 		s.Name.Ref = ref
@@ -3980,7 +4097,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SBlock:
-		b.pushScope(ast.ScopeBlock)
+		b.pushScope(ast.ScopeBlock, stmt.Loc)
 		s.Stmts = b.declareAndVisitStmts(s.Stmts)
 		b.popScope()
 
@@ -4056,7 +4173,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SFor:
-		b.pushScope(ast.ScopeBlock)
+		b.pushScope(ast.ScopeBlock, stmt.Loc)
 		if s.Init != nil {
 			b.declareAndVisitStmt(*s.Init)
 		}
@@ -4079,28 +4196,28 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		b.popScope()
 
 	case *ast.SForIn:
-		b.pushScope(ast.ScopeBlock)
+		b.pushScope(ast.ScopeBlock, stmt.Loc)
 		b.declareAndVisitStmt(s.Init)
 		s.Value = b.visitExpr(s.Value)
 		s.Body = b.declareAndVisitStmt(s.Body)
 		b.popScope()
 
 	case *ast.SForOf:
-		b.pushScope(ast.ScopeBlock)
+		b.pushScope(ast.ScopeBlock, stmt.Loc)
 		b.declareAndVisitStmt(s.Init)
 		s.Value = b.visitExpr(s.Value)
 		s.Body = b.declareAndVisitStmt(s.Body)
 		b.popScope()
 
 	case *ast.STry:
-		b.pushScope(ast.ScopeBlock)
+		b.pushScope(ast.ScopeBlock, stmt.Loc)
 		b.tryBodyCount++
 		s.Body = b.declareAndVisitStmts(s.Body)
 		b.tryBodyCount--
 		b.popScope()
 
 		if s.Catch != nil {
-			b.pushScope(ast.ScopeBlock)
+			b.pushScope(ast.ScopeBlock, ast.Loc{stmt.Loc.Start + locOffsetTryCatch})
 			if s.Catch.Binding != nil {
 				kind := ast.SymbolOther
 				if _, ok := s.Catch.Binding.Data.(*ast.BIdentifier); ok {
@@ -4114,14 +4231,14 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 		if s.Finally != nil {
-			b.pushScope(ast.ScopeBlock)
+			b.pushScope(ast.ScopeBlock, ast.Loc{stmt.Loc.Start + locOffsetTryFinally})
 			*s.Finally = b.declareAndVisitStmts(*s.Finally)
 			b.popScope()
 		}
 
 	case *ast.SSwitch:
 		s.Test = b.visitExpr(s.Test)
-		b.pushScope(ast.ScopeBlock)
+		b.pushScope(ast.ScopeBlock, stmt.Loc)
 		for i, c := range s.Cases {
 			if c.Value != nil {
 				*c.Value = b.visitExpr(*c.Value)
@@ -4134,7 +4251,7 @@ func (b *binder) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		b.popScope()
 
 	case *ast.SFunction:
-		b.visitFn(&s.Fn)
+		b.visitFn(&s.Fn, stmt.Loc)
 
 	case *ast.SClass:
 		b.visitClass(&s.Class)
@@ -4771,7 +4888,7 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 		oldTryBodyCount := b.tryBodyCount
 		b.tryBodyCount = 0
 
-		b.pushScope(ast.ScopeFunction)
+		b.pushScope(ast.ScopeFunction, expr.Loc)
 		b.visitArgs(e.Args)
 		if e.Expr != nil {
 			*e.Expr = b.visitExpr(*e.Expr)
@@ -4804,18 +4921,18 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 
 	case *ast.EFunction:
 		if e.Fn.Name != nil {
-			b.pushScope(ast.ScopeFunctionName)
+			b.pushScope(ast.ScopeFunctionName, expr.Loc)
 			name := b.loadNameFromRef(e.Fn.Name.Ref)
 			e.Fn.Name.Ref = b.declareSymbol(ast.SymbolOther, e.Fn.Name.Loc, name)
 		}
-		b.visitFn(&e.Fn)
+		b.visitFn(&e.Fn, ast.Loc{expr.Loc.Start + locOffsetFunctionExpr})
 		if e.Fn.Name != nil {
 			b.popScope()
 		}
 
 	case *ast.EClass:
 		if e.Class.Name != nil {
-			b.pushScope(ast.ScopeClassName)
+			b.pushScope(ast.ScopeClassName, expr.Loc)
 			name := b.loadNameFromRef(e.Class.Name.Ref)
 			e.Class.Name.Ref = b.declareSymbol(ast.SymbolOther, e.Class.Name.Loc, name)
 		}
@@ -4849,11 +4966,11 @@ func (b *binder) visitExpr(expr ast.Expr) ast.Expr {
 	return expr
 }
 
-func (b *binder) visitFn(fn *ast.Fn) {
+func (b *binder) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	oldTryBodyCount := b.tryBodyCount
 	b.tryBodyCount = 0
 
-	b.pushScope(ast.ScopeFunction)
+	b.pushScope(ast.ScopeFunction, scopeLoc)
 	b.visitArgs(fn.Args)
 	fn.Stmts = b.declareAndVisitFnOrModuleStmts(fn.Stmts)
 	b.popScope()
@@ -4931,10 +5048,12 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	}
 
 	// Parse the file in the first pass, but do not declare and bind symbols.
+	p.pushScope(ast.ScopeModule, ast.Loc{locModuleScope})
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{allowImportAndExport: true})
+	p.popScope()
 
 	// Load user-specified defines
-	b := newBinder(source, options)
+	b := newBinder(source, options, p.scopesInOrder)
 	b.log = log
 	b.allocatedNames = p.allocatedNames
 
@@ -4979,7 +5098,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	return
 }
 
-func newBinder(source logging.Source, options ParseOptions) *binder {
+func newBinder(source logging.Source, options ParseOptions, scopesInOrder []scopeOrder) *binder {
 	b := &binder{
 		identifierDefines: make(map[string]ast.E),
 		dotDefines:        make(map[string]dotDefine),
@@ -4994,9 +5113,11 @@ func newBinder(source logging.Source, options ParseOptions) *binder {
 		mangleSyntax: options.MangleSyntax,
 		isBundling:   options.IsBundling,
 		target:       options.Target,
+
+		scopesInOrder: scopesInOrder,
 	}
 
-	b.pushScope(ast.ScopeModule)
+	b.pushScope(ast.ScopeModule, ast.Loc{locModuleScope})
 	b.moduleScope = b.scope
 
 	// This must be set before we call newSymbol() below or the generated refs
