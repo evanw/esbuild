@@ -1,12 +1,12 @@
 {
   "name": "esbuild",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "An extremely fast JavaScript bundler and minifier.",
   "repository": "https://github.com/evanw/esbuild",
   "optionalDependencies": {
-    "esbuild-windows-64": "0.0.11",
-    "esbuild-darwin-64": "0.0.11",
-    "esbuild-linux-64": "0.0.11"
+    "esbuild-windows-64": "0.0.12",
+    "esbuild-darwin-64": "0.0.12",
+    "esbuild-linux-64": "0.0.12"
   },
   "license": "MIT"
 }
