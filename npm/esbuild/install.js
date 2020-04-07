@@ -14,12 +14,23 @@ if (os.arch() === 'x64') {
   }
 }
 
+// Clone the environment without "npm_" environment variables. If we don't do
+// this, invoking this script via "npm install -g esbuild" will hang because
+// our call to "npm install" below will magically be transformed into
+// "npm install -g" and, I assume, deadlock waiting for the global lock.
+const env = {};
+for (const key in process.env) {
+  if (!key.startsWith('npm_')) {
+    env[key] = process.env[key];
+  }
+}
+
 // Run "npm install" recursively to install this specific package
 const tempDir = path.join(__dirname, '.temp');
 fs.mkdirSync(tempDir);
 fs.writeFileSync(path.join(tempDir, 'package.json'), '{}');
 child_process.execSync(`npm install --silent --prefer-offline --no-audit --progress=false ${package}@${version}`,
-  { cwd: tempDir, stdio: 'inherit' });
+  { cwd: tempDir, stdio: 'inherit', env });
 
 // Move the installed files into the node_modules folder we're in
 moveFilesRecursive(path.join(tempDir, 'node_modules'), path.dirname(__dirname));
@@ -34,11 +45,11 @@ function moveFilesRecursive(source, target) {
       } catch (e) {
       }
       moveFilesRecursive(sourceEntry, targetEntry);
-      fs.rmdirSync(sourceEntry);
     } else if (entry !== 'package.json') {
       fs.renameSync(sourceEntry, targetEntry);
     } else {
       fs.unlinkSync(sourceEntry);
     }
   }
+  fs.rmdirSync(source);
 }
