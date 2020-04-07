@@ -33,17 +33,7 @@ platform-wasm:
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 
 platform-neutral:
-	node -e '\
-		const fs = require("fs");\
-		const json = JSON.parse(fs.readFileSync("npm/esbuild/package.json", "utf8"));\
-		json.version = "$(ESBUILD_VERSION)";\
-		json.optionalDependencies = {\
-			"esbuild-windows-64": "$(ESBUILD_VERSION)",\
-			"esbuild-darwin-64": "$(ESBUILD_VERSION)",\
-			"esbuild-linux-64": "$(ESBUILD_VERSION)"\
-		};\
-		fs.writeFileSync("npm/esbuild/package.json", JSON.stringify(json, null, 2) + "\n");\
-	'
+	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 
 publish-all: update-version-go test
 	make -j5 publish-windows publish-darwin publish-linux publish-wasm publish-neutral

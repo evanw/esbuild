@@ -3,10 +3,8 @@
   "version": "0.0.12",
   "description": "An extremely fast JavaScript bundler and minifier.",
   "repository": "https://github.com/evanw/esbuild",
-  "optionalDependencies": {
-    "esbuild-windows-64": "0.0.12",
-    "esbuild-darwin-64": "0.0.12",
-    "esbuild-linux-64": "0.0.12"
+  "scripts": {
+    "postinstall": "node install.js"
   },
   "license": "MIT"
 }
