@@ -55,16 +55,35 @@ I don't personally want to run a large open source project, so I'm not looking f
 
 ## Install
 
-The executable can be built using `make`, assuming you have the Go language toolchain installed. Prebuilt binaries are currently available on npm under separate packages:
+A prebuilt binary can be installed using npm:
 
-```
-npm install -g esbuild-linux-64   # for Linux
-npm install -g esbuild-darwin-64  # for macOS
-npm install -g esbuild-windows-64 # for Windows
-npm install -g esbuild-wasm       # for all other platforms
-```
+* **Local install (recommended)**
 
-This adds a command called `esbuild`.
+    This installs the `esbuild` command locally in your project's `package.json` file:
+
+    ```
+    npm install --save-dev esbuild
+    ```
+
+    Invoke it using `npx esbuild [arguments]`. Note that this uses the `npx` package runner command, not the `npm` package manager command.
+
+    This is the recommended project-based workflow because it allows you to have a different version of `esbuild` for each project and it ensures that everyone working on a given project has the same version of `esbuild`.
+
+* **Global install**
+
+    This adds a global command called `esbuild` to your path:
+
+    ```
+    npm install -g esbuild
+    ```
+
+    Invoke it using `esbuild [arguments]`.
+
+    A global install can be handy if you want to run `esbuild` outside of a project context for one-off file manipulation tasks.
+
+The `esbuild` package should work on 64-bit macOS, Linux, and Windows systems. It contains an install script that downloads the appropriate package for the current platform. If the install script isn't working or you need to run esbuild on an unsupported platform, there is a fallback WebAssembly package called [esbuild-wasm](https://npmjs.com/package/esbuild-wasm) that should work on all platforms.
+
+For development, the executable can be built by running `make` (assuming you have the Go language toolchain installed).
 
 ## Usage
 
