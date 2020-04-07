@@ -1,5 +1,5 @@
 {
-  "version": "0.0.10",
+  "version": "0.0.11",
   "private": true,
   "devDependencies": {
     "fuse-box": "4.0.0-next.165",
