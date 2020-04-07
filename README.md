@@ -82,6 +82,8 @@ Options:
   --sourcemap           Emit a source map
   --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
+  --loader:X=L          Use loader L to load file extension X, where L is
+                        one of: js, jsx, json, text, base64
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -95,16 +97,22 @@ Options:
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
 
-Example:
+Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
   esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
+
+  # Allow JSX syntax in .js files
+  esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
+
+  # Substitute the identifier RELEASE for the literal true
+  esbuild example.js --outfile=out.js --define:RELEASE=true
 ```
 
 ## Using with React
 
 To use esbuild with [React](https://reactjs.org/):
 
-* Make sure all JSX syntax is put in `.jsx` files instead of `.js` files because esbuild uses the file extension to determine what syntax to parse.
+* Either put all JSX syntax in `.jsx` files instead of `.js` files, or use `--loader:.js=jsx` to use the JSX loader for `.js` files.
 
 * If you're using TypeScript, run `tsc` first to convert `.tsx` files into either `.jsx` or `.js` files.
 

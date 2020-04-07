@@ -2,6 +2,7 @@ package bundler
 
 import (
 	"bytes"
+	"encoding/base64"
 	"esbuild/ast"
 	"esbuild/fs"
 	"esbuild/lexer"
@@ -44,28 +45,40 @@ type parseResult struct {
 }
 
 func parseFile(
-	log logging.Log, source logging.Source, importSource logging.Source,
-	pathRange ast.Range, options parser.ParseOptions, results chan parseResult,
+	log logging.Log, source logging.Source, importSource logging.Source, pathRange ast.Range,
+	parseOptions parser.ParseOptions, bundleOptions BundleOptions, results chan parseResult,
 ) {
 	path := source.AbsolutePath
 
-	switch {
-	case strings.HasSuffix(path, ".js"):
-		ast, ok := parser.Parse(log, source, options)
+	// Get the file extension
+	extension := ""
+	if lastDot := strings.LastIndexByte(path, '.'); lastDot >= 0 {
+		extension = path[lastDot:]
+	}
+
+	switch bundleOptions.ExtensionToLoader[extension] {
+	case LoaderJS:
+		ast, ok := parser.Parse(log, source, parseOptions)
 		results <- parseResult{source.Index, ast, ok}
 
-	case strings.HasSuffix(path, ".jsx"):
-		options.JSX.Parse = true
-		ast, ok := parser.Parse(log, source, options)
+	case LoaderJSX:
+		parseOptions.JSX.Parse = true
+		ast, ok := parser.Parse(log, source, parseOptions)
 		results <- parseResult{source.Index, ast, ok}
 
-	case strings.HasSuffix(path, ".json"):
+	case LoaderJSON:
 		expr, ok := parser.ParseJson(log, source)
 		ast := parser.ModuleExportsAST(log, source, expr)
 		results <- parseResult{source.Index, ast, ok}
 
-	case strings.HasSuffix(path, ".txt"):
+	case LoaderText:
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(source.Contents)}}
+		ast := parser.ModuleExportsAST(log, source, expr)
+		results <- parseResult{source.Index, ast, true}
+
+	case LoaderBase64:
+		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(encoded)}}
 		ast := parser.ModuleExportsAST(log, source, expr)
 		results <- parseResult{source.Index, ast, true}
 
@@ -75,12 +88,19 @@ func parseFile(
 	}
 }
 
-func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options parser.ParseOptions) Bundle {
+func ScanBundle(
+	log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []string,
+	parseOptions parser.ParseOptions, bundleOptions BundleOptions,
+) Bundle {
 	sources := []logging.Source{}
 	files := []file{}
 	visited := make(map[string]uint32)
 	results := make(chan parseResult)
 	remaining := 0
+
+	if bundleOptions.ExtensionToLoader == nil {
+		bundleOptions.ExtensionToLoader = DefaultExtensionToLoaderMap()
+	}
 
 	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, isDisabled bool) (uint32, bool) {
 		sourceIndex, ok := visited[path]
@@ -107,7 +127,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 			sources = append(sources, source)
 			files = append(files, file{})
 			remaining++
-			go parseFile(log, source, importSource, pathRange, options, results)
+			go parseFile(log, source, importSource, pathRange, parseOptions, bundleOptions, results)
 		}
 		return sourceIndex, true
 	}
@@ -145,6 +165,26 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 	return Bundle{fs, sources, files, entryPoints}
 }
 
+type Loader int
+
+const (
+	LoaderNone Loader = iota
+	LoaderJS
+	LoaderJSX
+	LoaderJSON
+	LoaderText
+	LoaderBase64
+)
+
+func DefaultExtensionToLoaderMap() map[string]Loader {
+	return map[string]Loader{
+		".js":   LoaderJS,
+		".jsx":  LoaderJSX,
+		".json": LoaderJSON,
+		".txt":  LoaderText,
+	}
+}
+
 type BundleOptions struct {
 	Bundle                bool
 	AbsOutputFile         string
@@ -154,6 +194,7 @@ type BundleOptions struct {
 	MangleSyntax          bool
 	SourceMap             bool
 	ModuleName            string
+	ExtensionToLoader     map[string]Loader
 	omitBootstrapForTests bool
 }
 

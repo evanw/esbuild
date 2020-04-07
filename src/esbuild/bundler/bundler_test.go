@@ -39,7 +39,7 @@ func expectBundled(t *testing.T, args bundled) {
 		resolver := resolver.NewResolver(fs, []string{".jsx", ".js", ".json"})
 
 		log, join := logging.NewDeferLog()
-		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions)
+		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
 		msgs := join()
 		assertLog(t, msgs, args.expectedScanLog)
 
@@ -753,7 +753,7 @@ func TestExportSelfAsNamespace(t *testing.T) {
 func TestJSXImportsCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.js": `
+			"/entry.jsx": `
 				import {elem, frag} from './custom-react'
 				console.log(<div/>, <>fragment</>)
 			`,
@@ -761,11 +761,10 @@ func TestJSXImportsCommonJS(t *testing.T) {
 				module.exports = {}
 			`,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{"/entry.jsx"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
 			JSX: parser.JSXOptions{
-				Parse:    true,
 				Factory:  []string{"elem"},
 				Fragment: []string{"frag"},
 			},
@@ -782,7 +781,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
   },
 
   1(require) {
-    // /entry.js
+    // /entry.jsx
     const custom_react = require(0 /* ./custom-react */, true /* ES6 import */);
     console.log(custom_react.elem("div", null), custom_react.elem(custom_react.frag, null, "fragment"));
   }
@@ -795,7 +794,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 func TestJSXImportsES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.js": `
+			"/entry.jsx": `
 				import {elem, frag} from './custom-react'
 				console.log(<div/>, <>fragment</>)
 			`,
@@ -804,11 +803,10 @@ func TestJSXImportsES6(t *testing.T) {
 				export function frag() {}
 			`,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{"/entry.jsx"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
 			JSX: parser.JSXOptions{
-				Parse:    true,
 				Factory:  []string{"elem"},
 				Fragment: []string{"frag"},
 			},
@@ -826,10 +824,60 @@ func TestJSXImportsES6(t *testing.T) {
     function frag() {
     }
 
-    // /entry.js
+    // /entry.jsx
     console.log(elem("div", null), elem(frag, null, "fragment"));
   }
 }, 1);
+`,
+		},
+	})
+}
+
+func TestJSXSyntaxInJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(<div/>)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: Unexpected "<"
+`,
+	})
+}
+
+func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(<div/>)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js": LoaderJSX,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.js
+    console.log(React.createElement("div", null));
+  }
+}, 0);
 `,
 		},
 	})
@@ -1678,6 +1726,80 @@ func TestRequireTxt(t *testing.T) {
   0(require) {
     // /entry.js
     console.log(require(1 /* ./test.txt */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestRequireCustomExtensionString(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.custom'))
+			`,
+			"/test.custom": `This is a test.`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":     LoaderJS,
+				".custom": LoaderText,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports, module) {
+    // /test.custom
+    module.exports = "This is a test.";
+  },
+
+  0(require) {
+    // /entry.js
+    console.log(require(1 /* ./test.custom */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestRequireCustomExtensionBase64(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.custom'))
+			`,
+			"/test.custom": "a\x00b\x80c\xFFd",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":     LoaderJS,
+				".custom": LoaderBase64,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports, module) {
+    // /test.custom
+    module.exports = "YQBigGP/ZA==";
+  },
+
+  0(require) {
+    // /entry.js
+    console.log(require(1 /* ./test.custom */));
   }
 }, 0);
 `,

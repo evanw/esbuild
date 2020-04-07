@@ -69,6 +69,28 @@ func (args *args) parseDefine(key string, value string) bool {
 	return false
 }
 
+func (args *args) parseLoader(key string, value string) bool {
+	var loader bundler.Loader
+
+	switch value {
+	case "js":
+		loader = bundler.LoaderJS
+	case "jsx":
+		loader = bundler.LoaderJSX
+	case "json":
+		loader = bundler.LoaderJSON
+	case "text":
+		loader = bundler.LoaderText
+	case "base64":
+		loader = bundler.LoaderBase64
+	default:
+		return false
+	}
+
+	args.bundleOptions.ExtensionToLoader[key] = loader
+	return true
+}
+
 func (args *args) parseMemberExpression(text string) ([]string, bool) {
 	parts := strings.Split(text, ".")
 	for _, part := range parts {
@@ -84,7 +106,9 @@ func parseArgs() args {
 		parseOptions: parser.ParseOptions{
 			Defines: make(map[string]ast.E),
 		},
-		bundleOptions: bundler.BundleOptions{},
+		bundleOptions: bundler.BundleOptions{
+			ExtensionToLoader: bundler.DefaultExtensionToLoaderMap(),
+		},
 		logOptions: logging.StderrOptions{
 			IncludeSource:      true,
 			ErrorLimit:         10,
@@ -117,6 +141,8 @@ Options:
   --sourcemap           Emit a source map
   --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
+  --loader:X=L          Use loader L to load file extension X, where L is
+                        one of: js, jsx, json, text, base64
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -130,9 +156,15 @@ Options:
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
 
-Example:
+Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
   esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
+
+  # Allow JSX syntax in .js files
+  esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
+
+  # Substitute the identifier RELEASE for the literal true
+  esbuild example.js --outfile=out.js --define:RELEASE=true
 
 `)
 		os.Exit(0)
@@ -197,10 +229,27 @@ Example:
 			text := arg[len("--define:"):]
 			equals := strings.IndexByte(text, '=')
 			if equals == -1 {
-				args.exitWithError(fmt.Sprintf("Missing '=': %s", arg))
+				args.exitWithError(fmt.Sprintf("Missing \"=\": %s", arg))
 			}
 			if !args.parseDefine(text[:equals], text[equals+1:]) {
 				args.exitWithError(fmt.Sprintf("Invalid define: %s", arg))
+			}
+
+		case strings.HasPrefix(arg, "--loader:"):
+			text := arg[len("--loader:"):]
+			equals := strings.IndexByte(text, '=')
+			if equals == -1 {
+				args.exitWithError(fmt.Sprintf("Missing \"=\": %s", arg))
+			}
+			extension, loader := text[:equals], text[equals+1:]
+			if !strings.HasPrefix(extension, ".") {
+				args.exitWithError(fmt.Sprintf("File extension must start with \".\": %s", arg))
+			}
+			if len(extension) < 2 || strings.ContainsRune(extension[1:], '.') {
+				args.exitWithError(fmt.Sprintf("Invalid file extension: %s", arg))
+			}
+			if !args.parseLoader(extension, loader) {
+				args.exitWithError(fmt.Sprintf("Invalid loader: %s", arg))
 			}
 
 		case strings.HasPrefix(arg, "--target="):
@@ -318,7 +367,7 @@ func main() {
 		fs := fs.RealFS()
 		resolver := resolver.NewResolver(fs, []string{".jsx", ".js", ".json"})
 		log, join := logging.NewStderrLog(args.logOptions)
-		bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions)
+		bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
 
 		// Stop now if there were errors
 		if join().Errors != 0 {
