@@ -1,30 +1,52 @@
+ESBUILD_VERSION = $(shell cat version.txt)
+
 esbuild: src/esbuild/*/*.go
 	GOPATH=`pwd` go build -o esbuild esbuild/main
 
 test:
 	GOPATH=`pwd` go test ./...
 
-platform-all: test
-	make -j4 platform-windows platform-darwin platform-linux platform-wasm
+update-version-go:
+	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > src/esbuild/main/version.go
+
+platform-all: update-version-go test
+	make -j5 platform-windows platform-darwin platform-linux platform-wasm platform-neutral
 
 platform-windows:
 	mkdir -p npm/esbuild-windows-64/bin
+	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=windows GOARCH=amd64 GOPATH=`pwd` go build -o npm/esbuild-windows-64/esbuild.exe esbuild/main
 
 platform-darwin:
 	mkdir -p npm/esbuild-darwin-64/bin
+	cd npm/esbuild-darwin-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=darwin GOARCH=amd64 GOPATH=`pwd` go build -o npm/esbuild-darwin-64/bin/esbuild esbuild/main
 
 platform-linux:
 	mkdir -p npm/esbuild-linux-64/bin
+	cd npm/esbuild-linux-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=linux GOARCH=amd64 GOPATH=`pwd` go build -o npm/esbuild-linux-64/bin/esbuild esbuild/main
 
 platform-wasm:
 	GOOS=js GOARCH=wasm GOPATH=`pwd` go build -o npm/esbuild-wasm/esbuild.wasm esbuild/main
+	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 
-publish-all: test
-	make -j4 publish-windows publish-darwin publish-linux publish-wasm
+platform-neutral:
+	node -e '\
+		const fs = require("fs");\
+		const json = JSON.parse(fs.readFileSync("npm/esbuild/package.json", "utf8"));\
+		json.version = "$(ESBUILD_VERSION)";\
+		json.optionalDependencies = {\
+			"esbuild-windows-64": "$(ESBUILD_VERSION)",\
+			"esbuild-darwin-64": "$(ESBUILD_VERSION)",\
+			"esbuild-linux-64": "$(ESBUILD_VERSION)"\
+		};\
+		fs.writeFileSync("npm/esbuild/package.json", JSON.stringify(json, null, 2) + "\n");\
+	'
+
+publish-all: update-version-go test
+	make -j5 publish-windows publish-darwin publish-linux publish-wasm publish-neutral
 
 publish-windows: platform-windows
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-windows-64 && npm publish --otp="$(OTP)"
@@ -37,6 +59,9 @@ publish-linux: platform-linux
 
 publish-wasm: platform-wasm
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
+
+publish-neutral: platform-neutral
+	[ ! -z "$(OTP)" ] && cd npm/esbuild && npm publish --otp="$(OTP)"
 
 clean:
 	rm -f esbuild npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js

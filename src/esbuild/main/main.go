@@ -155,6 +155,7 @@ Options:
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
+  --version             Print the current version and exit (` + esbuildVersion + `)
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
@@ -194,6 +195,10 @@ Examples:
 
 		case arg == "--sourcemap":
 			args.bundleOptions.SourceMap = true
+
+		case arg == "--version":
+			fmt.Fprintf(os.Stderr, "%s\n", esbuildVersion)
+			os.Exit(0)
 
 		case strings.HasPrefix(arg, "--error-limit="):
 			value, err := strconv.Atoi(arg[len("--error-limit="):])
