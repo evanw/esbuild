@@ -1,0 +1,2 @@
+#!/usr/bin/env node
+throw new Error(`esbuild: Failed to install correctly`);

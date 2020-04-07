@@ -3,53 +3,53 @@ const os = require('os');
 const path = require('path');
 const child_process = require('child_process');
 const version = require('./package.json').version;
+const installDir = path.join(__dirname, '.install');
+const binPath = path.join(__dirname, 'bin', 'esbuild');
 
-// Pick the name of the package to install
-let package = 'esbuild-wasm';
-if (os.arch() === 'x64') {
-  switch (os.platform()) {
-    case 'linux': package = 'esbuild-linux-64'; break;
-    case 'darwin': package = 'esbuild-darwin-64'; break;
-    case 'win32': package = 'esbuild-windows-64'; break;
-  }
-}
-
-// Clone the environment without "npm_" environment variables. If we don't do
-// this, invoking this script via "npm install -g esbuild" will hang because
-// our call to "npm install" below will magically be transformed into
-// "npm install -g" and, I assume, deadlock waiting for the global lock.
-const env = {};
-for (const key in process.env) {
-  if (!key.startsWith('npm_')) {
-    env[key] = process.env[key];
-  }
-}
-
-// Run "npm install" recursively to install this specific package
-const tempDir = path.join(__dirname, '.temp');
-fs.mkdirSync(tempDir);
-fs.writeFileSync(path.join(tempDir, 'package.json'), '{}');
-child_process.execSync(`npm install --silent --prefer-offline --no-audit --progress=false ${package}@${version}`,
-  { cwd: tempDir, stdio: 'inherit', env });
-
-// Move the installed files into the node_modules folder we're in
-moveFilesRecursive(path.join(tempDir, 'node_modules'), path.dirname(__dirname));
-
-function moveFilesRecursive(source, target) {
-  for (const entry of fs.readdirSync(source)) {
-    const sourceEntry = path.join(source, entry);
-    const targetEntry = path.join(target, entry);
-    if (fs.statSync(sourceEntry).isDirectory()) {
-      try {
-        fs.mkdirSync(targetEntry);
-      } catch (e) {
-      }
-      moveFilesRecursive(sourceEntry, targetEntry);
-    } else if (entry !== 'package.json') {
-      fs.renameSync(sourceEntry, targetEntry);
-    } else {
-      fs.unlinkSync(sourceEntry);
+function installPackage(package) {
+  // Clone the environment without "npm_" environment variables. If we don't do
+  // this, invoking this script via "npm install -g esbuild" will hang because
+  // our call to "npm install" below will magically be transformed into
+  // "npm install -g" and, I assume, deadlock waiting for the global lock.
+  const env = {};
+  for (const key in process.env) {
+    if (!key.startsWith('npm_')) {
+      env[key] = process.env[key];
     }
   }
-  fs.rmdirSync(source);
+
+  // Run "npm install" recursively to install this specific package
+  fs.mkdirSync(installDir);
+  fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
+  child_process.execSync(`npm install --silent --prefer-offline --no-audit --progress=false ${package}@${version}`,
+    { cwd: installDir, stdio: 'inherit', env });
+}
+
+// Pick a package to install
+if (process.platform === 'linux' && os.arch() === 'x64') {
+  installPackage('esbuild-linux-64');
+  fs.renameSync(
+    path.join(installDir, 'node_modules', 'esbuild-linux-64', 'bin', 'esbuild'),
+    binPath
+  );
+} else if (process.platform === 'darwin' && os.arch() === 'x64') {
+  installPackage('esbuild-darwin-64');
+  fs.renameSync(
+    path.join(installDir, 'node_modules', 'esbuild-darwin-64', 'bin', 'esbuild'),
+    binPath
+  );
+} else if (process.platform === 'win32' && os.arch() === 'x64') {
+  installPackage('esbuild-windows-64');
+  fs.writeFileSync(
+    binPath,
+    `#!/usr/bin/env node
+const path = require('path');
+const esbuild_exe = path.join(__dirname, '..', '.install', 'node_modules', 'esbuild-windows-64', 'esbuild.exe');
+const child_process = require('child_process');
+child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' });
+`
+  );
+} else {
+  console.error(`error: Unsupported platform: ${process.platform} ${os.arch()}`);
+  process.exit(1);
 }

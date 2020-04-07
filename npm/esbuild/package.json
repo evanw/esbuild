@@ -6,5 +6,6 @@
   "scripts": {
     "postinstall": "node install.js"
   },
+  "bin": "bin/esbuild",
   "license": "MIT"
 }

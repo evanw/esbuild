@@ -6,4 +6,4 @@ const esbuild_wasm = require.resolve('esbuild-wasm/esbuild.wasm');
 const code = require('fs').readFileSync(wasm_exec, 'utf8');
 const wrapper = new Function('require', 'module', 'process', code);
 const argv = ['node', wasm_exec, esbuild_wasm].concat(process.argv.slice(2));
-wrapper(require, module, Object.assign(Object.create(process), { argv }));
+wrapper(require, require.main, Object.assign(Object.create(process), { argv }));
