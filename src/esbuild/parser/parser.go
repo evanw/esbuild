@@ -4783,6 +4783,11 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 
 		// Track calls to import() so we can use them while bundling
 		if p.isBundling {
+			// Convert no-substitution template literals into strings when bundling
+			if template, ok := e.Expr.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
+				e.Expr.Data = &ast.EString{template.Head}
+			}
+
 			// The argument must be a string
 			str, ok := e.Expr.Data.(*ast.EString)
 			if !ok {
@@ -4817,6 +4822,11 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 				return expr
 			}
 			arg := e.Args[0]
+
+			// Convert no-substitution template literals into strings when bundling
+			if template, ok := arg.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
+				arg.Data = &ast.EString{template.Head}
+			}
 
 			// The argument must be a string
 			str, ok := arg.Data.(*ast.EString)

@@ -1509,6 +1509,106 @@ func TestDotImport(t *testing.T) {
 	})
 }
 
+func TestRequireWithTemplate(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				console.log(require('./b'))
+				console.log(require(` + "`./b`" + `))
+			`,
+			"/b.js": `
+				exports.x = 123
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports) {
+    // /b.js
+    exports.x = 123;
+  },
+
+  0(require) {
+    // /a.js
+    console.log(require(1 /* ./b */));
+    console.log(require(1 /* ./b */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestDynamicImportWithTemplate(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import('./b').then(ns => console.log(ns))
+				import(` + "`./b`" + `).then(ns => console.log(ns))
+			`,
+			"/b.js": `
+				exports.x = 123
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports) {
+    // /b.js
+    exports.x = 123;
+  },
+
+  0() {
+    // /a.js
+    Promise.resolve().then(() => require(1 /* ./b */)).then((ns) => console.log(ns));
+    Promise.resolve().then(() => require(1 /* ./b */)).then((ns) => console.log(ns));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require(tag` + "`./b`" + `)
+				require(` + "`./${b}`" + `)
+				import(tag` + "`./b`" + `)
+				import(` + "`./${b}`" + `)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: The argument to require() must be a string literal
+/entry.js: error: The argument to require() must be a string literal
+/entry.js: error: The argument to import() must be a string literal
+/entry.js: error: The argument to import() must be a string literal
+`,
+	})
+}
+
 func TestRequireJson(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
