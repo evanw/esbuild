@@ -358,25 +358,27 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 	return ref
 }
 
-func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, isExport bool) {
+func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts parseStmtOpts) {
 	switch d := binding.Data.(type) {
 	case *ast.BMissing:
 
 	case *ast.BIdentifier:
 		name := p.loadNameFromRef(d.Ref)
-		d.Ref = p.declareSymbol(kind, binding.Loc, name)
-		if isExport {
+		if !opts.isTypeScriptDeclare {
+			d.Ref = p.declareSymbol(kind, binding.Loc, name)
+		}
+		if opts.isExport {
 			p.recordExport(binding.Loc, name)
 		}
 
 	case *ast.BArray:
 		for _, i := range d.Items {
-			p.declareBinding(kind, i.Binding, isExport)
+			p.declareBinding(kind, i.Binding, opts)
 		}
 
 	case *ast.BObject:
 		for _, property := range d.Properties {
-			p.declareBinding(kind, property.Value, isExport)
+			p.declareBinding(kind, property.Value, opts)
 		}
 
 	default:
@@ -1198,7 +1200,7 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 // This assumes that the "=>" token has already been parsed by the caller
 func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 	for _, arg := range args {
-		p.declareBinding(ast.SymbolHoisted, arg.Binding, false /* isExport */)
+		p.declareBinding(ast.SymbolHoisted, arg.Binding, parseStmtOpts{})
 	}
 
 	if p.lexer.Token == lexer.TOpenBrace {
@@ -2768,13 +2770,13 @@ func (p *parser) parseTemplateParts(includeRaw bool) []ast.TemplatePart {
 	return parts
 }
 
-func (p *parser) parseAndDeclareDecls(kind ast.SymbolKind, isExport bool) []ast.Decl {
+func (p *parser) parseAndDeclareDecls(kind ast.SymbolKind, opts parseStmtOpts) []ast.Decl {
 	decls := []ast.Decl{}
 
 	for {
 		var value *ast.Expr
 		local := p.parseBinding()
-		p.declareBinding(kind, local, isExport)
+		p.declareBinding(kind, local, opts)
 
 		// Skip over types
 		if p.ts.Parse && p.lexer.Token == lexer.TColon {
@@ -3079,7 +3081,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			}
 		}
 
-		p.declareBinding(ast.SymbolHoisted, arg, false /* isExport */)
+		p.declareBinding(ast.SymbolHoisted, arg, parseStmtOpts{})
 
 		var defaultValue *ast.Expr
 		if !hasRestArg && p.lexer.Token == lexer.TEquals {
@@ -3138,7 +3140,10 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		nameLoc := p.lexer.Loc()
 		nameText := p.lexer.Identifier
 		p.lexer.Expect(lexer.TIdentifier)
-		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, nameText)}
+		name = &ast.LocRef{nameLoc, ast.InvalidRef}
+		if !opts.isTypeScriptDeclare {
+			name.Ref = p.declareSymbol(ast.SymbolOther, nameLoc, nameText)
+		}
 		if opts.isExport {
 			p.recordExport(nameLoc, nameText)
 		}
@@ -3242,28 +3247,25 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	}
 
 	var name *ast.LocRef
+	var nameText string
 
 	// The name is optional for "export default function() {}" pseudo-statements
 	if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
 		nameLoc := p.lexer.Loc()
-		nameText := p.lexer.Identifier
+		nameText = p.lexer.Identifier
 		p.lexer.Expect(lexer.TIdentifier)
-		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)}
-		if opts.isExport {
-			p.recordExport(nameLoc, nameText)
-		}
+		name = &ast.LocRef{nameLoc, ast.InvalidRef}
 		if p.ts.Parse {
 			p.skipTypeScriptTypeParameters()
 		}
 	}
 
-	p.pushScopeForParsePass(ast.ScopeEntry, loc)
-	defer p.popScope()
-
 	// Even anonymous functions can have TypeScript type parameters
 	if p.ts.Parse {
 		p.skipTypeScriptTypeParameters()
 	}
+
+	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
 
 	fn, hadBody := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
@@ -3275,7 +3277,24 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 
 	// Don't output anything if it's just a forward declaration of a function
 	if !hadBody {
+		p.popAndDiscardScope(scopeIndex)
+		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Stmt{loc, &ast.STypeScript{}}
+	}
+
+	p.popScope()
+
+	// Only declare the function after we know if it had a body or not. Otherwise
+	// TypeScript code such as this will double-declare the symbol:
+	//
+	//     function foo(): void;
+	//     function foo(): void {}
+	//
+	if !opts.isTypeScriptDeclare && name != nil {
+		name.Ref = p.declareSymbol(ast.SymbolHoisted, name.Loc, nameText)
+		if opts.isExport {
+			p.recordExport(name.Loc, nameText)
+		}
 	}
 
 	return ast.Stmt{loc, &ast.SFunction{fn, opts.isExport}}
@@ -3440,7 +3459,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if !p.ts.Parse {
 			p.lexer.Unexpected()
 		}
-		return p.parseEnumStmt(loc, opts.isExport)
+		return p.parseEnumStmt(loc, opts)
 
 	case lexer.TInterface:
 		if !p.ts.Parse {
@@ -3486,7 +3505,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 	case lexer.TVar:
 		p.lexer.Next()
-		decls := p.parseAndDeclareDecls(ast.SymbolHoisted, opts.isExport)
+		decls := p.parseAndDeclareDecls(ast.SymbolHoisted, opts)
 		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Stmt{loc, &ast.SLocal{
 			Kind:     ast.LocalVar,
@@ -3499,7 +3518,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.forbidLexicalDecl(loc)
 		}
 		p.lexer.Next()
-		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts.isExport)
+		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts)
 		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Stmt{loc, &ast.SLocal{
 			Kind:     ast.LocalLet,
@@ -3514,10 +3533,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 
 		if p.ts.Parse && p.lexer.Token == lexer.TEnum {
-			return p.parseEnumStmt(loc, opts.isExport)
+			return p.parseEnumStmt(loc, opts)
 		}
 
-		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts.isExport)
+		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts)
 		p.lexer.ExpectOrInsertSemicolon()
 		if !opts.isTypeScriptDeclare {
 			p.requireInitializers(decls)
@@ -3651,7 +3670,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				if _, ok := value.Data.(*ast.BIdentifier); ok {
 					kind = ast.SymbolCatchIdentifier
 				}
-				p.declareBinding(kind, value, false /* isExport */)
+				p.declareBinding(kind, value, parseStmtOpts{})
 				binding = &value
 			}
 
@@ -3707,17 +3726,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		case lexer.TVar:
 			isVar = true
 			p.lexer.Next()
-			decls = p.parseAndDeclareDecls(ast.SymbolHoisted, false /* isExport */)
+			decls = p.parseAndDeclareDecls(ast.SymbolHoisted, parseStmtOpts{})
 			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
 
 		case lexer.TLet:
 			p.lexer.Next()
-			decls = p.parseAndDeclareDecls(ast.SymbolOther, false /* isExport */)
+			decls = p.parseAndDeclareDecls(ast.SymbolOther, parseStmtOpts{})
 			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalLet, Decls: decls}}
 
 		case lexer.TConst:
 			p.lexer.Next()
-			decls = p.parseAndDeclareDecls(ast.SymbolOther, false /* isExport */)
+			decls = p.parseAndDeclareDecls(ast.SymbolOther, parseStmtOpts{})
 			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
 
 		case lexer.TSemicolon:
@@ -4028,7 +4047,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							nameText := p.lexer.Identifier
 							p.lexer.Next()
 
-							name := ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)}
+							name := ast.LocRef{nameLoc, ast.InvalidRef}
+							if !opts.isTypeScriptDeclare {
+								name.Ref = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
+							}
 							if opts.isExport {
 								p.recordExport(nameLoc, nameText)
 							}
@@ -4079,12 +4101,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 	}
 }
 
-func (p *parser) parseEnumStmt(loc ast.Loc, isExport bool) ast.Stmt {
+func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	p.lexer.Expect(lexer.TEnum)
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
 	p.lexer.Expect(lexer.TIdentifier)
-	name := ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)}
+	name := ast.LocRef{nameLoc, ast.InvalidRef}
+	if !opts.isTypeScriptDeclare {
+		name.Ref = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
+	}
 	p.lexer.Expect(lexer.TOpenBrace)
 
 	values := []ast.EnumValue{}
@@ -4131,7 +4156,7 @@ func (p *parser) parseEnumStmt(loc ast.Loc, isExport bool) ast.Stmt {
 	}
 
 	p.lexer.Expect(lexer.TCloseBrace)
-	return ast.Stmt{loc, &ast.SEnum{name, values, isExport}}
+	return ast.Stmt{loc, &ast.SEnum{name, values, opts.isExport}}
 }
 
 func (p *parser) parseFnBodyStmts(opts fnOpts) []ast.Stmt {

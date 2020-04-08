@@ -227,6 +227,19 @@ func TestTSEnum(t *testing.T) {
   Foo[Foo["E"] = void 0] = "E";
 })(Foo || (Foo = {}));
 `)
+
+	// TypeScript allows splitting an enum into multiple blocks
+	expectPrintedTS(t, "enum Foo { A = 1 } enum Foo { B = 2 }", `(function(Foo) {
+  Foo[Foo["A"] = 1] = "A";
+})(Foo || (Foo = {}));
+(function(Foo) {
+  Foo[Foo["B"] = 2] = "B";
+})(Foo || (Foo = {}));
+`)
+}
+
+func TestTSFunction(t *testing.T) {
+	expectPrintedTS(t, "function foo(): void; function foo(): void {}", "function foo() {\n}\n")
 }
 
 func TestTSDeclare(t *testing.T) {
