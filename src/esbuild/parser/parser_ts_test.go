@@ -218,8 +218,10 @@ export let x;
 `)
 
 	// Namespaces with values are not allowed to merge
+	expectParseErrorTS(t, "var foo; namespace foo { 0 }", "<stdin>: error: \"foo\" has already been declared\n")
 	expectParseErrorTS(t, "let foo; namespace foo { 0 }", "<stdin>: error: \"foo\" has already been declared\n")
 	expectParseErrorTS(t, "const foo = 0; namespace foo { 0 }", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } var foo", "<stdin>: error: \"foo\" has already been declared\n")
 	expectParseErrorTS(t, "namespace foo { 0 } let foo", "<stdin>: error: \"foo\" has already been declared\n")
 	expectParseErrorTS(t, "namespace foo { 0 } const foo = 0", "<stdin>: error: \"foo\" has already been declared\n")
 
@@ -238,6 +240,66 @@ export let x;
 	expectPrintedTS(t, "namespace foo { export type bar = number } var foo", "var foo;\n")
 	expectPrintedTS(t, "namespace foo { export type bar = number } let foo", "let foo;\n")
 	expectPrintedTS(t, "namespace foo { export type bar = number } const foo = 0", "const foo = 0;\n")
+
+	// Namespaces are allowed to merge with certain symbols
+	expectPrintedTS(t, "function foo() {} namespace foo { 0 }", `function foo() {
+}
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "class foo {} namespace foo { 0 }", `class foo {
+}
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "enum foo { a } namespace foo { 0 }", `(function(foo) {
+  foo[foo["a"] = 0] = "a";
+})(foo || (foo = {}));
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "namespace foo {} namespace foo { 0 }", `(function(foo) {
+  0;
+})(foo || (foo = {}));
+`)
+	expectParseErrorTS(t, "namespace foo { 0 } function foo() {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectPrintedTS(t, "namespace foo { 0 } enum foo { a }", `(function(foo) {
+  0;
+})(foo || (foo = {}));
+(function(foo) {
+  foo[foo["a"] = 0] = "a";
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "namespace foo { 0 } namespace foo {}", `(function(foo) {
+  0;
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "namespace foo { 0 } namespace foo { 0 }", `(function(foo) {
+  0;
+})(foo || (foo = {}));
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "function foo() {} namespace foo { 0 } function foo() {}", `function foo() {
+}
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+function foo() {
+}
+`)
+
+	// Namespace merging shouldn't allow for other merging
+	expectParseErrorTS(t, "class foo {} namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "class foo {} namespace foo { 0 } enum foo {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "enum foo {} namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } namespace foo { 0 } let foo", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } enum foo {} class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
 }
 
 func TestTSEnum(t *testing.T) {

@@ -755,6 +755,7 @@ const (
 	// - Variables declared using "var"
 	//
 	SymbolHoisted
+	SymbolHoistedFunction
 
 	// There's a weird special case where catch variables declared using a simple
 	// identifier (i.e. not a binding pattern) block hoisted variables instead of
@@ -776,9 +777,24 @@ const (
 	// This symbol is for handling this weird special case.
 	SymbolCatchIdentifier
 
+	// Classes can merge with TypeScript namespaces.
+	SymbolClass
+
+	// TypeScript enums can merge with TypeScript namespaces and other TypeScript
+	// enums.
+	SymbolTSEnum
+
+	// TypeScript namespaces can merge with classes, functions, TypeScript enums,
+	// and other TypeScript namespaces.
+	SymbolTSNamespace
+
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther
 )
+
+func (kind SymbolKind) IsHoisted() bool {
+	return kind == SymbolHoisted || kind == SymbolHoistedFunction
+}
 
 var InvalidRef Ref = Ref{^uint32(0), ^uint32(0)}
 

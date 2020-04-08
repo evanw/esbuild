@@ -299,16 +299,53 @@ func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
 	return ref
 }
 
+type mergeResult int
+
+const (
+	mergeForbidden = iota
+	mergeReplaceWithNew
+	mergeKeepExisting
+)
+
+func canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) mergeResult {
+	if existing == ast.SymbolUnbound {
+		return mergeReplaceWithNew
+	}
+
+	// "enum Foo {} enum Foo {}"
+	// "namespace Foo { ... } enum Foo {}"
+	if new == ast.SymbolTSEnum && (existing == ast.SymbolTSEnum || existing == ast.SymbolTSNamespace) {
+		return mergeKeepExisting
+	}
+
+	// "namespace Foo { ... } namespace Foo { ... }"
+	// "function Foo() {} namespace Foo { ... }"
+	// "enum Foo {} namespace Foo { ... }"
+	if new == ast.SymbolTSNamespace && (existing == ast.SymbolTSNamespace ||
+		existing == ast.SymbolHoistedFunction || existing == ast.SymbolTSEnum || existing == ast.SymbolClass) {
+		return mergeKeepExisting
+	}
+
+	// "var foo; var foo;"
+	// "var foo; function foo() {}"
+	// "function foo() {} var foo;"
+	if new.IsHoisted() && existing.IsHoisted() {
+		return mergeKeepExisting
+	}
+
+	return mergeForbidden
+}
+
 func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) ast.Ref {
 	scope := p.currentScope
 
 	// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
-	if kind == ast.SymbolHoisted {
+	if kind.IsHoisted() {
 		for scope.Kind != ast.ScopeEntry {
 			if existing, ok := scope.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
 				switch symbol.Kind {
-				case ast.SymbolUnbound, ast.SymbolHoisted:
+				case ast.SymbolUnbound, ast.SymbolHoisted, ast.SymbolHoistedFunction:
 					// Continue on to the parent scope
 				case ast.SymbolCatchIdentifier:
 					// This is a weird special case. Silently reuse this symbol.
@@ -329,19 +366,23 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 	// Check for a collision in the declaring scope
 	if existing, ok := scope.Members[name]; ok {
 		symbol := p.symbols[existing.InnerIndex]
-		if symbol.Kind == ast.SymbolUnbound {
-			p.symbols[existing.InnerIndex].Link = ref
-		} else if kind != ast.SymbolHoisted || symbol.Kind != ast.SymbolHoisted {
+
+		switch canMergeSymbols(symbol.Kind, kind) {
+		case mergeForbidden:
 			r := lexer.RangeOfIdentifier(p.source, loc)
 			p.log.AddRangeError(p.source, r, fmt.Sprintf("%q has already been declared", name))
 			return existing
-		} else {
+
+		case mergeKeepExisting:
 			ref = existing
+
+		case mergeReplaceWithNew:
+			p.symbols[existing.InnerIndex].Link = ref
 		}
 	}
 
 	// Hoist "var" symbols up to the enclosing function scope
-	if kind == ast.SymbolHoisted {
+	if kind.IsHoisted() {
 		for s := p.currentScope; s.Kind != ast.ScopeEntry; s = s.Parent {
 			if existing, ok := s.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
@@ -3142,7 +3183,7 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		p.lexer.Expect(lexer.TIdentifier)
 		name = &ast.LocRef{nameLoc, ast.InvalidRef}
 		if !opts.isTypeScriptDeclare {
-			name.Ref = p.declareSymbol(ast.SymbolOther, nameLoc, nameText)
+			name.Ref = p.declareSymbol(ast.SymbolClass, nameLoc, nameText)
 		}
 		if opts.isExport {
 			p.recordExport(nameLoc, nameText)
@@ -3291,7 +3332,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	//     function foo(): void {}
 	//
 	if !opts.isTypeScriptDeclare && name != nil {
-		name.Ref = p.declareSymbol(ast.SymbolHoisted, name.Loc, nameText)
+		name.Ref = p.declareSymbol(ast.SymbolHoistedFunction, name.Loc, nameText)
 		if opts.isExport {
 			p.recordExport(name.Loc, nameText)
 		}
@@ -4049,7 +4090,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 							name := ast.LocRef{nameLoc, ast.InvalidRef}
 
-							p.pushScopeForParsePass(ast.ScopeEntry, loc)
+							scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
 							p.enclosingNamespaceCount++
 
 							p.lexer.Expect(lexer.TOpenBrace)
@@ -4057,7 +4098,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							p.lexer.Next()
 
 							p.enclosingNamespaceCount--
-							p.popScope()
 
 							// TypeScript omits namespaces without values. These namespaces
 							// are only allowed to be used in type expressions. They are
@@ -4065,11 +4105,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							// expressions when imported. So we shouldn't count them as a
 							// real export either.
 							if len(stmts) == 0 {
+								p.popAndDiscardScope(scopeIndex)
 								return ast.Stmt{loc, &ast.STypeScript{}}
 							}
 
+							p.popScope()
 							if !opts.isTypeScriptDeclare {
-								name.Ref = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
+								name.Ref = p.declareSymbol(ast.SymbolTSNamespace, nameLoc, nameText)
 							}
 							if opts.isExport {
 								p.recordExport(nameLoc, nameText)
@@ -4121,7 +4163,7 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	p.lexer.Expect(lexer.TIdentifier)
 	name := ast.LocRef{nameLoc, ast.InvalidRef}
 	if !opts.isTypeScriptDeclare {
-		name.Ref = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
+		name.Ref = p.declareSymbol(ast.SymbolTSEnum, nameLoc, nameText)
 	}
 	p.lexer.Expect(lexer.TOpenBrace)
 
