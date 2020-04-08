@@ -198,6 +198,22 @@ func TestTSNamespace(t *testing.T) {
 	expectPrintedTS(t, "export namespace Foo {}", `(function(Foo) {
 })(Foo || (Foo = {}));
 `)
+
+	// Namespaces should introduce a scope that prevents name collisions
+	expectPrintedTS(t, "namespace Foo { let x } let x", `(function(Foo) {
+  let x;
+})(Foo || (Foo = {}));
+let x;
+`)
+
+	// Exports in namespaces shouldn't collide with module exports
+	expectPrintedTS(t, "namespace Foo { export let x } export let x", `(function(Foo) {
+  export let x;
+})(Foo || (Foo = {}));
+export let x;
+`)
+	expectPrintedTS(t, "declare namespace Foo { export let x } export let x", `export let x;
+`)
 }
 
 func TestTSEnum(t *testing.T) {
