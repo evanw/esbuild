@@ -192,10 +192,12 @@ func TestTSInterface(t *testing.T) {
 }
 
 func TestTSNamespace(t *testing.T) {
-	expectPrintedTS(t, "namespace Foo {}", `(function(Foo) {
+	expectPrintedTS(t, "namespace Foo { 0 }", `(function(Foo) {
+  0;
 })(Foo || (Foo = {}));
 `)
-	expectPrintedTS(t, "export namespace Foo {}", `(function(Foo) {
+	expectPrintedTS(t, "export namespace Foo { 0 }", `(function(Foo) {
+  0;
 })(Foo || (Foo = {}));
 `)
 
@@ -214,6 +216,28 @@ export let x;
 `)
 	expectPrintedTS(t, "declare namespace Foo { export let x } export let x", `export let x;
 `)
+
+	// Namespaces with values are not allowed to merge
+	expectParseErrorTS(t, "let foo; namespace foo { 0 }", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "const foo = 0; namespace foo { 0 }", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } let foo", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } const foo = 0", "<stdin>: error: \"foo\" has already been declared\n")
+
+	// Namespaces without values are allowed to merge
+	expectPrintedTS(t, "var foo; namespace foo {}", "var foo;\n")
+	expectPrintedTS(t, "let foo; namespace foo {}", "let foo;\n")
+	expectPrintedTS(t, "const foo = 0; namespace foo {}", "const foo = 0;\n")
+	expectPrintedTS(t, "namespace foo {} var foo", "var foo;\n")
+	expectPrintedTS(t, "namespace foo {} let foo", "let foo;\n")
+	expectPrintedTS(t, "namespace foo {} const foo = 0", "const foo = 0;\n")
+
+	// Namespaces with types but no values are allowed to merge
+	expectPrintedTS(t, "var foo; namespace foo { export type bar = number }", "var foo;\n")
+	expectPrintedTS(t, "let foo; namespace foo { export type bar = number }", "let foo;\n")
+	expectPrintedTS(t, "const foo = 0; namespace foo { export type bar = number }", "const foo = 0;\n")
+	expectPrintedTS(t, "namespace foo { export type bar = number } var foo", "var foo;\n")
+	expectPrintedTS(t, "namespace foo { export type bar = number } let foo", "let foo;\n")
+	expectPrintedTS(t, "namespace foo { export type bar = number } const foo = 0", "const foo = 0;\n")
 }
 
 func TestTSEnum(t *testing.T) {

@@ -20,7 +20,7 @@ func expectBundledTS(t *testing.T, args bundled) {
 		assertLog(t, msgs, args.expectedScanLog)
 
 		// Stop now if there were any errors during the scan
-		if len(msgs) > 0 {
+		if hasErrors(msgs) {
 			return
 		}
 
@@ -30,7 +30,13 @@ func expectBundledTS(t *testing.T, args bundled) {
 			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
 		}
 		results := bundle.Compile(log, args.bundleOptions)
-		assertLog(t, join(), args.expectedCompileLog)
+		msgs = join()
+		assertLog(t, msgs, args.expectedCompileLog)
+
+		// Stop now if there were any errors during the compile
+		if hasErrors(msgs) {
+			return
+		}
 
 		assertEqual(t, len(results), len(args.expected))
 		for _, result := range results {
@@ -298,5 +304,28 @@ func TestTSDeclareConstEnum(t *testing.T) {
 }, 0);
 `,
 		},
+	})
+}
+
+func TestTSImportEmptyNamespace(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import {ns} from './ns.ts'
+				console.log(ns)
+			`,
+			"/ns.ts": `
+				export namespace ns {}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: "/entry.ts: error: No matching export for import \"ns\"\n",
 	})
 }

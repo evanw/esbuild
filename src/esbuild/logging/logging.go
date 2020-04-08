@@ -27,11 +27,11 @@ const (
 )
 
 type Msg struct {
-	source Source
-	start  int32
-	length int32
-	text   string
-	kind   MsgKind
+	Source Source
+	Start  int32
+	Length int32
+	Text   string
+	Kind   MsgKind
 }
 
 type Source struct {
@@ -160,7 +160,7 @@ func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 		counts := MsgCounts{}
 		for msg := range msgs {
 			os.Stderr.WriteString(msg.String(options, asyncTerminalInfo()))
-			switch msg.kind {
+			switch msg.Kind {
 			case Error:
 				counts.Errors++
 			case Warning:
@@ -220,32 +220,32 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 	kind := "error"
 	kindColor := colorRed
 
-	if msg.kind == Warning {
+	if msg.Kind == Warning {
 		kind = "warning"
 		kindColor = colorMagenta
 	}
 
-	if msg.source.PrettyPath == "" {
+	if msg.Source.PrettyPath == "" {
 		if terminalInfo.UseColor {
 			return fmt.Sprintf("%s%s%s: %s%s%s\n",
 				colorBold, kindColor, kind,
-				colorResetBold, msg.text,
+				colorResetBold, msg.Text,
 				colorReset)
 		}
 
-		return fmt.Sprintf("%s: %s\n", kind, msg.text)
+		return fmt.Sprintf("%s: %s\n", kind, msg.Text)
 	}
 
 	if !options.IncludeSource {
 		if terminalInfo.UseColor {
 			return fmt.Sprintf("%s%s: %s%s: %s%s%s\n",
-				colorBold, msg.source.PrettyPath,
+				colorBold, msg.Source.PrettyPath,
 				kindColor, kind,
-				colorResetBold, msg.text,
+				colorResetBold, msg.Text,
 				colorReset)
 		}
 
-		return fmt.Sprintf("%s: %s: %s\n", msg.source.PrettyPath, kind, msg.text)
+		return fmt.Sprintf("%s: %s: %s\n", msg.Source.PrettyPath, kind, msg.Text)
 	}
 
 	d := detailStruct(msg, terminalInfo)
@@ -285,11 +285,11 @@ type MsgDetail struct {
 
 func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
 	var prevCodePoint rune
-	contents := msg.source.Contents
+	contents := msg.Source.Contents
 	lineStart := 0
 	lineCount := 0
 
-	for i, codePoint := range contents[0:msg.start] {
+	for i, codePoint := range contents[0:msg.Start] {
 		switch codePoint {
 		case '\n':
 			lineStart = i + 1
@@ -314,16 +314,16 @@ loop:
 	}
 
 	spacesPerTab := 2
-	columnCount := int(msg.start) - lineStart
+	columnCount := int(msg.Start) - lineStart
 	lineText := renderTabStops(contents[lineStart:lineEnd], spacesPerTab)
-	indent := strings.Repeat(" ", len(renderTabStops(contents[lineStart:msg.start], spacesPerTab)))
+	indent := strings.Repeat(" ", len(renderTabStops(contents[lineStart:msg.Start], spacesPerTab)))
 	marker := "^"
 	markerStart := len(indent)
 	markerEnd := len(indent)
 
 	// Extend markers to cover the full range of the error
-	if msg.length > 0 {
-		markerEnd = len(renderTabStops(contents[lineStart:msg.start+msg.length], spacesPerTab))
+	if msg.Length > 0 {
+		markerEnd = len(renderTabStops(contents[lineStart:msg.Start+msg.Length], spacesPerTab))
 	}
 
 	// Clip the marker to the bounds of the line
@@ -391,16 +391,16 @@ loop:
 	}
 
 	kind := "error"
-	if msg.kind == Warning {
+	if msg.Kind == Warning {
 		kind = "warning"
 	}
 
 	return MsgDetail{
-		Path:    msg.source.PrettyPath,
+		Path:    msg.Source.PrettyPath,
 		Line:    lineCount + 1,
 		Column:  columnCount,
 		Kind:    kind,
-		Message: msg.text,
+		Message: msg.Text,
 
 		Source:       lineText,
 		SourceBefore: lineText[:markerStart],

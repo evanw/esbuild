@@ -4048,12 +4048,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							p.lexer.Next()
 
 							name := ast.LocRef{nameLoc, ast.InvalidRef}
-							if !opts.isTypeScriptDeclare {
-								name.Ref = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
-							}
-							if opts.isExport {
-								p.recordExport(nameLoc, nameText)
-							}
 
 							p.pushScopeForParsePass(ast.ScopeEntry, loc)
 							p.enclosingNamespaceCount++
@@ -4065,6 +4059,21 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							p.enclosingNamespaceCount--
 							p.popScope()
 
+							// TypeScript omits namespaces without values. These namespaces
+							// are only allowed to be used in type expressions. They are
+							// allowed to be exported, but can also only be used in type
+							// expressions when imported. So we shouldn't count them as a
+							// real export either.
+							if len(stmts) == 0 {
+								return ast.Stmt{loc, &ast.STypeScript{}}
+							}
+
+							if !opts.isTypeScriptDeclare {
+								name.Ref = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
+							}
+							if opts.isExport {
+								p.recordExport(nameLoc, nameText)
+							}
 							return ast.Stmt{loc, &ast.SNamespace{name, stmts, opts.isExport}}
 						}
 

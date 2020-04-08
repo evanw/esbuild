@@ -23,6 +23,15 @@ func assertLog(t *testing.T, msgs []logging.Msg, expected string) {
 	assertEqual(t, text, expected)
 }
 
+func hasErrors(msgs []logging.Msg) bool {
+	for _, msg := range msgs {
+		if msg.Kind == logging.Error {
+			return true
+		}
+	}
+	return false
+}
+
 type bundled struct {
 	files              map[string]string
 	entryPaths         []string
@@ -44,7 +53,7 @@ func expectBundled(t *testing.T, args bundled) {
 		assertLog(t, msgs, args.expectedScanLog)
 
 		// Stop now if there were any errors during the scan
-		if len(msgs) > 0 {
+		if hasErrors(msgs) {
 			return
 		}
 
@@ -54,7 +63,13 @@ func expectBundled(t *testing.T, args bundled) {
 			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
 		}
 		results := bundle.Compile(log, args.bundleOptions)
-		assertLog(t, join(), args.expectedCompileLog)
+		msgs = join()
+		assertLog(t, msgs, args.expectedCompileLog)
+
+		// Stop now if there were any errors during the compile
+		if hasErrors(msgs) {
+			return
+		}
 
 		assertEqual(t, len(results), len(args.expected))
 		for _, result := range results {
