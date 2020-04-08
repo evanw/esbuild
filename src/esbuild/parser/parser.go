@@ -239,7 +239,7 @@ func checkEqualityIfNoSideEffects(left ast.E, right ast.E) (bool, bool) {
 	return false, false
 }
 
-func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) {
+func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 	parent := p.currentScope
 	scope := &ast.Scope{
 		Kind:     kind,
@@ -261,11 +261,31 @@ func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) {
 		}
 	}
 
+	// Remember the length in case we call popAndDiscardScope() later
+	scopeIndex := len(p.scopesInOrder)
 	p.scopesInOrder = append(p.scopesInOrder, scopeOrder{loc, scope})
+	return scopeIndex
 }
 
 func (p *parser) popScope() {
 	p.currentScope = p.currentScope.Parent
+}
+
+func (p *parser) popAndDiscardScope(scopeIndex int) {
+	// Move up to the parent scope
+	child := p.currentScope
+	parent := child.Parent
+	p.currentScope = parent
+
+	// Truncate the scope order where we started to pretend we never saw this scope
+	p.scopesInOrder = p.scopesInOrder[:scopeIndex]
+
+	// Remove the last child from the parent scope
+	last := len(parent.Children) - 1
+	if parent.Children[last] != child {
+		panic("Internal error")
+	}
+	parent.Children = parent.Children[:last]
 }
 
 func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
@@ -1020,8 +1040,7 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		context == propertyContextClass || opts.isAsync || opts.isGenerator {
 		loc := p.lexer.Loc()
 
-		p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
-		defer p.popScope()
+		scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
 
 		fn, hadBody := p.parseFn(nil, fnOpts{
 			allowAwait: opts.isAsync,
@@ -1034,9 +1053,11 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 		// "class Foo { foo(): void; foo(): void {} }"
 		if !hadBody {
 			// Skip this property entirely
+			p.popAndDiscardScope(scopeIndex)
 			return ast.Property{}, false
 		}
 
+		p.popScope()
 		value := ast.Expr{loc, &ast.EFunction{fn}}
 		return ast.Property{
 			Kind:       kind,
@@ -2967,9 +2988,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 
 		isIdentifier := p.lexer.Token == lexer.TIdentifier
 		identifierText := p.lexer.Identifier
-
 		arg := p.parseBinding()
-		p.declareBinding(ast.SymbolHoisted, arg, false /* isExport */)
 
 		if p.ts.Parse {
 			// Skip over "readonly"
@@ -2991,6 +3010,8 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 				p.skipTypeScriptType(ast.LLowest)
 			}
 		}
+
+		p.declareBinding(ast.SymbolHoisted, arg, false /* isExport */)
 
 		var defaultValue *ast.Expr
 		if !hasRestArg && p.lexer.Token == lexer.TEquals {
@@ -3953,7 +3974,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 					case "declare":
 						// "declare const x: any"
-						p.parseStmt(parseStmtOpts{isTypeScriptDeclare: true})
+						p.parseStmt(parseStmtOpts{
+							isTypeScriptDeclare: true,
+							allowLexicalDecl:    opts.allowLexicalDecl,
+						})
 						return ast.Stmt{loc, &ast.STypeScript{}}
 					}
 				}
