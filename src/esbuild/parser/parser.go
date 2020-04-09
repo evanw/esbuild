@@ -4090,10 +4090,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							p.lexer.Next()
 
 							name := ast.LocRef{nameLoc, ast.InvalidRef}
+							argRef := ast.InvalidRef
 
 							scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
 							oldEnclosingNamespaceRef := p.enclosingNamespaceRef
 							p.enclosingNamespaceRef = &name.Ref
+
+							if !opts.isTypeScriptDeclare {
+								argRef = p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, nameText)
+							}
 
 							p.lexer.Expect(lexer.TOpenBrace)
 							stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{isNamespaceScope: true})
@@ -4118,7 +4123,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							if opts.isExport {
 								p.recordExport(nameLoc, nameText)
 							}
-							return ast.Stmt{loc, &ast.SNamespace{name, stmts, opts.isExport}}
+							return ast.Stmt{loc, &ast.SNamespace{name, argRef, stmts, opts.isExport}}
 						}
 
 					case "abstract":
@@ -5531,12 +5536,12 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SNamespace:
 		oldEnclosingNamespaceRef := p.enclosingNamespaceRef
-		p.enclosingNamespaceRef = &s.Name.Ref
+		p.enclosingNamespaceRef = &s.Arg
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
 
 		// Create a closure around the statements inside the namespace
 		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
-			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Name.Ref}}}},
+			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Arg}}}},
 			Stmts: p.visitEntryStmts(s.Stmts),
 		}}}
 
@@ -5568,6 +5573,9 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 					}},
 				}},
 			}}
+			p.recordUsage(*oldEnclosingNamespaceRef)
+			p.recordUsage(*oldEnclosingNamespaceRef)
+			p.recordUsage(s.Name.Ref)
 		} else {
 			// "name || (name = {})"
 			argExpr = ast.Expr{s.Name.Loc, &ast.EBinary{
@@ -5579,6 +5587,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 					ast.Expr{s.Name.Loc, &ast.EObject{}},
 				}},
 			}}
+			p.recordUsage(s.Name.Ref)
+			p.recordUsage(s.Name.Ref)
 		}
 
 		// Declare a variable for this namespace if necessary

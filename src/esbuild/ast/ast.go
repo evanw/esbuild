@@ -555,6 +555,7 @@ type SEnum struct {
 
 type SNamespace struct {
 	Name     LocRef
+	Arg      Ref
 	Stmts    []Stmt
 	IsExport bool
 }

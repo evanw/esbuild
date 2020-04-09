@@ -355,3 +355,37 @@ func TestTSMinifyEnum(t *testing.T) {
 		},
 	})
 }
+
+func TestTSMinifyNamespace(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				namespace Foo {
+					export namespace Bar {
+						foo(Foo, Bar)
+					}
+				}
+			`,
+			"/b.ts": `
+				export namespace Foo {
+					export namespace Bar {
+						foo(Foo, Bar)
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/a.ts", "/b.ts"},
+		parseOptions: parser.ParseOptions{
+			MangleSyntax: true,
+		},
+		bundleOptions: BundleOptions{
+			RemoveWhitespace:  true,
+			MinifyIdentifiers: true,
+			AbsOutputDir:      "/",
+		},
+		expected: map[string]string{
+			"/a.min.js": "var b;(function(a){let c;(function(d){foo(a,d)})(c=a.Bar||(a.Bar={}))})(b||(b={}));\n",
+			"/b.min.js": "export var Foo;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(Foo||(Foo={}));\n",
+		},
+	})
+}
