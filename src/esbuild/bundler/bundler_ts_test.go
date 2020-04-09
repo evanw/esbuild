@@ -329,3 +329,29 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 		expectedCompileLog: "/entry.ts: error: No matching export for import \"ns\"\n",
 	})
 }
+
+func TestTSMinifyEnum(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				enum Foo { A, B, C = Foo }
+			`,
+			"/b.ts": `
+				export enum Foo { X, Y, Z = Foo }
+			`,
+		},
+		entryPaths: []string{"/a.ts", "/b.ts"},
+		parseOptions: parser.ParseOptions{
+			MangleSyntax: true,
+		},
+		bundleOptions: BundleOptions{
+			RemoveWhitespace:  true,
+			MinifyIdentifiers: true,
+			AbsOutputDir:      "/",
+		},
+		expected: map[string]string{
+			"/a.min.js": "var b;(function(a){a[a.A=0]=\"A\",a[a.B=1]=\"B\",a[a.C=a]=\"C\"})(b||(b={}));\n",
+			"/b.min.js": "export var Foo;(function(a){a[a.X=0]=\"X\",a[a.Y=1]=\"Y\",a[a.Z=a]=\"Z\"})(Foo||(Foo={}));\n",
+		},
+	})
+}

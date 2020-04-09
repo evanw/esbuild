@@ -4164,8 +4164,11 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	nameText := p.lexer.Identifier
 	p.lexer.Expect(lexer.TIdentifier)
 	name := ast.LocRef{nameLoc, ast.InvalidRef}
+	argRef := ast.InvalidRef
 	if !opts.isTypeScriptDeclare {
 		name.Ref = p.declareSymbol(ast.SymbolTSEnum, nameLoc, nameText)
+		p.pushScopeForParsePass(ast.ScopeEntry, loc)
+		argRef = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
 	}
 	p.lexer.Expect(lexer.TOpenBrace)
 
@@ -4212,8 +4215,12 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 	}
 
+	if !opts.isTypeScriptDeclare {
+		p.popScope()
+	}
+
 	p.lexer.Expect(lexer.TCloseBrace)
-	return ast.Stmt{loc, &ast.SEnum{name, values, opts.isExport}}
+	return ast.Stmt{loc, &ast.SEnum{name, argRef, values, opts.isExport}}
 }
 
 func (p *parser) parseFnBodyStmts(opts fnOpts) []ast.Stmt {
@@ -5431,31 +5438,71 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SEnum:
-		valueStmts := []ast.Stmt{}
+		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
+		defer p.popScope()
 
 		// Create an assignment for each enum value
+		valueExprs := []ast.Expr{}
 		for _, value := range s.Values {
 			value.Value = p.visitExpr(value.Value)
-			valueStmts = append(valueStmts, ast.Stmt{value.Loc, &ast.SExpr{ast.Expr{value.Loc, &ast.EBinary{
+			name := lexer.UTF16ToString(value.Name)
+			var assignTarget ast.Expr
+
+			if p.mangleSyntax && lexer.IsIdentifier(name) {
+				// "Enum.Name = value"
+				assignTarget = ast.Expr{value.Loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{value.Loc, &ast.EDot{
+						Target:  ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
+						Name:    name,
+						NameLoc: value.Loc,
+					}},
+					value.Value,
+				}}
+			} else {
+				// "Enum['Name'] = value"
+				assignTarget = ast.Expr{value.Loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{value.Loc, &ast.EIndex{
+						Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
+						Index:  ast.Expr{value.Loc, &ast.EString{value.Name}},
+					}},
+					value.Value,
+				}}
+			}
+			p.recordUsage(s.Arg)
+
+			// "Enum[assignTarget] = 'Name'"
+			valueExprs = append(valueExprs, ast.Expr{value.Loc, &ast.EBinary{
 				ast.BinOpAssign,
 				ast.Expr{value.Loc, &ast.EIndex{
-					Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Name.Ref}},
-					Index: ast.Expr{value.Loc, &ast.EBinary{
-						ast.BinOpAssign,
-						ast.Expr{value.Loc, &ast.EIndex{
-							Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Name.Ref}},
-							Index:  ast.Expr{value.Loc, &ast.EString{value.Name}},
-						}},
-						value.Value,
-					}},
+					Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
+					Index:  assignTarget,
 				}},
 				ast.Expr{value.Loc, &ast.EString{value.Name}},
-			}}}})
+			}})
+			p.recordUsage(s.Arg)
+		}
+
+		// "a; b; c;" => "a, b, c;"
+		valueStmts := []ast.Stmt{}
+		if len(valueExprs) > 0 {
+			if p.mangleSyntax {
+				valueExpr := valueExprs[0]
+				for i := 1; i < len(valueExprs); i++ {
+					valueExpr = ast.Expr{valueExpr.Loc, &ast.EBinary{ast.BinOpComma, valueExpr, valueExprs[i]}}
+				}
+				valueStmts = append(valueStmts, ast.Stmt{valueExpr.Loc, &ast.SExpr{valueExpr}})
+			} else {
+				for _, expr := range valueExprs {
+					valueStmts = append(valueStmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+				}
+			}
 		}
 
 		// Create a closure around the statements inside the namespace
 		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
-			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Name.Ref}}}},
+			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Arg}}}},
 			Stmts: valueStmts,
 		}}}
 
@@ -5469,6 +5516,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				ast.Expr{s.Name.Loc, &ast.EObject{}},
 			}},
 		}}
+		p.recordUsage(s.Name.Ref)
+		p.recordUsage(s.Name.Ref)
 
 		// Declare a variable for this namespace if necessary
 		stmts = p.generateVariableForNamespaceOrEnum(stmts, s.Name.Loc, s.Name.Ref, s.IsExport)
