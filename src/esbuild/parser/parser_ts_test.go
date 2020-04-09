@@ -314,9 +314,11 @@ func TestTSNamespaceExports(t *testing.T) {
 		namespace A {
 			export namespace B {
 				export function fn() {}
+				export class Class {}
 			}
 			namespace C {
 				export function fn() {}
+				export class Class {}
 			}
 		}
 	`, `var A;
@@ -326,12 +328,18 @@ func TestTSNamespaceExports(t *testing.T) {
     function fn() {
     }
     B.fn = fn;
+    class Class {
+    }
+    B.Class = Class;
   })(B = A.B || (A.B = {}));
   let C;
   (function(C) {
     function fn() {
     }
     C.fn = fn;
+    class Class {
+    }
+    C.Class = Class;
   })(C || (C = {}));
 })(A || (A = {}));
 `)

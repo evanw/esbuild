@@ -5380,6 +5380,24 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		for _, expr := range extraExprs {
 			stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 		}
+
+		// Handle exporting this class from a namespace
+		if s.IsExport && p.enclosingNamespaceRef != nil {
+			s.IsExport = false
+			stmts = append(stmts,
+				ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{stmt.Loc, &ast.EDot{
+						Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+						Name:    p.symbols[s.Class.Name.Ref.InnerIndex].Name,
+						NameLoc: s.Class.Name.Loc,
+					}},
+					ast.Expr{s.Class.Name.Loc, &ast.EIdentifier{s.Class.Name.Ref}},
+				}}}},
+			)
+			return stmts
+		}
+
 		return stmts
 
 	case *ast.SEnum:
