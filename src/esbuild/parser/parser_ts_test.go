@@ -308,6 +308,16 @@ function foo() {
 	expectParseErrorTS(t, "enum foo {} namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
 	expectParseErrorTS(t, "namespace foo { 0 } namespace foo { 0 } let foo", "<stdin>: error: \"foo\" has already been declared\n")
 	expectParseErrorTS(t, "namespace foo { 0 } enum foo {} class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
+
+	// Test dot nested namespace syntax
+	expectPrintedTS(t, "namespace foo.bar { foo(bar) }", `var foo;
+(function(foo) {
+  let bar;
+  (function(bar) {
+    foo(bar);
+  })(bar = foo.bar || (foo.bar = {}));
+})(foo || (foo = {}));
+`)
 }
 
 func TestTSNamespaceExports(t *testing.T) {

@@ -4098,46 +4098,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 					case "namespace":
 						if (opts.isModuleScope || opts.isNamespaceScope) && p.lexer.Token == lexer.TIdentifier {
-							// "namespace Foo {}"
-							nameLoc := p.lexer.Loc()
-							nameText := p.lexer.Identifier
-							p.lexer.Next()
-
-							name := ast.LocRef{nameLoc, ast.InvalidRef}
-							argRef := ast.InvalidRef
-
-							scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
-							oldEnclosingNamespaceRef := p.enclosingNamespaceRef
-							p.enclosingNamespaceRef = &name.Ref
-
-							if !opts.isTypeScriptDeclare {
-								argRef = p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, nameText)
-							}
-
-							p.lexer.Expect(lexer.TOpenBrace)
-							stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{isNamespaceScope: true})
-							p.lexer.Next()
-
-							p.enclosingNamespaceRef = oldEnclosingNamespaceRef
-
-							// TypeScript omits namespaces without values. These namespaces
-							// are only allowed to be used in type expressions. They are
-							// allowed to be exported, but can also only be used in type
-							// expressions when imported. So we shouldn't count them as a
-							// real export either.
-							if len(stmts) == 0 {
-								p.popAndDiscardScope(scopeIndex)
-								return ast.Stmt{loc, &ast.STypeScript{}}
-							}
-
-							p.popScope()
-							if !opts.isTypeScriptDeclare {
-								name.Ref = p.declareSymbol(ast.SymbolTSNamespace, nameLoc, nameText)
-							}
-							if opts.isExport {
-								p.recordExport(nameLoc, nameText)
-							}
-							return ast.Stmt{loc, &ast.SNamespace{name, argRef, stmts, opts.isExport}}
+							return p.parseNamespaceStmt(loc, opts)
 						}
 
 					case "abstract":
@@ -4175,6 +4136,60 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		return ast.Stmt{loc, &ast.SExpr{expr}}
 	}
+}
+
+func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
+	// "namespace Foo {}"
+	nameLoc := p.lexer.Loc()
+	nameText := p.lexer.Identifier
+	p.lexer.Next()
+
+	name := ast.LocRef{nameLoc, ast.InvalidRef}
+	argRef := ast.InvalidRef
+
+	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
+	oldEnclosingNamespaceRef := p.enclosingNamespaceRef
+	p.enclosingNamespaceRef = &name.Ref
+
+	if !opts.isTypeScriptDeclare {
+		argRef = p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, nameText)
+	}
+
+	var stmts []ast.Stmt
+	if p.lexer.Token == lexer.TDot {
+		dotLoc := p.lexer.Loc()
+		p.lexer.Next()
+		stmts = []ast.Stmt{p.parseNamespaceStmt(dotLoc, parseStmtOpts{
+			isExport:            true,
+			isNamespaceScope:    true,
+			isTypeScriptDeclare: opts.isTypeScriptDeclare,
+		})}
+	} else {
+		p.lexer.Expect(lexer.TOpenBrace)
+		stmts = p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{isNamespaceScope: true})
+		p.lexer.Next()
+	}
+
+	p.enclosingNamespaceRef = oldEnclosingNamespaceRef
+
+	// TypeScript omits namespaces without values. These namespaces
+	// are only allowed to be used in type expressions. They are
+	// allowed to be exported, but can also only be used in type
+	// expressions when imported. So we shouldn't count them as a
+	// real export either.
+	if len(stmts) == 0 {
+		p.popAndDiscardScope(scopeIndex)
+		return ast.Stmt{loc, &ast.STypeScript{}}
+	}
+
+	p.popScope()
+	if !opts.isTypeScriptDeclare {
+		name.Ref = p.declareSymbol(ast.SymbolTSNamespace, nameLoc, nameText)
+	}
+	if opts.isExport {
+		p.recordExport(nameLoc, nameText)
+	}
+	return ast.Stmt{loc, &ast.SNamespace{name, argRef, stmts, opts.isExport}}
 }
 
 func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
