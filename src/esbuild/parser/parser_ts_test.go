@@ -644,6 +644,23 @@ func TestTSEnum(t *testing.T) {
   Foo[Foo["B"] = 2] = "B";
 })(Foo || (Foo = {}));
 `)
+
+	expectPrintedTS(t, `
+		enum Foo {
+			'a' = 10.01,
+			'a b' = 100.1,
+			c = a + Foo['a b'],
+			d = a + Foo['a b'] + Math.random(),
+		}
+	`, `var Foo;
+(function(Foo) {
+  Foo[Foo["a"] = 10.01] = "a";
+  Foo[Foo["a b"] = 100.1] = "a b";
+  Foo[Foo["c"] = Foo.a + Foo["a b"]] = "c";
+  Foo[Foo["d"] = Foo.a + Foo["a b"] + Math.random()] = "d";
+})(Foo || (Foo = {}));
+`)
+
 }
 
 func TestTSFunction(t *testing.T) {

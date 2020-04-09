@@ -554,6 +554,7 @@ type SExpr struct {
 
 type EnumValue struct {
 	Loc   Loc
+	Ref   Ref
 	Name  []uint16
 	Value Expr
 }

@@ -4192,7 +4192,10 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	hasNumericValue := true
 
 	for p.lexer.Token != lexer.TCloseBrace {
-		value := ast.EnumValue{Loc: p.lexer.Loc()}
+		value := ast.EnumValue{
+			Loc: p.lexer.Loc(),
+			Ref: ast.InvalidRef,
+		}
 
 		// Parse the name
 		if p.lexer.Token == lexer.TStringLiteral {
@@ -4204,6 +4207,14 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		}
 		nameRange := p.lexer.Range()
 		p.lexer.Next()
+
+		// Identifiers can be referenced by other values
+		if !opts.isTypeScriptDeclare {
+			name := lexer.UTF16ToString(value.Name)
+			if lexer.IsIdentifier(name) {
+				value.Ref = p.declareSymbol(ast.SymbolOther, value.Loc, name)
+			}
+		}
 
 		// Parse the value
 		if p.lexer.Token == lexer.TEquals {
@@ -5507,6 +5518,16 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
 		defer p.popScope()
 
+		// Scan ahead for any variables inside this namespace. This must be done
+		// ahead of time before visiting any statements inside the namespace
+		// because we may end up visiting the uses before the declarations.
+		// We need to convert the uses into property accesses on the namespace.
+		for _, value := range s.Values {
+			if value.Ref != ast.InvalidRef {
+				p.isExportedInsideNamespace[value.Ref] = s.Arg
+			}
+		}
+
 		// Create an assignment for each enum value
 		valueExprs := []ast.Expr{}
 		for _, value := range s.Values {
@@ -5550,10 +5571,11 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			p.recordUsage(s.Arg)
 		}
 
-		// "a; b; c;" => "a, b, c;"
+		// Generate statements from expressions
 		valueStmts := []ast.Stmt{}
 		if len(valueExprs) > 0 {
 			if p.mangleSyntax {
+				// "a; b; c;" => "a, b, c;"
 				joined := ast.JoinAllWithComma(valueExprs)
 				valueStmts = append(valueStmts, ast.Stmt{joined.Loc, &ast.SExpr{joined}})
 			} else {
