@@ -4732,18 +4732,17 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 
 	case *ast.EIf:
 		e.Test = p.visitBooleanExpr(e.Test)
+		e.Yes = p.visitExpr(e.Yes)
+		e.No = p.visitExpr(e.No)
 
 		// Fold constants
 		if boolean, ok := toBooleanWithoutSideEffects(e.Test.Data); ok {
 			if boolean {
-				return p.visitExpr(e.Yes)
+				return e.Yes
 			} else {
-				return p.visitExpr(e.No)
+				return e.No
 			}
 		}
-
-		e.Yes = p.visitExpr(e.Yes)
-		e.No = p.visitExpr(e.No)
 
 		if p.mangleSyntax {
 			// "!a ? b : c" => "a ? c : b"

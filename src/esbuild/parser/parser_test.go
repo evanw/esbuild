@@ -798,6 +798,17 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "123n === 1_2_3n", "true;\n")
 }
 
+func TestConstantFoldingScopes(t *testing.T) {
+	// Parsing will crash if somehow the scope traversal is misaligned between
+	// the parsing and binding passes. This checks for those cases.
+	expectPrinted(t, "1 ? 0 : ()=>{}; (()=>{})()", "0;\n(() => {\n})();\n")
+	expectPrinted(t, "0 ? ()=>{} : 1; (()=>{})()", "1;\n(() => {\n})();\n")
+	expectPrinted(t, "0 && (()=>{}); (()=>{})()", "0;\n(() => {\n})();\n")
+	expectPrinted(t, "1 || (()=>{}); (()=>{})()", "1;\n(() => {\n})();\n")
+	expectPrintedMangle(t, "if (1) 0; else ()=>{}; (()=>{})()", "(() => {\n})();\n")
+	expectPrintedMangle(t, "if (0) ()=>{}; else 1; (()=>{})()", "(() => {\n})();\n")
+}
+
 func TestImport(t *testing.T) {
 	expectPrinted(t, "import \"foo\"", "import \"foo\";\n")
 	expectPrinted(t, "import {} from \"foo\"", "import {} from \"foo\";\n")
