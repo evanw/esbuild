@@ -309,6 +309,30 @@ function foo() {
 	expectParseErrorTS(t, "namespace foo { 0 } enum foo {} class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
 }
 
+func TestTSNamespaceExports(t *testing.T) {
+	expectPrintedTS(t, `
+		namespace A {
+			export namespace B {
+				0
+			}
+			namespace C {
+				0
+			}
+		}
+	`, `var A;
+(function(A) {
+  let B;
+  (function(B) {
+    0;
+  })(B = A.B || (A.B = {}));
+  let C;
+  (function(C) {
+    0;
+  })(C || (C = {}));
+})(A || (A = {}));
+`)
+}
+
 func TestTSEnum(t *testing.T) {
 	expectPrintedTS(t, "enum Foo { A, B }", `(function(Foo) {
   Foo[Foo["A"] = 0] = "A";

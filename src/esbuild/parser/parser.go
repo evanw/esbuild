@@ -44,7 +44,7 @@ type parser struct {
 	exportsRef               ast.Ref
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
-	enclosingNamespaceCount  int
+	enclosingNamespaceRef    *ast.Ref
 	emittedNamespaceVars     map[ast.Ref]bool
 	indirectImportItems      map[ast.Ref]bool
 	importItemsForNamespace  map[ast.Ref]map[string]ast.Ref
@@ -430,7 +430,7 @@ func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts p
 
 func (p *parser) recordExport(loc ast.Loc, alias string) {
 	// This is only an ES6 export if we're not inside a TypeScript namespace
-	if p.enclosingNamespaceCount == 0 {
+	if p.enclosingNamespaceRef == nil {
 		if p.exportAliases[alias] {
 			// Warn about duplicate exports
 			p.log.AddRangeError(p.source, lexer.RangeOfIdentifier(p.source, loc),
@@ -4092,13 +4092,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							name := ast.LocRef{nameLoc, ast.InvalidRef}
 
 							scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
-							p.enclosingNamespaceCount++
+							oldEnclosingNamespaceRef := p.enclosingNamespaceRef
+							p.enclosingNamespaceRef = &name.Ref
 
 							p.lexer.Expect(lexer.TOpenBrace)
 							stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{isNamespaceScope: true})
 							p.lexer.Next()
 
-							p.enclosingNamespaceCount--
+							p.enclosingNamespaceRef = oldEnclosingNamespaceRef
 
 							// TypeScript omits namespaces without values. These namespaces
 							// are only allowed to be used in type expressions. They are
@@ -5414,34 +5415,75 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			symbol = p.symbols[ref.InnerIndex]
 		}
 
-		// Create a closure around the statements inside the namespace
+		oldEnclosingNamespaceRef := p.enclosingNamespaceRef
+		p.enclosingNamespaceRef = &ref
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
+
+		// Create a closure around the statements inside the namespace
 		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
 			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{ref}}}},
 			Stmts: p.visitEntryStmts(s.Stmts),
 		}}}
-		p.popScope()
 
-		// "name || (name = {})"
-		argExpr := ast.Expr{s.Name.Loc, &ast.EBinary{
-			ast.BinOpLogicalOr,
-			ast.Expr{s.Name.Loc, &ast.EIdentifier{ref}},
-			ast.Expr{s.Name.Loc, &ast.EBinary{
+		p.popScope()
+		p.enclosingNamespaceRef = oldEnclosingNamespaceRef
+
+		var argExpr ast.Expr
+		if s.IsExport && oldEnclosingNamespaceRef != nil {
+			// "name = enclosing.name || (enclosing.name = {})"
+			argExpr = ast.Expr{s.Name.Loc, &ast.EBinary{
 				ast.BinOpAssign,
 				ast.Expr{s.Name.Loc, &ast.EIdentifier{ref}},
-				ast.Expr{s.Name.Loc, &ast.EObject{}},
-			}},
-		}}
+				ast.Expr{s.Name.Loc, &ast.EBinary{
+					ast.BinOpLogicalOr,
+					ast.Expr{s.Name.Loc, &ast.EDot{
+						Target:  ast.Expr{s.Name.Loc, &ast.EIdentifier{*oldEnclosingNamespaceRef}},
+						Name:    symbol.Name,
+						NameLoc: s.Name.Loc,
+					}},
+					ast.Expr{s.Name.Loc, &ast.EBinary{
+						ast.BinOpAssign,
+						ast.Expr{s.Name.Loc, &ast.EDot{
+							Target:  ast.Expr{s.Name.Loc, &ast.EIdentifier{*oldEnclosingNamespaceRef}},
+							Name:    symbol.Name,
+							NameLoc: s.Name.Loc,
+						}},
+						ast.Expr{s.Name.Loc, &ast.EObject{}},
+					}},
+				}},
+			}}
+		} else {
+			// "name || (name = {})"
+			argExpr = ast.Expr{s.Name.Loc, &ast.EBinary{
+				ast.BinOpLogicalOr,
+				ast.Expr{s.Name.Loc, &ast.EIdentifier{ref}},
+				ast.Expr{s.Name.Loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{s.Name.Loc, &ast.EIdentifier{ref}},
+					ast.Expr{s.Name.Loc, &ast.EObject{}},
+				}},
+			}}
+		}
 
 		// Declare a variable for this namespace if necessary. Make sure to only
 		// emit a variable once for a given namespace though, since there can be
 		// multiple namespace blocks for the same namespace.
 		if symbol.Kind == ast.SymbolTSNamespace && !p.emittedNamespaceVars[ref] {
 			p.emittedNamespaceVars[ref] = true
-			stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SVar{
-				[]ast.Decl{ast.Decl{ast.Binding{s.Name.Loc, &ast.BIdentifier{ref}}, nil}},
-				s.IsExport,
-			}})
+			if oldEnclosingNamespaceRef == nil {
+				// Top-level namespace
+				stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SLocal{
+					Kind:     ast.LocalVar,
+					Decls:    []ast.Decl{ast.Decl{ast.Binding{s.Name.Loc, &ast.BIdentifier{ref}}, nil}},
+					IsExport: s.IsExport,
+				}})
+			} else {
+				// Nested namespace
+				stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SLocal{
+					Kind:  ast.LocalLet,
+					Decls: []ast.Decl{ast.Decl{ast.Binding{s.Name.Loc, &ast.BIdentifier{ref}}, nil}},
+				}})
+			}
 		}
 
 		// Call the closure with the name object
