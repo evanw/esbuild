@@ -192,24 +192,28 @@ func TestTSInterface(t *testing.T) {
 }
 
 func TestTSNamespace(t *testing.T) {
-	expectPrintedTS(t, "namespace Foo { 0 }", `(function(Foo) {
+	expectPrintedTS(t, "namespace Foo { 0 }", `var Foo;
+(function(Foo) {
   0;
 })(Foo || (Foo = {}));
 `)
-	expectPrintedTS(t, "export namespace Foo { 0 }", `(function(Foo) {
+	expectPrintedTS(t, "export namespace Foo { 0 }", `export var Foo;
+(function(Foo) {
   0;
 })(Foo || (Foo = {}));
 `)
 
 	// Namespaces should introduce a scope that prevents name collisions
-	expectPrintedTS(t, "namespace Foo { let x } let x", `(function(Foo) {
+	expectPrintedTS(t, "namespace Foo { let x } let x", `var Foo;
+(function(Foo) {
   let x;
 })(Foo || (Foo = {}));
 let x;
 `)
 
 	// Exports in namespaces shouldn't collide with module exports
-	expectPrintedTS(t, "namespace Foo { export let x } export let x", `(function(Foo) {
+	expectPrintedTS(t, "namespace Foo { export let x } export let x", `var Foo;
+(function(Foo) {
   export let x;
 })(Foo || (Foo = {}));
 export let x;
@@ -261,7 +265,8 @@ export let x;
   0;
 })(foo || (foo = {}));
 `)
-	expectPrintedTS(t, "namespace foo {} namespace foo { 0 }", `(function(foo) {
+	expectPrintedTS(t, "namespace foo {} namespace foo { 0 }", `var foo;
+(function(foo) {
   0;
 })(foo || (foo = {}));
 `)
@@ -274,11 +279,13 @@ export let x;
   foo[foo["a"] = 0] = "a";
 })(foo || (foo = {}));
 `)
-	expectPrintedTS(t, "namespace foo { 0 } namespace foo {}", `(function(foo) {
+	expectPrintedTS(t, "namespace foo { 0 } namespace foo {}", `var foo;
+(function(foo) {
   0;
 })(foo || (foo = {}));
 `)
-	expectPrintedTS(t, "namespace foo { 0 } namespace foo { 0 }", `(function(foo) {
+	expectPrintedTS(t, "namespace foo { 0 } namespace foo { 0 }", `var foo;
+(function(foo) {
   0;
 })(foo || (foo = {}));
 (function(foo) {

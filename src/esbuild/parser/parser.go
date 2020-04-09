@@ -45,6 +45,7 @@ type parser struct {
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
 	enclosingNamespaceCount  int
+	emittedNamespaceVars     map[ast.Ref]bool
 	indirectImportItems      map[ast.Ref]bool
 	importItemsForNamespace  map[ast.Ref]map[string]ast.Ref
 	exprForImportItem        map[ast.Ref]*ast.ENamespaceImport
@@ -315,7 +316,7 @@ func canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) mergeResult {
 	// "enum Foo {} enum Foo {}"
 	// "namespace Foo { ... } enum Foo {}"
 	if new == ast.SymbolTSEnum && (existing == ast.SymbolTSEnum || existing == ast.SymbolTSNamespace) {
-		return mergeKeepExisting
+		return mergeReplaceWithNew
 	}
 
 	// "namespace Foo { ... } namespace Foo { ... }"
@@ -5405,29 +5406,50 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}}}}
 
 	case *ast.SNamespace:
+		// Follow the link chain in case symbols were merged
+		ref := s.Name.Ref
+		symbol := p.symbols[ref.InnerIndex]
+		for symbol.Link != ast.InvalidRef {
+			ref = symbol.Link
+			symbol = p.symbols[ref.InnerIndex]
+		}
+
+		// Create a closure around the statements inside the namespace
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
-		stmts := p.visitEntryStmts(s.Stmts)
+		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
+			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{ref}}}},
+			Stmts: p.visitEntryStmts(s.Stmts),
+		}}}
 		p.popScope()
 
-		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
-			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Name.Ref}}}},
-			Stmts: stmts,
-		}}}
-
+		// "name || (name = {})"
 		argExpr := ast.Expr{s.Name.Loc, &ast.EBinary{
 			ast.BinOpLogicalOr,
-			ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
+			ast.Expr{s.Name.Loc, &ast.EIdentifier{ref}},
 			ast.Expr{s.Name.Loc, &ast.EBinary{
 				ast.BinOpAssign,
-				ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
+				ast.Expr{s.Name.Loc, &ast.EIdentifier{ref}},
 				ast.Expr{s.Name.Loc, &ast.EObject{}},
 			}},
 		}}
 
-		stmt = ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
+		// Declare a variable for this namespace if necessary. Make sure to only
+		// emit a variable once for a given namespace though, since there can be
+		// multiple namespace blocks for the same namespace.
+		if symbol.Kind == ast.SymbolTSNamespace && !p.emittedNamespaceVars[ref] {
+			p.emittedNamespaceVars[ref] = true
+			stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SVar{
+				[]ast.Decl{ast.Decl{ast.Binding{s.Name.Loc, &ast.BIdentifier{ref}}, nil}},
+				s.IsExport,
+			}})
+		}
+
+		// Call the closure with the name object
+		stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
 			Target: fnExpr,
 			Args:   []ast.Expr{argExpr},
-		}}}}
+		}}}})
+		return stmts
 
 	default:
 		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
@@ -6620,6 +6642,7 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 		mangleSyntax: options.MangleSyntax,
 		isBundling:   options.IsBundling,
 
+		emittedNamespaceVars:    make(map[ast.Ref]bool),
 		indirectImportItems:     make(map[ast.Ref]bool),
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),
