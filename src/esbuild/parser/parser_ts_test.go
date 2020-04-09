@@ -316,11 +316,12 @@ func TestTSNamespaceExports(t *testing.T) {
 		namespace A {
 			export namespace B {
 				export function fn() {}
-				export class Class {}
 			}
 			namespace C {
 				export function fn() {}
-				export class Class {}
+			}
+			namespace D {
+				function fn() {}
 			}
 		}
 	`, `var A;
@@ -330,19 +331,87 @@ func TestTSNamespaceExports(t *testing.T) {
     function fn() {
     }
     B.fn = fn;
-    class Class {
-    }
-    B.Class = Class;
   })(B = A.B || (A.B = {}));
   let C;
   (function(C) {
     function fn() {
     }
     C.fn = fn;
+  })(C || (C = {}));
+  let D;
+  (function(D) {
+    function fn() {
+    }
+  })(D || (D = {}));
+})(A || (A = {}));
+`)
+
+	expectPrintedTS(t, `
+namespace A {
+	export namespace B {
+		export class Class {}
+	}
+	namespace C {
+		export class Class {}
+	}
+	namespace D {
+		class Class {}
+	}
+}
+`, `var A;
+(function(A) {
+  let B;
+  (function(B) {
+    class Class {
+    }
+    B.Class = Class;
+  })(B = A.B || (A.B = {}));
+  let C;
+  (function(C) {
     class Class {
     }
     C.Class = Class;
   })(C || (C = {}));
+  let D;
+  (function(D) {
+    class Class {
+    }
+  })(D || (D = {}));
+})(A || (A = {}));
+`)
+
+	expectPrintedTS(t, `
+namespace A {
+	export namespace B {
+		export enum Enum {}
+	}
+	namespace C {
+		export enum Enum {}
+	}
+	namespace D {
+		enum Enum {}
+	}
+}
+`, `var A;
+(function(A) {
+  let B;
+  (function(B) {
+    let Enum;
+    (function(Enum) {
+    })(Enum = B.Enum || (B.Enum = {}));
+  })(B = A.B || (A.B = {}));
+  let C;
+  (function(C) {
+    let Enum;
+    (function(Enum) {
+    })(Enum = C.Enum || (C.Enum = {}));
+  })(C || (C = {}));
+  let D;
+  (function(D) {
+    let Enum;
+    (function(Enum) {
+    })(Enum || (Enum = {}));
+  })(D || (D = {}));
 })(A || (A = {}));
 `)
 }

@@ -5070,33 +5070,89 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 	return ast.Stmt{loc, s}
 }
 
-func (p *parser) generateVariableForNamespaceOrEnum(stmts []ast.Stmt, loc ast.Loc, ref ast.Ref, isExport bool) []ast.Stmt {
+func (p *parser) generateClosureForNamespaceOrEnum(
+	stmts []ast.Stmt, stmtLoc ast.Loc, isExport bool, nameLoc ast.Loc,
+	nameRef ast.Ref, argRef ast.Ref, stmtsInsideClosure []ast.Stmt,
+) []ast.Stmt {
 	// Follow the link chain in case symbols were merged
-	symbol := p.symbols[ref.InnerIndex]
+	symbol := p.symbols[nameRef.InnerIndex]
 	for symbol.Link != ast.InvalidRef {
-		ref = symbol.Link
-		symbol = p.symbols[ref.InnerIndex]
+		nameRef = symbol.Link
+		symbol = p.symbols[nameRef.InnerIndex]
 	}
 
 	// Make sure to only emit a variable once for a given namespace, since there
 	// can be multiple namespace blocks for the same namespace
-	if (symbol.Kind == ast.SymbolTSNamespace || symbol.Kind == ast.SymbolTSEnum) && !p.emittedNamespaceVars[ref] {
-		p.emittedNamespaceVars[ref] = true
+	if (symbol.Kind == ast.SymbolTSNamespace || symbol.Kind == ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
+		p.emittedNamespaceVars[nameRef] = true
 		if p.enclosingNamespaceRef == nil {
 			// Top-level namespace
-			stmts = append(stmts, ast.Stmt{loc, &ast.SLocal{
+			stmts = append(stmts, ast.Stmt{nameLoc, &ast.SLocal{
 				Kind:     ast.LocalVar,
-				Decls:    []ast.Decl{ast.Decl{ast.Binding{loc, &ast.BIdentifier{ref}}, nil}},
+				Decls:    []ast.Decl{ast.Decl{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
 				IsExport: isExport,
 			}})
 		} else {
 			// Nested namespace
-			stmts = append(stmts, ast.Stmt{loc, &ast.SLocal{
+			stmts = append(stmts, ast.Stmt{nameLoc, &ast.SLocal{
 				Kind:  ast.LocalLet,
-				Decls: []ast.Decl{ast.Decl{ast.Binding{loc, &ast.BIdentifier{ref}}, nil}},
+				Decls: []ast.Decl{ast.Decl{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
 			}})
 		}
 	}
+
+	var argExpr ast.Expr
+	if isExport && p.enclosingNamespaceRef != nil {
+		// "name = enclosing.name || (enclosing.name = {})"
+		name := p.symbols[nameRef.InnerIndex].Name
+		argExpr = ast.Expr{nameLoc, &ast.EBinary{
+			ast.BinOpAssign,
+			ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
+			ast.Expr{nameLoc, &ast.EBinary{
+				ast.BinOpLogicalOr,
+				ast.Expr{nameLoc, &ast.EDot{
+					Target:  ast.Expr{nameLoc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+					Name:    name,
+					NameLoc: nameLoc,
+				}},
+				ast.Expr{nameLoc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{nameLoc, &ast.EDot{
+						Target:  ast.Expr{nameLoc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+						Name:    name,
+						NameLoc: nameLoc,
+					}},
+					ast.Expr{nameLoc, &ast.EObject{}},
+				}},
+			}},
+		}}
+		p.recordUsage(*p.enclosingNamespaceRef)
+		p.recordUsage(*p.enclosingNamespaceRef)
+		p.recordUsage(nameRef)
+	} else {
+		// "name || (name = {})"
+		argExpr = ast.Expr{nameLoc, &ast.EBinary{
+			ast.BinOpLogicalOr,
+			ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
+			ast.Expr{nameLoc, &ast.EBinary{
+				ast.BinOpAssign,
+				ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
+				ast.Expr{nameLoc, &ast.EObject{}},
+			}},
+		}}
+		p.recordUsage(nameRef)
+		p.recordUsage(nameRef)
+	}
+
+	// Call the closure with the name object
+	stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SExpr{ast.Expr{stmtLoc, &ast.ECall{
+		Target: ast.Expr{stmtLoc, &ast.EFunction{Fn: ast.Fn{
+			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{nameLoc, &ast.BIdentifier{argRef}}}},
+			Stmts: stmtsInsideClosure,
+		}}},
+		Args: []ast.Expr{argExpr},
+	}}}})
+
 	return stmts
 }
 
@@ -5505,100 +5561,22 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			}
 		}
 
-		// Create a closure around the statements inside the namespace
-		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
-			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Arg}}}},
-			Stmts: valueStmts,
-		}}}
-
-		// "name || (name = {})"
-		argExpr := ast.Expr{s.Name.Loc, &ast.EBinary{
-			ast.BinOpLogicalOr,
-			ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
-			ast.Expr{s.Name.Loc, &ast.EBinary{
-				ast.BinOpAssign,
-				ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
-				ast.Expr{s.Name.Loc, &ast.EObject{}},
-			}},
-		}}
-		p.recordUsage(s.Name.Ref)
-		p.recordUsage(s.Name.Ref)
-
-		// Declare a variable for this namespace if necessary
-		stmts = p.generateVariableForNamespaceOrEnum(stmts, s.Name.Loc, s.Name.Ref, s.IsExport)
-
-		// Call the closure with the name object
-		stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
-			Target: fnExpr,
-			Args:   []ast.Expr{argExpr},
-		}}}})
+		// Wrap this enum definition in a closure
+		stmts = p.generateClosureForNamespaceOrEnum(
+			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueStmts)
 		return stmts
 
 	case *ast.SNamespace:
 		oldEnclosingNamespaceRef := p.enclosingNamespaceRef
 		p.enclosingNamespaceRef = &s.Arg
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
-
-		// Create a closure around the statements inside the namespace
-		fnExpr := ast.Expr{stmt.Loc, &ast.EFunction{Fn: ast.Fn{
-			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{s.Name.Loc, &ast.BIdentifier{s.Arg}}}},
-			Stmts: p.visitEntryStmts(s.Stmts),
-		}}}
-
+		stmtsInsideNamespace := p.visitEntryStmts(s.Stmts)
 		p.popScope()
 		p.enclosingNamespaceRef = oldEnclosingNamespaceRef
 
-		var argExpr ast.Expr
-		if s.IsExport && oldEnclosingNamespaceRef != nil {
-			// "name = enclosing.name || (enclosing.name = {})"
-			name := p.symbols[s.Name.Ref.InnerIndex].Name
-			argExpr = ast.Expr{s.Name.Loc, &ast.EBinary{
-				ast.BinOpAssign,
-				ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
-				ast.Expr{s.Name.Loc, &ast.EBinary{
-					ast.BinOpLogicalOr,
-					ast.Expr{s.Name.Loc, &ast.EDot{
-						Target:  ast.Expr{s.Name.Loc, &ast.EIdentifier{*oldEnclosingNamespaceRef}},
-						Name:    name,
-						NameLoc: s.Name.Loc,
-					}},
-					ast.Expr{s.Name.Loc, &ast.EBinary{
-						ast.BinOpAssign,
-						ast.Expr{s.Name.Loc, &ast.EDot{
-							Target:  ast.Expr{s.Name.Loc, &ast.EIdentifier{*oldEnclosingNamespaceRef}},
-							Name:    name,
-							NameLoc: s.Name.Loc,
-						}},
-						ast.Expr{s.Name.Loc, &ast.EObject{}},
-					}},
-				}},
-			}}
-			p.recordUsage(*oldEnclosingNamespaceRef)
-			p.recordUsage(*oldEnclosingNamespaceRef)
-			p.recordUsage(s.Name.Ref)
-		} else {
-			// "name || (name = {})"
-			argExpr = ast.Expr{s.Name.Loc, &ast.EBinary{
-				ast.BinOpLogicalOr,
-				ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
-				ast.Expr{s.Name.Loc, &ast.EBinary{
-					ast.BinOpAssign,
-					ast.Expr{s.Name.Loc, &ast.EIdentifier{s.Name.Ref}},
-					ast.Expr{s.Name.Loc, &ast.EObject{}},
-				}},
-			}}
-			p.recordUsage(s.Name.Ref)
-			p.recordUsage(s.Name.Ref)
-		}
-
-		// Declare a variable for this namespace if necessary
-		stmts = p.generateVariableForNamespaceOrEnum(stmts, s.Name.Loc, s.Name.Ref, s.IsExport)
-
-		// Call the closure with the name object
-		stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
-			Target: fnExpr,
-			Args:   []ast.Expr{argExpr},
-		}}}})
+		// Generate a closure for this namespace
+		stmts = p.generateClosureForNamespaceOrEnum(
+			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, stmtsInsideNamespace)
 		return stmts
 
 	default:
