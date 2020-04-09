@@ -686,6 +686,18 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "(x: any): x is number => {}", "(x) => {\n};\n")
 }
 
+func TestTSCall(t *testing.T) {
+	expectPrintedTS(t, "foo()", "foo();\n")
+	expectPrintedTS(t, "foo<number>()", "foo();\n")
+	expectPrintedTS(t, "foo<number, boolean>()", "foo();\n")
+}
+
+func TestTSNew(t *testing.T) {
+	expectPrintedTS(t, "new Foo()", "new Foo();\n")
+	expectPrintedTS(t, "new Foo<number>()", "new Foo();\n")
+	expectPrintedTS(t, "new Foo<number, boolean>()", "new Foo();\n")
+}
+
 func TestTSImport(t *testing.T) {
 	expectPrintedTS(t, "import {x} from 'foo'", "")
 	expectPrintedTS(t, "import {x} from 'foo'; log(x)", "import {x} from \"foo\";\nlog(x);\n")
