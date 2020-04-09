@@ -5353,6 +5353,24 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SFunction:
 		p.visitFn(&s.Fn, stmt.Loc)
 
+		// Handle exporting this function from a namespace
+		if s.IsExport && p.enclosingNamespaceRef != nil {
+			s.IsExport = false
+			stmts = append(stmts,
+				stmt,
+				ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{stmt.Loc, &ast.EDot{
+						Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+						Name:    p.symbols[s.Fn.Name.Ref.InnerIndex].Name,
+						NameLoc: s.Fn.Name.Loc,
+					}},
+					ast.Expr{s.Fn.Name.Loc, &ast.EIdentifier{s.Fn.Name.Ref}},
+				}}}},
+			)
+			return stmts
+		}
+
 	case *ast.SClass:
 		p.visitClass(&s.Class)
 		stmts = append(stmts, stmt)

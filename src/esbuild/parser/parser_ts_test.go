@@ -313,21 +313,25 @@ func TestTSNamespaceExports(t *testing.T) {
 	expectPrintedTS(t, `
 		namespace A {
 			export namespace B {
-				0
+				export function fn() {}
 			}
 			namespace C {
-				0
+				export function fn() {}
 			}
 		}
 	`, `var A;
 (function(A) {
   let B;
   (function(B) {
-    0;
+    function fn() {
+    }
+    B.fn = fn;
   })(B = A.B || (A.B = {}));
   let C;
   (function(C) {
-    0;
+    function fn() {
+    }
+    C.fn = fn;
   })(C || (C = {}));
 })(A || (A = {}));
 `)
