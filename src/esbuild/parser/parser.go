@@ -3907,7 +3907,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				return ast.Stmt{}
 			}
 
-			stmt.DefaultName = &ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
+			defaultName := p.lexer.Identifier
+			stmt.DefaultName = &ast.LocRef{p.lexer.Loc(), p.storeNameInRef(defaultName)}
 			p.lexer.Next()
 
 			if p.ts.Parse && p.lexer.Token == lexer.TEquals {
@@ -3916,7 +3917,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				value := p.parseExpr(ast.LComma)
 				p.lexer.ExpectOrInsertSemicolon()
 				decls := []ast.Decl{ast.Decl{
-					ast.Binding{stmt.DefaultName.Loc, &ast.BIdentifier{stmt.DefaultName.Ref}},
+					ast.Binding{stmt.DefaultName.Loc,
+						&ast.BIdentifier{p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)}},
 					&value,
 				}}
 				return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
