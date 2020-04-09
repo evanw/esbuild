@@ -742,6 +742,17 @@ func (*SLocal) isStmt()         {}
 func (*SBreak) isStmt()         {}
 func (*SContinue) isStmt()      {}
 
+func IsSuperCall(stmt Stmt) bool {
+	if expr, ok := stmt.Data.(*SExpr); ok {
+		if call, ok := expr.Value.Data.(*ECall); ok {
+			if _, ok := call.Target.Data.(*ESuper); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 type ClauseItem struct {
 	Alias    string
 	AliasLoc Loc

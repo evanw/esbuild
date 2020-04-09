@@ -4499,7 +4499,7 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 			// Merge adjacent expression statements
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*ast.SExpr); ok {
+				if prevS, ok := prevStmt.Data.(*ast.SExpr); ok && !ast.IsSuperCall(prevStmt) {
 					prevS.Value = ast.JoinWithComma(prevS.Value, s.Value)
 					continue
 				}
@@ -4868,15 +4868,9 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 		// Insert the instance field initializers after the super call if there is one
 		stmtsFrom := ctor.Fn.Stmts
 		stmtsTo := []ast.Stmt{}
-		if len(stmtsFrom) > 0 {
-			if expr, ok := stmtsFrom[0].Data.(*ast.SExpr); ok {
-				if call, ok := expr.Value.Data.(*ast.ECall); ok {
-					if _, ok := call.Target.Data.(*ast.ESuper); ok {
-						stmtsTo = append(stmtsTo, stmtsFrom[0])
-						stmtsFrom = stmtsFrom[1:]
-					}
-				}
-			}
+		if len(stmtsFrom) > 0 && ast.IsSuperCall(stmtsFrom[0]) {
+			stmtsTo = append(stmtsTo, stmtsFrom[0])
+			stmtsFrom = stmtsFrom[1:]
 		}
 		stmtsTo = append(stmtsTo, parameterFields...)
 		stmtsTo = append(stmtsTo, instanceFields...)

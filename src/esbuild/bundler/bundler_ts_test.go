@@ -389,3 +389,40 @@ func TestTSMinifyNamespace(t *testing.T) {
 		},
 	})
 }
+
+func TestTSMinifyDerivedClass(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo extends Bar {
+					foo = 1;
+					bar = 2;
+					constructor() {
+						super();
+						foo();
+						bar();
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			MangleSyntax: true,
+			Target:       parser.ES2015,
+		},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo extends Bar {
+  constructor() {
+    super();
+    this.foo = 1;
+    this.bar = 2;
+    foo(), bar();
+  }
+}
+`,
+		},
+	})
+}
