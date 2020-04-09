@@ -258,7 +258,8 @@ export let x;
   0;
 })(foo || (foo = {}));
 `)
-	expectPrintedTS(t, "enum foo { a } namespace foo { 0 }", `(function(foo) {
+	expectPrintedTS(t, "enum foo { a } namespace foo { 0 }", `var foo;
+(function(foo) {
   foo[foo["a"] = 0] = "a";
 })(foo || (foo = {}));
 (function(foo) {
@@ -272,7 +273,8 @@ export let x;
 `)
 	expectParseErrorTS(t, "namespace foo { 0 } function foo() {}", "<stdin>: error: \"foo\" has already been declared\n")
 	expectParseErrorTS(t, "namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
-	expectPrintedTS(t, "namespace foo { 0 } enum foo { a }", `(function(foo) {
+	expectPrintedTS(t, "namespace foo { 0 } enum foo { a }", `var foo;
+(function(foo) {
   0;
 })(foo || (foo = {}));
 (function(foo) {
@@ -346,17 +348,20 @@ func TestTSNamespaceExports(t *testing.T) {
 }
 
 func TestTSEnum(t *testing.T) {
-	expectPrintedTS(t, "enum Foo { A, B }", `(function(Foo) {
+	expectPrintedTS(t, "enum Foo { A, B }", `var Foo;
+(function(Foo) {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
 })(Foo || (Foo = {}));
 `)
-	expectPrintedTS(t, "export enum Foo { A; B }", `(function(Foo) {
+	expectPrintedTS(t, "export enum Foo { A; B }", `export var Foo;
+(function(Foo) {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
 })(Foo || (Foo = {}));
 `)
-	expectPrintedTS(t, "enum Foo { A, B, C = 3.3, D, E }", `(function(Foo) {
+	expectPrintedTS(t, "enum Foo { A, B, C = 3.3, D, E }", `var Foo;
+(function(Foo) {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
   Foo[Foo["C"] = 3.3] = "C";
@@ -364,7 +369,8 @@ func TestTSEnum(t *testing.T) {
   Foo[Foo["E"] = 5.3] = "E";
 })(Foo || (Foo = {}));
 `)
-	expectPrintedTS(t, "enum Foo { A, B, C = 'x', D, E }", `(function(Foo) {
+	expectPrintedTS(t, "enum Foo { A, B, C = 'x', D, E }", `var Foo;
+(function(Foo) {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
   Foo[Foo["C"] = "x"] = "C";
@@ -374,7 +380,8 @@ func TestTSEnum(t *testing.T) {
 `)
 
 	// TypeScript allows splitting an enum into multiple blocks
-	expectPrintedTS(t, "enum Foo { A = 1 } enum Foo { B = 2 }", `(function(Foo) {
+	expectPrintedTS(t, "enum Foo { A = 1 } enum Foo { B = 2 }", `var Foo;
+(function(Foo) {
   Foo[Foo["A"] = 1] = "A";
 })(Foo || (Foo = {}));
 (function(Foo) {
