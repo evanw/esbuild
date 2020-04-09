@@ -556,7 +556,7 @@ type EnumValue struct {
 	Loc   Loc
 	Ref   Ref
 	Name  []uint16
-	Value Expr
+	Value *Expr
 }
 
 type SEnum struct {
