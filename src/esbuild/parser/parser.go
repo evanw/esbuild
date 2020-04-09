@@ -44,12 +44,17 @@ type parser struct {
 	exportsRef               ast.Ref
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
-	enclosingNamespaceRef    *ast.Ref
-	emittedNamespaceVars     map[ast.Ref]bool
-	indirectImportItems      map[ast.Ref]bool
-	importItemsForNamespace  map[ast.Ref]map[string]ast.Ref
-	exprForImportItem        map[ast.Ref]*ast.ENamespaceImport
-	exportAliases            map[string]bool
+
+	// These are for TypeScript
+	enclosingNamespaceRef     *ast.Ref
+	emittedNamespaceVars      map[ast.Ref]bool
+	isExportedInsideNamespace map[ast.Ref]ast.Ref
+
+	// These are for handling ES6 imports and exports
+	indirectImportItems     map[ast.Ref]bool
+	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
+	exprForImportItem       map[ast.Ref]*ast.ENamespaceImport
+	exportAliases           map[string]bool
 
 	// The parser does two passes and we need to pass the scope tree information
 	// from the first pass to the second pass. That's done by tracking the calls
@@ -408,9 +413,9 @@ func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts p
 		name := p.loadNameFromRef(d.Ref)
 		if !opts.isTypeScriptDeclare {
 			d.Ref = p.declareSymbol(kind, binding.Loc, name)
-		}
-		if opts.isExport {
-			p.recordExport(binding.Loc, name)
+			if opts.isExport && p.enclosingNamespaceRef == nil {
+				p.recordExport(binding.Loc, name)
+			}
 		}
 
 	case *ast.BArray:
@@ -503,6 +508,9 @@ func (p *parser) loadNameFromRef(ref ast.Ref) string {
 	if ref.OuterIndex == 0x80000000 {
 		return p.allocatedNames[ref.InnerIndex]
 	} else {
+		if (ref.OuterIndex & 0x80000000) == 0 {
+			panic("Internal error: invalid symbol reference")
+		}
 		return p.source.Contents[ref.InnerIndex : int32(ref.InnerIndex)-int32(ref.OuterIndex)]
 	}
 }
@@ -5071,14 +5079,14 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 		p.emittedNamespaceVars[nameRef] = true
 		if p.enclosingNamespaceRef == nil {
 			// Top-level namespace
-			stmts = append(stmts, ast.Stmt{nameLoc, &ast.SLocal{
+			stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SLocal{
 				Kind:     ast.LocalVar,
 				Decls:    []ast.Decl{ast.Decl{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
 				IsExport: isExport,
 			}})
 		} else {
 			// Nested namespace
-			stmts = append(stmts, ast.Stmt{nameLoc, &ast.SLocal{
+			stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SLocal{
 				Kind:  ast.LocalLet,
 				Decls: []ast.Decl{ast.Decl{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
 			}})
@@ -5258,6 +5266,14 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 					}
 				}
 			}
+		}
+
+		// Handle being exported inside a namespace
+		if s.IsExport && p.enclosingNamespaceRef != nil {
+			if exprOrNil := p.exprForExportedDeclsInNamespace(s.Decls); exprOrNil.Data != nil {
+				stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{exprOrNil}})
+			}
+			return stmts
 		}
 
 	case *ast.SExpr:
@@ -5548,6 +5564,18 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SNamespace:
+		// Scan ahead for any variables inside this namespace. This must be done
+		// ahead of time before visiting any statements inside the namespace
+		// because we may end up visiting the uses before the declarations.
+		// We need to convert the uses into property accesses on the namespace.
+		for _, childStmt := range s.Stmts {
+			if local, ok := childStmt.Data.(*ast.SLocal); ok {
+				if local.IsExport {
+					p.markExportedDeclsInsideNamespace(s.Arg, local.Decls)
+				}
+			}
+		}
+
 		oldEnclosingNamespaceRef := p.enclosingNamespaceRef
 		p.enclosingNamespaceRef = &s.Arg
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
@@ -5566,6 +5594,199 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	stmts = append(stmts, stmt)
 	return stmts
+}
+
+func (p *parser) markExportedDeclsInsideNamespace(nsRef ast.Ref, decls []ast.Decl) {
+	for _, decl := range decls {
+		p.markExportedBindingInsideNamespace(nsRef, decl.Binding)
+	}
+}
+
+func (p *parser) markExportedBindingInsideNamespace(nsRef ast.Ref, binding ast.Binding) {
+	switch b := binding.Data.(type) {
+	case *ast.BMissing:
+
+	case *ast.BIdentifier:
+		p.isExportedInsideNamespace[b.Ref] = nsRef
+
+	case *ast.BArray:
+		for _, item := range b.Items {
+			p.markExportedBindingInsideNamespace(nsRef, item.Binding)
+		}
+
+	case *ast.BObject:
+		for _, property := range b.Properties {
+			p.markExportedBindingInsideNamespace(nsRef, property.Value)
+		}
+
+	default:
+		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+	}
+}
+
+func maybeJoinWithComma(a ast.Expr, b ast.Expr) ast.Expr {
+	if a.Data == nil {
+		return b
+	}
+	if b.Data == nil {
+		return a
+	}
+	return ast.JoinWithComma(a, b)
+}
+
+func (p *parser) exprForExportedDeclsInNamespace(decls []ast.Decl) ast.Expr {
+	var expr ast.Expr
+	for _, decl := range decls {
+		if decl.Value != nil {
+			expr = maybeJoinWithComma(expr, p.exprForExportedBindingInNamespace(decl.Binding, *decl.Value))
+		}
+	}
+	return expr
+}
+
+func (p *parser) valueRepeater(loc ast.Loc, count int, value ast.Expr) (ast.Expr, func() ast.Expr, func(ast.Expr) ast.Expr) {
+	// Referencing an identifier has no side effects, so we can just create
+	// identifiers inline without a temporary variable
+	if id, ok := value.Data.(*ast.EIdentifier); ok {
+		return ast.Expr{}, func() ast.Expr {
+				return ast.Expr{loc, &ast.EIdentifier{id.Ref}}
+			}, func(expr ast.Expr) ast.Expr {
+				return expr
+			}
+	}
+
+	// We don't need to worry about side effects if the value will be used exactly once
+	if count == 1 {
+		return ast.Expr{}, func() ast.Expr {
+				return value
+			}, func(expr ast.Expr) ast.Expr {
+				// In rare cases, having one element doesn't mean the value will
+				// necessarily be used. For example:
+				//
+				//   export var [[,]] = foo()
+				//
+				// We still want foo() to be called in this case, so return it here.
+				if expr.Data == nil {
+					return value
+				}
+				return expr
+			}
+	}
+
+	// Otherwise, fall back to generating a temporary reference
+	tempRef := p.generateTempRef()
+	return ast.Expr{loc, &ast.EBinary{
+			ast.BinOpAssign,
+			ast.Expr{loc, &ast.EIdentifier{tempRef}},
+			value,
+		}}, func() ast.Expr {
+			return ast.Expr{loc, &ast.EIdentifier{tempRef}}
+		}, func(expr ast.Expr) ast.Expr {
+			return expr
+		}
+}
+
+func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value ast.Expr) ast.Expr {
+	loc := binding.Loc
+
+	switch d := binding.Data.(type) {
+	case *ast.BMissing:
+		return ast.Expr{}
+
+	case *ast.BIdentifier:
+		return ast.Expr{loc, &ast.EBinary{
+			ast.BinOpAssign,
+			ast.Expr{loc, &ast.EDot{
+				Target:  ast.Expr{loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+				Name:    p.symbols[d.Ref.InnerIndex].Name,
+				NameLoc: loc,
+			}},
+			value,
+		}}
+
+	case *ast.BArray:
+		expr, valueFunc, afterFunc := p.valueRepeater(loc, len(d.Items), value)
+		for i, item := range d.Items {
+			itemValue := ast.Expr{loc, &ast.EIndex{
+				Target: valueFunc(),
+				Index:  ast.Expr{loc, &ast.ENumber{float64(i)}},
+			}}
+
+			// Handle default values
+			if item.DefaultValue != nil {
+				tempRef := p.generateTempRef()
+				expr = maybeJoinWithComma(expr, ast.Expr{loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{loc, &ast.EIdentifier{tempRef}},
+					itemValue,
+				}})
+				itemValue = ast.Expr{loc, &ast.EIf{
+					ast.Expr{loc, &ast.EBinary{
+						ast.BinOpStrictEq,
+						ast.Expr{loc, &ast.EIdentifier{tempRef}},
+						ast.Expr{loc, &ast.EUndefined{}},
+					}},
+					*item.DefaultValue,
+					ast.Expr{loc, &ast.EIdentifier{tempRef}},
+				}}
+			}
+
+			expr = maybeJoinWithComma(expr, p.exprForExportedBindingInNamespace(item.Binding, itemValue))
+		}
+		return afterFunc(expr)
+
+	case *ast.BObject:
+		expr, valueFunc, afterFunc := p.valueRepeater(loc, len(d.Properties), value)
+		for _, property := range d.Properties {
+			// Try to use a dot expression but fall back to an index expression
+			name := ""
+			if id, ok := property.Key.Data.(*ast.EString); ok {
+				text := lexer.UTF16ToString(id.Value)
+				if lexer.IsIdentifier(text) {
+					name = text
+				}
+			}
+			var propertyValue ast.Expr
+			if name != "" {
+				propertyValue = ast.Expr{loc, &ast.EDot{
+					Target:  valueFunc(),
+					Name:    name,
+					NameLoc: loc,
+				}}
+			} else {
+				propertyValue = ast.Expr{loc, &ast.EIndex{
+					Target: valueFunc(),
+					Index:  property.Key,
+				}}
+			}
+
+			// Handle default values
+			if property.DefaultValue != nil {
+				tempRef := p.generateTempRef()
+				expr = maybeJoinWithComma(expr, ast.Expr{loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{loc, &ast.EIdentifier{tempRef}},
+					propertyValue,
+				}})
+				propertyValue = ast.Expr{loc, &ast.EIf{
+					ast.Expr{loc, &ast.EBinary{
+						ast.BinOpStrictEq,
+						ast.Expr{loc, &ast.EIdentifier{tempRef}},
+						ast.Expr{loc, &ast.EUndefined{}},
+					}},
+					*property.DefaultValue,
+					ast.Expr{loc, &ast.EIdentifier{tempRef}},
+				}}
+			}
+
+			expr = maybeJoinWithComma(expr, p.exprForExportedBindingInNamespace(property.Value, propertyValue))
+		}
+		return afterFunc(expr)
+
+	default:
+		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+		return ast.Expr{}
+	}
 }
 
 func (p *parser) visitClass(class *ast.Class) {
@@ -6021,6 +6242,15 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Substitute an EImportNamespace now if this is an import item
 		if importData, ok := p.exprForImportItem[e.Ref]; ok {
 			return ast.Expr{expr.Loc, importData}, exprOut{}
+		}
+
+		// Substitute a namespace export reference now if appropriate
+		if nsRef, ok := p.isExportedInsideNamespace[e.Ref]; ok {
+			return ast.Expr{expr.Loc, &ast.EDot{
+				Target:  ast.Expr{expr.Loc, &ast.EIdentifier{nsRef}},
+				Name:    name,
+				NameLoc: expr.Loc,
+			}}, exprOut{}
 		}
 
 		// Substitute user-specified defines for unbound symbols
@@ -6746,7 +6976,11 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 		mangleSyntax: options.MangleSyntax,
 		isBundling:   options.IsBundling,
 
-		emittedNamespaceVars:    make(map[ast.Ref]bool),
+		// These are for TypeScript
+		emittedNamespaceVars:      make(map[ast.Ref]bool),
+		isExportedInsideNamespace: make(map[ast.Ref]ast.Ref),
+
+		// These are for handling ES6 imports and exports
 		indirectImportItems:     make(map[ast.Ref]bool),
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),

@@ -214,7 +214,6 @@ let x;
 	// Exports in namespaces shouldn't collide with module exports
 	expectPrintedTS(t, "namespace Foo { export let x } export let x", `var Foo;
 (function(Foo) {
-  export let x;
 })(Foo || (Foo = {}));
 export let x;
 `)
@@ -347,17 +346,17 @@ func TestTSNamespaceExports(t *testing.T) {
 `)
 
 	expectPrintedTS(t, `
-namespace A {
-	export namespace B {
-		export class Class {}
-	}
-	namespace C {
-		export class Class {}
-	}
-	namespace D {
-		class Class {}
-	}
-}
+		namespace A {
+			export namespace B {
+				export class Class {}
+			}
+			namespace C {
+				export class Class {}
+			}
+			namespace D {
+				class Class {}
+			}
+		}
 `, `var A;
 (function(A) {
   let B;
@@ -381,17 +380,17 @@ namespace A {
 `)
 
 	expectPrintedTS(t, `
-namespace A {
-	export namespace B {
-		export enum Enum {}
-	}
-	namespace C {
-		export enum Enum {}
-	}
-	namespace D {
-		enum Enum {}
-	}
-}
+		namespace A {
+			export namespace B {
+				export enum Enum {}
+			}
+			namespace C {
+				export enum Enum {}
+			}
+			namespace D {
+				enum Enum {}
+			}
+		}
 `, `var A;
 (function(A) {
   let B;
@@ -412,6 +411,194 @@ namespace A {
     (function(Enum) {
     })(Enum || (Enum = {}));
   })(D || (D = {}));
+})(A || (A = {}));
+`)
+
+	expectPrintedTS(t, `
+		namespace A {
+			export namespace B {
+				export let foo = 1
+				foo += foo
+			}
+			namespace C {
+				export let foo = 1
+				foo += foo
+			}
+			namespace D {
+				let foo = 1
+				foo += foo
+			}
+		}
+`, `var A;
+(function(A) {
+  let B;
+  (function(B) {
+    B.foo = 1;
+    B.foo += B.foo;
+  })(B = A.B || (A.B = {}));
+  let C;
+  (function(C) {
+    C.foo = 1;
+    C.foo += C.foo;
+  })(C || (C = {}));
+  let D;
+  (function(D) {
+    let foo = 1;
+    foo += foo;
+  })(D || (D = {}));
+})(A || (A = {}));
+`)
+
+	expectPrintedTS(t, `
+		namespace A {
+			export namespace B {
+				export const foo = 1
+				foo += foo
+			}
+			namespace C {
+				export const foo = 1
+				foo += foo
+			}
+			namespace D {
+				const foo = 1
+				foo += foo
+			}
+		}
+`, `var A;
+(function(A) {
+  let B;
+  (function(B) {
+    B.foo = 1;
+    B.foo += B.foo;
+  })(B = A.B || (A.B = {}));
+  let C;
+  (function(C) {
+    C.foo = 1;
+    C.foo += C.foo;
+  })(C || (C = {}));
+  let D;
+  (function(D) {
+    const foo = 1;
+    foo += foo;
+  })(D || (D = {}));
+})(A || (A = {}));
+`)
+
+	expectPrintedTS(t, `
+		namespace A {
+			export namespace B {
+				export var foo = 1
+				foo += foo
+			}
+			namespace C {
+				export var foo = 1
+				foo += foo
+			}
+			namespace D {
+				var foo = 1
+				foo += foo
+			}
+		}
+`, `var A;
+(function(A) {
+  let B;
+  (function(B) {
+    B.foo = 1;
+    B.foo += B.foo;
+  })(B = A.B || (A.B = {}));
+  let C;
+  (function(C) {
+    C.foo = 1;
+    C.foo += C.foo;
+  })(C || (C = {}));
+  let D;
+  (function(D) {
+    var foo = 1;
+    foo += foo;
+  })(D || (D = {}));
+})(A || (A = {}));
+`)
+
+}
+
+func TestTSNamespaceDestructuring(t *testing.T) {
+	// Identifiers should be referenced directly
+	expectPrintedTS(t, "namespace A { export var [a, b] = ref }", `var A;
+(function(A) {
+  A.a = ref[0], A.b = ref[1];
+})(A || (A = {}));
+`)
+
+	// Other expressions should be saved (since they may have side effects)
+	expectPrintedTS(t, "namespace A { export var [a, b] = ref.prop }", `var A;
+(function(A) {
+  var _a;
+  _a = ref.prop, A.a = _a[0], A.b = _a[1];
+})(A || (A = {}));
+`)
+
+	// Nested results used once should not be saved
+	expectPrintedTS(t, "namespace A { export var [[[x]]] = ref }", `var A;
+(function(A) {
+  A.x = ref[0][0][0];
+})(A || (A = {}));
+`)
+	expectPrintedTS(t, "namespace A { export var {x: {y: {z}}} = ref }", `var A;
+(function(A) {
+  A.z = ref.x.y.z;
+})(A || (A = {}));
+`)
+
+	// Nested results used more than once should be saved
+	expectPrintedTS(t, "namespace A { export var [[[x, y]]] = ref }", `var A;
+(function(A) {
+  var _a;
+  _a = ref[0][0], A.x = _a[0], A.y = _a[1];
+})(A || (A = {}));
+`)
+	expectPrintedTS(t, "namespace A { export var {x: {y: {z, w}}} = ref }", `var A;
+(function(A) {
+  var _a;
+  _a = ref.x.y, A.z = _a.z, A.w = _a.w;
+})(A || (A = {}));
+`)
+
+	// Values with side effects that appear to be used once but are actually used
+	// zero times should still take effect
+	expectPrintedTS(t, "namespace A { export var [[,]] = ref() }", `var A;
+(function(A) {
+  ref()[0];
+})(A || (A = {}));
+`)
+	expectPrintedTS(t, "namespace A { export var {x: [,]} = ref() }", `var A;
+(function(A) {
+  ref().x;
+})(A || (A = {}));
+`)
+
+	// Handle default values
+	expectPrintedTS(t, "namespace A { export var [a = {}] = ref }", `var A;
+(function(A) {
+  var _a;
+  _a = ref[0], A.a = _a === void 0 ? {} : _a;
+})(A || (A = {}));
+`)
+	expectPrintedTS(t, "namespace A { export var {a = []} = ref }", `var A;
+(function(A) {
+  var _a;
+  _a = ref.a, A.a = _a === void 0 ? [] : _a;
+})(A || (A = {}));
+`)
+	expectPrintedTS(t, "namespace A { export var [[a, b] = {}] = ref }", `var A;
+(function(A) {
+  var _a, _b;
+  _a = ref[0], _b = _a === void 0 ? {} : _a, A.a = _b[0], A.b = _b[1];
+})(A || (A = {}));
+`)
+	expectPrintedTS(t, "namespace A { export var {a: {b, c} = []} = ref }", `var A;
+(function(A) {
+  var _a, _b;
+  _a = ref.a, _b = _a === void 0 ? [] : _a, A.b = _b.b, A.c = _b.c;
 })(A || (A = {}));
 `)
 }
