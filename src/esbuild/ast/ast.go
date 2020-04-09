@@ -487,6 +487,18 @@ func (*EIf) isExpr()              {}
 func (*ERequire) isExpr()         {}
 func (*EImport) isExpr()          {}
 
+func JoinWithComma(a Expr, b Expr) Expr {
+	return Expr{a.Loc, &EBinary{BinOpComma, a, b}}
+}
+
+func JoinAllWithComma(all []Expr) Expr {
+	result := all[0]
+	for _, value := range all[1:] {
+		result = JoinWithComma(result, value)
+	}
+	return result
+}
+
 type ExprOrStmt struct {
 	Expr *Expr
 	Stmt *Stmt

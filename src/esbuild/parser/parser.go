@@ -1491,10 +1491,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			p.addRangeError(spreadRange, "Unexpected \"...\"")
 			panic(lexer.LexerPanic{})
 		}
-		value := items[0]
-		for _, item := range items[1:] {
-			value.Data = &ast.EBinary{ast.BinOpComma, value, item}
-		}
+		value := ast.JoinAllWithComma(items)
 		markExprAsParenthesized(value)
 		return value
 	}
@@ -2086,7 +2083,7 @@ func (p *parser) parseIndexExpr() ast.Expr {
 				"Use of \",\" inside a property access is misleading because JavaScript doesn't have multidimensional arrays")
 		}
 		p.lexer.Next()
-		value = ast.Expr{value.Loc, &ast.EBinary{ast.BinOpComma, value, p.parseExpr(ast.LComma)}}
+		value = ast.JoinWithComma(value, p.parseExpr(ast.LComma))
 	}
 
 	return value
@@ -4490,11 +4487,7 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*ast.SExpr); ok {
-					prevS.Value = ast.Expr{prevStmt.Loc, &ast.EBinary{
-						ast.BinOpComma,
-						prevS.Value,
-						s.Value,
-					}}
+					prevS.Value = ast.JoinWithComma(prevS.Value, s.Value)
 					continue
 				}
 			}
@@ -4521,11 +4514,8 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 			if len(result) > 0 && s.Value != nil {
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*ast.SExpr); ok {
-					result[len(result)-1] = ast.Stmt{prevStmt.Loc, &ast.SReturn{&ast.Expr{prevStmt.Loc, &ast.EBinary{
-						ast.BinOpComma,
-						prevS.Value,
-						*s.Value,
-					}}}}
+					value := ast.JoinWithComma(prevS.Value, *s.Value)
+					result[len(result)-1] = ast.Stmt{prevStmt.Loc, &ast.SReturn{&value}}
 					continue
 				}
 			}
@@ -4535,11 +4525,7 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*ast.SExpr); ok {
-					result[len(result)-1] = ast.Stmt{prevStmt.Loc, &ast.SThrow{ast.Expr{prevStmt.Loc, &ast.EBinary{
-						ast.BinOpComma,
-						prevS.Value,
-						s.Value,
-					}}}}
+					result[len(result)-1] = ast.Stmt{prevStmt.Loc, &ast.SThrow{ast.JoinWithComma(prevS.Value, s.Value)}}
 					continue
 				}
 			}
@@ -4555,11 +4541,7 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 						continue
 					} else if s2, ok := s.Init.Data.(*ast.SExpr); ok {
 						result[len(result)-1] = stmt
-						s.Init = &ast.Stmt{prevStmt.Loc, &ast.SExpr{ast.Expr{prevStmt.Loc, &ast.EBinary{
-							ast.BinOpComma,
-							prevS.Value,
-							s2.Value,
-						}}}}
+						s.Init = &ast.Stmt{prevStmt.Loc, &ast.SExpr{ast.JoinWithComma(prevS.Value, s2.Value)}}
 						continue
 					}
 				} else {
@@ -4607,7 +4589,8 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					}
 
 					// "a(); return b;" => "return a(), b;"
-					lastReturn = &ast.SReturn{&ast.Expr{prevStmt.Loc, &ast.EBinary{ast.BinOpComma, prevS.Value, *lastReturn.Value}}}
+					lastValue := ast.JoinWithComma(prevS.Value, *lastReturn.Value)
+					lastReturn = &ast.SReturn{&lastValue}
 
 					// Merge the last two statements
 					lastStmt = ast.Stmt{prevStmt.Loc, lastReturn}
@@ -4647,7 +4630,8 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					// Handle the returned values being the same
 					if boolean, ok := checkEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
 						// "if (a) return b; return b;" => "return a, b;"
-						lastReturn = &ast.SReturn{&ast.Expr{prevS.Test.Loc, &ast.EBinary{ast.BinOpComma, prevS.Test, *left}}}
+						lastValue := ast.JoinWithComma(prevS.Test, *left)
+						lastReturn = &ast.SReturn{&lastValue}
 					} else {
 						// "if (a) return b; return c;" => "return a ? b : c;"
 						lastReturn = &ast.SReturn{&ast.Expr{prevS.Test.Loc, &ast.EIf{prevS.Test, *left, *right}}}
@@ -4672,7 +4656,7 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 				switch prevS := prevStmt.Data.(type) {
 				case *ast.SExpr:
 					// "a(); throw b;" => "throw a(), b;"
-					lastThrow = &ast.SThrow{ast.Expr{prevStmt.Loc, &ast.EBinary{ast.BinOpComma, prevS.Value, lastThrow.Value}}}
+					lastThrow = &ast.SThrow{ast.JoinWithComma(prevS.Value, lastThrow.Value)}
 
 					// Merge the last two statements
 					lastStmt = ast.Stmt{prevStmt.Loc, lastThrow}
@@ -5549,11 +5533,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		valueStmts := []ast.Stmt{}
 		if len(valueExprs) > 0 {
 			if p.mangleSyntax {
-				valueExpr := valueExprs[0]
-				for i := 1; i < len(valueExprs); i++ {
-					valueExpr = ast.Expr{valueExpr.Loc, &ast.EBinary{ast.BinOpComma, valueExpr, valueExprs[i]}}
-				}
-				valueStmts = append(valueStmts, ast.Stmt{valueExpr.Loc, &ast.SExpr{valueExpr}})
+				joined := ast.JoinAllWithComma(valueExprs)
+				valueStmts = append(valueStmts, ast.Stmt{joined.Loc, &ast.SExpr{joined}})
 			} else {
 				for _, expr := range valueExprs {
 					valueStmts = append(valueStmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
@@ -6195,8 +6176,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				if p.target < ESNext {
 					// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
 					ref := p.generateTempRef()
-					return ast.Expr{expr.Loc, &ast.EBinary{
-						ast.BinOpComma,
+					return ast.JoinWithComma(
 						ast.Expr{expr.Loc, &ast.EBinary{
 							ast.BinOpAssign,
 							ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
@@ -6211,7 +6191,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 							ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
 							e.Right,
 						}},
-					}}, exprOut{}
+					), exprOut{}
 				}
 			}
 
@@ -6567,13 +6547,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				expr,
 			}}
 			for _, extra := range extraExprs {
-				expr = ast.Expr{expr.Loc, &ast.EBinary{ast.BinOpComma, expr, extra}}
+				expr = ast.JoinWithComma(expr, extra)
 			}
-			expr = ast.Expr{expr.Loc, &ast.EBinary{
-				ast.BinOpComma,
-				expr,
-				ast.Expr{expr.Loc, &ast.EIdentifier{tempRef}},
-			}}
+			expr = ast.JoinWithComma(expr, ast.Expr{expr.Loc, &ast.EIdentifier{tempRef}})
 		}
 
 	default:
