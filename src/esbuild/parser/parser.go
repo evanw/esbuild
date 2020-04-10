@@ -4121,7 +4121,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						}
 
 					case "namespace", "module":
-						if (opts.isModuleScope || opts.isNamespaceScope) && p.lexer.Token == lexer.TIdentifier {
+						// "namespace Foo {}"
+						// "module Foo {}"
+						// "declare module 'fs' {}"
+						if (opts.isModuleScope || opts.isNamespaceScope) && (p.lexer.Token == lexer.TIdentifier ||
+							(p.lexer.Token == lexer.TStringLiteral && opts.isTypeScriptDeclare)) {
 							return p.parseNamespaceStmt(loc, opts)
 						}
 
@@ -4209,9 +4213,9 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	p.popScope()
 	if !opts.isTypeScriptDeclare {
 		name.Ref = p.declareSymbol(ast.SymbolTSNamespace, nameLoc, nameText)
-	}
-	if opts.isExport {
-		p.recordExport(nameLoc, nameText)
+		if opts.isExport {
+			p.recordExport(nameLoc, nameText)
+		}
 	}
 	return ast.Stmt{loc, &ast.SNamespace{name, argRef, stmts, opts.isExport}}
 }

@@ -730,6 +730,9 @@ func TestTSDeclare(t *testing.T) {
 	expectPrintedTS(t, "declare const x: number", "")
 	expectPrintedTS(t, "declare class X {}", "")
 	expectPrintedTS(t, "declare interface X {}", "")
+	expectPrintedTS(t, "declare namespace X {}", "")
+	expectPrintedTS(t, "declare module X {}", "")
+	expectPrintedTS(t, "declare module 'X' {}", "")
 }
 
 func TestTSArrow(t *testing.T) {
