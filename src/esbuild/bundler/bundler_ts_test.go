@@ -330,6 +330,57 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 	})
 }
 
+// It's an error to import from a file that does not exist
+func TestTSImportMissingFile(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import {Something} from './doesNotExist.ts'
+				let foo = new Something
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: "/entry.ts: error: Could not resolve \"./doesNotExist.ts\"\n",
+	})
+}
+
+// It's not an error to import a type from a file that does not exist
+func TestTSImportTypeOnlyFile(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import {SomeType1} from './doesNotExist1.ts'
+				import {SomeType2} from './doesNotExist2.ts'
+				let foo: SomeType1
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.ts
+    let foo;
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestTSMinifyEnum(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

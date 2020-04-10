@@ -3965,11 +3965,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		stmt.Path = p.parsePath()
 		p.lexer.ExpectOrInsertSemicolon()
 
-		// Only track import paths if we want dependencies
-		if p.isBundling {
-			p.importPaths = append(p.importPaths, ast.ImportPath{Path: stmt.Path})
-		}
-
 		if stmt.StarLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
 			stmt.NamespaceRef = p.declareSymbol(ast.SymbolOther, *stmt.StarLoc, name)
