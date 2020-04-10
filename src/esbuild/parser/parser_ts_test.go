@@ -735,6 +735,22 @@ func TestTSDeclare(t *testing.T) {
 	expectPrintedTS(t, "declare module 'X' {}", "")
 }
 
+func TestTSDecorator(t *testing.T) {
+	expectParseErrorTS(t, "class Foo { @Dec foo() {} @Dec bar() {} }",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n")
+	expectParseErrorTS(t, "class Foo { foo(@Dec x, @Dec y) {} }",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n")
+
+	expectParseErrorTS(t, "class Foo { @Dec(a(), b()) foo() {} @Dec bar() {} }",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n")
+	expectParseErrorTS(t, "class Foo { foo(@Dec(a(), b()) x, @Dec y) {} }",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n")
+}
+
 func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "(a?) => {}", "(a) => {\n};\n")
 	expectPrintedTS(t, "(a?: number) => {}", "(a) => {\n};\n")

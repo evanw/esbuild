@@ -3101,6 +3101,11 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			continue
 		}
 
+		// Skip past decorators and recover even though they aren't supported
+		if p.ts.Parse {
+			p.parseAndSkipDecorators()
+		}
+
 		if !hasRestArg && p.lexer.Token == lexer.TDotDotDot {
 			p.lexer.Next()
 			hasRestArg = true
@@ -3229,6 +3234,47 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	return ast.Stmt{loc, &ast.SClass{class, opts.isExport}}
 }
 
+func (p *parser) parseAndSkipDecorators() {
+	for p.lexer.Token == lexer.TAt {
+		r := p.lexer.Range()
+		p.lexer.Next()
+
+		// Eat an identifier
+		r.Len = p.lexer.Range().End() - r.Loc.Start
+		p.lexer.Expect(lexer.TIdentifier)
+
+		// Eat an property access chain
+		for p.lexer.Token == lexer.TDot {
+			p.lexer.Next()
+			r.Len = p.lexer.Range().End() - r.Loc.Start
+			p.lexer.Expect(lexer.TIdentifier)
+		}
+
+		// Eat call expression arguments
+		if p.lexer.Token == lexer.TOpenParen {
+			p.lexer.Next()
+			depth := 0
+
+			// Skip to the matching close parenthesis. This doesn't have to be super
+			// accurate because we're in error recovery mode.
+			for p.lexer.Token != lexer.TEndOfFile && (p.lexer.Token != lexer.TCloseParen || depth > 0) {
+				switch p.lexer.Token {
+				case lexer.TOpenParen:
+					depth++
+				case lexer.TCloseParen:
+					depth--
+				}
+				p.lexer.Next()
+			}
+
+			r.Len = p.lexer.Range().End() - r.Loc.Start
+			p.lexer.Expect(lexer.TCloseParen)
+		}
+
+		p.addRangeError(r, "Decorators are not supported yet")
+	}
+}
+
 // By the time we call this, the identifier and type parameters have already
 // been parsed. We need to start parsing from the "extends" clause.
 func (p *parser) parseClass(name *ast.LocRef) ast.Class {
@@ -3273,6 +3319,11 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 		if p.lexer.Token == lexer.TSemicolon {
 			p.lexer.Next()
 			continue
+		}
+
+		// Skip past decorators and recover even though they aren't supported
+		if p.ts.Parse {
+			p.parseAndSkipDecorators()
 		}
 
 		// This property may turn out to be a type in TypeScript, which should be ignored

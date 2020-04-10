@@ -211,6 +211,10 @@ type Range struct {
 	Len int32
 }
 
+func (r Range) End() int32 {
+	return r.Loc.Start + r.Len
+}
+
 type LocRef struct {
 	Loc Loc
 	Ref Ref
