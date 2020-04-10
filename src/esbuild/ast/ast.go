@@ -548,6 +548,11 @@ type SExportStar struct {
 	Path Path
 }
 
+// This is an "export = value;" statement in TypeScript
+type SExportEquals struct {
+	Value Expr
+}
+
 type SExpr struct {
 	Value Expr
 }
@@ -720,6 +725,7 @@ func (*SExportClause) isStmt()  {}
 func (*SExportFrom) isStmt()    {}
 func (*SExportDefault) isStmt() {}
 func (*SExportStar) isStmt()    {}
+func (*SExportEquals) isStmt()  {}
 func (*SExpr) isStmt()          {}
 func (*SEnum) isStmt()          {}
 func (*SNamespace) isStmt()     {}

@@ -381,6 +381,46 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 	})
 }
 
+func TestTSExportEquals(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				import b from './b.ts'
+				console.log(b)
+			`,
+			"/b.ts": `
+				export = [123, foo]
+				function foo() {}
+			`,
+		},
+		entryPaths: []string{"/a.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports, module) {
+    // /b.ts
+    function foo() {
+    }
+    module.exports = [123, foo];
+  },
+
+  0(require) {
+    // /a.ts
+    const b = require(1 /* ./b.ts */, true /* ES6 import */);
+    console.log(b.default);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestTSMinifyEnum(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

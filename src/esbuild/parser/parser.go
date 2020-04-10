@@ -46,6 +46,7 @@ type parser struct {
 	moduleRef                ast.Ref
 
 	// These are for TypeScript
+	exportEqualsStmt           *ast.Stmt
 	shouldFoldNumericConstants bool
 	enclosingNamespaceRef      *ast.Ref
 	emittedNamespaceVars       map[ast.Ref]bool
@@ -3516,6 +3517,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.ExpectOrInsertSemicolon()
 			return ast.Stmt{loc, &ast.SExportClause{items}}
 
+		case lexer.TEquals:
+			// "export = value;"
+			if p.ts.Parse && p.exportEqualsStmt == nil {
+				p.lexer.Next()
+				value := p.parseExpr(ast.LLowest)
+				p.lexer.ExpectOrInsertSemicolon()
+				return ast.Stmt{loc, &ast.SExportEquals{value}}
+			}
+			p.lexer.Unexpected()
+			return ast.Stmt{}
+
 		default:
 			p.lexer.Unexpected()
 			return ast.Stmt{}
@@ -5248,6 +5260,20 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				panic("Internal error")
 			}
 		}
+
+	case *ast.SExportEquals:
+		// Defer the assignment to the end of the file like the TypeScript compiler
+		p.exportEqualsStmt = &ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
+			ast.BinOpAssign,
+			ast.Expr{stmt.Loc, &ast.EDot{
+				Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{p.moduleRef}},
+				Name:    "exports",
+				NameLoc: stmt.Loc,
+			}},
+			p.visitExpr(s.Value),
+		}}}}
+		p.recordUsage(p.moduleRef)
+		return stmts
 
 	case *ast.SBreak:
 		if s.Name != nil {
@@ -7271,6 +7297,13 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		p.visitExpr(expr.Value)
 	} else {
 		stmts = p.visitEntryStmts(stmts)
+	}
+
+	// Translate "export = value;" into "module.exports = value;". This must
+	// happen at the end after everything is parsed because TypeScript moves
+	// this statement to the end when it generates code.
+	if p.exportEqualsStmt != nil {
+		stmts = append(stmts, *p.exportEqualsStmt)
 	}
 
 	stmts = p.scanForImportPaths(stmts, options.IsBundling)
