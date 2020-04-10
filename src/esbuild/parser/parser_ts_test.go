@@ -319,6 +319,32 @@ function foo() {
   })(bar = foo.bar || (foo.bar = {}));
 })(foo || (foo = {}));
 `)
+
+	// "module" is a deprecated alias for "namespace"
+	expectPrintedTS(t, "module foo { export namespace bar { foo(bar) } }", `var foo;
+(function(foo) {
+  let bar;
+  (function(bar) {
+    foo(bar);
+  })(bar = foo.bar || (foo.bar = {}));
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "namespace foo { export module bar { foo(bar) } }", `var foo;
+(function(foo) {
+  let bar;
+  (function(bar) {
+    foo(bar);
+  })(bar = foo.bar || (foo.bar = {}));
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "module foo.bar { foo(bar) }", `var foo;
+(function(foo) {
+  let bar;
+  (function(bar) {
+    foo(bar);
+  })(bar = foo.bar || (foo.bar = {}));
+})(foo || (foo = {}));
+`)
 }
 
 func TestTSNamespaceExports(t *testing.T) {
