@@ -688,6 +688,15 @@ func TestTSFunction(t *testing.T) {
 	expectPrintedTS(t, "function foo(): void; function foo(): void {}", "function foo() {\n}\n")
 }
 
+func TestTSDecl(t *testing.T) {
+	expectPrintedTS(t, "var a!: string, b!: boolean", "var a, b;\n")
+	expectPrintedTS(t, "let a!: string, b!: boolean", "let a, b;\n")
+	expectPrintedTS(t, "const a!: string = '', b!: boolean = false", "const a = \"\", b = false;\n")
+	expectParseErrorTS(t, "var a!", "<stdin>: error: Expected \":\" but found end of file\n")
+	expectParseErrorTS(t, "var a! = ", "<stdin>: error: Expected \":\" but found \"=\"\n")
+	expectParseErrorTS(t, "var a!, b", "<stdin>: error: Expected \":\" but found \",\"\n")
+}
+
 func TestTSDeclare(t *testing.T) {
 	expectPrintedTS(t, "declare var x: number", "")
 	expectPrintedTS(t, "declare let x: number", "")

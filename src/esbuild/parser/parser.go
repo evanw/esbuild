@@ -2833,9 +2833,18 @@ func (p *parser) parseAndDeclareDecls(kind ast.SymbolKind, opts parseStmtOpts) [
 		p.declareBinding(kind, local, opts)
 
 		// Skip over types
-		if p.ts.Parse && p.lexer.Token == lexer.TColon {
-			p.lexer.Next()
-			p.skipTypeScriptType(ast.LLowest)
+		if p.ts.Parse {
+			// "let foo!"
+			isDefiniteAssignmentAssertion := p.lexer.Token == lexer.TExclamation
+			if isDefiniteAssignmentAssertion {
+				p.lexer.Next()
+			}
+
+			// "let foo: number"
+			if isDefiniteAssignmentAssertion || p.lexer.Token == lexer.TColon {
+				p.lexer.Expect(lexer.TColon)
+				p.skipTypeScriptType(ast.LLowest)
+			}
 		}
 
 		if p.lexer.Token == lexer.TEquals {
