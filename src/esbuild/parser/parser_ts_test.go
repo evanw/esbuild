@@ -125,6 +125,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x = 'x' as keyof T", "let x = \"x\";\n")
 	expectPrintedTS(t, "let x = [1] as readonly [number]", "let x = [1];\n")
 	expectPrintedTS(t, "let x = 'x' as keyof typeof Foo", "let x = \"x\";\n")
+	expectPrintedTS(t, "let fs: typeof import('fs') = require('fs')", "let fs = require(\"fs\");\n")
 
 	expectPrintedTS(t, "let x: A.B<X.Y>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y>=2", "let x = 2;\n")

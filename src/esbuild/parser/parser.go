@@ -578,6 +578,13 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		p.lexer.Next()
 		p.skipTypeScriptTypePrefix()
 
+	case lexer.TImport:
+		// "import('fs')"
+		p.lexer.Next()
+		p.lexer.Expect(lexer.TOpenParen)
+		p.lexer.Expect(lexer.TStringLiteral)
+		p.lexer.Expect(lexer.TCloseParen)
+
 	case lexer.TNew:
 		// "new () => void"
 		p.lexer.Next()
