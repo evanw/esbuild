@@ -4039,8 +4039,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmt.DefaultName = &ast.LocRef{p.lexer.Loc(), p.storeNameInRef(defaultName)}
 			p.lexer.Next()
 
+			// Parse TypeScript import assignment statements
 			if p.ts.Parse && p.lexer.Token == lexer.TEquals {
-				// "import ns = require('x')"
 				p.lexer.Next()
 				value := p.parseExpr(ast.LComma)
 				p.lexer.ExpectOrInsertSemicolon()
@@ -4049,7 +4049,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						&ast.BIdentifier{p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)}},
 					&value,
 				}}
-				return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
+
+				// The kind of statement depends on the expression
+				if _, ok := value.Data.(*ast.ECall); ok {
+					// "import ns = require('x')"
+					return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
+				} else {
+					// "import Foo = Bar"
+					return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
+				}
 			}
 
 			if p.lexer.Token == lexer.TComma {

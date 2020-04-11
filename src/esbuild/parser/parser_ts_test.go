@@ -829,6 +829,9 @@ func TestTSImport(t *testing.T) {
 
 	// This is TypeScript-specific syntax
 	expectPrintedTS(t, "import x = require('foo'); x()", "const x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "import x = require('foo')\nx()", "const x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "import x = foo.bar; x()", "var x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "import x = foo.bar\nx()", "var x = foo.bar;\nx();\n")
 }
 
 func TestTSJSX(t *testing.T) {
