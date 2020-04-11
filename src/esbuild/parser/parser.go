@@ -712,11 +712,13 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			}
 			p.lexer.Next()
 
+			switch p.lexer.Token {
 			// Stop now if we're parsing one of these:
-			// "(a?) => void"
 			// "(a?: b) => void"
 			// "(a?, b?) => void"
-			if p.lexer.Token == lexer.TColon || p.lexer.Token == lexer.TCloseParen || p.lexer.Token == lexer.TComma {
+			// "(a?) => void"
+			// "[string?]"
+			case lexer.TColon, lexer.TComma, lexer.TCloseParen, lexer.TCloseBracket:
 				return
 			}
 

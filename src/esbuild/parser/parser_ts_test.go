@@ -113,6 +113,8 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: T extends number\n ? T\n : number", "let x;\n")
 	expectPrintedTS(t, "let x: (number | string)[]", "let x;\n")
+	expectPrintedTS(t, "let x: [string[]?]", "let x;\n")
+	expectPrintedTS(t, "let x: [number?, string?]", "let x;\n")
 	expectPrintedTS(t, "type x =\n | A\n | B\n C", "C;\n")
 	expectPrintedTS(t, "type x = [-1, 0, 1]\n[]", "[];\n")
 	expectPrintedTS(t, "type x = {0: number, readonly 1: boolean}\n[]", "[];\n")
