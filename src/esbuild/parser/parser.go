@@ -587,8 +587,17 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		p.lexer.Expect(lexer.TCloseParen)
 
 	case lexer.TNew:
-		// "new () => void"
+		// "new () => Foo"
+		// "new <T>() => Foo<T>"
 		p.lexer.Next()
+		p.skipTypeScriptTypeParameters()
+		p.skipTypeScriptParenType()
+		p.lexer.Expect(lexer.TEqualsGreaterThan)
+		p.skipTypeScriptReturnType()
+
+	case lexer.TLessThan:
+		// "<T>() => Foo<T>"
+		p.skipTypeScriptTypeParameters()
 		p.skipTypeScriptParenType()
 		p.lexer.Expect(lexer.TEqualsGreaterThan)
 		p.skipTypeScriptReturnType()
