@@ -901,6 +901,34 @@ func (p *parser) trySkipTypeScriptTypeArgumentsWithBacktracking() bool {
 	return true
 }
 
+func (p *parser) trySkipTypeScriptArrowReturnTypeWithBacktracking() bool {
+	oldLexer := p.lexer
+	p.lexer.IsLogDisabled = true
+
+	// Implement backtracking by restoring the lexer's memory to its original state
+	defer func() {
+		r := recover()
+		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+			p.lexer = oldLexer
+		} else if r != nil {
+			panic(r)
+		}
+	}()
+
+	p.lexer.Expect(lexer.TColon)
+	p.skipTypeScriptReturnType()
+
+	// Check the token after this and backtrack if it's the wrong one
+	if p.lexer.Token != lexer.TEqualsGreaterThan {
+		p.lexer.Unexpected()
+	}
+
+	// Restore the log disabled flag. Note that we can't just set it back to false
+	// because it may have been true to start with.
+	p.lexer.IsLogDisabled = oldLexer.IsLogDisabled
+	return true
+}
+
 // This function is taken from the official TypeScript compiler source code:
 // https://github.com/microsoft/TypeScript/blob/master/src/compiler/parser.ts
 func (p *parser) canFollowTypeArgumentsInExpression() bool {
@@ -1530,7 +1558,8 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 		// attempt to convert the expressions to bindings first before deciding
 		// whether this is an arrow function, and only pick an arrow function if
 		// there were no conversion errors.
-		if p.lexer.Token == lexer.TEqualsGreaterThan || len(invalidLog) == 0 {
+		if p.lexer.Token == lexer.TEqualsGreaterThan || (len(invalidLog) == 0 &&
+			p.trySkipTypeScriptArrowReturnTypeWithBacktracking()) {
 			p.logBindingErrors(&errors)
 
 			// Now that we've decided we're an arrow function, report binding pattern
@@ -1540,12 +1569,6 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 					p.addError(loc, "Invalid binding pattern")
 				}
 				panic(lexer.LexerPanic{})
-			}
-
-			// Skip over the return type
-			if p.lexer.Token == lexer.TColon {
-				p.lexer.Next()
-				p.skipTypeScriptReturnType()
 			}
 
 			p.pushScopeForParsePass(ast.ScopeEntry, loc)

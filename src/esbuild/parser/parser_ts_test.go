@@ -803,6 +803,9 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "(a): void => {}", "(a) => {\n};\n")
 	expectParseErrorTS(t, "x: void => {}", "<stdin>: error: Unexpected \"=>\"\n")
 	expectPrintedTS(t, "a ? (1 + 2) : (3 + 4)", "a ? 1 + 2 : 3 + 4;\n")
+	expectPrintedTS(t, "(foo) ? (foo as Bar) : null;", "foo ? foo : null;\n")
+	expectPrintedTS(t, "((foo) ? (foo as Bar) : null)", "foo ? foo : null;\n")
+	expectPrintedTS(t, "let x = a ? (b, c) : (d, e)", "let x = a ? (b, c) : (d, e);\n")
 
 	expectPrintedTS(t, "async (): void => {}", "async () => {\n};\n")
 	expectPrintedTS(t, "async (a): void => {}", "async (a) => {\n};\n")
