@@ -969,4 +969,16 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <[]>(y)", "const x = y;\n")
 	expectPrintedTS(t, "const x = <[]>(y, z)", "const x = (y, z);\n")
 	expectPrintedTS(t, "const x = <[]>(y, z) => {}", "const x = (y, z) => {\n};\n")
+
+	expectPrintedTSX(t, "(<T>(y) => {}</T>)", "React.createElement(T, null, \"(y) => \");\n")
+	expectPrintedTSX(t, "(<T extends>(y) => {}</T>)", "React.createElement(T, {\n  extends: true\n}, \"(y) => \");\n")
+	expectPrintedTSX(t, "(<T extends={false}>(y) => {}</T>)", "React.createElement(T, {\n  extends: false\n}, \"(y) => \");\n")
+	expectPrintedTSX(t, "(<T extends X>(y) => {})", "(y) => {\n};\n")
+	expectPrintedTSX(t, "(<T, X>(y) => {})", "(y) => {\n};\n")
+	expectPrintedTSX(t, "(<T, X>(y): (() => {}) => {})", "(y) => {\n};\n")
+	expectParseErrorTSX(t, "(<[]>(y))", "<stdin>: error: Expected identifier but found \"[\"\n")
+	expectParseErrorTSX(t, "(<T[]>(y))", "<stdin>: error: Expected \">\" but found \"[\"\n")
+	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: error: Expected \">\" but found \"=\"\n")
+	expectParseErrorTSX(t, "(<T, X>(y))", "<stdin>: error: Expected \"=>\" but found \")\"\n")
+	expectParseErrorTSX(t, "(<T, X>y => {})", "<stdin>: error: Expected \"(\" but found \"y\"\n")
 }

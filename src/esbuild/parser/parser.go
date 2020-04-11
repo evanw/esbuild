@@ -1549,7 +1549,7 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		// "async () => {}"
 	case lexer.TOpenParen:
 		p.lexer.Next()
-		expr := p.parseParenExpr(asyncRange.Loc, true /* isAsync */)
+		expr := p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 		if _, ok := expr.Data.(*ast.EArrow); ok {
 			p.warnAboutFutureSyntax(ES2017, asyncRange)
 		}
@@ -1598,8 +1598,13 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	return ast.Expr{loc, &ast.EFunction{fn}}
 }
 
+type parenExprOpts struct {
+	isAsync      bool
+	forceArrowFn bool
+}
+
 // This assumes that the open parenthesis has already been parsed by the caller
-func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
+func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	items := []ast.Expr{}
 	errors := deferredErrors{}
 	spreadRange := ast.Range{}
@@ -1657,7 +1662,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	p.lexer.Expect(lexer.TCloseParen)
 
 	// Are these arguments to an arrow function?
-	if p.lexer.Token == lexer.TEqualsGreaterThan || (p.ts.Parse && p.lexer.Token == lexer.TColon) {
+	if p.lexer.Token == lexer.TEqualsGreaterThan || opts.forceArrowFn || (p.ts.Parse && p.lexer.Token == lexer.TColon) {
 		invalidLog := []ast.Loc{}
 		args := []ast.Arg{}
 
@@ -1677,7 +1682,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 		// whether this is an arrow function, and only pick an arrow function if
 		// there were no conversion errors.
 		if p.lexer.Token == lexer.TEqualsGreaterThan || (len(invalidLog) == 0 &&
-			p.trySkipTypeScriptArrowReturnTypeWithBacktracking()) {
+			p.trySkipTypeScriptArrowReturnTypeWithBacktracking()) || opts.forceArrowFn {
 			p.logBindingErrors(&errors)
 
 			// Now that we've decided we're an arrow function, report binding pattern
@@ -1693,8 +1698,8 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 			defer p.popScope()
 
 			p.lexer.Expect(lexer.TEqualsGreaterThan)
-			arrow := p.parseArrowBody(args, fnOpts{allowAwait: isAsync})
-			arrow.IsAsync = isAsync
+			arrow := p.parseArrowBody(args, fnOpts{allowAwait: opts.isAsync})
+			arrow.IsAsync = opts.isAsync
 			arrow.HasRestArg = spreadRange.Len > 0
 			return ast.Expr{loc, arrow}
 		}
@@ -1707,7 +1712,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	}
 
 	// Are these arguments for a call to a function named "async"?
-	if isAsync {
+	if opts.isAsync {
 		p.logExprErrors(&errors)
 		async := ast.Expr{loc, &ast.EIdentifier{p.storeNameInRef("async")}}
 		return ast.Expr{loc, &ast.ECall{
@@ -1845,7 +1850,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			return value
 		}
 
-		value := p.parseParenExpr(loc, false /* isAsync */)
+		value := p.parseParenExpr(loc, parenExprOpts{})
 		p.allowIn = oldAllowIn
 		return value
 
@@ -2209,14 +2214,40 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		//     <A extends={false}>(x) => {}</A>
 		//
 		//   An arrow function with type arguments:
-		//     <A>(x) => {}
 		//     <A, B>(x) => {}
 		//     <A extends B>(x) => {}
 		//
 		//   A syntax error:
 		//     <[]>(x)
 		//     <A[]>(x)
+		//     <A>(x) => {}
 		//     <A = B>(x) => {}
+
+		if p.ts.Parse {
+			oldLexer := p.lexer
+			p.lexer.Next()
+
+			// Look ahead to see if this should be an arrow function instead
+			isTSArrowFn := false
+			if p.lexer.Token == lexer.TIdentifier {
+				p.lexer.Next()
+				if p.lexer.Token == lexer.TComma {
+					isTSArrowFn = true
+				} else if p.lexer.Token == lexer.TExtends {
+					p.lexer.Next()
+					isTSArrowFn = p.lexer.Token != lexer.TEquals && p.lexer.Token != lexer.TGreaterThan
+				}
+			}
+
+			// Restore the lexer
+			p.lexer = oldLexer
+
+			if isTSArrowFn {
+				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				p.lexer.Expect(lexer.TOpenParen)
+				return p.parseParenExpr(loc, parenExprOpts{forceArrowFn: true})
+			}
+		}
 
 		if p.jsx.Parse {
 			// Use NextInsideJSXElement() instead of Next() so we parse "<<" as "<"
