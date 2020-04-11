@@ -615,10 +615,18 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		}
 
 	case lexer.TIdentifier:
-		if p.lexer.Identifier == "keyof" || p.lexer.Identifier == "readonly" || p.lexer.Identifier == "infer" {
+		switch p.lexer.Identifier {
+		case "keyof", "readonly", "infer":
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LPrefix)
-		} else {
+
+		case "unique":
+			p.lexer.Next()
+			if p.lexer.IsContextualKeyword("symbol") {
+				p.lexer.Next()
+			}
+
+		default:
 			p.lexer.Next()
 		}
 
