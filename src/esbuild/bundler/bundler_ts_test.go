@@ -421,6 +421,53 @@ func TestTSExportEquals(t *testing.T) {
 	})
 }
 
+func TestTSExportNamespace(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				import {Foo} from './b.ts'
+				console.log(new Foo)
+			`,
+			"/b.ts": `
+				export class Foo {}
+				export namespace Foo {
+					export let foo = 1
+				}
+				export namespace Foo {
+					export let bar = 2
+				}
+			`,
+		},
+		entryPaths: []string{"/a.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /b.ts
+    class Foo {
+    }
+    (function(Foo2) {
+      Foo2.foo = 1;
+    })(Foo || (Foo = {}));
+    (function(Foo2) {
+      Foo2.bar = 2;
+    })(Foo || (Foo = {}));
+
+    // /a.ts
+    console.log(new Foo());
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestTSMinifyEnum(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

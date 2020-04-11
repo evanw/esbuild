@@ -4453,8 +4453,14 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 
 	p.popScope()
 	if !opts.isTypeScriptDeclare {
+		_, alreadyExists := p.currentScope.Members[nameText]
 		name.Ref = p.declareSymbol(ast.SymbolTSNamespace, nameLoc, nameText)
-		if opts.isExport {
+
+		// It's valid to have multiple exported namespace statements as long as
+		// each one has the "export" keyword. Make sure we don't record the same
+		// export more than once, because then we will incorrectly detect duplicate
+		// exports.
+		if opts.isExport && !alreadyExists {
 			p.recordExport(nameLoc, nameText)
 		}
 	}
