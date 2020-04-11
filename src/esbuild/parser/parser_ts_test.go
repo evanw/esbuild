@@ -877,6 +877,23 @@ func TestTSImportEqualsInNamespace(t *testing.T) {
 	expectParseErrorTS(t, "namespace ns { { export import foo = bar } }", "<stdin>: error: Unexpected \"export\"\n")
 }
 
+func TestTSTypeOnlyImport(t *testing.T) {
+	expectPrintedTS(t, "import type foo from 'bar'", "")
+	expectPrintedTS(t, "import type * as foo from 'bar'", "")
+	expectPrintedTS(t, "import type {foo} from 'bar'", "")
+
+	expectPrintedTS(t, "import type = bar", "var type = bar;\n")
+	expectPrintedTS(t, "import type from 'bar'; type", "import type from \"bar\";\ntype;\n")
+
+	expectParseErrorTS(t, "import type", "<stdin>: error: Expected \"from\" but found end of file\n")
+	expectParseErrorTS(t, "import type * foo", "<stdin>: error: Expected \"as\" but found \"foo\"\n")
+	expectParseErrorTS(t, "import type * as 'bar'", "<stdin>: error: Expected identifier but found \"'bar'\"\n")
+	expectParseErrorTS(t, "import type { 'bar'", "<stdin>: error: Expected identifier but found \"'bar'\"\n")
+
+	expectParseErrorTS(t, "import type foo, * as foo from 'bar'", "<stdin>: error: Expected \"from\" but found \",\"\n")
+	expectParseErrorTS(t, "import type foo, {foo} from 'bar'", "<stdin>: error: Expected \"from\" but found \",\"\n")
+}
+
 func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <number>1", "const x = 1;\n")
 	expectPrintedTSX(t, "const x = <number>1</number>", "const x = React.createElement(\"number\", null, \"1\");\n")

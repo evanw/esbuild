@@ -4054,37 +4054,72 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmt.DefaultName = &ast.LocRef{p.lexer.Loc(), p.storeNameInRef(defaultName)}
 			p.lexer.Next()
 
-			// Parse TypeScript import assignment statements
-			if p.ts.Parse && (p.lexer.Token == lexer.TEquals || opts.isExport || opts.isNamespaceScope) {
-				p.lexer.Expect(lexer.TEquals)
-				value := p.parseExpr(ast.LComma)
-				p.lexer.ExpectOrInsertSemicolon()
-				decls := []ast.Decl{ast.Decl{
-					ast.Binding{stmt.DefaultName.Loc,
-						&ast.BIdentifier{p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)}},
-					&value,
-				}}
-				if opts.isExport {
-					p.recordExport(stmt.DefaultName.Loc, defaultName)
+			if p.ts.Parse {
+				// Skip over type-only imports
+				if defaultName == "type" {
+					switch p.lexer.Token {
+					case lexer.TIdentifier:
+						if p.lexer.Identifier != "from" {
+							// "import type foo from 'bar';"
+							p.lexer.Next()
+							p.lexer.ExpectContextualKeyword("from")
+							p.parsePath()
+							p.lexer.ExpectOrInsertSemicolon()
+							return ast.Stmt{loc, &ast.STypeScript{}}
+						}
+
+					case lexer.TAsterisk:
+						// "import type * as foo from 'bar';"
+						p.lexer.Next()
+						p.lexer.ExpectContextualKeyword("as")
+						p.lexer.Expect(lexer.TIdentifier)
+						p.lexer.ExpectContextualKeyword("from")
+						p.parsePath()
+						p.lexer.ExpectOrInsertSemicolon()
+						return ast.Stmt{loc, &ast.STypeScript{}}
+
+					case lexer.TOpenBrace:
+						// "import type {foo} from 'bar';"
+						p.parseImportClause()
+						p.lexer.ExpectContextualKeyword("from")
+						p.parsePath()
+						p.lexer.ExpectOrInsertSemicolon()
+						return ast.Stmt{loc, &ast.STypeScript{}}
+					}
 				}
 
-				// The kind of statement depends on the expression
-				if _, ok := value.Data.(*ast.ECall); ok {
-					// "import ns = require('x')"
-					return ast.Stmt{loc, &ast.SLocal{
-						Kind:                         ast.LocalConst,
-						Decls:                        decls,
-						IsExport:                     opts.isExport,
-						WasTSImportEqualsInNamespace: opts.isNamespaceScope,
+				// Parse TypeScript import assignment statements
+				if p.lexer.Token == lexer.TEquals || opts.isExport || opts.isNamespaceScope {
+					p.lexer.Expect(lexer.TEquals)
+					value := p.parseExpr(ast.LComma)
+					p.lexer.ExpectOrInsertSemicolon()
+					decls := []ast.Decl{ast.Decl{
+						ast.Binding{stmt.DefaultName.Loc,
+							&ast.BIdentifier{p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)}},
+						&value,
 					}}
-				} else {
-					// "import Foo = Bar"
-					return ast.Stmt{loc, &ast.SLocal{
-						Kind:                         ast.LocalVar,
-						Decls:                        decls,
-						IsExport:                     opts.isExport,
-						WasTSImportEqualsInNamespace: opts.isNamespaceScope,
-					}}
+					if opts.isExport {
+						p.recordExport(stmt.DefaultName.Loc, defaultName)
+					}
+
+					// The kind of statement depends on the expression
+					if _, ok := value.Data.(*ast.ECall); ok {
+						// "import ns = require('x')"
+						return ast.Stmt{loc, &ast.SLocal{
+							Kind:                         ast.LocalConst,
+							Decls:                        decls,
+							IsExport:                     opts.isExport,
+							WasTSImportEqualsInNamespace: opts.isNamespaceScope,
+						}}
+					} else {
+						// "import Foo = Bar"
+						return ast.Stmt{loc, &ast.SLocal{
+							Kind:                         ast.LocalVar,
+							Decls:                        decls,
+							IsExport:                     opts.isExport,
+							WasTSImportEqualsInNamespace: opts.isNamespaceScope,
+						}}
+					}
 				}
 			}
 
