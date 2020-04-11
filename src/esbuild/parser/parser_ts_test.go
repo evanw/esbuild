@@ -745,6 +745,10 @@ func TestTSDeclare(t *testing.T) {
 	expectPrintedTS(t, "declare namespace X {}", "")
 	expectPrintedTS(t, "declare module X {}", "")
 	expectPrintedTS(t, "declare module 'X' {}", "")
+	expectPrintedTS(t, "declare module 'X'; let foo", "let foo;\n")
+	expectPrintedTS(t, "declare module 'X'\nlet foo", "let foo;\n")
+	expectPrintedTS(t, "declare module 'X' { let foo }", "")
+	expectPrintedTS(t, "declare module 'X'\n{ let foo }", "")
 }
 
 func TestTSDecorator(t *testing.T) {

@@ -4199,6 +4199,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						// "namespace Foo {}"
 						// "module Foo {}"
 						// "declare module 'fs' {}"
+						// "declare module 'fs';"
 						if (opts.isModuleScope || opts.isNamespaceScope) && (p.lexer.Token == lexer.TIdentifier ||
 							(p.lexer.Token == lexer.TStringLiteral && opts.isTypeScriptDeclare)) {
 							return p.parseNamespaceStmt(loc, opts)
@@ -4267,6 +4268,8 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 			isNamespaceScope:    true,
 			isTypeScriptDeclare: opts.isTypeScriptDeclare,
 		})}
+	} else if opts.isTypeScriptDeclare && p.lexer.Token != lexer.TOpenBrace {
+		p.lexer.ExpectOrInsertSemicolon()
 	} else {
 		p.lexer.Expect(lexer.TOpenBrace)
 		stmts = p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{isNamespaceScope: true})
