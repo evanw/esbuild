@@ -792,6 +792,7 @@ func TestTSArrow(t *testing.T) {
 	expectParseErrorTS(t, "async x: void => {}", "<stdin>: error: Expected \"=>\" but found \":\"\n")
 
 	expectPrintedTS(t, "(x: boolean): asserts x => {}", "(x) => {\n};\n")
+	expectPrintedTS(t, "(x: T): asserts x is NonNullable<T> => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: any): x is number => {}", "(x) => {\n};\n")
 }
 

@@ -545,13 +545,16 @@ func (p *parser) skipTypeScriptReturnType() {
 		p.lexer.Next()
 
 		// "function assert(x: boolean): asserts" is also valid
-		if p.lexer.Token == lexer.TIdentifier {
-			p.lexer.Next()
+		if p.lexer.Token != lexer.TIdentifier {
+			return
 		}
-		return
-	}
+		p.lexer.Next()
 
-	p.skipTypeScriptType(ast.LLowest)
+		// Continue on to the "is" check below to handle something like
+		// "function assert(x: any): asserts x is boolean"
+	} else {
+		p.skipTypeScriptType(ast.LLowest)
+	}
 
 	if p.lexer.IsContextualKeyword("is") {
 		p.lexer.Next()
