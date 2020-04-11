@@ -765,6 +765,7 @@ func TestTSDeclare(t *testing.T) {
 	expectPrintedTS(t, "declare module 'X'\nlet foo", "let foo;\n")
 	expectPrintedTS(t, "declare module 'X' { let foo }", "")
 	expectPrintedTS(t, "declare module 'X'\n{ let foo }", "")
+	expectPrintedTS(t, "declare global { interface Foo {} let foo: any } let bar", "let bar;\n")
 }
 
 func TestTSDecorator(t *testing.T) {

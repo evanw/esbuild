@@ -3709,7 +3709,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 
 		p.skipTypeScriptObjectType()
-		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Stmt{loc, &ast.STypeScript{}}
 
 	case lexer.TClass:
@@ -4332,9 +4331,19 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						}
 
 					case "declare":
-						// "declare const x: any"
 						opts.allowLexicalDecl = true
 						opts.isTypeScriptDeclare = true
+
+						// "declare global { ... }"
+						if p.lexer.IsContextualKeyword("global") {
+							p.lexer.Next()
+							p.lexer.Expect(lexer.TOpenBrace)
+							p.parseStmtsUpTo(lexer.TCloseBrace, opts)
+							p.lexer.Next()
+							return ast.Stmt{loc, &ast.STypeScript{}}
+						}
+
+						// "declare const x: any"
 						p.parseStmt(opts)
 						return ast.Stmt{loc, &ast.STypeScript{}}
 					}
