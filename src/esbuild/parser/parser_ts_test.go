@@ -132,6 +132,12 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: new <T>() => Foo<T>", "let x;\n")
 	expectPrintedTS(t, "let x: <T extends object>() => Foo<T>", "let x;\n")
 	expectPrintedTS(t, "let x: new <T extends object>() => Foo<T>", "let x;\n")
+	expectPrintedTS(t, "type Foo<T> = {[P in keyof T]?: T[P]}", "")
+	expectPrintedTS(t, "type Foo<T> = {[P in keyof T]+?: T[P]}", "")
+	expectPrintedTS(t, "type Foo<T> = {[P in keyof T]-?: T[P]}", "")
+	expectPrintedTS(t, "type Foo<T> = {readonly [P in keyof T]: T[P]}", "")
+	expectPrintedTS(t, "type Foo<T> = {-readonly [P in keyof T]: T[P]}", "")
+	expectPrintedTS(t, "type Foo<T> = {+readonly [P in keyof T]: T[P]}", "")
 
 	expectPrintedTS(t, "let x: A.B<X.Y>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y>=2", "let x = 2;\n")

@@ -723,6 +723,12 @@ func (p *parser) skipTypeScriptObjectType() {
 	p.lexer.Expect(lexer.TOpenBrace)
 
 	for p.lexer.Token != lexer.TCloseBrace {
+		// "{ -readonly [K in keyof T]: T[K] }"
+		// "{ +readonly [K in keyof T]: T[K] }"
+		if p.lexer.Token == lexer.TPlus || p.lexer.Token == lexer.TMinus {
+			p.lexer.Next()
+		}
+
 		// Skip over modifiers and the property identifier
 		foundKey := false
 		for p.lexer.IsIdentifierOrKeyword() ||
@@ -745,6 +751,13 @@ func (p *parser) skipTypeScriptObjectType() {
 			}
 
 			p.lexer.Expect(lexer.TCloseBracket)
+
+			// "{ [K in keyof T]+?: T[K] }"
+			// "{ [K in keyof T]-?: T[K] }"
+			if p.lexer.Token == lexer.TPlus || p.lexer.Token == lexer.TMinus {
+				p.lexer.Next()
+			}
+
 			foundKey = true
 		}
 
