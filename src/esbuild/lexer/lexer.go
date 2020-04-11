@@ -278,7 +278,7 @@ func (lexer *Lexer) IsContextualKeyword(text string) bool {
 
 func (lexer *Lexer) ExpectContextualKeyword(text string) {
 	if !lexer.IsContextualKeyword(text) {
-		lexer.addError(lexer.Loc(), fmt.Sprintf("Expected %q but found %q", text, lexer.Raw()))
+		lexer.addRangeError(lexer.Range(), fmt.Sprintf("Expected %q but found %q", text, lexer.Raw()))
 		panic(LexerPanic{})
 	}
 	lexer.Next()
