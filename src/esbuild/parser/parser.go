@@ -518,24 +518,130 @@ func (p *parser) loadNameFromRef(ref ast.Ref) string {
 	}
 }
 
-func (p *parser) skipTypeScriptParenType() {
+func (p *parser) skipTypeScriptBinding() {
+	switch p.lexer.Token {
+	case lexer.TIdentifier, lexer.TThis:
+		p.lexer.Next()
+
+	case lexer.TOpenBracket:
+		p.lexer.Next()
+
+		// "[, , a]"
+		for p.lexer.Token == lexer.TComma {
+			p.lexer.Next()
+		}
+
+		// "[a, b]"
+		for p.lexer.Token != lexer.TCloseBracket {
+			p.skipTypeScriptBinding()
+			if p.lexer.Token != lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+		}
+
+		p.lexer.Expect(lexer.TCloseBracket)
+
+	case lexer.TOpenBrace:
+		p.lexer.Next()
+
+		for p.lexer.Token != lexer.TCloseBrace {
+			foundIdentifier := false
+
+			switch p.lexer.Token {
+			case lexer.TIdentifier:
+				// "{x}"
+				// "{x: y}"
+				foundIdentifier = true
+				p.lexer.Next()
+
+				// "{1: y}"
+				// "{'x': y}"
+			case lexer.TStringLiteral, lexer.TNumericLiteral:
+				p.lexer.Next()
+
+			default:
+				if p.lexer.IsIdentifierOrKeyword() {
+					// "{if: x}"
+					p.lexer.Next()
+				} else {
+					p.lexer.Unexpected()
+				}
+			}
+
+			if p.lexer.Token == lexer.TColon || !foundIdentifier {
+				p.lexer.Expect(lexer.TColon)
+				p.skipTypeScriptBinding()
+			}
+
+			if p.lexer.Token != lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+		}
+
+		p.lexer.Expect(lexer.TCloseBrace)
+
+	default:
+		p.lexer.Unexpected()
+	}
+}
+
+func (p *parser) skipTypeScriptFnArgs() {
 	p.lexer.Expect(lexer.TOpenParen)
 
-	for {
-		switch p.lexer.Token {
-		case lexer.TCloseParen:
+	for p.lexer.Token != lexer.TCloseParen {
+		// "(...a)"
+		if p.lexer.Token == lexer.TDotDotDot {
 			p.lexer.Next()
-			return
+		}
 
-			// "(a, b)"
-			// "(a: b)"
-			// "(...a)"
-		case lexer.TComma, lexer.TColon, lexer.TDotDotDot:
+		p.skipTypeScriptBinding()
+
+		// "(a?)"
+		if p.lexer.Token == lexer.TQuestion {
 			p.lexer.Next()
+		}
 
-		default:
+		// "(a: any)"
+		if p.lexer.Token == lexer.TColon {
+			p.lexer.Next()
 			p.skipTypeScriptType(ast.LLowest)
 		}
+
+		// "(a, b)"
+		if p.lexer.Token != lexer.TComma {
+			break
+		}
+		p.lexer.Next()
+	}
+
+	p.lexer.Expect(lexer.TCloseParen)
+}
+
+// This is a spot where the TypeScript grammar is highly ambiguous. Here are
+// some cases that are valid:
+//
+//     let x = (y: any): (() => {}) => { };
+//     let x = (y: any): () => {} => { };
+//     let x = (y: any): (y) => {} => { };
+//     let x = (y: any): (y[]) => {};
+//     let x = (y: any): (a | b) => {};
+//
+// Here are some cases that aren't valid:
+//
+//     let x = (y: any): (y) => {};
+//     let x = (y: any): (y) => {return 0};
+//     let x = (y: any): asserts y is (y) => {};
+//
+func (p *parser) skipTypeScriptParenOrFnType() {
+	if p.trySkipTypeScriptFnArgsWithBacktracking() {
+		p.lexer.Expect(lexer.TEqualsGreaterThan)
+		p.skipTypeScriptReturnType()
+	} else {
+		p.lexer.Expect(lexer.TOpenParen)
+		p.skipTypeScriptType(ast.LLowest)
+		p.lexer.Expect(lexer.TCloseParen)
 	}
 }
 
@@ -594,25 +700,15 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		// "new <T>() => Foo<T>"
 		p.lexer.Next()
 		p.skipTypeScriptTypeParameters()
-		p.skipTypeScriptParenType()
-		p.lexer.Expect(lexer.TEqualsGreaterThan)
-		p.skipTypeScriptReturnType()
+		p.skipTypeScriptParenOrFnType()
 
 	case lexer.TLessThan:
 		// "<T>() => Foo<T>"
 		p.skipTypeScriptTypeParameters()
-		p.skipTypeScriptParenType()
-		p.lexer.Expect(lexer.TEqualsGreaterThan)
-		p.skipTypeScriptReturnType()
+		p.skipTypeScriptParenOrFnType()
 
 	case lexer.TOpenParen:
-		p.skipTypeScriptParenType()
-
-		// "() => void"
-		if p.lexer.Token == lexer.TEqualsGreaterThan {
-			p.lexer.Next()
-			p.skipTypeScriptReturnType()
-		}
+		p.skipTypeScriptParenOrFnType()
 
 	case lexer.TIdentifier:
 		switch p.lexer.Identifier {
@@ -794,7 +890,7 @@ func (p *parser) skipTypeScriptObjectType() {
 
 		case lexer.TOpenParen:
 			// Method signature
-			p.skipTypeScriptParenType()
+			p.skipTypeScriptFnArgs()
 			if p.lexer.Token == lexer.TColon {
 				p.lexer.Next()
 				p.skipTypeScriptReturnType()
@@ -922,6 +1018,28 @@ func (p *parser) trySkipTypeScriptArrowReturnTypeWithBacktracking() bool {
 	if p.lexer.Token != lexer.TEqualsGreaterThan {
 		p.lexer.Unexpected()
 	}
+
+	// Restore the log disabled flag. Note that we can't just set it back to false
+	// because it may have been true to start with.
+	p.lexer.IsLogDisabled = oldLexer.IsLogDisabled
+	return true
+}
+
+func (p *parser) trySkipTypeScriptFnArgsWithBacktracking() bool {
+	oldLexer := p.lexer
+	p.lexer.IsLogDisabled = true
+
+	// Implement backtracking by restoring the lexer's memory to its original state
+	defer func() {
+		r := recover()
+		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+			p.lexer = oldLexer
+		} else if r != nil {
+			panic(r)
+		}
+	}()
+
+	p.skipTypeScriptFnArgs()
 
 	// Restore the log disabled flag. Note that we can't just set it back to false
 	// because it may have been true to start with.
