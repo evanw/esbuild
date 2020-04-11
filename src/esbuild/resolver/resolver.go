@@ -51,21 +51,15 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, Resolv
 	sourceDir := r.fs.Dir(sourcePath)
 
 	if isNonModulePath(importPath) {
-		absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath))
-		if !ok {
+		if absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath)); ok {
+			result = absolute
+		} else {
 			return "", ResolveMissing
 		}
-		result = absolute
 	} else {
 		sourceDirInfo := r.dirInfoCached(sourceDir)
 		if sourceDirInfo == nil {
 			// Bail no if the directory is missing for some reason
-			return "", ResolveMissing
-		}
-
-		absolute, ok := r.loadNodeModules(importPath, sourceDirInfo)
-		if !ok {
-			// Note: node's "self references" are not currently supported
 			return "", ResolveMissing
 		}
 
@@ -75,17 +69,28 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, Resolv
 			if packageJson.browserModuleMap != nil {
 				if remapped, ok := packageJson.browserModuleMap[importPath]; ok {
 					if remapped == nil {
-						return absolute, ResolveDisabled
-					}
-					absolute, ok = r.resolveWithoutRemapping(sourceDirInfo.enclosingBrowserScope, *remapped)
-					if !ok {
-						return "", ResolveMissing
+						// "browser": {"module": false}
+						if absolute, ok := r.loadNodeModules(importPath, sourceDirInfo); ok {
+							return absolute, ResolveDisabled
+						} else {
+							return "", ResolveMissing
+						}
+					} else {
+						// "browser": {"module": "./some-file"}
+						// "browser": {"module": "another-module"}
+						importPath = *remapped
+						sourceDirInfo = sourceDirInfo.enclosingBrowserScope
 					}
 				}
 			}
 		}
 
-		result = absolute
+		if absolute, ok := r.resolveWithoutRemapping(sourceDirInfo, importPath); ok {
+			result = absolute
+		} else {
+			// Note: node's "self references" are not currently supported
+			return "", ResolveMissing
+		}
 	}
 
 	// Check the directory that contains this file

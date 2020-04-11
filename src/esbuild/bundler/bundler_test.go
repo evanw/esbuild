@@ -1461,6 +1461,65 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 	})
 }
 
+func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'component-classes'
+			`,
+			"/Users/user/project/node_modules/component-classes/package.json": `
+				{
+					"browser": {
+						"indexof": "component-indexof"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/component-classes/index.js": `
+				try {
+					var index = require('indexof');
+				} catch (err) {
+					var index = require('component-indexof');
+				}
+			`,
+			"/Users/user/project/node_modules/component-indexof/index.js": `
+				module.exports = function() {
+					return 234
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `bootstrap({
+  1(require, exports, module) {
+    // /Users/user/project/node_modules/component-indexof/index.js
+    module.exports = function() {
+      return 234;
+    };
+  },
+
+  2(require) {
+    // /Users/user/project/node_modules/component-classes/index.js
+    try {
+      var index2 = require(1 /* indexof */);
+    } catch (err) {
+      var index2 = require(1 /* component-indexof */);
+    }
+
+    // /Users/user/project/src/entry.js
+  }
+}, 2);
+`,
+		},
+	})
+}
+
 func TestPackageImportMissingES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
