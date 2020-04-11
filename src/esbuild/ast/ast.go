@@ -710,6 +710,10 @@ type SLocal struct {
 	Decls    []Decl
 	Kind     LocalKind
 	IsExport bool
+
+	// The TypeScript compiler doesn't generate code for "import foo = bar"
+	// statements inside namespaces where the import is never used.
+	WasTSImportEqualsInNamespace bool
 }
 
 type SBreak struct {

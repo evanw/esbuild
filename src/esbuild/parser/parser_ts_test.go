@@ -834,6 +834,7 @@ func TestTSImportEquals(t *testing.T) {
 	expectPrintedTS(t, "import x = require('foo')\nx()", "const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "import x = foo.bar; x()", "var x = foo.bar;\nx();\n")
 	expectPrintedTS(t, "import x = foo.bar\nx()", "var x = foo.bar;\nx();\n")
+	expectParseErrorTS(t, "{ import x = foo.bar }", "<stdin>: error: Unexpected \"x\"\n")
 
 	expectPrintedTS(t, "export import x = require('foo'); x()", "export const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "export import x = require('foo')\nx()", "export const x = require(\"foo\");\nx();\n")
@@ -845,6 +846,35 @@ func TestTSImportEquals(t *testing.T) {
 	expectParseErrorTS(t, "export import foo from 'bar'", "<stdin>: error: Expected \"=\" but found \"from\"\n")
 	expectParseErrorTS(t, "export import foo = bar; var x; export {x as foo}",
 		"<stdin>: error: Multiple exports with the same name \"foo\"\n")
+	expectParseErrorTS(t, "{ export import foo = bar }", "<stdin>: error: Unexpected \"export\"\n")
+}
+
+func TestTSImportEqualsInNamespace(t *testing.T) {
+	expectPrintedTS(t, "namespace ns { import foo = bar }", "")
+	expectPrintedTS(t, "namespace ns { import foo = bar; type x = foo.x }", "")
+	expectPrintedTS(t, "namespace ns { import foo = bar.x; foo }", `var ns;
+(function(ns) {
+  var foo = bar.x;
+  foo;
+})(ns || (ns = {}));
+`)
+	expectPrintedTS(t, "namespace ns { export import foo = bar }", `var ns;
+(function(ns) {
+  ns.foo = bar;
+})(ns || (ns = {}));
+`)
+	expectPrintedTS(t, "namespace ns { export import foo = bar.x; foo }", `var ns;
+(function(ns) {
+  ns.foo = bar.x;
+  ns.foo;
+})(ns || (ns = {}));
+`)
+	expectParseErrorTS(t, "namespace ns { import {foo} from 'bar' }", "<stdin>: error: Expected identifier but found \"{\"\n")
+	expectParseErrorTS(t, "namespace ns { import foo from 'bar' }", "<stdin>: error: Expected \"=\" but found \"from\"\n")
+	expectParseErrorTS(t, "namespace ns { export import {foo} from 'bar' }", "<stdin>: error: Expected identifier but found \"{\"\n")
+	expectParseErrorTS(t, "namespace ns { export import foo from 'bar' }", "<stdin>: error: Expected \"=\" but found \"from\"\n")
+	expectParseErrorTS(t, "namespace ns { { import foo = bar } }", "<stdin>: error: Unexpected \"foo\"\n")
+	expectParseErrorTS(t, "namespace ns { { export import foo = bar } }", "<stdin>: error: Unexpected \"export\"\n")
 }
 
 func TestTSJSX(t *testing.T) {

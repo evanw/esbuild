@@ -830,6 +830,7 @@ func TestImport(t *testing.T) {
 
 	expectPrinted(t, "import('foo')", "import(\"foo\");\n")
 	expectPrinted(t, "(import('foo'))", "import(\"foo\");\n")
+	expectPrinted(t, "{import('foo')}", "{\n  import(\"foo\");\n}\n")
 	expectPrinted(t, "import('foo').then(() => {})", "import(\"foo\").then(() => {\n});\n")
 	expectParseError(t, "import()", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "import(...a)", "<stdin>: error: Unexpected \"...\"\n")
@@ -837,6 +838,7 @@ func TestImport(t *testing.T) {
 
 	expectPrinted(t, "import.meta", "import.meta;\n")
 	expectPrinted(t, "(import.meta)", "import.meta;\n")
+	expectPrinted(t, "{import.meta}", "{\n  import.meta;\n}\n")
 }
 
 func TestExport(t *testing.T) {

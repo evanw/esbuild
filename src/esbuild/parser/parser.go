@@ -3499,7 +3499,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		case lexer.TImport:
 			// "export import foo = bar"
-			if p.ts.Parse && opts.isModuleScope {
+			if p.ts.Parse && (opts.isModuleScope || opts.isNamespaceScope) {
 				opts.isExport = true
 				return p.parseStmt(opts)
 			}
@@ -3996,7 +3996,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		stmt := ast.SImport{}
 
 		// "export import foo = bar"
-		if opts.isExport && p.lexer.Token != lexer.TIdentifier {
+		// "import foo = bar" in a namespace
+		if (opts.isExport || opts.isNamespaceScope) && p.lexer.Token != lexer.TIdentifier {
 			p.lexer.Expect(lexer.TIdentifier)
 		}
 
@@ -4043,7 +4044,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		case lexer.TIdentifier:
 			// "import defaultItem from 'path'"
-			if !opts.isModuleScope {
+			// "import foo = bar"
+			if !opts.isModuleScope && !opts.isNamespaceScope {
 				p.lexer.Unexpected()
 				return ast.Stmt{}
 			}
@@ -4053,7 +4055,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.Next()
 
 			// Parse TypeScript import assignment statements
-			if p.ts.Parse && (p.lexer.Token == lexer.TEquals || opts.isExport) {
+			if p.ts.Parse && (p.lexer.Token == lexer.TEquals || opts.isExport || opts.isNamespaceScope) {
 				p.lexer.Expect(lexer.TEquals)
 				value := p.parseExpr(ast.LComma)
 				p.lexer.ExpectOrInsertSemicolon()
@@ -4069,10 +4071,20 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				// The kind of statement depends on the expression
 				if _, ok := value.Data.(*ast.ECall); ok {
 					// "import ns = require('x')"
-					return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls, IsExport: opts.isExport}}
+					return ast.Stmt{loc, &ast.SLocal{
+						Kind:                         ast.LocalConst,
+						Decls:                        decls,
+						IsExport:                     opts.isExport,
+						WasTSImportEqualsInNamespace: opts.isNamespaceScope,
+					}}
 				} else {
 					// "import Foo = Bar"
-					return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalVar, Decls: decls, IsExport: opts.isExport}}
+					return ast.Stmt{loc, &ast.SLocal{
+						Kind:                         ast.LocalVar,
+						Decls:                        decls,
+						IsExport:                     opts.isExport,
+						WasTSImportEqualsInNamespace: opts.isNamespaceScope,
+					}}
 				}
 			}
 
@@ -4326,12 +4338,23 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 
 	p.enclosingNamespaceRef = oldEnclosingNamespaceRef
 
+	// Import assignments may be only used in type expressions, not value
+	// expressions. If this is the case, the TypeScript compiler removes
+	// them entirely from the output. That can cause the namespace itself
+	// to be considered empty and thus be removed.
+	importEqualsCount := 0
+	for _, stmt := range stmts {
+		if local, ok := stmt.Data.(*ast.SLocal); ok && local.WasTSImportEqualsInNamespace && !local.IsExport {
+			importEqualsCount++
+		}
+	}
+
 	// TypeScript omits namespaces without values. These namespaces
 	// are only allowed to be used in type expressions. They are
 	// allowed to be exported, but can also only be used in type
 	// expressions when imported. So we shouldn't count them as a
 	// real export either.
-	if len(stmts) == 0 {
+	if len(stmts) == importEqualsCount {
 		p.popAndDiscardScope(scopeIndex)
 		return ast.Stmt{loc, &ast.STypeScript{}}
 	}
