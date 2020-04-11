@@ -499,11 +499,6 @@ type SBlock struct {
 	Stmts []Stmt
 }
 
-type SConst struct {
-	Decls    []Decl
-	IsExport bool
-}
-
 type SEmpty struct{}
 
 type SDebugger struct{}
@@ -644,11 +639,6 @@ type SImport struct {
 	Path        Path
 }
 
-type SLet struct {
-	Decls    []Decl
-	IsExport bool
-}
-
 type SReturn struct {
 	Value *Expr
 }
@@ -657,8 +647,17 @@ type SThrow struct {
 	Value Expr
 }
 
-type SVar struct {
+type LocalKind uint8
+
+const (
+	LocalVar LocalKind = iota
+	LocalLet
+	LocalConst
+)
+
+type SLocal struct {
 	Decls    []Decl
+	Kind     LocalKind
 	IsExport bool
 }
 
@@ -671,7 +670,6 @@ type SContinue struct {
 }
 
 func (*SBlock) isStmt()         {}
-func (*SConst) isStmt()         {}
 func (*SDebugger) isStmt()      {}
 func (*SDirective) isStmt()     {}
 func (*SEmpty) isStmt()         {}
@@ -693,10 +691,9 @@ func (*SWith) isStmt()          {}
 func (*STry) isStmt()           {}
 func (*SSwitch) isStmt()        {}
 func (*SImport) isStmt()        {}
-func (*SLet) isStmt()           {}
 func (*SReturn) isStmt()        {}
 func (*SThrow) isStmt()         {}
-func (*SVar) isStmt()           {}
+func (*SLocal) isStmt()         {}
 func (*SBreak) isStmt()         {}
 func (*SContinue) isStmt()      {}
 

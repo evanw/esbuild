@@ -2565,7 +2565,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		decls := p.parseAndDeclareDecls(ast.SymbolHoisted, opts.isExport)
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.SVar{decls, opts.isExport}}
+		return ast.Stmt{loc, &ast.SLocal{
+			Kind:     ast.LocalVar,
+			Decls:    decls,
+			IsExport: opts.isExport,
+		}}
 
 	case lexer.TLet:
 		if !opts.allowLexicalDecl {
@@ -2574,7 +2578,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts.isExport)
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.SLet{decls, opts.isExport}}
+		return ast.Stmt{loc, &ast.SLocal{
+			Kind:     ast.LocalLet,
+			Decls:    decls,
+			IsExport: opts.isExport,
+		}}
 
 	case lexer.TConst:
 		if !opts.allowLexicalDecl {
@@ -2584,7 +2592,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts.isExport)
 		p.lexer.ExpectOrInsertSemicolon()
 		p.requireInitializers(decls)
-		return ast.Stmt{loc, &ast.SConst{decls, opts.isExport}}
+		return ast.Stmt{loc, &ast.SLocal{
+			Kind:     ast.LocalConst,
+			Decls:    decls,
+			IsExport: opts.isExport,
+		}}
 
 	case lexer.TIf:
 		p.lexer.Next()
@@ -2760,21 +2772,23 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		decls := []ast.Decl{}
 		initLoc := p.lexer.Loc()
+		isVar := false
 		switch p.lexer.Token {
 		case lexer.TVar:
+			isVar = true
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(ast.SymbolHoisted, false /* isExport */)
-			init = &ast.Stmt{initLoc, &ast.SVar{decls, false}}
+			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
 
 		case lexer.TLet:
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(ast.SymbolOther, false /* isExport */)
-			init = &ast.Stmt{initLoc, &ast.SLet{decls, false}}
+			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalLet, Decls: decls}}
 
 		case lexer.TConst:
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(ast.SymbolOther, false /* isExport */)
-			init = &ast.Stmt{initLoc, &ast.SConst{decls, false}}
+			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
 
 		case lexer.TSemicolon:
 
@@ -2804,7 +2818,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		// Detect for-in loops
 		if p.lexer.Token == lexer.TIn {
-			_, isVar := init.Data.(*ast.SVar)
 			p.forbidInitializers(decls, "in", isVar)
 			p.lexer.Next()
 			value := p.parseExpr(ast.LLowest)
@@ -2815,7 +2828,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		// Only require "const" statement initializers when we know we're a normal for loop
 		if init != nil {
-			if _, ok := init.Data.(*ast.SConst); ok {
+			if local, ok := init.Data.(*ast.SLocal); ok && local.Kind == ast.LocalConst {
 				p.requireInitializers(decls)
 			}
 		}
@@ -3228,12 +3241,17 @@ func findIdentifiers(binding ast.Binding, identifiers []ast.Decl) []ast.Decl {
 // assign to a global variable instead.
 func shouldKeepStmtInDeadControlFlow(stmt ast.Stmt) bool {
 	switch s := stmt.Data.(type) {
-	case *ast.SEmpty, *ast.SExpr, *ast.SConst, *ast.SLet, *ast.SThrow,
-		*ast.SReturn, *ast.SBreak, *ast.SContinue, *ast.SClass, *ast.SDebugger:
+	case *ast.SEmpty, *ast.SExpr, *ast.SThrow, *ast.SReturn,
+		*ast.SBreak, *ast.SContinue, *ast.SClass, *ast.SDebugger:
 		// Omit these statements entirely
 		return false
 
-	case *ast.SVar:
+	case *ast.SLocal:
+		if s.Kind != ast.LocalVar {
+			// Omit these statements entirely
+			return false
+		}
+
 		// Omit everything except the identifiers
 		identifiers := []ast.Decl{}
 		for _, decl := range s.Decls {
@@ -3260,7 +3278,7 @@ func (p *parser) visitFnOrModuleStmts(stmts []ast.Stmt) []ast.Stmt {
 		for _, ref := range p.tempRefs {
 			decls = append(decls, ast.Decl{ast.Binding{ast.Loc{}, &ast.BIdentifier{ref}}, nil})
 		}
-		stmts = append([]ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SVar{Decls: decls}}}, stmts...)
+		stmts = append([]ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}}, stmts...)
 	}
 
 	p.tempRefs = oldTempRefs
@@ -3288,9 +3306,9 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 			}
 
 			// Merge adjacent var statements
-			if s, ok := stmt.Data.(*ast.SVar); ok && end > 0 {
+			if s, ok := stmt.Data.(*ast.SLocal); ok && s.Kind == ast.LocalVar && end > 0 {
 				prevStmt := visited[end-1]
-				if prevS, ok := prevStmt.Data.(*ast.SVar); ok {
+				if prevS, ok := prevStmt.Data.(*ast.SLocal); ok && prevS.Kind == ast.LocalVar && s.IsExport == prevS.IsExport {
 					prevS.Decls = append(prevS.Decls, s.Decls...)
 					continue
 				}
@@ -3310,31 +3328,11 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 			// Strip empty statements
 			continue
 
-		case *ast.SConst:
-			// Merge adjacent const statements
+		case *ast.SLocal:
+			// Merge adjacent local statements
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*ast.SConst); ok && s.IsExport == prevS.IsExport {
-					prevS.Decls = append(prevS.Decls, s.Decls...)
-					continue
-				}
-			}
-
-		case *ast.SLet:
-			// Merge adjacent let statements
-			if len(result) > 0 {
-				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*ast.SLet); ok && s.IsExport == prevS.IsExport {
-					prevS.Decls = append(prevS.Decls, s.Decls...)
-					continue
-				}
-			}
-
-		case *ast.SVar:
-			// Merge adjacent var statements
-			if len(result) > 0 {
-				prevStmt := result[len(result)-1]
-				if prevS, ok := prevStmt.Data.(*ast.SVar); ok && s.IsExport == prevS.IsExport {
+				if prevS, ok := prevStmt.Data.(*ast.SLocal); ok && s.Kind == prevS.Kind && s.IsExport == prevS.IsExport {
 					prevS.Decls = append(prevS.Decls, s.Decls...)
 					continue
 				}
@@ -3422,16 +3420,16 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					// initializer if it's a "var" declaration, since the scope
 					// doesn't matter due to scope hoisting
 					if s.Init == nil {
-						if s2, ok := prevStmt.Data.(*ast.SVar); ok && !s2.IsExport {
+						if s2, ok := prevStmt.Data.(*ast.SLocal); ok && s2.Kind == ast.LocalVar && !s2.IsExport {
 							result[len(result)-1] = stmt
 							s.Init = &prevStmt
 							continue
 						}
 					} else {
-						if s2, ok := prevStmt.Data.(*ast.SVar); ok && !s2.IsExport {
-							if s3, ok := s.Init.Data.(*ast.SVar); ok {
+						if s2, ok := prevStmt.Data.(*ast.SLocal); ok && s2.Kind == ast.LocalVar && !s2.IsExport {
+							if s3, ok := s.Init.Data.(*ast.SLocal); ok && s3.Kind == ast.LocalVar {
 								result[len(result)-1] = stmt
-								s.Init.Data = &ast.SVar{Decls: append(s2.Decls, s3.Decls...)}
+								s.Init.Data = &ast.SLocal{Kind: ast.LocalVar, Decls: append(s2.Decls, s3.Decls...)}
 								continue
 							}
 						}
@@ -3758,12 +3756,15 @@ func (p *parser) visitBinding(binding ast.Binding) {
 }
 
 func statementCaresAboutScope(stmt ast.Stmt) bool {
-	switch stmt.Data.(type) {
+	switch s := stmt.Data.(type) {
 	case *ast.SBlock, *ast.SEmpty, *ast.SDebugger, *ast.SExpr, *ast.SIf,
 		*ast.SFor, *ast.SForIn, *ast.SForOf, *ast.SDoWhile, *ast.SWhile,
 		*ast.SWith, *ast.STry, *ast.SSwitch, *ast.SReturn, *ast.SThrow,
-		*ast.SVar, *ast.SBreak, *ast.SContinue, *ast.SDirective:
+		*ast.SBreak, *ast.SContinue, *ast.SDirective:
 		return false
+
+	case *ast.SLocal:
+		return s.Kind != ast.LocalVar
 
 	default:
 		return true
@@ -3984,15 +3985,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		s.Stmt = p.visitSingleStmt(s.Stmt)
 		p.popScope()
 
-	case *ast.SConst:
-		for _, d := range s.Decls {
-			p.visitBinding(d.Binding)
-			if d.Value != nil {
-				*d.Value = p.visitExpr(*d.Value)
-			}
-		}
-
-	case *ast.SLet:
+	case *ast.SLocal:
 		for i, d := range s.Decls {
 			p.visitBinding(d.Binding)
 			if d.Value != nil {
@@ -4007,32 +4000,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				// Bad (a syntax error):
 				//   "let {} = undefined;" => "let {};"
 				//
-				if p.mangleSyntax {
-					if _, ok := d.Binding.Data.(*ast.BIdentifier); ok {
-						if _, ok := d.Value.Data.(*ast.EUndefined); ok {
-							s.Decls[i].Value = nil
-						}
-					}
-				}
-			}
-		}
-
-	case *ast.SVar:
-		for i, d := range s.Decls {
-			p.visitBinding(d.Binding)
-			if d.Value != nil {
-				*d.Value = p.visitExpr(*d.Value)
-
-				// Initializing to undefined is implicit, but be careful to not
-				// accidentally cause a syntax error by removing the value
-				//
-				// Good:
-				//   "var a = undefined;" => "var a;"
-				//
-				// Bad (a syntax error):
-				//   "var {} = undefined;" => "var {};"
-				//
-				if p.mangleSyntax {
+				if p.mangleSyntax && s.Kind != ast.LocalConst {
 					if _, ok := d.Binding.Data.(*ast.BIdentifier); ok {
 						if _, ok := d.Value.Data.(*ast.EUndefined); ok {
 							s.Decls[i].Value = nil

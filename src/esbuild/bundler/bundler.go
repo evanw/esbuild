@@ -727,9 +727,9 @@ func (b *Bundle) extractImportsAndExports(
 			// "export default value"
 			meta.exports["default"] = s.DefaultName.Ref
 			if s.Value.Expr != nil {
-				stmt = ast.Stmt{stmt.Loc, &ast.SConst{[]ast.Decl{
+				stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
 					ast.Decl{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
-				}, false}}
+				}}}
 			} else {
 				switch s2 := s.Value.Stmt.Data.(type) {
 				case *ast.SFunction:
@@ -777,22 +777,10 @@ func (b *Bundle) extractImportsAndExports(
 			}
 			continue
 
-		case *ast.SConst:
+		case *ast.SLocal:
 			if s.IsExport {
 				includeDecls(s.Decls, symbols, meta.exports)
-				stmt = ast.Stmt{stmt.Loc, &ast.SConst{s.Decls, false}}
-			}
-
-		case *ast.SLet:
-			if s.IsExport {
-				includeDecls(s.Decls, symbols, meta.exports)
-				stmt = ast.Stmt{stmt.Loc, &ast.SLet{s.Decls, false}}
-			}
-
-		case *ast.SVar:
-			if s.IsExport {
-				includeDecls(s.Decls, symbols, meta.exports)
-				stmt = ast.Stmt{stmt.Loc, &ast.SVar{s.Decls, false}}
+				stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: s.Kind, Decls: s.Decls}}
 			}
 
 		case *ast.SFunction:
@@ -816,7 +804,7 @@ func (b *Bundle) extractImportsAndExports(
 	// Prepend imports if there are any
 	if len(importDecls) > 0 {
 		stmtStart--
-		stmts[stmtStart] = ast.Stmt{ast.Loc{}, &ast.SConst{Decls: importDecls}}
+		stmts[stmtStart] = ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: importDecls}}
 	}
 
 	// Reserve a slot at the beginning for our exports, which will be used or
@@ -1002,17 +990,7 @@ func (b *Bundle) markExportsAsUnbound(f file, symbols *ast.SymbolMap) {
 				// "export * as ns from 'path'"
 			}
 
-		case *ast.SConst:
-			if s.IsExport {
-				markExportsAsUnboundInDecls(s.Decls, symbols)
-			}
-
-		case *ast.SLet:
-			if s.IsExport {
-				markExportsAsUnboundInDecls(s.Decls, symbols)
-			}
-
-		case *ast.SVar:
+		case *ast.SLocal:
 			if s.IsExport {
 				markExportsAsUnboundInDecls(s.Decls, symbols)
 			}

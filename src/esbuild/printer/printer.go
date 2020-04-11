@@ -1501,12 +1501,15 @@ func (p *printer) printForLoopInit(init ast.Stmt) {
 	switch s := init.Data.(type) {
 	case *ast.SExpr:
 		p.printExpr(s.Value, ast.LLowest, forbidIn)
-	case *ast.SVar:
-		p.printDecls("var", s.Decls, forbidIn)
-	case *ast.SLet:
-		p.printDecls("let", s.Decls, forbidIn)
-	case *ast.SConst:
-		p.printDecls("const", s.Decls, forbidIn)
+	case *ast.SLocal:
+		switch s.Kind {
+		case ast.LocalVar:
+			p.printDecls("var", s.Decls, forbidIn)
+		case ast.LocalLet:
+			p.printDecls("let", s.Decls, forbidIn)
+		case ast.LocalConst:
+			p.printDecls("const", s.Decls, forbidIn)
+		}
 	default:
 		panic("Internal error")
 	}
@@ -1811,14 +1814,15 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 
 		p.printSemicolonAfterStatement()
 
-	case *ast.SConst:
-		p.printDeclStmt(s.IsExport, "const", s.Decls)
-
-	case *ast.SLet:
-		p.printDeclStmt(s.IsExport, "let", s.Decls)
-
-	case *ast.SVar:
-		p.printDeclStmt(s.IsExport, "var", s.Decls)
+	case *ast.SLocal:
+		switch s.Kind {
+		case ast.LocalConst:
+			p.printDeclStmt(s.IsExport, "const", s.Decls)
+		case ast.LocalLet:
+			p.printDeclStmt(s.IsExport, "let", s.Decls)
+		case ast.LocalVar:
+			p.printDeclStmt(s.IsExport, "var", s.Decls)
+		}
 
 	case *ast.SIf:
 		p.printIndent()
