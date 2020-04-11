@@ -843,6 +843,9 @@ func (p *parser) skipTypeScriptTypeParameters() {
 				break
 			}
 			p.lexer.Next()
+			if p.lexer.Token == lexer.TGreaterThan {
+				break
+			}
 		}
 
 		p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)

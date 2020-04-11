@@ -729,6 +729,16 @@ var Bar;
 
 func TestTSFunction(t *testing.T) {
 	expectPrintedTS(t, "function foo(): void; function foo(): void {}", "function foo() {\n}\n")
+
+	expectPrintedTS(t, "function foo<A>() {}", "function foo() {\n}\n")
+	expectPrintedTS(t, "function foo<A extends B<A>>() {}", "function foo() {\n}\n")
+	expectPrintedTS(t, "function foo<A extends B<C<A>>>() {}", "function foo() {\n}\n")
+	expectPrintedTS(t, "function foo<A,B,C,>() {}", "function foo() {\n}\n")
+	expectPrintedTS(t, "function foo<A extends B<C>= B<C>>() {}", "function foo() {\n}\n")
+	expectPrintedTS(t, "function foo<A extends B<C<D>>= B<C<D>>>() {}", "function foo() {\n}\n")
+	expectPrintedTS(t, "function foo<A extends B<C<D<E>>>= B<C<D<E>>>>() {}", "function foo() {\n}\n")
+	expectParseErrorTS(t, "function foo<>() {}", "<stdin>: error: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "function foo<,>() {}", "<stdin>: error: Expected identifier but found \",\"\n")
 }
 
 func TestTSDecl(t *testing.T) {
