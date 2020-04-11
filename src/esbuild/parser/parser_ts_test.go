@@ -826,12 +826,25 @@ func TestTSImport(t *testing.T) {
 	expectPrintedTS(t, "import {x} from 'foo'; if (false) log(x)", "import \"foo\";\nif (false)\n  log(x);\n")
 	expectPrintedTS(t, "import x from 'foo'; if (false) log(x)", "import \"foo\";\nif (false)\n  log(x);\n")
 	expectPrintedTS(t, "import * as ns from 'foo'; if (false) log(ns)", "import \"foo\";\nif (false)\n  log(ns);\n")
+}
 
-	// This is TypeScript-specific syntax
+// This is TypeScript-specific import syntax
+func TestTSImportEquals(t *testing.T) {
 	expectPrintedTS(t, "import x = require('foo'); x()", "const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "import x = require('foo')\nx()", "const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "import x = foo.bar; x()", "var x = foo.bar;\nx();\n")
 	expectPrintedTS(t, "import x = foo.bar\nx()", "var x = foo.bar;\nx();\n")
+
+	expectPrintedTS(t, "export import x = require('foo'); x()", "export const x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "export import x = require('foo')\nx()", "export const x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "export import x = foo.bar; x()", "export var x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "export import x = foo.bar\nx()", "export var x = foo.bar;\nx();\n")
+
+	expectParseError(t, "export import foo = bar", "<stdin>: error: Unexpected \"import\"\n")
+	expectParseErrorTS(t, "export import {foo} from 'bar'", "<stdin>: error: Expected identifier but found \"{\"\n")
+	expectParseErrorTS(t, "export import foo from 'bar'", "<stdin>: error: Expected \"=\" but found \"from\"\n")
+	expectParseErrorTS(t, "export import foo = bar; var x; export {x as foo}",
+		"<stdin>: error: Multiple exports with the same name \"foo\"\n")
 }
 
 func TestTSJSX(t *testing.T) {

@@ -2077,9 +2077,8 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		return ast.Expr{}
 
 	case lexer.TImport:
-		name := p.lexer.Identifier
 		p.lexer.Next()
-		return p.parseImportExpr(loc, name)
+		return p.parseImportExpr(loc)
 
 	default:
 		p.lexer.Unexpected()
@@ -2114,7 +2113,7 @@ func (p *parser) warnAboutFutureSyntax(target LanguageTarget, r ast.Range) {
 	}
 }
 
-func (p *parser) parseImportExpr(loc ast.Loc, name string) ast.Expr {
+func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 	// Parse an "import.meta" expression
 	if p.lexer.Token == lexer.TDot {
 		p.lexer.Next()
@@ -3498,6 +3497,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			opts.isExport = true
 			return p.parseStmt(opts)
 
+		case lexer.TImport:
+			// "export import foo = bar"
+			if p.ts.Parse && opts.isModuleScope {
+				opts.isExport = true
+				return p.parseStmt(opts)
+			}
+
+			p.lexer.Unexpected()
+			return ast.Stmt{}
+
 		case lexer.TEnum:
 			if !p.ts.Parse {
 				p.lexer.Unexpected()
@@ -3983,15 +3992,19 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SFor{init, test, update, body}}
 
 	case lexer.TImport:
-		name := p.lexer.Identifier
 		p.lexer.Next()
 		stmt := ast.SImport{}
+
+		// "export import foo = bar"
+		if opts.isExport && p.lexer.Token != lexer.TIdentifier {
+			p.lexer.Expect(lexer.TIdentifier)
+		}
 
 		switch p.lexer.Token {
 		case lexer.TOpenParen, lexer.TDot:
 			// "import('path')"
 			// "import.meta"
-			expr := p.parseSuffix(p.parseImportExpr(loc, name), ast.LLowest, nil)
+			expr := p.parseSuffix(p.parseImportExpr(loc), ast.LLowest, nil)
 			p.lexer.ExpectOrInsertSemicolon()
 			return ast.Stmt{loc, &ast.SExpr{expr}}
 
@@ -4040,8 +4053,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.Next()
 
 			// Parse TypeScript import assignment statements
-			if p.ts.Parse && p.lexer.Token == lexer.TEquals {
-				p.lexer.Next()
+			if p.ts.Parse && (p.lexer.Token == lexer.TEquals || opts.isExport) {
+				p.lexer.Expect(lexer.TEquals)
 				value := p.parseExpr(ast.LComma)
 				p.lexer.ExpectOrInsertSemicolon()
 				decls := []ast.Decl{ast.Decl{
@@ -4049,14 +4062,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						&ast.BIdentifier{p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)}},
 					&value,
 				}}
+				if opts.isExport {
+					p.recordExport(stmt.DefaultName.Loc, defaultName)
+				}
 
 				// The kind of statement depends on the expression
 				if _, ok := value.Data.(*ast.ECall); ok {
 					// "import ns = require('x')"
-					return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
+					return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls, IsExport: opts.isExport}}
 				} else {
 					// "import Foo = Bar"
-					return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
+					return ast.Stmt{loc, &ast.SLocal{Kind: ast.LocalVar, Decls: decls, IsExport: opts.isExport}}
 				}
 			}
 
