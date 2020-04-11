@@ -7,6 +7,7 @@ import (
 var tokenToString = map[T]string{
 	TEndOfFile:   "end of file",
 	TSyntaxError: "syntax error",
+	THashbang:    "hashbang comment",
 
 	// Literals
 	TNoSubstitutionTemplateLiteral: "template literal",
@@ -104,7 +105,7 @@ var tokenToString = map[T]string{
 	TIf:         "\"if\"",
 	TImport:     "\"import\"",
 	TIn:         "\"in\"",
-	TInstanceOf: "\"instanceof\"",
+	TInstanceof: "\"instanceof\"",
 	TNew:        "\"new\"",
 	TNull:       "\"null\"",
 	TReturn:     "\"return\"",
@@ -114,7 +115,7 @@ var tokenToString = map[T]string{
 	TThrow:      "\"throw\"",
 	TTrue:       "\"true\"",
 	TTry:        "\"try\"",
-	TTypeOf:     "\"typeof\"",
+	TTypeof:     "\"typeof\"",
 	TVar:        "\"var\"",
 	TVoid:       "\"void\"",
 	TWhile:      "\"while\"",

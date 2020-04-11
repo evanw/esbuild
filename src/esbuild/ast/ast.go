@@ -74,7 +74,7 @@ const (
 	UnOpCpl
 	UnOpNot
 	UnOpVoid
-	UnOpTypeOf
+	UnOpTypeof
 	UnOpDelete
 
 	// Prefix update
@@ -97,7 +97,7 @@ const (
 	BinOpGt
 	BinOpGe
 	BinOpIn
-	BinOpInstanceOf
+	BinOpInstanceof
 	BinOpShl
 	BinOpShr
 	BinOpUShr

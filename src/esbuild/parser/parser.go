@@ -70,6 +70,7 @@ type parser struct {
 	isBundling        bool
 	tryBodyCount      int
 	callTarget        ast.E
+	typeofTarget      ast.E
 	moduleScope       *ast.Scope
 	unbound           []ast.Ref
 	isControlFlowDead bool
@@ -1133,13 +1134,13 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		}
 		return ast.Expr{loc, &ast.EUnary{ast.UnOpVoid, value}}
 
-	case lexer.TTypeOf:
+	case lexer.TTypeof:
 		p.lexer.Next()
 		value := p.parseExpr(ast.LPrefix)
 		if p.lexer.Token == lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpTypeOf, value}}
+		return ast.Expr{loc, &ast.EUnary{ast.UnOpTypeof, value}}
 
 	case lexer.TDelete:
 		p.lexer.Next()
@@ -1837,7 +1838,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpIn, left, p.parseExpr(ast.LCompare)}}
 
-		case lexer.TInstanceOf:
+		case lexer.TInstanceof:
 			if level >= ast.LCompare {
 				return left
 			}
@@ -1851,7 +1852,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			}
 
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpInstanceOf, left, p.parseExpr(ast.LCompare)}}
+			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpInstanceof, left, p.parseExpr(ast.LCompare)}}
 
 		default:
 			return left
@@ -4450,7 +4451,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 		// Disallow capturing the "require" variable without calling it
-		if e.Ref == p.requireRef && e != p.callTarget {
+		if e.Ref == p.requireRef && (e != p.callTarget && e != p.typeofTarget) {
 			if p.tryBodyCount == 0 {
 				r := lexer.RangeOfIdentifier(p.source, expr.Loc)
 				p.log.AddRangeError(p.source, r, "\"require\" must not be called indirectly")
@@ -4659,6 +4660,9 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 	case *ast.EUnary:
+		if e.Op == ast.UnOpTypeof {
+			p.typeofTarget = e.Value.Data
+		}
 		e.Value = p.visitExpr(e.Value)
 
 		// Fold constants
@@ -4673,7 +4677,13 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 				return ast.Expr{expr.Loc, &ast.EUndefined{}}
 			}
 
-		case ast.UnOpTypeOf:
+		case ast.UnOpTypeof:
+			// "typeof require" => "'function'"
+			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
+				p.symbols[p.requireRef.InnerIndex].UseCountEstimate--
+				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16("function")}}
+			}
+
 			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16(typeof)}}
 			}

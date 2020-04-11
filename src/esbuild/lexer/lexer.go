@@ -130,7 +130,7 @@ const (
 	TIf
 	TImport
 	TIn
-	TInstanceOf
+	TInstanceof
 	TNew
 	TNull
 	TReturn
@@ -140,7 +140,7 @@ const (
 	TThrow
 	TTrue
 	TTry
-	TTypeOf
+	TTypeof
 	TVar
 	TVoid
 	TWhile
@@ -181,7 +181,7 @@ var keywords = map[string]T{
 	"if":         TIf,
 	"import":     TImport,
 	"in":         TIn,
-	"instanceof": TInstanceOf,
+	"instanceof": TInstanceof,
 	"new":        TNew,
 	"null":       TNull,
 	"return":     TReturn,
@@ -191,7 +191,7 @@ var keywords = map[string]T{
 	"throw":      TThrow,
 	"true":       TTrue,
 	"try":        TTry,
-	"typeof":     TTypeOf,
+	"typeof":     TTypeof,
 	"var":        TVar,
 	"void":       TVoid,
 	"while":      TWhile,

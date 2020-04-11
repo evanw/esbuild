@@ -2075,3 +2075,48 @@ process.exit(0);
 		},
 	})
 }
+
+func TestTypeofRequireBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(typeof require);
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.js
+    console.log("function");
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestTypeofRequireNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(typeof require);
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `console.log(typeof require);
+`,
+		},
+	})
+}
