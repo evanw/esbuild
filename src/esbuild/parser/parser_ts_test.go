@@ -878,9 +878,12 @@ func TestTSImportEqualsInNamespace(t *testing.T) {
 }
 
 func TestTSTypeOnlyImport(t *testing.T) {
-	expectPrintedTS(t, "import type foo from 'bar'", "")
-	expectPrintedTS(t, "import type * as foo from 'bar'", "")
-	expectPrintedTS(t, "import type {foo} from 'bar'", "")
+	expectPrintedTS(t, "import type foo from 'bar'; x", "x;\n")
+	expectPrintedTS(t, "import type foo from 'bar'\nx", "x;\n")
+	expectPrintedTS(t, "import type * as foo from 'bar'; x", "x;\n")
+	expectPrintedTS(t, "import type * as foo from 'bar'\nx", "x;\n")
+	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'; x", "x;\n")
+	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'\nx", "x;\n")
 
 	expectPrintedTS(t, "import type = bar", "var type = bar;\n")
 	expectPrintedTS(t, "import type from 'bar'; type", "import type from \"bar\";\ntype;\n")
@@ -892,6 +895,15 @@ func TestTSTypeOnlyImport(t *testing.T) {
 
 	expectParseErrorTS(t, "import type foo, * as foo from 'bar'", "<stdin>: error: Expected \"from\" but found \",\"\n")
 	expectParseErrorTS(t, "import type foo, {foo} from 'bar'", "<stdin>: error: Expected \"from\" but found \",\"\n")
+}
+
+func TestTSTypeOnlyExport(t *testing.T) {
+	expectPrintedTS(t, "export type {foo, bar as baz} from 'bar'", "")
+	expectPrintedTS(t, "export type {foo, bar as baz}", "")
+	expectPrintedTS(t, "export type {foo} from 'bar'; x", "x;\n")
+	expectPrintedTS(t, "export type {foo} from 'bar'\nx", "x;\n")
+	expectPrintedTS(t, "export type {default} from 'bar'", "")
+	expectParseErrorTS(t, "export type {default}", "<stdin>: error: Expected identifier but found \"default\"\n")
 }
 
 func TestTSJSX(t *testing.T) {

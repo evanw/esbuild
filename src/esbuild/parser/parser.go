@@ -938,7 +938,19 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 	}
 }
 
-func (p *parser) skipTypeScriptTypeStmt() {
+func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
+	if opts.isExport && p.lexer.Token == lexer.TOpenBrace {
+		// "export type {foo}"
+		// "export type {foo} from 'bar'"
+		p.parseExportClause()
+		if p.lexer.IsContextualKeyword("from") {
+			p.lexer.Next()
+			p.parsePath()
+		}
+		p.lexer.ExpectOrInsertSemicolon()
+		return
+	}
+
 	p.lexer.Expect(lexer.TIdentifier)
 	p.skipTypeScriptTypeParameters()
 	p.lexer.Expect(lexer.TEquals)
@@ -3532,12 +3544,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				return p.parseFnStmt(loc, opts, true /* isAsync */)
 			}
 
-			if p.ts.Parse && p.lexer.Token == lexer.TIdentifier {
+			if p.ts.Parse {
 				switch p.lexer.Identifier {
 				case "type":
 					// "export type foo = ..."
 					p.lexer.Next()
-					p.skipTypeScriptTypeStmt()
+					p.skipTypeScriptTypeStmt(parseStmtOpts{isExport: true})
 					return ast.Stmt{loc, &ast.STypeScript{}}
 
 				case "namespace", "abstract", "module":
@@ -3998,7 +4010,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		// "export import foo = bar"
 		// "import foo = bar" in a namespace
 		if (opts.isExport || opts.isNamespaceScope) && p.lexer.Token != lexer.TIdentifier {
-			p.lexer.Expect(lexer.TIdentifier)
+			p.lexer.Expected(lexer.TIdentifier)
 		}
 
 		switch p.lexer.Token {
@@ -4286,7 +4298,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					case "type":
 						if p.lexer.Token == lexer.TIdentifier {
 							// "type Foo = any"
-							p.skipTypeScriptTypeStmt()
+							p.skipTypeScriptTypeStmt(parseStmtOpts{})
 							return ast.Stmt{loc, &ast.STypeScript{}}
 						}
 
