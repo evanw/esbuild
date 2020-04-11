@@ -984,12 +984,6 @@ func markExportsAsUnboundInDecls(decls []ast.Decl, symbols *ast.SymbolMap) {
 func (b *Bundle) markExportsAsUnbound(f file, symbols *ast.SymbolMap) {
 	for _, stmt := range f.ast.Stmts {
 		switch s := stmt.Data.(type) {
-		case *ast.SExportStar:
-			if s.Item == nil {
-			} else {
-				// "export * as ns from 'path'"
-			}
-
 		case *ast.SLocal:
 			if s.IsExport {
 				markExportsAsUnboundInDecls(s.Decls, symbols)
