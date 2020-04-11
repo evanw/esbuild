@@ -1002,7 +1002,9 @@ type propertyOpts struct {
 	isStatic    bool
 }
 
-func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors) (ast.Property, bool) {
+func (p *parser) parseProperty(
+	context propertyContext, kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors,
+) (ast.Property, bool) {
 	var key ast.Expr
 	isComputed := false
 
@@ -1018,7 +1020,26 @@ func (p *parser) parseProperty(context propertyContext, kind ast.PropertyKind, o
 	case lexer.TOpenBracket:
 		isComputed = true
 		p.lexer.Next()
+		wasIdentifier := p.lexer.Token == lexer.TIdentifier
 		expr := p.parseExpr(ast.LLowest)
+
+		// Handle index signatures
+		if p.ts.Parse && p.lexer.Token == lexer.TColon && wasIdentifier &&
+			context == propertyContextClass {
+			if _, ok := expr.Data.(*ast.EIdentifier); ok {
+				// "[key: string]: any;"
+				p.lexer.Next()
+				p.skipTypeScriptType(ast.LLowest)
+				p.lexer.Expect(lexer.TCloseBracket)
+				p.lexer.Expect(lexer.TColon)
+				p.skipTypeScriptType(ast.LLowest)
+				p.lexer.ExpectOrInsertSemicolon()
+
+				// Skip this property entirely
+				return ast.Property{}, false
+			}
+		}
+
 		p.lexer.Expect(lexer.TCloseBracket)
 		key = expr
 

@@ -197,6 +197,9 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { foo!: number = 0 }", "class Foo {\n  foo = 0;\n}\n")
 	expectPrintedTS(t, "class Foo { foo!(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo!(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
+
+	expectPrintedTS(t, "class Foo { [key: string]: any\nfoo }", "class Foo {\n  foo;\n}\n")
+	expectPrintedTS(t, "class Foo { [key: string]: any;foo }", "class Foo {\n  foo;\n}\n")
 }
 
 func TestTSInterface(t *testing.T) {
