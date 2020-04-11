@@ -716,7 +716,9 @@ func (p *parser) skipTypeScriptObjectType() {
 	for p.lexer.Token != lexer.TCloseBrace {
 		// Skip over modifiers and the property identifier
 		foundKey := false
-		for p.lexer.IsIdentifierOrKeyword() || p.lexer.Token == lexer.TStringLiteral {
+		for p.lexer.IsIdentifierOrKeyword() ||
+			p.lexer.Token == lexer.TStringLiteral ||
+			p.lexer.Token == lexer.TNumericLiteral {
 			p.lexer.Next()
 			foundKey = true
 		}
