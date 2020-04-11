@@ -2029,3 +2029,49 @@ func TestNestedScopeBug(t *testing.T) {
 		},
 	})
 }
+
+func TestHashbangBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `#!/usr/bin/env node
+				process.exit(0);
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.js
+    process.exit(0);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestHashbangNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `#!/usr/bin/env node
+				process.exit(0);
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `#!/usr/bin/env node
+process.exit(0);
+`,
+		},
+	})
+}

@@ -5010,10 +5010,19 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		options.JSX.Fragment = []string{"React", "Fragment"}
 	}
 
-	// Parse the file in the first pass, but do not bind symbols.
 	p := newParser(log, source, options)
-	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{allowImportAndExport: true})
 
+	// Consume a leading hashbang comment
+	hashbang := ""
+	if p.lexer.Token == lexer.THashbang {
+		if !options.IsBundling {
+			hashbang = p.lexer.Identifier
+		}
+		p.lexer.Next()
+	}
+
+	// Parse the file in the first pass, but do not bind symbols
+	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{allowImportAndExport: true})
 	p.prepareForVisitPass()
 
 	// Load user-specified defines
@@ -5052,7 +5061,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		p.importPaths = []ast.ImportPath{}
 	}
 
-	result = p.toAST(source, stmts, p.importPaths)
+	result = p.toAST(source, stmts, p.importPaths, hashbang)
 	return
 }
 
@@ -5075,7 +5084,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, expr ast.Expr) ast
 	// Mark that we used the "module" variable
 	p.symbols[p.moduleRef.InnerIndex].UseCountEstimate++
 
-	return p.toAST(source, []ast.Stmt{stmt}, []ast.ImportPath{})
+	return p.toAST(source, []ast.Stmt{stmt}, []ast.ImportPath{}, "")
 }
 
 func (p *parser) prepareForVisitPass() {
@@ -5088,7 +5097,7 @@ func (p *parser) prepareForVisitPass() {
 	p.identifierDefines["Infinity"] = &ast.ENumber{math.Inf(1)}
 }
 
-func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, importPaths []ast.ImportPath) ast.AST {
+func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, importPaths []ast.ImportPath, hashbang string) ast.AST {
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
 	symbols.Outer[source.Index] = p.symbols
@@ -5108,5 +5117,6 @@ func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, importPaths []as
 		ExportsRef:          p.exportsRef,
 		RequireRef:          p.requireRef,
 		ModuleRef:           p.moduleRef,
+		Hashbang:            hashbang,
 	}
 }

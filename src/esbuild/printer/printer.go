@@ -2207,6 +2207,11 @@ func Print(tree ast.AST, options Options) ([]byte, SourceMapChunk) {
 	// Always add a mapping at the beginning of the file
 	p.addSourceMapping(ast.Loc{0})
 
+	// Preserve the hashbang comment if present
+	if tree.Hashbang != "" {
+		p.print(tree.Hashbang + "\n")
+	}
+
 	for _, stmt := range tree.Stmts {
 		p.printSemicolonIfNeeded()
 		p.printStmt(stmt)

@@ -31,6 +31,9 @@ const (
 	TEndOfFile T = iota
 	TSyntaxError
 
+	// "#!/usr/bin/env node"
+	THashbang
+
 	// Literals
 	TNoSubstitutionTemplateLiteral // Contents are in lexer.StringLiteral ([]uint16)
 	TNumericLiteral                // Contents are in lexer.Number (float64)
@@ -695,6 +698,25 @@ func (lexer *Lexer) Next() {
 		switch lexer.codePoint {
 		case -1: // This indicates the end of the file
 			lexer.Token = TEndOfFile
+
+		case '#':
+			if lexer.start == 0 && strings.HasPrefix(lexer.source.Contents, "#!") {
+				lexer.Token = THashbang
+			hashbang:
+				for {
+					lexer.step()
+					switch lexer.codePoint {
+					case '\r', '\n', '\u2028', '\u2029':
+						break hashbang
+
+					case -1: // This indicates the end of the file
+						break hashbang
+					}
+				}
+				lexer.Identifier = lexer.Raw()
+			} else {
+				lexer.SyntaxError()
+			}
 
 		case '\r', '\n', '\u2028', '\u2029':
 			lexer.step()

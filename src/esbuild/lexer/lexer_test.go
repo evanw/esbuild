@@ -71,6 +71,37 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectHashbang(t *testing.T, contents string, expected string) {
+	t.Run(contents, func(t *testing.T) {
+		log, join := logging.NewDeferLog()
+		lexer := func() Lexer {
+			defer func() {
+				r := recover()
+				if _, isLexerPanic := r.(LexerPanic); r != nil && !isLexerPanic {
+					panic(r)
+				}
+			}()
+			return NewLexer(log, logging.Source{
+				Index:        0,
+				AbsolutePath: "<stdin>",
+				PrettyPath:   "<stdin>",
+				Contents:     contents,
+			})
+		}()
+		msgs := join()
+		assertEqual(t, len(msgs), 0)
+		assertEqual(t, lexer.Token, THashbang)
+		assertEqual(t, lexer.Identifier, expected)
+	})
+}
+
+func TestHashbang(t *testing.T) {
+	expectHashbang(t, "#!/usr/bin/env node", "#!/usr/bin/env node")
+	expectHashbang(t, "#!/usr/bin/env node\n", "#!/usr/bin/env node")
+	expectHashbang(t, "#!/usr/bin/env node\nlet x", "#!/usr/bin/env node")
+	expectLexerError(t, " #!/usr/bin/env node", "<stdin>: error: Syntax error \"#\"\n")
+}
+
 func expectIdentifier(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log, join := logging.NewDeferLog()
@@ -472,6 +503,9 @@ func TestTokens(t *testing.T) {
 	}{
 		{"", TEndOfFile},
 		{"\x00", TSyntaxError},
+
+		// "#!/usr/bin/env node"
+		{"#!", THashbang},
 
 		// Punctuation
 		{"(", TOpenParen},

@@ -45,6 +45,10 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
+func TestHashbang(t *testing.T) {
+	expectPrinted(t, "#!/usr/bin/env node\nlet x", "#!/usr/bin/env node\nlet x;\n")
+}
+
 func TestArray(t *testing.T) {
 	expectPrinted(t, "[]", "[];\n")
 	expectPrinted(t, "[,]", "[,];\n")

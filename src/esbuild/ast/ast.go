@@ -876,6 +876,7 @@ type AST struct {
 	// about mismatched exports.
 	HasCommonJsExports bool
 
+	Hashbang    string
 	Stmts       []Stmt
 	Symbols     *SymbolMap
 	ModuleScope *Scope
