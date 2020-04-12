@@ -120,6 +120,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type x =\n A\n & B\n C", "C;\n")
 	expectPrintedTS(t, "type x =\n & A\n & B\n C", "C;\n")
 	expectPrintedTS(t, "type x = [-1, 0, 1]\n[]", "[];\n")
+	expectPrintedTS(t, "type x = [-1n, 0n, 1n]\n[]", "[];\n")
 	expectPrintedTS(t, "type x = {0: number, readonly 1: boolean}\n[]", "[];\n")
 	expectPrintedTS(t, "type x = {'a': number, readonly 'b': boolean}\n[]", "[];\n")
 	expectPrintedTS(t, "let x: {x: 'a', y: false, z: null}", "let x;\n")
