@@ -1,6 +1,6 @@
 # esbuild
 
-This is a JavaScript bundler and minifier. It packages up JavaScript code for distribution on the web.
+This is a JavaScript bundler and minifier. It packages up JavaScript and TypeScript code for distribution on the web.
 
 ## Why?
 
@@ -37,21 +37,23 @@ Several reasons:
 
 Currently supported:
 
-* CommonJS modules
-* ES6 modules
+* JavaScript and TypeScript syntax
+* CommonJS and ES6 modules
+* JSX-to-JavaScript conversion
 * Bundling with static binding of ES6 modules using `--bundle`
 * Full minification with `--minify` (whitespace, identifiers, and mangling)
 * Full source map support when `--sourcemap` is enabled
-* JSX-to-JavaScript conversion for `.jsx` files
 * Compile-time identifier substitutions via `--define`
 * Path substitution using the `browser` field in `package.json`
 * Automatic detection of `baseUrl` in `tsconfig.json`
+* Conversion of some newer syntax for older browsers (right now just class fields, optional chaining, and nullish coalescing)
 
-This is a hobby project that I wrote over the 2019-2020 winter break. I believe that it's relatively complete and functional. However, it's brand new code and probably has a lot of bugs. It also hasn't yet been used in production by anyone. Use at your own risk.
+Disclaimers:
 
-Also keep in mind that this doesn't have complete support for lowering modern language syntax to earlier language versions. Right now only class fields and the nullish coalescing operator are lowered.
-
-I don't personally want to run a large open source project, so I'm not looking for contributions at this time.
+* This is a hobby project. I believe that it's relatively complete and functional. However, it's brand new code and you might hit some bugs.
+* This hasn't yet been used in production by anyone. Use at your own risk.
+* I don't personally want to run a large community project, so I'm not looking for contributions at this time.
+* The code in this repo isn't intended to be built upon. I'm may change the internals in a backwards-incompatible way at any time to improve performance or introduce new features.
 
 ## Install
 
@@ -102,7 +104,7 @@ Options:
   --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
   --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, json, text, base64
+                        one of: js, jsx, ts, tsx, json, text, base64
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -133,13 +135,15 @@ To use esbuild with [React](https://reactjs.org/):
 
 * Either put all JSX syntax in `.jsx` files instead of `.js` files, or use `--loader:.js=jsx` to use the JSX loader for `.js` files.
 
-* If you're using TypeScript, run `tsc` first to convert `.tsx` files into either `.jsx` or `.js` files.
+* If you're using TypeScript, pass esbuild your `.tsx` file as the entry point. There should be no need to convert TypeScript files to JavaScript first because because esbuild parses TypeScript syntax itself.
+
+    *Note that esbuild does not do any type checking, so you'll want to run `tsc -noEmit` in parallel to check types.*
 
 * If you're using esbuild to bundle React yourself instead of including it with a `<script>` tag in your HTML, you'll need to pass `'--define:process.env.NODE_ENV="development"'` or `'--define:process.env.NODE_ENV="production"'` to esbuild on the command line.
 
 * If you're using [Preact](https://preactjs.com/) instead of React, you'll also need to pass `--jsx-factory=preact.h --jsx-fragment=preact.Fragment` to esbuild on the command line.
 
-For example, if you have a file called `example.jsx` with the following contents:
+For example, if you have a file called `example.tsx` with the following contents:
 
 ```js
 import * as React from 'react'
@@ -154,11 +158,11 @@ ReactDOM.render(
 Use this for a development build:
 
 ```
-esbuild example.jsx --bundle '--define:process.env.NODE_ENV="development"' --outfile=out.js
+esbuild example.tsx --bundle '--define:process.env.NODE_ENV="development"' --outfile=out.js
 ```
 
 Use this for a production build:
 
 ```
-esbuild example.jsx --bundle '--define:process.env.NODE_ENV="production"' --minify --outfile=out.js
+esbuild example.tsx --bundle '--define:process.env.NODE_ENV="production"' --minify --outfile=out.js
 ```

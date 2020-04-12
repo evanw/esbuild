@@ -77,6 +77,10 @@ func (args *args) parseLoader(key string, value string) bool {
 		loader = bundler.LoaderJS
 	case "jsx":
 		loader = bundler.LoaderJSX
+	case "ts":
+		loader = bundler.LoaderTS
+	case "tsx":
+		loader = bundler.LoaderTSX
 	case "json":
 		loader = bundler.LoaderJSON
 	case "text":
@@ -142,7 +146,7 @@ Options:
   --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
   --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, json, text, base64
+                        one of: js, jsx, ts, tsx, json, text, base64
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
