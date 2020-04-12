@@ -898,7 +898,9 @@ func (p *parser) skipTypeScriptObjectType() {
 			}
 
 		default:
-			p.lexer.Unexpected()
+			if !foundKey {
+				p.lexer.Unexpected()
+			}
 		}
 
 		switch p.lexer.Token {
