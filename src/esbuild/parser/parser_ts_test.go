@@ -158,6 +158,9 @@ func TestTSTypes(t *testing.T) {
 
 	expectPrintedTS(t, "let foo: any\n<x>y", "let foo;\ny;\n")
 	expectPrintedTSX(t, "let foo: any\n<x>y</x>", "let foo;\nReact.createElement(\"x\", null, \"y\");\n")
+
+	expectPrintedTS(t, "type Foo = Array<<T>(x: T) => T>\n x", "x;\n")
+	expectPrintedTSX(t, "<Foo<<T>(x: T) => T>/>", "React.createElement(Foo, null);\n")
 }
 
 func TestTSClass(t *testing.T) {

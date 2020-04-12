@@ -342,6 +342,35 @@ func (lexer *Lexer) ExpectOrInsertSemicolon() {
 	}
 }
 
+// This parses a single "<" token. If that is the first part of a longer token,
+// this function splits off the first "<" and leaves the remainder of the
+// current token as another, smaller token. For example, "<<=" becomes "<=".
+func (lexer *Lexer) ExpectLessThan(isInsideJSXElement bool) {
+	switch lexer.Token {
+	case TLessThan:
+		if isInsideJSXElement {
+			lexer.NextInsideJSXElement()
+		} else {
+			lexer.Next()
+		}
+
+	case TLessThanEquals:
+		lexer.Token = TEquals
+		lexer.start++
+
+	case TLessThanLessThan:
+		lexer.Token = TLessThan
+		lexer.start++
+
+	case TLessThanLessThanEquals:
+		lexer.Token = TLessThanEquals
+		lexer.start++
+
+	default:
+		lexer.Expected(TLessThan)
+	}
+}
+
 // This parses a single ">" token. If that is the first part of a longer token,
 // this function splits off the first ">" and leaves the remainder of the
 // current token as another, smaller token. For example, ">>=" becomes ">=".

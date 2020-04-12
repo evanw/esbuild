@@ -793,12 +793,13 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			}
 			p.lexer.Expect(lexer.TCloseBracket)
 
-		case lexer.TLessThan:
+		case lexer.TLessThan, lexer.TLessThanEquals,
+			lexer.TLessThanLessThan, lexer.TLessThanLessThanEquals:
 			// "let foo: any \n <number>foo" must not become a single type
 			if p.lexer.HasNewlineBefore {
 				return
 			}
-			p.lexer.Next()
+			p.lexer.ExpectLessThan(false /* isInsideJSXElement */)
 			for {
 				p.skipTypeScriptType(ast.LLowest)
 				if p.lexer.Token != lexer.TComma {
