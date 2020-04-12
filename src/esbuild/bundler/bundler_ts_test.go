@@ -564,3 +564,91 @@ func TestTSMinifyDerivedClass(t *testing.T) {
 		},
 	})
 }
+
+func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import {a, b, c, d, e} from './other.ts'
+				let a
+				const b = 0
+				var c
+				function d() {}
+				class e {}
+				console.log(a, b, c, d, e)
+			`,
+			"/other.ts": `
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.ts
+    let a;
+    const b = 0;
+    var c;
+    function d() {
+    }
+    class e {
+    }
+    console.log(a, b, c, d, e);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestTSImportVsLocalCollisionMixed(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import {a, b, c, d, e, real} from './other.ts'
+				let a
+				const b = 0
+				var c
+				function d() {}
+				class e {}
+				console.log(a, b, c, d, e, real)
+			`,
+			"/other.ts": `
+				export let real = 123
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /other.ts
+    let real = 123;
+
+    // /entry.ts
+    let a;
+    const b = 0;
+    var c;
+    function d() {
+    }
+    class e {
+    }
+    console.log(a, b, c, d, e, real);
+  }
+}, 0);
+`,
+		},
+	})
+}

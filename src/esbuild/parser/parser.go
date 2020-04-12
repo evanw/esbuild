@@ -321,6 +321,11 @@ func canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) mergeResult {
 		return mergeReplaceWithNew
 	}
 
+	// "import {Foo} from 'bar'; class Foo {}"
+	if existing == ast.SymbolTSImport {
+		return mergeReplaceWithNew
+	}
+
 	// "enum Foo {} enum Foo {}"
 	// "namespace Foo { ... } enum Foo {}"
 	if new == ast.SymbolTSEnum && (existing == ast.SymbolTSEnum || existing == ast.SymbolTSNamespace) {
@@ -4392,10 +4397,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		stmt.Path = p.parsePath()
 		p.lexer.ExpectOrInsertSemicolon()
+		kind := ast.SymbolOther
+
+		// In TypeScript, imports are allowed to silently collide with symbols within
+		// the module. Presumably this is because the imports may be type-only.
+		if p.ts.Parse {
+			kind = ast.SymbolTSImport
+		}
 
 		if stmt.StarLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
-			stmt.NamespaceRef = p.declareSymbol(ast.SymbolOther, *stmt.StarLoc, name)
+			stmt.NamespaceRef = p.declareSymbol(kind, *stmt.StarLoc, name)
 		} else {
 			// Generate a symbol for the namespace
 			name := ast.GenerateNonUniqueNameFromPath(stmt.Path.Text)
@@ -4407,7 +4419,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		// Link the default item to the namespace
 		if stmt.DefaultName != nil {
 			name := p.loadNameFromRef(stmt.DefaultName.Ref)
-			ref := p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, name)
+			ref := p.declareSymbol(kind, stmt.DefaultName.Loc, name)
 			p.exprForImportItem[ref] = &ast.ENamespaceImport{
 				NamespaceRef: stmt.NamespaceRef,
 				ItemRef:      ref,
@@ -4421,7 +4433,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if stmt.Items != nil {
 			for i, item := range *stmt.Items {
 				name := p.loadNameFromRef(item.Name.Ref)
-				ref := p.declareSymbol(ast.SymbolOther, item.Name.Loc, name)
+				ref := p.declareSymbol(kind, item.Name.Loc, name)
 				p.exprForImportItem[ref] = &ast.ENamespaceImport{
 					NamespaceRef: stmt.NamespaceRef,
 					ItemRef:      ref,
@@ -5643,7 +5655,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SImport:
-		// This was already handled in "declareStmt"
+		// This was already handled in "parseStmt"
 
 	case *ast.SExportClause:
 		for i, item := range s.Items {
