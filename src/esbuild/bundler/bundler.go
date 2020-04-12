@@ -1441,7 +1441,7 @@ func generateBootstrapPrefix(options *BundleOptions) []byte {
 
 					// Convert CommonJS exports to ES6 exports
 					if (arg && (!exports || !exports.__esModule)) {
-						if (!exports || typeof exports !== 'object') {
+						if (!exports || (typeof exports !== 'object' && typeof exports !== 'function')) {
 							exports = {}
 						}
 						if (!('default' in exports)) {
