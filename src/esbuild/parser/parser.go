@@ -3798,7 +3798,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
-			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass {
+			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass || p.lexer.Token == lexer.TInterface {
 				stmt := p.parseStmt(parseStmtOpts{
 					isNameOptional:   true,
 					allowLexicalDecl: true,

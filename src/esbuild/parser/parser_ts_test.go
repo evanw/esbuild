@@ -235,6 +235,7 @@ func TestTSInterface(t *testing.T) {
 	expectPrintedTS(t, "interface Foo { foo(): Foo \n is: Bar } x", "x;\n")
 	expectPrintedTS(t, "interface A<T extends number> extends B.C<D, E>, F.G<H, I> {} x", "x;\n")
 	expectPrintedTS(t, "export interface A<T extends number> extends B.C<D, E>, F.G<H, I> {} x", "x;\n")
+	expectPrintedTS(t, "export default interface Foo {} x", "x;\n")
 }
 
 func TestTSNamespace(t *testing.T) {
