@@ -808,6 +808,10 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
 
 		case lexer.TExtends:
+			// "{ x: number \n extends: boolean }" must not become a single type
+			if p.lexer.HasNewlineBefore {
+				return
+			}
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LCompare)
 
