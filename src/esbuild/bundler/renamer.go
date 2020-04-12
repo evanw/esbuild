@@ -1,8 +1,8 @@
 package bundler
 
 import (
-	"esbuild/ast"
-	"esbuild/lexer"
+	"github.com/evanw/esbuild/src/esbuild/ast"
+	"github.com/evanw/esbuild/src/esbuild/lexer"
 	"sort"
 	"strconv"
 )

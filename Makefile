@@ -4,7 +4,7 @@ esbuild: src/esbuild/*/*.go
 	GOPATH=`pwd` go build -o esbuild esbuild/main
 
 test:
-	GOPATH=`pwd` go test ./...
+	go test ./...
 
 update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > src/esbuild/main/version.go

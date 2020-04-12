@@ -6,8 +6,8 @@ package logging
 // default.
 
 import (
-	"esbuild/ast"
 	"fmt"
+	"github.com/evanw/esbuild/src/esbuild/ast"
 	"os"
 	"os/exec"
 	"runtime"

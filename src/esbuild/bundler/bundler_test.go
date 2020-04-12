@@ -1,10 +1,10 @@
 package bundler
 
 import (
-	"esbuild/fs"
-	"esbuild/logging"
-	"esbuild/parser"
-	"esbuild/resolver"
+	"github.com/evanw/esbuild/src/esbuild/fs"
+	"github.com/evanw/esbuild/src/esbuild/logging"
+	"github.com/evanw/esbuild/src/esbuild/parser"
+	"github.com/evanw/esbuild/src/esbuild/resolver"
 	"path"
 	"testing"
 )

@@ -1,14 +1,14 @@
 package main
 
 import (
-	"esbuild/ast"
-	"esbuild/bundler"
-	"esbuild/fs"
-	"esbuild/lexer"
-	"esbuild/logging"
-	"esbuild/parser"
-	"esbuild/resolver"
 	"fmt"
+	"github.com/evanw/esbuild/src/esbuild/ast"
+	"github.com/evanw/esbuild/src/esbuild/bundler"
+	"github.com/evanw/esbuild/src/esbuild/fs"
+	"github.com/evanw/esbuild/src/esbuild/lexer"
+	"github.com/evanw/esbuild/src/esbuild/logging"
+	"github.com/evanw/esbuild/src/esbuild/parser"
+	"github.com/evanw/esbuild/src/esbuild/resolver"
 	"io/ioutil"
 	"os"
 	"path/filepath"

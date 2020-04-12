@@ -1,10 +1,10 @@
 package parser
 
 import (
-	"esbuild/ast"
-	"esbuild/lexer"
-	"esbuild/logging"
 	"fmt"
+	"github.com/evanw/esbuild/src/esbuild/ast"
+	"github.com/evanw/esbuild/src/esbuild/lexer"
+	"github.com/evanw/esbuild/src/esbuild/logging"
 	"math"
 	"reflect"
 	"strings"

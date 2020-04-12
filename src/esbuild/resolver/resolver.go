@@ -1,11 +1,11 @@
 package resolver
 
 import (
-	"esbuild/ast"
-	"esbuild/fs"
-	"esbuild/lexer"
-	"esbuild/logging"
-	"esbuild/parser"
+	"github.com/evanw/esbuild/src/esbuild/ast"
+	"github.com/evanw/esbuild/src/esbuild/fs"
+	"github.com/evanw/esbuild/src/esbuild/lexer"
+	"github.com/evanw/esbuild/src/esbuild/logging"
+	"github.com/evanw/esbuild/src/esbuild/parser"
 	"strings"
 	"sync"
 )
