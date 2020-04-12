@@ -3779,7 +3779,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 			defaultName := ast.LocRef{p.lexer.Loc(), p.newSymbol(ast.SymbolOther, "default")}
 			p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
-			p.recordExport(defaultName.Loc, "default")
 			p.lexer.Next()
 
 			if p.lexer.IsContextualKeyword("async") {
@@ -3790,6 +3789,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					isNameOptional:   true,
 					allowLexicalDecl: true,
 				}, true /* isAsync */)
+				if _, ok := stmt.Data.(*ast.STypeScript); ok {
+					return stmt // This was just a type annotation
+				}
+				p.recordExport(defaultName.Loc, "default")
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
@@ -3798,9 +3801,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					isNameOptional:   true,
 					allowLexicalDecl: true,
 				})
+				if _, ok := stmt.Data.(*ast.STypeScript); ok {
+					return stmt // This was just a type annotation
+				}
+				p.recordExport(defaultName.Loc, "default")
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
+			p.recordExport(defaultName.Loc, "default")
 			expr := p.parseExpr(ast.LComma)
 			p.lexer.ExpectOrInsertSemicolon()
 			return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}

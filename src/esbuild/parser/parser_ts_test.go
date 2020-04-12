@@ -772,6 +772,12 @@ func TestTSFunction(t *testing.T) {
 	expectParseErrorTS(t, "export default function <>() {}", "<stdin>: error: Expected identifier but found \">\"\n")
 	expectParseErrorTS(t, "export default function <,>() {}", "<stdin>: error: Expected identifier but found \",\"\n")
 	expectParseErrorTS(t, "export default function <T><T>() {}", "<stdin>: error: Expected \"(\" but found \"<\"\n")
+
+	expectPrintedTS(t, `
+		export default function foo();
+		export default function foo(x);
+		export default function foo(x?, y?) {}
+	`, "export default function foo(x, y) {\n}\n")
 }
 
 func TestTSDecl(t *testing.T) {
