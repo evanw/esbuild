@@ -1,9 +1,9 @@
 package parser
 
 import (
-	"github.com/evanw/esbuild/src/esbuild/ast"
-	"github.com/evanw/esbuild/src/esbuild/lexer"
-	"github.com/evanw/esbuild/src/esbuild/logging"
+	"github.com/evanw/esbuild/pkg/ast"
+	"github.com/evanw/esbuild/pkg/lexer"
+	"github.com/evanw/esbuild/pkg/logging"
 )
 
 type jsonParser struct {

@@ -2,9 +2,9 @@ package parser
 
 import (
 	"fmt"
-	"github.com/evanw/esbuild/src/esbuild/ast"
-	"github.com/evanw/esbuild/src/esbuild/logging"
-	"github.com/evanw/esbuild/src/esbuild/printer"
+	"github.com/evanw/esbuild/pkg/ast"
+	"github.com/evanw/esbuild/pkg/logging"
+	"github.com/evanw/esbuild/pkg/printer"
 	"testing"
 )
 

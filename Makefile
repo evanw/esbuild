@@ -1,13 +1,13 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
-esbuild: src/esbuild/*/*.go
-	GOPATH=`pwd` go build -o esbuild esbuild/main
+esbuild: pkg/*/*.go cmd/*/*.go
+	go build -o esbuild ./cmd/esbuild
 
 test:
 	go test ./...
 
 update-version-go:
-	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > src/esbuild/main/version.go
+	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
 
 platform-all: update-version-go test
 	make -j5 platform-windows platform-darwin platform-linux platform-wasm platform-neutral
@@ -15,20 +15,20 @@ platform-all: update-version-go test
 platform-windows:
 	mkdir -p npm/esbuild-windows-64/bin
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=windows GOARCH=amd64 GOPATH=`pwd` go build -o npm/esbuild-windows-64/esbuild.exe esbuild/main
+	GOOS=windows GOARCH=amd64 go build -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
 platform-darwin:
 	mkdir -p npm/esbuild-darwin-64/bin
 	cd npm/esbuild-darwin-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=darwin GOARCH=amd64 GOPATH=`pwd` go build -o npm/esbuild-darwin-64/bin/esbuild esbuild/main
+	GOOS=darwin GOARCH=amd64 go build -o npm/esbuild-darwin-64/bin/esbuild ./cmd/esbuild
 
 platform-linux:
 	mkdir -p npm/esbuild-linux-64/bin
 	cd npm/esbuild-linux-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=linux GOARCH=amd64 GOPATH=`pwd` go build -o npm/esbuild-linux-64/bin/esbuild esbuild/main
+	GOOS=linux GOARCH=amd64 go build -o npm/esbuild-linux-64/bin/esbuild ./cmd/esbuild
 
 platform-wasm:
-	GOOS=js GOARCH=wasm GOPATH=`pwd` go build -o npm/esbuild-wasm/esbuild.wasm esbuild/main
+	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 
