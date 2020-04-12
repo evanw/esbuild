@@ -4,6 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const ts = require('typescript');
 const child_process = require('child_process');
 const esbuildPath = path.join(path.dirname(__dirname), 'esbuild');
 
@@ -23,10 +24,23 @@ child_process.execSync('make', { cwd: path.dirname(__dirname) });
 // Doing one file at a time is useful for debugging crashes
 if (process.argv.includes('--individual')) {
   walkDir(process.cwd(), absolute => {
-    console.log('Parsing', absolute);
-    try {
-      child_process.execFileSync(esbuildPath, [absolute, '--outfile=/dev/null'], { stdio: 'inherit' });
-    } catch (e) {
+    let output = child_process.spawnSync(esbuildPath, [absolute, '--outfile=/dev/null'], { stdio: ['inherit', 'pipe', 'pipe'] });
+    if (output.status) {
+      let result;
+      try {
+        result = ts.transpileModule(fs.readFileSync(absolute, 'utf8'), { reportDiagnostics: true });
+      } catch (e) {
+        // Ignore this file if the TypeScript compiler crashes on it
+        return
+      }
+      if (result.diagnostics.length > 0) {
+        // Ignore this file if the TypeScript compiler has parse errors
+        return
+      }
+      console.log('-'.repeat(80));
+      console.log('Failure:', absolute);
+      console.log('-'.repeat(20) + ' esbuild output:');
+      console.log(output.stdout + output.stderr);
     }
   });
 }
