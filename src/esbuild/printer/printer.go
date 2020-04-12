@@ -690,7 +690,7 @@ func (p *printer) printClass(class ast.Class) {
 	if class.Extends != nil {
 		p.print(" extends")
 		p.printSpace()
-		p.printExpr(*class.Extends, ast.LNew, 0)
+		p.printExpr(*class.Extends, ast.LNew-1, 0)
 	}
 	p.printSpace()
 

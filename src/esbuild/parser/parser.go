@@ -2662,10 +2662,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpStrictNe, left, p.parseExpr(ast.LEquals)}}
 
 		case lexer.TLessThan:
-			if level >= ast.LCompare {
-				return left
-			}
-
 			// TypeScript allows type arguments to be specified with angle brackets
 			// inside an expression. Unlike in other languages, this unfortunately
 			// appears to require backtracking to parse.
@@ -2673,6 +2669,9 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 				continue
 			}
 
+			if level >= ast.LCompare {
+				return left
+			}
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLt, left, p.parseExpr(ast.LCompare)}}
 
