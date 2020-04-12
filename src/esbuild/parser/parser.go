@@ -891,7 +891,10 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	if isAsync {
 		p.logExprErrors(&errors)
 		async := ast.Expr{loc, &ast.EIdentifier{p.storeNameInRef("async")}}
-		return ast.Expr{loc, &ast.ECall{async, items, false}}
+		return ast.Expr{loc, &ast.ECall{
+			Target: async,
+			Args:   items,
+		}}
 	}
 
 	// Is this a chain of expressions and comma operators?
@@ -905,12 +908,26 @@ func (p *parser) parseParenExpr(loc ast.Loc, isAsync bool) ast.Expr {
 		for _, item := range items[1:] {
 			value.Data = &ast.EBinary{ast.BinOpComma, value, item}
 		}
+		markExprAsParenthesized(value)
 		return value
 	}
 
 	// Indicate that we expected an arrow function
 	p.lexer.Expected(lexer.TEqualsGreaterThan)
 	return ast.Expr{}
+}
+
+func markExprAsParenthesized(value ast.Expr) {
+	switch e := value.Data.(type) {
+	case *ast.EDot:
+		e.IsParenthesized = true
+
+	case *ast.EIndex:
+		e.IsParenthesized = true
+
+	case *ast.ECall:
+		e.IsParenthesized = true
+	}
 }
 
 func (p *parser) convertExprToBindingAndInitializer(expr ast.Expr) (binding ast.Binding, initializer *ast.Expr) {
@@ -1004,6 +1021,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		// Arrow functions aren't allowed in the middle of expressions
 		if level > ast.LAssign {
 			value := p.parseExpr(ast.LLowest)
+			markExprAsParenthesized(value)
 			p.lexer.Expect(lexer.TCloseParen)
 			p.allowIn = oldAllowIn
 			return value
@@ -1454,7 +1472,11 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			name := p.lexer.Identifier
 			nameLoc := p.lexer.Loc()
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EDot{left, name, nameLoc, false}}
+			left = ast.Expr{left.Loc, &ast.EDot{
+				Target:  left,
+				Name:    name,
+				NameLoc: nameLoc,
+			}}
 
 		case lexer.TQuestionDot:
 			p.warnAboutFutureSyntax(ES2020, p.lexer.Range())
@@ -1473,13 +1495,21 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 				p.allowIn = oldAllowIn
 
 				p.lexer.Expect(lexer.TCloseBracket)
-				left = ast.Expr{left.Loc, &ast.EIndex{left, index, true}}
+				left = ast.Expr{left.Loc, &ast.EIndex{
+					Target:          left,
+					Index:           index,
+					IsOptionalChain: true,
+				}}
 
 			case lexer.TOpenParen:
 				if level >= ast.LCall {
 					return left
 				}
-				left = ast.Expr{left.Loc, &ast.ECall{left, p.parseCallArgs(), true}}
+				left = ast.Expr{left.Loc, &ast.ECall{
+					Target:          left,
+					Args:            p.parseCallArgs(),
+					IsOptionalChain: true,
+				}}
 
 			default:
 				if !p.lexer.IsIdentifierOrKeyword() {
@@ -1488,7 +1518,12 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 				name := p.lexer.Identifier
 				nameLoc := p.lexer.Loc()
 				p.lexer.Next()
-				left = ast.Expr{left.Loc, &ast.EDot{left, name, nameLoc, true}}
+				left = ast.Expr{left.Loc, &ast.EDot{
+					Target:          left,
+					Name:            name,
+					NameLoc:         nameLoc,
+					IsOptionalChain: true,
+				}}
 			}
 
 		case lexer.TNoSubstitutionTemplateLiteral:
@@ -1523,13 +1558,19 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			p.allowIn = oldAllowIn
 
 			p.lexer.Expect(lexer.TCloseBracket)
-			left = ast.Expr{left.Loc, &ast.EIndex{left, index, false}}
+			left = ast.Expr{left.Loc, &ast.EIndex{
+				Target: left,
+				Index:  index,
+			}}
 
 		case lexer.TOpenParen:
 			if level >= ast.LCall {
 				return left
 			}
-			left = ast.Expr{left.Loc, &ast.ECall{left, p.parseCallArgs(), false}}
+			left = ast.Expr{left.Loc, &ast.ECall{
+				Target: left,
+				Args:   p.parseCallArgs(),
+			}}
 
 		case lexer.TQuestion:
 			if level >= ast.LConditional {
@@ -1928,7 +1969,11 @@ func (p *parser) parseJSXTag() (ast.Range, string, *ast.Expr) {
 		}
 
 		name += "." + member
-		tag = &ast.Expr{loc, &ast.EDot{*tag, member, memberRange.Loc, false}}
+		tag = &ast.Expr{loc, &ast.EDot{
+			Target:  *tag,
+			Name:    member,
+			NameLoc: memberRange.Loc,
+		}}
 		tagRange.Len = memberRange.Loc.Start + memberRange.Len - tagRange.Loc.Start
 	}
 
@@ -4266,7 +4311,11 @@ func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string) ast.Expr
 	}
 
 	for i := 1; i < len(parts); i++ {
-		value = p.maybeRewriteDot(loc, &ast.EDot{value, parts[i], loc, false})
+		value = p.maybeRewriteDot(loc, &ast.EDot{
+			Target:  value,
+			Name:    parts[i],
+			NameLoc: loc,
+		})
 	}
 	return value
 }
@@ -4516,7 +4565,10 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 		}
 
 		// Call createElement()
-		return ast.Expr{expr.Loc, &ast.ECall{p.stringsToMemberExpression(expr.Loc, p.jsx.Factory), args, false}}
+		return ast.Expr{expr.Loc, &ast.ECall{
+			Target: p.stringsToMemberExpression(expr.Loc, p.jsx.Factory),
+			Args:   args,
+		}}
 
 	case *ast.ETemplate:
 		if e.Tag != nil {
@@ -4656,7 +4708,11 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 			if id, ok := e.Index.Data.(*ast.EString); ok {
 				text := lexer.UTF16ToString(id.Value)
 				if lexer.IsIdentifier(text) {
-					return p.maybeRewriteDot(expr.Loc, &ast.EDot{e.Target, text, e.Index.Loc, false})
+					return p.maybeRewriteDot(expr.Loc, &ast.EDot{
+						Target:  e.Target,
+						Name:    text,
+						NameLoc: e.Index.Loc,
+					})
 				}
 			}
 		}
@@ -5089,7 +5145,11 @@ func ModuleExportsAST(log logging.Log, source logging.Source, expr ast.Expr) ast
 	// "module.exports = [expr]"
 	stmt := ast.Stmt{expr.Loc, &ast.SExpr{ast.Expr{expr.Loc, &ast.EBinary{
 		ast.BinOpAssign,
-		ast.Expr{expr.Loc, &ast.EDot{ast.Expr{expr.Loc, &ast.EIdentifier{p.moduleRef}}, "exports", expr.Loc, false}},
+		ast.Expr{expr.Loc, &ast.EDot{
+			Target:  ast.Expr{expr.Loc, &ast.EIdentifier{p.moduleRef}},
+			Name:    "exports",
+			NameLoc: expr.Loc,
+		}},
 		expr,
 	}}}}
 

@@ -355,6 +355,7 @@ type ECall struct {
 	Target          Expr
 	Args            []Expr
 	IsOptionalChain bool
+	IsParenthesized bool
 }
 
 type EDot struct {
@@ -362,12 +363,14 @@ type EDot struct {
 	Name            string
 	NameLoc         Loc
 	IsOptionalChain bool
+	IsParenthesized bool
 }
 
 type EIndex struct {
 	Target          Expr
 	Index           Expr
 	IsOptionalChain bool
+	IsParenthesized bool
 }
 
 type EArrow struct {

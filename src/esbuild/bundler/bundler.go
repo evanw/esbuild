@@ -936,12 +936,11 @@ func (b *Bundle) bindImportsAndExports(
 
 		// Use the export slot
 		stmts[0] = ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
-			ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.RequireRef}},
-			[]ast.Expr{
+			Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.RequireRef}},
+			Args: []ast.Expr{
 				ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
 				ast.Expr{ast.Loc{}, &ast.EObject{properties}},
 			},
-			false,
 		}}}}
 		symbols.IncrementUseCountEstimate(file.ast.RequireRef)
 		symbols.IncrementUseCountEstimate(file.ast.ExportsRef)
