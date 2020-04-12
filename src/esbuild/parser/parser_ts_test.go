@@ -208,6 +208,10 @@ func TestTSClass(t *testing.T) {
 
 	expectPrintedTS(t, "class Foo { [key: string]: any\nfoo }", "class Foo {\n  foo;\n}\n")
 	expectPrintedTS(t, "class Foo { [key: string]: any;foo }", "class Foo {\n  foo;\n}\n")
+
+	expectParseErrorTS(t, "class Foo<> {}", "<stdin>: error: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "class Foo<,> {}", "<stdin>: error: Expected identifier but found \",\"\n")
+	expectParseErrorTS(t, "class Foo<T><T> {}", "<stdin>: error: Expected \"{\" but found \"<\"\n")
 }
 
 func TestTSInterface(t *testing.T) {
@@ -751,8 +755,15 @@ func TestTSFunction(t *testing.T) {
 	expectPrintedTS(t, "function foo<A extends B<C>= B<C>>() {}", "function foo() {\n}\n")
 	expectPrintedTS(t, "function foo<A extends B<C<D>>= B<C<D>>>() {}", "function foo() {\n}\n")
 	expectPrintedTS(t, "function foo<A extends B<C<D<E>>>= B<C<D<E>>>>() {}", "function foo() {\n}\n")
+
 	expectParseErrorTS(t, "function foo<>() {}", "<stdin>: error: Expected identifier but found \">\"\n")
 	expectParseErrorTS(t, "function foo<,>() {}", "<stdin>: error: Expected identifier but found \",\"\n")
+	expectParseErrorTS(t, "function foo<T><T>() {}", "<stdin>: error: Expected \"(\" but found \"<\"\n")
+
+	expectPrintedTS(t, "export default function <T>() {}", "export default function() {\n}\n")
+	expectParseErrorTS(t, "export default function <>() {}", "<stdin>: error: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "export default function <,>() {}", "<stdin>: error: Expected identifier but found \",\"\n")
+	expectParseErrorTS(t, "export default function <T><T>() {}", "<stdin>: error: Expected \"(\" but found \"<\"\n")
 }
 
 func TestTSDecl(t *testing.T) {

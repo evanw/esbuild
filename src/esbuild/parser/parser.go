@@ -3628,9 +3628,6 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 		nameText = p.lexer.Identifier
 		p.lexer.Expect(lexer.TIdentifier)
 		name = &ast.LocRef{nameLoc, ast.InvalidRef}
-		if p.ts.Parse {
-			p.skipTypeScriptTypeParameters()
-		}
 	}
 
 	// Even anonymous functions can have TypeScript type parameters
