@@ -662,7 +662,7 @@ func (p *parser) skipTypeScriptReturnType() {
 		p.skipTypeScriptType(ast.LLowest)
 	}
 
-	if p.lexer.IsContextualKeyword("is") {
+	if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
 		p.lexer.Next()
 		p.skipTypeScriptType(ast.LLowest)
 	}
