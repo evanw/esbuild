@@ -975,6 +975,10 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTSX(t, "const x = <number>1</number>", "const x = React.createElement(\"number\", null, \"1\");\n")
 	expectParseErrorTSX(t, "const x = <number>1", "<stdin>: error: Unexpected end of file\n")
 
+	expectPrintedTSX(t, "<x>a{}c</x>", "React.createElement(\"x\", null, \"a\", \"c\");\n")
+	expectPrintedTSX(t, "<x>a{b}c</x>", "React.createElement(\"x\", null, \"a\", b, \"c\");\n")
+	expectPrintedTSX(t, "<x>a{...b}c</x>", "React.createElement(\"x\", null, \"a\", b, \"c\");\n")
+
 	expectPrintedTSX(t, "const x = <Foo<T>></Foo>", "const x = React.createElement(Foo, null);\n")
 	expectPrintedTSX(t, "const x = <Foo<T> data-foo></Foo>", "const x = React.createElement(Foo, {\n  \"data-foo\": true\n});\n")
 	expectParseErrorTSX(t, "const x = <Foo<T>=>", "<stdin>: error: Expected \">\" but found \"=\"\n")

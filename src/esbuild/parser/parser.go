@@ -3021,6 +3021,11 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 			// Use Next() instead of NextJSXElementChild() here since the next token is an expression
 			p.lexer.Next()
 
+			// The "..." here is ignored (it's used to signal an array type in TypeScript)
+			if p.lexer.Token == lexer.TDotDotDot && p.ts.Parse {
+				p.lexer.Next()
+			}
+
 			// The expression is optional, and may be absent
 			if p.lexer.Token != lexer.TCloseBrace {
 				children = append(children, p.parseExpr(ast.LLowest))
