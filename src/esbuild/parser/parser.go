@@ -4585,7 +4585,10 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		p.lexer.ExpectOrInsertSemicolon()
 	} else {
 		p.lexer.Expect(lexer.TOpenBrace)
-		stmts = p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{isNamespaceScope: true})
+		stmts = p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{
+			isNamespaceScope:    true,
+			isTypeScriptDeclare: opts.isTypeScriptDeclare,
+		})
 		p.lexer.Next()
 	}
 

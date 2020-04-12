@@ -795,6 +795,8 @@ func TestTSDeclare(t *testing.T) {
 	expectPrintedTS(t, "declare module 'X' { let foo }", "")
 	expectPrintedTS(t, "declare module 'X'\n{ let foo }", "")
 	expectPrintedTS(t, "declare global { interface Foo {} let foo: any } let bar", "let bar;\n")
+	expectPrintedTS(t, "declare module M { const x }", "")
+	expectParseErrorTS(t, "module M { const x }", "<stdin>: error: This constant must be initialized\n")
 }
 
 func TestTSDecorator(t *testing.T) {
