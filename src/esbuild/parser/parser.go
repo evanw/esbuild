@@ -635,8 +635,7 @@ func (p *parser) skipTypeScriptFnArgs() {
 //     let x = (y: any): asserts y is (y) => {};
 //
 func (p *parser) skipTypeScriptParenOrFnType() {
-	if p.trySkipTypeScriptFnArgsWithBacktracking() {
-		p.lexer.Expect(lexer.TEqualsGreaterThan)
+	if p.trySkipTypeScriptArrowArgsWithBacktracking() {
 		p.skipTypeScriptReturnType()
 	} else {
 		p.lexer.Expect(lexer.TOpenParen)
@@ -1042,7 +1041,7 @@ func (p *parser) trySkipTypeScriptArrowReturnTypeWithBacktracking() bool {
 	return true
 }
 
-func (p *parser) trySkipTypeScriptFnArgsWithBacktracking() bool {
+func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 	oldLexer := p.lexer
 	p.lexer.IsLogDisabled = true
 
@@ -1057,6 +1056,7 @@ func (p *parser) trySkipTypeScriptFnArgsWithBacktracking() bool {
 	}()
 
 	p.skipTypeScriptFnArgs()
+	p.lexer.Expect(lexer.TEqualsGreaterThan)
 
 	// Restore the log disabled flag. Note that we can't just set it back to false
 	// because it may have been true to start with.

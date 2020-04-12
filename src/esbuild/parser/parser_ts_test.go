@@ -903,6 +903,9 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "(x: any): this is object => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: any): (() => void) => {}", "(x) => {\n};\n")
 	expectPrintedTS(t, "(x: any): ((y: any) => void) => {}", "(x) => {\n};\n")
+
+	expectPrintedTS(t, "let x: () => {} | ({y: z});", "let x;\n")
+	expectPrintedTS(t, "function x(): ({y: z}) {}", "function x() {\n}\n")
 }
 
 func TestTSCall(t *testing.T) {
