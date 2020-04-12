@@ -146,6 +146,8 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type Foo<T> = {-readonly [P in keyof T]: T[P]}", "")
 	expectPrintedTS(t, "type Foo<T> = {+readonly [P in keyof T]: T[P]}", "")
 	expectPrintedTS(t, "const x: unique symbol = y", "const x = y;\n")
+	expectPrintedTS(t, "let x: `y`", "let x;\n")
+	expectParseErrorTS(t, "let x: tag`y`", "<stdin>: error: Expected \";\" but found \"`y`\"\n")
 
 	expectPrintedTS(t, "let x: A.B<X.Y>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y>=2", "let x = 2;\n")

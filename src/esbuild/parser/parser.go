@@ -676,7 +676,8 @@ func (p *parser) skipTypeScriptType(level ast.L) {
 func (p *parser) skipTypeScriptTypePrefix() {
 	switch p.lexer.Token {
 	case lexer.TNumericLiteral, lexer.TBigIntegerLiteral, lexer.TStringLiteral,
-		lexer.TThis, lexer.TTrue, lexer.TFalse, lexer.TNull, lexer.TVoid, lexer.TConst:
+		lexer.TNoSubstitutionTemplateLiteral, lexer.TThis, lexer.TTrue, lexer.TFalse,
+		lexer.TNull, lexer.TVoid, lexer.TConst:
 		p.lexer.Next()
 
 	case lexer.TMinus:
