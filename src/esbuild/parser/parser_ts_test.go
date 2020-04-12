@@ -802,6 +802,12 @@ func TestTSDeclare(t *testing.T) {
 }
 
 func TestTSDecorator(t *testing.T) {
+	expectParseErrorTS(t, "@Dec @Dec class Foo {}",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n")
+	expectParseErrorTS(t, "@Dec @Dec export class Foo {}",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n")
 	expectParseErrorTS(t, "class Foo { @Dec foo() {} @Dec bar() {} }",
 		"<stdin>: error: Decorators are not supported yet\n"+
 			"<stdin>: error: Decorators are not supported yet\n")
@@ -809,12 +815,23 @@ func TestTSDecorator(t *testing.T) {
 		"<stdin>: error: Decorators are not supported yet\n"+
 			"<stdin>: error: Decorators are not supported yet\n")
 
+	expectParseErrorTS(t, "@Dec(a(), b()) @Dec class Foo {}",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n")
+	expectParseErrorTS(t, "@Dec(a(), b()) @Dec export class Foo {}",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n")
 	expectParseErrorTS(t, "class Foo { @Dec(a(), b()) foo() {} @Dec bar() {} }",
 		"<stdin>: error: Decorators are not supported yet\n"+
 			"<stdin>: error: Decorators are not supported yet\n")
 	expectParseErrorTS(t, "class Foo { foo(@Dec(a(), b()) x, @Dec y) {} }",
 		"<stdin>: error: Decorators are not supported yet\n"+
 			"<stdin>: error: Decorators are not supported yet\n")
+
+	expectParseErrorTS(t, "@Dec @Dec let x",
+		"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Decorators are not supported yet\n"+
+			"<stdin>: error: Expected \"class\" but found \"let\"\n")
 }
 
 func TestTSArrow(t *testing.T) {

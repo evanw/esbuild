@@ -3899,6 +3899,22 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.skipTypeScriptObjectType()
 		return ast.Stmt{loc, &ast.STypeScript{}}
 
+	case lexer.TAt:
+		// Skip past decorators and recover even though they aren't supported
+		if p.ts.Parse {
+			p.parseAndSkipDecorators()
+			if p.lexer.Token == lexer.TExport {
+				p.lexer.Next()
+			}
+			if p.lexer.Token != lexer.TClass {
+				p.lexer.Expected(lexer.TClass)
+			}
+			return p.parseStmt(opts)
+		}
+
+		p.lexer.Unexpected()
+		return ast.Stmt{}
+
 	case lexer.TClass:
 		if !opts.allowLexicalDecl {
 			p.forbidLexicalDecl(loc)
