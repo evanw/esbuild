@@ -235,7 +235,10 @@ let x;
 })(Foo || (Foo = {}));
 export let x;
 `)
-	expectPrintedTS(t, "declare namespace Foo { export let x } export let x", `export let x;
+	expectPrintedTS(t, "declare namespace Foo { export let x } namespace x { 0 }", `var x;
+(function(x) {
+  0;
+})(x || (x = {}));
 `)
 
 	// Namespaces with values are not allowed to merge

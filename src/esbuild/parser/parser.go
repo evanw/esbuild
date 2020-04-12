@@ -4595,7 +4595,7 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	// allowed to be exported, but can also only be used in type
 	// expressions when imported. So we shouldn't count them as a
 	// real export either.
-	if len(stmts) == importEqualsCount {
+	if len(stmts) == importEqualsCount || opts.isTypeScriptDeclare {
 		p.popAndDiscardScope(scopeIndex)
 		return ast.Stmt{loc, &ast.STypeScript{}}
 	}
