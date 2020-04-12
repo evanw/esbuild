@@ -448,9 +448,14 @@ func TestPattern(t *testing.T) {
 }
 
 func TestIndex(t *testing.T) {
-	expectParseError(t, "a[b, c]", "<stdin>: warning: Use of \",\" inside a property access is misleading because JavaScript doesn't have multidimensional arrays\n")
-	expectParseError(t, "a\n[b, c]", "<stdin>: warning: Use of \",\" inside a property access is misleading because JavaScript doesn't have multidimensional arrays\n")
+	warning := "<stdin>: warning: Use of \",\" inside a property access is " +
+		"misleading because JavaScript doesn't have multidimensional arrays\n"
+	expectParseError(t, "a[b, c]", warning)
+	expectParseError(t, "a[b, c, d]", warning+warning)
+	expectParseError(t, "a\n[b, c]", warning)
+	expectParseError(t, "a\n[b, c, d]", warning+warning)
 	expectPrinted(t, "a[(b, c)]", "a[b, c];\n")
+	expectPrinted(t, "a[(b, c, d)]", "a[b, c, d];\n")
 }
 
 func TestObject(t *testing.T) {
