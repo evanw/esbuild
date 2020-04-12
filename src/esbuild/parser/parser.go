@@ -651,7 +651,7 @@ func (p *parser) skipTypeScriptReturnType() {
 		p.lexer.Next()
 
 		// "function assert(x: boolean): asserts" is also valid
-		if p.lexer.Token != lexer.TIdentifier {
+		if p.lexer.Token != lexer.TIdentifier && p.lexer.Token != lexer.TThis {
 			return
 		}
 		p.lexer.Next()
