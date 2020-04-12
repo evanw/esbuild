@@ -1479,7 +1479,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L) ast.Expr {
 			}}
 
 		case lexer.TQuestionDot:
-			p.warnAboutFutureSyntax(ES2020, p.lexer.Range())
 			p.lexer.Next()
 
 			switch p.lexer.Token {
@@ -4281,7 +4280,7 @@ func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 		// Intermediates must be dot expressions
 		e, ok := expr.Data.(*ast.EDot)
 		last := len(parts) - 1
-		return ok && parts[last] == e.Name && p.isDotDefineMatch(e.Target, parts[:last])
+		return ok && parts[last] == e.Name && !e.IsOptionalChain && p.isDotDefineMatch(e.Target, parts[:last])
 	}
 
 	// The last expression must be an identifier
@@ -4470,7 +4469,229 @@ func (p *parser) visitBooleanExpr(expr ast.Expr) ast.Expr {
 	return expr
 }
 
+func (p *parser) captureIfNecessary(expr ast.Expr) (first ast.Expr, second ast.Expr) {
+	switch e := expr.Data.(type) {
+	case *ast.EIdentifier:
+		first = expr
+		second = ast.Expr{expr.Loc, &ast.EIdentifier{e.Ref}}
+
+	case *ast.EThis:
+		first = expr
+		second = ast.Expr{expr.Loc, &ast.EThis{}}
+
+	default:
+		ref := p.generateTempRef()
+		first = ast.Expr{expr.Loc, &ast.EBinary{
+			Op:    ast.BinOpAssign,
+			Left:  ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
+			Right: expr,
+		}}
+		second = ast.Expr{expr.Loc, &ast.EIdentifier{ref}}
+	}
+	return
+}
+
+// Lower optional chaining for environments that don't support it
+func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut) (ast.Expr, exprOut) {
+	var thisArgRef *ast.Ref
+	valueWhenUndefined := ast.Expr{expr.Loc, &ast.EUndefined{}}
+	endsWithPropertyAccess := false
+	startsWithCall := false
+	chain := []ast.Expr{}
+	loc := expr.Loc
+
+	// Step 1: Get an array of all expressions in the chain. We're traversing the
+	// chain from the outside in, so the array will be filled in "backwards".
+flatten:
+	for {
+		chain = append(chain, expr)
+
+		switch e := expr.Data.(type) {
+		case *ast.EDot:
+			expr = e.Target
+			if len(chain) == 1 {
+				endsWithPropertyAccess = true
+			}
+			if e.IsOptionalChain {
+				break flatten
+			}
+
+		case *ast.EIndex:
+			expr = e.Target
+			if len(chain) == 1 {
+				endsWithPropertyAccess = true
+			}
+			if e.IsOptionalChain {
+				break flatten
+			}
+
+		case *ast.ECall:
+			expr = e.Target
+			if e.IsOptionalChain {
+				startsWithCall = true
+				break flatten
+			}
+
+		case *ast.EUnary: // UnOpDelete
+			valueWhenUndefined = ast.Expr{loc, &ast.EBoolean{Value: true}}
+			expr = e.Value
+
+		default:
+			panic("Internal error")
+		}
+	}
+
+	// Stop now if we can strip the whole chain as dead code. Since the chain is
+	// lazily evaluated, it's safe to just drop the code entirely.
+	switch expr.Data.(type) {
+	case *ast.ENull, *ast.EUndefined:
+		return valueWhenUndefined, exprOut{}
+	}
+
+	// Step 2: Figure out if we need to capture the value for "this" for the
+	// initial ECall. This will be passed to ".call(this, ...args)" later.
+	var result ast.Expr
+	var thisArg ast.Expr
+	if startsWithCall {
+		if out.thisArgRef != nil {
+			// The initial value is a nested optional chain that ended in a property
+			// access. The nested chain was processed first and has saved the right
+			// value for "this" to use in "thisArgRef".
+			thisArg = ast.Expr{loc, &ast.EIdentifier{*out.thisArgRef}}
+		} else {
+			// The initial value is a normal expression. If it's a property access,
+			// strip the property off and save the target of the property access to
+			// be used as the value for "this".
+			switch e := expr.Data.(type) {
+			case *ast.EDot:
+				expr, thisArg = p.captureIfNecessary(e.Target)
+				expr = ast.Expr{loc, &ast.EDot{
+					Target:  expr,
+					Name:    e.Name,
+					NameLoc: e.NameLoc,
+				}}
+
+			case *ast.EIndex:
+				expr, thisArg = p.captureIfNecessary(e.Target)
+				expr = ast.Expr{loc, &ast.EIndex{
+					Target: expr,
+					Index:  e.Index,
+				}}
+			}
+		}
+	}
+
+	// Step 3: Figure out if we need to capture the starting value. We don't need
+	// to capture it if it doesn't have any side effects (e.g. it's just a bare
+	// identifier). Skipping the capture reduces code size and matches the output
+	// of the TypeScript compiler.
+	expr, result = p.captureIfNecessary(expr)
+
+	// Step 4: Wrap the starting value by each expression in the chain. We
+	// traverse the chain in reverse because we want to go from the inside out
+	// and the chain was built from the outside in.
+	for i := len(chain) - 1; i >= 0; i-- {
+		// Save a reference to the value of "this" for our parent ECall
+		if i == 0 && in.hasOptionalChainCallParent && endsWithPropertyAccess {
+			if id, ok := result.Data.(*ast.EIdentifier); ok {
+				thisArgRef = &id.Ref
+			} else {
+				ref := p.generateTempRef()
+				thisArgRef = &ref
+				result = ast.Expr{loc, &ast.EBinary{
+					Op:    ast.BinOpAssign,
+					Left:  ast.Expr{loc, &ast.EIdentifier{ref}},
+					Right: result,
+				}}
+			}
+		}
+
+		switch e := chain[i].Data.(type) {
+		case *ast.EDot:
+			result = ast.Expr{loc, &ast.EDot{
+				Target:  result,
+				Name:    e.Name,
+				NameLoc: e.NameLoc,
+			}}
+
+		case *ast.EIndex:
+			result = ast.Expr{loc, &ast.EIndex{
+				Target: result,
+				Index:  e.Index,
+			}}
+
+		case *ast.ECall:
+			// If this is the initial ECall in the chain and it's being called off of
+			// a property access, invoke the function using ".call(this, ...args)" to
+			// explicitly provide the value for "this".
+			if i == len(chain)-1 && thisArg.Data != nil {
+				result = ast.Expr{loc, &ast.ECall{
+					Target: ast.Expr{loc, &ast.EDot{
+						Target:  result,
+						Name:    "call",
+						NameLoc: loc,
+					}},
+					Args: append([]ast.Expr{thisArg}, e.Args...),
+				}}
+				break
+			}
+
+			result = ast.Expr{loc, &ast.ECall{
+				Target: result,
+				Args:   e.Args,
+			}}
+
+		case *ast.EUnary:
+			result = ast.Expr{loc, &ast.EUnary{
+				Op:    ast.UnOpDelete,
+				Value: result,
+			}}
+
+		default:
+			panic("Internal error")
+		}
+	}
+
+	// Step 5: Wrap it all in a conditional that returns the chain or the default
+	// value if the initial value is null/undefined. The default value is usually
+	// "undefined" but is "true" if the chain ends in a "delete" operator.
+	return ast.Expr{loc, &ast.EIf{
+		Test: ast.Expr{loc, &ast.EBinary{
+			Op:    ast.BinOpLooseEq,
+			Left:  expr,
+			Right: ast.Expr{loc, &ast.ENull{}},
+		}},
+		Yes: valueWhenUndefined,
+		No:  result,
+	}}, exprOut{thisArgRef: thisArgRef}
+}
+
+type exprIn struct {
+	// True if our parent node is a chain node (EDot, EIndex, or ECall)
+	hasChainParent bool
+
+	// True if our parent node is an ECall node with an IsOptionalChain value of
+	// true
+	hasOptionalChainCallParent bool
+}
+
+type exprOut struct {
+	// If an optional chain was lowered with hasOptionalChainCallParent set to
+	// true and that optional chain ended in a property access, then this will
+	// be the reference of the variable to use with ".call(this, ...args)".
+	thisArgRef *ast.Ref
+
+	// True if the child node is an optional chain node (EDot, EIndex, or ECall
+	// with an IsOptionalChain value of true)
+	childContainsOptionalChain bool
+}
+
 func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
+	expr, _ = p.visitExprInOut(expr, exprIn{})
+	return expr
+}
+
+func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
 		*ast.EBoolean, *ast.ENumber, *ast.EBigInt, *ast.EThis,
@@ -4479,7 +4700,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 	case *ast.EImportMeta:
 		if p.isBundling {
 			// Replace "import.meta" with a dummy object when bundling
-			return ast.Expr{expr.Loc, &ast.EObject{}}
+			return ast.Expr{expr.Loc, &ast.EObject{}}, exprOut{}
 		}
 
 	case *ast.ESpread:
@@ -4491,13 +4712,13 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 
 		// Substitute an EImportNamespace now if this is an import item
 		if importData, ok := p.exprForImportItem[e.Ref]; ok {
-			return ast.Expr{expr.Loc, importData}
+			return ast.Expr{expr.Loc, importData}, exprOut{}
 		}
 
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound {
 			if value, ok := p.identifierDefines[name]; ok {
-				return ast.Expr{expr.Loc, value}
+				return ast.Expr{expr.Loc, value}, exprOut{}
 			}
 		}
 
@@ -4523,7 +4744,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 				// Handle this case by deliberately ignoring code that uses require
 				// incorrectly inside a try statement like this. We replace it with
 				// null so it's guaranteed to crash at runtime.
-				return ast.Expr{expr.Loc, &ast.ENull{}}
+				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
 			}
 		}
 
@@ -4568,7 +4789,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 		return ast.Expr{expr.Loc, &ast.ECall{
 			Target: p.stringsToMemberExpression(expr.Loc, p.jsx.Factory),
 			Args:   args,
-		}}
+		}}, exprOut{}
 
 	case *ast.ETemplate:
 		if e.Tag != nil {
@@ -4586,7 +4807,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 		switch e.Op {
 		case ast.BinOpLooseEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{result}}
+				return ast.Expr{expr.Loc, &ast.EBoolean{result}}, exprOut{}
 			} else if !p.omitWarnings {
 				if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
 					p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
@@ -4595,7 +4816,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 
 		case ast.BinOpStrictEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{result}}
+				return ast.Expr{expr.Loc, &ast.EBoolean{result}}, exprOut{}
 			} else if !p.omitWarnings {
 				if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
 					p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
@@ -4604,7 +4825,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 
 		case ast.BinOpLooseNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}
+				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}, exprOut{}
 			} else if !p.omitWarnings {
 				if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
 					p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
@@ -4613,7 +4834,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 
 		case ast.BinOpStrictNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}
+				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}, exprOut{}
 			} else if !p.omitWarnings {
 				if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
 					p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
@@ -4624,10 +4845,10 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 			switch e2 := e.Left.Data.(type) {
 			case *ast.EBoolean, *ast.ENumber, *ast.EString, *ast.ERegExp,
 				*ast.EObject, *ast.EArray, *ast.EFunction, *ast.EArrow, *ast.EClass:
-				return e.Left
+				return e.Left, exprOut{}
 
 			case *ast.ENull, *ast.EUndefined:
-				return e.Right
+				return e.Right, exprOut{}
 
 			case *ast.EIdentifier:
 				if p.target < ESNext {
@@ -4640,7 +4861,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 						}},
 						e.Left,
 						e.Right,
-					}}
+					}}, exprOut{}
 				}
 
 			default:
@@ -4663,45 +4884,53 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 							ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
 							e.Right,
 						}},
-					}}
+					}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpLogicalOr:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
 				if boolean {
-					return e.Left
+					return e.Left, exprOut{}
 				} else {
-					return e.Right
+					return e.Right, exprOut{}
 				}
 			}
 
 		case ast.BinOpLogicalAnd:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
 				if boolean {
-					return e.Right
+					return e.Right, exprOut{}
 				} else {
-					return e.Left
+					return e.Left, exprOut{}
 				}
 			}
 
 		case ast.BinOpAdd:
 			// "'abc' + 'xyz'" => "'abcxyz'"
 			if result := foldStringAddition(e.Left, e.Right); result != nil {
-				return *result
+				return *result, exprOut{}
 			}
 
 			if left, ok := e.Left.Data.(*ast.EBinary); ok && left.Op == ast.BinOpAdd {
 				// "x + 'abc' + 'xyz'" => "x + 'abcxyz'"
 				if result := foldStringAddition(left.Right, e.Right); result != nil {
-					return ast.Expr{expr.Loc, &ast.EBinary{left.Op, left.Left, *result}}
+					return ast.Expr{expr.Loc, &ast.EBinary{left.Op, left.Left, *result}}, exprOut{}
 				}
 			}
 		}
 
 	case *ast.EIndex:
-		e.Target = p.visitExpr(e.Target)
+		target, out := p.visitExprInOut(e.Target, exprIn{hasChainParent: !e.IsOptionalChain})
+		e.Target = target
 		e.Index = p.visitExpr(e.Index)
+
+		// Lower optional chaining if we're the top of the chain
+		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
+		isEndOfChain := e.IsParenthesized || !in.hasChainParent
+		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
+			return p.lowerOptionalChain(expr, in, out)
+		}
 
 		if p.mangleSyntax {
 			// "a['b']" => "a.b"
@@ -4712,59 +4941,88 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 						Target:  e.Target,
 						Name:    text,
 						NameLoc: e.Index.Loc,
-					})
+					}), exprOut{}
 				}
 			}
 		}
 
-	case *ast.EUnary:
-		if e.Op == ast.UnOpTypeof {
-			p.typeofTarget = e.Value.Data
+		return expr, exprOut{
+			childContainsOptionalChain: containsOptionalChain,
 		}
+
+	case *ast.EUnary:
+		switch e.Op {
+		case ast.UnOpTypeof:
+			p.typeofTarget = e.Value.Data
+
+		case ast.UnOpDelete:
+			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true})
+			e.Value = value
+
+			// Lower optional chaining if present since we're guaranteed to be the
+			// end of the chain
+			if p.target < ES2020 && out.childContainsOptionalChain {
+				return p.lowerOptionalChain(expr, in, out)
+			}
+
+			return expr, exprOut{}
+		}
+
 		e.Value = p.visitExpr(e.Value)
 
 		// Fold constants
 		switch e.Op {
 		case ast.UnOpNot:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{!boolean}}
+				return ast.Expr{expr.Loc, &ast.EBoolean{!boolean}}, exprOut{}
 			}
 
 		case ast.UnOpVoid:
 			if hasNoSideEffects(e.Value.Data) {
-				return ast.Expr{expr.Loc, &ast.EUndefined{}}
+				return ast.Expr{expr.Loc, &ast.EUndefined{}}, exprOut{}
 			}
 
 		case ast.UnOpTypeof:
 			// "typeof require" => "'function'"
 			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
 				p.symbols[p.requireRef.InnerIndex].UseCountEstimate--
-				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16("function")}}
+				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16("function")}}, exprOut{}
 			}
 
 			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16(typeof)}}
+				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16(typeof)}}, exprOut{}
 			}
 
 		case ast.UnOpPos:
 			if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{expr.Loc, &ast.ENumber{number}}
+				return ast.Expr{expr.Loc, &ast.ENumber{number}}, exprOut{}
 			}
 
 		case ast.UnOpNeg:
 			if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{expr.Loc, &ast.ENumber{-number}}
+				return ast.Expr{expr.Loc, &ast.ENumber{-number}}, exprOut{}
 			}
 		}
 
 	case *ast.EDot:
 		// Substitute user-specified defines
 		if define, ok := p.dotDefines[e.Name]; ok && p.isDotDefineMatch(expr, define.parts) {
-			return ast.Expr{expr.Loc, define.value}
+			return ast.Expr{expr.Loc, define.value}, exprOut{}
 		}
 
-		e.Target = p.visitExpr(e.Target)
-		return p.maybeRewriteDot(expr.Loc, e)
+		target, out := p.visitExprInOut(e.Target, exprIn{hasChainParent: !e.IsOptionalChain})
+		e.Target = target
+
+		// Lower optional chaining if we're the top of the chain
+		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
+		isEndOfChain := e.IsParenthesized || !in.hasChainParent
+		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
+			return p.lowerOptionalChain(expr, in, out)
+		}
+
+		return p.maybeRewriteDot(expr.Loc, e), exprOut{
+			childContainsOptionalChain: containsOptionalChain,
+		}
 
 	case *ast.EIf:
 		e.Test = p.visitBooleanExpr(e.Test)
@@ -4774,9 +5032,9 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 		// Fold constants
 		if boolean, ok := toBooleanWithoutSideEffects(e.Test.Data); ok {
 			if boolean {
-				return e.Yes
+				return e.Yes, exprOut{}
 			} else {
-				return e.No
+				return e.No, exprOut{}
 			}
 		}
 
@@ -4828,14 +5086,14 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 			str, ok := e.Expr.Data.(*ast.EString)
 			if !ok {
 				p.log.AddError(p.source, e.Expr.Loc, "The argument to import() must be a string literal")
-				return expr
+				return expr, exprOut{}
 			}
 
 			// Ignore calls to import() if the control flow is provably dead here.
 			// We don't want to spend time scanning the required files if they will
 			// never be used.
 			if p.isControlFlowDead {
-				return ast.Expr{expr.Loc, &ast.ENull{}}
+				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
 			}
 
 			path := ast.Path{e.Expr.Loc, lexer.UTF16ToString(str.Value)}
@@ -4844,9 +5102,25 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 
 	case *ast.ECall:
 		p.callTarget = e.Target.Data
-		e.Target = p.visitExpr(e.Target)
+		target, out := p.visitExprInOut(e.Target, exprIn{
+			hasChainParent: !e.IsOptionalChain,
+
+			// Signal to our child if this is an ECall at the start of an optional
+			// chain. If so, the child will need to stash the "this" context for us
+			// that we need for the ".call(this, ...args)". This is passed to
+			// "lowerOptionalChain()" via "thisArgRef".
+			hasOptionalChainCallParent: e.IsOptionalChain,
+		})
+		e.Target = target
 		for i, arg := range e.Args {
 			e.Args[i] = p.visitExpr(arg)
+		}
+
+		// Lower optional chaining if we're the top of the chain
+		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
+		isEndOfChain := e.IsParenthesized || !in.hasChainParent
+		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
+			return p.lowerOptionalChain(expr, in, out)
 		}
 
 		// Track calls to require() so we can use them while bundling
@@ -4855,7 +5129,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 			if len(e.Args) != 1 {
 				p.log.AddError(p.source, expr.Loc,
 					fmt.Sprintf("Calls to %s() must take a single argument", p.symbols[id.Ref.InnerIndex].Name))
-				return expr
+				return expr, exprOut{}
 			}
 			arg := e.Args[0]
 
@@ -4869,21 +5143,25 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 			if !ok {
 				p.log.AddError(p.source, arg.Loc,
 					fmt.Sprintf("The argument to %s() must be a string literal", p.symbols[id.Ref.InnerIndex].Name))
-				return expr
+				return expr, exprOut{}
 			}
 
 			// Ignore calls to require() if the control flow is provably dead here.
 			// We don't want to spend time scanning the required files if they will
 			// never be used.
 			if p.isControlFlowDead {
-				return ast.Expr{expr.Loc, &ast.ENull{}}
+				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
 			}
 
 			path := ast.Path{arg.Loc, lexer.UTF16ToString(str.Value)}
 			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
 
 			// Create a new expression to represent the operation
-			return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}
+			return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}, exprOut{}
+		}
+
+		return expr, exprOut{
+			childContainsOptionalChain: containsOptionalChain,
 		}
 
 	case *ast.ENew:
@@ -4967,7 +5245,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))
 	}
 
-	return expr
+	return expr, exprOut{}
 }
 
 func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {

@@ -1296,3 +1296,88 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "class Foo {}", "class Foo {\n}\n")
 	expectPrintedTarget(t, ES2015, "(class Foo {})", "(class Foo {\n});\n")
 }
+
+func TestLowerOptionalChain(t *testing.T) {
+	expectPrintedTarget(t, ES2019, "a?.b.c", "a == null ? void 0 : a.b.c;\n")
+	expectPrintedTarget(t, ES2019, "(a?.b).c", "(a == null ? void 0 : a.b).c;\n")
+	expectPrintedTarget(t, ES2019, "a.b?.c", "var _a;\n(_a = a.b) == null ? void 0 : _a.c;\n")
+	expectPrintedTarget(t, ES2019, "this?.x", "this == null ? void 0 : this.x;\n")
+
+	expectPrintedTarget(t, ES2019, "a?.[b][c]", "a == null ? void 0 : a[b][c];\n")
+	expectPrintedTarget(t, ES2019, "(a?.[b])[c]", "(a == null ? void 0 : a[b])[c];\n")
+	expectPrintedTarget(t, ES2019, "a[b]?.[c]", "var _a;\n(_a = a[b]) == null ? void 0 : _a[c];\n")
+	expectPrintedTarget(t, ES2019, "this?.[x]", "this == null ? void 0 : this[x];\n")
+
+	expectPrintedTarget(t, ES2019, "a?.(b)(c)", "a == null ? void 0 : a(b)(c);\n")
+	expectPrintedTarget(t, ES2019, "(a?.(b))(c)", "(a == null ? void 0 : a(b))(c);\n")
+	expectPrintedTarget(t, ES2019, "a(b)?.(c)", "var _a;\n(_a = a(b)) == null ? void 0 : _a(c);\n")
+	expectPrintedTarget(t, ES2019, "this?.(x)", "this == null ? void 0 : this(x);\n")
+
+	expectPrintedTarget(t, ES2019, "delete a?.b.c", "a == null ? true : delete a.b.c;\n")
+	expectPrintedTarget(t, ES2019, "delete a?.[b][c]", "a == null ? true : delete a[b][c];\n")
+	expectPrintedTarget(t, ES2019, "delete a?.(b)(c)", "a == null ? true : delete a(b)(c);\n")
+
+	expectPrintedTarget(t, ES2019, "delete (a?.b).c", "delete (a == null ? void 0 : a.b).c;\n")
+	expectPrintedTarget(t, ES2019, "delete (a?.[b])[c]", "delete (a == null ? void 0 : a[b])[c];\n")
+	expectPrintedTarget(t, ES2019, "delete (a?.(b))(c)", "delete (a == null ? void 0 : a(b))(c);\n")
+
+	expectPrintedTarget(t, ES2019, "(delete a?.b).c", "(a == null ? true : delete a.b).c;\n")
+	expectPrintedTarget(t, ES2019, "(delete a?.[b])[c]", "(a == null ? true : delete a[b])[c];\n")
+	expectPrintedTarget(t, ES2019, "(delete a?.(b))(c)", "(a == null ? true : delete a(b))(c);\n")
+
+	expectPrintedTarget(t, ES2019, "null?.x", "void 0;\n")
+	expectPrintedTarget(t, ES2019, "null?.[x]", "void 0;\n")
+	expectPrintedTarget(t, ES2019, "null?.(x)", "void 0;\n")
+
+	expectPrintedTarget(t, ES2019, "delete null?.x", "true;\n")
+	expectPrintedTarget(t, ES2019, "delete null?.[x]", "true;\n")
+	expectPrintedTarget(t, ES2019, "delete null?.(x)", "true;\n")
+
+	expectPrintedTarget(t, ES2019, "undefined?.x", "void 0;\n")
+	expectPrintedTarget(t, ES2019, "undefined?.[x]", "void 0;\n")
+	expectPrintedTarget(t, ES2019, "undefined?.(x)", "void 0;\n")
+
+	expectPrintedTarget(t, ES2019, "delete undefined?.x", "true;\n")
+	expectPrintedTarget(t, ES2019, "delete undefined?.[x]", "true;\n")
+	expectPrintedTarget(t, ES2019, "delete undefined?.(x)", "true;\n")
+
+	expectPrintedTarget(t, ES2020, "x?.y", "x?.y;\n")
+	expectPrintedTarget(t, ES2020, "x?.[y]", "x?.[y];\n")
+	expectPrintedTarget(t, ES2020, "x?.(y)", "x?.(y);\n")
+
+	expectPrintedTarget(t, ES2020, "null?.x", "null?.x;\n")
+	expectPrintedTarget(t, ES2020, "null?.[x]", "null?.[x];\n")
+	expectPrintedTarget(t, ES2020, "null?.(x)", "null?.(x);\n")
+
+	expectPrintedTarget(t, ES2020, "undefined?.x", "(void 0)?.x;\n")
+	expectPrintedTarget(t, ES2020, "undefined?.[x]", "(void 0)?.[x];\n")
+	expectPrintedTarget(t, ES2020, "undefined?.(x)", "(void 0)?.(x);\n")
+
+	// Check multiple levels of nesting
+	expectPrintedTarget(t, ES2019, "a?.b?.c?.d", `var _a, _b;
+(_b = (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.c) == null ? void 0 : _b.d;
+`)
+	expectPrintedTarget(t, ES2019, "a?.[b]?.[c]?.[d]", `var _a, _b;
+(_b = (_a = a == null ? void 0 : a[b]) == null ? void 0 : _a[c]) == null ? void 0 : _b[d];
+`)
+	expectPrintedTarget(t, ES2019, "a?.(b)?.(c)?.(d)", `var _a, _b;
+(_b = (_a = a == null ? void 0 : a(b)) == null ? void 0 : _a(c)) == null ? void 0 : _b(d);
+`)
+
+	// Check the need to use ".call()"
+	expectPrintedTarget(t, ES2019, "a.b?.(c)", `var _a;
+(_a = a.b) == null ? void 0 : _a.call(a, c);
+`)
+	expectPrintedTarget(t, ES2019, "a[b]?.(c)", `var _a;
+(_a = a[b]) == null ? void 0 : _a.call(a, c);
+`)
+	expectPrintedTarget(t, ES2019, "a?.[b]?.(c)", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c);
+`)
+	expectPrintedTarget(t, ES2019, "a?.[b][c]?.(d)", `var _a, _b;
+(_b = a == null ? void 0 : (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
+`)
+	expectPrintedTarget(t, ES2019, "a[b][c]?.(d)", `var _a, _b;
+(_b = (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
+`)
+}
