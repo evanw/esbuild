@@ -683,8 +683,9 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TNumericLiteral)
 
+	case lexer.TAmpersand:
 	case lexer.TBar:
-		// Support things like "type Foo = | number | string"
+		// Support things like "type Foo = | A | B" and "type Foo = & A & B"
 		p.lexer.Next()
 		p.skipTypeScriptTypePrefix()
 
