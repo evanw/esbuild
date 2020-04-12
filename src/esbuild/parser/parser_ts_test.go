@@ -150,6 +150,9 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: A.B<X.Y<Z>>=2", "let x = 2;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y<Z<T>>>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y<Z<T>>>=2", "let x = 2;\n")
+
+	expectPrintedTS(t, "let foo: any\n<x>y", "let foo;\ny;\n")
+	expectPrintedTSX(t, "let foo: any\n<x>y</x>", "let foo;\nReact.createElement(\"x\", null, \"y\");\n")
 }
 
 func TestTSClass(t *testing.T) {

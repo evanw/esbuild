@@ -789,6 +789,10 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			p.lexer.Expect(lexer.TCloseBracket)
 
 		case lexer.TLessThan:
+			// "let foo: any \n <number>foo" must not become a single type
+			if p.lexer.HasNewlineBefore {
+				return
+			}
 			p.lexer.Next()
 			for {
 				p.skipTypeScriptType(ast.LLowest)
