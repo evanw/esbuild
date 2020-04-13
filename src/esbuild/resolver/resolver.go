@@ -78,7 +78,7 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, Resolv
 	// Get the cached information for this directory and all parent directories
 	sourceDir := r.fs.Dir(sourcePath)
 
-	if isNonModulePath(importPath) {
+	if IsNonModulePath(importPath) {
 		if absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath)); ok {
 			result = absolute
 		} else {
@@ -150,7 +150,7 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, Resolv
 }
 
 func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string) (string, bool) {
-	if isNonModulePath(importPath) {
+	if IsNonModulePath(importPath) {
 		return r.loadAsFileOrDirectory(r.fs.Join(sourceDirInfo.absPath, importPath))
 	} else {
 		return r.loadNodeModules(importPath, sourceDirInfo)
@@ -323,7 +323,7 @@ func (r *resolver) parsePackageJson(path string) *packageJson {
 			// Remap all files in the browser field
 			for _, prop := range browser.Properties {
 				if key, ok := getString(prop.Key); ok && prop.Value != nil {
-					isNonModulePath := isNonModulePath(key)
+					isNonModulePath := IsNonModulePath(key)
 
 					// Make this an absolute path if it's not a module
 					if isNonModulePath {
@@ -499,7 +499,7 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 	return "", false
 }
 
-func isNonModulePath(path string) bool {
+func IsNonModulePath(path string) bool {
 	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") || path == "."
 }
 

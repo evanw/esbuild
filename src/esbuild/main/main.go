@@ -151,6 +151,7 @@ Options:
   --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
+  --external:M          Exclude module M from the bundle
   --loader:X=L          Use loader L to load file extension X, where L is
                         one of: js, jsx, ts, tsx, json, text, base64
 
@@ -296,6 +297,13 @@ Examples:
 			default:
 				args.exitWithError("Valid platforms: browser, node")
 			}
+
+		case strings.HasPrefix(arg, "--external:"):
+			path := arg[len("--external:"):]
+			if resolver.IsNonModulePath(path) {
+				args.exitWithError(fmt.Sprintf("Invalid module name: %s", arg))
+			}
+			args.resolveOptions.ExternalModules[path] = true
 
 		case strings.HasPrefix(arg, "--jsx-factory="):
 			if parts, ok := args.parseMemberExpression(arg[len("--jsx-factory="):]); ok {

@@ -104,6 +104,7 @@ Options:
   --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
+  --external:M          Exclude module M from the bundle
   --loader:X=L          Use loader L to load file extension X, where L is
                         one of: js, jsx, ts, tsx, json, text, base64
 
