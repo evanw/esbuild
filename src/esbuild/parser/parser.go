@@ -3481,6 +3481,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 
 func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	var name *ast.LocRef
+	p.lexer.Expect(lexer.TClass)
 
 	if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
 		nameLoc := p.lexer.Loc()
@@ -3823,8 +3824,20 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
+			isIdentifier := p.lexer.Token == lexer.TIdentifier
+			name := p.lexer.Identifier
+
 			p.recordExport(defaultName.Loc, "default")
 			expr := p.parseExpr(ast.LComma)
+
+			// Handle the default export of an abstract class in TypeScript
+			if p.ts.Parse && isIdentifier && name == "abstract" && p.lexer.Token == lexer.TClass {
+				if _, ok := expr.Data.(*ast.EIdentifier); ok {
+					stmt := p.parseClassStmt(loc, parseStmtOpts{isNameOptional: true})
+					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
+				}
+			}
+
 			p.lexer.ExpectOrInsertSemicolon()
 			return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
 
@@ -3942,7 +3955,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if !opts.allowLexicalDecl {
 			p.forbidLexicalDecl(loc)
 		}
-		p.lexer.Next()
 		return p.parseClassStmt(loc, opts)
 
 	case lexer.TVar:
@@ -4563,7 +4575,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 					case "abstract":
 						if p.lexer.Token == lexer.TClass {
-							p.lexer.Next()
 							return p.parseClassStmt(loc, opts)
 						}
 

@@ -179,8 +179,12 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "(class <T> extends Foo<T> {})", "(class extends Foo {\n});\n")
 	expectPrintedTS(t, "(class <T> extends Foo<T>() {})", "(class extends Foo() {\n});\n")
 
-	expectPrintedTS(t, "export abstract class A { abstract foo(): void; bar(): void {} }", "export class A {\n  bar() {\n  }\n}\n")
 	expectPrintedTS(t, "abstract class A { abstract foo(): void; bar(): void {} }", "class A {\n  bar() {\n  }\n}\n")
+	expectPrintedTS(t, "export abstract class A { abstract foo(): void; bar(): void {} }", "export class A {\n  bar() {\n  }\n}\n")
+	expectPrintedTS(t, "export default abstract", "export default abstract;\n")
+	expectPrintedTS(t, "export default abstract - after", "export default abstract - after;\n")
+	expectPrintedTS(t, "export default abstract class { abstract foo(): void; bar(): void {} } - after", "export default class {\n  bar() {\n  }\n}\n-after;\n")
+	expectPrintedTS(t, "export default abstract class A { abstract foo(): void; bar(): void {} } - after", "export default class A {\n  bar() {\n  }\n}\n-after;\n")
 
 	expectPrintedTS(t, "class A<T extends number> extends B.C<D, E> {}", "class A extends B.C {\n}\n")
 	expectPrintedTS(t, "class A<T extends number> implements B.C<D, E>, F.G<H, I> {}", "class A {\n}\n")
