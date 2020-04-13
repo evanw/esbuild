@@ -119,6 +119,7 @@ Options:
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
+  --version             Print the current version and exit
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
