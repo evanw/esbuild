@@ -208,23 +208,23 @@ func TestTSClass(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { constructor(private [x]) {} }", "<stdin>: error: Expected identifier but found \"[\"\n")
 	expectParseErrorTS(t, "class Foo { constructor(readonly [x]) {} }", "<stdin>: error: Expected identifier but found \"[\"\n")
 
-	expectPrintedTS(t, "class Foo { foo: number }", "class Foo {\n  foo;\n}\n")
-	expectPrintedTS(t, "class Foo { foo: number = 0 }", "class Foo {\n  foo = 0;\n}\n")
+	expectPrintedTS(t, "class Foo { foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { foo: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 
-	expectPrintedTS(t, "class Foo { foo?: number }", "class Foo {\n  foo;\n}\n")
-	expectPrintedTS(t, "class Foo { foo?: number = 0 }", "class Foo {\n  foo = 0;\n}\n")
+	expectPrintedTS(t, "class Foo { foo?: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { foo?: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo?(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo?(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 
-	expectPrintedTS(t, "class Foo { foo!: number }", "class Foo {\n  foo;\n}\n")
-	expectPrintedTS(t, "class Foo { foo!: number = 0 }", "class Foo {\n  foo = 0;\n}\n")
+	expectPrintedTS(t, "class Foo { foo!: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { foo!: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo!(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo!(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 
-	expectPrintedTS(t, "class Foo { [key: string]: any\nfoo }", "class Foo {\n  foo;\n}\n")
-	expectPrintedTS(t, "class Foo { [key: string]: any;foo }", "class Foo {\n  foo;\n}\n")
+	expectPrintedTS(t, "class Foo { [key: string]: any\nfoo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { [key: string]: any; foo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 
 	expectParseErrorTS(t, "class Foo<> {}", "<stdin>: error: Expected identifier but found \">\"\n")
 	expectParseErrorTS(t, "class Foo<,> {}", "<stdin>: error: Expected identifier but found \",\"\n")
