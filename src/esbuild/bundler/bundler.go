@@ -426,8 +426,9 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 	buffer = append(buffer, ",\n  \"mappings\": \""...)
 	prevEndState := printer.SourceMapState{}
 	prevColumnOffset := 0
+	sourceMapIndex := 0
 	for _, group := range groups {
-		for i, sourceIndex := range group {
+		for _, sourceIndex := range group {
 			chunk := compileResults[sourceIndex].sourceMapChunk
 			offset := generatedOffsets[sourceIndex]
 
@@ -438,7 +439,7 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 			// index per entry point by modifying the first source mapping. This
 			// is done by AppendSourceMapChunk() using the source index passed
 			// here.
-			startState := printer.SourceMapState{SourceIndex: i}
+			startState := printer.SourceMapState{SourceIndex: sourceMapIndex}
 
 			// Advance the state by the line/column offset from the previous chunk
 			startState.GeneratedColumn += offset.columns
@@ -453,7 +454,7 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 
 			// Generate the relative offset to start from next time
 			prevEndState = chunk.EndState
-			prevEndState.SourceIndex = i
+			prevEndState.SourceIndex = sourceMapIndex
 			prevColumnOffset = chunk.FinalGeneratedColumn
 
 			// If this was all one line, include the column offset from the start
@@ -461,6 +462,8 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 				prevEndState.GeneratedColumn += startState.GeneratedColumn
 				prevColumnOffset += startState.GeneratedColumn
 			}
+
+			sourceMapIndex++
 		}
 	}
 	buffer = append(buffer, '"')
