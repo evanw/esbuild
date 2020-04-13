@@ -155,20 +155,25 @@ func ScanBundle(
 		remaining--
 		if result.ok {
 			resolvedImports := make(map[string]uint32)
+			filteredImportPaths := []ast.ImportPath{}
 			for _, importPath := range result.ast.ImportPaths {
 				source := sources[result.sourceIndex]
 				sourcePath := source.AbsolutePath
 				pathText := importPath.Path.Text
 				pathRange := source.RangeOfString(importPath.Path.Loc)
 
-				if path, status := res.Resolve(sourcePath, pathText); status != resolver.ResolveMissing {
+				switch path, status := res.Resolve(sourcePath, pathText); status {
+				case resolver.ResolveEnabled, resolver.ResolveDisabled:
 					if sourceIndex, ok := maybeParseFile(path, source, pathRange, status == resolver.ResolveDisabled); ok {
 						resolvedImports[pathText] = sourceIndex
+						filteredImportPaths = append(filteredImportPaths, importPath)
 					}
-				} else {
+
+				case resolver.ResolveMissing:
 					log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
 				}
 			}
+			result.ast.ImportPaths = filteredImportPaths
 			files[result.sourceIndex] = file{result.ast, resolvedImports}
 		}
 	}
@@ -1451,15 +1456,22 @@ func generateBootstrapPrefix(options *BundleOptions) []byte {
 			let global = function() { return this }()
 			let cache = {}
 
-			let require = (target, arg) => {
+			let esbuildRequire = (target, arg) => {
+				let type = typeof target;
+
+				// If the first argument is a string, this is an external require
+				if (type === 'string') {
+					return require(target)
+				}
+
 				// If the first argument is a number, this is an import
-				if (typeof target === 'number') {
+				if (type === 'number') {
 					let module = cache[target], exports
 
 					// Evaluate the module if needed
 					if (!module) {
 						module = cache[target] = {exports: {}}
-						modules[target].call(global, require, module.exports, module)
+						modules[target].call(global, esbuildRequire, module.exports, module)
 					}
 
 					// Return the exports object off the module in case it was overwritten
@@ -1494,7 +1506,7 @@ func generateBootstrapPrefix(options *BundleOptions) []byte {
 				}
 			}
 
-			return require(entryPoint)
+			return esbuildRequire(entryPoint)
 		})
 	`
 

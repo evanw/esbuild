@@ -115,7 +115,8 @@ func parseArgs() args {
 			ExtensionToLoader: bundler.DefaultExtensionToLoaderMap(),
 		},
 		resolveOptions: resolver.ResolveOptions{
-			ExtensionOrder: []string{".tsx", ".ts", ".jsx", ".js", ".json"},
+			ExtensionOrder:  []string{".tsx", ".ts", ".jsx", ".js", ".json"},
+			ExternalModules: make(map[string]bool),
 		},
 		logOptions: logging.StderrOptions{
 			IncludeSource:      true,

@@ -16,6 +16,7 @@ const (
 	ResolveMissing ResolveStatus = iota
 	ResolveEnabled
 	ResolveDisabled
+	ResolveExternal
 )
 
 type Resolver interface {
@@ -32,8 +33,9 @@ const (
 )
 
 type ResolveOptions struct {
-	ExtensionOrder []string
-	Platform       Platform
+	ExtensionOrder  []string
+	Platform        Platform
+	ExternalModules map[string]bool
 }
 
 type resolver struct {
@@ -47,6 +49,20 @@ type resolver struct {
 }
 
 func NewResolver(fs fs.FS, options ResolveOptions) Resolver {
+	// Bundling for node implies allowing node's builtin modules
+	if options.Platform == PlatformNode {
+		externalModules := make(map[string]bool)
+		if options.ExternalModules != nil {
+			for name, _ := range options.ExternalModules {
+				externalModules[name] = true
+			}
+		}
+		for _, name := range externalModulesForNode {
+			externalModules[name] = true
+		}
+		options.ExternalModules = externalModules
+	}
+
 	return &resolver{
 		fs:       fs,
 		options:  options,
@@ -69,6 +85,11 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (string, Resolv
 			return "", ResolveMissing
 		}
 	} else {
+		// Check for external modules first
+		if r.options.ExternalModules != nil && r.options.ExternalModules[importPath] {
+			return "", ResolveExternal
+		}
+
 		sourceDirInfo := r.dirInfoCached(sourceDir)
 		if sourceDirInfo == nil {
 			// Bail no if the directory is missing for some reason
@@ -480,4 +501,47 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 
 func isNonModulePath(path string) bool {
 	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") || path == "."
+}
+
+var externalModulesForNode = []string{
+	"assert",
+	"async_hooks",
+	"buffer",
+	"child_process",
+	"cluster",
+	"console",
+	"constants",
+	"crypto",
+	"dgram",
+	"dns",
+	"domain",
+	"events",
+	"fs",
+	"http",
+	"http2",
+	"https",
+	"inspector",
+	"module",
+	"net",
+	"os",
+	"path",
+	"perf_hooks",
+	"process",
+	"punycode",
+	"querystring",
+	"readline",
+	"repl",
+	"stream",
+	"string_decoder",
+	"sys",
+	"timers",
+	"tls",
+	"trace_events",
+	"tty",
+	"url",
+	"util",
+	"v8",
+	"vm",
+	"worker_threads",
+	"zlib",
 }

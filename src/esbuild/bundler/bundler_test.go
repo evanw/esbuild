@@ -2196,3 +2196,55 @@ func TestTypeofRequireNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestRequireFSBrowser(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('fs'))
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformBrowser,
+		},
+		expectedScanLog: "/entry.js: error: Could not resolve \"fs\"\n",
+	})
+}
+
+func TestRequireFSNode(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('fs'))
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(require) {
+    // /entry.js
+    console.log(require("fs"));
+  }
+}, 0);
+`,
+		},
+	})
+}
