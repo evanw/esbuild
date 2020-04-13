@@ -2062,7 +2062,9 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		}
 
 		if itemCount > 0 {
-			p.print(" from")
+			p.printSpace()
+			p.printSpaceBeforeIdentifier()
+			p.print("from")
 			p.printSpace()
 		}
 
