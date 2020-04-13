@@ -1383,3 +1383,8 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
 `)
 }
+
+func TestLowerOptionalCatchBinding(t *testing.T) {
+	expectPrintedTarget(t, ES2019, "try {} catch {}", "try {\n} catch {\n}\n")
+	expectPrintedTarget(t, ES2018, "try {} catch {}", "try {\n} catch ({}) {\n}\n")
+}

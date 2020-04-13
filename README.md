@@ -46,7 +46,7 @@ Currently supported:
 * Compile-time identifier substitutions via `--define`
 * Path substitution using the `browser` field in `package.json`
 * Automatic detection of `baseUrl` in `tsconfig.json`
-* Conversion of some newer syntax for older browsers (right now just class fields, optional chaining, and nullish coalescing)
+* Conversion of some newer syntax for older browsers (all syntax in [ES2019 and later](https://github.com/tc39/proposals/blob/master/finished-proposals.md) except for BigInt)
 
 Disclaimers:
 

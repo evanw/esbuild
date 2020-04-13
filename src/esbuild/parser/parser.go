@@ -4093,7 +4093,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 			// The catch binding is optional, and can be omitted
 			if p.lexer.Token == lexer.TOpenBrace {
-				p.warnAboutFutureSyntax(ES2019, p.lexer.Range())
+				if p.target < ES2019 {
+					// Replace "try {} catch {}" with "try {} catch ({}) {}"
+					binding = &ast.Binding{p.lexer.Loc(), &ast.BObject{}}
+				}
 			} else {
 				p.lexer.Expect(lexer.TOpenParen)
 				value := p.parseBinding()
