@@ -40,12 +40,14 @@ type bundled struct {
 	expectedCompileLog string
 	parseOptions       parser.ParseOptions
 	bundleOptions      BundleOptions
+	resolveOptions     resolver.ResolveOptions
 }
 
 func expectBundled(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
 		fs := fs.MockFS(args.files)
-		resolver := resolver.NewResolver(fs, []string{".jsx", ".js", ".json"})
+		args.resolveOptions.ExtensionOrder = []string{".jsx", ".js", ".json"}
+		resolver := resolver.NewResolver(fs, args.resolveOptions)
 
 		log, join := logging.NewDeferLog()
 		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)

@@ -24,9 +24,21 @@ type Resolver interface {
 	PrettyPath(path string) string
 }
 
+type Platform uint8
+
+const (
+	PlatformBrowser Platform = iota
+	PlatformNode
+)
+
+type ResolveOptions struct {
+	ExtensionOrder []string
+	Platform       Platform
+}
+
 type resolver struct {
-	fs             fs.FS
-	extensionOrder []string
+	fs      fs.FS
+	options ResolveOptions
 
 	// This cache maps a directory path to information about that directory and
 	// all parent directories
@@ -34,11 +46,11 @@ type resolver struct {
 	dirCache      map[string]*dirInfo
 }
 
-func NewResolver(fs fs.FS, extensionOrder []string) Resolver {
+func NewResolver(fs fs.FS, options ResolveOptions) Resolver {
 	return &resolver{
-		fs:             fs,
-		extensionOrder: extensionOrder,
-		dirCache:       make(map[string]*dirInfo),
+		fs:       fs,
+		options:  options,
+		dirCache: make(map[string]*dirInfo),
 	}
 }
 
@@ -277,8 +289,8 @@ func (r *resolver) parsePackageJson(path string) *packageJson {
 		}
 	}
 
-	// Read the "browser" property
-	if browserJson, ok := getProperty(json, "browser"); ok {
+	// Read the "browser" property, but only when targeting the browser
+	if browserJson, ok := getProperty(json, "browser"); ok && r.options.Platform == PlatformBrowser {
 		if browser, ok := getString(browserJson); ok {
 			// The value is a string
 			mainPath = r.fs.Join(path, browser)
@@ -352,7 +364,7 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 		}
 
 		// Try the path with extensions
-		for _, ext := range r.extensionOrder {
+		for _, ext := range r.options.ExtensionOrder {
 			if entries[base+ext] == fs.FileEntry {
 				return path + ext, true
 			}
@@ -367,7 +379,7 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 // passed down to us.
 func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string, bool) {
 	// Try the "index" file with extensions
-	for _, ext := range r.extensionOrder {
+	for _, ext := range r.options.ExtensionOrder {
 		base := "index" + ext
 		if entries[base] == fs.FileEntry {
 			return r.fs.Join(path, base), true

@@ -12,7 +12,8 @@ import (
 func expectBundledTS(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
 		fs := fs.MockFS(args.files)
-		resolver := resolver.NewResolver(fs, []string{".tsx", ".ts"})
+		args.resolveOptions.ExtensionOrder = []string{".tsx", ".ts"}
+		resolver := resolver.NewResolver(fs, args.resolveOptions)
 
 		log, join := logging.NewDeferLog()
 		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)

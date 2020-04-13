@@ -24,6 +24,7 @@ type args struct {
 	cpuprofileFile string
 	parseOptions   parser.ParseOptions
 	bundleOptions  bundler.BundleOptions
+	resolveOptions resolver.ResolveOptions
 	logOptions     logging.StderrOptions
 	entryPaths     []string
 }
@@ -113,6 +114,9 @@ func parseArgs() args {
 		bundleOptions: bundler.BundleOptions{
 			ExtensionToLoader: bundler.DefaultExtensionToLoaderMap(),
 		},
+		resolveOptions: resolver.ResolveOptions{
+			ExtensionOrder: []string{".tsx", ".ts", ".jsx", ".js", ".json"},
+		},
 		logOptions: logging.StderrOptions{
 			IncludeSource:      true,
 			ErrorLimit:         10,
@@ -145,6 +149,7 @@ Options:
   --sourcemap           Emit a source map
   --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
+  --platform=...        Platform target (browser or node, default browser)
   --loader:X=L          Use loader L to load file extension X, where L is
                         one of: js, jsx, ts, tsx, json, text, base64
 
@@ -281,6 +286,16 @@ Examples:
 				args.exitWithError("Valid targets: es6, es2015, es2016, es2017, es2018, es2019, es2020, esnext")
 			}
 
+		case strings.HasPrefix(arg, "--platform="):
+			switch arg[len("--platform="):] {
+			case "browser":
+				args.resolveOptions.Platform = resolver.PlatformBrowser
+			case "node":
+				args.resolveOptions.Platform = resolver.PlatformNode
+			default:
+				args.exitWithError("Valid platforms: browser, node")
+			}
+
 		case strings.HasPrefix(arg, "--jsx-factory="):
 			if parts, ok := args.parseMemberExpression(arg[len("--jsx-factory="):]); ok {
 				args.parseOptions.JSX.Factory = parts
@@ -374,7 +389,7 @@ func main() {
 
 		// Parse all files in the bundle
 		fs := fs.RealFS()
-		resolver := resolver.NewResolver(fs, []string{".tsx", ".ts", ".jsx", ".js", ".json"})
+		resolver := resolver.NewResolver(fs, args.resolveOptions)
 		log, join := logging.NewStderrLog(args.logOptions)
 		bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
 
