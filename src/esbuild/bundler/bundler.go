@@ -892,14 +892,22 @@ func (b *Bundle) bindImportsAndExports(
 			if i.alias == "*" {
 				moduleInfos[i.importSourceIndex].isTargetOfImportStar = true
 				ast.MergeSymbols(symbols, i.name.Ref, files[i.importSourceIndex].ast.ExportsRef)
-			} else {
-				if target, ok := moduleInfos[i.importSourceIndex].exports[i.alias]; ok {
-					ast.MergeSymbols(symbols, i.name.Ref, target)
-				} else {
-					source := b.sources[sourceIndex]
-					r := lexer.RangeOfIdentifier(source, i.aliasLoc)
-					log.AddRangeError(source, r, fmt.Sprintf("No matching export for import %q", i.alias))
-				}
+				continue
+			}
+
+			if target, ok := moduleInfos[i.importSourceIndex].exports[i.alias]; ok {
+				ast.MergeSymbols(symbols, i.name.Ref, target)
+				continue
+			}
+
+			// Don't report import/export mismatches for TypeScript because these are
+			// likely just types, which aren't emitted. We can't know if these are
+			// types or not because we're effectively compiling as if the TypeScript
+			// "isolatedModules" flag is enabled.
+			if !files[sourceIndex].ast.WasTypeScript {
+				source := b.sources[sourceIndex]
+				r := lexer.RangeOfIdentifier(source, i.aliasLoc)
+				log.AddRangeError(source, r, fmt.Sprintf("No matching export for import %q", i.alias))
 			}
 		}
 	}

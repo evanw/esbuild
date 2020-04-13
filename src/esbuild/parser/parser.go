@@ -7788,6 +7788,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 
 	stmts = p.scanForImportPaths(stmts, options.IsBundling)
 	result = p.toAST(source, stmts, hashbang)
+	result.WasTypeScript = options.TS.Parse
 	return
 }
 

@@ -1,52 +1,9 @@
 package bundler
 
 import (
-	"esbuild/fs"
-	"esbuild/logging"
 	"esbuild/parser"
-	"esbuild/resolver"
-	"path"
 	"testing"
 )
-
-func expectBundledTS(t *testing.T, args bundled) {
-	t.Run("", func(t *testing.T) {
-		fs := fs.MockFS(args.files)
-		args.resolveOptions.ExtensionOrder = []string{".tsx", ".ts"}
-		resolver := resolver.NewResolver(fs, args.resolveOptions)
-
-		log, join := logging.NewDeferLog()
-		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
-		msgs := join()
-		assertLog(t, msgs, args.expectedScanLog)
-
-		// Stop now if there were any errors during the scan
-		if hasErrors(msgs) {
-			return
-		}
-
-		log, join = logging.NewDeferLog()
-		args.bundleOptions.omitBootstrapForTests = true
-		if args.bundleOptions.AbsOutputFile != "" {
-			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
-		}
-		results := bundle.Compile(log, args.bundleOptions)
-		msgs = join()
-		assertLog(t, msgs, args.expectedCompileLog)
-
-		// Stop now if there were any errors during the compile
-		if hasErrors(msgs) {
-			return
-		}
-
-		assertEqual(t, len(results), len(args.expected))
-		for _, result := range results {
-			file := args.expected[result.JsAbsPath]
-			path := "[" + result.JsAbsPath + "]\n"
-			assertEqual(t, path+string(result.JsContents), path+file)
-		}
-	})
-}
 
 func TestTSDeclareConst(t *testing.T) {
 	expectBundled(t, bundled{
@@ -327,7 +284,51 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 			Bundle:        true,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: "/entry.ts: error: No matching export for import \"ns\"\n",
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /ns.ts
+
+    // /entry.ts
+    console.log(ns2);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestPackageImportMissingTS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import fn, {x as a, y as b} from './foo'
+				console.log(fn(a, b))
+			`,
+			"/foo.js": `
+				export const x = 132
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /foo.js
+    const x = 132;
+
+    // /entry.ts
+    console.log(fn(x, b));
+  }
+}, 0);
+`,
+		},
 	})
 }
 

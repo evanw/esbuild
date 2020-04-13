@@ -952,7 +952,8 @@ type ImportPath struct {
 }
 
 type AST struct {
-	ImportPaths []ImportPath
+	ImportPaths   []ImportPath
+	WasTypeScript bool
 
 	// ENamespaceImport items in this map are printed as an indirect access off
 	// of the namespace. This is a way for the bundler to pass this information
