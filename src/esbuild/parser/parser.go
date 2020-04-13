@@ -3789,18 +3789,26 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.Next()
 
 			if p.lexer.IsContextualKeyword("async") {
-				p.warnAboutFutureSyntax(ES2017, p.lexer.Range())
+				asyncRange := p.lexer.Range()
 				p.lexer.Next()
-				p.lexer.Expect(lexer.TFunction)
-				stmt := p.parseFnStmt(loc, parseStmtOpts{
-					isNameOptional:   true,
-					allowLexicalDecl: true,
-				}, true /* isAsync */)
-				if _, ok := stmt.Data.(*ast.STypeScript); ok {
-					return stmt // This was just a type annotation
+
+				if p.lexer.Token == lexer.TFunction {
+					p.warnAboutFutureSyntax(ES2017, asyncRange)
+					p.lexer.Expect(lexer.TFunction)
+					stmt := p.parseFnStmt(loc, parseStmtOpts{
+						isNameOptional:   true,
+						allowLexicalDecl: true,
+					}, true /* isAsync */)
+					if _, ok := stmt.Data.(*ast.STypeScript); ok {
+						return stmt // This was just a type annotation
+					}
+					p.recordExport(defaultName.Loc, "default")
+					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 				}
-				p.recordExport(defaultName.Loc, "default")
-				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
+
+				expr := p.parseAsyncExpr(asyncRange, ast.LComma)
+				p.lexer.ExpectOrInsertSemicolon()
+				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
 			}
 
 			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass || p.lexer.Token == lexer.TInterface {

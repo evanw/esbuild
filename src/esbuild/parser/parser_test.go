@@ -894,6 +894,14 @@ func TestExportDefault(t *testing.T) {
 	expectParseError(t, "export default 1, 2", "<stdin>: error: Expected \";\" but found \",\"\n")
 	expectPrinted(t, "export default (1, 2)", "export default (1, 2);\n")
 
+	expectParseError(t, "export default async, 0", "<stdin>: error: Expected \";\" but found \",\"\n")
+	expectPrinted(t, "export default async", "export default async;\n")
+	expectPrinted(t, "export default async()", "export default async();\n")
+	expectPrinted(t, "export default async + 1", "export default async + 1;\n")
+	expectPrinted(t, "export default async => {}", "export default (async) => {\n};\n")
+	expectPrinted(t, "export default async x => {}", "export default async (x) => {\n};\n")
+	expectPrinted(t, "export default async () => {}", "export default async () => {\n};\n")
+
 	// This is a corner case in the ES6 grammar. The "export default" statement
 	// normally takes an expression except for the function and class keywords
 	// which behave sort of like their respective declarations instead.
