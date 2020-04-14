@@ -187,3 +187,88 @@ bench-three-fusebox: | node_modules bench/three
 	echo 'import * as THREE from "../entry.js"; window.THREE = THREE' > bench/three/fusebox/fusebox-entry.js
 	cd bench/three/fusebox && time -p node --max-old-space-size=8192 run.js
 	du -h bench/three/fusebox/dist/app.js*
+
+################################################################################
+
+ROME_TSCONFIG += {
+ROME_TSCONFIG +=   \"compilerOptions\": {
+ROME_TSCONFIG +=     \"sourceMap\": true,
+ROME_TSCONFIG +=     \"esModuleInterop\": true,
+ROME_TSCONFIG +=     \"resolveJsonModule\": true,
+ROME_TSCONFIG +=     \"moduleResolution\": \"node\",
+ROME_TSCONFIG +=     \"target\": \"es2019\",
+ROME_TSCONFIG +=     \"module\": \"commonjs\",
+ROME_TSCONFIG +=     \"baseUrl\": \".\"
+ROME_TSCONFIG +=   }
+ROME_TSCONFIG += }
+
+ROME_WEBPACK_CONFIG += module.exports = {
+ROME_WEBPACK_CONFIG +=   entry: '../src/entry.ts',
+ROME_WEBPACK_CONFIG +=   mode: 'production',
+ROME_WEBPACK_CONFIG +=   target: 'node',
+ROME_WEBPACK_CONFIG +=   devtool: 'sourcemap',
+ROME_WEBPACK_CONFIG +=   module: { rules: [{ test: /\.ts$$/, loader: 'ts-loader', options: { transpileOnly: true } }] },
+ROME_WEBPACK_CONFIG +=   resolve: {
+ROME_WEBPACK_CONFIG +=     extensions: ['.ts', '.js'],
+ROME_WEBPACK_CONFIG +=     alias: { rome: __dirname + '/../src/rome', '@romejs': __dirname + '/../src/@romejs' },
+ROME_WEBPACK_CONFIG +=   },
+ROME_WEBPACK_CONFIG +=   output: { filename: 'rome.webpack.js', path: __dirname },
+ROME_WEBPACK_CONFIG += };
+
+ROME_PARCEL_FLAGS += --bundle-node-modules
+ROME_PARCEL_FLAGS += --no-autoinstall
+ROME_PARCEL_FLAGS += --out-dir .
+ROME_PARCEL_FLAGS += --public-url ./
+ROME_PARCEL_FLAGS += --target node
+
+github/rome:
+	mkdir -p github/rome
+	cd github/rome && git init && git remote add origin git@github.com:facebookexperimental/rome.git
+	cd github/rome && git fetch --depth 1 origin d95a3a7aab90773c9b36d9c82a08c8c4c6b68aa5 && git checkout FETCH_HEAD
+
+bench/rome: | github/rome
+	mkdir -p bench/rome
+	cp -r github/rome/packages bench/rome/src
+	echo "$(ROME_TSCONFIG)" > bench/rome/src/tsconfig.json
+	echo 'import "rome/bin/rome"' > bench/rome/src/entry.ts
+
+	# Patch a cyclic import ordering issue that affects commonjs-style bundlers (webpack and parcel)
+	echo "export { default as createHook } from './api/createHook';" > .temp
+	sed "/createHook/d" bench/rome/src/@romejs/js-compiler/index.ts >> .temp
+	mv .temp bench/rome/src/@romejs/js-compiler/index.ts
+
+	# Fix a bug where parcel doesn't know about one specific node builtin module
+	mkdir -p bench/rome/src/node_modules/inspector
+	touch bench/rome/src/node_modules/inspector/index.js
+
+	# These aliases are required to fix parcel path resolution
+	echo '{ "alias": {' > bench/rome/src/package.json
+	ls bench/rome/src/@romejs | sed 's/.*/"\@romejs\/&": ".\/@romejs\/&",/g' >> bench/rome/src/package.json
+	echo '"rome": "./rome" }}' >> bench/rome/src/package.json
+
+	# Get an approximate line count
+	rm -r bench/rome/src/@romejs/js-parser/test-fixtures
+	echo 'Line count:' && (find bench/rome/src -name '*.ts' && find bench/rome/src -name '*.js') | xargs wc -l | tail -n 1
+
+################################################################################
+
+bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-parcel
+
+bench-rome-esbuild: esbuild | bench/rome
+	rm -fr bench/rome/esbuild
+	mkdir -p bench/rome/esbuild
+	cd bench/rome/esbuild && time -p ../../../esbuild --bundle --sourcemap --minify ../src/entry.ts --outfile=rome.esbuild.js --platform=node
+	du -h bench/rome/esbuild/rome.esbuild.js*
+
+bench-rome-webpack: | node_modules bench/rome
+	rm -fr bench/rome/webpack node_modules/.cache/terser-webpack-plugin
+	mkdir -p bench/rome/webpack
+	echo "$(ROME_WEBPACK_CONFIG)" > bench/rome/webpack/webpack.config.js
+	cd bench/rome/webpack && time -p ../../../node_modules/.bin/webpack
+	du -h bench/rome/webpack/rome.webpack.js*
+
+bench-rome-parcel: | node_modules bench/rome
+	rm -fr bench/rome/parcel
+	mkdir -p bench/rome/parcel
+	cd bench/rome/parcel && time -p ../../../node_modules/.bin/parcel build ../src/entry.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
+	du -h bench/rome/parcel/rome.parcel.js*
