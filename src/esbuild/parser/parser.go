@@ -6784,6 +6784,25 @@ flatten:
 	}}, exprOut{thisArgRef: thisArgRef}
 }
 
+func toInt32(f float64) int32 {
+	// The easy way
+	i := int32(f)
+	if float64(i) == f {
+		return i
+	}
+
+	// The hard way
+	i = int32(uint32(math.Mod(math.Abs(f), 4294967296)))
+	if math.Signbit(f) {
+		return -i
+	}
+	return i
+}
+
+func toUint32(f float64) uint32 {
+	return uint32(toInt32(f))
+}
+
 type exprIn struct {
 	// True if our parent node is a chain node (EDot, EIndex, or ECall)
 	hasChainParent bool
@@ -7101,42 +7120,42 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.BinOpShl:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(int32(left) << int32(right))}}, exprOut{}
+					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) << (toUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpShr:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(int32(left) >> int32(right))}}, exprOut{}
+					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) >> (toUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpUShr:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(uint32(left) >> uint32(right))}}, exprOut{}
+					return ast.Expr{expr.Loc, &ast.ENumber{float64(toUint32(left) >> (toUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpBitwiseAnd:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(int32(left) & int32(right))}}, exprOut{}
+					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) & toInt32(right))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpBitwiseOr:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(int32(left) | int32(right))}}, exprOut{}
+					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) | toInt32(right))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpBitwiseXor:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(int32(left) ^ int32(right))}}, exprOut{}
+					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) ^ toInt32(right))}}, exprOut{}
 				}
 			}
 		}

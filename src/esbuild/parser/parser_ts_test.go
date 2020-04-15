@@ -761,7 +761,102 @@ var Bar;
   Bar[Bar["a"] = 10.01] = "a";
 })(Bar || (Bar = {}));
 `)
+}
 
+func TestTSEnumConstantFolding(t *testing.T) {
+	expectPrintedTS(t, `
+		enum Foo {
+			add = 1 + 2,
+			sub = -1 - 2,
+			mul = 10 * 20,
+
+			div_pos_inf = 1 / 0,
+			div_neg_inf = 1 / -0,
+			div_nan = 0 / 0,
+			div_neg_zero = 1 / (1 / -0),
+
+			div0 = 10 / 20,
+			div1 = 10 / -20,
+			div2 = -10 / 20,
+			div3 = -10 / -20,
+
+			mod0 = 123 % 100,
+			mod1 = 123 % -100,
+			mod2 = -123 % 100,
+			mod3 = -123 % -100,
+
+			fmod0 = 1.375 % 0.75,
+			fmod1 = 1.375 % -0.75,
+			fmod2 = -1.375 % 0.75,
+			fmod3 = -1.375 % -0.75,
+
+			pow0 = 2.25 ** 3,
+			pow1 = 2.25 ** -3,
+			pow2 = (-2.25) ** 3,
+			pow3 = (-2.25) ** -3,
+		}
+	`, `var Foo;
+(function(Foo) {
+  Foo[Foo["add"] = 3] = "add";
+  Foo[Foo["sub"] = -3] = "sub";
+  Foo[Foo["mul"] = 200] = "mul";
+  Foo[Foo["div_pos_inf"] = Infinity] = "div_pos_inf";
+  Foo[Foo["div_neg_inf"] = -Infinity] = "div_neg_inf";
+  Foo[Foo["div_nan"] = NaN] = "div_nan";
+  Foo[Foo["div_neg_zero"] = -0] = "div_neg_zero";
+  Foo[Foo["div0"] = 0.5] = "div0";
+  Foo[Foo["div1"] = -0.5] = "div1";
+  Foo[Foo["div2"] = -0.5] = "div2";
+  Foo[Foo["div3"] = 0.5] = "div3";
+  Foo[Foo["mod0"] = 23] = "mod0";
+  Foo[Foo["mod1"] = 23] = "mod1";
+  Foo[Foo["mod2"] = -23] = "mod2";
+  Foo[Foo["mod3"] = -23] = "mod3";
+  Foo[Foo["fmod0"] = 0.625] = "fmod0";
+  Foo[Foo["fmod1"] = 0.625] = "fmod1";
+  Foo[Foo["fmod2"] = -0.625] = "fmod2";
+  Foo[Foo["fmod3"] = -0.625] = "fmod3";
+  Foo[Foo["pow0"] = 11.390625] = "pow0";
+  Foo[Foo["pow1"] = 0.0877914951989026] = "pow1";
+  Foo[Foo["pow2"] = -11.390625] = "pow2";
+  Foo[Foo["pow3"] = -0.0877914951989026] = "pow3";
+})(Foo || (Foo = {}));
+`)
+
+	expectPrintedTS(t, `
+		enum Foo {
+			shl0 = 987654321 << 2,
+			shl1 = 987654321 << 31,
+			shl2 = 987654321 << 34,
+
+			shr0 = -987654321 >> 2,
+			shr1 = -987654321 >> 31,
+			shr2 = -987654321 >> 34,
+
+			ushr0 = -987654321 >>> 2,
+			ushr1 = -987654321 >>> 31,
+			ushr2 = -987654321 >>> 34,
+
+			bitand = 0xDEADF00D & 0xBADCAFE,
+			bitor = 0xDEADF00D | 0xBADCAFE,
+			bitxor = 0xDEADF00D ^ 0xBADCAFE,
+		}
+	`, `var Foo;
+(function(Foo) {
+  Foo[Foo["shl0"] = -344350012] = "shl0";
+  Foo[Foo["shl1"] = -2147483648] = "shl1";
+  Foo[Foo["shl2"] = -344350012] = "shl2";
+  Foo[Foo["shr0"] = -246913581] = "shr0";
+  Foo[Foo["shr1"] = -1] = "shr1";
+  Foo[Foo["shr2"] = -246913581] = "shr2";
+  Foo[Foo["ushr0"] = 826828243] = "ushr0";
+  Foo[Foo["ushr1"] = 1] = "ushr1";
+  Foo[Foo["ushr2"] = 826828243] = "ushr2";
+  Foo[Foo["bitand"] = 179159052] = "bitand";
+  Foo[Foo["bitor"] = -542246145] = "bitor";
+  Foo[Foo["bitxor"] = -721405197] = "bitxor";
+})(Foo || (Foo = {}));
+`)
 }
 
 func TestTSFunction(t *testing.T) {

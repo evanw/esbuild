@@ -1266,7 +1266,8 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.ENumber:
 		value := e.Value
-		asUint32 := uint32(value)
+		absValue := math.Abs(value)
+		asUint32 := uint32(absValue)
 
 		// Expressions such as "(-1).toString" need to wrap negative numbers.
 		// Instead of testing for "value < 0" we test for "signbit(value)" and
@@ -1280,15 +1281,12 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		// Go will print "4294967295" as "4.294967295e+09" if we use the float64
 		// printer, so explicitly print integers using a separate code path. This
 		// should also serve as a fast path for the common case, so do this first.
-		if value == float64(asUint32) {
+		if absValue == float64(asUint32) {
 			text := strconv.FormatInt(int64(asUint32), 10)
-
-			// Make sure to preserve negative zero so constant-folding doesn't change semantics
-			if value == 0 && math.Signbit(value) && text[0] != '-' {
+			if math.Signbit(value) {
 				p.printSpaceBeforeOperator(ast.UnOpNeg)
 				p.print("-")
 			}
-
 			p.printSpaceBeforeIdentifier()
 			p.print(text)
 
