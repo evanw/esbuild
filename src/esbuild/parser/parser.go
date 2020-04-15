@@ -7792,8 +7792,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	return
 }
 
-func ModuleExportsAST(log logging.Log, source logging.Source, expr ast.Expr) ast.AST {
-	options := ParseOptions{}
+func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptions, expr ast.Expr) ast.AST {
 	p := newParser(log, source, options)
 	p.prepareForVisitPass()
 

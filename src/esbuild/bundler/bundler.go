@@ -79,18 +79,18 @@ func parseFile(
 
 	case LoaderJSON:
 		expr, ok := parser.ParseJson(log, source)
-		ast := parser.ModuleExportsAST(log, source, expr)
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, ok}
 
 	case LoaderText:
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(source.Contents)}}
-		ast := parser.ModuleExportsAST(log, source, expr)
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
 
 	case LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(encoded)}}
-		ast := parser.ModuleExportsAST(log, source, expr)
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
 
 	default:
