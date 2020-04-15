@@ -654,3 +654,75 @@ func TestTSImportVsLocalCollisionMixed(t *testing.T) {
 		},
 	})
 }
+
+func TestTSMinifiedBundleES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import {foo} from './a'
+				console.log(foo())
+			`,
+			"/a.ts": `
+				export function foo() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:   true,
+			MangleSyntax: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:            true,
+			RemoveWhitespace:  true,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({1(){function a(){return 123}
+console.log(a());
+}},1);
+`,
+		},
+	})
+}
+
+func TestTSMinifiedBundleCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const {foo} = require('./a')
+				console.log(foo(), require('./j.json'))
+			`,
+			"/a.ts": `
+				exports.foo = function() {
+					return 123
+				}
+			`,
+			"/j.json": `
+				{"test": true}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:   true,
+			MangleSyntax: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:            true,
+			RemoveWhitespace:  true,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({0(b,a){a.foo=function(){return 123};
+},
+2(require,exports,module){module.exports={test:!0};
+},
+1(a){const{foo:b}=a(0);console.log(b(),a(2));
+}},1);
+`,
+		},
+	})
+}

@@ -46,7 +46,7 @@ type bundled struct {
 func expectBundled(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
 		fs := fs.MockFS(args.files)
-		args.resolveOptions.ExtensionOrder = []string{".jsx", ".js", ".json"}
+		args.resolveOptions.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".json"}
 		resolver := resolver.NewResolver(fs, args.resolveOptions)
 
 		log, join := logging.NewDeferLog()
@@ -2244,6 +2244,78 @@ func TestRequireFSNode(t *testing.T) {
     console.log(require("fs"));
   }
 }, 0);
+`,
+		},
+	})
+}
+
+func TestMinifiedBundleES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {foo} from './a'
+				console.log(foo())
+			`,
+			"/a.js": `
+				export function foo() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:   true,
+			MangleSyntax: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:            true,
+			RemoveWhitespace:  true,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({1(){function a(){return 123}
+console.log(a());
+}},1);
+`,
+		},
+	})
+}
+
+func TestMinifiedBundleCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const {foo} = require('./a')
+				console.log(foo(), require('./j.json'))
+			`,
+			"/a.js": `
+				exports.foo = function() {
+					return 123
+				}
+			`,
+			"/j.json": `
+				{"test": true}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:   true,
+			MangleSyntax: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:            true,
+			RemoveWhitespace:  true,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({0(b,a){a.foo=function(){return 123};
+},
+2(require,exports,module){module.exports={test:!0};
+},
+1(a){const{foo:b}=a(0);console.log(b(),a(2));
+}},1);
 `,
 		},
 	})
