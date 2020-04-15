@@ -10,19 +10,39 @@ Why build another JavaScript build tool? The current build tools for the web are
 
 The use case I have in mind is packaging a large codebase for production. This includes minifying the code, which reduces network transfer time, and producing source maps, which are important for debugging errors in production. Ideally the build tool should also build quickly without having to warm up a cache first.
 
-My main benchmark approximates a large codebase by duplicating the [three.js](https://github.com/mrdoob/three.js) library 10 times and building a single bundle from scratch, without any caches. For this benchmark, esbuild is **10-100x faster** than the other JavaScript bundlers I tested (Webpack, Rollup, Parcel, and FuseBox). The benchmark can be run with `make bench-three`.
+I currently have two benchmarks that I'm using to measure esbuild performance. For these benchmarks, esbuild is **10-100x faster** than the other JavaScript bundlers I tested:
 
 ![](images/benchmark.png)
 
-| Bundler         |    Time | Relative slowdown | Absolute speed | Output size |
-| :-------------- | ------: | ----------------: | -------------: | ----------: |
-| esbuild         |   0.54s |                1x |  1013.8 kloc/s |      5.83mb |
-| rollup + terser |  40.48s |               75x |    13.5 kloc/s |      5.80mb |
-| webpack         |  46.46s |               86x |    11.8 kloc/s |      5.97mb |
-| parcel          | 124.65s |              231x |     4.4 kloc/s |      5.90mb |
-| fuse-box@next   | 172.56s |              320x |     3.2 kloc/s |      6.55mb |
+Here are the details about each benchmark:
 
-Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap`. I used the `rollup-plugin-terser` plugin because rollup itself doesn't support minification. Webpack uses `--mode=production --devtool=sourcemap`. Parcel uses the default options. FuseBox is configured with `useSingleBundle: true`. Absolute speed is based on the total line count including comments and blank lines, which is currently 547,441. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
+* #### JavaScript benchmark
+
+  This benchmark approximates a large JavaScript codebase by duplicating the [three.js](https://github.com/mrdoob/three.js) library 10 times and building a single bundle from scratch, without any caches. The benchmark can be run with `make bench-three`.
+
+    | Bundler         |    Time | Relative slowdown | Absolute speed | Output size |
+    | :-------------- | ------: | ----------------: | -------------: | ----------: |
+    | esbuild         |   0.54s |                1x |  1013.8 kloc/s |      5.83mb |
+    | rollup + terser |  40.48s |               75x |    13.5 kloc/s |      5.80mb |
+    | webpack         |  46.46s |               86x |    11.8 kloc/s |      5.97mb |
+    | parcel          | 124.65s |              231x |     4.4 kloc/s |      5.90mb |
+    | fuse-box@next   | 172.56s |              320x |     3.2 kloc/s |      6.55mb |
+
+    Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap`. I used the `rollup-plugin-terser` plugin because Rollup itself doesn't support minification. Webpack uses `--mode=production --devtool=sourcemap`. Parcel uses the default options. FuseBox is configured with `useSingleBundle: true`. Absolute speed is based on the total line count including comments and blank lines, which is currently 547,441. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
+
+* #### TypeScript benchmark
+
+  This benchmark uses the [Rome](https://github.com/facebookexperimental/rome) build tool to approximate a large TypeScript codebase. All code must be combined into a single minified bundle with source maps and the resulting bundle must work correctly. The benchmark can be run with `make bench-rome`.
+
+    | Bundler         |    Time | Relative slowdown | Absolute speed | Output size |
+    | :-------------- | ------: | ----------------: | -------------: | ----------: |
+    | esbuild         |   0.13s |                1x |  1014.1 kloc/s |      0.99mb |
+    | parcel          |  15.89s |              122x |     8.3 kloc/s |      1.50mb |
+    | webpack         |  18.37s |              141x |     7.2 kloc/s |      1.22mb |
+
+    Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap --platform=node`. Webpack uses `ts-loader` with `transpileOnly: true` and `--mode=production --devtool=sourcemap`. Parcel uses `--target node --bundle-node-modules`. Absolute speed is based on the total line count including comments and blank lines, which is currently 131,836. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
+
+    The results don't include Rollup because I couldn't get it to work. I tried `rollup-plugin-typescript`, `@rollup/plugin-typescript`, and `@rollup/plugin-sucrase` and they all didn't work for different reasons relating to TypeScript compilation. And I'm not familiar with FuseBox so I'm not sure how work around build failures due to the use of builtin node modules.
 
 ## Why is it fast?
 
@@ -76,7 +96,7 @@ A prebuilt binary can be installed using npm:
     This adds a global command called `esbuild` to your path:
 
     ```
-    npm install -g esbuild
+    npm install --global esbuild
     ```
 
     Invoke it using `esbuild [arguments]`.
