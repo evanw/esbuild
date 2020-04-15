@@ -315,7 +315,11 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 
 		// Append the prefix
 		if i > 0 {
-			js = append(js, ",\n"...)
+			if options.RemoveWhitespace {
+				js = append(js, ',')
+			} else {
+				js = append(js, ",\n"...)
+			}
 		}
 		if !options.RemoveWhitespace {
 			js = append(js, "\n  "...)
@@ -390,10 +394,10 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		}
 
 		// Append the suffix
-		if !options.RemoveWhitespace {
-			js = append(js, "  }"...)
+		if options.RemoveWhitespace {
+			js = append(removeTrailing(js, ';'), '}')
 		} else {
-			js = append(js, '}')
+			js = append(js, "  }"...)
 		}
 	}
 
@@ -491,7 +495,11 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 	// Finish the source map
 	item.SourceMapAbsPath = item.JsAbsPath + ".map"
 	item.SourceMapContents = append(buffer, ",\n  \"names\": []\n}\n"...)
-	item.JsContents = append(item.JsContents, ("//# sourceMappingURL=" + b.fs.Base(item.SourceMapAbsPath) + "\n")...)
+	if options.RemoveWhitespace {
+		item.JsContents = removeTrailing(item.JsContents, '\n')
+	}
+	item.JsContents = append(item.JsContents,
+		("//# sourceMappingURL=" + b.fs.Base(item.SourceMapAbsPath) + "\n")...)
 }
 
 func (b *Bundle) mergeAllSymbolsIntoOneMap(files []file) *ast.SymbolMap {
@@ -1231,7 +1239,7 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 			// Generate the resulting JavaScript file
 			item := &results[sourceIndex]
 			item.JsAbsPath = b.outputPathForEntryPoint(sourceIndex, jsName, &options)
-			item.JsContents = result.js
+			item.JsContents = addTrailing(result.js, '\n')
 
 			// Optionally also generate a source map
 			if options.SourceMap {
@@ -1442,6 +1450,20 @@ func (b *Bundle) outputPathForEntryPoint(entryPoint uint32, jsName string, optio
 	} else {
 		return b.fs.Join(b.fs.Dir(b.sources[entryPoint].AbsolutePath), jsName)
 	}
+}
+
+func addTrailing(x []byte, c byte) []byte {
+	if len(x) > 0 && x[len(x)-1] != c {
+		x = append(x, c)
+	}
+	return x
+}
+
+func removeTrailing(x []byte, c byte) []byte {
+	if len(x) > 0 && x[len(x)-1] == c {
+		x = x[:len(x)-1]
+	}
+	return x
 }
 
 func generateBootstrapPrefix(options *BundleOptions) []byte {

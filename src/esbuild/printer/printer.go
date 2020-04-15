@@ -2224,7 +2224,6 @@ func Print(tree ast.AST, options Options) ([]byte, SourceMapChunk) {
 	// with automatic semicolon insertion when concatenating modules together
 	if options.RemoveWhitespace && len(p.js) > 0 && p.js[len(p.js)-1] != '\n' {
 		p.printSemicolonIfNeeded()
-		p.print("\n")
 	}
 
 	return p.js, SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart}

@@ -5,6 +5,7 @@ esbuild: src/esbuild/*/*.go
 
 test:
 	GOPATH=`pwd` go test ./...
+	node scripts/verify-source-map.js
 
 update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > src/esbuild/main/version.go
