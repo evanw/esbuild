@@ -2206,7 +2206,23 @@ func createPrinter(
 	return p
 }
 
-func Print(tree ast.AST, options Options) ([]byte, SourceMapChunk) {
+type PrintResult struct {
+	JS []byte
+
+	// For minification, it's desirable to strip off unnecessary trailing
+	// semicolons from modules inside closures before the ending "}". However,
+	// there are some syntax constructs where you can't just remove the trailing
+	// semicolon (e.g. "while(foo());"). So we also return the source without the
+	// unnecessary trailing semicolon added in case the caller needs it.
+	JSWithoutTrailingSemicolon []byte
+
+	// This source map chunk just contains the VLQ-encoded offsets for the "JS"
+	// field above. It's not a full source map. The bundler will be joining many
+	// source map chunks together to form the final source map.
+	SourceMapChunk SourceMapChunk
+}
+
+func Print(tree ast.AST, options Options) PrintResult {
 	p := createPrinter(tree.Symbols, tree.IndirectImportItems, tree.RequireRef, options)
 	p.requireRef = tree.RequireRef
 
@@ -2225,19 +2241,28 @@ func Print(tree ast.AST, options Options) ([]byte, SourceMapChunk) {
 
 	// Make sure each module ends in a semicolon so we don't have weird issues
 	// with automatic semicolon insertion when concatenating modules together
+	jsWithoutTrailingSemicolon := p.js
 	if options.RemoveWhitespace && len(p.js) > 0 && p.js[len(p.js)-1] != '\n' {
 		p.printSemicolonIfNeeded()
 	}
 
-	return p.js, SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart}
+	return PrintResult{
+		JS:                         p.js,
+		JSWithoutTrailingSemicolon: jsWithoutTrailingSemicolon,
+		SourceMapChunk:             SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+	}
 }
 
-func PrintExpr(expr ast.Expr, symbols *ast.SymbolMap, requireRef ast.Ref, options Options) ([]byte, SourceMapChunk) {
+func PrintExpr(expr ast.Expr, symbols *ast.SymbolMap, requireRef ast.Ref, options Options) PrintResult {
 	p := createPrinter(symbols, make(map[ast.Ref]bool), requireRef, options)
 
 	// Always add a mapping at the beginning of the file
 	p.addSourceMapping(ast.Loc{0})
 
 	p.printExpr(expr, ast.LLowest, 0)
-	return p.js, SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart}
+	return PrintResult{
+		JS:                         p.js,
+		JSWithoutTrailingSemicolon: p.js,
+		SourceMapChunk:             SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+	}
 }

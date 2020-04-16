@@ -231,15 +231,7 @@ type lineColumnOffset struct {
 }
 
 type compileResult struct {
-	// The JavaScript AST printed as a string. This is always filled in when
-	// compileFile() is called.
-	js []byte
-
-	// This is filled in by the printer as it generates the JavaScript. It
-	// contains encoded source map offsets which will later be joined together
-	// to form the complete source map. This is only filled in if the SourceMap
-	// option is enabled.
-	sourceMapChunk printer.SourceMapChunk
+	printer.PrintResult
 
 	// The source map contains the original source code, which is quoted in
 	// parallel for speed. This is only filled in if the SourceMap option is
@@ -269,16 +261,14 @@ func (b *Bundle) compileFile(
 		}
 	}
 
-	js, chunk := printer.Print(tree, printer.Options{
+	result := compileResult{PrintResult: printer.Print(tree, printer.Options{
 		RemoveWhitespace:  options.RemoveWhitespace,
 		SourceMapContents: sourceMapContents,
 		Indent:            indent,
 		ResolvedImports:   remappedResolvedImports,
-	})
-	result := compileResult{js: js}
+	})}
 	if options.SourceMap {
 		result.quotedSource = printer.QuoteForJSON(b.sources[sourceIndex].Contents)
-		result.sourceMapChunk = chunk
 	}
 	return result
 }
@@ -389,13 +379,17 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 			generatedOffsets[sourceIndex] = computeLineColumnOffset(js[prevOffset:])
 
 			// Append the stored JavaScript
-			js = append(js, compileResults[sourceIndex].js...)
+			if j+1 == len(group) {
+				js = append(js, compileResults[sourceIndex].JSWithoutTrailingSemicolon...)
+			} else {
+				js = append(js, compileResults[sourceIndex].JS...)
+			}
 			prevOffset = len(js)
 		}
 
 		// Append the suffix
 		if options.RemoveWhitespace {
-			js = append(removeTrailing(js, ';'), '}')
+			js = append(js, '}')
 		} else {
 			js = append(js, "  }"...)
 		}
@@ -453,7 +447,7 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 	sourceMapIndex := 0
 	for _, group := range groups {
 		for _, sourceIndex := range group {
-			chunk := compileResults[sourceIndex].sourceMapChunk
+			chunk := compileResults[sourceIndex].SourceMapChunk
 			offset := generatedOffsets[sourceIndex]
 
 			// Because each file for the bundle is converted to a source map once,
@@ -1239,7 +1233,7 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 			// Generate the resulting JavaScript file
 			item := &results[sourceIndex]
 			item.JsAbsPath = b.outputPathForEntryPoint(sourceIndex, jsName, &options)
-			item.JsContents = addTrailing(result.js, '\n')
+			item.JsContents = addTrailing(result.JS, '\n')
 
 			// Optionally also generate a source map
 			if options.SourceMap {
@@ -1566,10 +1560,9 @@ func generateBootstrapPrefix(options *BundleOptions) []byte {
 	if !ok {
 		panic("Internal error")
 	}
-	prefix, _ := printer.PrintExpr(stmt.Value, result.Symbols, result.RequireRef, printer.Options{
+	return printer.PrintExpr(stmt.Value, result.Symbols, result.RequireRef, printer.Options{
 		RemoveWhitespace:  options.RemoveWhitespace,
 		SourceMapContents: nil,
 		Indent:            0,
-	})
-	return prefix
+	}).JS
 }

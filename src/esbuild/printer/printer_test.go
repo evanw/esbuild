@@ -30,7 +30,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js, _ := Print(ast, options)
+		js := Print(ast, options).JS
 		assertEqual(t, string(js), expected)
 	})
 }

@@ -47,9 +47,9 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js, _ := printer.PrintExpr(expr, nil, ast.InvalidRef, printer.Options{
+		js := printer.PrintExpr(expr, nil, ast.InvalidRef, printer.Options{
 			RemoveWhitespace: true,
-		})
+		}).JS
 		assertEqual(t, string(js), expected)
 	})
 }
@@ -72,9 +72,9 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js, _ := printer.PrintExpr(expr, nil, ast.InvalidRef, printer.Options{
+		js := printer.PrintExpr(expr, nil, ast.InvalidRef, printer.Options{
 			RemoveWhitespace: true,
-		})
+		}).JS
 		assertEqual(t, string(js), expected)
 	})
 }
