@@ -7681,7 +7681,10 @@ type TypeScriptOptions struct {
 }
 
 type ParseOptions struct {
-	IsBundling           bool
+	// true: imports are scanned and bundled along with the file
+	// false: imports are left alone and the file is passed through as-is
+	IsBundling bool
+
 	Defines              map[string]ast.E
 	MangleSyntax         bool
 	KeepSingleExpression bool

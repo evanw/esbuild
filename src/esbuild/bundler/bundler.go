@@ -206,7 +206,10 @@ func DefaultExtensionToLoaderMap() map[string]Loader {
 }
 
 type BundleOptions struct {
-	Bundle                bool
+	// true: imports are scanned and bundled along with the file
+	// false: imports are left alone and the file is passed through as-is
+	IsBundling bool
+
 	AbsOutputFile         string
 	AbsOutputDir          string
 	RemoveWhitespace      bool
@@ -248,13 +251,13 @@ func (b *Bundle) compileFile(
 	}
 	tree := f.ast
 	indent := 0
-	if options.Bundle {
+	if options.IsBundling {
 		indent = 2
 	}
 
 	// Remap source indices to make the output deterministic
 	var remappedResolvedImports map[string]uint32
-	if options.Bundle {
+	if options.IsBundling {
 		remappedResolvedImports = make(map[string]uint32)
 		for k, v := range f.resolvedImports {
 			remappedResolvedImports[k] = sourceIndexToOutputIndex[v]
@@ -1183,7 +1186,7 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
 
-	if options.Bundle {
+	if options.IsBundling {
 		return b.compileBundle(log, options)
 	} else {
 		return b.compileIndependent(log, options)

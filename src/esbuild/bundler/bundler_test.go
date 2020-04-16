@@ -100,7 +100,7 @@ func TestSimpleES6(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -138,7 +138,7 @@ func TestSimpleCommonJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -185,7 +185,7 @@ func TestNestedCommonJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -229,7 +229,7 @@ func TestCommonJSFromES6(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -273,7 +273,7 @@ func TestES6FromCommonJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -319,7 +319,7 @@ func TestNestedES6FromCommonJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -366,7 +366,7 @@ func TestExportForms(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -590,7 +590,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -717,7 +717,7 @@ func TestExportSelf(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -748,7 +748,7 @@ func TestExportSelfAsNamespace(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -787,7 +787,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 			},
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -829,7 +829,7 @@ func TestJSXImportsES6(t *testing.T) {
 			},
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -862,7 +862,7 @@ func TestJSXSyntaxInJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: error: Unexpected "<"
@@ -882,7 +882,7 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]Loader{
 				".js": LoaderJSX,
@@ -918,7 +918,7 @@ func TestNodeModules(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -964,7 +964,7 @@ func TestPackageJsonMain(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1012,7 +1012,7 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1058,7 +1058,7 @@ func TestPackageJsonBrowserString(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1121,7 +1121,7 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1183,7 +1183,7 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1242,7 +1242,7 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1306,7 +1306,7 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1373,7 +1373,7 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1435,7 +1435,7 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1494,7 +1494,7 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -1537,7 +1537,7 @@ func TestRequireChildDirCommonJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1573,7 +1573,7 @@ func TestRequireChildDirES6(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1606,7 +1606,7 @@ func TestRequireParentDirCommonJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1642,7 +1642,7 @@ func TestRequireParentDirES6(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1676,7 +1676,7 @@ func TestPackageImportMissingES6(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `/entry.js: error: No matching export for import "default"
@@ -1713,7 +1713,7 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1750,7 +1750,7 @@ func TestDotImport(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1787,7 +1787,7 @@ func TestRequireWithTemplate(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1824,7 +1824,7 @@ func TestDynamicImportWithTemplate(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1860,7 +1860,7 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: error: The argument to require() must be a string literal
@@ -1890,7 +1890,7 @@ func TestRequireJson(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1927,7 +1927,7 @@ func TestRequireTxt(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1960,7 +1960,7 @@ func TestRequireCustomExtensionString(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]Loader{
 				".js":     LoaderJS,
@@ -1997,7 +1997,7 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]Loader{
 				".js":     LoaderJS,
@@ -2034,7 +2034,7 @@ func TestRequireBadExtension(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: error: File extension not supported: /test
@@ -2055,7 +2055,7 @@ func TestFalseRequire(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2083,7 +2083,7 @@ func TestRequireWithoutCall(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: error: "require" must not be called indirectly
@@ -2106,7 +2106,7 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: error: "require" must not be called indirectly
@@ -2132,7 +2132,7 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2170,7 +2170,7 @@ func TestSourceMap(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			SourceMap:     true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -2220,7 +2220,7 @@ func TestNestedScopeBug(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2256,7 +2256,7 @@ func TestHashbangBundle(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2302,7 +2302,7 @@ func TestTypeofRequireBundle(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2347,7 +2347,7 @@ func TestRequireFSBrowser(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
@@ -2369,7 +2369,7 @@ func TestRequireFSNode(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
@@ -2403,7 +2403,7 @@ func TestImportFSBrowser(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
@@ -2433,7 +2433,7 @@ func TestImportFSNode(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
@@ -2465,7 +2465,7 @@ func TestExportFSBrowser(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
@@ -2490,7 +2490,7 @@ func TestExportFSNode(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
@@ -2524,7 +2524,7 @@ func TestExportWildcardFSNode(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:        true,
+			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
@@ -2554,7 +2554,7 @@ func TestMinifiedBundleES6(t *testing.T) {
 			MangleSyntax: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:            true,
+			IsBundling:        true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -2588,7 +2588,7 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 			MangleSyntax: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:            true,
+			IsBundling:        true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -2612,7 +2612,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			Bundle:           true,
+			IsBundling:       true,
 			RemoveWhitespace: true,
 			AbsOutputFile:    "/out.js",
 		},

@@ -186,7 +186,7 @@ Examples:
 		switch {
 		case arg == "--bundle":
 			args.parseOptions.IsBundling = true
-			args.bundleOptions.Bundle = true
+			args.bundleOptions.IsBundling = true
 
 		case arg == "--minify":
 			args.parseOptions.MangleSyntax = true
