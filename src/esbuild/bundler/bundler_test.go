@@ -437,7 +437,11 @@ func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 			"/d.js",
 			"/e.js",
 		},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
 		bundleOptions: BundleOptions{
+			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputDir:      "/out",
 		},
@@ -493,7 +497,11 @@ func TestImportFormsWithNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
 		bundleOptions: BundleOptions{
+			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -532,7 +540,11 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
 		bundleOptions: BundleOptions{
+			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2279,7 +2291,11 @@ func TestHashbangNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
 		bundleOptions: BundleOptions{
+			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2325,7 +2341,11 @@ func TestTypeofRequireNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
 		bundleOptions: BundleOptions{
+			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2623,7 +2643,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 	})
 }
 
-func TestOptionalCatchNameCollision(t *testing.T) {
+func TestOptionalCatchNameCollisionNoBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2634,9 +2654,11 @@ func TestOptionalCatchNameCollision(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
-			Target: parser.ES2018,
+			IsBundling: false,
+			Target:     parser.ES2018,
 		},
 		bundleOptions: BundleOptions{
+			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
