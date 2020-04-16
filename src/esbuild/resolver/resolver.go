@@ -414,7 +414,7 @@ func (r *resolver) parseJson(path string) (ast.Expr, bool) {
 	if contents, ok := r.fs.ReadFile(path); ok {
 		log, _ := logging.NewDeferLog()
 		source := logging.Source{Contents: contents}
-		return parser.ParseJson(log, source)
+		return parser.ParseJSON(log, source)
 	}
 	return ast.Expr{}, false
 }

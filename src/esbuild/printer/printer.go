@@ -2172,7 +2172,12 @@ func createPrinter(
 		minify:              options.RemoveWhitespace,
 		resolvedImports:     options.ResolvedImports,
 		indent:              options.Indent,
+		stmtStart:           -1,
+		exportDefaultStart:  -1,
+		arrowExprStart:      -1,
 		prevOpEnd:           -1,
+		prevNumEnd:          -1,
+		prevRegExpEnd:       -1,
 		prevLoc:             ast.Loc{-1},
 		requireRef:          requireRef,
 	}

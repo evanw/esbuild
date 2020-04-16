@@ -78,7 +78,7 @@ func parseFile(
 		results <- parseResult{source.Index, ast, ok}
 
 	case LoaderJSON:
-		expr, ok := parser.ParseJson(log, source)
+		expr, ok := parser.ParseJSON(log, source)
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, ok}
 
