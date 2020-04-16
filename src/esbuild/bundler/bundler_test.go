@@ -2313,3 +2313,30 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 		},
 	})
 }
+
+func TestOptionalCatchNameCollision(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				try {}
+				catch { var e, e2 }
+				var e3
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			Target: parser.ES2018,
+		},
+		bundleOptions: BundleOptions{
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `try {
+} catch (e4) {
+  var e, e2;
+}
+var e3;
+`,
+		},
+	})
+}

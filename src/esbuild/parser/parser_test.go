@@ -1394,5 +1394,5 @@ func TestLowerOptionalChain(t *testing.T) {
 
 func TestLowerOptionalCatchBinding(t *testing.T) {
 	expectPrintedTarget(t, ES2019, "try {} catch {}", "try {\n} catch {\n}\n")
-	expectPrintedTarget(t, ES2018, "try {} catch {}", "try {\n} catch ({}) {\n}\n")
+	expectPrintedTarget(t, ES2018, "try {} catch {}", "try {\n} catch (e) {\n}\n")
 }

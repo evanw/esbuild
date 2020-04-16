@@ -4114,8 +4114,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			// The catch binding is optional, and can be omitted
 			if p.lexer.Token == lexer.TOpenBrace {
 				if p.target < ES2019 {
-					// Replace "try {} catch {}" with "try {} catch ({}) {}"
-					binding = &ast.Binding{p.lexer.Loc(), &ast.BObject{}}
+					// Generate a new symbol for the catch binding for older browsers
+					ref := p.newSymbol(ast.SymbolOther, "e")
+					p.currentScope.Generated = append(p.currentScope.Generated, ref)
+					binding = &ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}
 				}
 			} else {
 				p.lexer.Expect(lexer.TOpenParen)
