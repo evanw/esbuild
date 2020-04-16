@@ -500,7 +500,8 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 }
 
 func IsNonModulePath(path string) bool {
-	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") || path == "."
+	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") ||
+		strings.HasPrefix(path, "../") || path == "." || path == ".."
 }
 
 var externalModulesForNode = []string{

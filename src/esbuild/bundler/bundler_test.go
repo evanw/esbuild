@@ -1522,6 +1522,144 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 	})
 }
 
+func TestRequireChildDirCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				console.log(require('./dir'))
+			`,
+			"/Users/user/project/src/dir/index.js": `
+				module.exports = 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(require, exports, module) {
+    // /Users/user/project/src/dir/index.js
+    module.exports = 123;
+  },
+
+  1(require) {
+    // /Users/user/project/src/entry.js
+    console.log(require(0 /* ./dir */));
+  }
+}, 1);
+`,
+		},
+	})
+}
+
+func TestRequireChildDirES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import value from './dir'
+				console.log(value)
+			`,
+			"/Users/user/project/src/dir/index.js": `
+				export default 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1() {
+    // /Users/user/project/src/dir/index.js
+    const default2 = 123;
+
+    // /Users/user/project/src/entry.js
+    console.log(default2);
+  }
+}, 1);
+`,
+		},
+	})
+}
+
+func TestRequireParentDirCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/dir/entry.js": `
+				console.log(require('..'))
+			`,
+			"/Users/user/project/src/index.js": `
+				module.exports = 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/dir/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports, module) {
+    // /Users/user/project/src/index.js
+    module.exports = 123;
+  },
+
+  0(require) {
+    // /Users/user/project/src/dir/entry.js
+    console.log(require(1 /* .. */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestRequireParentDirES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/dir/entry.js": `
+				import value from '..'
+				console.log(value)
+			`,
+			"/Users/user/project/src/index.js": `
+				export default 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/dir/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /Users/user/project/src/index.js
+    const default2 = 123;
+
+    // /Users/user/project/src/dir/entry.js
+    console.log(default2);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestPackageImportMissingES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
