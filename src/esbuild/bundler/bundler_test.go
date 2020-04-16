@@ -2387,6 +2387,153 @@ func TestRequireFSNode(t *testing.T) {
 	})
 }
 
+func TestImportFSBrowser(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import 'fs'
+				import * as fs from 'fs'
+				import defaultValue from 'fs'
+				import {readFileSync} from 'fs'
+				console.log(fs, readFileSync, defaultValue)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformBrowser,
+		},
+		expectedScanLog: `/entry.js: error: Could not resolve "fs"
+/entry.js: error: Could not resolve "fs"
+/entry.js: error: Could not resolve "fs"
+/entry.js: error: Could not resolve "fs"
+`,
+	})
+}
+
+func TestImportFSNode(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import 'fs'
+				import * as fs from 'fs'
+				import defaultValue from 'fs'
+				import {readFileSync} from 'fs'
+				console.log(fs, readFileSync, defaultValue)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(require) {
+    // /entry.js
+    const fs = require("fs", true /* ES6 import */), fs2 = require("fs", true /* ES6 import */), fs3 = require("fs", true /* ES6 import */), fs4 = require("fs", true /* ES6 import */);
+    console.log(fs2, fs4.readFileSync, fs3.default);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestExportFSBrowser(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * as fs from 'fs'
+				export {readFileSync} from 'fs'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformBrowser,
+		},
+		expectedScanLog: `/entry.js: error: Could not resolve "fs"
+/entry.js: error: Could not resolve "fs"
+`,
+	})
+}
+
+func TestExportFSNode(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * as fs from 'fs'
+				export {readFileSync} from 'fs'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(require, exports) {
+    // /entry.js
+    require(exports, {
+      fs: () => fs,
+      readFileSync: () => fs2.readFileSync
+    });
+    const fs = require("fs", true /* ES6 import */), fs2 = require("fs", true /* ES6 import */);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestExportWildcardFSNode(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from 'fs'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			Bundle:        true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expectedCompileLog: "/entry.js: error: Wildcard exports are not supported for this module\n",
+	})
+}
+
 func TestMinifiedBundleES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
