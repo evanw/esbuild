@@ -1001,7 +1001,6 @@ func (lexer *Lexer) Next() {
 				}
 				if lexer.isStrictJSON {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
-					panic(LexerPanic{})
 				}
 				continue
 
@@ -1033,7 +1032,6 @@ func (lexer *Lexer) Next() {
 				}
 				if lexer.isStrictJSON {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
-					panic(LexerPanic{})
 				}
 				continue
 
