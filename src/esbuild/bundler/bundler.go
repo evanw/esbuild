@@ -125,7 +125,17 @@ func ScanBundle(
 		files = append(files, file{})
 		remaining++
 		go func() {
-			ast, ok := parser.Parse(log, source, parseOptions)
+			runtimeParseOptions := parseOptions
+
+			// Avoid defining extra symbols such as "exports" and "module" in the top-
+			// level scope for the runtime. All other files will be embedded as child
+			// scopes of the runtime scope during bundling. If we defined these extra
+			// symbols, we would then need to rename all identically-named symbols in
+			// all files so everything would be called "exports2" and "module2"
+			// instead, which looks weird.
+			runtimeParseOptions.IsBundling = false
+
+			ast, ok := parser.Parse(log, source, runtimeParseOptions)
 			results <- parseResult{source.Index, ast, ok}
 		}()
 	}
@@ -1038,8 +1048,30 @@ func (b *Bundle) markExportsAsUnbound(f file, symbols *ast.SymbolMap) {
 	}
 }
 
+func (b *Bundle) renameOrMinifyAllSymbolsInRuntime(files []file, symbols *ast.SymbolMap, options *BundleOptions) {
+	// Operate on all module-level scopes in all files
+	moduleScopes := make([]*ast.Scope, len(files))
+	for sourceIndex, _ := range files {
+		moduleScopes[sourceIndex] = files[sourceIndex].ast.ModuleScope
+	}
+
+	// Avoid collisions with any unbound symbols in any file
+	reservedNames := reservedNames(moduleScopes, symbols)
+
+	// We're only renaming symbols in the runtime
+	runtimeModuleScope := []*ast.Scope{files[runtimeSourceIndex].ast.ModuleScope}
+
+	if options.MinifyIdentifiers {
+		nextName := 54 * 54 // Use names ending with '$' to avoid taking good short names
+		minifyAllSymbols(reservedNames, runtimeModuleScope, symbols, nextName)
+	} else {
+		renameAllSymbols(reservedNames, runtimeModuleScope, symbols)
+	}
+}
+
 // Ensures all symbol names are valid non-colliding identifiers
 func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols *ast.SymbolMap, group []uint32, options *BundleOptions) {
+	// Operate on all module-level scopes in this module group
 	moduleScopes := make([]*ast.Scope, len(group))
 	for i, sourceIndex := range group {
 		moduleScopes[i] = files[sourceIndex].ast.ModuleScope
@@ -1069,10 +1101,18 @@ func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols *ast.SymbolMap, 
 		symbols.Set(ref, symbol)
 	}
 
+	// Avoid collisions with any unbound symbols in this module group
+	reservedNames := reservedNames(moduleScopes, symbols)
+
+	// Avoid collisions with symbols in the runtime's top-level scope
+	for _, ref := range files[runtimeSourceIndex].ast.ModuleScope.Members {
+		reservedNames[symbols.Get(ref).Name] = true
+	}
+
 	if options.MinifyIdentifiers {
-		minifyAllSymbols(moduleScopes, symbols)
+		minifyAllSymbols(reservedNames, moduleScopes, symbols, 0 /* nextName */)
 	} else {
-		renameAllSymbols(moduleScopes, symbols)
+		renameAllSymbols(reservedNames, moduleScopes, symbols)
 	}
 }
 
@@ -1270,6 +1310,18 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 	moduleInfos, moduleGroups := b.computeModuleGroups(
 		files, sourceIndexToOutputIndex, outputIndexToSourceIndex)
 
+	// Rename or minify symbols in the runtime first before renaming or minifying
+	// symbols for any other file. All other files will be embedded as a child
+	// scope of the runtime, so we need to obey the following constraints:
+	//
+	//   1. Symbols in the runtime must not be the same name as an unbound symbol
+	//      in any other file.
+	//
+	//   2. Symbols in any other file must not be the same name as any top-level
+	//      symbol in the runtime.
+	//
+	b.renameOrMinifyAllSymbolsInRuntime(files, symbols, &options)
+
 	// When spawning a new goroutine, make sure to manually forward all variables
 	// that are different for every iteration of the loop. Otherwise each
 	// goroutine will share the same copy of the closed-over variables and cause
@@ -1283,8 +1335,11 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 			// It's important to wait to rename symbols until after imports and
 			// exports have been handled. Exports need to use the original un-renamed
 			// names of the symbols.
-			b.bindImportsAndExports(log, files, symbols, group, moduleInfos)
-			b.renameOrMinifyAllSymbols(files, symbols, group, &options)
+			isRuntime := len(group) == 1 && group[0] == runtimeSourceIndex
+			if !isRuntime {
+				b.bindImportsAndExports(log, files, symbols, group, moduleInfos)
+				b.renameOrMinifyAllSymbols(files, symbols, group, &options)
+			}
 			importExportGroup.Done()
 		}(group)
 	}
