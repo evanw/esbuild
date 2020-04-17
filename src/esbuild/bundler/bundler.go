@@ -325,6 +325,47 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		js = append(js, compileResults[runtimeSourceIndex].JS...)
 	}
 
+	appendGroup := func(group []uint32) {
+		for i, sourceIndex := range group {
+			// Append the prefix
+			if !options.RemoveWhitespace {
+				if i > 0 {
+					js = append(js, '\n')
+				}
+				js = append(js, fmt.Sprintf("    // %s\n", b.sources[sourceIndex].PrettyPath)...)
+			}
+
+			// If we're an internal non-root module in this group and our exports are
+			// used, then we'll need to generate an exports object.
+			//
+			// This is done here at the last-minute instead of being baked into the
+			// generated JavaScript because this lets us use the same generated
+			// JavaScript for a root and a non-root module. That way we can generate
+			// JavaScript for each module exactly once while still allowing a module
+			// to be both a root and a non-root module for different entry points.
+			//
+			// For example, consider a bundle with two entry points "simplelib.js"
+			// and "deluxelib.js", and "deluxelib.js" imports "simplelib.js". This
+			// means "simplelib.js" is both a root module for its own entry point
+			// and a non-root module for the entry point of "deluxelib.js".
+			if i != len(group)-1 && moduleInfos[sourceIndex].isExportsUsed() {
+				name := symbols.Get(ast.FollowSymbols(symbols, files[sourceIndex].ast.ExportsRef)).Name
+				js = append(js, (indent + indent + "var " + name + space + "=" + space + "{};" + newline)...)
+			}
+
+			// Save the offset to the start of the stored JavaScript
+			generatedOffsets[sourceIndex] = computeLineColumnOffset(js[prevOffset:])
+
+			// Append the stored JavaScript
+			if i+1 == len(group) {
+				js = append(js, compileResults[sourceIndex].JSWithoutTrailingSemicolon...)
+			} else {
+				js = append(js, compileResults[sourceIndex].JS...)
+			}
+			prevOffset = len(js)
+		}
+	}
+
 	for i, group := range groups {
 		rootSourceIndex := group[len(group)-1]
 		tree := files[rootSourceIndex].ast
@@ -348,48 +389,7 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 			}
 		}
 		js = append(js, (")" + space + "{" + newline)...)
-
-		// Append the modules in this group
-		for j, sourceIndex := range group {
-			// Append the prefix
-			if !options.RemoveWhitespace {
-				if j > 0 {
-					js = append(js, '\n')
-				}
-				js = append(js, fmt.Sprintf("    // %s\n", b.sources[sourceIndex].PrettyPath)...)
-			}
-
-			// If we're an internal non-root module in this group and our exports are
-			// used, then we'll need to generate an exports object.
-			//
-			// This is done here at the last-minute instead of being baked into the
-			// generated JavaScript because this lets us use the same generated
-			// JavaScript for a root and a non-root module. That way we can generate
-			// JavaScript for each module exactly once while still allowing a module
-			// to be both a root and a non-root module for different entry points.
-			//
-			// For example, consider a bundle with two entry points "simplelib.js"
-			// and "deluxelib.js", and "deluxelib.js" imports "simplelib.js". This
-			// means "simplelib.js" is both a root module for its own entry point
-			// and a non-root module for the entry point of "deluxelib.js".
-			if sourceIndex != rootSourceIndex && moduleInfos[sourceIndex].isExportsUsed() {
-				name := symbols.Get(ast.FollowSymbols(symbols, files[sourceIndex].ast.ExportsRef)).Name
-				js = append(js, (indent + indent + "var " + name + space + "=" + space + "{};" + newline)...)
-			}
-
-			// Save the offset to the start of the stored JavaScript
-			generatedOffsets[sourceIndex] = computeLineColumnOffset(js[prevOffset:])
-
-			// Append the stored JavaScript
-			if j+1 == len(group) {
-				js = append(js, compileResults[sourceIndex].JSWithoutTrailingSemicolon...)
-			} else {
-				js = append(js, compileResults[sourceIndex].JS...)
-			}
-			prevOffset = len(js)
-		}
-
-		// Append the suffix
+		appendGroup(group)
 		js = append(js, (indent + "}")...)
 	}
 
