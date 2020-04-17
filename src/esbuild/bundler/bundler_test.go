@@ -2723,3 +2723,92 @@ func TestTopLevelReturn(t *testing.T) {
 		},
 	})
 }
+
+func TestThisOutsideFunction(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(this)
+				console.log((x = this) => this)
+				console.log({x: this})
+				console.log(class extends this.foo {})
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(exports) {
+    // /entry.js
+    console.log(exports);
+    console.log((x = exports) => exports);
+    console.log({
+      x: exports
+    });
+    console.log(class extends exports.foo {
+    });
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestThisInsideFunction(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function foo(x = this) { console.log(this) }
+				const obj = {
+					foo(x = this) { console.log(this) }
+				}
+				class Foo {
+					x = this
+					static y = this.z
+					foo(x = this) { console.log(this) }
+					static bar(x = this) { console.log(this) }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.js
+    function foo(x = this) {
+      console.log(this);
+    }
+    const obj = {
+      foo(x = this) {
+        console.log(this);
+      }
+    };
+    class Foo {
+      x = this;
+      static y = this.z;
+      foo(x = this) {
+        console.log(this);
+      }
+      static bar(x = this) {
+        console.log(this);
+      }
+    }
+  }
+}, 0);
+`,
+		},
+	})
+}

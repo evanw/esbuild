@@ -1637,7 +1637,7 @@ const runtime = `
 		module = __modules[id]
 		if (!module) {
 			module = __modules[id] = {exports: {}}
-			__commonjs[id].call(module.exports, module.exports, module)
+			__commonjs[id](module.exports, module)
 		}
 		return module.exports
 	}
