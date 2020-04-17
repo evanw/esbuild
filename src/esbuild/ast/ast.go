@@ -962,9 +962,11 @@ type AST struct {
 	IndirectImportItems map[Ref]bool
 
 	// This is true if something used the "exports" or "module" variables, which
-	// means they could have exported something. This is used to silence errors
-	// about mismatched exports.
-	HasCommonJsExports bool
+	// means they could have exported something. It's also true if the file
+	// contains a top-level return statement. When a file uses CommonJS features,
+	// it's not a candidate for "flat bundling" and must be wrapped in its own
+	// closure.
+	UsesCommonJSFeatures bool
 
 	Hashbang    string
 	Stmts       []Stmt

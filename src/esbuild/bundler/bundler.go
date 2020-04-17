@@ -1095,8 +1095,8 @@ func (b *Bundle) computeModuleGroups(
 		// Every module starts off in its own group
 		infos[sourceIndex].groupLabel = uint32(sourceIndex)
 
-		// A module is CommonJS if it contains CommonJS exports
-		if f.ast.HasCommonJsExports {
+		// A module is CommonJS if it uses CommonJS features
+		if f.ast.UsesCommonJSFeatures {
 			infos[sourceIndex].isCommonJs = true
 		}
 

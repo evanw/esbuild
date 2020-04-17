@@ -2671,3 +2671,49 @@ var e3;
 		},
 	})
 }
+
+func TestTopLevelReturn(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {foo} from './foo'
+				foo()
+			`,
+			"/foo.js": `
+				// Top-level return must force CommonJS mode
+				if (Math.random() < 0.5) return
+
+				export function foo() {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(require, exports) {
+    // /foo.js
+    require(exports, {
+      foo: () => foo
+    });
+    if (Math.random() < 0.5)
+      return;
+    function foo() {
+    }
+  },
+
+  0(require) {
+    // /entry.js
+    const foo = require(1 /* ./foo */, true /* ES6 import */);
+    foo.foo();
+  }
+}, 0);
+`,
+		},
+	})
+}
