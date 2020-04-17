@@ -279,7 +279,13 @@ func (b *Bundle) compileFile(
 	tree := f.ast
 	indent := 0
 	if options.IsBundling {
-		indent = 2
+		indent++
+		if sourceIndex != runtimeSourceIndex {
+			indent++
+			if !options.omitRuntimeForTests {
+				indent++
+			}
+		}
 	}
 
 	// Remap source indices to make the output deterministic
@@ -308,22 +314,33 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 	files []file, symbols *ast.SymbolMap, compileResults map[uint32]*compileResult, groups [][]uint32, options *BundleOptions,
 	entryPoint uint32, jsName string, sourceIndexToOutputIndex []uint32, moduleInfos []moduleInfo,
 ) (result BundleResult, generatedOffsets map[uint32]lineColumnOffset) {
+	prevOffset := 0
+	js := []byte{}
+
+	// Helper variables to make generating minified code easier
 	space := " "
 	indent := "  "
 	newline := "\n"
+	trailingSemicolon := ";"
 	if options.RemoveWhitespace {
 		space = ""
 		indent = ""
 		newline = ""
+		trailingSemicolon = ""
 	}
 
-	prevOffset := 0
-	js := []byte{}
+	// Optionally allow naming the exports object
 	if options.ModuleName != "" {
 		js = append(js, ("let " + options.ModuleName + space + "=" + space)...)
 	}
+
+	// Start the closure
+	outerIndent := indent
 	if options.omitRuntimeForTests {
+		outerIndent = ""
 		js = append(js, "bootstrap({"...)
+	} else {
+		js = append(js, ("(()" + space + "=>" + space + "{" + newline)...)
 	}
 
 	// This is the line and column offset since the previous JavaScript string
@@ -342,7 +359,7 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 				if i > 0 {
 					js = append(js, '\n')
 				}
-				js = append(js, fmt.Sprintf("    // %s\n", b.sources[sourceIndex].PrettyPath)...)
+				js = append(js, (outerIndent + indent + indent + "// " + b.sources[sourceIndex].PrettyPath + "\n")...)
 			}
 
 			// If we're an internal non-root module in this group and our exports are
@@ -360,7 +377,7 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 			// and a non-root module for the entry point of "deluxelib.js".
 			if i != len(group)-1 && moduleInfos[sourceIndex].isExportsUsed() {
 				name := symbols.Get(ast.FollowSymbols(symbols, files[sourceIndex].ast.ExportsRef)).Name
-				js = append(js, (indent + indent + "var " + name + space + "=" + space + "{};" + newline)...)
+				js = append(js, (outerIndent + indent + indent + "var " + name + space + "=" + space + "{};" + newline)...)
 			}
 
 			// Save the offset to the start of the stored JavaScript
@@ -376,6 +393,14 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		}
 	}
 
+	if !options.omitRuntimeForTests {
+		commonjsRef, ok := files[runtimeSourceIndex].ast.ModuleScope.Members["__commonjs"]
+		if !ok {
+			panic("Internal error")
+		}
+		js = append(js, (outerIndent + symbols.Get(commonjsRef).Name + space + "=" + space + "{")...)
+	}
+
 	for i, group := range groups {
 		rootSourceIndex := group[len(group)-1]
 		tree := files[rootSourceIndex].ast
@@ -384,7 +409,7 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		if i > 0 {
 			js = append(js, ("," + newline)...)
 		}
-		js = append(js, (newline + indent)...)
+		js = append(js, (newline + outerIndent + indent)...)
 		js = append(js, fmt.Sprintf("%d(", sourceIndexToOutputIndex[rootSourceIndex])...)
 		requireSymbol := symbols.Get(ast.FollowSymbols(symbols, tree.RequireRef))
 		exportsSymbol := symbols.Get(ast.FollowSymbols(symbols, tree.ExportsRef))
@@ -400,16 +425,25 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		}
 		js = append(js, (")" + space + "{" + newline)...)
 		appendGroup(group)
-		js = append(js, (indent + "}")...)
+		js = append(js, (outerIndent + indent + "}")...)
 	}
 
-	// Append the suffix
+	// End the closure
 	if options.omitRuntimeForTests {
 		if options.RemoveWhitespace {
 			js = append(js, fmt.Sprintf("},%d);", sourceIndexToOutputIndex[entryPoint])...)
 		} else {
 			js = append(js, fmt.Sprintf("\n}, %d);", sourceIndexToOutputIndex[entryPoint])...)
 		}
+	} else {
+		requireRef, ok := files[runtimeSourceIndex].ast.ModuleScope.Members["__require"]
+		if !ok {
+			panic("Internal error")
+		}
+		js = append(js, (newline + outerIndent + "};" + newline)...)
+		js = append(js, fmt.Sprintf(outerIndent+"return "+symbols.Get(requireRef).Name+"(%d)"+trailingSemicolon+newline,
+			sourceIndexToOutputIndex[entryPoint])...)
+		js = append(js, "})();"...)
 	}
 	js = append(js, '\n')
 
@@ -1519,7 +1553,54 @@ func removeTrailing(x []byte, c byte) []byte {
 
 const runtimeSourceIndex = 0
 const runtime = `
-	let __require = id => {
-		// TODO
+	let __defineProperty = Object.defineProperty
+
+	// This holds the exports for all modules that have been evaluated
+	let __modules = {}
+
+	let __require = (target, arg) => {
+		// If the first argument is a number, this is an import
+		if (typeof target === 'number') {
+			let module = __modules[target], exports
+
+			// Evaluate the module if needed
+			if (!module) {
+				module = __modules[target] = {exports: {}}
+				__commonjs[target].call(module.exports, __require, module.exports, module)
+			}
+
+			// Return the exports object off the module in case it was overwritten
+			exports = module.exports
+
+			// Convert CommonJS exports to ES6 exports
+			if (arg && (!exports || !exports.__esModule)) {
+				if (!exports || (typeof exports !== 'object' && typeof exports !== 'function')) {
+					exports = {}
+				}
+				if (!('default' in exports)) {
+					__defineProperty(exports, 'default', {
+						get: () => module.exports,
+						enumerable: true,
+					})
+				}
+			}
+
+			return exports
+		}
+
+		// Mark this module as an ES6 module using a non-enumerable property
+		__defineProperty(target, '__esModule', {
+			value: true,
+		})
+
+		for (let name in arg) {
+			__defineProperty(target, name, {
+				get: arg[name],
+				enumerable: true,
+			})
+		}
 	}
+
+	// This will be filled in with the CommonJS module map
+	let __commonjs
 `
