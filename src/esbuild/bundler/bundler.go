@@ -232,19 +232,51 @@ func DefaultExtensionToLoaderMap() map[string]Loader {
 	}
 }
 
+type Format uint8
+
+const (
+	FormatNone Format = iota
+
+	// IIFE stands for immediately-invoked function expression. That looks like
+	// this:
+	//
+	//   (() => {
+	//     ... bundled code ...
+	//     require(entryPoint);
+	//   })();
+	//
+	// If the optional ModuleName is configured, then we'll write out this:
+	//
+	//   let moduleName = (() => {
+	//     ... bundled code ...
+	//     return require(entryPoint);
+	//   })();
+	//
+	FormatIIFE
+
+	// The CommonJS format looks like this:
+	//
+	//   ... bundled code ...
+	//   module.exports = require(entryPoint);
+	//
+	FormatCommonJS
+)
+
 type BundleOptions struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	AbsOutputFile       string
-	AbsOutputDir        string
-	RemoveWhitespace    bool
-	MinifyIdentifiers   bool
-	MangleSyntax        bool
-	SourceMap           bool
-	ModuleName          string
-	ExtensionToLoader   map[string]Loader
+	AbsOutputFile     string
+	AbsOutputDir      string
+	RemoveWhitespace  bool
+	MinifyIdentifiers bool
+	MangleSyntax      bool
+	SourceMap         bool
+	ModuleName        string
+	ExtensionToLoader map[string]Loader
+	OutputFormat      Format
+
 	omitRuntimeForTests bool
 }
 
@@ -279,7 +311,9 @@ func (b *Bundle) compileFile(
 	tree := f.ast
 	indent := 0
 	if options.IsBundling {
-		indent++
+		if options.OutputFormat == FormatIIFE {
+			indent++
+		}
 		if sourceIndex != runtimeSourceIndex {
 			indent++
 			if !options.omitRuntimeForTests {
@@ -338,18 +372,20 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		trailingSemicolon = ""
 	}
 
-	// Optionally allow naming the exports object
-	if options.ModuleName != "" {
-		js = append(js, ("let " + options.ModuleName + space + "=" + space)...)
-	}
+	outerIndent := ""
+	if options.OutputFormat == FormatIIFE {
+		// Optionally allow naming the exports object
+		if options.ModuleName != "" {
+			js = append(js, ("let " + options.ModuleName + space + "=" + space)...)
+		}
 
-	// Start the closure
-	outerIndent := indent
-	if options.omitRuntimeForTests {
-		outerIndent = ""
-		js = append(js, "bootstrap({"...)
-	} else {
-		js = append(js, ("(()" + space + "=>" + space + "{" + newline)...)
+		// Start the closure
+		if options.omitRuntimeForTests {
+			js = append(js, "bootstrap({"...)
+		} else {
+			outerIndent = indent
+			js = append(js, ("(()" + space + "=>" + space + "{" + newline)...)
+		}
 	}
 
 	// This is the line and column offset since the previous JavaScript string
@@ -433,22 +469,32 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		js = append(js, (outerIndent + indent + "}")...)
 	}
 
-	// End the closure
-	if options.omitRuntimeForTests {
-		if options.RemoveWhitespace {
-			js = append(js, fmt.Sprintf("},%d);", sourceIndexToOutputIndex[entryPoint])...)
+	// Require the entry point at the end
+	requireRef, ok := files[runtimeSourceIndex].ast.ModuleScope.Members["__require"]
+	if !ok {
+		panic("Internal error")
+	}
+	switch options.OutputFormat {
+	case FormatIIFE:
+		// End the closure
+		if options.omitRuntimeForTests {
+			if options.RemoveWhitespace {
+				js = append(js, fmt.Sprintf("},%d);", sourceIndexToOutputIndex[entryPoint])...)
+			} else {
+				js = append(js, fmt.Sprintf("\n}, %d);", sourceIndexToOutputIndex[entryPoint])...)
+			}
 		} else {
-			js = append(js, fmt.Sprintf("\n}, %d);", sourceIndexToOutputIndex[entryPoint])...)
+			js = append(js, (newline + outerIndent + "};" + newline)...)
+			js = append(js, fmt.Sprintf(outerIndent+"return "+symbols.Get(requireRef).Name+"(%d)"+trailingSemicolon+newline,
+				sourceIndexToOutputIndex[entryPoint])...)
+			js = append(js, "})();"...)
 		}
-	} else {
-		requireRef, ok := files[runtimeSourceIndex].ast.ModuleScope.Members["__require"]
-		if !ok {
-			panic("Internal error")
-		}
+
+	case FormatCommonJS:
 		js = append(js, (newline + outerIndent + "};" + newline)...)
-		js = append(js, fmt.Sprintf(outerIndent+"return "+symbols.Get(requireRef).Name+"(%d)"+trailingSemicolon+newline,
+		js = append(js, fmt.Sprintf(outerIndent+"module.exports"+space+"="+space+
+			symbols.Get(requireRef).Name+"(%d);",
 			sourceIndexToOutputIndex[entryPoint])...)
-		js = append(js, "})();"...)
 	}
 	js = append(js, '\n')
 
@@ -1281,6 +1327,10 @@ func (b *Bundle) computeModuleGroups(
 func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
+	}
+
+	if options.OutputFormat == FormatNone {
+		options.OutputFormat = FormatIIFE
 	}
 
 	if options.IsBundling {

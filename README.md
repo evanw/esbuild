@@ -125,8 +125,7 @@ Options:
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
-  --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, ts, tsx, json, text, base64
+  --format=...          Output format (iife or cjs)
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -136,6 +135,8 @@ Options:
   --define:K=V          Substitute K with V while parsing
   --jsx-factory=...     What to use instead of React.createElement
   --jsx-fragment=...    What to use instead of React.Fragment
+  --loader:X=L          Use loader L to load file extension X, where L is
+                        one of: js, jsx, ts, tsx, json, text, base64
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
