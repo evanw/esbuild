@@ -210,15 +210,15 @@ type BundleOptions struct {
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	AbsOutputFile         string
-	AbsOutputDir          string
-	RemoveWhitespace      bool
-	MinifyIdentifiers     bool
-	MangleSyntax          bool
-	SourceMap             bool
-	ModuleName            string
-	ExtensionToLoader     map[string]Loader
-	omitBootstrapForTests bool
+	AbsOutputFile       string
+	AbsOutputDir        string
+	RemoveWhitespace    bool
+	MinifyIdentifiers   bool
+	MangleSyntax        bool
+	SourceMap           bool
+	ModuleName          string
+	ExtensionToLoader   map[string]Loader
+	omitRuntimeForTests bool
 }
 
 type BundleResult struct {
@@ -276,26 +276,27 @@ func (b *Bundle) compileFile(
 	return result
 }
 
+// Join the JavaScript files together into a bundle
 func (b *Bundle) generateJavaScriptForEntryPoint(
 	files []file, symbols *ast.SymbolMap, compileResults map[uint32]*compileResult, groups [][]uint32, options *BundleOptions,
-	jsPrefix []byte, entryPoint uint32, jsName string, sourceIndexToOutputIndex []uint32, moduleInfos []moduleInfo,
+	entryPoint uint32, jsName string, sourceIndexToOutputIndex []uint32, moduleInfos []moduleInfo,
 ) (result BundleResult, generatedOffsets map[uint32]lineColumnOffset) {
-	// Join the JavaScript files together into a bundle
+	space := " "
+	indent := "  "
+	newline := "\n"
+	if options.RemoveWhitespace {
+		space = ""
+		indent = ""
+		newline = ""
+	}
+
 	prevOffset := 0
 	js := []byte{}
 	if options.ModuleName != "" {
-		equals := " = "
-		if options.RemoveWhitespace {
-			equals = "="
-		}
-		js = append(js, ("let " + options.ModuleName + equals)...)
+		js = append(js, ("let " + options.ModuleName + space + "=" + space)...)
 	}
-	if options.omitBootstrapForTests {
+	if options.omitRuntimeForTests {
 		js = append(js, "bootstrap({"...)
-	} else {
-		js = append(js, '(')
-		js = append(js, jsPrefix...)
-		js = append(js, ")({"...)
 	}
 
 	// This is the line and column offset since the previous JavaScript string
@@ -308,15 +309,9 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 
 		// Append the prefix
 		if i > 0 {
-			if options.RemoveWhitespace {
-				js = append(js, ',')
-			} else {
-				js = append(js, ",\n"...)
-			}
+			js = append(js, ("," + newline)...)
 		}
-		if !options.RemoveWhitespace {
-			js = append(js, "\n  "...)
-		}
+		js = append(js, (newline + indent)...)
 		js = append(js, fmt.Sprintf("%d(", sourceIndexToOutputIndex[rootSourceIndex])...)
 		requireSymbol := symbols.Get(ast.FollowSymbols(symbols, tree.RequireRef))
 		exportsSymbol := symbols.Get(ast.FollowSymbols(symbols, tree.ExportsRef))
@@ -324,27 +319,13 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		if requireSymbol.UseCountEstimate > 0 || exportsSymbol.UseCountEstimate > 0 || moduleSymbol.UseCountEstimate > 0 {
 			js = append(js, requireSymbol.Name...)
 			if exportsSymbol.UseCountEstimate > 0 || moduleSymbol.UseCountEstimate > 0 {
-				if options.RemoveWhitespace {
-					js = append(js, ',')
-				} else {
-					js = append(js, ", "...)
-				}
-				js = append(js, exportsSymbol.Name...)
+				js = append(js, ("," + space + exportsSymbol.Name)...)
 				if moduleSymbol.UseCountEstimate > 0 {
-					if options.RemoveWhitespace {
-						js = append(js, ',')
-					} else {
-						js = append(js, ", "...)
-					}
-					js = append(js, moduleSymbol.Name...)
+					js = append(js, ("," + space + moduleSymbol.Name)...)
 				}
 			}
 		}
-		if options.RemoveWhitespace {
-			js = append(js, "){"...)
-		} else {
-			js = append(js, ") {\n"...)
-		}
+		js = append(js, (")" + space + "{" + newline)...)
 
 		// Append the modules in this group
 		for j, sourceIndex := range group {
@@ -371,11 +352,7 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 			// and a non-root module for the entry point of "deluxelib.js".
 			if sourceIndex != rootSourceIndex && moduleInfos[sourceIndex].isExportsUsed() {
 				name := symbols.Get(ast.FollowSymbols(symbols, files[sourceIndex].ast.ExportsRef)).Name
-				if options.RemoveWhitespace {
-					js = append(js, fmt.Sprintf("var %s={};", name)...)
-				} else {
-					js = append(js, fmt.Sprintf("    var %s = {};\n", name)...)
-				}
+				js = append(js, (indent + indent + "var " + name + space + "=" + space + "{};" + newline)...)
 			}
 
 			// Save the offset to the start of the stored JavaScript
@@ -391,19 +368,18 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		}
 
 		// Append the suffix
-		if options.RemoveWhitespace {
-			js = append(js, '}')
-		} else {
-			js = append(js, "  }"...)
-		}
+		js = append(js, (indent + "}")...)
 	}
 
 	// Append the suffix
-	if options.RemoveWhitespace {
-		js = append(js, fmt.Sprintf("},%d);\n", sourceIndexToOutputIndex[entryPoint])...)
-	} else {
-		js = append(js, fmt.Sprintf("\n}, %d);\n", sourceIndexToOutputIndex[entryPoint])...)
+	if options.omitRuntimeForTests {
+		if options.RemoveWhitespace {
+			js = append(js, fmt.Sprintf("},%d);", sourceIndexToOutputIndex[entryPoint])...)
+		} else {
+			js = append(js, fmt.Sprintf("\n}, %d);", sourceIndexToOutputIndex[entryPoint])...)
+		}
 	}
+	js = append(js, '\n')
 
 	result = BundleResult{
 		JsAbsPath:  b.outputPathForEntryPoint(entryPoint, jsName, options),
@@ -1306,9 +1282,6 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 		}(uint32(sourceIndex), result)
 	}
 
-	// All bundles use the same bootstrap prefix
-	jsPrefix := generateBootstrapPrefix(&options)
-
 	// Wait for all compile jobs to finish
 	compileGroup.Wait()
 
@@ -1326,7 +1299,7 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 
 			// Generate the resulting JavaScript file
 			item, generatedOffsets := b.generateJavaScriptForEntryPoint(
-				files, symbols, compileResults, groups, &options, jsPrefix,
+				files, symbols, compileResults, groups, &options,
 				entryPoint, jsName, sourceIndexToOutputIndex, moduleInfos)
 
 			// Optionally also generate a source map
@@ -1458,111 +1431,4 @@ func removeTrailing(x []byte, c byte) []byte {
 		x = x[:len(x)-1]
 	}
 	return x
-}
-
-func generateBootstrapPrefix(options *BundleOptions) []byte {
-	// The require() function serves a few independent purposes:
-	//
-	//   // Import an exports object from another module. If "isES6Import" is
-	//   // truthy and the module referenced by "sourceIndex" is a CommonJS
-	//   // module, a conversion is done to correct for "default" exports.
-	//   require(sourceIndex: number, isES6Import?: boolean): ExportsObject;
-	//
-	//   // Add properties to an exports object. These are added as ES6 getters
-	//   // so the bindings are live and can't be overwritten.
-	//   require(exports: ExportsObject, getters: {[name: string]: () => any}): void;
-	//
-	// It's overloaded like this to make the code slightly smaller as well as to
-	// prevent the module from being able to mess with the export mechanism
-	// (since the "require" symbol is special-cased by the parser).
-	bootstrap := `
-		((modules, entryPoint) => {
-			let global = function() { return this }()
-			let cache = {}
-
-			let esbuildRequire = (target, arg) => {
-				let type = typeof target;
-
-				// If the first argument is a string, this is an external require
-				if (type === 'string') {
-					return require(target)
-				}
-
-				// If the first argument is a number, this is an import
-				if (type === 'number') {
-					let module = cache[target], exports
-
-					// Evaluate the module if needed
-					if (!module) {
-						module = cache[target] = {exports: {}}
-						modules[target].call(global, esbuildRequire, module.exports, module)
-					}
-
-					// Return the exports object off the module in case it was overwritten
-					exports = module.exports
-
-					// Convert CommonJS exports to ES6 exports
-					if (arg && (!exports || !exports.__esModule)) {
-						if (!exports || (typeof exports !== 'object' && typeof exports !== 'function')) {
-							exports = {}
-						}
-						if (!('default' in exports)) {
-							Object.defineProperty(exports, 'default', {
-								get: () => module.exports,
-								enumerable: true,
-							})
-						}
-					}
-
-					return exports
-				}
-
-				// Mark this module as an ES6 module using a non-enumerable property
-				Object.defineProperty(target, '__esModule', {
-					value: true,
-				})
-
-				for (let name in arg) {
-					Object.defineProperty(target, name, {
-						get: arg[name],
-						enumerable: true,
-					})
-				}
-			}
-
-			return esbuildRequire(entryPoint)
-		})
-	`
-
-	// Parse the bootstrap code
-	log := logging.Log{}
-	source := logging.Source{
-		Index:        0,
-		AbsolutePath: "",
-		PrettyPath:   "",
-		Contents:     bootstrap,
-	}
-	result, ok := parser.Parse(log, source, parser.ParseOptions{
-		MangleSyntax:         options.MangleSyntax,
-		KeepSingleExpression: true,
-	})
-	if !ok {
-		panic("Internal error")
-	}
-
-	// Optionally minify the symbol names
-	if options.MinifyIdentifiers {
-		minifyAllSymbols([]*ast.Scope{result.ModuleScope}, result.Symbols)
-	}
-
-	// Print the bootstrap code
-	stmt, ok := result.Stmts[0].Data.(*ast.SExpr)
-	if !ok {
-		panic("Internal error")
-	}
-	return printer.PrintExpr(stmt.Value, result.Symbols, result.RequireRef, printer.Options{
-		RemoveWhitespace:  options.RemoveWhitespace,
-		SourceMapContents: nil,
-		Indent:            0,
-	}).JS
 }

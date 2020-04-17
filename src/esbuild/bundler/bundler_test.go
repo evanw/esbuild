@@ -60,7 +60,7 @@ func expectBundled(t *testing.T, args bundled) {
 		}
 
 		log, join = logging.NewDeferLog()
-		args.bundleOptions.omitBootstrapForTests = true
+		args.bundleOptions.omitRuntimeForTests = true
 		if args.bundleOptions.AbsOutputFile != "" {
 			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
 		}
