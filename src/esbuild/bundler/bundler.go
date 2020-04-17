@@ -113,6 +113,23 @@ func ScanBundle(
 		bundleOptions.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
 
+	// Always start by parsing the runtime file
+	{
+		source := logging.Source{
+			Index:        runtimeSourceIndex,
+			AbsolutePath: "<runtime>",
+			PrettyPath:   "<runtime>",
+			Contents:     runtime,
+		}
+		sources = append(sources, source)
+		files = append(files, file{})
+		remaining++
+		go func() {
+			ast, ok := parser.Parse(log, source, parseOptions)
+			results <- parseResult{source.Index, ast, ok}
+		}()
+	}
+
 	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, isDisabled bool) (uint32, bool) {
 		sourceIndex, ok := visited[path]
 		if !ok {
@@ -302,6 +319,11 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 	// This is the line and column offset since the previous JavaScript string
 	// or the start of the file if this is the first JavaScript string.
 	generatedOffsets = make(map[uint32]lineColumnOffset)
+
+	// Append the runtime
+	if !options.omitRuntimeForTests {
+		js = append(js, compileResults[runtimeSourceIndex].JS...)
+	}
 
 	for i, group := range groups {
 		rootSourceIndex := group[len(group)-1]
@@ -1190,6 +1212,12 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 	for sourceIndex, _ := range files {
 		waitGroup.Add(1)
 		go func(sourceIndex uint32) {
+			// Don't emit the runtime to a file
+			if sourceIndex == runtimeSourceIndex {
+				waitGroup.Done()
+				return
+			}
+
 			group := []uint32{sourceIndex}
 
 			// Make sure we don't rename exports
@@ -1229,7 +1257,8 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 	// Wait for all jobs to finish
 	waitGroup.Wait()
 
-	return results
+	// Skip over the slot for the runtime, which was never filled out
+	return results[1:]
 }
 
 func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleResult {
@@ -1432,3 +1461,10 @@ func removeTrailing(x []byte, c byte) []byte {
 	}
 	return x
 }
+
+const runtimeSourceIndex = 0
+const runtime = `
+	let __require = id => {
+		// TODO
+	}
+`
