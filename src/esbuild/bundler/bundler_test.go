@@ -238,7 +238,7 @@ func TestCommonJSFromES6(t *testing.T) {
 			"/out.js": `bootstrap({
   1(require, exports) {
     // /foo.js
-    require(exports, {
+    __export(exports, {
       fn: () => fn
     });
     function fn() {
@@ -379,13 +379,13 @@ func TestExportForms(t *testing.T) {
 
     // /b.js
     var b = {};
-    require(b, {
+    __export(b, {
       xyz: () => xyz
     });
     const xyz = null;
 
     // /entry.js
-    require(exports, {
+    __export(exports, {
       C: () => Class,
       Class: () => Class,
       Fn: () => Fn,
@@ -611,7 +611,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 			"/out.js": `bootstrap({
   0(require, exports) {
     // /a.js
-    require(exports, {
+    __export(exports, {
       abc: () => abc
     });
     const abc = void 0;
@@ -619,7 +619,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 
   1(require, exports) {
     // /b.js
-    require(exports, {
+    __export(exports, {
       xyz: () => xyz
     });
     const xyz = null;
@@ -627,7 +627,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 
   3(require, exports) {
     // /commonjs.js
-    require(exports, {
+    __export(exports, {
       C: () => Class,
       Class: () => Class,
       Fn: () => Fn,
@@ -650,7 +650,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 
   2(require, exports) {
     // /c.js
-    require(exports, {
+    __export(exports, {
       default: () => default2
     });
     class default2 {
@@ -659,7 +659,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 
   4(require, exports) {
     // /d.js
-    require(exports, {
+    __export(exports, {
       default: () => Foo
     });
     class Foo {
@@ -668,7 +668,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 
   5(require, exports) {
     // /e.js
-    require(exports, {
+    __export(exports, {
       default: () => default2
     });
     function default2() {
@@ -677,7 +677,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 
   7(require, exports) {
     // /f.js
-    require(exports, {
+    __export(exports, {
       default: () => foo
     });
     function foo() {
@@ -686,7 +686,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 
   8(require, exports) {
     // /g.js
-    require(exports, {
+    __export(exports, {
       default: () => default2
     });
     async function default2() {
@@ -695,7 +695,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 
   9(require, exports) {
     // /h.js
-    require(exports, {
+    __export(exports, {
       default: () => foo
     });
     async function foo() {
@@ -738,7 +738,7 @@ func TestExportSelf(t *testing.T) {
 			"/out.js": `bootstrap({
   0(require, exports) {
     // /entry.js
-    require(exports, {
+    __export(exports, {
       foo: () => foo
     });
     const foo = 123;
@@ -769,7 +769,7 @@ func TestExportSelfAsNamespace(t *testing.T) {
 			"/out.js": `bootstrap({
   0(require, exports) {
     // /entry.js
-    require(exports, {
+    __export(exports, {
       foo: () => foo,
       ns: () => exports
     });
@@ -2522,7 +2522,7 @@ func TestExportFSNode(t *testing.T) {
 			"/out.js": `bootstrap({
   0(require, exports) {
     // /entry.js
-    require(exports, {
+    __export(exports, {
       fs: () => fs,
       readFileSync: () => fs2.readFileSync
     });
@@ -2700,7 +2700,7 @@ func TestTopLevelReturn(t *testing.T) {
 			"/out.js": `bootstrap({
   1(require, exports) {
     // /foo.js
-    require(exports, {
+    __export(exports, {
       foo: () => foo
     });
     if (Math.random() < 0.5)

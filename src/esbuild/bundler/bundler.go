@@ -1010,14 +1010,17 @@ func (b *Bundle) bindImportsAndExports(
 		}
 
 		// Use the export slot
+		exportRef, ok := b.files[runtimeSourceIndex].ast.ModuleScope.Members["__export"]
+		if !ok {
+			panic("Internal error")
+		}
 		stmts[0] = ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
-			Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.RequireRef}},
+			Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
 			Args: []ast.Expr{
 				ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
 				ast.Expr{ast.Loc{}, &ast.EObject{properties}},
 			},
 		}}}}
-		symbols.IncrementUseCountEstimate(file.ast.RequireRef)
 		symbols.IncrementUseCountEstimate(file.ast.ExportsRef)
 		file.ast.Stmts = stmts
 	}
@@ -1558,46 +1561,38 @@ const runtime = `
 	// This holds the exports for all modules that have been evaluated
 	let __modules = {}
 
-	let __require = (target, arg) => {
-		// If the first argument is a number, this is an import
-		if (typeof target === 'number') {
-			let module = __modules[target], exports
+	let __require = (target, isES6) => {
+		let module = __modules[target], exports
 
-			// Evaluate the module if needed
-			if (!module) {
-				module = __modules[target] = {exports: {}}
-				__commonjs[target].call(module.exports, __require, module.exports, module)
-			}
-
-			// Return the exports object off the module in case it was overwritten
-			exports = module.exports
-
-			// Convert CommonJS exports to ES6 exports
-			if (arg && (!exports || !exports.__esModule)) {
-				if (!exports || (typeof exports !== 'object' && typeof exports !== 'function')) {
-					exports = {}
-				}
-				if (!('default' in exports)) {
-					__defineProperty(exports, 'default', {
-						get: () => module.exports,
-						enumerable: true,
-					})
-				}
-			}
-
-			return exports
+		// Evaluate the module if needed
+		if (!module) {
+			module = __modules[target] = {exports: {}}
+			__commonjs[target].call(module.exports, __require, module.exports, module)
 		}
 
-		// Mark this module as an ES6 module using a non-enumerable property
-		__defineProperty(target, '__esModule', {
-			value: true,
-		})
+		// Return the exports object off the module in case it was overwritten
+		exports = module.exports
 
-		for (let name in arg) {
-			__defineProperty(target, name, {
-				get: arg[name],
-				enumerable: true,
-			})
+		// Convert CommonJS exports to ES6 exports
+		if (isES6 && (!exports || !exports.__esModule)) {
+			if (!exports || (typeof exports !== 'object' && typeof exports !== 'function')) {
+				exports = {}
+			}
+			if (!('default' in exports)) {
+				__defineProperty(exports, 'default', {
+					get: () => module.exports,
+					enumerable: true,
+				})
+			}
+		}
+
+		return exports
+	}
+
+	let __export = (target, all) => {
+		__defineProperty(target, '__esModule', { value: true })
+		for (let name in all) {
+			__defineProperty(target, name, { get: all[name], enumerable: true })
 		}
 	}
 
