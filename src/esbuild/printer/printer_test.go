@@ -12,7 +12,7 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	}
 }
 
-func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options Options) {
+func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options PrintOptions) {
 	t.Run(name, func(t *testing.T) {
 		log, join := logging.NewDeferLog()
 		ast, ok := parser.Parse(log, logging.Source{
@@ -36,11 +36,11 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 }
 
 func expectPrinted(t *testing.T, contents string, expected string) {
-	expectPrintedCommon(t, contents, contents, expected, Options{})
+	expectPrintedCommon(t, contents, contents, expected, PrintOptions{})
 }
 
 func expectPrintedMinify(t *testing.T, contents string, expected string) {
-	expectPrintedCommon(t, contents+" [minified]", contents, expected, Options{
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
 		RemoveWhitespace: true,
 	})
 }

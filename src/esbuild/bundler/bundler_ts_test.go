@@ -405,16 +405,16 @@ func TestTSExportEquals(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `bootstrap({
-  1(require, exports, module) {
+  1(exports, module) {
     // /b.ts
     function foo() {
     }
     module.exports = [123, foo];
   },
 
-  0(require) {
+  0() {
     // /a.ts
-    const b = require(1 /* ./b.ts */, true /* ES6 import */);
+    const b = __import(1 /* ./b.ts */);
     console.log(b.default);
   }
 }, 0);
@@ -714,7 +714,7 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(b,a){a.foo=function(){return 123}},2(c,b,a){a.exports={test:!0}},1(a){const{foo:b}=a(0);console.log(b(),a(2))}},1);
+			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=f$(0);console.log(b(),f$(2))}},1);
 `,
 		},
 	})

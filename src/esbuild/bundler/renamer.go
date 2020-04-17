@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-func reservedNames(moduleScopes []*ast.Scope, symbols *ast.SymbolMap) map[string]bool {
+func computeReservedNames(moduleScopes []*ast.Scope, symbols *ast.SymbolMap) map[string]bool {
 	names := make(map[string]bool)
 
 	// All keywords are reserved names

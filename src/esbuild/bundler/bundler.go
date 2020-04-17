@@ -297,11 +297,20 @@ func (b *Bundle) compileFile(
 		}
 	}
 
-	result := compileResult{PrintResult: printer.Print(tree, printer.Options{
+	// The printer will be calling runtime functions
+	requireRef, requireOk := b.files[runtimeSourceIndex].ast.ModuleScope.Members["__require"]
+	importRef, importOk := b.files[runtimeSourceIndex].ast.ModuleScope.Members["__import"]
+	if !requireOk || !importOk {
+		panic("Internal error")
+	}
+
+	result := compileResult{PrintResult: printer.Print(tree, printer.PrintOptions{
 		RemoveWhitespace:  options.RemoveWhitespace,
 		SourceMapContents: sourceMapContents,
 		Indent:            indent,
 		ResolvedImports:   remappedResolvedImports,
+		RequireRef:        requireRef,
+		ImportRef:         importRef,
 	})}
 	if options.SourceMap {
 		result.quotedSource = printer.QuoteForJSON(b.sources[sourceIndex].Contents)
@@ -411,16 +420,12 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		}
 		js = append(js, (newline + outerIndent + indent)...)
 		js = append(js, fmt.Sprintf("%d(", sourceIndexToOutputIndex[rootSourceIndex])...)
-		requireSymbol := symbols.Get(ast.FollowSymbols(symbols, tree.RequireRef))
 		exportsSymbol := symbols.Get(ast.FollowSymbols(symbols, tree.ExportsRef))
 		moduleSymbol := symbols.Get(ast.FollowSymbols(symbols, tree.ModuleRef))
-		if requireSymbol.UseCountEstimate > 0 || exportsSymbol.UseCountEstimate > 0 || moduleSymbol.UseCountEstimate > 0 {
-			js = append(js, requireSymbol.Name...)
-			if exportsSymbol.UseCountEstimate > 0 || moduleSymbol.UseCountEstimate > 0 {
-				js = append(js, ("," + space + exportsSymbol.Name)...)
-				if moduleSymbol.UseCountEstimate > 0 {
-					js = append(js, ("," + space + moduleSymbol.Name)...)
-				}
+		if exportsSymbol.UseCountEstimate > 0 || moduleSymbol.UseCountEstimate > 0 {
+			js = append(js, exportsSymbol.Name...)
+			if moduleSymbol.UseCountEstimate > 0 {
+				js = append(js, ("," + space + moduleSymbol.Name)...)
 			}
 		}
 		js = append(js, (")" + space + "{" + newline)...)
@@ -691,7 +696,6 @@ func (b *Bundle) extractImportsAndExports(
 			ast.Binding{loc, &ast.BIdentifier{ref}},
 			&ast.Expr{path.Loc, &ast.ERequire{Path: path, IsES6Import: true}},
 		})
-		symbols.IncrementUseCountEstimate(file.ast.RequireRef)
 	}
 
 	for _, stmt := range file.ast.Stmts {
@@ -1093,7 +1097,7 @@ func (b *Bundle) renameOrMinifyAllSymbolsInRuntime(files []file, symbols *ast.Sy
 	}
 
 	// Avoid collisions with any unbound symbols in any file
-	reservedNames := reservedNames(moduleScopes, symbols)
+	reservedNames := computeReservedNames(moduleScopes, symbols)
 
 	// We're only renaming symbols in the runtime
 	runtimeModuleScope := []*ast.Scope{files[runtimeSourceIndex].ast.ModuleScope}
@@ -1114,20 +1118,6 @@ func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols *ast.SymbolMap, 
 		moduleScopes[i] = files[sourceIndex].ast.ModuleScope
 	}
 
-	// Merge all "require" symbols together. This is necessary for correctness
-	// because all modules in the same group will be joined together in the same
-	// scope later on in the compilation pipeline.
-	//
-	// We don't need to worry about the "exports" and "module" symbols since any
-	// use of those would cause the module using them to be flagged as a CommonJS
-	// module and put into its own group without any other modules. In fact, it'd
-	// be bad if we merged "exports" symbols together because each one may be
-	// used for "import * as ns from 'foo'" statements and different modules in
-	// the same group need to be distinct from one another.
-	for _, sourceIndex := range group[1:] {
-		ast.MergeSymbols(symbols, files[sourceIndex].ast.RequireRef, files[group[0]].ast.RequireRef)
-	}
-
 	// Rename all internal "exports" symbols to something more helpful. These
 	// names don't have to be unique because the renaming pass below will
 	// assign them unique names.
@@ -1139,7 +1129,12 @@ func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols *ast.SymbolMap, 
 	}
 
 	// Avoid collisions with any unbound symbols in this module group
-	reservedNames := reservedNames(moduleScopes, symbols)
+	reservedNames := computeReservedNames(moduleScopes, symbols)
+	if options.IsBundling {
+		// These are used to implement bundling, and need to be free for use
+		reservedNames["require"] = true
+		reservedNames["Promise"] = true
+	}
 
 	// Avoid collisions with symbols in the runtime's top-level scope
 	for _, ref := range files[runtimeSourceIndex].ast.ModuleScope.Members {
@@ -1561,31 +1556,24 @@ const runtime = `
 	// This holds the exports for all modules that have been evaluated
 	let __modules = {}
 
-	let __require = (target, isES6) => {
-		let module = __modules[target], exports
-
-		// Evaluate the module if needed
+	let __require = (id, module) => {
+		module = __modules[id]
 		if (!module) {
-			module = __modules[target] = {exports: {}}
-			__commonjs[target].call(module.exports, __require, module.exports, module)
+			module = __modules[id] = {exports: {}}
+			__commonjs[id].call(module.exports, module.exports, module)
 		}
+		return module.exports
+	}
 
-		// Return the exports object off the module in case it was overwritten
-		exports = module.exports
-
-		// Convert CommonJS exports to ES6 exports
-		if (isES6 && (!exports || !exports.__esModule)) {
-			if (!exports || (typeof exports !== 'object' && typeof exports !== 'function')) {
-				exports = {}
-			}
-			if (!('default' in exports)) {
-				__defineProperty(exports, 'default', {
-					get: () => module.exports,
-					enumerable: true,
-				})
-			}
+	let __import = (module, exports) => {
+		module = __require(module)
+		if (module && module.__esModule) {
+			return module
 		}
-
+		exports = Object(module)
+		if (!('default' in exports)) {
+			__defineProperty(exports, 'default', { value: module, enumerable: true })
+		}
 		return exports
 	}
 
