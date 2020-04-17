@@ -101,10 +101,11 @@ func TestSimpleES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			ModuleName:    "testModule",
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
+			"/out.js": `let testModule = bootstrap({
   0() {
     // /foo.js
     function fn() {
@@ -139,10 +140,11 @@ func TestSimpleCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			ModuleName:    "testModule",
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
+			"/out.js": `let testModule = bootstrap({
   1(require, exports, module) {
     // /foo.js
     module.exports = function() {
