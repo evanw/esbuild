@@ -2465,7 +2465,10 @@ func TestImportFSNode(t *testing.T) {
 			"/out.js": `bootstrap({
   0() {
     // /entry.js
-    const fs = require("fs"), fs2 = require("fs"), fs3 = require("fs"), fs4 = require("fs");
+    const fs = require("fs");
+    const fs2 = require("fs");
+    const fs3 = require("fs");
+    const fs4 = require("fs");
     console.log(fs2, fs4.readFileSync, fs3.default);
   }
 }, 0);
@@ -2526,7 +2529,8 @@ func TestExportFSNode(t *testing.T) {
       fs: () => fs,
       readFileSync: () => fs2.readFileSync
     });
-    const fs = require("fs"), fs2 = require("fs");
+    const fs = require("fs");
+    const fs2 = require("fs");
   }
 }, 0);
 `,

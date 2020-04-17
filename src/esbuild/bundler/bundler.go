@@ -672,6 +672,7 @@ func includeDecls(decls []ast.Decl, symbols *ast.SymbolMap, exports map[string]a
 func (b *Bundle) extractImportsAndExports(
 	log logging.Log, files []file, symbols *ast.SymbolMap, sourceIndex uint32,
 	moduleInfos []moduleInfo, namespaceImportMap map[ast.Ref]ast.ENamespaceImport,
+	options *BundleOptions,
 ) {
 	file := &files[sourceIndex]
 	meta := &moduleInfos[sourceIndex]
@@ -682,13 +683,9 @@ func (b *Bundle) extractImportsAndExports(
 		indirectImportItems[ref] = true
 	}
 
-	// Reserve two statements, one for imports and one for exports. We reserve
-	// these now for two reasons: a) we don't want to reallocate later and b)
-	// we don't want to have to shift all statements over by one to prepend
-	// an import or export statement.
-	stmtStart := 2
-	stmts := make([]ast.Stmt, stmtStart, len(file.ast.Stmts)+stmtStart)
 	importDecls := []ast.Decl{}
+	stmts := file.ast.Stmts
+	stmtCount := 0
 
 	// Certain import and export statements need to generate require() calls
 	addRequireCall := func(loc ast.Loc, ref ast.Ref, path ast.Path) {
@@ -698,7 +695,7 @@ func (b *Bundle) extractImportsAndExports(
 		})
 	}
 
-	for _, stmt := range file.ast.Stmts {
+	for _, stmt := range stmts {
 		switch s := stmt.Data.(type) {
 		case *ast.SImport:
 			otherSourceIndex, ok := file.resolvedImports[s.Path.Text]
@@ -869,21 +866,50 @@ func (b *Bundle) extractImportsAndExports(
 			}
 		}
 
-		stmts = append(stmts, stmt)
+		// Filter the statement array in place to save some allocations
+		stmts[stmtCount] = stmt
+		stmtCount++
 	}
 
-	// Prepend imports if there are any
+	// Finish the filter operation by discarding unused slots
+	stmts = stmts[:stmtCount]
+
+	// Reserve some more slots for any import statements we will generate
 	if len(importDecls) > 0 {
-		stmtStart--
-		stmts[stmtStart] = ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: importDecls}}
+		if options.MangleSyntax {
+			stmtCount++
+		} else {
+			stmtCount += len(importDecls)
+		}
 	}
 
-	// Reserve a slot at the beginning for our exports, which will be used or
-	// discarded by our caller
-	stmtStart--
+	// Preallocate a buffer to use for the final statement array. Make sure to
+	// include enough room for all remaining statements as well as any import
+	// statements we need to generate.
+	//
+	// Reserve an extra slot at the beginning for our exports, which will be used
+	// or discarded by our caller. This extra slot helps avoid another O(n)
+	// reallocation just to prepend the export statement.
+	finalStmts := make([]ast.Stmt, 1, stmtCount+1)
+
+	// Start off with imports if there are any
+	if len(importDecls) > 0 {
+		if options.MangleSyntax {
+			finalStmts = append(finalStmts, ast.Stmt{ast.Loc{},
+				&ast.SLocal{Kind: ast.LocalConst, Decls: importDecls}})
+		} else {
+			for _, decl := range importDecls {
+				finalStmts = append(finalStmts, ast.Stmt{decl.Binding.Loc,
+					&ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{decl}}})
+			}
+		}
+	}
+
+	// Then add all remaining statements
+	finalStmts = append(finalStmts, stmts...)
 
 	// Update the file
-	file.ast.Stmts = stmts[stmtStart:]
+	file.ast.Stmts = finalStmts
 	file.ast.IndirectImportItems = indirectImportItems
 }
 
@@ -911,7 +937,8 @@ func addExportStar(moduleInfos []moduleInfo, visited map[uint32]bool, sourceInde
 }
 
 func (b *Bundle) bindImportsAndExports(
-	log logging.Log, files []file, symbols *ast.SymbolMap, group []uint32, moduleInfos []moduleInfo,
+	log logging.Log, files []file, symbols *ast.SymbolMap, group []uint32,
+	moduleInfos []moduleInfo, options *BundleOptions,
 ) {
 	// Track any imports that may be re-exported
 	namespaceImportMap := make(map[ast.Ref]ast.ENamespaceImport)
@@ -923,7 +950,7 @@ func (b *Bundle) bindImportsAndExports(
 
 	// Scan for information about imports and exports
 	for _, sourceIndex := range group {
-		b.extractImportsAndExports(log, files, symbols, sourceIndex, moduleInfos, namespaceImportMap)
+		b.extractImportsAndExports(log, files, symbols, sourceIndex, moduleInfos, namespaceImportMap, options)
 	}
 
 	// Process "export *" statements
@@ -1257,9 +1284,9 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 	}
 
 	if options.IsBundling {
-		return b.compileBundle(log, options)
+		return b.compileBundle(log, &options)
 	} else {
-		return b.compileIndependent(log, options)
+		return b.compileIndependent(log, &options)
 	}
 }
 
@@ -1271,7 +1298,7 @@ func (b *Bundle) checkOverwrite(log logging.Log, sourceIndex uint32, path string
 	}
 }
 
-func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []BundleResult {
+func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []BundleResult {
 	// When spawning a new goroutine, make sure to manually forward all variables
 	// that are different for every iteration of the loop. Otherwise each
 	// goroutine will share the same copy of the closed-over variables and cause
@@ -1297,18 +1324,18 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 			b.markExportsAsUnbound(files[sourceIndex], symbols)
 
 			// Rename symbols
-			b.renameOrMinifyAllSymbols(files, symbols, group, &options)
+			b.renameOrMinifyAllSymbols(files, symbols, group, options)
 			files[sourceIndex].ast.Symbols = symbols
 
 			// Print the JavaScript code
-			result := b.compileFile(&options, sourceIndex, files[sourceIndex], []uint32{})
+			result := b.compileFile(options, sourceIndex, files[sourceIndex], []uint32{})
 
 			// Make a filename for the resulting JavaScript file
-			jsName := b.outputFileForEntryPoint(sourceIndex, &options)
+			jsName := b.outputFileForEntryPoint(sourceIndex, options)
 
 			// Generate the resulting JavaScript file
 			item := &results[sourceIndex]
-			item.JsAbsPath = b.outputPathForEntryPoint(sourceIndex, jsName, &options)
+			item.JsAbsPath = b.outputPathForEntryPoint(sourceIndex, jsName, options)
 			item.JsContents = addTrailing(result.JS, '\n')
 
 			// Optionally also generate a source map
@@ -1316,7 +1343,7 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 				compileResults := map[uint32]*compileResult{sourceIndex: &result}
 				generatedOffsets := map[uint32]lineColumnOffset{sourceIndex: lineColumnOffset{}}
 				groups := [][]uint32{group}
-				b.generateSourceMapForEntryPoint(compileResults, generatedOffsets, groups, &options, item)
+				b.generateSourceMapForEntryPoint(compileResults, generatedOffsets, groups, options, item)
 			}
 
 			// Refuse to overwrite the input file
@@ -1333,7 +1360,7 @@ func (b *Bundle) compileIndependent(log logging.Log, options BundleOptions) []Bu
 	return results[1:]
 }
 
-func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleResult {
+func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []BundleResult {
 	// Make a shallow copy of all files in the bundle so we don't mutate the bundle
 	files := append([]file{}, b.files...)
 
@@ -1352,7 +1379,7 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 	//   2. Symbols in any other file must not be the same name as any top-level
 	//      symbol in the runtime.
 	//
-	b.renameOrMinifyAllSymbolsInRuntime(files, symbols, &options)
+	b.renameOrMinifyAllSymbolsInRuntime(files, symbols, options)
 
 	// When spawning a new goroutine, make sure to manually forward all variables
 	// that are different for every iteration of the loop. Otherwise each
@@ -1369,8 +1396,8 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 			// names of the symbols.
 			isRuntime := len(group) == 1 && group[0] == runtimeSourceIndex
 			if !isRuntime {
-				b.bindImportsAndExports(log, files, symbols, group, moduleInfos)
-				b.renameOrMinifyAllSymbols(files, symbols, group, &options)
+				b.bindImportsAndExports(log, files, symbols, group, moduleInfos, options)
+				b.renameOrMinifyAllSymbols(files, symbols, group, options)
 			}
 			importExportGroup.Done()
 		}(group)
@@ -1393,7 +1420,7 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 		compileGroup.Add(1)
 		go func(sourceIndex uint32, result *compileResult) {
 			file := files[sourceIndex]
-			*result = b.compileFile(&options, sourceIndex, file, sourceIndexToOutputIndex)
+			*result = b.compileFile(options, sourceIndex, file, sourceIndexToOutputIndex)
 			compileGroup.Done()
 		}(uint32(sourceIndex), result)
 	}
@@ -1411,16 +1438,16 @@ func (b *Bundle) compileBundle(log logging.Log, options BundleOptions) []BundleR
 			groups := b.deterministicDependenciesOfEntryPoint(files, entryPoint, moduleInfos)
 
 			// Make a filename for the resulting JavaScript file
-			jsName := b.outputFileForEntryPoint(entryPoint, &options)
+			jsName := b.outputFileForEntryPoint(entryPoint, options)
 
 			// Generate the resulting JavaScript file
 			item, generatedOffsets := b.generateJavaScriptForEntryPoint(
-				files, symbols, compileResults, groups, &options,
+				files, symbols, compileResults, groups, options,
 				entryPoint, jsName, sourceIndexToOutputIndex, moduleInfos)
 
 			// Optionally also generate a source map
 			if options.SourceMap {
-				b.generateSourceMapForEntryPoint(compileResults, generatedOffsets, groups, &options, &item)
+				b.generateSourceMapForEntryPoint(compileResults, generatedOffsets, groups, options, &item)
 			}
 
 			// Refuse to overwrite the input file
