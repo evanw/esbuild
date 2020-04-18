@@ -853,6 +853,55 @@ func TestExportFormsCommonJS(t *testing.T) {
 	})
 }
 
+func TestReExportDefaultCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {foo as entry} from './foo'
+				entry()
+			`,
+			"/foo.js": `
+				export {default as foo} from './bar'
+			`,
+			"/bar.js": `
+				export default function foo() {
+					return exports // Force this to be a CommonJS module
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0(exports) {
+    // /bar.js
+    __export(exports, {
+      default: () => foo
+    });
+    function foo() {
+      return exports;
+    }
+  },
+
+  1() {
+    // /foo.js
+    const bar = __import(0 /* ./bar */);
+
+    // /entry.js
+    bar.default();
+  }
+}, 1);
+`,
+		},
+	})
+}
+
 func TestExportSelf(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

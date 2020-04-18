@@ -815,10 +815,14 @@ func (b *Bundle) extractImportsAndExports(
 				// these imports as property accesses. Also store information in the
 				// "namespaceImportMap" map since this import is re-exported.
 				for _, item := range s.Items {
+					// Note that the imported alias is "importName", not item.Alias which
+					// is the exported alias. This is somewhat confusing because each
+					// SExportFrom statement is basically SImport + SExportClause in one.
+					importName := symbols.Get(item.Name.Ref).Name
 					namespaceForImportItem[item.Name.Ref] = s.NamespaceRef
 					symbols.SetNamespaceAlias(item.Name.Ref, ast.NamespaceAlias{
 						NamespaceRef: s.NamespaceRef,
-						Alias:        item.Alias,
+						Alias:        importName,
 					})
 				}
 			}

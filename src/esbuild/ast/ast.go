@@ -898,6 +898,12 @@ type Symbol struct {
 	// instead of an EIdentifier. When this is present, the expression should
 	// be printed as a property access off the namespace instead of as a bare
 	// identifier.
+	//
+	// For correctness, this must be stored on the symbol instead of indirectly
+	// associated with the Ref for the symbol somehow. In ES6 "flat bundling"
+	// mode, re-exported symbols are collapsed using MergeSymbols() and renamed
+	// symbols from other files that end up at this symbol must be able to tell
+	// if it has a namespace alias.
 	NamespaceAlias *NamespaceAlias
 }
 
