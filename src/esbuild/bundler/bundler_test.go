@@ -2678,6 +2678,33 @@ var e3;
 	})
 }
 
+func TestRuntimeNameCollisionNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function __require() { return 123 }
+				console.log(__require())
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2018,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `function __require() {
+  return 123;
+}
+console.log(__require());
+`,
+		},
+	})
+}
+
 func TestTopLevelReturn(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

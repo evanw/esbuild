@@ -1207,11 +1207,11 @@ func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols *ast.SymbolMap, 
 		// These are used to implement bundling, and need to be free for use
 		reservedNames["require"] = true
 		reservedNames["Promise"] = true
-	}
 
-	// Avoid collisions with symbols in the runtime's top-level scope
-	for _, ref := range files[runtimeSourceIndex].ast.ModuleScope.Members {
-		reservedNames[symbols.Get(ref).Name] = true
+		// Avoid collisions with symbols in the runtime's top-level scope
+		for _, ref := range files[runtimeSourceIndex].ast.ModuleScope.Members {
+			reservedNames[symbols.Get(ref).Name] = true
+		}
 	}
 
 	if options.MinifyIdentifiers {
