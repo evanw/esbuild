@@ -394,10 +394,27 @@ type EClass struct{ Class Class }
 
 type EIdentifier struct{ Ref Ref }
 
-type ENamespaceImport struct {
-	NamespaceRef Ref
-	ItemRef      Ref
-	Alias        string
+// This is similar to an EIdentifier but it represents a reference to an ES6
+// import item.
+//
+// Depending on how the code is linked, the file containing this EImportIdentifier
+// may or may not be in the same module group as the file it was imported from.
+//
+// If it's the same module group than we can just merge the import item symbol
+// with the corresponding symbol that was imported, effectively renaming them
+// to be the same thing and statically binding them together.
+//
+// But if it's a different module group, then the import must be dynamically
+// evaluated using a property access off the corresponding namespace symbol,
+// which represents the result of a require() call.
+//
+// It's stored as a separate type so it's not easy to confuse with a plain
+// identifier. For example, it'd be bad if code trying to convert "{x: x}" into
+// "{x}" shorthand syntax wasn't aware that the "x" in this case is actually
+// "{x: importedNamespace.x}". This separate type forces code to opt-in to
+// doing this instead of opt-out.
+type EImportIdentifier struct {
+	Ref Ref
 }
 
 type EJSXElement struct {
@@ -457,39 +474,39 @@ type EImport struct {
 	Expr Expr
 }
 
-func (*EArray) isExpr()           {}
-func (*EUnary) isExpr()           {}
-func (*EBinary) isExpr()          {}
-func (*EBoolean) isExpr()         {}
-func (*ESuper) isExpr()           {}
-func (*ENull) isExpr()            {}
-func (*EUndefined) isExpr()       {}
-func (*EThis) isExpr()            {}
-func (*ENew) isExpr()             {}
-func (*ENewTarget) isExpr()       {}
-func (*EImportMeta) isExpr()      {}
-func (*ECall) isExpr()            {}
-func (*EDot) isExpr()             {}
-func (*EIndex) isExpr()           {}
-func (*EArrow) isExpr()           {}
-func (*EFunction) isExpr()        {}
-func (*EClass) isExpr()           {}
-func (*EIdentifier) isExpr()      {}
-func (*ENamespaceImport) isExpr() {}
-func (*EJSXElement) isExpr()      {}
-func (*EMissing) isExpr()         {}
-func (*ENumber) isExpr()          {}
-func (*EBigInt) isExpr()          {}
-func (*EObject) isExpr()          {}
-func (*ESpread) isExpr()          {}
-func (*EString) isExpr()          {}
-func (*ETemplate) isExpr()        {}
-func (*ERegExp) isExpr()          {}
-func (*EAwait) isExpr()           {}
-func (*EYield) isExpr()           {}
-func (*EIf) isExpr()              {}
-func (*ERequire) isExpr()         {}
-func (*EImport) isExpr()          {}
+func (*EArray) isExpr()            {}
+func (*EUnary) isExpr()            {}
+func (*EBinary) isExpr()           {}
+func (*EBoolean) isExpr()          {}
+func (*ESuper) isExpr()            {}
+func (*ENull) isExpr()             {}
+func (*EUndefined) isExpr()        {}
+func (*EThis) isExpr()             {}
+func (*ENew) isExpr()              {}
+func (*ENewTarget) isExpr()        {}
+func (*EImportMeta) isExpr()       {}
+func (*ECall) isExpr()             {}
+func (*EDot) isExpr()              {}
+func (*EIndex) isExpr()            {}
+func (*EArrow) isExpr()            {}
+func (*EFunction) isExpr()         {}
+func (*EClass) isExpr()            {}
+func (*EIdentifier) isExpr()       {}
+func (*EImportIdentifier) isExpr() {}
+func (*EJSXElement) isExpr()       {}
+func (*EMissing) isExpr()          {}
+func (*ENumber) isExpr()           {}
+func (*EBigInt) isExpr()           {}
+func (*EObject) isExpr()           {}
+func (*ESpread) isExpr()           {}
+func (*EString) isExpr()           {}
+func (*ETemplate) isExpr()         {}
+func (*ERegExp) isExpr()           {}
+func (*EAwait) isExpr()            {}
+func (*EYield) isExpr()            {}
+func (*EIf) isExpr()               {}
+func (*ERequire) isExpr()          {}
+func (*EImport) isExpr()           {}
 
 func JoinWithComma(a Expr, b Expr) Expr {
 	return Expr{a.Loc, &EBinary{BinOpComma, a, b}}
@@ -861,13 +878,6 @@ type Ref struct {
 type Symbol struct {
 	Kind SymbolKind
 
-	// This is used for symbols that represent items in the import clause of an
-	// ES6 import statement. These should always be referenced by ENamespaceImport
-	// instead of an EIdentifier. When this flag is true, the expression should
-	// be printed as a property access off the namespace instead of as a bare
-	// identifier.
-	IsIndirectImportItem bool
-
 	// An estimate of the number of uses of this symbol. This is used for
 	// minification (to prefer shorter names for more frequently used symbols).
 	// The reason why this is an estimate instead of an accurate count is that
@@ -882,6 +892,18 @@ type Symbol struct {
 	// an invalid ref if it's the last link. If this isn't invalid, you need to
 	// FollowSymbols to get the real one.
 	Link Ref
+
+	// This is used for symbols that represent items in the import clause of an
+	// ES6 import statement. These should always be referenced by EImportIdentifier
+	// instead of an EIdentifier. When this is present, the expression should
+	// be printed as a property access off the namespace instead of as a bare
+	// identifier.
+	NamespaceAlias *NamespaceAlias
+}
+
+type NamespaceAlias struct {
+	NamespaceRef Ref
+	Alias        string
 }
 
 type ScopeKind int
@@ -928,8 +950,8 @@ func (sm *SymbolMap) IncrementUseCountEstimate(ref Ref) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex].UseCountEstimate++
 }
 
-func (sm *SymbolMap) MarkIndirectImportItem(ref Ref) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex].IsIndirectImportItem = true
+func (sm *SymbolMap) SetNamespaceAlias(ref Ref, alias NamespaceAlias) {
+	sm.Outer[ref.OuterIndex][ref.InnerIndex].NamespaceAlias = &alias
 }
 
 // The symbol must already exist to call this

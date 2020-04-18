@@ -717,8 +717,7 @@ func includeDecls(decls []ast.Decl, symbols *ast.SymbolMap, exports map[string]a
 
 func (b *Bundle) extractImportsAndExports(
 	log logging.Log, files []file, symbols *ast.SymbolMap, sourceIndex uint32,
-	moduleInfos []moduleInfo, namespaceImportMap map[ast.Ref]ast.ENamespaceImport,
-	options *BundleOptions,
+	moduleInfos []moduleInfo, namespaceForImportItem map[ast.Ref]ast.Ref, options *BundleOptions,
 ) {
 	file := &files[sourceIndex]
 	meta := &moduleInfos[sourceIndex]
@@ -767,21 +766,19 @@ func (b *Bundle) extractImportsAndExports(
 				// these imports as property accesses. Also store information in the
 				// "namespaceImportMap" map in case this import is re-exported.
 				if s.DefaultName != nil {
-					symbols.MarkIndirectImportItem(s.DefaultName.Ref)
-					namespaceImportMap[s.DefaultName.Ref] = ast.ENamespaceImport{
+					namespaceForImportItem[s.DefaultName.Ref] = s.NamespaceRef
+					symbols.SetNamespaceAlias(s.DefaultName.Ref, ast.NamespaceAlias{
 						NamespaceRef: s.NamespaceRef,
-						ItemRef:      s.DefaultName.Ref,
 						Alias:        "default",
-					}
+					})
 				}
 				if s.Items != nil {
 					for _, item := range *s.Items {
-						symbols.MarkIndirectImportItem(item.Name.Ref)
-						namespaceImportMap[item.Name.Ref] = ast.ENamespaceImport{
+						namespaceForImportItem[item.Name.Ref] = s.NamespaceRef
+						symbols.SetNamespaceAlias(item.Name.Ref, ast.NamespaceAlias{
 							NamespaceRef: s.NamespaceRef,
-							ItemRef:      item.Name.Ref,
 							Alias:        item.Alias,
-						}
+						})
 					}
 				}
 			}
@@ -818,12 +815,11 @@ func (b *Bundle) extractImportsAndExports(
 				// these imports as property accesses. Also store information in the
 				// "namespaceImportMap" map since this import is re-exported.
 				for _, item := range s.Items {
-					symbols.MarkIndirectImportItem(item.Name.Ref)
-					namespaceImportMap[item.Name.Ref] = ast.ENamespaceImport{
+					namespaceForImportItem[item.Name.Ref] = s.NamespaceRef
+					symbols.SetNamespaceAlias(item.Name.Ref, ast.NamespaceAlias{
 						NamespaceRef: s.NamespaceRef,
-						ItemRef:      item.Name.Ref,
 						Alias:        item.Alias,
-					}
+					})
 				}
 			}
 			continue
@@ -980,7 +976,7 @@ func (b *Bundle) bindImportsAndExports(
 	moduleInfos []moduleInfo, options *BundleOptions,
 ) {
 	// Track any imports that may be re-exported
-	namespaceImportMap := make(map[ast.Ref]ast.ENamespaceImport)
+	namespaceForImportItem := make(map[ast.Ref]ast.Ref)
 
 	// Initialize the export maps
 	for _, sourceIndex := range group {
@@ -989,7 +985,7 @@ func (b *Bundle) bindImportsAndExports(
 
 	// Scan for information about imports and exports
 	for _, sourceIndex := range group {
-		b.extractImportsAndExports(log, files, symbols, sourceIndex, moduleInfos, namespaceImportMap, options)
+		b.extractImportsAndExports(log, files, symbols, sourceIndex, moduleInfos, namespaceForImportItem, options)
 	}
 
 	// Process "export *" statements
@@ -1058,10 +1054,10 @@ func (b *Bundle) bindImportsAndExports(
 		for _, alias := range aliases {
 			exportRef := exports[alias]
 			var value ast.Expr
-			if importData, ok := namespaceImportMap[exportRef]; ok {
-				// If this export is a namespace import then we need to generate a ENamespaceImport
-				value = ast.Expr{ast.Loc{}, &importData}
-				symbols.IncrementUseCountEstimate(importData.NamespaceRef)
+			if namespaceRef, ok := namespaceForImportItem[exportRef]; ok {
+				// If this export is a namespace import then we need to generate an EImportIdentifier
+				value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{exportRef}}
+				symbols.IncrementUseCountEstimate(namespaceRef)
 			} else {
 				value = ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}}
 				symbols.IncrementUseCountEstimate(exportRef)

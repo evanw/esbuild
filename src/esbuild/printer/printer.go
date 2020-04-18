@@ -799,10 +799,11 @@ func (p *printer) printProperty(item ast.Property) {
 						return
 					}
 
-				case *ast.ENamespaceImport:
+				case *ast.EImportIdentifier:
 					// Make sure we're not using a property access instead of an identifier
-					ref := ast.FollowSymbols(p.symbols, e.ItemRef)
-					if !p.symbols.Get(ref).IsIndirectImportItem && text == p.symbolName(e.ItemRef) {
+					ref := ast.FollowSymbols(p.symbols, e.Ref)
+					symbol := p.symbols.Get(ref)
+					if symbol.NamespaceAlias == nil && text == symbol.Name {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -1319,15 +1320,17 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printSpaceBeforeIdentifier()
 		p.printSymbol(e.Ref)
 
-	case *ast.ENamespaceImport:
+	case *ast.EImportIdentifier:
 		// Potentially use a property access instead of an identifier
-		ref := ast.FollowSymbols(p.symbols, e.ItemRef)
-		if p.symbols.Get(ref).IsIndirectImportItem {
-			p.printSymbol(e.NamespaceRef)
+		ref := ast.FollowSymbols(p.symbols, e.Ref)
+		symbol := p.symbols.Get(ref)
+		if symbol.NamespaceAlias != nil {
+			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			p.print(".")
-			p.print(e.Alias)
+			p.print(symbol.NamespaceAlias.Alias)
 		} else {
-			p.printSymbol(e.ItemRef)
+			p.printSpaceBeforeIdentifier()
+			p.print(symbol.Name)
 		}
 
 	case *ast.EAwait:

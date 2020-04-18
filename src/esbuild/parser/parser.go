@@ -56,7 +56,7 @@ type parser struct {
 
 	// These are for handling ES6 imports and exports
 	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
-	exprForImportItem       map[ast.Ref]*ast.ENamespaceImport
+	isImportItem            map[ast.Ref]bool
 	exportAliases           map[string]bool
 
 	// The parser does two passes and we need to pass the scope tree information
@@ -4451,11 +4451,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if stmt.DefaultName != nil {
 			name := p.loadNameFromRef(stmt.DefaultName.Ref)
 			ref := p.declareSymbol(kind, stmt.DefaultName.Loc, name)
-			p.exprForImportItem[ref] = &ast.ENamespaceImport{
-				NamespaceRef: stmt.NamespaceRef,
-				ItemRef:      ref,
-				Alias:        "default",
-			}
+			p.isImportItem[ref] = true
 			stmt.DefaultName.Ref = ref
 			itemRefs["default"] = ref
 		}
@@ -4465,11 +4461,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			for i, item := range *stmt.Items {
 				name := p.loadNameFromRef(item.Name.Ref)
 				ref := p.declareSymbol(kind, item.Name.Loc, name)
-				p.exprForImportItem[ref] = &ast.ENamespaceImport{
-					NamespaceRef: stmt.NamespaceRef,
-					ItemRef:      ref,
-					Alias:        item.Alias,
-				}
+				p.isImportItem[ref] = true
 				(*stmt.Items)[i].Name.Ref = ref
 				itemRefs[item.Alias] = ref
 			}
@@ -6439,9 +6431,9 @@ func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string) ast.Expr
 	ref := p.findSymbol(parts[0])
 	value := ast.Expr{loc, &ast.EIdentifier{ref}}
 
-	// Substitute an EImportNamespace now if this is an import item
-	if importData, ok := p.exprForImportItem[ref]; ok {
-		value.Data = importData
+	// Substitute an EImportIdentifier now if this is an import item
+	if p.isImportItem[ref] {
+		value.Data = &ast.EImportIdentifier{ref}
 	}
 
 	for i := 1; i < len(parts); i++ {
@@ -6485,33 +6477,28 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 		// module linking just to rewrite these EDot expressions.
 		if importItems, ok := p.importItemsForNamespace[id.Ref]; ok {
 			var itemRef ast.Ref
-			var importData *ast.ENamespaceImport
 
 			// Cache translation so each property access resolves to the same import
 			itemRef, ok := importItems[data.Name]
-			if ok {
-				importData = p.exprForImportItem[itemRef]
-			} else {
+			if !ok {
 				// Generate a new import item symbol in the module scope
 				itemRef = p.newSymbol(ast.SymbolOther, data.Name)
 				p.moduleScope.Generated = append(p.moduleScope.Generated, itemRef)
 
 				// Link the namespace import and the import item together
 				importItems[data.Name] = itemRef
-				importData = &ast.ENamespaceImport{
-					NamespaceRef: id.Ref,
-					ItemRef:      itemRef,
-					Alias:        data.Name,
-				}
-				p.exprForImportItem[itemRef] = importData
+				p.isImportItem[itemRef] = true
 
 				// Make sure the printer prints this as a property access
-				p.symbols[itemRef.InnerIndex].IsIndirectImportItem = true
+				p.symbols[itemRef.InnerIndex].NamespaceAlias = &ast.NamespaceAlias{
+					NamespaceRef: id.Ref,
+					Alias:        data.Name,
+				}
 			}
 
 			// Track how many times we've referenced this symbol
 			p.recordUsage(itemRef)
-			return ast.Expr{loc, importData}
+			return ast.Expr{loc, &ast.EImportIdentifier{itemRef}}
 		}
 
 		// If this is a known enum value, inline the value of the enum
@@ -6873,9 +6860,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		name := p.loadNameFromRef(e.Ref)
 		e.Ref = p.findSymbol(name)
 
-		// Substitute an EImportNamespace now if this is an import item
-		if importData, ok := p.exprForImportItem[e.Ref]; ok {
-			return ast.Expr{expr.Loc, importData}, exprOut{}
+		// Substitute an EImportIdentifier now if this is an import item
+		if p.isImportItem[e.Ref] {
+			return ast.Expr{expr.Loc, &ast.EImportIdentifier{e.Ref}}, exprOut{}
 		}
 
 		// Substitute a namespace export reference now if appropriate
@@ -7742,7 +7729,7 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 
 		// These are for handling ES6 imports and exports
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
-		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),
+		isImportItem:            make(map[ast.Ref]bool),
 		exportAliases:           make(map[string]bool),
 		identifierDefines:       make(map[string]ast.E),
 		dotDefines:              make(map[string]dotDefine),
