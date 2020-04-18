@@ -480,6 +480,141 @@ export * as fromB from "./b";
 	})
 }
 
+func TestImportStarES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from './foo'
+				console.log(ns.foo)
+			`,
+			"/foo.js": `
+				export const foo = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /foo.js
+    var exports = {};
+    __export(exports, {
+      foo: () => foo2
+    });
+    const foo2 = 123;
+
+    // /entry.js
+    console.log(exports.foo);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestImportStarCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from './foo'
+				console.log(ns.foo)
+			`,
+			"/foo.js": `
+				exports.foo = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(exports) {
+    // /foo.js
+    exports.foo = 123;
+  },
+
+  0() {
+    // /entry.js
+    const ns = __import(1 /* ./foo */);
+    console.log(ns.foo);
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestImportStarES6AndCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry1.js": `
+				import * as ns from './foo'
+				console.log(ns.foo)
+			`,
+			"/entry2.js": `
+				const ns = require('./foo')
+				console.log(ns.foo)
+			`,
+			"/foo.js": `
+				export const foo = 123
+			`,
+		},
+		entryPaths: []string{"/entry1.js", "/entry2.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:   true,
+			AbsOutputDir: "/out",
+		},
+		expected: map[string]string{
+			"/out/entry1.js": `bootstrap({
+  2(exports) {
+    // /foo.js
+    __export(exports, {
+      foo: () => foo
+    });
+    const foo = 123;
+  },
+
+  0() {
+    // /entry1.js
+    const ns = __import(2 /* ./foo */);
+    console.log(ns.foo);
+  }
+}, 0);
+`,
+			"/out/entry2.js": `bootstrap({
+  2(exports) {
+    // /foo.js
+    __export(exports, {
+      foo: () => foo
+    });
+    const foo = 123;
+  },
+
+  1() {
+    // /entry2.js
+    const ns = __require(2 /* ./foo */);
+    console.log(ns.foo);
+  }
+}, 1);
+`,
+		},
+	})
+}
+
 func TestImportFormsWithNoBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
