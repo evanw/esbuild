@@ -861,6 +861,13 @@ type Ref struct {
 type Symbol struct {
 	Kind SymbolKind
 
+	// This is used for symbols that represent items in the import clause of an
+	// ES6 import statement. These should always be referenced by ENamespaceImport
+	// instead of an EIdentifier. When this flag is true, the expression should
+	// be printed as a property access off the namespace instead of as a bare
+	// identifier.
+	IsIndirectImportItem bool
+
 	// An estimate of the number of uses of this symbol. This is used for
 	// minification (to prefer shorter names for more frequently used symbols).
 	// The reason why this is an estimate instead of an accurate count is that
@@ -921,6 +928,10 @@ func (sm *SymbolMap) IncrementUseCountEstimate(ref Ref) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex].UseCountEstimate++
 }
 
+func (sm *SymbolMap) MarkIndirectImportItem(ref Ref) {
+	sm.Outer[ref.OuterIndex][ref.InnerIndex].IsIndirectImportItem = true
+}
+
 // The symbol must already exist to call this
 func (sm *SymbolMap) Set(ref Ref, symbol Symbol) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex] = symbol
@@ -954,12 +965,6 @@ type ImportPath struct {
 type AST struct {
 	ImportPaths   []ImportPath
 	WasTypeScript bool
-
-	// ENamespaceImport items in this map are printed as an indirect access off
-	// of the namespace. This is a way for the bundler to pass this information
-	// to the printer. This is necessary when using a namespace import or when
-	// an import item must be converted to a property access off a require() call.
-	IndirectImportItems map[Ref]bool
 
 	// This is true if something used the "exports" or "module" variables, which
 	// means they could have exported something. It's also true if the file

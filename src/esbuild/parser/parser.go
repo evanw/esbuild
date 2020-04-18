@@ -55,7 +55,6 @@ type parser struct {
 	knownEnumValues            map[ast.Ref]map[string]float64
 
 	// These are for handling ES6 imports and exports
-	indirectImportItems     map[ast.Ref]bool
 	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
 	exprForImportItem       map[ast.Ref]*ast.ENamespaceImport
 	exportAliases           map[string]bool
@@ -304,7 +303,11 @@ func (p *parser) popAndDiscardScope(scopeIndex int) {
 
 func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
 	ref := ast.Ref{p.source.Index, uint32(len(p.symbols))}
-	p.symbols = append(p.symbols, ast.Symbol{kind, 0, name, ast.InvalidRef})
+	p.symbols = append(p.symbols, ast.Symbol{
+		Kind: kind,
+		Name: name,
+		Link: ast.InvalidRef,
+	})
 	if p.ts.Parse {
 		p.tsUseCounts = append(p.tsUseCounts, 0)
 	}
@@ -6503,7 +6506,7 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 				p.exprForImportItem[itemRef] = importData
 
 				// Make sure the printer prints this as a property access
-				p.indirectImportItems[itemRef] = true
+				p.symbols[itemRef.InnerIndex].IsIndirectImportItem = true
 			}
 
 			// Track how many times we've referenced this symbol
@@ -7738,7 +7741,6 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 		knownEnumValues:           make(map[ast.Ref]map[string]float64),
 
 		// These are for handling ES6 imports and exports
-		indirectImportItems:     make(map[ast.Ref]bool),
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		exprForImportItem:       make(map[ast.Ref]*ast.ENamespaceImport),
 		exportAliases:           make(map[string]bool),
@@ -7891,7 +7893,6 @@ func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string)
 
 	return ast.AST{
 		ImportPaths:          p.importPaths,
-		IndirectImportItems:  p.indirectImportItems,
 		UsesCommonJSFeatures: usesCommonJSFeatures,
 		Stmts:                stmts,
 		ModuleScope:          p.moduleScope,

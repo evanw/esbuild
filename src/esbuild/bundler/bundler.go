@@ -723,12 +723,6 @@ func (b *Bundle) extractImportsAndExports(
 	file := &files[sourceIndex]
 	meta := &moduleInfos[sourceIndex]
 
-	// Track import items, which must be converted to property accesses
-	indirectImportItems := make(map[ast.Ref]bool, len(file.ast.IndirectImportItems))
-	for ref, _ := range file.ast.IndirectImportItems {
-		indirectImportItems[ref] = true
-	}
-
 	importDecls := []ast.Decl{}
 	stmts := file.ast.Stmts
 	stmtCount := 0
@@ -773,7 +767,7 @@ func (b *Bundle) extractImportsAndExports(
 				// these imports as property accesses. Also store information in the
 				// "namespaceImportMap" map in case this import is re-exported.
 				if s.DefaultName != nil {
-					indirectImportItems[s.DefaultName.Ref] = true
+					symbols.MarkIndirectImportItem(s.DefaultName.Ref)
 					namespaceImportMap[s.DefaultName.Ref] = ast.ENamespaceImport{
 						NamespaceRef: s.NamespaceRef,
 						ItemRef:      s.DefaultName.Ref,
@@ -782,7 +776,7 @@ func (b *Bundle) extractImportsAndExports(
 				}
 				if s.Items != nil {
 					for _, item := range *s.Items {
-						indirectImportItems[item.Name.Ref] = true
+						symbols.MarkIndirectImportItem(item.Name.Ref)
 						namespaceImportMap[item.Name.Ref] = ast.ENamespaceImport{
 							NamespaceRef: s.NamespaceRef,
 							ItemRef:      item.Name.Ref,
@@ -824,7 +818,7 @@ func (b *Bundle) extractImportsAndExports(
 				// these imports as property accesses. Also store information in the
 				// "namespaceImportMap" map since this import is re-exported.
 				for _, item := range s.Items {
-					indirectImportItems[item.Name.Ref] = true
+					symbols.MarkIndirectImportItem(item.Name.Ref)
 					namespaceImportMap[item.Name.Ref] = ast.ENamespaceImport{
 						NamespaceRef: s.NamespaceRef,
 						ItemRef:      item.Name.Ref,
@@ -956,7 +950,6 @@ func (b *Bundle) extractImportsAndExports(
 
 	// Update the file
 	file.ast.Stmts = finalStmts
-	file.ast.IndirectImportItems = indirectImportItems
 }
 
 func addExportStar(moduleInfos []moduleInfo, visited map[uint32]bool, sourceIndex uint32, otherSourceIndex uint32) {
