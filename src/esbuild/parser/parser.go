@@ -86,7 +86,6 @@ type parser struct {
 	callTarget        ast.E
 	typeofTarget      ast.E
 	moduleScope       *ast.Scope
-	unbound           []ast.Ref
 	isControlFlowDead bool
 	tempRefs          []ast.Ref // Temporary variables used for lowering
 	identifierDefines map[string]ast.E
@@ -4859,7 +4858,6 @@ func (p *parser) findSymbol(name string) ast.Ref {
 			// Allocate an "unbound" symbol
 			ref = p.newSymbol(ast.SymbolUnbound, name)
 			p.moduleScope.Members[name] = ref
-			p.unbound = append(p.unbound, ref)
 
 			// Track how many times we've referenced this symbol
 			p.recordUsage(ref)
@@ -4882,7 +4880,6 @@ func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
 
 	// Allocate an "unbound" symbol
 	ref := p.newSymbol(ast.SymbolUnbound, name)
-	p.unbound = append(p.unbound, ref)
 
 	// Track how many times we've referenced this symbol
 	p.recordUsage(ref)
@@ -5700,7 +5697,6 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
 			s.Items[i].Name.Ref = p.newSymbol(ast.SymbolUnbound, name)
-			p.unbound = append(p.unbound, item.Name.Ref)
 			p.recordExport(item.AliasLoc, item.Alias)
 		}
 
