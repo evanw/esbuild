@@ -1023,6 +1023,31 @@ func (p *parser) trySkipTypeScriptTypeArgumentsWithBacktracking() bool {
 	return true
 }
 
+func (p *parser) trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() bool {
+	oldLexer := p.lexer
+	p.lexer.IsLogDisabled = true
+
+	// Implement backtracking by restoring the lexer's memory to its original state
+	defer func() {
+		r := recover()
+		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+			p.lexer = oldLexer
+		} else if r != nil {
+			panic(r)
+		}
+	}()
+
+	p.skipTypeScriptTypeParameters()
+	if p.lexer.Token != lexer.TOpenParen {
+		p.lexer.Unexpected()
+	}
+
+	// Restore the log disabled flag. Note that we can't just set it back to false
+	// because it may have been true to start with.
+	p.lexer.IsLogDisabled = oldLexer.IsLogDisabled
+	return true
+}
+
 func (p *parser) trySkipTypeScriptArrowReturnTypeWithBacktracking() bool {
 	oldLexer := p.lexer
 	p.lexer.IsLogDisabled = true
@@ -1585,6 +1610,16 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 		// "async"
 		// "async + 1"
 	default:
+		// Distinguish between a call like "async<T>()" and an arrow like "async <T>() => {}"
+		if p.ts.Parse && p.lexer.Token == lexer.TLessThan && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
+			p.lexer.Next()
+			expr := p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
+			if _, ok := expr.Data.(*ast.EArrow); ok {
+				p.warnAboutFutureSyntax(ES2017, asyncRange)
+			}
+			return expr
+		}
+
 		expr = ast.Expr{asyncRange.Loc, &ast.EIdentifier{p.storeNameInRef("async")}}
 	}
 
@@ -2227,7 +2262,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		//     <[]>(x)
 		//     <A[]>(x)
 		//
-		//   An arrow function with type arguments:
+		//   An arrow function with type parameters:
 		//     <A>(x) => {}
 		//     <A, B>(x) => {}
 		//     <A = B>(x) => {}
@@ -2240,7 +2275,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		//     <A extends>(x) => {}</A>
 		//     <A extends={false}>(x) => {}</A>
 		//
-		//   An arrow function with type arguments:
+		//   An arrow function with type parameters:
 		//     <A, B>(x) => {}
 		//     <A extends B>(x) => {}
 		//
@@ -2250,7 +2285,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		//     <A>(x) => {}
 		//     <A = B>(x) => {}
 
-		if p.ts.Parse {
+		if p.ts.Parse && p.jsx.Parse {
 			oldLexer := p.lexer
 			p.lexer.Next()
 
@@ -2270,7 +2305,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			p.lexer = oldLexer
 
 			if isTSArrowFn {
-				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				p.skipTypeScriptTypeParameters()
 				p.lexer.Expect(lexer.TOpenParen)
 				return p.parseParenExpr(loc, parenExprOpts{forceArrowFn: true})
 			}
@@ -2290,7 +2325,16 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		}
 
 		if p.ts.Parse {
-			// This is an old-style type cast
+			// This is either an old-style type cast or a generic lambda function
+
+			// "<T>(x)"
+			// "<T>(x) => {}"
+			if p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
+				p.lexer.Expect(lexer.TOpenParen)
+				return p.parseParenExpr(loc, parenExprOpts{})
+			}
+
+			// "<T>x"
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LLowest)
 			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
