@@ -2534,10 +2534,13 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 
 		case lexer.TExclamation:
 			// Skip over TypeScript non-null assertions
+			if p.lexer.HasNewlineBefore {
+				return left
+			}
 			if !p.ts.Parse {
 				p.lexer.Unexpected()
 			}
-			if p.lexer.HasNewlineBefore || level >= ast.LPostfix {
+			if level >= ast.LPostfix {
 				return left
 			}
 			p.lexer.Next()
