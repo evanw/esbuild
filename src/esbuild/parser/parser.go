@@ -4217,6 +4217,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			if !p.currentFnOpts.allowAwait {
 				p.addRangeError(p.lexer.Range(), "Cannot use \"await\" outside an async function")
 				isAwait = false
+			} else {
+				p.warnAboutFutureSyntax(ES2018, p.lexer.Range())
 			}
 			p.lexer.Next()
 		}
