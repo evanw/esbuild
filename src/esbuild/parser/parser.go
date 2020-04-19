@@ -7881,7 +7881,6 @@ func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string)
 		ModuleScope:          p.moduleScope,
 		Symbols:              &symbols,
 		ExportsRef:           p.exportsRef,
-		RequireRef:           p.requireRef,
 		ModuleRef:            p.moduleRef,
 		Hashbang:             hashbang,
 	}

@@ -1006,7 +1006,6 @@ type AST struct {
 	Symbols     *SymbolMap
 	ModuleScope *Scope
 	ExportsRef  Ref
-	RequireRef  Ref
 	ModuleRef   Ref
 }
 
