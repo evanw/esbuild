@@ -162,7 +162,7 @@ func TestJSONObject(t *testing.T) {
 	expectPrintedJSON(t, "{\"x\":0}", "{x:0}")
 	expectPrintedJSON(t, "{\"x\":0,\"y\":1}", "{x:0,y:1}")
 	expectPrintedJSONWithWarning(t, "{\"x\":0,\"x\":1}", "<stdin>: warning: Duplicate key: \"x\"\n", "{x:0,x:1}")
-	expectParseErrorJSON(t, "{\"x\":0,}", "<stdin>: error: Expected string but found \"}\"\n")
+	expectParseErrorJSON(t, "{\"x\":0,}", "<stdin>: error: JSON does not support trailing commas\n")
 	expectParseErrorJSON(t, "{x:0}", "<stdin>: error: Expected string but found \"x\"\n")
 	expectParseErrorJSON(t, "{1:0}", "<stdin>: error: Expected string but found \"1\"\n")
 	expectParseErrorJSON(t, "{[\"x\"]:0}", "<stdin>: error: Expected string but found \"[\"\n")
@@ -174,7 +174,7 @@ func TestJSONArray(t *testing.T) {
 	expectPrintedJSON(t, "[1,2]", "[1,2]")
 	expectParseErrorJSON(t, "[,]", "<stdin>: error: Unexpected \",\"\n")
 	expectParseErrorJSON(t, "[,1]", "<stdin>: error: Unexpected \",\"\n")
-	expectParseErrorJSON(t, "[1,]", "<stdin>: error: Unexpected \"]\"\n")
+	expectParseErrorJSON(t, "[1,]", "<stdin>: error: JSON does not support trailing commas\n")
 	expectParseErrorJSON(t, "[1,,2]", "<stdin>: error: Unexpected \",\"\n")
 }
 

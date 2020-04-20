@@ -13,6 +13,18 @@ type jsonParser struct {
 	lexer  lexer.Lexer
 }
 
+func (p *jsonParser) parseMaybeTrailingComma(closeToken lexer.T) bool {
+	commaRange := p.lexer.Range()
+	p.lexer.Expect(lexer.TComma)
+
+	if p.lexer.Token == closeToken {
+		p.log.AddRangeError(p.source, commaRange, "JSON does not support trailing commas")
+		return false
+	}
+
+	return true
+}
+
 func (p *jsonParser) parseExpr() ast.Expr {
 	loc := p.lexer.Loc()
 
@@ -50,8 +62,8 @@ func (p *jsonParser) parseExpr() ast.Expr {
 		items := []ast.Expr{}
 
 		for p.lexer.Token != lexer.TCloseBracket {
-			if len(items) > 0 {
-				p.lexer.Expect(lexer.TComma)
+			if len(items) > 0 && !p.parseMaybeTrailingComma(lexer.TCloseBracket) {
+				break
 			}
 
 			item := p.parseExpr()
@@ -67,8 +79,8 @@ func (p *jsonParser) parseExpr() ast.Expr {
 		duplicates := make(map[string]bool)
 
 		for p.lexer.Token != lexer.TCloseBrace {
-			if len(properties) > 0 {
-				p.lexer.Expect(lexer.TComma)
+			if len(properties) > 0 && !p.parseMaybeTrailingComma(lexer.TCloseBrace) {
+				break
 			}
 
 			keyString := p.lexer.StringLiteral
