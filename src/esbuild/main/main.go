@@ -52,6 +52,16 @@ func (args *args) parseDefine(key string, value string) bool {
 		}
 	}
 
+	// Allow substituting for an identifier
+	if lexer.IsIdentifier(value) {
+		if _, ok := lexer.Keywords()[value]; !ok {
+			args.parseOptions.Defines[key] = func(helper parser.DefineHelper) ast.E {
+				return &ast.EIdentifier{helper.FindSymbol(value)}
+			}
+			return true
+		}
+	}
+
 	// Parse the value as JSON
 	log, done := logging.NewDeferLog()
 	source := logging.Source{Contents: value}
@@ -62,12 +72,22 @@ func (args *args) parseDefine(key string, value string) bool {
 	}
 
 	// Only allow atoms for now
-	switch expr.Data.(type) {
-	case *ast.ENull, *ast.EBoolean, *ast.EString, *ast.ENumber:
-		args.parseOptions.Defines[key] = expr.Data
-		return true
+	var fn parser.DefineFunc
+	switch e := expr.Data.(type) {
+	case *ast.ENull:
+		fn = func(parser.DefineHelper) ast.E { return &ast.ENull{} }
+	case *ast.EBoolean:
+		fn = func(parser.DefineHelper) ast.E { return &ast.EBoolean{e.Value} }
+	case *ast.EString:
+		fn = func(parser.DefineHelper) ast.E { return &ast.EString{e.Value} }
+	case *ast.ENumber:
+		fn = func(parser.DefineHelper) ast.E { return &ast.ENumber{e.Value} }
+	default:
+		return false
 	}
-	return false
+
+	args.parseOptions.Defines[key] = fn
+	return true
 }
 
 func (args *args) parseLoader(key string, value string) bool {
@@ -109,7 +129,7 @@ func (args *args) parseMemberExpression(text string) ([]string, bool) {
 func parseArgs() args {
 	args := args{
 		parseOptions: parser.ParseOptions{
-			Defines: make(map[string]ast.E),
+			Defines: make(map[string]parser.DefineFunc),
 		},
 		bundleOptions: bundler.BundleOptions{
 			ExtensionToLoader: bundler.DefaultExtensionToLoaderMap(),

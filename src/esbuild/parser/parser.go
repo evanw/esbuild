@@ -88,7 +88,7 @@ type parser struct {
 	moduleScope       *ast.Scope
 	isControlFlowDead bool
 	tempRefs          []ast.Ref // Temporary variables used for lowering
-	identifierDefines map[string]ast.E
+	identifierDefines map[string]DefineFunc
 	dotDefines        map[string]dotDefine
 }
 
@@ -4862,8 +4862,8 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 }
 
 type dotDefine struct {
-	parts []string
-	value ast.E
+	parts      []string
+	defineFunc DefineFunc
 }
 
 func (p *parser) generateTempRef() ast.Ref {
@@ -4892,7 +4892,7 @@ func (p *parser) pushScopeForVisitPass(kind ast.ScopeKind, loc ast.Loc) {
 	p.currentScope = order.scope
 }
 
-func (p *parser) findSymbol(name string) ast.Ref {
+func (p *parser) FindSymbol(name string) ast.Ref {
 	s := p.currentScope
 	for {
 		ref, ok := s.Members[name]
@@ -5731,7 +5731,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SExportClause:
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
-			s.Items[i].Name.Ref = p.findSymbol(name)
+			s.Items[i].Name.Ref = p.FindSymbol(name)
 			p.recordExport(item.AliasLoc, item.Alias)
 		}
 
@@ -6468,12 +6468,12 @@ func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 	}
 
 	// The last symbol must be unbound
-	ref := p.findSymbol(name)
+	ref := p.FindSymbol(name)
 	return p.symbols[ref.InnerIndex].Kind == ast.SymbolUnbound
 }
 
 func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string) ast.Expr {
-	ref := p.findSymbol(parts[0])
+	ref := p.FindSymbol(parts[0])
 	value := ast.Expr{loc, &ast.EIdentifier{ref}}
 
 	// Substitute an EImportIdentifier now if this is an import item
@@ -6903,66 +6903,16 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EIdentifier:
 		name := p.loadNameFromRef(e.Ref)
-		e.Ref = p.findSymbol(name)
-
-		// Substitute an EImportIdentifier now if this is an import item
-		if p.isImportItem[e.Ref] {
-			return ast.Expr{expr.Loc, &ast.EImportIdentifier{e.Ref}}, exprOut{}
-		}
-
-		// Substitute a namespace export reference now if appropriate
-		if p.ts.Parse {
-			if nsRef, ok := p.isExportedInsideNamespace[e.Ref]; ok {
-				// If this is a known enum value, inline the value of the enum
-				if p.ts.Parse {
-					if enumValueMap, ok := p.knownEnumValues[nsRef]; ok {
-						if number, ok := enumValueMap[name]; ok {
-							return ast.Expr{expr.Loc, &ast.ENumber{number}}, exprOut{}
-						}
-					}
-				}
-
-				// Otherwise, create a property access on the namespace
-				return ast.Expr{expr.Loc, &ast.EDot{
-					Target:  ast.Expr{expr.Loc, &ast.EIdentifier{nsRef}},
-					Name:    name,
-					NameLoc: expr.Loc,
-				}}, exprOut{}
-			}
-		}
+		e.Ref = p.FindSymbol(name)
 
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound {
-			if value, ok := p.identifierDefines[name]; ok {
-				return ast.Expr{expr.Loc, value}, exprOut{}
+			if defineFunc, ok := p.identifierDefines[name]; ok {
+				return p.valueForDefine(expr.Loc, defineFunc), exprOut{}
 			}
 		}
 
-		// Disallow capturing the "require" variable without calling it
-		if e.Ref == p.requireRef && (e != p.callTarget && e != p.typeofTarget) {
-			if p.tryBodyCount == 0 {
-				r := lexer.RangeOfIdentifier(p.source, expr.Loc)
-				p.log.AddRangeError(p.source, r, "\"require\" must not be called indirectly")
-			} else {
-				// The "moment" library contains code that looks like this:
-				//
-				//   try {
-				//     oldLocale = globalLocale._abbr;
-				//     var aliasedRequire = require;
-				//     aliasedRequire('./locale/' + name);
-				//     getSetGlobalLocale(oldLocale);
-				//   } catch (e) {}
-				//
-				// This is unfortunate because it prevents the module graph from being
-				// statically determined. However, the dependencies are optional and
-				// the library will work fine without them.
-				//
-				// Handle this case by deliberately ignoring code that uses require
-				// incorrectly inside a try statement like this. We replace it with
-				// null so it's guaranteed to crash at runtime.
-				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
-			}
-		}
+		return p.handleIdentifier(expr.Loc, e), exprOut{}
 
 	case *ast.EJSXElement:
 		// A missing tag is a fragment
@@ -7319,7 +7269,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	case *ast.EDot:
 		// Substitute user-specified defines
 		if define, ok := p.dotDefines[e.Name]; ok && p.isDotDefineMatch(expr, define.parts) {
-			return ast.Expr{expr.Loc, define.value}, exprOut{}
+			return p.valueForDefine(expr.Loc, define.defineFunc), exprOut{}
 		}
 
 		target, out := p.visitExprInOut(e.Target, exprIn{hasChainParent: !e.IsOptionalChain})
@@ -7564,6 +7514,70 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	return expr, exprOut{}
 }
 
+func (p *parser) valueForDefine(loc ast.Loc, defineFunc DefineFunc) ast.Expr {
+	expr := ast.Expr{loc, defineFunc(p)}
+	if id, ok := expr.Data.(*ast.EIdentifier); ok {
+		return p.handleIdentifier(loc, id)
+	}
+	return expr
+}
+
+func (p *parser) handleIdentifier(loc ast.Loc, e *ast.EIdentifier) ast.Expr {
+	// Substitute an EImportIdentifier now if this is an import item
+	if p.isImportItem[e.Ref] {
+		return ast.Expr{loc, &ast.EImportIdentifier{e.Ref}}
+	}
+
+	// Substitute a namespace export reference now if appropriate
+	if p.ts.Parse {
+		if nsRef, ok := p.isExportedInsideNamespace[e.Ref]; ok {
+			name := p.symbols[e.Ref.InnerIndex].Name
+
+			// If this is a known enum value, inline the value of the enum
+			if enumValueMap, ok := p.knownEnumValues[nsRef]; ok {
+				if number, ok := enumValueMap[name]; ok {
+					return ast.Expr{loc, &ast.ENumber{number}}
+				}
+			}
+
+			// Otherwise, create a property access on the namespace
+			return ast.Expr{loc, &ast.EDot{
+				Target:  ast.Expr{loc, &ast.EIdentifier{nsRef}},
+				Name:    name,
+				NameLoc: loc,
+			}}
+		}
+	}
+
+	// Disallow capturing the "require" variable without calling it
+	if e.Ref == p.requireRef && (e != p.callTarget && e != p.typeofTarget) {
+		if p.tryBodyCount == 0 {
+			r := lexer.RangeOfIdentifier(p.source, loc)
+			p.log.AddRangeError(p.source, r, "\"require\" must not be called indirectly")
+		} else {
+			// The "moment" library contains code that looks like this:
+			//
+			//   try {
+			//     oldLocale = globalLocale._abbr;
+			//     var aliasedRequire = require;
+			//     aliasedRequire('./locale/' + name);
+			//     getSetGlobalLocale(oldLocale);
+			//   } catch (e) {}
+			//
+			// This is unfortunate because it prevents the module graph from being
+			// statically determined. However, the dependencies are optional and
+			// the library will work fine without them.
+			//
+			// Handle this case by deliberately ignoring code that uses require
+			// incorrectly inside a try statement like this. We replace it with
+			// null so it's guaranteed to crash at runtime.
+			return ast.Expr{loc, &ast.ENull{}}
+		}
+	}
+
+	return ast.Expr{loc, e}
+}
+
 func extractNumericValues(left ast.Expr, right ast.Expr) (float64, float64, bool) {
 	if a, ok := left.Data.(*ast.ENumber); ok {
 		if b, ok := right.Data.(*ast.ENumber); ok {
@@ -7739,12 +7753,18 @@ type TypeScriptOptions struct {
 	Parse bool
 }
 
+type DefineHelper interface {
+	FindSymbol(name string) ast.Ref
+}
+
+type DefineFunc func(DefineHelper) ast.E
+
 type ParseOptions struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	Defines              map[string]ast.E
+	Defines              map[string]DefineFunc
 	MangleSyntax         bool
 	KeepSingleExpression bool
 	OmitWarnings         bool
@@ -7776,7 +7796,7 @@ func newParser(log logging.Log, source logging.Source, options ParseOptions) *pa
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		isImportItem:            make(map[ast.Ref]bool),
 		exportAliases:           make(map[string]bool),
-		identifierDefines:       make(map[string]ast.E),
+		identifierDefines:       make(map[string]DefineFunc),
 		dotDefines:              make(map[string]dotDefine),
 	}
 
@@ -7905,9 +7925,9 @@ func (p *parser) prepareForVisitPass() {
 	p.moduleScope = p.currentScope
 
 	// Swap in certain literal values because those can be constant folded
-	p.identifierDefines["undefined"] = &ast.EUndefined{}
-	p.identifierDefines["NaN"] = &ast.ENumber{math.NaN()}
-	p.identifierDefines["Infinity"] = &ast.ENumber{math.Inf(1)}
+	p.identifierDefines["undefined"] = func(DefineHelper) ast.E { return &ast.EUndefined{} }
+	p.identifierDefines["NaN"] = func(DefineHelper) ast.E { return &ast.ENumber{math.NaN()} }
+	p.identifierDefines["Infinity"] = func(DefineHelper) ast.E { return &ast.ENumber{math.Inf(1)} }
 }
 
 func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string) ast.AST {
