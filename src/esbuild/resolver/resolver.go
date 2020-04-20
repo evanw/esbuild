@@ -256,10 +256,10 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
-	info.hasNodeModules = entries["node_modules"] == fs.DirEntry && r.fs.Base(path) != "node_modules"
+	info.hasNodeModules = entries["node_modules"].Kind == fs.DirEntry && r.fs.Base(path) != "node_modules"
 
 	// Record if this directory has a package.json file
-	if entries["package.json"] == fs.FileEntry {
+	if entries["package.json"].Kind == fs.FileEntry {
 		info.packageJson = r.parsePackageJson(path)
 
 		// Propagate this browser scope into child directories
@@ -269,7 +269,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// Record if this directory has a tsconfig.json file
-	if entries["tsconfig.json"] == fs.FileEntry {
+	if entries["tsconfig.json"].Kind == fs.FileEntry {
 		info.tsConfigJson = &tsConfigJson{}
 		if json, ok := r.parseJson(r.fs.Join(path, "tsconfig.json")); ok {
 			if compilerOptionsJson, ok := getProperty(json, "compilerOptions"); ok {
@@ -380,13 +380,13 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 		base := r.fs.Base(path)
 
 		// Try the plain path without any extensions
-		if entries[base] == fs.FileEntry {
+		if entries[base].Kind == fs.FileEntry {
 			return path, true
 		}
 
 		// Try the path with extensions
 		for _, ext := range r.options.ExtensionOrder {
-			if entries[base+ext] == fs.FileEntry {
+			if entries[base+ext].Kind == fs.FileEntry {
 				return path + ext, true
 			}
 		}
@@ -402,7 +402,7 @@ func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string
 	// Try the "index" file with extensions
 	for _, ext := range r.options.ExtensionOrder {
 		base := "index" + ext
-		if entries[base] == fs.FileEntry {
+		if entries[base].Kind == fs.FileEntry {
 			return r.fs.Join(path, base), true
 		}
 	}

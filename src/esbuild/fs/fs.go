@@ -8,12 +8,16 @@ import (
 	"sync"
 )
 
-type Entry uint8
+type EntryKind uint8
 
 const (
-	DirEntry  Entry = 1
-	FileEntry Entry = 2
+	DirEntry  EntryKind = 1
+	FileEntry EntryKind = 2
 )
+
+type Entry struct {
+	Kind EntryKind
+}
 
 type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
@@ -57,9 +61,9 @@ func MockFS(input map[string]string) FS {
 				break
 			}
 			if k == original {
-				dir[path.Base(k)] = FileEntry
+				dir[path.Base(k)] = Entry{Kind: FileEntry}
 			} else {
-				dir[path.Base(k)] = DirEntry
+				dir[path.Base(k)] = Entry{Kind: DirEntry}
 			}
 			k = kDir
 		}
@@ -136,9 +140,9 @@ func (fs *realFS) ReadDirectory(dir string) map[string]Entry {
 			// Use "stat", not "lstat", because we want to follow symbolic links
 			if stat, err := os.Stat(filepath.Join(dir, name)); err == nil {
 				if stat.IsDir() {
-					entries[name] = DirEntry
+					entries[name] = Entry{Kind: DirEntry}
 				} else {
-					entries[name] = FileEntry
+					entries[name] = Entry{Kind: FileEntry}
 				}
 			}
 		}

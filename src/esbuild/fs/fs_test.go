@@ -45,7 +45,7 @@ func TestBasic(t *testing.T) {
 	if src == nil {
 		t.Fatal("Expected to find /src")
 	}
-	if len(src) != 2 || src["index.js"] != FileEntry || src["util.js"] != FileEntry {
+	if len(src) != 2 || src["index.js"].Kind != FileEntry || src["util.js"].Kind != FileEntry {
 		t.Fatalf("Incorrect contents for /src: %v", src)
 	}
 
@@ -54,7 +54,7 @@ func TestBasic(t *testing.T) {
 	if slash == nil {
 		t.Fatal("Expected to find /")
 	}
-	if len(slash) != 3 || slash["src"] != DirEntry || slash["README.md"] != FileEntry || slash["package.json"] != FileEntry {
+	if len(slash) != 3 || slash["src"].Kind != DirEntry || slash["README.md"].Kind != FileEntry || slash["package.json"].Kind != FileEntry {
 		t.Fatalf("Incorrect contents for /: %v", slash)
 	}
 }
