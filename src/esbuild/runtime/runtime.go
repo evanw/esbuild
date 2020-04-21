@@ -12,12 +12,14 @@ var FnMap = map[string]Fn{
 
 const Code = `
 	let __defineProperty = Object.defineProperty
+	let __hasOwnProperty = Object.hasOwnProperty
 
-	// This holds the exports for all modules that have been evaluated
+	// Holds the exports for all modules that have been evaluated
 	let __modules = {}
 
-	let __require = (id, module) => {
-		module = __modules[id]
+	// Used to import a bundled module using require()
+	let __require = id => {
+		let module = __modules[id]
 		if (!module) {
 			module = __modules[id] = {exports: {}}
 			__commonjs[id](module.exports, module)
@@ -25,18 +27,27 @@ const Code = `
 		return module.exports
 	}
 
-	let __import = (module, exports) => {
-		module = __require(module)
+	// Converts the module from CommonJS to ES6 if necessary
+	let __toModule = module => {
 		if (module && module.__esModule) {
 			return module
 		}
-		exports = Object(module)
-		if (!('default' in exports)) {
-			__defineProperty(exports, 'default', { value: module, enumerable: true })
+		let result = {}
+		for (let key in module) {
+			if (__hasOwnProperty.call(module, key)) {
+				result[key] = module[key]
+			}
 		}
-		return exports
+		result.default = module
+		return result
 	}
 
+	// Used to import a bundled module using an ES6 import statement
+	let __import = id => {
+		return __toModule(__require(id))
+	}
+
+	// Used to implement ES6 exports to CommonJS
 	let __export = (target, all) => {
 		__defineProperty(target, '__esModule', { value: true })
 		for (let name in all) {
@@ -44,6 +55,6 @@ const Code = `
 		}
 	}
 
-	// This will be filled in with the CommonJS module map
+	// Will be filled in with the CommonJS module map
 	let __commonjs
 `

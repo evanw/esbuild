@@ -6,7 +6,7 @@ const testDir = path.join(__dirname, '.end-to-end-tests')
 const esbuildPath = path.join(__dirname, '..', 'esbuild')
 let testCount = 0
 
-let tests = () => [
+let tests = [
   // Tests for "--define"
   test(['--define:foo=null', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== null) throw 'fail'` }),
   test(['--define:foo=true', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== true) throw 'fail'` }),
@@ -30,56 +30,125 @@ let tests = () => [
     'registry/node_modules/bar/index.js': `export const bar = 123`,
     'node_modules/foo/index.js': { symlink: `../../registry/node_modules/foo/index.js` },
   }),
-
-  // Test CommonJS export
-  test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
-    'in.js': `exports.foo = 123`,
-    'node.js': `const out = require('./out'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
-  }),
-  test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
-    'in.js': `module.exports = 123`,
-    'node.js': `const out = require('./out'); if (out.__esModule || out !== 123) throw 'fail'`,
-  }),
-  test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
-    'in.js': `export const foo = 123`,
-    'node.js': `const out = require('./out'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
-  }),
-  test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
-    'in.js': `export default 123`,
-    'node.js': `const out = require('./out'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
-  }),
 ]
 
-async function test(args, files) {
-  try {
-    const thisTestDir = path.join(testDir, '' + testCount++)
+// Test CommonJS export (internal and external)
+for (let isExternal of [false, true]) {
+  const args = isExternal ? ['--format=cjs', 'foo.js', '--outfile=out.js'] : ['bar.js', '--outfile=node.js']
+  const innerName = isExternal ? 'out.js' : 'foo.js'
+  const outerName = isExternal ? 'node.js' : 'bar.js'
+  tests.push(
+    test(['--bundle'].concat(args), {
+      'foo.js': `exports.foo = 123`,
+      [outerName]: `const out = require('./${innerName}'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+    }),
+    test(['--bundle'].concat(args), {
+      'foo.js': `module.exports = 123`,
+      [outerName]: `const out = require('./${innerName}'); if (out.__esModule || out !== 123) throw 'fail'`,
+    }),
+    test(['--bundle'].concat(args), {
+      'foo.js': `export const foo = 123`,
+      [outerName]: `const out = require('./${innerName}'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
+    }),
+    test(['--bundle'].concat(args), {
+      'foo.js': `export default 123`,
+      [outerName]: `const out = require('./${innerName}'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
+    }),
+  )
+}
 
-    // Test setup
-    for (const file in files) {
-      const filePath = path.join(thisTestDir, file)
-      const contents = files[file]
-      await util.promisify(childProcess.exec)(`mkdir -p "${path.dirname(filePath)}"`)
+// Test CommonJS import (internal and external)
+for (let isExternal of [false, true]) {
+  const external = isExternal ? ['--external:foo'] : []
+  const name = isExternal ? 'index.js' : 'node.js'
+  tests.push(
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `const foo = require('foo'); if (!foo.bar.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `exports.bar = __filename`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `const foo = require('foo'); if (!foo.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `module.exports = __filename`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import * as foo from 'foo'; if (!foo.bar.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `exports.bar = __filename`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import * as foo from 'foo'; if (!foo.default.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `module.exports = __filename`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import foo from 'foo'; if (!foo.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `module.exports = __filename`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import * as foo from 'foo'; if (!foo.default.default.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `module.exports = {default: __filename}`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import * as foo from 'foo'; if (!foo.default.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `module.exports = {__esModule: true, default: __filename}`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import foo from 'foo'; if (!foo.default.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `module.exports = {default: __filename}`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import foo from 'foo'; if (!foo.endsWith('${name}')) throw 'fail'`,
+      'node_modules/foo/index.js': `module.exports = {__esModule: true, default: __filename}`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import('foo').then(foo => setTimeout(() => { if (!foo.bar.endsWith('${name}')) throw 'fail' }))`,
+      'node_modules/foo/index.js': `exports.bar = __filename`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import('foo').then(foo => setTimeout(() => { if (!foo.default.endsWith('${name}')) throw 'fail' }))`,
+      'node_modules/foo/index.js': `module.exports = __filename`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import('foo').then(foo => setTimeout(() => { if (!foo.default.default.endsWith('${name}')) throw 'fail' }))`,
+      'node_modules/foo/index.js': `module.exports = {default: __filename}`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(external), {
+      'in.js': `import('foo').then(foo => setTimeout(() => { if (!foo.default.endsWith('${name}')) throw 'fail' }))`,
+      'node_modules/foo/index.js': `module.exports = {__esModule: true, default: __filename}`,
+    }),
+  )
+}
 
-      // Optionally symlink the file if the test requests it
-      if (contents.symlink) await util.promisify(fs.symlink)(contents.symlink, filePath)
-      else await util.promisify(fs.writeFile)(filePath, contents)
+function test(args, files) {
+  return async () => {
+    try {
+      const thisTestDir = path.join(testDir, '' + testCount++)
+
+      // Test setup
+      for (const file in files) {
+        const filePath = path.join(thisTestDir, file)
+        const contents = files[file]
+        await util.promisify(childProcess.exec)(`mkdir -p "${path.dirname(filePath)}"`)
+
+        // Optionally symlink the file if the test requests it
+        if (contents.symlink) await util.promisify(fs.symlink)(contents.symlink, filePath)
+        else await util.promisify(fs.writeFile)(filePath, contents)
+      }
+
+      // Run esbuild
+      await util.promisify(childProcess.execFile)(esbuildPath, args, { cwd: thisTestDir, stdio: 'pipe' })
+
+      // Run the resulting node.js file and make sure it exits cleanly
+      require(path.join(thisTestDir, 'node.js'))
     }
 
-    // Run esbuild
-    await util.promisify(childProcess.execFile)(esbuildPath, args, { cwd: thisTestDir, stdio: 'pipe' })
-
-    // Run the resulting out.js file and make sure it exits cleanly
-    await util.promisify(childProcess.exec)(`node "${path.join(thisTestDir, 'node.js')}"`, { cwd: thisTestDir, stdio: 'pipe' })
-  }
-
-  catch (e) {
-    console.error(`❌ test failed: ${e && e.message || e}
-  args: ${args.map(x => `\n    ${x}`).join('')}
+    catch (e) {
+      console.error(`❌ test failed: ${e && e.message || e}
+  args: ${args.join(' ')}
   files: ${Object.entries(files).map(([k, v]) => `\n    ${k}: ${v}`).join('')}`)
-    return false
-  }
+      return false
+    }
 
-  return true
+    return true
+  }
 }
 
 async function main() {
@@ -91,7 +160,7 @@ async function main() {
   fs.mkdirSync(testDir)
 
   // Run all tests concurrently
-  const allTestsPassed = (await Promise.all(tests())).every(success => success)
+  const allTestsPassed = (await Promise.all(tests.map(test => test()))).every(success => success)
 
   // Clean up test output
   childProcess.execSync(`rm -fr "${testDir}"`)

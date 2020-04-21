@@ -2649,10 +2649,10 @@ func TestImportFSNode(t *testing.T) {
 			"/out.js": `bootstrap({
   0() {
     // /entry.js
-    const fs = require("fs");
-    const fs2 = require("fs");
-    const fs3 = require("fs");
-    const fs4 = require("fs");
+    const fs = __toModule(require("fs"));
+    const fs2 = __toModule(require("fs"));
+    const fs3 = __toModule(require("fs"));
+    const fs4 = __toModule(require("fs"));
     console.log(fs2, fs4.readFileSync, fs3.default);
   }
 }, 0);
@@ -2713,8 +2713,8 @@ func TestExportFSNode(t *testing.T) {
       fs: () => fs,
       readFileSync: () => fs2.readFileSync
     });
-    const fs = require("fs");
-    const fs2 = require("fs");
+    const fs = __toModule(require("fs"));
+    const fs2 = __toModule(require("fs"));
   }
 }, 0);
 `,
@@ -2804,7 +2804,7 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=f$(0);console.log(b(),f$(2))}},1);
+			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=g$(0);console.log(b(),g$(2))}},1);
 `,
 		},
 	})

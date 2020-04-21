@@ -396,6 +396,7 @@ type printer struct {
 	resolvedImports map[string]uint32
 	requireRef      ast.Ref // For CommonJS imports
 	importRef       ast.Ref // For ES6 imports
+	toModuleRef     ast.Ref // For CommonJS-to-ES6 conversion
 
 	// For source maps
 	writeSourceMap bool
@@ -901,8 +902,15 @@ func (p *printer) printRequireCall(path string, isES6Import bool) {
 			}
 		} else {
 			// If we get here, the module was marked as an external module
+			if isES6Import {
+				p.printSymbol(p.toModuleRef)
+				p.print("(")
+			}
 			p.print("require(")
 			p.print(Quote(path))
+			if isES6Import {
+				p.print(")")
+			}
 		}
 	} else {
 		p.printSymbol(ref)
@@ -2142,6 +2150,7 @@ type PrintOptions struct {
 	ResolvedImports   map[string]uint32
 	RequireRef        ast.Ref
 	ImportRef         ast.Ref
+	ToModuleRef       ast.Ref
 }
 
 type SourceMapChunk struct {
@@ -2176,6 +2185,7 @@ func createPrinter(
 		prevLoc:            ast.Loc{-1},
 		requireRef:         options.RequireRef,
 		importRef:          options.ImportRef,
+		toModuleRef:        options.ToModuleRef,
 	}
 
 	// If we're writing out a source map, prepare a table of line start indices

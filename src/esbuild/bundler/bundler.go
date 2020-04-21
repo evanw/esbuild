@@ -335,7 +335,8 @@ func (b *Bundle) compileFile(
 	// The printer will be calling runtime functions
 	requireRef, requireOk := b.files[runtimeSourceIndex].ast.ModuleScope.Members["__require"]
 	importRef, importOk := b.files[runtimeSourceIndex].ast.ModuleScope.Members["__import"]
-	if !requireOk || !importOk {
+	toModuleRef, toModuleOk := b.files[runtimeSourceIndex].ast.ModuleScope.Members["__toModule"]
+	if !requireOk || !importOk || !toModuleOk {
 		panic("Internal error")
 	}
 
@@ -346,6 +347,7 @@ func (b *Bundle) compileFile(
 		ResolvedImports:   remappedResolvedImports,
 		RequireRef:        requireRef,
 		ImportRef:         importRef,
+		ToModuleRef:       toModuleRef,
 	})}
 	if options.SourceMap {
 		result.quotedSource = printer.QuoteForJSON(b.sources[sourceIndex].Contents)
