@@ -1,5 +1,15 @@
 package runtime
 
+type Fn uint8
+
+const (
+	ExportFn Fn = 1 << 1
+)
+
+var FnMap = map[string]Fn{
+	"__export": ExportFn,
+}
+
 const Code = `
 	let __defineProperty = Object.defineProperty
 

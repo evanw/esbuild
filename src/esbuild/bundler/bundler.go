@@ -973,7 +973,7 @@ func addExportStar(moduleInfos []moduleInfo, visited map[uint32]bool, sourceInde
 func (b *Bundle) bindImportsAndExports(
 	log logging.Log, files []file, symbols *ast.SymbolMap, group []uint32,
 	moduleInfos []moduleInfo, options *BundleOptions,
-) {
+) (usedRuntimeFns runtime.Fn) {
 	// Track any imports that may be re-exported
 	namespaceForImportItem := make(map[ast.Ref]ast.Ref)
 
@@ -1076,6 +1076,7 @@ func (b *Bundle) bindImportsAndExports(
 
 		// Use the export slot
 		exportRef, ok := b.files[runtimeSourceIndex].ast.ModuleScope.Members["__export"]
+		usedRuntimeFns |= runtime.ExportFn
 		if !ok {
 			panic("Internal error")
 		}
@@ -1089,6 +1090,8 @@ func (b *Bundle) bindImportsAndExports(
 		symbols.IncrementUseCountEstimate(file.ast.ExportsRef)
 		file.ast.Stmts = stmts
 	}
+
+	return
 }
 
 func markExportsAsUnboundInDecls(decls []ast.Decl, symbols *ast.SymbolMap) {
@@ -1428,24 +1431,36 @@ func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []Bundle
 	// correctness issues.
 
 	// Spawn parallel jobs to handle imports and exports for each group
-	importExportGroup := sync.WaitGroup{}
-	for _, group := range moduleGroups {
-		importExportGroup.Add(1)
-		go func(group []uint32) {
-			// It's important to wait to rename symbols until after imports and
-			// exports have been handled. Exports need to use the original un-renamed
-			// names of the symbols.
-			isRuntime := len(group) == 1 && group[0] == runtimeSourceIndex
-			if !isRuntime {
-				b.bindImportsAndExports(log, files, symbols, group, moduleInfos, options)
-				b.renameOrMinifyAllSymbols(files, symbols, group, options)
-			}
-			importExportGroup.Done()
-		}(group)
-	}
+	{
+		results := make(chan runtime.Fn)
+		count := 0
 
-	// Wait for all import/export jobs to finish
-	importExportGroup.Wait()
+		for _, group := range moduleGroups {
+			// Skip the runtime, which we already renamed/minified above
+			if len(group) == 1 && group[0] == runtimeSourceIndex {
+				continue
+			}
+
+			// Track how many results to expect
+			count++
+			go func(group []uint32) {
+				// It's important to wait to rename symbols until after imports and
+				// exports have been handled. Exports need to use the original un-renamed
+				// names of the symbols.
+				usedRuntimeFns := b.bindImportsAndExports(log, files, symbols, group, moduleInfos, options)
+				b.renameOrMinifyAllSymbols(files, symbols, group, options)
+				results <- usedRuntimeFns
+			}(group)
+		}
+
+		// Wait for all import/export jobs to finish, then remove unused code from
+		// the runtime. That way we print a minimal runtime without extra noise.
+		var usedRuntimeFns runtime.Fn
+		for i := 0; i < count; i++ {
+			usedRuntimeFns |= <-results
+		}
+		b.stripUnusedSymbolsInRuntime(files, usedRuntimeFns)
+	}
 
 	// Make sure calls to "ast.FollowSymbols()" below won't hit concurrent map
 	// mutation hazards
@@ -1504,6 +1519,42 @@ func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []Bundle
 	linkGroup.Wait()
 
 	return results
+}
+
+func (b *Bundle) stripUnusedSymbolsInRuntime(files []file, usedRuntimeFns runtime.Fn) {
+	file := &files[runtimeSourceIndex]
+	toRemove := make(map[ast.Ref]bool)
+	stmts := []ast.Stmt{}
+
+	// Remove all unused runtime functions
+	for name, fn := range runtime.FnMap {
+		if (usedRuntimeFns & fn) == 0 {
+			toRemove[file.ast.ModuleScope.Members[name]] = true
+		}
+	}
+
+	// Go through the top-level variable declarations and strip out the unused ones
+	for _, stmt := range file.ast.Stmts {
+		if local, ok := stmt.Data.(*ast.SLocal); ok {
+			decls := []ast.Decl{}
+			for _, decl := range local.Decls {
+				if id, ok := decl.Binding.Data.(*ast.BIdentifier); ok && toRemove[id.Ref] {
+					continue
+				}
+				decls = append(decls, decl)
+			}
+			if len(decls) == 0 {
+				continue
+			}
+			stmt.Data = &ast.SLocal{
+				Decls: decls,
+				Kind:  local.Kind,
+			}
+		}
+		stmts = append(stmts, stmt)
+	}
+
+	file.ast.Stmts = stmts
 }
 
 func computeLineColumnOffset(bytes []byte) lineColumnOffset {
