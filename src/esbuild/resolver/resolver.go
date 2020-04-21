@@ -199,10 +199,12 @@ type dirInfo struct {
 
 	// All relevant information about this directory
 	absPath        string
-	hasNodeModules bool         // Is there a "node_modules" subdirectory?
-	absPathIndex   *string      // Is there an "index.js" file?
-	packageJson    *packageJson // Is there a "package.json" file?
-	tsConfigJson   *tsConfigJson
+	entries        map[string]fs.Entry
+	hasNodeModules bool          // Is there a "node_modules" subdirectory?
+	absPathIndex   *string       // Is there an "index.js" file?
+	packageJson    *packageJson  // Is there a "package.json" file?
+	tsConfigJson   *tsConfigJson // Is there a "tsconfig.json" file?
+	absRealPath    string        // If non-empty, this is the real absolute path resolving any symlinks
 }
 
 func (r *resolver) dirInfoCached(path string) *dirInfo {
@@ -248,15 +250,25 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	info := &dirInfo{
 		absPath: path,
 		parent:  parentInfo,
+		entries: entries,
 	}
+
+	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
+	base := r.fs.Base(path)
+	info.hasNodeModules = base != "node_modules" && entries["node_modules"].Kind == fs.DirEntry
 
 	// Propagate the browser scope into child directories
 	if parentInfo != nil {
 		info.enclosingBrowserScope = parentInfo.enclosingBrowserScope
-	}
 
-	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
-	info.hasNodeModules = entries["node_modules"].Kind == fs.DirEntry && r.fs.Base(path) != "node_modules"
+		// Make sure "absRealPath" is the real path of the directory (resolving any symlinks)
+		symlink := parentInfo.entries[base].Symlink
+		if symlink != "" {
+			info.absRealPath = symlink
+		} else if parentInfo.absRealPath != "" {
+			info.absRealPath = r.fs.Join(parentInfo.absRealPath, base)
+		}
+	}
 
 	// Record if this directory has a package.json file
 	if entries["package.json"].Kind == fs.FileEntry {
