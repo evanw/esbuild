@@ -8,27 +8,45 @@ let testCount = 0
 
 let tests = () => [
   // Tests for "--define"
-  test(['--define:foo=null', 'in.js'], { 'in.js': `if (foo !== null) throw new Error('Test failed')` }),
-  test(['--define:foo=true', 'in.js'], { 'in.js': `if (foo !== true) throw new Error('Test failed')` }),
-  test(['--define:foo=false', 'in.js'], { 'in.js': `if (foo !== false) throw new Error('Test failed')` }),
-  test(['--define:foo="abc"', 'in.js'], { 'in.js': `if (foo !== "abc") throw new Error('Test failed')` }),
-  test(['--define:foo=123.456', 'in.js'], { 'in.js': `if (foo !== 123.456) throw new Error('Test failed')` }),
-  test(['--define:foo=-123.456', 'in.js'], { 'in.js': `if (foo !== -123.456) throw new Error('Test failed')` }),
-  test(['--define:foo=global', 'in.js'], { 'in.js': `foo.bar = 123; if (bar !== 123) throw new Error('Test failed')` }),
-  test(['--define:foo=bar', 'in.js'], { 'in.js': `let bar = {x: 123}; if (foo.x !== 123) throw new Error('Test failed')` }),
+  test(['--define:foo=null', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== null) throw 'fail'` }),
+  test(['--define:foo=true', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== true) throw 'fail'` }),
+  test(['--define:foo=false', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== false) throw 'fail'` }),
+  test(['--define:foo="abc"', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== "abc") throw 'fail'` }),
+  test(['--define:foo=123.456', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== 123.456) throw 'fail'` }),
+  test(['--define:foo=-123.456', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== -123.456) throw 'fail'` }),
+  test(['--define:foo=global', 'in.js', '--outfile=node.js'], { 'in.js': `foo.bar = 123; if (bar !== 123) throw 'fail'` }),
+  test(['--define:foo=bar', 'in.js', '--outfile=node.js'], { 'in.js': `let bar = {x: 123}; if (foo.x !== 123) throw 'fail'` }),
 
   // Tests for symlinks
-  test(['--bundle', 'in.js'], {
-    'in.js': `import {foo} from 'foo'; if (foo !== 123) throw new Error('Test failed')`,
+  test(['--bundle', 'in.js', '--outfile=node.js'], {
+    'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
     'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
     'registry/node_modules/bar/index.js': `export const bar = 123`,
     'node_modules/foo': { symlink: `../registry/node_modules/foo` },
   }),
-  test(['--bundle', 'in.js'], {
-    'in.js': `import {foo} from 'foo'; if (foo !== 123) throw new Error('Test failed')`,
+  test(['--bundle', 'in.js', '--outfile=node.js'], {
+    'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
     'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
     'registry/node_modules/bar/index.js': `export const bar = 123`,
     'node_modules/foo/index.js': { symlink: `../../registry/node_modules/foo/index.js` },
+  }),
+
+  // Test CommonJS export
+  test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+    'in.js': `exports.foo = 123`,
+    'node.js': `const out = require('./out'); if (out.__esModule || out.foo !== 123) throw 'fail'`,
+  }),
+  test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+    'in.js': `module.exports = 123`,
+    'node.js': `const out = require('./out'); if (out.__esModule || out !== 123) throw 'fail'`,
+  }),
+  test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+    'in.js': `export const foo = 123`,
+    'node.js': `const out = require('./out'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
+  }),
+  test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+    'in.js': `export default 123`,
+    'node.js': `const out = require('./out'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
   }),
 ]
 
@@ -48,10 +66,10 @@ async function test(args, files) {
     }
 
     // Run esbuild
-    await util.promisify(childProcess.execFile)(esbuildPath, args.concat('--outfile=out.js'), { cwd: thisTestDir, stdio: 'pipe' })
+    await util.promisify(childProcess.execFile)(esbuildPath, args, { cwd: thisTestDir, stdio: 'pipe' })
 
     // Run the resulting out.js file and make sure it exits cleanly
-    await util.promisify(childProcess.exec)(`node "${path.join(thisTestDir, 'out.js')}"`, { cwd: thisTestDir, stdio: 'pipe' })
+    await util.promisify(childProcess.exec)(`node "${path.join(thisTestDir, 'node.js')}"`, { cwd: thisTestDir, stdio: 'pipe' })
   }
 
   catch (e) {
