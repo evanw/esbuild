@@ -60,6 +60,7 @@ clean:
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-linux-64/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
+	cd src/esbuild && go clean -testcache ./...
 
 node_modules:
 	npm ci

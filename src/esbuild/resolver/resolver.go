@@ -71,6 +71,29 @@ func NewResolver(fs fs.FS, options ResolveOptions) Resolver {
 }
 
 func (r *resolver) Resolve(sourcePath string, importPath string) (string, ResolveStatus) {
+	absolute, status := r.resolveWithoutSymlinks(sourcePath, importPath)
+
+	// If successful, resolve symlinks using the directory info cache
+	if status == ResolveEnabled || status == ResolveDisabled {
+		if dirInfo := r.dirInfoCached(r.fs.Dir(absolute)); dirInfo != nil {
+			base := r.fs.Base(absolute)
+
+			// Is this entry itself a symlink?
+			if entry := dirInfo.entries[base]; entry.Symlink != "" {
+				return entry.Symlink, status
+			}
+
+			// Is there at least one parent directory with a symlink?
+			if dirInfo.absRealPath != "" {
+				return r.fs.Join(dirInfo.absRealPath, base), status
+			}
+		}
+	}
+
+	return absolute, status
+}
+
+func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) (string, ResolveStatus) {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	result := ""
