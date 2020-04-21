@@ -16,7 +16,8 @@ const (
 )
 
 type Entry struct {
-	Kind EntryKind
+	Kind    EntryKind
+	Symlink string
 }
 
 type FS interface {
@@ -137,12 +138,37 @@ func (fs *realFS) ReadDirectory(dir string) map[string]Entry {
 	entries := make(map[string]Entry)
 	if err == nil {
 		for _, name := range names {
-			// Use "stat", not "lstat", because we want to follow symbolic links
-			if stat, err := os.Stat(filepath.Join(dir, name)); err == nil {
-				if stat.IsDir() {
-					entries[name] = Entry{Kind: DirEntry}
+			entryPath := filepath.Join(dir, name)
+
+			// Use "lstat" since we want information about symbolic links
+			if stat, err := os.Lstat(entryPath); err == nil {
+				mode := stat.Mode()
+				symlink := ""
+
+				// Follow symlinks now so the cache contains the translation
+				if (mode & os.ModeSymlink) != 0 {
+					link, err := os.Readlink(entryPath)
+					if err != nil {
+						continue // Skip over this entry
+					}
+					symlink = filepath.Clean(filepath.Join(dir, link))
+
+					// Re-run "lstat" on the symlink target
+					stat2, err2 := os.Lstat(symlink)
+					if err2 != nil {
+						continue // Skip over this entry
+					}
+					mode = stat2.Mode()
+					if (mode & os.ModeSymlink) != 0 {
+						continue // Symlink chains are not supported
+					}
+				}
+
+				// We consider the entry either a directory or a file
+				if (mode & os.ModeDir) != 0 {
+					entries[name] = Entry{Kind: DirEntry, Symlink: symlink}
 				} else {
-					entries[name] = Entry{Kind: FileEntry}
+					entries[name] = Entry{Kind: FileEntry, Symlink: symlink}
 				}
 			}
 		}
