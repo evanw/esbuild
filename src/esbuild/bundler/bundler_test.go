@@ -3023,3 +3023,45 @@ func TestThisInsideFunction(t *testing.T) {
 		},
 	})
 }
+
+func TestArrowFnScope(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				(x = y => x + y, y) => x + y;
+				(y, x = y => x + y) => x + y;
+				(x = (y = z => x + y + z, z) => x + y + z, y, z) => x + y + z;
+				(y, z, x = (z, y = z => x + y + z) => x + y + z) => x + y + z;
+				(x = y => x + y, y), x + y;
+				(y, x = y => x + y), x + y;
+				(x = (y = z => x + y + z, z) => x + y + z, y, z), x + y + z;
+				(y, z, x = (z, y = z => x + y + z) => x + y + z), x + y + z;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        true,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  0() {
+    // /entry.js
+    (a = (c) => a + c, b) => a + b;
+    (a, b = (c) => b + c) => b + a;
+    (a = (d = (f) => a + d + f, e) => a + d + e, b, c) => a + b + c;
+    (a, b, c = (d, e = (f) => c + e + f) => c + e + d) => c + a + b;
+    x = (a) => x + a, y, x + y;
+    y, x = (a) => x + a, x + y;
+    x = (a = (c) => x + a + c, b) => x + a + b, y, z, x + y + z;
+    y, z, x = (a, b = (c) => x + b + c) => x + b + a, x + y + z;
+  }
+}, 0);
+`,
+		},
+	})
+}

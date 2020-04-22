@@ -147,6 +147,16 @@ function tryToSimplifySomething(ast, ignoreCount) {
           tryToReplaceNode(this, node.consequent);
           tryToReplaceNode(this, node.alternate);
           return;
+
+        case 'AssignmentPattern':
+          tryToReplaceNode(this, node.left);
+          return;
+
+        case 'ArrowFunctionExpression':
+          if (node.expression) {
+            tryToReplaceNode(this, node.body);
+          }
+          return;
       }
     },
   });
@@ -182,13 +192,25 @@ function randomJavaScriptAST() {
     return { type: 'Identifier', name: identifiers[randomInt(identifiers.length)] };
   }
 
+  function randomParam() {
+    if (Math.random() < 0.5) {
+      return randomIdent();
+    } else {
+      return {
+        type: "AssignmentPattern",
+        left: randomIdent(),
+        right: randomExpr(),
+      }
+    }
+  }
+
   function randomExpr() {
     if (nestingDepth > 20) {
       return { type: 'Literal', value: randomInt(10) };
     }
     try {
       nestingDepth++;
-      switch (randomInt(16)) {
+      switch (randomInt(17)) {
         case 0: return { type: 'Literal', value: randomInt(10) };
         case 1: return { type: 'Literal', value: true };
         case 2: return { type: 'Literal', value: false };
@@ -202,7 +224,7 @@ function randomJavaScriptAST() {
         case 10: return {
           type: 'FunctionExpression',
           id: randomOrNull(randomIdent),
-          params: randomMap(0.5, randomIdent),
+          params: randomMap(0.5, randomParam),
           body: { type: 'BlockStatement', body: wrapInsideFunc(() => randomMap(0.75, randomStmt)) },
         };
         case 11: return { type: 'LogicalExpression', operator: '&&', left: randomExpr(), right: randomExpr() };
@@ -210,7 +232,16 @@ function randomJavaScriptAST() {
         case 13: return { type: 'BinaryExpression', operator: '===', left: randomExpr(), right: randomExpr() };
         case 14: return { type: 'BinaryExpression', operator: '!==', left: randomExpr(), right: randomExpr() };
         case 15: return { type: 'UnaryExpression', operator: '!', argument: randomExpr() };
-      }
+        case 16: {
+          const expression = Math.random() < 0.5;
+          return {
+            type: 'ArrowFunctionExpression',
+            params: randomMap(0.5, randomParam),
+            expression,
+            body: expression ? randomExpr() : { type: 'BlockStatement', body: wrapInsideFunc(() => randomMap(0.75, randomStmt)) },
+          };
+        }
+      };
     } finally {
       nestingDepth--;
     }
@@ -241,7 +272,7 @@ function randomJavaScriptAST() {
         case 3: return {
           type: 'FunctionDeclaration',
           id: randomIdent(),
-          params: randomMap(0.5, randomIdent),
+          params: randomMap(0.5, randomParam),
           body: { type: 'BlockStatement', body: wrapInsideFunc(() => randomMap(0.75, randomStmt)) },
         };
       }

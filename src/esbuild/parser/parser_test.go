@@ -646,6 +646,9 @@ func TestArrow(t *testing.T) {
 	expectPrinted(t, "x => function() {}", "(x) => function() {\n};\n")
 	expectPrinted(t, "(x) => function() {}", "(x) => function() {\n};\n")
 	expectPrinted(t, "(x => function() {})", "(x) => function() {\n};\n")
+
+	expectPrinted(t, "(x = () => {}) => {}", "(x = () => {\n}) => {\n};\n")
+	expectPrinted(t, "async (x = () => {}) => {}", "async (x = () => {\n}) => {\n};\n")
 }
 
 func TestTemplate(t *testing.T) {

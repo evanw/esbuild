@@ -285,8 +285,8 @@ func (p *parser) popScope() {
 
 func (p *parser) popAndDiscardScope(scopeIndex int) {
 	// Move up to the parent scope
-	child := p.currentScope
-	parent := child.Parent
+	toDiscard := p.currentScope
+	parent := toDiscard.Parent
 	p.currentScope = parent
 
 	// Truncate the scope order where we started to pretend we never saw this scope
@@ -294,10 +294,39 @@ func (p *parser) popAndDiscardScope(scopeIndex int) {
 
 	// Remove the last child from the parent scope
 	last := len(parent.Children) - 1
-	if parent.Children[last] != child {
+	if parent.Children[last] != toDiscard {
 		panic("Internal error")
 	}
 	parent.Children = parent.Children[:last]
+}
+
+func (p *parser) popAndFlattenScope(scopeIndex int) {
+	// Move up to the parent scope
+	toFlatten := p.currentScope
+	parent := toFlatten.Parent
+	p.currentScope = parent
+
+	// Erase this scope from the order. This will shift over the indices of all
+	// the scopes that were created after us. However, we shouldn't have to
+	// worry about other code with outstanding scope indices for these scopes.
+	// These scopes were all created in between this scope's push and pop
+	// operations, so they should all be child scopes and should all be popped
+	// by the time we get here.
+	copy(p.scopesInOrder[scopeIndex:], p.scopesInOrder[scopeIndex+1:])
+	p.scopesInOrder = p.scopesInOrder[:len(p.scopesInOrder)-1]
+
+	// Remove the last child from the parent scope
+	last := len(parent.Children) - 1
+	if parent.Children[last] != toFlatten {
+		panic("Internal error")
+	}
+	parent.Children = parent.Children[:last]
+
+	// Reparent our child scopes into our parent
+	for _, scope := range toFlatten.Children {
+		scope.Parent = parent
+		parent.Children = append(parent.Children, scope)
+	}
 }
 
 func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
@@ -1672,6 +1701,15 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	spreadRange := ast.Range{}
 	typeColonRange := ast.Range{}
 
+	// Push a scope assuming this is an arrow function. It may not be, in which
+	// case we'll need to roll this change back. This has to be done ahead of
+	// parsing the arguments instead of later on when we hit the "=>" token and
+	// we know it's an arrow function because the arguments may have default
+	// values that introduce new scopes and declare new symbols. If this is an
+	// arrow function, then those new scopes will need to be parented under the
+	// scope of the arrow function itself.
+	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
+
 	// Scan over the comma-separated arguments or expressions
 	for p.lexer.Token != lexer.TCloseParen {
 		itemLoc := p.lexer.Loc()
@@ -1756,16 +1794,19 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 				panic(lexer.LexerPanic{})
 			}
 
-			p.pushScopeForParsePass(ast.ScopeEntry, loc)
-			defer p.popScope()
-
 			p.lexer.Expect(lexer.TEqualsGreaterThan)
 			arrow := p.parseArrowBody(args, fnOpts{allowAwait: opts.isAsync})
 			arrow.IsAsync = opts.isAsync
 			arrow.HasRestArg = spreadRange.Len > 0
+			p.popScope()
 			return ast.Expr{loc, arrow}
 		}
 	}
+
+	// If we get here, it's not an arrow function so undo the pushing of the
+	// scope we did earlier. This needs to flatten any child scopes into the
+	// parent scope as if the scope was never pushed in the first place.
+	p.popAndFlattenScope(scopeIndex)
 
 	// If this isn't an arrow function, then types aren't allowed
 	if typeColonRange.Len > 0 {
