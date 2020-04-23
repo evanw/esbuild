@@ -338,7 +338,11 @@ func (lexer *Lexer) Expected(token T) {
 }
 
 func (lexer *Lexer) Unexpected() {
-	lexer.addRangeError(lexer.Range(), fmt.Sprintf("Unexpected %q", lexer.Raw()))
+	found := fmt.Sprintf("%q", lexer.Raw())
+	if lexer.start == len(lexer.source.Contents) {
+		found = "end of file"
+	}
+	lexer.addRangeError(lexer.Range(), fmt.Sprintf("Unexpected %s", found))
 	panic(LexerPanic{})
 }
 
