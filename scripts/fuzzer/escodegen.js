@@ -1147,7 +1147,7 @@
                 result = join(result, this.generateExpression(stmt.id, Precedence.Sequence, E_TTT));
             }
             if (stmt.superClass) {
-                fragment = join('extends', this.generateExpression(stmt.superClass, Precedence.Unary, E_TTT));
+                fragment = join('extends', this.generateExpression(stmt.superClass, Precedence.Call, E_TTT));
                 result = join(result, fragment);
             }
             result.push(space);
@@ -2099,7 +2099,7 @@
                 result = join(result, this.generateExpression(expr.id, Precedence.Sequence, E_TTT));
             }
             if (expr.superClass) {
-                fragment = join('extends', this.generateExpression(expr.superClass, Precedence.Unary, E_TTT));
+                fragment = join('extends', this.generateExpression(expr.superClass, Precedence.Call, E_TTT));
                 result = join(result, fragment);
             }
             result.push(space);

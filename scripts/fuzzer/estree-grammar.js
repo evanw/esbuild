@@ -161,47 +161,7 @@ module.exports = {
     ],
     ClassExpression: {
       id: nullable('Identifier'),
-      superClass: nullable('SuperClassExpression'),
-      body: 'ClassBody',
-    },
-  },
-
-  // Try to work around escodegen bugs that don't correctly parenthesize super class expressions
-  $SuperClassExpression: {
-    ThisExpression: {},
-    Identifier: {
-      name: 'string',
-    },
-    Literal: {
-      value: oneOf('boolean', 'string', 'number', 'regexp', literal(null)),
-    },
-    ArrayExpression: {
-      elements: arrayOf(oneOf('Expression', 'SpreadElement', literal(null))),
-    },
-    ObjectExpression: {
-      properties: arrayOf('Property'),
-    },
-    FunctionExpression: {
-      id: nullable('Identifier'),
-      async: 'boolean',
-      params: arrayOf('Pattern'),
-      body: 'BlockStatement',
-    },
-    $MemberExpression: [
-      {
-        object: 'Expression',
-        property: 'Identifier',
-        computed: literal(false),
-      },
-      {
-        object: 'Expression',
-        property: 'Expression',
-        computed: literal(true),
-      },
-    ],
-    ClassExpression: {
-      id: nullable('Identifier'),
-      superClass: nullable('SuperClassExpression'),
+      superClass: nullable('Expression'),
       body: 'ClassBody',
     },
   },
@@ -302,7 +262,7 @@ module.exports = {
     },
     ClassDeclaration: {
       id: 'Identifier',
-      superClass: nullable('SuperClassExpression'),
+      superClass: nullable('Expression'),
       body: 'ClassBody',
     },
   },
@@ -326,7 +286,7 @@ module.exports = {
 
   ClassDeclaration: {
     id: 'Identifier',
-    superClass: nullable('SuperClassExpression'),
+    superClass: nullable('Expression'),
     body: 'ClassBody',
   },
 
@@ -341,7 +301,7 @@ module.exports = {
   AnonymousDefaultExportedClassDeclaration: {
     type: literal('ClassDeclaration'),
     id: literal(null),
-    superClass: nullable('SuperClassExpression'),
+    superClass: nullable('Expression'),
     body: 'ClassBody',
   },
 
