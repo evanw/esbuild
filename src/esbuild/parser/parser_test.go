@@ -340,6 +340,10 @@ func TestFor(t *testing.T) {
 	expectParseError(t, "for (let {x} = y of z) ;", "<stdin>: error: for-of loop variables cannot have an initializer\n")
 	expectParseError(t, "for (const {x} = y of z) ;", "<stdin>: error: for-of loop variables cannot have an initializer\n")
 
+	// Make sure "in" rules are enabled
+	expectPrinted(t, "for (var x = () => a in b);", "for (var x = () => a in b)\n  ;\n")
+	expectPrinted(t, "for (var x = a + b in c);", "for (var x = a + b in c)\n  ;\n")
+
 	// Make sure "in" rules are disabled
 	expectPrinted(t, "for (var {[x in y]: z} = {};;);", "for (var {[x in y]: z} = {}; ; )\n  ;\n")
 	expectPrinted(t, "for (var {x = y in z} = {};;);", "for (var {x = y in z} = {}; ; )\n  ;\n")

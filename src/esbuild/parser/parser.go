@@ -1710,6 +1710,10 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	// scope of the arrow function itself.
 	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
 
+	// Allow "in" inside parentheses
+	oldAllowIn := p.allowIn
+	p.allowIn = true
+
 	// Scan over the comma-separated arguments or expressions
 	for p.lexer.Token != lexer.TCloseParen {
 		itemLoc := p.lexer.Loc()
@@ -1760,6 +1764,9 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 
 	// The parenthetical construct must end with a close parenthesis
 	p.lexer.Expect(lexer.TCloseParen)
+
+	// Restore "in" operator status before we parse the arrow function body
+	p.allowIn = oldAllowIn
 
 	// Are these arguments to an arrow function?
 	if p.lexer.Token == lexer.TEqualsGreaterThan || opts.forceArrowFn || (p.ts.Parse && p.lexer.Token == lexer.TColon) {
@@ -1940,21 +1947,21 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 	case lexer.TOpenParen:
 		p.lexer.Next()
 
-		// Allow "in" inside parentheses
-		oldAllowIn := p.allowIn
-		p.allowIn = true
-
 		// Arrow functions aren't allowed in the middle of expressions
 		if level > ast.LAssign {
+			// Allow "in" inside parentheses
+			oldAllowIn := p.allowIn
+			p.allowIn = true
+
 			value := p.parseExpr(ast.LLowest)
 			markExprAsParenthesized(value)
 			p.lexer.Expect(lexer.TCloseParen)
+
 			p.allowIn = oldAllowIn
 			return value
 		}
 
 		value := p.parseParenExpr(loc, parenExprOpts{})
-		p.allowIn = oldAllowIn
 		return value
 
 	case lexer.TFalse:
