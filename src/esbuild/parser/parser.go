@@ -4850,12 +4850,15 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 
 func (p *parser) parseFnBodyStmts(opts fnOpts) []ast.Stmt {
 	oldFnOpts := p.currentFnOpts
+	oldAllowIn := p.allowIn
 	p.currentFnOpts = opts
+	p.allowIn = true
 
 	p.lexer.Expect(lexer.TOpenBrace)
 	stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 	p.lexer.Next()
 
+	p.allowIn = oldAllowIn
 	p.currentFnOpts = oldFnOpts
 	return stmts
 }
