@@ -1491,15 +1491,8 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 	case lexer.TOpenBracket:
 		isComputed = true
 		p.lexer.Next()
-
-		// "in" expressions are allowed
-		oldAllowIn := p.allowIn
-		p.allowIn = true
-		expr := p.parseExpr(ast.LLowest)
-		p.allowIn = oldAllowIn
-
+		key = p.parseExpr(ast.LLowest)
 		p.lexer.Expect(lexer.TCloseBracket)
-		key = expr
 
 	default:
 		name := p.lexer.Identifier
@@ -1517,13 +1510,8 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 			var defaultValue *ast.Expr
 			if p.lexer.Token == lexer.TEquals {
 				p.lexer.Next()
-
-				// "in" expressions are allowed
-				oldAllowIn := p.allowIn
-				p.allowIn = true
 				init := p.parseExpr(ast.LComma)
 				defaultValue = &init
-				p.allowIn = oldAllowIn
 			}
 
 			return ast.PropertyBinding{
@@ -1540,13 +1528,8 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 	var defaultValue *ast.Expr
 	if p.lexer.Token == lexer.TEquals {
 		p.lexer.Next()
-
-		// "in" expressions are allowed
-		oldAllowIn := p.allowIn
-		p.allowIn = true
 		init := p.parseExpr(ast.LComma)
 		defaultValue = &init
-		p.allowIn = oldAllowIn
 	}
 
 	return ast.PropertyBinding{
@@ -3377,6 +3360,10 @@ func (p *parser) parseBinding() ast.Binding {
 		items := []ast.ArrayBinding{}
 		hasSpread := false
 
+		// "in" expressions are allowed
+		oldAllowIn := p.allowIn
+		p.allowIn = true
+
 		for p.lexer.Token != lexer.TCloseBracket {
 			if p.lexer.Token == lexer.TComma {
 				binding := ast.Binding{p.lexer.Loc(), &ast.BMissing{}}
@@ -3416,12 +3403,18 @@ func (p *parser) parseBinding() ast.Binding {
 			p.lexer.Next()
 		}
 
+		p.allowIn = oldAllowIn
+
 		p.lexer.Expect(lexer.TCloseBracket)
 		return ast.Binding{loc, &ast.BArray{items, hasSpread}}
 
 	case lexer.TOpenBrace:
 		p.lexer.Next()
 		properties := []ast.PropertyBinding{}
+
+		// "in" expressions are allowed
+		oldAllowIn := p.allowIn
+		p.allowIn = true
 
 		for p.lexer.Token != lexer.TCloseBrace {
 			property := p.parsePropertyBinding()
@@ -3438,6 +3431,8 @@ func (p *parser) parseBinding() ast.Binding {
 			}
 			p.lexer.Next()
 		}
+
+		p.allowIn = oldAllowIn
 
 		p.lexer.Expect(lexer.TCloseBrace)
 		return ast.Binding{loc, &ast.BObject{properties}}
