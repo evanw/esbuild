@@ -1591,9 +1591,7 @@ func (p *parser) isAsyncExprSuffix() bool {
 
 // This parses an expression. This assumes we've already parsed the "async"
 // keyword and are currently looking at the following token.
-func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
-	var expr ast.Expr
-
+func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 	// Make sure this matches the switch statement in isAsyncExprSuffix()
 	switch p.lexer.Token {
 	// "async function() {}"
@@ -1649,10 +1647,8 @@ func (p *parser) parseAsyncExpr(asyncRange ast.Range, level ast.L) ast.Expr {
 			return expr
 		}
 
-		expr = ast.Expr{asyncRange.Loc, &ast.EIdentifier{p.storeNameInRef("async")}}
+		return ast.Expr{asyncRange.Loc, &ast.EIdentifier{p.storeNameInRef("async")}}
 	}
-
-	return p.parseSuffix(expr, level, nil)
 }
 
 func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
@@ -2025,7 +2021,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 		// Handle async and await expressions
 		if name == "async" {
-			return p.parseAsyncExpr(nameRange, level)
+			return p.parseAsyncPrefixExpr(nameRange)
 		} else if p.currentFnOpts.allowAwait && name == "await" {
 			return ast.Expr{loc, &ast.EAwait{p.parseExpr(ast.LPrefix)}}
 		}
@@ -3907,7 +3903,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 
-				expr := p.parseAsyncExpr(asyncRange, ast.LComma)
+				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LComma, nil)
 				p.lexer.ExpectOrInsertSemicolon()
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
 			}
@@ -4635,7 +4631,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Next()
 				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */)
 			}
-			expr = p.parseAsyncExpr(asyncRange, ast.LLowest)
+			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LLowest, nil)
 		} else {
 			expr = p.parseExpr(ast.LLowest)
 		}
