@@ -3,7 +3,7 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { generate } = require('escodegen')
+const { generate } = require('./escodegen')
 const child_process = require('child_process')
 const { randomAST } = require('./estree-generator')
 const esbuildPath = path.join(__dirname, '..', '..', 'esbuild')

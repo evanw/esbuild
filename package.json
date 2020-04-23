@@ -1,7 +1,6 @@
 {
   "private": true,
   "devDependencies": {
-    "escodegen": "1.14.1",
     "fuse-box": "4.0.0-next.165",
     "js-yaml": "3.13.1",
     "parcel": "1.12.4",
@@ -13,5 +12,9 @@
     "typescript": "3.7.5",
     "webpack": "4.41.6",
     "webpack-cli": "3.3.11"
+  },
+  "dependencies": {
+    "estraverse": "5.1.0",
+    "esutils": "2.0.3"
   }
 }
