@@ -1206,9 +1206,50 @@
         },
 
         ExportDefaultDeclaration: function (stmt, flags) {
-            var result = ['export'], bodyFlags;
+            var result = ['export'], bodyFlags, fragment, temp;
 
             bodyFlags = (flags & F_SEMICOLON_OPT) ? S_TFFT : S_TFFF;
+
+            function isClassPrefixed(fragment) {
+                var code;
+                if (fragment.slice(0, 5) !== 'class') {
+                    return false;
+                }
+                code = fragment.charCodeAt(5);
+                return code === 0x7B  /* '{' */ || esutils.code.isWhiteSpace(code) || esutils.code.isLineTerminator(code);
+            }
+
+            function isFunctionPrefixed(fragment) {
+                var code;
+                if (fragment.slice(0, 8) !== 'function') {
+                    return false;
+                }
+                code = fragment.charCodeAt(8);
+                return code === 0x28 /* '(' */ || esutils.code.isWhiteSpace(code) || code === 0x2A  /* '*' */ || esutils.code.isLineTerminator(code);
+            }
+
+            function isAsyncPrefixed(fragment) {
+                var code, i, iz;
+                if (fragment.slice(0, 5) !== 'async') {
+                    return false;
+                }
+                if (!esutils.code.isWhiteSpace(fragment.charCodeAt(5))) {
+                    return false;
+                }
+                for (i = 6, iz = fragment.length; i < iz; ++i) {
+                    if (!esutils.code.isWhiteSpace(fragment.charCodeAt(i))) {
+                        break;
+                    }
+                }
+                if (i === iz) {
+                    return false;
+                }
+                if (fragment.slice(i, i + 8) !== 'function') {
+                    return false;
+                }
+                code = fragment.charCodeAt(i + 8);
+                return code === 0x28 /* '(' */ || esutils.code.isWhiteSpace(code) || code === 0x2A  /* '*' */ || esutils.code.isLineTerminator(code);
+            }
 
             // export default HoistableDeclaration[Default]
             // export default AssignmentExpression[In] ;
@@ -1216,7 +1257,17 @@
             if (isStatement(stmt.declaration)) {
                 result = join(result, this.generateStatement(stmt.declaration, bodyFlags));
             } else {
-                result = join(result, this.generateExpression(stmt.declaration, Precedence.Assignment, E_TTT) + this.semicolon(flags));
+                temp = [this.generateExpression(stmt.declaration, Precedence.Assignment, E_TTT)];
+                fragment = toSourceNodeWhenNeeded(temp).toString();
+                // Wrap expression with parentheses if needed
+                if (isClassPrefixed(fragment) ||
+                    isFunctionPrefixed(fragment) ||
+                    isAsyncPrefixed(fragment)) {
+                    result = join(result, ['(', temp, ')' + this.semicolon(flags)]);
+                } else {
+                    temp.push(this.semicolon(flags));
+                    result = join(result, temp);
+                }
             }
             return result;
         },
