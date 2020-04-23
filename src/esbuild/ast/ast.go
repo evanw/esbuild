@@ -944,8 +944,8 @@ type SymbolMap struct {
 	Outer [][]Symbol
 }
 
-func NewSymbolMap(maxSourceIndex int) *SymbolMap {
-	return &SymbolMap{make([][]Symbol, maxSourceIndex+1)}
+func NewSymbolMap(sourceCount int) *SymbolMap {
+	return &SymbolMap{make([][]Symbol, sourceCount)}
 }
 
 func (sm *SymbolMap) Get(ref Ref) Symbol {

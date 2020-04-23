@@ -593,14 +593,8 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 }
 
 func (b *Bundle) mergeAllSymbolsIntoOneMap(files []file) *ast.SymbolMap {
-	// Make sure the symbol map can hold all symbols
-	maxSourceIndex := 0
-	for sourceIndex, _ := range files {
-		if sourceIndex > maxSourceIndex {
-			maxSourceIndex = sourceIndex
-		}
-	}
-	symbols := ast.NewSymbolMap(maxSourceIndex)
+	// Make a new symbol map that can hold symbols from all files
+	symbols := ast.NewSymbolMap(len(files))
 
 	// Clone a copy of each file's symbols into the bundle-level symbol map. It's
 	// cloned so we can modify it without affecting the original file AST, which
@@ -1362,13 +1356,16 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 
 			group := []uint32{sourceIndex}
 
+			// Clone the symbol map just for this file
+			symbols := ast.NewSymbolMap(len(files))
+			symbols.Outer[sourceIndex] = append([]ast.Symbol{}, files[sourceIndex].ast.Symbols.Outer[sourceIndex]...)
+			files[sourceIndex].ast.Symbols = symbols
+
 			// Make sure we don't rename exports
-			symbols := b.mergeAllSymbolsIntoOneMap(files)
 			b.markExportsAsUnbound(files[sourceIndex], symbols)
 
 			// Rename symbols
 			b.renameOrMinifyAllSymbols(files, symbols, group, options)
-			files[sourceIndex].ast.Symbols = symbols
 
 			// Print the JavaScript code
 			result := b.compileFile(options, sourceIndex, files[sourceIndex], []uint32{})
