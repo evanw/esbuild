@@ -3,7 +3,7 @@ ESBUILD_VERSION = $(shell cat version.txt)
 esbuild: src/esbuild/*/*.go
 	cd src/esbuild && go build -o ../../esbuild ./main
 
-test:
+test: | node_modules
 	cd src/esbuild && go test ./...
 	node scripts/verify-source-map.js
 	node scripts/end-to-end-tests.js
