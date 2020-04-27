@@ -75,6 +75,8 @@ Disclaimers:
 * I don't personally want to run a large community project, so I'm not looking for contributions at this time.
 * The code in this repo isn't intended to be built upon. I'm may change the internals in a backwards-incompatible way at any time to improve performance or introduce new features.
 
+There is now some documentation about the architecture and about certain subtleties in the code here: [docs/architecture.md](docs/architecture.md). I hope it will be helpful for those interested in learning more about how the code works.
+
 ## Install
 
 A prebuilt binary can be installed using npm:
