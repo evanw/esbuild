@@ -6,6 +6,8 @@
   "scripts": {
     "postinstall": "node install.js"
   },
+  "main": "lib/main.js",
+  "types": "lib/main.d.ts",
   "bin": "bin/esbuild",
   "license": "MIT"
 }
