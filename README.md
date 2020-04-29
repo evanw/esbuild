@@ -167,6 +167,8 @@ To use esbuild with [React](https://reactjs.org/):
 
 * If you're using esbuild to bundle React yourself instead of including it with a `<script>` tag in your HTML, you'll need to pass `'--define:process.env.NODE_ENV="development"'` or `'--define:process.env.NODE_ENV="production"'` to esbuild on the command line.
 
+    *Note that the double quotes around `"production"` are important because the replacement should be a string, not an identifier. The outer single quotes are for escaping the double quotes in Bash but may not be necessary in other shells.*
+
 * If you're using [Preact](https://preactjs.com/) instead of React, you'll also need to pass `--jsx-factory=preact.h --jsx-fragment=preact.Fragment` to esbuild on the command line.
 
 For example, if you have a file called `example.tsx` with the following contents:
