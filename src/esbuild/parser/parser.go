@@ -504,6 +504,16 @@ func (p *parser) recordUsage(ref ast.Ref) {
 	}
 }
 
+func (p *parser) ignoreUsage(ref ast.Ref) {
+	// Roll back the use count increment in recordUsage()
+	if !p.isControlFlowDead {
+		p.symbols[ref.InnerIndex].UseCountEstimate--
+	}
+
+	// Don't roll back the "tsUseCounts" increment. This must be counted even if
+	// the value is ignored because that's what the TypeScript compiler does.
+}
+
 func (p *parser) addError(loc ast.Loc, text string) {
 	p.log.AddError(p.source, loc, text)
 }
@@ -6555,10 +6565,24 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 				p.isImportItem[itemRef] = true
 
 				// Make sure the printer prints this as a property access
-				p.symbols[itemRef.InnerIndex].NamespaceAlias = &ast.NamespaceAlias{
-					NamespaceRef: id.Ref,
-					Alias:        data.Name,
+				if !p.isBundling {
+					p.symbols[itemRef.InnerIndex].NamespaceAlias = &ast.NamespaceAlias{
+						NamespaceRef: id.Ref,
+						Alias:        data.Name,
+					}
 				}
+			}
+
+			// Undo the usage count for the namespace itself. This is used later
+			// to detect whether the namespace symbol has ever been "captured"
+			// or whether it has just been used to read properties off of.
+			//
+			// The benefit of doing this is that if both this module and the
+			// imported module end up in the same module group and the namespace
+			// symbol has never been captured, then we don't need to generate
+			// any code for the namespace at all.
+			if p.isBundling {
+				p.ignoreUsage(id.Ref)
 			}
 
 			// Track how many times we've referenced this symbol
@@ -7663,7 +7687,11 @@ func (p *parser) scanForImportPaths(stmts []ast.Stmt, isBundling bool) []ast.Stm
 
 					// Remove the symbol if it's never used outside a dead code region
 					if symbol.UseCountEstimate == 0 {
-						s.StarLoc = nil
+						// Make sure we don't remove this if it was used for a property
+						// access while bundling
+						if importItems, ok := p.importItemsForNamespace[s.NamespaceRef]; ok && len(importItems) == 0 {
+							s.StarLoc = nil
+						}
 					}
 				}
 
@@ -7716,6 +7744,36 @@ func (p *parser) scanForImportPaths(stmts []ast.Stmt, isBundling bool) []ast.Stm
 			// Only track import paths if we want dependencies
 			if isBundling {
 				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
+
+				if s.StarLoc != nil {
+					// If we're bundling a star import, add any import items we generated
+					// for this namespace while parsing as explicit import items instead.
+					// That will cause the bundler to bundle them more efficiently when
+					// both this module and the imported module are in the same group.
+					if importItems, ok := p.importItemsForNamespace[s.NamespaceRef]; ok && len(importItems) > 0 {
+						starLoc := *s.StarLoc
+						items := s.Items
+						if items == nil {
+							items = &[]ast.ClauseItem{}
+						}
+						for name, itemRef := range importItems {
+							*items = append(*items, ast.ClauseItem{name, starLoc, ast.LocRef{starLoc, itemRef}})
+						}
+						s.Items = items
+					}
+
+					// Remove the star import if it's not actually used. The parser only
+					// counts the star import as used if it was used for something other
+					// than a property access.
+					//
+					// That way if it's only used for property accesses, we can omit the
+					// code for the star import entirely and just merge the property
+					// accesses directly with the appropriate symbols instead (since both
+					// this module and the imported module are in the same group).
+					if p.symbols[s.NamespaceRef.InnerIndex].UseCountEstimate == 0 {
+						s.StarLoc = nil
+					}
+				}
 			}
 
 		case *ast.SExportStar:
