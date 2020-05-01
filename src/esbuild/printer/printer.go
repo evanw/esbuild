@@ -329,6 +329,12 @@ func quoteUTF16(text []uint16, quote rune) string {
 			}
 			b.WriteByte('`')
 
+		case '$':
+			if quote == '`' && i < n && text[i] == '{' {
+				b.WriteByte('\\')
+			}
+			b.WriteByte('$')
+
 		case '\u2028':
 			b.WriteString("\\u2028")
 
@@ -857,7 +863,7 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	doubleCost := 0
 	backtickCost := 0
 
-	for _, c := range data {
+	for i, c := range data {
 		switch c {
 		case '\n':
 			if p.minify {
@@ -871,6 +877,11 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 			doubleCost++
 		case '`':
 			backtickCost++
+		case '$':
+			// "${" sequences need to be escaped in template literals
+			if i+1 < len(data) && data[i+1] == '{' {
+				backtickCost++
+			}
 		}
 	}
 
@@ -1226,6 +1237,15 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.print(c)
 
 	case *ast.ETemplate:
+		// Convert no-substitution template literals into strings if it's smaller
+		if p.minify && e.Tag == nil && len(e.Parts) == 0 {
+			c := p.bestQuoteCharForString(e.Head, true /* allowBacktick */)
+			p.print(c)
+			p.print(quoteUTF16(e.Head, rune(c[0])))
+			p.print(c)
+			return
+		}
+
 		if e.Tag != nil {
 			p.printExpr(*e.Tag, ast.LPostfix, 0)
 		}

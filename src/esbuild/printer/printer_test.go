@@ -172,6 +172,13 @@ func TestTemplate(t *testing.T) {
 	expectPrinted(t, "let x = String.raw`${0}\\x01`", "let x = String.raw`${0}\\x01`;\n")
 	expectPrinted(t, "let x = String.raw`${0}\\1${1}`", "let x = String.raw`${0}\\1${1}`;\n")
 	expectPrinted(t, "let x = String.raw`${0}\\x01${1}`", "let x = String.raw`${0}\\x01${1}`;\n")
+
+	expectPrinted(t, "let x = `${y}`", "let x = `${y}`;\n")
+	expectPrinted(t, "let x = `$(y)`", "let x = `$(y)`;\n")
+	expectPrinted(t, "let x = `{y}$`", "let x = `{y}$`;\n")
+	expectPrinted(t, "let x = `$}y{`", "let x = `$}y{`;\n")
+	expectPrinted(t, "let x = `\\${y}`", "let x = `\\${y}`;\n")
+	expectPrinted(t, "let x = `$\\{y}`", "let x = `\\${y}`;\n")
 }
 
 func TestObject(t *testing.T) {
@@ -401,6 +408,10 @@ func TestWhitespace(t *testing.T) {
 	expectPrintedMinify(t, "({})", "({});")
 
 	expectPrintedMinify(t, "let x = '\\n'", "let x=`\n`;")
+	expectPrintedMinify(t, "let x = `\n`", "let x=`\n`;")
+	expectPrintedMinify(t, "let x = '\\n${}'", "let x=\"\\n${}\";")
+	expectPrintedMinify(t, "let x = `\n\\${}`", "let x=\"\\n${}\";")
+	expectPrintedMinify(t, "let x = `\n\\${}${y}\\${}`", "let x=`\n\\${}${y}\\${}`;")
 }
 
 func TestMinify(t *testing.T) {
