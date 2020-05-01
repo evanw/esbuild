@@ -115,7 +115,7 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 
 		sourceDirInfo := r.dirInfoCached(sourceDir)
 		if sourceDirInfo == nil {
-			// Bail no if the directory is missing for some reason
+			// Bail if the directory is missing for some reason
 			return "", ResolveMissing
 		}
 

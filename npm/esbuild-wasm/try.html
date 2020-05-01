@@ -1,0 +1,254 @@
+<!-- This is a simple playground to try out esbuild in your browser -->
+<html>
+
+<head>
+  <meta charset="utf8">
+  <title>Try esbuild live</title>
+  <style>
+    body {
+      font: 15px/120% sans-serif;
+      overflow: hidden;
+    }
+
+    h2,
+    p {
+      cursor: default;
+      user-select: none;
+    }
+
+    textarea {
+      resize: none;
+      width: 100%;
+      height: 100%;
+    }
+
+    textarea,
+    #output .outer {
+      box-sizing: border-box;
+      padding: 4px;
+      color: inherit;
+      font-size: 13px;
+      line-height: 110%;
+      font-family: monospace;
+      cursor: text;
+    }
+
+    #output .outer {
+      white-space: pre-wrap;
+      overflow-y: auto;
+    }
+
+    textarea:focus {
+      outline: none;
+      border: 1px solid #999;
+    }
+
+    hr {
+      border: 1px solid #999;
+      margin: 1em 0;
+    }
+
+    section {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      padding: 0 20px;
+      box-sizing: border-box;
+    }
+
+    #input {
+      left: 0;
+      width: 50%;
+    }
+
+    #output {
+      right: 0;
+      width: 50%;
+    }
+
+    .outer {
+      position: absolute;
+      left: 20px;
+      top: 100px;
+      right: 20px;
+      bottom: 20px;
+    }
+
+    #input .outer {
+      right: 10px;
+    }
+
+    #output .outer {
+      left: 10px;
+    }
+
+    label {
+      margin-right: 20px;
+      white-space: nowrap;
+    }
+
+    .terminal-31 {
+      color: #F00;
+    }
+
+    .terminal-32 {
+      color: #0F0;
+    }
+
+    .terminal-35 {
+      color: #F0F;
+    }
+
+    body {
+      background: #EEE;
+      color: #333;
+    }
+
+    textarea,
+    #output .outer {
+      background: #FFF;
+      border: 1px solid #CCC;
+    }
+
+    .terminal-1 {
+      font-weight: bold;
+      color: #000;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #333;
+        color: #DDD;
+      }
+
+      textarea,
+      #output .outer {
+        background: #111;
+        border: 1px solid #555;
+      }
+
+      .terminal-1 {
+        font-weight: bold;
+        color: #FFF;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <section id="input">
+    <h2>Input</h2>
+    <p>
+      <label for="target">
+        Target: <select id="target">
+          <option>ES2015</option>
+          <option>ES2016</option>
+          <option>ES2017</option>
+          <option>ES2018</option>
+          <option>ES2019</option>
+          <option>ES2020</option>
+          <option selected>ESNext</option>
+        </select>
+      </label>
+      <label for="loader">
+        Loader: <select id="loader">
+          <option selected>JS</option>
+          <option>JSX</option>
+          <option>TS</option>
+          <option>TSX</option>
+        </select>
+      </label>
+      <label for="platform">
+        Platform: <select id="platform">
+          <option selected>Browser</option>
+          <option>Node</option>
+        </select>
+      </label>
+      <label for="minify">
+        <input id="minify" type="checkbox">
+        Minify
+      </label>
+    </p>
+    <div class="outer"><textarea autofocus spellcheck="false"></textarea></div>
+  </section>
+  <section id="output">
+    <h2>Output</h2>
+    <div class="outer"></div>
+  </section>
+  <script src="browser.js"></script>
+  <script>
+    esbuildStartWorker({
+      wasmExecJsUrl: 'wasm_exec.js',
+      esbuildWasmUrl: 'esbuild.wasm',
+      worker: false,
+    }).then(esbuild => {
+      const input = document.querySelector('#input textarea')
+      const output = document.querySelector('#output .outer')
+      const target = document.querySelector('#target')
+      const loader = document.querySelector('#loader')
+      const platform = document.querySelector('#platform')
+      const minify = document.querySelector('#minify')
+      let debounceTimeout = 0
+      let isRunning = false
+      let needsRun = false
+
+      target.onchange = runIfIdle
+      loader.onchange = runIfIdle
+      platform.onchange = runIfIdle
+      minify.onchange = runIfIdle
+
+      input.oninput = () => {
+        clearTimeout(debounceTimeout)
+        debounceTimeout = setTimeout(runIfIdle, 250)
+      }
+
+      function runIfIdle() {
+        clearTimeout(debounceTimeout)
+
+        if (isRunning) {
+          needsRun = true
+          return
+        }
+
+        isRunning = true
+        needsRun = false
+
+        esbuild({
+          files: {
+            '/home/user/in.js': input.value,
+          },
+          flags: [
+            'in.js',
+            '--outfile=out.js',
+            '--target=' + target.value.toLowerCase(),
+            '--loader:.js=' + loader.value.toLowerCase(),
+            '--platform=' + platform.value.toLowerCase(),
+          ].concat(minify.checked ? ['--minify'] : []),
+        }).then(
+          ({ files, code }) => {
+            const stderr = files['/dev/stderr'] || ''
+            const out_js = files['/home/user/out.js'] || ''
+            output.innerHTML =
+              terminalEscapesToHTML(textToHTML(stderr)) +
+              (code ? '' : '<hr>' + textToHTML(out_js))
+          },
+          error => output.textContent = error + '',
+        ).then(() => {
+          isRunning = false
+          if (needsRun) runIfIdle()
+        })
+      }
+
+      function textToHTML(text) {
+        return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      }
+
+      function terminalEscapesToHTML(text) {
+        const fn = (_, code) => code.split(';').map(x => `</span><span class="terminal-${code}">`).join('');
+        return '<span>' + text.replace(/\x1B\[([0-9;]+)m/g, fn) + '</span>'
+      }
+    })
+  </script>
+</body>
+
+</html>
