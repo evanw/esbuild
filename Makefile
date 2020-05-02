@@ -74,7 +74,7 @@ node_modules:
 
 github/test262:
 	mkdir -p github
-	git clone git@github.com:tc39/test262.git github/test262
+	git clone --depth 1 https://github.com/tc39/test262.git github/test262
 
 demo/test262: | github/test262
 	mkdir -p demo/test262
@@ -231,7 +231,7 @@ ROME_PARCEL_FLAGS += --target node
 
 github/rome:
 	mkdir -p github/rome
-	cd github/rome && git init && git remote add origin git@github.com:facebookexperimental/rome.git
+	cd github/rome && git init && git remote add origin https://github.com/facebookexperimental/rome.git
 	cd github/rome && git fetch --depth 1 origin d95a3a7aab90773c9b36d9c82a08c8c4c6b68aa5 && git checkout FETCH_HEAD
 
 bench/rome: | github/rome
