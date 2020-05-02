@@ -6392,10 +6392,24 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 	case *ast.BArray:
 		expr, valueFunc, afterFunc := p.valueRepeater(loc, len(d.Items), value)
 		for i, item := range d.Items {
-			itemValue := ast.Expr{loc, &ast.EIndex{
-				Target: valueFunc(),
-				Index:  ast.Expr{loc, &ast.ENumber{float64(i)}},
-			}}
+			var itemValue ast.Expr
+			if d.HasSpread && i+1 == len(d.Items) {
+				// "array.slice(i)"
+				itemValue = ast.Expr{loc, &ast.ECall{
+					Target: ast.Expr{loc, &ast.EDot{
+						Target:  valueFunc(),
+						Name:    "slice",
+						NameLoc: loc,
+					}},
+					Args: []ast.Expr{ast.Expr{loc, &ast.ENumber{float64(i)}}},
+				}}
+			} else {
+				// "array[i]"
+				itemValue = ast.Expr{loc, &ast.EIndex{
+					Target: valueFunc(),
+					Index:  ast.Expr{loc, &ast.ENumber{float64(i)}},
+				}}
+			}
 
 			// Handle default values
 			if item.DefaultValue != nil {

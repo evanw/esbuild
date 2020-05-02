@@ -782,3 +782,31 @@ let __rest = (source, exclude) => {
 		},
 	})
 }
+
+func TestTSNamespaceExportArraySpread(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": "namespace A { export var [a, ...b] = ref }",
+			"/b.ts": "namespace A { export var [a, ,, ...b] = ref }",
+		},
+		entryPaths: []string{"/a.ts", "/b.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling: false,
+		},
+		expected: map[string]string{
+			"/a.js": `var A;
+(function(A2) {
+  A2.a = ref[0], A2.b = ref.slice(1);
+})(A || (A = {}));
+`,
+			"/b.js": `var A;
+(function(A2) {
+  A2.a = ref[0], A2.b = ref.slice(3);
+})(A || (A = {}));
+`,
+		},
+	})
+}
