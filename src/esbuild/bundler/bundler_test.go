@@ -2669,7 +2669,7 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=g$(0);console.log(b(),g$(2))}},1);
+			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=h$(0);console.log(b(),h$(2))}},1);
 `,
 		},
 	})

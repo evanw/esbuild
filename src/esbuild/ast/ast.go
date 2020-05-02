@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"esbuild/runtime"
 	"path"
 	"strings"
 )
@@ -365,6 +366,11 @@ type ECall struct {
 	IsParenthesized bool
 }
 
+type ERuntimeCall struct {
+	Sym  runtime.Sym
+	Args []Expr
+}
+
 type EDot struct {
 	Target          Expr
 	Name            string
@@ -486,6 +492,7 @@ func (*ENew) isExpr()              {}
 func (*ENewTarget) isExpr()        {}
 func (*EImportMeta) isExpr()       {}
 func (*ECall) isExpr()             {}
+func (*ERuntimeCall) isExpr()      {}
 func (*EDot) isExpr()              {}
 func (*EIndex) isExpr()            {}
 func (*EArrow) isExpr()            {}
@@ -1007,6 +1014,10 @@ type AST struct {
 	ModuleScope *Scope
 	ExportsRef  Ref
 	ModuleRef   Ref
+
+	// This is a bitwise-or of all runtime symbols used by this AST. Runtime
+	// symbols are used by ERuntimeCall expressions.
+	UsedRuntimeSyms runtime.Sym
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.

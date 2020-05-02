@@ -1,13 +1,30 @@
 package runtime
 
-type Fn uint8
+type Sym uint8
 
 const (
-	ExportFn Fn = 1 << 1
+	// These flags are designed to be merged together using bitwise-or to figure
+	// out what runtime symbols are used. Each flag includes its dependencies so
+	// that a bitwise-or will automatically also mark them as used too.
+	DefinePropertySym Sym = (1 << 0)
+	HasOwnPropertySym Sym = (1 << 1)
+	ModulesSym        Sym = (1 << 2)
+	CommonJsSym       Sym = (1 << 3)
+	RequireSym        Sym = (1 << 4) | ModulesSym | CommonJsSym
+	ToModuleSym       Sym = (1 << 5) | HasOwnPropertySym
+	ImportSym         Sym = (1 << 6) | ToModuleSym | RequireSym
+	ExportSym         Sym = (1 << 7) | DefinePropertySym
 )
 
-var FnMap = map[string]Fn{
-	"__export": ExportFn,
+var SymMap = map[string]Sym{
+	"__defineProperty": DefinePropertySym,
+	"__hasOwnProperty": HasOwnPropertySym,
+	"__modules":        ModulesSym,
+	"__commonjs":       CommonJsSym,
+	"__require":        RequireSym,
+	"__toModule":       ToModuleSym,
+	"__import":         ImportSym,
+	"__export":         ExportSym,
 }
 
 const Code = `
@@ -16,6 +33,9 @@ const Code = `
 
 	// Holds the exports for all modules that have been evaluated
 	let __modules = {}
+
+	// Will be filled in with the CommonJS module map
+	let __commonjs
 
 	// Used to import a bundled module using require()
 	let __require = id => {
@@ -54,7 +74,4 @@ const Code = `
 			__defineProperty(target, name, { get: all[name], enumerable: true })
 		}
 	}
-
-	// Will be filled in with the CommonJS module map
-	let __commonjs
 `

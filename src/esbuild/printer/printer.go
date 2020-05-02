@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"esbuild/ast"
 	"esbuild/lexer"
+	"esbuild/runtime"
 	"fmt"
 	"math"
 	"strconv"
@@ -400,9 +401,7 @@ type printer struct {
 
 	// For imports
 	resolvedImports map[string]uint32
-	requireRef      ast.Ref // For CommonJS imports
-	importRef       ast.Ref // For ES6 imports
-	toModuleRef     ast.Ref // For CommonJS-to-ES6 conversion
+	runtimeSymRefs  map[runtime.Sym]ast.Ref
 
 	// For source maps
 	writeSourceMap bool
@@ -481,6 +480,14 @@ func (p *printer) printIndent() {
 func (p *printer) symbolName(ref ast.Ref) string {
 	ref = ast.FollowSymbols(p.symbols, ref)
 	return p.symbols.Get(ref).Name
+}
+
+func (p *printer) printRuntimeSym(sym runtime.Sym) {
+	ref, ok := p.runtimeSymRefs[sym]
+	if !ok {
+		panic("Internal error")
+	}
+	p.printSymbol(ref)
 }
 
 func (p *printer) printSymbol(ref ast.Ref) {
@@ -898,15 +905,15 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 }
 
 func (p *printer) printRequireCall(path string, isES6Import bool) {
-	ref := p.requireRef
+	sym := runtime.RequireSym
 	if isES6Import {
-		ref = p.importRef
+		sym = runtime.ImportSym
 	}
 
 	if p.resolvedImports != nil {
 		// If we're bundling require calls, convert the string to a source index
 		if sourceIndex, ok := p.resolvedImports[path]; ok {
-			p.printSymbol(ref)
+			p.printRuntimeSym(sym)
 			p.print(fmt.Sprintf("(%d", sourceIndex))
 			if !p.minify {
 				p.print(fmt.Sprintf(" /* %s */", path))
@@ -914,7 +921,7 @@ func (p *printer) printRequireCall(path string, isES6Import bool) {
 		} else {
 			// If we get here, the module was marked as an external module
 			if isES6Import {
-				p.printSymbol(p.toModuleRef)
+				p.printRuntimeSym(runtime.ToModuleSym)
 				p.print("(")
 			}
 			p.print("require(")
@@ -924,7 +931,7 @@ func (p *printer) printRequireCall(path string, isES6Import bool) {
 			}
 		}
 	} else {
-		p.printSymbol(ref)
+		p.printRuntimeSym(sym)
 		p.print("(")
 		p.print(Quote(path))
 	}
@@ -1010,6 +1017,25 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if e.IsOptionalChain {
 			p.print("?.")
 		}
+		p.print("(")
+		for i, arg := range e.Args {
+			if i != 0 {
+				p.print(",")
+				p.printSpace()
+			}
+			p.printExpr(arg, ast.LComma, 0)
+		}
+		p.print(")")
+		if wrap {
+			p.print(")")
+		}
+
+	case *ast.ERuntimeCall:
+		wrap := level >= ast.LNew || (flags&forbidCall) != 0
+		if wrap {
+			p.print("(")
+		}
+		p.printRuntimeSym(e.Sym)
 		p.print("(")
 		for i, arg := range e.Args {
 			if i != 0 {
@@ -2168,9 +2194,7 @@ type PrintOptions struct {
 	SourceMapContents *string
 	Indent            int
 	ResolvedImports   map[string]uint32
-	RequireRef        ast.Ref
-	ImportRef         ast.Ref
-	ToModuleRef       ast.Ref
+	RuntimeSymRefs    map[runtime.Sym]ast.Ref
 }
 
 type SourceMapChunk struct {
@@ -2203,9 +2227,7 @@ func createPrinter(
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
 		prevLoc:            ast.Loc{-1},
-		requireRef:         options.RequireRef,
-		importRef:          options.ImportRef,
-		toModuleRef:        options.ToModuleRef,
+		runtimeSymRefs:     options.RuntimeSymRefs,
 	}
 
 	// If we're writing out a source map, prepare a table of line start indices
