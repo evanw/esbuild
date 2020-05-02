@@ -1352,8 +1352,7 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 	// Spawn parallel jobs to print the AST of each file in the bundle
 	results := make([]BundleResult, len(b.sources))
 	waitGroup := sync.WaitGroup{}
-	files := []file(b.files)
-	for sourceIndex, _ := range files {
+	for sourceIndex, _ := range b.files {
 		waitGroup.Add(1)
 		go func(sourceIndex uint32) {
 			// Don't emit the runtime to a file
@@ -1362,12 +1361,18 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 				return
 			}
 
-			group := []uint32{sourceIndex}
+			// Form a module group with just the runtime and this file
+			group := []uint32{runtimeSourceIndex, sourceIndex}
+			symbols := ast.NewSymbolMap(len(b.files))
+			files := make([]file, len(b.files))
+			for _, si := range group {
+				files[si] = b.files[si]
+				symbols.Outer[si] = append([]ast.Symbol{}, files[si].ast.Symbols.Outer[si]...)
+				files[si].ast.Symbols = symbols
+			}
 
-			// Clone the symbol map just for this file
-			symbols := ast.NewSymbolMap(len(files))
-			symbols.Outer[sourceIndex] = append([]ast.Symbol{}, files[sourceIndex].ast.Symbols.Outer[sourceIndex]...)
-			files[sourceIndex].ast.Symbols = symbols
+			// Trim unused runtime code
+			stripUnusedSymbolsInRuntime(files, files[sourceIndex].ast.UsedRuntimeSyms)
 
 			// Make sure we don't rename exports
 			b.markExportsAsUnbound(files[sourceIndex], symbols)
@@ -1376,7 +1381,12 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 			b.renameOrMinifyAllSymbols(files, symbols, group, options)
 
 			// Print the JavaScript code
+			generatedOffsets := make(map[uint32]lineColumnOffset)
+			runtimeResult := b.compileFile(options, runtimeSourceIndex, files[runtimeSourceIndex], []uint32{})
 			result := b.compileFile(options, sourceIndex, files[sourceIndex], []uint32{})
+			js := runtimeResult.JS
+			generatedOffsets[sourceIndex] = computeLineColumnOffset(js)
+			js = append(js, result.JS...)
 
 			// Make a filename for the resulting JavaScript file
 			jsName := b.outputFileForEntryPoint(sourceIndex, options)
@@ -1384,13 +1394,12 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 			// Generate the resulting JavaScript file
 			item := &results[sourceIndex]
 			item.JsAbsPath = b.outputPathForEntryPoint(sourceIndex, jsName, options)
-			item.JsContents = addTrailing(result.JS, '\n')
+			item.JsContents = addTrailing(js, '\n')
 
 			// Optionally also generate a source map
 			if options.SourceMap {
 				compileResults := map[uint32]*compileResult{sourceIndex: &result}
-				generatedOffsets := map[uint32]lineColumnOffset{sourceIndex: lineColumnOffset{}}
-				groups := [][]uint32{group}
+				groups := [][]uint32{[]uint32{sourceIndex}}
 				b.generateSourceMapForEntryPoint(compileResults, generatedOffsets, groups, options, item)
 			}
 
@@ -1463,7 +1472,7 @@ func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []Bundle
 		for i := 0; i < count; i++ {
 			usedRuntimeSyms |= <-results
 		}
-		b.stripUnusedSymbolsInRuntime(files, usedRuntimeSyms)
+		stripUnusedSymbolsInRuntime(files, usedRuntimeSyms)
 	}
 
 	// Make sure calls to "ast.FollowSymbols()" below won't hit concurrent map
@@ -1525,7 +1534,7 @@ func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []Bundle
 	return results
 }
 
-func (b *Bundle) stripUnusedSymbolsInRuntime(files []file, usedRuntimeSyms runtime.Sym) {
+func stripUnusedSymbolsInRuntime(files []file, usedRuntimeSyms runtime.Sym) {
 	file := &files[runtimeSourceIndex]
 	toRemove := make(map[ast.Ref]bool)
 	stmts := []ast.Stmt{}
@@ -1533,7 +1542,11 @@ func (b *Bundle) stripUnusedSymbolsInRuntime(files []file, usedRuntimeSyms runti
 	// Remove all unused runtime functions
 	for name, sym := range runtime.SymMap {
 		if (usedRuntimeSyms & sym) != sym {
-			toRemove[file.ast.ModuleScope.Members[name]] = true
+			ref, ok := file.ast.ModuleScope.Members[name]
+			if !ok {
+				panic("Internal error")
+			}
+			toRemove[ref] = true
 		}
 	}
 

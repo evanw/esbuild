@@ -452,11 +452,11 @@ func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 export var varName = 234;
 export let letName = 234;
 export const constName = 234;
-function a() {
+function j() {
 }
-class b {
+class k {
 }
-export {Class as Cls, a as Fn2, b as Cls2};
+export {Class as Cls, j as Fn2, k as Cls2};
 export function Func() {
 }
 export class Class {
@@ -467,13 +467,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function b() {
+			"/out/c.js": `export default function m() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class b {
+			"/out/e.js": `export default class m {
 }
 `,
 		},
@@ -553,15 +553,15 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `import "foo";
 import {} from "foo";
-import * as a from "foo";
-import {a as b, b as c} from "foo";
-import d from "foo";
-import f, * as e from "foo";
-import g, {a2 as h, b as i} from "foo";
-const j = [import("foo"), function p() {
+import * as j from "foo";
+import {a as k, b as l} from "foo";
+import m from "foo";
+import o, * as n from "foo";
+import p, {a2 as q, b as r} from "foo";
+const s = [import("foo"), function a() {
   return import("foo");
 }];
-console.log(a, b, c, d, f, e, g, h, i, j);
+console.log(j, k, l, m, o, n, p, q, r, s);
 `,
 		},
 	})
@@ -2745,10 +2745,10 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `function __require() {
+			"/out.js": `function __require2() {
   return 123;
 }
-console.log(__require());
+console.log(__require2());
 `,
 		},
 	})
