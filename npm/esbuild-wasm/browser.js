@@ -23,6 +23,7 @@ async function esbuildStartWorker(options) {
   ])
   const code = `${wasmExecJs};(${workerThread})();`
 
+  let worker
   if (options.worker !== false) {
     // Run esbuild off the main thread
     const blob = new Blob([code], { type: 'application/javascript' })
