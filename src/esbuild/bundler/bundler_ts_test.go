@@ -720,7 +720,7 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 	})
 }
 
-func TestTSNamespaceExportObjectSpread(t *testing.T) {
+func TestTSNamespaceExportObjectSpreadNoBundle(t *testing.T) {
 	__rest := `let __hasOwnProperty = Object.hasOwnProperty;
 let __getOwnPropertySymbols = Object.getOwnPropertySymbols;
 let __propertyIsEnumerable = Object.propertyIsEnumerable;
@@ -783,7 +783,7 @@ let __rest = (source, exclude) => {
 	})
 }
 
-func TestTSNamespaceExportArraySpread(t *testing.T) {
+func TestTSNamespaceExportArraySpreadNoBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": "namespace A { export var [a, ...b] = ref }",

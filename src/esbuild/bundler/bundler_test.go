@@ -467,13 +467,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function q() {
+			"/out/c.js": `export default function r() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class q {
+			"/out/e.js": `export default class r {
 }
 `,
 		},
@@ -2926,6 +2926,82 @@ func TestArrowFnScope(t *testing.T) {
     y, z, x = (a, b = (c) => x + b + c) => x + b + a, x + y + z;
   }
 }, 0);
+`,
+		},
+	})
+}
+
+func TestLowerObjectSpreadNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				let tests = [
+					{...a, ...b},
+					{a, b, ...c},
+					{...a, b, c},
+					{a, ...b, c},
+					{a, b, ...c, ...d, e, f, ...g, ...h, i, j},
+				]
+				let jsx = [
+					<div {...a} {...b}/>,
+					<div a b {...c}/>,
+					<div {...a} b c/>,
+					<div a {...b} c/>,
+					<div a b {...c} {...d} e f {...g} {...h} i j/>,
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2017,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `let __assign = Object.assign;
+let tests = [__assign(__assign({}, a), b), __assign({
+  a,
+  b
+}, c), __assign(__assign({}, a), {
+  b,
+  c
+}), __assign(__assign({
+  a
+}, b), {
+  c
+}), __assign(__assign(__assign(__assign(__assign(__assign({
+  a,
+  b
+}, c), d), {
+  e,
+  f
+}), g), h), {
+  i,
+  j
+})];
+let jsx = [React.createElement("div", __assign(__assign({}, a), b)), React.createElement("div", __assign({
+  a: true,
+  b: true
+}, c)), React.createElement("div", __assign(__assign({}, a), {
+  b: true,
+  c: true
+})), React.createElement("div", __assign(__assign({
+  a: true
+}, b), {
+  c: true
+})), React.createElement("div", __assign(__assign(__assign(__assign(__assign(__assign({
+  a: true,
+  b: true
+}, c), d), {
+  e: true,
+  f: true
+}), g), h), {
+  i: true,
+  j: true
+}))];
 `,
 		},
 	})

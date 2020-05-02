@@ -2250,7 +2250,6 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 		for p.lexer.Token != lexer.TCloseBrace {
 			if p.lexer.Token == lexer.TDotDotDot {
-				p.warnAboutFutureSyntax(ES2018, p.lexer.Range())
 				p.lexer.Next()
 				value := p.parseExpr(ast.LComma)
 				properties = append(properties, ast.Property{
@@ -5329,6 +5328,88 @@ func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 	}
 }
 
+// Lower object spread for environments that don't support them. Non-spread
+// properties are grouped into object literals and then passed to __assign()
+// like this (__assign() is an alias for Object.assign()):
+//
+//   "{a, b, ...c, d, e}" => "__assign(__assign(__assign({a, b}, c), {d, e})"
+//
+// If the object literal starts with a spread, then we pass an empty object
+// literal to __assign() to make sure we clone the object:
+//
+//   "{...a, b}" => "__assign(__assign({}, a), {b})"
+//
+// It's not immediately obvious why we don't compile everything to a single
+// call to __assign(). After all, Object.assign() can take any number of
+// arguments. The reason is to preserve the order of side effects. Consider
+// this code:
+//
+//   let a = {get x() { b = {y: 2}; return 1 }}
+//   let b = {}
+//   let c = {...a, ...b}
+//
+// Converting the above code to "let c = __assign({}, a, b)" means "c" becomes
+// "{x: 1}" which is incorrect. Converting the above code instead to
+// "let c = __assign(__assign({}, a), b)" means "c" becomes "{x: 1, y: 2}"
+// which is correct.
+func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
+	needsLowering := false
+
+	if p.target < ES2018 {
+		for _, property := range e.Properties {
+			if property.Kind == ast.PropertySpread {
+				needsLowering = true
+				break
+			}
+		}
+	}
+
+	if !needsLowering {
+		return ast.Expr{loc, e}
+	}
+
+	var result ast.Expr
+	properties := []ast.Property{}
+
+	for _, property := range e.Properties {
+		if property.Kind != ast.PropertySpread {
+			properties = append(properties, property)
+			continue
+		}
+
+		if len(properties) > 0 || result.Data == nil {
+			if result.Data == nil {
+				// "{a, ...b}" => "__assign({a}, b)"
+				result = ast.Expr{loc, &ast.EObject{properties}}
+			} else {
+				// "{...a, b, ...c}" => "__assign(__assign(__assign({}, a), {b}), c)"
+				result = ast.Expr{loc, &ast.ERuntimeCall{
+					Sym:  runtime.AssignSym,
+					Args: []ast.Expr{result, ast.Expr{loc, &ast.EObject{properties}}},
+				}}
+			}
+			properties = []ast.Property{}
+		}
+
+		// "{a, ...b}" => "__assign({a}, b)"
+		result = ast.Expr{loc, &ast.ERuntimeCall{
+			Sym:  runtime.AssignSym,
+			Args: []ast.Expr{result, *property.Value},
+		}}
+	}
+
+	if len(properties) > 0 {
+		// "{...a, b}" => "__assign(__assign({}, a), {b})"
+		result = ast.Expr{loc, &ast.ERuntimeCall{
+			Sym:  runtime.AssignSym,
+			Args: []ast.Expr{result, ast.Expr{loc, &ast.EObject{properties}}},
+		}}
+	}
+
+	p.usedRuntimeSyms |= runtime.AssignSym
+	return result
+}
+
 // Lower class fields for environments that don't support them
 func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (staticFields []ast.Expr, tempRef ast.Ref) {
 	tempRef = ast.InvalidRef
@@ -7092,7 +7173,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Arguments to createElement()
 		args := []ast.Expr{*tag}
 		if len(e.Properties) > 0 {
-			args = append(args, ast.Expr{expr.Loc, &ast.EObject{e.Properties}})
+			args = append(args, p.lowerObjectSpread(expr.Loc, &ast.EObject{e.Properties}))
 		} else {
 			args = append(args, ast.Expr{expr.Loc, &ast.ENull{}})
 		}
@@ -7484,6 +7565,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				*property.Initializer = p.visitExpr(*property.Initializer)
 			}
 		}
+		return p.lowerObjectSpread(expr.Loc, e), exprOut{}
 
 	case *ast.EImport:
 		e.Expr = p.visitExpr(e.Expr)
