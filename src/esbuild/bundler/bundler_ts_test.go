@@ -490,7 +490,7 @@ func TestTSMinifyEnum(t *testing.T) {
 			AbsOutputDir:      "/",
 		},
 		expected: map[string]string{
-			"/a.min.js": "var f;(function(a){a[a.A=0]=\"A\",a[a.B=1]=\"B\",a[a.C=a]=\"C\"})(f||(f={}));\n",
+			"/a.min.js": "var i;(function(a){a[a.A=0]=\"A\",a[a.B=1]=\"B\",a[a.C=a]=\"C\"})(i||(i={}));\n",
 			"/b.min.js": "export var Foo;(function(a){a[a.X=0]=\"X\",a[a.Y=1]=\"Y\",a[a.Z=a]=\"Z\"})(Foo||(Foo={}));\n",
 		},
 	})
@@ -524,7 +524,7 @@ func TestTSMinifyNamespace(t *testing.T) {
 			AbsOutputDir:      "/",
 		},
 		expected: map[string]string{
-			"/a.min.js": "var f;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(f||(f={}));\n",
+			"/a.min.js": "var i;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(i||(i={}));\n",
 			"/b.min.js": "export var Foo;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(Foo||(Foo={}));\n",
 		},
 	})
@@ -714,7 +714,70 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=h$(0);console.log(b(),h$(2))}},1);
+			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=k$(0);console.log(b(),k$(2))}},1);
+`,
+		},
+	})
+}
+
+func TestTSNamespaceExportObjectSpread(t *testing.T) {
+	__rest := `let __hasOwnProperty = Object.hasOwnProperty;
+let __getOwnPropertySymbols = Object.getOwnPropertySymbols;
+let __propertyIsEnumerable = Object.propertyIsEnumerable;
+let __rest = (source, exclude) => {
+  let target = {};
+  for (let prop in source)
+    if (__hasOwnProperty.call(source, prop) && exclude.indexOf(prop) < 0)
+      target[prop] = source[prop];
+  if (source != null && typeof __getOwnPropertySymbols === "function") {
+    for (let prop of __getOwnPropertySymbols(source))
+      if (exclude.indexOf(prop) < 0 && __propertyIsEnumerable.call(source, prop))
+        target[prop] = source[prop];
+  }
+  return target;
+};
+`
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": "namespace A { export var {a, x: b, ...c} = ref }",
+			"/b.ts": "namespace A { export var {a, 123: b, ...c} = ref }",
+			"/c.ts": "namespace A { export var {a, 1.2: b, ...c} = ref }",
+			"/d.ts": "namespace A { export var {a, [x]: b, ...c} = ref }",
+			"/e.ts": "namespace A { export var {a, [x()]: b, ...c} = ref }",
+		},
+		entryPaths: []string{"/a.ts", "/b.ts", "/c.ts", "/d.ts", "/e.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling: false,
+		},
+		expected: map[string]string{
+			"/a.js": __rest + `var A;
+(function(A2) {
+  A2.a = ref.a, A2.b = ref.x, A2.c = __rest(ref, ["a", "x"]);
+})(A || (A = {}));
+`,
+			"/b.js": __rest + `var A;
+(function(A2) {
+  A2.a = ref.a, A2.b = ref[123], A2.c = __rest(ref, ["a", "123"]);
+})(A || (A = {}));
+`,
+			"/c.js": __rest + `var A;
+(function(A2) {
+  A2.a = ref.a, A2.b = ref[1.2], A2.c = __rest(ref, ["a", 1.2 + ""]);
+})(A || (A = {}));
+`,
+			"/d.js": __rest + `var A;
+(function(A2) {
+  A2.a = ref.a, A2.b = ref[x], A2.c = __rest(ref, ["a", typeof x === "symbol" ? x : x + ""]);
+})(A || (A = {}));
+`,
+			"/e.js": __rest + `var A;
+(function(A2) {
+  var _a;
+  A2.a = ref.a, A2.b = ref[_a = x()], A2.c = __rest(ref, ["a", typeof _a === "symbol" ? _a : _a + ""]);
+})(A || (A = {}));
 `,
 		},
 	})

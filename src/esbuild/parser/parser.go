@@ -4,9 +4,11 @@ import (
 	"esbuild/ast"
 	"esbuild/lexer"
 	"esbuild/logging"
+	"esbuild/runtime"
 	"fmt"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -45,6 +47,7 @@ type parser struct {
 	exportsRef               ast.Ref
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
+	usedRuntimeSyms          runtime.Sym
 
 	// These are for TypeScript
 	exportEqualsStmt           *ast.Stmt
@@ -6302,7 +6305,11 @@ func (p *parser) exprForExportedDeclsInNamespace(decls []ast.Decl) ast.Expr {
 	return expr
 }
 
-func (p *parser) valueRepeater(loc ast.Loc, count int, value ast.Expr) (ast.Expr, func() ast.Expr, func(ast.Expr) ast.Expr) {
+func (p *parser) valueRepeater(loc ast.Loc, count int, value ast.Expr) (
+	ast.Expr, // The initial expression "_a = value"
+	func() ast.Expr, // Generates subsequent expressions "_a"
+	func(ast.Expr) ast.Expr, // Call this on the final expression
+) {
 	// Referencing an identifier has no side effects, so we can just create
 	// identifiers inline without a temporary variable
 	if id, ok := value.Data.(*ast.EIdentifier); ok {
@@ -6342,6 +6349,26 @@ func (p *parser) valueRepeater(loc ast.Loc, count int, value ast.Expr) (ast.Expr
 		}, func(expr ast.Expr) ast.Expr {
 			return expr
 		}
+}
+
+// Returns "typeof ref === 'symbol' ? ref : ref + ''"
+func symbolOrString(loc ast.Loc, ref ast.Ref) ast.Expr {
+	return ast.Expr{loc, &ast.EIf{
+		Test: ast.Expr{loc, &ast.EBinary{
+			Op: ast.BinOpStrictEq,
+			Left: ast.Expr{loc, &ast.EUnary{
+				Op:    ast.UnOpTypeof,
+				Value: ast.Expr{loc, &ast.EIdentifier{ref}},
+			}},
+			Right: ast.Expr{loc, &ast.EString{lexer.StringToUTF16("symbol")}},
+		}},
+		Yes: ast.Expr{loc, &ast.EIdentifier{ref}},
+		No: ast.Expr{loc, &ast.EBinary{
+			Op:    ast.BinOpAdd,
+			Left:  ast.Expr{loc, &ast.EIdentifier{ref}},
+			Right: ast.Expr{loc, &ast.EString{}},
+		}},
+	}}
 }
 
 func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value ast.Expr) ast.Expr {
@@ -6395,27 +6422,93 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 
 	case *ast.BObject:
 		expr, valueFunc, afterFunc := p.valueRepeater(loc, len(d.Properties), value)
+
+		// We will need to track the keys we use if this pattern contains a spread
+		keysForSpread := []ast.Expr{}
+		isSpread := false
 		for _, property := range d.Properties {
-			// Try to use a dot expression but fall back to an index expression
-			name := ""
-			if id, ok := property.Key.Data.(*ast.EString); ok {
-				text := lexer.UTF16ToString(id.Value)
-				if lexer.IsIdentifier(text) {
-					name = text
-				}
+			if property.IsSpread {
+				isSpread = true
+				break
 			}
+		}
+
+		for _, property := range d.Properties {
 			var propertyValue ast.Expr
-			if name != "" {
-				propertyValue = ast.Expr{loc, &ast.EDot{
-					Target:  valueFunc(),
-					Name:    name,
-					NameLoc: loc,
+			if property.IsSpread {
+				// Call out to the __rest() helper function to implement spread
+				p.usedRuntimeSyms |= runtime.RestSym
+				propertyValue = ast.Expr{loc, &ast.ERuntimeCall{
+					Sym: runtime.RestSym,
+					Args: []ast.Expr{
+						valueFunc(),
+						ast.Expr{loc, &ast.EArray{keysForSpread}},
+					},
 				}}
 			} else {
-				propertyValue = ast.Expr{loc, &ast.EIndex{
-					Target: valueFunc(),
-					Index:  property.Key,
-				}}
+				key := property.Key
+
+				// We need to save a copy of the key if there's a spread later on
+				if isSpread {
+					// Do different things based on the key expression. Certain
+					// expressions can be converted to keys more efficiently than others.
+					switch k := key.Data.(type) {
+					case *ast.EString:
+						keysForSpread = append(keysForSpread, ast.Expr{key.Loc, &ast.EString{k.Value}})
+
+					case *ast.ENumber:
+						asUint32 := uint32(k.Value)
+						if k.Value == float64(asUint32) {
+							// If this is an integer, emit it as a string
+							text := lexer.StringToUTF16(strconv.FormatInt(int64(asUint32), 10))
+							keysForSpread = append(keysForSpread, ast.Expr{key.Loc, &ast.EString{text}})
+						} else {
+							// Otherwise, emit it as the number plus a string (i.e. call
+							// toString() on it). It's important to do it this way instead of
+							// trying to print the float as a string because Go's floating-
+							// point printer doesn't behave exactly the same as JavaScript
+							// and if they are different, the generated code will be wrong.
+							keysForSpread = append(keysForSpread, ast.Expr{key.Loc, &ast.EBinary{
+								Op:    ast.BinOpAdd,
+								Left:  ast.Expr{key.Loc, &ast.ENumber{k.Value}},
+								Right: ast.Expr{key.Loc, &ast.EString{}},
+							}})
+						}
+
+					case *ast.EIdentifier:
+						keysForSpread = append(keysForSpread, symbolOrString(key.Loc, k.Ref))
+
+					default:
+						tempRef := p.generateTempRef()
+						key = ast.Expr{loc, &ast.EBinary{
+							ast.BinOpAssign,
+							ast.Expr{loc, &ast.EIdentifier{tempRef}},
+							key,
+						}}
+						keysForSpread = append(keysForSpread, symbolOrString(key.Loc, tempRef))
+					}
+				}
+
+				// Try to use a dot expression but fall back to an index expression
+				name := ""
+				if id, ok := key.Data.(*ast.EString); ok {
+					text := lexer.UTF16ToString(id.Value)
+					if lexer.IsIdentifier(text) {
+						name = text
+					}
+				}
+				if name != "" {
+					propertyValue = ast.Expr{loc, &ast.EDot{
+						Target:  valueFunc(),
+						Name:    name,
+						NameLoc: loc,
+					}}
+				} else {
+					propertyValue = ast.Expr{loc, &ast.EIndex{
+						Target: valueFunc(),
+						Index:  key,
+					}}
+				}
 			}
 
 			// Handle default values
@@ -8030,5 +8123,6 @@ func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string)
 		ExportsRef:           p.exportsRef,
 		ModuleRef:            p.moduleRef,
 		Hashbang:             hashbang,
+		UsedRuntimeSyms:      p.usedRuntimeSyms,
 	}
 }
