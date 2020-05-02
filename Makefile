@@ -5,7 +5,12 @@ esbuild: src/esbuild/*/*.go
 
 test: | node_modules
 	cd src/esbuild && go test ./...
+	make -j2 verify-source-map end-to-end-tests
+
+verify-source-map:
 	node scripts/verify-source-map.js
+
+end-to-end-tests:
 	node scripts/end-to-end-tests.js
 
 update-version-go:

@@ -1,12 +1,18 @@
 const { SourceMapConsumer } = require('source-map')
 const childProcess = require('child_process')
 const path = require('path')
+const util = require('util')
 const fs = require('fs')
+let tempDirCount = 0
 
-const toSearch = [
+const toSearchBundle = [
   'a0', 'a1', 'a2',
   'b0', 'b1', 'b2',
   'c0', 'c1', 'c2',
+]
+
+const toSearchNoBundle = [
+  'a0', 'a1', 'a2',
 ]
 
 const testCaseES6 = {
@@ -51,7 +57,20 @@ const testCaseCommonJS = {
   `,
 }
 
-async function check(kind, testCase) {
+const testCaseTypeScriptRuntime = {
+  'a.ts': `
+    namespace Foo {
+      export var {a, ...b} = foo() // This requires a runtime function to handle
+      console.log(a, b)
+    }
+    function a0() { a1("a0") }
+    function a1() { a2("a1") }
+    function a2() { throw new Error("a2") }
+    a0()
+  `,
+}
+
+async function check(kind, testCase, toSearch, flags) {
   let failed = 0
   const recordCheck = (success, message) => {
     if (!success) {
@@ -60,26 +79,27 @@ async function check(kind, testCase) {
     }
   }
 
-  const tempDir = path.join(__dirname, '.temp')
-  try { fs.mkdirSync(tempDir) } catch (e) { }
+  const tempDir = path.join(__dirname, '.verify-source-map' + tempDirCount++)
+  try { await util.promisify(fs.mkdir)(tempDir) } catch (e) { }
 
   for (const name in testCase) {
-    fs.writeFileSync(path.join(tempDir, name), testCase[name])
+    await util.promisify(fs.writeFile)(path.join(tempDir, name), testCase[name])
   }
 
   const esbuildPath = path.join(__dirname, '..', 'esbuild')
-  const args = ['a.js', '--bundle', '--minify', '--sourcemap', '--outfile=out.js']
-  childProcess.execFileSync(esbuildPath, args, { cwd: tempDir, stdio: 'pipe' })
+  const files = Object.keys(testCase)
+  const args = [files[0], '--sourcemap', '--outfile=out.js'].concat(flags)
+  await util.promisify(childProcess.execFile)(esbuildPath, args, { cwd: tempDir, stdio: 'pipe' })
 
-  const outJs = fs.readFileSync(path.join(tempDir, 'out.js'), 'utf8')
-  const outJsMap = fs.readFileSync(path.join(tempDir, 'out.js.map'), 'utf8')
+  const outJs = await util.promisify(fs.readFile)(path.join(tempDir, 'out.js'), 'utf8')
+  const outJsMap = await util.promisify(fs.readFile)(path.join(tempDir, 'out.js.map'), 'utf8')
   const map = await new SourceMapConsumer(outJsMap)
 
   const isLinked = outJs.includes(`//# sourceMappingURL=out.js.map\n`)
   recordCheck(isLinked, `.js file links to .js.map`)
 
   for (const id of toSearch) {
-    const inSource = id[0] + '.js'
+    const inSource = files.find(x => x.startsWith(id[0]))
     const inJs = testCase[inSource]
     const inIndex = inJs.indexOf(`"${id}"`)
     const outIndex = outJs.indexOf(`"${id}"`)
@@ -101,16 +121,25 @@ async function check(kind, testCase) {
     recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
   }
 
-  childProcess.execSync(`rm -fr "${tempDir}"`, { cwd: __dirname })
+  await util.promisify(childProcess.exec)(`rm -fr "${tempDir}"`, { cwd: __dirname })
   return failed
 }
 
 async function main() {
   childProcess.execSync('make', { cwd: path.dirname(__dirname), stdio: 'pipe' })
 
-  let failed = 0
-  failed += await check('commonjs', testCaseCommonJS)
-  failed += await check('es6', testCaseES6)
+  const promises = []
+  for (const minify of [false, true]) {
+    const flags = minify ? ['--minify'] : []
+    const suffix = minify ? '-min' : ''
+    promises.push(
+      check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, flags.concat('--bundle')),
+      check('es6' + suffix, testCaseES6, toSearchBundle, flags.concat('--bundle')),
+      check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, flags),
+    )
+  }
+
+  const failed = (await Promise.all(promises)).reduce((a, b) => a + b, 0)
   if (failed > 0) process.exit(1)
 }
 
