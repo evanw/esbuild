@@ -3037,3 +3037,59 @@ switch (bar) {
 		},
 	})
 }
+
+func TestArgumentDefaultValueScopeNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export function a(x = foo) { var foo; return x }
+				export class b { fn(x = foo) { var foo; return x } }
+				export let c = [
+					function(x = foo) { var foo; return x },
+					(x = foo) => { var foo; return x },
+					{ fn(x = foo) { var foo; return x }},
+					class { fn(x = foo) { var foo; return x }},
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        false,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `export function a(d = foo) {
+  var e;
+  return d;
+}
+export class b {
+  fn(d = foo) {
+    var e;
+    return d;
+  }
+}
+export let c = [function(d = foo) {
+  var e;
+  return d;
+}, (d = foo) => {
+  var e;
+  return d;
+}, {
+  fn(d = foo) {
+    var e;
+    return d;
+  }
+}, class {
+  fn(d = foo) {
+    var e;
+    return d;
+  }
+}];
+`,
+		},
+	})
+}

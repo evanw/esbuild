@@ -279,7 +279,12 @@ type Fn struct {
 	IsAsync     bool
 	IsGenerator bool
 	HasRestArg  bool
-	Stmts       []Stmt
+	Body        FnBody
+}
+
+type FnBody struct {
+	Loc   Loc
+	Stmts []Stmt
 }
 
 type Class struct {
@@ -390,8 +395,8 @@ type EArrow struct {
 	IsAsync    bool
 	Args       []Arg
 	HasRestArg bool
-	PreferExpr bool // Use shorthand if true and "Stmts" is a single return statement
-	Stmts      []Stmt
+	PreferExpr bool // Use shorthand if true and "Body" is a single return statement
+	Body       FnBody
 }
 
 type EFunction struct{ Fn Fn }
@@ -925,10 +930,17 @@ type ScopeKind int
 const (
 	ScopeBlock ScopeKind = iota
 	ScopeLabel
-	ScopeEntry // This is a module, function, or namespace
-	ScopeFunctionName
 	ScopeClassName
+
+	// The scopes below stop hoisted variables from extending into parent scopes
+	ScopeEntry // This is a module, TypeScript enum, or TypeScript namespace
+	ScopeFunctionArgs
+	ScopeFunctionBody
 )
+
+func (kind ScopeKind) StopsHoisting() bool {
+	return kind >= ScopeEntry
+}
 
 type Scope struct {
 	Kind      ScopeKind

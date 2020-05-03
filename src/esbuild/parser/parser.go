@@ -97,9 +97,6 @@ type parser struct {
 
 const (
 	locModuleScope = -1
-
-	// Offset ScopeFunction for EFunction to come after ScopeFunctionName
-	locOffsetFunctionExpr = 1
 )
 
 type scopeOrder struct {
@@ -276,6 +273,22 @@ func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 		}
 	}
 
+	// Copy down function arguments into the function body scope. That way we get
+	// errors if a statement in the function body tries to re-declare any of the
+	// arguments.
+	if kind == ast.ScopeFunctionBody {
+		if scope.Parent.Kind != ast.ScopeFunctionArgs {
+			panic("Internal error")
+		}
+		for name, ref := range scope.Parent.Members {
+			// Don't copy down the optional function expression name. Re-declaring
+			// the name of a function expression is allowed.
+			if p.symbols[ref.InnerIndex].Kind != ast.SymbolHoistedFunction {
+				scope.Members[name] = ref
+			}
+		}
+	}
+
 	// Remember the length in case we call popAndDiscardScope() later
 	scopeIndex := len(p.scopesInOrder)
 	p.scopesInOrder = append(p.scopesInOrder, scopeOrder{loc, scope})
@@ -392,7 +405,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 
 	// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
 	if kind.IsHoisted() {
-		for scope.Kind != ast.ScopeEntry {
+		for !scope.Kind.StopsHoisting() {
 			if existing, ok := scope.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
 				switch symbol.Kind {
@@ -434,7 +447,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 
 	// Hoist "var" symbols up to the enclosing function scope
 	if kind.IsHoisted() {
-		for s := p.currentScope; s.Kind != ast.ScopeEntry; s = s.Parent {
+		for s := p.currentScope; !s.Kind.StopsHoisting(); s = s.Parent {
 			if existing, ok := s.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
 				if symbol.Kind == ast.SymbolUnbound {
@@ -1438,8 +1451,7 @@ func (p *parser) parseProperty(
 	if p.lexer.Token == lexer.TOpenParen || kind != ast.PropertyNormal ||
 		context == propertyContextClass || opts.isAsync || opts.isGenerator {
 		loc := p.lexer.Loc()
-
-		scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
+		scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 
 		fn, hadBody := p.parseFn(nil, fnOpts{
 			allowAwait: opts.isAsync,
@@ -1555,17 +1567,22 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 
 // This assumes that the "=>" token has already been parsed by the caller
 func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
+	arrowLoc := p.lexer.Loc()
+	p.lexer.Expect(lexer.TEqualsGreaterThan)
+
 	for _, arg := range args {
 		p.declareBinding(ast.SymbolHoisted, arg.Binding, parseStmtOpts{})
 	}
 
 	if p.lexer.Token == lexer.TOpenBrace {
-		stmts := p.parseFnBodyStmts(opts)
 		return &ast.EArrow{
-			Args:  args,
-			Stmts: stmts,
+			Args: args,
+			Body: p.parseFnBody(opts),
 		}
 	}
+
+	p.pushScopeForParsePass(ast.ScopeFunctionBody, arrowLoc)
+	defer p.popScope()
 
 	oldFnOpts := p.currentFnOpts
 	p.currentFnOpts = opts
@@ -1574,7 +1591,7 @@ func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 	return &ast.EArrow{
 		Args:       args,
 		PreferExpr: true,
-		Stmts:      []ast.Stmt{ast.Stmt{expr.Loc, &ast.SReturn{&expr}}},
+		Body:       ast.FnBody{arrowLoc, []ast.Stmt{ast.Stmt{expr.Loc, &ast.SReturn{&expr}}}},
 	}
 }
 
@@ -1598,10 +1615,9 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 
 		// "async => {}"
 	case lexer.TEqualsGreaterThan:
-		p.lexer.Next()
 		arg := ast.Arg{Binding: ast.Binding{asyncRange.Loc, &ast.BIdentifier{p.storeNameInRef("async")}}}
 
-		p.pushScopeForParsePass(ast.ScopeEntry, asyncRange.Loc)
+		p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
 		defer p.popScope()
 
 		return ast.Expr{asyncRange.Loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
@@ -1612,9 +1628,8 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 		ref := p.storeNameInRef(p.lexer.Identifier)
 		arg := ast.Arg{Binding: ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}}
 		p.lexer.Next()
-		p.lexer.Expect(lexer.TEqualsGreaterThan)
 
-		p.pushScopeForParsePass(ast.ScopeEntry, asyncRange.Loc)
+		p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
 		defer p.popScope()
 
 		arrow := p.parseArrowBody([]ast.Arg{arg}, fnOpts{allowAwait: true})
@@ -1656,11 +1671,13 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	}
 	var name *ast.LocRef
 
+	p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
+	defer p.popScope()
+
 	// The name is optional
 	if p.lexer.Token == lexer.TIdentifier {
-		p.pushScopeForParsePass(ast.ScopeFunctionName, loc)
 		nameLoc := p.lexer.Loc()
-		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
+		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, p.lexer.Identifier)}
 		p.lexer.Next()
 	}
 
@@ -1669,16 +1686,10 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 		p.skipTypeScriptTypeParameters()
 	}
 
-	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{loc.Start + locOffsetFunctionExpr})
 	fn, _ := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
 		allowYield: isGenerator,
 	})
-	p.popScope()
-
-	if name != nil {
-		p.popScope()
-	}
 	return ast.Expr{loc, &ast.EFunction{fn}}
 }
 
@@ -1701,7 +1712,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	// values that introduce new scopes and declare new symbols. If this is an
 	// arrow function, then those new scopes will need to be parented under the
 	// scope of the arrow function itself.
-	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
+	scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 
 	// Allow "in" inside parentheses
 	oldAllowIn := p.allowIn
@@ -1794,7 +1805,6 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 				panic(lexer.LexerPanic{})
 			}
 
-			p.lexer.Expect(lexer.TEqualsGreaterThan)
 			arrow := p.parseArrowBody(args, fnOpts{allowAwait: opts.isAsync})
 			arrow.IsAsync = opts.isAsync
 			arrow.HasRestArg = spreadRange.Len > 0
@@ -2025,11 +2035,10 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 		// Handle the start of an arrow expression
 		if p.lexer.Token == lexer.TEqualsGreaterThan {
-			p.lexer.Next()
 			ref := p.storeNameInRef(name)
 			arg := ast.Arg{Binding: ast.Binding{loc, &ast.BIdentifier{ref}}}
 
-			p.pushScopeForParsePass(ast.ScopeEntry, loc)
+			p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 			defer p.popScope()
 
 			return ast.Expr{loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
@@ -3556,7 +3565,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 		return
 	}
 
-	fn.Stmts = p.parseFnBodyStmts(opts)
+	fn.Body = p.parseFnBody(opts)
 	hadBody = true
 	return
 }
@@ -3737,7 +3746,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 		p.skipTypeScriptTypeParameters()
 	}
 
-	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
+	scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 
 	fn, hadBody := p.parseFn(name, fnOpts{
 		allowAwait: isAsync,
@@ -4845,11 +4854,15 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	return ast.Stmt{loc, &ast.SEnum{name, argRef, values, opts.isExport}}
 }
 
-func (p *parser) parseFnBodyStmts(opts fnOpts) []ast.Stmt {
+func (p *parser) parseFnBody(opts fnOpts) ast.FnBody {
 	oldFnOpts := p.currentFnOpts
 	oldAllowIn := p.allowIn
 	p.currentFnOpts = opts
 	p.allowIn = true
+
+	loc := p.lexer.Loc()
+	p.pushScopeForParsePass(ast.ScopeFunctionBody, loc)
+	defer p.popScope()
 
 	p.lexer.Expect(lexer.TOpenBrace)
 	stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
@@ -4857,7 +4870,7 @@ func (p *parser) parseFnBodyStmts(opts fnOpts) []ast.Stmt {
 
 	p.allowIn = oldAllowIn
 	p.currentFnOpts = oldFnOpts
-	return stmts
+	return ast.FnBody{loc, stmts}
 }
 
 func (p *parser) forbidLexicalDecl(loc ast.Loc) {
@@ -4907,7 +4920,7 @@ type dotDefine struct {
 
 func (p *parser) generateTempRef() ast.Ref {
 	scope := p.currentScope
-	for scope.Kind != ast.ScopeEntry {
+	for !scope.Kind.StopsHoisting() {
 		scope = scope.Parent
 	}
 	ref := p.newSymbol(ast.SymbolHoisted, "_"+lexer.NumberToMinifiedName(len(p.tempRefs)))
@@ -4955,7 +4968,7 @@ func (p *parser) FindSymbol(name string) ast.Ref {
 }
 
 func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
-	for s := p.currentScope; s != nil && s.Kind != ast.ScopeEntry; s = s.Parent {
+	for s := p.currentScope; s != nil && !s.Kind.StopsHoisting(); s = s.Parent {
 		if s.Kind == ast.ScopeLabel && name == p.symbols[s.LabelRef.InnerIndex].Name {
 			// Track how many times we've referenced this symbol
 			p.recordUsage(s.LabelRef)
@@ -5546,7 +5559,7 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 			if class.Extends != nil {
 				argumentsRef := p.newSymbol(ast.SymbolUnbound, "arguments")
 				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
-				ctor.Fn.Stmts = append(ctor.Fn.Stmts, ast.Stmt{classLoc, &ast.SExpr{ast.Expr{classLoc, &ast.ECall{
+				ctor.Fn.Body.Stmts = append(ctor.Fn.Body.Stmts, ast.Stmt{classLoc, &ast.SExpr{ast.Expr{classLoc, &ast.ECall{
 					Target: ast.Expr{classLoc, &ast.ESuper{}},
 					Args: []ast.Expr{
 						ast.Expr{classLoc, &ast.ESpread{ast.Expr{classLoc, &ast.EIdentifier{argumentsRef}}}},
@@ -5556,7 +5569,7 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 		}
 
 		// Insert the instance field initializers after the super call if there is one
-		stmtsFrom := ctor.Fn.Stmts
+		stmtsFrom := ctor.Fn.Body.Stmts
 		stmtsTo := []ast.Stmt{}
 		if len(stmtsFrom) > 0 && ast.IsSuperCall(stmtsFrom[0]) {
 			stmtsTo = append(stmtsTo, stmtsFrom[0])
@@ -5564,7 +5577,7 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 		}
 		stmtsTo = append(stmtsTo, parameterFields...)
 		stmtsTo = append(stmtsTo, instanceFields...)
-		ctor.Fn.Stmts = append(stmtsTo, stmtsFrom...)
+		ctor.Fn.Body.Stmts = append(stmtsTo, stmtsFrom...)
 
 		// Sort the constructor first to match the TypeScript compiler's output
 		for i := 0; i < len(props); i++ {
@@ -5828,8 +5841,8 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 	// Call the closure with the name object
 	stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SExpr{ast.Expr{stmtLoc, &ast.ECall{
 		Target: ast.Expr{stmtLoc, &ast.EFunction{Fn: ast.Fn{
-			Args:  []ast.Arg{ast.Arg{Binding: ast.Binding{nameLoc, &ast.BIdentifier{argRef}}}},
-			Stmts: stmtsInsideClosure,
+			Args: []ast.Arg{ast.Arg{Binding: ast.Binding{nameLoc, &ast.BIdentifier{argRef}}}},
+			Body: ast.FnBody{stmtLoc, stmtsInsideClosure},
 		}}},
 		Args: []ast.Expr{argExpr},
 	}}}})
@@ -7684,16 +7697,18 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		oldTryBodyCount := p.tryBodyCount
 		p.tryBodyCount = 0
 
-		p.pushScopeForVisitPass(ast.ScopeEntry, expr.Loc)
+		p.pushScopeForVisitPass(ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args)
-		e.Stmts = p.visitStmtsAndPrependTempRefs(e.Stmts)
+		p.pushScopeForVisitPass(ast.ScopeFunctionBody, e.Body.Loc)
+		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts)
+		p.popScope()
 		p.popScope()
 
-		if p.mangleSyntax && len(e.Stmts) == 1 {
-			if s, ok := e.Stmts[0].Data.(*ast.SReturn); ok {
+		if p.mangleSyntax && len(e.Body.Stmts) == 1 {
+			if s, ok := e.Body.Stmts[0].Data.(*ast.SReturn); ok {
 				if s.Value == nil {
 					// "() => { return }" => "() => {}"
-					e.Stmts = []ast.Stmt{}
+					e.Body.Stmts = []ast.Stmt{}
 				} else {
 					// "() => { return x }" => "() => x"
 					e.PreferExpr = true
@@ -7704,13 +7719,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		p.tryBodyCount = oldTryBodyCount
 
 	case *ast.EFunction:
-		if e.Fn.Name != nil {
-			p.pushScopeForVisitPass(ast.ScopeFunctionName, expr.Loc)
-		}
-		p.visitFn(&e.Fn, ast.Loc{expr.Loc.Start + locOffsetFunctionExpr})
-		if e.Fn.Name != nil {
-			p.popScope()
-		}
+		p.visitFn(&e.Fn, expr.Loc)
 
 	case *ast.EClass:
 		if e.Class.Name != nil {
@@ -7821,9 +7830,11 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.tryBodyCount = 0
 	p.isThisCaptured = true
 
-	p.pushScopeForVisitPass(ast.ScopeEntry, scopeLoc)
+	p.pushScopeForVisitPass(ast.ScopeFunctionArgs, scopeLoc)
 	p.visitArgs(fn.Args)
-	fn.Stmts = p.visitStmtsAndPrependTempRefs(fn.Stmts)
+	p.pushScopeForVisitPass(ast.ScopeFunctionBody, fn.Body.Loc)
+	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts)
+	p.popScope()
 	p.popScope()
 
 	p.tryBodyCount = oldTryBodyCount

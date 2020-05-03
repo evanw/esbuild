@@ -697,7 +697,7 @@ func (p *printer) printFnArgs(args []ast.Arg, hasRestArg bool, isArrow bool) {
 func (p *printer) printFn(fn ast.Fn) {
 	p.printFnArgs(fn.Args, fn.HasRestArg, false)
 	p.printSpace()
-	p.printBlock(fn.Stmts)
+	p.printBlock(fn.Body.Stmts)
 }
 
 func (p *printer) printClass(class ast.Class) {
@@ -1137,15 +1137,15 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.print("=>")
 		p.printSpace()
 		wasPrinted := false
-		if len(e.Stmts) == 1 && e.PreferExpr {
-			if s, ok := e.Stmts[0].Data.(*ast.SReturn); ok && s.Value != nil {
+		if len(e.Body.Stmts) == 1 && e.PreferExpr {
+			if s, ok := e.Body.Stmts[0].Data.(*ast.SReturn); ok && s.Value != nil {
 				p.arrowExprStart = len(p.js)
 				p.printExpr(*s.Value, ast.LComma, 0)
 				wasPrinted = true
 			}
 		}
 		if !wasPrinted {
-			p.printBlock(e.Stmts)
+			p.printBlock(e.Body.Stmts)
 		}
 		if wrap {
 			p.print(")")

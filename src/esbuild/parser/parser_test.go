@@ -405,6 +405,16 @@ func TestScope(t *testing.T) {
 	expectParseError(t, "function foo(x) { var x }", "")
 	expectParseError(t, "function foo(x) { let x }", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "function foo(x) { const x = 0 }", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "function foo() { var foo }", "")
+	expectParseError(t, "function foo() { let foo }", "")
+	expectParseError(t, "function foo() { const foo = 0 }", "")
+
+	expectParseError(t, "(function foo(x) { var x })", "")
+	expectParseError(t, "(function foo(x) { let x })", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "(function foo(x) { const x = 0 })", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "(function foo() { var foo })", "")
+	expectParseError(t, "(function foo() { let foo })", "")
+	expectParseError(t, "(function foo() { const foo = 0 })", "")
 
 	expectParseError(t, "var x; function x() {}", "")
 	expectParseError(t, "let x; function x() {}", "<stdin>: error: \"x\" has already been declared\n")
