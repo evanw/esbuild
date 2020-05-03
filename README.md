@@ -55,7 +55,7 @@ Several reasons:
 
 ## Status
 
-Currently supported:
+#### Currently supported:
 
 * JavaScript and TypeScript syntax
 * CommonJS and ES6 modules
@@ -66,9 +66,31 @@ Currently supported:
 * Compile-time identifier substitutions via `--define`
 * Path substitution using the `browser` field in `package.json`
 * Automatic detection of `baseUrl` in `tsconfig.json`
-* Conversion of some newer syntax for older browsers (all syntax in [ES2019 and later](https://github.com/tc39/proposals/blob/master/finished-proposals.md) except for BigInt)
 
-Disclaimers:
+#### Syntax transforms:
+
+These transforms convert newer JavaScript syntax to older JavaScript syntax for use with older browsers. You can set the language target with the `--target` flag, which can be as old as ES6. Note that if you use a syntax feature that esbuild doesn't yet support for your current language target, esbuild will still build successfully but will generate a warning where the unsupported syntax is used.
+
+These syntax transforms are implemented:
+
+| Syntax transform                                                                  | Transformed when `--target` is below | Example           |
+|-----------------------------------------------------------------------------------|--------------------------------------|-------------------|
+| [Spread properties](https://github.com/tc39/proposal-object-rest-spread)          | `es2018`                             | `let x = {...y}`  |
+| [Optional catch binding](https://github.com/tc39/proposal-optional-catch-binding) | `es2019`                             | `try {} catch {}` |
+| [Optional Chaining](https://github.com/tc39/proposal-optional-chaining)           | `es2020`                             | `a?.b`            |
+| [Nullish coalescing](https://github.com/tc39/proposal-nullish-coalescing)         | `es2020`                             | `a ?? b`          |
+
+These syntax transforms are not yet implemented:
+
+| Syntax transform                                                                    | Unsupported when `--target` is below | Example                     |
+|-------------------------------------------------------------------------------------|--------------------------------------|-----------------------------|
+| [Exponentiation operator](https://github.com/tc39/proposal-exponentiation-operator) | `es2016`                             | `a ** b`                    |
+| [Async functions](https://github.com/tc39/ecmascript-asyncawait)                    | `es2017`                             | `async () => {}`            |
+| [Rest properties](https://github.com/tc39/proposal-object-rest-spread)              | `es2018`                             | `let {...x} = y`            |
+| [Asynchronous Iteration](https://github.com/tc39/proposal-async-iteration)          | `es2018`                             | `for await (let x of y) {}` |
+| [BigInt](https://github.com/tc39/proposal-bigint)                                   | `es2020`                             | `123n`                      |
+
+#### Disclaimers:
 
 * This is a hobby project. I believe that it's relatively complete and functional. However, it's brand new code and you might hit some bugs.
 * This hasn't yet been used in production by anyone. Use at your own risk.
