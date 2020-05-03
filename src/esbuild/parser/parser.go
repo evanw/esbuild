@@ -4128,13 +4128,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SWith{test, body}}
 
 	case lexer.TSwitch:
-		p.pushScopeForParsePass(ast.ScopeBlock, loc)
-		defer p.popScope()
-
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TOpenParen)
 		test := p.parseExpr(ast.LLowest)
 		p.lexer.Expect(lexer.TCloseParen)
+
+		bodyLoc := p.lexer.Loc()
+		p.pushScopeForParsePass(ast.ScopeBlock, bodyLoc)
+		defer p.popScope()
+
 		p.lexer.Expect(lexer.TOpenBrace)
 		cases := []ast.Case{}
 		foundDefault := false
@@ -4173,7 +4175,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 
 		p.lexer.Expect(lexer.TCloseBrace)
-		return ast.Stmt{loc, &ast.SSwitch{test, cases}}
+		return ast.Stmt{loc, &ast.SSwitch{
+			Test:    test,
+			BodyLoc: bodyLoc,
+			Cases:   cases,
+		}}
 
 	case lexer.TTry:
 		p.lexer.Next()
@@ -6130,8 +6136,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SSwitch:
-		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
 		s.Test = p.visitExpr(s.Test)
+		p.pushScopeForVisitPass(ast.ScopeBlock, s.BodyLoc)
 		for i, c := range s.Cases {
 			if c.Value != nil {
 				*c.Value = p.visitExpr(*c.Value)

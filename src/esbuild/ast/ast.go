@@ -685,8 +685,9 @@ type Case struct {
 }
 
 type SSwitch struct {
-	Test  Expr
-	Cases []Case
+	Test    Expr
+	BodyLoc Loc
+	Cases   []Case
 }
 
 // This object represents all of these types of import statements:

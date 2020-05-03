@@ -3006,3 +3006,34 @@ let jsx = [React.createElement("div", __assign(__assign({}, a), b)), React.creat
 		},
 	})
 }
+
+func TestSwitchScopeNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				switch (foo) { default: var foo }
+				switch (bar) { default: let bar }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        false,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `switch (m) {
+  default:
+    var m;
+}
+switch (bar) {
+  default:
+    let a;
+}
+`,
+		},
+	})
+}
