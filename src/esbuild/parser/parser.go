@@ -1286,7 +1286,7 @@ func (p *parser) parseProperty(
 		isComputed = true
 		p.lexer.Next()
 		wasIdentifier := p.lexer.Token == lexer.TIdentifier
-		expr := p.parseExpr(ast.LLowest)
+		expr := p.parseExpr(ast.LComma)
 
 		// Handle index signatures
 		if p.ts.Parse && p.lexer.Token == lexer.TColon && wasIdentifier &&
@@ -1504,7 +1504,7 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 	case lexer.TOpenBracket:
 		isComputed = true
 		p.lexer.Next()
-		key = p.parseExpr(ast.LLowest)
+		key = p.parseExpr(ast.LComma)
 		p.lexer.Expect(lexer.TCloseBracket)
 
 	default:

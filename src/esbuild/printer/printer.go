@@ -545,7 +545,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 			} else {
 				if item.IsComputed {
 					p.print("[")
-					p.printExpr(item.Key, ast.LLowest, 0)
+					p.printExpr(item.Key, ast.LComma, 0)
 					p.print("]:")
 					p.printSpace()
 					p.printBinding(item.Value)
@@ -770,7 +770,7 @@ func (p *printer) printProperty(item ast.Property) {
 
 	if item.IsComputed {
 		p.print("[")
-		p.printExpr(item.Key, ast.LLowest, 0)
+		p.printExpr(item.Key, ast.LComma, 0)
 		p.print("]")
 
 		if item.Value != nil {

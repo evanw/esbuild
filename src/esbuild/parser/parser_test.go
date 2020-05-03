@@ -474,6 +474,24 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 }
 
+func TestComputedProperty(t *testing.T) {
+	expectPrinted(t, "({[a]: foo})", "({\n  [a]: foo\n});\n")
+	expectPrinted(t, "({[(a, b)]: foo})", "({\n  [(a, b)]: foo\n});\n")
+	expectParseError(t, "({[a, b]: foo})", "<stdin>: error: Expected \"]\" but found \",\"\n")
+
+	expectPrinted(t, "({[a]: foo}) => {}", "({[a]: foo}) => {\n};\n")
+	expectPrinted(t, "({[(a, b)]: foo}) => {}", "({[(a, b)]: foo}) => {\n};\n")
+	expectParseError(t, "({[a, b]: foo}) => {}", "<stdin>: error: Expected \"]\" but found \",\"\n")
+
+	expectPrinted(t, "var {[a]: foo} = bar", "var {[a]: foo} = bar;\n")
+	expectPrinted(t, "var {[(a, b)]: foo} = bar", "var {[(a, b)]: foo} = bar;\n")
+	expectParseError(t, "var {[a, b]: foo} = bar", "<stdin>: error: Expected \"]\" but found \",\"\n")
+
+	expectPrinted(t, "class Foo {[a] = foo}", "class Foo {\n  [a] = foo;\n}\n")
+	expectPrinted(t, "class Foo {[(a, b)] = foo}", "class Foo {\n  [(a, b)] = foo;\n}\n")
+	expectParseError(t, "class Foo {[a, b] = foo}", "<stdin>: error: Expected \"]\" but found \",\"\n")
+}
+
 func TestLexicalDecl(t *testing.T) {
 	expectPrinted(t, "if (1) var x", "if (1)\n  var x;\n")
 	expectPrinted(t, "if (1) function x() {}", "if (1)\n  function x() {\n  }\n")
