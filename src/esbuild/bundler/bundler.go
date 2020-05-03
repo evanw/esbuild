@@ -1070,8 +1070,11 @@ func (b *Bundle) bindImportsAndExports(
 				symbols.IncrementUseCountEstimate(exportRef)
 			}
 			properties = append(properties, ast.Property{
-				Key:   ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
-				Value: &ast.Expr{ast.Loc{}, &ast.EArrow{Expr: &value}},
+				Key: ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
+				Value: &ast.Expr{ast.Loc{}, &ast.EArrow{
+					PreferExpr: true,
+					Stmts:      []ast.Stmt{ast.Stmt{value.Loc, &ast.SReturn{&value}}},
+				}},
 			})
 		}
 

@@ -90,6 +90,8 @@ These syntax transforms are not yet implemented:
 | [Asynchronous Iteration](https://github.com/tc39/proposal-async-iteration)          | `es2018`                             | `for await (let x of y) {}` |
 | [BigInt](https://github.com/tc39/proposal-bigint)                                   | `es2020`                             | `123n`                      |
 
+See also [the complete list of finished ECMAScript proposals](https://github.com/tc39/proposals/blob/master/finished-proposals.md).
+
 #### Disclaimers:
 
 * This is a hobby project. I believe that it's relatively complete and functional. However, it's brand new code and you might hit some bugs.

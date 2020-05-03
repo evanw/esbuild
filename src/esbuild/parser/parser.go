@@ -1572,8 +1572,9 @@ func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 	expr := p.parseExpr(ast.LComma)
 	p.currentFnOpts = oldFnOpts
 	return &ast.EArrow{
-		Args: args,
-		Expr: &expr,
+		Args:       args,
+		PreferExpr: true,
+		Stmts:      []ast.Stmt{ast.Stmt{expr.Loc, &ast.SReturn{&expr}}},
 	}
 }
 
@@ -5030,13 +5031,13 @@ func shouldKeepStmtInDeadControlFlow(stmt ast.Stmt) bool {
 	}
 }
 
-func (p *parser) visitEntryStmts(stmts []ast.Stmt) []ast.Stmt {
+func (p *parser) visitStmtsAndPrependTempRefs(stmts []ast.Stmt) []ast.Stmt {
 	oldTempRefs := p.tempRefs
 	p.tempRefs = []ast.Ref{}
 
 	stmts = p.visitStmts(stmts)
 
-	// Append the temporary variable to the end of the function or module
+	// Prepend the generated temporary variables to the beginning of the statement list
 	if len(p.tempRefs) > 0 {
 		decls := []ast.Decl{}
 		for _, ref := range p.tempRefs {
@@ -6327,7 +6328,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		oldEnclosingNamespaceRef := p.enclosingNamespaceRef
 		p.enclosingNamespaceRef = &s.Arg
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
-		stmtsInsideNamespace := p.visitEntryStmts(s.Stmts)
+		stmtsInsideNamespace := p.visitStmtsAndPrependTempRefs(s.Stmts)
 		p.popScope()
 		p.enclosingNamespaceRef = oldEnclosingNamespaceRef
 
@@ -7255,7 +7256,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return e.Right, exprOut{}
 
 			case *ast.EIdentifier:
-				if p.target < ESNext {
+				if p.target < ES2020 {
 					// "a ?? b" => "a != null ? a : b"
 					return ast.Expr{expr.Loc, &ast.EIf{
 						ast.Expr{expr.Loc, &ast.EBinary{
@@ -7269,7 +7270,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				}
 
 			default:
-				if p.target < ESNext {
+				if p.target < ES2020 {
 					// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
 					ref := p.generateTempRef()
 					return ast.JoinWithComma(
@@ -7685,32 +7686,20 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		p.pushScopeForVisitPass(ast.ScopeEntry, expr.Loc)
 		p.visitArgs(e.Args)
-		if e.Expr != nil {
-			*e.Expr = p.visitExpr(*e.Expr)
+		e.Stmts = p.visitStmtsAndPrependTempRefs(e.Stmts)
+		p.popScope()
 
-			if p.mangleSyntax {
-				// "() => void 0" => "() => {}"
-				if _, ok := e.Expr.Data.(*ast.EUndefined); ok {
-					e.Expr = nil
+		if p.mangleSyntax && len(e.Stmts) == 1 {
+			if s, ok := e.Stmts[0].Data.(*ast.SReturn); ok {
+				if s.Value == nil {
+					// "() => { return }" => "() => {}"
 					e.Stmts = []ast.Stmt{}
-				}
-			}
-		} else {
-			e.Stmts = p.visitStmts(e.Stmts)
-
-			if p.mangleSyntax && len(e.Stmts) == 1 {
-				if s, ok := e.Stmts[0].Data.(*ast.SReturn); ok {
-					if s.Value != nil {
-						// "() => { return 123 }" => "() => 123"
-						e.Expr = s.Value
-					} else {
-						// "() => { return }" => "() => {}"
-					}
-					e.Stmts = []ast.Stmt{}
+				} else {
+					// "() => { return x }" => "() => x"
+					e.PreferExpr = true
 				}
 			}
 		}
-		p.popScope()
 
 		p.tryBodyCount = oldTryBodyCount
 
@@ -7834,7 +7823,7 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 
 	p.pushScopeForVisitPass(ast.ScopeEntry, scopeLoc)
 	p.visitArgs(fn.Args)
-	fn.Stmts = p.visitEntryStmts(fn.Stmts)
+	fn.Stmts = p.visitStmtsAndPrependTempRefs(fn.Stmts)
 	p.popScope()
 
 	p.tryBodyCount = oldTryBodyCount
@@ -8152,7 +8141,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		}
 		p.visitExpr(expr.Value)
 	} else {
-		stmts = p.visitEntryStmts(stmts)
+		stmts = p.visitStmtsAndPrependTempRefs(stmts)
 	}
 
 	// Translate "export = value;" into "module.exports = value;". This must

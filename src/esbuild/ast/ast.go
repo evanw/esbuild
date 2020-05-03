@@ -390,8 +390,8 @@ type EArrow struct {
 	IsAsync    bool
 	Args       []Arg
 	HasRestArg bool
+	PreferExpr bool // Use shorthand if true and "Stmts" is a single return statement
 	Stmts      []Stmt
-	Expr       *Expr
 }
 
 type EFunction struct{ Fn Fn }
