@@ -1319,60 +1319,71 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	case *ast.ENumber:
 		value := e.Value
 		absValue := math.Abs(value)
-		asUint32 := uint32(absValue)
 
-		// Expressions such as "(-1).toString" need to wrap negative numbers.
-		// Instead of testing for "value < 0" we test for "signbit(value)" and
-		// "!isNaN(value)" because we need this to be true for "-0" and "-0 < 0"
-		// is false.
-		wrap := math.Signbit(value) && value == value && level >= ast.LPrefix
-		if wrap {
-			p.print("(")
-		}
-
-		// Go will print "4294967295" as "4.294967295e+09" if we use the float64
-		// printer, so explicitly print integers using a separate code path. This
-		// should also serve as a fast path for the common case, so do this first.
-		if absValue == float64(asUint32) {
-			text := strconv.FormatInt(int64(asUint32), 10)
-			if math.Signbit(value) {
-				p.printSpaceBeforeOperator(ast.UnOpNeg)
-				p.print("-")
-			}
-			p.printSpaceBeforeIdentifier()
-			p.print(text)
-
-			// Remember the end of the latest number
-			p.prevNumEnd = len(p.js)
-		} else if value != value {
+		if value != value {
 			p.printSpaceBeforeIdentifier()
 			p.print("NaN")
 		} else if value == positiveInfinity {
 			p.printSpaceBeforeIdentifier()
 			p.print("Infinity")
 		} else if value == negativeInfinity {
-			p.printSpaceBeforeOperator(ast.UnOpNeg)
-			p.print("-Infinity")
-		} else {
-			text := fmt.Sprintf("%v", value)
-
-			// Strip off the leading zero when minifying
-			if p.minify && strings.HasPrefix(text, "0.") {
-				text = text[1:]
-			}
-
-			if text[0] == '-' {
+			if level >= ast.LPrefix {
+				p.print("(-Infinity)")
+			} else {
 				p.printSpaceBeforeOperator(ast.UnOpNeg)
+				p.print("-Infinity")
 			}
-			p.printSpaceBeforeIdentifier()
-			p.print(text)
+		} else {
+			var text string
 
-			// Remember the end of the latest number
-			p.prevNumEnd = len(p.js)
-		}
+			if absValue < 1000 {
+				// We can avoid calling the call to slowFloatToString() because
+				// we know that exponential notation will always be longer than the
+				// integer representation for integers less than 1000.
+				if asInt := int64(absValue); absValue == float64(asInt) {
+					text = strconv.FormatInt(asInt, 10)
+				} else {
+					text = p.slowFloatToString(absValue)
+				}
+			} else {
+				text = p.slowFloatToString(absValue)
 
-		if wrap {
-			p.print(")")
+				// Also try printing this number as an integer in case that's smaller.
+				// We must test that the value is within the range of 64-bit numbers to
+				// avoid crashing due to a bug in the Go WebAssembly runtime:
+				// https://github.com/golang/go/issues/38839.
+				if absValue < 9223372036854776000.0 {
+					if asInt := int64(absValue); absValue == float64(asInt) {
+						intText := strconv.FormatInt(asInt, 10)
+						if len(intText) <= len(text) {
+							text = intText
+						}
+					}
+				}
+			}
+
+			if !math.Signbit(value) {
+				p.printSpaceBeforeIdentifier()
+				p.print(text)
+
+				// Remember the end of the latest number
+				p.prevNumEnd = len(p.js)
+			} else if level >= ast.LPrefix {
+				// Expressions such as "(-1).toString" need to wrap negative numbers.
+				// Instead of testing for "value < 0" we test for "signbit(value)" and
+				// "!isNaN(value)" because we need this to be true for "-0" and "-0 < 0"
+				// is false.
+				p.print("(-")
+				p.print(text)
+				p.print(")")
+			} else {
+				p.printSpaceBeforeOperator(ast.UnOpNeg)
+				p.print("-")
+				p.print(text)
+
+				// Remember the end of the latest number
+				p.prevNumEnd = len(p.js)
+			}
 		}
 
 	case *ast.EIdentifier:
@@ -1539,6 +1550,24 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	default:
 		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))
 	}
+}
+
+func (p *printer) slowFloatToString(value float64) string {
+	text := strconv.FormatFloat(value, 'g', -1, 64)
+
+	if p.minify {
+		// Replace "e+" with "e"
+		if e := strings.LastIndexByte(text, 'e'); e != -1 && text[e+1] == '+' {
+			text = text[:e+1] + text[e+2:]
+		}
+
+		// Strip off the leading zero when minifying
+		if strings.HasPrefix(text, "0.") {
+			text = text[1:]
+		}
+	}
+
+	return text
 }
 
 func (p *printer) printDeclStmt(isExport bool, keyword string, decls []ast.Decl) {

@@ -233,6 +233,26 @@ func TestNumericLiteral(t *testing.T) {
 	expectNumber(t, "1.797693134862315808e+308", math.Inf(1))
 	expectNumber(t, "1e+309", math.Inf(1))
 
+	// int32
+	expectNumber(t, "0x7fff_ffff", 2147483647.0)
+	expectNumber(t, "0x8000_0000", 2147483648.0)
+	expectNumber(t, "0x8000_0001", 2147483649.0)
+
+	// uint32
+	expectNumber(t, "0xffff_ffff", 4294967295.0)
+	expectNumber(t, "0x1_0000_0000", 4294967296.0)
+	expectNumber(t, "0x1_0000_0001", 4294967297.0)
+
+	// int64
+	expectNumber(t, "0x7fff_ffff_ffff_fdff", 9223372036854774784)
+	expectNumber(t, "0x8000_0000_0000_0000", 9.223372036854776e+18)
+	expectNumber(t, "0x8000_0000_0000_3000", 9.223372036854788e+18)
+
+	// uint64
+	expectNumber(t, "0xffff_ffff_ffff_fbff", 1.844674407370955e+19)
+	expectNumber(t, "0x1_0000_0000_0000_0000", 1.8446744073709552e+19)
+	expectNumber(t, "0x1_0000_0000_0000_1000", 1.8446744073709556e+19)
+
 	expectNumber(t, "1.", 1.0)
 	expectNumber(t, ".1", 0.1)
 	expectNumber(t, "1.1", 1.1)

@@ -49,6 +49,52 @@ func TestHashbang(t *testing.T) {
 	expectPrinted(t, "#!/usr/bin/env node\nlet x", "#!/usr/bin/env node\nlet x;\n")
 }
 
+func TestNumber(t *testing.T) {
+	expectPrinted(t, "0.5", "0.5;\n")
+	expectPrinted(t, "-0.5", "-0.5;\n")
+	expectPrinted(t, "1e100", "1e+100;\n")
+	expectPrinted(t, "1e-100", "1e-100;\n")
+	expectPrintedMinify(t, "0.5", ".5;")
+	expectPrintedMinify(t, "-0.5", "-.5;")
+	expectPrintedMinify(t, "1e100", "1e100;")
+	expectPrintedMinify(t, "1e-100", "1e-100;")
+
+	// Check numbers around the ends of various integer ranges. These were
+	// crashing in the WebAssembly build due to a bug in the Go runtime.
+
+	// int32
+	expectPrinted(t, "0x7fff_ffff", "2147483647;\n")
+	expectPrinted(t, "0x8000_0000", "2147483648;\n")
+	expectPrinted(t, "0x8000_0001", "2147483649;\n")
+	expectPrinted(t, "-0x7fff_ffff", "-2147483647;\n")
+	expectPrinted(t, "-0x8000_0000", "-2147483648;\n")
+	expectPrinted(t, "-0x8000_0001", "-2147483649;\n")
+
+	// uint32
+	expectPrinted(t, "0xffff_ffff", "4294967295;\n")
+	expectPrinted(t, "0x1_0000_0000", "4294967296;\n")
+	expectPrinted(t, "0x1_0000_0001", "4294967297;\n")
+	expectPrinted(t, "-0xffff_ffff", "-4294967295;\n")
+	expectPrinted(t, "-0x1_0000_0000", "-4294967296;\n")
+	expectPrinted(t, "-0x1_0000_0001", "-4294967297;\n")
+
+	// int64
+	expectPrinted(t, "0x7fff_ffff_ffff_fdff", "9223372036854774784;\n")
+	expectPrinted(t, "0x8000_0000_0000_0000", "9.223372036854776e+18;\n")
+	expectPrinted(t, "0x8000_0000_0000_3000", "9.223372036854788e+18;\n")
+	expectPrinted(t, "-0x7fff_ffff_ffff_fdff", "-9223372036854774784;\n")
+	expectPrinted(t, "-0x8000_0000_0000_0000", "-9.223372036854776e+18;\n")
+	expectPrinted(t, "-0x8000_0000_0000_3000", "-9.223372036854788e+18;\n")
+
+	// uint64
+	expectPrinted(t, "0xffff_ffff_ffff_fbff", "1.844674407370955e+19;\n")
+	expectPrinted(t, "0x1_0000_0000_0000_0000", "1.8446744073709552e+19;\n")
+	expectPrinted(t, "0x1_0000_0000_0000_1000", "1.8446744073709556e+19;\n")
+	expectPrinted(t, "-0xffff_ffff_ffff_fbff", "-1.844674407370955e+19;\n")
+	expectPrinted(t, "-0x1_0000_0000_0000_0000", "-1.8446744073709552e+19;\n")
+	expectPrinted(t, "-0x1_0000_0000_0000_1000", "-1.8446744073709556e+19;\n")
+}
+
 func TestArray(t *testing.T) {
 	expectPrinted(t, "[]", "[];\n")
 	expectPrinted(t, "[,]", "[,];\n")

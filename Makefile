@@ -3,20 +3,23 @@ ESBUILD_VERSION = $(shell cat version.txt)
 esbuild: src/esbuild/*/*.go
 	cd src/esbuild && go build -o ../../esbuild ./main
 
-test: | node_modules
+test:
 	cd src/esbuild && go test ./...
 	make -j2 verify-source-map end-to-end-tests
 
-verify-source-map:
+test-wasm:
+	cd src/esbuild && PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./...
+
+verify-source-map: | node_modules
 	node scripts/verify-source-map.js
 
-end-to-end-tests:
+end-to-end-tests: | node_modules
 	node scripts/end-to-end-tests.js
 
 update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > src/esbuild/main/version.go
 
-platform-all: update-version-go test
+platform-all: update-version-go test test-wasm
 	make -j5 platform-windows platform-darwin platform-linux platform-wasm platform-neutral
 
 platform-windows:
@@ -41,7 +44,7 @@ platform-wasm:
 platform-neutral:
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 
-publish-all: update-version-go test
+publish-all: update-version-go test test-wasm
 	make -j5 publish-windows publish-darwin publish-linux publish-wasm publish-neutral
 
 publish-windows: platform-windows
