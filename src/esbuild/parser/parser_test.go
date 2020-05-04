@@ -1269,11 +1269,11 @@ func TestJSX(t *testing.T) {
 
 func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrintedTarget(t, ES2019, "a ?? b", "a != null ? a : b;\n")
-	expectPrintedTarget(t, ES2019, "a() ?? b()", "var _a;\n_a = a(), _a != null ? _a : b();\n")
+	expectPrintedTarget(t, ES2019, "a() ?? b()", "var _a;\n(_a = a()) != null ? _a : b();\n")
 	expectPrintedTarget(t, ES2019, "function foo() { if (x) { a() ?? b() ?? c() } }",
-		"function foo() {\n  var _a, _b;\n  if (x) {\n    _b = (_a = a(), _a != null ? _a : b()), _b != null ? _b : c();\n  }\n}\n")
+		"function foo() {\n  var _a, _b;\n  if (x) {\n    (_b = (_a = a()) != null ? _a : b()) != null ? _b : c();\n  }\n}\n")
 	expectPrintedTarget(t, ES2019, "() => a ?? b", "() => a != null ? a : b;\n")
-	expectPrintedTarget(t, ES2019, "() => a() ?? b()", "() => {\n  var _a;\n  return _a = a(), _a != null ? _a : b();\n};\n")
+	expectPrintedTarget(t, ES2019, "() => a() ?? b()", "() => {\n  var _a;\n  return (_a = a()) != null ? _a : b();\n};\n")
 }
 
 func TestLowerClassInstance(t *testing.T) {

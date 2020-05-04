@@ -7412,7 +7412,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 		case ast.BinOpNullishCoalescing:
-			switch e2 := e.Left.Data.(type) {
+			switch e.Left.Data.(type) {
 			case *ast.EBoolean, *ast.ENumber, *ast.EString, *ast.ERegExp,
 				*ast.EObject, *ast.EArray, *ast.EFunction, *ast.EArrow, *ast.EClass:
 				return e.Left, exprOut{}
@@ -7420,40 +7420,20 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			case *ast.ENull, *ast.EUndefined:
 				return e.Right, exprOut{}
 
-			case *ast.EIdentifier:
-				if p.target < ES2020 {
-					// "a ?? b" => "a != null ? a : b"
-					return ast.Expr{expr.Loc, &ast.EIf{
-						ast.Expr{expr.Loc, &ast.EBinary{
-							ast.BinOpLooseNe,
-							ast.Expr{expr.Loc, &ast.EIdentifier{e2.Ref}},
-							ast.Expr{expr.Loc, &ast.ENull{}},
-						}},
-						e.Left,
-						e.Right,
-					}}, exprOut{}
-				}
-
 			default:
 				if p.target < ES2020 {
+					// "a ?? b" => "a != null ? a : b"
 					// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
-					ref := p.generateTempRef()
-					return ast.JoinWithComma(
+					leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(expr.Loc, 2, e.Left)
+					return wrapFunc(ast.Expr{e.Right.Loc, &ast.EIf{
 						ast.Expr{expr.Loc, &ast.EBinary{
-							ast.BinOpAssign,
-							ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
-							e.Left,
+							ast.BinOpLooseNe,
+							leftFunc(),
+							ast.Expr{expr.Loc, &ast.ENull{}},
 						}},
-						ast.Expr{e.Right.Loc, &ast.EIf{
-							ast.Expr{expr.Loc, &ast.EBinary{
-								ast.BinOpLooseNe,
-								ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
-								ast.Expr{expr.Loc, &ast.ENull{}},
-							}},
-							ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
-							e.Right,
-						}},
-					), exprOut{}
+						leftFunc(),
+						e.Right,
+					}}), exprOut{}
 				}
 			}
 
