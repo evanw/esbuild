@@ -437,56 +437,71 @@ func main() {
 			defer pprof.StopCPUProfile()
 		}
 
-		// Parse all files in the bundle
-		fs := fs.RealFS()
-		resolver := resolver.NewResolver(fs, args.resolveOptions)
-		log, join := logging.NewStderrLog(args.logOptions)
-		bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
-
-		// Stop now if there were errors
-		if join().Errors != 0 {
-			os.Exit(1)
-		}
-
-		// Generate the results
-		log2, join2 := logging.NewStderrLog(args.logOptions)
-		result := bundle.Compile(log2, args.bundleOptions)
-
-		// Stop now if there were errors
-		if join2().Errors != 0 {
-			os.Exit(1)
-		}
-
-		// Create the output directory
-		if args.bundleOptions.AbsOutputDir != "" {
-			if err := os.MkdirAll(args.bundleOptions.AbsOutputDir, 0755); err != nil {
-				args.exitWithError(fmt.Sprintf("Cannot create output directory: %s", err))
+		if args.cpuprofileFile != "" {
+			// The CPU profiler in Go only runs at 100 Hz, which is far too slow to
+			// return useful information for esbuild, since it's so fast. Let's keep
+			// running for 30 seconds straight, which should give us 3,000 samples.
+			seconds := 30.0
+			fmt.Fprintf(os.Stderr, "Running for %g seconds straight due to --cpuprofile...\n", seconds)
+			for time.Since(start).Seconds() < seconds {
+				run(args)
 			}
-		}
-
-		// Write out the results
-		for _, item := range result {
-			// Write out the JavaScript file
-			err := ioutil.WriteFile(item.JsAbsPath, []byte(item.JsContents), 0644)
-			path := resolver.PrettyPath(item.JsAbsPath)
-			if err != nil {
-				args.exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
-			}
-			fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.JsContents)))
-
-			// Also write the source map
-			if args.bundleOptions.SourceMap {
-				err := ioutil.WriteFile(item.SourceMapAbsPath, item.SourceMapContents, 0644)
-				path := resolver.PrettyPath(item.SourceMapAbsPath)
-				if err != nil {
-					args.exitWithError(fmt.Sprintf("Failed to write to %s: (%s)", path, err.Error()))
-				}
-				fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.SourceMapContents)))
-			}
+		} else {
+			run(args)
 		}
 	}()
 
 	fmt.Fprintf(os.Stderr, "Done in %dms\n", time.Since(start).Nanoseconds()/1000000)
+}
+
+func run(args args) {
+	// Parse all files in the bundle
+	fs := fs.RealFS()
+	resolver := resolver.NewResolver(fs, args.resolveOptions)
+	log, join := logging.NewStderrLog(args.logOptions)
+	bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
+
+	// Stop now if there were errors
+	if join().Errors != 0 {
+		os.Exit(1)
+	}
+
+	// Generate the results
+	log2, join2 := logging.NewStderrLog(args.logOptions)
+	result := bundle.Compile(log2, args.bundleOptions)
+
+	// Stop now if there were errors
+	if join2().Errors != 0 {
+		os.Exit(1)
+	}
+
+	// Create the output directory
+	if args.bundleOptions.AbsOutputDir != "" {
+		if err := os.MkdirAll(args.bundleOptions.AbsOutputDir, 0755); err != nil {
+			args.exitWithError(fmt.Sprintf("Cannot create output directory: %s", err))
+		}
+	}
+
+	// Write out the results
+	for _, item := range result {
+		// Write out the JavaScript file
+		err := ioutil.WriteFile(item.JsAbsPath, []byte(item.JsContents), 0644)
+		path := resolver.PrettyPath(item.JsAbsPath)
+		if err != nil {
+			args.exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
+		}
+		fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.JsContents)))
+
+		// Also write the source map
+		if args.bundleOptions.SourceMap {
+			err := ioutil.WriteFile(item.SourceMapAbsPath, item.SourceMapContents, 0644)
+			path := resolver.PrettyPath(item.SourceMapAbsPath)
+			if err != nil {
+				args.exitWithError(fmt.Sprintf("Failed to write to %s: (%s)", path, err.Error()))
+			}
+			fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.SourceMapContents)))
+		}
+	}
 }
 
 func toSize(bytes int) string {
