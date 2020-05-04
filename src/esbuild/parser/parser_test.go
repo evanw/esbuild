@@ -1447,6 +1447,9 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, ES2019, "a?.[b]?.(c)", `var _a;
 (_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c);
 `)
+	expectPrintedTarget(t, ES2019, "123?.[b]?.(c)", `var _a;
+(_a = 123 == null ? void 0 : 123[b]) == null ? void 0 : _a.call(123, c);
+`)
 	expectPrintedTarget(t, ES2019, "a?.[b][c]?.(d)", `var _a, _b;
 (_b = a == null ? void 0 : (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
 `)

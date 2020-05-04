@@ -7040,8 +7040,7 @@ func (p *parser) visitBooleanExpr(expr ast.Expr) ast.Expr {
 }
 
 // Lower optional chaining for environments that don't support it
-func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut) (ast.Expr, exprOut) {
-	var thisArgRef *ast.Ref
+func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut, thisArgFunc func() ast.Expr) (ast.Expr, exprOut) {
 	valueWhenUndefined := ast.Expr{expr.Loc, &ast.EUndefined{}}
 	endsWithPropertyAccess := false
 	startsWithCall := false
@@ -7100,11 +7099,12 @@ flatten:
 	// initial ECall. This will be passed to ".call(this, ...args)" later.
 	var thisArg ast.Expr
 	if startsWithCall {
-		if out.thisArgRef != nil {
+		if thisArgFunc != nil {
 			// The initial value is a nested optional chain that ended in a property
-			// access. The nested chain was processed first and has saved the right
-			// value for "this" to use in "thisArgRef".
-			thisArg = ast.Expr{loc, &ast.EIdentifier{*out.thisArgRef}}
+			// access. The nested chain was processed first and has saved the
+			// appropriate value for "this". The callback here will return a
+			// reference to that saved location.
+			thisArg = thisArgFunc()
 		} else {
 			// The initial value is a normal expression. If it's a property access,
 			// strip the property off and save the target of the property access to
@@ -7143,18 +7143,8 @@ flatten:
 	// and the chain was built from the outside in.
 	for i := len(chain) - 1; i >= 0; i-- {
 		// Save a reference to the value of "this" for our parent ECall
-		if i == 0 && in.hasOptionalChainCallParent && endsWithPropertyAccess {
-			if id, ok := result.Data.(*ast.EIdentifier); ok {
-				thisArgRef = &id.Ref
-			} else {
-				ref := p.generateTempRef()
-				thisArgRef = &ref
-				result = ast.Expr{loc, &ast.EBinary{
-					Op:    ast.BinOpAssign,
-					Left:  ast.Expr{loc, &ast.EIdentifier{ref}},
-					Right: result,
-				}}
-			}
+		if i == 0 && in.storeThisArgForParentOptionalChain != nil && endsWithPropertyAccess {
+			result = in.storeThisArgForParentOptionalChain(result)
 		}
 
 		switch e := chain[i].Data.(type) {
@@ -7214,7 +7204,7 @@ flatten:
 		}},
 		Yes: valueWhenUndefined,
 		No:  result,
-	}}, exprOut{thisArgRef: thisArgRef}
+	}}, exprOut{}
 }
 
 func toInt32(f float64) int32 {
@@ -7237,20 +7227,50 @@ func toUint32(f float64) uint32 {
 }
 
 type exprIn struct {
-	// True if our parent node is a chain node (EDot, EIndex, or ECall)
+	// This tells us if there are optional chain expressions (EDot, EIndex, or
+	// ECall) that are chained on to this expression. Because of the way the AST
+	// works, chaining expressions on to this expression means they are our
+	// parent expressions.
+	//
+	// Some examples:
+	//
+	//   a?.b.c  // EDot
+	//   a?.b[c] // EIndex
+	//   a?.b()  // ECall
+	//
+	// Note that this is false if our parent is a node with a IsOptionalChain
+	// value of true. That means it's the start of a new chain, so it's not
+	// considered part of this one.
+	//
+	// Some examples:
+	//
+	//   a?.b?.c   // EDot
+	//   a?.b?.[c] // EIndex
+	//   a?.b?.()  // ECall
+	//
 	hasChainParent bool
 
-	// True if our parent node is an ECall node with an IsOptionalChain value of
-	// true
-	hasOptionalChainCallParent bool
+	// If our parent is an ECall node with an IsOptionalChain value of true, then
+	// we will need to store the value for the "this" of that call somewhere if
+	// the current expression is an optional chain that ends in a property access.
+	// That's because the value for "this" will be used twice: once for the inner
+	// optional chain and once for the outer optional chain.
+	//
+	// Example:
+	//
+	//   // Original
+	//   a?.b?.();
+	//
+	//   // Lowered
+	//   var _a;
+	//   (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.call(a);
+	//
+	// In the example above we need to store "a" as the value for "this" so we
+	// can substitute it back in when we call "_a" if "_a" is indeed present.
+	storeThisArgForParentOptionalChain func(ast.Expr) ast.Expr
 }
 
 type exprOut struct {
-	// If an optional chain was lowered with hasOptionalChainCallParent set to
-	// true and that optional chain ended in a property access, then this will
-	// be the reference of the variable to use with ".call(this, ...args)".
-	thisArgRef *ast.Ref
-
 	// True if the child node is an optional chain node (EDot, EIndex, or ECall
 	// with an IsOptionalChain value of true)
 	childContainsOptionalChain bool
@@ -7576,7 +7596,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
 		isEndOfChain := e.IsParenthesized || !in.hasChainParent
 		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
-			return p.lowerOptionalChain(expr, in, out)
+			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
 		if p.mangleSyntax || p.ts.Parse {
@@ -7621,7 +7641,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// Lower optional chaining if present since we're guaranteed to be the
 			// end of the chain
 			if p.target < ES2020 && out.childContainsOptionalChain {
-				return p.lowerOptionalChain(expr, in, out)
+				return p.lowerOptionalChain(expr, in, out, nil)
 			}
 
 			return expr, exprOut{}
@@ -7676,7 +7696,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
 		isEndOfChain := e.IsParenthesized || !in.hasChainParent
 		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
-			return p.lowerOptionalChain(expr, in, out)
+			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
 		return p.maybeRewriteDot(expr.Loc, e), exprOut{
@@ -7765,15 +7785,22 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.ECall:
+		var storeThisArg func(ast.Expr) ast.Expr
+		var thisArgFunc func() ast.Expr
+		var thisArgWrapFunc func(ast.Expr) ast.Expr
 		p.callTarget = e.Target.Data
-		target, out := p.visitExprInOut(e.Target, exprIn{
-			hasChainParent: !e.IsOptionalChain,
-
+		if e.IsOptionalChain {
 			// Signal to our child if this is an ECall at the start of an optional
 			// chain. If so, the child will need to stash the "this" context for us
-			// that we need for the ".call(this, ...args)". This is passed to
-			// "lowerOptionalChain()" via "thisArgRef".
-			hasOptionalChainCallParent: e.IsOptionalChain,
+			// that we need for the ".call(this, ...args)".
+			storeThisArg = func(thisArg ast.Expr) ast.Expr {
+				thisArgFunc, thisArgWrapFunc = p.captureValueWithPossibleSideEffects(thisArg.Loc, 2, thisArg)
+				return thisArgFunc()
+			}
+		}
+		target, out := p.visitExprInOut(e.Target, exprIn{
+			hasChainParent:                     !e.IsOptionalChain,
+			storeThisArgForParentOptionalChain: storeThisArg,
 		})
 		e.Target = target
 		for i, arg := range e.Args {
@@ -7784,7 +7811,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
 		isEndOfChain := e.IsParenthesized || !in.hasChainParent
 		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
-			return p.lowerOptionalChain(expr, in, out)
+			result, out := p.lowerOptionalChain(expr, in, out, thisArgFunc)
+			if thisArgWrapFunc != nil {
+				result = thisArgWrapFunc(result)
+			}
+			return result, out
 		}
 
 		// Track calls to require() so we can use them while bundling
