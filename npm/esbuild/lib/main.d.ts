@@ -27,6 +27,11 @@ export interface Options {
   loader?: { [ext: string]: Loader };
 
   entryPoints: string[];
+
+  // This defaults to "pipe" which exposes a property called "stderr" on the
+  // result. This can be set to "inherit" instead to forward the stderr of the
+  // esbuild process to the current process's stderr.
+  stdio?: 'pipe' | 'ignore' | 'inherit' | ('pipe' | 'ignore' | 'inherit' | number | null | undefined)[];
 }
 
 export interface Message {

@@ -15,6 +15,7 @@ exports.build = options => {
     }
 
     const flags = [`--error-limit=${options.errorLimit || 0}`];
+    const stdio = options.stdio;
 
     if (options.name) flags.push(`--name=${options.name}`);
     if (options.bundle) flags.push('--bundle');
@@ -42,11 +43,19 @@ exports.build = options => {
       flags.push(entryPoint);
     }
 
-    child_process.execFile(binPath, flags, { cwd: process.cwd(), windowsHide: true }, (err, stdout, stderr) => {
+    const child = child_process.spawn(binPath, flags, { cwd: process.cwd(), windowsHide: true, stdio });
+    child.on('error', error => reject(error));
+
+    // The stderr pipe won't be available if "stdio" is set to "inherit"
+    const stderrChunks = [];
+    if (child.stderr) child.stderr.on('data', chunk => stderrChunks.push(chunk));
+
+    child.on('close', code => {
       const fullRegex = /^(.+):(\d+):(\d+): (warning|error): (.+)$/;
       const smallRegex = /^(warning|error): (.+)$/;
       const errors = [];
       const warnings = [];
+      const stderr = Buffer.concat(stderrChunks).toString();
 
       for (const line of stderr.split('\n')) {
         let match = fullRegex.exec(line);
@@ -64,18 +73,19 @@ exports.build = options => {
         }
       }
 
-      if (errors.length === 0) {
-        if (err) reject(err);
-        else resolve({ stderr, warnings });
+      if (errors.length === 0 && code === 0) {
+        resolve({ stderr, warnings });
       }
 
       else {
-        const error = new Error(`Build failed with ${errors.length} error${errors.length < 2 ? '' : 's'}`);
+        // The error array will be empty if "stdio" is set to "inherit"
+        const summary = errors.length < 1 ? '' : ` with ${errors.length} error${errors.length < 2 ? '' : 's'}`;
+        const error = new Error(`Build failed${summary}`);
         error.stderr = stderr;
         error.errors = errors;
         error.warnings = warnings;
         reject(error);
       }
-    }).on('error', err => reject(err));
-  })
+    });
+  });
 }
