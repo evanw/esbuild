@@ -392,11 +392,12 @@ type EIndex struct {
 }
 
 type EArrow struct {
-	IsAsync    bool
-	Args       []Arg
-	HasRestArg bool
-	PreferExpr bool // Use shorthand if true and "Body" is a single return statement
-	Body       FnBody
+	IsAsync         bool
+	Args            []Arg
+	HasRestArg      bool
+	IsParenthesized bool
+	PreferExpr      bool // Use shorthand if true and "Body" is a single return statement
+	Body            FnBody
 }
 
 type EFunction struct{ Fn Fn }

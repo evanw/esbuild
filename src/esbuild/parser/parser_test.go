@@ -701,6 +701,11 @@ func TestArrow(t *testing.T) {
 	expectParseError(t, "(x\n=> {})", "<stdin>: error: Unexpected newline before \"=>\"\n")
 	expectParseError(t, "(async x\n=> {})", "<stdin>: error: Unexpected newline before \"=>\"\n")
 	expectParseError(t, "(async ()\n=> {})", "<stdin>: error: Unexpected newline before \"=>\"\n")
+
+	expectPrinted(t, "(() => {}) ? 1 : 2", "1;\n")
+	expectParseError(t, "() => {} ? 1 : 2", "<stdin>: error: Expected \";\" but found \"?\"\n")
+	expectPrinted(t, "1 < (() => {})", "1 < (() => {\n});\n")
+	expectParseError(t, "1 < () => {}", "<stdin>: error: Unexpected \")\"\n")
 }
 
 func TestTemplate(t *testing.T) {

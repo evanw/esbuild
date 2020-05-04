@@ -1147,7 +1147,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EArrow:
-		wrap := level > ast.LAssign
+		wrap := level >= ast.LAssign
 		if wrap {
 			p.print("(")
 		}

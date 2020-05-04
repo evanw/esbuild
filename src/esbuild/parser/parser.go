@@ -1868,6 +1868,9 @@ func markExprAsParenthesized(value ast.Expr) {
 
 	case *ast.ECall:
 		e.IsParenthesized = true
+
+	case *ast.EArrow:
+		e.IsParenthesized = true
 	}
 }
 
@@ -2470,6 +2473,40 @@ func (p *parser) parseExpr(level ast.L) ast.Expr {
 }
 
 func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors) ast.Expr {
+	// ArrowFunction is a special case in the grammar. Although it appears to be
+	// a PrimaryExpression, it's actually an AssigmentExpression. This means if
+	// a AssigmentExpression ends up producing an ArrowFunction then nothing can
+	// come after it other than the comma operator, since the comma operator is
+	// the only thing above AssignmentExpression under the Expression rule:
+	//
+	//   AssignmentExpression:
+	//     ArrowFunction
+	//     ConditionalExpression
+	//     LeftHandSideExpression = AssignmentExpression
+	//     LeftHandSideExpression AssignmentOperator AssignmentExpression
+	//
+	//   Expression:
+	//     AssignmentExpression
+	//     Expression , AssignmentExpression
+	//
+	if level < ast.LAssign {
+		if arrow, ok := left.Data.(*ast.EArrow); ok && !arrow.IsParenthesized {
+			for {
+				switch p.lexer.Token {
+				case lexer.TComma:
+					if level >= ast.LComma {
+						return left
+					}
+					p.lexer.Next()
+					left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpComma, left, p.parseExpr(ast.LComma)}}
+
+				default:
+					return left
+				}
+			}
+		}
+	}
+
 	for {
 		switch p.lexer.Token {
 		case lexer.TDot:
