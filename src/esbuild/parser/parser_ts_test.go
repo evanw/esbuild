@@ -1017,6 +1017,13 @@ func TestTSNew(t *testing.T) {
 	expectPrintedTS(t, "new Foo()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo<number>()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo<number, boolean>()", "new Foo();\n")
+
+	expectPrintedTS(t, "new Foo!()", "new Foo();\n")
+	expectPrintedTS(t, "new Foo!<number>()", "new Foo();\n")
+	expectPrintedTS(t, "new Foo\n!(x)", "new Foo();\n!x;\n")
+	expectPrintedTS(t, "new Foo<number>!(x)", "new Foo() < number > !x;\n")
+	expectParseErrorTS(t, "new Foo<number>!()", "<stdin>: error: Unexpected \")\"\n")
+	expectParseError(t, "new Foo!()", "<stdin>: error: Unexpected \"!\"\n")
 }
 
 func TestTSImport(t *testing.T) {
