@@ -28,4 +28,4 @@ esbuild.build({
 )
 ```
 
-See [the TypeScript type definitions](./lib/main.d.ts) for the complete set of options.
+See [the TypeScript type definitions](https://github.com/evanw/esbuild/blob/master/npm/esbuild/lib/main.d.ts) for the complete set of options.
