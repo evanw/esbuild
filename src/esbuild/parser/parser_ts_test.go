@@ -623,7 +623,7 @@ func TestTSNamespaceDestructuring(t *testing.T) {
 	expectPrintedTS(t, "namespace A { export var [a, b] = ref.prop }", `var A;
 (function(A) {
   var _a;
-  _a = ref.prop, A.a = _a[0], A.b = _a[1];
+  A.a = (_a = ref.prop)[0], A.b = _a[1];
 })(A || (A = {}));
 `)
 
@@ -643,13 +643,13 @@ func TestTSNamespaceDestructuring(t *testing.T) {
 	expectPrintedTS(t, "namespace A { export var [[[x, y]]] = ref }", `var A;
 (function(A) {
   var _a;
-  _a = ref[0][0], A.x = _a[0], A.y = _a[1];
+  A.x = (_a = ref[0][0])[0], A.y = _a[1];
 })(A || (A = {}));
 `)
 	expectPrintedTS(t, "namespace A { export var {x: {y: {z, w}}} = ref }", `var A;
 (function(A) {
   var _a;
-  _a = ref.x.y, A.z = _a.z, A.w = _a.w;
+  A.z = (_a = ref.x.y).z, A.w = _a.w;
 })(A || (A = {}));
 `)
 
@@ -682,13 +682,13 @@ func TestTSNamespaceDestructuring(t *testing.T) {
 	expectPrintedTS(t, "namespace A { export var [[a, b] = {}] = ref }", `var A;
 (function(A) {
   var _a, _b;
-  _a = ref[0], _b = _a === void 0 ? {} : _a, A.a = _b[0], A.b = _b[1];
+  _a = ref[0], A.a = (_b = _a === void 0 ? {} : _a)[0], A.b = _b[1];
 })(A || (A = {}));
 `)
 	expectPrintedTS(t, "namespace A { export var {a: {b, c} = []} = ref }", `var A;
 (function(A) {
   var _a, _b;
-  _a = ref.a, _b = _a === void 0 ? [] : _a, A.b = _b.b, A.c = _b.c;
+  _a = ref.a, A.b = (_b = _a === void 0 ? [] : _a).b, A.c = _b.c;
 })(A || (A = {}));
 `)
 }

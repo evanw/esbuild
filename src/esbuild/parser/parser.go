@@ -6547,6 +6547,14 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	func() ast.Expr, // Generates reference expressions "_a"
 	func(ast.Expr) ast.Expr, // Call this on the final expression
 ) {
+	wrapFunc := func(expr ast.Expr) ast.Expr {
+		// Make sure side effects still happen if no expression was generated
+		if expr.Data == nil {
+			return value
+		}
+		return expr
+	}
+
 	// Referencing certain expressions more than once has no side effects, so we
 	// can just create them inline without capturing them in a temporary variable
 	var valueFunc func() ast.Expr
@@ -6569,54 +6577,31 @@ func (p *parser) captureValueWithPossibleSideEffects(
 		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EIdentifier{e.Ref}} }
 	}
 	if valueFunc != nil {
-		return valueFunc, func(expr ast.Expr) ast.Expr {
-			// Make sure side effects such as reference errors still happen if no
-			// expression was generated
-			if expr.Data == nil {
-				return value
-			}
-			return expr
-		}
+		return valueFunc, wrapFunc
 	}
 
 	// We don't need to worry about side effects if the value won't be used
-	// multiple times
+	// multiple times. This special case lets us avoid generating a temporary
+	// reference.
 	if count < 2 {
 		return func() ast.Expr {
-				return value
-			}, func(expr ast.Expr) ast.Expr {
-				// Make sure side effects still happen if no expression was generated
-				if expr.Data == nil {
-					return value
-				}
-				return expr
-			}
+			return value
+		}, wrapFunc
 	}
 
 	// Otherwise, fall back to generating a temporary reference
 	tempRef := ast.InvalidRef
 	return func() ast.Expr {
-			if tempRef == ast.InvalidRef {
-				tempRef = p.generateTempRef()
-			}
-			return ast.Expr{loc, &ast.EIdentifier{tempRef}}
-		}, func(expr ast.Expr) ast.Expr {
-			// Make sure side effects still happen if no expression was generated
-			if expr.Data == nil {
-				return value
-			}
-
-			// Otherwise, prepend the temporary reference initializer
-			prepend := value
-			if tempRef != ast.InvalidRef {
-				prepend = ast.Expr{loc, &ast.EBinary{
-					ast.BinOpAssign,
-					ast.Expr{loc, &ast.EIdentifier{tempRef}},
-					prepend,
-				}}
-			}
-			return maybeJoinWithComma(prepend, expr)
+		if tempRef == ast.InvalidRef {
+			tempRef = p.generateTempRef()
+			return ast.Expr{loc, &ast.EBinary{
+				ast.BinOpAssign,
+				ast.Expr{loc, &ast.EIdentifier{tempRef}},
+				value,
+			}}
 		}
+		return ast.Expr{loc, &ast.EIdentifier{tempRef}}
+	}, wrapFunc
 }
 
 // Returns "typeof ref === 'symbol' ? ref : ref + ''"
@@ -7054,28 +7039,6 @@ func (p *parser) visitBooleanExpr(expr ast.Expr) ast.Expr {
 	return expr
 }
 
-func (p *parser) captureIfNecessary(expr ast.Expr) (first ast.Expr, second ast.Expr) {
-	switch e := expr.Data.(type) {
-	case *ast.EIdentifier:
-		first = expr
-		second = ast.Expr{expr.Loc, &ast.EIdentifier{e.Ref}}
-
-	case *ast.EThis:
-		first = expr
-		second = ast.Expr{expr.Loc, &ast.EThis{}}
-
-	default:
-		ref := p.generateTempRef()
-		first = ast.Expr{expr.Loc, &ast.EBinary{
-			Op:    ast.BinOpAssign,
-			Left:  ast.Expr{expr.Loc, &ast.EIdentifier{ref}},
-			Right: expr,
-		}}
-		second = ast.Expr{expr.Loc, &ast.EIdentifier{ref}}
-	}
-	return
-}
-
 // Lower optional chaining for environments that don't support it
 func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut) (ast.Expr, exprOut) {
 	var thisArgRef *ast.Ref
@@ -7135,7 +7098,6 @@ flatten:
 
 	// Step 2: Figure out if we need to capture the value for "this" for the
 	// initial ECall. This will be passed to ".call(this, ...args)" later.
-	var result ast.Expr
 	var thisArg ast.Expr
 	if startsWithCall {
 		if out.thisArgRef != nil {
@@ -7149,19 +7111,21 @@ flatten:
 			// be used as the value for "this".
 			switch e := expr.Data.(type) {
 			case *ast.EDot:
-				expr, thisArg = p.captureIfNecessary(e.Target)
+				targetFunc, _ := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
 				expr = ast.Expr{loc, &ast.EDot{
-					Target:  expr,
+					Target:  targetFunc(),
 					Name:    e.Name,
 					NameLoc: e.NameLoc,
 				}}
+				thisArg = targetFunc()
 
 			case *ast.EIndex:
-				expr, thisArg = p.captureIfNecessary(e.Target)
+				targetFunc, _ := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
 				expr = ast.Expr{loc, &ast.EIndex{
-					Target: expr,
+					Target: targetFunc(),
 					Index:  e.Index,
 				}}
+				thisArg = targetFunc()
 			}
 		}
 	}
@@ -7170,7 +7134,9 @@ flatten:
 	// to capture it if it doesn't have any side effects (e.g. it's just a bare
 	// identifier). Skipping the capture reduces code size and matches the output
 	// of the TypeScript compiler.
-	expr, result = p.captureIfNecessary(expr)
+	exprFunc, _ := p.captureValueWithPossibleSideEffects(loc, 2, expr)
+	expr = exprFunc()
+	result := exprFunc()
 
 	// Step 4: Wrap the starting value by each expression in the chain. We
 	// traverse the chain in reverse because we want to go from the inside out
