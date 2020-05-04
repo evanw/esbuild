@@ -173,6 +173,7 @@ Options:
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife or cjs)
+  --color=...           Force use of color terminal escapes (true or false)
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -327,6 +328,16 @@ Examples:
 				args.bundleOptions.OutputFormat = bundler.FormatCommonJS
 			default:
 				args.exitWithError("Valid formats: iife, cjs")
+			}
+
+		case strings.HasPrefix(arg, "--color="):
+			switch arg[len("--color="):] {
+			case "false":
+				args.logOptions.Color = logging.ColorNever
+			case "true":
+				args.logOptions.Color = logging.ColorAlways
+			default:
+				args.exitWithError("Valid values for color: false, true")
 			}
 
 		case strings.HasPrefix(arg, "--external:"):

@@ -24,6 +24,7 @@ exports.build = options => {
     if (options.target) flags.push(`--target=${options.target}`);
     if (options.platform) flags.push(`--platform=${options.platform}`);
     if (options.format) flags.push(`--format=${options.format}`);
+    if (options.color) flags.push(`--color=${options.color}`);
     if (options.external) for (const name of options.external) flags.push(`--external:${name}`);
 
     if (options.minify) flags.push('--minify');

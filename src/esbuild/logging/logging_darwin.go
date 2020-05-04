@@ -9,6 +9,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const SupportsColorEscapes = true
+
 type winsize struct {
 	ws_row    uint16
 	ws_col    uint16

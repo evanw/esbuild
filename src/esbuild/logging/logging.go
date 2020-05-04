@@ -109,6 +109,13 @@ func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 	log := NewLog(msgs)
 	terminalInfo := StderrTerminalInfo()
 
+	switch options.Color {
+	case ColorNever:
+		terminalInfo.UseColorEscapes = false
+	case ColorAlways:
+		terminalInfo.UseColorEscapes = SupportsColorEscapes
+	}
+
 	go func(msgs chan Msg, done chan MsgCounts) {
 		counts := MsgCounts{}
 		for msg := range msgs {
@@ -163,10 +170,19 @@ const colorMagenta = "\033[35m"
 const colorBold = "\033[1m"
 const colorResetBold = "\033[0;1m"
 
+type StderrColor uint8
+
+const (
+	ColorIfTerminal StderrColor = iota
+	ColorNever
+	ColorAlways
+)
+
 type StderrOptions struct {
 	IncludeSource      bool
 	ErrorLimit         int
 	ExitWhenLimitIsHit bool
+	Color              StderrColor
 }
 
 func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {

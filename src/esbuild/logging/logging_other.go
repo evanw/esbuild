@@ -3,6 +3,8 @@
 
 package logging
 
+const SupportsColorEscapes = false
+
 func StderrTerminalInfo() TerminalInfo {
 	return TerminalInfo{}
 }

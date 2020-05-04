@@ -152,6 +152,7 @@ Options:
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife or cjs)
+  --color=...           Force use of color terminal escapes (true or false)
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace

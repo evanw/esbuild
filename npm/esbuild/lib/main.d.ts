@@ -13,6 +13,7 @@ export interface Options {
   target?: Target;
   platform?: Platform;
   format?: Format;
+  color?: boolean;
   external?: string[];
 
   minify?: boolean;
