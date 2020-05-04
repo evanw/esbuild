@@ -34,7 +34,7 @@ func (args *args) exitWithError(text string) {
 	colorBold := ""
 	colorReset := ""
 
-	if logging.StdinTerminalInfo().UseColor {
+	if logging.StderrTerminalInfo().UseColorEscapes {
 		colorRed = "\033[1;31m"
 		colorBold = "\033[0;1m"
 		colorReset = "\033[0m"

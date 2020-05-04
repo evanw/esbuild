@@ -9,9 +9,6 @@ import (
 	"esbuild/ast"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
-	"strconv"
 	"strings"
 )
 
@@ -102,64 +99,20 @@ func (counts MsgCounts) String() string {
 }
 
 type TerminalInfo struct {
-	UseColor bool
-	Width    int
-}
-
-func StdinTerminalInfo() TerminalInfo {
-	// This approach doesn't work on Windows. Just don't use color on Windows.
-	if runtime.GOOS == "windows" {
-		return TerminalInfo{}
-	}
-
-	// This approach works on macOS and Linux without using syscalls that are
-	// hard to cross-compile. Worst case we just don't use color, which isn't bad.
-	cmd := exec.Command("stty", "size")
-	cmd.Stdin = os.Stdin
-	if out, err := cmd.Output(); err == nil {
-		if space := strings.IndexByte(string(out), ' '); space != -1 {
-			if newline := strings.IndexByte(string(out), '\n'); newline > space {
-				if width, err := strconv.Atoi(string(out[space+1 : newline])); err == nil && width > 0 {
-					return TerminalInfo{true, width}
-				}
-			}
-		}
-	}
-
-	return TerminalInfo{}
-}
-
-func asyncStdinTerminalInfo() func() TerminalInfo {
-	channel := make(chan *TerminalInfo)
-	var result *TerminalInfo
-
-	// Run the command asynchronously
-	go func() {
-		info := StdinTerminalInfo()
-		channel <- &info
-	}()
-
-	// Return a function that blocks on the result of the asynchronous command
-	return func() TerminalInfo {
-		if result == nil {
-			result = <-channel
-		}
-		return *result
-	}
+	UseColorEscapes bool
+	Width           int
 }
 
 func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 	msgs := make(chan Msg)
 	done := make(chan MsgCounts)
 	log := NewLog(msgs)
-
-	// Get the terminal info asynchronously to avoid blocking this thread
-	asyncTerminalInfo := asyncStdinTerminalInfo()
+	terminalInfo := StderrTerminalInfo()
 
 	go func(msgs chan Msg, done chan MsgCounts) {
 		counts := MsgCounts{}
 		for msg := range msgs {
-			os.Stderr.WriteString(msg.String(options, asyncTerminalInfo()))
+			os.Stderr.WriteString(msg.String(options, terminalInfo))
 			switch msg.Kind {
 			case Error:
 				counts.Errors++
@@ -226,7 +179,7 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 	}
 
 	if msg.Source.PrettyPath == "" {
-		if terminalInfo.UseColor {
+		if terminalInfo.UseColorEscapes {
 			return fmt.Sprintf("%s%s%s: %s%s%s\n",
 				colorBold, kindColor, kind,
 				colorResetBold, msg.Text,
@@ -237,7 +190,7 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 	}
 
 	if !options.IncludeSource {
-		if terminalInfo.UseColor {
+		if terminalInfo.UseColorEscapes {
 			return fmt.Sprintf("%s%s: %s%s: %s%s%s\n",
 				colorBold, msg.Source.PrettyPath,
 				kindColor, kind,
@@ -250,7 +203,7 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 
 	d := detailStruct(msg, terminalInfo)
 
-	if terminalInfo.UseColor {
+	if terminalInfo.UseColorEscapes {
 		return fmt.Sprintf("%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s\n",
 			colorBold, d.Path,
 			d.Line,
