@@ -4824,11 +4824,8 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 
 		// Identifiers can be referenced by other values
-		if !opts.isTypeScriptDeclare {
-			name := lexer.UTF16ToString(value.Name)
-			if lexer.IsIdentifier(name) {
-				value.Ref = p.declareSymbol(ast.SymbolOther, value.Loc, name)
-			}
+		if !opts.isTypeScriptDeclare && lexer.IsIdentifierUTF16(value.Name) {
+			value.Ref = p.declareSymbol(ast.SymbolOther, value.Loc, lexer.UTF16ToString(value.Name))
 		}
 
 		// Parse the initializer
@@ -6606,11 +6603,8 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 
 				// Try to use a dot expression but fall back to an index expression
 				name := ""
-				if id, ok := key.Data.(*ast.EString); ok {
-					text := lexer.UTF16ToString(id.Value)
-					if lexer.IsIdentifier(text) {
-						name = text
-					}
+				if id, ok := key.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(id.Value) {
+					name = lexer.UTF16ToString(id.Value)
 				}
 				if name != "" {
 					propertyValue = ast.Expr{loc, &ast.EDot{
@@ -7433,14 +7427,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 		if p.mangleSyntax || p.ts.Parse {
-			if id, ok := e.Index.Data.(*ast.EString); ok {
-				text := lexer.UTF16ToString(id.Value)
-
+			if str, ok := e.Index.Data.(*ast.EString); ok {
 				// If this is a known enum value, inline the value of the enum
 				if p.ts.Parse {
 					if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
 						if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
-							if number, ok := enumValueMap[text]; ok {
+							if number, ok := enumValueMap[lexer.UTF16ToString(str.Value)]; ok {
 								return ast.Expr{expr.Loc, &ast.ENumber{number}}, exprOut{}
 							}
 						}
@@ -7449,10 +7441,10 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 				// "a['b']" => "a.b"
 				if p.mangleSyntax {
-					if lexer.IsIdentifier(text) {
+					if lexer.IsIdentifierUTF16(str.Value) {
 						return p.maybeRewriteDot(expr.Loc, &ast.EDot{
 							Target:  e.Target,
-							Name:    text,
+							Name:    lexer.UTF16ToString(str.Value),
 							NameLoc: e.Index.Loc,
 						}), exprOut{}
 					}

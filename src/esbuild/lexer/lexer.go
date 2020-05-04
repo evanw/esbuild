@@ -459,6 +459,32 @@ func IsIdentifier(text string) bool {
 	return true
 }
 
+// This does "IsIdentifier(UTF16ToString(text))" without any allocations
+func IsIdentifierUTF16(text []uint16) bool {
+	n := len(text)
+	if n == 0 {
+		return false
+	}
+	for i := 0; i < n; i++ {
+		r1 := rune(text[i])
+		if utf16.IsSurrogate(r1) && i+1 < n {
+			r2 := rune(text[i+1])
+			r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
+			i++
+		}
+		if i == 0 {
+			if !IsIdentifierStart(r1) {
+				return false
+			}
+		} else {
+			if !IsIdentifierContinue(r1) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func IsIdentifierStart(codePoint rune) bool {
 	switch codePoint {
 	case '_', '$',
@@ -2054,6 +2080,53 @@ func UTF16ToString(text []uint16) string {
 		b.Write(temp[:width])
 	}
 	return b.String()
+}
+
+// Does "UTF16ToString(text) == str" without a temporary allocation
+func UTF16EqualsString(text []uint16, str string) bool {
+	if len(text) > len(str) {
+		// Strings can't be equal if UTF-16 encoding is longer than UTF-8 encoding
+		return false
+	}
+	temp := make([]byte, utf8.UTFMax)
+	n := len(text)
+	j := 0
+	for i := 0; i < n; i++ {
+		r1 := rune(text[i])
+		if utf16.IsSurrogate(r1) && i+1 < n {
+			r2 := rune(text[i+1])
+			r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
+			i++
+		}
+		width := encodeWTF8Rune(temp, r1)
+		if j+width > len(str) {
+			return false
+		}
+		for k := 0; k < width; k++ {
+			if temp[k] != str[j] {
+				return false
+			}
+			j++
+		}
+	}
+	return j == len(str)
+}
+
+// Does "append(bytes, UTF16ToString(text))" without a temporary allocation
+func AppendUTF16ToBytes(bytes []byte, text []uint16) []byte {
+	temp := make([]byte, utf8.UTFMax)
+	n := len(text)
+	for i := 0; i < n; i++ {
+		r1 := rune(text[i])
+		if utf16.IsSurrogate(r1) && i+1 < n {
+			r2 := rune(text[i+1])
+			r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
+			i++
+		}
+		width := encodeWTF8Rune(temp, r1)
+		bytes = append(bytes, temp[:width]...)
+	}
+	return bytes
 }
 
 // This is a clone of "utf8.EncodeRune" that has been modified to encode using

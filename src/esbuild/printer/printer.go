@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
@@ -272,8 +273,11 @@ func quoteImpl(text string, forJSON bool) string {
 	return b.String()
 }
 
-func quoteUTF16(text []uint16, quote rune) string {
-	b := strings.Builder{}
+// This is the same as "print(quoteUTF16(text))" without any unnecessary
+// temporary allocations
+func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
+	temp := make([]byte, utf8.UTFMax)
+	js := p.js
 	i := 0
 	n := len(text)
 
@@ -285,62 +289,70 @@ func quoteUTF16(text []uint16, quote rune) string {
 		case '\x00':
 			// We don't want "\x001" to be written as "\01"
 			if i >= n || text[i] < '0' || text[i] > '9' {
-				b.WriteString("\\0")
+				js = append(js, "\\0"...)
 			} else {
-				b.WriteString("\\x00")
+				js = append(js, "\\x00"...)
 			}
 
 		case '\b':
-			b.WriteString("\\b")
+			js = append(js, "\\b"...)
 
 		case '\f':
-			b.WriteString("\\f")
+			js = append(js, "\\f"...)
 
 		case '\n':
 			if quote == '`' {
-				b.WriteByte('\n')
+				js = append(js, '\n')
+
+				// Make sure to do with print() does for newlines
+				if p.writeSourceMap {
+					p.prevLineStart = len(js)
+					p.prevState.GeneratedLine++
+					p.prevState.GeneratedColumn = 0
+					p.sourceMap = append(p.sourceMap, ';')
+				}
 			} else {
-				b.WriteString("\\n")
+				js = append(js, "\\n"...)
 			}
 
 		case '\r':
-			b.WriteString("\\r")
+			js = append(js, "\\r"...)
 
 		case '\v':
-			b.WriteString("\\v")
+			js = append(js, "\\v"...)
 
 		case '\\':
-			b.WriteString("\\\\")
+			js = append(js, "\\\\"...)
 
 		case '\'':
 			if quote == '\'' {
-				b.WriteByte('\\')
+				js = append(js, '\\')
 			}
-			b.WriteByte('\'')
+			js = append(js, '\'')
 
 		case '"':
 			if quote == '"' {
-				b.WriteByte('\\')
+				js = append(js, '\\')
 			}
-			b.WriteByte('"')
+			js = append(js, '"')
 
 		case '`':
 			if quote == '`' {
-				b.WriteByte('\\')
+				js = append(js, '\\')
 			}
-			b.WriteByte('`')
+			js = append(js, '`')
 
 		case '$':
 			if quote == '`' && i < n && text[i] == '{' {
-				b.WriteByte('\\')
+				js = append(js, '\\')
 			}
-			b.WriteByte('$')
+			js = append(js, '$')
 
 		case '\u2028':
-			b.WriteString("\\u2028")
+			js = append(js, "\\u2028"...)
 
 		case '\u2029':
-			b.WriteString("\\u2029")
+			js = append(js, "\\u2029"...)
 
 		default:
 			switch {
@@ -353,36 +365,32 @@ func quoteUTF16(text []uint16, quote rune) string {
 					// Is it a low surrogate?
 					if c2 >= 0xDC00 && c2 <= 0xDFFF {
 						i++
-						b.WriteRune((rune(c) << 10) + rune(c2) + (0x10000 - (0xD800 << 10) - 0xDC00))
+						width := utf8.EncodeRune(temp, (rune(c)<<10)+rune(c2)+(0x10000-(0xD800<<10)-0xDC00))
+						js = append(js, temp[:width]...)
 						continue
 					}
 				}
 
 				// Write an escaped character
-				b.WriteString("\\u")
-				b.WriteByte(hexChars[c>>12])
-				b.WriteByte(hexChars[(c>>8)&15])
-				b.WriteByte(hexChars[(c>>4)&15])
-				b.WriteByte(hexChars[c&15])
-				continue
+				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
 
 			// Is this a low surrogate?
 			case c >= 0xDC00 && c <= 0xDFFF:
 				// Write an escaped character
-				b.WriteString("\\u")
-				b.WriteByte(hexChars[c>>12])
-				b.WriteByte(hexChars[(c>>8)&15])
-				b.WriteByte(hexChars[(c>>4)&15])
-				b.WriteByte(hexChars[c&15])
-				continue
+				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
 
 			default:
-				b.WriteRune(rune(c))
+				if c < utf8.RuneSelf {
+					js = append(js, byte(c))
+				} else {
+					width := utf8.EncodeRune(temp, rune(c))
+					js = append(js, temp[:width]...)
+				}
 			}
 		}
 	}
 
-	return b.String()
+	p.js = js
 }
 
 type printer struct {
@@ -426,6 +434,24 @@ func (p *printer) print(text string) {
 	}
 
 	p.js = append(p.js, text...)
+}
+
+// This is the same as "print(lexer.UTF16ToString(text))" without any
+// unnecessary temporary allocations
+func (p *printer) printUTF16(text []uint16) {
+	if p.writeSourceMap {
+		start := len(p.js)
+		for i, c := range text {
+			if c == '\n' {
+				p.prevLineStart = start + i + 1
+				p.prevState.GeneratedLine++
+				p.prevState.GeneratedColumn = 0
+				p.sourceMap = append(p.sourceMap, ';')
+			}
+		}
+	}
+
+	p.js = lexer.AppendUTF16ToBytes(p.js, text)
 }
 
 func (p *printer) addSourceMapping(loc ast.Loc) {
@@ -560,13 +586,12 @@ func (p *printer) printBinding(binding ast.Binding) {
 				}
 
 				if str, ok := item.Key.Data.(*ast.EString); ok {
-					text := lexer.UTF16ToString(str.Value)
-					if lexer.IsIdentifier(text) {
+					if lexer.IsIdentifierUTF16(str.Value) {
 						p.printSpaceBeforeIdentifier()
-						p.print(text)
+						p.printUTF16(str.Value)
 
 						// Use a shorthand property if the names are the same
-						if id, ok := item.Value.Data.(*ast.BIdentifier); ok && text == p.symbolName(id.Ref) {
+						if id, ok := item.Value.Data.(*ast.BIdentifier); ok && lexer.UTF16EqualsString(str.Value, p.symbolName(id.Ref)) {
 							if item.DefaultValue != nil {
 								p.printSpace()
 								p.print("=")
@@ -794,16 +819,15 @@ func (p *printer) printProperty(item ast.Property) {
 	}
 
 	if str, ok := item.Key.Data.(*ast.EString); ok {
-		text := lexer.UTF16ToString(str.Value)
-		if lexer.IsIdentifier(text) {
+		if lexer.IsIdentifierUTF16(str.Value) {
 			p.printSpaceBeforeIdentifier()
-			p.print(text)
+			p.printUTF16(str.Value)
 
 			// Use a shorthand property if the names are the same
 			if item.Value != nil {
 				switch e := item.Value.Data.(type) {
 				case *ast.EIdentifier:
-					if text == p.symbolName(e.Ref) {
+					if lexer.UTF16EqualsString(str.Value, p.symbolName(e.Ref)) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -817,7 +841,7 @@ func (p *printer) printProperty(item ast.Property) {
 					// Make sure we're not using a property access instead of an identifier
 					ref := ast.FollowSymbols(p.symbols, e.Ref)
 					symbol := p.symbols.Get(ref)
-					if symbol.NamespaceAlias == nil && text == symbol.Name {
+					if symbol.NamespaceAlias == nil && lexer.UTF16EqualsString(str.Value, symbol.Name) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -831,7 +855,7 @@ func (p *printer) printProperty(item ast.Property) {
 		} else {
 			c := p.bestQuoteCharForString(str.Value, false /* allowBacktick */)
 			p.print(c)
-			p.print(quoteUTF16(str.Value, rune(c[0])))
+			p.printQuotedUTF16(str.Value, rune(c[0]))
 			p.print(c)
 		}
 	} else {
@@ -1264,7 +1288,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	case *ast.EString:
 		c := p.bestQuoteCharForString(e.Value, true /* allowBacktick */)
 		p.print(c)
-		p.print(quoteUTF16(e.Value, rune(c[0])))
+		p.printQuotedUTF16(e.Value, rune(c[0]))
 		p.print(c)
 
 	case *ast.ETemplate:
@@ -1272,7 +1296,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if p.minify && e.Tag == nil && len(e.Parts) == 0 {
 			c := p.bestQuoteCharForString(e.Head, true /* allowBacktick */)
 			p.print(c)
-			p.print(quoteUTF16(e.Head, rune(c[0])))
+			p.printQuotedUTF16(e.Head, rune(c[0]))
 			p.print(c)
 			return
 		}
@@ -1284,7 +1308,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if e.Tag != nil {
 			p.print(e.HeadRaw)
 		} else {
-			p.print(quoteUTF16(e.Head, '`'))
+			p.printQuotedUTF16(e.Head, '`')
 		}
 		for _, part := range e.Parts {
 			p.print("${")
@@ -1293,7 +1317,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			if e.Tag != nil {
 				p.print(part.TailRaw)
 			} else {
-				p.print(quoteUTF16(part.Tail, '`'))
+				p.printQuotedUTF16(part.Tail, '`')
 			}
 		}
 		p.print("`")
@@ -2170,7 +2194,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print(c)
-		p.print(quoteUTF16(s.Value, rune(c[0])))
+		p.printQuotedUTF16(s.Value, rune(c[0]))
 		p.print(c)
 		p.printSemicolonAfterStatement()
 
