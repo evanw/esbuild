@@ -467,13 +467,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function r() {
+			"/out/c.js": `export default function s() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class r {
+			"/out/e.js": `export default class s {
 }
 `,
 		},
@@ -3002,6 +3002,83 @@ let jsx = [React.createElement("div", __assign(__assign({}, a), b)), React.creat
   i: true,
   j: true
 }))];
+`,
+		},
+	})
+}
+
+func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let tests = {
+					// Exponentiation operator
+					0: a ** b ** c,
+					1: (a ** b) ** c,
+
+					// Exponentiation assignment operator
+					2: a **= b,
+					3: a.b **= c,
+					4: a[b] **= c,
+					5: a().b **= c,
+					6: a()[b] **= c,
+					7: a[b()] **= c,
+					8: a()[b()] **= c,
+
+					// These all should not need capturing (no object identity)
+					9: a[0] **= b,
+					10: a[false] **= b,
+					11: a[null] **= b,
+					12: a[void 0] **= b,
+					13: a[123n] **= b,
+					14: a[this] **= b,
+
+					// These should need capturing (have object identitiy)
+					15: a[/x/] **= b,
+					16: a[{}] **= b,
+					17: a[[]] **= b,
+					18: a[() => {}] **= b,
+					19: a[function() {}] **= b,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2015,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: "/entry.js: warning: This syntax is from ES2020 and is not available in ES2015\n",
+		expected: map[string]string{
+			"/out.js": `let __pow = Math.pow;
+var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+let tests = {
+  0: __pow(a, __pow(b, c)),
+  1: __pow(__pow(a, b), c),
+  2: a = __pow(a, b),
+  3: a.b = __pow(a.b, c),
+  4: a[b] = __pow(a[b], c),
+  5: (_a = a(), _a.b = __pow(_a.b, c)),
+  6: (_b = a(), _b[b] = __pow(_b[b], c)),
+  7: (_c = b(), a[_c] = __pow(a[_c], c)),
+  8: (_d = a(), _e = b(), _d[_e] = __pow(_d[_e], c)),
+  9: a[0] = __pow(a[0], b),
+  10: a[false] = __pow(a[false], b),
+  11: a[null] = __pow(a[null], b),
+  12: a[void 0] = __pow(a[void 0], b),
+  13: a[123n] = __pow(a[123n], b),
+  14: a[this] = __pow(a[this], b),
+  15: (_f = /x/, a[_f] = __pow(a[_f], b)),
+  16: (_g = {}, a[_g] = __pow(a[_g], b)),
+  17: (_h = [], a[_h] = __pow(a[_h], b)),
+  18: (_i = () => {
+  }, a[_i] = __pow(a[_i], b)),
+  19: (_j = function() {
+  }, a[_j] = __pow(a[_j], b))
+};
 `,
 		},
 	})

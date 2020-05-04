@@ -73,18 +73,18 @@ These transforms convert newer JavaScript syntax to older JavaScript syntax for 
 
 These syntax transforms are implemented:
 
-| Syntax transform                                                                  | Transformed when `--target` is below | Example           |
-|-----------------------------------------------------------------------------------|--------------------------------------|-------------------|
-| [Spread properties](https://github.com/tc39/proposal-object-rest-spread)          | `es2018`                             | `let x = {...y}`  |
-| [Optional catch binding](https://github.com/tc39/proposal-optional-catch-binding) | `es2019`                             | `try {} catch {}` |
-| [Optional Chaining](https://github.com/tc39/proposal-optional-chaining)           | `es2020`                             | `a?.b`            |
-| [Nullish coalescing](https://github.com/tc39/proposal-nullish-coalescing)         | `es2020`                             | `a ?? b`          |
+| Syntax transform                                                                    | Transformed when `--target` is below | Example           |
+|-------------------------------------------------------------------------------------|--------------------------------------|-------------------|
+| [Exponentiation operator](https://github.com/tc39/proposal-exponentiation-operator) | `es2016`                             | `a ** b`          |
+| [Spread properties](https://github.com/tc39/proposal-object-rest-spread)            | `es2018`                             | `let x = {...y}`  |
+| [Optional catch binding](https://github.com/tc39/proposal-optional-catch-binding)   | `es2019`                             | `try {} catch {}` |
+| [Optional Chaining](https://github.com/tc39/proposal-optional-chaining)             | `es2020`                             | `a?.b`            |
+| [Nullish coalescing](https://github.com/tc39/proposal-nullish-coalescing)           | `es2020`                             | `a ?? b`          |
 
 These syntax transforms are not yet implemented:
 
 | Syntax transform                                                                    | Unsupported when `--target` is below | Example                     |
 |-------------------------------------------------------------------------------------|--------------------------------------|-----------------------------|
-| [Exponentiation operator](https://github.com/tc39/proposal-exponentiation-operator) | `es2016`                             | `a ** b`                    |
 | [Async functions](https://github.com/tc39/ecmascript-asyncawait)                    | `es2017`                             | `async () => {}`            |
 | [Rest properties](https://github.com/tc39/proposal-object-rest-spread)              | `es2018`                             | `let {...x} = y`            |
 | [Asynchronous Iteration](https://github.com/tc39/proposal-async-iteration)          | `es2018`                             | `for await (let x of y) {}` |

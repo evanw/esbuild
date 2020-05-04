@@ -2727,7 +2727,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			if level >= ast.LExponentiation {
 				return left
 			}
-			p.warnAboutFutureSyntax(ES2016, p.lexer.Range())
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpPow, left, p.parseExpr(ast.LExponentiation - 1)}}
 
@@ -2735,7 +2734,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			if level >= ast.LAssign {
 				return left
 			}
-			p.warnAboutFutureSyntax(ES2016, p.lexer.Range())
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpPowAssign, left, p.parseExpr(ast.LAssign - 1)}}
 
@@ -5396,6 +5394,74 @@ func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 	}
 }
 
+func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
+	p.usedRuntimeSyms |= runtime.PowSym
+
+	switch left := e.Left.Data.(type) {
+	case *ast.EDot:
+		if !left.IsOptionalChain {
+			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
+			return wrapFunc(ast.Expr{loc, &ast.EBinary{
+				Op: ast.BinOpAssign,
+				Left: ast.Expr{e.Left.Loc, &ast.EDot{
+					Target:  referenceFunc(),
+					Name:    left.Name,
+					NameLoc: left.NameLoc,
+				}},
+				Right: ast.Expr{loc, &ast.ERuntimeCall{
+					Sym: runtime.PowSym,
+					Args: []ast.Expr{
+						ast.Expr{e.Left.Loc, &ast.EDot{
+							Target:  referenceFunc(),
+							Name:    left.Name,
+							NameLoc: left.NameLoc,
+						}},
+						e.Right,
+					},
+				}},
+			}})
+		}
+
+	case *ast.EIndex:
+		if !left.IsOptionalChain {
+			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
+			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Index)
+			return targetWrapFunc(indexWrapFunc(ast.Expr{loc, &ast.EBinary{
+				Op: ast.BinOpAssign,
+				Left: ast.Expr{e.Left.Loc, &ast.EIndex{
+					Target: targetFunc(),
+					Index:  indexFunc(),
+				}},
+				Right: ast.Expr{loc, &ast.ERuntimeCall{
+					Sym: runtime.PowSym,
+					Args: []ast.Expr{
+						ast.Expr{e.Left.Loc, &ast.EIndex{
+							Target: targetFunc(),
+							Index:  indexFunc(),
+						}},
+						e.Right,
+					},
+				}},
+			}}))
+		}
+
+	case *ast.EIdentifier:
+		return ast.Expr{loc, &ast.EBinary{
+			Op:   ast.BinOpAssign,
+			Left: ast.Expr{e.Left.Loc, &ast.EIdentifier{left.Ref}},
+			Right: ast.Expr{loc, &ast.ERuntimeCall{
+				Sym:  runtime.PowSym,
+				Args: []ast.Expr{e.Left, e.Right},
+			}},
+		}}
+	}
+
+	// We shouldn't get here with valid syntax? Just let this through for now
+	// since there's currently no assignment target validation. Garbage in,
+	// garbage out.
+	return ast.Expr{loc, e}
+}
+
 // Lower object spread for environments that don't support them. Non-spread
 // properties are grouped into object literals and then passed to __assign()
 // like this (__assign() is an alias for Object.assign()):
@@ -6454,32 +6520,72 @@ func (p *parser) exprForExportedDeclsInNamespace(decls []ast.Decl) ast.Expr {
 	return expr
 }
 
-func (p *parser) valueRepeater(loc ast.Loc, count int, value ast.Expr) (
-	ast.Expr, // The initial expression "_a = value"
-	func() ast.Expr, // Generates subsequent expressions "_a"
+// This is a helper function to use when you need to capture a value that may
+// have side effects so you can use it multiple times. It guarantees that the
+// side effects take place exactly once.
+//
+// Example usage:
+//
+//   // "value" => "value + value"
+//   // "value()" => "(_a = value(), _a + _a)"
+//   valueFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, value)
+//   return wrapFunc(ast.Expr{loc, &ast.EBinary{
+//     Op: ast.BinOpAdd,
+//     Left: valueFunc(),
+//     Right: valueFunc(),
+//   }})
+//
+// This returns a function for generating references instead of a raw reference
+// because AST nodes are supposed to be unique in memory, not aliases of other
+// AST nodes. That way you can mutate one during lowering without having to
+// worry about messing up other nodes.
+func (p *parser) captureValueWithPossibleSideEffects(
+	loc ast.Loc, // The location to use for the generated references
+	count int, // The expected number of references to generate
+	value ast.Expr, // The value that might have side effects
+) (
+	func() ast.Expr, // Generates reference expressions "_a"
 	func(ast.Expr) ast.Expr, // Call this on the final expression
 ) {
-	// Referencing an identifier has no side effects, so we can just create
-	// identifiers inline without a temporary variable
-	if id, ok := value.Data.(*ast.EIdentifier); ok {
-		return ast.Expr{}, func() ast.Expr {
-				return ast.Expr{loc, &ast.EIdentifier{id.Ref}}
-			}, func(expr ast.Expr) ast.Expr {
-				return expr
+	// Referencing certain expressions more than once has no side effects, so we
+	// can just create them inline without capturing them in a temporary variable
+	var valueFunc func() ast.Expr
+	switch e := value.Data.(type) {
+	case *ast.ENull:
+		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.ENull{}} }
+	case *ast.EUndefined:
+		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EUndefined{}} }
+	case *ast.EThis:
+		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EThis{}} }
+	case *ast.EBoolean:
+		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EBoolean{e.Value}} }
+	case *ast.ENumber:
+		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.ENumber{e.Value}} }
+	case *ast.EBigInt:
+		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EBigInt{e.Value}} }
+	case *ast.EString:
+		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EString{e.Value}} }
+	case *ast.EIdentifier:
+		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EIdentifier{e.Ref}} }
+	}
+	if valueFunc != nil {
+		return valueFunc, func(expr ast.Expr) ast.Expr {
+			// Make sure side effects such as reference errors still happen if no
+			// expression was generated
+			if expr.Data == nil {
+				return value
 			}
+			return expr
+		}
 	}
 
-	// We don't need to worry about side effects if the value will be used exactly once
-	if count == 1 {
-		return ast.Expr{}, func() ast.Expr {
+	// We don't need to worry about side effects if the value won't be used
+	// multiple times
+	if count < 2 {
+		return func() ast.Expr {
 				return value
 			}, func(expr ast.Expr) ast.Expr {
-				// In rare cases, having one element doesn't mean the value will
-				// necessarily be used. For example:
-				//
-				//   export var [[,]] = foo()
-				//
-				// We still want foo() to be called in this case, so return it here.
+				// Make sure side effects still happen if no expression was generated
 				if expr.Data == nil {
 					return value
 				}
@@ -6488,15 +6594,28 @@ func (p *parser) valueRepeater(loc ast.Loc, count int, value ast.Expr) (
 	}
 
 	// Otherwise, fall back to generating a temporary reference
-	tempRef := p.generateTempRef()
-	return ast.Expr{loc, &ast.EBinary{
-			ast.BinOpAssign,
-			ast.Expr{loc, &ast.EIdentifier{tempRef}},
-			value,
-		}}, func() ast.Expr {
+	tempRef := ast.InvalidRef
+	return func() ast.Expr {
+			if tempRef == ast.InvalidRef {
+				tempRef = p.generateTempRef()
+			}
 			return ast.Expr{loc, &ast.EIdentifier{tempRef}}
 		}, func(expr ast.Expr) ast.Expr {
-			return expr
+			// Make sure side effects still happen if no expression was generated
+			if expr.Data == nil {
+				return value
+			}
+
+			// Otherwise, prepend the temporary reference initializer
+			prepend := value
+			if tempRef != ast.InvalidRef {
+				prepend = ast.Expr{loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{loc, &ast.EIdentifier{tempRef}},
+					prepend,
+				}}
+			}
+			return maybeJoinWithComma(prepend, expr)
 		}
 }
 
@@ -6539,7 +6658,8 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 		}}
 
 	case *ast.BArray:
-		expr, valueFunc, afterFunc := p.valueRepeater(loc, len(d.Items), value)
+		var expr ast.Expr
+		valueFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, len(d.Items), value)
 		for i, item := range d.Items {
 			var itemValue ast.Expr
 			if d.HasSpread && i+1 == len(d.Items) {
@@ -6581,10 +6701,11 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 
 			expr = maybeJoinWithComma(expr, p.exprForExportedBindingInNamespace(item.Binding, itemValue))
 		}
-		return afterFunc(expr)
+		return wrapFunc(expr)
 
 	case *ast.BObject:
-		expr, valueFunc, afterFunc := p.valueRepeater(loc, len(d.Properties), value)
+		var expr ast.Expr
+		valueFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, len(d.Properties), value)
 
 		// We will need to track the keys we use if this pattern contains a spread
 		keysForSpread := []ast.Expr{}
@@ -6692,7 +6813,7 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 
 			expr = maybeJoinWithComma(expr, p.exprForExportedBindingInNamespace(property.Value, propertyValue))
 		}
-		return afterFunc(expr)
+		return wrapFunc(expr)
 
 	default:
 		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
@@ -7420,6 +7541,21 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
 					return ast.Expr{expr.Loc, &ast.ENumber{math.Pow(left, right)}}, exprOut{}
 				}
+			}
+
+			// Lower the exponentiation operator for browsers that don't support it
+			if p.target < ES2016 {
+				p.usedRuntimeSyms |= runtime.PowSym
+				return ast.Expr{expr.Loc, &ast.ERuntimeCall{
+					Sym:  runtime.PowSym,
+					Args: []ast.Expr{e.Left, e.Right},
+				}}, exprOut{}
+			}
+
+		case ast.BinOpPowAssign:
+			// Lower the exponentiation operator for browsers that don't support it
+			if p.target < ES2016 {
+				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
 			}
 
 		case ast.BinOpShl:

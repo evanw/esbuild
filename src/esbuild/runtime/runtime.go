@@ -6,21 +6,23 @@ const (
 	// These flags are designed to be merged together using bitwise-or to figure
 	// out what runtime symbols are used. Each flag includes its dependencies so
 	// that a bitwise-or will automatically also mark them as used too.
-	AssignSym                Sym = (1 << 0)
-	DefinePropertySym        Sym = (1 << 1)
-	HasOwnPropertySym        Sym = (1 << 2)
-	GetOwnPropertySymbolsSym Sym = (1 << 3)
-	PropertyIsEnumerableSym  Sym = (1 << 4)
-	RestSym                  Sym = (1 << 5) | HasOwnPropertySym | GetOwnPropertySymbolsSym | PropertyIsEnumerableSym
-	ModulesSym               Sym = (1 << 6)
-	CommonJsSym              Sym = (1 << 7)
-	RequireSym               Sym = (1 << 8) | ModulesSym | CommonJsSym
-	ToModuleSym              Sym = (1 << 9) | HasOwnPropertySym
-	ImportSym                Sym = (1 << 10) | ToModuleSym | RequireSym
-	ExportSym                Sym = (1 << 11) | DefinePropertySym
+	PowSym                   Sym = (1 << 0)
+	AssignSym                Sym = (1 << 1)
+	DefinePropertySym        Sym = (1 << 2)
+	HasOwnPropertySym        Sym = (1 << 3)
+	GetOwnPropertySymbolsSym Sym = (1 << 4)
+	PropertyIsEnumerableSym  Sym = (1 << 5)
+	RestSym                  Sym = (1 << 6) | HasOwnPropertySym | GetOwnPropertySymbolsSym | PropertyIsEnumerableSym
+	ModulesSym               Sym = (1 << 7)
+	CommonJsSym              Sym = (1 << 8)
+	RequireSym               Sym = (1 << 9) | ModulesSym | CommonJsSym
+	ToModuleSym              Sym = (1 << 10) | HasOwnPropertySym
+	ImportSym                Sym = (1 << 11) | ToModuleSym | RequireSym
+	ExportSym                Sym = (1 << 12) | DefinePropertySym
 )
 
 var SymMap = map[string]Sym{
+	"__pow":                   PowSym,
 	"__assign":                AssignSym,
 	"__defineProperty":        DefinePropertySym,
 	"__hasOwnProperty":        HasOwnPropertySym,
@@ -36,6 +38,7 @@ var SymMap = map[string]Sym{
 }
 
 const Code = `
+	let __pow = Math.pow
 	let __assign = Object.assign
 	let __defineProperty = Object.defineProperty
 	let __hasOwnProperty = Object.hasOwnProperty
