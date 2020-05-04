@@ -983,7 +983,7 @@
             result.push('[');
         }
 
-        result.push(this.generateExpression(expr, Precedence.Sequence, E_TTT));
+        result.push(this.generateExpression(expr, Precedence.Sequence + 1, E_TTT));
 
         if (computed) {
             result.push(']');
