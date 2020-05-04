@@ -438,6 +438,8 @@ func TestASI(t *testing.T) {
 	expectPrinted(t, "new x\n(1)", "new x(1);\n")
 	expectPrinted(t, "while (true) break\nx", "while (true)\n  break;\nx;\n")
 	expectPrinted(t, "x\n!y", "x;\n!y;\n")
+	expectPrinted(t, "x\n++y", "x;\n++y;\n")
+	expectPrinted(t, "x\n--y", "x;\n--y;\n")
 
 	expectPrinted(t, "function* foo(){yield\na}", "function* foo() {\n  yield;\n  a;\n}\n")
 	expectParseError(t, "function* foo(){yield\n*a}", "<stdin>: error: Unexpected \"*\"\n")
