@@ -1568,6 +1568,13 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 // This assumes that the "=>" token has already been parsed by the caller
 func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 	arrowLoc := p.lexer.Loc()
+
+	// Newlines are not allowed before "=>"
+	if p.lexer.HasNewlineBefore {
+		p.log.AddRangeError(p.source, p.lexer.Range(), "Unexpected newline before \"=>\"")
+		panic(lexer.LexerPanic{})
+	}
+
 	p.lexer.Expect(lexer.TEqualsGreaterThan)
 
 	for _, arg := range args {
