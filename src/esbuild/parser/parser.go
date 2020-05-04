@@ -90,9 +90,12 @@ type parser struct {
 	typeofTarget      ast.E
 	moduleScope       *ast.Scope
 	isControlFlowDead bool
-	tempRefs          []ast.Ref // Temporary variables used for lowering
 	identifierDefines map[string]DefineFunc
 	dotDefines        map[string]dotDefine
+
+	// Temporary variables used for lowering
+	tempRefsToDeclare []ast.Ref
+	tempRefCount      int
 }
 
 const (
@@ -4964,13 +4967,23 @@ type dotDefine struct {
 	defineFunc DefineFunc
 }
 
-func (p *parser) generateTempRef() ast.Ref {
+type generateTempRefArg uint8
+
+const (
+	tempRefNeedsDeclare generateTempRefArg = iota
+	tempRefNoDeclare
+)
+
+func (p *parser) generateTempRef(declare generateTempRefArg) ast.Ref {
 	scope := p.currentScope
 	for !scope.Kind.StopsHoisting() {
 		scope = scope.Parent
 	}
-	ref := p.newSymbol(ast.SymbolHoisted, "_"+lexer.NumberToMinifiedName(len(p.tempRefs)))
-	p.tempRefs = append(p.tempRefs, ref)
+	ref := p.newSymbol(ast.SymbolOther, "_"+lexer.NumberToMinifiedName(p.tempRefCount))
+	p.tempRefCount++
+	if declare == tempRefNeedsDeclare {
+		p.tempRefsToDeclare = append(p.tempRefsToDeclare, ref)
+	}
 	scope.Generated = append(scope.Generated, ref)
 	return ref
 }
@@ -5091,21 +5104,24 @@ func shouldKeepStmtInDeadControlFlow(stmt ast.Stmt) bool {
 }
 
 func (p *parser) visitStmtsAndPrependTempRefs(stmts []ast.Stmt) []ast.Stmt {
-	oldTempRefs := p.tempRefs
-	p.tempRefs = []ast.Ref{}
+	oldTempRefs := p.tempRefsToDeclare
+	oldTempRefCount := p.tempRefCount
+	p.tempRefsToDeclare = []ast.Ref{}
+	p.tempRefCount = 0
 
 	stmts = p.visitStmts(stmts)
 
 	// Prepend the generated temporary variables to the beginning of the statement list
-	if len(p.tempRefs) > 0 {
+	if len(p.tempRefsToDeclare) > 0 {
 		decls := []ast.Decl{}
-		for _, ref := range p.tempRefs {
+		for _, ref := range p.tempRefsToDeclare {
 			decls = append(decls, ast.Decl{ast.Binding{ast.Loc{}, &ast.BIdentifier{ref}}, nil})
 		}
 		stmts = append([]ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}}, stmts...)
 	}
 
-	p.tempRefs = oldTempRefs
+	p.tempRefsToDeclare = oldTempRefs
+	p.tempRefCount = oldTempRefCount
 	return stmts
 }
 
@@ -5395,12 +5411,11 @@ func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 }
 
 func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
-	p.usedRuntimeSyms |= runtime.PowSym
-
 	switch left := e.Left.Data.(type) {
 	case *ast.EDot:
 		if !left.IsOptionalChain {
 			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
+			p.usedRuntimeSyms |= runtime.PowSym
 			return wrapFunc(ast.Expr{loc, &ast.EBinary{
 				Op: ast.BinOpAssign,
 				Left: ast.Expr{e.Left.Loc, &ast.EDot{
@@ -5426,6 +5441,7 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 		if !left.IsOptionalChain {
 			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
 			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Index)
+			p.usedRuntimeSyms |= runtime.PowSym
 			return targetWrapFunc(indexWrapFunc(ast.Expr{loc, &ast.EBinary{
 				Op: ast.BinOpAssign,
 				Left: ast.Expr{e.Left.Loc, &ast.EIndex{
@@ -5446,6 +5462,7 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 		}
 
 	case *ast.EIdentifier:
+		p.usedRuntimeSyms |= runtime.PowSym
 		return ast.Expr{loc, &ast.EBinary{
 			Op:   ast.BinOpAssign,
 			Left: ast.Expr{e.Left.Loc, &ast.EIdentifier{left.Ref}},
@@ -5545,16 +5562,12 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 }
 
 // Lower class fields for environments that don't support them
-func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (staticFields []ast.Expr, tempRef ast.Ref) {
-	tempRef = ast.InvalidRef
+func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
+	staticFields []ast.Expr, // Generated static field initializers
+	newExpr ast.Expr, // Only for !isStmt, should replace the expression if not nil
+) {
 	if !p.ts.Parse && p.target >= ESNext {
 		return
-	}
-
-	// We don't need to generate a name if this is a class statement with a name
-	ref := ast.InvalidRef
-	if isStmt && class.Name != nil {
-		ref = class.Name.Ref
 	}
 
 	var ctor *ast.EFunction
@@ -5562,6 +5575,11 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 	parameterFields := []ast.Stmt{}
 	instanceFields := []ast.Stmt{}
 	end := 0
+
+	// These are only for class expressions that need to be captured
+	var nameFunc func() ast.Expr
+	var wrapFunc func(ast.Expr) ast.Expr
+	var classExpr *ast.EClass
 
 	for _, prop := range props {
 		// Instance and static fields are a JavaScript feature
@@ -5576,11 +5594,34 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 			// Determine where to store the field
 			var target ast.Expr
 			if prop.IsStatic {
-				if ref == ast.InvalidRef {
-					tempRef = p.generateTempRef()
-					ref = tempRef
+				if nameFunc == nil {
+					if !isStmt {
+						// If this is a class expression, capture and store it. We have to
+						// do this even if it has a name since the name isn't exposed
+						// outside the class body.
+						classExpr = &ast.EClass{}
+						nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
+						newExpr = nameFunc()
+					} else {
+						// Otherwise, this is a class statement. Just use the class name.
+						nameFunc = func() ast.Expr {
+							p.recordUsage(class.Name.Ref)
+							return ast.Expr{classLoc, &ast.EIdentifier{class.Name.Ref}}
+						}
+
+						// Class statements can be missing a name if they are in an
+						// "export default" statement:
+						//
+						//   export default class {
+						//     static foo = 123
+						//   }
+						//
+						if class.Name == nil {
+							class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare)}
+						}
+					}
 				}
-				target = ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}
+				target = nameFunc()
 			} else {
 				target = ast.Expr{prop.Key.Loc, &ast.EThis{}}
 			}
@@ -5707,6 +5748,19 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (st
 	}
 
 	class.Properties = props
+
+	// Join the static field initializers if this is a class expression
+	if !isStmt && len(staticFields) > 0 {
+		classExpr.Class = *class
+		for _, initializer := range staticFields {
+			newExpr = ast.JoinWithComma(newExpr, initializer)
+		}
+		newExpr = ast.JoinWithComma(newExpr, nameFunc())
+		if wrapFunc != nil {
+			newExpr = wrapFunc(newExpr)
+		}
+	}
+
 	return
 }
 
@@ -6591,15 +6645,62 @@ func (p *parser) captureValueWithPossibleSideEffects(
 
 	// Otherwise, fall back to generating a temporary reference
 	tempRef := ast.InvalidRef
+
+	// If we're in a function argument scope, then we won't be able to generate
+	// symbols in this scope to store stuff, since there's nowhere to put the
+	// variable declaration. We don't want to put the variable declaration
+	// outside the function since some code in the argument list may cause the
+	// function to be reentrant, and we can't put the variable declaration in
+	// the function body since that's not accessible by the argument list.
+	//
+	// Instead, we use an immediately-invoked arrow function to create a new
+	// symbol inline by introducing a new scope. Make sure to only use it for
+	// symbol declaration and still initialize the variable inline to preserve
+	// side effect order.
+	if p.currentScope.Kind == ast.ScopeFunctionArgs {
+		return func() ast.Expr {
+				if tempRef == ast.InvalidRef {
+					tempRef = p.generateTempRef(tempRefNoDeclare)
+
+					// Assign inline so the order of side effects remains the same
+					p.recordUsage(tempRef)
+					return ast.Expr{loc, &ast.EBinary{
+						ast.BinOpAssign,
+						ast.Expr{loc, &ast.EIdentifier{tempRef}},
+						value,
+					}}
+				}
+				p.recordUsage(tempRef)
+				return ast.Expr{loc, &ast.EIdentifier{tempRef}}
+			}, func(expr ast.Expr) ast.Expr {
+				// Make sure side effects still happen if no expression was generated
+				if expr.Data == nil {
+					return value
+				}
+
+				// Generate a new variable using an arrow function to avoid messing with "this"
+				return ast.Expr{loc, &ast.ECall{
+					Target: ast.Expr{loc, &ast.EArrow{
+						Args:       []ast.Arg{ast.Arg{Binding: ast.Binding{loc, &ast.BIdentifier{tempRef}}}},
+						PreferExpr: true,
+						Body:       ast.FnBody{loc, []ast.Stmt{ast.Stmt{loc, &ast.SReturn{&expr}}}},
+					}},
+					Args: []ast.Expr{},
+				}}
+			}
+	}
+
 	return func() ast.Expr {
 		if tempRef == ast.InvalidRef {
-			tempRef = p.generateTempRef()
+			tempRef = p.generateTempRef(tempRefNeedsDeclare)
+			p.recordUsage(tempRef)
 			return ast.Expr{loc, &ast.EBinary{
 				ast.BinOpAssign,
 				ast.Expr{loc, &ast.EIdentifier{tempRef}},
 				value,
 			}}
 		}
+		p.recordUsage(tempRef)
 		return ast.Expr{loc, &ast.EIdentifier{tempRef}}
 	}, wrapFunc
 }
@@ -6667,7 +6768,7 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 
 			// Handle default values
 			if item.DefaultValue != nil {
-				tempRef := p.generateTempRef()
+				tempRef := p.generateTempRef(tempRefNeedsDeclare)
 				expr = maybeJoinWithComma(expr, ast.Expr{loc, &ast.EBinary{
 					ast.BinOpAssign,
 					ast.Expr{loc, &ast.EIdentifier{tempRef}},
@@ -6748,7 +6849,7 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 						keysForSpread = append(keysForSpread, symbolOrString(key.Loc, k.Ref))
 
 					default:
-						tempRef := p.generateTempRef()
+						tempRef := p.generateTempRef(tempRefNeedsDeclare)
 						key = ast.Expr{loc, &ast.EBinary{
 							ast.BinOpAssign,
 							ast.Expr{loc, &ast.EIdentifier{tempRef}},
@@ -6779,7 +6880,7 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 
 			// Handle default values
 			if property.DefaultValue != nil {
-				tempRef := p.generateTempRef()
+				tempRef := p.generateTempRef(tempRefNeedsDeclare)
 				expr = maybeJoinWithComma(expr, ast.Expr{loc, &ast.EBinary{
 					ast.BinOpAssign,
 					ast.Expr{loc, &ast.EIdentifier{tempRef}},
@@ -7098,6 +7199,7 @@ flatten:
 	// Step 2: Figure out if we need to capture the value for "this" for the
 	// initial ECall. This will be passed to ".call(this, ...args)" later.
 	var thisArg ast.Expr
+	var targetWrapFunc func(ast.Expr) ast.Expr
 	if startsWithCall {
 		if thisArgFunc != nil {
 			// The initial value is a nested optional chain that ended in a property
@@ -7111,21 +7213,23 @@ flatten:
 			// be used as the value for "this".
 			switch e := expr.Data.(type) {
 			case *ast.EDot:
-				targetFunc, _ := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+				targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
 				expr = ast.Expr{loc, &ast.EDot{
 					Target:  targetFunc(),
 					Name:    e.Name,
 					NameLoc: e.NameLoc,
 				}}
 				thisArg = targetFunc()
+				targetWrapFunc = wrapFunc
 
 			case *ast.EIndex:
-				targetFunc, _ := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+				targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
 				expr = ast.Expr{loc, &ast.EIndex{
 					Target: targetFunc(),
 					Index:  e.Index,
 				}}
 				thisArg = targetFunc()
+				targetWrapFunc = wrapFunc
 			}
 		}
 	}
@@ -7134,7 +7238,7 @@ flatten:
 	// to capture it if it doesn't have any side effects (e.g. it's just a bare
 	// identifier). Skipping the capture reduces code size and matches the output
 	// of the TypeScript compiler.
-	exprFunc, _ := p.captureValueWithPossibleSideEffects(loc, 2, expr)
+	exprFunc, exprWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, expr)
 	expr = exprFunc()
 	result := exprFunc()
 
@@ -7196,7 +7300,7 @@ flatten:
 	// Step 5: Wrap it all in a conditional that returns the chain or the default
 	// value if the initial value is null/undefined. The default value is usually
 	// "undefined" but is "true" if the chain ends in a "delete" operator.
-	return ast.Expr{loc, &ast.EIf{
+	result = ast.Expr{loc, &ast.EIf{
 		Test: ast.Expr{loc, &ast.EBinary{
 			Op:    ast.BinOpLooseEq,
 			Left:  expr,
@@ -7204,7 +7308,14 @@ flatten:
 		}},
 		Yes: valueWhenUndefined,
 		No:  result,
-	}}, exprOut{}
+	}}
+	if exprWrapFunc != nil {
+		result = exprWrapFunc(result)
+	}
+	if targetWrapFunc != nil {
+		result = targetWrapFunc(result)
+	}
+	return result, exprOut{}
 }
 
 func toInt32(f float64) int32 {
@@ -7887,17 +7998,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 		// Lower class field syntax for browsers that don't support it
-		extraExprs, tempRef := p.lowerClass(expr.Loc, &e.Class, false /* isStmt */)
-		if len(extraExprs) > 0 {
-			expr = ast.Expr{expr.Loc, &ast.EBinary{
-				ast.BinOpAssign,
-				ast.Expr{expr.Loc, &ast.EIdentifier{tempRef}},
-				expr,
-			}}
-			for _, extra := range extraExprs {
-				expr = ast.JoinWithComma(expr, extra)
-			}
-			expr = ast.JoinWithComma(expr, ast.Expr{expr.Loc, &ast.EIdentifier{tempRef}})
+		_, newExpr := p.lowerClass(expr.Loc, &e.Class, false /* isStmt */)
+		if newExpr.Data != nil {
+			expr = newExpr
 		}
 
 	default:

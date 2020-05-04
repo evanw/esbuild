@@ -1267,6 +1267,34 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<a \U00020000={0}/>", "React.createElement(\"a\", {\n  \U00020000: 0\n});\n")
 }
 
+func TestLowerFunctionArgumentScope(t *testing.T) {
+	templates := []string{
+		"(x = %s) => {\n};\n",
+		"(function(x = %s) {\n});\n",
+		"function foo(x = %s) {\n}\n",
+
+		"({[%s]: x}) => {\n};\n",
+		"(function({[%s]: x}) {\n});\n",
+		"function foo({[%s]: x}) {\n}\n",
+
+		"({x = %s}) => {\n};\n",
+		"(function({x = %s}) {\n});\n",
+		"function foo({x = %s}) {\n}\n",
+	}
+
+	for _, template := range templates {
+		test := func(before string, after string) {
+			expectPrintedTarget(t, ES2015, fmt.Sprintf(template, before), fmt.Sprintf(template, after))
+		}
+
+		test("a() ?? b", "((_a) => (_a = a()) != null ? _a : b)()")
+		test("a()?.b", "((_a) => (_a = a()) == null ? void 0 : _a.b)()")
+		test("a?.b?.()", "((_a) => (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.call(a))()")
+		test("a.b.c?.()", "((_a) => ((_b) => (_b = (_a = a.b).c) == null ? void 0 : _b.call(_a))())()")
+		test("class { static a }", "((_a) => (_a = class {\n}, _a.a = void 0, _a))()")
+	}
+}
+
 func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrintedTarget(t, ES2019, "a ?? b", "a != null ? a : b;\n")
 	expectPrintedTarget(t, ES2019, "a() ?? b()", "var _a;\n(_a = a()) != null ? _a : b();\n")
@@ -1344,6 +1372,16 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "export default class Foo { static [foo] }", "export default class Foo {\n}\nFoo[foo] = void 0;\n")
 	expectPrintedTarget(t, ES2015, "export default class Foo { static [foo] = null }", "export default class Foo {\n}\nFoo[foo] = null;\n")
 	expectPrintedTarget(t, ES2015, "export default class Foo { static [foo](a, b) {} }", "export default class Foo {\n}\nFoo[foo] = function(a, b) {\n};\n")
+
+	expectPrintedTarget(t, ES2015, "export default class { static foo }", "export default class _a {\n}\n_a.foo = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static foo = null }", "export default class _a {\n}\n_a.foo = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static foo(a, b) {} }", "export default class _a {\n}\n_a.foo = function(a, b) {\n};\n")
+	expectPrintedTarget(t, ES2015, "export default class { static 123 }", "export default class _a {\n}\n_a[123] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static 123 = null }", "export default class _a {\n}\n_a[123] = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static 123(a, b) {} }", "export default class _a {\n}\n_a[123] = function(a, b) {\n};\n")
+	expectPrintedTarget(t, ES2015, "export default class { static [foo] }", "export default class _a {\n}\n_a[foo] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static [foo] = null }", "export default class _a {\n}\n_a[foo] = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static [foo](a, b) {} }", "export default class _a {\n}\n_a[foo] = function(a, b) {\n};\n")
 
 	expectPrintedTarget(t, ES2015, "(class Foo { static foo })", "var _a;\n_a = class Foo {\n}, _a.foo = void 0, _a;\n")
 	expectPrintedTarget(t, ES2015, "(class Foo { static foo = null })", "var _a;\n_a = class Foo {\n}, _a.foo = null, _a;\n")
