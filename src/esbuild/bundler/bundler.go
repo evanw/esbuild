@@ -1668,10 +1668,6 @@ func (b *Bundle) outputFileForEntryPoint(entryPoint uint32, options *BundleOptio
 
 	// Strip known file extensions
 	for ext, _ := range options.ExtensionToLoader {
-		if strings.HasSuffix(name, ".min"+ext) {
-			name = name[:len(name)-len(".min"+ext)]
-			break
-		}
 		if strings.HasSuffix(name, ext) {
 			name = name[:len(name)-len(ext)]
 			break
@@ -1679,9 +1675,6 @@ func (b *Bundle) outputFileForEntryPoint(entryPoint uint32, options *BundleOptio
 	}
 
 	// Add the appropriate file extension
-	if options.RemoveWhitespace {
-		name += ".min"
-	}
 	name += ".js"
 	return name
 }
