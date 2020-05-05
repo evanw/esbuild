@@ -126,7 +126,7 @@ func (args *args) parseMemberExpression(text string) ([]string, bool) {
 	return parts, true
 }
 
-func parseArgs() args {
+func parseArgs(rawArgs []string) args {
 	args := args{
 		parseOptions: parser.ParseOptions{
 			Defines: make(map[string]parser.DefineFunc),
@@ -145,66 +145,7 @@ func parseArgs() args {
 		},
 	}
 
-	// Show usage information if called with no arguments
-	showHelp := len(os.Args) < 2
-
-	// Show help if a common help flag is provided
-	for _, arg := range os.Args {
-		if arg == "-h" || arg == "-help" || arg == "--help" || arg == "/?" {
-			showHelp = true
-			break
-		}
-	}
-
-	// Show help and exit if requested
-	if showHelp {
-		fmt.Print(`
-Usage:
-  esbuild [options] [entry points]
-
-Options:
-  --name=...            The name of the module
-  --bundle              Bundle all dependencies into the output files
-  --outfile=...         The output file (for one entry point)
-  --outdir=...          The output directory (for multiple entry points)
-  --sourcemap           Emit a source map
-  --error-limit=...     Maximum error count or 0 to disable (default 10)
-  --target=...          Language target (default esnext)
-  --platform=...        Platform target (browser or node, default browser)
-  --external:M          Exclude module M from the bundle
-  --format=...          Output format (iife or cjs)
-  --color=...           Force use of color terminal escapes (true or false)
-
-  --minify              Sets all --minify-* flags
-  --minify-whitespace   Remove whitespace
-  --minify-identifiers  Shorten identifiers
-  --minify-syntax       Use equivalent but shorter syntax
-
-  --define:K=V          Substitute K with V while parsing
-  --jsx-factory=...     What to use instead of React.createElement
-  --jsx-fragment=...    What to use instead of React.Fragment
-  --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, ts, tsx, json, text, base64
-
-  --trace=...           Write a CPU trace to this file
-  --cpuprofile=...      Write a CPU profile to this file
-  --version             Print the current version and exit (` + esbuildVersion + `)
-
-Examples:
-  # Produces dist/entry_point.js and dist/entry_point.js.map
-  esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
-
-  # Allow JSX syntax in .js files
-  esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
-
-  # Substitute the identifier RELEASE for the literal true
-  esbuild example.js --outfile=out.js --define:RELEASE=true
-
-`)
-		os.Exit(0)
-	}
-
-	for _, arg := range os.Args[1:] {
+	for _, arg := range rawArgs {
 		switch {
 		case arg == "--bundle":
 			args.parseOptions.IsBundling = true
@@ -228,10 +169,6 @@ Examples:
 
 		case arg == "--sourcemap":
 			args.bundleOptions.SourceMap = true
-
-		case arg == "--version":
-			fmt.Fprintf(os.Stderr, "%s\n", esbuildVersion)
-			os.Exit(0)
 
 		case strings.HasPrefix(arg, "--error-limit="):
 			value, err := strconv.Atoi(arg[len("--error-limit="):])
@@ -406,8 +343,73 @@ Examples:
 }
 
 func main() {
+	// Show usage information if called with no arguments
+	showHelp := len(os.Args) < 2
+
+	for _, arg := range os.Args {
+		// Show help if a common help flag is provided
+		if arg == "-h" || arg == "-help" || arg == "--help" || arg == "/?" {
+			showHelp = true
+			break
+		}
+
+		// Special-case the version flag here
+		if arg == "--version" {
+			fmt.Fprintf(os.Stderr, "%s\n", esbuildVersion)
+			os.Exit(0)
+		}
+	}
+
+	// Show help and exit if requested
+	if showHelp {
+		fmt.Print(`
+Usage:
+  esbuild [options] [entry points]
+
+Options:
+  --name=...            The name of the module
+  --bundle              Bundle all dependencies into the output files
+  --outfile=...         The output file (for one entry point)
+  --outdir=...          The output directory (for multiple entry points)
+  --sourcemap           Emit a source map
+  --error-limit=...     Maximum error count or 0 to disable (default 10)
+  --target=...          Language target (default esnext)
+  --platform=...        Platform target (browser or node, default browser)
+  --external:M          Exclude module M from the bundle
+  --format=...          Output format (iife or cjs)
+  --color=...           Force use of color terminal escapes (true or false)
+
+  --minify              Sets all --minify-* flags
+  --minify-whitespace   Remove whitespace
+  --minify-identifiers  Shorten identifiers
+  --minify-syntax       Use equivalent but shorter syntax
+
+  --define:K=V          Substitute K with V while parsing
+  --jsx-factory=...     What to use instead of React.createElement
+  --jsx-fragment=...    What to use instead of React.Fragment
+  --loader:X=L          Use loader L to load file extension X, where L is
+                        one of: js, jsx, ts, tsx, json, text, base64
+
+  --trace=...           Write a CPU trace to this file
+  --cpuprofile=...      Write a CPU profile to this file
+  --version             Print the current version and exit (` + esbuildVersion + `)
+
+Examples:
+  # Produces dist/entry_point.js and dist/entry_point.js.map
+  esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
+
+  # Allow JSX syntax in .js files
+  esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
+
+  # Substitute the identifier RELEASE for the literal true
+  esbuild example.js --outfile=out.js --define:RELEASE=true
+
+`)
+		os.Exit(0)
+	}
+
 	start := time.Now()
-	args := parseArgs()
+	args := parseArgs(os.Args[1:])
 
 	// Show usage information if called with no files
 	if len(args.entryPaths) == 0 {
