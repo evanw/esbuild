@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-type args struct {
+type argsObject struct {
 	traceFile      string
 	cpuprofileFile string
 	parseOptions   parser.ParseOptions
@@ -29,7 +29,7 @@ type args struct {
 	entryPaths     []string
 }
 
-func (args *args) exitWithError(text string) {
+func exitWithError(text string) {
 	colorRed := ""
 	colorBold := ""
 	colorReset := ""
@@ -44,7 +44,7 @@ func (args *args) exitWithError(text string) {
 	os.Exit(1)
 }
 
-func (args *args) parseDefine(key string, value string) bool {
+func (args *argsObject) parseDefine(key string, value string) bool {
 	// The key must be a dot-separated identifier list
 	for _, part := range strings.Split(key, ".") {
 		if !lexer.IsIdentifier(part) {
@@ -90,7 +90,7 @@ func (args *args) parseDefine(key string, value string) bool {
 	return true
 }
 
-func (args *args) parseLoader(key string, value string) bool {
+func (args *argsObject) parseLoader(key string, value string) bool {
 	var loader bundler.Loader
 
 	switch value {
@@ -116,18 +116,20 @@ func (args *args) parseLoader(key string, value string) bool {
 	return true
 }
 
-func (args *args) parseMemberExpression(text string) ([]string, bool) {
+func (args *argsObject) parseMemberExpression(text string) ([]string, bool) {
 	parts := strings.Split(text, ".")
+
 	for _, part := range parts {
 		if !lexer.IsIdentifier(part) {
 			return parts, false
 		}
 	}
+
 	return parts, true
 }
 
-func parseArgs(rawArgs []string) args {
-	args := args{
+func parseArgs(rawArgs []string) (argsObject, error) {
+	args := argsObject{
 		parseOptions: parser.ParseOptions{
 			Defines: make(map[string]parser.DefineFunc),
 		},
@@ -173,14 +175,14 @@ func parseArgs(rawArgs []string) args {
 		case strings.HasPrefix(arg, "--error-limit="):
 			value, err := strconv.Atoi(arg[len("--error-limit="):])
 			if err != nil {
-				args.exitWithError(fmt.Sprintf("Invalid error limit: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid error limit: %s", arg)
 			}
 			args.logOptions.ErrorLimit = value
 
 		case strings.HasPrefix(arg, "--name="):
 			value := arg[len("--name="):]
 			if !lexer.IsIdentifier(value) {
-				args.exitWithError(fmt.Sprintf("Invalid name: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid name: %s", arg)
 			}
 			args.bundleOptions.ModuleName = value
 
@@ -188,7 +190,7 @@ func parseArgs(rawArgs []string) args {
 			value := arg[len("--outfile="):]
 			file, err := filepath.Abs(value)
 			if err != nil {
-				args.exitWithError(fmt.Sprintf("Invalid output file: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid output file: %s", arg)
 			}
 			args.bundleOptions.AbsOutputFile = file
 
@@ -196,7 +198,7 @@ func parseArgs(rawArgs []string) args {
 			value := arg[len("--outdir="):]
 			dir, err := filepath.Abs(value)
 			if err != nil {
-				args.exitWithError(fmt.Sprintf("Invalid output directory: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid output directory: %s", arg)
 			}
 			args.bundleOptions.AbsOutputDir = dir
 
@@ -204,27 +206,27 @@ func parseArgs(rawArgs []string) args {
 			text := arg[len("--define:"):]
 			equals := strings.IndexByte(text, '=')
 			if equals == -1 {
-				args.exitWithError(fmt.Sprintf("Missing \"=\": %s", arg))
+				return argsObject{}, fmt.Errorf("Missing \"=\": %s", arg)
 			}
 			if !args.parseDefine(text[:equals], text[equals+1:]) {
-				args.exitWithError(fmt.Sprintf("Invalid define: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid define: %s", arg)
 			}
 
 		case strings.HasPrefix(arg, "--loader:"):
 			text := arg[len("--loader:"):]
 			equals := strings.IndexByte(text, '=')
 			if equals == -1 {
-				args.exitWithError(fmt.Sprintf("Missing \"=\": %s", arg))
+				return argsObject{}, fmt.Errorf("Missing \"=\": %s", arg)
 			}
 			extension, loader := text[:equals], text[equals+1:]
 			if !strings.HasPrefix(extension, ".") {
-				args.exitWithError(fmt.Sprintf("File extension must start with \".\": %s", arg))
+				return argsObject{}, fmt.Errorf("File extension must start with \".\": %s", arg)
 			}
 			if len(extension) < 2 || strings.ContainsRune(extension[1:], '.') {
-				args.exitWithError(fmt.Sprintf("Invalid file extension: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid file extension: %s", arg)
 			}
 			if !args.parseLoader(extension, loader) {
-				args.exitWithError(fmt.Sprintf("Invalid loader: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid loader: %s", arg)
 			}
 
 		case strings.HasPrefix(arg, "--target="):
@@ -244,7 +246,7 @@ func parseArgs(rawArgs []string) args {
 			case "es2020":
 				args.parseOptions.Target = parser.ES2020
 			default:
-				args.exitWithError("Valid targets: es6, es2015, es2016, es2017, es2018, es2019, es2020, esnext")
+				return argsObject{}, fmt.Errorf("Valid targets: es6, es2015, es2016, es2017, es2018, es2019, es2020, esnext")
 			}
 
 		case strings.HasPrefix(arg, "--platform="):
@@ -254,7 +256,7 @@ func parseArgs(rawArgs []string) args {
 			case "node":
 				args.resolveOptions.Platform = resolver.PlatformNode
 			default:
-				args.exitWithError("Valid platforms: browser, node")
+				return argsObject{}, fmt.Errorf("Valid platforms: browser, node")
 			}
 
 		case strings.HasPrefix(arg, "--format="):
@@ -264,7 +266,7 @@ func parseArgs(rawArgs []string) args {
 			case "cjs":
 				args.bundleOptions.OutputFormat = bundler.FormatCommonJS
 			default:
-				args.exitWithError("Valid formats: iife, cjs")
+				return argsObject{}, fmt.Errorf("Valid formats: iife, cjs")
 			}
 
 		case strings.HasPrefix(arg, "--color="):
@@ -274,13 +276,13 @@ func parseArgs(rawArgs []string) args {
 			case "true":
 				args.logOptions.Color = logging.ColorAlways
 			default:
-				args.exitWithError("Valid values for color: false, true")
+				return argsObject{}, fmt.Errorf("Valid values for color: false, true")
 			}
 
 		case strings.HasPrefix(arg, "--external:"):
 			path := arg[len("--external:"):]
 			if resolver.IsNonModulePath(path) {
-				args.exitWithError(fmt.Sprintf("Invalid module name: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid module name: %s", arg)
 			}
 			args.resolveOptions.ExternalModules[path] = true
 
@@ -288,14 +290,14 @@ func parseArgs(rawArgs []string) args {
 			if parts, ok := args.parseMemberExpression(arg[len("--jsx-factory="):]); ok {
 				args.parseOptions.JSX.Factory = parts
 			} else {
-				args.exitWithError(fmt.Sprintf("Invalid JSX factory: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid JSX factory: %s", arg)
 			}
 
 		case strings.HasPrefix(arg, "--jsx-fragment="):
 			if parts, ok := args.parseMemberExpression(arg[len("--jsx-fragment="):]); ok {
 				args.parseOptions.JSX.Fragment = parts
 			} else {
-				args.exitWithError(fmt.Sprintf("Invalid JSX fragment: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid JSX fragment: %s", arg)
 			}
 
 		case strings.HasPrefix(arg, "--trace="):
@@ -305,23 +307,23 @@ func parseArgs(rawArgs []string) args {
 			args.cpuprofileFile = arg[len("--cpuprofile="):]
 
 		case strings.HasPrefix(arg, "-"):
-			args.exitWithError(fmt.Sprintf("Invalid flag: %s", arg))
+			return argsObject{}, fmt.Errorf("Invalid flag: %s", arg)
 
 		default:
 			arg, err := filepath.Abs(arg)
 			if err != nil {
-				args.exitWithError(fmt.Sprintf("Invalid path: %s", arg))
+				return argsObject{}, fmt.Errorf("Invalid path: %s", arg)
 			}
 			args.entryPaths = append(args.entryPaths, arg)
 		}
 	}
 
 	if args.bundleOptions.AbsOutputFile != "" && len(args.entryPaths) > 1 {
-		args.exitWithError("Use --outdir instead of --outfile when there are multiple entry points")
+		return argsObject{}, fmt.Errorf("Use --outdir instead of --outfile when there are multiple entry points")
 	}
 
 	if args.bundleOptions.AbsOutputFile != "" && args.bundleOptions.AbsOutputDir != "" {
-		args.exitWithError("Cannot use both --outfile and --outdir")
+		return argsObject{}, fmt.Errorf("Cannot use both --outfile and --outdir")
 	}
 
 	if args.bundleOptions.AbsOutputFile != "" {
@@ -339,7 +341,7 @@ func parseArgs(rawArgs []string) args {
 		}
 	}
 
-	return args
+	return args, nil
 }
 
 func main() {
@@ -409,11 +411,14 @@ Examples:
 	}
 
 	start := time.Now()
-	args := parseArgs(os.Args[1:])
+	args, err := parseArgs(os.Args[1:])
+	if err != nil {
+		exitWithError(err.Error())
+	}
 
 	// Show usage information if called with no files
 	if len(args.entryPaths) == 0 {
-		args.exitWithError("No files specified")
+		exitWithError("No files specified")
 	}
 
 	// Capture the defer statements below so the "done" message comes last
@@ -423,7 +428,7 @@ Examples:
 		if args.traceFile != "" {
 			f, err := os.Create(args.traceFile)
 			if err != nil {
-				args.exitWithError(fmt.Sprintf("Failed to create a file called '%s': %s", args.traceFile, err.Error()))
+				exitWithError(fmt.Sprintf("Failed to create a file called '%s': %s", args.traceFile, err.Error()))
 			}
 			defer func() {
 				f.Close()
@@ -440,7 +445,7 @@ Examples:
 		if args.cpuprofileFile != "" {
 			f, err := os.Create(args.cpuprofileFile)
 			if err != nil {
-				args.exitWithError(fmt.Sprintf("Failed to create a file called '%s': %s", args.cpuprofileFile, err.Error()))
+				exitWithError(fmt.Sprintf("Failed to create a file called '%s': %s", args.cpuprofileFile, err.Error()))
 			}
 			defer func() {
 				f.Close()
@@ -467,7 +472,7 @@ Examples:
 	fmt.Fprintf(os.Stderr, "Done in %dms\n", time.Since(start).Nanoseconds()/1000000)
 }
 
-func run(args args) {
+func run(args argsObject) {
 	// Parse all files in the bundle
 	fs := fs.RealFS()
 	resolver := resolver.NewResolver(fs, args.resolveOptions)
@@ -491,7 +496,7 @@ func run(args args) {
 	// Create the output directory
 	if args.bundleOptions.AbsOutputDir != "" {
 		if err := os.MkdirAll(args.bundleOptions.AbsOutputDir, 0755); err != nil {
-			args.exitWithError(fmt.Sprintf("Cannot create output directory: %s", err))
+			exitWithError(fmt.Sprintf("Cannot create output directory: %s", err))
 		}
 	}
 
@@ -501,7 +506,7 @@ func run(args args) {
 		err := ioutil.WriteFile(item.JsAbsPath, []byte(item.JsContents), 0644)
 		path := resolver.PrettyPath(item.JsAbsPath)
 		if err != nil {
-			args.exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
+			exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
 		}
 		fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.JsContents)))
 
@@ -510,7 +515,7 @@ func run(args args) {
 			err := ioutil.WriteFile(item.SourceMapAbsPath, item.SourceMapContents, 0644)
 			path := resolver.PrettyPath(item.SourceMapAbsPath)
 			if err != nil {
-				args.exitWithError(fmt.Sprintf("Failed to write to %s: (%s)", path, err.Error()))
+				exitWithError(fmt.Sprintf("Failed to write to %s: (%s)", path, err.Error()))
 			}
 			fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.SourceMapContents)))
 		}
