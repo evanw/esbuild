@@ -180,6 +180,26 @@ Examples:
   esbuild example.js --outfile=out.js --define:RELEASE=true
 ```
 
+There is also a JavaScript API available that invokes the command-line interface for you. This can be more convenient than managing a lot of command-line flags and also works on all platforms, unlike shell scripts. This is similar to "config files" from other bundlers.
+
+Example build script:
+
+```js
+const { build } = require('esbuild')
+
+const options = {
+  stdio: 'inherit',
+  entryPoints: ['./src/main.ts'],
+  outfile: './dist/main.js',
+  minify: true,
+  bundle: true,
+}
+
+build(options).catch(() => process.exit(1))
+```
+
+See [the TypeScript type definitions](./npm/esbuild/lib/main.d.ts) for the complete set of options.
+
 ## Using with React
 
 To use esbuild with [React](https://reactjs.org/):
