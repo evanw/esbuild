@@ -14,30 +14,44 @@ function binPath() {
   throw new Error(`Unsupported platform: ${process.platform} ${os.arch()}`);
 }
 
+function pushCommonFlags(flags, options) {
+  flags.push(`--error-limit=${options.errorLimit || 0}`);
+
+  if (options.sourcemap) flags.push('--sourcemap');
+  if (options.target) flags.push(`--target=${options.target}`);
+
+  if (options.minify) flags.push('--minify');
+  if (options.minifySyntax) flags.push('--minify-syntax');
+  if (options.minifyWhitespace) flags.push('--minify-whitespace');
+  if (options.minifyIdentifiers) flags.push('--minify-identifiers');
+
+  if (options.jsxFactory) flags.push(`--jsx-factory=${options.jsxFactory}`);
+  if (options.jsxFragment) flags.push(`--jsx-fragment=${options.jsxFragment}`);
+  if (options.define) for (const key in options.define) flags.push(`--define:${key}=${options.define[key]}`);
+}
+
+function failureErrorWithLog(text, errors, warnings) {
+  const summary = errors.length < 1 ? '' : ` with ${errors.length} error${errors.length < 2 ? '' : 's'}`;
+  const error = new Error(`${text}${summary}`);
+  error.errors = errors;
+  error.warnings = warnings;
+  return error;
+}
+
 exports.build = options => {
   return new Promise((resolve, reject) => {
-    const flags = [`--error-limit=${options.errorLimit || 0}`];
     const stdio = options.stdio;
+    const flags = [];
+    pushCommonFlags(flags, options);
 
     if (options.name) flags.push(`--name=${options.name}`);
     if (options.bundle) flags.push('--bundle');
     if (options.outfile) flags.push(`--outfile=${options.outfile}`);
     if (options.outdir) flags.push(`--outdir=${options.outdir}`);
-    if (options.sourcemap) flags.push('--sourcemap');
-    if (options.target) flags.push(`--target=${options.target}`);
     if (options.platform) flags.push(`--platform=${options.platform}`);
     if (options.format) flags.push(`--format=${options.format}`);
     if (options.color) flags.push(`--color=${options.color}`);
     if (options.external) for (const name of options.external) flags.push(`--external:${name}`);
-
-    if (options.minify) flags.push('--minify');
-    if (options.minifySyntax) flags.push('--minify-syntax');
-    if (options.minifyWhitespace) flags.push('--minify-whitespace');
-    if (options.minifyIdentifiers) flags.push('--minify-identifiers');
-
-    if (options.jsxFactory) flags.push(`--jsx-factory=${options.jsxFactory}`);
-    if (options.jsxFragment) flags.push(`--jsx-fragment=${options.jsxFragment}`);
-    if (options.define) for (const key in options.define) flags.push(`--define:${key}=${options.define[key]}`);
     if (options.loader) for (const ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
 
     for (const entryPoint of options.entryPoints) {
@@ -80,12 +94,8 @@ exports.build = options => {
       }
 
       else {
-        // The error array will be empty if "stdio" is set to "inherit"
-        const summary = errors.length < 1 ? '' : ` with ${errors.length} error${errors.length < 2 ? '' : 's'}`;
-        const error = new Error(`Build failed${summary}`);
+        const error = failureErrorWithLog('Build failed', errors, warnings);
         error.stderr = stderr;
-        error.errors = errors;
-        error.warnings = warnings;
         reject(error);
       }
     });
@@ -207,9 +217,45 @@ exports.startService = () => {
       else resolve(response);
     }
 
+    function jsonToMessages(json) {
+      const parts = JSON.parse(json);
+      const messages = [];
+      for (let i = 0; i < parts.length; i += 4) {
+        messages.push({
+          text: parts[i],
+          location: parts[i + 1] === '' ? null : {
+            file: parts[i + 1],
+            line: parts[i + 2],
+            column: parts[i + 3],
+          },
+        });
+      }
+      return messages;
+    }
+
     // Send an initial ping before resolving with the service object to make
     // sure the service is up and running
     sendRequest(['ping']).then(() => resolve({
+      async transform(file, options) {
+        const loader = options.loader || 'js';
+        const name = `/input.${loader}`;
+        const flags = ['build', name, file, '--', name, '--outfile=/output.js'];
+        pushCommonFlags(flags, options);
+        if (options.loader) flags.push(`--loader:.${loader}=${options.loader}`);
+        const response = await sendRequest(flags);
+
+        // Check for failure
+        const errors = response.errors ? jsonToMessages(response.errors) : [];
+        const warnings = response.warnings ? jsonToMessages(response.warnings) : [];
+        if (errors.length > 0) throw failureErrorWithLog('Transform failed', errors, warnings);
+
+        // Return the result
+        const result = { warnings };
+        if ('/output.js' in response) result.js = response['/output.js'];
+        if ('/output.js.map' in response) result.jsSourceMap = response['/output.js.map'];
+        return result;
+      },
+
       stop() {
         child.kill();
       },

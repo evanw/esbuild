@@ -7,6 +7,11 @@ package main
 
 import (
 	"encoding/binary"
+	"esbuild/bundler"
+	"esbuild/fs"
+	"esbuild/logging"
+	"esbuild/printer"
+	"esbuild/resolver"
 	"fmt"
 	"io"
 	"os"
@@ -136,6 +141,9 @@ func handleRequest(bytes []byte, responses chan responseType) {
 	case "ping":
 		handlePingRequest(responses, id, rawArgs)
 
+	case "build":
+		handleBuildRequest(responses, id, rawArgs)
+
 	default:
 		responses <- responseType{
 			"id":    []byte(id),
@@ -148,4 +156,113 @@ func handlePingRequest(responses chan responseType, id string, rawArgs []string)
 	responses <- responseType{
 		"id": []byte(id),
 	}
+}
+
+func handleBuildRequest(responses chan responseType, id string, rawArgs []string) {
+	files, rawArgs := stripFilesFromBuildArgs(rawArgs)
+	if files == nil {
+		responses <- responseType{
+			"id":    []byte(id),
+			"error": []byte("Invalid build request"),
+		}
+		return
+	}
+
+	args, err := parseArgs(rawArgs)
+	if err != nil {
+		responses <- responseType{
+			"id":    []byte(id),
+			"error": []byte(err.Error()),
+		}
+		return
+	}
+
+	fs := fs.MockFS(files)
+	resolver := resolver.NewResolver(fs, args.resolveOptions)
+	log, join := logging.NewDeferLog()
+	bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
+
+	// Stop now if there were errors
+	msgs := join()
+	errors := messagesOfKind(logging.Error, msgs)
+	if len(errors) != 0 {
+		responses <- responseType{
+			"id":       []byte(id),
+			"errors":   messagesToJSON(errors),
+			"warnings": messagesToJSON(messagesOfKind(logging.Warning, msgs)),
+		}
+		return
+	}
+
+	// Generate the results
+	log, join = logging.NewDeferLog()
+	results := bundle.Compile(log, args.bundleOptions)
+
+	// Return the results
+	msgs2 := join()
+	errors = messagesOfKind(logging.Error, msgs2)
+	response := responseType{
+		"id":     []byte(id),
+		"errors": messagesToJSON(errors),
+		"warnings": messagesToJSON(append(
+			messagesOfKind(logging.Warning, msgs),
+			messagesOfKind(logging.Warning, msgs2)...)),
+	}
+	for _, result := range results {
+		response[result.JsAbsPath] = result.JsContents
+		if args.bundleOptions.SourceMap {
+			response[result.SourceMapAbsPath] = result.SourceMapContents
+		}
+	}
+	responses <- response
+}
+
+func stripFilesFromBuildArgs(args []string) (map[string]string, []string) {
+	for i, arg := range args {
+		if arg == "--" && i%2 == 0 {
+			files := make(map[string]string)
+			for j := 0; j < i; j += 2 {
+				files[args[j]] = args[j+1]
+			}
+			return files, args[i+1:]
+		}
+	}
+	return nil, []string{}
+}
+
+func messagesOfKind(kind logging.MsgKind, msgs []logging.Msg) []logging.Msg {
+	filtered := []logging.Msg{}
+	for _, msg := range msgs {
+		if msg.Kind == kind {
+			filtered = append(filtered, msg)
+		}
+	}
+	return filtered
+}
+
+func messagesToJSON(msgs []logging.Msg) []byte {
+	bytes := []byte{'['}
+
+	for _, msg := range msgs {
+		if len(bytes) > 1 {
+			bytes = append(bytes, ',')
+		}
+		lineCount := 0
+		columnCount := 0
+
+		// Some errors won't have a location
+		if msg.Source.PrettyPath != "" {
+			lineCount, columnCount, _ = logging.ComputeLineAndColumn(msg.Source.Contents[0:msg.Start])
+			lineCount++
+		}
+
+		bytes = append(bytes, fmt.Sprintf("%s,%s,%d,%d",
+			printer.QuoteForJSON(msg.Text),
+			printer.QuoteForJSON(msg.Source.PrettyPath),
+			lineCount,
+			columnCount)...)
+	}
+
+	bytes = append(bytes, ']')
+	return bytes
 }

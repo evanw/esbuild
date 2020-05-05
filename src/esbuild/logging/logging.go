@@ -252,25 +252,29 @@ type MsgDetail struct {
 	Marker string
 }
 
-func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
+func ComputeLineAndColumn(text string) (lineCount int, columnCount, lastLineStart int) {
 	var prevCodePoint rune
-	contents := msg.Source.Contents
-	lineStart := 0
-	lineCount := 0
 
-	for i, codePoint := range contents[0:msg.Start] {
+	for i, codePoint := range text {
 		switch codePoint {
 		case '\n':
-			lineStart = i + 1
+			lastLineStart = i + 1
 			if prevCodePoint != '\r' {
 				lineCount++
 			}
 		case '\r', '\u2028', '\u2029':
-			lineStart = i + 1
+			lastLineStart = i + 1
 		}
 		prevCodePoint = codePoint
 	}
 
+	columnCount = len(text) - lastLineStart
+	return
+}
+
+func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
+	contents := msg.Source.Contents
+	lineCount, columnCount, lineStart := ComputeLineAndColumn(contents[0:msg.Start])
 	lineEnd := len(contents)
 
 loop:
@@ -283,7 +287,6 @@ loop:
 	}
 
 	spacesPerTab := 2
-	columnCount := int(msg.Start) - lineStart
 	lineText := renderTabStops(contents[lineStart:lineEnd], spacesPerTab)
 	indent := strings.Repeat(" ", len(renderTabStops(contents[lineStart:msg.Start], spacesPerTab)))
 	marker := "^"
