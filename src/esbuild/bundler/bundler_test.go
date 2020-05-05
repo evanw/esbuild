@@ -2745,10 +2745,10 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `function __require2() {
+			"/out.js": `function __require() {
   return 123;
 }
-console.log(__require2());
+console.log(__require());
 `,
 		},
 	})
@@ -3102,9 +3102,9 @@ func TestSwitchScopeNoBundle(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `switch (m) {
+			"/out.js": `switch (foo) {
   default:
-    var m;
+    var foo;
 }
 switch (bar) {
   default:

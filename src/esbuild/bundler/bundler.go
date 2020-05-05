@@ -1109,9 +1109,7 @@ func markExportsAsUnboundInDecls(decls []ast.Decl, symbols *ast.SymbolMap) {
 		case *ast.BMissing:
 
 		case *ast.BIdentifier:
-			symbol := symbols.Get(b.Ref)
-			symbol.Kind = ast.SymbolUnbound
-			symbols.Set(b.Ref, symbol)
+			symbols.SetKind(b.Ref, ast.SymbolUnbound)
 
 		case *ast.BArray:
 			for _, i := range b.Items {
@@ -1133,29 +1131,51 @@ func markExportsAsUnboundInDecls(decls []ast.Decl, symbols *ast.SymbolMap) {
 	}
 }
 
+// Marking a symbol as unbound prevents it from being renamed or minified.
+// This is only used when a module is compiled independently. We use a very
+// different way of handling exports and renaming/minifying when bundling.
 func (b *Bundle) markExportsAsUnbound(f file, symbols *ast.SymbolMap) {
+	hasImportOrExport := false
+
 	for _, stmt := range f.ast.Stmts {
 		switch s := stmt.Data.(type) {
+		case *ast.SImport:
+			hasImportOrExport = true
+
 		case *ast.SLocal:
 			if s.IsExport {
 				markExportsAsUnboundInDecls(s.Decls, symbols)
+				hasImportOrExport = true
 			}
 
 		case *ast.SFunction:
 			if s.IsExport {
-				ref := s.Fn.Name.Ref
-				symbol := symbols.Get(ref)
-				symbol.Kind = ast.SymbolUnbound
-				symbols.Set(ref, symbol)
+				symbols.SetKind(s.Fn.Name.Ref, ast.SymbolUnbound)
+				hasImportOrExport = true
 			}
 
 		case *ast.SClass:
 			if s.IsExport {
-				ref := s.Class.Name.Ref
-				symbol := symbols.Get(ref)
-				symbol.Kind = ast.SymbolUnbound
-				symbols.Set(ref, symbol)
+				symbols.SetKind(s.Class.Name.Ref, ast.SymbolUnbound)
+				hasImportOrExport = true
 			}
+
+		case *ast.SExportClause, *ast.SExportDefault, *ast.SExportStar, *ast.SExportFrom:
+			hasImportOrExport = true
+		}
+	}
+
+	// Heuristic: If this module has top-level import or export statements, we
+	// consider this an ES6 module and only preserve the names of the exported
+	// symbols. Everything else is minified since the names are private.
+	//
+	// Otherwise, we consider this potentially a script-type file instead of an
+	// ES6 module. In that case, preserve the names of all top-level symbols
+	// since they are all potentially exported (e.g. if this is used in a
+	// <script> tag). All symbols in nested scopes are still minified.
+	if !hasImportOrExport {
+		for _, ref := range f.ast.ModuleScope.Members {
+			symbols.SetKind(ref, ast.SymbolUnbound)
 		}
 	}
 }

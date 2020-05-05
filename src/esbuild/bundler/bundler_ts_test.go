@@ -490,7 +490,7 @@ func TestTSMinifyEnum(t *testing.T) {
 			AbsOutputDir:      "/",
 		},
 		expected: map[string]string{
-			"/a.min.js": "var i;(function(a){a[a.A=0]=\"A\",a[a.B=1]=\"B\",a[a.C=a]=\"C\"})(i||(i={}));\n",
+			"/a.min.js": "var Foo;(function(a){a[a.A=0]=\"A\",a[a.B=1]=\"B\",a[a.C=a]=\"C\"})(Foo||(Foo={}));\n",
 			"/b.min.js": "export var Foo;(function(a){a[a.X=0]=\"X\",a[a.Y=1]=\"Y\",a[a.Z=a]=\"Z\"})(Foo||(Foo={}));\n",
 		},
 	})
@@ -524,7 +524,7 @@ func TestTSMinifyNamespace(t *testing.T) {
 			AbsOutputDir:      "/",
 		},
 		expected: map[string]string{
-			"/a.min.js": "var i;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(i||(i={}));\n",
+			"/a.min.js": "var Foo;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(Foo||(Foo={}));\n",
 			"/b.min.js": "export var Foo;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(Foo||(Foo={}));\n",
 		},
 	})

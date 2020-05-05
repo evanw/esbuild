@@ -986,16 +986,8 @@ func (sm *SymbolMap) Set(ref Ref, symbol Symbol) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex] = symbol
 }
 
-// The symbol may not already exist when you call this
-func (sm *SymbolMap) SetNew(ref Ref, symbol Symbol) {
-	outer := sm.Outer
-	inner := outer[ref.OuterIndex]
-	innerLen := uint32(len(inner))
-	if ref.InnerIndex >= innerLen {
-		inner = append(inner, make([]Symbol, ref.InnerIndex+1-innerLen)...)
-		outer[ref.OuterIndex] = inner
-	}
-	inner[ref.InnerIndex] = symbol
+func (sm *SymbolMap) SetKind(ref Ref, kind SymbolKind) {
+	sm.Outer[ref.OuterIndex][ref.InnerIndex].Kind = kind
 }
 
 type ImportKind uint8
