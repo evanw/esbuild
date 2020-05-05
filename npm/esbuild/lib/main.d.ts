@@ -79,3 +79,14 @@ export interface Failure extends Error {
 //   )
 //
 export declare function build(options: Options): Promise<Success>;
+
+// This starts "esbuild" as a long-lived child process that is then reused, so
+// you can call methods on the service many times without the overhead of
+// starting up a new child process each time.
+export declare function startService(): Promise<Service>;
+
+interface Service {
+  // This stops the service, which kills the long-lived child process. Any
+  // pending requests will be aborted.
+  stop(): void;
+}

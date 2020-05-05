@@ -360,6 +360,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "%s\n", esbuildVersion)
 			os.Exit(0)
 		}
+
+		// This flag turns the process into a long-running service that uses
+		// message passing with the host process over stdin/stdout
+		if arg == "--service" {
+			runService()
+			return
+		}
 	}
 
 	// Show help and exit if requested
