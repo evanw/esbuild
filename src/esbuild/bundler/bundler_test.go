@@ -3170,3 +3170,153 @@ export let c = [function(d = foo) {
 		},
 	})
 }
+
+func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				(() => {
+					var arguments;
+
+					function foo(x = arguments) { return arguments }
+					(function(x = arguments) { return arguments });
+					({foo(x = arguments) { return arguments }});
+					class Foo { foo(x = arguments) { return arguments } }
+					(class { foo(x = arguments) { return arguments } });
+
+					function foo(x = arguments) { var arguments; return arguments }
+					(function(x = arguments) { var arguments; return arguments });
+					({foo(x = arguments) { var arguments; return arguments }});
+					class Foo2 { foo(x = arguments) { var arguments; return arguments } }
+					(class { foo(x = arguments) { var arguments; return arguments } });
+
+					(x => arguments);
+					(() => arguments);
+					(async () => arguments);
+					((x = arguments) => arguments);
+					(async (x = arguments) => arguments);
+
+					x => arguments;
+					() => arguments;
+					async () => arguments;
+					(x = arguments) => arguments;
+					async (x = arguments) => arguments;
+
+					(x => { return arguments });
+					(() => { return arguments });
+					(async () => { return arguments });
+					((x = arguments) => { return arguments });
+					(async (x = arguments) => { return arguments });
+
+					x => { return arguments };
+					() => { return arguments };
+					async () => { return arguments };
+					(x = arguments) => { return arguments };
+					async (x = arguments) => { return arguments };
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        false,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `(() => {
+  var a;
+  function c(b = arguments) {
+    return arguments;
+  }
+  (function(b = arguments) {
+    return arguments;
+  });
+  ({
+    foo(b = arguments) {
+      return arguments;
+    }
+  });
+  class d {
+    foo(b = arguments) {
+      return arguments;
+    }
+  }
+  (class {
+    foo(b = arguments) {
+      return arguments;
+    }
+  });
+  function c(b = arguments) {
+    var arguments;
+    return arguments;
+  }
+  (function(b = arguments) {
+    var arguments;
+    return arguments;
+  });
+  ({
+    foo(b = arguments) {
+      var arguments;
+      return arguments;
+    }
+  });
+  class e {
+    foo(b = arguments) {
+      var arguments;
+      return arguments;
+    }
+  }
+  (class {
+    foo(b = arguments) {
+      var arguments;
+      return arguments;
+    }
+  });
+  (b) => a;
+  () => a;
+  async () => a;
+  (b = a) => a;
+  async (b = a) => a;
+  (b) => a;
+  () => a;
+  async () => a;
+  (b = a) => a;
+  async (b = a) => a;
+  (b) => {
+    return a;
+  };
+  () => {
+    return a;
+  };
+  async () => {
+    return a;
+  };
+  (b = a) => {
+    return a;
+  };
+  async (b = a) => {
+    return a;
+  };
+  (b) => {
+    return a;
+  };
+  () => {
+    return a;
+  };
+  async () => {
+    return a;
+  };
+  (b = a) => {
+    return a;
+  };
+  async (b = a) => {
+    return a;
+  };
+})();
+`,
+		},
+	})
+}

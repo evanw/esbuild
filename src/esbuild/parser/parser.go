@@ -3506,6 +3506,10 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 	hasRestArg := false
 	p.lexer.Expect(lexer.TOpenParen)
 
+	// Reserve the special name "arguments" in this scope. This ensures that it
+	// shadows any variable called "arguments" in any parent scopes.
+	argumentsRef := p.declareSymbol(ast.SymbolHoisted, ast.Loc{}, "arguments")
+
 	for p.lexer.Token != lexer.TCloseParen {
 		// Skip over "this" type annotations
 		if p.ts.Parse && p.lexer.Token == lexer.TThis {
@@ -3626,6 +3630,11 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 
 	fn.Body = p.parseFnBody(opts)
 	hadBody = true
+
+	// After parsing the function, change "arguments" into an unbound symbol
+	// since it must not be renamed.
+	p.symbols[argumentsRef.InnerIndex].Kind = ast.SymbolUnbound
+
 	return
 }
 
