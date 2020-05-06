@@ -1969,7 +1969,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("in")
 		p.printSpace()
-		p.printExpr(s.Value, ast.LLowest, 0)
+		p.printExpr(s.Value, ast.LComma, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
@@ -1987,7 +1987,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("of")
 		p.printSpace()
-		p.printExpr(s.Value, ast.LLowest, 0)
+		p.printExpr(s.Value, ast.LComma, 0)
 		p.print(")")
 		p.printBody(s.Body)
 

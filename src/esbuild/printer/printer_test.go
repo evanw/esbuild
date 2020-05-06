@@ -246,6 +246,10 @@ func TestFor(t *testing.T) {
 	expectPrinted(t, "for (x(a in b);;);", "for (x(a in b); ; )\n  ;\n")
 	expectPrinted(t, "for (x[a in b];;);", "for (x[a in b]; ; )\n  ;\n")
 	expectPrinted(t, "for (x?.[a in b];;);", "for (x?.[a in b]; ; )\n  ;\n")
+
+	// Make sure iterables with commas are wrapped in parentheses
+	expectPrinted(t, "for (let a in (b, c));", "for (let a in (b, c))\n  ;\n")
+	expectPrinted(t, "for (let a of (b, c));", "for (let a of (b, c))\n  ;\n")
 }
 
 func TestFunction(t *testing.T) {
