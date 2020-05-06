@@ -238,8 +238,8 @@ exports.startService = () => {
     sendRequest(['ping']).then(() => resolve({
       async transform(file, options) {
         const loader = options.loader || 'js';
-        const name = `/input.${loader}`;
-        const flags = ['build', name, file, '--', name, '--outfile=/output.js'];
+        const name = `input.${loader}`;
+        const flags = ['build', `/${name}`, file, '--', name, '--outfile=/output.js'];
         pushCommonFlags(flags, options);
         if (options.loader) flags.push(`--loader:.${loader}=${options.loader}`);
         const response = await sendRequest(flags);

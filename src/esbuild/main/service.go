@@ -168,7 +168,8 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 		return
 	}
 
-	args, err := parseArgs(rawArgs)
+	mockFS := fs.MockFS(nil)
+	args, err := parseArgs(mockFS, rawArgs)
 	if err != nil {
 		responses <- responseType{
 			"id":    []byte(id),
@@ -177,10 +178,10 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 		return
 	}
 
-	fs := fs.MockFS(files)
-	resolver := resolver.NewResolver(fs, args.resolveOptions)
+	mockFS = fs.MockFS(files)
+	resolver := resolver.NewResolver(mockFS, args.resolveOptions)
 	log, join := logging.NewDeferLog()
-	bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
+	bundle := bundler.ScanBundle(log, mockFS, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
 
 	// Stop now if there were errors
 	msgs := join()

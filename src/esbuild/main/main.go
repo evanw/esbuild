@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"runtime/pprof"
 	"runtime/trace"
 	"strconv"
@@ -128,7 +127,7 @@ func (args *argsObject) parseMemberExpression(text string) ([]string, bool) {
 	return parts, true
 }
 
-func parseArgs(rawArgs []string) (argsObject, error) {
+func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 	args := argsObject{
 		parseOptions: parser.ParseOptions{
 			Defines: make(map[string]parser.DefineFunc),
@@ -188,16 +187,16 @@ func parseArgs(rawArgs []string) (argsObject, error) {
 
 		case strings.HasPrefix(arg, "--outfile="):
 			value := arg[len("--outfile="):]
-			file, err := filepath.Abs(value)
-			if err != nil {
+			file, ok := fs.Abs(value)
+			if !ok {
 				return argsObject{}, fmt.Errorf("Invalid output file: %s", arg)
 			}
 			args.bundleOptions.AbsOutputFile = file
 
 		case strings.HasPrefix(arg, "--outdir="):
 			value := arg[len("--outdir="):]
-			dir, err := filepath.Abs(value)
-			if err != nil {
+			dir, ok := fs.Abs(value)
+			if !ok {
 				return argsObject{}, fmt.Errorf("Invalid output directory: %s", arg)
 			}
 			args.bundleOptions.AbsOutputDir = dir
@@ -310,8 +309,8 @@ func parseArgs(rawArgs []string) (argsObject, error) {
 			return argsObject{}, fmt.Errorf("Invalid flag: %s", arg)
 
 		default:
-			arg, err := filepath.Abs(arg)
-			if err != nil {
+			arg, ok := fs.Abs(arg)
+			if !ok {
 				return argsObject{}, fmt.Errorf("Invalid path: %s", arg)
 			}
 			args.entryPaths = append(args.entryPaths, arg)
@@ -328,7 +327,7 @@ func parseArgs(rawArgs []string) (argsObject, error) {
 
 	if args.bundleOptions.AbsOutputFile != "" {
 		// If the output file is specified, use it to derive the output directory
-		args.bundleOptions.AbsOutputDir = filepath.Dir(args.bundleOptions.AbsOutputFile)
+		args.bundleOptions.AbsOutputDir = fs.Dir(args.bundleOptions.AbsOutputFile)
 	}
 
 	if args.bundleOptions.OutputFormat == bundler.FormatNone {
@@ -418,7 +417,8 @@ Examples:
 	}
 
 	start := time.Now()
-	args, err := parseArgs(os.Args[1:])
+	fs := fs.RealFS()
+	args, err := parseArgs(fs, os.Args[1:])
 	if err != nil {
 		exitWithError(err.Error())
 	}
@@ -469,19 +469,18 @@ Examples:
 			seconds := 30.0
 			fmt.Fprintf(os.Stderr, "Running for %g seconds straight due to --cpuprofile...\n", seconds)
 			for time.Since(start).Seconds() < seconds {
-				run(args)
+				run(fs, args)
 			}
 		} else {
-			run(args)
+			run(fs, args)
 		}
 	}()
 
 	fmt.Fprintf(os.Stderr, "Done in %dms\n", time.Since(start).Nanoseconds()/1000000)
 }
 
-func run(args argsObject) {
+func run(fs fs.FS, args argsObject) {
 	// Parse all files in the bundle
-	fs := fs.RealFS()
 	resolver := resolver.NewResolver(fs, args.resolveOptions)
 	log, join := logging.NewStderrLog(args.logOptions)
 	bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)

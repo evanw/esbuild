@@ -71,6 +71,7 @@ async function main() {
     () => true,
     e => {
       console.error(`❌ ${name}: ${e && e.message || e}`)
+      if (e.errors) console.error(e.errors.map(x => x.text).join('\n'))
       return false
     })
   const allTestsPassed = (await Promise.all(Object.entries(tests).map(runTest))).every(success => success)
