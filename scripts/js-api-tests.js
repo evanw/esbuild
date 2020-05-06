@@ -1,6 +1,7 @@
 const { installForTests } = require('./esbuild')
 const childProcess = require('child_process')
 const assert = require('assert')
+const slash = require('slash')
 const path = require('path')
 const util = require('util')
 const fs = require('fs')
@@ -10,8 +11,8 @@ const testDir = path.join(repoDir, 'scripts', '.js-api-tests')
 
 let tests = {
   async build({ esbuild }) {
-    const input = path.join(testDir, 'input.js')
-    const output = path.join(testDir, 'output.js')
+    const input = `.${slash(path.join(testDir, 'input.js'))}`
+    const output = `.${slash(path.join(testDir, 'output.js'))}`
     await util.promisify(fs.writeFile)(input, 'export default 123')
     await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     const result = require(output)
