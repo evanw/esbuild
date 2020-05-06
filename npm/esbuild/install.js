@@ -26,7 +26,10 @@ function installPackage(package) {
 }
 
 // Pick a package to install
-if (process.platform === 'linux' && os.arch() === 'x64') {
+if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
+  fs.unlinkSync(binPath);
+  fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
+} else if (process.platform === 'linux' && os.arch() === 'x64') {
   installPackage('esbuild-linux-64');
   fs.renameSync(
     path.join(installDir, 'node_modules', 'esbuild-linux-64', 'bin', 'esbuild'),

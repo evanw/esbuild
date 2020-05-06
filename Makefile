@@ -5,7 +5,7 @@ esbuild: src/esbuild/*/*.go
 
 test:
 	cd src/esbuild && go test ./...
-	make -j2 verify-source-map end-to-end-tests
+	make -j3 verify-source-map end-to-end-tests js-api-tests
 
 test-wasm:
 	cd src/esbuild && PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./...
@@ -13,8 +13,11 @@ test-wasm:
 verify-source-map: | node_modules
 	node scripts/verify-source-map.js
 
-end-to-end-tests: | node_modules
+end-to-end-tests:
 	node scripts/end-to-end-tests.js
+
+js-api-tests:
+	node scripts/js-api-tests.js
 
 update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > src/esbuild/main/version.go
