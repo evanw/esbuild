@@ -43,6 +43,7 @@ platform-wasm:
 	cd src/esbuild && GOOS=js GOARCH=wasm go build -o ../../npm/esbuild-wasm/esbuild.wasm ./main
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
+	rm -fr npm/esbuild-wasm/lib && cp -r npm/esbuild/lib npm/esbuild-wasm/lib
 
 platform-neutral:
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
@@ -71,6 +72,7 @@ clean:
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-linux-64/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
+	rm -rf npm/esbuild-wasm/lib
 	cd src/esbuild && go clean -testcache ./...
 
 node_modules:

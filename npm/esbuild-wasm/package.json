@@ -7,6 +7,8 @@
   "engines": {
     "node": ">=8"
   },
+  "main": "lib/main.js",
+  "types": "lib/main.d.ts",
   "directories": {
     "bin": "bin"
   }
