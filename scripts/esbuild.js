@@ -1,20 +1,25 @@
 const childProcess = require('child_process')
+const rimraf = require('rimraf')
 const path = require('path')
 const fs = require('fs')
 
 const repoDir = path.dirname(__dirname)
+const modDir = path.join(repoDir, 'src', 'esbuild')
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 
-exports.installForTests = dir => {
-  // Make sure esbuild is built
-  childProcess.execSync('make', { cwd: repoDir, stdio: 'ignore' })
+exports.buildBinary = () => {
+  const name = process.platform === 'win32' ? 'esbuild.exe' : 'esbuild'
+  childProcess.execSync(`go build -o ../../${name} ./main`, { cwd: modDir, stdio: 'ignore' })
+  return path.join(repoDir, name)
+}
 
+exports.installForTests = dir => {
   // Create a fresh test directory
-  childProcess.execSync(`rm -fr "${dir}"`)
+  rimraf.sync(dir, { disableGlob: true })
   fs.mkdirSync(dir)
 
   // Install the "esbuild" package
-  const env = { ...process.env, ESBUILD_BIN_PATH_FOR_TESTS: path.join(repoDir, 'esbuild') }
+  const env = { ...process.env, ESBUILD_BIN_PATH_FOR_TESTS: exports.buildBinary() }
   const version = require(path.join(npmDir, 'package.json')).version
   fs.writeFileSync(path.join(dir, 'package.json'), '{}')
   console.log('Packing esbuild...')

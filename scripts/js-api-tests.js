@@ -1,5 +1,5 @@
 const { installForTests } = require('./esbuild')
-const childProcess = require('child_process')
+const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
 const util = require('util')
@@ -78,7 +78,7 @@ async function main() {
 
   // Clean up test output
   service.stop()
-  childProcess.execSync(`rm -fr "${testDir}"`)
+  rimraf.sync(testDir, { disableGlob: true })
 
   if (!allTestsPassed) {
     process.exit(1)

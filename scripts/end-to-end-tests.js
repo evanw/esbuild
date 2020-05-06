@@ -1,9 +1,12 @@
 const childProcess = require('child_process')
+const { buildBinary } = require('./esbuild')
+const mkdirp = require('mkdirp')
+const rimraf = require('rimraf')
 const path = require('path')
 const util = require('util')
 const fs = require('fs')
 const testDir = path.join(__dirname, '.end-to-end-tests')
-const esbuildPath = path.join(__dirname, '..', 'esbuild')
+const esbuildPath = buildBinary()
 let testCount = 0
 
 let tests = [
@@ -207,7 +210,7 @@ function test(args, files) {
       for (const file in files) {
         const filePath = path.join(thisTestDir, file)
         const contents = files[file]
-        await util.promisify(childProcess.exec)(`mkdir -p "${path.dirname(filePath)}"`)
+        mkdirp.sync(path.dirname(filePath))
 
         // Optionally symlink the file if the test requests it
         if (contents.symlink) await util.promisify(fs.symlink)(contents.symlink, filePath)
@@ -233,18 +236,15 @@ function test(args, files) {
 }
 
 async function main() {
-  // Make sure esbuild is built
-  childProcess.execSync('make', { cwd: path.dirname(__dirname), stdio: 'pipe' })
-
   // Create a fresh test directory
-  childProcess.execSync(`rm -fr "${testDir}"`)
+  rimraf.sync(testDir, { disableGlob: true })
   fs.mkdirSync(testDir)
 
   // Run all tests concurrently
   const allTestsPassed = (await Promise.all(tests.map(test => test()))).every(success => success)
 
   // Clean up test output
-  childProcess.execSync(`rm -fr "${testDir}"`)
+  rimraf.sync(testDir, { disableGlob: true })
 
   if (!allTestsPassed) {
     process.exit(1)

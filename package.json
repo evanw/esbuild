@@ -1,9 +1,13 @@
 {
   "private": true,
   "devDependencies": {
+    "estraverse": "5.1.0",
+    "esutils": "2.0.3",
     "fuse-box": "4.0.0-next.165",
     "js-yaml": "3.13.1",
+    "mkdirp": "1.0.4",
     "parcel": "1.12.4",
+    "rimraf": "3.0.2",
     "rollup": "1.31.1",
     "rollup-plugin-terser": "5.2.0",
     "source-map": "0.7.3",
@@ -12,9 +16,5 @@
     "typescript": "3.7.5",
     "webpack": "4.41.6",
     "webpack-cli": "3.3.11"
-  },
-  "dependencies": {
-    "estraverse": "5.1.0",
-    "esutils": "2.0.3"
   }
 }

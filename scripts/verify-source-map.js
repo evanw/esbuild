@@ -1,5 +1,7 @@
 const { SourceMapConsumer } = require('source-map')
+const { buildBinary } = require('./esbuild')
 const childProcess = require('child_process')
+const rimraf = require('rimraf')
 const path = require('path')
 const util = require('util')
 const fs = require('fs')
@@ -86,7 +88,7 @@ async function check(kind, testCase, toSearch, flags) {
     await util.promisify(fs.writeFile)(path.join(tempDir, name), testCase[name])
   }
 
-  const esbuildPath = path.join(__dirname, '..', 'esbuild')
+  const esbuildPath = buildBinary()
   const files = Object.keys(testCase)
   const args = [files[0], '--sourcemap', '--outfile=out.js'].concat(flags)
   await util.promisify(childProcess.execFile)(esbuildPath, args, { cwd: tempDir, stdio: 'pipe' })
@@ -121,13 +123,11 @@ async function check(kind, testCase, toSearch, flags) {
     recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
   }
 
-  await util.promisify(childProcess.exec)(`rm -fr "${tempDir}"`, { cwd: __dirname })
+  rimraf.sync(tempDir, { disableGlob: true })
   return failed
 }
 
 async function main() {
-  childProcess.execSync('make', { cwd: path.dirname(__dirname), stdio: 'pipe' })
-
   const promises = []
   for (const minify of [false, true]) {
     const flags = minify ? ['--minify'] : []
