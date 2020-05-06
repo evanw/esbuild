@@ -369,6 +369,7 @@ type ECall struct {
 	Args            []Expr
 	IsOptionalChain bool
 	IsParenthesized bool
+	IsDirectEval    bool
 }
 
 type ERuntimeCall struct {

@@ -1498,6 +1498,10 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, ES2019, "a[b][c]?.(d)", `var _a, _b;
 (_b = (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
 `)
+
+	// Check that direct eval status is propagated through optional chaining
+	expectPrintedTarget(t, ES2019, "eval?.(x)", "eval == null ? void 0 : eval(x);\n")
+	expectPrintedTarget(t, ES2019, "(1 ? eval : 0)?.(x)", "eval == null ? void 0 : (0, eval)(x);\n")
 }
 
 func TestLowerOptionalCatchBinding(t *testing.T) {

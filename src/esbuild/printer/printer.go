@@ -1037,7 +1037,20 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
-		p.printExpr(e.Target, ast.LPostfix, 0)
+
+		// We don't ever want to accidentally generate a direct eval expression here
+		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
+			if p.minify {
+				p.print("(0,")
+			} else {
+				p.print("(0, ")
+			}
+			p.printExpr(e.Target, ast.LPostfix, 0)
+			p.print(")")
+		} else {
+			p.printExpr(e.Target, ast.LPostfix, 0)
+		}
+
 		if e.IsOptionalChain {
 			p.print("?.")
 		}
@@ -1574,6 +1587,14 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	default:
 		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))
 	}
+}
+
+func (p *printer) isUnboundEvalIdentifier(value ast.Expr) bool {
+	if id, ok := value.Data.(*ast.EIdentifier); ok {
+		symbol := p.symbols.Get(ast.FollowSymbols(p.symbols, id.Ref))
+		return symbol.Kind == ast.SymbolUnbound && symbol.Name == "eval"
+	}
+	return false
 }
 
 func (p *printer) slowFloatToString(value float64) string {

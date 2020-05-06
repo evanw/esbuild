@@ -7298,8 +7298,9 @@ flatten:
 			}
 
 			result = ast.Expr{loc, &ast.ECall{
-				Target: result,
-				Args:   e.Args,
+				Target:       result,
+				Args:         e.Args,
+				IsDirectEval: e.IsDirectEval,
 			}}
 
 		case *ast.EUnary:
@@ -7905,6 +7906,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return thisArgFunc()
 			}
 		}
+		_, wasIdentifierBeforeVisit := e.Target.Data.(*ast.EIdentifier)
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent:                     !e.IsOptionalChain,
 			storeThisArgForParentOptionalChain: storeThisArg,
@@ -7912,6 +7914,17 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		e.Target = target
 		for i, arg := range e.Args {
 			e.Args[i] = p.visitExpr(arg)
+		}
+
+		// Detect if this is a direct eval. Note that "(1 ? eval : 0)(x)" will
+		// become "eval(x)" after we visit the target due to dead code elimination,
+		// but that doesn't mean it should become a direct eval.
+		if wasIdentifierBeforeVisit {
+			if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
+				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.Name == "eval" {
+					e.IsDirectEval = true
+				}
+			}
 		}
 
 		// Lower optional chaining if we're the top of the chain

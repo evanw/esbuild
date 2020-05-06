@@ -134,6 +134,26 @@ func TestCall(t *testing.T) {
 	expectPrinted(t, "x().y()[z]()", "x().y()[z]();\n")
 	expectPrinted(t, "(--x)();", "(--x)();\n")
 	expectPrinted(t, "(x--)();", "(x--)();\n")
+
+	expectPrinted(t, "eval(x)", "eval(x);\n")
+	expectPrinted(t, "eval?.(x)", "eval?.(x);\n")
+	expectPrinted(t, "(eval)(x)", "eval(x);\n")
+	expectPrinted(t, "(eval)?.(x)", "eval?.(x);\n")
+
+	expectPrinted(t, "eval(x, y)", "eval(x, y);\n")
+	expectPrinted(t, "eval?.(x, y)", "eval?.(x, y);\n")
+	expectPrinted(t, "(1, eval)(x)", "(1, eval)(x);\n")
+	expectPrinted(t, "(1, eval)?.(x)", "(1, eval)?.(x);\n")
+	expectPrinted(t, "(1 ? eval : 2)(x)", "(0, eval)(x);\n")
+	expectPrinted(t, "(1 ? eval : 2)?.(x)", "(0, eval)?.(x);\n")
+
+	expectPrintedMinify(t, "eval?.(x)", "eval?.(x);")
+	expectPrintedMinify(t, "eval(x,y)", "eval(x,y);")
+	expectPrintedMinify(t, "eval?.(x,y)", "eval?.(x,y);")
+	expectPrintedMinify(t, "(1, eval)(x)", "(1,eval)(x);")
+	expectPrintedMinify(t, "(1, eval)?.(x)", "(1,eval)?.(x);")
+	expectPrintedMinify(t, "(1 ? eval : 2)(x)", "(0,eval)(x);")
+	expectPrintedMinify(t, "(1 ? eval : 2)?.(x)", "(0,eval)?.(x);")
 }
 
 func TestMember(t *testing.T) {
