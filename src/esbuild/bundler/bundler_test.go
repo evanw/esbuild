@@ -2016,7 +2016,7 @@ func TestRequireCustomExtensionString(t *testing.T) {
 			"/entry.js": `
 				console.log(require('./test.custom'))
 			`,
-			"/test.custom": `This is a test.`,
+			"/test.custom": `#include <stdio.h>`,
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
@@ -2034,7 +2034,7 @@ func TestRequireCustomExtensionString(t *testing.T) {
 			"/out.js": `bootstrap({
   1(exports, module) {
     // /test.custom
-    module.exports = "This is a test.";
+    module.exports = "#include <stdio.h>";
   },
 
   0() {

@@ -8334,11 +8334,11 @@ type ParseOptions struct {
 	Target               LanguageTarget
 }
 
-func newParser(log logging.Log, source logging.Source, options ParseOptions) *parser {
+func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options ParseOptions) *parser {
 	p := &parser{
 		log:           log,
 		source:        source,
-		lexer:         lexer.NewLexer(log, source),
+		lexer:         lexer,
 		allowIn:       true,
 		target:        options.Target,
 		ts:            options.TS,
@@ -8397,7 +8397,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		options.JSX.Fragment = []string{"React", "Fragment"}
 	}
 
-	p := newParser(log, source, options)
+	p := newParser(log, source, lexer.NewLexer(log, source), options)
 
 	// Consume a leading hashbang comment
 	hashbang := ""
@@ -8457,7 +8457,10 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 }
 
 func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptions, expr ast.Expr) ast.AST {
-	p := newParser(log, source, options)
+	// Don't create a new lexer using lexer.NewLexer() here since that will
+	// actually attempt to parse the first token, which might cause a syntax
+	// error.
+	p := newParser(log, source, lexer.Lexer{}, options)
 	p.prepareForVisitPass()
 
 	// Make a symbol map that contains our file's symbols
