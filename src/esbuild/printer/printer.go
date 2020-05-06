@@ -997,7 +997,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.ESpread:
 		p.print("...")
-		p.printExpr(e.Value, ast.LLowest, 0)
+		p.printExpr(e.Value, ast.LComma, 0)
 
 	case *ast.ENewTarget:
 		p.printSpaceBeforeIdentifier()

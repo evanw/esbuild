@@ -101,6 +101,12 @@ func TestArray(t *testing.T) {
 	expectPrinted(t, "[,,]", "[, ,];\n")
 }
 
+func TestSplat(t *testing.T) {
+	expectPrinted(t, "[...(a, b)]", "[...(a, b)];\n")
+	expectPrinted(t, "x(...(a, b))", "x(...(a, b));\n")
+	expectPrinted(t, "({...(a, b)})", "({\n  ...(a, b)\n});\n")
+}
+
 func TestNew(t *testing.T) {
 	expectPrinted(t, "new x", "new x();\n")
 	expectPrinted(t, "new x()", "new x();\n")
