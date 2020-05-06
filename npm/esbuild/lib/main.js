@@ -2,13 +2,33 @@ const child_process = require('child_process');
 const path = require('path');
 const os = require('os');
 
-function binPath() {
+// This file is used for both the "esbuild" package and the "esbuild-wasm"
+// package. The publishing script copies this file into the "esbuild-wasm"
+// package and then sets this variable to true.
+const WASM = false;
+
+function esbuildSpawn({ flags, stdio }) {
   if ((process.platform === 'linux' || process.platform === 'darwin') && os.arch() === 'x64') {
-    return path.join(__dirname, '..', 'bin', 'esbuild');
+    return child_process.spawn(path.join(__dirname, '..', 'bin', 'esbuild'), flags, {
+      cwd: process.cwd(),
+      stdio,
+    });
   }
 
   if (process.platform === 'win32' && os.arch() === 'x64') {
-    return path.join(__dirname, '..', 'esbuild.exe');
+    if (WASM) {
+      return child_process.spawn(['node'], [path.join(__dirname, '..', 'bin', 'esbuild')].concat(flags), {
+        cwd: process.cwd(),
+        windowsHide: true,
+        stdio,
+      });
+    } else {
+      return child_process.spawn(path.join(__dirname, '..', 'esbuild.exe'), flags, {
+        cwd: process.cwd(),
+        windowsHide: true,
+        stdio,
+      });
+    }
   }
 
   throw new Error(`Unsupported platform: ${process.platform} ${os.arch()}`);
@@ -59,7 +79,7 @@ exports.build = options => {
       flags.push(entryPoint);
     }
 
-    const child = child_process.spawn(binPath(), flags, { cwd: process.cwd(), windowsHide: true, stdio });
+    const child = esbuildSpawn({ flags, stdio });
     child.on('error', error => reject(error));
 
     // The stderr pipe won't be available if "stdio" is set to "inherit"
@@ -104,8 +124,8 @@ exports.build = options => {
 
 exports.startService = () => {
   return new Promise((resolve, reject) => {
-    const child = child_process.spawn(binPath(), ['--service'], {
-      windowsHide: true,
+    const child = esbuildSpawn({
+      flags: ['--service'],
       stdio: ['pipe', 'pipe', 'inherit'],
     });
     child.on('error', error => reject(error));

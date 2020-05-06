@@ -44,6 +44,7 @@ platform-wasm:
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 	rm -fr npm/esbuild-wasm/lib && cp -r npm/esbuild/lib npm/esbuild-wasm/lib
+	cat npm/esbuild/lib/main.js | sed 's/WASM = false/WASM = true/' > npm/esbuild-wasm/lib/main.js
 
 platform-neutral:
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
