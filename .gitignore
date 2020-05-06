@@ -1,4 +1,5 @@
 /esbuild
+/esbuild.exe
 /npm/esbuild-darwin-64/bin/esbuild
 /npm/esbuild-linux-64/bin/esbuild
 /npm/esbuild-wasm/esbuild.wasm
