@@ -69,6 +69,7 @@ async function test_case(service, test) {
   const sandbox = require(path.join(terserDir, 'test', 'sandbox'));
   const log = (format, args) => { throw new Error(tmpl(format, args)); };
 
+  var semver = require(path.join(terserDir, 'node_modules', 'semver'));
   var output_options = test.beautify || {};
 
   // Generate the input code
