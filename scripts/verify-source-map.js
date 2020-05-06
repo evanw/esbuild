@@ -140,7 +140,12 @@ async function main() {
   }
 
   const failed = (await Promise.all(promises)).reduce((a, b) => a + b, 0)
-  if (failed > 0) process.exit(1)
+  if (failed > 0) {
+    console.error(`❌ verify source map failed`)
+    process.exit(1)
+  } else {
+    console.log(`✅ verify source map passed`)
+  }
 }
 
 main().catch(e => setTimeout(() => { throw e }))

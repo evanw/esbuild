@@ -247,7 +247,10 @@ async function main() {
   rimraf.sync(testDir, { disableGlob: true })
 
   if (!allTestsPassed) {
+    console.error(`❌ end-to-end tests failed`)
     process.exit(1)
+  } else {
+    console.log(`✅ end-to-end tests passed`)
   }
 }
 

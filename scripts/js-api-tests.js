@@ -81,7 +81,10 @@ async function main() {
   rimraf.sync(testDir, { disableGlob: true })
 
   if (!allTestsPassed) {
+    console.error(`❌ js api tests failed`)
     process.exit(1)
+  } else {
+    console.log(`✅ js api tests passed`)
   }
 }
 
