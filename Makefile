@@ -91,6 +91,21 @@ test262: esbuild | demo/test262
 
 ################################################################################
 
+github/terser:
+	mkdir -p github/terser
+	cd github/terser && git init && git remote add origin https://github.com/terser/terser.git
+	cd github/terser && git fetch --depth 1 origin 056623c20dbbc42d2f5a34926c07133981519326 && git checkout FETCH_HEAD
+
+demo/terser: | github/terser
+	mkdir -p demo/terser
+	cp -r github/terser/ demo/terser
+	cd demo/terser && npm ci && npm run build
+
+terser: esbuild | demo/terser
+	node scripts/terser-tests.js
+
+################################################################################
+
 github/three:
 	mkdir -p github
 	git clone --depth 1 --branch r108 https://github.com/mrdoob/three.js.git github/three

@@ -1,3 +1,4 @@
+const { installForTests } = require('./esbuild')
 const childProcess = require('child_process')
 const assert = require('assert')
 const path = require('path')
@@ -6,7 +7,6 @@ const fs = require('fs')
 
 const repoDir = path.dirname(__dirname)
 const testDir = path.join(repoDir, 'scripts', '.js-api-tests')
-const npmDir = path.join(repoDir, 'npm', 'esbuild')
 
 let tests = {
   async build({ esbuild }) {
@@ -62,22 +62,8 @@ let tests = {
 }
 
 async function main() {
-  // Make sure esbuild is built
-  childProcess.execSync('make', { cwd: repoDir, stdio: 'pipe' })
-
-  // Create a fresh test directory
-  childProcess.execSync(`rm -fr "${testDir}"`)
-  fs.mkdirSync(testDir)
-
-  // Install the "esbuild" package
-  const env = { ...process.env, ESBUILD_BIN_PATH_FOR_TESTS: path.join(repoDir, 'esbuild') }
-  const version = require(path.join(npmDir, 'package.json')).version
-  fs.writeFileSync(path.join(testDir, 'package.json'), '{}')
-  childProcess.execSync(`npm pack --silent "${npmDir}"`, { cwd: testDir })
-  childProcess.execSync(`npm install --silent esbuild-${version}.tgz`, { cwd: testDir, env })
-
-  // Start esbuild
-  const esbuild = require('./.js-api-tests/node_modules/esbuild')
+  // Start the esbuild service
+  const esbuild = installForTests(testDir)
   const service = await esbuild.startService()
 
   // Run all tests concurrently
