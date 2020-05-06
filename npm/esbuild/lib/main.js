@@ -17,7 +17,7 @@ function esbuildSpawn({ flags, stdio }) {
 
   if (process.platform === 'win32' && os.arch() === 'x64') {
     if (WASM) {
-      return child_process.spawn(['node'], [path.join(__dirname, '..', 'bin', 'esbuild')].concat(flags), {
+      return child_process.spawn('node', [path.join(__dirname, '..', 'bin', 'esbuild')].concat(flags), {
         cwd: process.cwd(),
         windowsHide: true,
         stdio,
