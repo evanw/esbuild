@@ -259,6 +259,6 @@ exports.startService = () => {
       stop() {
         child.kill();
       },
-    }));
+    }), error => reject(error));
   });
 };
