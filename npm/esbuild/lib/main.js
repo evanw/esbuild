@@ -8,7 +8,7 @@ function binPath() {
   }
 
   if (process.platform === 'win32' && os.arch() === 'x64') {
-    return path.join(__dirname, '..', '.install', 'node_modules', 'esbuild-windows-64', 'esbuild.exe');
+    return path.join(__dirname, '..', 'esbuild.exe');
   }
 
   throw new Error(`Unsupported platform: ${process.platform} ${os.arch()}`);

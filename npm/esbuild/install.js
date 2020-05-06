@@ -25,33 +25,48 @@ function installPackage(package) {
     { cwd: installDir, stdio: 'inherit', env });
 }
 
-// Pick a package to install
-if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
-  fs.unlinkSync(binPath);
-  fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
-} else if (process.platform === 'linux' && os.arch() === 'x64') {
-  installPackage('esbuild-linux-64');
-  fs.renameSync(
-    path.join(installDir, 'node_modules', 'esbuild-linux-64', 'bin', 'esbuild'),
-    binPath
-  );
-} else if (process.platform === 'darwin' && os.arch() === 'x64') {
-  installPackage('esbuild-darwin-64');
-  fs.renameSync(
-    path.join(installDir, 'node_modules', 'esbuild-darwin-64', 'bin', 'esbuild'),
-    binPath
-  );
-} else if (process.platform === 'win32' && os.arch() === 'x64') {
-  installPackage('esbuild-windows-64');
+function installOnUnix(package) {
+  if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
+    fs.unlinkSync(binPath);
+    fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
+  } else {
+    installPackage(package);
+    fs.renameSync(
+      path.join(installDir, 'node_modules', package, 'bin', 'esbuild'),
+      binPath
+    );
+  }
+}
+
+function installOnWindows() {
+  const exePath = path.join(__dirname, 'esbuild.exe');
+  if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
+    fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
+  } else {
+    installPackage('esbuild-windows-64');
+    fs.renameSync(
+      path.join(installDir, 'node_modules', 'esbuild-windows-64', 'esbuild.exe'),
+      exePath
+    );
+  }
   fs.writeFileSync(
     binPath,
     `#!/usr/bin/env node
 const path = require('path');
-const esbuild_exe = path.join(__dirname, '..', '.install', 'node_modules', 'esbuild-windows-64', 'esbuild.exe');
+const esbuild_exe = path.join(__dirname, '..', 'esbuild.exe');
 const child_process = require('child_process');
 child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' });
 `
   );
+}
+
+// Pick a package to install
+if (process.platform === 'linux' && os.arch() === 'x64') {
+  installOnUnix('esbuild-linux-64');
+} else if (process.platform === 'darwin' && os.arch() === 'x64') {
+  installOnUnix('esbuild-darwin-64');
+} else if (process.platform === 'win32' && os.arch() === 'x64') {
+  installOnWindows();
 } else {
   console.error(`error: Unsupported platform: ${process.platform} ${os.arch()}`);
   process.exit(1);
