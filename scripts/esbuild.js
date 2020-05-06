@@ -22,10 +22,8 @@ exports.installForTests = dir => {
   const env = { ...process.env, ESBUILD_BIN_PATH_FOR_TESTS: exports.buildBinary() }
   const version = require(path.join(npmDir, 'package.json')).version
   fs.writeFileSync(path.join(dir, 'package.json'), '{}')
-  console.log('Packing esbuild...')
-  childProcess.execSync(`npm pack --silent "${npmDir}"`, { cwd: dir })
-  console.log('Installing esbuild...')
-  childProcess.execSync(`npm install --silent esbuild-${version}.tgz`, { cwd: dir, env })
+  childProcess.execSync(`npm pack --silent "${npmDir}"`, { cwd: dir, stdio: 'inherit' })
+  childProcess.execSync(`npm install --silent --no-audit --progress=false esbuild-${version}.tgz`, { cwd: dir, env, stdio: 'inherit' })
 
   // Evaluate the code
   return require(path.join(dir, 'node_modules', 'esbuild'))
