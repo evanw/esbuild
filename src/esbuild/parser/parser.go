@@ -415,8 +415,9 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 				case ast.SymbolUnbound, ast.SymbolHoisted, ast.SymbolHoistedFunction:
 					// Continue on to the parent scope
 				case ast.SymbolCatchIdentifier:
-					// This is a weird special case. Silently reuse this symbol.
-					return existing
+					// This is a weird special case. Silently merge the existing symbol
+					// into this one. The merging will happen later on after the new
+					// symbol exists.
 				default:
 					r := lexer.RangeOfIdentifier(p.source, loc)
 					p.log.AddRangeError(p.source, r, fmt.Sprintf("%q has already been declared", name))
@@ -453,7 +454,13 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 		for s := p.currentScope; !s.Kind.StopsHoisting(); s = s.Parent {
 			if existing, ok := s.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
-				if symbol.Kind == ast.SymbolUnbound {
+
+				// See "VariableStatements in Catch blocks" in the spec for why we
+				// special-case catch identifiers here:
+				//
+				//   http://www.ecma-international.org/ecma-262/6.0/#sec-variablestatements-in-catch-blocks
+				//
+				if symbol.Kind == ast.SymbolUnbound || symbol.Kind == ast.SymbolCatchIdentifier {
 					p.symbols[existing.InnerIndex].Link = ref
 				}
 			}
