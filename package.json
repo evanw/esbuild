@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "estraverse": "5.1.0",
-    "esutils": "2.0.3"
+    "esutils": "2.0.3",
+    "slash": "^3.0.0",
   }
 }
