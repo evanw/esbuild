@@ -4,13 +4,11 @@ const path = require('path')
 const fs = require('fs')
 
 const repoDir = path.dirname(__dirname)
-const modDir = path.join(repoDir, 'src', 'esbuild')
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 
 exports.buildBinary = () => {
-  const name = process.platform === 'win32' ? 'esbuild.exe' : 'esbuild'
-  childProcess.execSync(`go build -o ../../${name} ./main`, { cwd: modDir, stdio: 'ignore' })
-  return path.join(repoDir, name)
+  childProcess.execSync(`go build ./cmd/esbuild`, { cwd: repoDir, stdio: 'ignore' })
+  return path.join(repoDir, process.platform === 'win32' ? 'esbuild.exe' : 'esbuild')
 }
 
 exports.installForTests = dir => {

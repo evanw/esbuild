@@ -1,14 +1,14 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
-esbuild: src/esbuild/*/*.go
-	cd src/esbuild && go build -o ../../esbuild ./main
+esbuild: cmd/esbuild/*.go internal/*/*.go
+	go build ./cmd/esbuild
 
 test:
-	cd src/esbuild && go test ./...
+	go test ./internal/...
 	make -j3 verify-source-map end-to-end-tests js-api-tests
 
 test-wasm:
-	cd src/esbuild && PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./...
+	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
 
 verify-source-map: | node_modules
 	node scripts/verify-source-map.js
@@ -20,27 +20,27 @@ js-api-tests:
 	node scripts/js-api-tests.js
 
 update-version-go:
-	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > src/esbuild/main/version.go
+	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
 
 platform-all: update-version-go test test-wasm
 	make -j5 platform-windows platform-darwin platform-linux platform-wasm platform-neutral
 
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	cd src/esbuild && GOOS=windows GOARCH=amd64 go build -o ../../npm/esbuild-windows-64/esbuild.exe ./main
+	GOOS=windows GOARCH=amd64 go build -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
 platform-darwin:
 	mkdir -p npm/esbuild-darwin-64/bin
 	cd npm/esbuild-darwin-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	cd src/esbuild && GOOS=darwin GOARCH=amd64 go build -o ../../npm/esbuild-darwin-64/bin/esbuild ./main
+	GOOS=darwin GOARCH=amd64 go build -o npm/esbuild-darwin-64/bin/esbuild ./cmd/esbuild
 
 platform-linux:
 	mkdir -p npm/esbuild-linux-64/bin
 	cd npm/esbuild-linux-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	cd src/esbuild && GOOS=linux GOARCH=amd64 go build -o ../../npm/esbuild-linux-64/bin/esbuild ./main
+	GOOS=linux GOARCH=amd64 go build -o npm/esbuild-linux-64/bin/esbuild ./cmd/esbuild
 
 platform-wasm:
-	cd src/esbuild && GOOS=js GOARCH=wasm go build -o ../../npm/esbuild-wasm/esbuild.wasm ./main
+	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 	rm -fr npm/esbuild-wasm/lib && cp -r npm/esbuild/lib npm/esbuild-wasm/lib
@@ -74,7 +74,7 @@ clean:
 	rm -rf npm/esbuild-linux-64/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
 	rm -rf npm/esbuild-wasm/lib
-	cd src/esbuild && go clean -testcache ./...
+	go clean -testcache ./internal/...
 
 node_modules:
 	npm ci
