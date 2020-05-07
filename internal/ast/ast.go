@@ -898,6 +898,10 @@ type Ref struct {
 type Symbol struct {
 	Kind SymbolKind
 
+	// Certain symbols must not be renamed or minified. For example, the
+	// "arguments" variable is declared by the runtime for every function.
+	MustNotBeRenamed bool
+
 	// An estimate of the number of uses of this symbol. This is used for
 	// minification (to prefer shorter names for more frequently used symbols).
 	// The reason why this is an estimate instead of an accurate count is that

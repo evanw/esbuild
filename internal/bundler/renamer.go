@@ -109,8 +109,8 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap,
 
 		symbol := symbols.Get(ref)
 
-		// Don't rename unbound symbols
-		if symbol.Kind == ast.SymbolUnbound {
+		// Don't rename unbound symbols and symbols marked as reserved names
+		if symbol.Kind == ast.SymbolUnbound || symbol.MustNotBeRenamed {
 			continue
 		}
 
@@ -221,8 +221,8 @@ func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolM
 
 		symbol := symbols.Get(ref)
 
-		// Only count bound symbols
-		if symbol.Kind == ast.SymbolUnbound {
+		// Don't rename unbound symbols and symbols marked as reserved names
+		if symbol.Kind == ast.SymbolUnbound || symbol.MustNotBeRenamed {
 			continue
 		}
 
