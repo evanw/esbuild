@@ -17,9 +17,13 @@ function installPackage(package) {
       env[key] = process.env[key];
     }
   }
-  
+
+  // It turns out that some package managers (e.g. yarn) sometimes re-run the
+  // postinstall script for this package after we have already been installed.
+  // That means this script must be idempotent. Let's skip the install if it's
+  // already happened.
   if (fs.existsSync(installDir)) {
-    return;
+    return false;
   }
 
   // Run "npm install" recursively to install this specific package
@@ -27,14 +31,14 @@ function installPackage(package) {
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
   child_process.execSync(`npm install --silent --prefer-offline --no-audit --progress=false ${package}@${version}`,
     { cwd: installDir, stdio: 'inherit', env });
+  return true;
 }
 
 function installOnUnix(package) {
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.unlinkSync(binPath);
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
-  } else {
-    installPackage(package);
+  } else if (installPackage(package)) {
     fs.renameSync(
       path.join(installDir, 'node_modules', package, 'bin', 'esbuild'),
       binPath
@@ -46,8 +50,7 @@ function installOnWindows() {
   const exePath = path.join(__dirname, 'esbuild.exe');
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
-  } else {
-    installPackage('esbuild-windows-64');
+  } else if (installPackage('esbuild-windows-64')) {
     fs.renameSync(
       path.join(installDir, 'node_modules', 'esbuild-windows-64', 'esbuild.exe'),
       exePath
