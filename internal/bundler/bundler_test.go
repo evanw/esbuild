@@ -3382,3 +3382,60 @@ func TestWithStatementTaintingNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestDirectEvalTaintingNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function test1() {
+					function add(first, second) {
+						return first + second
+					}
+					eval('add(1, 2)')
+				}
+
+				function test2() {
+					function add(first, second) {
+						return first + second
+					}
+					(0, eval)('add(1, 2)')
+				}
+
+				function test3() {
+					function add(first, second) {
+						return first + second
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        false,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `function test1() {
+  function add(a, b) {
+    return a + b;
+  }
+  eval("add(1, 2)");
+}
+function test2() {
+  function a(b, c) {
+    return b + c;
+  }
+  (0, eval)("add(1, 2)");
+}
+function test3() {
+  function a(b, c) {
+    return b + c;
+  }
+}
+`,
+		},
+	})
+}

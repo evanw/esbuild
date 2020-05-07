@@ -30,6 +30,11 @@ func computeReservedNames(moduleScopes []*ast.Scope, symbols *ast.SymbolMap) map
 }
 
 func sortedSymbolsInScope(scope *ast.Scope) uint64Array {
+	// We cannot rename anything inside a scope containing a direct eval() call
+	if scope.ContainsDirectEval {
+		return uint64Array{}
+	}
+
 	// Sort for determinism
 	sorted := uint64Array(make([]uint64, 0, len(scope.Members)+len(scope.Generated)))
 	for _, ref := range scope.Members {

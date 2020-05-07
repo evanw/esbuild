@@ -965,6 +965,11 @@ type Scope struct {
 
 	// This is used to store the ref of the label symbol for ScopeLabel scopes.
 	LabelRef Ref
+
+	// If a scope contains a direct eval() expression, then none of the symbols
+	// inside that scope can be renamed. We conservatively assume that the
+	// evaluated code might reference anything that it has access to.
+	ContainsDirectEval bool
 }
 
 type SymbolMap struct {

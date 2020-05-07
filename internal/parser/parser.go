@@ -7989,6 +7989,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
 				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.Name == "eval" {
 					e.IsDirectEval = true
+
+					// Mark this scope and all parent scopes as containing a direct eval.
+					// This will prevent us from renaming any symbols.
+					for s := p.currentScope; s != nil; s = s.Parent {
+						s.ContainsDirectEval = true
+					}
 				}
 			}
 		}
@@ -8567,7 +8573,9 @@ func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string)
 	// - Using the "exports" variable
 	// - Using the "module" variable
 	// - Using a top-level return statement
+	// - Using a direct call to eval()
 	usesCommonJSFeatures := p.hasTopLevelReturn ||
+		p.moduleScope.ContainsDirectEval ||
 		symbols.Get(p.exportsRef).UseCountEstimate > 0 ||
 		symbols.Get(p.moduleRef).UseCountEstimate > 0
 
