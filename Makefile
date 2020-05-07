@@ -51,6 +51,9 @@ platform-neutral:
 
 publish-all: update-version-go test test-wasm
 	make -j5 publish-windows publish-darwin publish-linux publish-wasm publish-neutral
+	git commit -am "publish $(ESBUILD_VERSION) to npm"
+	git tag "v$(ESBUILD_VERSION)"
+	git push origin master "v$(ESBUILD_VERSION)"
 
 publish-windows: platform-windows
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-windows-64 && npm publish --otp="$(OTP)"
