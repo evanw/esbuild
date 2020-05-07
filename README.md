@@ -113,10 +113,17 @@ See also [the list of finished ECMAScript proposals](https://github.com/tc39/pro
 
 #### Disclaimers:
 
-* This is a hobby project. I believe that it's relatively complete and functional. However, it's brand new code and you might hit some bugs.
-* This hasn't yet been used in production by anyone. Use at your own risk.
-* I don't personally want to run a large community project, so I'm not looking for contributions at this time.
-* The code in this repo isn't intended to be built upon. I'm may change the internals in a backwards-incompatible way at any time to improve performance or introduce new features.
+* As far as I know, this hasn't yet been used in production by anyone yet. It's still pretty new code and you may run into some bugs.
+
+    That said, a lot of effort has gone into handling all of the various edge cases in the JavaScript and TypeScript language specifications and esbuild works well on many real-world code bases. For example, esbuild can bundle [rollup](https://github.com/rollup/rollup), [sucrase](https://github.com/alangpierce/sucrase), and [esprima](https://github.com/jquery/esprima) (all TypeScript code bases) and the generated bundles pass all tests. If you find an issue with language support (especially with real-world code), please report it so it can get fixed.
+
+* This project is still pretty early and I'd like to keep the scope relatively focused, at least for now. I'm trying to create a build tool that a) works well for a given sweet spot of use cases and b) resets the expectations of the community for what it means for a JavaScript build tool to be fast. I'm not trying to create an extremely flexible build system that can build anything.
+
+    That said, esbuild now has a [JavaScript API](#transforming-a-file) that exposes some of its transform code. This means it can be used as a library to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript to older JavaScript. So even if esbuild doesn't support a particular technology, it's possible that esbuild can still be integrated as a library to help speed it up. For example, [Vite](https://github.com/vuejs/vite) recently started using esbuild's transform library to add support for TypeScript (the official TypeScript compiler was too slow).
+
+* I'm mainly looking for feedback at the moment, not contributions. The project is early and I'm still working toward an MVP bundler that can reasonably replace real-world toolchains. There are still major fundamental pieces that haven't been put in place yet (e.g. CSS support, watch mode, tree shaking, code splitting) and they all need to work well together to have best-in-class performance.
+
+* The Go code in this repo isn't intended to be built upon. Go is just an implementation detail of how I built this tool. The stable interfaces for this project are the command-line API and the JavaScript API, not the internal Go code. I'm may change the internals in a backwards-incompatible way at any time to improve performance or introduce new features.
 
 There is now some documentation about the architecture and about certain subtleties in the code here: [docs/architecture.md](docs/architecture.md). I hope it will be helpful for those interested in learning more about how the code works.
 
