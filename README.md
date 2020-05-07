@@ -67,30 +67,49 @@ Several reasons:
 * Path substitution using the `browser` field in `package.json`
 * Automatic detection of `baseUrl` in `tsconfig.json`
 
-#### Syntax transforms:
+#### Syntax support:
 
-These transforms convert newer JavaScript syntax to older JavaScript syntax for use with older browsers. You can set the language target with the `--target` flag, which can be as old as ES6. Note that if you use a syntax feature that esbuild doesn't yet support for your current language target, esbuild will still build successfully but will generate a warning where the unsupported syntax is used.
+Syntax transforms convert newer JavaScript syntax to older JavaScript syntax for use with older browsers. You can set the language target with the `--target` flag, which goes back as far as ES6. Note that if you use a syntax feature that esbuild doesn't yet have support for transforming to your current language target, esbuild will still build successfully but will generate a warning where the unsupported syntax is used and will pass the syntax through un-transformed.
 
-These syntax transforms are implemented:
+These syntax features are always transformed for older browsers:
 
-| Syntax transform                                                                    | Transformed when `--target` is below | Example           |
-|-------------------------------------------------------------------------------------|--------------------------------------|-------------------|
-| [Exponentiation operator](https://github.com/tc39/proposal-exponentiation-operator) | `es2016`                             | `a ** b`          |
-| [Spread properties](https://github.com/tc39/proposal-object-rest-spread)            | `es2018`                             | `let x = {...y}`  |
-| [Optional catch binding](https://github.com/tc39/proposal-optional-catch-binding)   | `es2019`                             | `try {} catch {}` |
-| [Optional Chaining](https://github.com/tc39/proposal-optional-chaining)             | `es2020`                             | `a?.b`            |
-| [Nullish coalescing](https://github.com/tc39/proposal-nullish-coalescing)           | `es2020`                             | `a ?? b`          |
+| Syntax transform                                                                                                   | Language version | Example       |
+|--------------------------------------------------------------------------------------------------------------------|------------------|---------------|
+| [Trailing commas in function parameter lists and calls](https://github.com/tc39/proposal-trailing-function-commas) | `es2017`         | `foo(a, b, )` |
+| [Numeric separators](https://github.com/tc39/proposal-numeric-separator)                                           | `esnext`         | `1_000_000`   |
 
-These syntax transforms are not yet implemented:
+These syntax features are conditionally transformed for older browsers depending on the configured language target:
 
-| Syntax transform                                                                    | Unsupported when `--target` is below | Example                     |
-|-------------------------------------------------------------------------------------|--------------------------------------|-----------------------------|
-| [Async functions](https://github.com/tc39/ecmascript-asyncawait)                    | `es2017`                             | `async () => {}`            |
-| [Rest properties](https://github.com/tc39/proposal-object-rest-spread)              | `es2018`                             | `let {...x} = y`            |
-| [Asynchronous Iteration](https://github.com/tc39/proposal-async-iteration)          | `es2018`                             | `for await (let x of y) {}` |
-| [BigInt](https://github.com/tc39/proposal-bigint)                                   | `es2020`                             | `123n`                      |
+| Syntax transform                                                                    | Transformed when `--target` is below | Example              |
+|-------------------------------------------------------------------------------------|--------------------------------------|----------------------|
+| [Exponentiation operator](https://github.com/tc39/proposal-exponentiation-operator) | `es2016`                             | `a ** b`             |
+| [Spread properties](https://github.com/tc39/proposal-object-rest-spread)            | `es2018`                             | `let x = {...y}`     |
+| [Optional catch binding](https://github.com/tc39/proposal-optional-catch-binding)   | `es2019`                             | `try {} catch {}`    |
+| [Optional chaining](https://github.com/tc39/proposal-optional-chaining)             | `es2020`                             | `a?.b`               |
+| [Nullish coalescing](https://github.com/tc39/proposal-nullish-coalescing)           | `es2020`                             | `a ?? b`             |
+| [Class instance fields](https://github.com/tc39/proposal-class-fields)              | `esnext`                             | `class { x }`        |
+| [Static class fields](https://github.com/tc39/proposal-static-class-features/)      | `esnext`                             | `class { static x }` |
 
-See also [the complete list of finished ECMAScript proposals](https://github.com/tc39/proposals/blob/master/finished-proposals.md).
+These syntax features are currently always passed through un-transformed:
+
+| Syntax transform                                                           | Unsupported when `--target` is below | Example                     |
+|----------------------------------------------------------------------------|--------------------------------------|-----------------------------|
+| [Async functions](https://github.com/tc39/ecmascript-asyncawait)           | `es2017`                             | `async () => {}`            |
+| [Rest properties](https://github.com/tc39/proposal-object-rest-spread)     | `es2018`                             | `let {...x} = y`            |
+| [Asynchronous Iteration](https://github.com/tc39/proposal-async-iteration) | `es2018`                             | `for await (let x of y) {}` |
+| [BigInt](https://github.com/tc39/proposal-bigint)                          | `es2020`                             | `123n`                      |
+| [Hashbang grammar](https://github.com/tc39/proposal-hashbang)              | `esnext`                             | `#!/usr/bin/env node`       |
+
+These syntax features are not yet supported, and currently cannot be parsed:
+
+| Syntax transform                                                                             | Language version | Example               |
+|----------------------------------------------------------------------------------------------|------------------|-----------------------|
+| [Private instance methods](https://github.com/tc39/proposal-private-methods)                 | `esnext`         | `class { #x() {} }`   |
+| [Private instance fields](https://github.com/tc39/proposal-class-fields)                     | `esnext`         | `class { #x }`        |
+| [Private static fields and methods](https://github.com/tc39/proposal-static-class-features/) | `esnext`         | `class { static #x }` |
+| [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment)          | `esnext`         | `a ??= b`             |
+
+See also [the list of finished ECMAScript proposals](https://github.com/tc39/proposals/blob/master/finished-proposals.md) and [the list of active ECMAScript proposals](https://github.com/tc39/proposals/blob/master/README.md).
 
 #### Disclaimers:
 
