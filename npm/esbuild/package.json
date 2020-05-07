@@ -1,6 +1,6 @@
 {
   "name": "esbuild",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "An extremely fast JavaScript bundler and minifier.",
   "repository": "https://github.com/evanw/esbuild",
   "scripts": {
