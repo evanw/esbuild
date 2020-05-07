@@ -17,6 +17,10 @@ function installPackage(package) {
       env[key] = process.env[key];
     }
   }
+  
+  if (fs.existsSync(installDir)) {
+    return;
+  }
 
   // Run "npm install" recursively to install this specific package
   fs.mkdirSync(installDir);
