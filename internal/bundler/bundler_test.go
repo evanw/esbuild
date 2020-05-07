@@ -3406,6 +3406,13 @@ func TestDirectEvalTaintingNoBundle(t *testing.T) {
 						return first + second
 					}
 				}
+
+				function test4(eval) {
+					function add(first, second) {
+						return first + second
+					}
+					eval('add(1, 2)')
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3434,6 +3441,12 @@ function test3() {
   function a(b, c) {
     return b + c;
   }
+}
+function test4(eval) {
+  function add(a, b) {
+    return a + b;
+  }
+  eval("add(1, 2)");
 }
 `,
 		},

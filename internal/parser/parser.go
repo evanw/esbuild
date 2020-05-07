@@ -7987,7 +7987,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// but that doesn't mean it should become a direct eval.
 		if wasIdentifierBeforeVisit {
 			if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
-				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.Name == "eval" {
+				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.Name == "eval" {
 					e.IsDirectEval = true
 
 					// Mark this scope and all parent scopes as containing a direct eval.
