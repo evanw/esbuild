@@ -68,6 +68,10 @@ func (op OpCode) IsRightAssociative() bool {
 	return op >= BinOpAssign || op == BinOpPow
 }
 
+func (op OpCode) IsBinaryAssign() bool {
+	return op >= BinOpAssign
+}
+
 // If you add a new token, remember to add it to "OpTable" too
 const (
 	// Prefix

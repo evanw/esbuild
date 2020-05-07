@@ -1036,10 +1036,24 @@ func TestMangleFor(t *testing.T) {
 }
 
 func TestMangleUndefined(t *testing.T) {
+	// These should be transformed
+	expectPrintedMangle(t, "console.log(undefined)", "console.log(void 0);\n")
+	expectPrintedMangle(t, "console.log(+undefined)", "console.log(NaN);\n")
+	expectPrintedMangle(t, "console.log(undefined + undefined)", "console.log(void 0 + void 0);\n")
 	expectPrintedMangle(t, "const x = undefined", "const x = void 0;\n")
 	expectPrintedMangle(t, "let x = undefined", "let x;\n")
 	expectPrintedMangle(t, "var x = undefined", "var x;\n")
 	expectPrintedMangle(t, "function foo(a) { if (!a) return undefined; a() }", "function foo(a) {\n  if (!a)\n    return;\n  a();\n}\n")
+
+	// These should not be transformed
+	expectPrintedMangle(t, "delete undefined", "delete undefined;\n")
+	expectPrintedMangle(t, "undefined--", "undefined--;\n")
+	expectPrintedMangle(t, "undefined++", "undefined++;\n")
+	expectPrintedMangle(t, "--undefined", "--undefined;\n")
+	expectPrintedMangle(t, "++undefined", "++undefined;\n")
+	expectPrintedMangle(t, "undefined = 1", "undefined = 1;\n")
+	expectPrintedMangle(t, "[undefined] = 1", "[undefined] = 1;\n")
+	expectPrintedMangle(t, "({x: undefined} = 1)", "({\n  x: undefined\n} = 1);\n")
 }
 
 func TestMangleBlock(t *testing.T) {

@@ -7397,6 +7397,12 @@ type exprIn struct {
 	// In the example above we need to store "a" as the value for "this" so we
 	// can substitute it back in when we call "_a" if "_a" is indeed present.
 	storeThisArgForParentOptionalChain func(ast.Expr) ast.Expr
+
+	// Certain substitutions of identifiers are disallowed for assignment targets.
+	// For example, we shouldn't transform "undefined = 1" into "void 0 = 1". This
+	// isn't something real-world code would do but it matters for conformance
+	// tests.
+	isAssignTarget bool
 }
 
 type exprOut struct {
@@ -7441,7 +7447,13 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound {
 			if defineFunc, ok := p.identifierDefines[name]; ok {
-				return p.valueForDefine(expr.Loc, defineFunc), exprOut{}
+				new := p.valueForDefine(expr.Loc, defineFunc)
+
+				// Don't substitute an identifier for a non-identifier if this is an
+				// assignment target, since it'll cause a syntax error
+				if _, ok := new.Data.(*ast.EIdentifier); !in.isAssignTarget || ok {
+					return new, exprOut{}
+				}
 			}
 		}
 
@@ -7499,7 +7511,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EBinary:
-		e.Left = p.visitExpr(e.Left)
+		e.Left, _ = p.visitExprInOut(e.Left, exprIn{isAssignTarget: e.Op.IsBinaryAssign()})
 		e.Right = p.visitExpr(e.Right)
 
 		// Fold constants
@@ -7744,7 +7756,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			p.typeofTarget = e.Value.Data
 
 		case ast.UnOpDelete:
-			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true})
+			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true, isAssignTarget: true})
 			e.Value = value
 
 			// Lower optional chaining if present since we're guaranteed to be the
@@ -7756,7 +7768,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			return expr, exprOut{}
 		}
 
-		e.Value = p.visitExpr(e.Value)
+		e.Value, _ = p.visitExprInOut(e.Value, exprIn{isAssignTarget: e.Op.IsUnaryUpdate()})
 
 		// Fold constants
 		switch e.Op {
@@ -7844,7 +7856,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EArray:
 		for i, item := range e.Items {
-			e.Items[i] = p.visitExpr(item)
+			e.Items[i], _ = p.visitExprInOut(item, exprIn{isAssignTarget: in.isAssignTarget})
 		}
 
 	case *ast.EObject:
@@ -7853,7 +7865,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				e.Properties[i].Key = p.visitExpr(property.Key)
 			}
 			if property.Value != nil {
-				*property.Value = p.visitExpr(*property.Value)
+				*property.Value, _ = p.visitExprInOut(*property.Value, exprIn{isAssignTarget: in.isAssignTarget})
 			}
 			if property.Initializer != nil {
 				*property.Initializer = p.visitExpr(*property.Initializer)
