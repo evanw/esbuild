@@ -1,9 +1,10 @@
 package parser
 
 import (
-	"esbuild/logging"
-	"esbuild/printer"
 	"testing"
+
+	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/printer"
 )
 
 func expectParseErrorTS(t *testing.T, contents string, expected string) {

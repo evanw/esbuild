@@ -1,8 +1,9 @@
 package bundler
 
 import (
-	"esbuild/parser"
 	"testing"
+
+	"github.com/evanw/esbuild/internal/parser"
 )
 
 func TestTSImportStarES6Unused(t *testing.T) {

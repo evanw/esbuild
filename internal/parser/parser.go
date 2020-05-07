@@ -1,16 +1,17 @@
 package parser
 
 import (
-	"esbuild/ast"
-	"esbuild/lexer"
-	"esbuild/logging"
-	"esbuild/runtime"
 	"fmt"
 	"math"
 	"reflect"
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/runtime"
 )
 
 // This parser does two passes:

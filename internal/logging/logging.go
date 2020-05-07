@@ -6,10 +6,11 @@ package logging
 // default.
 
 import (
-	"esbuild/ast"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/evanw/esbuild/internal/ast"
 )
 
 type Log struct {

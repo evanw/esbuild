@@ -1,9 +1,10 @@
 package ast
 
 import (
-	"esbuild/runtime"
 	"path"
 	"strings"
+
+	"github.com/evanw/esbuild/internal/runtime"
 )
 
 // Every module (i.e. file) is parsed into a separate AST data structure. For

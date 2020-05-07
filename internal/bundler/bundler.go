@@ -3,18 +3,19 @@ package bundler
 import (
 	"bytes"
 	"encoding/base64"
-	"esbuild/ast"
-	"esbuild/fs"
-	"esbuild/lexer"
-	"esbuild/logging"
-	"esbuild/parser"
-	"esbuild/printer"
-	"esbuild/resolver"
-	"esbuild/runtime"
 	"fmt"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/parser"
+	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/resolver"
+	"github.com/evanw/esbuild/internal/runtime"
 )
 
 type file struct {

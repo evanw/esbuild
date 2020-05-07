@@ -1,10 +1,11 @@
 package parser
 
 import (
-	"esbuild/logging"
-	"esbuild/printer"
 	"fmt"
 	"testing"
+
+	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/printer"
 )
 
 func expectParseErrorJSON(t *testing.T, contents string, expected string) {

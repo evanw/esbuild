@@ -14,14 +14,15 @@ package lexer
 // accurately.
 
 import (
-	"esbuild/ast"
-	"esbuild/logging"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/logging"
 )
 
 type T uint
