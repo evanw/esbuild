@@ -1042,7 +1042,7 @@ func TestMangleUndefined(t *testing.T) {
 	expectPrintedMangle(t, "console.log(undefined + undefined)", "console.log(void 0 + void 0);\n")
 	expectPrintedMangle(t, "const x = undefined", "const x = void 0;\n")
 	expectPrintedMangle(t, "let x = undefined", "let x;\n")
-	expectPrintedMangle(t, "var x = undefined", "var x;\n")
+	expectPrintedMangle(t, "var x = undefined", "var x = void 0;\n")
 	expectPrintedMangle(t, "function foo(a) { if (!a) return undefined; a() }", "function foo(a) {\n  if (!a)\n    return;\n  a();\n}\n")
 
 	// These should not be transformed
@@ -1132,7 +1132,7 @@ func TestMangleInitializer(t *testing.T) {
 	expectPrintedMangle(t, "let a = undefined", "let a;\n")
 	expectPrintedMangle(t, "let {} = undefined", "let {} = void 0;\n")
 	expectPrintedMangle(t, "let [] = undefined", "let [] = void 0;\n")
-	expectPrintedMangle(t, "var a = undefined", "var a;\n")
+	expectPrintedMangle(t, "var a = undefined", "var a = void 0;\n")
 	expectPrintedMangle(t, "var {} = undefined", "var {} = void 0;\n")
 	expectPrintedMangle(t, "var [] = undefined", "var [] = void 0;\n")
 }

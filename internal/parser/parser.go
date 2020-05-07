@@ -6150,7 +6150,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				*d.Value = p.visitExpr(*d.Value)
 
 				// Initializing to undefined is implicit, but be careful to not
-				// accidentally cause a syntax error by removing the value
+				// accidentally cause a syntax error or behavior change by removing
+				// the value
 				//
 				// Good:
 				//   "let a = undefined;" => "let a;"
@@ -6158,7 +6159,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				// Bad (a syntax error):
 				//   "let {} = undefined;" => "let {};"
 				//
-				if p.mangleSyntax && s.Kind != ast.LocalConst {
+				// Bad (a behavior change):
+				//   "a = 123; var a = undefined;" => "a = 123; var a;"
+				//
+				if p.mangleSyntax && s.Kind == ast.LocalLet {
 					if _, ok := d.Binding.Data.(*ast.BIdentifier); ok {
 						if _, ok := d.Value.Data.(*ast.EUndefined); ok {
 							s.Decls[i].Value = nil
