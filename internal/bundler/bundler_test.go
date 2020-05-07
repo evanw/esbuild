@@ -3321,3 +3321,64 @@ func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestWithStatementTaintingNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				(() => {
+					let local = 1
+					let outer = 2
+					let outerDead = 3
+					with ({}) {
+						var hoisted = 4
+						let local = 5
+						hoisted++
+						local++
+						if (1) outer++
+						if (0) outerDead++
+					}
+					if (1) {
+						hoisted++
+						local++
+						outer++
+						outerDead++
+					}
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        false,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `(() => {
+  let a = 1;
+  let outer = 2;
+  let outerDead = 3;
+  with ({}) {
+    var hoisted = 4;
+    let b = 5;
+    hoisted++;
+    b++;
+    if (1)
+      outer++;
+    if (0)
+      outerDead++;
+  }
+  if (1) {
+    hoisted++;
+    a++;
+    outer++;
+    outerDead++;
+  }
+})();
+`,
+		},
+	})
+}

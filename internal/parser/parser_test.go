@@ -1054,6 +1054,8 @@ func TestMangleUndefined(t *testing.T) {
 	expectPrintedMangle(t, "undefined = 1", "undefined = 1;\n")
 	expectPrintedMangle(t, "[undefined] = 1", "[undefined] = 1;\n")
 	expectPrintedMangle(t, "({x: undefined} = 1)", "({\n  x: undefined\n} = 1);\n")
+	expectPrintedMangle(t, "with (x) y(undefined); z(undefined)", "with (x)\n  y(undefined);\nz(void 0);\n")
+	expectPrintedMangle(t, "with (x) while (i) y(undefined); z(undefined)", "with (x)\n  for (; i; )\n    y(undefined);\nz(void 0);\n")
 }
 
 func TestMangleBlock(t *testing.T) {

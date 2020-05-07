@@ -55,8 +55,8 @@ func (args *argsObject) parseDefine(key string, value string) bool {
 	// Allow substituting for an identifier
 	if lexer.IsIdentifier(value) {
 		if _, ok := lexer.Keywords()[value]; !ok {
-			args.parseOptions.Defines[key] = func(helper parser.DefineHelper) ast.E {
-				return &ast.EIdentifier{helper.FindSymbol(value)}
+			args.parseOptions.Defines[key] = func(findSymbol parser.FindSymbol) ast.E {
+				return &ast.EIdentifier{findSymbol(value)}
 			}
 			return true
 		}
@@ -75,13 +75,13 @@ func (args *argsObject) parseDefine(key string, value string) bool {
 	var fn parser.DefineFunc
 	switch e := expr.Data.(type) {
 	case *ast.ENull:
-		fn = func(parser.DefineHelper) ast.E { return &ast.ENull{} }
+		fn = func(parser.FindSymbol) ast.E { return &ast.ENull{} }
 	case *ast.EBoolean:
-		fn = func(parser.DefineHelper) ast.E { return &ast.EBoolean{e.Value} }
+		fn = func(parser.FindSymbol) ast.E { return &ast.EBoolean{e.Value} }
 	case *ast.EString:
-		fn = func(parser.DefineHelper) ast.E { return &ast.EString{e.Value} }
+		fn = func(parser.FindSymbol) ast.E { return &ast.EString{e.Value} }
 	case *ast.ENumber:
-		fn = func(parser.DefineHelper) ast.E { return &ast.ENumber{e.Value} }
+		fn = func(parser.FindSymbol) ast.E { return &ast.ENumber{e.Value} }
 	default:
 		return false
 	}

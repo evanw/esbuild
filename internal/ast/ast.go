@@ -670,8 +670,9 @@ type SWhile struct {
 }
 
 type SWith struct {
-	Value Expr
-	Body  Stmt
+	Value   Expr
+	BodyLoc Loc
+	Body    Stmt
 }
 
 type Catch struct {
@@ -900,6 +901,7 @@ type Symbol struct {
 
 	// Certain symbols must not be renamed or minified. For example, the
 	// "arguments" variable is declared by the runtime for every function.
+	// Renaming can also break any identifier used inside a "with" statement.
 	MustNotBeRenamed bool
 
 	// An estimate of the number of uses of this symbol. This is used for
@@ -940,6 +942,7 @@ type ScopeKind int
 
 const (
 	ScopeBlock ScopeKind = iota
+	ScopeWith
 	ScopeLabel
 	ScopeClassName
 
@@ -1092,6 +1095,9 @@ func MergeSymbols(symbols *SymbolMap, old Ref, new Ref) Ref {
 
 	oldSymbol.Link = new
 	newSymbol.UseCountEstimate += oldSymbol.UseCountEstimate
+	if oldSymbol.MustNotBeRenamed {
+		newSymbol.MustNotBeRenamed = true
+	}
 	symbols.Set(old, oldSymbol)
 	symbols.Set(new, newSymbol)
 	return new

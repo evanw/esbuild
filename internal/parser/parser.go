@@ -49,6 +49,7 @@ type parser struct {
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
 	usedRuntimeSyms          runtime.Sym
+	findSymbolHelper         FindSymbol
 
 	// These are for TypeScript
 	exportEqualsStmt           *ast.Stmt
@@ -453,6 +454,20 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 	// Hoist "var" symbols up to the enclosing function scope
 	if kind.IsHoisted() {
 		for s := p.currentScope; !s.Kind.StopsHoisting(); s = s.Parent {
+			// Variable declarations hoisted past a "with" statement may actually end
+			// up overwriting a property on the target of the "with" statement instead
+			// of initializing the variable. We must not rename them or we risk
+			// causing a behavior change.
+			//
+			//   var obj = { foo: 1 }
+			//   with (obj) { var foo = 2 }
+			//   assert(foo === undefined)
+			//   assert(obj.foo === 2)
+			//
+			if s.Kind == ast.ScopeWith {
+				p.symbols[ref.InnerIndex].MustNotBeRenamed = true
+			}
+
 			if existing, ok := s.Members[name]; ok {
 				symbol := p.symbols[existing.InnerIndex]
 
@@ -4198,9 +4213,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		p.lexer.Expect(lexer.TOpenParen)
 		test := p.parseExpr(ast.LLowest)
+		bodyLoc := p.lexer.Loc()
 		p.lexer.Expect(lexer.TCloseParen)
+
+		// Push a scope so we make sure to prevent any bare identifiers referenced
+		// within the body from being renamed. Renaming them might change the
+		// semantics of the code.
+		p.pushScopeForParsePass(ast.ScopeWith, bodyLoc)
 		body := p.parseStmt(parseStmtOpts{})
-		return ast.Stmt{loc, &ast.SWith{test, body}}
+		p.popScope()
+
+		return ast.Stmt{loc, &ast.SWith{test, bodyLoc, body}}
 
 	case lexer.TSwitch:
 		p.lexer.Next()
@@ -5016,14 +5039,26 @@ func (p *parser) pushScopeForVisitPass(kind ast.ScopeKind, loc ast.Loc) {
 	p.currentScope = order.scope
 }
 
-func (p *parser) FindSymbol(name string) ast.Ref {
+type findSymbolResult struct {
+	ref               ast.Ref
+	isInsideWithScope bool
+}
+
+func (p *parser) findSymbol(name string) findSymbolResult {
+	var ref ast.Ref
+	isInsideWithScope := false
 	s := p.currentScope
+
 	for {
-		ref, ok := s.Members[name]
-		if ok {
-			// Track how many times we've referenced this symbol
-			p.recordUsage(ref)
-			return ref
+		// Track if we're inside a "with" statement body
+		if s.Kind == ast.ScopeWith {
+			isInsideWithScope = true
+		}
+
+		// Is the symbol a member of this scope?
+		if member, ok := s.Members[name]; ok {
+			ref = member
+			break
 		}
 
 		s = s.Parent
@@ -5031,12 +5066,21 @@ func (p *parser) FindSymbol(name string) ast.Ref {
 			// Allocate an "unbound" symbol
 			ref = p.newSymbol(ast.SymbolUnbound, name)
 			p.moduleScope.Members[name] = ref
-
-			// Track how many times we've referenced this symbol
-			p.recordUsage(ref)
-			return ref
+			break
 		}
 	}
+
+	// If we had to pass through a "with" statement body to get to the symbol
+	// declaration, then this reference could potentially also refer to a
+	// property on the target object of the "with" statement. We must not rename
+	// it or we risk changing the behavior of the code.
+	if isInsideWithScope {
+		p.symbols[ref.InnerIndex].MustNotBeRenamed = true
+	}
+
+	// Track how many times we've referenced this symbol
+	p.recordUsage(ref)
+	return findSymbolResult{ref, isInsideWithScope}
 }
 
 func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
@@ -6046,7 +6090,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SExportClause:
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
-			s.Items[i].Name.Ref = p.FindSymbol(name)
+			s.Items[i].Name.Ref = p.findSymbol(name).ref
 			p.recordExport(item.AliasLoc, item.Alias)
 		}
 
@@ -6216,7 +6260,9 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SWith:
 		s.Value = p.visitExpr(s.Value)
+		p.pushScopeForVisitPass(ast.ScopeWith, s.BodyLoc)
 		s.Body = p.visitSingleStmt(s.Body)
+		p.popScope()
 
 	case *ast.SWhile:
 		s.Test = p.visitBooleanExpr(s.Test)
@@ -6974,13 +7020,19 @@ func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 		return false
 	}
 
+	result := p.findSymbol(name)
+
+	// We must not be in a "with" statement scope
+	if result.isInsideWithScope {
+		return false
+	}
+
 	// The last symbol must be unbound
-	ref := p.FindSymbol(name)
-	return p.symbols[ref.InnerIndex].Kind == ast.SymbolUnbound
+	return p.symbols[result.ref.InnerIndex].Kind == ast.SymbolUnbound
 }
 
 func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string) ast.Expr {
-	ref := p.FindSymbol(parts[0])
+	ref := p.findSymbol(parts[0]).ref
 	value := ast.Expr{loc, &ast.EIdentifier{ref}}
 
 	// Substitute an EImportIdentifier now if this is an import item
@@ -7442,10 +7494,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EIdentifier:
 		name := p.loadNameFromRef(e.Ref)
-		e.Ref = p.FindSymbol(name)
+		result := p.findSymbol(name)
+		e.Ref = result.ref
 
 		// Substitute user-specified defines for unbound symbols
-		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound {
+		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound && !result.isInsideWithScope {
 			if defineFunc, ok := p.identifierDefines[name]; ok {
 				new := p.valueForDefine(expr.Loc, defineFunc)
 
@@ -8053,7 +8106,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 }
 
 func (p *parser) valueForDefine(loc ast.Loc, defineFunc DefineFunc) ast.Expr {
-	expr := ast.Expr{loc, defineFunc(p)}
+	expr := ast.Expr{loc, defineFunc(p.findSymbolHelper)}
 	if id, ok := expr.Data.(*ast.EIdentifier); ok {
 		return p.handleIdentifier(loc, id)
 	}
@@ -8327,11 +8380,8 @@ type TypeScriptOptions struct {
 	Parse bool
 }
 
-type DefineHelper interface {
-	FindSymbol(name string) ast.Ref
-}
-
-type DefineFunc func(DefineHelper) ast.E
+type FindSymbol func(name string) ast.Ref
+type DefineFunc func(FindSymbol) ast.E
 
 type ParseOptions struct {
 	// true: imports are scanned and bundled along with the file
@@ -8374,6 +8424,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		dotDefines:              make(map[string]dotDefine),
 	}
 
+	p.findSymbolHelper = func(name string) ast.Ref { return p.findSymbol(name).ref }
 	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{locModuleScope})
 
 	// The bundler pre-declares these symbols
@@ -8502,9 +8553,9 @@ func (p *parser) prepareForVisitPass() {
 	p.moduleScope = p.currentScope
 
 	// Swap in certain literal values because those can be constant folded
-	p.identifierDefines["undefined"] = func(DefineHelper) ast.E { return &ast.EUndefined{} }
-	p.identifierDefines["NaN"] = func(DefineHelper) ast.E { return &ast.ENumber{math.NaN()} }
-	p.identifierDefines["Infinity"] = func(DefineHelper) ast.E { return &ast.ENumber{math.Inf(1)} }
+	p.identifierDefines["undefined"] = func(FindSymbol) ast.E { return &ast.EUndefined{} }
+	p.identifierDefines["NaN"] = func(FindSymbol) ast.E { return &ast.ENumber{math.NaN()} }
+	p.identifierDefines["Infinity"] = func(FindSymbol) ast.E { return &ast.ENumber{math.Inf(1)} }
 }
 
 func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string) ast.AST {
