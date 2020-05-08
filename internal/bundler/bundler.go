@@ -226,6 +226,8 @@ const (
 func DefaultExtensionToLoaderMap() map[string]Loader {
 	return map[string]Loader{
 		".js":   LoaderJS,
+		".mjs":  LoaderJS,
+		".cjs":  LoaderJS,
 		".jsx":  LoaderJSX,
 		".ts":   LoaderTS,
 		".tsx":  LoaderTSX,

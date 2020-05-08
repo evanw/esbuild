@@ -137,7 +137,7 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			ExtensionToLoader: bundler.DefaultExtensionToLoaderMap(),
 		},
 		resolveOptions: resolver.ResolveOptions{
-			ExtensionOrder:  []string{".tsx", ".ts", ".jsx", ".js", ".json"},
+			ExtensionOrder:  []string{".tsx", ".ts", ".jsx", ".mjs", ".cjs", ".js", ".json"},
 			ExternalModules: make(map[string]bool),
 		},
 		logOptions: logging.StderrOptions{
