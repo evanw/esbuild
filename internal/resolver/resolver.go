@@ -198,8 +198,18 @@ func (r *resolver) PrettyPath(path string) string {
 ////////////////////////////////////////////////////////////////////////////////
 
 type packageJson struct {
-	// The absolute path of the "main" entry point. This is usually in CommonJS
-	// format.
+	// The package.json format has two ways to specify the main file for the
+	// package:
+	//
+	// * The "main" field. This is what node itself uses when you require() the
+	//   package. It's usually (always?) in CommonJS format.
+	//
+	// * The "module" field. This is supposed to be in ES6 format. The idea is
+	//   that "main" and "module" both have the same code but just in different
+	//   formats. Then bundlers that support ES6 can prefer the "module" field
+	//   over the "main" field for more efficient bundling. We support ES6 so
+	//   we always prefer the "module" field over the "main" field.
+	//
 	absPathMain *string
 
 	// Present if the "browser" field is present. This field is intended to be
@@ -363,9 +373,16 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 
 	packageJson := &packageJson{}
 
-	// Read the "main" property
+	// Read the "module" property, or the "main" property as a fallback. We
+	// prefer the "module" property because it's supposed to be ES6 while the
+	// "main" property is supposed to be CommonJS, and ES6 helps us generate
+	// better code.
 	mainPath := ""
-	if mainJson, ok := getProperty(json, "main"); ok {
+	if moduleJson, ok := getProperty(json, "module"); ok {
+		if main, ok := getString(moduleJson); ok {
+			mainPath = r.fs.Join(path, main)
+		}
+	} else if mainJson, ok := getProperty(json, "main"); ok {
 		if main, ok := getString(mainJson); ok {
 			mainPath = r.fs.Join(path, main)
 		}
@@ -374,7 +391,27 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	// Read the "browser" property, but only when targeting the browser
 	if browserJson, ok := getProperty(json, "browser"); ok && r.options.Platform == PlatformBrowser {
 		if browser, ok := getString(browserJson); ok {
-			// The value is a string
+			// If the value is a string, then we should just replace the main path.
+			//
+			// Note that this means if a package specifies "main", "module", and
+			// "browser" then "browser" will win out over "module". This is the
+			// same behavior as webpack: https://github.com/webpack/webpack/issues/4674.
+			//
+			// This is deliberate because the presence of the "browser" field is a
+			// good signal that the "module" field may have non-browser stuff in it,
+			// which will crash or fail to be bundled when targeting the browser.
+			//
+			// We both want the ability to have the option of CJS vs. ESM and the
+			// option of having node vs. browser. The way to do this is to use the
+			// object literal form of the "browser" field like this:
+			//
+			//   "main": "dist/index.node.cjs.js",
+			//   "module": "dist/index.node.esm.js",
+			//   "browser": {
+			//     "./dist/index.node.cjs.js": "./dist/index.browser.cjs.js",
+			//     "./dist/index.node.esm.js": "./dist/index.browser.esm.js"
+			//   },
+			//
 			mainPath = r.fs.Join(path, browser)
 		} else if browser, ok := browserJson.Data.(*ast.EObject); ok {
 			// The value is an object

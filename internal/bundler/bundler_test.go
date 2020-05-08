@@ -1257,6 +1257,55 @@ func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
 	})
 }
 
+func TestPackageJsonModule(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./main.esm.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.esm.js": `
+				export default function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `bootstrap({
+  1() {
+    // /Users/user/project/node_modules/demo-pkg/main.esm.js
+    function default2() {
+      return 123;
+    }
+
+    // /Users/user/project/src/entry.js
+    console.log(default2());
+  }
+}, 1);
+`,
+		},
+	})
+}
+
 func TestPackageJsonBrowserString(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
@@ -1739,6 +1788,127 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
     // /Users/user/project/src/entry.js
   }
 }, 2);
+`,
+		},
+	})
+}
+
+func TestPackageJsonBrowserOverModule(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./main.esm.js",
+					"browser": "./main.browser.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.esm.js": `
+				export default function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.browser.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `bootstrap({
+  0(exports, module) {
+    // /Users/user/project/node_modules/demo-pkg/main.browser.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  1() {
+    // /Users/user/project/src/entry.js
+    const demo_pkg = __import(0 /* demo-pkg */);
+    console.log(demo_pkg.default());
+  }
+}, 1);
+`,
+		},
+	})
+}
+
+func TestPackageJsonBrowserWithModule(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./main.esm.js",
+					"browser": {
+						"./main.js": "./main.browser.js",
+						"./main.esm.js": "./main.browser.esm.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.esm.js": `
+				export default function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.browser.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.browser.esm.js": `
+				export default function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `bootstrap({
+  1() {
+    // /Users/user/project/node_modules/demo-pkg/main.browser.esm.js
+    function default2() {
+      return 123;
+    }
+
+    // /Users/user/project/src/entry.js
+    console.log(default2());
+  }
+}, 1);
 `,
 		},
 	})
