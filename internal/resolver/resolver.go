@@ -196,14 +196,23 @@ func (r *resolver) PrettyPath(path string) string {
 ////////////////////////////////////////////////////////////////////////////////
 
 type packageJson struct {
-	// The absolute path of the "main" entry point
+	// The absolute path of the "main" entry point. This is usually in CommonJS
+	// format.
 	absPathMain *string
 
-	// Present if the "browser" field is present. This contains a mapping of
-	// absolute paths to absolute paths. Mapping to an empty path indicates that
-	// the module is disabled. As far as I can tell, the official spec is a random
-	// GitHub repo: https://github.com/defunctzombie/package-browser-field-spec.
-	// The npm docs say almost nothing: https://docs.npmjs.com/files/package.json.
+	// Present if the "browser" field is present. This field is intended to be
+	// used by bundlers and lets you redirect the paths of certain 3rd-party
+	// modules that don't work in the browser to other modules that shim that
+	// functionality. That way you don't have to rewrite the code for those 3rd-
+	// party modules. For example, you might remap the native "util" node module
+	// to something like https://www.npmjs.com/package/util so it works in the
+	// browser.
+	//
+	// This field contains a mapping of absolute paths to absolute paths. Mapping
+	// to an empty path indicates that the module is disabled. As far as I can
+	// tell, the official spec is a GitHub repo hosted by a user account:
+	// https://github.com/defunctzombie/package-browser-field-spec. The npm docs
+	// say almost nothing: https://docs.npmjs.com/files/package.json.
 	browserNonModuleMap map[string]*string
 	browserModuleMap    map[string]*string
 }
