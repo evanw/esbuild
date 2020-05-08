@@ -4,7 +4,7 @@
   "description": "An extremely fast JavaScript bundler and minifier.",
   "repository": "https://github.com/evanw/esbuild",
   "scripts": {
-    "postinstall": "node install.js"
+    "postinstall": "node index.js"
   },
   "main": "lib/main.js",
   "types": "lib/main.d.ts",
