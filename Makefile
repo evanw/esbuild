@@ -97,6 +97,21 @@ test262: esbuild | demo/test262
 
 ################################################################################
 
+github/uglify:
+	mkdir -p github/uglify
+	cd github/uglify && git init && git remote add origin https://github.com/mishoo/uglifyjs.git
+	cd github/uglify && git fetch --depth 1 origin 7a033bb825975a6a729813b2cbe5a722a9047456 && git checkout FETCH_HEAD
+
+demo/uglify: | github/uglify
+	mkdir -p demo/uglify
+	cp -r github/uglify/ demo/uglify
+	cd demo/uglify && npm i
+
+uglify: esbuild | demo/uglify
+	node scripts/uglify-tests.js
+
+################################################################################
+
 github/terser:
 	mkdir -p github/terser
 	cd github/terser && git init && git remote add origin https://github.com/terser/terser.git
