@@ -41,6 +41,7 @@ type ResolveOptions struct {
 
 type resolver struct {
 	fs      fs.FS
+	log     logging.Log
 	options ResolveOptions
 
 	// This cache maps a directory path to information about that directory and
@@ -49,7 +50,7 @@ type resolver struct {
 	dirCache      map[string]*dirInfo
 }
 
-func NewResolver(fs fs.FS, options ResolveOptions) Resolver {
+func NewResolver(fs fs.FS, log logging.Log, options ResolveOptions) Resolver {
 	// Bundling for node implies allowing node's builtin modules
 	if options.Platform == PlatformNode {
 		externalModules := make(map[string]bool)
@@ -66,6 +67,7 @@ func NewResolver(fs fs.FS, options ResolveOptions) Resolver {
 
 	return &resolver{
 		fs:       fs,
+		log:      log,
 		options:  options,
 		dirCache: make(map[string]*dirInfo),
 	}
@@ -457,9 +459,12 @@ func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string
 
 func (r *resolver) parseJson(path string) (ast.Expr, bool) {
 	if contents, ok := r.fs.ReadFile(path); ok {
-		log, _ := logging.NewDeferLog()
-		source := logging.Source{Contents: contents}
-		return parser.ParseJSON(log, source)
+		source := logging.Source{
+			AbsolutePath: path,
+			PrettyPath:   r.PrettyPath(path),
+			Contents:     contents,
+		}
+		return parser.ParseJSON(r.log, source)
 	}
 	return ast.Expr{}, false
 }

@@ -482,8 +482,8 @@ Examples:
 
 func run(fs fs.FS, args argsObject) {
 	// Parse all files in the bundle
-	resolver := resolver.NewResolver(fs, args.resolveOptions)
 	log, join := logging.NewStderrLog(args.logOptions)
+	resolver := resolver.NewResolver(fs, log, args.resolveOptions)
 	bundle := bundler.ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
 
 	// Stop now if there were errors

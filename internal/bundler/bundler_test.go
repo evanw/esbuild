@@ -48,9 +48,8 @@ func expectBundled(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
 		fs := fs.MockFS(args.files)
 		args.resolveOptions.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".json"}
-		resolver := resolver.NewResolver(fs, args.resolveOptions)
-
 		log, join := logging.NewDeferLog()
+		resolver := resolver.NewResolver(fs, log, args.resolveOptions)
 		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
 		msgs := join()
 		assertLog(t, msgs, args.expectedScanLog)
@@ -1048,6 +1047,37 @@ func TestPackageJsonMain(t *testing.T) {
 }, 1);
 `,
 		},
+	})
+}
+
+func TestPackageJsonSyntaxError(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"a": 1,
+					"b": 2,
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: "/Users/user/project/node_modules/demo-pkg/package.json: error: JSON does not support trailing commas\n",
 	})
 }
 

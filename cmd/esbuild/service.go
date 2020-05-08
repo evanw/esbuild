@@ -180,8 +180,8 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 	}
 
 	mockFS = fs.MockFS(files)
-	resolver := resolver.NewResolver(mockFS, args.resolveOptions)
 	log, join := logging.NewDeferLog()
+	resolver := resolver.NewResolver(mockFS, log, args.resolveOptions)
 	bundle := bundler.ScanBundle(log, mockFS, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
 
 	// Stop now if there were errors
