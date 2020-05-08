@@ -9,9 +9,10 @@ import (
 )
 
 type jsonParser struct {
-	log    logging.Log
-	source logging.Source
-	lexer  lexer.Lexer
+	log                 logging.Log
+	source              logging.Source
+	lexer               lexer.Lexer
+	allowTrailingCommas bool
 }
 
 func (p *jsonParser) parseMaybeTrailingComma(closeToken lexer.T) bool {
@@ -19,7 +20,9 @@ func (p *jsonParser) parseMaybeTrailingComma(closeToken lexer.T) bool {
 	p.lexer.Expect(lexer.TComma)
 
 	if p.lexer.Token == closeToken {
-		p.log.AddRangeError(p.source, commaRange, "JSON does not support trailing commas")
+		if !p.allowTrailingCommas {
+			p.log.AddRangeError(p.source, commaRange, "JSON does not support trailing commas")
+		}
 		return false
 	}
 
@@ -117,7 +120,12 @@ func (p *jsonParser) parseExpr() ast.Expr {
 	}
 }
 
-func ParseJSON(log logging.Log, source logging.Source) (result ast.Expr, ok bool) {
+type ParseJSONOptions struct {
+	AllowComments       bool
+	AllowTrailingCommas bool
+}
+
+func ParseJSON(log logging.Log, source logging.Source, options ParseJSONOptions) (result ast.Expr, ok bool) {
 	ok = true
 	defer func() {
 		r := recover()
@@ -129,9 +137,10 @@ func ParseJSON(log logging.Log, source logging.Source) (result ast.Expr, ok bool
 	}()
 
 	p := &jsonParser{
-		log:    log,
-		source: source,
-		lexer:  lexer.NewLexerJSON(log, source),
+		log:                 log,
+		source:              source,
+		lexer:               lexer.NewLexerJSON(log, source, options.AllowComments),
+		allowTrailingCommas: options.AllowTrailingCommas,
 	}
 
 	result = p.parseExpr()

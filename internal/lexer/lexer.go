@@ -218,6 +218,11 @@ func Keywords() map[string]T {
 	return result
 }
 
+type json struct {
+	parse         bool
+	allowComments bool
+}
+
 type Lexer struct {
 	log                             logging.Log
 	source                          logging.Source
@@ -231,7 +236,7 @@ type Lexer struct {
 	Identifier                      string
 	Number                          float64
 	rescanCloseBraceAsTemplateToken bool
-	isStrictJSON                    bool
+	json                            json
 
 	// The log is disabled during speculative scans that may backtrack
 	IsLogDisabled bool
@@ -249,11 +254,14 @@ func NewLexer(log logging.Log, source logging.Source) Lexer {
 	return lexer
 }
 
-func NewLexerJSON(log logging.Log, source logging.Source) Lexer {
+func NewLexerJSON(log logging.Log, source logging.Source, allowComments bool) Lexer {
 	lexer := Lexer{
-		log:          log,
-		source:       source,
-		isStrictJSON: true,
+		log:    log,
+		source: source,
+		json: json{
+			parse:         true,
+			allowComments: allowComments,
+		},
 	}
 	lexer.step()
 	lexer.Next()
@@ -1030,7 +1038,7 @@ func (lexer *Lexer) Next() {
 						break singleLineComment
 					}
 				}
-				if lexer.isStrictJSON {
+				if lexer.json.parse && !lexer.json.allowComments {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
 				}
 				continue
@@ -1061,7 +1069,7 @@ func (lexer *Lexer) Next() {
 						lexer.step()
 					}
 				}
-				if lexer.isStrictJSON {
+				if lexer.json.parse && !lexer.json.allowComments {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
 				}
 				continue
@@ -1179,7 +1187,7 @@ func (lexer *Lexer) Next() {
 					lexer.step()
 
 					// Handle Windows CRLF
-					if lexer.codePoint == '\r' && !lexer.isStrictJSON {
+					if lexer.codePoint == '\r' && !lexer.json.parse {
 						lexer.step()
 						if lexer.codePoint == '\n' {
 							lexer.step()
@@ -1220,7 +1228,7 @@ func (lexer *Lexer) Next() {
 					// Non-ASCII strings need the slow path
 					if lexer.codePoint >= 0x80 {
 						isASCII = false
-					} else if lexer.isStrictJSON && lexer.codePoint < 0x20 {
+					} else if lexer.json.parse && lexer.codePoint < 0x20 {
 						lexer.SyntaxError()
 					}
 				}
@@ -1242,7 +1250,7 @@ func (lexer *Lexer) Next() {
 				lexer.StringLiteral = copy
 			}
 
-			if quote == '\'' && lexer.isStrictJSON {
+			if quote == '\'' && lexer.json.parse {
 				lexer.addRangeError(lexer.Range(), "JSON strings must use double quotes")
 			}
 
@@ -1833,7 +1841,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				continue
 
 			case 'v':
-				if lexer.isStrictJSON {
+				if lexer.json.parse {
 					lexer.end = start + i - width2
 					lexer.SyntaxError()
 				}
@@ -1842,7 +1850,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				continue
 
 			case '0', '1', '2', '3', '4', '5', '6', '7':
-				if lexer.isStrictJSON {
+				if lexer.json.parse {
 					lexer.end = start + i - width2
 					lexer.SyntaxError()
 				}
@@ -1867,7 +1875,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				c = value
 
 			case 'x':
-				if lexer.isStrictJSON {
+				if lexer.json.parse {
 					lexer.end = start + i - width2
 					lexer.SyntaxError()
 				}
@@ -1900,7 +1908,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				i += width3
 
 				if c3 == '{' {
-					if lexer.isStrictJSON {
+					if lexer.json.parse {
 						lexer.end = start + i - width2
 						lexer.SyntaxError()
 					}
@@ -1968,7 +1976,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				c = value
 
 			case '\r':
-				if lexer.isStrictJSON {
+				if lexer.json.parse {
 					lexer.end = start + i - width2
 					lexer.SyntaxError()
 				}
@@ -1981,7 +1989,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				continue
 
 			case '\n', '\u2028', '\u2029':
-				if lexer.isStrictJSON {
+				if lexer.json.parse {
 					lexer.end = start + i - width2
 					lexer.SyntaxError()
 				}
@@ -1990,7 +1998,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 				continue
 
 			default:
-				if lexer.isStrictJSON {
+				if lexer.json.parse {
 					switch c2 {
 					case '"', '\\', '/':
 

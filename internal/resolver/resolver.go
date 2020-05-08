@@ -307,7 +307,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 	// Record if this directory has a package.json file
 	if entries["package.json"].Kind == fs.FileEntry {
-		info.packageJson = r.parsePackageJson(path)
+		info.packageJson = r.parsePackageJSON(path)
 
 		// Propagate this browser scope into child directories
 		if info.packageJson != nil && (info.packageJson.browserModuleMap != nil || info.packageJson.browserNonModuleMap != nil) {
@@ -318,7 +318,21 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	// Record if this directory has a tsconfig.json file
 	if entries["tsconfig.json"].Kind == fs.FileEntry {
 		info.tsConfigJson = &tsConfigJson{}
-		if json, ok := r.parseJson(r.fs.Join(path, "tsconfig.json")); ok {
+
+		// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
+		// format that appears to be defined by the implementation details of the
+		// TypeScript compiler.
+		//
+		// Attempt to parse it anyway by modifying the JSON parser, but just for
+		// these particular files. This is likely not a completely accurate
+		// emulation of what the TypeScript compiler does (e.g. string escape
+		// behavior may also be different).
+		options := parser.ParseJSONOptions{
+			AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
+			AllowTrailingCommas: true,
+		}
+
+		if json, ok := r.parseJSON(r.fs.Join(path, "tsconfig.json"), options); ok {
 			if compilerOptionsJson, ok := getProperty(json, "compilerOptions"); ok {
 				if baseUrlJson, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
 					if baseUrl, ok := getString(baseUrlJson); ok {
@@ -341,8 +355,8 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	return info
 }
 
-func (r *resolver) parsePackageJson(path string) *packageJson {
-	json, ok := r.parseJson(r.fs.Join(path, "package.json"))
+func (r *resolver) parsePackageJSON(path string) *packageJson {
+	json, ok := r.parseJSON(r.fs.Join(path, "package.json"), parser.ParseJSONOptions{})
 	if !ok {
 		return nil
 	}
@@ -457,14 +471,14 @@ func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string
 	return "", false
 }
 
-func (r *resolver) parseJson(path string) (ast.Expr, bool) {
+func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, bool) {
 	if contents, ok := r.fs.ReadFile(path); ok {
 		source := logging.Source{
 			AbsolutePath: path,
 			PrettyPath:   r.PrettyPath(path),
 			Contents:     contents,
 		}
-		return parser.ParseJSON(r.log, source)
+		return parser.ParseJSON(r.log, source, options)
 	}
 	return ast.Expr{}, false
 }

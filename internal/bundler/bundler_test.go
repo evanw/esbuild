@@ -1050,7 +1050,38 @@ func TestPackageJsonMain(t *testing.T) {
 	})
 }
 
-func TestPackageJsonSyntaxError(t *testing.T) {
+func TestPackageJsonSyntaxErrorComment(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					// Single-line comment
+					"a": 1
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: "/Users/user/project/node_modules/demo-pkg/package.json: error: JSON does not support comments\n",
+	})
+}
+
+func TestPackageJsonSyntaxErrorTrailingComma(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1093,6 +1124,103 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 					"compilerOptions": {
 						"baseUrl": "."
 					}
+				}
+			`,
+			"/Users/user/project/src/lib/util.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `bootstrap({
+  1(exports, module) {
+    // /Users/user/project/src/lib/util.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  0() {
+    // /Users/user/project/src/app/entry.js
+    const util = __import(1 /* lib/util */);
+    console.log(util.default());
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestTsconfigJsonCommentAllowed(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.js": `
+				import fn from 'lib/util'
+				console.log(fn())
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					// Single-line comment
+					"compilerOptions": {
+						"baseUrl": "."
+					}
+				}
+			`,
+			"/Users/user/project/src/lib/util.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `bootstrap({
+  1(exports, module) {
+    // /Users/user/project/src/lib/util.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  0() {
+    // /Users/user/project/src/app/entry.js
+    const util = __import(1 /* lib/util */);
+    console.log(util.default());
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.js": `
+				import fn from 'lib/util'
+				console.log(fn())
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+					},
 				}
 			`,
 			"/Users/user/project/src/lib/util.js": `

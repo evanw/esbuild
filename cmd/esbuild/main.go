@@ -65,7 +65,7 @@ func (args *argsObject) parseDefine(key string, value string) bool {
 	// Parse the value as JSON
 	log, done := logging.NewDeferLog()
 	source := logging.Source{Contents: value}
-	expr, ok := parser.ParseJSON(log, source)
+	expr, ok := parser.ParseJSON(log, source, parser.ParseJSONOptions{})
 	done()
 	if !ok {
 		return false

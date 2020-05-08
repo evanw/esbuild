@@ -16,7 +16,7 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		})
+		}, ParseJSONOptions{})
 		msgs := join()
 		text := ""
 		for _, msg := range msgs {
@@ -37,7 +37,7 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		})
+		}, ParseJSONOptions{})
 		msgs := join()
 		text := ""
 		for _, msg := range msgs {
@@ -62,7 +62,7 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		})
+		}, ParseJSONOptions{})
 		msgs := join()
 		text := ""
 		for _, msg := range msgs {
