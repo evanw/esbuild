@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.13
+      id: go
+    - name: Setup Node.js environment
+      uses: actions/setup-node@v1.4.2
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: go test
+      run: go test ./internal/...
+
+    - name: npm ci
+      run: npm ci
+
+    - name: Verify Source Map
+      run: node scripts/verify-source-map.js
+    
+    - name: E2E Tests
+      run: node scripts/end-to-end-tests.js
+    
+    - name: JS API Tests
+      run: node scripts/js-api-tests.js
