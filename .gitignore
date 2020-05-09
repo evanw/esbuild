@@ -9,5 +9,5 @@
 /bench/
 /demo/
 /github/
-/node_modules/
 /pkg/
+node_modules/

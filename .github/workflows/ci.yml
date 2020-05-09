@@ -22,6 +22,7 @@ jobs:
       with:
         go-version: ^1.13
       id: go
+
     - name: Setup Node.js environment
       uses: actions/setup-node@v1.4.2
 
@@ -31,14 +32,14 @@ jobs:
     - name: go test
       run: go test ./internal/...
 
-    - name: npm i
-      run: npm i
+    - name: npm ci
+      run: cd scripts && npm ci
 
     - name: Verify Source Map
       run: node scripts/verify-source-map.js
-    
+
     - name: E2E Tests
       run: node scripts/end-to-end-tests.js
-    
+
     - name: JS API Tests
       run: node scripts/js-api-tests.js

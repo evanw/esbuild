@@ -10,13 +10,13 @@ test:
 test-wasm:
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
 
-verify-source-map: | node_modules
+verify-source-map: | scripts/node_modules
 	node scripts/verify-source-map.js
 
-end-to-end-tests:
+end-to-end-tests: | scripts/node_modules
 	node scripts/end-to-end-tests.js
 
-js-api-tests:
+js-api-tests: | scripts/node_modules
 	node scripts/js-api-tests.js
 
 update-version-go:
@@ -81,6 +81,9 @@ clean:
 
 node_modules:
 	npm ci
+
+scripts/node_modules:
+	cd scripts && npm ci
 
 ################################################################################
 
