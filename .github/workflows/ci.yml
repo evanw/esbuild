@@ -31,8 +31,8 @@ jobs:
     - name: go test
       run: go test ./internal/...
 
-    - name: npm ci
-      run: npm ci
+    - name: npm i
+      run: npm i
 
     - name: Verify Source Map
       run: node scripts/verify-source-map.js
