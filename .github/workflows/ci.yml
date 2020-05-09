@@ -8,9 +8,13 @@ on:
 
 jobs:
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
+  esbuild:
+    name: esbuild CI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
     steps:
 
     - name: Set up Go 1.x
