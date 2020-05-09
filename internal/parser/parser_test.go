@@ -1477,13 +1477,13 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, ES2020, "x?.[y]", "x?.[y];\n")
 	expectPrintedTarget(t, ES2020, "x?.(y)", "x?.(y);\n")
 
-	expectPrintedTarget(t, ES2020, "null?.x", "null?.x;\n")
-	expectPrintedTarget(t, ES2020, "null?.[x]", "null?.[x];\n")
-	expectPrintedTarget(t, ES2020, "null?.(x)", "null?.(x);\n")
+	expectPrintedTarget(t, ES2020, "null?.x", "void 0;\n")
+	expectPrintedTarget(t, ES2020, "null?.[x]", "void 0;\n")
+	expectPrintedTarget(t, ES2020, "null?.(x)", "void 0;\n")
 
-	expectPrintedTarget(t, ES2020, "undefined?.x", "(void 0)?.x;\n")
-	expectPrintedTarget(t, ES2020, "undefined?.[x]", "(void 0)?.[x];\n")
-	expectPrintedTarget(t, ES2020, "undefined?.(x)", "(void 0)?.(x);\n")
+	expectPrintedTarget(t, ES2020, "undefined?.x", "void 0;\n")
+	expectPrintedTarget(t, ES2020, "undefined?.[x]", "void 0;\n")
+	expectPrintedTarget(t, ES2020, "undefined?.(x)", "void 0;\n")
 
 	// Check multiple levels of nesting
 	expectPrintedTarget(t, ES2019, "a?.b?.c?.d", `var _a, _b;

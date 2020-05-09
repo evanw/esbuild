@@ -7224,6 +7224,7 @@ func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut, thisA
 	valueWhenUndefined := ast.Expr{expr.Loc, &ast.EUndefined{}}
 	endsWithPropertyAccess := false
 	startsWithCall := false
+	originalExpr := expr
 	chain := []ast.Expr{}
 	loc := expr.Loc
 
@@ -7273,6 +7274,13 @@ flatten:
 	switch expr.Data.(type) {
 	case *ast.ENull, *ast.EUndefined:
 		return valueWhenUndefined, exprOut{}
+	}
+
+	// Don't lower this if we don't need to. This check must be done here instead
+	// of earlier so we can do the dead code elimination above when the target is
+	// null or undefined.
+	if p.target >= ES2020 {
+		return originalExpr, exprOut{}
 	}
 
 	// Step 2: Figure out if we need to capture the value for "this" for the
@@ -7779,7 +7787,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
 		isEndOfChain := e.IsParenthesized || !in.hasChainParent
-		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
+		if containsOptionalChain && isEndOfChain {
 			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
@@ -7824,7 +7832,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 			// Lower optional chaining if present since we're guaranteed to be the
 			// end of the chain
-			if p.target < ES2020 && out.childContainsOptionalChain {
+			if out.childContainsOptionalChain {
 				return p.lowerOptionalChain(expr, in, out, nil)
 			}
 
@@ -7879,7 +7887,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
 		isEndOfChain := e.IsParenthesized || !in.hasChainParent
-		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
+		if containsOptionalChain && isEndOfChain {
 			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
@@ -8012,7 +8020,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
 		isEndOfChain := e.IsParenthesized || !in.hasChainParent
-		if p.target < ES2020 && containsOptionalChain && isEndOfChain {
+		if containsOptionalChain && isEndOfChain {
 			result, out := p.lowerOptionalChain(expr, in, out, thisArgFunc)
 			if thisArgWrapFunc != nil {
 				result = thisArgWrapFunc(result)
