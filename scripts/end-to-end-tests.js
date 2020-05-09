@@ -19,21 +19,29 @@ let tests = [
   test(['--define:foo=-123.456', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== -123.456) throw 'fail'` }),
   test(['--define:foo=global', 'in.js', '--outfile=node.js'], { 'in.js': `foo.bar = 123; if (bar !== 123) throw 'fail'` }),
   test(['--define:foo=bar', 'in.js', '--outfile=node.js'], { 'in.js': `let bar = {x: 123}; if (foo.x !== 123) throw 'fail'` }),
-
-  // Tests for symlinks
-  test(['--bundle', 'in.js', '--outfile=node.js'], {
-    'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
-    'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
-    'registry/node_modules/bar/index.js': `export const bar = 123`,
-    'node_modules/foo': { symlink: `../registry/node_modules/foo` },
-  }),
-  test(['--bundle', 'in.js', '--outfile=node.js'], {
-    'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
-    'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
-    'registry/node_modules/bar/index.js': `export const bar = 123`,
-    'node_modules/foo/index.js': { symlink: `../../registry/node_modules/foo/index.js` },
-  }),
 ]
+
+// Tests for symlinks
+//
+// Note: These are disabled on Windows because they fail when run with GitHub
+// Actions. I'm not sure what the issue is because they pass for me when run in
+// my Windows VM (Windows 10 in VirtualBox on macOS).
+if (process.platform !== 'win32') {
+  tests.push(
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
+      'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
+      'registry/node_modules/bar/index.js': `export const bar = 123`,
+      'node_modules/foo': { symlink: `../registry/node_modules/foo` },
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
+      'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
+      'registry/node_modules/bar/index.js': `export const bar = 123`,
+      'node_modules/foo/index.js': { symlink: `../../registry/node_modules/foo/index.js` },
+    }),
+  )
+}
 
 // Test CommonJS export (internal and external)
 for (let isExternal of [false, true]) {
@@ -227,7 +235,7 @@ function test(args, files) {
     catch (e) {
       console.error(`❌ test failed: ${e && e.message || e}
   args: ${args.join(' ')}
-  files: ${Object.entries(files).map(([k, v]) => `\n    ${k}: ${v}`).join('')}`)
+  files: ${Object.entries(files).map(([k, v]) => `\n    ${k}: ${JSON.stringify(v)}`).join('')}`)
       return false
     }
 
