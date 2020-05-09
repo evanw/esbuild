@@ -46,10 +46,6 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
-func TestHashbang(t *testing.T) {
-	expectPrinted(t, "#!/usr/bin/env node\nlet x", "#!/usr/bin/env node\nlet x;\n")
-}
-
 func TestNumber(t *testing.T) {
 	expectPrinted(t, "0.5", "0.5;\n")
 	expectPrinted(t, "-0.5", "-0.5;\n")

@@ -8471,9 +8471,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	// Consume a leading hashbang comment
 	hashbang := ""
 	if p.lexer.Token == lexer.THashbang {
-		if !options.IsBundling {
-			hashbang = p.lexer.Identifier
-		}
+		hashbang = p.lexer.Identifier
 		p.lexer.Next()
 	}
 

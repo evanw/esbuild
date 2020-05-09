@@ -378,6 +378,11 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 		trailingSemicolon = ""
 	}
 
+	// Preserve the hashbang comment if present
+	if files[entryPoint].ast.Hashbang != "" {
+		js = append(js, []byte(files[entryPoint].ast.Hashbang+"\n")...)
+	}
+
 	outerIndent := ""
 	if options.OutputFormat == FormatIIFE {
 		// Optionally allow naming the exports object
@@ -1398,10 +1403,11 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 			}
 
 			// Trim unused runtime code
-			stripUnusedSymbolsInRuntime(files, files[sourceIndex].ast.UsedRuntimeSyms)
+			f := files[sourceIndex]
+			stripUnusedSymbolsInRuntime(files, f.ast.UsedRuntimeSyms)
 
 			// Make sure we don't rename exports
-			b.markExportsAsUnbound(files[sourceIndex], symbols)
+			b.markExportsAsUnbound(f, symbols)
 
 			// Rename symbols
 			b.renameOrMinifyAllSymbols(files, symbols, group, options)
@@ -1409,8 +1415,12 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 			// Print the JavaScript code
 			generatedOffsets := make(map[uint32]lineColumnOffset)
 			runtimeResult := b.compileFile(options, runtimeSourceIndex, files[runtimeSourceIndex], []uint32{})
-			result := b.compileFile(options, sourceIndex, files[sourceIndex], []uint32{})
-			js := runtimeResult.JS
+			result := b.compileFile(options, sourceIndex, f, []uint32{})
+			js := []byte{}
+			if f.ast.Hashbang != "" {
+				js = append(js, []byte(f.ast.Hashbang+"\n")...)
+			}
+			js = append(js, runtimeResult.JS...)
 			generatedOffsets[sourceIndex] = computeLineColumnOffset(js)
 			js = append(js, result.JS...)
 

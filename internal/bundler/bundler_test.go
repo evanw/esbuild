@@ -2639,8 +2639,12 @@ func TestNestedScopeBug(t *testing.T) {
 func TestHashbangBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.js": `#!/usr/bin/env node
-				process.exit(0);
+			"/entry.js": `#!/usr/bin/env a
+				import {code} from './code'
+				process.exit(code)
+			`,
+			"/code.js": `#!/usr/bin/env b
+				export const code = 0
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -2652,12 +2656,16 @@ func TestHashbangBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
+			"/out.js": `#!/usr/bin/env a
+bootstrap({
+  1() {
+    // /code.js
+    const code2 = 0;
+
     // /entry.js
-    process.exit(0);
+    process.exit(code2);
   }
-}, 0);
+}, 1);
 `,
 		},
 	})
