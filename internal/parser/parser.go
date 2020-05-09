@@ -8394,13 +8394,12 @@ type ParseOptions struct {
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	Defines              map[string]DefineFunc
-	MangleSyntax         bool
-	KeepSingleExpression bool
-	OmitWarnings         bool
-	TS                   TypeScriptOptions
-	JSX                  JSXOptions
-	Target               LanguageTarget
+	Defines      map[string]DefineFunc
+	MangleSyntax bool
+	OmitWarnings bool
+	TS           TypeScriptOptions
+	JSX          JSXOptions
+	Target       LanguageTarget
 }
 
 func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options ParseOptions) *parser {
@@ -8498,20 +8497,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
-	if options.KeepSingleExpression {
-		// Sometimes it's helpful to parse a top-level function expression without
-		// trimming it as dead code. This is used to parse the bundle loader.
-		if len(stmts) != 1 {
-			panic("Internal error")
-		}
-		expr, ok := stmts[0].Data.(*ast.SExpr)
-		if !ok {
-			panic("Internal error")
-		}
-		p.visitExpr(expr.Value)
-	} else {
-		stmts = p.visitStmtsAndPrependTempRefs(stmts)
-	}
+	stmts = p.visitStmtsAndPrependTempRefs(stmts)
 
 	// Translate "export = value;" into "module.exports = value;". This must
 	// happen at the end after everything is parsed because TypeScript moves
