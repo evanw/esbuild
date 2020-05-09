@@ -716,13 +716,16 @@ func TestTSEnum(t *testing.T) {
   Foo[Foo["E"] = 5.3] = "E";
 })(Foo || (Foo = {}));
 `)
-	expectPrintedTS(t, "enum Foo { A, B, C = 'x', D, E }", `var Foo;
+	expectPrintedTS(t, "enum Foo { A, B, C = 'x', D, E, F = `y`, G = `${z}`, H = tag`` }", `var Foo;
 (function(Foo) {
   Foo[Foo["A"] = 0] = "A";
   Foo[Foo["B"] = 1] = "B";
-  Foo[Foo["C"] = "x"] = "C";
+  Foo["C"] = "x";
   Foo[Foo["D"] = void 0] = "D";
   Foo[Foo["E"] = void 0] = "E";
+  Foo["F"] = `+"`y`"+`;
+  Foo[Foo["G"] = `+"`${z}`"+`] = "G";
+  Foo[Foo["H"] = tag`+"``"+`] = "H";
 })(Foo || (Foo = {}));
 `)
 

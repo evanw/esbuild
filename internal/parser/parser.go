@@ -6481,15 +6481,20 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		for _, value := range s.Values {
 			name := lexer.UTF16ToString(value.Name)
 			var assignTarget ast.Expr
+			hasStringValue := false
 
 			if value.Value != nil {
 				*value.Value = p.visitExpr(*value.Value)
-				if number, ok := value.Value.Data.(*ast.ENumber); ok {
-					valuesSoFar[name] = number.Value
+				hasNumericValue = false
+				switch e := value.Value.Data.(type) {
+				case *ast.ENumber:
+					valuesSoFar[name] = e.Value
 					hasNumericValue = true
-					nextNumericValue = number.Value + 1
-				} else {
-					hasNumericValue = false
+					nextNumericValue = e.Value + 1
+				case *ast.EString:
+					hasStringValue = true
+				case *ast.ETemplate:
+					hasStringValue = e.Tag == nil && len(e.Parts) == 0
 				}
 			} else if hasNumericValue {
 				valuesSoFar[name] = nextNumericValue
@@ -6523,15 +6528,20 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			}
 			p.recordUsage(s.Arg)
 
-			// "Enum[assignTarget] = 'Name'"
-			valueExprs = append(valueExprs, ast.Expr{value.Loc, &ast.EBinary{
-				ast.BinOpAssign,
-				ast.Expr{value.Loc, &ast.EIndex{
-					Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
-					Index:  assignTarget,
-				}},
-				ast.Expr{value.Loc, &ast.EString{value.Name}},
-			}})
+			// String-valued enums do not form a two-way map
+			if hasStringValue {
+				valueExprs = append(valueExprs, assignTarget)
+			} else {
+				// "Enum[assignTarget] = 'Name'"
+				valueExprs = append(valueExprs, ast.Expr{value.Loc, &ast.EBinary{
+					ast.BinOpAssign,
+					ast.Expr{value.Loc, &ast.EIndex{
+						Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
+						Index:  assignTarget,
+					}},
+					ast.Expr{value.Loc, &ast.EString{value.Name}},
+				}})
+			}
 			p.recordUsage(s.Arg)
 		}
 
