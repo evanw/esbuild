@@ -5640,7 +5640,7 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 
 	for _, prop := range props {
 		// Instance and static fields are a JavaScript feature
-		if (p.ts.Parse || p.target < ESNext) && (prop.IsStatic || prop.Value == nil) {
+		if (p.ts.Parse || p.target < ESNext) && !prop.IsMethod && (prop.IsStatic || prop.Value == nil) {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
