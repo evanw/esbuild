@@ -1,7 +1,7 @@
 export declare type Target = 'esnext' | 'es6' | 'es2015' | 'es2016' | 'es2017' | 'es2018' | 'es2019' | 'es2020';
 export declare type Platform = 'browser' | 'node';
 export declare type Format = 'iife' | 'cjs';
-export declare type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64';
+export declare type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64' | 'dataurl';
 
 interface CommonOptions {
   sourcemap?: boolean;
