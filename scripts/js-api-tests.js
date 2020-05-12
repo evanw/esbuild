@@ -59,6 +59,11 @@ let tests = {
     const { js } = await service.transform(`\x00\x01\x02`, { loader: 'base64' })
     assert.strictEqual(js, `module.exports = "AAEC";\n`)
   },
+
+  async dataurl({ service }) {
+    const { js } = await service.transform(`\x00\x01\x02`, { loader: 'dataurl' })
+    assert.strictEqual(js, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
+  },
 }
 
 async function main() {

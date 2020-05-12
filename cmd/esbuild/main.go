@@ -108,6 +108,8 @@ func (args *argsObject) parseLoader(key string, value string) bool {
 		loader = bundler.LoaderText
 	case "base64":
 		loader = bundler.LoaderBase64
+	case "dataurl":
+		loader = bundler.LoaderDataURL
 	default:
 		return false
 	}

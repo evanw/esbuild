@@ -16,6 +16,7 @@ import (
 	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
+	"github.com/vincent-petithory/dataurl"
 )
 
 type file struct {
@@ -91,6 +92,12 @@ func parseFile(
 
 	case LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(encoded)}}
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
+		results <- parseResult{source.Index, ast, true}
+
+	case LoaderDataURL:
+		encoded := dataurl.EncodeBytes([]byte(source.Contents))
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(encoded)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
@@ -221,6 +228,7 @@ const (
 	LoaderJSON
 	LoaderText
 	LoaderBase64
+	LoaderDataURL
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {
