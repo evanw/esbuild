@@ -18,11 +18,12 @@ type winsize struct {
 	ws_ypixel uint16
 }
 
-func StderrTerminalInfo() (info TerminalInfo) {
-	fd := os.Stderr.Fd()
+func GetTerminalInfo(file *os.File) (info TerminalInfo) {
+	fd := file.Fd()
 
 	// Is stderr a terminal?
 	if _, err := unix.IoctlGetTermios(int(fd), unix.TCGETS); err == nil {
+		info.IsTTY = true
 		info.UseColorEscapes = true
 
 		// Get the width of the window

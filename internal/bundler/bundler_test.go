@@ -3749,6 +3749,11 @@ func TestDirectEvalTaintingNoBundle(t *testing.T) {
 					}
 					eval('add(1, 2)')
 				}
+
+				function test5() {
+					function containsDirectEval() { eval() }
+					if (true) { var shouldNotBeRenamed }
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3783,6 +3788,14 @@ function test4(eval) {
     return a + b;
   }
   eval("add(1, 2)");
+}
+function test5() {
+  function containsDirectEval() {
+    eval();
+  }
+  if (true) {
+    var shouldNotBeRenamed;
+  }
 }
 `,
 		},
