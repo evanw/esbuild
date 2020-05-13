@@ -301,6 +301,13 @@ func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 }
 
 func (p *parser) popScope() {
+	// We cannot rename anything inside a scope containing a direct eval() call
+	if p.currentScope.ContainsDirectEval {
+		for _, ref := range p.currentScope.Members {
+			p.symbols[ref.InnerIndex].MustNotBeRenamed = true
+		}
+	}
+
 	p.currentScope = p.currentScope.Parent
 }
 
@@ -480,6 +487,18 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 					p.symbols[existing.InnerIndex].Link = ref
 				}
 			}
+
+			// Add the symbol to all parent scopes, not just the one it's declared
+			// in. This prevents us from later on declaring a symbol that would
+			// interfere with the hoisting:
+			//
+			//   {
+			//     {
+			//       var x;
+			//     }
+			//     let x; // SyntaxError: Identifier 'x' has already been declared
+			//   }
+			//
 			s.Members[name] = ref
 		}
 	}
