@@ -206,7 +206,7 @@ Examples:
   esbuild example.js --outfile=out.js --define:RELEASE=true
 
   # Provide input via stdin, get output via stdout
-  esbuild --minify < input.js > output.js
+  esbuild --minify --loader=ts < input.ts > output.js
 ```
 
 ## JavaScript API usage
