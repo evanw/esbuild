@@ -66,7 +66,10 @@ let tests = {
   },
 
   async svg({ service }) {
-    const { js } = await service.transform(`<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" /></svg>`, { loader: 'svg' })
+    // TODO: minify svgs properly, right now we only strip all newline characters
+    const { js } = await service.transform(`<svg width="100" height="100">
+<circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" />
+</svg>`, { loader: 'svg' })
     assert.strictEqual(js, `module.exports = 'data:image/svg+xml;<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" /></svg>';\n`)
   },
 }
