@@ -72,58 +72,99 @@ const testCaseTypeScriptRuntime = {
   `,
 }
 
+const testCaseStdin = {
+  '<stdin>': `
+    function a0() { a1("a0") }
+    function a1() { a2("a1") }
+    function a2() { throw new Error("a2") }
+    a0()
+  `,
+}
+
 async function check(kind, testCase, toSearch, flags) {
   let failed = 0
-  const recordCheck = (success, message) => {
-    if (!success) {
-      failed++
-      console.error(`❌ [${kind}] ${message}`)
+
+  try {
+    const recordCheck = (success, message) => {
+      if (!success) {
+        failed++
+        console.error(`❌ [${kind}] ${message}`)
+      }
     }
+
+    const tempDir = path.join(__dirname, '.verify-source-map' + tempDirCount++)
+    try { await util.promisify(fs.mkdir)(tempDir) } catch (e) { }
+
+    for (const name in testCase) {
+      if (name !== '<stdin>') {
+        await util.promisify(fs.writeFile)(path.join(tempDir, name), testCase[name])
+      }
+    }
+
+    const esbuildPath = buildBinary()
+    const files = Object.keys(testCase)
+    const args = ['--sourcemap'].concat(flags)
+    const isStdin = '<stdin>' in testCase
+    let stdout = ''
+
+    await new Promise((resolve, reject) => {
+      if (!isStdin) args.unshift(files[0])
+      const child = childProcess.spawn(esbuildPath, args, { cwd: tempDir, stdio: 'pipe' })
+      if (isStdin) child.stdin.write(testCase['<stdin>'])
+      child.stdin.end()
+      child.stdout.on('data', chunk => stdout += chunk.toString())
+      child.stdout.on('end', resolve)
+      child.on('error', reject)
+    })
+
+    let outJs
+    let outJsMap
+
+    if (stdout !== '') {
+      outJs = stdout
+      recordCheck(outJs.includes(`//# sourceMappingURL=data:application/json;base64,`), `.js file contains source map`)
+      outJsMap = Buffer.from(outJs.slice(outJs.indexOf('base64,') + 'base64,'.length).trim(), 'base64').toString()
+    }
+
+    else {
+      outJs = await util.promisify(fs.readFile)(path.join(tempDir, 'out.js'), 'utf8')
+      recordCheck(outJs.includes(`//# sourceMappingURL=out.js.map\n`), `.js file links to .js.map`)
+      outJsMap = await util.promisify(fs.readFile)(path.join(tempDir, 'out.js.map'), 'utf8')
+    }
+
+    const map = await new SourceMapConsumer(outJsMap)
+
+    for (const id of toSearch) {
+      const inSource = isStdin ? '<stdin>' : files.find(x => x.startsWith(id[0]))
+      const inJs = testCase[inSource]
+      const inIndex = inJs.indexOf(`"${id}"`)
+      const outIndex = outJs.indexOf(`"${id}"`)
+
+      if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
+      if (outIndex < 0) throw new Error(`Failed to find "${id}" in output`)
+
+      const inLines = inJs.slice(0, inIndex).split('\n')
+      const inLine = inLines.length
+      const inColumn = inLines[inLines.length - 1].length
+
+      const outLines = outJs.slice(0, outIndex).split('\n')
+      const outLine = outLines.length
+      const outColumn = outLines[outLines.length - 1].length
+
+      const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
+      const expected = JSON.stringify({ source: inSource, line: inLine, column: inColumn })
+      const observed = JSON.stringify({ source, line, column })
+      recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
+    }
+
+    rimraf.sync(tempDir, { disableGlob: true })
   }
 
-  const tempDir = path.join(__dirname, '.verify-source-map' + tempDirCount++)
-  try { await util.promisify(fs.mkdir)(tempDir) } catch (e) { }
-
-  for (const name in testCase) {
-    await util.promisify(fs.writeFile)(path.join(tempDir, name), testCase[name])
+  catch (e) {
+    console.error(`❌ [${kind}] ${e && e.message || e}`)
+    failed++
   }
 
-  const esbuildPath = buildBinary()
-  const files = Object.keys(testCase)
-  const args = [files[0], '--sourcemap', '--outfile=out.js'].concat(flags)
-  await util.promisify(childProcess.execFile)(esbuildPath, args, { cwd: tempDir, stdio: 'pipe' })
-
-  const outJs = await util.promisify(fs.readFile)(path.join(tempDir, 'out.js'), 'utf8')
-  const outJsMap = await util.promisify(fs.readFile)(path.join(tempDir, 'out.js.map'), 'utf8')
-  const map = await new SourceMapConsumer(outJsMap)
-
-  const isLinked = outJs.includes(`//# sourceMappingURL=out.js.map\n`)
-  recordCheck(isLinked, `.js file links to .js.map`)
-
-  for (const id of toSearch) {
-    const inSource = files.find(x => x.startsWith(id[0]))
-    const inJs = testCase[inSource]
-    const inIndex = inJs.indexOf(`"${id}"`)
-    const outIndex = outJs.indexOf(`"${id}"`)
-
-    if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
-    if (outIndex < 0) throw new Error(`Failed to find "${id}" in output`)
-
-    const inLines = inJs.slice(0, inIndex).split('\n')
-    const inLine = inLines.length
-    const inColumn = inLines[inLines.length - 1].length
-
-    const outLines = outJs.slice(0, outIndex).split('\n')
-    const outLine = outLines.length
-    const outColumn = outLines[outLines.length - 1].length
-
-    const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
-    const expected = JSON.stringify({ source: inSource, line: inLine, column: inColumn })
-    const observed = JSON.stringify({ source, line, column })
-    recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
-  }
-
-  rimraf.sync(tempDir, { disableGlob: true })
   return failed
 }
 
@@ -133,9 +174,11 @@ async function main() {
     const flags = minify ? ['--minify'] : []
     const suffix = minify ? '-min' : ''
     promises.push(
-      check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, flags.concat('--bundle')),
-      check('es6' + suffix, testCaseES6, toSearchBundle, flags.concat('--bundle')),
-      check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, flags),
+      check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, flags.concat('--outfile=out.js', '--bundle')),
+      check('es6' + suffix, testCaseES6, toSearchBundle, flags.concat('--outfile=out.js', '--bundle')),
+      check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, flags.concat('--outfile=out.js')),
+      check('stdin' + suffix, testCaseStdin, toSearchNoBundle, flags.concat('--outfile=out.js')),
+      check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, flags),
     )
   }
 

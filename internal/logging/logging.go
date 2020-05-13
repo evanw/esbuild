@@ -34,6 +34,7 @@ type Msg struct {
 
 type Source struct {
 	Index        uint32
+	IsStdin      bool
 	AbsolutePath string
 	PrettyPath   string
 	Contents     string
@@ -100,6 +101,7 @@ func (counts MsgCounts) String() string {
 }
 
 type TerminalInfo struct {
+	IsTTY           bool
 	UseColorEscapes bool
 	Width           int
 }
@@ -108,7 +110,7 @@ func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 	msgs := make(chan Msg)
 	done := make(chan MsgCounts)
 	log := NewLog(msgs)
-	terminalInfo := StderrTerminalInfo()
+	terminalInfo := GetTerminalInfo(os.Stderr)
 
 	switch options.Color {
 	case ColorNever:

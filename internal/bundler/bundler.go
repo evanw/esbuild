@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -58,7 +60,15 @@ func parseFile(
 		extension = path[lastDot:]
 	}
 
-	switch bundleOptions.ExtensionToLoader[extension] {
+	// Pick the loader based on the file extension
+	loader := bundleOptions.ExtensionToLoader[extension]
+
+	// Special-case reading from stdin
+	if bundleOptions.LoaderForStdin != LoaderNone && source.IsStdin {
+		loader = bundleOptions.LoaderForStdin
+	}
+
+	switch loader {
 	case LoaderJS:
 		ast, ok := parser.Parse(log, source, parseOptions)
 		results <- parseResult{source.Index, ast, ok}
@@ -142,26 +152,46 @@ func ScanBundle(
 		}()
 	}
 
-	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, isDisabled bool) (uint32, bool) {
+	type parseFileFlags struct {
+		isEntryPoint bool
+		isDisabled   bool
+	}
+
+	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, flags parseFileFlags) (uint32, bool) {
 		sourceIndex, ok := visited[path]
 		if !ok {
 			sourceIndex = uint32(len(sources))
-			visited[path] = sourceIndex
+			isStdin := bundleOptions.LoaderForStdin != LoaderNone && flags.isEntryPoint
+			prettyPath := path
+			if !isStdin {
+				prettyPath = res.PrettyPath(path)
+				visited[path] = sourceIndex
+			}
 			contents := ""
 
 			// Disabled files are left empty
-			if !isDisabled {
-				contents, ok = res.Read(path)
-				if !ok {
-					log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", path))
-					return 0, false
+			if !flags.isDisabled {
+				if isStdin {
+					bytes, err := ioutil.ReadAll(os.Stdin)
+					if err != nil {
+						log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from stdin: %s", err.Error()))
+						return 0, false
+					}
+					contents = string(bytes)
+				} else {
+					contents, ok = res.Read(path)
+					if !ok {
+						log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", path))
+						return 0, false
+					}
 				}
 			}
 
 			source := logging.Source{
 				Index:        sourceIndex,
+				IsStdin:      isStdin,
 				AbsolutePath: path,
-				PrettyPath:   res.PrettyPath(path),
+				PrettyPath:   prettyPath,
 				Contents:     contents,
 			}
 			sources = append(sources, source)
@@ -174,7 +204,8 @@ func ScanBundle(
 
 	entryPoints := []uint32{}
 	for _, path := range entryPaths {
-		if sourceIndex, ok := maybeParseFile(path, logging.Source{}, ast.Range{}, false /* isDisabled */); ok {
+		flags := parseFileFlags{isEntryPoint: true}
+		if sourceIndex, ok := maybeParseFile(path, logging.Source{}, ast.Range{}, flags); ok {
 			entryPoints = append(entryPoints, sourceIndex)
 		}
 	}
@@ -193,7 +224,8 @@ func ScanBundle(
 
 				switch path, status := res.Resolve(sourcePath, pathText); status {
 				case resolver.ResolveEnabled, resolver.ResolveDisabled:
-					if sourceIndex, ok := maybeParseFile(path, source, pathRange, status == resolver.ResolveDisabled); ok {
+					flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
+					if sourceIndex, ok := maybeParseFile(path, source, pathRange, flags); ok {
 						resolvedImports[pathText] = sourceIndex
 						filteredImportPaths = append(filteredImportPaths, importPath)
 					}
@@ -280,6 +312,13 @@ type BundleOptions struct {
 	ModuleName        string
 	ExtensionToLoader map[string]Loader
 	OutputFormat      Format
+
+	// If this isn't LoaderNone, all entry point contents are assumed to come
+	// from stdin and must be loaded with this loader
+	LoaderForStdin Loader
+
+	// If true, make sure to generate a single file that can be written to stdout
+	WriteToStdout bool
 
 	omitRuntimeForTests bool
 }
@@ -594,13 +633,21 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 	buffer = append(buffer, '"')
 
 	// Finish the source map
-	item.SourceMapAbsPath = item.JsAbsPath + ".map"
-	item.SourceMapContents = append(buffer, ",\n  \"names\": []\n}\n"...)
+	buffer = append(buffer, ",\n  \"names\": []\n}\n"...)
+
+	// Generate the output
 	if options.RemoveWhitespace {
 		item.JsContents = removeTrailing(item.JsContents, '\n')
 	}
-	item.JsContents = append(item.JsContents,
-		("//# sourceMappingURL=" + b.fs.Base(item.SourceMapAbsPath) + "\n")...)
+	if options.WriteToStdout {
+		item.JsContents = append(item.JsContents,
+			("//# sourceMappingURL=data:application/json;base64," + base64.StdEncoding.EncodeToString(buffer) + "\n")...)
+	} else {
+		item.SourceMapAbsPath = item.JsAbsPath + ".map"
+		item.SourceMapContents = buffer
+		item.JsContents = append(item.JsContents,
+			("//# sourceMappingURL=" + b.fs.Base(item.SourceMapAbsPath) + "\n")...)
+	}
 }
 
 func (b *Bundle) mergeAllSymbolsIntoOneMap(files []file) *ast.SymbolMap {
@@ -1674,7 +1721,9 @@ func (b *Bundle) deterministicDependenciesOfEntryPoint(
 }
 
 func (b *Bundle) outputFileForEntryPoint(entryPoint uint32, options *BundleOptions) string {
-	if options.AbsOutputFile != "" {
+	if options.WriteToStdout {
+		return "<stdout>"
+	} else if options.AbsOutputFile != "" {
 		return b.fs.Base(options.AbsOutputFile)
 	}
 	name := b.fs.Base(b.sources[entryPoint].AbsolutePath)
@@ -1693,7 +1742,9 @@ func (b *Bundle) outputFileForEntryPoint(entryPoint uint32, options *BundleOptio
 }
 
 func (b *Bundle) outputPathForEntryPoint(entryPoint uint32, jsName string, options *BundleOptions) string {
-	if options.AbsOutputDir != "" {
+	if options.WriteToStdout {
+		return "<stdout>"
+	} else if options.AbsOutputDir != "" {
 		return b.fs.Join(options.AbsOutputDir, jsName)
 	} else {
 		return b.fs.Join(b.fs.Dir(b.sources[entryPoint].AbsolutePath), jsName)

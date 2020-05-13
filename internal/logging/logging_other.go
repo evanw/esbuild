@@ -3,8 +3,10 @@
 
 package logging
 
+import "os"
+
 const SupportsColorEscapes = false
 
-func StderrTerminalInfo() TerminalInfo {
+func GetTerminalInfo(*os.File) TerminalInfo {
 	return TerminalInfo{}
 }

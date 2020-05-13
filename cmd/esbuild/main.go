@@ -19,6 +19,50 @@ import (
 	"github.com/evanw/esbuild/internal/resolver"
 )
 
+const helpText = `
+Usage:
+  esbuild [options] [entry points]
+
+Options:
+  --name=...            The name of the module
+  --bundle              Bundle all dependencies into the output files
+  --outfile=...         The output file (for one entry point)
+  --outdir=...          The output directory (for multiple entry points)
+  --sourcemap           Emit a source map
+  --error-limit=...     Maximum error count or 0 to disable (default 10)
+  --target=...          Language target (default esnext)
+  --platform=...        Platform target (browser or node, default browser)
+  --external:M          Exclude module M from the bundle
+  --format=...          Output format (iife or cjs)
+  --color=...           Force use of color terminal escapes (true or false)
+
+  --minify              Sets all --minify-* flags
+  --minify-whitespace   Remove whitespace
+  --minify-identifiers  Shorten identifiers
+  --minify-syntax       Use equivalent but shorter syntax
+
+  --define:K=V          Substitute K with V while parsing
+  --jsx-factory=...     What to use instead of React.createElement
+  --jsx-fragment=...    What to use instead of React.Fragment
+  --loader:X=L          Use loader L to load file extension X, where L is
+                        one of: js, jsx, ts, tsx, json, text, base64
+
+  --trace=...           Write a CPU trace to this file
+  --cpuprofile=...      Write a CPU profile to this file
+  --version             Print the current version and exit (` + esbuildVersion + `)
+
+Examples:
+  # Produces dist/entry_point.js and dist/entry_point.js.map
+  esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
+
+  # Allow JSX syntax in .js files
+  esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
+
+  # Substitute the identifier RELEASE for the literal true
+  esbuild example.js --outfile=out.js --define:RELEASE=true
+
+`
+
 type argsObject struct {
 	traceFile      string
 	cpuprofileFile string
@@ -34,7 +78,7 @@ func exitWithError(text string) {
 	colorBold := ""
 	colorReset := ""
 
-	if logging.StderrTerminalInfo().UseColorEscapes {
+	if logging.GetTerminalInfo(os.Stderr).UseColorEscapes {
 		colorRed = "\033[1;31m"
 		colorBold = "\033[0;1m"
 		colorReset = "\033[0m"
@@ -90,30 +134,25 @@ func (args *argsObject) parseDefine(key string, value string) bool {
 	return true
 }
 
-func (args *argsObject) parseLoader(key string, value string) bool {
-	var loader bundler.Loader
-
-	switch value {
+func (args *argsObject) parseLoader(text string) bundler.Loader {
+	switch text {
 	case "js":
-		loader = bundler.LoaderJS
+		return bundler.LoaderJS
 	case "jsx":
-		loader = bundler.LoaderJSX
+		return bundler.LoaderJSX
 	case "ts":
-		loader = bundler.LoaderTS
+		return bundler.LoaderTS
 	case "tsx":
-		loader = bundler.LoaderTSX
+		return bundler.LoaderTSX
 	case "json":
-		loader = bundler.LoaderJSON
+		return bundler.LoaderJSON
 	case "text":
-		loader = bundler.LoaderText
+		return bundler.LoaderText
 	case "base64":
-		loader = bundler.LoaderBase64
+		return bundler.LoaderBase64
 	default:
-		return false
+		return bundler.LoaderNone
 	}
-
-	args.bundleOptions.ExtensionToLoader[key] = loader
-	return true
 }
 
 func (args *argsObject) parseMemberExpression(text string) ([]string, bool) {
@@ -225,8 +264,20 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			if len(extension) < 2 || strings.ContainsRune(extension[1:], '.') {
 				return argsObject{}, fmt.Errorf("Invalid file extension: %s", arg)
 			}
-			if !args.parseLoader(extension, loader) {
+			parsedLoader := args.parseLoader(loader)
+			if parsedLoader == bundler.LoaderNone {
 				return argsObject{}, fmt.Errorf("Invalid loader: %s", arg)
+			} else {
+				args.bundleOptions.ExtensionToLoader[extension] = parsedLoader
+			}
+
+		case strings.HasPrefix(arg, "--loader="):
+			loader := arg[len("--loader="):]
+			parsedLoader := args.parseLoader(loader)
+			if parsedLoader == bundler.LoaderNone {
+				return argsObject{}, fmt.Errorf("Invalid loader: %s", arg)
+			} else {
+				args.bundleOptions.LoaderForStdin = parsedLoader
 			}
 
 		case strings.HasPrefix(arg, "--target="):
@@ -318,8 +369,8 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		}
 	}
 
-	if args.bundleOptions.AbsOutputFile != "" && len(args.entryPaths) > 1 {
-		return argsObject{}, fmt.Errorf("Use --outdir instead of --outfile when there are multiple entry points")
+	if args.bundleOptions.AbsOutputDir == "" && len(args.entryPaths) > 1 {
+		return argsObject{}, fmt.Errorf("Must provide --outdir when there are multiple input files")
 	}
 
 	if args.bundleOptions.AbsOutputFile != "" && args.bundleOptions.AbsOutputDir != "" {
@@ -341,18 +392,43 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		}
 	}
 
+	if len(args.entryPaths) > 0 {
+		// Disallow the "--loader=" form when not reading from stdin
+		if args.bundleOptions.LoaderForStdin != bundler.LoaderNone {
+			return argsObject{}, fmt.Errorf("Must provide file extension for --loader")
+		}
+
+		// Write to stdout by default if there's only one input file
+		if len(args.entryPaths) == 1 && args.bundleOptions.AbsOutputFile == "" && args.bundleOptions.AbsOutputDir == "" {
+			args.bundleOptions.WriteToStdout = true
+		}
+	} else if !logging.GetTerminalInfo(os.Stdin).IsTTY {
+		// If called with no input files and we're not a TTY, read from stdin instead
+		args.entryPaths = append(args.entryPaths, "<stdin>")
+
+		// Default to reading JavaScript from stdin
+		if args.bundleOptions.LoaderForStdin == bundler.LoaderNone {
+			args.bundleOptions.LoaderForStdin = bundler.LoaderJS
+		}
+
+		// Write to stdout if no input file is provided
+		if args.bundleOptions.AbsOutputFile == "" {
+			if args.bundleOptions.AbsOutputDir != "" {
+				return argsObject{}, fmt.Errorf("Cannot use --outdir when reading from stdin")
+			}
+			args.bundleOptions.WriteToStdout = true
+		}
+	}
+
 	return args, nil
 }
 
 func main() {
-	// Show usage information if called with no arguments
-	showHelp := len(os.Args) < 2
-
 	for _, arg := range os.Args {
 		// Show help if a common help flag is provided
 		if arg == "-h" || arg == "-help" || arg == "--help" || arg == "/?" {
-			showHelp = true
-			break
+			fmt.Fprintf(os.Stderr, "%s", helpText)
+			os.Exit(0)
 		}
 
 		// Special-case the version flag here
@@ -369,54 +445,6 @@ func main() {
 		}
 	}
 
-	// Show help and exit if requested
-	if showHelp {
-		fmt.Print(`
-Usage:
-  esbuild [options] [entry points]
-
-Options:
-  --name=...            The name of the module
-  --bundle              Bundle all dependencies into the output files
-  --outfile=...         The output file (for one entry point)
-  --outdir=...          The output directory (for multiple entry points)
-  --sourcemap           Emit a source map
-  --error-limit=...     Maximum error count or 0 to disable (default 10)
-  --target=...          Language target (default esnext)
-  --platform=...        Platform target (browser or node, default browser)
-  --external:M          Exclude module M from the bundle
-  --format=...          Output format (iife or cjs)
-  --color=...           Force use of color terminal escapes (true or false)
-
-  --minify              Sets all --minify-* flags
-  --minify-whitespace   Remove whitespace
-  --minify-identifiers  Shorten identifiers
-  --minify-syntax       Use equivalent but shorter syntax
-
-  --define:K=V          Substitute K with V while parsing
-  --jsx-factory=...     What to use instead of React.createElement
-  --jsx-fragment=...    What to use instead of React.Fragment
-  --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, ts, tsx, json, text, base64
-
-  --trace=...           Write a CPU trace to this file
-  --cpuprofile=...      Write a CPU profile to this file
-  --version             Print the current version and exit (` + esbuildVersion + `)
-
-Examples:
-  # Produces dist/entry_point.js and dist/entry_point.js.map
-  esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
-
-  # Allow JSX syntax in .js files
-  esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
-
-  # Substitute the identifier RELEASE for the literal true
-  esbuild example.js --outfile=out.js --define:RELEASE=true
-
-`)
-		os.Exit(0)
-	}
-
 	start := time.Now()
 	fs := fs.RealFS()
 	args, err := parseArgs(fs, os.Args[1:])
@@ -424,9 +452,14 @@ Examples:
 		exitWithError(err.Error())
 	}
 
-	// Show usage information if called with no files
+	// Handle when there are no input files (including implicit stdin)
 	if len(args.entryPaths) == 0 {
-		exitWithError("No files specified")
+		if len(os.Args) < 2 {
+			fmt.Fprintf(os.Stderr, "%s", helpText)
+			os.Exit(0)
+		} else {
+			exitWithError("No input files")
+		}
 	}
 
 	// Capture the defer statements below so the "done" message comes last
@@ -477,7 +510,9 @@ Examples:
 		}
 	}()
 
-	fmt.Fprintf(os.Stderr, "Done in %dms\n", time.Since(start).Nanoseconds()/1000000)
+	if !args.bundleOptions.WriteToStdout {
+		fmt.Fprintf(os.Stderr, "Done in %dms\n", time.Since(start).Nanoseconds()/1000000)
+	}
 }
 
 func run(fs fs.FS, args argsObject) {
@@ -509,13 +544,24 @@ func run(fs fs.FS, args argsObject) {
 
 	// Write out the results
 	for _, item := range result {
+		// Special-case writing to stdout
+		if args.bundleOptions.WriteToStdout {
+			_, err := os.Stdout.Write(item.JsContents)
+			if err != nil {
+				exitWithError(fmt.Sprintf("Failed to write to stdout: %s", err.Error()))
+			}
+			continue
+		}
+
 		// Write out the JavaScript file
 		err := ioutil.WriteFile(item.JsAbsPath, []byte(item.JsContents), 0644)
 		path := resolver.PrettyPath(item.JsAbsPath)
 		if err != nil {
 			exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
 		}
-		fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.JsContents)))
+		if !args.bundleOptions.WriteToStdout {
+			fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.JsContents)))
+		}
 
 		// Also write the source map
 		if args.bundleOptions.SourceMap {
@@ -524,7 +570,9 @@ func run(fs fs.FS, args argsObject) {
 			if err != nil {
 				exitWithError(fmt.Sprintf("Failed to write to %s: (%s)", path, err.Error()))
 			}
-			fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.SourceMapContents)))
+			if !args.bundleOptions.WriteToStdout {
+				fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.SourceMapContents)))
+			}
 		}
 	}
 }
