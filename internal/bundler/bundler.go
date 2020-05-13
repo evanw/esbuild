@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"mime"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -16,7 +18,6 @@ import (
 	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
-	"github.com/vincent-petithory/dataurl"
 )
 
 type file struct {
@@ -97,8 +98,19 @@ func parseFile(
 		results <- parseResult{source.Index, ast, true}
 
 	case LoaderDataURL:
-		encoded := dataurl.EncodeBytes([]byte(source.Contents))
-		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(encoded)}}
+		mimeType := mime.TypeByExtension(extension)
+		if mimeType == "" {
+			mimeType = http.DetectContentType([]byte(source.Contents))
+		}
+		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
+		url := "data:" + mimeType + ";base64," + encoded
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
+		results <- parseResult{source.Index, ast, true}
+
+	case LoaderSVG:
+		url := "data:image/svg+xml;" + source.Contents
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
 
@@ -229,6 +241,7 @@ const (
 	LoaderText
 	LoaderBase64
 	LoaderDataURL
+	LoaderSVG
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {

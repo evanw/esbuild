@@ -64,6 +64,11 @@ let tests = {
     const { js } = await service.transform(`\x00\x01\x02`, { loader: 'dataurl' })
     assert.strictEqual(js, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
   },
+
+  async svg({ service }) {
+    const { js } = await service.transform(`<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" /></svg>`, { loader: 'svg' })
+    assert.strictEqual(js, `module.exports = 'data:image/svg+xml;<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" /></svg>';\n`)
+  },
 }
 
 async function main() {

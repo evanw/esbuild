@@ -110,6 +110,8 @@ func (args *argsObject) parseLoader(key string, value string) bool {
 		loader = bundler.LoaderBase64
 	case "dataurl":
 		loader = bundler.LoaderDataURL
+	case "svg":
+		loader = bundler.LoaderSVG
 	default:
 		return false
 	}
