@@ -204,6 +204,9 @@ Examples:
 
   # Substitute the identifier RELEASE for the literal true
   esbuild example.js --outfile=out.js --define:RELEASE=true
+
+  # Provide input via stdin, get output via stdout
+  esbuild --minify < input.js > output.js
 ```
 
 ## JavaScript API usage
