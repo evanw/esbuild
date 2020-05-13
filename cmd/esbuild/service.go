@@ -179,6 +179,24 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 		return
 	}
 
+	// Make sure we don't accidentally try to read from stdin here
+	if args.bundleOptions.LoaderForStdin != bundler.LoaderNone {
+		responses <- responseType{
+			"id":    []byte(id),
+			"error": []byte("Cannot read from stdin in service mode"),
+		}
+		return
+	}
+
+	// Make sure we don't accidentally try to write to stdout here
+	if args.bundleOptions.WriteToStdout {
+		responses <- responseType{
+			"id":    []byte(id),
+			"error": []byte("Cannot write to stdout in service mode"),
+		}
+		return
+	}
+
 	mockFS = fs.MockFS(files)
 	log, join := logging.NewDeferLog()
 	resolver := resolver.NewResolver(mockFS, log, args.resolveOptions)
