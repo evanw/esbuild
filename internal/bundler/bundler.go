@@ -119,7 +119,8 @@ func parseFile(
 		results <- parseResult{source.Index, ast, true}
 
 	case LoaderSVG:
-		url := "data:image/svg+xml;utf-8," + strings.ReplaceAll(strings.ReplaceAll(source.Contents, "\n", ""), "\r\n", "")
+		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
+		url := "data:image/svg+xml;base64," + encoded
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
