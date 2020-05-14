@@ -45,7 +45,9 @@ Options:
   --jsx-factory=...     What to use instead of React.createElement
   --jsx-fragment=...    What to use instead of React.Fragment
   --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, ts, tsx, json, text, base64
+                        one of: js, jsx, ts, tsx, json, text, base64, dataurl
+  --mime-type:X=L       Use mime type L to read file extension X,
+  						only applicable when loader is dataurl for that extension
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
