@@ -395,7 +395,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 }
 
 type printer struct {
-	symbols            *ast.SymbolMap
+	symbols            ast.SymbolMap
 	minify             bool
 	needsSemicolon     bool
 	indent             int
@@ -2292,7 +2292,7 @@ type SourceMapChunk struct {
 }
 
 func createPrinter(
-	symbols *ast.SymbolMap,
+	symbols ast.SymbolMap,
 	options PrintOptions,
 ) *printer {
 	p := &printer{
@@ -2376,7 +2376,7 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 	}
 }
 
-func PrintExpr(expr ast.Expr, symbols *ast.SymbolMap, options PrintOptions) PrintResult {
+func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) PrintResult {
 	p := createPrinter(symbols, options)
 
 	// Always add a mapping at the beginning of the file

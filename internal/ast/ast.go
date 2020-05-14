@@ -983,28 +983,28 @@ type SymbolMap struct {
 	Outer [][]Symbol
 }
 
-func NewSymbolMap(sourceCount int) *SymbolMap {
-	return &SymbolMap{make([][]Symbol, sourceCount)}
+func NewSymbolMap(sourceCount int) SymbolMap {
+	return SymbolMap{make([][]Symbol, sourceCount)}
 }
 
-func (sm *SymbolMap) Get(ref Ref) Symbol {
+func (sm SymbolMap) Get(ref Ref) Symbol {
 	return sm.Outer[ref.OuterIndex][ref.InnerIndex]
 }
 
-func (sm *SymbolMap) IncrementUseCountEstimate(ref Ref) {
+func (sm SymbolMap) IncrementUseCountEstimate(ref Ref) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex].UseCountEstimate++
 }
 
-func (sm *SymbolMap) SetNamespaceAlias(ref Ref, alias NamespaceAlias) {
+func (sm SymbolMap) SetNamespaceAlias(ref Ref, alias NamespaceAlias) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex].NamespaceAlias = &alias
 }
 
 // The symbol must already exist to call this
-func (sm *SymbolMap) Set(ref Ref, symbol Symbol) {
+func (sm SymbolMap) Set(ref Ref, symbol Symbol) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex] = symbol
 }
 
-func (sm *SymbolMap) SetKind(ref Ref, kind SymbolKind) {
+func (sm SymbolMap) SetKind(ref Ref, kind SymbolKind) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex].Kind = kind
 }
 
@@ -1034,7 +1034,7 @@ type AST struct {
 
 	Hashbang    string
 	Stmts       []Stmt
-	Symbols     *SymbolMap
+	Symbols     SymbolMap
 	ModuleScope *Scope
 	ExportsRef  Ref
 	ModuleRef   Ref
@@ -1047,7 +1047,7 @@ type AST struct {
 // Returns the canonical ref that represents the ref for the provided symbol.
 // This may not be the provided ref if the symbol has been merged with another
 // symbol.
-func FollowSymbols(symbols *SymbolMap, ref Ref) Ref {
+func FollowSymbols(symbols SymbolMap, ref Ref) Ref {
 	symbol := symbols.Get(ref)
 	if symbol.Link == InvalidRef {
 		return ref
@@ -1068,7 +1068,7 @@ func FollowSymbols(symbols *SymbolMap, ref Ref) Ref {
 // concurrent map update hazards. In Go, mutating a map is not threadsafe
 // but reading from a map is. Calling "FollowAllSymbols" first ensures that
 // all mutation is done up front.
-func FollowAllSymbols(symbols *SymbolMap) {
+func FollowAllSymbols(symbols SymbolMap) {
 	for sourceIndex, inner := range symbols.Outer {
 		for symbolIndex, _ := range inner {
 			FollowSymbols(symbols, Ref{uint32(sourceIndex), uint32(symbolIndex)})
@@ -1079,7 +1079,7 @@ func FollowAllSymbols(symbols *SymbolMap) {
 // Makes "old" point to "new" by joining the linked lists for the two symbols
 // together. That way "FollowSymbols" on both "old" and "new" will result in
 // the same ref.
-func MergeSymbols(symbols *SymbolMap, old Ref, new Ref) Ref {
+func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	if old == new {
 		return new
 	}

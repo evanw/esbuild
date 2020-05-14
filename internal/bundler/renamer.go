@@ -8,7 +8,7 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
-func computeReservedNames(moduleScopes []*ast.Scope, symbols *ast.SymbolMap) map[string]bool {
+func computeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[string]bool {
 	names := make(map[string]bool)
 
 	// All keywords are reserved names
@@ -106,7 +106,7 @@ func (r *renamer) findUnusedName(name string) string {
 	return name
 }
 
-func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols *ast.SymbolMap) {
+func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols ast.SymbolMap) {
 	reservedNameCounts := make(map[string]uint32)
 	for name, _ := range reservedNames {
 		// Each name starts off with a count of 1 so that the first collision with
@@ -130,7 +130,7 @@ func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 	}
 }
 
-func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
+func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
 	sorted := sortedSymbolsInScope(scope)
 
 	// Rename all symbols in this scope
@@ -156,7 +156,7 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap,
 	}
 }
 
-func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols *ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
+func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
 	r := &renamer{parent, make(map[string]uint32)}
 	r.renameSymbolsInScope(scope, symbols, alreadyRenamed)
 
@@ -169,7 +169,7 @@ func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols *ast.
 ////////////////////////////////////////////////////////////////////////////////
 // minifyAllSymbols() implementation
 
-func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols *ast.SymbolMap, nextName int) {
+func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols ast.SymbolMap, nextName int) {
 	g := minifyGroup{[]uint32{}, make(map[ast.Ref]uint32)}
 	var next uint32 = 0
 
@@ -249,7 +249,7 @@ func (g *minifyGroup) countSymbol(slot uint32, ref ast.Ref, count uint32) bool {
 	return true
 }
 
-func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap, next uint32) uint32 {
+func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, next uint32) uint32 {
 	sorted := sortedSymbolsInScope(scope)
 
 	for _, i := range sorted {
@@ -272,7 +272,7 @@ func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolM
 	return next
 }
 
-func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols *ast.SymbolMap, next uint32, labelCount uint32) uint32 {
+func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols ast.SymbolMap, next uint32, labelCount uint32) uint32 {
 	next = g.countSymbolsInScope(scope, symbols, next)
 
 	// Labels are in a separate namespace from symbols

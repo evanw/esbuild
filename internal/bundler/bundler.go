@@ -452,7 +452,7 @@ func (b *Bundle) compileFile(
 
 // Join the JavaScript files together into a bundle
 func (b *Bundle) generateJavaScriptForEntryPoint(
-	files []file, symbols *ast.SymbolMap, compileResults map[uint32]*compileResult, groups [][]uint32, options *BundleOptions,
+	files []file, symbols ast.SymbolMap, compileResults map[uint32]*compileResult, groups [][]uint32, options *BundleOptions,
 	entryPoint uint32, jsName string, sourceIndexToOutputIndex []uint32, moduleInfos []moduleInfo,
 ) (result BundleResult, generatedOffsets map[uint32]lineColumnOffset) {
 	prevOffset := 0
@@ -716,7 +716,7 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 	}
 }
 
-func (b *Bundle) mergeAllSymbolsIntoOneMap(files []file) *ast.SymbolMap {
+func (b *Bundle) mergeAllSymbolsIntoOneMap(files []file) ast.SymbolMap {
 	// Make a new symbol map that can hold symbols from all files
 	symbols := ast.NewSymbolMap(len(files))
 
@@ -803,7 +803,7 @@ type exportStar struct {
 	path              ast.Path
 }
 
-func includeDecls(decls []ast.Decl, symbols *ast.SymbolMap, exports map[string]ast.Ref) {
+func includeDecls(decls []ast.Decl, symbols ast.SymbolMap, exports map[string]ast.Ref) {
 	var visitBinding func(ast.Binding)
 
 	visitBinding = func(binding ast.Binding) {
@@ -834,7 +834,7 @@ func includeDecls(decls []ast.Decl, symbols *ast.SymbolMap, exports map[string]a
 }
 
 func (b *Bundle) extractImportsAndExports(
-	log logging.Log, files []file, symbols *ast.SymbolMap, sourceIndex uint32,
+	log logging.Log, files []file, symbols ast.SymbolMap, sourceIndex uint32,
 	moduleInfos []moduleInfo, namespaceForImportItem map[ast.Ref]ast.Ref, options *BundleOptions,
 ) {
 	file := &files[sourceIndex]
@@ -1094,7 +1094,7 @@ func addExportStar(moduleInfos []moduleInfo, visited map[uint32]bool, sourceInde
 }
 
 func (b *Bundle) bindImportsAndExports(
-	log logging.Log, files []file, symbols *ast.SymbolMap, group []uint32,
+	log logging.Log, files []file, symbols ast.SymbolMap, group []uint32,
 	moduleInfos []moduleInfo, options *BundleOptions,
 ) runtime.Sym {
 	// These runtime symbols are currently always required by the bundler, since
@@ -1222,7 +1222,7 @@ func (b *Bundle) bindImportsAndExports(
 	return usedRuntimeSyms
 }
 
-func markExportsAsUnboundInDecls(decls []ast.Decl, symbols *ast.SymbolMap) {
+func markExportsAsUnboundInDecls(decls []ast.Decl, symbols ast.SymbolMap) {
 	var visitBinding func(ast.Binding)
 
 	visitBinding = func(binding ast.Binding) {
@@ -1255,7 +1255,7 @@ func markExportsAsUnboundInDecls(decls []ast.Decl, symbols *ast.SymbolMap) {
 // Marking a symbol as unbound prevents it from being renamed or minified.
 // This is only used when a module is compiled independently. We use a very
 // different way of handling exports and renaming/minifying when bundling.
-func (b *Bundle) markExportsAsUnbound(f file, symbols *ast.SymbolMap) {
+func (b *Bundle) markExportsAsUnbound(f file, symbols ast.SymbolMap) {
 	hasImportOrExport := false
 
 	for _, stmt := range f.ast.Stmts {
@@ -1301,7 +1301,7 @@ func (b *Bundle) markExportsAsUnbound(f file, symbols *ast.SymbolMap) {
 	}
 }
 
-func (b *Bundle) renameOrMinifyAllSymbolsInRuntime(files []file, symbols *ast.SymbolMap, options *BundleOptions) {
+func (b *Bundle) renameOrMinifyAllSymbolsInRuntime(files []file, symbols ast.SymbolMap, options *BundleOptions) {
 	// Operate on all module-level scopes in all files
 	moduleScopes := make([]*ast.Scope, len(files))
 	for sourceIndex, _ := range files {
@@ -1323,7 +1323,7 @@ func (b *Bundle) renameOrMinifyAllSymbolsInRuntime(files []file, symbols *ast.Sy
 }
 
 // Ensures all symbol names are valid non-colliding identifiers
-func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols *ast.SymbolMap, group []uint32, options *BundleOptions) {
+func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols ast.SymbolMap, group []uint32, options *BundleOptions) {
 	// Operate on all module-level scopes in this module group
 	moduleScopes := make([]*ast.Scope, len(group))
 	for i, sourceIndex := range group {

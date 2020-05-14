@@ -8605,7 +8605,7 @@ func (p *parser) prepareForVisitPass() {
 
 func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string) ast.AST {
 	// Make a symbol map that contains our file's symbols
-	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
+	symbols := ast.NewSymbolMap(int(source.Index) + 1)
 	symbols.Outer[source.Index] = p.symbols
 
 	// The following features cause us to need CommonJS mode:
@@ -8623,7 +8623,7 @@ func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string)
 		UsesCommonJSFeatures: usesCommonJSFeatures,
 		Stmts:                stmts,
 		ModuleScope:          p.moduleScope,
-		Symbols:              &symbols,
+		Symbols:              symbols,
 		ExportsRef:           p.exportsRef,
 		ModuleRef:            p.moduleRef,
 		Hashbang:             hashbang,
