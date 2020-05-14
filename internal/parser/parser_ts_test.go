@@ -1123,6 +1123,19 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrintedTS(t, "export type {foo} from 'bar'\nx", "x;\n")
 	expectPrintedTS(t, "export type {default} from 'bar'", "")
 	expectParseErrorTS(t, "export type {default}", "<stdin>: error: Expected identifier but found \"default\"\n")
+
+	// Named exports should be removed if they don't refer to a local symbol
+	expectPrintedTS(t, "const Foo = {}; export {Foo}", "const Foo = {};\nexport {Foo};\n")
+	expectPrintedTS(t, "type Foo = {}; export {Foo}", "")
+	expectPrintedTS(t, "const Foo = {}; export {Foo as Bar}", "const Foo = {};\nexport {Foo as Bar};\n")
+	expectPrintedTS(t, "type Foo = {}; export {Foo as Bar}", "")
+	expectPrintedTS(t, "import Foo from 'foo'; export {Foo}", "import Foo from \"foo\";\nexport {Foo};\n")
+	expectPrintedTS(t, "import {Foo} from 'foo'; export {Foo}", "import {Foo} from \"foo\";\nexport {Foo};\n")
+	expectPrintedTS(t, "import * as Foo from 'foo'; export {Foo}", "import * as Foo from \"foo\";\nexport {Foo};\n")
+	expectPrintedTS(t, "{ var Foo; } export {Foo}", "{\n  var Foo;\n}\nexport {Foo};\n")
+	expectPrintedTS(t, "{ let Foo; } export {Foo}", "{\n  let Foo;\n}\n")
+	expectPrintedTS(t, "export {Foo}", "")
+	expectPrinted(t, "export {Foo}", "export {Foo};\n")
 }
 
 func TestTSJSX(t *testing.T) {

@@ -8238,7 +8238,7 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.isThisCaptured = oldIsThisCaptured
 }
 
-func (p *parser) scanForImportPaths(stmts []ast.Stmt, isBundling bool) []ast.Stmt {
+func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []ast.Stmt {
 	stmtsEnd := 0
 
 	for _, stmt := range stmts {
@@ -8378,6 +8378,24 @@ func (p *parser) scanForImportPaths(stmts []ast.Stmt, isBundling bool) []ast.Stm
 			// Only track import paths if we want dependencies
 			if isBundling {
 				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
+			}
+
+		case *ast.SExportClause:
+			// Strip exports of non-local symbols in TypeScript, since those likely
+			// correspond to type-only exports
+			if p.ts.Parse {
+				itemsEnd := 0
+				for _, item := range s.Items {
+					if p.symbols[item.Name.Ref.InnerIndex].Kind != ast.SymbolUnbound {
+						s.Items[itemsEnd] = item
+						itemsEnd++
+					}
+				}
+				if itemsEnd == 0 {
+					// Remove empty export statements entirely
+					continue
+				}
+				s.Items = s.Items[:itemsEnd]
 			}
 		}
 
@@ -8541,7 +8559,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		stmts = append(stmts, *p.exportEqualsStmt)
 	}
 
-	stmts = p.scanForImportPaths(stmts, options.IsBundling)
+	stmts = p.scanForImportsAndExports(stmts, options.IsBundling)
 	result = p.toAST(source, stmts, hashbang)
 	result.WasTypeScript = options.TS.Parse
 	return
