@@ -108,19 +108,20 @@ func parseFile(
 		results <- parseResult{source.Index, ast, true}
 
 	case LoaderDataURL:
-		mimeType := mime.TypeByExtension(extension)
+		mimeType := bundleOptions.MimeTypeForStdin
+
+		if mimeType == "" {
+			mimeType = bundleOptions.ExtensionToMimeType[extension]
+		}
+
+		if mimeType == "" {
+			mimeType = mime.TypeByExtension(extension)
+		}
 		if mimeType == "" {
 			mimeType = http.DetectContentType([]byte(source.Contents))
 		}
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + mimeType + ";base64," + encoded
-		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
-		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source.Index, ast, true}
-
-	case LoaderSVG:
-		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		url := "data:image/svg+xml;base64," + encoded
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source.Index, ast, true}
@@ -290,6 +291,10 @@ func DefaultExtensionToLoaderMap() map[string]Loader {
 	}
 }
 
+func DefaultExtensionToMimeType() map[string]string {
+	return map[string]string{}
+}
+
 type Format uint8
 
 const (
@@ -325,19 +330,21 @@ type BundleOptions struct {
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	AbsOutputFile     string
-	AbsOutputDir      string
-	RemoveWhitespace  bool
-	MinifyIdentifiers bool
-	MangleSyntax      bool
-	SourceMap         bool
-	ModuleName        string
-	ExtensionToLoader map[string]Loader
-	OutputFormat      Format
+	AbsOutputFile       string
+	AbsOutputDir        string
+	RemoveWhitespace    bool
+	MinifyIdentifiers   bool
+	MangleSyntax        bool
+	SourceMap           bool
+	ModuleName          string
+	ExtensionToLoader   map[string]Loader
+	ExtensionToMimeType map[string]string
+	OutputFormat        Format
 
 	// If this isn't LoaderNone, all entry point contents are assumed to come
 	// from stdin and must be loaded with this loader
-	LoaderForStdin Loader
+	LoaderForStdin   Loader
+	MimeTypeForStdin string
 
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool
@@ -1422,6 +1429,10 @@ func (b *Bundle) computeModuleGroups(
 func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
+	}
+
+	if options.ExtensionToMimeType == nil {
+		options.ExtensionToMimeType = DefaultExtensionToMimeType()
 	}
 
 	if options.OutputFormat == FormatNone {

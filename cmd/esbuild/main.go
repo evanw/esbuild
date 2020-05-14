@@ -180,7 +180,8 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			Defines: make(map[string]parser.DefineFunc),
 		},
 		bundleOptions: bundler.BundleOptions{
-			ExtensionToLoader: bundler.DefaultExtensionToLoaderMap(),
+			ExtensionToLoader:   bundler.DefaultExtensionToLoaderMap(),
+			ExtensionToMimeType: bundler.DefaultExtensionToMimeType(),
 		},
 		resolveOptions: resolver.ResolveOptions{
 			ExtensionOrder:  []string{".tsx", ".ts", ".jsx", ".mjs", ".cjs", ".js", ".json"},
@@ -286,6 +287,26 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			} else {
 				args.bundleOptions.LoaderForStdin = parsedLoader
 			}
+
+		case strings.HasPrefix(arg, "--mime-type:"):
+			text := arg[len("--mime-type:"):]
+			equals := strings.IndexByte(text, '=')
+			if equals == -1 {
+				return argsObject{}, fmt.Errorf("Missing \"=\": %s", arg)
+			}
+			extension, mimeType := text[:equals], text[equals+1:]
+			if !strings.HasPrefix(extension, ".") {
+				return argsObject{}, fmt.Errorf("File extension  for mime type must start with \".\": %s", arg)
+			}
+			if len(extension) < 2 || strings.ContainsRune(extension[1:], '.') {
+				return argsObject{}, fmt.Errorf("Invalid file extension for mime type: %s", arg)
+			}
+
+			args.bundleOptions.ExtensionToMimeType[extension] = mimeType
+
+		case strings.HasPrefix(arg, "--mime-type="):
+			mimeType := arg[len("--mime-type="):]
+			args.bundleOptions.MimeTypeForStdin = mimeType
 
 		case strings.HasPrefix(arg, "--target="):
 			switch arg[len("--target="):] {
