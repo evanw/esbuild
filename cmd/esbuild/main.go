@@ -155,8 +155,6 @@ func (args *argsObject) parseLoader(text string) bundler.Loader {
 		return bundler.LoaderBase64
 	case "dataurl":
 		return bundler.LoaderDataURL
-	case "svg":
-		return bundler.LoaderSVG
 	default:
 		return bundler.LoaderNone
 	}

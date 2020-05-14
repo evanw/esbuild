@@ -275,7 +275,6 @@ const (
 	LoaderText
 	LoaderBase64
 	LoaderDataURL
-	LoaderSVG
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {
