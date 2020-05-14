@@ -298,6 +298,15 @@ const (
 	FormatCommonJS
 )
 
+type SourceMap uint8
+
+const (
+	SourceMapNone SourceMap = iota
+	SourceMapInline
+	SourceMapLinkedWithComment
+	SourceMapExternalWithoutComment
+)
+
 type BundleOptions struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
@@ -308,10 +317,12 @@ type BundleOptions struct {
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool
-	SourceMap         bool
 	ModuleName        string
 	ExtensionToLoader map[string]Loader
 	OutputFormat      Format
+
+	SourceMap  SourceMap
+	SourceFile string // The "original file path" for the source map
 
 	// If this isn't LoaderNone, all entry point contents are assumed to come
 	// from stdin and must be loaded with this loader
@@ -348,7 +359,7 @@ func (b *Bundle) compileFile(
 	options *BundleOptions, sourceIndex uint32, f file, sourceIndexToOutputIndex []uint32,
 ) compileResult {
 	sourceMapContents := &b.sources[sourceIndex].Contents
-	if !options.SourceMap {
+	if options.SourceMap == SourceMapNone {
 		sourceMapContents = nil
 	}
 	tree := f.ast
@@ -391,7 +402,7 @@ func (b *Bundle) compileFile(
 		ResolvedImports:   remappedResolvedImports,
 		RuntimeSymRefs:    runtimeSymRefs,
 	})}
-	if options.SourceMap {
+	if options.SourceMap != SourceMapNone {
 		result.quotedSource = printer.QuoteForJSON(b.sources[sourceIndex].Contents)
 	}
 	return result
@@ -567,8 +578,12 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 	comma := ""
 	for _, group := range groups {
 		for _, sourceIndex := range group {
+			sourceFile := b.sources[sourceIndex].PrettyPath
+			if options.SourceFile != "" {
+				sourceFile = options.SourceFile
+			}
 			buffer = append(buffer, comma...)
-			buffer = append(buffer, printer.QuoteForJSON(b.sources[sourceIndex].PrettyPath)...)
+			buffer = append(buffer, printer.QuoteForJSON(sourceFile)...)
 			comma = ", "
 		}
 	}
@@ -636,17 +651,26 @@ func (b *Bundle) generateSourceMapForEntryPoint(
 	buffer = append(buffer, ",\n  \"names\": []\n}\n"...)
 
 	// Generate the output
-	if options.RemoveWhitespace {
-		item.JsContents = removeTrailing(item.JsContents, '\n')
-	}
-	if options.WriteToStdout {
+	switch options.SourceMap {
+	case SourceMapInline:
+		if options.RemoveWhitespace {
+			item.JsContents = removeTrailing(item.JsContents, '\n')
+		}
 		item.JsContents = append(item.JsContents,
 			("//# sourceMappingURL=data:application/json;base64," + base64.StdEncoding.EncodeToString(buffer) + "\n")...)
-	} else {
+
+	case SourceMapLinkedWithComment, SourceMapExternalWithoutComment:
 		item.SourceMapAbsPath = item.JsAbsPath + ".map"
 		item.SourceMapContents = buffer
-		item.JsContents = append(item.JsContents,
-			("//# sourceMappingURL=" + b.fs.Base(item.SourceMapAbsPath) + "\n")...)
+
+		// Add a comment linking the source to its map
+		if options.SourceMap == SourceMapLinkedWithComment {
+			if options.RemoveWhitespace {
+				item.JsContents = removeTrailing(item.JsContents, '\n')
+			}
+			item.JsContents = append(item.JsContents,
+				("//# sourceMappingURL=" + b.fs.Base(item.SourceMapAbsPath) + "\n")...)
+		}
 	}
 }
 
@@ -1480,7 +1504,7 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 			item.JsContents = addTrailing(js, '\n')
 
 			// Optionally also generate a source map
-			if options.SourceMap {
+			if options.SourceMap != SourceMapNone {
 				compileResults := map[uint32]*compileResult{sourceIndex: &result}
 				groups := [][]uint32{[]uint32{sourceIndex}}
 				b.generateSourceMapForEntryPoint(compileResults, generatedOffsets, groups, options, item)
@@ -1598,7 +1622,7 @@ func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []Bundle
 				entryPoint, jsName, sourceIndexToOutputIndex, moduleInfos)
 
 			// Optionally also generate a source map
-			if options.SourceMap {
+			if options.SourceMap != SourceMapNone {
 				b.generateSourceMapForEntryPoint(compileResults, generatedOffsets, groups, options, &item)
 			}
 

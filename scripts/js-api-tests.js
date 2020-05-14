@@ -1,4 +1,5 @@
 const { installForTests } = require('./esbuild')
+const { SourceMapConsumer } = require('source-map')
 const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
@@ -59,6 +60,42 @@ let tests = {
     const { js } = await service.transform(`\x00\x01\x02`, { loader: 'base64' })
     assert.strictEqual(js, `module.exports = "AAEC";\n`)
   },
+
+  async sourceMap({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true })
+    assert.strictEqual(js, `let x;\n`)
+    await assertSourceMap(jsSourceMap, '/input.js')
+  },
+
+  async sourceMapWithName({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js' })
+    assert.strictEqual(js, `let x;\n`)
+    await assertSourceMap(jsSourceMap, 'afile.js')
+  },
+
+  async sourceMapInline({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'inline' })
+    assert(js.startsWith(`let x;\n//# sourceMappingURL=`))
+    assert.strictEqual(jsSourceMap, undefined)
+    const base64 = js.slice(js.indexOf('base64,') + 'base64,'.length)
+    await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), '/input.js')
+  },
+
+  async sourceMapInlineWithName({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'inline', sourcefile: 'afile.js' })
+    assert(js.startsWith(`let x;\n//# sourceMappingURL=`))
+    assert.strictEqual(jsSourceMap, undefined)
+    const base64 = js.slice(js.indexOf('base64,') + 'base64,'.length)
+    await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
+  },
+}
+
+async function assertSourceMap(jsSourceMap, source) {
+  const map = await new SourceMapConsumer(jsSourceMap)
+  const original = map.originalPositionFor({ line: 1, column: 4 })
+  assert.strictEqual(original.source, source)
+  assert.strictEqual(original.line, 1)
+  assert.strictEqual(original.column, 10)
 }
 
 async function main() {

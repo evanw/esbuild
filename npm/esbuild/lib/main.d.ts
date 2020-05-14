@@ -4,7 +4,8 @@ export declare type Format = 'iife' | 'cjs';
 export declare type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64';
 
 interface CommonOptions {
-  sourcemap?: boolean;
+  sourcemap?: boolean | 'inline' | 'external';
+  sourcefile?: string;
   errorLimit?: number;
   target?: Target;
 

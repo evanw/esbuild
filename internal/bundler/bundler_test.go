@@ -2563,7 +2563,7 @@ func TestSourceMap(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			SourceMap:     true,
+			SourceMap:     SourceMapLinkedWithComment,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{

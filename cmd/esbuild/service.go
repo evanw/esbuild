@@ -230,7 +230,7 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 	}
 	for _, result := range results {
 		response[result.JsAbsPath] = result.JsContents
-		if args.bundleOptions.SourceMap {
+		if result.SourceMapAbsPath != "" {
 			response[result.SourceMapAbsPath] = result.SourceMapContents
 		}
 	}
