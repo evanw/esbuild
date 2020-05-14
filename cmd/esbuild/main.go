@@ -296,7 +296,7 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			}
 			extension, mimeType := text[:equals], text[equals+1:]
 			if !strings.HasPrefix(extension, ".") {
-				return argsObject{}, fmt.Errorf("File extension  for mime type must start with \".\": %s", arg)
+				return argsObject{}, fmt.Errorf("File extension for mime type must start with \".\": %s", arg)
 			}
 			if len(extension) < 2 || strings.ContainsRune(extension[1:], '.') {
 				return argsObject{}, fmt.Errorf("Invalid file extension for mime type: %s", arg)
