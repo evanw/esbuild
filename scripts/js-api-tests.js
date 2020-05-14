@@ -1,4 +1,5 @@
 const { installForTests } = require('./esbuild')
+const { SourceMapConsumer } = require('source-map')
 const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
@@ -69,6 +70,41 @@ let tests = {
     const { js } = await service.transform(`<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" /></svg>`, { loader: 'dataurl', mimeType: 'image/svg+xml' })
     assert.strictEqual(js, `module.exports = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNDAiIHN0cm9rZT0iZ3JlZW4iIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ieWVsbG93IiAvPjwvc3ZnPg==";\n`)
   },
+  async sourceMap({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true })
+    assert.strictEqual(js, `let x;\n`)
+    await assertSourceMap(jsSourceMap, '/input.js')
+  },
+
+  async sourceMapWithName({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js' })
+    assert.strictEqual(js, `let x;\n`)
+    await assertSourceMap(jsSourceMap, 'afile.js')
+  },
+
+  async sourceMapInline({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'inline' })
+    assert(js.startsWith(`let x;\n//# sourceMappingURL=`))
+    assert.strictEqual(jsSourceMap, undefined)
+    const base64 = js.slice(js.indexOf('base64,') + 'base64,'.length)
+    await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), '/input.js')
+  },
+
+  async sourceMapInlineWithName({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'inline', sourcefile: 'afile.js' })
+    assert(js.startsWith(`let x;\n//# sourceMappingURL=`))
+    assert.strictEqual(jsSourceMap, undefined)
+    const base64 = js.slice(js.indexOf('base64,') + 'base64,'.length)
+    await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
+  },
+}
+
+async function assertSourceMap(jsSourceMap, source) {
+  const map = await new SourceMapConsumer(jsSourceMap)
+  const original = map.originalPositionFor({ line: 1, column: 4 })
+  assert.strictEqual(original.source, source)
+  assert.strictEqual(original.line, 1)
+  assert.strictEqual(original.column, 10)
 }
 
 async function main() {

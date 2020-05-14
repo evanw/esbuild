@@ -29,7 +29,6 @@ Options:
   --outfile=...         The output file (for one entry point)
   --outdir=...          The output directory (for multiple entry points)
   --sourcemap           Emit a source map
-  --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
@@ -49,9 +48,15 @@ Options:
   --mime-type:X=L       Use mime type L to read file extension X,
                         only applicable when loader is dataurl for that extension
 
+Advanced options:
+  --version             Print the current version and exit (` + esbuildVersion + `)
+  --sourcemap=inline    Emit the source map with an inline data URL
+  --sourcemap=external  Do not link to the source map with a comment
+  --sourcefile=...      Set the source file for the source map (for stdin)
+  --error-limit=...     Maximum error count or 0 to disable (default 10)
+
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
-  --version             Print the current version and exit (` + esbuildVersion + `)
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
@@ -64,7 +69,7 @@ Examples:
   esbuild example.js --outfile=out.js --define:RELEASE=true
 
   # Provide input via stdin, get output via stdout
-  esbuild --minify < input.js > output.js
+  esbuild --minify --loader=ts < input.ts > output.js
 
 `
 
@@ -217,7 +222,16 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			args.bundleOptions.MinifyIdentifiers = true
 
 		case arg == "--sourcemap":
-			args.bundleOptions.SourceMap = true
+			args.bundleOptions.SourceMap = bundler.SourceMapLinkedWithComment
+
+		case arg == "--sourcemap=external":
+			args.bundleOptions.SourceMap = bundler.SourceMapExternalWithoutComment
+
+		case arg == "--sourcemap=inline":
+			args.bundleOptions.SourceMap = bundler.SourceMapInline
+
+		case strings.HasPrefix(arg, "--sourcefile="):
+			args.bundleOptions.SourceFile = arg[len("--sourcefile="):]
 
 		case strings.HasPrefix(arg, "--error-limit="):
 			value, err := strconv.Atoi(arg[len("--error-limit="):])
@@ -429,6 +443,9 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		// Write to stdout by default if there's only one input file
 		if len(args.entryPaths) == 1 && args.bundleOptions.AbsOutputFile == "" && args.bundleOptions.AbsOutputDir == "" {
 			args.bundleOptions.WriteToStdout = true
+			if args.bundleOptions.SourceMap != bundler.SourceMapNone {
+				args.bundleOptions.SourceMap = bundler.SourceMapInline
+			}
 		}
 	} else if !logging.GetTerminalInfo(os.Stdin).IsTTY {
 		// If called with no input files and we're not a TTY, read from stdin instead
@@ -445,6 +462,9 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 				return argsObject{}, fmt.Errorf("Cannot use --outdir when reading from stdin")
 			}
 			args.bundleOptions.WriteToStdout = true
+			if args.bundleOptions.SourceMap != bundler.SourceMapNone {
+				args.bundleOptions.SourceMap = bundler.SourceMapInline
+			}
 		}
 	}
 
@@ -592,7 +612,7 @@ func run(fs fs.FS, args argsObject) {
 		}
 
 		// Also write the source map
-		if args.bundleOptions.SourceMap {
+		if item.SourceMapAbsPath != "" {
 			err := ioutil.WriteFile(item.SourceMapAbsPath, item.SourceMapContents, 0644)
 			path := resolver.PrettyPath(item.SourceMapAbsPath)
 			if err != nil {

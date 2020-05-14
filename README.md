@@ -173,7 +173,6 @@ Options:
   --outfile=...         The output file (for one entry point)
   --outdir=...          The output directory (for multiple entry points)
   --sourcemap           Emit a source map
-  --error-limit=...     Maximum error count or 0 to disable (default 10)
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
@@ -193,9 +192,15 @@ Options:
   --mime-type:X=L       Use mime type L to read file extension X,
                         only applicable when loader is dataurl for that extension
 
+Advanced options:
+  --version             Print the current version and exit
+  --sourcemap=inline    Emit the source map with an inline data URL
+  --sourcemap=external  Do not link to the source map with a comment
+  --sourcefile=...      Set the source file for the source map (for stdin)
+  --error-limit=...     Maximum error count or 0 to disable (default 10)
+
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
-  --version             Print the current version and exit
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
@@ -208,7 +213,7 @@ Examples:
   esbuild example.js --outfile=out.js --define:RELEASE=true
 
   # Provide input via stdin, get output via stdout
-  esbuild --minify < input.js > output.js
+  esbuild --minify --loader=ts < input.ts > output.js
 ```
 
 ## JavaScript API usage
