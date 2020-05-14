@@ -117,6 +117,7 @@ func parseFile(
 		if mimeType == "" {
 			mimeType = mime.TypeByExtension(extension)
 		}
+
 		if mimeType == "" {
 			mimeType = http.DetectContentType([]byte(source.Contents))
 		}
