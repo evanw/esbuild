@@ -8788,6 +8788,33 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	}
 	parts = parts[:partsEnd]
 
+	// Analyze cross-part dependencies for tree shaking and code splitting
+	if p.isBundling {
+		// Map locals to parts
+		localToParts := make([][]uint32, len(p.symbols))
+		for partIndex, part := range parts {
+			if !part.CanBeRemovedIfUnused {
+				// Optimization: skip this if there are side effects because it'll have
+				// to be included anyway
+				continue
+			}
+			for _, ref := range part.DeclaredSymbols {
+				localToParts[ref.InnerIndex] = append(localToParts[ref.InnerIndex], uint32(partIndex))
+			}
+		}
+
+		// Each part tracks the other parts it depends on within this file
+		for partIndex, part := range parts {
+			localDependencies := make(map[uint32]bool)
+			for ref, _ := range part.UseCountEstimates {
+				for _, otherPart := range localToParts[ref.InnerIndex] {
+					localDependencies[otherPart] = true
+				}
+			}
+			parts[partIndex].LocalDependencies = localDependencies
+		}
+	}
+
 	result = p.toAST(source, parts, hashbang)
 	result.WasTypeScript = options.TS.Parse
 	return
