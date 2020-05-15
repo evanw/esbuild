@@ -8441,11 +8441,161 @@ func (p *parser) appendPart(parts []ast.Part, stmts []ast.Stmt) []ast.Part {
 		UseCountEstimates: p.useCountEstimates,
 	}
 	if len(part.Stmts) > 0 {
+		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts)
 		part.DeclaredSymbols = p.declaredSymbols
 		part.ImportPaths = p.importPaths
 		parts = append(parts, part)
 	}
 	return parts
+}
+
+func (p *parser) stmtsCanBeRemovedIfUnused(stmts []ast.Stmt) bool {
+	for _, stmt := range stmts {
+		switch s := stmt.Data.(type) {
+		case *ast.SFunction:
+			// These never have side effects
+
+		case *ast.SClass:
+			if !p.classCanBeRemovedIfUnused(s.Class) {
+				return false
+			}
+
+		case *ast.SExpr:
+			if !p.exprCanBeRemovedIfUnused(s.Value) {
+				return false
+			}
+
+		case *ast.SLocal:
+			for _, decl := range s.Decls {
+				if !p.bindingCanBeRemovedIfUnused(decl.Binding) {
+					return false
+				}
+				if decl.Value != nil && !p.exprCanBeRemovedIfUnused(*decl.Value) {
+					return false
+				}
+			}
+
+		case *ast.SExportDefault:
+			switch {
+			case s.Value.Expr != nil:
+				if !p.exprCanBeRemovedIfUnused(*s.Value.Expr) {
+					return false
+				}
+
+			case s.Value.Stmt != nil:
+				switch s2 := s.Value.Stmt.Data.(type) {
+				case *ast.SFunction:
+					// These never have side effects
+
+				case *ast.SClass:
+					if !p.classCanBeRemovedIfUnused(s2.Class) {
+						return false
+					}
+
+				default:
+					panic("Internal error")
+				}
+			}
+
+		default:
+			// Assume that all statements not explicitly special-cased here have side
+			// effects, and cannot be removed even if unused
+			return false
+		}
+	}
+
+	return true
+}
+
+func (p *parser) classCanBeRemovedIfUnused(class ast.Class) bool {
+	if class.Extends != nil && !p.exprCanBeRemovedIfUnused(*class.Extends) {
+		return false
+	}
+
+	for _, property := range class.Properties {
+		if !p.exprCanBeRemovedIfUnused(property.Key) {
+			return false
+		}
+		if property.Value != nil && !p.exprCanBeRemovedIfUnused(*property.Value) {
+			return false
+		}
+		if property.Initializer != nil && !p.exprCanBeRemovedIfUnused(*property.Initializer) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (p *parser) bindingCanBeRemovedIfUnused(binding ast.Binding) bool {
+	switch b := binding.Data.(type) {
+	case *ast.BArray:
+		for _, item := range b.Items {
+			if !p.bindingCanBeRemovedIfUnused(item.Binding) {
+				return false
+			}
+			if item.DefaultValue != nil && !p.exprCanBeRemovedIfUnused(*item.DefaultValue) {
+				return false
+			}
+		}
+
+	case *ast.BObject:
+		for _, property := range b.Properties {
+			if !property.IsSpread && !p.exprCanBeRemovedIfUnused(property.Key) {
+				return false
+			}
+			if !p.bindingCanBeRemovedIfUnused(property.Value) {
+				return false
+			}
+			if property.DefaultValue != nil && !p.exprCanBeRemovedIfUnused(*property.DefaultValue) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *ast.ENull, *ast.EUndefined, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
+		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow:
+		return true
+
+	case *ast.EClass:
+		return p.classCanBeRemovedIfUnused(e.Class)
+
+	case *ast.EIdentifier:
+		symbol := p.symbols[e.Ref.InnerIndex]
+		if symbol.Kind != ast.SymbolUnbound {
+			return true
+		}
+
+	case *ast.EIf:
+		return p.exprCanBeRemovedIfUnused(e.Test) && p.exprCanBeRemovedIfUnused(e.Yes) && p.exprCanBeRemovedIfUnused(e.No)
+
+	case *ast.EArray:
+		for _, item := range e.Items {
+			if !p.exprCanBeRemovedIfUnused(item) {
+				return false
+			}
+		}
+		return true
+
+	case *ast.EObject:
+		for _, property := range e.Properties {
+			if property.Kind != ast.PropertySpread && !p.exprCanBeRemovedIfUnused(property.Key) {
+				return false
+			}
+			if property.Value != nil && !p.exprCanBeRemovedIfUnused(*property.Value) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Assume all other expression types have side effects and cannot be removed
+	return false
 }
 
 type LanguageTarget int8

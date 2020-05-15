@@ -1060,6 +1060,11 @@ type Part struct {
 
 	// An estimate of the number of uses of all symbols used within this part.
 	UseCountEstimates map[Ref]uint32
+
+	// If true, this part can be removed if none of the declared symbols are
+	// used. If the file containing this part is imported, then all parts that
+	// don't have this flag enabled must be included.
+	CanBeRemovedIfUnused bool
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.
