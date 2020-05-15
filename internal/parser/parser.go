@@ -6121,7 +6121,19 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SImport:
-		// This was already handled in "parseStmt"
+		if s.DefaultName != nil {
+			p.declaredSymbols = append(p.declaredSymbols, s.DefaultName.Ref)
+		}
+
+		if s.StarLoc != nil {
+			p.declaredSymbols = append(p.declaredSymbols, s.NamespaceRef)
+		}
+
+		if s.Items != nil {
+			for _, item := range *s.Items {
+				p.declaredSymbols = append(p.declaredSymbols, item.Name.Ref)
+			}
+		}
 
 	case *ast.SExportClause:
 		for i, item := range s.Items {
