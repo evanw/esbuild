@@ -1038,9 +1038,26 @@ type AST struct {
 	ExportsRef  Ref
 	ModuleRef   Ref
 
+	NamedExports map[string]NamedExport
+
 	// This is a bitwise-or of all runtime symbols used by this AST. Runtime
 	// symbols are used by ERuntimeCall expressions.
 	UsedRuntimeSyms runtime.Sym
+}
+
+type NamedExport struct {
+	// The symbol corresponding to this export.
+	Ref Ref
+
+	// The indices of the parts in this file that are needed if this export is
+	// used. Even though it's almost always only one part, it can sometimes be
+	// multiple parts. For example:
+	//
+	//   var foo = 'foo';
+	//   var foo = [foo];
+	//   export {foo};
+	//
+	LocalParts []uint32
 }
 
 // Each file is made up of multiple parts, and each part consists of one or

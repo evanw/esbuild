@@ -63,7 +63,7 @@ type parser struct {
 	// These are for handling ES6 imports and exports
 	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
 	isImportItem            map[ast.Ref]bool
-	exportAliases           map[string]bool
+	exportAliases           map[string]ast.NamedExport
 
 	// The parser does two passes and we need to pass the scope tree information
 	// from the first pass to the second pass. That's done by tracking the calls
@@ -510,25 +510,25 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 }
 
 func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts parseStmtOpts) {
-	switch d := binding.Data.(type) {
+	switch b := binding.Data.(type) {
 	case *ast.BMissing:
 
 	case *ast.BIdentifier:
-		name := p.loadNameFromRef(d.Ref)
+		name := p.loadNameFromRef(b.Ref)
 		if !opts.isTypeScriptDeclare {
-			d.Ref = p.declareSymbol(kind, binding.Loc, name)
+			b.Ref = p.declareSymbol(kind, binding.Loc, name)
 			if opts.isExport && p.enclosingNamespaceRef == nil {
-				p.recordExport(binding.Loc, name)
+				p.recordExport(binding.Loc, name, b.Ref)
 			}
 		}
 
 	case *ast.BArray:
-		for _, i := range d.Items {
+		for _, i := range b.Items {
 			p.declareBinding(kind, i.Binding, opts)
 		}
 
 	case *ast.BObject:
-		for _, property := range d.Properties {
+		for _, property := range b.Properties {
 			p.declareBinding(kind, property.Value, opts)
 		}
 
@@ -537,15 +537,15 @@ func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts p
 	}
 }
 
-func (p *parser) recordExport(loc ast.Loc, alias string) {
+func (p *parser) recordExport(loc ast.Loc, alias string, ref ast.Ref) {
 	// This is only an ES6 export if we're not inside a TypeScript namespace
 	if p.enclosingNamespaceRef == nil {
-		if p.exportAliases[alias] {
+		if _, ok := p.exportAliases[alias]; ok {
 			// Warn about duplicate exports
 			p.log.AddRangeError(p.source, lexer.RangeOfIdentifier(p.source, loc),
 				fmt.Sprintf("Multiple exports with the same name %q", alias))
 		} else {
-			p.exportAliases[alias] = true
+			p.exportAliases[alias] = ast.NamedExport{Ref: ref}
 		}
 	}
 }
@@ -3684,7 +3684,7 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		if !opts.isTypeScriptDeclare {
 			name.Ref = p.declareSymbol(ast.SymbolClass, nameLoc, nameText)
 			if opts.isExport {
-				p.recordExport(nameLoc, nameText)
+				p.recordExport(nameLoc, nameText, name.Ref)
 			}
 		}
 	}
@@ -3876,7 +3876,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	if !opts.isTypeScriptDeclare && name != nil {
 		name.Ref = p.declareSymbol(ast.SymbolHoistedFunction, name.Loc, nameText)
 		if opts.isExport {
-			p.recordExport(name.Loc, nameText)
+			p.recordExport(name.Loc, nameText, name.Ref)
 		}
 	}
 
@@ -3996,7 +3996,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					if _, ok := stmt.Data.(*ast.STypeScript); ok {
 						return stmt // This was just a type annotation
 					}
-					p.recordExport(defaultName.Loc, "default")
+					p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 
@@ -4013,14 +4013,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				if _, ok := stmt.Data.(*ast.STypeScript); ok {
 					return stmt // This was just a type annotation
 				}
-				p.recordExport(defaultName.Loc, "default")
+				p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
 			isIdentifier := p.lexer.Token == lexer.TIdentifier
 			name := p.lexer.Identifier
 
-			p.recordExport(defaultName.Loc, "default")
+			p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 			expr := p.parseExpr(ast.LComma)
 
 			// Handle the default export of an abstract class in TypeScript
@@ -4570,13 +4570,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					p.lexer.Expect(lexer.TEquals)
 					value := p.parseExpr(ast.LComma)
 					p.lexer.ExpectOrInsertSemicolon()
+					ref := p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)
 					decls := []ast.Decl{ast.Decl{
-						ast.Binding{stmt.DefaultName.Loc,
-							&ast.BIdentifier{p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)}},
+						ast.Binding{stmt.DefaultName.Loc, &ast.BIdentifier{ref}},
 						&value,
 					}}
 					if opts.isExport {
-						p.recordExport(stmt.DefaultName.Loc, defaultName)
+						p.recordExport(stmt.DefaultName.Loc, defaultName, ref)
 					}
 
 					// The kind of statement depends on the expression
@@ -4895,7 +4895,7 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		// export more than once, because then we will incorrectly detect duplicate
 		// exports.
 		if opts.isExport && !alreadyExists {
-			p.recordExport(nameLoc, nameText)
+			p.recordExport(nameLoc, nameText, name.Ref)
 		}
 	}
 	return ast.Stmt{loc, &ast.SNamespace{name, argRef, stmts, opts.isExport}}
@@ -6126,8 +6126,9 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SExportClause:
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
-			s.Items[i].Name.Ref = p.findSymbol(name).ref
-			p.recordExport(item.AliasLoc, item.Alias)
+			ref := p.findSymbol(name).ref
+			s.Items[i].Name.Ref = ref
+			p.recordExport(item.AliasLoc, item.Alias, ref)
 		}
 
 	case *ast.SExportFrom:
@@ -6140,8 +6141,9 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		// Path: this is a re-export and the names are symbols in another file
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
-			s.Items[i].Name.Ref = p.newSymbol(ast.SymbolUnbound, name)
-			p.recordExport(item.AliasLoc, item.Alias)
+			ref := p.newSymbol(ast.SymbolUnbound, name)
+			s.Items[i].Name.Ref = ref
+			p.recordExport(item.AliasLoc, item.Alias, ref)
 		}
 
 	case *ast.SExportStar:
@@ -6155,7 +6157,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			// the scope somehow so it will be minified.
 			p.currentScope.Generated = append(p.currentScope.Generated, ref)
 			s.Item.Name.Ref = ref
-			p.recordExport(s.Item.AliasLoc, s.Item.Alias)
+			p.recordExport(s.Item.AliasLoc, s.Item.Alias, ref)
 		}
 
 	case *ast.SExportDefault:
@@ -8671,7 +8673,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		// These are for handling ES6 imports and exports
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		isImportItem:            make(map[ast.Ref]bool),
-		exportAliases:           make(map[string]bool),
+		exportAliases:           make(map[string]ast.NamedExport),
 		identifierDefines:       make(map[string]DefineFunc),
 		dotDefines:              make(map[string]dotDefine),
 	}
@@ -8813,6 +8815,12 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 			}
 			parts[partIndex].LocalDependencies = localDependencies
 		}
+
+		// Also track the local parts needed by each export
+		for alias, namedExport := range p.exportAliases {
+			namedExport.LocalParts = localToParts[namedExport.Ref.InnerIndex]
+			p.exportAliases[alias] = namedExport
+		}
 	}
 
 	result = p.toAST(source, parts, hashbang)
@@ -8882,5 +8890,6 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 		ModuleRef:            p.moduleRef,
 		Hashbang:             hashbang,
 		UsedRuntimeSyms:      p.usedRuntimeSyms,
+		NamedExports:         p.exportAliases,
 	}
 }
