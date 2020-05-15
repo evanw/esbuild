@@ -324,14 +324,13 @@ const (
 	//
 	//   (() => {
 	//     ... bundled code ...
-	//     require(entryPoint);
 	//   })();
 	//
 	// If the optional ModuleName is configured, then we'll write out this:
 	//
 	//   let moduleName = (() => {
 	//     ... bundled code ...
-	//     return require(entryPoint);
+	//     return exports;
 	//   })();
 	//
 	FormatIIFE
@@ -339,9 +338,16 @@ const (
 	// The CommonJS format looks like this:
 	//
 	//   ... bundled code ...
-	//   module.exports = require(entryPoint);
+	//   module.exports = exports;
 	//
 	FormatCommonJS
+
+	// The ES module format looks like this:
+	//
+	//   ... bundled code ...
+	//   export {...};
+	//
+	FormatESModule
 )
 
 type SourceMap uint8

@@ -213,7 +213,7 @@ Options:
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
-  --format=...          Output format (iife or cjs)
+  --format=...          Output format (iife, cjs, es)
   --color=...           Force use of color terminal escapes (true or false)
 
   --minify              Sets all --minify-* flags
