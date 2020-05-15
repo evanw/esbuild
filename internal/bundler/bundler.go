@@ -869,8 +869,8 @@ func (b *Bundle) extractImportsAndExports(
 				otherSourceIndex, ok := file.resolvedImports[s.Path.Text]
 				isInSameGroup := ok && moduleInfos[otherSourceIndex].groupLabel == meta.groupLabel
 				namespaceLoc := stmt.Loc
-				if s.StarLoc != nil {
-					namespaceLoc = *s.StarLoc
+				if s.StarNameLoc != nil {
+					namespaceLoc = *s.StarNameLoc
 				}
 
 				if isInSameGroup {
@@ -883,7 +883,7 @@ func (b *Bundle) extractImportsAndExports(
 							meta.imports = append(meta.imports, importData{item.Alias, item.AliasLoc, otherSourceIndex, item.Name})
 						}
 					}
-					if s.StarLoc != nil {
+					if s.StarNameLoc != nil {
 						meta.imports = append(meta.imports, importData{"*", stmt.Loc, otherSourceIndex,
 							ast.LocRef{namespaceLoc, s.NamespaceRef}})
 					}
@@ -1565,6 +1565,12 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 }
 
 func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []BundleResult {
+	c := newLinkerContext(log, b.sources, b.files, b.entryPoints)
+	c.link()
+	return b.oldCompileBundle(log, options)
+}
+
+func (b *Bundle) oldCompileBundle(log logging.Log, options *BundleOptions) []BundleResult {
 	// Make a shallow copy of all files in the bundle so we don't mutate the bundle
 	files := append([]file{}, b.files...)
 

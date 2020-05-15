@@ -63,7 +63,8 @@ type parser struct {
 	// These are for handling ES6 imports and exports
 	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
 	isImportItem            map[ast.Ref]bool
-	exportAliases           map[string]ast.NamedExport
+	namedImports            map[ast.Ref]ast.NamedImport
+	namedExports            map[string]ast.NamedExport
 
 	// The parser does two passes and we need to pass the scope tree information
 	// from the first pass to the second pass. That's done by tracking the calls
@@ -540,12 +541,12 @@ func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts p
 func (p *parser) recordExport(loc ast.Loc, alias string, ref ast.Ref) {
 	// This is only an ES6 export if we're not inside a TypeScript namespace
 	if p.enclosingNamespaceRef == nil {
-		if _, ok := p.exportAliases[alias]; ok {
+		if _, ok := p.namedExports[alias]; ok {
 			// Warn about duplicate exports
 			p.log.AddRangeError(p.source, lexer.RangeOfIdentifier(p.source, loc),
 				fmt.Sprintf("Multiple exports with the same name %q", alias))
 		} else {
-			p.exportAliases[alias] = ast.NamedExport{Ref: ref}
+			p.namedExports[alias] = ast.NamedExport{Ref: ref}
 		}
 	}
 }
@@ -4504,7 +4505,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.ExpectContextualKeyword("as")
 			stmt.NamespaceRef = p.storeNameInRef(p.lexer.Identifier)
 			starLoc := p.lexer.Loc()
-			stmt.StarLoc = &starLoc
+			stmt.StarNameLoc = &starLoc
 			p.lexer.Expect(lexer.TIdentifier)
 			p.lexer.ExpectContextualKeyword("from")
 
@@ -4609,7 +4610,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					p.lexer.ExpectContextualKeyword("as")
 					stmt.NamespaceRef = p.storeNameInRef(p.lexer.Identifier)
 					starLoc := p.lexer.Loc()
-					stmt.StarLoc = &starLoc
+					stmt.StarNameLoc = &starLoc
 					p.lexer.Expect(lexer.TIdentifier)
 
 				case lexer.TOpenBrace:
@@ -4639,9 +4640,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			kind = ast.SymbolTSImport
 		}
 
-		if stmt.StarLoc != nil {
+		if stmt.StarNameLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
-			stmt.NamespaceRef = p.declareSymbol(kind, *stmt.StarLoc, name)
+			stmt.NamespaceRef = p.declareSymbol(kind, *stmt.StarNameLoc, name)
 		} else {
 			// Generate a symbol for the namespace
 			name := ast.GenerateNonUniqueNameFromPath(stmt.Path.Text)
@@ -4955,6 +4956,9 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 
 	if !opts.isTypeScriptDeclare {
 		p.popScope()
+		if opts.isExport {
+			p.recordExport(nameLoc, nameText, name.Ref)
+		}
 	}
 
 	p.lexer.Expect(lexer.TCloseBrace)
@@ -6125,7 +6129,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			p.declaredSymbols = append(p.declaredSymbols, s.DefaultName.Ref)
 		}
 
-		if s.StarLoc != nil {
+		if s.StarNameLoc != nil {
 			p.declaredSymbols = append(p.declaredSymbols, s.NamespaceRef)
 		}
 
@@ -6173,6 +6177,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SExportDefault:
+		if p.currentScope == p.moduleScope {
+			p.declaredSymbols = append(p.declaredSymbols, s.DefaultName.Ref)
+		}
+
 		switch {
 		case s.Value.Expr != nil:
 			*s.Value.Expr = p.visitExpr(*s.Value.Expr)
@@ -6503,6 +6511,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SEnum:
+		if p.currentScope == p.moduleScope {
+			p.declaredSymbols = append(p.declaredSymbols, s.Name.Ref)
+		}
+
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
 		defer p.popScope()
 
@@ -6625,6 +6637,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SNamespace:
+		if p.currentScope == p.moduleScope {
+			p.declaredSymbols = append(p.declaredSymbols, s.Name.Ref)
+		}
+
 		// Scan ahead for any variables inside this namespace. This must be done
 		// ahead of time before visiting any statements inside the namespace
 		// because we may end up visiting the uses before the declarations.
@@ -8029,9 +8045,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			path := ast.Path{e.Expr.Loc, lexer.UTF16ToString(str.Value)}
 
 			// Only track import paths if we want dependencies
-			if p.isBundling {
-				p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
-			}
+			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
 		}
 
 	case *ast.ECall:
@@ -8307,7 +8321,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 				}
 
 				// Remove the star import if it's unused
-				if s.StarLoc != nil {
+				if s.StarNameLoc != nil {
 					foundImports = true
 					symbol := p.symbols[s.NamespaceRef.InnerIndex]
 
@@ -8321,7 +8335,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 						// Make sure we don't remove this if it was used for a property
 						// access while bundling
 						if importItems, ok := p.importItemsForNamespace[s.NamespaceRef]; ok && len(importItems) == 0 {
-							s.StarLoc = nil
+							s.StarNameLoc = nil
 						}
 					}
 				}
@@ -8376,13 +8390,13 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 			if isBundling {
 				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
 
-				if s.StarLoc != nil {
+				if s.StarNameLoc != nil {
 					// If we're bundling a star import, add any import items we generated
 					// for this namespace while parsing as explicit import items instead.
 					// That will cause the bundler to bundle them more efficiently when
 					// both this module and the imported module are in the same group.
 					if importItems, ok := p.importItemsForNamespace[s.NamespaceRef]; ok && len(importItems) > 0 {
-						starLoc := *s.StarLoc
+						starLoc := *s.StarNameLoc
 						items := s.Items
 						if items == nil {
 							items = &[]ast.ClauseItem{}
@@ -8402,7 +8416,27 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 					// accesses directly with the appropriate symbols instead (since both
 					// this module and the imported module are in the same group).
 					if p.symbols[s.NamespaceRef.InnerIndex].UseCountEstimate == 0 {
-						s.StarLoc = nil
+						s.StarNameLoc = nil
+					}
+				}
+
+				if s.DefaultName != nil {
+					p.namedImports[s.DefaultName.Ref] = ast.NamedImport{
+						Alias:        "default",
+						AliasLoc:     s.DefaultName.Loc,
+						ImportPath:   s.Path.Text,
+						NamespaceRef: s.NamespaceRef,
+					}
+				}
+
+				if s.Items != nil {
+					for _, item := range *s.Items {
+						p.namedImports[item.Name.Ref] = ast.NamedImport{
+							Alias:        item.Alias,
+							AliasLoc:     item.AliasLoc,
+							ImportPath:   s.Path.Text,
+							NamespaceRef: s.NamespaceRef,
+						}
 					}
 				}
 			}
@@ -8417,6 +8451,18 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 			// Only track import paths if we want dependencies
 			if isBundling {
 				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
+
+				for _, item := range s.Items {
+					// Note that the imported alias is not item.Alias, which is the
+					// exported alias. This is somewhat confusing because each
+					// SExportFrom statement is basically SImport + SExportClause in one.
+					p.namedImports[item.Name.Ref] = ast.NamedImport{
+						Alias:        p.symbols[item.Name.Ref.InnerIndex].Name,
+						AliasLoc:     item.Name.Loc,
+						ImportPath:   s.Path.Text,
+						NamespaceRef: s.NamespaceRef,
+					}
+				}
 			}
 
 		case *ast.SExportClause:
@@ -8685,7 +8731,8 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		// These are for handling ES6 imports and exports
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
 		isImportItem:            make(map[ast.Ref]bool),
-		exportAliases:           make(map[string]ast.NamedExport),
+		namedImports:            make(map[ast.Ref]ast.NamedImport),
+		namedExports:            make(map[string]ast.NamedExport),
 		identifierDefines:       make(map[string]DefineFunc),
 		dotDefines:              make(map[string]dotDefine),
 	}
@@ -8824,14 +8871,20 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 				for _, otherPart := range localToParts[ref.InnerIndex] {
 					localDependencies[otherPart] = true
 				}
+
+				// Also map from imports to parts that use them
+				if namedImport, ok := p.namedImports[ref]; ok {
+					namedImport.PartsWithUses = append(namedImport.PartsWithUses, uint32(partIndex))
+					p.namedImports[ref] = namedImport
+				}
 			}
 			parts[partIndex].LocalDependencies = localDependencies
 		}
 
 		// Also track the local parts needed by each export
-		for alias, namedExport := range p.exportAliases {
+		for alias, namedExport := range p.namedExports {
 			namedExport.LocalParts = localToParts[namedExport.Ref.InnerIndex]
-			p.exportAliases[alias] = namedExport
+			p.namedExports[alias] = namedExport
 		}
 	}
 
@@ -8902,6 +8955,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 		ModuleRef:            p.moduleRef,
 		Hashbang:             hashbang,
 		UsedRuntimeSyms:      p.usedRuntimeSyms,
-		NamedExports:         p.exportAliases,
+		NamedImports:         p.namedImports,
+		NamedExports:         p.namedExports,
 	}
 }

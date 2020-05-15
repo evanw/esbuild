@@ -830,6 +830,100 @@ func TestExportSelfAsNamespace(t *testing.T) {
 	})
 }
 
+func TestExportChain(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {b as a} from './foo'
+			`,
+			"/foo.js": `
+				export {c as b} from './bar'
+			`,
+			"/bar.js": `
+				export const c = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(entry) {
+    // /bar.js
+    const c = 123;
+
+    // /foo.js
+
+    // /entry.js
+    __export(entry, {
+      a: () => c
+    });
+  }
+}, 1);
+`,
+		},
+	})
+}
+
+func TestExportInfiniteCycle1(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {a as b} from './entry'
+				export {b as c} from './entry'
+				export {c as d} from './entry'
+				export {d as a} from './entry'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.js: error: Detected cycle while resolving import "a"
+/entry.js: error: Detected cycle while resolving import "b"
+/entry.js: error: Detected cycle while resolving import "c"
+/entry.js: error: Detected cycle while resolving import "d"
+`,
+	})
+}
+
+func TestExportInfiniteCycle2(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {a as b} from './foo'
+				export {c as d} from './foo'
+			`,
+			"/foo.js": `
+				export {b as c} from './entry'
+				export {d as a} from './entry'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.js: error: Detected cycle while resolving import "a"
+/entry.js: error: Detected cycle while resolving import "c"
+/foo.js: error: Detected cycle while resolving import "b"
+/foo.js: error: Detected cycle while resolving import "d"
+`,
+	})
+}
+
 func TestJSXImportsCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

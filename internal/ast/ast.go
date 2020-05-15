@@ -724,7 +724,7 @@ type SImport struct {
 
 	DefaultName *LocRef
 	Items       *[]ClauseItem
-	StarLoc     *Loc
+	StarNameLoc *Loc
 	Path        Path
 }
 
@@ -1038,11 +1038,21 @@ type AST struct {
 	ExportsRef  Ref
 	ModuleRef   Ref
 
+	// These are used when bundling.
+	NamedImports map[Ref]NamedImport
 	NamedExports map[string]NamedExport
 
 	// This is a bitwise-or of all runtime symbols used by this AST. Runtime
 	// symbols are used by ERuntimeCall expressions.
 	UsedRuntimeSyms runtime.Sym
+}
+
+type NamedImport struct {
+	Alias         string
+	AliasLoc      Loc
+	ImportPath    string
+	NamespaceRef  Ref
+	PartsWithUses []uint32
 }
 
 type NamedExport struct {

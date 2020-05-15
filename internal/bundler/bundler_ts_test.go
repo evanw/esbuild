@@ -271,7 +271,7 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 		files: map[string]string{
 			"/entry.ts": `
 				import {ns} from './ns.ts'
-				console.log(ns)
+				function foo(): ns.type {}
 			`,
 			"/ns.ts": `
 				export namespace ns {}
@@ -288,10 +288,9 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `bootstrap({
   0() {
-    // /ns.ts
-
     // /entry.ts
-    console.log(ns2);
+    function foo() {
+    }
   }
 }, 0);
 `,
@@ -299,7 +298,7 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 	})
 }
 
-func TestPackageImportMissingTS(t *testing.T) {
+func TestTSPackageImportMissing(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `

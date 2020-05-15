@@ -2178,7 +2178,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			itemCount++
 		}
 
-		if s.StarLoc != nil {
+		if s.StarNameLoc != nil {
 			if itemCount > 0 {
 				p.print(",")
 				p.printSpace()
