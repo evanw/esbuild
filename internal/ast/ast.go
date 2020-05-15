@@ -1022,7 +1022,6 @@ type ImportPath struct {
 }
 
 type AST struct {
-	ImportPaths   []ImportPath
 	WasTypeScript bool
 
 	// This is true if something used the "exports" or "module" variables, which
@@ -1033,7 +1032,7 @@ type AST struct {
 	UsesCommonJSFeatures bool
 
 	Hashbang    string
-	Stmts       []Stmt
+	Parts       []Part
 	Symbols     SymbolMap
 	ModuleScope *Scope
 	ExportsRef  Ref
@@ -1042,6 +1041,25 @@ type AST struct {
 	// This is a bitwise-or of all runtime symbols used by this AST. Runtime
 	// symbols are used by ERuntimeCall expressions.
 	UsedRuntimeSyms runtime.Sym
+}
+
+// Each file is made up of multiple parts, and each part consists of one or
+// more top-level statements. Parts are used for tree shaking and code
+// splitting analysis. Individual parts of a file can be discarded by tree
+// shaking and can be assigned to separate chunks (i.e. output files) by code
+// splitting.
+type Part struct {
+	ImportPaths []ImportPath
+	Stmts       []Stmt
+
+	// All symbols that are declared in this part. Note that a given symbol may
+	// have multiple declarations, and so may end up being declared in multiple
+	// parts (e.g. multiple "var" declarations with the same name). Also note
+	// that this list isn't deduplicated and may contain duplicates.
+	DeclaredSymbols []Ref
+
+	// An estimate of the number of uses of all symbols used within this part.
+	UseCountEstimates map[Ref]uint32
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.

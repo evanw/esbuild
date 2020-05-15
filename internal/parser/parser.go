@@ -50,9 +50,10 @@ type parser struct {
 	moduleRef                ast.Ref
 	usedRuntimeSyms          runtime.Sym
 	findSymbolHelper         FindSymbol
+	useCountEstimates        map[ast.Ref]uint32
+	declaredSymbols          []ast.Ref
 
 	// These are for TypeScript
-	exportEqualsStmt           *ast.Stmt
 	shouldFoldNumericConstants bool
 	enclosingNamespaceRef      *ast.Ref
 	emittedNamespaceVars       map[ast.Ref]bool
@@ -555,6 +556,7 @@ func (p *parser) recordUsage(ref ast.Ref) {
 	// code regions since those will be culled.
 	if !p.isControlFlowDead {
 		p.symbols[ref.InnerIndex].UseCountEstimate++
+		p.useCountEstimates[ref]++
 	}
 
 	// The correctness of TypeScript-to-JavaScript conversion relies on accurate
@@ -569,6 +571,7 @@ func (p *parser) ignoreUsage(ref ast.Ref) {
 	// Roll back the use count increment in recordUsage()
 	if !p.isControlFlowDead {
 		p.symbols[ref.InnerIndex].UseCountEstimate--
+		p.useCountEstimates[ref]--
 	}
 
 	// Don't roll back the "tsUseCounts" increment. This must be counted even if
@@ -3680,9 +3683,9 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		name = &ast.LocRef{nameLoc, ast.InvalidRef}
 		if !opts.isTypeScriptDeclare {
 			name.Ref = p.declareSymbol(ast.SymbolClass, nameLoc, nameText)
-		}
-		if opts.isExport {
-			p.recordExport(nameLoc, nameText)
+			if opts.isExport {
+				p.recordExport(nameLoc, nameText)
+			}
 		}
 	}
 
@@ -4067,7 +4070,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		case lexer.TEquals:
 			// "export = value;"
-			if p.ts.Parse && p.exportEqualsStmt == nil {
+			if p.ts.Parse {
 				p.lexer.Next()
 				value := p.parseExpr(ast.LLowest)
 				p.lexer.ExpectOrInsertSemicolon()
@@ -5204,9 +5207,18 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []ast.Stmt) []ast.Stmt {
 func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 	// Visit all statements first
 	visited := make([]ast.Stmt, 0, len(stmts))
+	var after []ast.Stmt
 	for _, stmt := range stmts {
-		visited = p.visitAndAppendStmt(visited, stmt)
+		if _, ok := stmt.Data.(*ast.SExportEquals); ok {
+			// TypeScript "export = value;" becomes "module.exports = value;". This
+			// must happen at the end after everything is parsed because TypeScript
+			// moves this statement to the end when it generates code.
+			after = p.visitAndAppendStmt(after, stmt)
+		} else {
+			visited = p.visitAndAppendStmt(visited, stmt)
+		}
 	}
+	visited = append(visited, after...)
 
 	// Stop now if we're not mangling
 	if !p.mangleSyntax {
@@ -5841,11 +5853,16 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 }
 
 func (p *parser) visitBinding(binding ast.Binding) {
-	switch d := binding.Data.(type) {
-	case *ast.BMissing, *ast.BIdentifier:
+	switch b := binding.Data.(type) {
+	case *ast.BMissing:
+
+	case *ast.BIdentifier:
+		if p.currentScope == p.moduleScope {
+			p.declaredSymbols = append(p.declaredSymbols, b.Ref)
+		}
 
 	case *ast.BArray:
-		for _, i := range d.Items {
+		for _, i := range b.Items {
 			p.visitBinding(i.Binding)
 			if i.DefaultValue != nil {
 				*i.DefaultValue = p.visitExpr(*i.DefaultValue)
@@ -5853,7 +5870,7 @@ func (p *parser) visitBinding(binding ast.Binding) {
 		}
 
 	case *ast.BObject:
-		for i, property := range d.Properties {
+		for i, property := range b.Properties {
 			if !property.IsSpread {
 				property.Key = p.visitExpr(property.Key)
 			}
@@ -5861,7 +5878,7 @@ func (p *parser) visitBinding(binding ast.Binding) {
 			if property.DefaultValue != nil {
 				*property.DefaultValue = p.visitExpr(*property.DefaultValue)
 			}
-			d.Properties[i] = property
+			b.Properties[i] = property
 		}
 
 	default:
@@ -6168,8 +6185,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SExportEquals:
-		// Defer the assignment to the end of the file like the TypeScript compiler
-		p.exportEqualsStmt = &ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
+		// "module.exports = value"
+		stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
 			ast.BinOpAssign,
 			ast.Expr{stmt.Loc, &ast.EDot{
 				Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{p.moduleRef}},
@@ -6177,7 +6194,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				NameLoc: stmt.Loc,
 			}},
 			p.visitExpr(s.Value),
-		}}}}
+		}}}})
 		p.recordUsage(p.moduleRef)
 		return stmts
 
@@ -6414,6 +6431,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.popScope()
 
 	case *ast.SFunction:
+		if p.currentScope == p.moduleScope {
+			p.declaredSymbols = append(p.declaredSymbols, s.Fn.Name.Ref)
+		}
+
 		p.visitFn(&s.Fn, stmt.Loc)
 
 		// Handle exporting this function from a namespace
@@ -6435,6 +6456,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SClass:
+		if p.currentScope == p.moduleScope {
+			p.declaredSymbols = append(p.declaredSymbols, s.Class.Name.Ref)
+		}
+
 		p.visitClass(&s.Class)
 		stmts = append(stmts, stmt)
 
@@ -7516,7 +7541,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Instead of doing this at runtime using "fn.call(module.exports)", we
 		// do it at compile time using expression substitution here.
 		if p.isBundling && !p.isThisCaptured {
-			p.symbols[p.exportsRef.InnerIndex].UseCountEstimate++
+			p.recordUsage(p.exportsRef)
 			return ast.Expr{expr.Loc, &ast.EIdentifier{p.exportsRef}}, exprOut{}
 		}
 
@@ -7875,7 +7900,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.UnOpTypeof:
 			// "typeof require" => "'function'"
 			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
-				p.symbols[p.requireRef.InnerIndex].UseCountEstimate--
+				p.ignoreUsage(p.requireRef)
 				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16("function")}}, exprOut{}
 			}
 
@@ -8407,6 +8432,22 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 	return stmts[:stmtsEnd]
 }
 
+func (p *parser) appendPart(parts []ast.Part, stmts []ast.Stmt) []ast.Part {
+	p.useCountEstimates = make(map[ast.Ref]uint32)
+	p.declaredSymbols = []ast.Ref{}
+	p.importPaths = []ast.ImportPath{}
+	part := ast.Part{
+		Stmts:             p.visitStmtsAndPrependTempRefs(stmts),
+		UseCountEstimates: p.useCountEstimates,
+	}
+	if len(part.Stmts) > 0 {
+		part.DeclaredSymbols = p.declaredSymbols
+		part.ImportPaths = p.importPaths
+		parts = append(parts, part)
+	}
+	return parts
+}
+
 type LanguageTarget int8
 
 const (
@@ -8459,17 +8500,18 @@ type ParseOptions struct {
 
 func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options ParseOptions) *parser {
 	p := &parser{
-		log:           log,
-		source:        source,
-		lexer:         lexer,
-		allowIn:       true,
-		target:        options.Target,
-		ts:            options.TS,
-		jsx:           options.JSX,
-		omitWarnings:  options.OmitWarnings,
-		mangleSyntax:  options.MangleSyntax,
-		isBundling:    options.IsBundling,
-		currentFnOpts: fnOpts{isOutsideFn: true},
+		log:               log,
+		source:            source,
+		lexer:             lexer,
+		allowIn:           true,
+		target:            options.Target,
+		ts:                options.TS,
+		jsx:               options.JSX,
+		omitWarnings:      options.OmitWarnings,
+		mangleSyntax:      options.MangleSyntax,
+		isBundling:        options.IsBundling,
+		currentFnOpts:     fnOpts{isOutsideFn: true},
+		useCountEstimates: make(map[ast.Ref]uint32),
 
 		// These are for TypeScript
 		emittedNamespaceVars:      make(map[ast.Ref]bool),
@@ -8550,17 +8592,53 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
-	stmts = p.visitStmtsAndPrependTempRefs(stmts)
+	parts := []ast.Part{}
+	if !p.isBundling {
+		// When not bundling, everything comes in a single part
+		parts = p.appendPart(parts, stmts)
+	} else {
+		// When bundling, each top-level statement is potentially a separate part
+		parts = []ast.Part{}
+		var after []ast.Part
+		for _, stmt := range stmts {
+			switch s := stmt.Data.(type) {
+			case *ast.SLocal:
+				// Split up top-level multi-declaration variable statements
+				for _, decl := range s.Decls {
+					clone := *s
+					clone.Decls = []ast.Decl{decl}
+					parts = p.appendPart(parts, []ast.Stmt{ast.Stmt{stmt.Loc, &clone}})
+				}
 
-	// Translate "export = value;" into "module.exports = value;". This must
-	// happen at the end after everything is parsed because TypeScript moves
-	// this statement to the end when it generates code.
-	if p.exportEqualsStmt != nil {
-		stmts = append(stmts, *p.exportEqualsStmt)
+			case *ast.SExportEquals:
+				// TypeScript "export = value;" becomes "module.exports = value;". This
+				// must happen at the end after everything is parsed because TypeScript
+				// moves this statement to the end when it generates code.
+				after = p.appendPart(after, []ast.Stmt{stmt})
+
+			default:
+				parts = p.appendPart(parts, []ast.Stmt{stmt})
+			}
+		}
+		parts = append(parts, after...)
 	}
 
-	stmts = p.scanForImportsAndExports(stmts, options.IsBundling)
-	result = p.toAST(source, stmts, hashbang)
+	// Handle import paths after the whole file has been visited because we need
+	// symbol usage counts to be able to remove unused type-only imports in
+	// TypeScript code.
+	partsEnd := 0
+	for _, part := range parts {
+		p.importPaths = []ast.ImportPath{}
+		part.Stmts = p.scanForImportsAndExports(part.Stmts, options.IsBundling)
+		part.ImportPaths = append(part.ImportPaths, p.importPaths...)
+		if len(part.Stmts) > 0 {
+			parts[partsEnd] = part
+			partsEnd++
+		}
+	}
+	parts = parts[:partsEnd]
+
+	result = p.toAST(source, parts, hashbang)
 	result.WasTypeScript = options.TS.Parse
 	return
 }
@@ -8590,7 +8668,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 	// Mark that we used the "module" variable
 	p.symbols[p.moduleRef.InnerIndex].UseCountEstimate++
 
-	return p.toAST(source, []ast.Stmt{stmt}, "")
+	return p.toAST(source, []ast.Part{ast.Part{Stmts: []ast.Stmt{stmt}}}, "")
 }
 
 func (p *parser) prepareForVisitPass() {
@@ -8603,7 +8681,7 @@ func (p *parser) prepareForVisitPass() {
 	p.identifierDefines["Infinity"] = func(FindSymbol) ast.E { return &ast.ENumber{math.Inf(1)} }
 }
 
-func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string) ast.AST {
+func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string) ast.AST {
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.NewSymbolMap(int(source.Index) + 1)
 	symbols.Outer[source.Index] = p.symbols
@@ -8619,9 +8697,8 @@ func (p *parser) toAST(source logging.Source, stmts []ast.Stmt, hashbang string)
 		symbols.Get(p.moduleRef).UseCountEstimate > 0
 
 	return ast.AST{
-		ImportPaths:          p.importPaths,
 		UsesCommonJSFeatures: usesCommonJSFeatures,
-		Stmts:                stmts,
+		Parts:                parts,
 		ModuleScope:          p.moduleScope,
 		Symbols:              symbols,
 		ExportsRef:           p.exportsRef,

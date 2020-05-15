@@ -2357,9 +2357,11 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 	// Always add a mapping at the beginning of the file
 	p.addSourceMapping(ast.Loc{0})
 
-	for _, stmt := range tree.Stmts {
-		p.printSemicolonIfNeeded()
-		p.printStmt(stmt)
+	for _, part := range tree.Parts {
+		for _, stmt := range part.Stmts {
+			p.printSemicolonIfNeeded()
+			p.printStmt(stmt)
+		}
 	}
 
 	// Make sure each module ends in a semicolon so we don't have weird issues

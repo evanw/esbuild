@@ -256,26 +256,30 @@ func ScanBundle(
 
 		source := result.source
 		resolvedImports := make(map[string]uint32)
-		filteredImportPaths := []ast.ImportPath{}
 
-		for _, importPath := range result.ast.ImportPaths {
-			sourcePath := source.AbsolutePath
-			pathText := importPath.Path.Text
-			pathRange := source.RangeOfString(importPath.Path.Loc)
+		for i, part := range result.ast.Parts {
+			importPathsEnd := 0
+			for _, importPath := range part.ImportPaths {
+				sourcePath := source.AbsolutePath
+				pathText := importPath.Path.Text
+				pathRange := source.RangeOfString(importPath.Path.Loc)
 
-			switch path, status := res.Resolve(sourcePath, pathText); status {
-			case resolver.ResolveEnabled, resolver.ResolveDisabled:
-				flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
-				sourceIndex := maybeParseFile(path, source, pathRange, flags)
-				resolvedImports[pathText] = sourceIndex
-				filteredImportPaths = append(filteredImportPaths, importPath)
+				switch path, status := res.Resolve(sourcePath, pathText); status {
+				case resolver.ResolveEnabled, resolver.ResolveDisabled:
+					flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
+					sourceIndex := maybeParseFile(path, source, pathRange, flags)
+					resolvedImports[pathText] = sourceIndex
+					part.ImportPaths[importPathsEnd] = importPath
+					importPathsEnd++
 
-			case resolver.ResolveMissing:
-				log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
+				case resolver.ResolveMissing:
+					log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
+				}
 			}
+
+			result.ast.Parts[i].ImportPaths = part.ImportPaths[:importPathsEnd]
 		}
 
-		result.ast.ImportPaths = filteredImportPaths
 		sources[source.Index] = source
 		files[source.Index] = file{result.ast, resolvedImports}
 	}
@@ -840,11 +844,8 @@ func (b *Bundle) extractImportsAndExports(
 	file := &files[sourceIndex]
 	meta := &moduleInfos[sourceIndex]
 
-	importDecls := []ast.Decl{}
-	stmts := file.ast.Stmts
-	stmtCount := 0
-
 	// Certain import and export statements need to generate require() calls
+	importDecls := []ast.Decl{}
 	addRequireCall := func(loc ast.Loc, ref ast.Ref, path ast.Path) {
 		importDecls = append(importDecls, ast.Decl{
 			ast.Binding{loc, &ast.BIdentifier{ref}},
@@ -852,222 +853,206 @@ func (b *Bundle) extractImportsAndExports(
 		})
 	}
 
-	for _, stmt := range stmts {
-		switch s := stmt.Data.(type) {
-		case *ast.SImport:
-			otherSourceIndex, ok := file.resolvedImports[s.Path.Text]
-			isInSameGroup := ok && moduleInfos[otherSourceIndex].groupLabel == meta.groupLabel
-			namespaceLoc := stmt.Loc
-			if s.StarLoc != nil {
-				namespaceLoc = *s.StarLoc
-			}
+	parts := []ast.Part{}
+	for _, part := range file.ast.Parts {
+		stmts := []ast.Stmt{}
 
-			if isInSameGroup {
-				// Add imports so we can bind symbols later
-				if s.DefaultName != nil {
-					meta.imports = append(meta.imports, importData{"default", s.DefaultName.Loc, otherSourceIndex, *s.DefaultName})
+		for _, stmt := range part.Stmts {
+			switch s := stmt.Data.(type) {
+			case *ast.SImport:
+				otherSourceIndex, ok := file.resolvedImports[s.Path.Text]
+				isInSameGroup := ok && moduleInfos[otherSourceIndex].groupLabel == meta.groupLabel
+				namespaceLoc := stmt.Loc
+				if s.StarLoc != nil {
+					namespaceLoc = *s.StarLoc
 				}
-				if s.Items != nil {
-					for _, item := range *s.Items {
-						meta.imports = append(meta.imports, importData{item.Alias, item.AliasLoc, otherSourceIndex, item.Name})
+
+				if isInSameGroup {
+					// Add imports so we can bind symbols later
+					if s.DefaultName != nil {
+						meta.imports = append(meta.imports, importData{"default", s.DefaultName.Loc, otherSourceIndex, *s.DefaultName})
+					}
+					if s.Items != nil {
+						for _, item := range *s.Items {
+							meta.imports = append(meta.imports, importData{item.Alias, item.AliasLoc, otherSourceIndex, item.Name})
+						}
+					}
+					if s.StarLoc != nil {
+						meta.imports = append(meta.imports, importData{"*", stmt.Loc, otherSourceIndex,
+							ast.LocRef{namespaceLoc, s.NamespaceRef}})
+					}
+				} else {
+					// Add a require() call for this import
+					addRequireCall(namespaceLoc, s.NamespaceRef, s.Path)
+
+					// Store the ref in "indirectImportItems" to make sure the printer prints
+					// these imports as property accesses. Also store information in the
+					// "namespaceImportMap" map in case this import is re-exported.
+					if s.DefaultName != nil {
+						namespaceForImportItem[s.DefaultName.Ref] = s.NamespaceRef
+						symbols.SetNamespaceAlias(s.DefaultName.Ref, ast.NamespaceAlias{
+							NamespaceRef: s.NamespaceRef,
+							Alias:        "default",
+						})
+					}
+					if s.Items != nil {
+						for _, item := range *s.Items {
+							namespaceForImportItem[item.Name.Ref] = s.NamespaceRef
+							symbols.SetNamespaceAlias(item.Name.Ref, ast.NamespaceAlias{
+								NamespaceRef: s.NamespaceRef,
+								Alias:        item.Alias,
+							})
+						}
 					}
 				}
-				if s.StarLoc != nil {
-					meta.imports = append(meta.imports, importData{"*", stmt.Loc, otherSourceIndex,
-						ast.LocRef{namespaceLoc, s.NamespaceRef}})
-				}
-			} else {
-				// Add a require() call for this import
-				addRequireCall(namespaceLoc, s.NamespaceRef, s.Path)
+				continue
 
-				// Store the ref in "indirectImportItems" to make sure the printer prints
-				// these imports as property accesses. Also store information in the
-				// "namespaceImportMap" map in case this import is re-exported.
-				if s.DefaultName != nil {
-					namespaceForImportItem[s.DefaultName.Ref] = s.NamespaceRef
-					symbols.SetNamespaceAlias(s.DefaultName.Ref, ast.NamespaceAlias{
-						NamespaceRef: s.NamespaceRef,
-						Alias:        "default",
-					})
+			case *ast.SExportClause:
+				// "export { item1, item2 }"
+				for _, item := range s.Items {
+					meta.exports[item.Alias] = item.Name.Ref
 				}
-				if s.Items != nil {
-					for _, item := range *s.Items {
+				continue
+
+			case *ast.SExportFrom:
+				// "export { item1, item2 } from 'path'"
+				for _, item := range s.Items {
+					meta.exports[item.Alias] = item.Name.Ref
+				}
+
+				otherSourceIndex, ok := file.resolvedImports[s.Path.Text]
+				isInSameGroup := ok && moduleInfos[otherSourceIndex].groupLabel == meta.groupLabel
+
+				if isInSameGroup {
+					// Add imports so we can bind symbols later
+					for _, item := range s.Items {
+						// Re-exporting involves importing as one name and exporting as another name
+						importName := symbols.Get(item.Name.Ref).Name
+						meta.imports = append(meta.imports, importData{importName, item.Name.Loc, otherSourceIndex, item.Name})
+					}
+				} else {
+					// Add a require() call for this import
+					addRequireCall(stmt.Loc, s.NamespaceRef, s.Path)
+
+					// Store the ref in "indirectImportItems" to make sure the printer prints
+					// these imports as property accesses. Also store information in the
+					// "namespaceImportMap" map since this import is re-exported.
+					for _, item := range s.Items {
+						// Note that the imported alias is "importName", not item.Alias which
+						// is the exported alias. This is somewhat confusing because each
+						// SExportFrom statement is basically SImport + SExportClause in one.
+						importName := symbols.Get(item.Name.Ref).Name
 						namespaceForImportItem[item.Name.Ref] = s.NamespaceRef
 						symbols.SetNamespaceAlias(item.Name.Ref, ast.NamespaceAlias{
 							NamespaceRef: s.NamespaceRef,
-							Alias:        item.Alias,
+							Alias:        importName,
 						})
 					}
 				}
-			}
-			continue
+				continue
 
-		case *ast.SExportClause:
-			// "export { item1, item2 }"
-			for _, item := range s.Items {
-				meta.exports[item.Alias] = item.Name.Ref
-			}
-			continue
-
-		case *ast.SExportFrom:
-			// "export { item1, item2 } from 'path'"
-			for _, item := range s.Items {
-				meta.exports[item.Alias] = item.Name.Ref
-			}
-
-			otherSourceIndex, ok := file.resolvedImports[s.Path.Text]
-			isInSameGroup := ok && moduleInfos[otherSourceIndex].groupLabel == meta.groupLabel
-
-			if isInSameGroup {
-				// Add imports so we can bind symbols later
-				for _, item := range s.Items {
-					// Re-exporting involves importing as one name and exporting as another name
-					importName := symbols.Get(item.Name.Ref).Name
-					meta.imports = append(meta.imports, importData{importName, item.Name.Loc, otherSourceIndex, item.Name})
-				}
-			} else {
-				// Add a require() call for this import
-				addRequireCall(stmt.Loc, s.NamespaceRef, s.Path)
-
-				// Store the ref in "indirectImportItems" to make sure the printer prints
-				// these imports as property accesses. Also store information in the
-				// "namespaceImportMap" map since this import is re-exported.
-				for _, item := range s.Items {
-					// Note that the imported alias is "importName", not item.Alias which
-					// is the exported alias. This is somewhat confusing because each
-					// SExportFrom statement is basically SImport + SExportClause in one.
-					importName := symbols.Get(item.Name.Ref).Name
-					namespaceForImportItem[item.Name.Ref] = s.NamespaceRef
-					symbols.SetNamespaceAlias(item.Name.Ref, ast.NamespaceAlias{
-						NamespaceRef: s.NamespaceRef,
-						Alias:        importName,
-					})
-				}
-			}
-			continue
-
-		case *ast.SExportDefault:
-			// "export default value"
-			meta.exports["default"] = s.DefaultName.Ref
-			if s.Value.Expr != nil {
-				stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
-					ast.Decl{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
-				}}}
-			} else {
-				switch s2 := s.Value.Stmt.Data.(type) {
-				case *ast.SFunction:
-					if s2.Fn.Name == nil {
-						s2 = &ast.SFunction{s2.Fn, false}
-						s2.Fn.Name = &s.DefaultName
-					} else {
-						ast.MergeSymbols(symbols, s.DefaultName.Ref, s2.Fn.Name.Ref)
-					}
-					stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
-				case *ast.SClass:
-					if s2.Class.Name == nil {
-						s2 = &ast.SClass{s2.Class, false}
-						s2.Class.Name = &s.DefaultName
-					} else {
-						ast.MergeSymbols(symbols, s.DefaultName.Ref, s2.Class.Name.Ref)
-					}
-					stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
-				default:
-					panic("Internal error")
-				}
-			}
-
-		case *ast.SExportStar:
-			otherSourceIndex, ok := file.resolvedImports[s.Path.Text]
-
-			if s.Item == nil {
-				if !ok {
-					source := b.sources[sourceIndex]
-					log.AddRangeError(source, source.RangeOfString(s.Path.Loc),
-						"Wildcard exports are not supported for this module")
+			case *ast.SExportDefault:
+				// "export default value"
+				meta.exports["default"] = s.DefaultName.Ref
+				if s.Value.Expr != nil {
+					stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
+						ast.Decl{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
+					}}}
 				} else {
-					// "export * from 'path'"
-					meta.exportStars = append(meta.exportStars, exportStar{otherSourceIndex, s.Path})
+					switch s2 := s.Value.Stmt.Data.(type) {
+					case *ast.SFunction:
+						if s2.Fn.Name == nil {
+							s2 = &ast.SFunction{s2.Fn, false}
+							s2.Fn.Name = &s.DefaultName
+						} else {
+							ast.MergeSymbols(symbols, s.DefaultName.Ref, s2.Fn.Name.Ref)
+						}
+						stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
+					case *ast.SClass:
+						if s2.Class.Name == nil {
+							s2 = &ast.SClass{s2.Class, false}
+							s2.Class.Name = &s.DefaultName
+						} else {
+							ast.MergeSymbols(symbols, s.DefaultName.Ref, s2.Class.Name.Ref)
+						}
+						stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
+					default:
+						panic("Internal error")
+					}
 				}
-			} else {
-				// "export * as ns from 'path'"
-				meta.exports[s.Item.Alias] = s.Item.Name.Ref
 
-				isInSameGroup := ok && moduleInfos[otherSourceIndex].groupLabel == meta.groupLabel
-				if isInSameGroup {
-					// Add imports so we can bind symbols later
-					meta.imports = append(meta.imports, importData{"*", stmt.Loc, otherSourceIndex, s.Item.Name})
+			case *ast.SExportStar:
+				otherSourceIndex, ok := file.resolvedImports[s.Path.Text]
+
+				if s.Item == nil {
+					if !ok {
+						source := b.sources[sourceIndex]
+						log.AddRangeError(source, source.RangeOfString(s.Path.Loc),
+							"Wildcard exports are not supported for this module")
+					} else {
+						// "export * from 'path'"
+						meta.exportStars = append(meta.exportStars, exportStar{otherSourceIndex, s.Path})
+					}
 				} else {
-					// Add a require() call for this import
-					addRequireCall(s.Item.Name.Loc, s.Item.Name.Ref, s.Path)
+					// "export * as ns from 'path'"
+					meta.exports[s.Item.Alias] = s.Item.Name.Ref
+
+					isInSameGroup := ok && moduleInfos[otherSourceIndex].groupLabel == meta.groupLabel
+					if isInSameGroup {
+						// Add imports so we can bind symbols later
+						meta.imports = append(meta.imports, importData{"*", stmt.Loc, otherSourceIndex, s.Item.Name})
+					} else {
+						// Add a require() call for this import
+						addRequireCall(s.Item.Name.Loc, s.Item.Name.Ref, s.Path)
+					}
+				}
+				continue
+
+			case *ast.SLocal:
+				if s.IsExport {
+					includeDecls(s.Decls, symbols, meta.exports)
+					stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: s.Kind, Decls: s.Decls}}
+				}
+
+			case *ast.SFunction:
+				if s.IsExport {
+					ref := s.Fn.Name.Ref
+					meta.exports[symbols.Get(ref).Name] = ref
+					stmt = ast.Stmt{stmt.Loc, &ast.SFunction{s.Fn, false}}
+				}
+
+			case *ast.SClass:
+				if s.IsExport {
+					ref := s.Class.Name.Ref
+					meta.exports[symbols.Get(ref).Name] = ref
+					stmt = ast.Stmt{stmt.Loc, &ast.SClass{s.Class, false}}
 				}
 			}
-			continue
 
-		case *ast.SLocal:
-			if s.IsExport {
-				includeDecls(s.Decls, symbols, meta.exports)
-				stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: s.Kind, Decls: s.Decls}}
-			}
-
-		case *ast.SFunction:
-			if s.IsExport {
-				ref := s.Fn.Name.Ref
-				meta.exports[symbols.Get(ref).Name] = ref
-				stmt = ast.Stmt{stmt.Loc, &ast.SFunction{s.Fn, false}}
-			}
-
-		case *ast.SClass:
-			if s.IsExport {
-				ref := s.Class.Name.Ref
-				meta.exports[symbols.Get(ref).Name] = ref
-				stmt = ast.Stmt{stmt.Loc, &ast.SClass{s.Class, false}}
-			}
+			stmts = append(stmts, stmt)
 		}
 
-		// Filter the statement array in place to save some allocations
-		stmts[stmtCount] = stmt
-		stmtCount++
+		part.Stmts = stmts
+		parts = append(parts, part)
 	}
 
-	// Finish the filter operation by discarding unused slots
-	stmts = stmts[:stmtCount]
-
-	// Reserve some more slots for any import statements we will generate
+	// Splice the imports in before other statements
 	if len(importDecls) > 0 {
+		newParts := []ast.Part{}
 		if options.MangleSyntax {
-			stmtCount++
-		} else {
-			stmtCount += len(importDecls)
-		}
-	}
-
-	// Preallocate a buffer to use for the final statement array. Make sure to
-	// include enough room for all remaining statements as well as any import
-	// statements we need to generate.
-	//
-	// Reserve an extra slot at the beginning for our exports, which will be used
-	// or discarded by our caller. This extra slot helps avoid another O(n)
-	// reallocation just to prepend the export statement.
-	finalStmts := make([]ast.Stmt, 1, stmtCount+1)
-
-	// Start off with imports if there are any
-	if len(importDecls) > 0 {
-		if options.MangleSyntax {
-			finalStmts = append(finalStmts, ast.Stmt{ast.Loc{},
-				&ast.SLocal{Kind: ast.LocalConst, Decls: importDecls}})
+			stmt := ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: importDecls}}
+			newParts = append(newParts, ast.Part{Stmts: []ast.Stmt{stmt}})
 		} else {
 			for _, decl := range importDecls {
-				finalStmts = append(finalStmts, ast.Stmt{decl.Binding.Loc,
-					&ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{decl}}})
+				stmt := ast.Stmt{decl.Binding.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{decl}}}
+				newParts = append(newParts, ast.Part{Stmts: []ast.Stmt{stmt}})
 			}
 		}
+		parts = append(newParts, parts...)
 	}
 
-	// Then add all remaining statements
-	finalStmts = append(finalStmts, stmts...)
-
 	// Update the file
-	file.ast.Stmts = finalStmts
+	file.ast.Parts = parts
 }
 
 func addExportStar(moduleInfos []moduleInfo, visited map[uint32]bool, sourceIndex uint32, otherSourceIndex uint32) {
@@ -1160,12 +1145,9 @@ func (b *Bundle) bindImportsAndExports(
 	// use or discard this slot.
 	for _, sourceIndex := range group {
 		file := &files[sourceIndex]
-		stmts := file.ast.Stmts
 
 		// Check to see if we can skip generating exports for this module
 		if !moduleInfos[sourceIndex].isExportsUsed() {
-			stmts = stmts[1:] // Discard the export slot
-			file.ast.Stmts = stmts
 			continue
 		}
 
@@ -1201,14 +1183,12 @@ func (b *Bundle) bindImportsAndExports(
 
 		// Skip generating exports if there are none
 		if len(properties) == 0 {
-			stmts = stmts[1:] // Discard the export slot
-			file.ast.Stmts = stmts
 			continue
 		}
 
-		// Use the export slot
+		// Create the export statement
 		usedRuntimeSyms |= runtime.ExportSym
-		stmts[0] = ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ERuntimeCall{
+		stmt := ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ERuntimeCall{
 			Sym: runtime.ExportSym,
 			Args: []ast.Expr{
 				ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
@@ -1216,7 +1196,11 @@ func (b *Bundle) bindImportsAndExports(
 			},
 		}}}}
 		symbols.IncrementUseCountEstimate(file.ast.ExportsRef)
-		file.ast.Stmts = stmts
+
+		// Splice it at the top
+		newParts := make([]ast.Part, 0, len(file.ast.Parts)+1)
+		newParts = append(newParts, ast.Part{Stmts: []ast.Stmt{stmt}})
+		file.ast.Parts = append(newParts, file.ast.Parts...)
 	}
 
 	return usedRuntimeSyms
@@ -1258,31 +1242,33 @@ func markExportsAsUnboundInDecls(decls []ast.Decl, symbols ast.SymbolMap) {
 func (b *Bundle) markExportsAsUnbound(f file, symbols ast.SymbolMap) {
 	hasImportOrExport := false
 
-	for _, stmt := range f.ast.Stmts {
-		switch s := stmt.Data.(type) {
-		case *ast.SImport:
-			hasImportOrExport = true
+	for _, part := range f.ast.Parts {
+		for _, stmt := range part.Stmts {
+			switch s := stmt.Data.(type) {
+			case *ast.SImport:
+				hasImportOrExport = true
 
-		case *ast.SLocal:
-			if s.IsExport {
-				markExportsAsUnboundInDecls(s.Decls, symbols)
+			case *ast.SLocal:
+				if s.IsExport {
+					markExportsAsUnboundInDecls(s.Decls, symbols)
+					hasImportOrExport = true
+				}
+
+			case *ast.SFunction:
+				if s.IsExport {
+					symbols.SetKind(s.Fn.Name.Ref, ast.SymbolUnbound)
+					hasImportOrExport = true
+				}
+
+			case *ast.SClass:
+				if s.IsExport {
+					symbols.SetKind(s.Class.Name.Ref, ast.SymbolUnbound)
+					hasImportOrExport = true
+				}
+
+			case *ast.SExportClause, *ast.SExportDefault, *ast.SExportStar, *ast.SExportFrom:
 				hasImportOrExport = true
 			}
-
-		case *ast.SFunction:
-			if s.IsExport {
-				symbols.SetKind(s.Fn.Name.Ref, ast.SymbolUnbound)
-				hasImportOrExport = true
-			}
-
-		case *ast.SClass:
-			if s.IsExport {
-				symbols.SetKind(s.Class.Name.Ref, ast.SymbolUnbound)
-				hasImportOrExport = true
-			}
-
-		case *ast.SExportClause, *ast.SExportDefault, *ast.SExportStar, *ast.SExportFrom:
-			hasImportOrExport = true
 		}
 	}
 
@@ -1383,10 +1369,12 @@ func (b *Bundle) computeModuleGroups(
 		}
 
 		// A module is CommonJS if it's the target of a require() or import()
-		for _, importPath := range f.ast.ImportPaths {
-			if importPath.Kind != ast.ImportStmt {
-				importSourceIndex := f.resolvedImports[importPath.Path.Text]
-				infos[importSourceIndex].isCommonJs = true
+		for _, part := range f.ast.Parts {
+			for _, importPath := range part.ImportPaths {
+				if importPath.Kind != ast.ImportStmt {
+					importSourceIndex := f.resolvedImports[importPath.Path.Text]
+					infos[importSourceIndex].isCommonJs = true
+				}
 			}
 		}
 	}
@@ -1398,10 +1386,12 @@ func (b *Bundle) computeModuleGroups(
 		f := &files[sourceIndex]
 
 		// All dependencies of this module should also be CommonJS modules
-		for _, importPath := range f.ast.ImportPaths {
-			importSourceIndex := f.resolvedImports[importPath.Path.Text]
-			if !infos[importSourceIndex].isCommonJs {
-				visit(importSourceIndex)
+		for _, part := range f.ast.Parts {
+			for _, importPath := range part.ImportPaths {
+				importSourceIndex := f.resolvedImports[importPath.Path.Text]
+				if !infos[importSourceIndex].isCommonJs {
+					visit(importSourceIndex)
+				}
 			}
 		}
 	}
@@ -1429,11 +1419,13 @@ func (b *Bundle) computeModuleGroups(
 	}
 	for sourceIndex, f := range files {
 		if !infos[sourceIndex].isCommonJs {
-			for _, importPath := range f.ast.ImportPaths {
-				if importPath.Kind == ast.ImportStmt {
-					importSourceIndex := f.resolvedImports[importPath.Path.Text]
-					if !infos[importSourceIndex].isCommonJs {
-						union(uint32(sourceIndex), importSourceIndex)
+			for _, part := range f.ast.Parts {
+				for _, importPath := range part.ImportPaths {
+					if importPath.Kind == ast.ImportStmt {
+						importSourceIndex := f.resolvedImports[importPath.Path.Text]
+						if !infos[importSourceIndex].isCommonJs {
+							union(uint32(sourceIndex), importSourceIndex)
+						}
 					}
 				}
 			}
@@ -1686,7 +1678,6 @@ func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []Bundle
 func stripUnusedSymbolsInRuntime(files []file, usedRuntimeSyms runtime.Sym) {
 	file := &files[runtimeSourceIndex]
 	toRemove := make(map[ast.Ref]bool)
-	stmts := []ast.Stmt{}
 
 	// Remove all unused runtime functions
 	for name, sym := range runtime.SymMap {
@@ -1700,27 +1691,32 @@ func stripUnusedSymbolsInRuntime(files []file, usedRuntimeSyms runtime.Sym) {
 	}
 
 	// Go through the top-level variable declarations and strip out the unused ones
-	for _, stmt := range file.ast.Stmts {
-		if local, ok := stmt.Data.(*ast.SLocal); ok {
-			decls := []ast.Decl{}
-			for _, decl := range local.Decls {
-				if id, ok := decl.Binding.Data.(*ast.BIdentifier); ok && toRemove[id.Ref] {
+	parts := []ast.Part{}
+	for _, part := range file.ast.Parts {
+		stmts := []ast.Stmt{}
+		for _, stmt := range part.Stmts {
+			if local, ok := stmt.Data.(*ast.SLocal); ok {
+				decls := []ast.Decl{}
+				for _, decl := range local.Decls {
+					if id, ok := decl.Binding.Data.(*ast.BIdentifier); ok && toRemove[id.Ref] {
+						continue
+					}
+					decls = append(decls, decl)
+				}
+				if len(decls) == 0 {
 					continue
 				}
-				decls = append(decls, decl)
+				stmt.Data = &ast.SLocal{
+					Decls: decls,
+					Kind:  local.Kind,
+				}
 			}
-			if len(decls) == 0 {
-				continue
-			}
-			stmt.Data = &ast.SLocal{
-				Decls: decls,
-				Kind:  local.Kind,
-			}
+			stmts = append(stmts, stmt)
 		}
-		stmts = append(stmts, stmt)
+		part.Stmts = stmts
+		parts = append(parts, part)
 	}
-
-	file.ast.Stmts = stmts
+	file.ast.Parts = parts
 }
 
 func computeLineColumnOffset(bytes []byte) lineColumnOffset {
@@ -1758,8 +1754,10 @@ func (b *Bundle) deterministicDependenciesOfEntryPoint(
 		// Include all dependencies. It's critical for determinism that this
 		// iteration is deterministic, so we cannot iterate over a map here.
 		f := &files[sourceIndex]
-		for _, importPath := range f.ast.ImportPaths {
-			visit(f.resolvedImports[importPath.Path.Text])
+		for _, part := range f.ast.Parts {
+			for _, importPath := range part.ImportPaths {
+				visit(f.resolvedImports[importPath.Path.Text])
+			}
 		}
 
 		// Include this file after all dependencies
