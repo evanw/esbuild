@@ -679,7 +679,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 			compileResult.quotedSource = printer.QuoteForJSON(c.sources[sourceIndex].Contents)
 		}
 
-		if !c.options.RemoveWhitespace && sourceIndex != runtimeSourceIndex {
+		if c.options.IsBundling && !c.options.RemoveWhitespace && sourceIndex != runtimeSourceIndex {
 			if len(js) > 0 {
 				js = append(js, '\n')
 			}

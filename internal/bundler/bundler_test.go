@@ -1248,20 +1248,16 @@ func TestTsconfigJsonCommentAllowed(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/src/lib/util.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
+var require_util = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /Users/user/project/src/app/entry.js
-    const util = __import(1 /* lib/util */);
-    console.log(util.default());
-  }
-}, 0);
+// /Users/user/project/src/app/entry.js
+const util = __toModule(require_util());
+console.log(util.default());
 `,
 		},
 	})
@@ -2599,20 +2595,16 @@ func TestSourceMap(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/src/bar.js
-    function bar2() {
-      throw new Error("test");
-    }
+			"/Users/user/project/out.js": `// /Users/user/project/src/bar.js
+function bar2() {
+  throw new Error("test");
+}
 
-    // /Users/user/project/src/entry.js
-    function foo() {
-      bar2();
-    }
-    foo();
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+function foo() {
+  bar2();
+}
+foo();
 //# sourceMappingURL=out.js.map
 `,
 		},
