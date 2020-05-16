@@ -2,6 +2,7 @@ package bundler
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"sort"
 	"strings"
@@ -139,11 +140,7 @@ func (c *linkerContext) link() []BundleResult {
 	results := []BundleResult{}
 
 	for _, chunk := range chunks {
-		js := c.generateChunk(chunk)
-		results = append(results, BundleResult{
-			JsAbsPath:  c.fs.Join(c.options.AbsOutputDir, chunk.name),
-			JsContents: js,
-		})
+		results = append(results, c.generateChunk(chunk))
 	}
 
 	return results
@@ -604,11 +601,13 @@ func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.St
 	return stmts
 }
 
-func (c *linkerContext) generateChunk(chunk chunkMeta) []byte {
+func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
+	js := []byte{}
+	compileResults := make([]compileResult, 0, len(chunk.filesInChunk))
 	runtimeMembers := c.files[runtimeSourceIndex].ast.ModuleScope.Members
 	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
 	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
-	js := []byte{}
+	prevOffset := 0
 
 	// Make sure the printer can require() CommonJS modules
 	wrapperRefs := make([]ast.Ref, len(c.files))
@@ -660,14 +659,25 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) []byte {
 			}}}
 		}
 
+		sourceMapContents := &c.sources[sourceIndex].Contents
+		if c.options.SourceMap == SourceMapNone {
+			sourceMapContents = nil
+		}
 		tree := file.ast
 		tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
-		result := compileResult{PrintResult: printer.Print(tree, printer.PrintOptions{
-			RemoveWhitespace: c.options.RemoveWhitespace,
-			ResolvedImports:  file.resolvedImports,
-			ToModuleRef:      toModuleRef,
-			WrapperRefs:      wrapperRefs,
-		})}
+		compileResult := compileResult{
+			PrintResult: printer.Print(tree, printer.PrintOptions{
+				RemoveWhitespace:  c.options.RemoveWhitespace,
+				ResolvedImports:   file.resolvedImports,
+				ToModuleRef:       toModuleRef,
+				WrapperRefs:       wrapperRefs,
+				SourceMapContents: sourceMapContents,
+			}),
+			sourceIndex: sourceIndex,
+		}
+		if c.options.SourceMap != SourceMapNone {
+			compileResult.quotedSource = printer.QuoteForJSON(c.sources[sourceIndex].Contents)
+		}
 
 		if !c.options.RemoveWhitespace && sourceIndex != runtimeSourceIndex {
 			if len(js) > 0 {
@@ -676,7 +686,12 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) []byte {
 			js = append(js, fmt.Sprintf("// %s\n", c.sources[sourceIndex].PrettyPath)...)
 		}
 
-		js = append(js, result.JS...)
+		// Save the offset to the start of the stored JavaScript
+		compileResult.generatedOffset = computeLineColumnOffset(js[prevOffset:])
+		js = append(js, compileResult.JS...)
+		prevOffset = len(js)
+
+		compileResults = append(compileResults, compileResult)
 	}
 
 	// Make sure the file ends with a newline
@@ -684,7 +699,63 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) []byte {
 		js = append(js, '\n')
 	}
 
-	return js
+	result := BundleResult{
+		JsAbsPath:  c.fs.Join(c.options.AbsOutputDir, chunk.name),
+		JsContents: js,
+	}
+
+	// Stop now if we don't need to generate a source map
+	if c.options.SourceMap == SourceMapNone {
+		return result
+	}
+
+	sourceMap := c.generateSourceMapForChunk(compileResults)
+
+	// Store the generated source map
+	switch c.options.SourceMap {
+	case SourceMapInline:
+		if c.options.RemoveWhitespace {
+			result.JsContents = removeTrailing(result.JsContents, '\n')
+		}
+		result.JsContents = append(result.JsContents,
+			("//# sourceMappingURL=data:application/json;base64," +
+				base64.StdEncoding.EncodeToString(sourceMap) + "\n")...)
+
+	case SourceMapLinkedWithComment, SourceMapExternalWithoutComment:
+		result.SourceMapAbsPath = result.JsAbsPath + ".map"
+		result.SourceMapContents = sourceMap
+
+		// Add a comment linking the source to its map
+		if c.options.SourceMap == SourceMapLinkedWithComment {
+			if c.options.RemoveWhitespace {
+				result.JsContents = removeTrailing(result.JsContents, '\n')
+			}
+			result.JsContents = append(result.JsContents,
+				("//# sourceMappingURL=" + c.fs.Base(result.SourceMapAbsPath) + "\n")...)
+		}
+	}
+
+	return result
+}
+
+func removeTrailing(x []byte, c byte) []byte {
+	if len(x) > 0 && x[len(x)-1] == c {
+		x = x[:len(x)-1]
+	}
+	return x
+}
+
+func computeLineColumnOffset(bytes []byte) lineColumnOffset {
+	offset := lineColumnOffset{}
+	for _, c := range bytes {
+		if c == '\n' {
+			offset.lines++
+			offset.columns = 0
+		} else {
+			offset.columns++
+		}
+	}
+	return offset
 }
 
 func (c *linkerContext) renameOrMinifyAllSymbols() {
@@ -724,4 +795,81 @@ func (c *linkerContext) renameOrMinifyAllSymbols() {
 	} else {
 		renameAllSymbols(reservedNames, topLevelScopes, nestedScopes, c.symbols)
 	}
+}
+
+func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byte {
+	buffer := []byte{}
+	buffer = append(buffer, "{\n  \"version\": 3"...)
+
+	// Write the sources
+	buffer = append(buffer, ",\n  \"sources\": ["...)
+	comma := ""
+	for _, result := range results {
+		sourceFile := c.sources[result.sourceIndex].PrettyPath
+		if c.options.SourceFile != "" {
+			sourceFile = c.options.SourceFile
+		}
+		buffer = append(buffer, comma...)
+		buffer = append(buffer, printer.QuoteForJSON(sourceFile)...)
+		comma = ", "
+	}
+	buffer = append(buffer, ']')
+
+	// Write the sourcesContent
+	buffer = append(buffer, ",\n  \"sourcesContent\": ["...)
+	comma = ""
+	for _, result := range results {
+		buffer = append(buffer, comma...)
+		buffer = append(buffer, result.quotedSource...)
+		comma = ", "
+	}
+	buffer = append(buffer, ']')
+
+	// Write the mappings
+	buffer = append(buffer, ",\n  \"mappings\": \""...)
+	prevEndState := printer.SourceMapState{}
+	prevColumnOffset := 0
+	sourceMapIndex := 0
+	for _, result := range results {
+		chunk := result.SourceMapChunk
+		offset := result.generatedOffset
+
+		// Because each file for the bundle is converted to a source map once,
+		// the source maps are shared between all entry points in the bundle.
+		// The easiest way of getting this to work is to have all source maps
+		// generate as if their source index is 0. We then adjust the source
+		// index per entry point by modifying the first source mapping. This
+		// is done by AppendSourceMapChunk() using the source index passed
+		// here.
+		startState := printer.SourceMapState{SourceIndex: sourceMapIndex}
+
+		// Advance the state by the line/column offset from the previous chunk
+		startState.GeneratedColumn += offset.columns
+		if offset.lines > 0 {
+			buffer = append(buffer, bytes.Repeat([]byte{';'}, offset.lines)...)
+		} else {
+			startState.GeneratedColumn += prevColumnOffset
+		}
+
+		// Append the precomputed source map chunk
+		buffer = printer.AppendSourceMapChunk(buffer, prevEndState, startState, chunk.Buffer)
+
+		// Generate the relative offset to start from next time
+		prevEndState = chunk.EndState
+		prevEndState.SourceIndex = sourceMapIndex
+		prevColumnOffset = chunk.FinalGeneratedColumn
+
+		// If this was all one line, include the column offset from the start
+		if prevEndState.GeneratedLine == 0 {
+			prevEndState.GeneratedColumn += startState.GeneratedColumn
+			prevColumnOffset += startState.GeneratedColumn
+		}
+
+		sourceMapIndex++
+	}
+	buffer = append(buffer, '"')
+
+	// Finish the source map
+	buffer = append(buffer, ",\n  \"names\": []\n}\n"...)
+	return buffer
 }

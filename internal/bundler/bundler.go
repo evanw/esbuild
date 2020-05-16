@@ -409,6 +409,12 @@ type lineColumnOffset struct {
 type compileResult struct {
 	printer.PrintResult
 
+	sourceIndex uint32
+
+	// This is the line and column offset since the previous JavaScript string
+	// or the start of the file if this is the first JavaScript string.
+	generatedOffset lineColumnOffset
+
 	// The source map contains the original source code, which is quoted in
 	// parallel for speed. This is only filled in if the SourceMap option is
 	// enabled.
@@ -1668,19 +1674,6 @@ func (b *Bundle) oldCompileBundle(log logging.Log, options *BundleOptions) []Bun
 	return results
 }
 
-func computeLineColumnOffset(bytes []byte) lineColumnOffset {
-	offset := lineColumnOffset{}
-	for _, c := range bytes {
-		if c == '\n' {
-			offset.lines++
-			offset.columns = 0
-		} else {
-			offset.columns++
-		}
-	}
-	return offset
-}
-
 // This returns the entry point and all modules it transitively depends on.
 // These modules are categorized into their labeled groups in preparation for
 // printing. Each group corresponds to a closure in the printed output. Each
@@ -1767,13 +1760,6 @@ func (b *Bundle) outputPathForEntryPoint(entryPoint uint32, jsName string, optio
 func addTrailing(x []byte, c byte) []byte {
 	if len(x) > 0 && x[len(x)-1] != c {
 		x = append(x, c)
-	}
-	return x
-}
-
-func removeTrailing(x []byte, c byte) []byte {
-	if len(x) > 0 && x[len(x)-1] == c {
-		x = x[:len(x)-1]
 	}
 	return x
 }

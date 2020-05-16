@@ -580,6 +580,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 
 				if str, ok := item.Key.Data.(*ast.EString); ok {
 					if lexer.IsIdentifierUTF16(str.Value) {
+						p.addSourceMapping(item.Key.Loc)
 						p.printSpaceBeforeIdentifier()
 						p.printUTF16(str.Value)
 
@@ -812,6 +813,7 @@ func (p *printer) printProperty(item ast.Property) {
 	}
 
 	if str, ok := item.Key.Data.(*ast.EString); ok {
+		p.addSourceMapping(item.Key.Loc)
 		if lexer.IsIdentifierUTF16(str.Value) {
 			p.printSpaceBeforeIdentifier()
 			p.printUTF16(str.Value)
