@@ -191,23 +191,19 @@ func TestNestedCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /foo.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /entry.js
-    function nestedScope() {
-      const fn = __require(1 /* ./foo */);
-      console.log(fn());
-    }
-    nestedScope();
-  }
-}, 0);
+// /entry.js
+function nestedScope() {
+  const fn = require_foo();
+  console.log(fn());
+}
+nestedScope();
 `,
 		},
 	})
@@ -279,20 +275,16 @@ func TestES6FromCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.fn = function() {
-      return 123;
-    };
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.fn = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /entry.js
-    const foo = __import(1 /* ./foo */);
-    console.log(foo.fn());
-  }
-}, 0);
+// /entry.js
+const foo = __toModule(require_foo());
+console.log(foo.fn());
 `,
 		},
 	})
@@ -325,22 +317,18 @@ func TestNestedES6FromCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.fn = function() {
-      return 123;
-    };
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.fn = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /entry.js
-    const foo = __import(1 /* ./foo */);
-    (() => {
-      console.log(foo.fn());
-    })();
-  }
-}, 0);
+// /entry.js
+const foo = __toModule(require_foo());
+(() => {
+  console.log(foo.fn());
+})();
 `,
 		},
 	})
@@ -948,18 +936,14 @@ func TestJSXImportsCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports, module) {
-    // /custom-react.js
-    module.exports = {};
-  },
+			"/out.js": `// /custom-react.js
+var require_custom_react = __commonJS((exports, module) => {
+  module.exports = {};
+});
 
-  1() {
-    // /entry.jsx
-    const custom_react = __import(0 /* ./custom-react */);
-    console.log(custom_react.elem("div", null), custom_react.elem(custom_react.frag, null, "fragment"));
-  }
-}, 1);
+// /entry.jsx
+const custom_react = __toModule(require_custom_react());
+console.log(custom_react.elem("div", null), custom_react.elem(custom_react.frag, null, "fragment"));
 `,
 		},
 	})
@@ -1042,12 +1026,8 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    console.log(React.createElement("div", null));
-  }
-}, 0);
+			"/out.js": `// /entry.js
+console.log(React.createElement("div", null));
 `,
 		},
 	})
@@ -1075,20 +1055,16 @@ func TestNodeModules(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/index.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1121,20 +1097,16 @@ func TestPackageJsonMain(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/custom-main.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/custom-main.js
+var require_custom_main = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_custom_main());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1231,20 +1203,16 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/src/lib/util.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
+var require_util = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /Users/user/project/src/app/entry.js
-    const util = __import(1 /* lib/util */);
-    console.log(util.default());
-  }
-}, 0);
+// /Users/user/project/src/app/entry.js
+const util = __toModule(require_util());
+console.log(util.default());
 `,
 		},
 	})
@@ -1328,20 +1296,16 @@ func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/src/lib/util.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
+var require_util = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /Users/user/project/src/app/entry.js
-    const util = __import(1 /* lib/util */);
-    console.log(util.default());
-  }
-}, 0);
+// /Users/user/project/src/app/entry.js
+const util = __toModule(require_util());
+console.log(util.default());
 `,
 		},
 	})
@@ -1380,17 +1344,13 @@ func TestPackageJsonModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/node_modules/demo-pkg/main.esm.js
-    function default2() {
-      return 123;
-    }
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/main.esm.js
+function main_esm_default() {
+  return 123;
+}
 
-    // /Users/user/project/src/entry.js
-    console.log(default2());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+console.log(main_esm_default());
 `,
 		},
 	})
@@ -1423,20 +1383,16 @@ func TestPackageJsonBrowserString(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/browser.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/browser.js
+var require_browser = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_browser());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1486,26 +1442,22 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/lib/util-browser.js
-    module.exports = "util-browser";
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/lib/util-browser.js
+var require_util_browser = __commonJS((exports, module) => {
+  module.exports = "util-browser";
+});
 
-  1(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/main-browser.js
-    const util = __require(0 /* ./lib/util */);
-    module.exports = function() {
-      return ["main-browser", util];
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/main-browser.js
+var require_main_browser = __commonJS((exports, module) => {
+  const util = require_util_browser();
+  module.exports = function() {
+    return ["main-browser", util];
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(1 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main_browser());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1548,26 +1500,22 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/node_modules/util-browser/index.js
-    module.exports = "util-browser";
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/util-browser/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = "util-browser";
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/main.js
-    const util = __require(1 /* ./util */);
-    module.exports = function() {
-      return ["main", util];
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  const util = require_index();
+  module.exports = function() {
+    return ["main", util];
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1607,25 +1555,21 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/node_modules/demo-pkg/util-node.js
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/util-node.js
+var require_util_node = __commonJS(() => {
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/main.js
-    const util = __require(1 /* ./util-node */);
-    module.exports = function(obj) {
-      return util.inspect(obj);
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  const util = require_util_node();
+  module.exports = function(obj) {
+    return util.inspect(obj);
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1671,28 +1615,24 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/node-pkg-browser.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/node-pkg-browser.js
+var require_node_pkg_browser = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/index.js
-    const fn = __require(1 /* node-pkg */);
-    module.exports = function() {
-      return fn();
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/index.js
+var require_index = __commonJS((exports, module) => {
+  const fn2 = require_node_pkg_browser();
+  module.exports = function() {
+    return fn2();
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1738,28 +1678,24 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/node_modules/node-pkg-browser/index.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg-browser/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/index.js
-    const fn = __require(1 /* node-pkg */);
-    module.exports = function() {
-      return fn();
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/index.js
+var require_index = __commonJS((exports, module) => {
+  const fn2 = require_index();
+  module.exports = function() {
+    return fn2();
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1800,25 +1736,21 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/node_modules/node-pkg/index.js
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg/index.js
+var require_index = __commonJS(() => {
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/index.js
-    const fn = __require(1 /* node-pkg */);
-    module.exports = function() {
-      return fn();
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/index.js
+var require_index = __commonJS((exports, module) => {
+  const fn2 = require_index();
+  module.exports = function() {
+    return fn2();
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1859,25 +1791,21 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/node_modules/component-indexof/index.js
-    module.exports = function() {
-      return 234;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/component-indexof/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 234;
+  };
+});
 
-  2() {
-    // /Users/user/project/node_modules/component-classes/index.js
-    try {
-      var index2 = __require(1 /* indexof */);
-    } catch (err) {
-      var index2 = __require(1 /* component-indexof */);
-    }
+// /Users/user/project/node_modules/component-classes/index.js
+try {
+  var index = require_index();
+} catch (err) {
+  var index = require_index();
+}
 
-    // /Users/user/project/src/entry.js
-  }
-}, 2);
+// /Users/user/project/src/entry.js
 `,
 		},
 	})
@@ -1922,20 +1850,16 @@ func TestPackageJsonBrowserOverModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/main.browser.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/main.browser.js
+var require_main_browser = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main_browser());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1988,17 +1912,13 @@ func TestPackageJsonBrowserWithModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/node_modules/demo-pkg/main.browser.esm.js
-    function default2() {
-      return 123;
-    }
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/main.browser.esm.js
+function main_browser_esm_default() {
+  return 123;
+}
 
-    // /Users/user/project/src/entry.js
-    console.log(default2());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+console.log(main_browser_esm_default());
 `,
 		},
 	})
@@ -2023,17 +1943,13 @@ func TestRequireChildDirCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/src/dir/index.js
-    module.exports = 123;
-  },
+			"/out.js": `// /Users/user/project/src/dir/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = 123;
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    console.log(__require(0 /* ./dir */));
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+console.log(require_index());
 `,
 		},
 	})
@@ -2059,15 +1975,11 @@ func TestRequireChildDirES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/src/dir/index.js
-    const default2 = 123;
+			"/out.js": `// /Users/user/project/src/dir/index.js
+const index_default = 123;
 
-    // /Users/user/project/src/entry.js
-    console.log(default2);
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+console.log(index_default);
 `,
 		},
 	})
@@ -2092,17 +2004,13 @@ func TestRequireParentDirCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/src/index.js
-    module.exports = 123;
-  },
+			"/out.js": `// /Users/user/project/src/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = 123;
+});
 
-  0() {
-    // /Users/user/project/src/dir/entry.js
-    console.log(__require(1 /* .. */));
-  }
-}, 0);
+// /Users/user/project/src/dir/entry.js
+console.log(require_index());
 `,
 		},
 	})
@@ -2128,15 +2036,11 @@ func TestRequireParentDirES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /Users/user/project/src/index.js
-    const default2 = 123;
+			"/out.js": `// /Users/user/project/src/index.js
+const index_default = 123;
 
-    // /Users/user/project/src/dir/entry.js
-    console.log(default2);
-  }
-}, 0);
+// /Users/user/project/src/dir/entry.js
+console.log(index_default);
 `,
 		},
 	})
@@ -2199,18 +2103,14 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.x = 132;
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.x = 132;
+});
 
-  0() {
-    // /entry.js
-    const foo = __import(1 /* ./foo */);
-    console.log(foo.default(foo.x, foo.y));
-  }
-}, 0);
+// /entry.js
+const foo = __toModule(require_foo());
+console.log(foo.default(foo.x, foo.y));
 `,
 		},
 	})
@@ -2236,18 +2136,14 @@ func TestDotImport(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /index.js
-    exports.x = 123;
-  },
+			"/out.js": `// /index.js
+var require_index = __commonJS((exports) => {
+  exports.x = 123;
+});
 
-  0() {
-    // /entry.js
-    const _ = __import(1 /* . */);
-    console.log(_.x);
-  }
-}, 0);
+// /entry.js
+const _ = __toModule(require_index());
+console.log(_.x);
 `,
 		},
 	})
@@ -2273,18 +2169,14 @@ func TestRequireWithTemplate(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /b.js
-    exports.x = 123;
-  },
+			"/out.js": `// /b.js
+var require_b = __commonJS((exports) => {
+  exports.x = 123;
+});
 
-  0() {
-    // /a.js
-    console.log(__require(1 /* ./b */));
-    console.log(__require(1 /* ./b */));
-  }
-}, 0);
+// /a.js
+console.log(require_b());
+console.log(require_b());
 `,
 		},
 	})
@@ -2376,21 +2268,17 @@ func TestRequireJson(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.json
-    module.exports = {
-      a: true,
-      b: 123,
-      c: [null]
-    };
-  },
+			"/out.js": `// /test.json
+var require_test = __commonJS((exports, module) => {
+  module.exports = {
+    a: true,
+    b: 123,
+    c: [null]
+  };
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.json */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2413,17 +2301,13 @@ func TestRequireTxt(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.txt
-    module.exports = "This is a test.";
-  },
+			"/out.js": `// /test.txt
+var require_test = __commonJS((exports, module) => {
+  module.exports = "This is a test.";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.txt */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2450,17 +2334,13 @@ func TestRequireCustomExtensionString(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.custom
-    module.exports = "#include <stdio.h>";
-  },
+			"/out.js": `// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "#include <stdio.h>";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.custom */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2487,17 +2367,13 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.custom
-    module.exports = "YQBigGP/ZA==";
-  },
+			"/out.js": `// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "YQBigGP/ZA==";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.custom */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2615,12 +2491,8 @@ func TestFalseRequire(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    ((require3) => require3("/test.txt"))();
-  }
-}, 0);
+			"/out.js": `// /entry.js
+((require4) => require4("/test.txt"))();
 `,
 		},
 	})
@@ -2692,18 +2564,14 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    try {
-      oldLocale = globalLocale._abbr;
-      var aliasedRequire = null;
-      aliasedRequire("./locale/" + name);
-      getSetGlobalLocale(oldLocale);
-    } catch (e) {
-    }
-  }
-}, 0);
+			"/out.js": `// /entry.js
+try {
+  oldLocale = globalLocale._abbr;
+  var aliasedRequire = null;
+  aliasedRequire("./locale/" + name);
+  getSetGlobalLocale(oldLocale);
+} catch (e) {
+}
 `,
 		},
 	})
@@ -2780,21 +2648,17 @@ func TestNestedScopeBug(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    (() => {
-      function a() {
-        b();
-      }
-      {
-        var b = () => {
-        };
-      }
-      a();
-    })();
+			"/out.js": `// /entry.js
+(() => {
+  function a() {
+    b();
   }
-}, 0);
+  {
+    var b = () => {
+    };
+  }
+  a();
+})();
 `,
 		},
 	})

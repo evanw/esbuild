@@ -37,6 +37,14 @@ type file struct {
 	resolvedImports map[string]uint32
 }
 
+func (f *file) resolveImport(path ast.Path) (uint32, bool) {
+	if path.IsRuntime {
+		return runtimeSourceIndex, true
+	}
+	sourceIndex, ok := f.resolvedImports[path.Text]
+	return sourceIndex, ok
+}
+
 type Bundle struct {
 	fs          fs.FS
 	sources     []logging.Source
@@ -192,17 +200,7 @@ func ScanBundle(
 		files = append(files, file{})
 		remaining++
 		go func() {
-			runtimeParseOptions := parseOptions
-
-			// Avoid defining extra symbols such as "exports" and "module" in the top-
-			// level scope for the runtime. All other files will be embedded as child
-			// scopes of the runtime scope during bundling. If we defined these extra
-			// symbols, we would then need to rename all identically-named symbols in
-			// all files so everything would be called "exports2" and "module2"
-			// instead, which looks weird.
-			runtimeParseOptions.IsBundling = false
-
-			ast, ok := parser.Parse(log, source, runtimeParseOptions)
+			ast, ok := parser.Parse(log, source, parseOptions)
 			results <- parseResult{source, ast, ok}
 		}()
 	}
@@ -260,6 +258,13 @@ func ScanBundle(
 		for i, part := range result.ast.Parts {
 			importPathsEnd := 0
 			for _, importPath := range part.ImportPaths {
+				// Don't try to resolve imports of the special runtime path
+				if importPath.Path.IsRuntime {
+					part.ImportPaths[importPathsEnd] = importPath
+					importPathsEnd++
+					continue
+				}
+
 				sourcePath := source.AbsolutePath
 				pathText := importPath.Path.Text
 				pathRange := source.RangeOfString(importPath.Path.Loc)
@@ -440,22 +445,11 @@ func (b *Bundle) compileFile(
 		}
 	}
 
-	// The printer will be calling runtime functions
-	runtimeSymRefs := make(map[runtime.Sym]ast.Ref)
-	for name, sym := range runtime.SymMap {
-		ref, ok := b.files[runtimeSourceIndex].ast.ModuleScope.Members[name]
-		if !ok {
-			panic("Internal error")
-		}
-		runtimeSymRefs[sym] = ref
-	}
-
 	result := compileResult{PrintResult: printer.Print(tree, printer.PrintOptions{
 		RemoveWhitespace:  options.RemoveWhitespace,
 		SourceMapContents: sourceMapContents,
 		Indent:            indent,
 		ResolvedImports:   remappedResolvedImports,
-		RuntimeSymRefs:    runtimeSymRefs,
 	})}
 	if options.SourceMap != SourceMapNone {
 		result.quotedSource = printer.QuoteForJSON(b.sources[sourceIndex].Contents)
@@ -555,11 +549,11 @@ func (b *Bundle) generateJavaScriptForEntryPoint(
 	}
 
 	if !options.omitRuntimeForTests {
-		commonjsRef, ok := files[runtimeSourceIndex].ast.ModuleScope.Members["__commonjs"]
+		commonJSRef, ok := files[runtimeSourceIndex].ast.ModuleScope.Members["__commonJS"]
 		if !ok {
 			panic("Internal error")
 		}
-		js = append(js, (outerIndent + symbols.Get(commonjsRef).Name + space + "=" + space + "{")...)
+		js = append(js, (outerIndent + symbols.Get(commonJSRef).Name + space + "=" + space + "{")...)
 	}
 
 	for i, group := range groups {
@@ -1090,18 +1084,12 @@ func addExportStar(moduleInfos []moduleInfo, visited map[uint32]bool, sourceInde
 func (b *Bundle) bindImportsAndExports(
 	log logging.Log, files []file, symbols ast.SymbolMap, group []uint32,
 	moduleInfos []moduleInfo, options *BundleOptions,
-) runtime.Sym {
-	// These runtime symbols are currently always required by the bundler, since
-	// the bundler doesn't currently track which of these symbols are actually
-	// needed. We should track this and omit unused symbols when possible.
-	usedRuntimeSyms := runtime.RequireSym | runtime.ToModuleSym | runtime.ImportSym
-
+) {
 	// Track any imports that may be re-exported
 	namespaceForImportItem := make(map[ast.Ref]ast.Ref)
 
 	// Initialize the export maps
 	for _, sourceIndex := range group {
-		usedRuntimeSyms |= files[sourceIndex].ast.UsedRuntimeSyms
 		moduleInfos[sourceIndex].exports = make(map[string]ast.Ref)
 	}
 
@@ -1196,9 +1184,8 @@ func (b *Bundle) bindImportsAndExports(
 		}
 
 		// Create the export statement
-		usedRuntimeSyms |= runtime.ExportSym
-		stmt := ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ERuntimeCall{
-			Sym: runtime.ExportSym,
+		stmt := ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
+			Target: ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16("__export")}},
 			Args: []ast.Expr{
 				ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
 				ast.Expr{ast.Loc{}, &ast.EObject{properties}},
@@ -1211,8 +1198,6 @@ func (b *Bundle) bindImportsAndExports(
 		newParts = append(newParts, ast.Part{Stmts: []ast.Stmt{stmt}})
 		file.ast.Parts = append(newParts, file.ast.Parts...)
 	}
-
-	return usedRuntimeSyms
 }
 
 func markExportsAsUnboundInDecls(decls []ast.Decl, symbols ast.SymbolMap) {
@@ -1522,7 +1507,6 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 
 			// Trim unused runtime code
 			f := files[sourceIndex]
-			stripUnusedSymbolsInRuntime(files, f.ast.UsedRuntimeSyms)
 
 			// Make sure we don't rename exports
 			b.markExportsAsUnbound(f, symbols)
@@ -1604,9 +1588,7 @@ func (b *Bundle) oldCompileBundle(log logging.Log, options *BundleOptions) []Bun
 
 	// Spawn parallel jobs to handle imports and exports for each group
 	{
-		results := make(chan runtime.Sym)
-		count := 0
-
+		importExportGroup := sync.WaitGroup{}
 		for _, group := range moduleGroups {
 			// Skip the runtime, which we already renamed/minified above
 			if len(group) == 1 && group[0] == runtimeSourceIndex {
@@ -1614,24 +1596,17 @@ func (b *Bundle) oldCompileBundle(log logging.Log, options *BundleOptions) []Bun
 			}
 
 			// Track how many results to expect
-			count++
+			importExportGroup.Add(1)
 			go func(group []uint32) {
 				// It's important to wait to rename symbols until after imports and
 				// exports have been handled. Exports need to use the original un-renamed
 				// names of the symbols.
-				usedRuntimeSyms := b.bindImportsAndExports(log, files, symbols, group, moduleInfos, options)
+				b.bindImportsAndExports(log, files, symbols, group, moduleInfos, options)
 				b.renameOrMinifyAllSymbols(files, symbols, group, options)
-				results <- usedRuntimeSyms
+				importExportGroup.Done()
 			}(group)
 		}
-
-		// Wait for all import/export jobs to finish, then remove unused code from
-		// the runtime. That way we print a minimal runtime without extra noise.
-		var usedRuntimeSyms runtime.Sym
-		for i := 0; i < count; i++ {
-			usedRuntimeSyms |= <-results
-		}
-		stripUnusedSymbolsInRuntime(files, usedRuntimeSyms)
+		importExportGroup.Wait()
 	}
 
 	// Make sure calls to "ast.FollowSymbols()" below won't hit concurrent map
@@ -1691,50 +1666,6 @@ func (b *Bundle) oldCompileBundle(log logging.Log, options *BundleOptions) []Bun
 	linkGroup.Wait()
 
 	return results
-}
-
-func stripUnusedSymbolsInRuntime(files []file, usedRuntimeSyms runtime.Sym) {
-	file := &files[runtimeSourceIndex]
-	toRemove := make(map[ast.Ref]bool)
-
-	// Remove all unused runtime functions
-	for name, sym := range runtime.SymMap {
-		if (usedRuntimeSyms & sym) != sym {
-			ref, ok := file.ast.ModuleScope.Members[name]
-			if !ok {
-				panic("Internal error")
-			}
-			toRemove[ref] = true
-		}
-	}
-
-	// Go through the top-level variable declarations and strip out the unused ones
-	parts := []ast.Part{}
-	for _, part := range file.ast.Parts {
-		stmts := []ast.Stmt{}
-		for _, stmt := range part.Stmts {
-			if local, ok := stmt.Data.(*ast.SLocal); ok {
-				decls := []ast.Decl{}
-				for _, decl := range local.Decls {
-					if id, ok := decl.Binding.Data.(*ast.BIdentifier); ok && toRemove[id.Ref] {
-						continue
-					}
-					decls = append(decls, decl)
-				}
-				if len(decls) == 0 {
-					continue
-				}
-				stmt.Data = &ast.SLocal{
-					Decls: decls,
-					Kind:  local.Kind,
-				}
-			}
-			stmts = append(stmts, stmt)
-		}
-		part.Stmts = stmts
-		parts = append(parts, part)
-	}
-	file.ast.Parts = parts
 }
 
 func computeLineColumnOffset(bytes []byte) lineColumnOffset {

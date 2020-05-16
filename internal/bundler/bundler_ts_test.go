@@ -364,20 +364,16 @@ func TestTSExportEquals(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /b.ts
-    function foo() {
-    }
-    module.exports = [123, foo];
-  },
-
-  0() {
-    // /a.ts
-    const b = __import(1 /* ./b.ts */);
-    console.log(b.default);
+			"/out.js": `// /b.ts
+var require_b = __commonJS((exports, module) => {
+  function foo() {
   }
-}, 0);
+  module.exports = [123, foo];
+});
+
+// /a.ts
+const b = __toModule(require_b());
+console.log(b.default);
 `,
 		},
 	})

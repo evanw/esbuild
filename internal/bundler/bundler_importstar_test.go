@@ -491,19 +491,15 @@ func TestImportStarCommonJSUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.foo = 123;
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
+});
 
-  0() {
-    // /entry.js
-    const ns = __import(1 /* ./foo */);
-    let foo = 234;
-    console.log(foo);
-  }
-}, 0);
+// /entry.js
+var ns = __toModule(require_foo());
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -530,19 +526,15 @@ func TestImportStarCommonJSCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.foo = 123;
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
+});
 
-  0() {
-    // /entry.js
-    const ns = __import(1 /* ./foo */);
-    let foo = 234;
-    console.log(ns, ns.foo, foo);
-  }
-}, 0);
+// /entry.js
+var ns = __toModule(require_foo());
+let foo = 234;
+console.log(ns, ns.foo, foo);
 `,
 		},
 	})
@@ -569,19 +561,15 @@ func TestImportStarCommonJSNoCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.foo = 123;
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
+});
 
-  0() {
-    // /entry.js
-    const ns = __import(1 /* ./foo */);
-    let foo = 234;
-    console.log(ns.foo, ns.foo, foo);
-  }
-}, 0);
+// /entry.js
+var ns = __toModule(require_foo());
+let foo = 234;
+console.log(ns.foo, ns.foo, foo);
 `,
 		},
 	})

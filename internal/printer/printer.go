@@ -10,7 +10,6 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/runtime"
 )
 
 var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
@@ -410,7 +409,7 @@ type printer struct {
 
 	// For imports
 	resolvedImports map[string]uint32
-	runtimeSymRefs  map[runtime.Sym]ast.Ref
+	toModuleRef     ast.Ref
 	wrapperRefs     []ast.Ref
 
 	// For source maps
@@ -508,14 +507,6 @@ func (p *printer) printIndent() {
 func (p *printer) symbolName(ref ast.Ref) string {
 	ref = ast.FollowSymbols(p.symbols, ref)
 	return p.symbols.Get(ref).Name
-}
-
-func (p *printer) printRuntimeSym(sym runtime.Sym) {
-	ref, ok := p.runtimeSymRefs[sym]
-	if !ok {
-		panic("Internal error")
-	}
-	p.printSymbol(ref)
 }
 
 func (p *printer) printSymbol(ref ast.Ref) {
@@ -932,7 +923,7 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 
 func (p *printer) printRequireCall(path string, isES6Import bool) {
 	if isES6Import {
-		p.printRuntimeSym(runtime.ToModuleSym)
+		p.printSymbol(p.toModuleRef)
 		p.print("(")
 	}
 
@@ -1044,25 +1035,6 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if e.IsOptionalChain {
 			p.print("?.")
 		}
-		p.print("(")
-		for i, arg := range e.Args {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
-			}
-			p.printExpr(arg, ast.LComma, 0)
-		}
-		p.print(")")
-		if wrap {
-			p.print(")")
-		}
-
-	case *ast.ERuntimeCall:
-		wrap := level >= ast.LNew || (flags&forbidCall) != 0
-		if wrap {
-			p.print("(")
-		}
-		p.printRuntimeSym(e.Sym)
 		p.print("(")
 		for i, arg := range e.Args {
 			if i != 0 {
@@ -2263,7 +2235,7 @@ type PrintOptions struct {
 	SourceMapContents *string
 	Indent            int
 	ResolvedImports   map[string]uint32
-	RuntimeSymRefs    map[runtime.Sym]ast.Ref
+	ToModuleRef       ast.Ref
 	WrapperRefs       []ast.Ref
 }
 
@@ -2291,6 +2263,7 @@ func createPrinter(
 		resolvedImports:    options.ResolvedImports,
 		wrapperRefs:        options.WrapperRefs,
 		indent:             options.Indent,
+		toModuleRef:        options.ToModuleRef,
 		stmtStart:          -1,
 		exportDefaultStart: -1,
 		arrowExprStart:     -1,
@@ -2298,7 +2271,6 @@ func createPrinter(
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
 		prevLoc:            ast.Loc{-1},
-		runtimeSymRefs:     options.RuntimeSymRefs,
 	}
 
 	// If we're writing out a source map, prepare a table of line start indices

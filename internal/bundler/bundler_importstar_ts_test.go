@@ -27,13 +27,9 @@ func TestTSImportStarES6Unused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo = 234;
-    console.log(foo);
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -100,16 +96,12 @@ func TestTSImportStarES6NoCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /foo.ts
-    const foo2 = 123;
+			"/out.js": `// /foo.ts
+const foo2 = 123;
 
-    // /entry.ts
-    let foo = 234;
-    console.log(foo2, foo2, foo);
-  }
-}, 0);
+// /entry.ts
+let foo = 234;
+console.log(foo2, foo2, foo);
 `,
 		},
 	})
@@ -418,18 +410,14 @@ func TestTSImportStarES6ExportStarNoCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.ts
-    const foo2 = 123;
+			"/out.js": `// /foo.ts
+const foo2 = 123;
 
-    // /bar.ts
+// /bar.ts
 
-    // /entry.ts
-    let foo = 234;
-    console.log(foo2, foo2, foo);
-  }
-}, 1);
+// /entry.ts
+let foo = 234;
+console.log(foo2, foo2, foo);
 `,
 		},
 	})
@@ -530,19 +518,15 @@ func TestTSImportStarCommonJSCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.ts
-    exports.foo = 123;
-  },
+			"/out.js": `// /foo.ts
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
+});
 
-  0() {
-    // /entry.ts
-    const ns = __import(1 /* ./foo */);
-    let foo = 234;
-    console.log(ns, ns.foo, foo);
-  }
-}, 0);
+// /entry.ts
+var ns = __toModule(require_foo());
+let foo = 234;
+console.log(ns, ns.foo, foo);
 `,
 		},
 	})
@@ -569,19 +553,15 @@ func TestTSImportStarCommonJSNoCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.ts
-    exports.foo = 123;
-  },
+			"/out.js": `// /foo.ts
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
+});
 
-  0() {
-    // /entry.ts
-    const ns = __import(1 /* ./foo */);
-    let foo = 234;
-    console.log(ns.foo, ns.foo, foo);
-  }
-}, 0);
+// /entry.ts
+var ns = __toModule(require_foo());
+let foo = 234;
+console.log(ns.foo, ns.foo, foo);
 `,
 		},
 	})

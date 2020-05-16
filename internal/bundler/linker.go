@@ -11,7 +11,6 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
-	"github.com/evanw/esbuild/internal/runtime"
 )
 
 type bitSet struct {
@@ -158,13 +157,13 @@ func (c *linkerContext) scanImportsAndExports() {
 				switch importPath.Kind {
 				case ast.ImportRequire:
 					// Files that are imported with require() must be CommonJS modules
-					if otherSourceIndex, ok := file.resolvedImports[importPath.Path.Text]; ok {
+					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
 						c.fileMeta[otherSourceIndex].isCommonJS = true
 					}
 
 				case ast.ImportDynamic:
 					// Files that are imported with import() must be entry points
-					if otherSourceIndex, ok := file.resolvedImports[importPath.Path.Text]; ok {
+					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
 						if c.fileMeta[otherSourceIndex].entryPointStatus == entryPointNone {
 							c.entryPoints = append(c.entryPoints, otherSourceIndex)
 							c.fileMeta[otherSourceIndex].entryPointStatus = entryPointDynamicImport
@@ -272,7 +271,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Use a CommonJS import if this is either a bundled CommonJS file or an
 	// external file (for example, built-in node modules are marked external)
-	otherSourceIndex, ok := file.resolvedImports[namedImport.ImportPath]
+	otherSourceIndex, ok := file.resolveImport(namedImport.ImportPath)
 	if !ok || c.fileMeta[otherSourceIndex].isCommonJS {
 		return importTracker{}, nil, importCommonJS
 	}
@@ -321,19 +320,49 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	fileMeta.entryBits.setBit(entryPoint)
 
 	file := &c.files[sourceIndex]
+	needsToModule := false
+
 	for partIndex, part := range file.ast.Parts {
-		// Include all parts in this file with side effects
-		if !c.options.TreeShaking || !part.CanBeRemovedIfUnused {
+		// Include all parts in this file with side effects, or just include
+		// everything if tree-shaking is disabled. Note that we still want to
+		// perform tree-shaking on the runtime even if tree-shaking is disabled.
+		if !part.CanBeRemovedIfUnused || (!c.options.TreeShaking && sourceIndex != runtimeSourceIndex) {
 			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
 		}
 
 		// Also include any statement-level imports
 		for _, importPath := range part.ImportPaths {
-			if importPath.Kind == ast.ImportStmt {
-				if otherSourceIndex, ok := file.resolvedImports[importPath.Path.Text]; ok {
-					c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
+			switch importPath.Kind {
+			case ast.ImportStmt, ast.ImportDynamic:
+				if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
+					if importPath.Kind == ast.ImportStmt {
+						c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
+					}
+					if c.fileMeta[otherSourceIndex].isCommonJS {
+						// This is an ES6 import of a module that's potentially CommonJS
+						needsToModule = true
+					}
+				} else {
+					// This is an ES6 import of an external module that may be CommonJS
+					needsToModule = true
 				}
 			}
+		}
+	}
+
+	// If this is a CommonJS file, we're going to need the "__commonJS" symbol
+	// from the runtime
+	if fileMeta.isCommonJS {
+		for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports["__commonJS"].LocalParts {
+			c.includePart(runtimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
+		}
+	}
+
+	// If there's an ES6 import of a non-ES6 module, then we're going to need the
+	// "__toModule" symbol from the runtime
+	if needsToModule {
+		for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports["__toModule"].LocalParts {
+			c.includePart(runtimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
 		}
 	}
 }
@@ -352,7 +381,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	part := &file.ast.Parts[partIndex]
 	for _, importPath := range part.ImportPaths {
 		if importPath.Kind == ast.ImportRequire {
-			if otherSourceIndex, ok := file.resolvedImports[importPath.Path.Text]; ok {
+			if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
 				c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
 			}
 		}
@@ -468,12 +497,12 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 		}
 		visited[sourceIndex] = true
 		file := &c.files[sourceIndex]
-		partMeta := c.fileMeta[sourceIndex].partMeta
+		fileMeta := &c.fileMeta[sourceIndex]
 		for partIndex, part := range file.ast.Parts {
 			for _, importPath := range part.ImportPaths {
 				if importPath.Kind == ast.ImportStmt || (importPath.Kind == ast.ImportRequire &&
-					chunk.entryBits.equals(partMeta[partIndex].entryBits)) {
-					if otherSourceIndex, ok := file.resolvedImports[importPath.Path.Text]; ok {
+					chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits)) {
+					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
 						visit(otherSourceIndex)
 					}
 				}
@@ -481,20 +510,23 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 		}
 		order = append(order, sourceIndex)
 	}
+
+	// Always put the runtime code first before anything else
+	visit(runtimeSourceIndex)
 	for _, data := range sorted {
 		visit(data.sourceIndex)
 	}
-
 	return order
 }
+
 func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.Stmt, partStmts []ast.Stmt) []ast.Stmt {
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
 		case *ast.SImport:
 			// Turn imports of CommonJS files into require() calls
-			if otherSourceIndex, ok := c.files[sourceIndex].resolvedImports[s.Path.Text]; ok {
+			if otherSourceIndex, ok := c.files[sourceIndex].resolveImport(s.Path); ok {
 				if c.fileMeta[otherSourceIndex].isCommonJS {
-					stmt.Data = &ast.SLocal{Decls: []ast.Decl{ast.Decl{
+					stmt.Data = &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
 						ast.Binding{stmt.Loc, &ast.BIdentifier{s.NamespaceRef}},
 						&ast.Expr{s.Path.Loc, &ast.ERequire{Path: s.Path, IsES6Import: true}},
 					}}}
@@ -573,6 +605,9 @@ func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.St
 }
 
 func (c *linkerContext) generateChunk(chunk chunkMeta) []byte {
+	runtimeMembers := c.files[runtimeSourceIndex].ast.ModuleScope.Members
+	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
+	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
 	js := []byte{}
 
 	// Make sure the printer can require() CommonJS modules
@@ -581,21 +616,15 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) []byte {
 		wrapperRefs[sourceIndex] = file.ast.WrapperRef
 	}
 
-	// The printer will be calling runtime functions
-	runtimeSymRefs := make(map[runtime.Sym]ast.Ref)
-	runtimeFile := c.files[runtimeSourceIndex]
-	for name, sym := range runtime.SymMap {
-		ref, ok := runtimeFile.ast.ModuleScope.Members[name]
-		if !ok {
-			panic("Internal error")
-		}
-		runtimeSymRefs[sym] = ref
-	}
-
 	for _, sourceIndex := range c.chunkFileOrder(chunk) {
 		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
 		stmts := []ast.Stmt{}
+
+		// Skip the runtime in test output
+		if sourceIndex == runtimeSourceIndex && c.options.omitRuntimeForTests {
+			continue
+		}
 
 		// Add all parts in this file that belong in this chunk
 		for partIndex, part := range file.ast.Parts {
@@ -604,54 +633,50 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) []byte {
 			}
 		}
 
-		fileIndent := 0
+		// Optionally wrap all statements in a closure for CommonJS
 		if fileMeta.isCommonJS {
-			fileIndent = 1
+			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
+			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
+			wrapperRef := ast.FollowSymbols(c.symbols, file.ast.WrapperRef)
+
+			// Only include the arguments that are actually used
+			args := []ast.Arg{}
+			if file.ast.UsesExportsRef || file.ast.UsesModuleRef {
+				args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{exportsRef}}})
+				if file.ast.UsesModuleRef {
+					args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{moduleRef}}})
+				}
+			}
+
+			// "var require_foo = __commonJS((exports, module) => { ... });"
+			stmts = []ast.Stmt{ast.Stmt{Data: &ast.SLocal{
+				Decls: []ast.Decl{ast.Decl{
+					Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
+					Value: &ast.Expr{Data: &ast.ECall{
+						Target: ast.Expr{Data: &ast.EIdentifier{commonJSRef}},
+						Args:   []ast.Expr{ast.Expr{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
+					}},
+				}},
+			}}}
 		}
+
 		tree := file.ast
 		tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
 		result := compileResult{PrintResult: printer.Print(tree, printer.PrintOptions{
-			Indent:           fileIndent,
 			RemoveWhitespace: c.options.RemoveWhitespace,
 			ResolvedImports:  file.resolvedImports,
-			RuntimeSymRefs:   runtimeSymRefs,
+			ToModuleRef:      toModuleRef,
 			WrapperRefs:      wrapperRefs,
 		})}
 
-		if !c.options.RemoveWhitespace {
+		if !c.options.RemoveWhitespace && sourceIndex != runtimeSourceIndex {
 			if len(js) > 0 {
 				js = append(js, '\n')
 			}
 			js = append(js, fmt.Sprintf("// %s\n", c.sources[sourceIndex].PrettyPath)...)
 		}
 
-		if fileMeta.isCommonJS {
-			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
-			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
-			wrapperRef := ast.FollowSymbols(c.symbols, file.ast.WrapperRef)
-			commonJSRef := ast.FollowSymbols(c.symbols, runtimeSymRefs[runtime.CommonJsSym])
-			format := "var %s = %s((%s, %s) => {\n"
-			if c.options.RemoveWhitespace {
-				format = "var %s=%s((%s,%s)=>{"
-			}
-			js = append(js, fmt.Sprintf(format,
-				c.symbols.Get(wrapperRef).Name,
-				c.symbols.Get(commonJSRef).Name,
-				c.symbols.Get(exportsRef).Name,
-				c.symbols.Get(moduleRef).Name,
-			)...)
-		}
-
-		if fileMeta.isCommonJS {
-			js = append(js, result.JSWithoutTrailingSemicolon...)
-			text := "});\n"
-			if c.options.RemoveWhitespace {
-				text = "});"
-			}
-			js = append(js, text...)
-		} else {
-			js = append(js, result.JS...)
-		}
+		js = append(js, result.JS...)
 	}
 
 	// Make sure the file ends with a newline

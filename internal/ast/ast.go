@@ -3,8 +3,6 @@ package ast
 import (
 	"path"
 	"strings"
-
-	"github.com/evanw/esbuild/internal/runtime"
 )
 
 // Every module (i.e. file) is parsed into a separate AST data structure. For
@@ -227,8 +225,9 @@ type LocRef struct {
 }
 
 type Path struct {
-	Loc  Loc
-	Text string
+	Loc       Loc
+	Text      string
+	IsRuntime bool // If true, this references the special runtime file
 }
 
 type PropertyKind int
@@ -377,17 +376,15 @@ type ECall struct {
 	IsDirectEval    bool
 }
 
-type ERuntimeCall struct {
-	Sym  runtime.Sym
-	Args []Expr
-}
-
 type EDot struct {
 	Target          Expr
 	Name            string
 	NameLoc         Loc
 	IsOptionalChain bool
 	IsParenthesized bool
+
+	// If true, this property access is known to be free of side-effects
+	CanBeRemovedIfUnused bool
 }
 
 type EIndex struct {
@@ -504,7 +501,6 @@ func (*ENew) isExpr()              {}
 func (*ENewTarget) isExpr()        {}
 func (*EImportMeta) isExpr()       {}
 func (*ECall) isExpr()             {}
-func (*ERuntimeCall) isExpr()      {}
 func (*EDot) isExpr()              {}
 func (*EIndex) isExpr()            {}
 func (*EArrow) isExpr()            {}
@@ -1034,6 +1030,8 @@ type AST struct {
 	// it's not a candidate for "flat bundling" and must be wrapped in its own
 	// closure.
 	UsesCommonJSFeatures bool
+	UsesExportsRef       bool
+	UsesModuleRef        bool
 
 	Hashbang    string
 	Parts       []Part
@@ -1046,16 +1044,12 @@ type AST struct {
 	// These are used when bundling.
 	NamedImports map[Ref]NamedImport
 	NamedExports map[string]NamedExport
-
-	// This is a bitwise-or of all runtime symbols used by this AST. Runtime
-	// symbols are used by ERuntimeCall expressions.
-	UsedRuntimeSyms runtime.Sym
 }
 
 type NamedImport struct {
 	Alias         string
 	AliasLoc      Loc
-	ImportPath    string
+	ImportPath    Path
 	NamespaceRef  Ref
 	PartsWithUses []uint32
 }

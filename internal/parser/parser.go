@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -11,7 +12,6 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
-	"github.com/evanw/esbuild/internal/runtime"
 )
 
 // This parser does two passes:
@@ -48,10 +48,10 @@ type parser struct {
 	exportsRef               ast.Ref
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
-	usedRuntimeSyms          runtime.Sym
 	findSymbolHelper         FindSymbol
 	useCountEstimates        map[ast.Ref]uint32
 	declaredSymbols          []ast.Ref
+	runtimeImports           map[string]ast.Ref
 
 	// These are for TypeScript
 	shouldFoldNumericConstants bool
@@ -130,10 +130,13 @@ func isJumpStatement(data ast.S) bool {
 }
 
 func hasNoSideEffects(data ast.E) bool {
-	switch data.(type) {
+	switch e := data.(type) {
 	case *ast.ENull, *ast.EUndefined, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
 		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow:
 		return true
+
+	case *ast.EDot:
+		return e.CanBeRemovedIfUnused
 	}
 
 	return false
@@ -585,6 +588,19 @@ func (p *parser) addError(loc ast.Loc, text string) {
 
 func (p *parser) addRangeError(r ast.Range, text string) {
 	p.log.AddRangeError(p.source, r, text)
+}
+
+func (p *parser) callRuntime(loc ast.Loc, name string, args []ast.Expr) ast.Expr {
+	ref, ok := p.runtimeImports[name]
+	if !ok {
+		ref = p.newSymbol(ast.SymbolOther, name)
+		p.runtimeImports[name] = ref
+	}
+	p.recordUsage(ref)
+	return ast.Expr{loc, &ast.ECall{
+		Target: ast.Expr{loc, &ast.EIdentifier{ref}},
+		Args:   args,
+	}}
 }
 
 // The name is temporarily stored in the ref until the scope traversal pass
@@ -3814,7 +3830,10 @@ func (p *parser) parseLabelName() *ast.LocRef {
 }
 
 func (p *parser) parsePath() ast.Path {
-	path := ast.Path{p.lexer.Loc(), lexer.UTF16ToString(p.lexer.StringLiteral)}
+	path := ast.Path{
+		Loc:  p.lexer.Loc(),
+		Text: lexer.UTF16ToString(p.lexer.StringLiteral),
+	}
 	if p.lexer.Token == lexer.TNoSubstitutionTemplateLiteral {
 		p.lexer.Next()
 	} else {
@@ -5054,6 +5073,10 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 type dotDefine struct {
 	parts      []string
 	defineFunc DefineFunc
+
+	// This is used to whitelist certain functions that are known to be safe to
+	// remove if their result is unused
+	canBeRemovedIfUnused bool
 }
 
 type generateTempRefArg uint8
@@ -5534,7 +5557,6 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 	case *ast.EDot:
 		if !left.IsOptionalChain {
 			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
-			p.usedRuntimeSyms |= runtime.PowSym
 			return wrapFunc(ast.Expr{loc, &ast.EBinary{
 				Op: ast.BinOpAssign,
 				Left: ast.Expr{e.Left.Loc, &ast.EDot{
@@ -5542,17 +5564,14 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 					Name:    left.Name,
 					NameLoc: left.NameLoc,
 				}},
-				Right: ast.Expr{loc, &ast.ERuntimeCall{
-					Sym: runtime.PowSym,
-					Args: []ast.Expr{
-						ast.Expr{e.Left.Loc, &ast.EDot{
-							Target:  referenceFunc(),
-							Name:    left.Name,
-							NameLoc: left.NameLoc,
-						}},
-						e.Right,
-					},
-				}},
+				Right: p.callRuntime(loc, "__pow", []ast.Expr{
+					ast.Expr{e.Left.Loc, &ast.EDot{
+						Target:  referenceFunc(),
+						Name:    left.Name,
+						NameLoc: left.NameLoc,
+					}},
+					e.Right,
+				}),
 			}})
 		}
 
@@ -5560,35 +5579,27 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 		if !left.IsOptionalChain {
 			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
 			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Index)
-			p.usedRuntimeSyms |= runtime.PowSym
 			return targetWrapFunc(indexWrapFunc(ast.Expr{loc, &ast.EBinary{
 				Op: ast.BinOpAssign,
 				Left: ast.Expr{e.Left.Loc, &ast.EIndex{
 					Target: targetFunc(),
 					Index:  indexFunc(),
 				}},
-				Right: ast.Expr{loc, &ast.ERuntimeCall{
-					Sym: runtime.PowSym,
-					Args: []ast.Expr{
-						ast.Expr{e.Left.Loc, &ast.EIndex{
-							Target: targetFunc(),
-							Index:  indexFunc(),
-						}},
-						e.Right,
-					},
-				}},
+				Right: p.callRuntime(loc, "__pow", []ast.Expr{
+					ast.Expr{e.Left.Loc, &ast.EIndex{
+						Target: targetFunc(),
+						Index:  indexFunc(),
+					}},
+					e.Right,
+				}),
 			}}))
 		}
 
 	case *ast.EIdentifier:
-		p.usedRuntimeSyms |= runtime.PowSym
 		return ast.Expr{loc, &ast.EBinary{
-			Op:   ast.BinOpAssign,
-			Left: ast.Expr{e.Left.Loc, &ast.EIdentifier{left.Ref}},
-			Right: ast.Expr{loc, &ast.ERuntimeCall{
-				Sym:  runtime.PowSym,
-				Args: []ast.Expr{e.Left, e.Right},
-			}},
+			Op:    ast.BinOpAssign,
+			Left:  ast.Expr{e.Left.Loc, &ast.EIdentifier{left.Ref}},
+			Right: p.callRuntime(loc, "__pow", []ast.Expr{e.Left, e.Right}),
 		}}
 	}
 
@@ -5653,30 +5664,21 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 				result = ast.Expr{loc, &ast.EObject{properties}}
 			} else {
 				// "{...a, b, ...c}" => "__assign(__assign(__assign({}, a), {b}), c)"
-				result = ast.Expr{loc, &ast.ERuntimeCall{
-					Sym:  runtime.AssignSym,
-					Args: []ast.Expr{result, ast.Expr{loc, &ast.EObject{properties}}},
-				}}
+				result = p.callRuntime(loc, "__assign",
+					[]ast.Expr{result, ast.Expr{loc, &ast.EObject{properties}}})
 			}
 			properties = []ast.Property{}
 		}
 
 		// "{a, ...b}" => "__assign({a}, b)"
-		result = ast.Expr{loc, &ast.ERuntimeCall{
-			Sym:  runtime.AssignSym,
-			Args: []ast.Expr{result, *property.Value},
-		}}
+		result = p.callRuntime(loc, "__assign", []ast.Expr{result, *property.Value})
 	}
 
 	if len(properties) > 0 {
 		// "{...a, b}" => "__assign(__assign({}, a), {b})"
-		result = ast.Expr{loc, &ast.ERuntimeCall{
-			Sym:  runtime.AssignSym,
-			Args: []ast.Expr{result, ast.Expr{loc, &ast.EObject{properties}}},
-		}}
+		result = p.callRuntime(loc, "__assign", []ast.Expr{result, ast.Expr{loc, &ast.EObject{properties}}})
 	}
 
-	p.usedRuntimeSyms |= runtime.AssignSym
 	return result
 }
 
@@ -6981,14 +6983,10 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 			var propertyValue ast.Expr
 			if property.IsSpread {
 				// Call out to the __rest() helper function to implement spread
-				p.usedRuntimeSyms |= runtime.RestSym
-				propertyValue = ast.Expr{loc, &ast.ERuntimeCall{
-					Sym: runtime.RestSym,
-					Args: []ast.Expr{
-						valueFunc(),
-						ast.Expr{loc, &ast.EArray{keysForSpread}},
-					},
-				}}
+				propertyValue = p.callRuntime(loc, "__rest", []ast.Expr{
+					valueFunc(),
+					ast.Expr{loc, &ast.EArray{keysForSpread}},
+				})
 			} else {
 				key := property.Key
 
@@ -7824,11 +7822,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 			// Lower the exponentiation operator for browsers that don't support it
 			if p.target < ES2016 {
-				p.usedRuntimeSyms |= runtime.PowSym
-				return ast.Expr{expr.Loc, &ast.ERuntimeCall{
-					Sym:  runtime.PowSym,
-					Args: []ast.Expr{e.Left, e.Right},
-				}}, exprOut{}
+				return p.callRuntime(expr.Loc, "__pow", []ast.Expr{e.Left, e.Right}), exprOut{}
 			}
 
 		case ast.BinOpPowAssign:
@@ -7977,9 +7971,14 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EDot:
-		// Substitute user-specified defines
 		if define, ok := p.dotDefines[e.Name]; ok && p.isDotDefineMatch(expr, define.parts) {
-			return p.valueForDefine(expr.Loc, define.defineFunc), exprOut{}
+			if define.canBeRemovedIfUnused {
+				// This expression matches our whitelist of side-effect-free properties
+				e.CanBeRemovedIfUnused = true
+			} else {
+				// Substitute user-specified defines
+				return p.valueForDefine(expr.Loc, define.defineFunc), exprOut{}
+			}
 		}
 
 		target, out := p.visitExprInOut(e.Target, exprIn{hasChainParent: !e.IsOptionalChain})
@@ -8069,7 +8068,10 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
 			}
 
-			path := ast.Path{e.Expr.Loc, lexer.UTF16ToString(str.Value)}
+			path := ast.Path{
+				Loc:  e.Expr.Loc,
+				Text: lexer.UTF16ToString(str.Value),
+			}
 
 			// Only track import paths if we want dependencies
 			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
@@ -8157,7 +8159,10 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
 			}
 
-			path := ast.Path{arg.Loc, lexer.UTF16ToString(str.Value)}
+			path := ast.Path{
+				Loc:  arg.Loc,
+				Text: lexer.UTF16ToString(str.Value),
+			}
 
 			// Only track import paths if we want dependencies
 			if p.isBundling {
@@ -8451,7 +8456,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 					p.namedImports[s.DefaultName.Ref] = ast.NamedImport{
 						Alias:        "default",
 						AliasLoc:     s.DefaultName.Loc,
-						ImportPath:   s.Path.Text,
+						ImportPath:   s.Path,
 						NamespaceRef: s.NamespaceRef,
 					}
 				}
@@ -8461,7 +8466,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 						p.namedImports[item.Name.Ref] = ast.NamedImport{
 							Alias:        item.Alias,
 							AliasLoc:     item.AliasLoc,
-							ImportPath:   s.Path.Text,
+							ImportPath:   s.Path,
 							NamespaceRef: s.NamespaceRef,
 						}
 					}
@@ -8486,7 +8491,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 					p.namedImports[item.Name.Ref] = ast.NamedImport{
 						Alias:        p.symbols[item.Name.Ref.InnerIndex].Name,
 						AliasLoc:     item.Name.Loc,
-						ImportPath:   s.Path.Text,
+						ImportPath:   s.Path,
 						NamespaceRef: s.NamespaceRef,
 					}
 				}
@@ -8649,6 +8654,9 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow:
 		return true
 
+	case *ast.EDot:
+		return e.CanBeRemovedIfUnused
+
 	case *ast.EClass:
 		return p.classCanBeRemovedIfUnused(e.Class)
 
@@ -8749,6 +8757,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		isBundling:        options.IsBundling,
 		currentFnOpts:     fnOpts{isOutsideFn: true},
 		useCountEstimates: make(map[ast.Ref]uint32),
+		runtimeImports:    make(map[string]ast.Ref),
 
 		// These are for TypeScript
 		emittedNamespaceVars:      make(map[ast.Ref]bool),
@@ -8779,7 +8788,22 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		p.currentScope.Members["module"] = p.moduleRef
 	}
 
+	// Mark these functions as free of side effects
+	p.addSideEffectFreeFunction([]string{"Object", "defineProperty"})
+	p.addSideEffectFreeFunction([]string{"Object", "hasOwnProperty"})
+	p.addSideEffectFreeFunction([]string{"Object", "getOwnPropertySymbols"})
+	p.addSideEffectFreeFunction([]string{"Object", "propertyIsEnumerable"})
+	p.addSideEffectFreeFunction([]string{"Math", "pow"})
+	p.addSideEffectFreeFunction([]string{"Object", "assign"})
+
 	return p
+}
+
+func (p *parser) addSideEffectFreeFunction(parts []string) {
+	p.dotDefines[parts[len(parts)-1]] = dotDefine{
+		parts:                parts,
+		canBeRemovedIfUnused: true,
+	}
 }
 
 func Parse(log logging.Log, source logging.Source, options ParseOptions) (result ast.AST, ok bool) {
@@ -8821,7 +8845,10 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 			if len(parts) == 1 {
 				p.identifierDefines[k] = v
 			} else {
-				p.dotDefines[parts[len(parts)-1]] = dotDefine{parts, v}
+				p.dotDefines[parts[len(parts)-1]] = dotDefine{
+					parts:      parts,
+					defineFunc: v,
+				}
 			}
 		}
 	}
@@ -8836,7 +8863,6 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		parts = p.appendPart(parts, stmts)
 	} else {
 		// When bundling, each top-level statement is potentially a separate part
-		parts = []ast.Part{}
 		var after []ast.Part
 		for _, stmt := range stmts {
 			switch s := stmt.Data.(type) {
@@ -8861,6 +8887,48 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		parts = append(parts, after...)
 	}
 
+	// Insert an import statement for any runtime imports we generated
+	if len(p.runtimeImports) > 0 {
+		// Sort the imports for determinism
+		keys := make([]string, 0, len(p.runtimeImports))
+		for key, _ := range p.runtimeImports {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		namespaceRef := p.newSymbol(ast.SymbolOther, "runtime")
+		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
+		declaredSymbols := make([]ast.Ref, len(keys))
+		clauseItems := make([]ast.ClauseItem, len(keys))
+
+		// Create per-import information
+		for i, key := range keys {
+			ref := p.runtimeImports[key]
+			declaredSymbols[i] = ref
+			clauseItems[i] = ast.ClauseItem{Alias: key, Name: ast.LocRef{Ref: ref}}
+			p.namedImports[ref] = ast.NamedImport{
+				Alias:        key,
+				ImportPath:   ast.Path{IsRuntime: true},
+				NamespaceRef: namespaceRef,
+			}
+		}
+
+		// Append a single import to the end of the file (ES6 imports are hoisted
+		// so we don't need to worry about where the import statement goes)
+		parts = append(parts, ast.Part{
+			DeclaredSymbols: declaredSymbols,
+			ImportPaths: []ast.ImportPath{ast.ImportPath{
+				Kind: ast.ImportStmt,
+				Path: ast.Path{IsRuntime: true},
+			}},
+			Stmts: []ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SImport{
+				NamespaceRef: namespaceRef,
+				Items:        &clauseItems,
+				Path:         ast.Path{IsRuntime: true},
+			}}},
+		})
+	}
+
 	// Handle import paths after the whole file has been visited because we need
 	// symbol usage counts to be able to remove unused type-only imports in
 	// TypeScript code.
@@ -8877,7 +8945,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	parts = parts[:partsEnd]
 
 	// Analyze cross-part dependencies for tree shaking and code splitting
-	if p.isBundling {
+	{
 		// Map locals to parts
 		localToParts := make([][]uint32, len(p.symbols))
 		for partIndex, part := range parts {
@@ -8968,10 +9036,9 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 	// - Using the "module" variable
 	// - Using a top-level return statement
 	// - Using a direct call to eval()
-	usesCommonJSFeatures := p.hasTopLevelReturn ||
-		p.moduleScope.ContainsDirectEval ||
-		p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0 ||
-		p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
+	usesExports := p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0
+	usesModule := p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
+	usesCommonJSFeatures := p.hasTopLevelReturn || p.moduleScope.ContainsDirectEval || usesExports || usesModule
 
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.NewSymbolMap(int(source.Index) + 1)
@@ -8986,8 +9053,9 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 		ModuleRef:            p.moduleRef,
 		WrapperRef:           wrapperRef,
 		Hashbang:             hashbang,
-		UsedRuntimeSyms:      p.usedRuntimeSyms,
 		NamedImports:         p.namedImports,
 		NamedExports:         p.namedExports,
+		UsesExportsRef:       usesExports,
+		UsesModuleRef:        usesModule,
 	}
 }
