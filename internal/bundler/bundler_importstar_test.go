@@ -27,16 +27,12 @@ func TestImportStarES6Unused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /foo.js
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+const foo2 = 123;
 
-    // /entry.js
-    let foo = 234;
-    console.log(foo);
-  }
-}, 0);
+// /entry.js
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -63,20 +59,16 @@ func TestImportStarES6Capture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /foo.js
-    var exports = {};
-    __export(exports, {
-      foo: () => foo2
-    });
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+var exports = {};
+__export(exports, {
+	foo: () => foo2
+});
+const foo2 = 123;
 
-    // /entry.js
-    let foo = 234;
-    console.log(exports, foo2, foo);
-  }
-}, 0);
+// /entry.js
+let foo = 234;
+console.log(exports, foo2, foo);
 `,
 		},
 	})
@@ -103,16 +95,12 @@ func TestImportStarES6NoCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /foo.js
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+const foo2 = 123;
 
-    // /entry.js
-    let foo = 234;
-    console.log(foo2, foo2, foo);
-  }
-}, 0);
+// /entry.js
+let foo = 234;
+console.log(foo2, foo2, foo);
 `,
 		},
 	})
@@ -143,22 +131,18 @@ func TestImportStarES6ExportImportStarUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    var exports = {};
-    __export(exports, {
-      foo: () => foo2
-    });
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+var exports = {};
+__export(exports, {
+	foo: () => foo2
+});
+const foo2 = 123;
 
-    // /bar.js
+// /bar.js
 
-    // /entry.js
-    let foo = 234;
-    console.log(foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -189,22 +173,18 @@ func TestImportStarES6ExportImportStarNoCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    var exports = {};
-    __export(exports, {
-      foo: () => foo2
-    });
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+var exports = {};
+__export(exports, {
+	foo: () => foo2
+});
+const foo2 = 123;
 
-    // /bar.js
+// /bar.js
 
-    // /entry.js
-    let foo = 234;
-    console.log(exports.foo, exports.foo, foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(exports.foo, exports.foo, foo);
 `,
 		},
 	})
@@ -235,22 +215,18 @@ func TestImportStarES6ExportImportStarCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    var exports = {};
-    __export(exports, {
-      foo: () => foo2
-    });
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+var exports = {};
+__export(exports, {
+	foo: () => foo2
+});
+const foo2 = 123;
 
-    // /bar.js
+// /bar.js
 
-    // /entry.js
-    let foo = 234;
-    console.log(exports, exports.foo, foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(exports, exports.foo, foo);
 `,
 		},
 	})
@@ -280,22 +256,18 @@ func TestImportStarES6ExportStarAsUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    var exports = {};
-    __export(exports, {
-      foo: () => foo2
-    });
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+var exports = {};
+__export(exports, {
+	foo: () => foo2
+});
+const foo2 = 123;
 
-    // /bar.js
+// /bar.js
 
-    // /entry.js
-    let foo = 234;
-    console.log(foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -325,22 +297,18 @@ func TestImportStarES6ExportStarAsNoCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    var exports = {};
-    __export(exports, {
-      foo: () => foo2
-    });
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+var exports = {};
+__export(exports, {
+	foo: () => foo2
+});
+const foo2 = 123;
 
-    // /bar.js
+// /bar.js
 
-    // /entry.js
-    let foo = 234;
-    console.log(exports.foo, exports.foo, foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(exports.foo, exports.foo, foo);
 `,
 		},
 	})
@@ -370,22 +338,18 @@ func TestImportStarES6ExportStarAsCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    var exports = {};
-    __export(exports, {
-      foo: () => foo2
-    });
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+var exports = {};
+__export(exports, {
+	foo: () => foo2
+});
+const foo2 = 123;
 
-    // /bar.js
+// /bar.js
 
-    // /entry.js
-    let foo = 234;
-    console.log(exports, exports.foo, foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(exports, exports.foo, foo);
 `,
 		},
 	})
@@ -415,18 +379,14 @@ func TestImportStarES6ExportStarUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+const foo2 = 123;
 
-    // /bar.js
+// /bar.js
 
-    // /entry.js
-    let foo = 234;
-    console.log(foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -456,18 +416,14 @@ func TestImportStarES6ExportStarNoCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+const foo2 = 123;
 
-    // /bar.js
+// /bar.js
 
-    // /entry.js
-    let foo = 234;
-    console.log(foo2, foo2, foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(foo2, foo2, foo);
 `,
 		},
 	})
@@ -497,22 +453,18 @@ func TestImportStarES6ExportStarCapture(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /foo.js
-    const foo2 = 123;
+			"/out.js": `// /foo.js
+const foo2 = 123;
 
-    // /bar.js
-    var bar = {};
-    __export(bar, {
-      foo: () => foo2
-    });
+// /bar.js
+var bar = {};
+__export(bar, {
+	foo: () => foo2
+});
 
-    // /entry.js
-    let foo = 234;
-    console.log(bar, foo2, foo);
-  }
-}, 1);
+// /entry.js
+let foo = 234;
+console.log(bar, foo2, foo);
 `,
 		},
 	})

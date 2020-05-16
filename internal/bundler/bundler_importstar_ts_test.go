@@ -140,13 +140,9 @@ func TestTSImportStarES6ExportImportStarUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo = 234;
-    console.log(foo);
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -268,13 +264,9 @@ func TestTSImportStarES6ExportStarAsUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo = 234;
-    console.log(foo);
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -394,13 +386,9 @@ func TestTSImportStarES6ExportStarUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo = 234;
-    console.log(foo);
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})
@@ -513,13 +501,9 @@ func TestTSImportStarCommonJSUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo = 234;
-    console.log(foo);
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = 234;
+console.log(foo);
 `,
 		},
 	})

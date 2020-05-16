@@ -27,12 +27,8 @@ func TestTSDeclareConst(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo;
 `,
 		},
 	})
@@ -59,12 +55,8 @@ func TestTSDeclareLet(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo;
 `,
 		},
 	})
@@ -91,12 +83,8 @@ func TestTSDeclareVar(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo;
 `,
 		},
 	})
@@ -123,13 +111,9 @@ func TestTSDeclareClass(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    ;
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+;
+let foo;
 `,
 		},
 	})
@@ -156,12 +140,8 @@ func TestTSDeclareFunction(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo;
 `,
 		},
 	})
@@ -188,13 +168,9 @@ func TestTSDeclareNamespace(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    ;
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+;
+let foo;
 `,
 		},
 	})
@@ -221,13 +197,9 @@ func TestTSDeclareEnum(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    ;
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+;
+let foo;
 `,
 		},
 	})
@@ -254,13 +226,9 @@ func TestTSDeclareConstEnum(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    ;
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+;
+let foo;
 `,
 		},
 	})
@@ -286,13 +254,9 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    function foo() {
-    }
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+function foo() {
+}
 `,
 		},
 	})
@@ -372,12 +336,8 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo;
 `,
 		},
 	})
@@ -449,22 +409,18 @@ func TestTSExportNamespace(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /b.ts
-    class Foo {
-    }
-    (function(Foo2) {
-      Foo2.foo = 1;
-    })(Foo || (Foo = {}));
-    (function(Foo2) {
-      Foo2.bar = 2;
-    })(Foo || (Foo = {}));
+			"/out.js": `// /b.ts
+class Foo {
+}
+(function(Foo2) {
+  Foo2.foo = 1;
+})(Foo || (Foo = {}));
+(function(Foo2) {
+  Foo2.bar = 2;
+})(Foo || (Foo = {}));
 
-    // /a.ts
-    console.log(new Foo());
-  }
-}, 0);
+// /a.ts
+console.log(new Foo());
 `,
 		},
 	})
@@ -591,19 +547,15 @@ func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let a;
-    const b = 0;
-    var c;
-    function d() {
-    }
-    class e {
-    }
-    console.log(a, b, c, d, e);
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let a;
+const b = 0;
+var c;
+function d() {
+}
+class e {
+}
+console.log(a, b, c, d, e);
 `,
 		},
 	})
@@ -634,22 +586,18 @@ func TestTSImportVsLocalCollisionMixed(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /other.ts
-    let real = 123;
+			"/out.js": `// /other.ts
+let real = 123;
 
-    // /entry.ts
-    let a;
-    const b = 0;
-    var c;
-    function d() {
-    }
-    class e {
-    }
-    console.log(a, b, c, d, e, real);
-  }
-}, 0);
+// /entry.ts
+let a;
+const b = 0;
+var c;
+function d() {
+}
+class e {
+}
+console.log(a, b, c, d, e, real);
 `,
 		},
 	})

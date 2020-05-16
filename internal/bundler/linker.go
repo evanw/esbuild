@@ -1,12 +1,17 @@
 package bundler
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/runtime"
 )
 
 type bitSet struct {
@@ -25,8 +30,14 @@ func (bs bitSet) setBit(bit uint) {
 	bs.entries[bit/8] |= 1 << (bit & 7)
 }
 
+func (bs bitSet) equals(other bitSet) bool {
+	return bytes.Equal(bs.entries, other.entries)
+}
+
 type linkerContext struct {
+	options     *BundleOptions
 	log         logging.Log
+	fs          fs.FS
 	symbols     ast.SymbolMap
 	entryPoints []uint32
 	sources     []logging.Source
@@ -34,11 +45,17 @@ type linkerContext struct {
 	fileMeta    []fileMeta
 }
 
-type fileMeta struct {
-	partMeta []partMeta
+type entryPointStatus uint8
 
-	// True if this is a user-specified entry point or the target of an import()
-	isEntryPoint bool
+const (
+	entryPointNone entryPointStatus = iota
+	entryPointUserSpecified
+	entryPointDynamicImport
+)
+
+type fileMeta struct {
+	partMeta         []partMeta
+	entryPointStatus entryPointStatus
 
 	// If true, the module must be bundled CommonJS-style like this:
 	//
@@ -58,13 +75,13 @@ type fileMeta struct {
 
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
-	reachableFromEntryPoints bitSet
+	entryBits bitSet
 }
 
 type partMeta struct {
 	// This holds all entry points that can reach this part. It will be used to
 	// assign this part to a chunk.
-	reachableFromEntryPoints bitSet
+	entryBits bitSet
 
 	// These are dependencies that come from other files via import statements.
 	nonLocalDependencies []partRef
@@ -76,13 +93,17 @@ type partRef struct {
 }
 
 type chunkMeta struct {
+	name         string
 	filesInChunk map[uint32]bool
+	entryBits    bitSet
 }
 
-func newLinkerContext(log logging.Log, sources []logging.Source, files []file, entryPoints []uint32) linkerContext {
+func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources []logging.Source, files []file, entryPoints []uint32) linkerContext {
 	// Clone information about symbols and files so we don't mutate the input data
 	c := linkerContext{
+		options:     options,
 		log:         log,
+		fs:          fs,
 		sources:     sources,
 		entryPoints: append([]uint32{}, entryPoints...),
 		files:       make([]file, len(files)),
@@ -104,17 +125,29 @@ func newLinkerContext(log logging.Log, sources []logging.Source, files []file, e
 
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, sourceIndex := range entryPoints {
-		c.fileMeta[sourceIndex].isEntryPoint = true
+		c.fileMeta[sourceIndex].entryPointStatus = entryPointUserSpecified
 	}
 
 	return c
 }
 
-func (c *linkerContext) link() {
+func (c *linkerContext) link() []BundleResult {
 	c.scanImportsAndExports()
 	c.markPartsReachableFromEntryPoints()
-	chunks := c.computeChunkAssignments()
-	chunks = chunks
+	c.renameOrMinifyAllSymbols()
+
+	chunks := c.computeChunks()
+	results := []BundleResult{}
+
+	for _, chunk := range chunks {
+		js := c.generateChunk(chunk)
+		results = append(results, BundleResult{
+			JsAbsPath:  c.fs.Join(c.options.AbsOutputDir, chunk.name),
+			JsContents: js,
+		})
+	}
+
+	return results
 }
 
 func (c *linkerContext) scanImportsAndExports() {
@@ -132,9 +165,9 @@ func (c *linkerContext) scanImportsAndExports() {
 				case ast.ImportDynamic:
 					// Files that are imported with import() must be entry points
 					if otherSourceIndex, ok := file.resolvedImports[importPath.Path.Text]; ok {
-						if !c.fileMeta[otherSourceIndex].isEntryPoint {
+						if c.fileMeta[otherSourceIndex].entryPointStatus == entryPointNone {
 							c.entryPoints = append(c.entryPoints, otherSourceIndex)
-							c.fileMeta[otherSourceIndex].isEntryPoint = true
+							c.fileMeta[otherSourceIndex].entryPointStatus = entryPointDynamicImport
 						}
 					}
 				}
@@ -180,11 +213,9 @@ func (c *linkerContext) scanImportsAndExports() {
 
 					// Resolve the import by one step
 					nextTracker, localParts, status := c.advanceImportTracker(tracker)
-					tracker = nextTracker
-					namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
-
 					if status == importCommonJS {
 						// If it's a CommonJS file, rewrite the import to a property access
+						namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 						c.symbols.SetNamespaceAlias(importRef, ast.NamespaceAlias{
 							NamespaceRef: namedImport.NamespaceRef,
 							Alias:        namedImport.Alias,
@@ -193,22 +224,28 @@ func (c *linkerContext) scanImportsAndExports() {
 					} else if status == importMissing {
 						// Report mismatched imports and exports
 						source := c.sources[tracker.sourceIndex]
+						namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 						r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
 						c.log.AddRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 						break
-					} else if _, ok := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]; !ok {
+					} else if _, ok := c.files[nextTracker.sourceIndex].ast.NamedImports[nextTracker.importRef]; !ok {
 						// If this is not a re-export of another import, add this import as
 						// a dependency to all parts in this file that use this import
-						for _, partIndex := range namedImport.PartsWithUses {
+						for _, partIndex := range c.files[sourceIndex].ast.NamedImports[importRef].PartsWithUses {
 							partMeta := &c.fileMeta[sourceIndex].partMeta[partIndex]
 							for _, nonLocalPartIndex := range localParts {
 								partMeta.nonLocalDependencies = append(partMeta.nonLocalDependencies, partRef{
-									sourceIndex: tracker.sourceIndex,
+									sourceIndex: nextTracker.sourceIndex,
 									partIndex:   nonLocalPartIndex,
 								})
 							}
 						}
+
+						// Merge these symbols so they will share the same name
+						ast.MergeSymbols(c.symbols, importRef, nextTracker.importRef)
 						break
+					} else {
+						tracker = nextTracker
 					}
 				}
 			}
@@ -237,14 +274,14 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// external file (for example, built-in node modules are marked external)
 	otherSourceIndex, ok := file.resolvedImports[namedImport.ImportPath]
 	if !ok || c.fileMeta[otherSourceIndex].isCommonJS {
-		return tracker, nil, importCommonJS
+		return importTracker{}, nil, importCommonJS
 	}
 
 	// Match this import up with an export from the imported file
 	otherFile := &c.files[otherSourceIndex]
 	matchingExport, ok := otherFile.ast.NamedExports[namedImport.Alias]
 	if !ok {
-		return tracker, nil, importMissing
+		return importTracker{}, nil, importMissing
 	}
 
 	// Check to see if this is a re-export of another import
@@ -256,9 +293,9 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	bitCount := uint(len(c.entryPoints))
 	for sourceIndex, _ := range c.fileMeta {
 		fileMeta := &c.fileMeta[sourceIndex]
-		fileMeta.reachableFromEntryPoints = newBitSet(bitCount)
+		fileMeta.entryBits = newBitSet(bitCount)
 		for partIndex, _ := range fileMeta.partMeta {
-			fileMeta.partMeta[partIndex].reachableFromEntryPoints = newBitSet(bitCount)
+			fileMeta.partMeta[partIndex].entryBits = newBitSet(bitCount)
 		}
 	}
 
@@ -278,15 +315,15 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	distanceFromEntryPoint++
 
 	// Don't mark this file more than once
-	if fileMeta.reachableFromEntryPoints.hasBit(entryPoint) {
+	if fileMeta.entryBits.hasBit(entryPoint) {
 		return
 	}
-	fileMeta.reachableFromEntryPoints.setBit(entryPoint)
+	fileMeta.entryBits.setBit(entryPoint)
 
 	file := &c.files[sourceIndex]
 	for partIndex, part := range file.ast.Parts {
 		// Include all parts in this file with side effects
-		if !part.CanBeRemovedIfUnused {
+		if !c.options.TreeShaking || !part.CanBeRemovedIfUnused {
 			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
 		}
 
@@ -305,10 +342,10 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	partMeta := &c.fileMeta[sourceIndex].partMeta[partIndex]
 
 	// Don't mark this part more than once
-	if partMeta.reachableFromEntryPoints.hasBit(entryPoint) {
+	if partMeta.entryBits.hasBit(entryPoint) {
 		return
 	}
-	partMeta.reachableFromEntryPoints.setBit(entryPoint)
+	partMeta.entryBits.setBit(entryPoint)
 
 	// Also include any require() imports
 	file := &c.files[sourceIndex]
@@ -332,20 +369,41 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	}
 }
 
-func (c *linkerContext) computeChunkAssignments() []chunkMeta {
+func (c *linkerContext) computeChunks() map[string]chunkMeta {
 	chunks := make(map[string]chunkMeta)
 	neverReachedKey := string(newBitSet(uint(len(c.entryPoints))).entries)
+
+	// Compute entry point names
+	entryPointNames := make([]string, len(c.entryPoints))
+	for i, entryPoint := range c.entryPoints {
+		if c.options.AbsOutputFile != "" && c.fileMeta[entryPoint].entryPointStatus == entryPointUserSpecified {
+			entryPointNames[i] = c.fs.Base(c.options.AbsOutputFile)
+		} else {
+			name := c.fs.Base(c.sources[entryPoint].AbsolutePath)
+			entryPointNames[i] = c.stripKnownFileExtension(name) + ".js"
+		}
+	}
 
 	// Figure out which files are in which chunk
 	for sourceIndex, fileMeta := range c.fileMeta {
 		for _, partMeta := range fileMeta.partMeta {
-			key := string(partMeta.reachableFromEntryPoints.entries)
+			key := string(partMeta.entryBits.entries)
 			if key == neverReachedKey {
 				// Ignore this part if it was never reached
 				continue
 			}
 			chunk := chunks[key]
 			if chunk.filesInChunk == nil {
+				// Give the chunk a name
+				for i, entryPoint := range c.entryPoints {
+					if partMeta.entryBits.hasBit(uint(entryPoint)) {
+						if chunk.name != "" {
+							chunk.name = c.stripKnownFileExtension(chunk.name) + "_"
+						}
+						chunk.name += entryPointNames[i]
+					}
+				}
+				chunk.entryBits = partMeta.entryBits
 				chunk.filesInChunk = make(map[uint32]bool)
 				chunks[key] = chunk
 			}
@@ -353,5 +411,292 @@ func (c *linkerContext) computeChunkAssignments() []chunkMeta {
 		}
 	}
 
-	return []chunkMeta{}
+	return chunks
+}
+
+func (c *linkerContext) stripKnownFileExtension(name string) string {
+	for ext, _ := range c.options.ExtensionToLoader {
+		if strings.HasSuffix(name, ext) {
+			return name[:len(name)-len(ext)]
+		}
+	}
+	return name
+}
+
+type chunkOrder struct {
+	sourceIndex uint32
+	distance    uint32
+	path        string
+}
+
+// This type is just so we can use Go's native sort function
+type chunkOrderArray []chunkOrder
+
+func (a chunkOrderArray) Len() int          { return len(a) }
+func (a chunkOrderArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a chunkOrderArray) Less(i int, j int) bool {
+	return a[i].distance < a[j].distance || (a[i].distance == a[j].distance && a[i].path < a[j].path)
+}
+
+func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
+	sorted := make(chunkOrderArray, 0, len(chunk.filesInChunk))
+
+	// Attach information to the files for use with sorting
+	for sourceIndex, _ := range chunk.filesInChunk {
+		sorted = append(sorted, chunkOrder{
+			sourceIndex: sourceIndex,
+			distance:    c.fileMeta[sourceIndex].distanceFromEntryPoint,
+			path:        c.sources[sourceIndex].AbsolutePath,
+		})
+	}
+
+	// Sort so files closest to an entry point come first. If two files are
+	// equidistant to an entry point, then break the tie by sorting on the
+	// absolute path.
+	sort.Sort(sorted)
+
+	visited := make(map[uint32]bool)
+	order := []uint32{}
+
+	// Traverse the graph using this stable order and linearize the files with
+	// dependencies before dependents
+	var visit func(uint32)
+	visit = func(sourceIndex uint32) {
+		if visited[sourceIndex] {
+			return
+		}
+		visited[sourceIndex] = true
+		file := &c.files[sourceIndex]
+		partMeta := c.fileMeta[sourceIndex].partMeta
+		for partIndex, part := range file.ast.Parts {
+			for _, importPath := range part.ImportPaths {
+				if importPath.Kind == ast.ImportStmt || (importPath.Kind == ast.ImportRequire &&
+					chunk.entryBits.equals(partMeta[partIndex].entryBits)) {
+					if otherSourceIndex, ok := file.resolvedImports[importPath.Path.Text]; ok {
+						visit(otherSourceIndex)
+					}
+				}
+			}
+		}
+		order = append(order, sourceIndex)
+	}
+	for _, data := range sorted {
+		visit(data.sourceIndex)
+	}
+
+	return order
+}
+func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.Stmt, partStmts []ast.Stmt) []ast.Stmt {
+	for _, stmt := range partStmts {
+		switch s := stmt.Data.(type) {
+		case *ast.SImport:
+			// Turn imports of CommonJS files into require() calls
+			if otherSourceIndex, ok := c.files[sourceIndex].resolvedImports[s.Path.Text]; ok {
+				if c.fileMeta[otherSourceIndex].isCommonJS {
+					stmt.Data = &ast.SLocal{Decls: []ast.Decl{ast.Decl{
+						ast.Binding{stmt.Loc, &ast.BIdentifier{s.NamespaceRef}},
+						&ast.Expr{s.Path.Loc, &ast.ERequire{Path: s.Path, IsES6Import: true}},
+					}}}
+					break
+				}
+			}
+
+			// Remove import statements entirely
+			continue
+
+		case *ast.SExportStar, *ast.SExportFrom, *ast.SExportClause:
+			// Remove export statements entirely
+			continue
+
+		case *ast.SFunction:
+			// Strip the "export" keyword while bundling
+			if s.IsExport {
+				clone := *s
+				clone.IsExport = false
+				stmt.Data = &clone
+			}
+
+		case *ast.SClass:
+			// Strip the "export" keyword while bundling
+			if s.IsExport {
+				clone := *s
+				clone.IsExport = false
+				stmt.Data = &clone
+			}
+
+		case *ast.SLocal:
+			// Strip the "export" keyword while bundling
+			if s.IsExport {
+				clone := *s
+				clone.IsExport = false
+				stmt.Data = &clone
+			}
+
+		case *ast.SExportDefault:
+			// If we're bundling, convert "export default" into a normal declaration
+			if s.Value.Expr != nil {
+				// "export default foo;" => "const default = foo;"
+				stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
+					ast.Decl{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
+				}}}
+			} else {
+				switch s2 := s.Value.Stmt.Data.(type) {
+				case *ast.SFunction:
+					// "export default function() {}" => "function default() {}"
+					// "export default function foo() {}" => "function foo() {}"
+					if s2.Fn.Name == nil {
+						s2 = &ast.SFunction{Fn: s2.Fn}
+						s2.Fn.Name = &s.DefaultName
+					}
+					stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
+
+				case *ast.SClass:
+					// "export default class {}" => "class default {}"
+					// "export default class Foo {}" => "class Foo {}"
+					if s2.Class.Name == nil {
+						s2 = &ast.SClass{Class: s2.Class}
+						s2.Class.Name = &s.DefaultName
+					}
+					stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
+
+				default:
+					panic("Internal error")
+				}
+			}
+		}
+
+		stmts = append(stmts, stmt)
+	}
+
+	return stmts
+}
+
+func (c *linkerContext) generateChunk(chunk chunkMeta) []byte {
+	js := []byte{}
+
+	// Make sure the printer can require() CommonJS modules
+	wrapperRefs := make([]ast.Ref, len(c.files))
+	for sourceIndex, file := range c.files {
+		wrapperRefs[sourceIndex] = file.ast.WrapperRef
+	}
+
+	// The printer will be calling runtime functions
+	runtimeSymRefs := make(map[runtime.Sym]ast.Ref)
+	runtimeFile := c.files[runtimeSourceIndex]
+	for name, sym := range runtime.SymMap {
+		ref, ok := runtimeFile.ast.ModuleScope.Members[name]
+		if !ok {
+			panic("Internal error")
+		}
+		runtimeSymRefs[sym] = ref
+	}
+
+	for _, sourceIndex := range c.chunkFileOrder(chunk) {
+		file := &c.files[sourceIndex]
+		fileMeta := &c.fileMeta[sourceIndex]
+		stmts := []ast.Stmt{}
+
+		// Add all parts in this file that belong in this chunk
+		for partIndex, part := range file.ast.Parts {
+			if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+				stmts = c.convertStmtsForExport(sourceIndex, stmts, part.Stmts)
+			}
+		}
+
+		fileIndent := 0
+		if fileMeta.isCommonJS {
+			fileIndent = 1
+		}
+		tree := file.ast
+		tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
+		result := compileResult{PrintResult: printer.Print(tree, printer.PrintOptions{
+			Indent:           fileIndent,
+			RemoveWhitespace: c.options.RemoveWhitespace,
+			ResolvedImports:  file.resolvedImports,
+			RuntimeSymRefs:   runtimeSymRefs,
+			WrapperRefs:      wrapperRefs,
+		})}
+
+		if !c.options.RemoveWhitespace {
+			if len(js) > 0 {
+				js = append(js, '\n')
+			}
+			js = append(js, fmt.Sprintf("// %s\n", c.sources[sourceIndex].PrettyPath)...)
+		}
+
+		if fileMeta.isCommonJS {
+			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
+			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
+			wrapperRef := ast.FollowSymbols(c.symbols, file.ast.WrapperRef)
+			commonJSRef := ast.FollowSymbols(c.symbols, runtimeSymRefs[runtime.CommonJsSym])
+			format := "var %s = %s((%s, %s) => {\n"
+			if c.options.RemoveWhitespace {
+				format = "var %s=%s((%s,%s)=>{"
+			}
+			js = append(js, fmt.Sprintf(format,
+				c.symbols.Get(wrapperRef).Name,
+				c.symbols.Get(commonJSRef).Name,
+				c.symbols.Get(exportsRef).Name,
+				c.symbols.Get(moduleRef).Name,
+			)...)
+		}
+
+		if fileMeta.isCommonJS {
+			js = append(js, result.JSWithoutTrailingSemicolon...)
+			text := "});\n"
+			if c.options.RemoveWhitespace {
+				text = "});"
+			}
+			js = append(js, text...)
+		} else {
+			js = append(js, result.JS...)
+		}
+	}
+
+	// Make sure the file ends with a newline
+	if len(js) > 0 && js[len(js)-1] != '\n' {
+		js = append(js, '\n')
+	}
+
+	return js
+}
+
+func (c *linkerContext) renameOrMinifyAllSymbols() {
+	topLevelScopes := []*ast.Scope{}
+	moduleScopes := []*ast.Scope{}
+	nestedScopes := []*ast.Scope{}
+
+	// Combine all file scopes
+	for sourceIndex, file := range c.files {
+		moduleScopes = append(moduleScopes, file.ast.ModuleScope)
+		if c.fileMeta[sourceIndex].isCommonJS {
+			nestedScopes = append(nestedScopes, file.ast.ModuleScope)
+		} else {
+			topLevelScopes = append(topLevelScopes, file.ast.ModuleScope)
+			nestedScopes = append(nestedScopes, file.ast.ModuleScope.Children...)
+
+			// If this isn't CommonJS, then rename the unused "exports" and "module"
+			// variables to avoid them causing the identically-named variables in
+			// actual CommonJS files from being renamed. This is purely about
+			// aesthetics and is not about correctness.
+			name := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath)
+			c.symbols.SetName(file.ast.ExportsRef, name+"_exports")
+			c.symbols.SetName(file.ast.ModuleRef, name+"_module")
+		}
+	}
+
+	// Avoid collisions with any unbound symbols in this module group
+	reservedNames := computeReservedNames(moduleScopes, c.symbols)
+	if c.options.IsBundling {
+		// These are used to implement bundling, and need to be free for use
+		reservedNames["require"] = true
+		reservedNames["Promise"] = true
+	}
+
+	if c.options.MinifyIdentifiers {
+		minifyAllSymbols(reservedNames, topLevelScopes, nestedScopes, c.symbols)
+	} else {
+		renameAllSymbols(reservedNames, topLevelScopes, nestedScopes, c.symbols)
+	}
 }

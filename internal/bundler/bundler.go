@@ -364,6 +364,9 @@ type BundleOptions struct {
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
+	// If true, unused code is removed. If false, all code is kept.
+	TreeShaking bool
+
 	AbsOutputFile     string
 	AbsOutputDir      string
 	RemoveWhitespace  bool
@@ -1304,13 +1307,12 @@ func (b *Bundle) renameOrMinifyAllSymbolsInRuntime(files []file, symbols ast.Sym
 	reservedNames := computeReservedNames(moduleScopes, symbols)
 
 	// We're only renaming symbols in the runtime
-	runtimeModuleScope := []*ast.Scope{files[runtimeSourceIndex].ast.ModuleScope}
+	scope := files[runtimeSourceIndex].ast.ModuleScope
 
 	if options.MinifyIdentifiers {
-		nextName := 54 * 54 // Use names ending with '$' to avoid taking good short names
-		minifyAllSymbols(reservedNames, runtimeModuleScope, symbols, nextName)
+		minifyAllSymbols(reservedNames, []*ast.Scope{scope}, scope.Children, symbols)
 	} else {
-		renameAllSymbols(reservedNames, runtimeModuleScope, symbols)
+		renameAllSymbols(reservedNames, []*ast.Scope{scope}, scope.Children, symbols)
 	}
 }
 
@@ -1345,10 +1347,15 @@ func (b *Bundle) renameOrMinifyAllSymbols(files []file, symbols ast.SymbolMap, g
 		}
 	}
 
+	nestedScopes := []*ast.Scope{}
+	for _, scope := range moduleScopes {
+		nestedScopes = append(nestedScopes, scope.Children...)
+	}
+
 	if options.MinifyIdentifiers {
-		minifyAllSymbols(reservedNames, moduleScopes, symbols, 0 /* nextName */)
+		minifyAllSymbols(reservedNames, moduleScopes, nestedScopes, symbols)
 	} else {
-		renameAllSymbols(reservedNames, moduleScopes, symbols)
+		renameAllSymbols(reservedNames, moduleScopes, nestedScopes, symbols)
 	}
 }
 
@@ -1565,9 +1572,8 @@ func (b *Bundle) compileIndependent(log logging.Log, options *BundleOptions) []B
 }
 
 func (b *Bundle) compileBundle(log logging.Log, options *BundleOptions) []BundleResult {
-	c := newLinkerContext(log, b.sources, b.files, b.entryPoints)
-	c.link()
-	return b.oldCompileBundle(log, options)
+	c := newLinkerContext(options, log, b.fs, b.sources, b.files, b.entryPoints)
+	return c.link()
 }
 
 func (b *Bundle) oldCompileBundle(log logging.Log, options *BundleOptions) []BundleResult {

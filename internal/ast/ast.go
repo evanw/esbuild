@@ -995,6 +995,10 @@ func (sm SymbolMap) IncrementUseCountEstimate(ref Ref) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex].UseCountEstimate++
 }
 
+func (sm SymbolMap) SetName(ref Ref, name string) {
+	sm.Outer[ref.OuterIndex][ref.InnerIndex].Name = name
+}
+
 func (sm SymbolMap) SetNamespaceAlias(ref Ref, alias NamespaceAlias) {
 	sm.Outer[ref.OuterIndex][ref.InnerIndex].NamespaceAlias = &alias
 }
@@ -1037,6 +1041,7 @@ type AST struct {
 	ModuleScope *Scope
 	ExportsRef  Ref
 	ModuleRef   Ref
+	WrapperRef  Ref
 
 	// These are used when bundling.
 	NamedImports map[Ref]NamedImport

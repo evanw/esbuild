@@ -3979,7 +3979,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Unexpected()
 			}
 
-			defaultName := ast.LocRef{p.lexer.Loc(), p.newSymbol(ast.SymbolOther, "default")}
+			defaultIdentifier := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
+			defaultName := ast.LocRef{p.lexer.Loc(), p.newSymbol(ast.SymbolOther, defaultIdentifier)}
 			p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
 			p.lexer.Next()
 
@@ -3997,10 +3998,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					if _, ok := stmt.Data.(*ast.STypeScript); ok {
 						return stmt // This was just a type annotation
 					}
+
+					// Use the statement name if present, since it's a better name
+					if s, ok := stmt.Data.(*ast.SFunction); ok && s.Fn.Name != nil {
+						defaultName.Ref = s.Fn.Name.Ref
+					}
+
 					p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 
+				p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LComma, nil)
 				p.lexer.ExpectOrInsertSemicolon()
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
@@ -4014,25 +4022,44 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				if _, ok := stmt.Data.(*ast.STypeScript); ok {
 					return stmt // This was just a type annotation
 				}
+
+				// Use the statement name if present, since it's a better name
+				switch s := stmt.Data.(type) {
+				case *ast.SFunction:
+					if s.Fn.Name != nil {
+						defaultName.Ref = s.Fn.Name.Ref
+					}
+				case *ast.SClass:
+					if s.Class.Name != nil {
+						defaultName.Ref = s.Class.Name.Ref
+					}
+				}
+
 				p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
 			isIdentifier := p.lexer.Token == lexer.TIdentifier
 			name := p.lexer.Identifier
-
-			p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 			expr := p.parseExpr(ast.LComma)
 
 			// Handle the default export of an abstract class in TypeScript
 			if p.ts.Parse && isIdentifier && name == "abstract" && p.lexer.Token == lexer.TClass {
 				if _, ok := expr.Data.(*ast.EIdentifier); ok {
 					stmt := p.parseClassStmt(loc, parseStmtOpts{isNameOptional: true})
+
+					// Use the statement name if present, since it's a better name
+					if s, ok := stmt.Data.(*ast.SClass); ok && s.Class.Name != nil {
+						defaultName.Ref = s.Class.Name.Ref
+					}
+
+					p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 			}
 
 			p.lexer.ExpectOrInsertSemicolon()
+			p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 			return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
 
 		case lexer.TAsterisk:
@@ -8932,9 +8959,9 @@ func (p *parser) prepareForVisitPass() {
 }
 
 func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string) ast.AST {
-	// Make a symbol map that contains our file's symbols
-	symbols := ast.NewSymbolMap(int(source.Index) + 1)
-	symbols.Outer[source.Index] = p.symbols
+	// Make a wrapper symbol in case we need to be wrapped in a closure
+	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+
+		ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath))
 
 	// The following features cause us to need CommonJS mode:
 	// - Using the "exports" variable
@@ -8943,8 +8970,12 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 	// - Using a direct call to eval()
 	usesCommonJSFeatures := p.hasTopLevelReturn ||
 		p.moduleScope.ContainsDirectEval ||
-		symbols.Get(p.exportsRef).UseCountEstimate > 0 ||
-		symbols.Get(p.moduleRef).UseCountEstimate > 0
+		p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0 ||
+		p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
+
+	// Make a symbol map that contains our file's symbols
+	symbols := ast.NewSymbolMap(int(source.Index) + 1)
+	symbols.Outer[source.Index] = p.symbols
 
 	return ast.AST{
 		UsesCommonJSFeatures: usesCommonJSFeatures,
@@ -8953,6 +8984,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 		Symbols:              symbols,
 		ExportsRef:           p.exportsRef,
 		ModuleRef:            p.moduleRef,
+		WrapperRef:           wrapperRef,
 		Hashbang:             hashbang,
 		UsedRuntimeSyms:      p.usedRuntimeSyms,
 		NamedImports:         p.namedImports,

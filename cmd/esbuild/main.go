@@ -33,13 +33,14 @@ Options:
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
-  --format=...          Output format (iife, cjs, es)
+  --format=...          Output format (iife, cjs, esm)
   --color=...           Force use of color terminal escapes (true or false)
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
   --minify-identifiers  Shorten identifiers
   --minify-syntax       Use equivalent but shorter syntax
+  --tree-shaking        Remove unused code from the bundle
 
   --define:K=V          Substitute K with V while parsing
   --jsx-factory=...     What to use instead of React.createElement
@@ -219,6 +220,9 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		case arg == "--minify-identifiers":
 			args.bundleOptions.MinifyIdentifiers = true
 
+		case arg == "--tree-shaking":
+			args.bundleOptions.TreeShaking = true
+
 		case arg == "--sourcemap":
 			args.bundleOptions.SourceMap = bundler.SourceMapLinkedWithComment
 
@@ -336,10 +340,10 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 				args.bundleOptions.OutputFormat = bundler.FormatIIFE
 			case "cjs":
 				args.bundleOptions.OutputFormat = bundler.FormatCommonJS
-			case "es":
+			case "esm":
 				args.bundleOptions.OutputFormat = bundler.FormatESModule
 			default:
-				return argsObject{}, fmt.Errorf("Valid formats: iife, cjs, es")
+				return argsObject{}, fmt.Errorf("Valid formats: iife, cjs, esm")
 			}
 
 		case strings.HasPrefix(arg, "--color="):

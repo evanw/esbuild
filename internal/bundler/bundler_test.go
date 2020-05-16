@@ -990,18 +990,14 @@ func TestJSXImportsES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /custom-react.js
-    function elem() {
-    }
-    function frag() {
-    }
+			"/out.js": `// /custom-react.js
+function elem() {
+}
+function frag() {
+}
 
-    // /entry.jsx
-    console.log(elem("div", null), elem(frag, null, "fragment"));
-  }
-}, 1);
+// /entry.jsx
+console.log(elem("div", null), elem(frag, null, "fragment"));
 `,
 		},
 	})
@@ -2878,12 +2874,8 @@ func TestTypeofRequireBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    console.log("function");
-  }
-}, 0);
+			"/out.js": `// /entry.js
+console.log("function");
 `,
 		},
 	})
@@ -2952,12 +2944,8 @@ func TestRequireFSNode(t *testing.T) {
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    return require("fs");
-  }
-}, 0);
+			"/out.js": `// /entry.js
+return require("fs");
 `,
 		},
 	})
@@ -3392,29 +3380,25 @@ func TestThisInsideFunction(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    function foo(x = this) {
-      console.log(this);
-    }
-    const obj = {
-      foo(x = this) {
-        console.log(this);
-      }
-    };
-    class Foo {
-      x = this;
-      static y = this.z;
-      foo(x = this) {
-        console.log(this);
-      }
-      static bar(x = this) {
-        console.log(this);
-      }
-    }
+			"/out.js": `// /entry.js
+function foo(x = this) {
+  console.log(this);
+}
+const obj = {
+  foo(x = this) {
+    console.log(this);
   }
-}, 0);
+};
+class Foo {
+  x = this;
+  static y = this.z;
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+}
 `,
 		},
 	})
@@ -3444,19 +3428,15 @@ func TestArrowFnScope(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    (a = (c) => a + c, b) => a + b;
-    (a, b = (c) => b + c) => b + a;
-    (a = (d = (f) => a + d + f, e) => a + d + e, b, c) => a + b + c;
-    (a, b, c = (d, e = (f) => c + e + f) => c + e + d) => c + a + b;
-    x = (a) => x + a, y, x + y;
-    y, x = (a) => x + a, x + y;
-    x = (a = (c) => x + a + c, b) => x + a + b, y, z, x + y + z;
-    y, z, x = (a, b = (c) => x + b + c) => x + b + a, x + y + z;
-  }
-}, 0);
+			"/out.js": `// /entry.js
+(a = (c) => a + c, b) => a + b;
+(a, b = (c) => b + c) => b + a;
+(a = (d = (f) => a + d + f, e) => a + d + e, b, c) => a + b + c;
+(a, b, c = (d, e = (f) => c + e + f) => c + e + d) => c + a + b;
+x = (a) => x + a, y, x + y;
+y, x = (a) => x + a, x + y;
+x = (a = (c) => x + a + c, b) => x + a + b, y, z, x + y + z;
+y, z, x = (a, b = (c) => x + b + c) => x + b + a, x + y + z;
 `,
 		},
 	})

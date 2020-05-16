@@ -411,6 +411,7 @@ type printer struct {
 	// For imports
 	resolvedImports map[string]uint32
 	runtimeSymRefs  map[runtime.Sym]ast.Ref
+	wrapperRefs     []ast.Ref
 
 	// For source maps
 	writeSourceMap bool
@@ -930,39 +931,26 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 }
 
 func (p *printer) printRequireCall(path string, isES6Import bool) {
-	sym := runtime.RequireSym
 	if isES6Import {
-		sym = runtime.ImportSym
-	}
-
-	if p.resolvedImports != nil {
-		// If we're bundling require calls, convert the string to a source index
-		if sourceIndex, ok := p.resolvedImports[path]; ok {
-			p.printRuntimeSym(sym)
-			p.print(fmt.Sprintf("(%d", sourceIndex))
-			if !p.minify {
-				p.print(fmt.Sprintf(" /* %s */", path))
-			}
-		} else {
-			// If we get here, the module was marked as an external module
-			if isES6Import {
-				p.printRuntimeSym(runtime.ToModuleSym)
-				p.print("(")
-			}
-			p.printSpaceBeforeIdentifier()
-			p.print("require(")
-			p.print(Quote(path))
-			if isES6Import {
-				p.print(")")
-			}
-		}
-	} else {
-		p.printRuntimeSym(sym)
+		p.printRuntimeSym(runtime.ToModuleSym)
 		p.print("(")
-		p.print(Quote(path))
 	}
 
-	p.print(")")
+	// If we're bundling require calls, convert the string to a source index
+	if sourceIndex, ok := p.resolvedImports[path]; ok {
+		p.printSymbol(p.wrapperRefs[sourceIndex])
+		p.print("()")
+	} else {
+		// If we get here, the module was marked as an external module
+		p.printSpaceBeforeIdentifier()
+		p.print("require(")
+		p.print(Quote(path))
+		p.print(")")
+	}
+
+	if isES6Import {
+		p.print(")")
+	}
 }
 
 const (
@@ -2276,6 +2264,7 @@ type PrintOptions struct {
 	Indent            int
 	ResolvedImports   map[string]uint32
 	RuntimeSymRefs    map[runtime.Sym]ast.Ref
+	WrapperRefs       []ast.Ref
 }
 
 type SourceMapChunk struct {
@@ -2300,6 +2289,7 @@ func createPrinter(
 		writeSourceMap:     options.SourceMapContents != nil,
 		minify:             options.RemoveWhitespace,
 		resolvedImports:    options.ResolvedImports,
+		wrapperRefs:        options.WrapperRefs,
 		indent:             options.Indent,
 		stmtStart:          -1,
 		exportDefaultStart: -1,

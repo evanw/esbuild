@@ -213,13 +213,14 @@ Options:
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
-  --format=...          Output format (iife, cjs, es)
+  --format=...          Output format (iife, cjs, esm)
   --color=...           Force use of color terminal escapes (true or false)
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
   --minify-identifiers  Shorten identifiers
   --minify-syntax       Use equivalent but shorter syntax
+  --tree-shaking        Remove unused code from the bundle
 
   --define:K=V          Substitute K with V while parsing
   --jsx-factory=...     What to use instead of React.createElement
