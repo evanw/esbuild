@@ -101,21 +101,16 @@ func TestSimpleES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			ModuleName:    "testModule",
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `let testModule = bootstrap({
-  0() {
-    // /foo.js
-    function fn() {
-      return 123;
-    }
+			"/out.js": `// /foo.js
+function fn() {
+  return 123;
+}
 
-    // /entry.js
-    console.log(fn());
-  }
-}, 0);
+// /entry.js
+console.log(fn());
 `,
 		},
 	})
@@ -140,24 +135,19 @@ func TestSimpleCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			ModuleName:    "testModule",
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `let testModule = bootstrap({
-  1(exports, module) {
-    // /foo.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /entry.js
-    const fn = __require(1 /* ./foo */);
-    console.log(fn());
-  }
-}, 0);
+// /entry.js
+const fn = require_foo();
+console.log(fn());
 `,
 		},
 	})
@@ -1675,7 +1665,7 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg-browser/index.js
-var require_index = __commonJS((exports, module) => {
+var require_index2 = __commonJS((exports, module) => {
   module.exports = function() {
     return 123;
   };
@@ -1683,7 +1673,7 @@ var require_index = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_index = __commonJS((exports, module) => {
-  const fn2 = require_index();
+  const fn2 = require_index2();
   module.exports = function() {
     return fn2();
   };
@@ -1733,12 +1723,12 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg/index.js
-var require_index = __commonJS(() => {
+var require_index2 = __commonJS(() => {
 });
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_index = __commonJS((exports, module) => {
-  const fn2 = require_index();
+  const fn2 = require_index2();
   module.exports = function() {
     return fn2();
   };
@@ -2677,15 +2667,12 @@ func TestHashbangBundle(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `#!/usr/bin/env a
-bootstrap({
-  1() {
-    // /code.js
-    const code2 = 0;
 
-    // /entry.js
-    process.exit(code2);
-  }
-}, 1);
+// /code.js
+const code2 = 0;
+
+// /entry.js
+process.exit(code2);
 `,
 		},
 	})
@@ -3328,8 +3315,7 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `let __assign = Object.assign;
-let tests = [__assign(__assign({}, a), b), __assign({
+			"/out.js": `let tests = [__assign(__assign({}, a), b), __assign({
   a,
   b
 }, c), __assign(__assign({}, a), {
@@ -3420,8 +3406,7 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 		},
 		expectedScanLog: "/entry.js: warning: This syntax is from ES2020 and is not available in ES2015\n",
 		expected: map[string]string{
-			"/out.js": `let __pow = Math.pow;
-var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+			"/out.js": `var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
 let tests = {
   0: __pow(a, __pow(b, c)),
   1: __pow(__pow(a, b), c),

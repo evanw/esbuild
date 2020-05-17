@@ -497,7 +497,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.js
-var ns = __toModule(require_foo());
+const ns = __toModule(require_foo());
 let foo = 234;
 console.log(foo);
 `,
@@ -532,7 +532,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.js
-var ns = __toModule(require_foo());
+const ns = __toModule(require_foo());
 let foo = 234;
 console.log(ns, ns.foo, foo);
 `,
@@ -567,7 +567,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.js
-var ns = __toModule(require_foo());
+const ns = __toModule(require_foo());
 let foo = 234;
 console.log(ns.foo, ns.foo, foo);
 `,

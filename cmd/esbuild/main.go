@@ -221,6 +221,7 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			args.bundleOptions.MinifyIdentifiers = true
 
 		case arg == "--tree-shaking":
+			args.parseOptions.TreeShaking = true
 			args.bundleOptions.TreeShaking = true
 
 		case arg == "--sourcemap":

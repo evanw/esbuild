@@ -94,6 +94,7 @@ type partRef struct {
 
 type chunkMeta struct {
 	name         string
+	hashbang     string
 	filesInChunk map[uint32]bool
 	entryBits    bitSet
 }
@@ -134,10 +135,17 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 func (c *linkerContext) link() []BundleResult {
 	c.scanImportsAndExports()
 	c.markPartsReachableFromEntryPoints()
+
+	if !c.options.IsBundling {
+		for _, entryPoint := range c.entryPoints {
+			c.markExportsAsUnbound(entryPoint)
+		}
+	}
+
 	c.renameOrMinifyAllSymbols()
 
 	chunks := c.computeChunks()
-	results := []BundleResult{}
+	results := make([]BundleResult, 0, len(chunks))
 
 	for _, chunk := range chunks {
 		results = append(results, c.generateChunk(chunk))
@@ -212,10 +220,10 @@ func (c *linkerContext) scanImportsAndExports() {
 					if status == importCommonJS {
 						// If it's a CommonJS file, rewrite the import to a property access
 						namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
-						c.symbols.SetNamespaceAlias(importRef, ast.NamespaceAlias{
+						c.symbols.Get(importRef).NamespaceAlias = &ast.NamespaceAlias{
 							NamespaceRef: namedImport.NamespaceRef,
 							Alias:        namedImport.Alias,
-						})
+						}
 						break
 					} else if status == importMissing {
 						// Report mismatched imports and exports
@@ -418,16 +426,22 @@ func (c *linkerContext) computeChunks() map[string]chunkMeta {
 				// Ignore this part if it was never reached
 				continue
 			}
-			chunk := chunks[key]
-			if chunk.filesInChunk == nil {
-				// Give the chunk a name
+			chunk, ok := chunks[key]
+			if !ok {
+				// Initialize the chunk for the first time
+				entryPointCount := 0
 				for i, entryPoint := range c.entryPoints {
 					if partMeta.entryBits.hasBit(uint(entryPoint)) {
 						if chunk.name != "" {
 							chunk.name = c.stripKnownFileExtension(chunk.name) + "_"
 						}
+						chunk.hashbang = c.files[entryPoint].ast.Hashbang
 						chunk.name += entryPointNames[i]
+						entryPointCount++
 					}
+				}
+				if entryPointCount > 1 {
+					chunk.hashbang = ""
 				}
 				chunk.entryBits = partMeta.entryBits
 				chunk.filesInChunk = make(map[uint32]bool)
@@ -516,7 +530,10 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 	return order
 }
 
-func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.Stmt, partStmts []ast.Stmt) []ast.Stmt {
+func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmts []ast.Stmt, partStmts []ast.Stmt) []ast.Stmt {
+	shouldStripExports := c.options.IsBundling || sourceIndex == runtimeSourceIndex
+	didMergeWithPreviousLocal := false
+
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
 		case *ast.SImport:
@@ -529,18 +546,21 @@ func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.St
 					}}}
 					break
 				}
+
+				// Remove import statements entirely
+				continue
 			}
 
-			// Remove import statements entirely
-			continue
-
 		case *ast.SExportStar, *ast.SExportFrom, *ast.SExportClause:
-			// Remove export statements entirely
-			continue
+			if shouldStripExports {
+				// Remove export statements entirely
+				continue
+			}
 
 		case *ast.SFunction:
 			// Strip the "export" keyword while bundling
-			if s.IsExport {
+			if shouldStripExports && s.IsExport {
+				// Be careful to not modify the original statement
 				clone := *s
 				clone.IsExport = false
 				stmt.Data = &clone
@@ -548,7 +568,8 @@ func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.St
 
 		case *ast.SClass:
 			// Strip the "export" keyword while bundling
-			if s.IsExport {
+			if shouldStripExports && s.IsExport {
+				// Be careful to not modify the original statement
 				clone := *s
 				clone.IsExport = false
 				stmt.Data = &clone
@@ -556,7 +577,8 @@ func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.St
 
 		case *ast.SLocal:
 			// Strip the "export" keyword while bundling
-			if s.IsExport {
+			if shouldStripExports && s.IsExport {
+				// Be careful to not modify the original statement
 				clone := *s
 				clone.IsExport = false
 				stmt.Data = &clone
@@ -564,37 +586,65 @@ func (c *linkerContext) convertStmtsForExport(sourceIndex uint32, stmts []ast.St
 
 		case *ast.SExportDefault:
 			// If we're bundling, convert "export default" into a normal declaration
-			if s.Value.Expr != nil {
-				// "export default foo;" => "const default = foo;"
-				stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
-					ast.Decl{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
-				}}}
-			} else {
-				switch s2 := s.Value.Stmt.Data.(type) {
-				case *ast.SFunction:
-					// "export default function() {}" => "function default() {}"
-					// "export default function foo() {}" => "function foo() {}"
-					if s2.Fn.Name == nil {
-						s2 = &ast.SFunction{Fn: s2.Fn}
-						s2.Fn.Name = &s.DefaultName
-					}
-					stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
+			if shouldStripExports {
+				if s.Value.Expr != nil {
+					// "export default foo;" => "const default = foo;"
+					stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
+						ast.Decl{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
+					}}}
+				} else {
+					switch s2 := s.Value.Stmt.Data.(type) {
+					case *ast.SFunction:
+						// "export default function() {}" => "function default() {}"
+						// "export default function foo() {}" => "function foo() {}"
+						if s2.Fn.Name == nil {
+							// Be careful to not modify the original statement
+							s2 = &ast.SFunction{Fn: s2.Fn}
+							s2.Fn.Name = &s.DefaultName
+						}
+						stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
 
-				case *ast.SClass:
-					// "export default class {}" => "class default {}"
-					// "export default class Foo {}" => "class Foo {}"
-					if s2.Class.Name == nil {
-						s2 = &ast.SClass{Class: s2.Class}
-						s2.Class.Name = &s.DefaultName
-					}
-					stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
+					case *ast.SClass:
+						// "export default class {}" => "class default {}"
+						// "export default class Foo {}" => "class Foo {}"
+						if s2.Class.Name == nil {
+							// Be careful to not modify the original statement
+							s2 = &ast.SClass{Class: s2.Class}
+							s2.Class.Name = &s.DefaultName
+						}
+						stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
 
-				default:
-					panic("Internal error")
+					default:
+						panic("Internal error")
+					}
 				}
 			}
 		}
 
+		// Potentially merge with the previous variable declaration
+		if c.options.MangleSyntax && len(stmts) > 0 {
+			if after, ok := stmt.Data.(*ast.SLocal); ok {
+				if before, ok := stmts[len(stmts)-1].Data.(*ast.SLocal); ok {
+					if before.Kind == after.Kind && before.IsExport == after.IsExport {
+						if didMergeWithPreviousLocal {
+							// Avoid O(n^2) behavior for repeated variable declarations
+							before.Decls = append(before.Decls, after.Decls...)
+						} else {
+							// Be careful to not modify the original statement
+							didMergeWithPreviousLocal = true
+							clone := *before
+							clone.Decls = make([]ast.Decl, 0, len(before.Decls)+len(after.Decls))
+							clone.Decls = append(clone.Decls, before.Decls...)
+							clone.Decls = append(clone.Decls, after.Decls...)
+							stmts[len(stmts)-1].Data = &clone
+						}
+						continue
+					}
+				}
+			}
+		}
+
+		didMergeWithPreviousLocal = false
 		stmts = append(stmts, stmt)
 	}
 
@@ -615,6 +665,12 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 		wrapperRefs[sourceIndex] = file.ast.WrapperRef
 	}
 
+	// Start with the hashbang if there is one
+	if chunk.hashbang != "" {
+		js = append(js, chunk.hashbang...)
+		js = append(js, '\n')
+	}
+
 	for _, sourceIndex := range c.chunkFileOrder(chunk) {
 		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
@@ -628,7 +684,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 		// Add all parts in this file that belong in this chunk
 		for partIndex, part := range file.ast.Parts {
 			if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-				stmts = c.convertStmtsForExport(sourceIndex, stmts, part.Stmts)
+				stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
 			}
 		}
 
@@ -758,27 +814,128 @@ func computeLineColumnOffset(bytes []byte) lineColumnOffset {
 	return offset
 }
 
+func markBindingAsUnbound(binding ast.Binding, symbols ast.SymbolMap) {
+	switch b := binding.Data.(type) {
+	case *ast.BMissing:
+
+	case *ast.BIdentifier:
+		symbols.Get(b.Ref).Kind = ast.SymbolUnbound
+
+	case *ast.BArray:
+		for _, i := range b.Items {
+			markBindingAsUnbound(i.Binding, symbols)
+		}
+
+	case *ast.BObject:
+		for _, p := range b.Properties {
+			markBindingAsUnbound(p.Value, symbols)
+		}
+
+	default:
+		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+	}
+}
+
+// Marking a symbol as unbound prevents it from being renamed or minified.
+// This is only used when a module is compiled independently. We use a very
+// different way of handling exports and renaming/minifying when bundling.
+func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
+	file := &c.files[sourceIndex]
+	hasImportOrExport := false
+
+	for _, part := range file.ast.Parts {
+		for _, stmt := range part.Stmts {
+			switch s := stmt.Data.(type) {
+			case *ast.SImport:
+				hasImportOrExport = true
+
+			case *ast.SLocal:
+				if s.IsExport {
+					for _, decl := range s.Decls {
+						markBindingAsUnbound(decl.Binding, c.symbols)
+					}
+					hasImportOrExport = true
+				}
+
+			case *ast.SFunction:
+				if s.IsExport {
+					c.symbols.Get(s.Fn.Name.Ref).Kind = ast.SymbolUnbound
+					hasImportOrExport = true
+				}
+
+			case *ast.SClass:
+				if s.IsExport {
+					c.symbols.Get(s.Class.Name.Ref).Kind = ast.SymbolUnbound
+					hasImportOrExport = true
+				}
+
+			case *ast.SExportClause, *ast.SExportDefault, *ast.SExportStar, *ast.SExportFrom:
+				hasImportOrExport = true
+			}
+		}
+	}
+
+	// Heuristic: If this module has top-level import or export statements, we
+	// consider this an ES6 module and only preserve the names of the exported
+	// symbols. Everything else is minified since the names are private.
+	//
+	// Otherwise, we consider this potentially a script-type file instead of an
+	// ES6 module. In that case, preserve the names of all top-level symbols
+	// since they are all potentially exported (e.g. if this is used in a
+	// <script> tag). All symbols in nested scopes are still minified.
+	if !hasImportOrExport {
+		for _, ref := range file.ast.ModuleScope.Members {
+			c.symbols.Get(ref).Kind = ast.SymbolUnbound
+		}
+	}
+}
+
 func (c *linkerContext) renameOrMinifyAllSymbols() {
-	topLevelScopes := []*ast.Scope{}
-	moduleScopes := []*ast.Scope{}
-	nestedScopes := []*ast.Scope{}
+	topLevelScopes := make([]*ast.Scope, 0, len(c.files))
+	moduleScopes := make([]*ast.Scope, 0, len(c.files))
 
 	// Combine all file scopes
 	for sourceIndex, file := range c.files {
 		moduleScopes = append(moduleScopes, file.ast.ModuleScope)
 		if c.fileMeta[sourceIndex].isCommonJS {
-			nestedScopes = append(nestedScopes, file.ast.ModuleScope)
+			// Modules wrapped in a CommonJS closure look like this:
+			//
+			//   // foo.js
+			//   var require_foo = __commonJS((exports, module) => {
+			//     ...
+			//   });
+			//
+			// The symbol "require_foo" is stored in "file.ast.WrapperRef". We want
+			// to be able to minify everything inside the closure without worrying
+			// about collisions with other CommonJS modules. Set up the scopes such
+			// that it appears as if the file was structured this way all along. It's
+			// not completely accurate (e.g. we don't set the parent of the module
+			// scope to this new top-level scope) but it's good enough for the
+			// renaming code.
+			//
+			// Note: make sure to not mutate the original scope since it's supposed
+			// to be immutable.
+			fakeTopLevelScope := &ast.Scope{
+				Members:   make(map[string]ast.Ref),
+				Generated: []ast.Ref{file.ast.WrapperRef},
+				Children:  []*ast.Scope{file.ast.ModuleScope},
+			}
+
+			// The unbound symbols are stored in the module scope. We need them for
+			// computing reserved names. Avoid needing to copy them all into the new
+			// fake top-level scope by still scanning the real module scope for
+			// unbound symbols.
+			topLevelScopes = append(topLevelScopes, fakeTopLevelScope)
 		} else {
 			topLevelScopes = append(topLevelScopes, file.ast.ModuleScope)
-			nestedScopes = append(nestedScopes, file.ast.ModuleScope.Children...)
 
 			// If this isn't CommonJS, then rename the unused "exports" and "module"
 			// variables to avoid them causing the identically-named variables in
 			// actual CommonJS files from being renamed. This is purely about
 			// aesthetics and is not about correctness.
 			name := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath)
-			c.symbols.SetName(file.ast.ExportsRef, name+"_exports")
-			c.symbols.SetName(file.ast.ModuleRef, name+"_module")
+			c.symbols.Get(file.ast.ExportsRef).Name = name + "_exports"
+			c.symbols.Get(file.ast.ModuleRef).Name = name + "_module"
 		}
 	}
 
@@ -791,9 +948,9 @@ func (c *linkerContext) renameOrMinifyAllSymbols() {
 	}
 
 	if c.options.MinifyIdentifiers {
-		minifyAllSymbols(reservedNames, topLevelScopes, nestedScopes, c.symbols)
+		minifyAllSymbols(reservedNames, topLevelScopes, c.symbols)
 	} else {
-		renameAllSymbols(reservedNames, topLevelScopes, nestedScopes, c.symbols)
+		renameAllSymbols(reservedNames, topLevelScopes, c.symbols)
 	}
 }
 

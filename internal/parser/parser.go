@@ -88,6 +88,7 @@ type parser struct {
 	// syntactic constructs as appropriate.
 	mangleSyntax      bool
 	isBundling        bool
+	treeShaking       bool
 	tryBodyCount      int
 	isThisCaptured    bool
 	callTarget        ast.E
@@ -8735,6 +8736,8 @@ type ParseOptions struct {
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
+	TreeShaking bool
+
 	Defines      map[string]DefineFunc
 	MangleSyntax bool
 	OmitWarnings bool
@@ -8755,6 +8758,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		omitWarnings:      options.OmitWarnings,
 		mangleSyntax:      options.MangleSyntax,
 		isBundling:        options.IsBundling,
+		treeShaking:       options.TreeShaking,
 		currentFnOpts:     fnOpts{isOutsideFn: true},
 		useCountEstimates: make(map[ast.Ref]uint32),
 		runtimeImports:    make(map[string]ast.Ref),
@@ -8858,7 +8862,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
 	parts := []ast.Part{}
-	if !p.isBundling {
+	if !p.treeShaking {
 		// When not bundling, everything comes in a single part
 		parts = p.appendPart(parts, stmts)
 	} else {

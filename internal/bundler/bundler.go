@@ -197,7 +197,13 @@ func ScanBundle(
 		files = append(files, file{})
 		remaining++
 		go func() {
-			ast, ok := parser.Parse(log, source, parseOptions)
+			runtimeParseOptions := parseOptions
+
+			// Always do tree shaking for the runtime because we never want to
+			// include unnecessary runtime code
+			runtimeParseOptions.TreeShaking = true
+
+			ast, ok := parser.Parse(log, source, runtimeParseOptions)
 			results <- parseResult{source, ast, ok}
 		}()
 	}

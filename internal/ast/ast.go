@@ -983,29 +983,8 @@ func NewSymbolMap(sourceCount int) SymbolMap {
 	return SymbolMap{make([][]Symbol, sourceCount)}
 }
 
-func (sm SymbolMap) Get(ref Ref) Symbol {
-	return sm.Outer[ref.OuterIndex][ref.InnerIndex]
-}
-
-func (sm SymbolMap) IncrementUseCountEstimate(ref Ref) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex].UseCountEstimate++
-}
-
-func (sm SymbolMap) SetName(ref Ref, name string) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex].Name = name
-}
-
-func (sm SymbolMap) SetNamespaceAlias(ref Ref, alias NamespaceAlias) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex].NamespaceAlias = &alias
-}
-
-// The symbol must already exist to call this
-func (sm SymbolMap) Set(ref Ref, symbol Symbol) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex] = symbol
-}
-
-func (sm SymbolMap) SetKind(ref Ref, kind SymbolKind) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex].Kind = kind
+func (sm SymbolMap) Get(ref Ref) *Symbol {
+	return &sm.Outer[ref.OuterIndex][ref.InnerIndex]
 }
 
 type ImportKind uint8
@@ -1111,7 +1090,6 @@ func FollowSymbols(symbols SymbolMap, ref Ref) Ref {
 	// Only write if needed to avoid concurrent map update hazards
 	if symbol.Link != link {
 		symbol.Link = link
-		symbols.Set(ref, symbol)
 	}
 
 	return link
@@ -1140,14 +1118,12 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	oldSymbol := symbols.Get(old)
 	if oldSymbol.Link != InvalidRef {
 		oldSymbol.Link = MergeSymbols(symbols, oldSymbol.Link, new)
-		symbols.Set(old, oldSymbol)
 		return oldSymbol.Link
 	}
 
 	newSymbol := symbols.Get(new)
 	if newSymbol.Link != InvalidRef {
 		newSymbol.Link = MergeSymbols(symbols, old, newSymbol.Link)
-		symbols.Set(new, newSymbol)
 		return newSymbol.Link
 	}
 
@@ -1156,8 +1132,6 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	if oldSymbol.MustNotBeRenamed {
 		newSymbol.MustNotBeRenamed = true
 	}
-	symbols.Set(old, oldSymbol)
-	symbols.Set(new, newSymbol)
 	return new
 }
 

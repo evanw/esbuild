@@ -106,7 +106,7 @@ func (r *renamer) findUnusedName(name string) string {
 	return name
 }
 
-func renameAllSymbols(reservedNames map[string]bool, topLevelScopes []*ast.Scope, nestedScopes []*ast.Scope, symbols ast.SymbolMap) {
+func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols ast.SymbolMap) {
 	reservedNameCounts := make(map[string]uint32)
 	for name, _ := range reservedNames {
 		// Each name starts off with a count of 1 so that the first collision with
@@ -118,13 +118,15 @@ func renameAllSymbols(reservedNames map[string]bool, topLevelScopes []*ast.Scope
 
 	// Rename top-level symbols across all files all at once since after
 	// bundling, they will all be in the same scope
-	for _, scope := range topLevelScopes {
+	for _, scope := range moduleScopes {
 		r.renameSymbolsInScope(scope, symbols, alreadyRenamed)
 	}
 
 	// Symbols in child scopes may also have to be renamed to avoid conflicts
-	for _, scope := range nestedScopes {
-		r.renameAllSymbolsRecursive(scope, symbols, alreadyRenamed)
+	for _, scope := range moduleScopes {
+		for _, child := range scope.Children {
+			r.renameAllSymbolsRecursive(child, symbols, alreadyRenamed)
+		}
 	}
 }
 
@@ -150,7 +152,6 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, 
 		}
 
 		symbol.Name = r.findUnusedName(symbol.Name)
-		symbols.Set(ref, symbol)
 	}
 }
 
@@ -167,14 +168,14 @@ func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols ast.S
 ////////////////////////////////////////////////////////////////////////////////
 // minifyAllSymbols() implementation
 
-func minifyAllSymbols(reservedNames map[string]bool, topLevelScopes []*ast.Scope, nestedScopes []*ast.Scope, symbols ast.SymbolMap) {
+func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols ast.SymbolMap) {
 	g := minifyGroup{[]uint32{}, make(map[ast.Ref]uint32)}
 	var next uint32 = 0
 
 	// Allocate a slot for every symbol in each top-level scope. These slots must
 	// not overlap between files because the bundler may smoosh everything
 	// together into a single scope.
-	for _, scope := range topLevelScopes {
+	for _, scope := range moduleScopes {
 		next = g.countSymbolsInScope(scope, symbols, next)
 	}
 
@@ -186,10 +187,12 @@ func minifyAllSymbols(reservedNames map[string]bool, topLevelScopes []*ast.Scope
 	// One good heuristic is to merge slots from different nested scopes using
 	// sequential assignment. Then top-level function statements will always have
 	// the same argument names, which is better for gzip compression.
-	for _, scope := range nestedScopes {
-		// Deliberately don't update "next" here. Sibling scopes can't collide and
-		// so can reuse slots.
-		g.countSymbolsRecursive(scope, symbols, next, 0)
+	for _, scope := range moduleScopes {
+		for _, child := range scope.Children {
+			// Deliberately don't update "next" here. Sibling scopes can't collide and
+			// so can reuse slots.
+			g.countSymbolsRecursive(child, symbols, next, 0)
+		}
 	}
 
 	// Sort slot indices descending by the count for that slot
@@ -218,9 +221,7 @@ func minifyAllSymbols(reservedNames map[string]bool, topLevelScopes []*ast.Scope
 
 	// Copy the names to the appropriate symbols
 	for ref, i := range g.symbolToSlot {
-		symbol := symbols.Get(ref)
-		symbol.Name = names[i]
-		symbols.Set(ref, symbol)
+		symbols.Get(ref).Name = names[i]
 	}
 }
 
