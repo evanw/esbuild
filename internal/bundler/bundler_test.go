@@ -203,7 +203,7 @@ func TestCommonJSFromES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				const fn = require('./foo')
+				const {fn} = require('./foo')
 				console.log(fn())
 			`,
 			"/foo.js": `
@@ -221,23 +221,19 @@ func TestCommonJSFromES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    __export(exports, {
-      fn: () => fn
-    });
-    function fn() {
-      return 123;
-    }
-  },
-
-  0() {
-    // /entry.js
-    const fn = __require(1 /* ./foo */);
-    console.log(fn());
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  __export(exports, {
+    fn: () => fn2
+  });
+  function fn2() {
+    return 123;
   }
-}, 0);
+});
+
+// /entry.js
+const {fn} = require_foo();
+console.log(fn());
 `,
 		},
 	})
@@ -721,25 +717,20 @@ func TestReExportDefaultCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /bar.js
-    __export(exports, {
-      default: () => foo
-    });
-    function foo() {
-      return exports;
-    }
-  },
-
-  1() {
-    // /foo.js
-    const bar = __import(0 /* ./bar */);
-
-    // /entry.js
-    bar.default();
+			"/out.js": `// /bar.js
+var require_bar = __commonJS((exports) => {
+  __export(exports, {
+    default: () => foo2
+  });
+  function foo2() {
+    return exports;
   }
-}, 1);
+});
+
+// /foo.js
+
+// /entry.js
+bar.default();
 `,
 		},
 	})
@@ -3139,24 +3130,20 @@ func TestTopLevelReturn(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    __export(exports, {
-      foo: () => foo
-    });
-    if (Math.random() < 0.5)
-      return;
-    function foo() {
-    }
-  },
-
-  0() {
-    // /entry.js
-    const foo = __import(1 /* ./foo */);
-    foo.foo();
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo3
+  });
+  if (Math.random() < 0.5)
+    return;
+  function foo3() {
   }
-}, 0);
+});
+
+// /entry.js
+const foo = __toModule(require_foo());
+foo.foo();
 `,
 		},
 	})

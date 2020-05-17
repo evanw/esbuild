@@ -57,6 +57,10 @@ type fileMeta struct {
 	partMeta         []partMeta
 	entryPointStatus entryPointStatus
 
+	// If true, another file imported this file using "import * as ns from ...".
+	// That import ends up turning into a reference to this file's "exports".
+	isTargetOfImportStar bool
+
 	// If true, the module must be bundled CommonJS-style like this:
 	//
 	//   // foo.ts
@@ -134,6 +138,7 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 
 func (c *linkerContext) link() []BundleResult {
 	c.scanImportsAndExports()
+	c.convertES6ExportsToCommonJS()
 	c.markPartsReachableFromEntryPoints()
 
 	if !c.options.IsBundling {
@@ -257,6 +262,99 @@ func (c *linkerContext) scanImportsAndExports() {
 	}
 }
 
+func (c *linkerContext) convertES6ExportsToCommonJS() {
+	for sourceIndex, _ := range c.sources {
+		// We'll need a call to "__export" if this is a CommonJS module or if
+		// another module imported this module using an import star
+		fileMeta := &c.fileMeta[sourceIndex]
+		if !fileMeta.isTargetOfImportStar && !fileMeta.isCommonJS {
+			continue
+		}
+
+		// Sort the imports for determinism
+		file := &c.files[sourceIndex]
+		keys := make([]string, 0, len(file.ast.NamedExports))
+		for key, _ := range file.ast.NamedExports {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		// Generate a getter per export
+		properties := []ast.Property{}
+		for _, alias := range keys {
+			exportRef := file.ast.NamedExports[alias].Ref
+			var value ast.Expr
+			if _, ok := file.ast.NamedImports[exportRef]; ok {
+				value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{exportRef}}
+			} else {
+				value = ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}}
+			}
+			properties = append(properties, ast.Property{
+				Key: ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
+				Value: &ast.Expr{ast.Loc{}, &ast.EArrow{
+					PreferExpr: true,
+					Body:       ast.FnBody{Stmts: []ast.Stmt{ast.Stmt{value.Loc, &ast.SReturn{&value}}}},
+				}},
+			})
+		}
+
+		// Prefix this part with "var exports = {}" if this isn't a CommonJS module
+		stmts := make([]ast.Stmt, 0, 2)
+		if !fileMeta.isCommonJS {
+			stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
+				Binding: ast.Binding{ast.Loc{}, &ast.BIdentifier{file.ast.ExportsRef}},
+				Value:   &ast.Expr{ast.Loc{}, &ast.EObject{}},
+			}}}})
+		}
+
+		// "__export(exports, { foo: () => foo })"
+		var nonLocalDependencies []partRef
+		if len(properties) > 0 {
+			exportRef := c.files[runtimeSourceIndex].ast.ModuleScope.Members["__export"]
+			stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
+				Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
+				Args: []ast.Expr{
+					ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
+					ast.Expr{ast.Loc{}, &ast.EObject{properties}},
+				},
+			}}}})
+
+			// Make sure this file depends on the "__export" symbol
+			for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports["__export"].LocalParts {
+				nonLocalDependencies = append(nonLocalDependencies, partRef{
+					sourceIndex: runtimeSourceIndex,
+					partIndex:   partIndex,
+				})
+			}
+
+			// Make sure the CommonJS closure, if there is one, includes "exports"
+			file.ast.UsesExportsRef = true
+		}
+
+		// No need to generate a part if it'll be empty
+		if len(stmts) == 0 {
+			continue
+		}
+
+		// Put the export definitions first before anything else gets evaluated
+		parts := make([]ast.Part, 0, 1+len(file.ast.Parts))
+		parts = append(parts, ast.Part{
+			Stmts:             stmts,
+			LocalDependencies: make(map[uint32]bool),
+			UseCountEstimates: make(map[ast.Ref]uint32),
+		})
+		file.ast.Parts = append(parts, file.ast.Parts...)
+
+		// Make sure the "partMeta" array matches the "Parts" array
+		partMetas := make([]partMeta, 0, 1+len(fileMeta.partMeta))
+		partMetas = append(partMetas, partMeta{
+			entryBits:            newBitSet(uint(len(c.entryPoints))),
+			nonLocalDependencies: nonLocalDependencies,
+		})
+		fileMeta.partMeta = append(partMetas, fileMeta.partMeta...)
+	}
+}
+
 type importTracker struct {
 	sourceIndex uint32
 	importRef   ast.Ref
@@ -277,12 +375,22 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// Use a CommonJS import if this is either a bundled CommonJS file or an
 	// external file (for example, built-in node modules are marked external)
 	otherSourceIndex, ok := file.resolveImport(namedImport.ImportPath)
-	if !ok || c.fileMeta[otherSourceIndex].isCommonJS {
+	if !ok {
+		return importTracker{}, nil, importCommonJS
+	}
+	otherFileMeta := &c.fileMeta[otherSourceIndex]
+	if otherFileMeta.isCommonJS {
 		return importTracker{}, nil, importCommonJS
 	}
 
-	// Match this import up with an export from the imported file
+	// Check for a star import
 	otherFile := &c.files[otherSourceIndex]
+	if namedImport.Alias == "*" {
+		otherFileMeta.isTargetOfImportStar = true
+		return importTracker{otherSourceIndex, otherFile.ast.ExportsRef}, []uint32{}, importFound
+	}
+
+	// Match this import up with an export from the imported file
 	matchingExport, ok := otherFile.ast.NamedExports[namedImport.Alias]
 	if !ok {
 		return importTracker{}, nil, importMissing
@@ -358,17 +466,19 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	// If this is a CommonJS file, we're going to need the "__commonJS" symbol
 	// from the runtime
 	if fileMeta.isCommonJS {
-		for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports["__commonJS"].LocalParts {
-			c.includePart(runtimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
-		}
+		c.includePartsForRuntimeSymbol("__commonJS", entryPoint, distanceFromEntryPoint)
 	}
 
 	// If there's an ES6 import of a non-ES6 module, then we're going to need the
 	// "__toModule" symbol from the runtime
 	if needsToModule {
-		for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports["__toModule"].LocalParts {
-			c.includePart(runtimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
-		}
+		c.includePartsForRuntimeSymbol("__toModule", entryPoint, distanceFromEntryPoint)
+	}
+}
+
+func (c *linkerContext) includePartsForRuntimeSymbol(name string, entryPoint uint, distanceFromEntryPoint uint32) {
+	for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports[name].LocalParts {
+		c.includePart(runtimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
 	}
 }
 

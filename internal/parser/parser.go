@@ -8462,6 +8462,15 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 					}
 				}
 
+				if s.StarNameLoc != nil {
+					p.namedImports[s.NamespaceRef] = ast.NamedImport{
+						Alias:        "*",
+						AliasLoc:     *s.StarNameLoc,
+						ImportPath:   s.Path,
+						NamespaceRef: ast.InvalidRef,
+					}
+				}
+
 				if s.Items != nil {
 					for _, item := range *s.Items {
 						p.namedImports[item.Name.Ref] = ast.NamedImport{

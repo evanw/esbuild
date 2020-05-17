@@ -60,15 +60,15 @@ func TestImportStarES6Capture(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-var exports = {};
-__export(exports, {
-	foo: () => foo2
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
 });
 const foo2 = 123;
 
 // /entry.js
 let foo = 234;
-console.log(exports, foo2, foo);
+console.log(foo_exports, foo2, foo);
 `,
 		},
 	})
@@ -132,9 +132,9 @@ func TestImportStarES6ExportImportStarUnused(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-var exports = {};
-__export(exports, {
-	foo: () => foo2
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
 });
 const foo2 = 123;
 
@@ -174,9 +174,9 @@ func TestImportStarES6ExportImportStarNoCapture(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-var exports = {};
-__export(exports, {
-	foo: () => foo2
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
 });
 const foo2 = 123;
 
@@ -184,7 +184,7 @@ const foo2 = 123;
 
 // /entry.js
 let foo = 234;
-console.log(exports.foo, exports.foo, foo);
+console.log(foo_exports.foo, foo_exports.foo, foo);
 `,
 		},
 	})
@@ -216,9 +216,9 @@ func TestImportStarES6ExportImportStarCapture(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-var exports = {};
-__export(exports, {
-	foo: () => foo2
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
 });
 const foo2 = 123;
 
@@ -226,7 +226,7 @@ const foo2 = 123;
 
 // /entry.js
 let foo = 234;
-console.log(exports, exports.foo, foo);
+console.log(foo_exports, foo_exports.foo, foo);
 `,
 		},
 	})
@@ -257,10 +257,6 @@ func TestImportStarES6ExportStarAsUnused(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-var exports = {};
-__export(exports, {
-	foo: () => foo2
-});
 const foo2 = 123;
 
 // /bar.js
@@ -298,9 +294,9 @@ func TestImportStarES6ExportStarAsNoCapture(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-var exports = {};
-__export(exports, {
-	foo: () => foo2
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
 });
 const foo2 = 123;
 
@@ -308,7 +304,7 @@ const foo2 = 123;
 
 // /entry.js
 let foo = 234;
-console.log(exports.foo, exports.foo, foo);
+console.log(foo_exports.foo, foo_exports.foo, foo);
 `,
 		},
 	})

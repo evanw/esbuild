@@ -38,10 +38,10 @@ const Code = `
 		if (module && module.__esModule)
 			return module
 		var result = {}
+		__defineProperty(result, 'default', { value: module, enumerable: true })
 		for (var key in module)
 			if (__hasOwnProperty.call(module, key))
-				result[key] = module[key]
-		result.default = module
+				__defineProperty(result, key, { get: () => module[key], enumerable: true })
 		return result
 	}
 
