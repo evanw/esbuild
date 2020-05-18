@@ -44,6 +44,7 @@ type linkerContext struct {
 	sources     []logging.Source
 	files       []file
 	fileMeta    []fileMeta
+	hasErrors   bool
 }
 
 type entryPointStatus uint8
@@ -189,8 +190,19 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 	return c
 }
 
+func (c *linkerContext) addRangeError(source logging.Source, r ast.Range, text string) {
+	c.log.AddRangeError(source, r, text)
+	c.hasErrors = true
+}
+
 func (c *linkerContext) link() []BundleResult {
 	c.scanImportsAndExports()
+
+	// Stop now if there were errors
+	if c.hasErrors {
+		return []BundleResult{}
+	}
+
 	c.markPartsReachableFromEntryPoints()
 
 	if !c.options.IsBundling {
@@ -456,7 +468,7 @@ func (c *linkerContext) bindImportsToExportsForFile(sourceIndex uint32) {
 					source := c.sources[sourceIndex]
 					namedImport := c.files[sourceIndex].ast.NamedImports[importRef]
 					r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
-					c.log.AddRangeError(source, r, fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
+					c.addRangeError(source, r, fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
 					break
 				}
 				cycleDetector, _, _ = c.advanceImportTracker(cycleDetector)
@@ -477,13 +489,13 @@ func (c *linkerContext) bindImportsToExportsForFile(sourceIndex uint32) {
 				source := c.sources[tracker.sourceIndex]
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 				r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
-				c.log.AddRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+				c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 				break
 			} else if status == importAmbiguous {
 				source := c.sources[tracker.sourceIndex]
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 				r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
-				c.log.AddRangeError(source, r, fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
+				c.addRangeError(source, r, fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
 				break
 			} else if _, ok := c.files[nextTracker.sourceIndex].ast.NamedImports[nextTracker.importRef]; !ok {
 				// If this is not a re-export of another import, add this import as
