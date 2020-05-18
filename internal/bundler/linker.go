@@ -99,6 +99,9 @@ type fileMeta struct {
 type exportStarData struct {
 	ast.NamedExport
 
+	// The location of the path string for error messages
+	pathLoc ast.Loc
+
 	// This is the file that the named export above came from
 	sourceIndex uint32
 
@@ -240,7 +243,7 @@ func (c *linkerContext) scanImportsAndExports() {
 	for sourceIndex, file := range c.files {
 		if len(file.ast.ExportStars) > 0 {
 			visited := make(map[uint32]bool)
-			c.addExportsForExportStar(c.fileMeta[sourceIndex].resolvedExportStars, uint32(sourceIndex), visited)
+			c.addExportsForExportStar(c.fileMeta[sourceIndex].resolvedExportStars, uint32(sourceIndex), nil, visited)
 		}
 	}
 
@@ -271,6 +274,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		var nonLocalDependencies []partRef
 		for _, alias := range aliases {
 			var otherSourceIndex uint32
+			var exportStarPathLoc ast.Loc
 
 			// Look up the alias
 			export, ok := file.ast.NamedExports[alias]
@@ -278,6 +282,7 @@ func (c *linkerContext) scanImportsAndExports() {
 				otherSourceIndex = uint32(sourceIndex)
 			} else {
 				exportStar := fileMeta.resolvedExportStars[alias]
+				exportStarPathLoc = exportStar.pathLoc
 				otherSourceIndex = exportStar.sourceIndex
 				export = exportStar.NamedExport
 			}
@@ -286,16 +291,32 @@ func (c *linkerContext) scanImportsAndExports() {
 			// written to a property access later on
 			var value ast.Expr
 			otherFile := &c.files[otherSourceIndex]
-			if namedImport, ok := otherFile.ast.NamedImports[export.Ref]; ok {
+			if _, ok := otherFile.ast.NamedImports[export.Ref]; ok {
 				value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{export.Ref}}
 
 				// Mark that the import is used by the part we're about to generate.
 				// That way when the import is later bound to its matching export,
 				// the export will be assigned as a dependency of the part we're about
 				// to generate.
+				namedImport, ok := file.ast.NamedImports[export.Ref]
+				if !ok {
+					// The import may be in another file because of an export star, but
+					// we want to add the dependency to the original file since the
+					// dependency propagation uses local part references. In that case,
+					// add a new import to the original file.
+					namedImport = ast.NamedImport{
+						Alias:        alias,
+						AliasLoc:     exportStarPathLoc,
+						NamespaceRef: ast.InvalidRef,
+						ImportPath: ast.Path{
+							UseSourceIndex: true,
+							SourceIndex:    otherSourceIndex,
+						},
+					}
+				}
 				clone := append(make([]uint32, 0, len(namedImport.LocalPartsWithUses)+1), namedImport.LocalPartsWithUses...)
 				namedImport.LocalPartsWithUses = append(clone, exportPartIndex)
-				otherFile.ast.NamedImports[export.Ref] = namedImport
+				file.ast.NamedImports[export.Ref] = namedImport
 			} else {
 				value = ast.Expr{ast.Loc{}, &ast.EIdentifier{export.Ref}}
 			}
@@ -331,7 +352,7 @@ func (c *linkerContext) scanImportsAndExports() {
 
 		// "__export(exports, { foo: () => foo })"
 		if len(properties) > 0 {
-			exportRef := c.files[runtimeSourceIndex].ast.ModuleScope.Members["__export"]
+			exportRef := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members["__export"]
 			stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
 				Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
 				Args: []ast.Expr{
@@ -341,9 +362,9 @@ func (c *linkerContext) scanImportsAndExports() {
 			}}}})
 
 			// Make sure this file depends on the "__export" symbol
-			for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports["__export"].LocalParts {
+			for _, partIndex := range c.files[ast.RuntimeSourceIndex].ast.NamedExports["__export"].LocalParts {
 				nonLocalDependencies = append(nonLocalDependencies, partRef{
-					sourceIndex: runtimeSourceIndex,
+					sourceIndex: ast.RuntimeSourceIndex,
 					partIndex:   partIndex,
 				})
 			}
@@ -480,6 +501,7 @@ func (c *linkerContext) scanImportsAndExports() {
 func (c *linkerContext) addExportsForExportStar(
 	resolvedExportStars map[string]exportStarData,
 	sourceIndex uint32,
+	topLevelPathLoc *ast.Loc,
 	visited map[uint32]bool,
 ) {
 	// Avoid infinite loops due to cycles in the export star graph
@@ -491,6 +513,13 @@ func (c *linkerContext) addExportsForExportStar(
 
 	for _, path := range file.ast.ExportStars {
 		if otherSourceIndex, ok := file.resolveImport(path); ok {
+			// We need a location for error messages, but it must be in the top-level
+			// file, not in any nested file. This will be passed to nested files.
+			pathLoc := path.Loc
+			if topLevelPathLoc != nil {
+				pathLoc = *topLevelPathLoc
+			}
+
 			// Export stars from a CommonJS module don't work because they can't be
 			// statically discovered. Just silently ignore them in this case.
 			//
@@ -510,12 +539,13 @@ func (c *linkerContext) addExportsForExportStar(
 					resolvedExportStars[name] = exportStarData{
 						NamedExport: export,
 						sourceIndex: otherSourceIndex,
+						pathLoc:     pathLoc,
 					}
 				}
 			}
 
 			// Search further through this file's export stars
-			c.addExportsForExportStar(resolvedExportStars, otherSourceIndex, visited)
+			c.addExportsForExportStar(resolvedExportStars, otherSourceIndex, &pathLoc, visited)
 		}
 	}
 }
@@ -620,7 +650,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 		// Include all parts in this file with side effects, or just include
 		// everything if tree-shaking is disabled. Note that we still want to
 		// perform tree-shaking on the runtime even if tree-shaking is disabled.
-		if !part.CanBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.TreeShaking && sourceIndex != runtimeSourceIndex) {
+		if !part.CanBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.TreeShaking && sourceIndex != ast.RuntimeSourceIndex) {
 			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
 		}
 
@@ -658,8 +688,8 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 }
 
 func (c *linkerContext) includePartsForRuntimeSymbol(name string, entryPoint uint, distanceFromEntryPoint uint32) {
-	for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports[name].LocalParts {
-		c.includePart(runtimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
+	for _, partIndex := range c.files[ast.RuntimeSourceIndex].ast.NamedExports[name].LocalParts {
+		c.includePart(ast.RuntimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
 	}
 }
 
@@ -814,7 +844,7 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 	}
 
 	// Always put the runtime code first before anything else
-	visit(runtimeSourceIndex)
+	visit(ast.RuntimeSourceIndex)
 	for _, data := range sorted {
 		visit(data.sourceIndex)
 	}
@@ -822,7 +852,7 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 }
 
 func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmts []ast.Stmt, partStmts []ast.Stmt) []ast.Stmt {
-	shouldStripExports := c.options.IsBundling || sourceIndex == runtimeSourceIndex
+	shouldStripExports := c.options.IsBundling || sourceIndex == ast.RuntimeSourceIndex
 	didMergeWithPreviousLocal := false
 
 	for _, stmt := range partStmts {
@@ -1062,7 +1092,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 
 func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	compileResults := make([]compileResult, 0, len(chunk.filesInChunk))
-	runtimeMembers := c.files[runtimeSourceIndex].ast.ModuleScope.Members
+	runtimeMembers := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members
 	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
 	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
 
@@ -1076,7 +1106,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range c.chunkFileOrder(chunk) {
 		// Skip the runtime in test output
-		if sourceIndex == runtimeSourceIndex && c.options.omitRuntimeForTests {
+		if sourceIndex == ast.RuntimeSourceIndex && c.options.omitRuntimeForTests {
 			continue
 		}
 
@@ -1105,7 +1135,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	// Concatenate the generated JavaScript chunks together
 	prevOffset := 0
 	for _, compileResult := range compileResults {
-		if c.options.IsBundling && !c.options.RemoveWhitespace && compileResult.sourceIndex != runtimeSourceIndex {
+		if c.options.IsBundling && !c.options.RemoveWhitespace && compileResult.sourceIndex != ast.RuntimeSourceIndex {
 			if len(js) > 0 {
 				js = append(js, '\n')
 			}

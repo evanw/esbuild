@@ -35,8 +35,8 @@ type file struct {
 }
 
 func (f *file) resolveImport(path ast.Path) (uint32, bool) {
-	if path.IsRuntime {
-		return runtimeSourceIndex, true
+	if path.UseSourceIndex {
+		return path.SourceIndex, true
 	}
 	sourceIndex, ok := f.resolvedImports[path.Text]
 	return sourceIndex, ok
@@ -188,7 +188,7 @@ func ScanBundle(
 	// Always start by parsing the runtime file
 	{
 		source := logging.Source{
-			Index:        runtimeSourceIndex,
+			Index:        ast.RuntimeSourceIndex,
 			AbsolutePath: "<runtime>",
 			PrettyPath:   "<runtime>",
 			Contents:     runtime.Code,
@@ -262,7 +262,7 @@ func ScanBundle(
 			importPathsEnd := 0
 			for _, importPath := range part.ImportPaths {
 				// Don't try to resolve imports of the special runtime path
-				if importPath.Path.IsRuntime {
+				if importPath.Path.UseSourceIndex && importPath.Path.SourceIndex == ast.RuntimeSourceIndex {
 					part.ImportPaths[importPathsEnd] = importPath
 					importPathsEnd++
 					continue
@@ -436,5 +436,3 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 	c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints)
 	return c.link()
 }
-
-const runtimeSourceIndex = 0

@@ -225,10 +225,20 @@ type LocRef struct {
 }
 
 type Path struct {
-	Loc       Loc
-	Text      string
-	IsRuntime bool // If true, this references the special runtime file
+	Loc  Loc
+	Text string
+
+	// If "UseSourceIndex" is true, the path is already resolved. This is used
+	// for generated paths. The source file it has been resolved to is stored in
+	// the "SourceIndex" field.
+	UseSourceIndex bool
+	SourceIndex    uint32
 }
+
+// The runtime source is always at a special index. The index is always zero
+// but this constant is always used instead to improve readability and ensure
+// all code that references this index can be discovered easily.
+const RuntimeSourceIndex = 0
 
 type PropertyKind int
 

@@ -8929,6 +8929,10 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 		declaredSymbols := make([]ast.Ref, len(keys))
 		clauseItems := make([]ast.ClauseItem, len(keys))
+		runtimePath := ast.Path{
+			UseSourceIndex: true,
+			SourceIndex:    ast.RuntimeSourceIndex,
+		}
 
 		// Create per-import information
 		for i, key := range keys {
@@ -8937,7 +8941,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 			clauseItems[i] = ast.ClauseItem{Alias: key, Name: ast.LocRef{Ref: ref}}
 			p.namedImports[ref] = ast.NamedImport{
 				Alias:        key,
-				ImportPath:   ast.Path{IsRuntime: true},
+				ImportPath:   runtimePath,
 				NamespaceRef: namespaceRef,
 			}
 		}
@@ -8948,12 +8952,12 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 			DeclaredSymbols: declaredSymbols,
 			ImportPaths: []ast.ImportPath{ast.ImportPath{
 				Kind: ast.ImportStmt,
-				Path: ast.Path{IsRuntime: true},
+				Path: runtimePath,
 			}},
 			Stmts: []ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SImport{
 				NamespaceRef: namespaceRef,
 				Items:        &clauseItems,
-				Path:         ast.Path{IsRuntime: true},
+				Path:         runtimePath,
 			}}},
 		})
 	}

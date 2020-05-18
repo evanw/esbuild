@@ -116,6 +116,47 @@ console.log(foo_exports);
 	})
 }
 
+func TestDCEImportStarOfExportStar(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as foo from './foo'
+				console.log(foo)
+			`,
+			"/foo.js": `
+				export * from './bar'
+			`,
+			"/bar.js": `
+				export const bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:  true,
+			TreeShaking: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			TreeShaking:   true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /bar.js
+const bar = 123;
+
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  bar: () => bar
+});
+
+// /entry.js
+console.log(foo_exports);
+`,
+		},
+	})
+}
+
 func TestDCEImportStarES6ExportImportStarUnused(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
@@ -205,6 +246,11 @@ func TestDCEImportOfExportStarOfImport(t *testing.T) {
 				console.log(bar)
 			`,
 			"/foo.js": `
+				// Add some statements to increase the part index (this reproduced a crash)
+				statement()
+				statement()
+				statement()
+				statement()
 				export * from './bar'
 			`,
 			"/bar.js": `
@@ -231,6 +277,10 @@ const baz = 123;
 // /bar.js
 
 // /foo.js
+statement();
+statement();
+statement();
+statement();
 
 // /entry.js
 console.log(baz);
