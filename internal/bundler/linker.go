@@ -815,7 +815,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	}
 }
 
-func (c *linkerContext) computeChunks() map[string]chunkMeta {
+func (c *linkerContext) computeChunks() []chunkMeta {
 	chunks := make(map[string]chunkMeta)
 	neverReachedKey := string(newBitSet(uint(len(c.entryPoints))).entries)
 
@@ -863,7 +863,19 @@ func (c *linkerContext) computeChunks() map[string]chunkMeta {
 		}
 	}
 
-	return chunks
+	// Sort the chunks for determinism. This mostly doesn't matter because each
+	// chunk is a separate file, but it matters for error messages in tests since
+	// tests stop on the first output mismatch.
+	sortedKeys := make([]string, 0, len(chunks))
+	for key, _ := range chunks {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+	sortedChunks := make([]chunkMeta, len(chunks))
+	for i, key := range sortedKeys {
+		sortedChunks[i] = chunks[key]
+	}
+	return sortedChunks
 }
 
 func (c *linkerContext) stripKnownFileExtension(name string) string {
