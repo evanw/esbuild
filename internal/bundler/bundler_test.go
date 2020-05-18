@@ -582,111 +582,101 @@ func TestExportFormsCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /a.js
-    __export(exports, {
-      abc: () => abc
-    });
-    const abc = void 0;
-  },
+			"/out.js": `// /a.js
+const abc = void 0;
 
-  1(exports) {
-    // /b.js
-    __export(exports, {
-      xyz: () => xyz
-    });
-    const xyz = null;
-  },
+// /b.js
+const b_exports = {};
+__export(b_exports, {
+  xyz: () => xyz
+});
+const xyz = null;
 
-  3(exports) {
-    // /commonjs.js
-    __export(exports, {
-      C: () => Class,
-      Class: () => Class,
-      Fn: () => Fn,
-      b: () => b,
-      c: () => c,
-      default: () => default2,
-      l: () => l,
-      v: () => v
-    });
-    const b = __import(1 /* ./b */);
-    const default2 = 123;
-    var v = 234;
-    let l = 234;
-    const c = 234;
-    function Fn() {
-    }
-    class Class {
-    }
-  },
-
-  2(exports) {
-    // /c.js
-    __export(exports, {
-      default: () => default2
-    });
-    class default2 {
-    }
-  },
-
-  4(exports) {
-    // /d.js
-    __export(exports, {
-      default: () => Foo
-    });
-    class Foo {
-    }
-  },
-
-  5(exports) {
-    // /e.js
-    __export(exports, {
-      default: () => default2
-    });
-    function default2() {
-    }
-  },
-
-  7(exports) {
-    // /f.js
-    __export(exports, {
-      default: () => foo
-    });
-    function foo() {
-    }
-  },
-
-  8(exports) {
-    // /g.js
-    __export(exports, {
-      default: () => default2
-    });
-    async function default2() {
-    }
-  },
-
-  9(exports) {
-    // /h.js
-    __export(exports, {
-      default: () => foo
-    });
-    async function foo() {
-    }
-  },
-
-  6() {
-    // /entry.js
-    __require(3 /* ./commonjs */);
-    __require(2 /* ./c */);
-    __require(4 /* ./d */);
-    __require(5 /* ./e */);
-    __require(7 /* ./f */);
-    __require(8 /* ./g */);
-    __require(9 /* ./h */);
+// /commonjs.js
+var require_commonjs = __commonJS((exports) => {
+  __export(exports, {
+    C: () => Class,
+    Class: () => Class,
+    Fn: () => Fn,
+    abc: () => abc,
+    b: () => b_exports,
+    c: () => c,
+    default: () => commonjs_default,
+    l: () => l,
+    v: () => v
+  });
+  const commonjs_default = 123;
+  var v = 234;
+  let l = 234;
+  const c = 234;
+  function Fn() {
   }
-}, 6);
+  class Class {
+  }
+});
+
+// /c.js
+var require_c = __commonJS((exports) => {
+  __export(exports, {
+    default: () => c_default
+  });
+  class c_default {
+  }
+});
+
+// /d.js
+var require_d = __commonJS((exports) => {
+  __export(exports, {
+    default: () => Foo
+  });
+  class Foo {
+  }
+});
+
+// /e.js
+var require_e = __commonJS((exports) => {
+  __export(exports, {
+    default: () => e_default
+  });
+  function e_default() {
+  }
+});
+
+// /f.js
+var require_f = __commonJS((exports) => {
+  __export(exports, {
+    default: () => foo
+  });
+  function foo() {
+  }
+});
+
+// /g.js
+var require_g = __commonJS((exports) => {
+  __export(exports, {
+    default: () => g_default
+  });
+  async function g_default() {
+  }
+});
+
+// /h.js
+var require_h = __commonJS((exports) => {
+  __export(exports, {
+    default: () => foo
+  });
+  async function foo() {
+  }
+});
+
+// /entry.js
+require_commonjs();
+require_c();
+require_d();
+require_e();
+require_f();
+require_g();
+require_h();
 `,
 		},
 	})

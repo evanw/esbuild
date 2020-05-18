@@ -80,6 +80,36 @@ type fileMeta struct {
 	// This holds all entry points that can reach this file. It will be used to
 	// assign the parts in this file to a chunk.
 	entryBits bitSet
+
+	// Re-exports happen because of "export * from" statements like this:
+	//
+	//   export * from 'path';
+	//
+	// Note that export stars with a namespace and are not considered re-exports:
+	//
+	//   export * as ns from 'path';
+	//   export {a, b} from 'path';
+	//
+	// This is essentially the same as a star import followed by an export,
+	// except of course that the namespace is never declared in the scope:
+	//
+	//   import * as ns from 'path';
+	//   export {ns};
+	//
+	resolvedExportStars map[string]exportStarData
+}
+
+type exportStarData struct {
+	ast.NamedExport
+
+	// This is the file that the named export above came from
+	sourceIndex uint32
+
+	// If export star resolution finds two or more symbols with the same name,
+	// then the name is a ambiguous and cannot be used. This causes the name to
+	// be silently omitted from any namespace imports and causes a compile-time
+	// failure if the name is used in an ES6 import statement.
+	isAmbiguous bool
 }
 
 type partMeta struct {
@@ -125,6 +155,7 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 			distanceFromEntryPoint: ^uint32(0),
 			isCommonJS:             file.ast.UsesCommonJSFeatures,
 			partMeta:               make([]partMeta, len(file.ast.Parts)),
+			resolvedExportStars:    make(map[string]exportStarData),
 		}
 	}
 
@@ -160,7 +191,8 @@ func (c *linkerContext) link() []BundleResult {
 }
 
 func (c *linkerContext) scanImportsAndExports() {
-	for sourceIndex, file := range c.files {
+	// Step 1: Figure out what modules must be CommonJS
+	for _, file := range c.files {
 		for _, part := range file.ast.Parts {
 			// Handle require() and import()
 			for _, importPath := range part.ImportPaths {
@@ -182,7 +214,21 @@ func (c *linkerContext) scanImportsAndExports() {
 				}
 			}
 		}
+	}
 
+	// Step 2: Resolve "export * from" statements. This must be done after we
+	// discover all modules that can be CommonJS because export stars are ignored
+	// for CommonJS modules.
+	for sourceIndex, file := range c.files {
+		if len(file.ast.ExportStars) > 0 {
+			visited := make(map[uint32]bool)
+			c.addExportsForExportStar(c.fileMeta[sourceIndex].resolvedExportStars, uint32(sourceIndex), visited)
+		}
+	}
+
+	// Step 3: Bind imports to exports. This must be done after we process all
+	// export stars because imports can bind to export star re-exports.
+	for sourceIndex, file := range c.files {
 		if len(file.ast.NamedImports) > 0 {
 			// Sort imports for determinism. Otherwise our unit tests will randomly
 			// fail sometimes when error messages are reordered.
@@ -222,25 +268,31 @@ func (c *linkerContext) scanImportsAndExports() {
 
 					// Resolve the import by one step
 					nextTracker, localParts, status := c.advanceImportTracker(tracker)
-					if status == importCommonJS {
-						// If it's a CommonJS file, rewrite the import to a property access
+					if status == importCommonJS || status == importExternal {
+						// If it's a CommonJS or external file, rewrite the import to a property access
 						namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 						c.symbols.Get(importRef).NamespaceAlias = &ast.NamespaceAlias{
 							NamespaceRef: namedImport.NamespaceRef,
 							Alias:        namedImport.Alias,
 						}
 						break
-					} else if status == importMissing {
+					} else if status == importNoMatch {
 						// Report mismatched imports and exports
 						source := c.sources[tracker.sourceIndex]
 						namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 						r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
 						c.log.AddRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 						break
+					} else if status == importAmbiguous {
+						source := c.sources[tracker.sourceIndex]
+						namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
+						r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
+						c.log.AddRangeError(source, r, fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
+						break
 					} else if _, ok := c.files[nextTracker.sourceIndex].ast.NamedImports[nextTracker.importRef]; !ok {
 						// If this is not a re-export of another import, add this import as
 						// a dependency to all parts in this file that use this import
-						for _, partIndex := range c.files[sourceIndex].ast.NamedImports[importRef].PartsWithUses {
+						for _, partIndex := range c.files[sourceIndex].ast.NamedImports[importRef].LocalPartsWithUses {
 							partMeta := &c.fileMeta[sourceIndex].partMeta[partIndex]
 							for _, nonLocalPartIndex := range localParts {
 								partMeta.nonLocalDependencies = append(partMeta.nonLocalDependencies, partRef{
@@ -262,6 +314,49 @@ func (c *linkerContext) scanImportsAndExports() {
 	}
 }
 
+func (c *linkerContext) addExportsForExportStar(
+	resolvedExportStars map[string]exportStarData,
+	sourceIndex uint32,
+	visited map[uint32]bool,
+) {
+	// Avoid infinite loops due to cycles in the export star graph
+	if visited[sourceIndex] {
+		return
+	}
+	visited[sourceIndex] = true
+	file := &c.files[sourceIndex]
+
+	for _, path := range file.ast.ExportStars {
+		if otherSourceIndex, ok := file.resolveImport(path); ok {
+			// Export stars from a CommonJS module don't work because they can't be
+			// statically discovered. Just silently ignore them in this case.
+			//
+			// We could attempt to check whether the imported file still has ES6
+			// exports even though it still uses CommonJS features. However, when
+			// doing this we'd also have to rewrite any imports of these export star
+			// re-exports as property accesses off of a generated require() call.
+			if c.fileMeta[otherSourceIndex].isCommonJS {
+				continue
+			}
+
+			// Accumulate this file's exports
+			for name, export := range c.files[otherSourceIndex].ast.NamedExports {
+				if existing, ok := resolvedExportStars[name]; ok && existing.sourceIndex != otherSourceIndex {
+					existing.isAmbiguous = true
+				} else {
+					resolvedExportStars[name] = exportStarData{
+						NamedExport: export,
+						sourceIndex: otherSourceIndex,
+					}
+				}
+			}
+
+			// Search further through this file's export stars
+			c.addExportsForExportStar(resolvedExportStars, otherSourceIndex, visited)
+		}
+	}
+}
+
 func (c *linkerContext) convertES6ExportsToCommonJS() {
 	for sourceIndex, _ := range c.sources {
 		// We'll need a call to "__export" if this is a CommonJS module or if
@@ -273,22 +368,45 @@ func (c *linkerContext) convertES6ExportsToCommonJS() {
 
 		// Sort the imports for determinism
 		file := &c.files[sourceIndex]
-		keys := make([]string, 0, len(file.ast.NamedExports))
-		for key, _ := range file.ast.NamedExports {
-			keys = append(keys, key)
+		aliases := make([]string, 0, len(file.ast.NamedExports)+len(fileMeta.resolvedExportStars))
+		for alias, _ := range file.ast.NamedExports {
+			aliases = append(aliases, alias)
 		}
-		sort.Strings(keys)
+		for alias, export := range fileMeta.resolvedExportStars {
+			// Make sure not to add re-exports that are shadowed due to an export.
+			// Also don't add ambiguous re-exports, since they are silently hidden.
+			if _, ok := file.ast.NamedExports[alias]; !ok && !export.isAmbiguous {
+				aliases = append(aliases, alias)
+			}
+		}
+		sort.Strings(aliases)
 
 		// Generate a getter per export
 		properties := []ast.Property{}
-		for _, alias := range keys {
-			exportRef := file.ast.NamedExports[alias].Ref
+		for _, alias := range aliases {
+			var otherSourceIndex uint32
+			var exportRef ast.Ref
+
+			// Look up the alias
+			if export, ok := file.ast.NamedExports[alias]; ok {
+				otherSourceIndex = uint32(sourceIndex)
+				exportRef = export.Ref
+			} else {
+				export := fileMeta.resolvedExportStars[alias]
+				otherSourceIndex = export.sourceIndex
+				exportRef = export.Ref
+			}
+
+			// Exports of imports need EImportIdentifier in case they need to be re-
+			// written to a property access later on
 			var value ast.Expr
-			if _, ok := file.ast.NamedImports[exportRef]; ok {
+			if _, ok := c.files[otherSourceIndex].ast.NamedImports[exportRef]; ok {
 				value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{exportRef}}
 			} else {
 				value = ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}}
 			}
+
+			// Add a getter property
 			properties = append(properties, ast.Property{
 				Key: ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
 				Value: &ast.Expr{ast.Loc{}, &ast.EArrow{
@@ -363,21 +481,33 @@ type importTracker struct {
 type importStatus uint8
 
 const (
-	importMissing importStatus = iota
+	// The imported file has no matching export
+	importNoMatch importStatus = iota
+
+	// The imported file has a matching export
 	importFound
+
+	// The imported file is CommonJS and has unknown exports
 	importCommonJS
+
+	// The imported file is external and has unknown exports
+	importExternal
+
+	// There are multiple re-exports with the same name due to "export * from"
+	importAmbiguous
 )
 
 func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, []uint32, importStatus) {
 	file := &c.files[tracker.sourceIndex]
 	namedImport := file.ast.NamedImports[tracker.importRef]
 
-	// Use a CommonJS import if this is either a bundled CommonJS file or an
-	// external file (for example, built-in node modules are marked external)
+	// Is this an external file?
 	otherSourceIndex, ok := file.resolveImport(namedImport.ImportPath)
 	if !ok {
-		return importTracker{}, nil, importCommonJS
+		return importTracker{}, nil, importExternal
 	}
+
+	// Is this a CommonJS file?
 	otherFileMeta := &c.fileMeta[otherSourceIndex]
 	if otherFileMeta.isCommonJS {
 		return importTracker{}, nil, importCommonJS
@@ -391,13 +521,23 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	}
 
 	// Match this import up with an export from the imported file
-	matchingExport, ok := otherFile.ast.NamedExports[namedImport.Alias]
-	if !ok {
-		return importTracker{}, nil, importMissing
+	if matchingExport, ok := otherFile.ast.NamedExports[namedImport.Alias]; ok {
+		// Check to see if this is a re-export of another import
+		return importTracker{otherSourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
 	}
 
-	// Check to see if this is a re-export of another import
-	return importTracker{otherSourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
+	// If there was no named export, there may still be an export star
+	if matchingExport, ok := c.fileMeta[otherSourceIndex].resolvedExportStars[namedImport.Alias]; ok {
+		if matchingExport.isAmbiguous {
+			return importTracker{}, nil, importAmbiguous
+		}
+
+		// Check to see if this is a re-export of another import
+		return importTracker{otherSourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
+	}
+
+	return importTracker{}, nil, importNoMatch
+
 }
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {

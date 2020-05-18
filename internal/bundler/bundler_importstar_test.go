@@ -257,6 +257,10 @@ func TestImportStarES6ExportStarAsUnused(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
+});
 const foo2 = 123;
 
 // /bar.js
@@ -335,9 +339,9 @@ func TestImportStarES6ExportStarAsCapture(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-var exports = {};
-__export(exports, {
-	foo: () => foo2
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
 });
 const foo2 = 123;
 
@@ -345,7 +349,7 @@ const foo2 = 123;
 
 // /entry.js
 let foo = 234;
-console.log(exports, exports.foo, foo);
+console.log(foo_exports, foo_exports.foo, foo);
 `,
 		},
 	})
@@ -453,14 +457,14 @@ func TestImportStarES6ExportStarCapture(t *testing.T) {
 const foo2 = 123;
 
 // /bar.js
-var bar = {};
-__export(bar, {
-	foo: () => foo2
+const bar_exports = {};
+__export(bar_exports, {
+  foo: () => foo2
 });
 
 // /entry.js
 let foo = 234;
-console.log(bar, foo2, foo);
+console.log(bar_exports, foo2, foo);
 `,
 		},
 	})

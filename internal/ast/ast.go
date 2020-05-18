@@ -1020,17 +1020,22 @@ type AST struct {
 	ModuleRef   Ref
 	WrapperRef  Ref
 
-	// These are used when bundling.
+	// These are used when bundling. They are filled in during the parser pass
+	// since we already have to traverse the AST then anyway and the parser pass
+	// is conveniently fully parallelized.
 	NamedImports map[Ref]NamedImport
 	NamedExports map[string]NamedExport
+	ExportStars  []Path
 }
 
 type NamedImport struct {
-	Alias         string
-	AliasLoc      Loc
-	ImportPath    Path
-	NamespaceRef  Ref
-	PartsWithUses []uint32
+	Alias        string
+	AliasLoc     Loc
+	ImportPath   Path
+	NamespaceRef Ref
+
+	// Parts within this file that use this import
+	LocalPartsWithUses []uint32
 }
 
 type NamedExport struct {

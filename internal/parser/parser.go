@@ -32,6 +32,7 @@ type parser struct {
 	source                   logging.Source
 	lexer                    lexer.Lexer
 	importPaths              []ast.ImportPath
+	exportStars              []ast.Path
 	omitWarnings             bool
 	allowIn                  bool
 	hasTopLevelReturn        bool
@@ -8487,6 +8488,18 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 			// Only track import paths if we want dependencies
 			if isBundling {
 				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
+
+				if s.Item != nil {
+					// "export * as ns from 'path'"
+					p.namedImports[s.Item.Name.Ref] = ast.NamedImport{
+						Alias:        "*",
+						AliasLoc:     s.Item.Name.Loc,
+						ImportPath:   s.Path,
+						NamespaceRef: s.Item.Name.Ref,
+					}
+				} else {
+					p.exportStars = append(p.exportStars, s.Path)
+				}
 			}
 
 		case *ast.SExportFrom:
@@ -8982,7 +8995,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 
 				// Also map from imports to parts that use them
 				if namedImport, ok := p.namedImports[ref]; ok {
-					namedImport.PartsWithUses = append(namedImport.PartsWithUses, uint32(partIndex))
+					namedImport.LocalPartsWithUses = append(namedImport.LocalPartsWithUses, uint32(partIndex))
 					p.namedImports[ref] = namedImport
 				}
 			}
@@ -9068,6 +9081,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 		Hashbang:             hashbang,
 		NamedImports:         p.namedImports,
 		NamedExports:         p.namedExports,
+		ExportStars:          p.exportStars,
 		UsesExportsRef:       usesExports,
 		UsesModuleRef:        usesModule,
 	}
