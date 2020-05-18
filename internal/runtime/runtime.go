@@ -40,7 +40,7 @@ const Code = `
 		var result = {}
 		__defineProperty(result, 'default', { value: module, enumerable: true })
 		for (var key in module)
-			if (__hasOwnProperty.call(module, key))
+			if (__hasOwnProperty.call(module, key) && key !== 'default')
 				__defineProperty(result, key, { get: () => module[key], enumerable: true })
 		return result
 	}

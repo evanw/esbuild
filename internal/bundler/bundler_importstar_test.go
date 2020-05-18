@@ -578,58 +578,36 @@ console.log(ns.foo, ns.foo, foo);
 func TestImportStarES6AndCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry1.js": `
+			"/entry.js": `
 				import * as ns from './foo'
-				console.log(ns.foo)
-			`,
-			"/entry2.js": `
-				const ns = require('./foo')
-				console.log(ns.foo)
+				const ns2 = require('./foo')
+				console.log(ns.foo, ns2.foo)
 			`,
 			"/foo.js": `
 				export const foo = 123
 			`,
 		},
-		entryPaths: []string{"/entry1.js", "/entry2.js"},
+		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
 		},
 		bundleOptions: BundleOptions{
-			IsBundling:   true,
-			AbsOutputDir: "/out",
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out/entry1.js": `bootstrap({
-  2(exports) {
-    // /foo.js
-    __export(exports, {
-      foo: () => foo
-    });
-    const foo = 123;
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo2
+  });
+  const foo2 = 123;
+});
 
-  0() {
-    // /entry1.js
-    const ns = __import(2 /* ./foo */);
-    console.log(ns.foo);
-  }
-}, 0);
-`,
-			"/out/entry2.js": `bootstrap({
-  2(exports) {
-    // /foo.js
-    __export(exports, {
-      foo: () => foo
-    });
-    const foo = 123;
-  },
-
-  1() {
-    // /entry2.js
-    const ns = __require(2 /* ./foo */);
-    console.log(ns.foo);
-  }
-}, 1);
+// /entry.js
+const ns = __toModule(require_foo());
+const ns2 = require_foo();
+console.log(ns.foo, ns2.foo);
 `,
 		},
 	})

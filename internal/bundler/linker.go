@@ -953,16 +953,41 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 				}
 			}
 
-			// "var require_foo = __commonJS((exports, module) => { ... });"
-			stmts = []ast.Stmt{ast.Stmt{Data: &ast.SLocal{
-				Decls: []ast.Decl{ast.Decl{
-					Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
-					Value: &ast.Expr{Data: &ast.ECall{
-						Target: ast.Expr{Data: &ast.EIdentifier{commonJSRef}},
-						Args:   []ast.Expr{ast.Expr{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
+			// "__commonJS((exports, module) => { ... })"
+			value := ast.Expr{Data: &ast.ECall{
+				Target: ast.Expr{Data: &ast.EIdentifier{commonJSRef}},
+				Args:   []ast.Expr{ast.Expr{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
+			}}
+
+			// Make sure that entry points are immediately evaluated
+			switch fileMeta.entryPointStatus {
+			case entryPointNone:
+				// "var require_foo = __commonJS((exports, module) => { ... });"
+				stmts = []ast.Stmt{ast.Stmt{Data: &ast.SLocal{
+					Decls: []ast.Decl{ast.Decl{
+						Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
+						Value:   &value,
 					}},
-				}},
-			}}}
+				}}}
+
+			case entryPointUserSpecified:
+				// "__commonJS((exports, module) => { ... })();"
+				stmts = []ast.Stmt{ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{Target: value}}}}}
+
+			case entryPointDynamicImport:
+				// "var require_foo = __commonJS((exports, module) => { ... }); require_foo();"
+				stmts = []ast.Stmt{
+					ast.Stmt{Data: &ast.SLocal{
+						Decls: []ast.Decl{ast.Decl{
+							Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
+							Value:   &value,
+						}},
+					}},
+					ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
+						Target: ast.Expr{Data: &ast.EIdentifier{wrapperRef}},
+					}}}},
+				}
+			}
 		}
 
 		sourceMapContents := &c.sources[sourceIndex].Contents

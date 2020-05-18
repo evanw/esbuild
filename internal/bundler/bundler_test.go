@@ -3158,18 +3158,16 @@ func TestThisOutsideFunction(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /entry.js
-    console.log(exports);
-    console.log((x = exports) => exports);
-    console.log({
-      x: exports
-    });
-    console.log(class extends exports.foo {
-    });
-  }
-}, 0);
+			"/out.js": `// /entry.js
+__commonJS((exports) => {
+  console.log(exports);
+  console.log((x = exports) => exports);
+  console.log({
+    x: exports
+  });
+  console.log(class extends exports.foo {
+  });
+})();
 `,
 		},
 	})
