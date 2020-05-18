@@ -767,3 +767,86 @@ console.log(ns.foo, ns.foo, foo);
 		},
 	})
 }
+
+func TestImportStarExportStarOmitAmbiguous(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from './common'
+				console.log(ns)
+			`,
+			"/common.js": `
+				export * from './foo'
+				export * from './bar'
+			`,
+			"/foo.js": `
+				export const x = 1
+				export const y = 2
+			`,
+			"/bar.js": `
+				export const y = 3
+				export const z = 4
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+const x = 1;
+const y = 2;
+
+// /bar.js
+const y2 = 3;
+const z = 4;
+
+// /common.js
+const common_exports = {};
+__export(common_exports, {
+  x: () => x,
+  z: () => z
+});
+
+// /entry.js
+console.log(common_exports);
+`,
+		},
+	})
+}
+
+func TestImportExportStarAmbiguousError(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {x, y, z} from './common'
+				console.log(x, y, z)
+			`,
+			"/common.js": `
+				export * from './foo'
+				export * from './bar'
+			`,
+			"/foo.js": `
+				export const x = 1
+				export const y = 2
+			`,
+			"/bar.js": `
+				export const y = 3
+				export const z = 4
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: "/entry.js: error: Ambiguous import \"y\" has multiple matching exports\n",
+	})
+}

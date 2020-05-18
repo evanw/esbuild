@@ -545,6 +545,7 @@ func (c *linkerContext) addExportsForExportStar(
 			for name, export := range c.files[otherSourceIndex].ast.NamedExports {
 				if existing, ok := resolvedExportStars[name]; ok && existing.sourceIndex != otherSourceIndex {
 					existing.isAmbiguous = true
+					resolvedExportStars[name] = existing
 				} else {
 					resolvedExportStars[name] = exportStarData{
 						NamedExport: export,
