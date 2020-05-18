@@ -57,10 +57,6 @@ type fileMeta struct {
 	partMeta         []partMeta
 	entryPointStatus entryPointStatus
 
-	// If true, another file imported this file using "import * as ns from ...".
-	// That import ends up turning into a reference to this file's "exports".
-	isTargetOfImportStar bool
-
 	// If true, the module must be bundled CommonJS-style like this:
 	//
 	//   // foo.ts
@@ -146,11 +142,33 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 		symbols:     ast.NewSymbolMap(len(files)),
 	}
 
-	// Construct the file metadata arrays we will use later
+	// Clone various things since we may mutate them later
 	for sourceIndex, file := range files {
+		// Clone the symbol map
 		c.symbols.Outer[sourceIndex] = append([]ast.Symbol{}, file.ast.Symbols.Outer[sourceIndex]...)
 		file.ast.Symbols = c.symbols
+
+		// Clone the parts
+		file.ast.Parts = append([]ast.Part{}, file.ast.Parts...)
+
+		// Clone the import map
+		namedImports := make(map[ast.Ref]ast.NamedImport, len(file.ast.NamedImports))
+		for k, v := range file.ast.NamedImports {
+			namedImports[k] = v
+		}
+		file.ast.NamedImports = namedImports
+
+		// Clone the export map
+		namedExports := make(map[string]ast.NamedExport, len(file.ast.NamedExports))
+		for k, v := range file.ast.NamedExports {
+			namedExports[k] = v
+		}
+		file.ast.NamedExports = namedExports
+
+		// Update the file in our copy of the file array
 		c.files[sourceIndex] = file
+
+		// Also associate some default metadata with the file
 		c.fileMeta[sourceIndex] = fileMeta{
 			distanceFromEntryPoint: ^uint32(0),
 			isCommonJS:             file.ast.UsesCommonJSFeatures,
@@ -169,7 +187,6 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 
 func (c *linkerContext) link() []BundleResult {
 	c.scanImportsAndExports()
-	c.convertES6ExportsToCommonJS()
 	c.markPartsReachableFromEntryPoints()
 
 	if !c.options.IsBundling {
@@ -226,7 +243,152 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 	}
 
-	// Step 3: Bind imports to exports. This must be done after we process all
+	// Step 3: Create star exports for every file. This is always necessary for
+	// CommonJS files, and is also necessary for other files if they are imported
+	// using an import star statement.
+	for sourceIndex, _ := range c.sources {
+		fileMeta := &c.fileMeta[sourceIndex]
+		file := &c.files[sourceIndex]
+		exportPartIndex := uint32(len(file.ast.Parts))
+
+		// Sort the imports for determinism
+		aliases := make([]string, 0, len(file.ast.NamedExports)+len(fileMeta.resolvedExportStars))
+		for alias, _ := range file.ast.NamedExports {
+			aliases = append(aliases, alias)
+		}
+		for alias, export := range fileMeta.resolvedExportStars {
+			// Make sure not to add re-exports that are shadowed due to an export.
+			// Also don't add ambiguous re-exports, since they are silently hidden.
+			if _, ok := file.ast.NamedExports[alias]; !ok && !export.isAmbiguous {
+				aliases = append(aliases, alias)
+			}
+		}
+		sort.Strings(aliases)
+
+		// Generate a getter per export
+		properties := []ast.Property{}
+		var nonLocalDependencies []partRef
+		for _, alias := range aliases {
+			var otherSourceIndex uint32
+
+			// Look up the alias
+			export, ok := file.ast.NamedExports[alias]
+			if ok {
+				otherSourceIndex = uint32(sourceIndex)
+			} else {
+				exportStar := fileMeta.resolvedExportStars[alias]
+				otherSourceIndex = exportStar.sourceIndex
+				export = exportStar.NamedExport
+			}
+
+			// Exports of imports need EImportIdentifier in case they need to be re-
+			// written to a property access later on
+			var value ast.Expr
+			otherFile := &c.files[otherSourceIndex]
+			if namedImport, ok := otherFile.ast.NamedImports[export.Ref]; ok {
+				value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{export.Ref}}
+
+				// Mark that the import is used by the part we're about to generate.
+				// That way when the import is later bound to its matching export,
+				// the export will be assigned as a dependency of the part we're about
+				// to generate.
+				clone := append(make([]uint32, 0, len(namedImport.LocalPartsWithUses)+1), namedImport.LocalPartsWithUses...)
+				namedImport.LocalPartsWithUses = append(clone, exportPartIndex)
+				otherFile.ast.NamedImports[export.Ref] = namedImport
+			} else {
+				value = ast.Expr{ast.Loc{}, &ast.EIdentifier{export.Ref}}
+			}
+
+			// Add a getter property
+			properties = append(properties, ast.Property{
+				Key: ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
+				Value: &ast.Expr{ast.Loc{}, &ast.EArrow{
+					PreferExpr: true,
+					Body:       ast.FnBody{Stmts: []ast.Stmt{ast.Stmt{value.Loc, &ast.SReturn{&value}}}},
+				}},
+			})
+
+			// Make sure the part that declares the export is included
+			for _, partIndex := range export.LocalParts {
+				// Use a non-local dependency since this is likely from a different
+				// file if it came in through an export star
+				nonLocalDependencies = append(nonLocalDependencies, partRef{
+					sourceIndex: otherSourceIndex,
+					partIndex:   partIndex,
+				})
+			}
+		}
+
+		// Prefix this part with "var exports = {}" if this isn't a CommonJS module
+		stmts := make([]ast.Stmt, 0, 2)
+		if !fileMeta.isCommonJS {
+			stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
+				Binding: ast.Binding{ast.Loc{}, &ast.BIdentifier{file.ast.ExportsRef}},
+				Value:   &ast.Expr{ast.Loc{}, &ast.EObject{}},
+			}}}})
+		}
+
+		// "__export(exports, { foo: () => foo })"
+		if len(properties) > 0 {
+			exportRef := c.files[runtimeSourceIndex].ast.ModuleScope.Members["__export"]
+			stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
+				Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
+				Args: []ast.Expr{
+					ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
+					ast.Expr{ast.Loc{}, &ast.EObject{properties}},
+				},
+			}}}})
+
+			// Make sure this file depends on the "__export" symbol
+			for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports["__export"].LocalParts {
+				nonLocalDependencies = append(nonLocalDependencies, partRef{
+					sourceIndex: runtimeSourceIndex,
+					partIndex:   partIndex,
+				})
+			}
+
+			// Make sure the CommonJS closure, if there is one, includes "exports"
+			file.ast.UsesExportsRef = true
+		}
+
+		// No need to generate a part if it'll be empty
+		if len(stmts) == 0 {
+			continue
+		}
+
+		// Clone the parts array to avoid mutating the original AST
+		file.ast.Parts = append(file.ast.Parts, ast.Part{
+			Stmts:             stmts,
+			LocalDependencies: make(map[uint32]bool),
+			UseCountEstimates: make(map[ast.Ref]uint32),
+
+			// This can be removed if nothing uses it. Except if we're a CommonJS
+			// module, in which case it's always necessary.
+			CanBeRemovedIfUnused: !fileMeta.isCommonJS,
+
+			// Put the export definitions first before anything else gets evaluated
+			ShouldComeFirst: true,
+
+			// Make sure this is trimmed if unused even if tree shaking is disabled
+			ForceTreeShaking: true,
+		})
+
+		// Make sure the "partMeta" array matches the "Parts" array
+		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
+			entryBits:            newBitSet(uint(len(c.entryPoints))),
+			nonLocalDependencies: nonLocalDependencies,
+		})
+
+		// Add a special export called "*"
+		if !fileMeta.isCommonJS {
+			file.ast.NamedExports["*"] = ast.NamedExport{
+				Ref:        file.ast.ExportsRef,
+				LocalParts: []uint32{exportPartIndex},
+			}
+		}
+	}
+
+	// Step 4: Bind imports to exports. This must be done after we process all
 	// export stars because imports can bind to export star re-exports.
 	for sourceIndex, file := range c.files {
 		if len(file.ast.NamedImports) > 0 {
@@ -357,123 +519,6 @@ func (c *linkerContext) addExportsForExportStar(
 	}
 }
 
-func (c *linkerContext) convertES6ExportsToCommonJS() {
-	for sourceIndex, _ := range c.sources {
-		// We'll need a call to "__export" if this is a CommonJS module or if
-		// another module imported this module using an import star
-		fileMeta := &c.fileMeta[sourceIndex]
-		if !fileMeta.isTargetOfImportStar && !fileMeta.isCommonJS {
-			continue
-		}
-
-		// Sort the imports for determinism
-		file := &c.files[sourceIndex]
-		aliases := make([]string, 0, len(file.ast.NamedExports)+len(fileMeta.resolvedExportStars))
-		for alias, _ := range file.ast.NamedExports {
-			aliases = append(aliases, alias)
-		}
-		for alias, export := range fileMeta.resolvedExportStars {
-			// Make sure not to add re-exports that are shadowed due to an export.
-			// Also don't add ambiguous re-exports, since they are silently hidden.
-			if _, ok := file.ast.NamedExports[alias]; !ok && !export.isAmbiguous {
-				aliases = append(aliases, alias)
-			}
-		}
-		sort.Strings(aliases)
-
-		// Generate a getter per export
-		properties := []ast.Property{}
-		for _, alias := range aliases {
-			var otherSourceIndex uint32
-			var exportRef ast.Ref
-
-			// Look up the alias
-			if export, ok := file.ast.NamedExports[alias]; ok {
-				otherSourceIndex = uint32(sourceIndex)
-				exportRef = export.Ref
-			} else {
-				export := fileMeta.resolvedExportStars[alias]
-				otherSourceIndex = export.sourceIndex
-				exportRef = export.Ref
-			}
-
-			// Exports of imports need EImportIdentifier in case they need to be re-
-			// written to a property access later on
-			var value ast.Expr
-			if _, ok := c.files[otherSourceIndex].ast.NamedImports[exportRef]; ok {
-				value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{exportRef}}
-			} else {
-				value = ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}}
-			}
-
-			// Add a getter property
-			properties = append(properties, ast.Property{
-				Key: ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
-				Value: &ast.Expr{ast.Loc{}, &ast.EArrow{
-					PreferExpr: true,
-					Body:       ast.FnBody{Stmts: []ast.Stmt{ast.Stmt{value.Loc, &ast.SReturn{&value}}}},
-				}},
-			})
-		}
-
-		// Prefix this part with "var exports = {}" if this isn't a CommonJS module
-		stmts := make([]ast.Stmt, 0, 2)
-		if !fileMeta.isCommonJS {
-			stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
-				Binding: ast.Binding{ast.Loc{}, &ast.BIdentifier{file.ast.ExportsRef}},
-				Value:   &ast.Expr{ast.Loc{}, &ast.EObject{}},
-			}}}})
-		}
-
-		// "__export(exports, { foo: () => foo })"
-		var nonLocalDependencies []partRef
-		if len(properties) > 0 {
-			exportRef := c.files[runtimeSourceIndex].ast.ModuleScope.Members["__export"]
-			stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
-				Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
-				Args: []ast.Expr{
-					ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
-					ast.Expr{ast.Loc{}, &ast.EObject{properties}},
-				},
-			}}}})
-
-			// Make sure this file depends on the "__export" symbol
-			for _, partIndex := range c.files[runtimeSourceIndex].ast.NamedExports["__export"].LocalParts {
-				nonLocalDependencies = append(nonLocalDependencies, partRef{
-					sourceIndex: runtimeSourceIndex,
-					partIndex:   partIndex,
-				})
-			}
-
-			// Make sure the CommonJS closure, if there is one, includes "exports"
-			file.ast.UsesExportsRef = true
-		}
-
-		// No need to generate a part if it'll be empty
-		if len(stmts) == 0 {
-			continue
-		}
-
-		// Clone the parts array to avoid mutating the original AST
-		parts := append(make([]ast.Part, 0, len(file.ast.Parts)+1), file.ast.Parts...)
-		file.ast.Parts = append(parts, ast.Part{
-			Stmts:             stmts,
-			LocalDependencies: make(map[uint32]bool),
-			UseCountEstimates: make(map[ast.Ref]uint32),
-
-			// Put the export definitions first before anything else gets evaluated
-			ShouldComeFirst: true,
-		})
-
-		// Make sure the "partMeta" array matches the "Parts" array
-		partMetas := append(make([]partMeta, 0, len(fileMeta.partMeta)+1), fileMeta.partMeta...)
-		fileMeta.partMeta = append(partMetas, partMeta{
-			entryBits:            newBitSet(uint(len(c.entryPoints))),
-			nonLocalDependencies: nonLocalDependencies,
-		})
-	}
-}
-
 type importTracker struct {
 	sourceIndex uint32
 	importRef   ast.Ref
@@ -514,14 +559,8 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		return importTracker{}, nil, importCommonJS
 	}
 
-	// Check for a star import
-	otherFile := &c.files[otherSourceIndex]
-	if namedImport.Alias == "*" {
-		otherFileMeta.isTargetOfImportStar = true
-		return importTracker{otherSourceIndex, otherFile.ast.ExportsRef}, []uint32{}, importFound
-	}
-
 	// Match this import up with an export from the imported file
+	otherFile := &c.files[otherSourceIndex]
 	if matchingExport, ok := otherFile.ast.NamedExports[namedImport.Alias]; ok {
 		// Check to see if this is a re-export of another import
 		return importTracker{otherSourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
@@ -580,7 +619,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 		// Include all parts in this file with side effects, or just include
 		// everything if tree-shaking is disabled. Note that we still want to
 		// perform tree-shaking on the runtime even if tree-shaking is disabled.
-		if !part.CanBeRemovedIfUnused || (!c.options.TreeShaking && sourceIndex != runtimeSourceIndex) {
+		if !part.CanBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.TreeShaking && sourceIndex != runtimeSourceIndex) {
 			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
 		}
 
@@ -936,20 +975,21 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 		// all parts marked "ShouldComeFirst" up to the front. These are generated
 		// parts that are supposed to be a prefix for the file.
 		{
-			split := len(file.ast.Parts)
-			for split > 0 && file.ast.Parts[split-1].ShouldComeFirst {
+			parts := file.ast.Parts
+			split := len(parts)
+			for split > 0 && parts[split-1].ShouldComeFirst {
 				split--
 			}
 
 			// Everything with "ShouldComeFirst"
-			for partIndex, part := range file.ast.Parts[split:] {
+			for partIndex := split; partIndex < len(parts); partIndex++ {
 				if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-					stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
+					stmts = c.convertStmtsForChunk(sourceIndex, stmts, parts[partIndex].Stmts)
 				}
 			}
 
 			// Everything else
-			for partIndex, part := range file.ast.Parts[:split] {
+			for partIndex, part := range parts[:split] {
 				if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
 					stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
 				}

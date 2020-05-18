@@ -257,10 +257,6 @@ func TestImportStarES6ExportStarAsUnused(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo2
-});
 const foo2 = 123;
 
 // /bar.js

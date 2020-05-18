@@ -8590,6 +8590,9 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []ast.Stmt) bool {
 				}
 			}
 
+		case *ast.SExportClause:
+			// Exports are tracked separately, so this isn't necessary
+
 		case *ast.SExportDefault:
 			switch {
 			case s.Value.Expr != nil:

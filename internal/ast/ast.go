@@ -1085,6 +1085,11 @@ type Part struct {
 	// index. So instead of doing that we use a flag and then move them up to the
 	// front when we traverse over them the final time.
 	ShouldComeFirst bool
+
+	// This is used for generated parts that we don't want to be present if they
+	// aren't needed. This enables tree shaking for these parts even if global
+	// tree shaking isn't enabled.
+	ForceTreeShaking bool
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.
