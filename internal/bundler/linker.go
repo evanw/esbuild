@@ -45,6 +45,15 @@ type linkerContext struct {
 	files       []file
 	fileMeta    []fileMeta
 	hasErrors   bool
+
+	// We should avoid traversing all files in the bundle, because the linker
+	// should be able to run a linking operation on a large bundle where only
+	// a few files are needed (e.g. an incremental compilation scenario). This
+	// holds all files that could possibly be reached through the entry points.
+	// If you need to iterate over all files in the linking operation, iterate
+	// over this array. This array is also sorted in a deterministic ordering
+	// to help ensure deterministic builds (source indices are random).
+	reachableFiles []uint32
 }
 
 type entryPointStatus uint8
@@ -137,18 +146,21 @@ type chunkMeta struct {
 func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources []logging.Source, files []file, entryPoints []uint32) linkerContext {
 	// Clone information about symbols and files so we don't mutate the input data
 	c := linkerContext{
-		options:     options,
-		log:         log,
-		fs:          fs,
-		sources:     sources,
-		entryPoints: append([]uint32{}, entryPoints...),
-		files:       make([]file, len(files)),
-		fileMeta:    make([]fileMeta, len(files)),
-		symbols:     ast.NewSymbolMap(len(files)),
+		options:        options,
+		log:            log,
+		fs:             fs,
+		sources:        sources,
+		entryPoints:    append([]uint32{}, entryPoints...),
+		files:          make([]file, len(files)),
+		fileMeta:       make([]fileMeta, len(files)),
+		symbols:        ast.NewSymbolMap(len(files)),
+		reachableFiles: findReachableFiles(sources, files, entryPoints),
 	}
 
 	// Clone various things since we may mutate them later
-	for sourceIndex, file := range files {
+	for _, sourceIndex := range c.reachableFiles {
+		file := files[sourceIndex]
+
 		// Clone the symbol map
 		c.symbols.Outer[sourceIndex] = append([]ast.Symbol{}, file.ast.Symbols.Outer[sourceIndex]...)
 		file.ast.Symbols = c.symbols
@@ -190,6 +202,59 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 	return c
 }
 
+type indexAndPath struct {
+	sourceIndex uint32
+	path        string
+}
+
+// This type is just so we can use Go's native sort function
+type indexAndPathArray []indexAndPath
+
+func (a indexAndPathArray) Len() int               { return len(a) }
+func (a indexAndPathArray) Swap(i int, j int)      { a[i], a[j] = a[j], a[i] }
+func (a indexAndPathArray) Less(i int, j int) bool { return a[i].path < a[j].path }
+
+// Find all files reachable from all entry points
+func findReachableFiles(sources []logging.Source, files []file, entryPoints []uint32) []uint32 {
+	visited := make(map[uint32]bool)
+	sorted := indexAndPathArray{}
+	var visit func(uint32)
+
+	// Include this file and all files it imports
+	visit = func(sourceIndex uint32) {
+		if !visited[sourceIndex] {
+			visited[sourceIndex] = true
+			file := files[sourceIndex]
+			for _, part := range file.ast.Parts {
+				for _, importPath := range part.ImportPaths {
+					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
+						visit(otherSourceIndex)
+					}
+				}
+			}
+			sorted = append(sorted, indexAndPath{sourceIndex, sources[sourceIndex].AbsolutePath})
+		}
+	}
+
+	// The runtime is always included in case it's needed
+	visit(ast.RuntimeSourceIndex)
+
+	// Include all files reachable from any entry point
+	for _, entryPoint := range entryPoints {
+		visit(entryPoint)
+	}
+
+	// Sort by absolute path for determinism
+	sort.Sort(sorted)
+
+	// Extract the source indices
+	reachableFiles := make([]uint32, len(sorted))
+	for i, item := range sorted {
+		reachableFiles[i] = item.sourceIndex
+	}
+	return reachableFiles
+}
+
 func (c *linkerContext) addRangeError(source logging.Source, r ast.Range, text string) {
 	c.log.AddRangeError(source, r, text)
 	c.hasErrors = true
@@ -225,7 +290,8 @@ func (c *linkerContext) link() []BundleResult {
 
 func (c *linkerContext) scanImportsAndExports() {
 	// Step 1: Figure out what modules must be CommonJS
-	for _, file := range c.files {
+	for _, sourceIndex := range c.reachableFiles {
+		file := c.files[sourceIndex]
 		for _, part := range file.ast.Parts {
 			// Handle require() and import()
 			for _, importPath := range part.ImportPaths {
@@ -252,7 +318,8 @@ func (c *linkerContext) scanImportsAndExports() {
 	// Step 2: Resolve "export * from" statements. This must be done after we
 	// discover all modules that can be CommonJS because export stars are ignored
 	// for CommonJS modules.
-	for sourceIndex, file := range c.files {
+	for _, sourceIndex := range c.reachableFiles {
+		file := c.files[sourceIndex]
 		if len(file.ast.ExportStars) > 0 {
 			visited := make(map[uint32]bool)
 			c.addExportsForExportStar(c.fileMeta[sourceIndex].resolvedExportStars, uint32(sourceIndex), nil, visited)
@@ -262,13 +329,14 @@ func (c *linkerContext) scanImportsAndExports() {
 	// Step 3: Create star exports for every file. This is always necessary for
 	// CommonJS files, and is also necessary for other files if they are imported
 	// using an import star statement.
-	for sourceIndex, _ := range c.sources {
+	for _, sourceIndex := range c.reachableFiles {
 		c.createStarExportForFile(uint32(sourceIndex))
 	}
 
 	// Step 4: Bind imports to exports. This must be done after we process all
 	// export stars because imports can bind to export star re-exports.
-	for sourceIndex, file := range c.files {
+	for _, sourceIndex := range c.reachableFiles {
+		file := c.files[sourceIndex]
 		if len(file.ast.NamedImports) > 0 {
 			c.bindImportsToExportsForFile(uint32(sourceIndex))
 		}
@@ -637,7 +705,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// Allocate bit sets
 	bitCount := uint(len(c.entryPoints))
-	for sourceIndex, _ := range c.fileMeta {
+	for _, sourceIndex := range c.reachableFiles {
 		fileMeta := &c.fileMeta[sourceIndex]
 		fileMeta.entryBits = newBitSet(bitCount)
 		for partIndex, _ := range fileMeta.partMeta {
@@ -763,8 +831,8 @@ func (c *linkerContext) computeChunks() map[string]chunkMeta {
 	}
 
 	// Figure out which files are in which chunk
-	for sourceIndex, fileMeta := range c.fileMeta {
-		for _, partMeta := range fileMeta.partMeta {
+	for _, sourceIndex := range c.reachableFiles {
+		for _, partMeta := range c.fileMeta[sourceIndex].partMeta {
 			key := string(partMeta.entryBits.entries)
 			if key == neverReachedKey {
 				// Ignore this part if it was never reached
@@ -1121,8 +1189,8 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 
 	// Make sure the printer can require() CommonJS modules
 	wrapperRefs := make([]ast.Ref, len(c.files))
-	for sourceIndex, file := range c.files {
-		wrapperRefs[sourceIndex] = file.ast.WrapperRef
+	for _, sourceIndex := range c.reachableFiles {
+		wrapperRefs[sourceIndex] = c.files[sourceIndex].ast.WrapperRef
 	}
 
 	// Generate JavaScript for each file in parallel
@@ -1316,7 +1384,8 @@ func (c *linkerContext) renameOrMinifyAllSymbols() {
 	moduleScopes := make([]*ast.Scope, 0, len(c.files))
 
 	// Combine all file scopes
-	for sourceIndex, file := range c.files {
+	for _, sourceIndex := range c.reachableFiles {
+		file := c.files[sourceIndex]
 		moduleScopes = append(moduleScopes, file.ast.ModuleScope)
 		if c.fileMeta[sourceIndex].isCommonJS {
 			// Modules wrapped in a CommonJS closure look like this:

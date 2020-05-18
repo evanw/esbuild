@@ -254,10 +254,10 @@ func TestDCEImportOfExportStarOfImport(t *testing.T) {
 				export * from './bar'
 			`,
 			"/bar.js": `
-				export {baz as bar} from './baz'
+				export {value as bar} from './baz'
 			`,
 			"/baz.js": `
-				export const baz = 123
+				export const value = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -272,7 +272,7 @@ func TestDCEImportOfExportStarOfImport(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /baz.js
-const baz = 123;
+const value = 123;
 
 // /bar.js
 
@@ -283,7 +283,7 @@ statement();
 statement();
 
 // /entry.js
-console.log(baz);
+console.log(value);
 `,
 		},
 	})

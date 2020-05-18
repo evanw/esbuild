@@ -2567,13 +2567,13 @@ func TestSourceMap(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/src/bar.js
-function bar2() {
+function bar() {
   throw new Error("test");
 }
 
 // /Users/user/project/src/entry.js
 function foo() {
-  bar2();
+  bar();
 }
 foo();
 //# sourceMappingURL=out.js.map
@@ -2650,10 +2650,10 @@ func TestHashbangBundle(t *testing.T) {
 			"/out.js": `#!/usr/bin/env a
 
 // /code.js
-const code2 = 0;
+const code = 0;
 
 // /entry.js
-process.exit(code2);
+process.exit(code);
 `,
 		},
 	})

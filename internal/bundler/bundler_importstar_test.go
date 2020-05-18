@@ -799,10 +799,10 @@ func TestImportStarExportStarOmitAmbiguous(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `// /foo.js
 const x = 1;
-const y = 2;
+const y2 = 2;
 
 // /bar.js
-const y2 = 3;
+const y = 3;
 const z = 4;
 
 // /common.js
