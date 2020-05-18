@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/fs"
@@ -941,13 +942,129 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmts []ast.Stm
 	return stmts
 }
 
+func (c *linkerContext) generateCodeForFileInChunk(
+	waitGroup *sync.WaitGroup,
+	sourceIndex uint32,
+	entryBits bitSet,
+	commonJSRef ast.Ref,
+	toModuleRef ast.Ref,
+	wrapperRefs []ast.Ref,
+	result *compileResult,
+) {
+	file := &c.files[sourceIndex]
+	fileMeta := &c.fileMeta[sourceIndex]
+	stmts := []ast.Stmt{}
+
+	// Add all parts in this file that belong in this chunk. Make sure to move
+	// all parts marked "ShouldComeFirst" up to the front. These are generated
+	// parts that are supposed to be a prefix for the file.
+	{
+		parts := file.ast.Parts
+		split := len(parts)
+		for split > 0 && parts[split-1].ShouldComeFirst {
+			split--
+		}
+
+		// Everything with "ShouldComeFirst"
+		for partIndex := split; partIndex < len(parts); partIndex++ {
+			if entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+				stmts = c.convertStmtsForChunk(sourceIndex, stmts, parts[partIndex].Stmts)
+			}
+		}
+
+		// Everything else
+		for partIndex, part := range parts[:split] {
+			if entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+				stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
+			}
+		}
+	}
+
+	// Optionally wrap all statements in a closure for CommonJS
+	if fileMeta.isCommonJS {
+		exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
+		moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
+		wrapperRef := ast.FollowSymbols(c.symbols, file.ast.WrapperRef)
+
+		// Only include the arguments that are actually used
+		args := []ast.Arg{}
+		if file.ast.UsesExportsRef || file.ast.UsesModuleRef {
+			args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{exportsRef}}})
+			if file.ast.UsesModuleRef {
+				args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{moduleRef}}})
+			}
+		}
+
+		// "__commonJS((exports, module) => { ... })"
+		value := ast.Expr{Data: &ast.ECall{
+			Target: ast.Expr{Data: &ast.EIdentifier{commonJSRef}},
+			Args:   []ast.Expr{ast.Expr{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
+		}}
+
+		// Make sure that entry points are immediately evaluated
+		switch fileMeta.entryPointStatus {
+		case entryPointNone:
+			// "var require_foo = __commonJS((exports, module) => { ... });"
+			stmts = []ast.Stmt{ast.Stmt{Data: &ast.SLocal{
+				Decls: []ast.Decl{ast.Decl{
+					Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
+					Value:   &value,
+				}},
+			}}}
+
+		case entryPointUserSpecified:
+			// "__commonJS((exports, module) => { ... })();"
+			stmts = []ast.Stmt{ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{Target: value}}}}}
+
+		case entryPointDynamicImport:
+			// "var require_foo = __commonJS((exports, module) => { ... }); require_foo();"
+			stmts = []ast.Stmt{
+				ast.Stmt{Data: &ast.SLocal{
+					Decls: []ast.Decl{ast.Decl{
+						Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
+						Value:   &value,
+					}},
+				}},
+				ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{wrapperRef}},
+				}}}},
+			}
+		}
+	}
+
+	// Only generate a source map if needed
+	sourceMapContents := &c.sources[sourceIndex].Contents
+	if c.options.SourceMap == SourceMapNone {
+		sourceMapContents = nil
+	}
+
+	// Convert the AST to JavaScript code
+	tree := file.ast
+	tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
+	*result = compileResult{
+		PrintResult: printer.Print(tree, printer.PrintOptions{
+			RemoveWhitespace:  c.options.RemoveWhitespace,
+			ResolvedImports:   file.resolvedImports,
+			ToModuleRef:       toModuleRef,
+			WrapperRefs:       wrapperRefs,
+			SourceMapContents: sourceMapContents,
+		}),
+		sourceIndex: sourceIndex,
+	}
+
+	// Also quote the source for the source map while we're running in parallel
+	if c.options.SourceMap != SourceMapNone {
+		result.quotedSource = printer.QuoteForJSON(c.sources[sourceIndex].Contents)
+	}
+
+	waitGroup.Done()
+}
+
 func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
-	js := []byte{}
 	compileResults := make([]compileResult, 0, len(chunk.filesInChunk))
 	runtimeMembers := c.files[runtimeSourceIndex].ast.ModuleScope.Members
 	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
 	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
-	prevOffset := 0
 
 	// Make sure the printer can require() CommonJS modules
 	wrapperRefs := make([]ast.Ref, len(c.files))
@@ -955,132 +1072,50 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 		wrapperRefs[sourceIndex] = file.ast.WrapperRef
 	}
 
-	// Start with the hashbang if there is one
-	if chunk.hashbang != "" {
-		js = append(js, chunk.hashbang...)
-		js = append(js, '\n')
-	}
-
+	// Generate JavaScript for each file in parallel
+	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range c.chunkFileOrder(chunk) {
-		file := &c.files[sourceIndex]
-		fileMeta := &c.fileMeta[sourceIndex]
-		stmts := []ast.Stmt{}
-
 		// Skip the runtime in test output
 		if sourceIndex == runtimeSourceIndex && c.options.omitRuntimeForTests {
 			continue
 		}
 
-		// Add all parts in this file that belong in this chunk. Make sure to move
-		// all parts marked "ShouldComeFirst" up to the front. These are generated
-		// parts that are supposed to be a prefix for the file.
-		{
-			parts := file.ast.Parts
-			split := len(parts)
-			for split > 0 && parts[split-1].ShouldComeFirst {
-				split--
-			}
+		// Create a goroutine for this file
+		compileResults = append(compileResults, compileResult{})
+		waitGroup.Add(1)
+		go c.generateCodeForFileInChunk(
+			&waitGroup,
+			sourceIndex,
+			chunk.entryBits,
+			commonJSRef,
+			toModuleRef,
+			wrapperRefs,
+			&compileResults[len(compileResults)-1],
+		)
+	}
+	waitGroup.Wait()
 
-			// Everything with "ShouldComeFirst"
-			for partIndex := split; partIndex < len(parts); partIndex++ {
-				if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-					stmts = c.convertStmtsForChunk(sourceIndex, stmts, parts[partIndex].Stmts)
-				}
-			}
+	// Start with the hashbang if there is one
+	js := []byte{}
+	if chunk.hashbang != "" {
+		js = append(js, chunk.hashbang...)
+		js = append(js, '\n')
+	}
 
-			// Everything else
-			for partIndex, part := range parts[:split] {
-				if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-					stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
-				}
-			}
-		}
-
-		// Optionally wrap all statements in a closure for CommonJS
-		if fileMeta.isCommonJS {
-			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
-			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
-			wrapperRef := ast.FollowSymbols(c.symbols, file.ast.WrapperRef)
-
-			// Only include the arguments that are actually used
-			args := []ast.Arg{}
-			if file.ast.UsesExportsRef || file.ast.UsesModuleRef {
-				args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{exportsRef}}})
-				if file.ast.UsesModuleRef {
-					args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{moduleRef}}})
-				}
-			}
-
-			// "__commonJS((exports, module) => { ... })"
-			value := ast.Expr{Data: &ast.ECall{
-				Target: ast.Expr{Data: &ast.EIdentifier{commonJSRef}},
-				Args:   []ast.Expr{ast.Expr{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
-			}}
-
-			// Make sure that entry points are immediately evaluated
-			switch fileMeta.entryPointStatus {
-			case entryPointNone:
-				// "var require_foo = __commonJS((exports, module) => { ... });"
-				stmts = []ast.Stmt{ast.Stmt{Data: &ast.SLocal{
-					Decls: []ast.Decl{ast.Decl{
-						Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
-						Value:   &value,
-					}},
-				}}}
-
-			case entryPointUserSpecified:
-				// "__commonJS((exports, module) => { ... })();"
-				stmts = []ast.Stmt{ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{Target: value}}}}}
-
-			case entryPointDynamicImport:
-				// "var require_foo = __commonJS((exports, module) => { ... }); require_foo();"
-				stmts = []ast.Stmt{
-					ast.Stmt{Data: &ast.SLocal{
-						Decls: []ast.Decl{ast.Decl{
-							Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
-							Value:   &value,
-						}},
-					}},
-					ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
-						Target: ast.Expr{Data: &ast.EIdentifier{wrapperRef}},
-					}}}},
-				}
-			}
-		}
-
-		sourceMapContents := &c.sources[sourceIndex].Contents
-		if c.options.SourceMap == SourceMapNone {
-			sourceMapContents = nil
-		}
-		tree := file.ast
-		tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
-		compileResult := compileResult{
-			PrintResult: printer.Print(tree, printer.PrintOptions{
-				RemoveWhitespace:  c.options.RemoveWhitespace,
-				ResolvedImports:   file.resolvedImports,
-				ToModuleRef:       toModuleRef,
-				WrapperRefs:       wrapperRefs,
-				SourceMapContents: sourceMapContents,
-			}),
-			sourceIndex: sourceIndex,
-		}
-		if c.options.SourceMap != SourceMapNone {
-			compileResult.quotedSource = printer.QuoteForJSON(c.sources[sourceIndex].Contents)
-		}
-
-		if c.options.IsBundling && !c.options.RemoveWhitespace && sourceIndex != runtimeSourceIndex {
+	// Concatenate the generated JavaScript chunks together
+	prevOffset := 0
+	for _, compileResult := range compileResults {
+		if c.options.IsBundling && !c.options.RemoveWhitespace && compileResult.sourceIndex != runtimeSourceIndex {
 			if len(js) > 0 {
 				js = append(js, '\n')
 			}
-			js = append(js, fmt.Sprintf("// %s\n", c.sources[sourceIndex].PrettyPath)...)
+			js = append(js, fmt.Sprintf("// %s\n", c.sources[compileResult.sourceIndex].PrettyPath)...)
 		}
 
 		// Save the offset to the start of the stored JavaScript
 		compileResult.generatedOffset = computeLineColumnOffset(js[prevOffset:])
 		js = append(js, compileResult.JS...)
 		prevOffset = len(js)
-
-		compileResults = append(compileResults, compileResult)
 	}
 
 	// Make sure the file ends with a newline
