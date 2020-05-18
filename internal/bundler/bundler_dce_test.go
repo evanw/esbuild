@@ -64,9 +64,7 @@ func TestDCEImportStarUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `// /foo.js
-
-// /entry.js
+			"/out.js": `// /entry.js
 console.log();
 `,
 		},
@@ -145,13 +143,97 @@ func TestDCEImportStarES6ExportImportStarUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `// /foo.js
+			"/out.js": `// /entry.js
+let foo = 234;
+console.log(foo);
+`,
+		},
+	})
+}
+
+func TestDCEImportOfExportStar(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {bar} from './foo'
+				console.log(bar)
+			`,
+			"/foo.js": `
+				export * from './bar'
+			`,
+			"/bar.js": `
+				// Add some statements to increase the part index (this reproduced a crash)
+				statement()
+				statement()
+				statement()
+				statement()
+				export const bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:  true,
+			TreeShaking: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			TreeShaking:   true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /bar.js
+statement();
+statement();
+statement();
+statement();
+const bar = 123;
+
+// /foo.js
+
+// /entry.js
+console.log(bar);
+`,
+		},
+	})
+}
+
+func TestDCEImportOfExportStarOfImport(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {bar} from './foo'
+				console.log(bar)
+			`,
+			"/foo.js": `
+				export * from './bar'
+			`,
+			"/bar.js": `
+				export {baz as bar} from './baz'
+			`,
+			"/baz.js": `
+				export const baz = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:  true,
+			TreeShaking: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			TreeShaking:   true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /baz.js
+const baz = 123;
 
 // /bar.js
 
+// /foo.js
+
 // /entry.js
-let foo = 234;
-console.log(foo);
+console.log(baz);
 `,
 		},
 	})

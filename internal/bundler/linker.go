@@ -574,7 +574,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		}
 
 		// Check to see if this is a re-export of another import
-		return importTracker{otherSourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
+		return importTracker{matchingExport.sourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
 	}
 
 	return importTracker{}, nil, importNoMatch
