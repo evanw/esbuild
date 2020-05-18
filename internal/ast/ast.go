@@ -1079,6 +1079,12 @@ type Part struct {
 	// used. If the file containing this part is imported, then all parts that
 	// don't have this flag enabled must be included.
 	CanBeRemovedIfUnused bool
+
+	// Sometimes we need to insert new parts at the beginning of a file. However,
+	// it's complicated to reorder parts since they reference each other by
+	// index. So instead of doing that we use a flag and then move them up to the
+	// front when we traverse over them the final time.
+	ShouldComeFirst bool
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.

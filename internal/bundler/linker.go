@@ -454,22 +454,23 @@ func (c *linkerContext) convertES6ExportsToCommonJS() {
 			continue
 		}
 
-		// Put the export definitions first before anything else gets evaluated
-		parts := make([]ast.Part, 0, 1+len(file.ast.Parts))
-		parts = append(parts, ast.Part{
+		// Clone the parts array to avoid mutating the original AST
+		parts := append(make([]ast.Part, 0, len(file.ast.Parts)+1), file.ast.Parts...)
+		file.ast.Parts = append(parts, ast.Part{
 			Stmts:             stmts,
 			LocalDependencies: make(map[uint32]bool),
 			UseCountEstimates: make(map[ast.Ref]uint32),
+
+			// Put the export definitions first before anything else gets evaluated
+			ShouldComeFirst: true,
 		})
-		file.ast.Parts = append(parts, file.ast.Parts...)
 
 		// Make sure the "partMeta" array matches the "Parts" array
-		partMetas := make([]partMeta, 0, 1+len(fileMeta.partMeta))
-		partMetas = append(partMetas, partMeta{
+		partMetas := append(make([]partMeta, 0, len(fileMeta.partMeta)+1), fileMeta.partMeta...)
+		fileMeta.partMeta = append(partMetas, partMeta{
 			entryBits:            newBitSet(uint(len(c.entryPoints))),
 			nonLocalDependencies: nonLocalDependencies,
 		})
-		fileMeta.partMeta = append(partMetas, fileMeta.partMeta...)
 	}
 }
 
@@ -931,10 +932,27 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 			continue
 		}
 
-		// Add all parts in this file that belong in this chunk
-		for partIndex, part := range file.ast.Parts {
-			if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-				stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
+		// Add all parts in this file that belong in this chunk. Make sure to move
+		// all parts marked "ShouldComeFirst" up to the front. These are generated
+		// parts that are supposed to be a prefix for the file.
+		{
+			split := len(file.ast.Parts)
+			for split > 0 && file.ast.Parts[split-1].ShouldComeFirst {
+				split--
+			}
+
+			// Everything with "ShouldComeFirst"
+			for partIndex, part := range file.ast.Parts[split:] {
+				if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+					stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
+				}
+			}
+
+			// Everything else
+			for partIndex, part := range file.ast.Parts[:split] {
+				if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+					stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
+				}
 			}
 		}
 
