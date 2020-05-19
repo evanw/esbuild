@@ -997,9 +997,8 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 	return order
 }
 
-func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmts []ast.Stmt, partStmts []ast.Stmt) []ast.Stmt {
+func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtList, partStmts []ast.Stmt) {
 	shouldStripExports := c.options.IsBundling || sourceIndex == ast.RuntimeSourceIndex
-	didMergeWithPreviousLocal := false
 
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
@@ -1007,11 +1006,13 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmts []ast.Stm
 			// Turn imports of CommonJS files into require() calls
 			if otherSourceIndex, ok := c.files[sourceIndex].resolveImport(s.Path); ok {
 				if c.fileMeta[otherSourceIndex].isCommonJS {
-					stmt.Data = &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
-						ast.Binding{stmt.Loc, &ast.BIdentifier{s.NamespaceRef}},
-						&ast.Expr{s.Path.Loc, &ast.ERequire{Path: s.Path, IsES6Import: true}},
-					}}}
-					break
+					stmtList.importStmts = append(stmtList.importStmts, ast.Stmt{
+						Loc: stmt.Loc,
+						Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
+							ast.Binding{stmt.Loc, &ast.BIdentifier{s.NamespaceRef}},
+							&ast.Expr{s.Path.Loc, &ast.ERequire{Path: s.Path, IsES6Import: true}},
+						}}},
+					})
 				}
 
 				// Remove import statements entirely
@@ -1088,34 +1089,54 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmts []ast.Stm
 			}
 		}
 
-		// Potentially merge with the previous variable declaration
-		if c.options.MangleSyntax && len(stmts) > 0 {
-			if after, ok := stmt.Data.(*ast.SLocal); ok {
-				if before, ok := stmts[len(stmts)-1].Data.(*ast.SLocal); ok {
-					if before.Kind == after.Kind && before.IsExport == after.IsExport {
-						if didMergeWithPreviousLocal {
-							// Avoid O(n^2) behavior for repeated variable declarations
-							before.Decls = append(before.Decls, after.Decls...)
-						} else {
-							// Be careful to not modify the original statement
-							didMergeWithPreviousLocal = true
-							clone := *before
-							clone.Decls = make([]ast.Decl, 0, len(before.Decls)+len(after.Decls))
-							clone.Decls = append(clone.Decls, before.Decls...)
-							clone.Decls = append(clone.Decls, after.Decls...)
-							stmts[len(stmts)-1].Data = &clone
-						}
-						continue
+		stmtList.normalStmts = append(stmtList.normalStmts, stmt)
+	}
+}
+
+// "var a = 1; var b = 2;" => "var a = 1, b = 2;"
+func mergeAdjacentLocalStmts(stmts []ast.Stmt) []ast.Stmt {
+	if len(stmts) == 0 {
+		return stmts
+	}
+
+	didMergeWithPreviousLocal := false
+	end := 1
+
+	for _, stmt := range stmts[1:] {
+		// Try to merge with the previous variable statement
+		if after, ok := stmt.Data.(*ast.SLocal); ok {
+			if before, ok := stmts[end-1].Data.(*ast.SLocal); ok {
+				// It must be the same kind of variable statement (i.e. let/var/const)
+				if before.Kind == after.Kind && before.IsExport == after.IsExport {
+					if didMergeWithPreviousLocal {
+						// Avoid O(n^2) behavior for repeated variable declarations
+						before.Decls = append(before.Decls, after.Decls...)
+					} else {
+						// Be careful to not modify the original statement
+						didMergeWithPreviousLocal = true
+						clone := *before
+						clone.Decls = make([]ast.Decl, 0, len(before.Decls)+len(after.Decls))
+						clone.Decls = append(clone.Decls, before.Decls...)
+						clone.Decls = append(clone.Decls, after.Decls...)
+						stmts[end-1].Data = &clone
 					}
+					continue
 				}
 			}
 		}
 
+		// Otherwise, append a normal statement
 		didMergeWithPreviousLocal = false
-		stmts = append(stmts, stmt)
+		stmts[end] = stmt
+		end++
 	}
 
-	return stmts
+	return stmts[:end]
+}
+
+type stmtList struct {
+	importStmts []ast.Stmt
+	normalStmts []ast.Stmt
 }
 
 func (c *linkerContext) generateCodeForFileInChunk(
@@ -1135,6 +1156,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	// all parts marked "ShouldComeFirst" up to the front. These are generated
 	// parts that are supposed to be a prefix for the file.
 	{
+		stmtList := stmtList{}
 		parts := file.ast.Parts
 		split := len(parts)
 		for split > 0 && parts[split-1].ShouldComeFirst {
@@ -1144,15 +1166,29 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		// Everything with "ShouldComeFirst"
 		for partIndex := split; partIndex < len(parts); partIndex++ {
 			if entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-				stmts = c.convertStmtsForChunk(sourceIndex, stmts, parts[partIndex].Stmts)
+				c.convertStmtsForChunk(sourceIndex, &stmtList, parts[partIndex].Stmts)
 			}
 		}
 
 		// Everything else
 		for partIndex, part := range parts[:split] {
 			if entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-				stmts = c.convertStmtsForChunk(sourceIndex, stmts, part.Stmts)
+				c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
 			}
+		}
+
+		// Hoist all import statements before any normal statements. ES6 imports
+		// are different than CommonJS imports. All modules imported via ES6 import
+		// statements are evaluated before the module doing the importing is
+		// evaluated (well, except for cyclic import scenarios). We need to preserve
+		// these semantics even when modules imported via ES6 import statements end
+		// up being CommonJS modules.
+		stmts = stmtList.normalStmts
+		if len(stmtList.importStmts) > 0 {
+			stmts = append(stmtList.importStmts, stmts...)
+		}
+		if c.options.MangleSyntax {
+			stmts = mergeAdjacentLocalStmts(stmts)
 		}
 	}
 

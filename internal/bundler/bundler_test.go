@@ -203,12 +203,18 @@ func TestCommonJSFromES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				const {fn} = require('./foo')
-				console.log(fn())
+				const {foo} = require('./foo')
+				console.log(foo(), bar())
+				const {bar} = require('./bar') // This should not be hoisted
 			`,
 			"/foo.js": `
-				export function fn() {
-					return 123
+				export function foo() {
+					return 'foo'
+				}
+			`,
+			"/bar.js": `
+				export function bar() {
+					return 'bar'
 				}
 			`,
 		},
@@ -224,16 +230,27 @@ func TestCommonJSFromES6(t *testing.T) {
 			"/out.js": `// /foo.js
 var require_foo = __commonJS((exports) => {
   __export(exports, {
-    fn: () => fn2
+    foo: () => foo2
   });
-  function fn2() {
-    return 123;
+  function foo2() {
+    return "foo";
+  }
+});
+
+// /bar.js
+var require_bar = __commonJS((exports) => {
+  __export(exports, {
+    bar: () => bar2
+  });
+  function bar2() {
+    return "bar";
   }
 });
 
 // /entry.js
-const {fn} = require_foo();
-console.log(fn());
+const {foo} = require_foo();
+console.log(foo(), bar());
+const {bar} = require_bar();
 `,
 		},
 	})
@@ -243,12 +260,18 @@ func TestES6FromCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import {fn} from './foo'
-				console.log(fn())
+				import {foo} from './foo'
+				console.log(foo(), bar())
+				import {bar} from './bar' // This should be hoisted
 			`,
 			"/foo.js": `
-				exports.fn = function() {
-					return 123
+				exports.foo = function() {
+					return 'foo'
+				}
+			`,
+			"/bar.js": `
+				exports.bar = function() {
+					return 'bar'
 				}
 			`,
 		},
@@ -263,14 +286,22 @@ func TestES6FromCommonJS(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `// /foo.js
 var require_foo = __commonJS((exports) => {
-  exports.fn = function() {
-    return 123;
+  exports.foo = function() {
+    return "foo";
+  };
+});
+
+// /bar.js
+var require_bar = __commonJS((exports) => {
+  exports.bar = function() {
+    return "bar";
   };
 });
 
 // /entry.js
 const foo = __toModule(require_foo());
-console.log(foo.fn());
+const bar = __toModule(require_bar());
+console.log(foo.foo(), bar.bar());
 `,
 		},
 	})
