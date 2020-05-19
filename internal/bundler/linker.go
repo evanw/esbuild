@@ -1318,7 +1318,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 
 	// Concatenate the generated JavaScript chunks together
 	prevOffset := 0
-	for _, compileResult := range compileResults {
+	for i, compileResult := range compileResults {
 		if c.options.IsBundling && !c.options.RemoveWhitespace && compileResult.sourceIndex != ast.RuntimeSourceIndex {
 			if len(js) > 0 {
 				js = append(js, '\n')
@@ -1327,7 +1327,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 		}
 
 		// Save the offset to the start of the stored JavaScript
-		compileResult.generatedOffset = computeLineColumnOffset(js[prevOffset:])
+		compileResults[i].generatedOffset = computeLineColumnOffset(js[prevOffset:])
 		js = append(js, compileResult.JS...)
 		prevOffset = len(js)
 	}
