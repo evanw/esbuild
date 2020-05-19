@@ -8509,6 +8509,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 						AliasLoc:     item.Name.Loc,
 						ImportPath:   s.Path,
 						NamespaceRef: s.NamespaceRef,
+						IsExported:   true,
 					}
 				}
 			}
@@ -8522,6 +8523,12 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 					if p.symbols[item.Name.Ref.InnerIndex].Kind != ast.SymbolUnbound {
 						s.Items[itemsEnd] = item
 						itemsEnd++
+
+						// Mark re-exported imports as such
+						if namedImport, ok := p.namedImports[item.Name.Ref]; ok {
+							namedImport.IsExported = true
+							p.namedImports[item.Name.Ref] = namedImport
+						}
 					}
 				}
 				if itemsEnd == 0 {

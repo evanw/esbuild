@@ -262,7 +262,7 @@ function foo() {
 	})
 }
 
-func TestTSPackageImportMissing(t *testing.T) {
+func TestTSImportMissingES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -270,7 +270,31 @@ func TestTSPackageImportMissing(t *testing.T) {
 				console.log(fn(a, b))
 			`,
 			"/foo.js": `
-				export const x = 132
+				export const x = 123
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.ts: error: No matching export for import "default"
+/entry.ts: error: No matching export for import "y"
+`,
+	})
+}
+
+func TestTSImportMissingUnusedES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import fn, {x as a, y as b} from './foo'
+			`,
+			"/foo.js": `
+				export const x = 123
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -282,15 +306,42 @@ func TestTSPackageImportMissing(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /foo.js
-    const x = 132;
+			"/out.js": ``,
+		},
+	})
+}
 
-    // /entry.ts
-    console.log(fn(x, b));
-  }
-}, 0);
+func TestTSExportMissingES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from './foo'
+				console.log(ns)
+			`,
+			"/foo.ts": `
+				export {nope} from './bar'
+			`,
+			"/bar.js": `
+				export const yep = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /bar.js
+const yep = 123;
+
+// /foo.ts
+const foo_exports = {};
+
+// /entry.js
+console.log(foo_exports);
 `,
 		},
 	})

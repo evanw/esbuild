@@ -68,6 +68,42 @@ type fileMeta struct {
 	partMeta         []partMeta
 	entryPointStatus entryPointStatus
 
+	// This is only for TypeScript files. If an import symbol is in this map, it
+	// means the import couldn't be found and doesn't actually exist. This is not
+	// an error in TypeScript because the import is probably just a type.
+	//
+	// Normally we remove all unused imports for TypeScript files during parsing,
+	// which automatically removes type-only imports. But there are certain re-
+	// export situations where it's impossible to tell if an import is a type or
+	// not:
+	//
+	//   import {typeOrNotTypeWhoKnows} from 'path';
+	//   export {typeOrNotTypeWhoKnows};
+	//
+	// Really people should be using the TypeScript "isolatedModules" flag with
+	// bundlers like this one that compile TypeScript files independently without
+	// type checking. That causes the TypeScript type checker to emit the error
+	// "Re-exporting a type when the '--isolatedModules' flag is provided requires
+	// using 'export type'." But we try to be robust to such code anyway.
+	isProbablyTypeScriptType map[ast.Ref]bool
+
+	// Imports are matched with exports in a separate pass from when the matched
+	// exports are actually bound to the imports. Here "binding" means adding non-
+	// local dependencies on the parts in the exporting file that declare the
+	// exported symbol to all parts in the importing file that use the imported
+	// symbol.
+	//
+	// This must be a separate pass because of the "probably TypeScript type"
+	// check above. We can't generate the part for the export namespace until
+	// we've matched imports with exports because the generated code must omit
+	// type-only imports in the export namespace code. And we can't bind exports
+	// to imports until the part for the export namespace is generated since that
+	// part needs to participate in the binding.
+	//
+	// This array holds the deferred imports to bind so the pass can be split
+	// into two separate passes.
+	importsToBind []importToBind
+
 	// If true, the module must be bundled CommonJS-style like this:
 	//
 	//   // foo.ts
@@ -104,6 +140,13 @@ type fileMeta struct {
 	//   export {ns};
 	//
 	resolvedExportStars map[string]exportStarData
+}
+
+type importToBind struct {
+	importRef           ast.Ref
+	resolvedRef         ast.Ref
+	resolvedSourceIndex uint32
+	resolvedLocalParts  []uint32
 }
 
 type exportStarData struct {
@@ -194,10 +237,11 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 
 		// Also associate some default metadata with the file
 		c.fileMeta[sourceIndex] = fileMeta{
-			distanceFromEntryPoint: ^uint32(0),
-			isCommonJS:             file.ast.UsesCommonJSFeatures,
-			partMeta:               make([]partMeta, len(file.ast.Parts)),
-			resolvedExportStars:    make(map[string]exportStarData),
+			distanceFromEntryPoint:   ^uint32(0),
+			isCommonJS:               file.ast.UsesCommonJSFeatures,
+			partMeta:                 make([]partMeta, len(file.ast.Parts)),
+			resolvedExportStars:      make(map[string]exportStarData),
+			isProbablyTypeScriptType: make(map[ast.Ref]bool),
 		}
 	}
 
@@ -326,34 +370,82 @@ func (c *linkerContext) scanImportsAndExports() {
 	// discover all modules that can be CommonJS because export stars are ignored
 	// for CommonJS modules.
 	for _, sourceIndex := range c.reachableFiles {
-		file := c.files[sourceIndex]
+		file := &c.files[sourceIndex]
+		fileMeta := &c.fileMeta[sourceIndex]
+
+		// Propagate exports for export star statements
 		if len(file.ast.ExportStars) > 0 {
 			visited := make(map[uint32]bool)
-			c.addExportsForExportStar(c.fileMeta[sourceIndex].resolvedExportStars, uint32(sourceIndex), nil, visited)
+			c.addExportsForExportStar(fileMeta.resolvedExportStars, uint32(sourceIndex), nil, visited)
+		}
+
+		// Add an empty part for the namespace export that we can fill in later
+		nsExportPartIndex := uint32(len(file.ast.Parts))
+		file.ast.Parts = append(file.ast.Parts, ast.Part{
+			LocalDependencies:    make(map[uint32]bool),
+			UseCountEstimates:    make(map[ast.Ref]uint32),
+			CanBeRemovedIfUnused: true,
+			IsNamespaceExport:    true,
+		})
+		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
+			entryBits: newBitSet(uint(len(c.entryPoints))),
+		})
+
+		// Also add a special export called "*" so import stars can bind to it.
+		// This must be done in this step because it must come after CommonJS
+		// module discovery but before matching imports with exports.
+		if !fileMeta.isCommonJS {
+			file.ast.NamedExports["*"] = ast.NamedExport{
+				Ref:        file.ast.ExportsRef,
+				LocalParts: []uint32{nsExportPartIndex},
+			}
 		}
 	}
 
-	// Step 3: Create star exports for every file. This is always necessary for
-	// CommonJS files, and is also necessary for other files if they are imported
-	// using an import star statement.
-	for _, sourceIndex := range c.reachableFiles {
-		c.createStarExportForFile(uint32(sourceIndex))
-	}
-
-	// Step 4: Bind imports to exports. This must be done after we process all
+	// Step 3: Match imports with exports. This must be done after we process all
 	// export stars because imports can bind to export star re-exports.
 	for _, sourceIndex := range c.reachableFiles {
 		file := c.files[sourceIndex]
 		if len(file.ast.NamedImports) > 0 {
-			c.bindImportsToExportsForFile(uint32(sourceIndex))
+			c.matchImportsWithExportsForFile(uint32(sourceIndex))
+		}
+	}
+
+	// Step 4: Create namespace exports for every file. This is always necessary
+	// for CommonJS files, and is also necessary for other files if they are
+	// imported using an import star statement.
+	for _, sourceIndex := range c.reachableFiles {
+		c.createNamespaceExportForFile(uint32(sourceIndex))
+	}
+
+	// Step 5: Bind imports to exports. This adds non-local dependencies on the
+	// parts that declare the export to all parts that use the import.
+	for _, sourceIndex := range c.reachableFiles {
+		fileMeta := &c.fileMeta[sourceIndex]
+		for _, importToBind := range fileMeta.importsToBind {
+			for _, partIndex := range c.files[sourceIndex].ast.NamedImports[importToBind.importRef].LocalPartsWithUses {
+				partMeta := &fileMeta.partMeta[partIndex]
+				for _, nonLocalPartIndex := range importToBind.resolvedLocalParts {
+					partMeta.nonLocalDependencies = append(partMeta.nonLocalDependencies, partRef{
+						sourceIndex: importToBind.resolvedSourceIndex,
+						partIndex:   nonLocalPartIndex,
+					})
+				}
+			}
+
+			// Merge these symbols so they will share the same name
+			ast.MergeSymbols(c.symbols, importToBind.importRef, importToBind.resolvedRef)
 		}
 	}
 }
 
-func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
+func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 	fileMeta := &c.fileMeta[sourceIndex]
 	file := &c.files[sourceIndex]
-	exportPartIndex := uint32(len(file.ast.Parts))
+	nsExportPartIndex := uint32(len(file.ast.Parts) - 1)
+	if !file.ast.Parts[nsExportPartIndex].IsNamespaceExport {
+		panic("Internal error")
+	}
 
 	// Sort the imports for determinism
 	aliases := make([]string, 0, len(file.ast.NamedExports)+len(fileMeta.resolvedExportStars))
@@ -377,6 +469,12 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 		var otherSourceIndex uint32
 		var exportStarPathLoc ast.Loc
 
+		// Ignore automatically-generated star exports. These are internal-only and
+		// are not supposed to end up in the namespace export code we generate.
+		if alias == "*" {
+			continue
+		}
+
 		// Look up the alias
 		export, ok := file.ast.NamedExports[alias]
 		if ok {
@@ -386,6 +484,13 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 			exportStarPathLoc = exportStar.pathLoc
 			otherSourceIndex = exportStar.sourceIndex
 			export = exportStar.NamedExport
+		}
+
+		// Ignore re-exported imports in TypeScript files that failed to be
+		// resolved. These are probably just type-only imports so the best thing to
+		// do is to silently omit them from the export list.
+		if c.fileMeta[otherSourceIndex].isProbablyTypeScriptType[export.Ref] {
+			continue
 		}
 
 		// Exports of imports need EImportIdentifier in case they need to be re-
@@ -416,7 +521,7 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 				}
 			}
 			clone := append(make([]uint32, 0, len(namedImport.LocalPartsWithUses)+1), namedImport.LocalPartsWithUses...)
-			namedImport.LocalPartsWithUses = append(clone, exportPartIndex)
+			namedImport.LocalPartsWithUses = append(clone, nsExportPartIndex)
 			file.ast.NamedImports[export.Ref] = namedImport
 		} else {
 			value = ast.Expr{ast.Loc{}, &ast.EIdentifier{export.Ref}}
@@ -486,8 +591,9 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 		return
 	}
 
-	// Clone the parts array to avoid mutating the original AST
-	file.ast.Parts = append(file.ast.Parts, ast.Part{
+	// Initialize the part that was allocated for us earlier. The information
+	// here will be used after this during tree shaking.
+	file.ast.Parts[nsExportPartIndex] = ast.Part{
 		Stmts:             stmts,
 		LocalDependencies: make(map[uint32]bool),
 		UseCountEstimates: useCountEstimates,
@@ -498,28 +604,15 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 		CanBeRemovedIfUnused: !fileMeta.isCommonJS,
 
 		// Put the export definitions first before anything else gets evaluated
-		ShouldComeFirst: true,
+		IsNamespaceExport: true,
 
 		// Make sure this is trimmed if unused even if tree shaking is disabled
 		ForceTreeShaking: true,
-	})
-
-	// Make sure the "partMeta" array matches the "Parts" array
-	fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
-		entryBits:            newBitSet(uint(len(c.entryPoints))),
-		nonLocalDependencies: nonLocalDependencies,
-	})
-
-	// Add a special export called "*"
-	if !fileMeta.isCommonJS {
-		file.ast.NamedExports["*"] = ast.NamedExport{
-			Ref:        file.ast.ExportsRef,
-			LocalParts: []uint32{exportPartIndex},
-		}
 	}
+	fileMeta.partMeta[nsExportPartIndex].nonLocalDependencies = nonLocalDependencies
 }
 
-func (c *linkerContext) bindImportsToExportsForFile(sourceIndex uint32) {
+func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 	file := c.files[sourceIndex]
 
 	// Sort imports for determinism. Otherwise our unit tests will randomly
@@ -530,7 +623,7 @@ func (c *linkerContext) bindImportsToExportsForFile(sourceIndex uint32) {
 	}
 	sort.Ints(sortedImportRefs)
 
-	// Bind imports with their matching exports
+	// Pair imports with their matching exports
 	for _, innerIndex := range sortedImportRefs {
 		importRef := ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
 		tracker := importTracker{sourceIndex, importRef}
@@ -560,46 +653,57 @@ func (c *linkerContext) bindImportsToExportsForFile(sourceIndex uint32) {
 
 			// Resolve the import by one step
 			nextTracker, localParts, status := c.advanceImportTracker(tracker)
-			if status == importCommonJS || status == importExternal {
+			switch status {
+			case importCommonJS, importExternal:
 				// If it's a CommonJS or external file, rewrite the import to a property access
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 				c.symbols.Get(importRef).NamespaceAlias = &ast.NamespaceAlias{
 					NamespaceRef: namedImport.NamespaceRef,
 					Alias:        namedImport.Alias,
 				}
-				break
-			} else if status == importNoMatch {
+
+			case importNoMatch:
 				// Report mismatched imports and exports
 				source := c.sources[tracker.sourceIndex]
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 				r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
 				c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
-				break
-			} else if status == importAmbiguous {
+
+			case importAmbiguous:
 				source := c.sources[tracker.sourceIndex]
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 				r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
 				c.addRangeError(source, r, fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
-				break
-			} else if _, ok := c.files[nextTracker.sourceIndex].ast.NamedImports[nextTracker.importRef]; !ok {
-				// If this is not a re-export of another import, add this import as
-				// a dependency to all parts in this file that use this import
-				for _, partIndex := range c.files[sourceIndex].ast.NamedImports[importRef].LocalPartsWithUses {
-					partMeta := &c.fileMeta[sourceIndex].partMeta[partIndex]
-					for _, nonLocalPartIndex := range localParts {
-						partMeta.nonLocalDependencies = append(partMeta.nonLocalDependencies, partRef{
-							sourceIndex: nextTracker.sourceIndex,
-							partIndex:   nonLocalPartIndex,
-						})
-					}
+
+			case importProbablyTypeScriptType:
+				// Omit this import from any namespace export code we generate for
+				// import star statements (i.e. "import * as ns from 'path'")
+				c.fileMeta[sourceIndex].isProbablyTypeScriptType[importRef] = true
+
+			case importFound:
+				// If this is a re-export of another import, continue for another
+				// iteration of the loop to resolve that import as well
+				if _, ok := c.files[nextTracker.sourceIndex].ast.NamedImports[nextTracker.importRef]; ok {
+					tracker = nextTracker
+					continue
 				}
 
-				// Merge these symbols so they will share the same name
-				ast.MergeSymbols(c.symbols, importRef, nextTracker.importRef)
-				break
-			} else {
-				tracker = nextTracker
+				// Defer the actual binding of this import until after we generate
+				// namespace export code for all files
+				fileMeta := &c.fileMeta[sourceIndex]
+				fileMeta.importsToBind = append(fileMeta.importsToBind, importToBind{
+					importRef:           importRef,
+					resolvedRef:         nextTracker.importRef,
+					resolvedSourceIndex: nextTracker.sourceIndex,
+					resolvedLocalParts:  localParts,
+				})
+
+			default:
+				panic("Internal error")
 			}
+
+			// Stop now if we didn't explicitly "continue" above
+			break
 		}
 	}
 }
@@ -679,6 +783,9 @@ const (
 
 	// There are multiple re-exports with the same name due to "export * from"
 	importAmbiguous
+
+	// This is a missing re-export in a TypeScript file, so it's probably a type
+	importProbablyTypeScriptType
 )
 
 func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, []uint32, importStatus) {
@@ -705,7 +812,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	}
 
 	// If there was no named export, there may still be an export star
-	if matchingExport, ok := c.fileMeta[otherSourceIndex].resolvedExportStars[namedImport.Alias]; ok {
+	if matchingExport, ok := otherFileMeta.resolvedExportStars[namedImport.Alias]; ok {
 		if matchingExport.isAmbiguous {
 			return importTracker{}, nil, importAmbiguous
 		}
@@ -714,8 +821,12 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		return importTracker{matchingExport.sourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
 	}
 
-	return importTracker{}, nil, importNoMatch
+	// Missing re-exports in TypeScript files are indistinguishable from types
+	if file.ast.WasTypeScript && namedImport.IsExported {
+		return importTracker{}, nil, importProbablyTypeScriptType
+	}
 
+	return importTracker{}, nil, importNoMatch
 }
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {
@@ -871,6 +982,17 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			name := c.fs.Base(c.sources[entryPoint].AbsolutePath)
 			entryPointNames[i] = c.stripKnownFileExtension(name) + ".js"
 		}
+
+		// Create a chunk for the entry point here to ensure that the chunk is
+		// always generated even if the resulting file is empty
+		entryBits := newBitSet(uint(len(c.entryPoints)))
+		entryBits.setBit(uint(entryPoint))
+		chunks[string(entryBits.entries)] = chunkMeta{
+			entryBits:             entryBits,
+			hashbang:              c.files[entryPoint].ast.Hashbang,
+			name:                  entryPointNames[i],
+			filesWithPartsInChunk: make(map[uint32]bool),
+		}
 	}
 
 	// Figure out which files are in which chunk
@@ -884,19 +1006,13 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			chunk, ok := chunks[key]
 			if !ok {
 				// Initialize the chunk for the first time
-				entryPointCount := 0
 				for i, entryPoint := range c.entryPoints {
 					if partMeta.entryBits.hasBit(uint(entryPoint)) {
 						if chunk.name != "" {
 							chunk.name = c.stripKnownFileExtension(chunk.name) + "_"
 						}
-						chunk.hashbang = c.files[entryPoint].ast.Hashbang
 						chunk.name += entryPointNames[i]
-						entryPointCount++
 					}
-				}
-				if entryPointCount > 1 {
-					chunk.hashbang = ""
 				}
 				chunk.entryBits = partMeta.entryBits
 				chunk.filesWithPartsInChunk = make(map[uint32]bool)
@@ -1152,26 +1268,23 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	fileMeta := &c.fileMeta[sourceIndex]
 	stmts := []ast.Stmt{}
 
-	// Add all parts in this file that belong in this chunk. Make sure to move
-	// all parts marked "ShouldComeFirst" up to the front. These are generated
-	// parts that are supposed to be a prefix for the file.
+	// Add all parts in this file that belong in this chunk
 	{
 		stmtList := stmtList{}
 		parts := file.ast.Parts
-		split := len(parts)
-		for split > 0 && parts[split-1].ShouldComeFirst {
-			split--
-		}
+		end := len(parts)
 
-		// Everything with "ShouldComeFirst"
-		for partIndex := split; partIndex < len(parts); partIndex++ {
-			if entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-				c.convertStmtsForChunk(sourceIndex, &stmtList, parts[partIndex].Stmts)
+		// Make sure to move the trailing part marked "IsNamespaceExport" up to the
+		// front. It's a generated part that is supposed to be a prefix for the file.
+		if end > 0 && parts[end-1].IsNamespaceExport {
+			end--
+			if entryBits.equals(fileMeta.partMeta[end].entryBits) {
+				c.convertStmtsForChunk(sourceIndex, &stmtList, parts[end].Stmts)
 			}
 		}
 
-		// Everything else
-		for partIndex, part := range parts[:split] {
+		// Add all other parts in this chunk
+		for partIndex, part := range parts[:end] {
 			if entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
 				c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
 			}

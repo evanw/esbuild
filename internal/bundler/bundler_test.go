@@ -2044,7 +2044,7 @@ console.log(index_default);
 	})
 }
 
-func TestPackageImportMissingES6(t *testing.T) {
+func TestImportMissingES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2052,7 +2052,7 @@ func TestPackageImportMissingES6(t *testing.T) {
 				console.log(fn(a, b))
 			`,
 			"/foo.js": `
-				export const x = 132
+				export const x = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -2066,22 +2066,34 @@ func TestPackageImportMissingES6(t *testing.T) {
 		expectedCompileLog: `/entry.js: error: No matching export for import "default"
 /entry.js: error: No matching export for import "y"
 `,
-		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /foo.js
-    const x = 132;
-
-    // /entry.js
-    console.log(fn(x, b));
-  }
-}, 0);
-`,
-		},
 	})
 }
 
-func TestPackageImportMissingCommonJS(t *testing.T) {
+func TestImportMissingUnusedES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import fn, {x as a, y as b} from './foo'
+			`,
+			"/foo.js": `
+				export const x = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.js: error: No matching export for import "default"
+/entry.js: error: No matching export for import "y"
+`,
+	})
+}
+
+func TestImportMissingCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2089,7 +2101,7 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 				console.log(fn(a, b))
 			`,
 			"/foo.js": `
-				exports.x = 132
+				exports.x = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -2103,7 +2115,7 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `// /foo.js
 var require_foo = __commonJS((exports) => {
-  exports.x = 132;
+  exports.x = 123;
 });
 
 // /entry.js
@@ -2111,6 +2123,33 @@ const foo = __toModule(require_foo());
 console.log(foo.default(foo.x, foo.y));
 `,
 		},
+	})
+}
+
+func TestExportMissingES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from './foo'
+				console.log(ns)
+			`,
+			"/foo.js": `
+				export {nope} from './bar'
+			`,
+			"/bar.js": `
+				export const yep = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/foo.js: error: No matching export for import "nope"
+`,
 	})
 }
 

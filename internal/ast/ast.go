@@ -1046,6 +1046,10 @@ type NamedImport struct {
 
 	// Parts within this file that use this import
 	LocalPartsWithUses []uint32
+
+	// It's useful to flag exported imports because if they are in a TypeScript
+	// file, we can't tell if they are a type or a value.
+	IsExported bool
 }
 
 type NamedExport struct {
@@ -1090,11 +1094,10 @@ type Part struct {
 	// don't have this flag enabled must be included.
 	CanBeRemovedIfUnused bool
 
-	// Sometimes we need to insert new parts at the beginning of a file. However,
-	// it's complicated to reorder parts since they reference each other by
-	// index. So instead of doing that we use a flag and then move them up to the
-	// front when we traverse over them the final time.
-	ShouldComeFirst bool
+	// If true, this is the automatically-generated part for this file's ES6
+	// exports. It may hold the "const exports = {};" statement and also the
+	// "__export(exports, { ... })" call to initialize the getters.
+	IsNamespaceExport bool
 
 	// This is used for generated parts that we don't want to be present if they
 	// aren't needed. This enables tree shaking for these parts even if global
