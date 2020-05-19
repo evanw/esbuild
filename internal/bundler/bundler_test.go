@@ -426,11 +426,11 @@ func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 export var varName = 234;
 export let letName = 234;
 export const constName = 234;
-function m() {
+function a() {
 }
-class n {
+class b {
 }
-export {Class as Cls, m as Fn2, n as Cls2};
+export {Class as Cls, a as Fn2, b as Cls2};
 export function Func() {
 }
 export class Class {
@@ -441,13 +441,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function s() {
+			"/out/c.js": `export default function a() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class s {
+			"/out/e.js": `export default class a {
 }
 `,
 		},
@@ -2978,7 +2978,7 @@ func TestMinifiedBundleES6(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({1(){function a(){return 123}a();console.log(a())}},1);
+			"/out.js": `function a(){return 123}a();console.log(a());
 `,
 		},
 	})
@@ -3012,7 +3012,7 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=k$(0);console.log(b(),k$(2))}},1);
+			"/out.js": `var d=c(b=>{b.foo=function(){return 123}});var f=c((b,g)=>{g.exports={test:!0}});const{foo:e}=d();console.log(e(),f());
 `,
 		},
 	})
@@ -3757,25 +3757,25 @@ func TestDirectEvalTaintingNoBundle(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `function test1() {
-  function add(a, b) {
-    return a + b;
+  function add(b, a) {
+    return b + a;
   }
   eval("add(1, 2)");
 }
 function test2() {
-  function a(b, c) {
-    return b + c;
+  function b(a, c) {
+    return a + c;
   }
   (0, eval)("add(1, 2)");
 }
 function test3() {
-  function a(b, c) {
-    return b + c;
+  function b(a, c) {
+    return a + c;
   }
 }
 function test4(eval) {
-  function add(a, b) {
-    return a + b;
+  function add(b, a) {
+    return b + a;
   }
   eval("add(1, 2)");
 }

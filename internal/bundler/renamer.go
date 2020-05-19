@@ -253,7 +253,6 @@ func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMa
 	for _, i := range sorted {
 		ref := ast.Ref{uint32(i >> 32), uint32(i)}
 		ref = ast.FollowSymbols(symbols, ref)
-
 		symbol := symbols.Get(ref)
 
 		// Don't rename unbound symbols and symbols marked as reserved names
@@ -261,9 +260,8 @@ func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMa
 			continue
 		}
 
-		// Add 1 to the count to also include the declaration
-		if g.countSymbol(next, ref, symbol.UseCountEstimate+1) {
-			next += 1
+		if g.countSymbol(next, ref, symbol.UseCountEstimate) {
+			next++
 		}
 	}
 
@@ -276,7 +274,7 @@ func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols ast.Symbol
 	// Labels are in a separate namespace from symbols
 	if scope.Kind == ast.ScopeLabel {
 		symbol := symbols.Get(scope.LabelRef)
-		g.countSymbol(labelCount, scope.LabelRef, symbol.UseCountEstimate+1)
+		g.countSymbol(labelCount, scope.LabelRef, symbol.UseCountEstimate+1) // +1 for the label itself
 		labelCount += 1
 	}
 

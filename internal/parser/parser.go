@@ -51,7 +51,7 @@ type parser struct {
 	moduleRef                ast.Ref
 	findSymbolHelper         FindSymbol
 	useCountEstimates        map[ast.Ref]uint32
-	declaredSymbols          []ast.Ref
+	declaredSymbols          []ast.DeclaredSymbol
 	runtimeImports           map[string]ast.Ref
 
 	// These are for TypeScript
@@ -5887,14 +5887,19 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 	return
 }
 
+func (p *parser) recordDeclaredSymbol(ref ast.Ref) {
+	p.declaredSymbols = append(p.declaredSymbols, ast.DeclaredSymbol{
+		Ref:        ref,
+		IsTopLevel: p.currentScope == p.moduleScope,
+	})
+}
+
 func (p *parser) visitBinding(binding ast.Binding) {
 	switch b := binding.Data.(type) {
 	case *ast.BMissing:
 
 	case *ast.BIdentifier:
-		if p.currentScope == p.moduleScope {
-			p.declaredSymbols = append(p.declaredSymbols, b.Ref)
-		}
+		p.recordDeclaredSymbol(b.Ref)
 
 	case *ast.BArray:
 		for _, i := range b.Items {
@@ -6157,16 +6162,16 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SImport:
 		if s.DefaultName != nil {
-			p.declaredSymbols = append(p.declaredSymbols, s.DefaultName.Ref)
+			p.recordDeclaredSymbol(s.DefaultName.Ref)
 		}
 
 		if s.StarNameLoc != nil {
-			p.declaredSymbols = append(p.declaredSymbols, s.NamespaceRef)
+			p.recordDeclaredSymbol(s.NamespaceRef)
 		}
 
 		if s.Items != nil {
 			for _, item := range *s.Items {
-				p.declaredSymbols = append(p.declaredSymbols, item.Name.Ref)
+				p.recordDeclaredSymbol(item.Name.Ref)
 			}
 		}
 
@@ -6208,9 +6213,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SExportDefault:
-		if p.currentScope == p.moduleScope {
-			p.declaredSymbols = append(p.declaredSymbols, s.DefaultName.Ref)
-		}
+		p.recordDeclaredSymbol(s.DefaultName.Ref)
 
 		switch {
 		case s.Value.Expr != nil:
@@ -6484,10 +6487,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.popScope()
 
 	case *ast.SFunction:
-		if p.currentScope == p.moduleScope {
-			p.declaredSymbols = append(p.declaredSymbols, s.Fn.Name.Ref)
-		}
-
+		p.recordDeclaredSymbol(s.Fn.Name.Ref)
 		p.visitFn(&s.Fn, stmt.Loc)
 
 		// Handle exporting this function from a namespace
@@ -6509,10 +6509,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SClass:
-		if p.currentScope == p.moduleScope {
-			p.declaredSymbols = append(p.declaredSymbols, s.Class.Name.Ref)
-		}
-
+		p.recordDeclaredSymbol(s.Class.Name.Ref)
 		p.visitClass(&s.Class)
 		stmts = append(stmts, stmt)
 
@@ -6542,10 +6539,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SEnum:
-		if p.currentScope == p.moduleScope {
-			p.declaredSymbols = append(p.declaredSymbols, s.Name.Ref)
-		}
-
+		p.recordDeclaredSymbol(s.Name.Ref)
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
 		defer p.popScope()
 
@@ -6668,9 +6662,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SNamespace:
-		if p.currentScope == p.moduleScope {
-			p.declaredSymbols = append(p.declaredSymbols, s.Name.Ref)
-		}
+		p.recordDeclaredSymbol(s.Name.Ref)
 
 		// Scan ahead for any variables inside this namespace. This must be done
 		// ahead of time before visiting any statements inside the namespace
@@ -8172,6 +8164,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 			// Create a new expression to represent the operation
+			p.ignoreUsage(p.requireRef)
 			return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}, exprOut{}
 		}
 
@@ -8549,8 +8542,8 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 
 func (p *parser) appendPart(parts []ast.Part, stmts []ast.Stmt) []ast.Part {
 	p.useCountEstimates = make(map[ast.Ref]uint32)
-	p.declaredSymbols = []ast.Ref{}
-	p.importPaths = []ast.ImportPath{}
+	p.declaredSymbols = nil
+	p.importPaths = nil
 	part := ast.Part{
 		Stmts:             p.visitStmtsAndPrependTempRefs(stmts),
 		UseCountEstimates: p.useCountEstimates,
@@ -8927,7 +8920,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 
 		namespaceRef := p.newSymbol(ast.SymbolOther, "runtime")
 		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
-		declaredSymbols := make([]ast.Ref, len(keys))
+		declaredSymbols := make([]ast.DeclaredSymbol, len(keys))
 		clauseItems := make([]ast.ClauseItem, len(keys))
 		runtimePath := ast.Path{
 			UseSourceIndex: true,
@@ -8937,7 +8930,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		// Create per-import information
 		for i, key := range keys {
 			ref := p.runtimeImports[key]
-			declaredSymbols[i] = ref
+			declaredSymbols[i] = ast.DeclaredSymbol{Ref: ref, IsTopLevel: true}
 			clauseItems[i] = ast.ClauseItem{Alias: key, Name: ast.LocRef{Ref: ref}}
 			p.namedImports[ref] = ast.NamedImport{
 				Alias:        key,
@@ -8987,8 +8980,10 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 				// to be included anyway
 				continue
 			}
-			for _, ref := range part.DeclaredSymbols {
-				localToParts[ref.InnerIndex] = append(localToParts[ref.InnerIndex], uint32(partIndex))
+			for _, declared := range part.DeclaredSymbols {
+				if declared.IsTopLevel {
+					localToParts[declared.Ref.InnerIndex] = append(localToParts[declared.Ref.InnerIndex], uint32(partIndex))
+				}
 			}
 		}
 
@@ -9068,10 +9063,9 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 	// - Using the "exports" variable
 	// - Using the "module" variable
 	// - Using a top-level return statement
-	// - Using a direct call to eval()
 	usesExports := p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0
 	usesModule := p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
-	usesCommonJSFeatures := p.hasTopLevelReturn || p.moduleScope.ContainsDirectEval || usesExports || usesModule
+	usesCommonJSFeatures := p.hasTopLevelReturn || usesExports || usesModule
 
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.NewSymbolMap(int(source.Index) + 1)

@@ -624,7 +624,7 @@ func TestTSMinifiedBundleES6(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({1(){function a(){return 123}console.log(a())}},1);
+			"/out.js": `function a(){return 123}console.log(a());
 `,
 		},
 	})
@@ -658,7 +658,7 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=k$(0);console.log(b(),k$(2))}},1);
+			"/out.js": `var d=c(b=>{b.foo=function(){return 123}});var f=c((b,g)=>{g.exports={test:!0}});const{foo:e}=d();console.log(e(),f());
 `,
 		},
 	})

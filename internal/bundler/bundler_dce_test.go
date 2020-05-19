@@ -64,7 +64,9 @@ func TestDCEImportStarUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `// /entry.js
+			"/out.js": `// /foo.js
+
+// /entry.js
 console.log();
 `,
 		},
@@ -184,7 +186,11 @@ func TestDCEImportStarES6ExportImportStarUnused(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `// /entry.js
+			"/out.js": `// /foo.js
+
+// /bar.js
+
+// /entry.js
 let foo = 234;
 console.log(foo);
 `,

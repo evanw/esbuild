@@ -137,10 +137,10 @@ type partRef struct {
 }
 
 type chunkMeta struct {
-	name         string
-	hashbang     string
-	filesInChunk map[uint32]bool
-	entryBits    bitSet
+	name                  string
+	hashbang              string
+	filesWithPartsInChunk map[uint32]bool
+	entryBits             bitSet
 }
 
 func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources []logging.Source, files []file, entryPoints []uint32) linkerContext {
@@ -162,8 +162,15 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 		file := files[sourceIndex]
 
 		// Clone the symbol map
-		c.symbols.Outer[sourceIndex] = append([]ast.Symbol{}, file.ast.Symbols.Outer[sourceIndex]...)
+		fileSymbols := append([]ast.Symbol{}, file.ast.Symbols.Outer[sourceIndex]...)
+		c.symbols.Outer[sourceIndex] = fileSymbols
 		file.ast.Symbols = c.symbols
+
+		// Zero out the use count statistics. These will be recomputed later after
+		// taking tree shaking into account.
+		for i, _ := range fileSymbols {
+			fileSymbols[i].UseCountEstimate = 0
+		}
 
 		// Clone the parts
 		file.ast.Parts = append([]ast.Part{}, file.ast.Parts...)
@@ -364,7 +371,8 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 
 	// Generate a getter per export
 	properties := []ast.Property{}
-	var nonLocalDependencies []partRef
+	nonLocalDependencies := []partRef{}
+	useCountEstimates := make(map[ast.Ref]uint32)
 	for _, alias := range aliases {
 		var otherSourceIndex uint32
 		var exportStarPathLoc ast.Loc
@@ -422,6 +430,7 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 				Body:       ast.FnBody{Stmts: []ast.Stmt{ast.Stmt{value.Loc, &ast.SReturn{&value}}}},
 			}},
 		})
+		useCountEstimates[export.Ref] = useCountEstimates[export.Ref] + 1
 
 		// Make sure the part that declares the export is included
 		for _, partIndex := range export.LocalParts {
@@ -435,12 +444,17 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 	}
 
 	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
+	declaredSymbols := []ast.DeclaredSymbol{}
 	stmts := make([]ast.Stmt, 0, 2)
 	if !fileMeta.isCommonJS {
 		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
 			Binding: ast.Binding{ast.Loc{}, &ast.BIdentifier{file.ast.ExportsRef}},
 			Value:   &ast.Expr{ast.Loc{}, &ast.EObject{}},
 		}}}})
+		declaredSymbols = append(declaredSymbols, ast.DeclaredSymbol{
+			Ref:        file.ast.ExportsRef,
+			IsTopLevel: true,
+		})
 	}
 
 	// "__export(exports, { foo: () => foo })"
@@ -453,6 +467,7 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 				ast.Expr{ast.Loc{}, &ast.EObject{properties}},
 			},
 		}}}})
+		useCountEstimates[exportRef] = useCountEstimates[exportRef] + 1
 
 		// Make sure this file depends on the "__export" symbol
 		for _, partIndex := range c.files[ast.RuntimeSourceIndex].ast.NamedExports["__export"].LocalParts {
@@ -475,7 +490,8 @@ func (c *linkerContext) createStarExportForFile(sourceIndex uint32) {
 	file.ast.Parts = append(file.ast.Parts, ast.Part{
 		Stmts:             stmts,
 		LocalDependencies: make(map[uint32]bool),
-		UseCountEstimates: make(map[ast.Ref]uint32),
+		UseCountEstimates: useCountEstimates,
+		DeclaredSymbols:   declaredSymbols,
 
 		// This can be removed if nothing uses it. Except if we're a CommonJS
 		// module, in which case it's always necessary.
@@ -719,6 +735,11 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	}
 }
 
+func (c *linkerContext) accumulateSymbolCount(ref ast.Ref, count uint32) {
+	ref = ast.FollowSymbols(c.symbols, ref)
+	c.symbols.Get(ref).UseCountEstimate += count
+}
+
 func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanceFromEntryPoint uint32) {
 	fileMeta := &c.fileMeta[sourceIndex]
 
@@ -734,9 +755,19 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	}
 	fileMeta.entryBits.setBit(entryPoint)
 
+	// Accumulate symbol usage counts
 	file := &c.files[sourceIndex]
-	needsToModule := false
+	if file.ast.UsesExportsRef {
+		c.accumulateSymbolCount(file.ast.ExportsRef, 1)
+	}
+	if file.ast.UsesModuleRef {
+		c.accumulateSymbolCount(file.ast.ModuleRef, 1)
+	}
+	if fileMeta.isCommonJS {
+		c.accumulateSymbolCount(file.ast.WrapperRef, 1)
+	}
 
+	needsToModule := false
 	for partIndex, part := range file.ast.Parts {
 		// Include all parts in this file with side effects, or just include
 		// everything if tree-shaking is disabled. Note that we still want to
@@ -779,7 +810,9 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 }
 
 func (c *linkerContext) includePartsForRuntimeSymbol(name string, entryPoint uint, distanceFromEntryPoint uint32) {
-	for _, partIndex := range c.files[ast.RuntimeSourceIndex].ast.NamedExports[name].LocalParts {
+	export := c.files[ast.RuntimeSourceIndex].ast.NamedExports[name]
+	c.accumulateSymbolCount(export.Ref, 1)
+	for _, partIndex := range export.LocalParts {
 		c.includePart(ast.RuntimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
 	}
 }
@@ -793,12 +826,22 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	}
 	partMeta.entryBits.setBit(entryPoint)
 
-	// Also include any require() imports
+	// Accumulate symbol usage counts
 	file := &c.files[sourceIndex]
 	part := &file.ast.Parts[partIndex]
+	for ref, count := range part.UseCountEstimates {
+		c.accumulateSymbolCount(ref, count)
+	}
+	for _, declared := range part.DeclaredSymbols {
+		// Make sure to also count the declaration in addition to the uses
+		c.accumulateSymbolCount(declared.Ref, 1)
+	}
+
+	// Also include any require() imports
 	for _, importPath := range part.ImportPaths {
 		if importPath.Kind == ast.ImportRequire {
 			if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
+				c.accumulateSymbolCount(c.files[otherSourceIndex].ast.WrapperRef, 1)
 				c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
 			}
 		}
@@ -856,10 +899,10 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 					chunk.hashbang = ""
 				}
 				chunk.entryBits = partMeta.entryBits
-				chunk.filesInChunk = make(map[uint32]bool)
+				chunk.filesWithPartsInChunk = make(map[uint32]bool)
 				chunks[key] = chunk
 			}
-			chunk.filesInChunk[uint32(sourceIndex)] = true
+			chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 		}
 	}
 
@@ -904,10 +947,10 @@ func (a chunkOrderArray) Less(i int, j int) bool {
 }
 
 func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
-	sorted := make(chunkOrderArray, 0, len(chunk.filesInChunk))
+	sorted := make(chunkOrderArray, 0, len(chunk.filesWithPartsInChunk))
 
 	// Attach information to the files for use with sorting
-	for sourceIndex, _ := range chunk.filesInChunk {
+	for sourceIndex, _ := range chunk.filesWithPartsInChunk {
 		sorted = append(sorted, chunkOrder{
 			sourceIndex: sourceIndex,
 			distance:    c.fileMeta[sourceIndex].distanceFromEntryPoint,
@@ -1194,7 +1237,8 @@ func (c *linkerContext) generateCodeForFileInChunk(
 }
 
 func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
-	compileResults := make([]compileResult, 0, len(chunk.filesInChunk))
+	filesInChunkInOrder := c.chunkFileOrder(chunk)
+	compileResults := make([]compileResult, 0, len(filesInChunkInOrder))
 	runtimeMembers := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members
 	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
 	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
@@ -1207,7 +1251,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
-	for _, sourceIndex := range c.chunkFileOrder(chunk) {
+	for _, sourceIndex := range filesInChunkInOrder {
 		// Skip the runtime in test output
 		if sourceIndex == ast.RuntimeSourceIndex && c.options.omitRuntimeForTests {
 			continue
@@ -1215,6 +1259,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 
 		// Create a goroutine for this file
 		compileResults = append(compileResults, compileResult{})
+		compileResult := &compileResults[len(compileResults)-1]
 		waitGroup.Add(1)
 		go c.generateCodeForFileInChunk(
 			&waitGroup,
@@ -1223,7 +1268,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 			commonJSRef,
 			toModuleRef,
 			wrapperRefs,
-			&compileResults[len(compileResults)-1],
+			compileResult,
 		)
 	}
 	waitGroup.Wait()

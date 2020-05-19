@@ -1076,7 +1076,7 @@ type Part struct {
 	// have multiple declarations, and so may end up being declared in multiple
 	// parts (e.g. multiple "var" declarations with the same name). Also note
 	// that this list isn't deduplicated and may contain duplicates.
-	DeclaredSymbols []Ref
+	DeclaredSymbols []DeclaredSymbol
 
 	// An estimate of the number of uses of all symbols used within this part.
 	UseCountEstimates map[Ref]uint32
@@ -1100,6 +1100,11 @@ type Part struct {
 	// aren't needed. This enables tree shaking for these parts even if global
 	// tree shaking isn't enabled.
 	ForceTreeShaking bool
+}
+
+type DeclaredSymbol struct {
+	Ref        Ref
+	IsTopLevel bool
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.
