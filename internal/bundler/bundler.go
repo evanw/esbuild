@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/fs"
@@ -433,6 +434,30 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 		options.OutputFormat = FormatIIFE
 	}
 
-	c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints)
-	return c.link()
+	// If we're bundling, link all files together
+	if options.IsBundling {
+		c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints)
+		return c.link()
+	}
+
+	waitGroup := sync.WaitGroup{}
+	resultGroups := make([][]BundleResult, len(b.entryPoints))
+
+	// Otherwise, link each file with the runtime file separately in parallel
+	for i, entryPoint := range b.entryPoints {
+		waitGroup.Add(1)
+		go func(i int, entryPoint uint32) {
+			c := newLinkerContext(&options, log, b.fs, b.sources, b.files, []uint32{entryPoint})
+			resultGroups[i] = c.link()
+			waitGroup.Done()
+		}(i, entryPoint)
+	}
+	waitGroup.Wait()
+
+	// Join the results in entry point order for determinism
+	var results []BundleResult
+	for _, group := range resultGroups {
+		results = append(results, group...)
+	}
+	return results
 }

@@ -665,22 +665,6 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 }
 
 func TestTSNamespaceExportObjectSpreadNoBundle(t *testing.T) {
-	__rest := `let __hasOwnProperty = Object.hasOwnProperty;
-let __getOwnPropertySymbols = Object.getOwnPropertySymbols;
-let __propertyIsEnumerable = Object.propertyIsEnumerable;
-let __rest = (source, exclude) => {
-  let target = {};
-  for (let prop in source)
-    if (__hasOwnProperty.call(source, prop) && exclude.indexOf(prop) < 0)
-      target[prop] = source[prop];
-  if (source != null && typeof __getOwnPropertySymbols === "function") {
-    for (let prop of __getOwnPropertySymbols(source))
-      if (exclude.indexOf(prop) < 0 && __propertyIsEnumerable.call(source, prop))
-        target[prop] = source[prop];
-  }
-  return target;
-};
-`
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": "namespace A { export var {a, x: b, ...c} = ref }",
@@ -694,30 +678,31 @@ let __rest = (source, exclude) => {
 			IsBundling: false,
 		},
 		bundleOptions: BundleOptions{
-			IsBundling: false,
+			IsBundling:   false,
+			AbsOutputDir: "/",
 		},
 		expected: map[string]string{
-			"/a.js": __rest + `var A;
+			"/a.js": `var A;
 (function(A2) {
   A2.a = ref.a, A2.b = ref.x, A2.c = __rest(ref, ["a", "x"]);
 })(A || (A = {}));
 `,
-			"/b.js": __rest + `var A;
+			"/b.js": `var A;
 (function(A2) {
   A2.a = ref.a, A2.b = ref[123], A2.c = __rest(ref, ["a", "123"]);
 })(A || (A = {}));
 `,
-			"/c.js": __rest + `var A;
+			"/c.js": `var A;
 (function(A2) {
   A2.a = ref.a, A2.b = ref[1.2], A2.c = __rest(ref, ["a", 1.2 + ""]);
 })(A || (A = {}));
 `,
-			"/d.js": __rest + `var A;
+			"/d.js": `var A;
 (function(A2) {
   A2.a = ref.a, A2.b = ref[x], A2.c = __rest(ref, ["a", typeof x === "symbol" ? x : x + ""]);
 })(A || (A = {}));
 `,
-			"/e.js": __rest + `var A;
+			"/e.js": `var A;
 (function(A2) {
   var _a;
   A2.a = ref.a, A2.b = ref[_a = x()], A2.c = __rest(ref, ["a", typeof _a === "symbol" ? _a : _a + ""]);
@@ -738,7 +723,8 @@ func TestTSNamespaceExportArraySpreadNoBundle(t *testing.T) {
 			IsBundling: false,
 		},
 		bundleOptions: BundleOptions{
-			IsBundling: false,
+			IsBundling:   false,
+			AbsOutputDir: "/",
 		},
 		expected: map[string]string{
 			"/a.js": `var A;
