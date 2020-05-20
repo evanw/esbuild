@@ -1,0 +1,16 @@
+{
+  "name": "esbuild-linux-arm64",
+  "version": "0.3.5",
+  "description": "The Linux ARM 64-bit binary for esbuild, a JavaScript bundler.",
+  "repository": "https://github.com/evanw/esbuild",
+  "license": "MIT",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "directories": {
+    "bin": "bin"
+  }
+}
