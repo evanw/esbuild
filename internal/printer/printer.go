@@ -204,6 +204,14 @@ func (j *Joiner) AddBytes(data []byte) {
 	j.length += uint32(len(data))
 }
 
+func (j *Joiner) LastByte() byte {
+	return j.lastByte
+}
+
+func (j *Joiner) Length() uint32 {
+	return j.length
+}
+
 func (j *Joiner) Done() []byte {
 	buffer := make([]byte, j.length)
 	for _, item := range j.strings {

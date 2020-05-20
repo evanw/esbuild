@@ -1422,91 +1422,81 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	}
 	waitGroup.Wait()
 
+	j := printer.Joiner{}
+	prevOffset := lineColumnOffset{}
+
 	// Start with the hashbang if there is one
-	js := []byte{}
 	if chunk.hashbang != "" {
-		js = append(js, chunk.hashbang...)
-		js = append(js, '\n')
+		prevOffset.advance(chunk.hashbang)
+		j.AddString(chunk.hashbang)
+		prevOffset.advance("\n")
+		j.AddString("\n")
 	}
 
 	// Concatenate the generated JavaScript chunks together
-	prevOffset := 0
 	for i, compileResult := range compileResults {
 		if c.options.IsBundling && !c.options.RemoveWhitespace && compileResult.sourceIndex != ast.RuntimeSourceIndex {
-			if len(js) > 0 {
-				js = append(js, '\n')
+			if j.Length() > 0 {
+				prevOffset.advance("\n")
+				j.AddString("\n")
 			}
-			js = append(js, fmt.Sprintf("// %s\n", c.sources[compileResult.sourceIndex].PrettyPath)...)
+
+			text := fmt.Sprintf("// %s\n", c.sources[compileResult.sourceIndex].PrettyPath)
+			prevOffset.advance(text)
+			j.AddString(text)
 		}
 
 		// Save the offset to the start of the stored JavaScript
-		compileResults[i].generatedOffset = computeLineColumnOffset(js[prevOffset:])
-		js = append(js, compileResult.JS...)
-		prevOffset = len(js)
+		compileResults[i].generatedOffset = prevOffset
+		j.AddBytes(compileResult.JS)
+		prevOffset = lineColumnOffset{}
 	}
 
 	// Make sure the file ends with a newline
-	if len(js) > 0 && js[len(js)-1] != '\n' {
-		js = append(js, '\n')
+	if j.Length() > 0 && j.LastByte() != '\n' {
+		j.AddString("\n")
 	}
 
 	result := BundleResult{
-		JsAbsPath:  c.fs.Join(c.options.AbsOutputDir, chunk.name),
-		JsContents: js,
+		JsAbsPath: c.fs.Join(c.options.AbsOutputDir, chunk.name),
 	}
 
-	// Stop now if we don't need to generate a source map
-	if c.options.SourceMap == SourceMapNone {
-		return result
-	}
+	if c.options.SourceMap != SourceMapNone {
+		sourceMap := c.generateSourceMapForChunk(compileResults)
 
-	sourceMap := c.generateSourceMapForChunk(compileResults)
+		// Store the generated source map
+		switch c.options.SourceMap {
+		case SourceMapInline:
+			j.AddString("//# sourceMappingURL=data:application/json;base64,")
+			j.AddString(base64.StdEncoding.EncodeToString(sourceMap))
+			j.AddString("\n")
 
-	// Store the generated source map
-	switch c.options.SourceMap {
-	case SourceMapInline:
-		if c.options.RemoveWhitespace {
-			result.JsContents = removeTrailing(result.JsContents, '\n')
-		}
-		result.JsContents = append(result.JsContents,
-			("//# sourceMappingURL=data:application/json;base64," +
-				base64.StdEncoding.EncodeToString(sourceMap) + "\n")...)
+		case SourceMapLinkedWithComment, SourceMapExternalWithoutComment:
+			result.SourceMapAbsPath = result.JsAbsPath + ".map"
+			result.SourceMapContents = sourceMap
 
-	case SourceMapLinkedWithComment, SourceMapExternalWithoutComment:
-		result.SourceMapAbsPath = result.JsAbsPath + ".map"
-		result.SourceMapContents = sourceMap
-
-		// Add a comment linking the source to its map
-		if c.options.SourceMap == SourceMapLinkedWithComment {
-			if c.options.RemoveWhitespace {
-				result.JsContents = removeTrailing(result.JsContents, '\n')
+			// Add a comment linking the source to its map
+			if c.options.SourceMap == SourceMapLinkedWithComment {
+				j.AddString("//# sourceMappingURL=")
+				j.AddString(c.fs.Base(result.SourceMapAbsPath))
+				j.AddString("\n")
 			}
-			result.JsContents = append(result.JsContents,
-				("//# sourceMappingURL=" + c.fs.Base(result.SourceMapAbsPath) + "\n")...)
 		}
 	}
 
+	result.JsContents = j.Done()
 	return result
 }
 
-func removeTrailing(x []byte, c byte) []byte {
-	if len(x) > 0 && x[len(x)-1] == c {
-		x = x[:len(x)-1]
-	}
-	return x
-}
-
-func computeLineColumnOffset(bytes []byte) lineColumnOffset {
-	offset := lineColumnOffset{}
-	for _, c := range bytes {
-		if c == '\n' {
+func (offset *lineColumnOffset) advance(text string) {
+	for i := 0; i < len(text); i++ {
+		if text[i] == '\n' {
 			offset.lines++
 			offset.columns = 0
 		} else {
 			offset.columns++
 		}
 	}
-	return offset
 }
 
 func markBindingAsUnbound(binding ast.Binding, symbols ast.SymbolMap) {

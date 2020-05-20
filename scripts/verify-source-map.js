@@ -73,7 +73,7 @@ const testCaseTypeScriptRuntime = {
 }
 
 const testCaseStdin = {
-  '<stdin>': `
+  '<stdin>': `#!/usr/bin/env node
     function a0() { a1("a0") }
     function a1() { a2("a1") }
     function a2() { throw new Error("a2") }
