@@ -202,7 +202,7 @@ func ScanBundle(
 
 			// Always do tree shaking for the runtime because we never want to
 			// include unnecessary runtime code
-			runtimeParseOptions.TreeShaking = true
+			runtimeParseOptions.IsBundling = true
 
 			ast, ok := parser.Parse(log, source, runtimeParseOptions)
 			results <- parseResult{source, ast, ok}
@@ -373,9 +373,6 @@ type BundleOptions struct {
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	// If true, unused code is removed. If false, all code is kept.
-	TreeShaking bool
-
 	AbsOutputFile     string
 	AbsOutputDir      string
 	RemoveWhitespace  bool
@@ -428,10 +425,6 @@ type compileResult struct {
 func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
-	}
-
-	if options.OutputFormat == FormatNone {
-		options.OutputFormat = FormatIIFE
 	}
 
 	// If we're bundling, link all files together

@@ -883,7 +883,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 		// Include all parts in this file with side effects, or just include
 		// everything if tree-shaking is disabled. Note that we still want to
 		// perform tree-shaking on the runtime even if tree-shaking is disabled.
-		if !part.CanBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.TreeShaking && sourceIndex != ast.RuntimeSourceIndex) {
+		if !part.CanBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.IsBundling && sourceIndex != ast.RuntimeSourceIndex) {
 			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
 		}
 

@@ -15,7 +15,7 @@ func TestTSDeclareConst(t *testing.T) {
 				declare const module: any
 
 				declare const foo: any
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -28,7 +28,7 @@ func TestTSDeclareConst(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-let foo;
+let foo = bar();
 `,
 		},
 	})
@@ -43,7 +43,7 @@ func TestTSDeclareLet(t *testing.T) {
 				declare let module: any
 
 				declare let foo: any
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -56,7 +56,7 @@ func TestTSDeclareLet(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-let foo;
+let foo = bar();
 `,
 		},
 	})
@@ -71,7 +71,7 @@ func TestTSDeclareVar(t *testing.T) {
 				declare var module: any
 
 				declare var foo: any
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -84,7 +84,7 @@ func TestTSDeclareVar(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-let foo;
+let foo = bar();
 `,
 		},
 	})
@@ -99,7 +99,7 @@ func TestTSDeclareClass(t *testing.T) {
 				declare class module {}
 
 				declare class foo {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -112,8 +112,7 @@ func TestTSDeclareClass(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-;
-let foo;
+let foo = bar();
 `,
 		},
 	})
@@ -128,7 +127,7 @@ func TestTSDeclareFunction(t *testing.T) {
 				declare function module(): void
 
 				declare function foo() {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -141,7 +140,7 @@ func TestTSDeclareFunction(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-let foo;
+let foo = bar();
 `,
 		},
 	})
@@ -156,7 +155,7 @@ func TestTSDeclareNamespace(t *testing.T) {
 				declare namespace module {}
 
 				declare namespace foo {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -169,8 +168,7 @@ func TestTSDeclareNamespace(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-;
-let foo;
+let foo = bar();
 `,
 		},
 	})
@@ -185,7 +183,7 @@ func TestTSDeclareEnum(t *testing.T) {
 				declare enum module {}
 
 				declare enum foo {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -198,8 +196,7 @@ func TestTSDeclareEnum(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-;
-let foo;
+let foo = bar();
 `,
 		},
 	})
@@ -214,7 +211,7 @@ func TestTSDeclareConstEnum(t *testing.T) {
 				declare const enum module {}
 
 				declare const enum foo {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -227,8 +224,7 @@ func TestTSDeclareConstEnum(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-;
-let foo;
+let foo = bar();
 `,
 		},
 	})
@@ -240,6 +236,7 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 			"/entry.ts": `
 				import {ns} from './ns.ts'
 				function foo(): ns.type {}
+				foo();
 			`,
 			"/ns.ts": `
 				export namespace ns {}
@@ -257,6 +254,7 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 			"/out.js": `// /entry.ts
 function foo() {
 }
+foo();
 `,
 		},
 	})
@@ -335,7 +333,6 @@ func TestTSExportMissingES6(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /bar.js
-const yep = 123;
 
 // /foo.ts
 const foo_exports = {};
@@ -375,7 +372,7 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 			"/entry.ts": `
 				import {SomeType1} from './doesNotExist1.ts'
 				import {SomeType2} from './doesNotExist2.ts'
-				let foo: SomeType1
+				let foo: SomeType1 = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -388,7 +385,7 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.ts
-let foo;
+let foo = bar();
 `,
 		},
 	})

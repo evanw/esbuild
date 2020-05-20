@@ -6,7 +6,7 @@ import (
 	"github.com/evanw/esbuild/internal/parser"
 )
 
-func TestImportStarES6Unused(t *testing.T) {
+func TestImportStarUnused(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -28,7 +28,6 @@ func TestImportStarES6Unused(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-const foo2 = 123;
 
 // /entry.js
 let foo = 234;
@@ -38,7 +37,7 @@ console.log(foo);
 	})
 }
 
-func TestImportStarES6Capture(t *testing.T) {
+func TestImportStarCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -74,7 +73,7 @@ console.log(foo_exports, foo2, foo);
 	})
 }
 
-func TestImportStarES6NoCapture(t *testing.T) {
+func TestImportStarNoCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -106,7 +105,7 @@ console.log(foo2, foo2, foo);
 	})
 }
 
-func TestImportStarES6ExportImportStarUnused(t *testing.T) {
+func TestImportStarExportImportStarUnused(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -132,11 +131,6 @@ func TestImportStarES6ExportImportStarUnused(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo2
-});
-const foo2 = 123;
 
 // /bar.js
 
@@ -148,7 +142,7 @@ console.log(foo);
 	})
 }
 
-func TestImportStarES6ExportImportStarNoCapture(t *testing.T) {
+func TestImportStarExportImportStarNoCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -190,7 +184,7 @@ console.log(foo_exports.foo, foo_exports.foo, foo);
 	})
 }
 
-func TestImportStarES6ExportImportStarCapture(t *testing.T) {
+func TestImportStarExportImportStarCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -232,7 +226,7 @@ console.log(foo_exports, foo_exports.foo, foo);
 	})
 }
 
-func TestImportStarES6ExportStarAsUnused(t *testing.T) {
+func TestImportStarExportStarAsUnused(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -257,7 +251,6 @@ func TestImportStarES6ExportStarAsUnused(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-const foo2 = 123;
 
 // /bar.js
 
@@ -269,7 +262,7 @@ console.log(foo);
 	})
 }
 
-func TestImportStarES6ExportStarAsNoCapture(t *testing.T) {
+func TestImportStarExportStarAsNoCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -310,7 +303,7 @@ console.log(foo_exports.foo, foo_exports.foo, foo);
 	})
 }
 
-func TestImportStarES6ExportStarAsCapture(t *testing.T) {
+func TestImportStarExportStarAsCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -351,7 +344,7 @@ console.log(foo_exports, foo_exports.foo, foo);
 	})
 }
 
-func TestImportStarES6ExportStarUnused(t *testing.T) {
+func TestImportStarExportStarUnused(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -376,7 +369,6 @@ func TestImportStarES6ExportStarUnused(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-const foo2 = 123;
 
 // /bar.js
 
@@ -388,7 +380,7 @@ console.log(foo);
 	})
 }
 
-func TestImportStarES6ExportStarNoCapture(t *testing.T) {
+func TestImportStarExportStarNoCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -425,7 +417,7 @@ console.log(foo2, foo2, foo);
 	})
 }
 
-func TestImportStarES6ExportStarCapture(t *testing.T) {
+func TestImportStarExportStarCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -571,7 +563,7 @@ console.log(ns.foo, ns.foo, foo);
 	})
 }
 
-func TestImportStarES6AndCommonJS(t *testing.T) {
+func TestImportStarAndCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -609,7 +601,7 @@ console.log(ns.foo, ns2.foo);
 	})
 }
 
-func TestImportStarES6NoBundleUnused(t *testing.T) {
+func TestImportStarNoBundleUnused(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -635,7 +627,7 @@ console.log(foo);
 	})
 }
 
-func TestImportStarES6NoBundleCapture(t *testing.T) {
+func TestImportStarNoBundleCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -661,7 +653,7 @@ console.log(ns, ns.foo, foo);
 	})
 }
 
-func TestImportStarES6NoBundleNoCapture(t *testing.T) {
+func TestImportStarNoBundleNoCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -687,7 +679,7 @@ console.log(ns.foo, ns.foo, foo);
 	})
 }
 
-func TestImportStarES6MangleNoBundleUnused(t *testing.T) {
+func TestImportStarMangleNoBundleUnused(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -714,7 +706,7 @@ console.log(foo);
 	})
 }
 
-func TestImportStarES6MangleNoBundleCapture(t *testing.T) {
+func TestImportStarMangleNoBundleCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -741,7 +733,7 @@ console.log(ns, ns.foo, foo);
 	})
 }
 
-func TestImportStarES6MangleNoBundleNoCapture(t *testing.T) {
+func TestImportStarMangleNoBundleNoCapture(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -799,10 +791,8 @@ func TestImportStarExportStarOmitAmbiguous(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `// /foo.js
 const x = 1;
-const y2 = 2;
 
 // /bar.js
-const y = 3;
 const z = 4;
 
 // /common.js
@@ -848,5 +838,141 @@ func TestImportExportStarAmbiguousError(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: "/entry.js: error: Ambiguous import \"y\" has multiple matching exports\n",
+	})
+}
+
+func TestImportStarOfExportStarAs(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as foo_ns from './foo'
+				console.log(foo_ns)
+			`,
+			"/foo.js": `
+				export * as bar_ns from './bar'
+			`,
+			"/bar.js": `
+				export const bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /bar.js
+const bar_exports = {};
+__export(bar_exports, {
+  bar: () => bar
+});
+const bar = 123;
+
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  bar_ns: () => bar_exports
+});
+
+// /entry.js
+console.log(foo_exports);
+`,
+		},
+	})
+}
+
+func TestImportOfExportStar(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {bar} from './foo'
+				console.log(bar)
+			`,
+			"/foo.js": `
+				export * from './bar'
+			`,
+			"/bar.js": `
+				// Add some statements to increase the part index (this reproduced a crash)
+				statement()
+				statement()
+				statement()
+				statement()
+				export const bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /bar.js
+statement();
+statement();
+statement();
+statement();
+const bar = 123;
+
+// /foo.js
+
+// /entry.js
+console.log(bar);
+`,
+		},
+	})
+}
+
+func TestImportOfExportStarOfImport(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {bar} from './foo'
+				console.log(bar)
+			`,
+			"/foo.js": `
+				// Add some statements to increase the part index (this reproduced a crash)
+				statement()
+				statement()
+				statement()
+				statement()
+				export * from './bar'
+			`,
+			"/bar.js": `
+				export {value as bar} from './baz'
+			`,
+			"/baz.js": `
+				export const value = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /baz.js
+const value = 123;
+
+// /bar.js
+
+// /foo.js
+statement();
+statement();
+statement();
+statement();
+
+// /entry.js
+console.log(value);
+`,
+		},
 	})
 }

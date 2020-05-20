@@ -220,7 +220,6 @@ Options:
   --minify-whitespace   Remove whitespace
   --minify-identifiers  Shorten identifiers
   --minify-syntax       Use equivalent but shorter syntax
-  --tree-shaking        Remove unused code from the bundle
 
   --define:K=V          Substitute K with V while parsing
   --jsx-factory=...     What to use instead of React.createElement
