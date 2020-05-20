@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
@@ -198,7 +199,10 @@ func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols ast.S
 // minifyAllSymbols() implementation
 
 func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols ast.SymbolMap) {
-	g := minifyGroup{[]uint32{}, make(map[ast.Ref]uint32)}
+	g := minifyGroup{make([][]minifyInfo, len(symbols.Outer))}
+	for sourceIndex, inner := range symbols.Outer {
+		g.symbolToMinifyInfo[sourceIndex] = make([]minifyInfo, len(inner))
+	}
 	var next uint32 = 0
 
 	// Allocate a slot for every symbol in each top-level scope. These slots must
@@ -216,18 +220,47 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 	// One good heuristic is to merge slots from different nested scopes using
 	// sequential assignment. Then top-level function statements will always have
 	// the same argument names, which is better for gzip compression.
+	//
+	// This code uses atomics to avoid counting the same symbol twice, so it can
+	// be parallelized across multiple threads.
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(moduleScopes))
 	for _, scope := range moduleScopes {
-		for _, child := range scope.Children {
-			// Deliberately don't update "next" here. Sibling scopes can't collide and
-			// so can reuse slots.
-			g.countSymbolsRecursive(child, symbols, next, 0)
+		go func(scope *ast.Scope) {
+			for _, child := range scope.Children {
+				// Deliberately don't update "next" here. Sibling scopes can't collide and
+				// so can reuse slots.
+				g.countSymbolsRecursive(child, symbols, next, 0)
+			}
+			waitGroup.Done()
+		}(scope)
+	}
+	waitGroup.Wait()
+
+	// Find the largest slot value
+	maxSlot := uint32(0)
+	for _, array := range g.symbolToMinifyInfo {
+		for _, data := range array {
+			if data.used != 0 && data.slot > maxSlot {
+				maxSlot = data.slot
+			}
+		}
+	}
+
+	// Allocate one count for each slot
+	slotToCount := make([]uint32, maxSlot+1)
+	for _, array := range g.symbolToMinifyInfo {
+		for _, data := range array {
+			if data.used != 0 {
+				slotToCount[data.slot] += data.count
+			}
 		}
 	}
 
 	// Sort slot indices descending by the count for that slot
-	sorted := slotArray(make([]slot, len(g.slotToCount)))
-	for index, count := range g.slotToCount {
-		sorted[index] = slot{count, uint32(index)}
+	sorted := slotAndCountArray(make([]slotAndCount, len(slotToCount)))
+	for slot, count := range slotToCount {
+		sorted[slot] = slotAndCount{uint32(slot), count}
 	}
 	sort.Sort(sorted)
 
@@ -235,7 +268,7 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 	// shortest names
 	nextName := 0
 	names := make([]string, len(sorted))
-	for _, slot := range sorted {
+	for _, data := range sorted {
 		name := lexer.NumberToMinifiedName(nextName)
 		nextName++
 
@@ -245,34 +278,40 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 			nextName++
 		}
 
-		names[slot.index] = name
+		names[data.slot] = name
 	}
 
 	// Copy the names to the appropriate symbols
-	for ref, i := range g.symbolToSlot {
-		symbols.Get(ref).Name = names[i]
+	for outer, array := range g.symbolToMinifyInfo {
+		for inner, data := range array {
+			if data.used != 0 {
+				ref := ast.Ref{uint32(outer), uint32(inner)}
+				symbols.Get(ref).Name = names[data.slot]
+			}
+		}
 	}
 }
 
 type minifyGroup struct {
-	slotToCount  []uint32
-	symbolToSlot map[ast.Ref]uint32
+	symbolToMinifyInfo [][]minifyInfo
+}
+
+type minifyInfo struct {
+	used  uint32
+	slot  uint32
+	count uint32
 }
 
 func (g *minifyGroup) countSymbol(slot uint32, ref ast.Ref, count uint32) bool {
 	// Don't double-count symbols that have already been counted
-	if _, ok := g.symbolToSlot[ref]; ok {
+	minifyInfo := &g.symbolToMinifyInfo[ref.OuterIndex][ref.InnerIndex]
+	if !atomic.CompareAndSwapUint32(&minifyInfo.used, 0, 1) {
 		return false
 	}
 
-	// Optionally extend the slot array
-	if slot == uint32(len(g.slotToCount)) {
-		g.slotToCount = append(g.slotToCount, 0)
-	}
-
 	// Count this symbol in this slot
-	g.slotToCount[slot] += count
-	g.symbolToSlot[ref] = slot
+	minifyInfo.slot = slot
+	minifyInfo.count = count
 	return true
 }
 
@@ -315,22 +354,22 @@ func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols ast.Symbol
 	return next
 }
 
-type slot struct {
+type slotAndCount struct {
+	slot  uint32
 	count uint32
-	index uint32
 }
 
 // These types are just so we can use Go's native sort function
 type uint64Array []uint64
-type slotArray []slot
+type slotAndCountArray []slotAndCount
 
 func (a uint64Array) Len() int               { return len(a) }
 func (a uint64Array) Swap(i int, j int)      { a[i], a[j] = a[j], a[i] }
 func (a uint64Array) Less(i int, j int) bool { return a[i] < a[j] }
 
-func (a slotArray) Len() int          { return len(a) }
-func (a slotArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
-func (a slotArray) Less(i int, j int) bool {
+func (a slotAndCountArray) Len() int          { return len(a) }
+func (a slotAndCountArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+func (a slotAndCountArray) Less(i int, j int) bool {
 	ai, aj := a[i], a[j]
-	return ai.count > aj.count || (ai.count == aj.count && ai.index < aj.index)
+	return ai.count > aj.count || (ai.count == aj.count && ai.slot < aj.slot)
 }
