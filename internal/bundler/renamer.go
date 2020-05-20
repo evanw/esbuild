@@ -3,6 +3,7 @@ package bundler
 import (
 	"sort"
 	"strconv"
+	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
@@ -57,23 +58,35 @@ type renamer struct {
 	nameCounts map[string]uint32
 }
 
-func (r *renamer) findNameUse(name string) *renamer {
+type nameUse uint8
+
+const (
+	nameUnused nameUse = iota
+	nameUsed
+	nameUsedInSameScope
+)
+
+func (r *renamer) findNameUse(name string) nameUse {
+	original := r
 	for {
 		if _, ok := r.nameCounts[name]; ok {
-			return r
+			if r == original {
+				return nameUsedInSameScope
+			}
+			return nameUsed
 		}
 		r = r.parent
 		if r == nil {
-			return nil
+			return nameUnused
 		}
 	}
 }
 
 func (r *renamer) findUnusedName(name string) string {
-	if renamerWithName := r.findNameUse(name); renamerWithName != nil {
+	if use := r.findNameUse(name); use != nameUnused {
 		// If the name is already in use, generate a new name by appending a number
 		tries := uint32(1)
-		if renamerWithName == r {
+		if use == nameUsedInSameScope {
 			// To avoid O(n^2) behavior, the number must start off being the number
 			// that we used last time there was a collision with this name. Otherwise
 			// if there are many collisions with the same name, each name collision
@@ -81,7 +94,7 @@ func (r *renamer) findUnusedName(name string) string {
 			// which is a O(n^2) time algorithm. Only do this if this symbol comes
 			// from the same scope as the previous one since sibling scopes can reuse
 			// the same name without problems.
-			tries = renamerWithName.nameCounts[name]
+			tries = r.nameCounts[name]
 		}
 		prefix := name
 
@@ -91,10 +104,12 @@ func (r *renamer) findUnusedName(name string) string {
 			name = prefix + strconv.Itoa(int(tries))
 
 			// Make sure this new name is unused
-			if r.findNameUse(name) == nil {
+			if r.findNameUse(name) == nameUnused {
 				// Store the count so we can start here next time instead of starting
 				// from 1. This means we avoid O(n^2) behavior.
-				renamerWithName.nameCounts[prefix] = tries
+				if use == nameUsedInSameScope {
+					r.nameCounts[prefix] = tries
+				}
 				break
 			}
 		}
@@ -114,7 +129,13 @@ func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 		reservedNameCounts[name] = 1
 	}
 	r := &renamer{nil, reservedNameCounts}
-	alreadyRenamed := make(map[ast.Ref]bool)
+
+	// This is essentially a "map[ast.Ref]bool" but we use an array instead of a
+	// map so we can mutate it concurrently from multiple threads.
+	alreadyRenamed := make([][]bool, len(symbols.Outer))
+	for sourceIndex, inner := range symbols.Outer {
+		alreadyRenamed[sourceIndex] = make([]bool, len(inner))
+	}
 
 	// Rename top-level symbols across all files all at once since after
 	// bundling, they will all be in the same scope
@@ -122,15 +143,23 @@ func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 		r.renameSymbolsInScope(scope, symbols, alreadyRenamed)
 	}
 
-	// Symbols in child scopes may also have to be renamed to avoid conflicts
+	// Symbols in child scopes may also have to be renamed to avoid conflicts.
+	// Since child scopes in different files are isolated from each other, we
+	// can process each file independently in parallel.
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(moduleScopes))
 	for _, scope := range moduleScopes {
-		for _, child := range scope.Children {
-			r.renameAllSymbolsRecursive(child, symbols, alreadyRenamed)
-		}
+		go func(scope *ast.Scope) {
+			for _, child := range scope.Children {
+				r.renameAllSymbolsRecursive(child, symbols, alreadyRenamed)
+			}
+			waitGroup.Done()
+		}(scope)
 	}
+	waitGroup.Wait()
 }
 
-func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
+func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, alreadyRenamed [][]bool) {
 	sorted := sortedSymbolsInScope(scope)
 
 	// Rename all symbols in this scope
@@ -139,10 +168,10 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, 
 		ref = ast.FollowSymbols(symbols, ref)
 
 		// Don't rename the same symbol more than once
-		if alreadyRenamed[ref] {
+		if alreadyRenamed[ref.OuterIndex][ref.InnerIndex] {
 			continue
 		}
-		alreadyRenamed[ref] = true
+		alreadyRenamed[ref.OuterIndex][ref.InnerIndex] = true
 
 		symbol := symbols.Get(ref)
 
@@ -155,7 +184,7 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, 
 	}
 }
 
-func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
+func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols ast.SymbolMap, alreadyRenamed [][]bool) {
 	r := &renamer{parent, make(map[string]uint32)}
 	r.renameSymbolsInScope(scope, symbols, alreadyRenamed)
 
