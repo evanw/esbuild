@@ -115,7 +115,7 @@ type SourceMapState struct {
 // After all chunks are computed, they are joined together in a second pass.
 // This rewrites the first mapping in each chunk to be relative to the end
 // state of the previous chunk.
-func AppendSourceMapChunk(buffer []byte, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) []byte {
+func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
 	// Strip off the first mapping from the buffer. The first mapping should be
 	// for the start of the original file (the printer always generates one for
 	// the start of the file).
@@ -136,20 +136,16 @@ func AppendSourceMapChunk(buffer []byte, prevEndState SourceMapState, startState
 	// chunk. We now know what the end state is because we're in the second pass
 	// where all chunks have already been generated.
 	startState.GeneratedColumn += generatedColumn
-	buffer = appendMapping(buffer, prevEndState, startState)
+	j.AddBytes(appendMapping(nil, j.lastByte, prevEndState, startState))
 
 	// Then append everything after that without modification.
-	buffer = append(buffer, sourceMap...)
-	return buffer
+	j.AddBytes(sourceMap)
 }
 
-func appendMapping(buffer []byte, prevState SourceMapState, currentState SourceMapState) []byte {
+func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
 	// Put commas in between mappings
-	if len(buffer) != 0 {
-		c := buffer[len(buffer)-1]
-		if c != ';' && c != '"' {
-			buffer = append(buffer, ',')
-		}
+	if lastByte != 0 && lastByte != ';' && lastByte != '"' {
+		buffer = append(buffer, ',')
 	}
 
 	// Record the generated column (the line is recorded using ';' elsewhere)
@@ -168,6 +164,54 @@ func appendMapping(buffer []byte, prevState SourceMapState, currentState SourceM
 	buffer = append(buffer, encodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
 	prevState.OriginalColumn = currentState.OriginalColumn
 
+	return buffer
+}
+
+// This provides an efficient way to join lots of big string and byte slices
+// together. It avoids the cost of repeatedly reallocating as the buffer grows
+// by measuring exactly how big the buffer should be and then allocating once.
+// This is a measurable speedup.
+type Joiner struct {
+	lastByte byte
+	strings  []joinerString
+	bytes    []joinerBytes
+	length   uint32
+}
+
+type joinerString struct {
+	data   string
+	offset uint32
+}
+
+type joinerBytes struct {
+	data   []byte
+	offset uint32
+}
+
+func (j *Joiner) AddString(data string) {
+	if len(data) > 0 {
+		j.lastByte = data[len(data)-1]
+	}
+	j.strings = append(j.strings, joinerString{data, j.length})
+	j.length += uint32(len(data))
+}
+
+func (j *Joiner) AddBytes(data []byte) {
+	if len(data) > 0 {
+		j.lastByte = data[len(data)-1]
+	}
+	j.bytes = append(j.bytes, joinerBytes{data, j.length})
+	j.length += uint32(len(data))
+}
+
+func (j *Joiner) Done() []byte {
+	buffer := make([]byte, j.length)
+	for _, item := range j.strings {
+		copy(buffer[item.offset:], item.data)
+	}
+	for _, item := range j.bytes {
+		copy(buffer[item.offset:], item.data)
+	}
 	return buffer
 }
 
@@ -492,7 +536,12 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 		OriginalColumn:  originalColumn,
 	}
 
-	p.sourceMap = appendMapping(p.sourceMap, p.prevState, currentState)
+	var lastByte byte
+	if len(p.sourceMap) != 0 {
+		lastByte = p.sourceMap[len(p.sourceMap)-1]
+	}
+
+	p.sourceMap = appendMapping(p.sourceMap, lastByte, p.prevState, currentState)
 	p.prevState = currentState
 }
 

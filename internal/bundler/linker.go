@@ -1651,35 +1651,35 @@ func (c *linkerContext) renameOrMinifyAllSymbols() {
 }
 
 func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byte {
-	buffer := []byte{}
-	buffer = append(buffer, "{\n  \"version\": 3"...)
+	j := printer.Joiner{}
+	j.AddString("{\n  \"version\": 3")
 
 	// Write the sources
-	buffer = append(buffer, ",\n  \"sources\": ["...)
-	comma := ""
-	for _, result := range results {
+	j.AddString(",\n  \"sources\": [")
+	for i, result := range results {
 		sourceFile := c.sources[result.sourceIndex].PrettyPath
 		if c.options.SourceFile != "" {
 			sourceFile = c.options.SourceFile
 		}
-		buffer = append(buffer, comma...)
-		buffer = append(buffer, printer.QuoteForJSON(sourceFile)...)
-		comma = ", "
+		if i > 0 {
+			j.AddString(", ")
+		}
+		j.AddString(printer.QuoteForJSON(sourceFile))
 	}
-	buffer = append(buffer, ']')
+	j.AddString("]")
 
 	// Write the sourcesContent
-	buffer = append(buffer, ",\n  \"sourcesContent\": ["...)
-	comma = ""
-	for _, result := range results {
-		buffer = append(buffer, comma...)
-		buffer = append(buffer, result.quotedSource...)
-		comma = ", "
+	j.AddString(",\n  \"sourcesContent\": [")
+	for i, result := range results {
+		if i > 0 {
+			j.AddString(", ")
+		}
+		j.AddString(result.quotedSource)
 	}
-	buffer = append(buffer, ']')
+	j.AddString("]")
 
 	// Write the mappings
-	buffer = append(buffer, ",\n  \"mappings\": \""...)
+	j.AddString(",\n  \"mappings\": \"")
 	prevEndState := printer.SourceMapState{}
 	prevColumnOffset := 0
 	sourceMapIndex := 0
@@ -1699,13 +1699,13 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 		// Advance the state by the line/column offset from the previous chunk
 		startState.GeneratedColumn += offset.columns
 		if offset.lines > 0 {
-			buffer = append(buffer, bytes.Repeat([]byte{';'}, offset.lines)...)
+			j.AddBytes(bytes.Repeat([]byte{';'}, offset.lines))
 		} else {
 			startState.GeneratedColumn += prevColumnOffset
 		}
 
 		// Append the precomputed source map chunk
-		buffer = printer.AppendSourceMapChunk(buffer, prevEndState, startState, chunk.Buffer)
+		printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
@@ -1720,9 +1720,9 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 
 		sourceMapIndex++
 	}
-	buffer = append(buffer, '"')
+	j.AddString("\"")
 
 	// Finish the source map
-	buffer = append(buffer, ",\n  \"names\": []\n}\n"...)
-	return buffer
+	j.AddString(",\n  \"names\": []\n}\n")
+	return j.Done()
 }
