@@ -66,10 +66,6 @@ let tests = {
     assert.strictEqual(js, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
   },
 
-  async svg({ service }) {
-    const { js } = await service.transform(`<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" /></svg>`, { loader: 'dataurl', mimeType: 'image/svg+xml' })
-    assert.strictEqual(js, `module.exports = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNDAiIHN0cm9rZT0iZ3JlZW4iIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ieWVsbG93IiAvPjwvc3ZnPg==";\n`)
-  },
   async sourceMap({ service }) {
     const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true })
     assert.strictEqual(js, `let x;\n`)

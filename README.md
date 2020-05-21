@@ -189,8 +189,6 @@ Options:
   --jsx-fragment=...    What to use instead of React.Fragment
   --loader:X=L          Use loader L to load file extension X, where L is
                         one of: js, jsx, ts, tsx, json, text, base64
-  --mime-type:X=L       Use mime type L to read file extension X,
-                        only applicable when loader is dataurl for that extension
 
 Advanced options:
   --version             Print the current version and exit
