@@ -159,7 +159,7 @@ func parseFile(
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source.Index, ast, true}
+		results <- parseResult{source, ast, true}
 
 	default:
 		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", path))
