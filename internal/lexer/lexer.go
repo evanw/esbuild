@@ -1804,7 +1804,7 @@ func decodeJSXEntities(decoded []uint16, text string) []uint16 {
 }
 
 func fixWhitespaceAndDecodeJSXEntities(text string) []uint16 {
-	lastNonWhitespace := -1
+	afterLastNonWhitespace := -1
 	decoded := []uint16{}
 	i := 0
 
@@ -1818,13 +1818,13 @@ func fixWhitespaceAndDecodeJSXEntities(text string) []uint16 {
 		switch c {
 		case '\r', '\n', '\u2028', '\u2029':
 			// Newline
-			if firstNonWhitespace != -1 && lastNonWhitespace != -1 {
+			if firstNonWhitespace != -1 && afterLastNonWhitespace != -1 {
 				if len(decoded) > 0 {
 					decoded = append(decoded, ' ')
 				}
 
 				// Trim whitespace off the start and end of lines in the middle
-				decoded = decodeJSXEntities(decoded, text[firstNonWhitespace:lastNonWhitespace+1])
+				decoded = decodeJSXEntities(decoded, text[firstNonWhitespace:afterLastNonWhitespace])
 			}
 
 			// Reset for the next line
@@ -1836,7 +1836,7 @@ func fixWhitespaceAndDecodeJSXEntities(text string) []uint16 {
 		default:
 			// Check for unusual whitespace characters
 			if !IsWhitespace(c) {
-				lastNonWhitespace = i
+				afterLastNonWhitespace = i + width
 				if firstNonWhitespace == -1 {
 					firstNonWhitespace = i
 				}
