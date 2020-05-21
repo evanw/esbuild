@@ -1179,6 +1179,56 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) { a(); b() } else { var a; var b; }", "if (1)\n  a(), b();\nelse\n  var a, b;\n")
 }
 
+func TestUnicodeWhitespace(t *testing.T) {
+	whitespace := []string{
+		"\u0009", // character tabulation
+		"\u000B", // line tabulation
+		"\u000C", // form feed
+		"\u0020", // space
+		"\u00A0", // no-break space
+		"\u1680", // ogham space mark
+		"\u2000", // en quad
+		"\u2001", // em quad
+		"\u2002", // en space
+		"\u2003", // em space
+		"\u2004", // three-per-em space
+		"\u2005", // four-per-em space
+		"\u2006", // six-per-em space
+		"\u2007", // figure space
+		"\u2008", // punctuation space
+		"\u2009", // thin space
+		"\u200A", // hair space
+		"\u202F", // narrow no-break space
+		"\u205F", // medium mathematical space
+		"\u3000", // ideographic space
+		"\uFEFF", // zero width non-breaking space
+	}
+
+	// Test "lexer.Next()"
+	expectParseError(t, "var\u0008x", "<stdin>: error: Expected identifier but found \"\\b\"\n")
+	for _, s := range whitespace {
+		expectPrinted(t, "var"+s+"x", "var x;\n")
+	}
+
+	// Test "lexer.NextInsideJSXElement()"
+	expectParseErrorJSX(t, "<x\u0008y/>", "<stdin>: error: Expected \">\" but found \"\\b\"\n")
+	for _, s := range whitespace {
+		expectPrintedJSX(t, "<x"+s+"y/>", "React.createElement(\"x\", {\n  y: true\n});\n")
+	}
+
+	// Test "lexer.NextJSXElementChild()"
+	expectPrintedJSX(t, "<x>\n\u0008\n</x>", "React.createElement(\"x\", null, \"\\b\");\n")
+	for _, s := range whitespace {
+		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "React.createElement(\"x\", null);\n")
+	}
+
+	// Test "fixWhitespaceAndDecodeJSXEntities()"
+	expectPrintedJSX(t, "<x>\n\u0008&quot;\n</x>", "React.createElement(\"x\", null, '\\b\"');\n")
+	for _, s := range whitespace {
+		expectPrintedJSX(t, "<x>\n"+s+"&quot;\n</x>", "React.createElement(\"x\", null, '\"');\n")
+	}
+}
+
 // Make sure we can handle the unicode replacement character "�" in various places
 func TestReplacementCharacter(t *testing.T) {
 	expectPrinted(t, "//\uFFFD\n123", "123;\n")
@@ -1215,6 +1265,7 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<a b={1, 2}/>", "React.createElement(\"a\", {\n  b: (1, 2)\n});\n")
 	expectPrintedJSX(t, "<a b={<c/>}/>", "React.createElement(\"a\", {\n  b: React.createElement(\"c\", null)\n});\n")
 	expectPrintedJSX(t, "<a {...props}/>", "React.createElement(\"a\", {\n  ...props\n});\n")
+	expectPrintedJSX(t, "<a b=\"🙂\"/>", "React.createElement(\"a\", {\n  b: \"🙂\"\n});\n")
 
 	expectPrintedJSX(t, "<a>\n</a>", "React.createElement(\"a\", null);\n")
 	expectPrintedJSX(t, "<a>123</a>", "React.createElement(\"a\", null, \"123\");\n")
@@ -1228,6 +1279,7 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<a>{1, 2}</a>", "React.createElement(\"a\", null, (1, 2));\n")
 	expectPrintedJSX(t, "<a>&lt;&gt;</a>", "React.createElement(\"a\", null, \"<>\");\n")
 	expectPrintedJSX(t, "<a>&wrong;</a>", "React.createElement(\"a\", null, \"&wrong;\");\n")
+	expectPrintedJSX(t, "<a>🙂</a>", "React.createElement(\"a\", null, \"🙂\");\n")
 
 	// Note: The TypeScript compiler and Babel disagree. This matches TypeScript.
 	expectPrintedJSX(t, "<a b=\"   c\"/>", "React.createElement(\"a\", {\n  b: \"   c\"\n});\n")
@@ -1243,6 +1295,20 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<a b=\"   \nc\"/>", "React.createElement(\"a\", {\n  b: \"   \\nc\"\n});\n")
 	expectPrintedJSX(t, "<a b=\"\n   c\"/>", "React.createElement(\"a\", {\n  b: \"\\n   c\"\n});\n")
 
+	// Same test as above except with multi-byte Unicode characters
+	expectPrintedJSX(t, "<a b=\"   🙂\"/>", "React.createElement(\"a\", {\n  b: \"   🙂\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"   \n🙂\"/>", "React.createElement(\"a\", {\n  b: \"   \\n🙂\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"\n   🙂\"/>", "React.createElement(\"a\", {\n  b: \"\\n   🙂\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"🙂   \"/>", "React.createElement(\"a\", {\n  b: \"🙂   \"\n});\n")
+	expectPrintedJSX(t, "<a b=\"🙂   \n\"/>", "React.createElement(\"a\", {\n  b: \"🙂   \\n\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"🙂\n   \"/>", "React.createElement(\"a\", {\n  b: \"🙂\\n   \"\n});\n")
+	expectPrintedJSX(t, "<a b=\"🙂   🍕\"/>", "React.createElement(\"a\", {\n  b: \"🙂   🍕\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"🙂   \n🍕\"/>", "React.createElement(\"a\", {\n  b: \"🙂   \\n🍕\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"🙂\n   🍕\"/>", "React.createElement(\"a\", {\n  b: \"🙂\\n   🍕\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"   🙂\"/>", "React.createElement(\"a\", {\n  b: \"   🙂\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"   \n🙂\"/>", "React.createElement(\"a\", {\n  b: \"   \\n🙂\"\n});\n")
+	expectPrintedJSX(t, "<a b=\"\n   🙂\"/>", "React.createElement(\"a\", {\n  b: \"\\n   🙂\"\n});\n")
+
 	expectPrintedJSX(t, "<a>   b</a>", "React.createElement(\"a\", null, \"   b\");\n")
 	expectPrintedJSX(t, "<a>   \nb</a>", "React.createElement(\"a\", null, \"b\");\n")
 	expectPrintedJSX(t, "<a>\n   b</a>", "React.createElement(\"a\", null, \"b\");\n")
@@ -1255,6 +1321,20 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<a>   b</a>", "React.createElement(\"a\", null, \"   b\");\n")
 	expectPrintedJSX(t, "<a>   \nb</a>", "React.createElement(\"a\", null, \"b\");\n")
 	expectPrintedJSX(t, "<a>\n   b</a>", "React.createElement(\"a\", null, \"b\");\n")
+
+	// Same test as above except with multi-byte Unicode characters
+	expectPrintedJSX(t, "<a>   🙂</a>", "React.createElement(\"a\", null, \"   🙂\");\n")
+	expectPrintedJSX(t, "<a>   \n🙂</a>", "React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>\n   🙂</a>", "React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>🙂   </a>", "React.createElement(\"a\", null, \"🙂   \");\n")
+	expectPrintedJSX(t, "<a>🙂   \n</a>", "React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>🙂\n   </a>", "React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>🙂   🍕</a>", "React.createElement(\"a\", null, \"🙂   🍕\");\n")
+	expectPrintedJSX(t, "<a>🙂   \n🍕</a>", "React.createElement(\"a\", null, \"🙂 🍕\");\n")
+	expectPrintedJSX(t, "<a>🙂\n   🍕</a>", "React.createElement(\"a\", null, \"🙂 🍕\");\n")
+	expectPrintedJSX(t, "<a>   🙂</a>", "React.createElement(\"a\", null, \"   🙂\");\n")
+	expectPrintedJSX(t, "<a>   \n🙂</a>", "React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>\n   🙂</a>", "React.createElement(\"a\", null, \"🙂\");\n")
 
 	expectParseErrorJSX(t, "<a b=true/>", "<stdin>: error: Expected \"{\" but found \"true\"\n")
 	expectParseErrorJSX(t, "</a>", "<stdin>: error: Expected identifier but found \"/\"\n")

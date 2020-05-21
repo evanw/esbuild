@@ -47,36 +47,73 @@ func sortedSymbolsInScope(scope *ast.Scope) uint64Array {
 
 type renamer struct {
 	parent *renamer
-	names  map[string]bool
+
+	// This is used as a set of used names in this scope. This also maps the name
+	// to the number of times the name has experienced a collision. When a name
+	// collides with an already-used name, we need to rename it. This is done by
+	// incrementing a number at the end until the name is unused. We save the
+	// count here so that subsequent collisions can start counting from where the
+	// previous collision ended instead of having to start counting from 1.
+	nameCounts map[string]uint32
 }
 
-func (r *renamer) isNameUsed(name string) bool {
+func (r *renamer) findNameUse(name string) *renamer {
 	for {
-		if _, ok := r.names[name]; ok {
-			return true
+		if _, ok := r.nameCounts[name]; ok {
+			return r
 		}
 		r = r.parent
 		if r == nil {
-			return false
+			return nil
 		}
 	}
 }
 
-func (r *renamer) findUnusedName(prefix string) string {
-	name := prefix
-	tries := 1
-	for {
-		if !r.isNameUsed(name) {
-			r.names[name] = true
-			return name
+func (r *renamer) findUnusedName(name string) string {
+	if renamerWithName := r.findNameUse(name); renamerWithName != nil {
+		// If the name is already in use, generate a new name by appending a number
+		tries := uint32(1)
+		if renamerWithName == r {
+			// To avoid O(n^2) behavior, the number must start off being the number
+			// that we used last time there was a collision with this name. Otherwise
+			// if there are many collisions with the same name, each name collision
+			// would have to increment the counter past all previous name collisions
+			// which is a O(n^2) time algorithm. Only do this if this symbol comes
+			// from the same scope as the previous one since sibling scopes can reuse
+			// the same name without problems.
+			tries = renamerWithName.nameCounts[name]
 		}
-		tries++
-		name = prefix + strconv.Itoa(tries)
+		prefix := name
+
+		// Keep incrementing the number until the name is unused
+		for {
+			tries++
+			name = prefix + strconv.Itoa(int(tries))
+
+			// Make sure this new name is unused
+			if r.findNameUse(name) == nil {
+				// Store the count so we can start here next time instead of starting
+				// from 1. This means we avoid O(n^2) behavior.
+				renamerWithName.nameCounts[prefix] = tries
+				break
+			}
+		}
 	}
+
+	// Each name starts off with a count of 1 so that the first collision with
+	// "name" is called "name2"
+	r.nameCounts[name] = 1
+	return name
 }
 
 func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols *ast.SymbolMap) {
-	r := &renamer{nil, reservedNames}
+	reservedNameCounts := make(map[string]uint32)
+	for name, _ := range reservedNames {
+		// Each name starts off with a count of 1 so that the first collision with
+		// "name" is called "name2"
+		reservedNameCounts[name] = 1
+	}
+	r := &renamer{nil, reservedNameCounts}
 	alreadyRenamed := make(map[ast.Ref]bool)
 
 	// Rename top-level symbols across all files all at once since after
@@ -120,7 +157,7 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap,
 }
 
 func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols *ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
-	r := &renamer{parent, make(map[string]bool)}
+	r := &renamer{parent, make(map[string]uint32)}
 	r.renameSymbolsInScope(scope, symbols, alreadyRenamed)
 
 	// Symbols in child scopes may also have to be renamed to avoid conflicts

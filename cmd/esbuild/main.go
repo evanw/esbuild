@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime/debug"
 	"runtime/pprof"
 	"runtime/trace"
 	"strconv"
@@ -531,6 +532,12 @@ func main() {
 				run(fs, args)
 			}
 		} else {
+			// Disable the GC since we're just going to allocate a bunch of memory
+			// and then exit anyway. This speedup is not insignificant. Make sure to
+			// only do this here once we know that we're not going to be a long-lived
+			// process though.
+			debug.SetGCPercent(-1)
+
 			run(fs, args)
 		}
 	}()
