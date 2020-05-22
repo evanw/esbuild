@@ -2843,7 +2843,7 @@ func TestRequireFSNode(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				console.log(require('fs'))
+				return require('fs')
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -2861,9 +2861,35 @@ func TestRequireFSNode(t *testing.T) {
 			"/out.js": `bootstrap({
   0() {
     // /entry.js
-    console.log(require("fs"));
+    return require("fs");
   }
 }, 0);
+`,
+		},
+	})
+}
+
+func TestRequireFSNodeMinify(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				return require('fs')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:       true,
+			RemoveWhitespace: true,
+			AbsOutputFile:    "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({0(){return require("fs")}},0);
 `,
 		},
 	})

@@ -151,7 +151,6 @@ func parseFile(
 
 	case LoaderDataURL:
 		mimeType := mime.TypeByExtension(extension)
-
 		if mimeType == "" {
 			mimeType = http.DetectContentType([]byte(source.Contents))
 		}

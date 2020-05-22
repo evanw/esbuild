@@ -949,6 +949,7 @@ func (p *printer) printRequireCall(path string, isES6Import bool) {
 				p.printRuntimeSym(runtime.ToModuleSym)
 				p.print("(")
 			}
+			p.printSpaceBeforeIdentifier()
 			p.print("require(")
 			p.print(Quote(path))
 			if isES6Import {
