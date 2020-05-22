@@ -67,7 +67,7 @@ Several reasons:
 * Path substitution using the `browser` field in `package.json`
 * Automatic detection of `baseUrl` in `tsconfig.json`
 
-#### Syntax support:
+#### JavaScript syntax support:
 
 Syntax transforms convert newer JavaScript syntax to older JavaScript syntax for use with older browsers. You can set the language target with the `--target` flag, which goes back as far as ES6. Note that if you use a syntax feature that esbuild doesn't yet have support for transforming to your current language target, esbuild will still build successfully but will generate a warning where the unsupported syntax is used and will pass the syntax through un-transformed.
 
@@ -110,6 +110,42 @@ These syntax features are not yet supported, and currently cannot be parsed:
 | [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment)          | `esnext`         | `a ??= b`             |
 
 See also [the list of finished ECMAScript proposals](https://github.com/tc39/proposals/blob/master/finished-proposals.md) and [the list of active ECMAScript proposals](https://github.com/tc39/proposals/blob/master/README.md).
+
+#### TypeScript syntax support:
+
+TypeScript files are transformed by removing type annotations and converting TypeScript-only syntax features to JavaScript code. This section documents the support of TypeScript-only syntax features. Please refer to the [previous section](#javascript-syntax-support) for support of JavaScript syntax features, which also applies in TypeScript files.
+
+*Note that esbuild does not do any type checking. You will still want to run type checking using something like `tsc -noEmit`.*
+
+These TypeScript-only syntax features are supported, and are always converted to JavaScript (a non-exhaustive list):
+
+| Syntax feature          | Example                    | Notes |
+|-------------------------|----------------------------|-------|
+| Namespaces              | `namespace Foo {}`         | |
+| Enums                   | `enum Foo { A, B }`        | |
+| Const enums             | `const enum Foo { A, B }`  | Behaves the same as regular enums |
+| Generic type parameters | `<T>(a: T): T => a`        | |
+| JSX with types          | `<Element<T>/>`            | |
+| Type casts              | `a as B` and `<B>a`        | |
+| Type imports            | `import {Type} from 'foo'` | Handled by removing all unused imports |
+| Type exports            | `export {Type} from 'foo'` | Handled by ignoring missing exports in TypeScript files |
+
+These TypeScript-only syntax features are parsed and ignored (a non-exhaustive list):
+
+| Syntax feature         | Example                         |
+|------------------------|---------------------------------|
+| Interface declarations | `interface Foo {}`              |
+| Type declarations      | `type Foo = number`             |
+| Function declarations  | `function foo(): void;`         |
+| Ambient declarations   | `declare module 'foo' {}`       |
+| Type-only imports      | `import type {Type} from 'foo'` |
+| Type-only exports      | `export type {Type} from 'foo'` |
+
+These TypeScript-only syntax features are not yet supported, and currently cannot be parsed (an exhaustive list):
+
+| Syntax feature          | Example                | Notes |
+|-------------------------|------------------------|-------|
+| Experimental decorators | `@sealed class Foo {}` | This is tracked [here](https://github.com/evanw/esbuild/issues/104) |
 
 #### Disclaimers:
 
