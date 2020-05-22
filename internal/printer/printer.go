@@ -12,6 +12,49 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
+type Format uint8
+
+const (
+	// This is used when not bundling. It means to preserve whatever form the
+	// import or export was originally in. ES6 syntax stays ES6 syntax and
+	// CommonJS syntax stays CommonJS syntax.
+	FormatPreserve Format = iota
+
+	// IIFE stands for immediately-invoked function expression. That looks like
+	// this:
+	//
+	//   (() => {
+	//     ... bundled code ...
+	//   })();
+	//
+	// If the optional ModuleName is configured, then we'll write out this:
+	//
+	//   let moduleName = (() => {
+	//     ... bundled code ...
+	//     return exports;
+	//   })();
+	//
+	FormatIIFE
+
+	// The CommonJS format looks like this:
+	//
+	//   ... bundled code ...
+	//   module.exports = exports;
+	//
+	FormatCommonJS
+
+	// The ES module format looks like this:
+	//
+	//   ... bundled code ...
+	//   export {...};
+	//
+	FormatESModule
+)
+
+func (f Format) KeepES6ImportSyntax() bool {
+	return f == FormatPreserve || f == FormatESModule
+}
+
 var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 var positiveInfinity = math.Inf(1)
 var negativeInfinity = math.Inf(-1)
@@ -973,25 +1016,57 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	return c
 }
 
-func (p *printer) printRequireCall(path string, isES6Import bool) {
-	if isES6Import {
+type requireCallArgs struct {
+	isES6Import       bool
+	mustReturnPromise bool
+}
+
+func (p *printer) printRequireCall(path string, args requireCallArgs) {
+	space := " "
+	if p.options.RemoveWhitespace {
+		space = ""
+	}
+
+	sourceIndex, ok := p.options.ResolvedImports[path]
+	p.printSpaceBeforeIdentifier()
+
+	// Preserve "import()" expressions that don't point inside the bundle
+	if !ok && args.mustReturnPromise && p.options.OutputFormat.KeepES6ImportSyntax() {
+		p.print("import(")
+		p.print(Quote(path))
+		p.print(")")
+		return
+	}
+
+	// Make sure "import()" expressions return promises
+	if args.mustReturnPromise {
+		p.print("Promise.resolve().then(()" + space + "=>" + space)
+	}
+
+	// Make sure CommonJS imports are converted to ES6 if necessary
+	if args.isES6Import {
 		p.printSymbol(p.options.ToModuleRef)
 		p.print("(")
 	}
 
-	// If we're bundling require calls, convert the string to a source index
-	if sourceIndex, ok := p.options.ResolvedImports[path]; ok {
+	// If this import points inside the bundle, then call the "require()"
+	// function for that module directly. The linker must ensure that the
+	// module's require function exists by this point. Otherwise, fall back to a
+	// bare "require()" call. Then it's up to the user to provide it.
+	if ok {
 		p.printSymbol(p.options.WrapperRefs[sourceIndex])
 		p.print("()")
 	} else {
-		// If we get here, the module was marked as an external module
-		p.printSpaceBeforeIdentifier()
 		p.print("require(")
 		p.print(Quote(path))
 		p.print(")")
 	}
 
-	if isES6Import {
+	if args.isES6Import {
+		p.print(")")
+	}
+
+	if args.mustReturnPromise {
 		p.print(")")
 	}
 }
@@ -1105,7 +1180,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
-		p.printRequireCall(e.Path.Text, e.IsES6Import)
+		p.printRequireCall(e.Path.Text, requireCallArgs{isES6Import: e.IsES6Import})
 		if wrap {
 			p.print(")")
 		}
@@ -1115,20 +1190,16 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
-		p.printSpaceBeforeIdentifier()
-		if s, ok := e.Expr.Data.(*ast.EString); ok && p.options.ResolvedImports != nil {
+		if s, ok := e.Expr.Data.(*ast.EString); ok {
 			path := lexer.UTF16ToString(s.Value)
-			if p.options.RemoveWhitespace {
-				p.print("Promise.resolve().then(()=>")
-			} else {
-				p.print("Promise.resolve().then(() => ")
-			}
-			p.printRequireCall(path, true)
+			p.printRequireCall(path, requireCallArgs{isES6Import: true, mustReturnPromise: true})
 		} else {
+			// Handle non-string expressions
+			p.printSpaceBeforeIdentifier()
 			p.print("import(")
 			p.printExpr(e.Expr, ast.LComma, 0)
+			p.print(")")
 		}
-		p.print(")")
 		if wrap {
 			p.print(")")
 		}
@@ -2283,6 +2354,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 }
 
 type PrintOptions struct {
+	OutputFormat      Format
 	RemoveWhitespace  bool
 	SourceMapContents *string
 	Indent            int

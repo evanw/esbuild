@@ -7,6 +7,7 @@ import (
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/parser"
+	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
 )
 
@@ -558,15 +559,15 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `import "foo";
 import {} from "foo";
-import * as m from "foo";
-import {a as n, b as o} from "foo";
-import p from "foo";
-import r, * as q from "foo";
-import s, {a2 as t, b as u} from "foo";
-const v = [import("foo"), function a() {
+import * as a from "foo";
+import {a as b, b as c} from "foo";
+import d from "foo";
+import f, * as e from "foo";
+import g, {a2 as h, b as i} from "foo";
+const j = [import("foo"), function C() {
   return import("foo");
 }];
-console.log(m, n, o, p, r, q, s, t, u, v);
+console.log(a, b, c, d, f, e, g, h, i, j);
 `,
 		},
 	})
@@ -2839,7 +2840,9 @@ func TestRequireFSNode(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
-return require("fs");
+__commonJS(() => {
+  return require("fs");
+})();
 `,
 		},
 	})
@@ -2865,7 +2868,7 @@ func TestRequireFSNodeMinify(t *testing.T) {
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(){return require("fs")}},0);
+			"/out.js": `__commonJS(()=>{return require("fs")})();
 `,
 		},
 	})
@@ -2901,7 +2904,7 @@ func TestImportFSBrowser(t *testing.T) {
 	})
 }
 
-func TestImportFSNode(t *testing.T) {
+func TestImportFSNodeCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2918,22 +2921,54 @@ func TestImportFSNode(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    const fs = __toModule(require("fs"));
-    const fs2 = __toModule(require("fs"));
-    const fs3 = __toModule(require("fs"));
-    const fs4 = __toModule(require("fs"));
-    console.log(fs2, fs4.readFileSync, fs3.default);
-  }
-}, 0);
+			"/out.js": `// /entry.js
+const fs = __toModule(require("fs"));
+const fs2 = __toModule(require("fs"));
+const fs3 = __toModule(require("fs"));
+const fs4 = __toModule(require("fs"));
+console.log(fs2, fs4.readFileSync, fs3.default);
+`,
+		},
+	})
+}
+
+func TestImportFSNodeES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import 'fs'
+				import * as fs from 'fs'
+				import defaultValue from 'fs'
+				import {readFileSync} from 'fs'
+				console.log(fs, readFileSync, defaultValue)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+import "fs";
+import * as fs2 from "fs";
+import defaultValue from "fs";
+import {readFileSync} from "fs";
+console.log(fs2, readFileSync, defaultValue);
 `,
 		},
 	})

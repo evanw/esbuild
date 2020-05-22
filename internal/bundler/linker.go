@@ -655,6 +655,12 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 			nextTracker, localParts, status := c.advanceImportTracker(tracker)
 			switch status {
 			case importCommonJS, importExternal:
+				if status == importExternal && c.options.OutputFormat.KeepES6ImportSyntax() {
+					// Imports from external modules should not be converted to CommonJS
+					// if the output format preserves the original ES6 import statements
+					break
+				}
+
 				// If it's a CommonJS or external file, rewrite the import to a property access
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 				c.symbols.Get(importRef).NamespaceAlias = &ast.NamespaceAlias{
@@ -1119,21 +1125,28 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
 		case *ast.SImport:
-			// Turn imports of CommonJS files into require() calls
+			// Is this an import from another module inside this bundle?
 			if otherSourceIndex, ok := c.files[sourceIndex].resolveImport(s.Path); ok {
-				if c.fileMeta[otherSourceIndex].isCommonJS {
-					stmtList.importStmts = append(stmtList.importStmts, ast.Stmt{
-						Loc: stmt.Loc,
-						Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
-							ast.Binding{stmt.Loc, &ast.BIdentifier{s.NamespaceRef}},
-							&ast.Expr{s.Path.Loc, &ast.ERequire{Path: s.Path, IsES6Import: true}},
-						}}},
-					})
+				if !c.fileMeta[otherSourceIndex].isCommonJS {
+					// Remove the import statement entirely if this is not a CommonJS
+					// module
+					continue
 				}
-
-				// Remove import statements entirely
-				continue
+			} else if c.options.OutputFormat.KeepES6ImportSyntax() {
+				// If this is an external module and the output format allows ES6
+				// imports, then just keep the import statement
+				break
 			}
+
+			// Replace the import statement with a call to "require()"
+			stmtList.importStmts = append(stmtList.importStmts, ast.Stmt{
+				Loc: stmt.Loc,
+				Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
+					ast.Binding{stmt.Loc, &ast.BIdentifier{s.NamespaceRef}},
+					&ast.Expr{s.Path.Loc, &ast.ERequire{Path: s.Path, IsES6Import: true}},
+				}}},
+			})
+			continue
 
 		case *ast.SExportStar, *ast.SExportFrom, *ast.SExportClause:
 			if shouldStripExports {
@@ -1368,6 +1381,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
 	*result = compileResult{
 		PrintResult: printer.Print(tree, printer.PrintOptions{
+			OutputFormat:      c.options.OutputFormat,
 			RemoveWhitespace:  c.options.RemoveWhitespace,
 			ResolvedImports:   file.resolvedImports,
 			ToModuleRef:       toModuleRef,

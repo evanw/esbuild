@@ -259,13 +259,10 @@ func ScanBundle(
 		source := result.source
 		resolvedImports := make(map[string]uint32)
 
-		for i, part := range result.ast.Parts {
-			importPathsEnd := 0
+		for _, part := range result.ast.Parts {
 			for _, importPath := range part.ImportPaths {
 				// Don't try to resolve imports of the special runtime path
 				if importPath.Path.UseSourceIndex && importPath.Path.SourceIndex == ast.RuntimeSourceIndex {
-					part.ImportPaths[importPathsEnd] = importPath
-					importPathsEnd++
 					continue
 				}
 
@@ -278,15 +275,11 @@ func ScanBundle(
 					flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
 					sourceIndex := maybeParseFile(path, source, pathRange, flags)
 					resolvedImports[pathText] = sourceIndex
-					part.ImportPaths[importPathsEnd] = importPath
-					importPathsEnd++
 
 				case resolver.ResolveMissing:
 					log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
 				}
 			}
-
-			result.ast.Parts[i].ImportPaths = part.ImportPaths[:importPathsEnd]
 		}
 
 		sources[source.Index] = source
@@ -323,42 +316,6 @@ func DefaultExtensionToLoaderMap() map[string]Loader {
 	}
 }
 
-type Format uint8
-
-const (
-	FormatNone Format = iota
-
-	// IIFE stands for immediately-invoked function expression. That looks like
-	// this:
-	//
-	//   (() => {
-	//     ... bundled code ...
-	//   })();
-	//
-	// If the optional ModuleName is configured, then we'll write out this:
-	//
-	//   let moduleName = (() => {
-	//     ... bundled code ...
-	//     return exports;
-	//   })();
-	//
-	FormatIIFE
-
-	// The CommonJS format looks like this:
-	//
-	//   ... bundled code ...
-	//   module.exports = exports;
-	//
-	FormatCommonJS
-
-	// The ES module format looks like this:
-	//
-	//   ... bundled code ...
-	//   export {...};
-	//
-	FormatESModule
-)
-
 type SourceMap uint8
 
 const (
@@ -380,7 +337,7 @@ type BundleOptions struct {
 	MangleSyntax      bool
 	ModuleName        string
 	ExtensionToLoader map[string]Loader
-	OutputFormat      Format
+	OutputFormat      printer.Format
 
 	SourceMap  SourceMap
 	SourceFile string // The "original file path" for the source map
@@ -429,6 +386,11 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 
 	// If we're bundling, link all files together
 	if options.IsBundling {
+		// The format can't be "preserve" while bundling
+		if options.OutputFormat == printer.FormatPreserve {
+			options.OutputFormat = printer.FormatESModule
+		}
+
 		c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints)
 		return c.link()
 	}

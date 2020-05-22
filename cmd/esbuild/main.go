@@ -17,6 +17,7 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/parser"
+	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
 )
 
@@ -333,11 +334,11 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		case strings.HasPrefix(arg, "--format="):
 			switch arg[len("--format="):] {
 			case "iife":
-				args.bundleOptions.OutputFormat = bundler.FormatIIFE
+				args.bundleOptions.OutputFormat = printer.FormatIIFE
 			case "cjs":
-				args.bundleOptions.OutputFormat = bundler.FormatCommonJS
+				args.bundleOptions.OutputFormat = printer.FormatCommonJS
 			case "esm":
-				args.bundleOptions.OutputFormat = bundler.FormatESModule
+				args.bundleOptions.OutputFormat = printer.FormatESModule
 			default:
 				return argsObject{}, fmt.Errorf("Valid formats: iife, cjs, esm")
 			}
@@ -404,13 +405,13 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		args.bundleOptions.AbsOutputDir = fs.Dir(args.bundleOptions.AbsOutputFile)
 	}
 
-	if args.bundleOptions.OutputFormat == bundler.FormatNone {
+	if args.bundleOptions.IsBundling && args.bundleOptions.OutputFormat == printer.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
 		switch args.resolveOptions.Platform {
 		case resolver.PlatformBrowser:
-			args.bundleOptions.OutputFormat = bundler.FormatIIFE
+			args.bundleOptions.OutputFormat = printer.FormatIIFE
 		case resolver.PlatformNode:
-			args.bundleOptions.OutputFormat = bundler.FormatCommonJS
+			args.bundleOptions.OutputFormat = printer.FormatCommonJS
 		}
 	}
 
