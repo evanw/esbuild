@@ -1160,6 +1160,54 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 	})
 }
 
+func TestJsconfigJsonBaseUrl(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.js": `
+				import fn from 'lib/util'
+				console.log(fn())
+			`,
+			"/Users/user/project/src/jsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "."
+					}
+				}
+			`,
+			"/Users/user/project/src/lib/util.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `bootstrap({
+  1(exports, module) {
+    // /Users/user/project/src/lib/util.js
+    module.exports = function() {
+      return 123;
+    };
+  },
+
+  0() {
+    // /Users/user/project/src/app/entry.js
+    const util = __import(1 /* lib/util */);
+    console.log(util.default());
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestTsconfigJsonCommentAllowed(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
