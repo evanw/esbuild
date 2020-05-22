@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8
+
+* Fix an issue that prevented non-inline source maps with the `build()` API ([#130](https://github.com/evanw/esbuild/issues/130))
+
+    The issue happend when invoking `esbuild.build({ sourcemap: true })` and was a regression due to the addition of inline source map support. This now has test coverage.
+
 ## 0.3.7
 
 * Add an unsupported build for ARM64 ([#123](https://github.com/evanw/esbuild/issues/123))
