@@ -108,6 +108,7 @@ These syntax features are not yet supported, and currently cannot be parsed:
 | [Private instance fields](https://github.com/tc39/proposal-class-fields)                     | `esnext`         | `class { #x }`        |
 | [Private static fields and methods](https://github.com/tc39/proposal-static-class-features/) | `esnext`         | `class { static #x }` |
 | [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment)          | `esnext`         | `a ??= b`             |
+| [Top-level await](https://github.com/tc39/proposal-top-level-await)                          | `esnext`         | `await import(x)`     |
 
 See also [the list of finished ECMAScript proposals](https://github.com/tc39/proposals/blob/master/finished-proposals.md) and [the list of active ECMAScript proposals](https://github.com/tc39/proposals/blob/master/README.md).
 
