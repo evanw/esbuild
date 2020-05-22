@@ -2,13 +2,13 @@
 
 ## 0.3.7
 
-* Add an unsupported build for ARM64 (#123)
+* Add an unsupported build for ARM64 ([#123](https://github.com/evanw/esbuild/issues/123))
 
     Now you can `npm install esbuild` on a Linux ARM64 machine and it should work. This lets you run esbuild on a Raspberry Pi. Note that this target isn't officially supported because it's not covered by any automated tests.
 
 ## 0.3.6
 
-* Fix a bug with JSX element contents that end in a multi-byte unicode character (#124)
+* Fix a bug with JSX element contents that end in a multi-byte unicode character ([#124](https://github.com/evanw/esbuild/issues/124))
 
     Such characters are now preserved instead of being truncated.
 
@@ -28,7 +28,7 @@
 
 ## 0.3.3
 
-* Support all unicode whitespace (#116)
+* Support all unicode whitespace ([#116](https://github.com/evanw/esbuild/issues/116))
 
     The lexer now accepts all unicode characters in the `WS` category as valid whitespace to match the JavaScript standard.
 
@@ -42,13 +42,13 @@
 
 ## 0.3.1
 
-* Remove type-only exports from TypeScript (#110)
+* Remove type-only exports from TypeScript ([#110](https://github.com/evanw/esbuild/issues/110))
 
     This fixes a bug where type-only exports in TypeScript files could in some cases generate an invalid export statement.
 
 ## 0.3.0
 
-* Support for stdin/stdout (#76)
+* Support for stdin/stdout ([#76](https://github.com/evanw/esbuild/issues/76))
 
     You can now pass esbuild an input file over stdin instead of using a file path. Use the `--loader=jsx` syntax to set the loader instead of using the `--loader:.js=jsx` syntax.
 
