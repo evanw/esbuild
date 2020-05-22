@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"mime"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -147,6 +149,18 @@ func parseFile(
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source, ast, true}
 
+	case LoaderDataURL:
+		mimeType := mime.TypeByExtension(extension)
+
+		if mimeType == "" {
+			mimeType = http.DetectContentType([]byte(source.Contents))
+		}
+		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
+		url := "data:" + mimeType + ";base64," + encoded
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
+		results <- parseResult{source, ast, true}
+
 	default:
 		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", path))
 		results <- parseResult{}
@@ -281,6 +295,7 @@ const (
 	LoaderJSON
 	LoaderText
 	LoaderBase64
+	LoaderDataURL
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {

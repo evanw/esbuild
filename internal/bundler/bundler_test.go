@@ -2413,6 +2413,80 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 	})
 }
 
+func TestRequireCustomExtensionDataURL(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.custom'))
+			`,
+			"/test.custom": "a\x00b\x80c\xFFd",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":     LoaderJS,
+				".custom": LoaderDataURL,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(exports, module) {
+    // /test.custom
+    module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
+  },
+
+  0() {
+    // /entry.js
+    console.log(__require(1 /* ./test.custom */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
+func testAutoDetectMimeTypeFromExtension(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.svg'))
+			`,
+			"/test.svg": "a\x00b\x80c\xFFd",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":  LoaderJS,
+				".svg": LoaderDataURL,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `bootstrap({
+  1(exports, module) {
+    // /test.svg
+    module.exports = "data:image/svg+xml;base64,YQBigGP/ZA==";
+  },
+
+  0() {
+    // /entry.js
+    console.log(__require(1 /* ./test.svg */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestRequireBadExtension(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

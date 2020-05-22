@@ -88,6 +88,11 @@ let transformTests = {
     assert.strictEqual(js, `module.exports = "AAEC";\n`)
   },
 
+  async dataurl({ service }) {
+    const { js } = await service.transform(`\x00\x01\x02`, { loader: 'dataurl' })
+    assert.strictEqual(js, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
+  },
+
   async sourceMap({ service }) {
     const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true })
     assert.strictEqual(js, `let x;\n`)
