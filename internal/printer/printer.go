@@ -357,7 +357,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 				js = append(js, '\n')
 
 				// Make sure to do with print() does for newlines
-				if p.writeSourceMap {
+				if p.options.SourceMapContents != nil {
 					p.prevLineStart = len(js)
 					p.prevState.GeneratedLine++
 					p.prevState.GeneratedColumn = 0
@@ -447,9 +447,8 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 
 type printer struct {
 	symbols            ast.SymbolMap
-	minify             bool
+	options            PrintOptions
 	needsSemicolon     bool
-	indent             int
 	js                 []byte
 	stmtStart          int
 	exportDefaultStart int
@@ -459,22 +458,16 @@ type printer struct {
 	prevNumEnd         int
 	prevRegExpEnd      int
 
-	// For imports
-	resolvedImports map[string]uint32
-	toModuleRef     ast.Ref
-	wrapperRefs     []ast.Ref
-
 	// For source maps
-	writeSourceMap bool
-	sourceMap      []byte
-	prevLoc        ast.Loc
-	prevLineStart  int
-	prevState      SourceMapState
-	lineStarts     []int32
+	sourceMap     []byte
+	prevLoc       ast.Loc
+	prevLineStart int
+	prevState     SourceMapState
+	lineStarts    []int32
 }
 
 func (p *printer) print(text string) {
-	if p.writeSourceMap {
+	if p.options.SourceMapContents != nil {
 		start := len(p.js)
 		for i, c := range text {
 			if c == '\n' {
@@ -492,7 +485,7 @@ func (p *printer) print(text string) {
 // This is the same as "print(lexer.UTF16ToString(text))" without any
 // unnecessary temporary allocations
 func (p *printer) printUTF16(text []uint16) {
-	if p.writeSourceMap {
+	if p.options.SourceMapContents != nil {
 		start := len(p.js)
 		for i, c := range text {
 			if c == '\n' {
@@ -508,7 +501,7 @@ func (p *printer) printUTF16(text []uint16) {
 }
 
 func (p *printer) addSourceMapping(loc ast.Loc) {
-	if !p.writeSourceMap || loc == p.prevLoc {
+	if p.options.SourceMapContents == nil || loc == p.prevLoc {
 		return
 	}
 	p.prevLoc = loc
@@ -554,8 +547,8 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 }
 
 func (p *printer) printIndent() {
-	if !p.minify {
-		for i := 0; i < p.indent; i++ {
+	if !p.options.RemoveWhitespace {
+		for i := 0; i < p.options.Indent; i++ {
 			p.print("  ")
 		}
 	}
@@ -679,13 +672,13 @@ func (p *printer) printBinding(binding ast.Binding) {
 }
 
 func (p *printer) printSpace() {
-	if !p.minify {
+	if !p.options.RemoveWhitespace {
 		p.print(" ")
 	}
 }
 
 func (p *printer) printNewline() {
-	if !p.minify {
+	if !p.options.RemoveWhitespace {
 		p.print("\n")
 	}
 }
@@ -711,7 +704,7 @@ func (p *printer) printSpaceBeforeOperator(next ast.OpCode) {
 }
 
 func (p *printer) printSemicolonAfterStatement() {
-	if !p.minify {
+	if !p.options.RemoveWhitespace {
 		p.print(";\n")
 	} else {
 		p.needsSemicolon = true
@@ -737,7 +730,7 @@ func (p *printer) printFnArgs(args []ast.Arg, hasRestArg bool, isArrow bool) {
 	wrap := true
 
 	// Minify "(a) => {}" as "a=>{}"
-	if p.minify && !hasRestArg && isArrow && len(args) == 1 {
+	if p.options.RemoveWhitespace && !hasRestArg && isArrow && len(args) == 1 {
 		if _, ok := args[0].Binding.Data.(*ast.BIdentifier); ok && args[0].Default == nil {
 			wrap = false
 		}
@@ -786,7 +779,7 @@ func (p *printer) printClass(class ast.Class) {
 
 	p.print("{")
 	p.printNewline()
-	p.indent++
+	p.options.Indent++
 
 	for _, item := range class.Properties {
 		p.printSemicolonIfNeeded()
@@ -802,7 +795,7 @@ func (p *printer) printClass(class ast.Class) {
 	}
 
 	p.needsSemicolon = false
-	p.indent--
+	p.options.Indent--
 	p.printIndent()
 	p.print("}")
 }
@@ -949,7 +942,7 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	for i, c := range data {
 		switch c {
 		case '\n':
-			if p.minify {
+			if p.options.RemoveWhitespace {
 				// The backslash for the newline costs an extra character for old-style
 				// string literals when compared to a template literal
 				backtickCost--
@@ -982,13 +975,13 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 
 func (p *printer) printRequireCall(path string, isES6Import bool) {
 	if isES6Import {
-		p.printSymbol(p.toModuleRef)
+		p.printSymbol(p.options.ToModuleRef)
 		p.print("(")
 	}
 
 	// If we're bundling require calls, convert the string to a source index
-	if sourceIndex, ok := p.resolvedImports[path]; ok {
-		p.printSymbol(p.wrapperRefs[sourceIndex])
+	if sourceIndex, ok := p.options.ResolvedImports[path]; ok {
+		p.printSymbol(p.options.WrapperRefs[sourceIndex])
 		p.print("()")
 	} else {
 		// If we get here, the module was marked as an external module
@@ -1080,7 +1073,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 		// We don't ever want to accidentally generate a direct eval expression here
 		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
-			if p.minify {
+			if p.options.RemoveWhitespace {
 				p.print("(0,")
 			} else {
 				p.print("(0, ")
@@ -1123,9 +1116,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print("(")
 		}
 		p.printSpaceBeforeIdentifier()
-		if s, ok := e.Expr.Data.(*ast.EString); ok && p.resolvedImports != nil {
+		if s, ok := e.Expr.Data.(*ast.EString); ok && p.options.ResolvedImports != nil {
 			path := lexer.UTF16ToString(s.Value)
-			if p.minify {
+			if p.options.RemoveWhitespace {
 				p.print("Promise.resolve().then(()=>")
 			} else {
 				p.print("Promise.resolve().then(() => ")
@@ -1273,7 +1266,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 		p.print("{")
 		if len(e.Properties) != 0 {
-			p.indent++
+			p.options.Indent++
 
 			for i, item := range e.Properties {
 				if i != 0 {
@@ -1285,7 +1278,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				p.printProperty(item)
 			}
 
-			p.indent--
+			p.options.Indent--
 			p.printNewline()
 			p.printIndent()
 		}
@@ -1296,7 +1289,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EBoolean:
-		if p.minify {
+		if p.options.RemoveWhitespace {
 			if level >= ast.LPrefix {
 				if e.Value {
 					p.print("(!0)")
@@ -1327,7 +1320,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.ETemplate:
 		// Convert no-substitution template literals into strings if it's smaller
-		if p.minify && e.Tag == nil && len(e.Parts) == 0 {
+		if p.options.RemoveWhitespace && e.Tag == nil && len(e.Parts) == 0 {
 			c := p.bestQuoteCharForString(e.Head, true /* allowBacktick */)
 			p.print(c)
 			p.printQuotedUTF16(e.Head, rune(c[0]))
@@ -1573,7 +1566,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			} else if _, ok := e.Left.Data.(*ast.EUndefined); ok {
 				// Undefined is printed as "void 0"
 				leftLevel = ast.LCall
-			} else if p.minify {
+			} else if p.options.RemoveWhitespace {
 				// When minifying, booleans are printed as "!0 and "!1"
 				if _, ok := e.Left.Data.(*ast.EBoolean); ok {
 					leftLevel = ast.LCall
@@ -1621,7 +1614,7 @@ func (p *printer) isUnboundEvalIdentifier(value ast.Expr) bool {
 func (p *printer) slowFloatToString(value float64) string {
 	text := strconv.FormatFloat(value, 'g', -1, 64)
 
-	if p.minify {
+	if p.options.RemoveWhitespace {
 		// Replace "e+" with "e"
 		if e := strings.LastIndexByte(text, 'e'); e != -1 && text[e+1] == '+' {
 			text = text[:e+1] + text[e+2:]
@@ -1691,9 +1684,9 @@ func (p *printer) printBody(body ast.Stmt) {
 		p.printNewline()
 	} else {
 		p.printNewline()
-		p.indent++
+		p.options.Indent++
 		p.printStmt(body)
-		p.indent--
+		p.options.Indent--
 	}
 }
 
@@ -1701,12 +1694,12 @@ func (p *printer) printBlock(stmts []ast.Stmt) {
 	p.print("{")
 	p.printNewline()
 
-	p.indent++
+	p.options.Indent++
 	for _, stmt := range stmts {
 		p.printSemicolonIfNeeded()
 		p.printStmt(stmt)
 	}
-	p.indent--
+	p.options.Indent--
 	p.needsSemicolon = false
 
 	p.printIndent()
@@ -1765,9 +1758,9 @@ func (p *printer) printIf(s *ast.SIf) {
 		p.print("{")
 		p.printNewline()
 
-		p.indent++
+		p.options.Indent++
 		p.printStmt(s.Yes)
-		p.indent--
+		p.options.Indent--
 		p.needsSemicolon = false
 
 		p.printIndent()
@@ -1780,9 +1773,9 @@ func (p *printer) printIf(s *ast.SIf) {
 		}
 	} else {
 		p.printNewline()
-		p.indent++
+		p.options.Indent++
 		p.printStmt(s.Yes)
-		p.indent--
+		p.options.Indent--
 
 		if s.No != nil {
 			p.printIndent()
@@ -1802,9 +1795,9 @@ func (p *printer) printIf(s *ast.SIf) {
 			p.printIf(no)
 		} else {
 			p.printNewline()
-			p.indent++
+			p.options.Indent++
 			p.printStmt(*s.No)
-			p.indent--
+			p.options.Indent--
 		}
 	}
 }
@@ -1987,10 +1980,10 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.printSpace()
 		} else {
 			p.printNewline()
-			p.indent++
+			p.options.Indent++
 			p.printStmt(s.Body)
 			p.printSemicolonIfNeeded()
-			p.indent--
+			p.options.Indent--
 			p.printIndent()
 		}
 		p.print("while")
@@ -2121,7 +2114,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpace()
 		p.print("{")
 		p.printNewline()
-		p.indent++
+		p.options.Indent++
 
 		for _, c := range s.Cases {
 			p.printSemicolonIfNeeded()
@@ -2146,15 +2139,15 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			}
 
 			p.printNewline()
-			p.indent++
+			p.options.Indent++
 			for _, stmt := range c.Body {
 				p.printSemicolonIfNeeded()
 				p.printStmt(stmt)
 			}
-			p.indent--
+			p.options.Indent--
 		}
 
-		p.indent--
+		p.options.Indent--
 		p.printIndent()
 		p.print("}")
 		p.printNewline()
@@ -2317,12 +2310,7 @@ func createPrinter(
 ) *printer {
 	p := &printer{
 		symbols:            symbols,
-		writeSourceMap:     options.SourceMapContents != nil,
-		minify:             options.RemoveWhitespace,
-		resolvedImports:    options.ResolvedImports,
-		wrapperRefs:        options.WrapperRefs,
-		indent:             options.Indent,
-		toModuleRef:        options.ToModuleRef,
+		options:            options,
 		stmtStart:          -1,
 		exportDefaultStart: -1,
 		arrowExprStart:     -1,
