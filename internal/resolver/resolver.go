@@ -277,7 +277,7 @@ func (r *resolver) dirInfoCached(path string) *dirInfo {
 	return info
 }
 
-func (r *resolver) parseJsTsConfigAbsPathBaseUrl(file string, path string, info *dirInfo) *string {
+func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 	info.tsConfigJson = &tsConfigJson{}
 
 	// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
@@ -298,12 +298,11 @@ func (r *resolver) parseJsTsConfigAbsPathBaseUrl(file string, path string, info 
 			if baseUrlJson, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
 				if baseUrl, ok := getString(baseUrlJson); ok {
 					baseUrl = r.fs.Join(path, baseUrl)
-					return &baseUrl
+					info.tsConfigJson.absPathBaseUrl = &baseUrl
 				}
 			}
 		}
 	}
-	return nil
 }
 
 func (r *resolver) dirInfoUncached(path string) *dirInfo {
@@ -354,13 +353,14 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		}
 	}
 
-	// Record if this directory has a tsconfig.json file
-	if entries["tsconfig.json"].Kind == fs.FileEntry {
-		info.tsConfigJson.absPathBaseUrl = r.parseJsTsConfigAbsPathBaseUrl(r.fs.Join(path, "tsconfig.json"), path, info)
+	// Record if this directory has a jsconfig.json file
+	if entries["jsconfig.json"].Kind == fs.FileEntry {
+		r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, info)
 	}
 
-	if entries["jsconfig.json"].Kind == fs.FileEntry {
-		info.tsConfigJson.absPathBaseUrl = r.parseJsTsConfigAbsPathBaseUrl(r.fs.Join(path, "jsconfig.json"), path, info)
+	// Record if this directory has a tsconfig.json file
+	if entries["tsconfig.json"].Kind == fs.FileEntry {
+		r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), path, info)
 	}
 
 	// Is the "main" field from "package.json" missing?
