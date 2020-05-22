@@ -41,10 +41,9 @@ function esbuildSpawn({ flags, stdio }) {
   throw new Error(`Unsupported platform: ${process.platform} ${os.arch()}`);
 }
 
-function pushCommonFlags(flags, options, defaults) {
+function pushCommonFlags(flags, options) {
   flags.push(`--error-limit=${options.errorLimit || 0}`);
 
-  if (options.sourcemap) flags.push(`--sourcemap=${options.sourcemap === true ? defaults.sourcemap : options.sourcemap}`);
   if (options.sourcefile) flags.push(`--sourcefile=${options.sourcefile}`);
   if (options.target) flags.push(`--target=${options.target}`);
 
@@ -70,8 +69,9 @@ exports.build = options => {
   return new Promise((resolve, reject) => {
     const stdio = options.stdio;
     const flags = [];
-    pushCommonFlags(flags, options, { sourcemap: true });
+    pushCommonFlags(flags, options);
 
+    if (options.sourcemap) flags.push(`--sourcemap${options.sourcemap === true ? '' : `=${options.sourcemap}`}`);
     if (options.name) flags.push(`--name=${options.name}`);
     if (options.bundle) flags.push('--bundle');
     if (options.outfile) flags.push(`--outfile=${options.outfile}`);
@@ -268,7 +268,8 @@ exports.startService = () => {
         const loader = options.loader || 'js';
         const name = `input.${loader}`;
         const flags = ['build', `/${name}`, file, '--', name, '--outfile=/output.js'];
-        pushCommonFlags(flags, options, { sourcemap: 'external' });
+        pushCommonFlags(flags, options);
+        if (options.sourcemap) flags.push(`--sourcemap${options.sourcemap === true ? '=external' : `=${options.sourcemap}`}`);
         if (options.loader) flags.push(`--loader:.${loader}=${options.loader}`);
         const response = await sendRequest(flags);
 

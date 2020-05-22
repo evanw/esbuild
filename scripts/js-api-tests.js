@@ -9,10 +9,10 @@ const fs = require('fs')
 const repoDir = path.dirname(__dirname)
 const testDir = path.join(repoDir, 'scripts', '.js-api-tests')
 
-let tests = {
-  async build({ esbuild }) {
-    const input = path.join(testDir, 'input.js')
-    const output = path.join(testDir, 'output.js')
+let buildTests = {
+  async es6_to_cjs({ esbuild }) {
+    const input = path.join(testDir, '1-in.js')
+    const output = path.join(testDir, '1-out.js')
     await util.promisify(fs.writeFile)(input, 'export default 123')
     await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     const result = require(output)
@@ -20,6 +20,33 @@ let tests = {
     assert.strictEqual(result.__esModule, true)
   },
 
+  async sourceMap({ esbuild }) {
+    const input = path.join(testDir, '2-in.js')
+    const output = path.join(testDir, '2-out.js')
+    await util.promisify(fs.writeFile)(input, 'exports.foo = 123')
+    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const resultMap = await util.promisify(fs.readFile)(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+  },
+
+  async sourceMapInline({ esbuild }) {
+    const input = path.join(testDir, '3-in.js')
+    const output = path.join(testDir, '3-out.js')
+    await util.promisify(fs.writeFile)(input, 'exports.foo = 123')
+    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'inline' })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await util.promisify(fs.readFile)(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=data:application\/json;base64,(.*)/.exec(outputFile)
+    const json = JSON.parse(Buffer.from(match[1], 'base64').toString())
+    assert.strictEqual(json.version, 3)
+  },
+}
+
+let transformTests = {
   async jsx({ service }) {
     const { js } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
     assert.strictEqual(js, `console.log(React.createElement("div", null));\n`)
@@ -111,7 +138,8 @@ async function main() {
       if (e.errors) console.error(e.errors.map(x => x.text).join('\n'))
       return false
     })
-  const allTestsPassed = (await Promise.all(Object.entries(tests).map(runTest))).every(success => success)
+  const tests = [...Object.entries(buildTests), ...Object.entries(transformTests)]
+  const allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
 
   // Clean up test output
   service.stop()
