@@ -259,25 +259,28 @@ func ScanBundle(
 		source := result.source
 		resolvedImports := make(map[string]uint32)
 
-		for _, part := range result.ast.Parts {
-			for _, importPath := range part.ImportPaths {
-				// Don't try to resolve imports of the special runtime path
-				if importPath.Path.UseSourceIndex && importPath.Path.SourceIndex == ast.RuntimeSourceIndex {
-					continue
-				}
+		// Don't try to resolve paths if we're not bundling
+		if bundleOptions.IsBundling {
+			for _, part := range result.ast.Parts {
+				for _, importPath := range part.ImportPaths {
+					// Don't try to resolve imports of the special runtime path
+					if importPath.Path.UseSourceIndex && importPath.Path.SourceIndex == ast.RuntimeSourceIndex {
+						continue
+					}
 
-				sourcePath := source.AbsolutePath
-				pathText := importPath.Path.Text
-				pathRange := source.RangeOfString(importPath.Path.Loc)
+					sourcePath := source.AbsolutePath
+					pathText := importPath.Path.Text
+					pathRange := source.RangeOfString(importPath.Path.Loc)
 
-				switch path, status := res.Resolve(sourcePath, pathText); status {
-				case resolver.ResolveEnabled, resolver.ResolveDisabled:
-					flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
-					sourceIndex := maybeParseFile(path, source, pathRange, flags)
-					resolvedImports[pathText] = sourceIndex
+					switch path, status := res.Resolve(sourcePath, pathText); status {
+					case resolver.ResolveEnabled, resolver.ResolveDisabled:
+						flags := parseFileFlags{isDisabled: status == resolver.ResolveDisabled}
+						sourceIndex := maybeParseFile(path, source, pathRange, flags)
+						resolvedImports[pathText] = sourceIndex
 
-				case resolver.ResolveMissing:
-					log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
+					case resolver.ResolveMissing:
+						log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
+					}
 				}
 			}
 		}

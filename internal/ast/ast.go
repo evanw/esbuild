@@ -711,11 +711,11 @@ type SSwitch struct {
 
 // This object represents all of these types of import statements:
 //
-//   import 'path'
-//   import {item1, item2} from 'path'
-//   import * as ns from 'path'
-//   import defaultItem, {item1, item2} from 'path'
-//   import defaultItem, * as ns from 'path'
+//    import 'path'
+//    import {item1, item2} from 'path'
+//    import * as ns from 'path'
+//    import defaultItem, {item1, item2} from 'path'
+//    import defaultItem, * as ns from 'path'
 //
 // Many parts are optional and can be combined in different ways. The only
 // restriction is that you cannot have both a clause and a star namespace.
@@ -902,6 +902,18 @@ type Ref struct {
 	InnerIndex uint32
 }
 
+type ImportItemStatus uint8
+
+const (
+	ImportItemNone ImportItemStatus = iota
+
+	// The linker doesn't report import/export mismatch errors
+	ImportItemGenerated
+
+	// The printer will replace this import with "undefined"
+	ImportItemMissing
+)
+
 type Symbol struct {
 	Kind SymbolKind
 
@@ -909,6 +921,25 @@ type Symbol struct {
 	// "arguments" variable is declared by the runtime for every function.
 	// Renaming can also break any identifier used inside a "with" statement.
 	MustNotBeRenamed bool
+
+	// We automatically generate import items for property accesses off of
+	// namespace imports. This lets us remove the expensive namespace imports
+	// while bundling in many cases, replacing them with a cheap import item
+	// instead:
+	//
+	//   import * as ns from 'path'
+	//   ns.foo()
+	//
+	// That can often be replaced by this, which avoids needing the namespace:
+	//
+	//   import {foo} from 'path'
+	//   foo()
+	//
+	// However, if the import is actually missing then we don't want to report a
+	// compile-time error like we do for real import items. This status lets us
+	// avoid this. We also need to be able to replace such import items with
+	// undefined, which this status is also used for.
+	ImportItemStatus ImportItemStatus
 
 	// An estimate of the number of uses of this symbol. This is used for
 	// minification (to prefer shorter names for more frequently used symbols).
@@ -1033,9 +1064,10 @@ type AST struct {
 	// These are used when bundling. They are filled in during the parser pass
 	// since we already have to traverse the AST then anyway and the parser pass
 	// is conveniently fully parallelized.
-	NamedImports map[Ref]NamedImport
-	NamedExports map[string]NamedExport
-	ExportStars  []Path
+	NamedImports          map[Ref]NamedImport
+	NamedExports          map[string]Ref
+	TopLevelSymbolToParts map[Ref][]uint32
+	ExportStars           []Path
 }
 
 type NamedImport struct {
@@ -1050,21 +1082,6 @@ type NamedImport struct {
 	// It's useful to flag exported imports because if they are in a TypeScript
 	// file, we can't tell if they are a type or a value.
 	IsExported bool
-}
-
-type NamedExport struct {
-	// The symbol corresponding to this export.
-	Ref Ref
-
-	// The indices of the parts in this file that are needed if this export is
-	// used. Even though it's almost always only one part, it can sometimes be
-	// multiple parts. For example:
-	//
-	//   var foo = 'foo';
-	//   var foo = [foo];
-	//   export {foo};
-	//
-	LocalParts []uint32
 }
 
 // Each file is made up of multiple parts, and each part consists of one or

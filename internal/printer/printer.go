@@ -51,7 +51,7 @@ const (
 	FormatESModule
 )
 
-func (f Format) KeepES6ImportSyntax() bool {
+func (f Format) KeepES6ImportExportSyntax() bool {
 	return f == FormatPreserve || f == FormatESModule
 }
 
@@ -1031,7 +1031,7 @@ func (p *printer) printRequireCall(path string, args requireCallArgs) {
 	p.printSpaceBeforeIdentifier()
 
 	// Preserve "import()" expressions that don't point inside the bundle
-	if !ok && args.mustReturnPromise && p.options.OutputFormat.KeepES6ImportSyntax() {
+	if !ok && args.mustReturnPromise && p.options.OutputFormat.KeepES6ImportExportSyntax() {
 		p.print("import(")
 		p.print(Quote(path))
 		p.print(")")
@@ -1076,6 +1076,16 @@ const (
 	forbidIn
 )
 
+func (p *printer) printUndefined(level ast.L) {
+	if level >= ast.LPrefix {
+		p.print("(void 0)")
+	} else {
+		p.printSpaceBeforeIdentifier()
+		p.print("void 0")
+		p.prevNumEnd = len(p.js)
+	}
+}
+
 func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	p.addSourceMapping(expr.Loc)
 
@@ -1083,13 +1093,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	case *ast.EMissing:
 
 	case *ast.EUndefined:
-		if level >= ast.LPrefix {
-			p.print("(void 0)")
-		} else {
-			p.printSpaceBeforeIdentifier()
-			p.print("void 0")
-			p.prevNumEnd = len(p.js)
-		}
+		p.printUndefined(level)
 
 	case *ast.ESuper:
 		p.printSpaceBeforeIdentifier()
@@ -1516,7 +1520,10 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		// Potentially use a property access instead of an identifier
 		ref := ast.FollowSymbols(p.symbols, e.Ref)
 		symbol := p.symbols.Get(ref)
-		if symbol.NamespaceAlias != nil {
+
+		if symbol.ImportItemStatus == ast.ImportItemMissing {
+			p.printUndefined(level)
+		} else if symbol.NamespaceAlias != nil {
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			p.print(".")
 			p.print(symbol.NamespaceAlias.Alias)

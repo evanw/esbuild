@@ -62,10 +62,11 @@ type parser struct {
 	knownEnumValues            map[ast.Ref]map[string]float64
 
 	// These are for handling ES6 imports and exports
-	importItemsForNamespace map[ast.Ref]map[string]ast.Ref
+	importItemsForNamespace map[ast.Ref]map[string]ast.LocRef
 	isImportItem            map[ast.Ref]bool
 	namedImports            map[ast.Ref]ast.NamedImport
-	namedExports            map[string]ast.NamedExport
+	namedExports            map[string]ast.Ref
+	topLevelSymbolToParts   map[ast.Ref][]uint32
 
 	// The parser does two passes and we need to pass the scope tree information
 	// from the first pass to the second pass. That's done by tracking the calls
@@ -550,7 +551,7 @@ func (p *parser) recordExport(loc ast.Loc, alias string, ref ast.Ref) {
 			p.log.AddRangeError(p.source, lexer.RangeOfIdentifier(p.source, loc),
 				fmt.Sprintf("Multiple exports with the same name %q", alias))
 		} else {
-			p.namedExports[alias] = ast.NamedExport{Ref: ref}
+			p.namedExports[alias] = ref
 		}
 	}
 }
@@ -4696,7 +4697,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmt.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
 			p.currentScope.Generated = append(p.currentScope.Generated, stmt.NamespaceRef)
 		}
-		itemRefs := make(map[string]ast.Ref)
+		itemRefs := make(map[string]ast.LocRef)
 
 		// Link the default item to the namespace
 		if stmt.DefaultName != nil {
@@ -4704,7 +4705,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			ref := p.declareSymbol(kind, stmt.DefaultName.Loc, name)
 			p.isImportItem[ref] = true
 			stmt.DefaultName.Ref = ref
-			itemRefs["default"] = ref
+			itemRefs["default"] = *stmt.DefaultName
 		}
 
 		// Link each import item to the namespace
@@ -4714,7 +4715,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				ref := p.declareSymbol(kind, item.Name.Loc, name)
 				p.isImportItem[ref] = true
 				(*stmt.Items)[i].Name.Ref = ref
-				itemRefs[item.Alias] = ref
+				itemRefs[item.Alias] = ast.LocRef{item.Name.Loc, ref}
 			}
 		}
 
@@ -7182,25 +7183,29 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 		// something else without paying the cost of a whole-tree traversal during
 		// module linking just to rewrite these EDot expressions.
 		if importItems, ok := p.importItemsForNamespace[id.Ref]; ok {
-			var itemRef ast.Ref
-
 			// Cache translation so each property access resolves to the same import
-			itemRef, ok := importItems[data.Name]
+			item, ok := importItems[data.Name]
 			if !ok {
 				// Generate a new import item symbol in the module scope
-				itemRef = p.newSymbol(ast.SymbolOther, data.Name)
-				p.moduleScope.Generated = append(p.moduleScope.Generated, itemRef)
+				item = ast.LocRef{data.NameLoc, p.newSymbol(ast.SymbolOther, data.Name)}
+				p.moduleScope.Generated = append(p.moduleScope.Generated, item.Ref)
 
 				// Link the namespace import and the import item together
-				importItems[data.Name] = itemRef
-				p.isImportItem[itemRef] = true
+				importItems[data.Name] = item
+				p.isImportItem[item.Ref] = true
 
-				// Make sure the printer prints this as a property access
+				symbol := &p.symbols[item.Ref.InnerIndex]
 				if !p.isBundling {
-					p.symbols[itemRef.InnerIndex].NamespaceAlias = &ast.NamespaceAlias{
+					// Make sure the printer prints this as a property access
+					symbol.NamespaceAlias = &ast.NamespaceAlias{
 						NamespaceRef: id.Ref,
 						Alias:        data.Name,
 					}
+				} else {
+					// Mark this as generated in case it's missing. We don't want to
+					// generate errors for missing import items that are automatically
+					// generated.
+					symbol.ImportItemStatus = ast.ImportItemGenerated
 				}
 			}
 
@@ -7217,8 +7222,8 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 			}
 
 			// Track how many times we've referenced this symbol
-			p.recordUsage(itemRef)
-			return ast.Expr{loc, &ast.EImportIdentifier{itemRef}}
+			p.recordUsage(item.Ref)
+			return ast.Expr{loc, &ast.EImportIdentifier{item.Ref}}
 		}
 
 		// If this is a known enum value, inline the value of the enum
@@ -8040,35 +8045,33 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	case *ast.EImport:
 		e.Expr = p.visitExpr(e.Expr)
 
-		// Track calls to import() so we can use them while bundling
-		if p.isBundling {
-			// Convert no-substitution template literals into strings when bundling
-			if template, ok := e.Expr.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
-				e.Expr.Data = &ast.EString{template.Head}
-			}
-
-			// The argument must be a string
-			str, ok := e.Expr.Data.(*ast.EString)
-			if !ok {
-				p.log.AddError(p.source, e.Expr.Loc, "The argument to import() must be a string literal")
-				return expr, exprOut{}
-			}
-
-			// Ignore calls to import() if the control flow is provably dead here.
-			// We don't want to spend time scanning the required files if they will
-			// never be used.
-			if p.isControlFlowDead {
-				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
-			}
-
-			path := ast.Path{
-				Loc:  e.Expr.Loc,
-				Text: lexer.UTF16ToString(str.Value),
-			}
-
-			// Only track import paths if we want dependencies
-			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
+		// Convert no-substitution template literals into strings
+		if template, ok := e.Expr.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
+			e.Expr.Data = &ast.EString{template.Head}
 		}
+
+		// The argument must be a string
+		str, ok := e.Expr.Data.(*ast.EString)
+		if !ok {
+			if p.isBundling {
+				p.log.AddError(p.source, e.Expr.Loc, "The argument to import() must be a string literal")
+			}
+			return expr, exprOut{}
+		}
+
+		// Ignore calls to import() if the control flow is provably dead here.
+		// We don't want to spend time scanning the required files if they will
+		// never be used.
+		if p.isControlFlowDead {
+			return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
+		}
+
+		path := ast.Path{
+			Loc:  e.Expr.Loc,
+			Text: lexer.UTF16ToString(str.Value),
+		}
+
+		p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
 
 	case *ast.ECall:
 		var storeThisArg func(ast.Expr) ast.Expr
@@ -8157,10 +8160,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				Text: lexer.UTF16ToString(str.Value),
 			}
 
-			// Only track import paths if we want dependencies
-			if p.isBundling {
-				p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
-			}
+			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
 
 			// Create a new expression to represent the operation
 			p.ignoreUsage(p.requireRef)
@@ -8412,23 +8412,21 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 				}
 			}
 
-			// Only track import paths if we want dependencies
-			if isBundling {
-				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
+			p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
 
+			if isBundling {
 				if s.StarNameLoc != nil {
 					// If we're bundling a star import, add any import items we generated
 					// for this namespace while parsing as explicit import items instead.
 					// That will cause the bundler to bundle them more efficiently when
 					// both this module and the imported module are in the same group.
 					if importItems, ok := p.importItemsForNamespace[s.NamespaceRef]; ok && len(importItems) > 0 {
-						starLoc := *s.StarNameLoc
 						items := s.Items
 						if items == nil {
 							items = &[]ast.ClauseItem{}
 						}
-						for name, itemRef := range importItems {
-							*items = append(*items, ast.ClauseItem{name, starLoc, ast.LocRef{starLoc, itemRef}})
+						for name, item := range importItems {
+							*items = append(*items, ast.ClauseItem{name, item.Loc, item})
 						}
 						s.Items = items
 					}
@@ -8487,9 +8485,10 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 						Alias:        "*",
 						AliasLoc:     s.Item.Name.Loc,
 						ImportPath:   s.Path,
-						NamespaceRef: s.Item.Name.Ref,
+						NamespaceRef: ast.InvalidRef,
 					}
 				} else {
+					// "export * from 'path'"
 					p.exportStars = append(p.exportStars, s.Path)
 				}
 			}
@@ -8790,10 +8789,10 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		knownEnumValues:           make(map[ast.Ref]map[string]float64),
 
 		// These are for handling ES6 imports and exports
-		importItemsForNamespace: make(map[ast.Ref]map[string]ast.Ref),
+		importItemsForNamespace: make(map[ast.Ref]map[string]ast.LocRef),
 		isImportItem:            make(map[ast.Ref]bool),
 		namedImports:            make(map[ast.Ref]ast.NamedImport),
-		namedExports:            make(map[string]ast.NamedExport),
+		namedExports:            make(map[string]ast.Ref),
 		identifierDefines:       make(map[string]DefineFunc),
 		dotDefines:              make(map[string]dotDefine),
 	}
@@ -8976,7 +8975,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	// Analyze cross-part dependencies for tree shaking and code splitting
 	{
 		// Map locals to parts
-		localToParts := make([][]uint32, len(p.symbols))
+		p.topLevelSymbolToParts = make(map[ast.Ref][]uint32)
 		for partIndex, part := range parts {
 			if !part.CanBeRemovedIfUnused {
 				// Optimization: skip this if there are side effects because it'll have
@@ -8985,7 +8984,8 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 			}
 			for _, declared := range part.DeclaredSymbols {
 				if declared.IsTopLevel {
-					localToParts[declared.Ref.InnerIndex] = append(localToParts[declared.Ref.InnerIndex], uint32(partIndex))
+					p.topLevelSymbolToParts[declared.Ref] = append(
+						p.topLevelSymbolToParts[declared.Ref], uint32(partIndex))
 				}
 			}
 		}
@@ -8994,7 +8994,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		for partIndex, part := range parts {
 			localDependencies := make(map[uint32]bool)
 			for ref, _ := range part.UseCountEstimates {
-				for _, otherPart := range localToParts[ref.InnerIndex] {
+				for _, otherPart := range p.topLevelSymbolToParts[ref] {
 					localDependencies[otherPart] = true
 				}
 
@@ -9005,12 +9005,6 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 				}
 			}
 			parts[partIndex].LocalDependencies = localDependencies
-		}
-
-		// Also track the local parts needed by each export
-		for alias, namedExport := range p.namedExports {
-			namedExport.LocalParts = localToParts[namedExport.Ref.InnerIndex]
-			p.namedExports[alias] = namedExport
 		}
 	}
 
@@ -9075,18 +9069,19 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 	symbols.Outer[source.Index] = p.symbols
 
 	return ast.AST{
-		UsesCommonJSFeatures: usesCommonJSFeatures,
-		Parts:                parts,
-		ModuleScope:          p.moduleScope,
-		Symbols:              symbols,
-		ExportsRef:           p.exportsRef,
-		ModuleRef:            p.moduleRef,
-		WrapperRef:           wrapperRef,
-		Hashbang:             hashbang,
-		NamedImports:         p.namedImports,
-		NamedExports:         p.namedExports,
-		ExportStars:          p.exportStars,
-		UsesExportsRef:       usesExports,
-		UsesModuleRef:        usesModule,
+		UsesCommonJSFeatures:  usesCommonJSFeatures,
+		Parts:                 parts,
+		ModuleScope:           p.moduleScope,
+		Symbols:               symbols,
+		ExportsRef:            p.exportsRef,
+		ModuleRef:             p.moduleRef,
+		WrapperRef:            wrapperRef,
+		Hashbang:              hashbang,
+		NamedImports:          p.namedImports,
+		NamedExports:          p.namedExports,
+		TopLevelSymbolToParts: p.topLevelSymbolToParts,
+		ExportStars:           p.exportStars,
+		UsesExportsRef:        usesExports,
+		UsesModuleRef:         usesModule,
 	}
 }

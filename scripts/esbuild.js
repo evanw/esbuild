@@ -26,3 +26,6 @@ exports.installForTests = dir => {
   // Evaluate the code
   return require(path.join(dir, 'node_modules', 'esbuild'))
 }
+
+// This is helpful for ES6 modules which don't have access to __dirname
+exports.dirname = __dirname

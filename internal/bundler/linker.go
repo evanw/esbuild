@@ -102,7 +102,7 @@ type fileMeta struct {
 	//
 	// This array holds the deferred imports to bind so the pass can be split
 	// into two separate passes.
-	importsToBind []importToBind
+	importsToBind map[ast.Ref]importToBind
 
 	// If true, the module must be bundled CommonJS-style like this:
 	//
@@ -114,7 +114,12 @@ type fileMeta struct {
 	//   // bar.ts
 	//   let foo = flag ? require_foo() : null;
 	//
-	isCommonJS bool
+	cjsWrap bool
+
+	// If true, all exports must be reached via property accesses off a call to
+	// the CommonJS wrapper for this module. In addition, all ES6 exports for
+	// this module must be added as getters to the CommonJS "exports" object.
+	cjsStyleExports bool
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file
@@ -124,39 +129,41 @@ type fileMeta struct {
 	// assign the parts in this file to a chunk.
 	entryBits bitSet
 
-	// Re-exports happen because of "export * from" statements like this:
+	// This includes both named exports and re-exports.
 	//
-	//   export * from 'path';
+	// Named exports come from explicit export statements in the original file,
+	// and are copied from the "NamedExports" field in the AST.
 	//
-	// Note that export stars with a namespace and are not considered re-exports:
-	//
-	//   export * as ns from 'path';
-	//   export {a, b} from 'path';
-	//
-	// This is essentially the same as a star import followed by an export,
-	// except of course that the namespace is never declared in the scope:
-	//
-	//   import * as ns from 'path';
-	//   export {ns};
-	//
-	resolvedExportStars map[string]exportStarData
+	// Re-exports come from other files and are the result of resolving export
+	// star statements (i.e. "export * from 'foo'").
+	resolvedExports map[string]exportData
+
+	// Never iterate over "resolvedExports" directly. Instead, iterate over this
+	// array. Some exports in that map aren't meant to end up in generated code.
+	// This array excludes these exports and is also sorted, which avoids non-
+	// determinism due to random map iteration order.
+	sortedAndFilteredExportAliases []string
 }
 
 type importToBind struct {
-	importRef           ast.Ref
-	resolvedRef         ast.Ref
-	resolvedSourceIndex uint32
-	resolvedLocalParts  []uint32
+	sourceIndex uint32
+	ref         ast.Ref
 }
 
-type exportStarData struct {
-	ast.NamedExport
+type exportData struct {
+	ref ast.Ref
 
-	// The location of the path string for error messages
-	pathLoc ast.Loc
+	// The location of the path string for error messages. This is only from re-
+	// exports (i.e. "export * from 'foo'").
+	pathLoc *ast.Loc
 
-	// This is the file that the named export above came from
+	// This is the file that the named export above came from. This will be
+	// different from the file that contains this object if this is a re-export.
 	sourceIndex uint32
+
+	// Exports from export stars are shadowed by other exports. This flag helps
+	// implement this behavior.
+	isFromExportStar bool
 
 	// If export star resolution finds two or more symbols with the same name,
 	// then the name is a ambiguous and cannot be used. This causes the name to
@@ -226,11 +233,20 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 		file.ast.NamedImports = namedImports
 
 		// Clone the export map
-		namedExports := make(map[string]ast.NamedExport, len(file.ast.NamedExports))
-		for k, v := range file.ast.NamedExports {
-			namedExports[k] = v
+		resolvedExports := make(map[string]exportData)
+		for alias, ref := range file.ast.NamedExports {
+			resolvedExports[alias] = exportData{
+				ref:         ref,
+				sourceIndex: sourceIndex,
+			}
 		}
-		file.ast.NamedExports = namedExports
+
+		// Clone the top-level symbol-to-parts map
+		topLevelSymbolToParts := make(map[ast.Ref][]uint32)
+		for ref, parts := range file.ast.TopLevelSymbolToParts {
+			topLevelSymbolToParts[ref] = parts
+		}
+		file.ast.TopLevelSymbolToParts = topLevelSymbolToParts
 
 		// Update the file in our copy of the file array
 		c.files[sourceIndex] = file
@@ -238,16 +254,24 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 		// Also associate some default metadata with the file
 		c.fileMeta[sourceIndex] = fileMeta{
 			distanceFromEntryPoint:   ^uint32(0),
-			isCommonJS:               file.ast.UsesCommonJSFeatures,
+			cjsStyleExports:          file.ast.UsesCommonJSFeatures,
 			partMeta:                 make([]partMeta, len(file.ast.Parts)),
-			resolvedExportStars:      make(map[string]exportStarData),
+			resolvedExports:          resolvedExports,
 			isProbablyTypeScriptType: make(map[ast.Ref]bool),
+			importsToBind:            make(map[ast.Ref]importToBind),
 		}
 	}
 
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, sourceIndex := range entryPoints {
-		c.fileMeta[sourceIndex].entryPointStatus = entryPointUserSpecified
+		fileMeta := &c.fileMeta[sourceIndex]
+		fileMeta.entryPointStatus = entryPointUserSpecified
+
+		// Entry points must be CommonJS-style if the output format doesn't support
+		// ES6 import/export syntax
+		if !options.OutputFormat.KeepES6ImportExportSyntax() {
+			fileMeta.cjsStyleExports = true
+		}
 	}
 
 	return c
@@ -327,6 +351,10 @@ func (c *linkerContext) link() []BundleResult {
 		}
 	}
 
+	// Make sure calls to "ast.FollowSymbols()" in parallel goroutines after this
+	// won't hit concurrent map mutation hazards
+	ast.FollowAllSymbols(c.symbols)
+
 	c.renameOrMinifyAllSymbols()
 
 	chunks := c.computeChunks()
@@ -350,15 +378,16 @@ func (c *linkerContext) scanImportsAndExports() {
 				case ast.ImportRequire:
 					// Files that are imported with require() must be CommonJS modules
 					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
-						c.fileMeta[otherSourceIndex].isCommonJS = true
+						c.fileMeta[otherSourceIndex].cjsStyleExports = true
 					}
 
 				case ast.ImportDynamic:
 					// Files that are imported with import() must be entry points
 					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
-						if c.fileMeta[otherSourceIndex].entryPointStatus == entryPointNone {
+						otherFileMeta := &c.fileMeta[otherSourceIndex]
+						if otherFileMeta.entryPointStatus == entryPointNone {
 							c.entryPoints = append(c.entryPoints, otherSourceIndex)
-							c.fileMeta[otherSourceIndex].entryPointStatus = entryPointDynamicImport
+							otherFileMeta.entryPointStatus = entryPointDynamicImport
 						}
 					}
 				}
@@ -373,10 +402,27 @@ func (c *linkerContext) scanImportsAndExports() {
 		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
 
+		// Even if the output file is CommonJS-like, we may still need to wrap
+		// CommonJS-style files. Any file that imports a CommonJS-style file will
+		// cause that file to need to be wrapped. This is because the import
+		// method, whatever it is, will need to invoke the wrapper. Note that
+		// this can include entry points (e.g. an entry point that imports a file
+		// that imports that entry point).
+		for _, part := range file.ast.Parts {
+			for _, importPath := range part.ImportPaths {
+				if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
+					otherFileMeta := &c.fileMeta[otherSourceIndex]
+					if otherFileMeta.cjsStyleExports {
+						otherFileMeta.cjsWrap = true
+					}
+				}
+			}
+		}
+
 		// Propagate exports for export star statements
 		if len(file.ast.ExportStars) > 0 {
 			visited := make(map[uint32]bool)
-			c.addExportsForExportStar(fileMeta.resolvedExportStars, uint32(sourceIndex), nil, visited)
+			c.addExportsForExportStar(fileMeta.resolvedExports, uint32(sourceIndex), nil, visited)
 		}
 
 		// Add an empty part for the namespace export that we can fill in later
@@ -394,20 +440,41 @@ func (c *linkerContext) scanImportsAndExports() {
 		// Also add a special export called "*" so import stars can bind to it.
 		// This must be done in this step because it must come after CommonJS
 		// module discovery but before matching imports with exports.
-		if !fileMeta.isCommonJS {
-			file.ast.NamedExports["*"] = ast.NamedExport{
-				Ref:        file.ast.ExportsRef,
-				LocalParts: []uint32{nsExportPartIndex},
-			}
+		fileMeta.resolvedExports["*"] = exportData{
+			ref:         file.ast.ExportsRef,
+			sourceIndex: sourceIndex,
 		}
+		file.ast.TopLevelSymbolToParts[file.ast.ExportsRef] = []uint32{nsExportPartIndex}
 	}
 
 	// Step 3: Match imports with exports. This must be done after we process all
 	// export stars because imports can bind to export star re-exports.
 	for _, sourceIndex := range c.reachableFiles {
-		file := c.files[sourceIndex]
+		file := &c.files[sourceIndex]
+		fileMeta := &c.fileMeta[sourceIndex]
+
 		if len(file.ast.NamedImports) > 0 {
 			c.matchImportsWithExportsForFile(uint32(sourceIndex))
+		}
+
+		// If the output format doesn't have an implicit CommonJS wrapper, any file
+		// that uses CommonJS features will need to be wrapped, even though the
+		// resulting wrapper won't be invoked by other files.
+		if !fileMeta.cjsWrap && fileMeta.cjsStyleExports &&
+			(c.options.OutputFormat == printer.FormatIIFE ||
+				c.options.OutputFormat == printer.FormatESModule) {
+			fileMeta.cjsWrap = true
+		}
+
+		// If we're exporting as CommonJS and this file doesn't need a wrapper,
+		// then we'll be using the actual CommonJS "exports" and/or "module"
+		// symbols. In that case make sure to mark them as such so they don't
+		// get minified.
+		if c.options.OutputFormat == printer.FormatCommonJS && !fileMeta.cjsWrap {
+			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
+			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
+			c.symbols.Get(exportsRef).Kind = ast.SymbolUnbound
+			c.symbols.Get(moduleRef).Kind = ast.SymbolUnbound
 		}
 	}
 
@@ -415,26 +482,63 @@ func (c *linkerContext) scanImportsAndExports() {
 	// for CommonJS files, and is also necessary for other files if they are
 	// imported using an import star statement.
 	for _, sourceIndex := range c.reachableFiles {
+		// Now that all exports have been resolved, sort and filter them to create
+		// something we can iterate over later.
+		fileMeta := &c.fileMeta[sourceIndex]
+		aliases := make([]string, 0, len(fileMeta.resolvedExports))
+		for alias, export := range fileMeta.resolvedExports {
+			// The automatically-generated namespace export is just for internal binding
+			// purposes and isn't meant to end up in generated code.
+			if alias == "*" {
+				continue
+			}
+
+			// Re-exporting multiple symbols with the same name causes an ambiguous
+			// export. These names cannot be used and should not end up in generated code.
+			if export.isAmbiguous {
+				continue
+			}
+
+			// Ignore re-exported imports in TypeScript files that failed to be
+			// resolved. These are probably just type-only imports so the best thing to
+			// do is to silently omit them from the export list.
+			if c.fileMeta[export.sourceIndex].isProbablyTypeScriptType[export.ref] {
+				continue
+			}
+
+			aliases = append(aliases, alias)
+		}
+		sort.Strings(aliases)
+		fileMeta.sortedAndFilteredExportAliases = aliases
+
+		// Namespace creation uses "sortedAndFilteredExportAliases" so this must
+		// come second after we fill in that array
 		c.createNamespaceExportForFile(uint32(sourceIndex))
 	}
 
 	// Step 5: Bind imports to exports. This adds non-local dependencies on the
 	// parts that declare the export to all parts that use the import.
 	for _, sourceIndex := range c.reachableFiles {
+		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
-		for _, importToBind := range fileMeta.importsToBind {
-			for _, partIndex := range c.files[sourceIndex].ast.NamedImports[importToBind.importRef].LocalPartsWithUses {
+
+		for importRef, importToBind := range fileMeta.importsToBind {
+			resolvedFile := &c.files[importToBind.sourceIndex]
+			partsDeclaringSymbol := resolvedFile.ast.TopLevelSymbolToParts[importToBind.ref]
+
+			for _, partIndex := range file.ast.NamedImports[importRef].LocalPartsWithUses {
 				partMeta := &fileMeta.partMeta[partIndex]
-				for _, nonLocalPartIndex := range importToBind.resolvedLocalParts {
+
+				for _, resolvedPartIndex := range partsDeclaringSymbol {
 					partMeta.nonLocalDependencies = append(partMeta.nonLocalDependencies, partRef{
-						sourceIndex: importToBind.resolvedSourceIndex,
-						partIndex:   nonLocalPartIndex,
+						sourceIndex: importToBind.sourceIndex,
+						partIndex:   resolvedPartIndex,
 					})
 				}
 			}
 
 			// Merge these symbols so they will share the same name
-			ast.MergeSymbols(c.symbols, importToBind.importRef, importToBind.resolvedRef)
+			ast.MergeSymbols(c.symbols, importRef, importToBind.ref)
 		}
 	}
 }
@@ -447,84 +551,47 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 		panic("Internal error")
 	}
 
-	// Sort the imports for determinism
-	aliases := make([]string, 0, len(file.ast.NamedExports)+len(fileMeta.resolvedExportStars))
-	for alias, _ := range file.ast.NamedExports {
-		aliases = append(aliases, alias)
-	}
-	for alias, export := range fileMeta.resolvedExportStars {
-		// Make sure not to add re-exports that are shadowed due to an export.
-		// Also don't add ambiguous re-exports, since they are silently hidden.
-		if _, ok := file.ast.NamedExports[alias]; !ok && !export.isAmbiguous {
-			aliases = append(aliases, alias)
-		}
-	}
-	sort.Strings(aliases)
-
 	// Generate a getter per export
 	properties := []ast.Property{}
 	nonLocalDependencies := []partRef{}
 	useCountEstimates := make(map[ast.Ref]uint32)
-	for _, alias := range aliases {
-		var otherSourceIndex uint32
-		var exportStarPathLoc ast.Loc
-
-		// Ignore automatically-generated star exports. These are internal-only and
-		// are not supposed to end up in the namespace export code we generate.
-		if alias == "*" {
-			continue
-		}
-
-		// Look up the alias
-		export, ok := file.ast.NamedExports[alias]
-		if ok {
-			otherSourceIndex = uint32(sourceIndex)
-		} else {
-			exportStar := fileMeta.resolvedExportStars[alias]
-			exportStarPathLoc = exportStar.pathLoc
-			otherSourceIndex = exportStar.sourceIndex
-			export = exportStar.NamedExport
-		}
-
-		// Ignore re-exported imports in TypeScript files that failed to be
-		// resolved. These are probably just type-only imports so the best thing to
-		// do is to silently omit them from the export list.
-		if c.fileMeta[otherSourceIndex].isProbablyTypeScriptType[export.Ref] {
-			continue
-		}
+	for _, alias := range fileMeta.sortedAndFilteredExportAliases {
+		export := fileMeta.resolvedExports[alias]
 
 		// Exports of imports need EImportIdentifier in case they need to be re-
 		// written to a property access later on
 		var value ast.Expr
-		otherFile := &c.files[otherSourceIndex]
-		if _, ok := otherFile.ast.NamedImports[export.Ref]; ok {
-			value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{export.Ref}}
+		otherFile := &c.files[export.sourceIndex]
+		if _, ok := otherFile.ast.NamedImports[export.ref]; ok {
+			value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{export.ref}}
 
 			// Mark that the import is used by the part we're about to generate.
 			// That way when the import is later bound to its matching export,
 			// the export will be assigned as a dependency of the part we're about
 			// to generate.
-			namedImport, ok := file.ast.NamedImports[export.Ref]
+			namedImport, ok := file.ast.NamedImports[export.ref]
 			if !ok {
+
 				// The import may be in another file because of an export star, but
 				// we want to add the dependency to the original file since the
 				// dependency propagation uses local part references. In that case,
 				// add a new import to the original file.
 				namedImport = ast.NamedImport{
 					Alias:        alias,
-					AliasLoc:     exportStarPathLoc,
+					AliasLoc:     *export.pathLoc,
 					NamespaceRef: ast.InvalidRef,
 					ImportPath: ast.Path{
 						UseSourceIndex: true,
-						SourceIndex:    otherSourceIndex,
+						SourceIndex:    export.sourceIndex,
 					},
 				}
+
 			}
 			clone := append(make([]uint32, 0, len(namedImport.LocalPartsWithUses)+1), namedImport.LocalPartsWithUses...)
 			namedImport.LocalPartsWithUses = append(clone, nsExportPartIndex)
-			file.ast.NamedImports[export.Ref] = namedImport
+			file.ast.NamedImports[export.ref] = namedImport
 		} else {
-			value = ast.Expr{ast.Loc{}, &ast.EIdentifier{export.Ref}}
+			value = ast.Expr{ast.Loc{}, &ast.EIdentifier{export.ref}}
 		}
 
 		// Add a getter property
@@ -535,14 +602,14 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 				Body:       ast.FnBody{Stmts: []ast.Stmt{ast.Stmt{value.Loc, &ast.SReturn{&value}}}},
 			}},
 		})
-		useCountEstimates[export.Ref] = useCountEstimates[export.Ref] + 1
+		useCountEstimates[export.ref] = useCountEstimates[export.ref] + 1
 
 		// Make sure the part that declares the export is included
-		for _, partIndex := range export.LocalParts {
+		for _, partIndex := range otherFile.ast.TopLevelSymbolToParts[export.ref] {
 			// Use a non-local dependency since this is likely from a different
 			// file if it came in through an export star
 			nonLocalDependencies = append(nonLocalDependencies, partRef{
-				sourceIndex: otherSourceIndex,
+				sourceIndex: export.sourceIndex,
 				partIndex:   partIndex,
 			})
 		}
@@ -551,7 +618,7 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []ast.DeclaredSymbol{}
 	stmts := make([]ast.Stmt, 0, 2)
-	if !fileMeta.isCommonJS {
+	if !fileMeta.cjsStyleExports {
 		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
 			Binding: ast.Binding{ast.Loc{}, &ast.BIdentifier{file.ast.ExportsRef}},
 			Value:   &ast.Expr{ast.Loc{}, &ast.EObject{}},
@@ -564,7 +631,8 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 
 	// "__export(exports, { foo: () => foo })"
 	if len(properties) > 0 {
-		exportRef := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members["__export"]
+		runtimeFile := &c.files[ast.RuntimeSourceIndex]
+		exportRef := runtimeFile.ast.ModuleScope.Members["__export"]
 		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
 			Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
 			Args: []ast.Expr{
@@ -575,7 +643,7 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 		useCountEstimates[exportRef] = useCountEstimates[exportRef] + 1
 
 		// Make sure this file depends on the "__export" symbol
-		for _, partIndex := range c.files[ast.RuntimeSourceIndex].ast.NamedExports["__export"].LocalParts {
+		for _, partIndex := range runtimeFile.ast.TopLevelSymbolToParts[exportRef] {
 			nonLocalDependencies = append(nonLocalDependencies, partRef{
 				sourceIndex: ast.RuntimeSourceIndex,
 				partIndex:   partIndex,
@@ -601,7 +669,7 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 
 		// This can be removed if nothing uses it. Except if we're a CommonJS
 		// module, in which case it's always necessary.
-		CanBeRemovedIfUnused: !fileMeta.isCommonJS,
+		CanBeRemovedIfUnused: !fileMeta.cjsStyleExports,
 
 		// Put the export definitions first before anything else gets evaluated
 		IsNamespaceExport: true,
@@ -644,42 +712,58 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				if cycleDetector == tracker {
 					source := c.sources[sourceIndex]
 					namedImport := c.files[sourceIndex].ast.NamedImports[importRef]
-					r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
-					c.addRangeError(source, r, fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
+					c.addRangeError(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+						fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
 					break
 				}
-				cycleDetector, _, _ = c.advanceImportTracker(cycleDetector)
+				cycleDetector, _ = c.advanceImportTracker(cycleDetector)
 			}
 
 			// Resolve the import by one step
-			nextTracker, localParts, status := c.advanceImportTracker(tracker)
+			nextTracker, status := c.advanceImportTracker(tracker)
 			switch status {
 			case importCommonJS, importExternal:
-				if status == importExternal && c.options.OutputFormat.KeepES6ImportSyntax() {
+				if status == importExternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
 					// Imports from external modules should not be converted to CommonJS
 					// if the output format preserves the original ES6 import statements
 					break
 				}
 
-				// If it's a CommonJS or external file, rewrite the import to a property access
+				// If it's a CommonJS or external file, rewrite the import to a
+				// property access. Don't do this if the namespace reference is invalid
+				// though. This is the case for star imports, where the import is the
+				// namespace.
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
-				c.symbols.Get(importRef).NamespaceAlias = &ast.NamespaceAlias{
-					NamespaceRef: namedImport.NamespaceRef,
-					Alias:        namedImport.Alias,
+				if namedImport.NamespaceRef != ast.InvalidRef {
+					if namedImport.Alias == "*" {
+						panic(fmt.Sprintf("can not use *, NamespaceRef is %d:%d",
+							namedImport.NamespaceRef.OuterIndex,
+							namedImport.NamespaceRef.InnerIndex,
+						))
+					}
+					c.symbols.Get(importRef).NamespaceAlias = &ast.NamespaceAlias{
+						NamespaceRef: namedImport.NamespaceRef,
+						Alias:        namedImport.Alias,
+					}
 				}
 
 			case importNoMatch:
-				// Report mismatched imports and exports
-				source := c.sources[tracker.sourceIndex]
-				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
-				r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
-				c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+				symbol := c.symbols.Get(tracker.importRef)
+				if symbol.ImportItemStatus == ast.ImportItemGenerated {
+					symbol.ImportItemStatus = ast.ImportItemMissing
+				} else {
+					// Report mismatched imports and exports
+					source := c.sources[tracker.sourceIndex]
+					namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
+					c.addRangeError(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+						fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+				}
 
 			case importAmbiguous:
 				source := c.sources[tracker.sourceIndex]
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
-				r := lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
-				c.addRangeError(source, r, fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
+				c.addRangeError(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+					fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
 
 			case importProbablyTypeScriptType:
 				// Omit this import from any namespace export code we generate for
@@ -697,12 +781,10 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// Defer the actual binding of this import until after we generate
 				// namespace export code for all files
 				fileMeta := &c.fileMeta[sourceIndex]
-				fileMeta.importsToBind = append(fileMeta.importsToBind, importToBind{
-					importRef:           importRef,
-					resolvedRef:         nextTracker.importRef,
-					resolvedSourceIndex: nextTracker.sourceIndex,
-					resolvedLocalParts:  localParts,
-				})
+				fileMeta.importsToBind[importRef] = importToBind{
+					sourceIndex: nextTracker.sourceIndex,
+					ref:         nextTracker.importRef,
+				}
 
 			default:
 				panic("Internal error")
@@ -715,7 +797,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 }
 
 func (c *linkerContext) addExportsForExportStar(
-	resolvedExportStars map[string]exportStarData,
+	resolvedExports map[string]exportData,
 	sourceIndex uint32,
 	topLevelPathLoc *ast.Loc,
 	visited map[uint32]bool,
@@ -728,42 +810,58 @@ func (c *linkerContext) addExportsForExportStar(
 	file := &c.files[sourceIndex]
 
 	for _, path := range file.ast.ExportStars {
-		if otherSourceIndex, ok := file.resolveImport(path); ok {
-			// We need a location for error messages, but it must be in the top-level
-			// file, not in any nested file. This will be passed to nested files.
-			pathLoc := path.Loc
-			if topLevelPathLoc != nil {
-				pathLoc = *topLevelPathLoc
-			}
+		otherSourceIndex, ok := file.resolveImport(path)
+		if !ok {
+			source := c.sources[sourceIndex]
+			c.addRangeError(source, source.RangeOfString(path.Loc),
+				"Wildcard exports are not supported for this module")
+			continue
+		}
 
-			// Export stars from a CommonJS module don't work because they can't be
-			// statically discovered. Just silently ignore them in this case.
-			//
-			// We could attempt to check whether the imported file still has ES6
-			// exports even though it still uses CommonJS features. However, when
-			// doing this we'd also have to rewrite any imports of these export star
-			// re-exports as property accesses off of a generated require() call.
-			if c.fileMeta[otherSourceIndex].isCommonJS {
+		// We need a location for error messages, but it must be in the top-level
+		// file, not in any nested file. This will be passed to nested files.
+		pathLoc := path.Loc
+		if topLevelPathLoc != nil {
+			pathLoc = *topLevelPathLoc
+		}
+
+		// Export stars from a CommonJS module don't work because they can't be
+		// statically discovered. Just silently ignore them in this case.
+		//
+		// We could attempt to check whether the imported file still has ES6
+		// exports even though it still uses CommonJS features. However, when
+		// doing this we'd also have to rewrite any imports of these export star
+		// re-exports as property accesses off of a generated require() call.
+		if c.fileMeta[otherSourceIndex].cjsStyleExports {
+			continue
+		}
+
+		// Accumulate this file's exports
+		for name, ref := range c.files[otherSourceIndex].ast.NamedExports {
+			existing, ok := resolvedExports[name]
+
+			// Don't overwrite real exports, which shadow export stars
+			if ok && !existing.isFromExportStar {
 				continue
 			}
 
-			// Accumulate this file's exports
-			for name, export := range c.files[otherSourceIndex].ast.NamedExports {
-				if existing, ok := resolvedExportStars[name]; ok && existing.sourceIndex != otherSourceIndex {
-					existing.isAmbiguous = true
-					resolvedExportStars[name] = existing
-				} else {
-					resolvedExportStars[name] = exportStarData{
-						NamedExport: export,
-						sourceIndex: otherSourceIndex,
-						pathLoc:     pathLoc,
-					}
+			if !ok {
+				// Initialize the re-export
+				resolvedExports[name] = exportData{
+					ref:              ref,
+					sourceIndex:      otherSourceIndex,
+					pathLoc:          &pathLoc,
+					isFromExportStar: true,
 				}
+			} else if existing.sourceIndex != otherSourceIndex {
+				// Two different re-exports colliding makes it ambiguous
+				existing.isAmbiguous = true
+				resolvedExports[name] = existing
 			}
-
-			// Search further through this file's export stars
-			c.addExportsForExportStar(resolvedExportStars, otherSourceIndex, &pathLoc, visited)
 		}
+
+		// Search further through this file's export stars
+		c.addExportsForExportStar(resolvedExports, otherSourceIndex, &pathLoc, visited)
 	}
 }
 
@@ -794,45 +892,38 @@ const (
 	importProbablyTypeScriptType
 )
 
-func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, []uint32, importStatus) {
+func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, importStatus) {
 	file := &c.files[tracker.sourceIndex]
 	namedImport := file.ast.NamedImports[tracker.importRef]
 
 	// Is this an external file?
 	otherSourceIndex, ok := file.resolveImport(namedImport.ImportPath)
 	if !ok {
-		return importTracker{}, nil, importExternal
+		return importTracker{}, importExternal
 	}
 
 	// Is this a CommonJS file?
 	otherFileMeta := &c.fileMeta[otherSourceIndex]
-	if otherFileMeta.isCommonJS {
-		return importTracker{}, nil, importCommonJS
+	if otherFileMeta.cjsStyleExports {
+		return importTracker{}, importCommonJS
 	}
 
 	// Match this import up with an export from the imported file
-	otherFile := &c.files[otherSourceIndex]
-	if matchingExport, ok := otherFile.ast.NamedExports[namedImport.Alias]; ok {
-		// Check to see if this is a re-export of another import
-		return importTracker{otherSourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
-	}
-
-	// If there was no named export, there may still be an export star
-	if matchingExport, ok := otherFileMeta.resolvedExportStars[namedImport.Alias]; ok {
+	if matchingExport, ok := otherFileMeta.resolvedExports[namedImport.Alias]; ok {
 		if matchingExport.isAmbiguous {
-			return importTracker{}, nil, importAmbiguous
+			return importTracker{}, importAmbiguous
 		}
 
 		// Check to see if this is a re-export of another import
-		return importTracker{matchingExport.sourceIndex, matchingExport.Ref}, matchingExport.LocalParts, importFound
+		return importTracker{matchingExport.sourceIndex, matchingExport.ref}, importFound
 	}
 
 	// Missing re-exports in TypeScript files are indistinguishable from types
 	if file.ast.WasTypeScript && namedImport.IsExported {
-		return importTracker{}, nil, importProbablyTypeScriptType
+		return importTracker{}, importProbablyTypeScriptType
 	}
 
-	return importTracker{}, nil, importNoMatch
+	return importTracker{}, importNoMatch
 }
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {
@@ -880,7 +971,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	if file.ast.UsesModuleRef {
 		c.accumulateSymbolCount(file.ast.ModuleRef, 1)
 	}
-	if fileMeta.isCommonJS {
+	if fileMeta.cjsWrap {
 		c.accumulateSymbolCount(file.ast.WrapperRef, 1)
 	}
 
@@ -901,7 +992,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 					if importPath.Kind == ast.ImportStmt {
 						c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
 					}
-					if c.fileMeta[otherSourceIndex].isCommonJS {
+					if c.fileMeta[otherSourceIndex].cjsStyleExports {
 						// This is an ES6 import of a module that's potentially CommonJS
 						needsToModule = true
 					}
@@ -915,7 +1006,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 
 	// If this is a CommonJS file, we're going to need the "__commonJS" symbol
 	// from the runtime
-	if fileMeta.isCommonJS {
+	if fileMeta.cjsWrap {
 		c.includePartsForRuntimeSymbol("__commonJS", entryPoint, distanceFromEntryPoint)
 	}
 
@@ -924,12 +1015,33 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	if needsToModule {
 		c.includePartsForRuntimeSymbol("__toModule", entryPoint, distanceFromEntryPoint)
 	}
+
+	// If this is an entry point, include all exports
+	if fileMeta.entryPointStatus != entryPointNone {
+		for _, alias := range fileMeta.sortedAndFilteredExportAliases {
+			export := fileMeta.resolvedExports[alias]
+			targetSourceIndex := export.sourceIndex
+			targetRef := export.ref
+
+			// If this is an import, then target what the import points to
+			if importToBind, ok := c.fileMeta[targetSourceIndex].importsToBind[targetRef]; ok {
+				targetSourceIndex = importToBind.sourceIndex
+				targetRef = importToBind.ref
+			}
+
+			// Pull in all declarations of this symbol
+			for _, partIndex := range c.files[targetSourceIndex].ast.TopLevelSymbolToParts[targetRef] {
+				c.includePart(targetSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
+			}
+		}
+	}
 }
 
 func (c *linkerContext) includePartsForRuntimeSymbol(name string, entryPoint uint, distanceFromEntryPoint uint32) {
-	export := c.files[ast.RuntimeSourceIndex].ast.NamedExports[name]
-	c.accumulateSymbolCount(export.Ref, 1)
-	for _, partIndex := range export.LocalParts {
+	file := &c.files[ast.RuntimeSourceIndex]
+	ref := file.ast.NamedExports[name]
+	c.accumulateSymbolCount(ref, 1)
+	for _, partIndex := range file.ast.TopLevelSymbolToParts[ref] {
 		c.includePart(ast.RuntimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
 	}
 }
@@ -1119,38 +1231,122 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 	return order
 }
 
+func (c *linkerContext) shouldRemoveImportExportStmt(
+	sourceIndex uint32,
+	stmtList *stmtList,
+	partStmts []ast.Stmt,
+	loc ast.Loc,
+	namespaceRef ast.Ref,
+	path ast.Path,
+) bool {
+	// Is this an import from another module inside this bundle?
+	if otherSourceIndex, isInternal := c.files[sourceIndex].resolveImport(path); isInternal {
+		if !c.fileMeta[otherSourceIndex].cjsStyleExports {
+			// Remove the statement entirely if this is not a CommonJS module
+			return true
+		}
+	} else if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+		// If this is an external module and the output format allows ES6
+		// import/export syntax, then just keep the statement
+		return false
+	}
+
+	// We don't need a call to "require()" if this is a self-import inside a
+	// CommonJS-style module, since we can just reference the exports directly.
+	if c.fileMeta[sourceIndex].cjsStyleExports &&
+		ast.FollowSymbols(c.symbols, namespaceRef) == c.files[sourceIndex].ast.ExportsRef {
+		return true
+	}
+
+	// Replace the statement with a call to "require()"
+	stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
+		Loc: loc,
+		Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
+			ast.Binding{loc, &ast.BIdentifier{namespaceRef}},
+			&ast.Expr{path.Loc, &ast.ERequire{Path: path, IsES6Import: true}},
+		}}},
+	})
+	return true
+}
+
 func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtList, partStmts []ast.Stmt) {
 	shouldStripExports := c.options.IsBundling || sourceIndex == ast.RuntimeSourceIndex
+	shouldExtractES6StmtsForCJSWrap := c.fileMeta[sourceIndex].cjsWrap
 
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
 		case *ast.SImport:
-			// Is this an import from another module inside this bundle?
-			if otherSourceIndex, ok := c.files[sourceIndex].resolveImport(s.Path); ok {
-				if !c.fileMeta[otherSourceIndex].isCommonJS {
-					// Remove the import statement entirely if this is not a CommonJS
-					// module
-					continue
-				}
-			} else if c.options.OutputFormat.KeepES6ImportSyntax() {
-				// If this is an external module and the output format allows ES6
-				// imports, then just keep the import statement
-				break
+			// "import * as ns from 'path'"
+			// "import {foo} from 'path'"
+			if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, partStmts, stmt.Loc, s.NamespaceRef, s.Path) {
+				continue
 			}
 
-			// Replace the import statement with a call to "require()"
-			stmtList.importStmts = append(stmtList.importStmts, ast.Stmt{
-				Loc: stmt.Loc,
-				Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
-					ast.Binding{stmt.Loc, &ast.BIdentifier{s.NamespaceRef}},
-					&ast.Expr{s.Path.Loc, &ast.ERequire{Path: s.Path, IsES6Import: true}},
-				}}},
-			})
-			continue
+			// Make sure these don't end up in a CommonJS wrapper
+			if shouldExtractES6StmtsForCJSWrap {
+				stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+				continue
+			}
 
-		case *ast.SExportStar, *ast.SExportFrom, *ast.SExportClause:
+		case *ast.SExportStar:
+			if s.Item == nil {
+				// "export * from 'path'"
+				if shouldStripExports {
+					// Remove re-export statements entirely
+					continue
+				}
+			} else {
+				// "export * as ns from 'path'"
+				if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, partStmts, stmt.Loc, s.Item.Name.Ref, s.Path) {
+					continue
+				}
+
+				if shouldStripExports {
+					// Turn this statement into "import * as ns from 'path'"
+					stmt.Data = &ast.SImport{
+						NamespaceRef: s.Item.Name.Ref,
+						StarNameLoc:  &s.Item.Name.Loc,
+						Path:         s.Path,
+					}
+				}
+
+				// Make sure these don't end up in a CommonJS wrapper
+				if shouldExtractES6StmtsForCJSWrap {
+					stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+					continue
+				}
+			}
+
+		case *ast.SExportFrom:
+			// "export {foo} from 'path'"
+			if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, partStmts, stmt.Loc, s.NamespaceRef, s.Path) {
+				continue
+			}
+
+			if shouldStripExports {
+				// Turn this statement into "import {foo} from 'path'"
+				stmt.Data = &ast.SImport{
+					NamespaceRef: s.NamespaceRef,
+					Items:        &s.Items,
+					Path:         s.Path,
+				}
+			}
+
+			// Make sure these don't end up in a CommonJS wrapper
+			if shouldExtractES6StmtsForCJSWrap {
+				stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+				continue
+			}
+
+		case *ast.SExportClause:
 			if shouldStripExports {
 				// Remove export statements entirely
+				continue
+			}
+
+			// Make sure these don't end up in a CommonJS wrapper
+			if shouldExtractES6StmtsForCJSWrap {
+				stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
 				continue
 			}
 
@@ -1264,14 +1460,22 @@ func mergeAdjacentLocalStmts(stmts []ast.Stmt) []ast.Stmt {
 }
 
 type stmtList struct {
-	importStmts []ast.Stmt
+	// These statements come first, and can be inside the CommonJS wrapper
+	prefixStmts []ast.Stmt
+
+	// These statements come last, and can be inside the CommonJS wrapper
 	normalStmts []ast.Stmt
+
+	// Order doesn't matter for these statements, but they must be outside any
+	// CommonJS wrapper since they are top-level ES6 import/export statements
+	es6StmtsForCJSWrap []ast.Stmt
 }
 
 func (c *linkerContext) generateCodeForFileInChunk(
 	waitGroup *sync.WaitGroup,
 	sourceIndex uint32,
 	entryBits bitSet,
+	unboundModuleRef ast.Ref,
 	commonJSRef ast.Ref,
 	toModuleRef ast.Ref,
 	wrapperRefs []ast.Ref,
@@ -1282,8 +1486,8 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	stmts := []ast.Stmt{}
 
 	// Add all parts in this file that belong in this chunk
+	stmtList := stmtList{}
 	{
-		stmtList := stmtList{}
 		parts := file.ast.Parts
 		end := len(parts)
 
@@ -1293,6 +1497,10 @@ func (c *linkerContext) generateCodeForFileInChunk(
 			end--
 			if entryBits.equals(fileMeta.partMeta[end].entryBits) {
 				c.convertStmtsForChunk(sourceIndex, &stmtList, parts[end].Stmts)
+
+				// Move everything to the prefix list
+				stmtList.prefixStmts = append(stmtList.prefixStmts, stmtList.normalStmts...)
+				stmtList.normalStmts = nil
 			}
 		}
 
@@ -1310,26 +1518,40 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		// these semantics even when modules imported via ES6 import statements end
 		// up being CommonJS modules.
 		stmts = stmtList.normalStmts
-		if len(stmtList.importStmts) > 0 {
-			stmts = append(stmtList.importStmts, stmts...)
+		if len(stmtList.prefixStmts) > 0 {
+			stmts = append(stmtList.prefixStmts, stmts...)
 		}
 		if c.options.MangleSyntax {
 			stmts = mergeAdjacentLocalStmts(stmts)
 		}
+
+		// If this is an entry point, include all exports for the ES6 output
+		// format. Except don't do that if this entry point is a CommonJS-style
+		// module, since that would generate an ES6 export statement that's not
+		// top-level. Instead, we will export the CommonJS exports as a default
+		// export later on.
+		if fileMeta.entryPointStatus != entryPointNone && c.options.OutputFormat == printer.FormatESModule && !fileMeta.cjsWrap {
+			items := []ast.ClauseItem{}
+			for _, alias := range fileMeta.sortedAndFilteredExportAliases {
+				items = append(items, ast.ClauseItem{
+					Name:  ast.LocRef{Ref: fileMeta.resolvedExports[alias].ref},
+					Alias: alias,
+				})
+			}
+			if len(items) > 0 {
+				stmts = append(stmts, ast.Stmt{Data: &ast.SExportClause{Items: items}})
+			}
+		}
 	}
 
 	// Optionally wrap all statements in a closure for CommonJS
-	if fileMeta.isCommonJS {
-		exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
-		moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
-		wrapperRef := ast.FollowSymbols(c.symbols, file.ast.WrapperRef)
-
+	if fileMeta.cjsWrap {
 		// Only include the arguments that are actually used
 		args := []ast.Arg{}
 		if file.ast.UsesExportsRef || file.ast.UsesModuleRef {
-			args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{exportsRef}}})
+			args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{file.ast.ExportsRef}}})
 			if file.ast.UsesModuleRef {
-				args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{moduleRef}}})
+				args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{file.ast.ModuleRef}}})
 			}
 		}
 
@@ -1339,33 +1561,54 @@ func (c *linkerContext) generateCodeForFileInChunk(
 			Args:   []ast.Expr{ast.Expr{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
 		}}
 
-		// Make sure that entry points are immediately evaluated
-		switch fileMeta.entryPointStatus {
-		case entryPointNone:
-			// "var require_foo = __commonJS((exports, module) => { ... });"
-			stmts = []ast.Stmt{ast.Stmt{Data: &ast.SLocal{
-				Decls: []ast.Decl{ast.Decl{
-					Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
-					Value:   &value,
-				}},
-			}}}
+		// "var require_foo = __commonJS((exports, module) => { ... });"
+		stmts = append(stmtList.es6StmtsForCJSWrap, ast.Stmt{Data: &ast.SLocal{
+			Decls: []ast.Decl{ast.Decl{
+				Binding: ast.Binding{Data: &ast.BIdentifier{file.ast.WrapperRef}},
+				Value:   &value,
+			}},
+		}})
 
-		case entryPointUserSpecified:
-			// "__commonJS((exports, module) => { ... })();"
-			stmts = []ast.Stmt{ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{Target: value}}}}}
+		// If we're an entry point, call the require function immediately
+		if fileMeta.entryPointStatus != entryPointNone {
+			switch c.options.OutputFormat {
+			case printer.FormatPreserve:
+				// "require_foo();"
+				stmts = append(stmts, ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+				}}}})
 
-		case entryPointDynamicImport:
-			// "var require_foo = __commonJS((exports, module) => { ... }); require_foo();"
-			stmts = []ast.Stmt{
-				ast.Stmt{Data: &ast.SLocal{
-					Decls: []ast.Decl{ast.Decl{
-						Binding: ast.Binding{Data: &ast.BIdentifier{wrapperRef}},
-						Value:   &value,
+			case printer.FormatIIFE:
+				if c.options.ModuleName != "" {
+					// "return require_foo();"
+					stmts = append(stmts, ast.Stmt{Data: &ast.SReturn{&ast.Expr{Data: &ast.ECall{
+						Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+					}}}})
+				} else {
+					// "require_foo();"
+					stmts = append(stmts, ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
+						Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+					}}}})
+				}
+
+			case printer.FormatCommonJS:
+				// "module.exports = require_foo();"
+				stmts = append(stmts, ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.EBinary{
+					Op: ast.BinOpAssign,
+					Left: ast.Expr{Data: &ast.EDot{
+						Target: ast.Expr{Data: &ast.EIdentifier{unboundModuleRef}},
+						Name:   "exports",
 					}},
-				}},
-				ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{wrapperRef}},
-				}}}},
+					Right: ast.Expr{Data: &ast.ECall{
+						Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+					}},
+				}}}})
+
+			case printer.FormatESModule:
+				// "export default require_foo();"
+				stmts = append(stmts, ast.Stmt{Data: &ast.SExportDefault{Value: ast.ExprOrStmt{Expr: &ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+				}}}}})
 			}
 		}
 	}
@@ -1376,11 +1619,18 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		sourceMapContents = nil
 	}
 
+	// Indent the file if everything is wrapped in an IIFE
+	indent := 0
+	if c.options.OutputFormat == printer.FormatIIFE {
+		indent++
+	}
+
 	// Convert the AST to JavaScript code
 	tree := file.ast
 	tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
 	*result = compileResult{
 		PrintResult: printer.Print(tree, printer.PrintOptions{
+			Indent:            indent,
 			OutputFormat:      c.options.OutputFormat,
 			RemoveWhitespace:  c.options.RemoveWhitespace,
 			ResolvedImports:   file.resolvedImports,
@@ -1406,6 +1656,15 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
 	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
 
+	// Allocate a new unbound symbol called "module" in case we need it
+	runtimeSymbols := &c.symbols.Outer[ast.RuntimeSourceIndex]
+	unboundModuleRef := ast.Ref{ast.RuntimeSourceIndex, uint32(len(*runtimeSymbols))}
+	*runtimeSymbols = append(*runtimeSymbols, ast.Symbol{
+		Kind: ast.SymbolUnbound,
+		Name: "module",
+		Link: ast.InvalidRef,
+	})
+
 	// Make sure the printer can require() CommonJS modules
 	wrapperRefs := make([]ast.Ref, len(c.files))
 	for _, sourceIndex := range c.reachableFiles {
@@ -1428,6 +1687,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 			&waitGroup,
 			sourceIndex,
 			chunk.entryBits,
+			unboundModuleRef,
 			commonJSRef,
 			toModuleRef,
 			wrapperRefs,
@@ -1439,31 +1699,63 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	j := printer.Joiner{}
 	prevOffset := lineColumnOffset{}
 
+	// Optionally strip whitespace
+	indent := ""
+	space := " "
+	newline := "\n"
+	if c.options.RemoveWhitespace {
+		space = ""
+		newline = ""
+	}
+	newlineBeforeComment := false
+
 	// Start with the hashbang if there is one
 	if chunk.hashbang != "" {
-		prevOffset.advance(chunk.hashbang)
-		j.AddString(chunk.hashbang)
-		prevOffset.advance("\n")
-		j.AddString("\n")
+		prevOffset.advance(chunk.hashbang + "\n")
+		j.AddString(chunk.hashbang + "\n")
+		newlineBeforeComment = true
+	}
+
+	// Optionally wrap with an IIFE
+	if c.options.OutputFormat == printer.FormatIIFE {
+		indent = "  "
+		text := "(()" + space + "=>" + space + "{" + newline
+		if c.options.ModuleName != "" {
+			text = "var " + c.options.ModuleName + space + "=" + space + text
+		}
+		prevOffset.advance(text)
+		j.AddString(text)
+		newlineBeforeComment = false
 	}
 
 	// Concatenate the generated JavaScript chunks together
 	for i, compileResult := range compileResults {
 		if c.options.IsBundling && !c.options.RemoveWhitespace && compileResult.sourceIndex != ast.RuntimeSourceIndex {
-			if j.Length() > 0 {
+			if newlineBeforeComment {
 				prevOffset.advance("\n")
 				j.AddString("\n")
 			}
 
-			text := fmt.Sprintf("// %s\n", c.sources[compileResult.sourceIndex].PrettyPath)
+			text := fmt.Sprintf("%s// %s\n", indent, c.sources[compileResult.sourceIndex].PrettyPath)
 			prevOffset.advance(text)
 			j.AddString(text)
+			newlineBeforeComment = true
 		}
 
 		// Save the offset to the start of the stored JavaScript
 		compileResults[i].generatedOffset = prevOffset
-		j.AddBytes(compileResult.JS)
+		if c.options.OutputFormat == printer.FormatIIFE && c.options.RemoveWhitespace && i+1 == len(compileResults) {
+			// Omit the trailing semicolon when minifying the last file in IIFE mode
+			j.AddBytes(compileResult.JSWithoutTrailingSemicolon)
+		} else {
+			j.AddBytes(compileResult.JS)
+		}
 		prevOffset = lineColumnOffset{}
+	}
+
+	// Optionally wrap with an IIFE
+	if c.options.OutputFormat == printer.FormatIIFE {
+		j.AddString("})();" + newline)
 	}
 
 	// Make sure the file ends with a newline
@@ -1595,9 +1887,10 @@ func (c *linkerContext) renameOrMinifyAllSymbols() {
 
 	// Combine all file scopes
 	for _, sourceIndex := range c.reachableFiles {
-		file := c.files[sourceIndex]
+		file := &c.files[sourceIndex]
+		fileMeta := &c.fileMeta[sourceIndex]
 		moduleScopes = append(moduleScopes, file.ast.ModuleScope)
-		if c.fileMeta[sourceIndex].isCommonJS {
+		if fileMeta.cjsWrap {
 			// Modules wrapped in a CommonJS closure look like this:
 			//
 			//   // foo.js
@@ -1633,9 +1926,11 @@ func (c *linkerContext) renameOrMinifyAllSymbols() {
 			// variables to avoid them causing the identically-named variables in
 			// actual CommonJS files from being renamed. This is purely about
 			// aesthetics and is not about correctness.
-			name := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath)
-			c.symbols.Get(file.ast.ExportsRef).Name = name + "_exports"
-			c.symbols.Get(file.ast.ModuleRef).Name = name + "_module"
+			if !fileMeta.cjsStyleExports {
+				name := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath)
+				c.symbols.Get(file.ast.ExportsRef).Name = name + "_exports"
+				c.symbols.Get(file.ast.ModuleRef).Name = name + "_module"
+			}
 		}
 	}
 

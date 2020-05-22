@@ -352,7 +352,7 @@ const foo = __toModule(require_foo());
 	})
 }
 
-func TestExportForms(t *testing.T) {
+func TestExportFormsES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -375,34 +375,88 @@ func TestExportForms(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  2(exports) {
-    // /a.js
-    const abc = void 0;
+			"/out.js": `// /a.js
+const abc = void 0;
 
-    // /b.js
-    var b = {};
-    __export(b, {
-      xyz: () => xyz
-    });
-    const xyz = null;
+// /b.js
+const b_exports = {};
+__export(b_exports, {
+  xyz: () => xyz
+});
+const xyz = null;
 
-    // /entry.js
+// /entry.js
+const entry_default = 123;
+var v = 234;
+let l = 234;
+const c = 234;
+function Fn() {
+}
+class Class {
+}
+export {Class as C, Class, Fn, abc, b_exports as b, c, entry_default as default, l, v};
+`,
+		},
+	})
+}
+
+func TestExportFormsIIFE(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default 123
+				export var v = 234
+				export let l = 234
+				export const c = 234
+				export {Class as C}
+				export function Fn() {}
+				export class Class {}
+				export * from './a'
+				export * as b from './b'
+			`,
+			"/a.js": "export const abc = undefined",
+			"/b.js": "export const xyz = null",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatIIFE,
+			ModuleName:    "moduleName",
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var moduleName = (() => {
+  // /a.js
+  const abc = void 0;
+
+  // /b.js
+  const b_exports = {};
+  __export(b_exports, {
+    xyz: () => xyz
+  });
+  const xyz = null;
+
+  // /entry.js
+  var require_entry = __commonJS((exports) => {
     __export(exports, {
       C: () => Class,
       Class: () => Class,
       Fn: () => Fn,
       abc: () => abc,
-      b: () => b,
+      b: () => b_exports,
       c: () => c,
-      default: () => default2,
+      default: () => entry_default,
       l: () => l,
       v: () => v
     });
-    const default2 = 123;
+    const entry_default = 123;
     var v = 234;
     let l = 234;
     const c = 234;
@@ -410,8 +464,9 @@ func TestExportForms(t *testing.T) {
     }
     class Class {
     }
-  }
-}, 2);
+  });
+  return require_entry();
+})();
 `,
 		},
 	})
@@ -559,15 +614,15 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `import "foo";
 import {} from "foo";
-import * as a from "foo";
-import {a as b, b as c} from "foo";
-import d from "foo";
-import f, * as e from "foo";
-import g, {a2 as h, b as i} from "foo";
-const j = [import("foo"), function C() {
+import * as e from "foo";
+import {a as f, b as g} from "foo";
+import h from "foo";
+import j, * as i from "foo";
+import k, {a2 as l, b as m} from "foo";
+const n = [import("foo"), function a() {
   return import("foo");
 }];
-console.log(a, b, c, d, f, e, g, h, i, j);
+console.log(e, f, g, h, j, i, k, l, m, n);
 `,
 		},
 	})
@@ -750,72 +805,10 @@ var require_bar = __commonJS((exports) => {
 });
 
 // /foo.js
+const bar = __toModule(require_bar());
 
 // /entry.js
 bar.default();
-`,
-		},
-	})
-}
-
-func TestExportSelf(t *testing.T) {
-	expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				export const foo = 123
-				export * from './entry'
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    true,
-			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /entry.js
-    __export(exports, {
-      foo: () => foo
-    });
-    const foo = 123;
-  }
-}, 0);
-`,
-		},
-	})
-}
-
-func TestExportSelfAsNamespace(t *testing.T) {
-	expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				export const foo = 123
-				export * as ns from './entry'
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    true,
-			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /entry.js
-    __export(exports, {
-      foo: () => foo,
-      ns: () => exports
-    });
-    const foo = 123;
-  }
-}, 0);
 `,
 		},
 	})
@@ -843,19 +836,13 @@ func TestExportChain(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(entry) {
-    // /bar.js
-    const c = 123;
+			"/out.js": `// /bar.js
+const c = 123;
 
-    // /foo.js
+// /foo.js
 
-    // /entry.js
-    __export(entry, {
-      a: () => c
-    });
-  }
-}, 1);
+// /entry.js
+export {c as a};
 `,
 		},
 	})
@@ -2220,7 +2207,7 @@ console.log(require_b());
 	})
 }
 
-func TestDynamicImportWithTemplate(t *testing.T) {
+func TestDynamicImportWithTemplateIIFE(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -2438,17 +2425,13 @@ func TestRequireCustomExtensionDataURL(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.custom
-    module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
-  },
+			"/out.js": `// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.custom */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2833,6 +2816,7 @@ func TestRequireFSNode(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
@@ -2840,9 +2824,7 @@ func TestRequireFSNode(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
-__commonJS(() => {
-  return require("fs");
-})();
+return require("fs");
 `,
 		},
 	})
@@ -2862,13 +2844,14 @@ func TestRequireFSNodeMinify(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:       true,
 			RemoveWhitespace: true,
+			OutputFormat:     printer.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `__commonJS(()=>{return require("fs")})();
+			"/out.js": `return require("fs");
 `,
 		},
 	})
@@ -3019,17 +3002,84 @@ func TestExportFSNode(t *testing.T) {
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /entry.js
-    __export(exports, {
-      fs: () => fs,
-      readFileSync: () => fs2.readFileSync
-    });
-    const fs = __toModule(require("fs"));
-    const fs2 = __toModule(require("fs"));
-  }
-}, 0);
+			"/out.js": `// /entry.js
+import * as fs from "fs";
+import {readFileSync} from "fs";
+export {fs, readFileSync};
+`,
+		},
+	})
+}
+
+func TestReExportFSNode(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {fs as f} from './foo'
+				export {readFileSync as rfs} from './foo'
+			`,
+			"/foo.js": `
+				export * as fs from 'fs'
+				export {readFileSync} from 'fs'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+import * as fs from "fs";
+import {readFileSync} from "fs";
+
+// /entry.js
+export {fs as f, readFileSync as rfs};
+`,
+		},
+	})
+}
+
+func TestExportFSNodeInCommonJSModule(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * as fs from 'fs'
+				export {readFileSync} from 'fs'
+
+				// Force this to be a CommonJS module
+				exports.foo = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+import * as fs from "fs";
+import {readFileSync} from "fs";
+var require_entry = __commonJS((exports) => {
+  __export(exports, {
+    fs: () => fs,
+    readFileSync: () => readFileSync
+  });
+  exports.foo = 123;
+});
+export default require_entry();
 `,
 		},
 	})
@@ -3127,7 +3177,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				while(foo()); // This must not be stripped
+				while(foo()); // This semicolon must not be stripped
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3137,10 +3187,11 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:       true,
 			RemoveWhitespace: true,
+			OutputFormat:     printer.FormatIIFE,
 			AbsOutputFile:    "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(){while(foo());}},0);
+			"/out.js": `(()=>{var require_entry=__commonJS(()=>{while(foo());});require_entry()})();
 `,
 		},
 	})
@@ -3264,7 +3315,7 @@ func TestThisOutsideFunction(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
-__commonJS((exports) => {
+var require_entry = __commonJS((exports) => {
   console.log(exports);
   console.log((x = exports) => exports);
   console.log({
@@ -3272,7 +3323,8 @@ __commonJS((exports) => {
   });
   console.log(class extends exports.foo {
   });
-})();
+});
+export default require_entry();
 `,
 		},
 	})
