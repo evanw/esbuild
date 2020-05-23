@@ -1715,8 +1715,12 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	}
 
 	// Concatenate the generated JavaScript chunks together
+	var compileResultsForSourceMap []compileResult
 	for i, compileResult := range compileResults {
-		if c.options.IsBundling && !c.options.RemoveWhitespace && compileResult.sourceIndex != ast.RuntimeSourceIndex {
+		isRuntime := compileResult.sourceIndex == ast.RuntimeSourceIndex
+
+		// Don't add a file name comment for the runtime
+		if c.options.IsBundling && !c.options.RemoveWhitespace && !isRuntime {
 			if newlineBeforeComment {
 				prevOffset.advance("\n")
 				j.AddString("\n")
@@ -1728,15 +1732,27 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 			newlineBeforeComment = true
 		}
 
-		// Save the offset to the start of the stored JavaScript
-		compileResults[i].generatedOffset = prevOffset
+		// Omit the trailing semicolon when minifying the last file in IIFE mode
+		bytes := compileResult.JS
 		if c.options.OutputFormat == printer.FormatIIFE && c.options.RemoveWhitespace && i+1 == len(compileResults) {
-			// Omit the trailing semicolon when minifying the last file in IIFE mode
-			j.AddBytes(compileResult.JSWithoutTrailingSemicolon)
-		} else {
-			j.AddBytes(compileResult.JS)
+			bytes = compileResult.JSWithoutTrailingSemicolon
 		}
-		prevOffset = lineColumnOffset{}
+
+		// Don't include the runtime in source maps
+		if isRuntime {
+			prevOffset.advance(string(bytes))
+			j.AddBytes(bytes)
+		} else {
+			// Save the offset to the start of the stored JavaScript
+			compileResult.generatedOffset = prevOffset
+			j.AddBytes(bytes)
+			prevOffset = lineColumnOffset{}
+
+			// Include this file in the source map
+			if c.options.SourceMap != SourceMapNone {
+				compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
+			}
+		}
 	}
 
 	// Optionally wrap with an IIFE
@@ -1754,7 +1770,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	}
 
 	if c.options.SourceMap != SourceMapNone {
-		sourceMap := c.generateSourceMapForChunk(compileResults)
+		sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
 
 		// Store the generated source map
 		switch c.options.SourceMap {
