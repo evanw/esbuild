@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.9
+
+* Add the `dataurl` loader ([#107](https://github.com/evanw/esbuild/pull/107))
+
+    This loader turns the file into a base64-encoded data URL. The mime type is automatically derived from the file extension, with the file contents used as a fallback. This was contributed by [@viankakrisna](https://github.com/viankakrisna).
+
+* Fix minification bug with external modules
+
+    When loading a module marked `--external` with `require()`, the resulting code was sometimes incorrectly minified when bundling. This now has test coverage.
+
 ## 0.3.8
 
 * Fix an issue that prevented non-inline source maps with the `build()` API ([#130](https://github.com/evanw/esbuild/issues/130))
@@ -10,7 +20,7 @@
 
 * Add an unsupported build for ARM64 ([#123](https://github.com/evanw/esbuild/issues/123))
 
-    Now you can `npm install esbuild` on a Linux ARM64 machine and it should work. This lets you run esbuild on a Raspberry Pi. Note that this target isn't officially supported because it's not covered by any automated tests.
+    Now you can `npm install esbuild` on a Linux ARM64 machine and it should work. This lets you run esbuild on a Raspberry Pi. Note that this target isn't officially supported because it's not covered by any automated tests. This was contributed by [@violentmagician](https://github.com/violentmagician).
 
 ## 0.3.6
 
