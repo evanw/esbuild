@@ -2487,6 +2487,43 @@ func testAutoDetectMimeTypeFromExtension(t *testing.T) {
 	})
 }
 
+func TestLoaderURL(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.svg'))
+			`,
+			"/test.svg": "<svg></svg>",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:   true,
+			AbsOutputDir: "/out/",
+			ExtensionToLoader: map[string]Loader{
+				".js":  LoaderJS,
+				".svg": LoaderURL,
+			},
+		},
+		expected: map[string]string{
+			"/out/entry.js": `bootstrap({
+  1(exports, module) {
+    // /test.svg
+    module.exports = "test.svg";
+  },
+
+  0() {
+    // /entry.js
+    console.log(__require(1 /* ./test.svg */));
+  }
+}, 0);
+`,
+		},
+	})
+}
+
 func TestRequireBadExtension(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
