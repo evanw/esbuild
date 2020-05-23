@@ -54,7 +54,7 @@ type parseResult struct {
 func parseFile(
 	log logging.Log,
 	res resolver.Resolver,
-	absolutePath string,
+	sourcePath string,
 	sourceIndex uint32,
 	isStdin bool,
 	importSource logging.Source,
@@ -64,9 +64,9 @@ func parseFile(
 	bundleOptions BundleOptions,
 	results chan parseResult,
 ) {
-	prettyPath := absolutePath
+	prettyPath := sourcePath
 	if !isStdin {
-		prettyPath = res.PrettyPath(absolutePath)
+		prettyPath = res.PrettyPath(sourcePath)
 	}
 	contents := ""
 
@@ -82,9 +82,9 @@ func parseFile(
 			contents = string(bytes)
 		} else {
 			var ok bool
-			contents, ok = res.Read(absolutePath)
+			contents, ok = res.Read(sourcePath)
 			if !ok {
-				log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", absolutePath))
+				log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", sourcePath))
 				results <- parseResult{}
 				return
 			}
@@ -94,15 +94,15 @@ func parseFile(
 	source := logging.Source{
 		Index:        sourceIndex,
 		IsStdin:      isStdin,
-		AbsolutePath: absolutePath,
+		AbsolutePath: sourcePath,
 		PrettyPath:   prettyPath,
 		Contents:     contents,
 	}
 
 	// Get the file extension
 	extension := ""
-	if lastDot := strings.LastIndexByte(absolutePath, '.'); lastDot >= 0 {
-		extension = absolutePath[lastDot:]
+	if lastDot := strings.LastIndexByte(sourcePath, '.'); lastDot >= 0 {
+		extension = sourcePath[lastDot:]
 	}
 
 	// Pick the loader based on the file extension
@@ -162,7 +162,7 @@ func parseFile(
 		results <- parseResult{source, ast, true}
 
 	case LoaderURL:
-		url := path.Base(absolutePath)
+		url := path.Base(sourcePath)
 		targetFolder := bundleOptions.AbsOutputDir
 		if targetFolder == "" {
 			targetFolder = path.Dir(bundleOptions.AbsOutputFile)
@@ -173,7 +173,7 @@ func parseFile(
 		results <- parseResult{source, ast, true}
 
 	default:
-		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", absolutePath))
+		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", sourcePath))
 		results <- parseResult{}
 	}
 }
