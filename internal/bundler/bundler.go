@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -53,7 +54,7 @@ type parseResult struct {
 func parseFile(
 	log logging.Log,
 	res resolver.Resolver,
-	path string,
+	absolutePath string,
 	sourceIndex uint32,
 	isStdin bool,
 	importSource logging.Source,
@@ -63,9 +64,9 @@ func parseFile(
 	bundleOptions BundleOptions,
 	results chan parseResult,
 ) {
-	prettyPath := path
+	prettyPath := absolutePath
 	if !isStdin {
-		prettyPath = res.PrettyPath(path)
+		prettyPath = res.PrettyPath(absolutePath)
 	}
 	contents := ""
 
@@ -81,9 +82,9 @@ func parseFile(
 			contents = string(bytes)
 		} else {
 			var ok bool
-			contents, ok = res.Read(path)
+			contents, ok = res.Read(absolutePath)
 			if !ok {
-				log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", path))
+				log.AddRangeError(importSource, pathRange, fmt.Sprintf("Could not read from file: %s", absolutePath))
 				results <- parseResult{}
 				return
 			}
@@ -93,15 +94,15 @@ func parseFile(
 	source := logging.Source{
 		Index:        sourceIndex,
 		IsStdin:      isStdin,
-		AbsolutePath: path,
+		AbsolutePath: absolutePath,
 		PrettyPath:   prettyPath,
 		Contents:     contents,
 	}
 
 	// Get the file extension
 	extension := ""
-	if lastDot := strings.LastIndexByte(path, '.'); lastDot >= 0 {
-		extension = path[lastDot:]
+	if lastDot := strings.LastIndexByte(absolutePath, '.'); lastDot >= 0 {
+		extension = absolutePath[lastDot:]
 	}
 
 	// Pick the loader based on the file extension
@@ -160,8 +161,19 @@ func parseFile(
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
 		results <- parseResult{source, ast, true}
 
+	case LoaderURL:
+		url := path.Base(absolutePath)
+		targetFolder := bundleOptions.AbsOutputDir
+		if targetFolder == "" {
+			targetFolder = path.Dir(bundleOptions.AbsOutputFile)
+		}
+		defer ioutil.WriteFile(path.Join(targetFolder, url), []byte(source.Contents), 0644)
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
+		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
+		results <- parseResult{source, ast, true}
+
 	default:
-		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", path))
+		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", absolutePath))
 		results <- parseResult{}
 	}
 }
@@ -295,6 +307,7 @@ const (
 	LoaderText
 	LoaderBase64
 	LoaderDataURL
+	LoaderURL
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {
