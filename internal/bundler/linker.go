@@ -61,7 +61,6 @@ type entryPointStatus uint8
 const (
 	entryPointNone entryPointStatus = iota
 	entryPointUserSpecified
-	entryPointDynamicImport
 )
 
 type fileMeta struct {
@@ -375,20 +374,10 @@ func (c *linkerContext) scanImportsAndExports() {
 			// Handle require() and import()
 			for _, importPath := range part.ImportPaths {
 				switch importPath.Kind {
-				case ast.ImportRequire:
+				case ast.ImportRequire, ast.ImportDynamic:
 					// Files that are imported with require() must be CommonJS modules
 					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
 						c.fileMeta[otherSourceIndex].cjsStyleExports = true
-					}
-
-				case ast.ImportDynamic:
-					// Files that are imported with import() must be entry points
-					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
-						otherFileMeta := &c.fileMeta[otherSourceIndex]
-						if otherFileMeta.entryPointStatus == entryPointNone {
-							c.entryPoints = append(c.entryPoints, otherSourceIndex)
-							otherFileMeta.entryPointStatus = entryPointDynamicImport
-						}
 					}
 				}
 			}
@@ -989,9 +978,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 			switch importPath.Kind {
 			case ast.ImportStmt, ast.ImportDynamic:
 				if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
-					if importPath.Kind == ast.ImportStmt {
-						c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
-					}
+					c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
 					if c.fileMeta[otherSourceIndex].cjsStyleExports {
 						// This is an ES6 import of a module that's potentially CommonJS
 						needsToModule = true
@@ -1212,8 +1199,7 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 		fileMeta := &c.fileMeta[sourceIndex]
 		for partIndex, part := range file.ast.Parts {
 			for _, importPath := range part.ImportPaths {
-				if importPath.Kind == ast.ImportStmt || (importPath.Kind == ast.ImportRequire &&
-					chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits)) {
+				if importPath.Kind == ast.ImportStmt || chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
 					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
 						visit(otherSourceIndex)
 					}

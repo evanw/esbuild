@@ -387,21 +387,15 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
 
-	// If we're bundling, link all files together
-	if options.IsBundling {
-		// The format can't be "preserve" while bundling
-		if options.OutputFormat == printer.FormatPreserve {
-			options.OutputFormat = printer.FormatESModule
-		}
-
-		c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints)
-		return c.link()
+	// The format can't be "preserve" while bundling
+	if options.IsBundling && options.OutputFormat == printer.FormatPreserve {
+		options.OutputFormat = printer.FormatESModule
 	}
 
 	waitGroup := sync.WaitGroup{}
 	resultGroups := make([][]BundleResult, len(b.entryPoints))
 
-	// Otherwise, link each file with the runtime file separately in parallel
+	// Link each file with the runtime file separately in parallel
 	for i, entryPoint := range b.entryPoints {
 		waitGroup.Add(1)
 		go func(i int, entryPoint uint32) {

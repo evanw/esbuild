@@ -2224,21 +2224,23 @@ func TestDynamicImportWithTemplateIIFE(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatIIFE,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /b.js
+			"/out.js": `(() => {
+  // /b.js
+  var require_b = __commonJS((exports) => {
     exports.x = 123;
-  },
+  });
 
-  0() {
-    // /a.js
-    Promise.resolve().then(() => __import(1 /* ./b */)).then((ns) => console.log(ns));
-    Promise.resolve().then(() => __import(1 /* ./b */)).then((ns) => console.log(ns));
-  }
-}, 0);
+  // /a.js
+  var require_a = __commonJS(() => {
+    Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
+    Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
+  });
+  require_a();
+})();
 `,
 		},
 	})
