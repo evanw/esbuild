@@ -6,7 +6,7 @@
 
     This loader turns the file into a base64-encoded data URL. The mime type is automatically derived from the file extension, with the file contents used as a fallback. This was contributed by [@viankakrisna](https://github.com/viankakrisna).
 
-* Fix minification bug with external modules
+* Fix minification bug with external modules ([#134](https://github.com/evanw/esbuild/issues/134))
 
     When loading a module marked `--external` with `require()`, the resulting code was sometimes incorrectly minified when bundling. This now has test coverage.
 
