@@ -60,7 +60,7 @@ Several reasons:
 * JavaScript and TypeScript syntax
 * CommonJS and ES6 modules
 * JSX-to-JavaScript conversion
-* Bundling with static binding of ES6 modules using `--bundle`
+* Bundling using `--bundle` with scope hoisting and tree shaking of ES6 modules
 * Full minification with `--minify` (whitespace, identifiers, and mangling)
 * Full source map support when `--sourcemap` is enabled
 * Compile-time identifier substitutions via `--define`
@@ -158,7 +158,7 @@ These TypeScript-only syntax features are not yet supported, and currently canno
 
     That said, esbuild now has a [JavaScript API](#transforming-a-file) that exposes some of its transform code. This means it can be used as a library to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript to older JavaScript. So even if esbuild doesn't support a particular technology, it's possible that esbuild can still be integrated as a library to help speed it up. For example, [Vite](https://github.com/vuejs/vite) recently started using esbuild's transform library to add support for TypeScript (the official TypeScript compiler was too slow).
 
-* I'm mainly looking for feedback at the moment, not contributions. The project is early and I'm still working toward an MVP bundler that can reasonably replace real-world toolchains. There are still major fundamental pieces that haven't been put in place yet (e.g. CSS support, watch mode, tree shaking, code splitting) and they all need to work well together to have best-in-class performance.
+* I'm mainly looking for feedback at the moment, not contributions. The project is early and I'm still working toward an MVP bundler that can reasonably replace real-world toolchains. There are still major fundamental pieces that haven't been put in place yet (e.g. CSS support, watch mode, code splitting) and they all need to work well together to have best-in-class performance.
 
 * The Go code in this repo isn't intended to be built upon. Go is just an implementation detail of how I built this tool. The stable interfaces for this project are the command-line API and the JavaScript API, not the internal Go code. I'm may change the internals in a backwards-incompatible way at any time to improve performance or introduce new features.
 
