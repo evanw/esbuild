@@ -405,6 +405,17 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		args.bundleOptions.AbsOutputDir = fs.Dir(args.bundleOptions.AbsOutputFile)
 	}
 
+	// Disallow bundle-only options when not bundling
+	if !args.bundleOptions.IsBundling {
+		if args.bundleOptions.OutputFormat != printer.FormatPreserve {
+			return argsObject{}, fmt.Errorf("Cannot use --format without --bundle")
+		}
+
+		if len(args.resolveOptions.ExternalModules) > 0 {
+			return argsObject{}, fmt.Errorf("Cannot use --external without --bundle")
+		}
+	}
+
 	if args.bundleOptions.IsBundling && args.bundleOptions.OutputFormat == printer.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
 		switch args.resolveOptions.Platform {

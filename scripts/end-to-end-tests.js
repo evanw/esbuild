@@ -249,16 +249,15 @@
 
   function test(args, files, options) {
     return async () => {
+      const hasBundle = args.includes('--bundle')
+      const hasCJS = args.includes('--format=cjs')
+      const hasESM = args.includes('--format=esm')
+      const formats = hasCJS || !hasBundle ? ['cjs'] : hasESM ? ['esm'] : ['cjs', 'esm']
+
       // If the test doesn't specify a format, test both formats
-      for (const format of ['cjs', 'esm']) {
-        const hasFormatAlready = args.some(x => x.startsWith('--format='))
+      for (const format of formats) {
         const formatArg = `--format=${format}`
-
-        // If the test does specify a format, only test that format
-        if (hasFormatAlready && !args.includes(formatArg))
-          continue
-
-        const argsWithFormat = hasFormatAlready ? args : args.concat(formatArg)
+        const modifiedArgs = !hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)
         const thisTestDir = path.join(testDir, '' + testCount++)
 
         try {
@@ -274,7 +273,7 @@
           }
 
           // Run esbuild
-          await util.promisify(childProcess.execFile)(esbuildPath, argsWithFormat,
+          await util.promisify(childProcess.execFile)(esbuildPath, modifiedArgs,
             { cwd: thisTestDir, stdio: 'pipe' })
 
           // Run the resulting node.js file and make sure it exits cleanly
@@ -307,7 +306,7 @@
         catch (e) {
           console.error(`❌ test failed: ${e && e.message || e}
   dir: ${path.relative(dirname, thisTestDir)}
-  args: ${argsWithFormat.join(' ')}
+  args: ${modifiedArgs.join(' ')}
   files: ${Object.entries(files).map(([k, v]) => `\n    ${k}: ${JSON.stringify(v)}`).join('')}
 `)
           return false
