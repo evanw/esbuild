@@ -25,6 +25,8 @@ jobs:
 
     - name: Setup Node.js environment
       uses: actions/setup-node@v1.4.2
+      with:
+        node-version: 12
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
