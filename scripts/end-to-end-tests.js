@@ -32,6 +32,8 @@
     test(['--define:foo=-123.456', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== -123.456) throw 'fail'` }),
     test(['--define:foo=global', 'in.js', '--outfile=node.js'], { 'in.js': `foo.bar = 123; if (bar !== 123) throw 'fail'` }),
     test(['--define:foo=bar', 'in.js', '--outfile=node.js'], { 'in.js': `let bar = {x: 123}; if (foo.x !== 123) throw 'fail'` }),
+    test(['--define:a.x=1', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x !== 1) throw 'fail'` }),
+    test(['--define:a.x=1', '--define:b.x=1', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + b.x !== 2) throw 'fail'` }),
   ]
 
   // Tests for symlinks

@@ -76,6 +76,7 @@ Examples:
 type argsObject struct {
 	traceFile      string
 	cpuprofileFile string
+	rawDefines     map[string]parser.DefineFunc
 	parseOptions   parser.ParseOptions
 	bundleOptions  bundler.BundleOptions
 	resolveOptions resolver.ResolveOptions
@@ -106,10 +107,15 @@ func (args *argsObject) parseDefine(key string, value string) bool {
 		}
 	}
 
+	// Lazily create the defines map
+	if args.rawDefines == nil {
+		args.rawDefines = make(map[string]parser.DefineFunc)
+	}
+
 	// Allow substituting for an identifier
 	if lexer.IsIdentifier(value) {
 		if _, ok := lexer.Keywords()[value]; !ok {
-			args.parseOptions.Defines[key] = func(findSymbol parser.FindSymbol) ast.E {
+			args.rawDefines[key] = func(findSymbol parser.FindSymbol) ast.E {
 				return &ast.EIdentifier{findSymbol(value)}
 			}
 			return true
@@ -140,7 +146,7 @@ func (args *argsObject) parseDefine(key string, value string) bool {
 		return false
 	}
 
-	args.parseOptions.Defines[key] = fn
+	args.rawDefines[key] = fn
 	return true
 }
 
@@ -181,9 +187,6 @@ func (args *argsObject) parseMemberExpression(text string) ([]string, bool) {
 
 func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 	args := argsObject{
-		parseOptions: parser.ParseOptions{
-			Defines: make(map[string]parser.DefineFunc),
-		},
 		bundleOptions: bundler.BundleOptions{
 			ExtensionToLoader: bundler.DefaultExtensionToLoaderMap(),
 		},
@@ -460,6 +463,10 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		}
 	}
 
+	// Processing defines is expensive. Process them once here so the same object
+	// can be shared between all parsers we create using these arguments.
+	processedDefines := parser.ProcessDefines(args.rawDefines)
+	args.parseOptions.Defines = &processedDefines
 	return args, nil
 }
 

@@ -2,7 +2,7 @@ package runtime
 
 const Code = `
 	let __defineProperty = Object.defineProperty
-	let __hasOwnProperty = Object.hasOwnProperty
+	let __hasOwnProperty = Object.prototype.hasOwnProperty
 	let __getOwnPropertySymbols = Object.getOwnPropertySymbols
 	let __propertyIsEnumerable = Object.propertyIsEnumerable
 

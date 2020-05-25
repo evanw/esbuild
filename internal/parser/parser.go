@@ -96,8 +96,7 @@ type parser struct {
 	typeofTarget      ast.E
 	moduleScope       *ast.Scope
 	isControlFlowDead bool
-	identifierDefines map[string]DefineFunc
-	dotDefines        map[string]dotDefine
+	processedDefines  ProcessedDefines
 
 	// Temporary variables used for lowering
 	tempRefsToDeclare []ast.Ref
@@ -5072,15 +5071,6 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 	return stmts
 }
 
-type dotDefine struct {
-	parts      []string
-	defineFunc DefineFunc
-
-	// This is used to whitelist certain functions that are known to be safe to
-	// remove if their result is unused
-	canBeRemovedIfUnused bool
-}
-
 type generateTempRefArg uint8
 
 const (
@@ -7614,7 +7604,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound && !result.isInsideWithScope {
-			if defineFunc, ok := p.identifierDefines[name]; ok {
+			if defineFunc, ok := p.processedDefines.IdentifierDefines[name]; ok {
 				new := p.valueForDefine(expr.Loc, defineFunc)
 
 				// Don't substitute an identifier for a non-identifier if this is an
@@ -7969,13 +7959,19 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EDot:
-		if define, ok := p.dotDefines[e.Name]; ok && p.isDotDefineMatch(expr, define.parts) {
-			if define.canBeRemovedIfUnused {
-				// This expression matches our whitelist of side-effect-free properties
-				e.CanBeRemovedIfUnused = true
-			} else {
-				// Substitute user-specified defines
-				return p.valueForDefine(expr.Loc, define.defineFunc), exprOut{}
+		// Check both user-specified defines and known globals
+		if defines, ok := p.processedDefines.DotDefines[e.Name]; ok {
+			for _, define := range defines {
+				if p.isDotDefineMatch(expr, define.Parts) {
+					if define.CanBeRemovedIfUnused {
+						// This expression matches our whitelist of side-effect-free properties
+						e.CanBeRemovedIfUnused = true
+						break
+					}
+
+					// Substitute user-specified defines
+					return p.valueForDefine(expr.Loc, define.DefineFunc), exprOut{}
+				}
 			}
 		}
 
@@ -8751,15 +8747,12 @@ type TypeScriptOptions struct {
 	Parse bool
 }
 
-type FindSymbol func(name string) ast.Ref
-type DefineFunc func(FindSymbol) ast.E
-
 type ParseOptions struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	Defines      map[string]DefineFunc
+	Defines      *ProcessedDefines
 	MangleSyntax bool
 	OmitWarnings bool
 	TS           TypeScriptOptions
@@ -8768,6 +8761,11 @@ type ParseOptions struct {
 }
 
 func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options ParseOptions) *parser {
+	if options.Defines == nil {
+		defaultDefines := ProcessDefines(nil)
+		options.Defines = &defaultDefines
+	}
+
 	p := &parser{
 		log:               log,
 		source:            source,
@@ -8779,6 +8777,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		omitWarnings:      options.OmitWarnings,
 		mangleSyntax:      options.MangleSyntax,
 		isBundling:        options.IsBundling,
+		processedDefines:  *options.Defines,
 		currentFnOpts:     fnOpts{isOutsideFn: true},
 		useCountEstimates: make(map[ast.Ref]uint32),
 		runtimeImports:    make(map[string]ast.Ref),
@@ -8793,8 +8792,6 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		isImportItem:            make(map[ast.Ref]bool),
 		namedImports:            make(map[ast.Ref]ast.NamedImport),
 		namedExports:            make(map[string]ast.Ref),
-		identifierDefines:       make(map[string]DefineFunc),
-		dotDefines:              make(map[string]dotDefine),
 	}
 
 	p.findSymbolHelper = func(name string) ast.Ref { return p.findSymbol(name).ref }
@@ -8812,22 +8809,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		p.currentScope.Members["module"] = p.moduleRef
 	}
 
-	// Mark these functions as free of side effects
-	p.addSideEffectFreeFunction([]string{"Object", "defineProperty"})
-	p.addSideEffectFreeFunction([]string{"Object", "hasOwnProperty"})
-	p.addSideEffectFreeFunction([]string{"Object", "getOwnPropertySymbols"})
-	p.addSideEffectFreeFunction([]string{"Object", "propertyIsEnumerable"})
-	p.addSideEffectFreeFunction([]string{"Math", "pow"})
-	p.addSideEffectFreeFunction([]string{"Object", "assign"})
-
 	return p
-}
-
-func (p *parser) addSideEffectFreeFunction(parts []string) {
-	p.dotDefines[parts[len(parts)-1]] = dotDefine{
-		parts:                parts,
-		canBeRemovedIfUnused: true,
-	}
 }
 
 func Parse(log logging.Log, source logging.Source, options ParseOptions) (result ast.AST, ok bool) {
@@ -8861,21 +8843,6 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	// Parse the file in the first pass, but do not bind symbols
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{isModuleScope: true})
 	p.prepareForVisitPass()
-
-	// Load user-specified defines
-	if options.Defines != nil {
-		for k, v := range options.Defines {
-			parts := strings.Split(k, ".")
-			if len(parts) == 1 {
-				p.identifierDefines[k] = v
-			} else {
-				p.dotDefines[parts[len(parts)-1]] = dotDefine{
-					parts:      parts,
-					defineFunc: v,
-				}
-			}
-		}
-	}
 
 	// Bind symbols in a second pass over the AST. I started off doing this in a
 	// single pass, but it turns out it's pretty much impossible to do this
@@ -9044,11 +9011,6 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 func (p *parser) prepareForVisitPass() {
 	p.pushScopeForVisitPass(ast.ScopeEntry, ast.Loc{locModuleScope})
 	p.moduleScope = p.currentScope
-
-	// Swap in certain literal values because those can be constant folded
-	p.identifierDefines["undefined"] = func(FindSymbol) ast.E { return &ast.EUndefined{} }
-	p.identifierDefines["NaN"] = func(FindSymbol) ast.E { return &ast.ENumber{math.NaN()} }
-	p.identifierDefines["Infinity"] = func(FindSymbol) ast.E { return &ast.ENumber{math.Inf(1)} }
 }
 
 func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string) ast.AST {
