@@ -62,6 +62,7 @@ type parser struct {
 	knownEnumValues            map[ast.Ref]map[string]float64
 
 	// These are for handling ES6 imports and exports
+	hasES6ModuleSyntax      bool
 	importItemsForNamespace map[ast.Ref]map[string]ast.LocRef
 	isImportItem            map[ast.Ref]bool
 	namedImports            map[ast.Ref]ast.NamedImport
@@ -2477,6 +2478,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		return ast.Expr{}
 
 	case lexer.TImport:
+		p.hasES6ModuleSyntax = true
 		p.lexer.Next()
 		return p.parseImportExpr(loc)
 
@@ -3947,7 +3949,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SEmpty{}}
 
 	case lexer.TExport:
-		if !opts.isModuleScope && !opts.isNamespaceScope {
+		if opts.isModuleScope {
+			p.hasES6ModuleSyntax = true
+		} else if !opts.isNamespaceScope {
 			p.lexer.Unexpected()
 		}
 		p.lexer.Next()
@@ -4542,6 +4546,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SFor{init, test, update, body}}
 
 	case lexer.TImport:
+		p.hasES6ModuleSyntax = true
 		p.lexer.Next()
 		stmt := ast.SImport{}
 
@@ -7605,12 +7610,19 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		*ast.ERegExp, *ast.ENewTarget, *ast.EUndefined:
 
 	case *ast.EThis:
-		// In a CommonJS module, "this" is supposed to be the same as "exports".
-		// Instead of doing this at runtime using "fn.call(module.exports)", we
-		// do it at compile time using expression substitution here.
 		if p.isBundling && !p.isThisCaptured {
-			p.recordUsage(p.exportsRef)
-			return ast.Expr{expr.Loc, &ast.EIdentifier{p.exportsRef}}, exprOut{}
+			if p.hasES6ModuleSyntax {
+				// In an ES6 module, "this" is supposed to be undefined. Instead of
+				// doing this at runtime using "fn.call(undefined)", we do it at
+				// compile time using expression substitution here.
+				return ast.Expr{expr.Loc, &ast.EUndefined{}}, exprOut{}
+			} else {
+				// In a CommonJS module, "this" is supposed to be the same as "exports".
+				// Instead of doing this at runtime using "fn.call(module.exports)", we
+				// do it at compile time using expression substitution here.
+				p.recordUsage(p.exportsRef)
+				return ast.Expr{expr.Loc, &ast.EIdentifier{p.exportsRef}}, exprOut{}
+			}
 		}
 
 	case *ast.EImportMeta:

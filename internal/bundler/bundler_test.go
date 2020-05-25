@@ -3383,6 +3383,293 @@ new Foo(foo(obj));
 	})
 }
 
+// The value of "this" is "exports" in CommonJS modules and undefined in ES6
+// modules. This is determined by the presence of ES6 import/export syntax.
+func TestThisWithES6Syntax(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './cjs'
+
+				import './es6-import-stmt'
+				import './es6-import-assign'
+				import './es6-import-dynamic'
+				import './es6-import-meta'
+				import './es6-expr-import-dynamic'
+				import './es6-expr-import-meta'
+
+				import './es6-export-variable'
+				import './es6-export-function'
+				import './es6-export-async-function'
+				import './es6-export-enum'
+				import './es6-export-const-enum'
+				import './es6-export-module'
+				import './es6-export-namespace'
+				import './es6-export-class'
+				import './es6-export-abstract-class'
+				import './es6-export-default'
+				import './es6-export-clause'
+				import './es6-export-clause-from'
+				import './es6-export-star'
+				import './es6-export-star-as'
+				import './es6-export-assign'
+				import './es6-export-import-assign'
+
+				import './es6-ns-export-variable'
+				import './es6-ns-export-function'
+				import './es6-ns-export-async-function'
+				import './es6-ns-export-enum'
+				import './es6-ns-export-const-enum'
+				import './es6-ns-export-module'
+				import './es6-ns-export-namespace'
+				import './es6-ns-export-class'
+				import './es6-ns-export-abstract-class'
+				`,
+			"/dummy.js": `export const dummy = 123`,
+			"/cjs.js":   `console.log(this)`,
+
+			"/es6-import-stmt.js":         `import './dummy'; console.log(this)`,
+			"/es6-import-assign.ts":       `import x = require('./dummy'); console.log(this)`,
+			"/es6-import-dynamic.js":      `import('./dummy'); console.log(this)`,
+			"/es6-import-meta.js":         `import.meta; console.log(this)`,
+			"/es6-expr-import-dynamic.js": `(import('./dummy')); console.log(this)`,
+			"/es6-expr-import-meta.js":    `(import.meta); console.log(this)`,
+
+			"/es6-export-variable.js":       `export const foo = 123; console.log(this)`,
+			"/es6-export-function.js":       `export function foo() {} console.log(this)`,
+			"/es6-export-async-function.js": `export async function foo() {} console.log(this)`,
+			"/es6-export-enum.ts":           `export enum Foo {} console.log(this)`,
+			"/es6-export-const-enum.ts":     `export const enum Foo {} console.log(this)`,
+			"/es6-export-module.ts":         `export module Foo {} console.log(this)`,
+			"/es6-export-namespace.ts":      `export namespace Foo {} console.log(this)`,
+			"/es6-export-class.js":          `export class Foo {} console.log(this)`,
+			"/es6-export-abstract-class.ts": `export abstract class Foo {} console.log(this)`,
+			"/es6-export-default.js":        `export default 123; console.log(this)`,
+			"/es6-export-clause.js":         `export {}; console.log(this)`,
+			"/es6-export-clause-from.js":    `export {} from './dummy'; console.log(this)`,
+			"/es6-export-star.js":           `export * from './dummy'; console.log(this)`,
+			"/es6-export-star-as.js":        `export * as ns from './dummy'; console.log(this)`,
+			"/es6-export-assign.ts":         `export = 123; console.log(this)`,
+			"/es6-export-import-assign.ts":  `export import x = require('./dummy'); console.log(this)`,
+
+			"/es6-ns-export-variable.ts":       `namespace ns { export const foo = 123; } console.log(this)`,
+			"/es6-ns-export-function.ts":       `namespace ns { export function foo() {} } console.log(this)`,
+			"/es6-ns-export-async-function.ts": `namespace ns { export async function foo() {} } console.log(this)`,
+			"/es6-ns-export-enum.ts":           `namespace ns { export enum Foo {} } console.log(this)`,
+			"/es6-ns-export-const-enum.ts":     `namespace ns { export const enum Foo {} } console.log(this)`,
+			"/es6-ns-export-module.ts":         `namespace ns { export module Foo {} } console.log(this)`,
+			"/es6-ns-export-namespace.ts":      `namespace ns { export namespace Foo {} } console.log(this)`,
+			"/es6-ns-export-class.ts":          `namespace ns { export class Foo {} } console.log(this)`,
+			"/es6-ns-export-abstract-class.ts": `namespace ns { export abstract class Foo {} } console.log(this)`,
+		},
+		entryPaths: []string{
+			"/entry.js",
+		},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /cjs.js
+var require_cjs = __commonJS((exports) => {
+  console.log(exports);
+});
+
+// /dummy.js
+var require_dummy = __commonJS((exports) => {
+  __export(exports, {
+    dummy: () => dummy3
+  });
+  const dummy3 = 123;
+});
+
+// /es6-import-stmt.js
+const dummy2 = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-import-assign.ts
+const x2 = require_dummy();
+console.log(void 0);
+
+// /es6-import-dynamic.js
+Promise.resolve().then(() => __toModule(require_dummy()));
+console.log(void 0);
+
+// /es6-import-meta.js
+console.log(void 0);
+
+// /es6-expr-import-dynamic.js
+Promise.resolve().then(() => __toModule(require_dummy()));
+console.log(void 0);
+
+// /es6-expr-import-meta.js
+console.log(void 0);
+
+// /es6-export-variable.js
+console.log(void 0);
+
+// /es6-export-function.js
+console.log(void 0);
+
+// /es6-export-async-function.js
+console.log(void 0);
+
+// /es6-export-enum.ts
+var Foo4;
+(function(Foo5) {
+})(Foo4 || (Foo4 = {}));
+console.log(void 0);
+
+// /es6-export-const-enum.ts
+var Foo3;
+(function(Foo5) {
+})(Foo3 || (Foo3 = {}));
+console.log(void 0);
+
+// /es6-export-module.ts
+console.log(void 0);
+
+// /es6-export-namespace.ts
+console.log(void 0);
+
+// /es6-export-class.js
+console.log(void 0);
+
+// /es6-export-abstract-class.ts
+console.log(void 0);
+
+// /es6-export-default.js
+console.log(void 0);
+
+// /es6-export-clause.js
+console.log(void 0);
+
+// /es6-export-clause-from.js
+const dummy = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-export-star.js
+console.log(void 0);
+
+// /es6-export-star-as.js
+const ns = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-export-assign.ts
+var require_es6_export_assign = __commonJS((exports, module) => {
+  console.log(void 0);
+  module.exports = 123;
+});
+
+// /es6-export-import-assign.ts
+const x = require_dummy();
+console.log(void 0);
+
+// /es6-ns-export-variable.ts
+var require_es6_ns_export_variable = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    ns3.foo = 123;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-function.ts
+var require_es6_ns_export_function = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    function foo4() {
+    }
+    ns3.foo = foo4;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-async-function.ts
+var require_es6_ns_export_async_function = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    async function foo4() {
+    }
+    ns3.foo = foo4;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-enum.ts
+var require_es6_ns_export_enum = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    let Foo5;
+    (function(Foo6) {
+    })(Foo5 = ns3.Foo || (ns3.Foo = {}));
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-const-enum.ts
+var require_es6_ns_export_const_enum = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    let Foo5;
+    (function(Foo6) {
+    })(Foo5 = ns3.Foo || (ns3.Foo = {}));
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-module.ts
+var require_es6_ns_export_module = __commonJS((exports) => {
+  console.log(exports);
+});
+
+// /es6-ns-export-namespace.ts
+var require_es6_ns_export_namespace = __commonJS((exports) => {
+  console.log(exports);
+});
+
+// /es6-ns-export-class.ts
+var require_es6_ns_export_class = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    class Foo5 {
+    }
+    ns3.Foo = Foo5;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-abstract-class.ts
+var require_es6_ns_export_abstract_class = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    class Foo5 {
+    }
+    ns3.Foo = Foo5;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /entry.js
+const cjs = __toModule(require_cjs());
+const es6_export_assign = __toModule(require_es6_export_assign());
+const es6_ns_export_variable = __toModule(require_es6_ns_export_variable());
+const es6_ns_export_function = __toModule(require_es6_ns_export_function());
+const es6_ns_export_async_function = __toModule(require_es6_ns_export_async_function());
+const es6_ns_export_enum = __toModule(require_es6_ns_export_enum());
+const es6_ns_export_const_enum = __toModule(require_es6_ns_export_const_enum());
+const es6_ns_export_module = __toModule(require_es6_ns_export_module());
+const es6_ns_export_namespace = __toModule(require_es6_ns_export_namespace());
+const es6_ns_export_class = __toModule(require_es6_ns_export_class());
+const es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstract_class());
+`,
+		},
+	})
+}
+
 func TestArrowFnScope(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

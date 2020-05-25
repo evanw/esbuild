@@ -1729,13 +1729,15 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 			text := fmt.Sprintf("%s// %s\n", indent, c.sources[compileResult.sourceIndex].PrettyPath)
 			prevOffset.advance(text)
 			j.AddString(text)
-			newlineBeforeComment = true
 		}
 
 		// Omit the trailing semicolon when minifying the last file in IIFE mode
 		bytes := compileResult.JS
 		if c.options.OutputFormat == printer.FormatIIFE && c.options.RemoveWhitespace && i+1 == len(compileResults) {
 			bytes = compileResult.JSWithoutTrailingSemicolon
+		}
+		if !isRuntime || len(bytes) > 0 {
+			newlineBeforeComment = true
 		}
 
 		// Don't include the runtime in source maps
