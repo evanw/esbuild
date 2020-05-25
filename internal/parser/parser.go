@@ -62,7 +62,8 @@ type parser struct {
 	knownEnumValues            map[ast.Ref]map[string]float64
 
 	// These are for handling ES6 imports and exports
-	hasES6ModuleSyntax      bool
+	hasES6ImportSyntax      bool
+	hasES6ExportSyntax      bool
 	importItemsForNamespace map[ast.Ref]map[string]ast.LocRef
 	isImportItem            map[ast.Ref]bool
 	namedImports            map[ast.Ref]ast.NamedImport
@@ -2478,7 +2479,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		return ast.Expr{}
 
 	case lexer.TImport:
-		p.hasES6ModuleSyntax = true
+		p.hasES6ImportSyntax = true
 		p.lexer.Next()
 		return p.parseImportExpr(loc)
 
@@ -3950,7 +3951,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 	case lexer.TExport:
 		if opts.isModuleScope {
-			p.hasES6ModuleSyntax = true
+			p.hasES6ExportSyntax = true
 		} else if !opts.isNamespaceScope {
 			p.lexer.Unexpected()
 		}
@@ -4546,7 +4547,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.SFor{init, test, update, body}}
 
 	case lexer.TImport:
-		p.hasES6ModuleSyntax = true
+		p.hasES6ImportSyntax = true
 		p.lexer.Next()
 		stmt := ast.SImport{}
 
@@ -7611,7 +7612,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EThis:
 		if p.isBundling && !p.isThisCaptured {
-			if p.hasES6ModuleSyntax {
+			if p.hasES6ImportSyntax || p.hasES6ExportSyntax {
 				// In an ES6 module, "this" is supposed to be undefined. Instead of
 				// doing this at runtime using "fn.call(undefined)", we do it at
 				// compile time using expression substitution here.
@@ -8445,8 +8446,6 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 				}
 			}
 
-			p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
-
 			if isBundling {
 				if s.StarNameLoc != nil {
 					// If we're bundling a star import, add any import items we generated
@@ -8506,6 +8505,13 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 					}
 				}
 			}
+
+			p.importPaths = append(p.importPaths, ast.ImportPath{
+				Path: s.Path,
+
+				// This is true for import statements without imports like "import 'foo'"
+				DoesNotUseExports: s.DefaultName == nil && s.StarNameLoc == nil && s.Items == nil,
+			})
 
 		case *ast.SExportStar:
 			// Only track import paths if we want dependencies
@@ -9055,20 +9061,11 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+
 		ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath))
 
-	// The following features cause us to need CommonJS mode:
-	// - Using the "exports" variable
-	// - Using the "module" variable
-	// - Using a top-level return statement
-	usesExports := p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0
-	usesModule := p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
-	usesCommonJSFeatures := p.hasTopLevelReturn || usesExports || usesModule
-
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.NewSymbolMap(int(source.Index) + 1)
 	symbols.Outer[source.Index] = p.symbols
 
 	return ast.AST{
-		UsesCommonJSFeatures:  usesCommonJSFeatures,
 		Parts:                 parts,
 		ModuleScope:           p.moduleScope,
 		Symbols:               symbols,
@@ -9080,7 +9077,14 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 		NamedExports:          p.namedExports,
 		TopLevelSymbolToParts: p.topLevelSymbolToParts,
 		ExportStars:           p.exportStars,
-		UsesExportsRef:        usesExports,
-		UsesModuleRef:         usesModule,
+
+		// CommonJS features
+		HasTopLevelReturn: p.hasTopLevelReturn,
+		UsesExportsRef:    p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0,
+		UsesModuleRef:     p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0,
+
+		// ES6 features
+		HasES6Imports: p.hasES6ImportSyntax,
+		HasES6Exports: p.hasES6ExportSyntax,
 	}
 }

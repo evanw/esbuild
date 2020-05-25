@@ -2114,6 +2114,45 @@ console.log(foo.default(foo.x, foo.y));
 	})
 }
 
+func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import fn, {x as a, y as b} from './foo'
+				import * as ns from './foo'
+				console.log(fn(a, b))
+			`,
+			"/foo.js": `
+				console.log('no exports here')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.js: warning: Import "default" will always be undefined
+/entry.js: warning: Import "x" will always be undefined
+/entry.js: warning: Import "y" will always be undefined
+`,
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+var require_foo = __commonJS(() => {
+  console.log("no exports here");
+});
+
+// /entry.js
+const foo = __toModule(require_foo());
+const ns = __toModule(require_foo());
+console.log(foo.default(foo.x, foo.y));
+`,
+		},
+	})
+}
+
 func TestExportMissingES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
@@ -2235,11 +2274,8 @@ func TestDynamicImportWithTemplateIIFE(t *testing.T) {
   });
 
   // /a.js
-  var require_a = __commonJS(() => {
-    Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
-    Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
-  });
-  require_a();
+  Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
+  Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
 })();
 `,
 		},
@@ -3193,7 +3229,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 			AbsOutputFile:    "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `(()=>{var require_entry=__commonJS(()=>{while(foo());});require_entry()})();
+			"/out.js": `(()=>{while(foo());})();
 `,
 		},
 	})

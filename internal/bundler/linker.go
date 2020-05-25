@@ -253,7 +253,7 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 		// Also associate some default metadata with the file
 		c.fileMeta[sourceIndex] = fileMeta{
 			distanceFromEntryPoint:   ^uint32(0),
-			cjsStyleExports:          file.ast.UsesCommonJSFeatures,
+			cjsStyleExports:          file.ast.HasCommonJSFeatures(),
 			partMeta:                 make([]partMeta, len(file.ast.Parts)),
 			resolvedExports:          resolvedExports,
 			isProbablyTypeScriptType: make(map[ast.Ref]bool),
@@ -267,8 +267,8 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 		fileMeta.entryPointStatus = entryPointUserSpecified
 
 		// Entry points must be CommonJS-style if the output format doesn't support
-		// ES6 import/export syntax
-		if !options.OutputFormat.KeepES6ImportExportSyntax() {
+		// ES6 export syntax
+		if !options.OutputFormat.KeepES6ImportExportSyntax() && c.files[sourceIndex].ast.HasES6Exports {
 			fileMeta.cjsStyleExports = true
 		}
 	}
@@ -374,6 +374,49 @@ func (c *linkerContext) scanImportsAndExports() {
 			// Handle require() and import()
 			for _, importPath := range part.ImportPaths {
 				switch importPath.Kind {
+				case ast.ImportStmt:
+					// Importing using ES6 syntax from a file without any ES6 syntax
+					// causes that module to be considered CommonJS-style, even if it
+					// doesn't have any CommonJS exports.
+					//
+					// That means the ES6 imports will silently become undefined instead
+					// of causing errors. This is for compatibility with older CommonJS-
+					// style bundlers.
+					//
+					// I've only come across a single case where this mattered, in the
+					// package https://github.com/megawac/MutationObserver.js. The library
+					// used to look like this:
+					//
+					//   this.MutationObserver = this.MutationObserver || (function() {
+					//     ...
+					//     return MutationObserver;
+					//   })();
+					//
+					// That is compatible with CommonJS since "this" is an alias for
+					// "exports". The code in question used the package like this:
+					//
+					//   import MutationObserver from '@sheerun/mutationobserver-shim';
+					//
+					// Then the library was updated to do this instead:
+					//
+					//   window.MutationObserver = window.MutationObserver || (function() {
+					//     ...
+					//     return MutationObserver;
+					//   })();
+					//
+					// The package was updated without the ES6 import being removed. The
+					// code still has the import but "MutationObserver" is now undefined:
+					//
+					//   import MutationObserver from '@sheerun/mutationobserver-shim';
+					//
+					if !importPath.DoesNotUseExports {
+						if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
+							if !c.files[otherSourceIndex].ast.HasES6Syntax() {
+								c.fileMeta[otherSourceIndex].cjsStyleExports = true
+							}
+						}
+					}
+
 				case ast.ImportRequire, ast.ImportDynamic:
 					// Files that are imported with require() must be CommonJS modules
 					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
@@ -711,7 +754,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 			// Resolve the import by one step
 			nextTracker, status := c.advanceImportTracker(tracker)
 			switch status {
-			case importCommonJS, importExternal:
+			case importCommonJS, importCommonJSWithoutExports, importExternal:
 				if status == importExternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
 					// Imports from external modules should not be converted to CommonJS
 					// if the output format preserves the original ES6 import statements
@@ -724,16 +767,17 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// namespace.
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 				if namedImport.NamespaceRef != ast.InvalidRef {
-					if namedImport.Alias == "*" {
-						panic(fmt.Sprintf("can not use *, NamespaceRef is %d:%d",
-							namedImport.NamespaceRef.OuterIndex,
-							namedImport.NamespaceRef.InnerIndex,
-						))
-					}
 					c.symbols.Get(importRef).NamespaceAlias = &ast.NamespaceAlias{
 						NamespaceRef: namedImport.NamespaceRef,
 						Alias:        namedImport.Alias,
 					}
+				}
+
+				// Warn about importing from a file that is known to not have any exports
+				if status == importCommonJSWithoutExports {
+					source := c.sources[tracker.sourceIndex]
+					c.log.AddRangeWarning(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+						fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
 				}
 
 			case importNoMatch:
@@ -871,6 +915,9 @@ const (
 	// The imported file is CommonJS and has unknown exports
 	importCommonJS
 
+	// The imported file was treated as CommonJS but is known to have no exports
+	importCommonJSWithoutExports
+
 	// The imported file is external and has unknown exports
 	importExternal
 
@@ -894,6 +941,10 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// Is this a CommonJS file?
 	otherFileMeta := &c.fileMeta[otherSourceIndex]
 	if otherFileMeta.cjsStyleExports {
+		otherFile := &c.files[otherSourceIndex]
+		if !otherFile.ast.UsesCommonJSExports() && !otherFile.ast.HasES6Syntax() {
+			return importTracker{}, importCommonJSWithoutExports
+		}
 		return importTracker{}, importCommonJS
 	}
 

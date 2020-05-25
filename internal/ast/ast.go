@@ -1039,19 +1039,25 @@ const (
 type ImportPath struct {
 	Path Path
 	Kind ImportKind
+
+	// If this is true, the import doesn't actually use any imported values. The
+	// import is only used for its side effects.
+	DoesNotUseExports bool
 }
 
 type AST struct {
 	WasTypeScript bool
 
-	// This is true if something used the "exports" or "module" variables, which
-	// means they could have exported something. It's also true if the file
-	// contains a top-level return statement. When a file uses CommonJS features,
+	// This is a list of CommonJS features. When a file uses CommonJS features,
 	// it's not a candidate for "flat bundling" and must be wrapped in its own
 	// closure.
-	UsesCommonJSFeatures bool
-	UsesExportsRef       bool
-	UsesModuleRef        bool
+	HasTopLevelReturn bool
+	UsesExportsRef    bool
+	UsesModuleRef     bool
+
+	// This is a list of ES6 features
+	HasES6Imports bool
+	HasES6Exports bool
 
 	Hashbang    string
 	Parts       []Part
@@ -1068,6 +1074,18 @@ type AST struct {
 	NamedExports          map[string]Ref
 	TopLevelSymbolToParts map[Ref][]uint32
 	ExportStars           []Path
+}
+
+func (ast *AST) HasCommonJSFeatures() bool {
+	return ast.HasTopLevelReturn || ast.UsesExportsRef || ast.UsesModuleRef
+}
+
+func (ast *AST) UsesCommonJSExports() bool {
+	return ast.UsesExportsRef || ast.UsesModuleRef
+}
+
+func (ast *AST) HasES6Syntax() bool {
+	return ast.HasES6Imports || ast.HasES6Exports
 }
 
 type NamedImport struct {
