@@ -3544,7 +3544,7 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: "/entry.js: warning: This syntax is from ES2020 and is not available in ES2015\n",
+		expectedScanLog: "/entry.js: error: Big integer literals are from ES2020 and transforming them to ES2015 is not supported\n",
 		expected: map[string]string{
 			"/out.js": `var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
 let tests = {

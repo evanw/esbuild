@@ -1562,7 +1562,7 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 
 	switch p.lexer.Token {
 	case lexer.TDotDotDot:
-		p.warnAboutFutureSyntax(ES2018, p.lexer.Range())
+		p.markFutureSyntax(futureSyntaxRestProperty, ES2018, p.lexer.Range())
 		p.lexer.Next()
 		value := ast.Binding{p.lexer.Loc(), &ast.BIdentifier{p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Expect(lexer.TIdentifier)
@@ -1683,7 +1683,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 	switch p.lexer.Token {
 	// "async function() {}"
 	case lexer.TFunction:
-		p.warnAboutFutureSyntax(ES2017, asyncRange)
+		p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
 		return p.parseFnExpr(asyncRange.Loc, true /* isAsync */)
 
 		// "async => {}"
@@ -1697,7 +1697,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 
 		// "async x => {}"
 	case lexer.TIdentifier:
-		p.warnAboutFutureSyntax(ES2017, asyncRange)
+		p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
 		ref := p.storeNameInRef(p.lexer.Identifier)
 		arg := ast.Arg{Binding: ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}}
 		p.lexer.Next()
@@ -1715,7 +1715,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 		p.lexer.Next()
 		expr := p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 		if _, ok := expr.Data.(*ast.EArrow); ok {
-			p.warnAboutFutureSyntax(ES2017, asyncRange)
+			p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
 		}
 		return expr
 
@@ -1727,7 +1727,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 			p.lexer.Next()
 			expr := p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 			if _, ok := expr.Data.(*ast.EArrow); ok {
-				p.warnAboutFutureSyntax(ES2017, asyncRange)
+				p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
 			}
 			return expr
 		}
@@ -2145,7 +2145,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 	case lexer.TBigIntegerLiteral:
 		value := p.lexer.Identifier
-		p.warnAboutFutureSyntax(ES2020, p.lexer.Range())
+		p.markFutureSyntax(futureSyntaxBigInteger, ES2020, p.lexer.Range())
 		p.lexer.Next()
 		return ast.Expr{p.lexer.Loc(), &ast.EBigInt{value}}
 
@@ -2505,11 +2505,36 @@ func (p *parser) willNeedBindingPattern() bool {
 	}
 }
 
-func (p *parser) warnAboutFutureSyntax(target LanguageTarget, r ast.Range) {
+type futureSyntax uint8
+
+const (
+	futureSyntaxAsync futureSyntax = iota
+	futureSyntaxRestProperty
+	futureSyntaxForAwait
+	futureSyntaxBigInteger
+	futureSyntaxNonIdentifierArrayRest
+)
+
+func (p *parser) markFutureSyntax(syntax futureSyntax, target LanguageTarget, r ast.Range) {
 	if p.target < target {
-		p.log.AddRangeWarning(p.source, r,
-			fmt.Sprintf("This syntax is from %s and is not available in %s",
-				targetTable[target], targetTable[p.target]))
+		var name string
+		yet := " yet"
+		switch syntax {
+		case futureSyntaxAsync:
+			name = "Async functions"
+		case futureSyntaxRestProperty:
+			name = "Rest properties"
+		case futureSyntaxForAwait:
+			name = "For-await loops"
+		case futureSyntaxBigInteger:
+			name = "Big integer literals"
+			yet = "" // This will never be supported
+		case futureSyntaxNonIdentifierArrayRest:
+			name = "Non-identifier array rest patterns"
+		}
+		p.log.AddRangeError(p.source, r,
+			fmt.Sprintf("%s are from %s and transforming them to %s is not supported%s",
+				name, targetTable[target], targetTable[p.target], yet))
 	}
 }
 
@@ -3490,7 +3515,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 					// This was a bug in the ES2015 spec that was fixed in ES2016
 					if p.lexer.Token != lexer.TIdentifier {
-						p.warnAboutFutureSyntax(ES2016, p.lexer.Range())
+						p.markFutureSyntax(futureSyntaxNonIdentifierArrayRest, ES2016, p.lexer.Range())
 					}
 				}
 
@@ -3960,7 +3985,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		case lexer.TIdentifier:
 			if p.lexer.IsContextualKeyword("async") {
 				// "export async function foo() {}"
-				p.warnAboutFutureSyntax(ES2017, p.lexer.Range())
+				p.markFutureSyntax(futureSyntaxAsync, ES2017, p.lexer.Range())
 				p.lexer.Next()
 				p.lexer.Expect(lexer.TFunction)
 				opts.isExport = true
@@ -4009,7 +4034,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Next()
 
 				if p.lexer.Token == lexer.TFunction {
-					p.warnAboutFutureSyntax(ES2017, asyncRange)
+					p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
 					p.lexer.Expect(lexer.TFunction)
 					stmt := p.parseFnStmt(loc, parseStmtOpts{
 						isNameOptional:   true,
@@ -4421,7 +4446,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.addRangeError(p.lexer.Range(), "Cannot use \"await\" outside an async function")
 				isAwait = false
 			} else {
-				p.warnAboutFutureSyntax(ES2018, p.lexer.Range())
+				p.markFutureSyntax(futureSyntaxForAwait, ES2018, p.lexer.Range())
 			}
 			p.lexer.Next()
 		}
@@ -4786,7 +4811,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			asyncRange := p.lexer.Range()
 			p.lexer.Next()
 			if p.lexer.Token == lexer.TFunction {
-				p.warnAboutFutureSyntax(ES2017, asyncRange)
+				p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
 				p.lexer.Next()
 				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */)
 			}
