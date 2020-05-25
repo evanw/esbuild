@@ -175,7 +175,9 @@ THREE_FUSEBOX_RUN +=   target: 'browser',
 THREE_FUSEBOX_RUN +=   entry: './fusebox-entry.js',
 THREE_FUSEBOX_RUN +=   useSingleBundle: true,
 THREE_FUSEBOX_RUN +=   output: './dist',
-THREE_FUSEBOX_RUN += }).runProd();
+THREE_FUSEBOX_RUN += }).runProd({
+THREE_FUSEBOX_RUN +=   bundles: { app: './app.js' },
+THREE_FUSEBOX_RUN += });
 
 demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-parcel demo-three-fusebox
 
