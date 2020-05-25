@@ -47,6 +47,26 @@ let buildTests = {
 }
 
 let transformTests = {
+  async cjs_require({ service }) {
+    const { js } = await service.transform(`const {foo} = require('path')`, {})
+    assert.strictEqual(js, `const {foo} = require("path");\n`)
+  },
+
+  async cjs_exports({ service }) {
+    const { js } = await service.transform(`exports.foo = 123`, {})
+    assert.strictEqual(js, `exports.foo = 123;\n`)
+  },
+
+  async es6_import({ service }) {
+    const { js } = await service.transform(`import {foo} from 'path'`, {})
+    assert.strictEqual(js, `import {foo} from "path";\n`)
+  },
+
+  async es6_export({ service }) {
+    const { js } = await service.transform(`export const foo = 123`, {})
+    assert.strictEqual(js, `export const foo = 123;\n`)
+  },
+
   async jsx({ service }) {
     const { js } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
     assert.strictEqual(js, `console.log(React.createElement("div", null));\n`)

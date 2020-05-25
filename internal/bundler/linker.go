@@ -983,7 +983,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 						// This is an ES6 import of a module that's potentially CommonJS
 						needsToModule = true
 					}
-				} else {
+				} else if !c.options.OutputFormat.KeepES6ImportExportSyntax() {
 					// This is an ES6 import of an external module that may be CommonJS
 					needsToModule = true
 				}

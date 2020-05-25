@@ -614,15 +614,15 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `import "foo";
 import {} from "foo";
-import * as e from "foo";
-import {a as f, b as g} from "foo";
-import h from "foo";
-import j, * as i from "foo";
-import k, {a2 as l, b as m} from "foo";
-const n = [import("foo"), function a() {
+import * as a from "foo";
+import {a as b, b as c} from "foo";
+import d from "foo";
+import f, * as e from "foo";
+import g, {a2 as h, b as i} from "foo";
+const j = [import("foo"), function C() {
   return import("foo");
 }];
-console.log(e, f, g, h, j, i, k, l, m, n);
+console.log(a, b, c, d, f, e, g, h, i, j);
 `,
 		},
 	})
