@@ -1386,6 +1386,53 @@ console.log(main_esm_default());
 	})
 }
 
+func TestTsConfigPaths(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'core/test'
+				console.log(fn())
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"core/*": ["./src/*"]
+						}
+					}
+				}
+			`,
+			"/Users/user/project/src/test.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/src/test.js
+var require_test = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/src/entry.js
+const test = __toModule(require_test());
+console.log(test.default());
+`,
+		},
+	})
+}
+
 func TestPackageJsonBrowserString(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

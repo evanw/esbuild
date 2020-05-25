@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	fp "path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -230,7 +232,8 @@ type packageJson struct {
 }
 
 type tsConfigJson struct {
-	absPathBaseUrl *string // The absolute path of "compilerOptions.baseUrl"
+	absPathBaseUrl *string             // The absolute path of "compilerOptions.baseUrl"
+	paths          map[string][]string // The absolute paths of "compilerOptions.paths"
 }
 
 type dirInfo struct {
@@ -299,6 +302,25 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 				if baseUrl, ok := getString(baseUrlJson); ok {
 					baseUrl = r.fs.Join(path, baseUrl)
 					info.tsConfigJson.absPathBaseUrl = &baseUrl
+				}
+			}
+			if pathsJson, ok := getProperty(compilerOptionsJson, "paths"); ok {
+				if paths, ok := pathsJson.Data.(*ast.EObject); ok {
+					info.tsConfigJson.paths = map[string][]string{}
+					for _, prop := range paths.Properties {
+						if key, ok := getString(prop.Key); ok {
+							if value, ok := getProperty(pathsJson, key); ok {
+								if array, ok := value.Data.(*ast.EArray); ok {
+									for _, item := range array.Items {
+										if str, ok := getString(item); ok {
+											// If this is a string, it's a replacement module
+											info.tsConfigJson.paths[key] = append(info.tsConfigJson.paths[key], str)
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -578,13 +600,44 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 	return "", false
 }
 
+func resolvePathWithoutStar(from, path string) (string, error) {
+	replaced := strings.Replace(path, "/*", "", -1)
+	return fp.Join(from, replaced), nil
+}
+
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
 	for {
 		// Handle TypeScript base URLs for TypeScript code
-		if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
-			basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
-			if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-				return absolute, true
+		if dirInfo.tsConfigJson != nil {
+
+			if dirInfo.tsConfigJson.absPathBaseUrl != nil {
+				if dirInfo.tsConfigJson.paths != nil {
+					for key, originalPaths := range dirInfo.tsConfigJson.paths {
+						for _, originalPath := range originalPaths {
+							if matched, err := regexp.MatchString(key, path); matched && err == nil {
+								if absoluteOriginalPath, err := resolvePathWithoutStar(*dirInfo.tsConfigJson.absPathBaseUrl, originalPath); err == nil {
+									elements := strings.Split(path, "/")
+
+									elements = elements[1:]
+
+									resolved := append([]string{absoluteOriginalPath}, elements...)
+									basePath := r.fs.Join(resolved...)
+
+									if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+										return absolute, true
+									}
+								}
+							}
+						}
+
+					}
+				} else {
+					basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+					if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+						return absolute, true
+					}
+				}
+
 			}
 		}
 
