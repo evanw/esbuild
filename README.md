@@ -60,6 +60,11 @@ Several reasons:
 * Everything is done in very few passes without expensive data transformations
 * Code is written with speed in mind, and tries to avoid unnecessary allocations
 
+## Documentation
+
+* [architecture](docs/architecture.md)
+* [中文文档](http://docs.breword.com/evanw-esbuild/)
+
 ## Status
 
 #### Currently supported:
