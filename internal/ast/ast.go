@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"path"
 	"strings"
 )
 
@@ -1204,17 +1203,16 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	return new
 }
 
-func GenerateNonUniqueNameFromPath(text string) string {
+func GenerateNonUniqueNameFromPath(filePath string) string {
 	// Get the file name without the extension
-	base := path.Base(text)
-	lastDot := strings.LastIndexByte(base, '.')
+	lastDot := strings.LastIndexByte(filePath, '.')
 	if lastDot >= 0 {
-		base = base[:lastDot]
+		filePath = filePath[:lastDot]
 	}
 
 	// Convert it to an ASCII identifier
 	bytes := []byte{}
-	for _, c := range base {
+	for _, c := range filePath {
 		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (len(bytes) > 0 && c >= '0' && c <= '9') {
 			bytes = append(bytes, byte(c))
 		} else if len(bytes) > 0 && bytes[len(bytes)-1] != '_' {
