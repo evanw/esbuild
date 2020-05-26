@@ -804,19 +804,22 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				c.fileMeta[sourceIndex].isProbablyTypeScriptType[importRef] = true
 
 			case importFound:
+				// Defer the actual binding of this import until after we generate
+				// namespace export code for all files. This has to be done for all
+				// import-to-export matches, not just the initial import to the final
+				// export, since all imports and re-exports must be merged together
+				// for correctness.
+				fileMeta := &c.fileMeta[sourceIndex]
+				fileMeta.importsToBind[importRef] = importToBind{
+					sourceIndex: nextTracker.sourceIndex,
+					ref:         nextTracker.importRef,
+				}
+
 				// If this is a re-export of another import, continue for another
 				// iteration of the loop to resolve that import as well
 				if _, ok := c.files[nextTracker.sourceIndex].ast.NamedImports[nextTracker.importRef]; ok {
 					tracker = nextTracker
 					continue
-				}
-
-				// Defer the actual binding of this import until after we generate
-				// namespace export code for all files
-				fileMeta := &c.fileMeta[sourceIndex]
-				fileMeta.importsToBind[importRef] = importToBind{
-					sourceIndex: nextTracker.sourceIndex,
-					ref:         nextTracker.importRef,
 				}
 
 			default:
