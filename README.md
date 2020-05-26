@@ -62,7 +62,7 @@ Several reasons:
 
 ## Documentation
 
-* [architecture](docs/architecture.md)
+* [Architecture](docs/architecture.md)
 * [中文文档](http://docs.breword.com/evanw-esbuild/)
 
 ## Status
