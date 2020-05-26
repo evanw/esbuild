@@ -23,7 +23,7 @@ update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
 
 platform-all: update-version-go test test-wasm
-	make -j6 platform-windows platform-darwin platform-linux platform-linux-arm64 platform-wasm platform-neutral
+	make -j6 platform-windows platform-darwin platform-linux platform-linux-arm64 platform-linux-ppc64le platform-wasm platform-neutral
 
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
@@ -44,6 +44,11 @@ platform-linux-arm64:
 	cd npm/esbuild-linux-arm64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=linux GOARCH=arm64 go build -o npm/esbuild-linux-arm64/bin/esbuild ./cmd/esbuild
 
+platform-linux-ppc64le:
+	mkdir -p npm/esbuild-linux-ppc64le/bin
+	cd npm/esbuild-linux-ppc64le && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	GOOS=linux GOARCH=ppc64le go build -o npm/esbuild-linux-ppc64le/bin/esbuild ./cmd/esbuild
+
 platform-wasm:
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
@@ -55,7 +60,7 @@ platform-neutral:
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 
 publish-all: update-version-go test test-wasm
-	make -j6 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-wasm publish-neutral
+	make -j6 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm publish-neutral
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
 	git push origin master "v$(ESBUILD_VERSION)"
@@ -72,6 +77,9 @@ publish-linux: platform-linux
 publish-linux-arm64: platform-linux-arm64
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
 
+publish-linux-ppc64le: platform-linux-ppc64le
+	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-ppc64le && npm publish --otp="$(OTP)"
+
 publish-wasm: platform-wasm
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
 
@@ -83,6 +91,8 @@ clean:
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-linux-64/bin
+	rm -rf npm/esbuild-linux-arm64/bin
+	rm -rf npm/esbuild-linux-ppc64le/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
 	rm -rf npm/esbuild-wasm/lib
 	go clean -testcache ./internal/...

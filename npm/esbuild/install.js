@@ -72,6 +72,8 @@ if (process.platform === 'linux' && os.arch() === 'x64') {
   installOnUnix('esbuild-linux-64');
 } else if (process.platform === 'linux' && os.arch() === 'arm64') {
   installOnUnix('esbuild-linux-arm64');
+} else if (process.platform === 'linux' && os.arch() === 'ppc64' && os.endianness() === 'LE') {
+  installOnUnix('esbuild-linux-ppc64le');
 } else if (process.platform === 'darwin' && os.arch() === 'x64') {
   installOnUnix('esbuild-darwin-64');
 } else if (process.platform === 'win32' && os.arch() === 'x64') {
