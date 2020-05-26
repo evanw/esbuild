@@ -165,14 +165,6 @@
           <option>Node</option>
         </select>
       </label>
-      <label for="format">
-        Format: <select id="format">
-          <option value="" selected>Preserve</option>
-          <option value="iife">IIFE</option>
-          <option value="cjs">CommonJS</option>
-          <option value="esm">ES Modules</option>
-        </select>
-      </label>
       <label for="minify">
         <input id="minify" type="checkbox">
         Minify
@@ -195,7 +187,6 @@
       const output = document.querySelector('#output .outer')
       const target = document.querySelector('#target')
       const loader = document.querySelector('#loader')
-      const format = document.querySelector('#format')
       const platform = document.querySelector('#platform')
       const minify = document.querySelector('#minify')
       let debounceTimeout = 0
@@ -204,7 +195,6 @@
 
       target.onchange = runIfIdle
       loader.onchange = runIfIdle
-      format.onchange = runIfIdle
       platform.onchange = runIfIdle
       minify.onchange = runIfIdle
 
@@ -234,10 +224,7 @@
             '--target=' + target.value.toLowerCase(),
             '--loader:.js=' + loader.value.toLowerCase(),
             '--platform=' + platform.value.toLowerCase(),
-          ].concat(
-            minify.checked ? ['--minify'] : [],
-            format.value ? ['--format=' + format.value] : [],
-          ),
+          ].concat(minify.checked ? ['--minify'] : []),
         }).then(
           ({ files, code }) => {
             const stderr = files['/dev/stderr'] || ''
