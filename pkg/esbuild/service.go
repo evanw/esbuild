@@ -3,7 +3,7 @@
 // of strings to byte slices. All values are length-prefixed using 32-bit
 // little endian integers.
 
-package main
+package esbuild
 
 import (
 	"encoding/binary"

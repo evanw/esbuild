@@ -20,7 +20,7 @@ js-api-tests: | scripts/node_modules
 	node scripts/js-api-tests.js
 
 update-version-go:
-	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
+	echo "package esbuild\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > pkg/esbuild/version.go
 
 platform-all: update-version-go test test-wasm
 	make -j6 platform-windows platform-darwin platform-linux platform-linux-arm64 platform-wasm platform-neutral
