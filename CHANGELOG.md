@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.1
 
 * Add a log level setting ([#117](https://github.com/evanw/esbuild/issues/117))
 
@@ -13,6 +13,10 @@
 * Chinese translation of documentation ([#129](https://github.com/evanw/esbuild/pull/129))
 
     Both the readme and the architecture documentation have been translated into Chinese, which is available here: http://docs.breword.com/evanw-esbuild. This was contributed by [@92hackers](https://github.com/92hackers).
+
+* Async generator functions require `--target=es2018`
+
+    This fixes a bug where async generator functions were incorrectly allowed with `--target=es2017`, which is incorrect because the [asynchronous iteration spec](https://github.com/tc39/proposal-async-iteration) is part of ES2018.
 
 ## 0.4.0
 

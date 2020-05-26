@@ -2426,13 +2426,6 @@ func createPrinter(
 type PrintResult struct {
 	JS []byte
 
-	// For minification, it's desirable to strip off unnecessary trailing
-	// semicolons from modules inside closures before the ending "}". However,
-	// there are some syntax constructs where you can't just remove the trailing
-	// semicolon (e.g. "while(foo());"). So we also return the source without the
-	// unnecessary trailing semicolon added in case the caller needs it.
-	JSWithoutTrailingSemicolon []byte
-
 	// This source map chunk just contains the VLQ-encoded offsets for the "JS"
 	// field above. It's not a full source map. The bundler will be joining many
 	// source map chunks together to form the final source map.
@@ -2447,22 +2440,14 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
-			p.printSemicolonIfNeeded()
 			p.printStmt(stmt)
+			p.printSemicolonIfNeeded()
 		}
 	}
 
-	// Make sure each module ends in a semicolon so we don't have weird issues
-	// with automatic semicolon insertion when concatenating modules together
-	jsWithoutTrailingSemicolon := p.js
-	if options.RemoveWhitespace && len(p.js) > 0 && p.js[len(p.js)-1] != '\n' {
-		p.printSemicolonIfNeeded()
-	}
-
 	return PrintResult{
-		JS:                         p.js,
-		JSWithoutTrailingSemicolon: jsWithoutTrailingSemicolon,
-		SourceMapChunk:             SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+		JS:             p.js,
+		SourceMapChunk: SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
 	}
 }
 
@@ -2474,8 +2459,7 @@ func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) Print
 
 	p.printExpr(expr, ast.LLowest, 0)
 	return PrintResult{
-		JS:                         p.js,
-		JSWithoutTrailingSemicolon: p.js,
-		SourceMapChunk:             SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+		JS:             p.js,
+		SourceMapChunk: SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
 	}
 }

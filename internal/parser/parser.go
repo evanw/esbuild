@@ -115,6 +115,7 @@ type scopeOrder struct {
 }
 
 type fnOpts struct {
+	asyncRange  ast.Range
 	isOutsideFn bool
 	allowAwait  bool
 	allowYield  bool
@@ -1343,6 +1344,7 @@ const (
 )
 
 type propertyOpts struct {
+	asyncRange  ast.Range
 	isAsync     bool
 	isGenerator bool
 	isStatic    bool
@@ -1399,7 +1401,7 @@ func (p *parser) parseProperty(
 
 	default:
 		name := p.lexer.Identifier
-		loc := p.lexer.Loc()
+		nameRange := p.lexer.Range()
 		if !p.lexer.IsIdentifierOrKeyword() {
 			p.lexer.Expect(lexer.TIdentifier)
 		}
@@ -1432,6 +1434,7 @@ func (p *parser) parseProperty(
 				case "async":
 					if !opts.isAsync {
 						opts.isAsync = true
+						opts.asyncRange = nameRange
 						return p.parseProperty(context, kind, opts, nil)
 					}
 
@@ -1450,7 +1453,7 @@ func (p *parser) parseProperty(
 			}
 		}
 
-		key = ast.Expr{loc, &ast.EString{lexer.StringToUTF16(name)}}
+		key = ast.Expr{nameRange.Loc, &ast.EString{lexer.StringToUTF16(name)}}
 
 		// Parse a shorthand property
 		if context == propertyContextObject && kind == ast.PropertyNormal && p.lexer.Token != lexer.TColon &&
@@ -1522,6 +1525,7 @@ func (p *parser) parseProperty(
 		scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 
 		fn, hadBody := p.parseFn(nil, fnOpts{
+			asyncRange: opts.asyncRange,
 			allowAwait: opts.isAsync,
 			allowYield: opts.isGenerator,
 
@@ -1564,7 +1568,7 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 
 	switch p.lexer.Token {
 	case lexer.TDotDotDot:
-		p.markFutureSyntax(futureSyntaxRestProperty, ES2018, p.lexer.Range())
+		p.markFutureSyntax(futureSyntaxRestProperty, p.lexer.Range())
 		p.lexer.Next()
 		value := ast.Binding{p.lexer.Loc(), &ast.BIdentifier{p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Expect(lexer.TIdentifier)
@@ -1685,8 +1689,8 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 	switch p.lexer.Token {
 	// "async function() {}"
 	case lexer.TFunction:
-		p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
-		return p.parseFnExpr(asyncRange.Loc, true /* isAsync */)
+		p.markFutureSyntax(futureSyntaxAsync, asyncRange)
+		return p.parseFnExpr(asyncRange.Loc, true /* isAsync */, asyncRange)
 
 		// "async => {}"
 	case lexer.TEqualsGreaterThan:
@@ -1699,7 +1703,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 
 		// "async x => {}"
 	case lexer.TIdentifier:
-		p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
+		p.markFutureSyntax(futureSyntaxAsync, asyncRange)
 		ref := p.storeNameInRef(p.lexer.Identifier)
 		arg := ast.Arg{Binding: ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}}
 		p.lexer.Next()
@@ -1717,7 +1721,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 		p.lexer.Next()
 		expr := p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 		if _, ok := expr.Data.(*ast.EArrow); ok {
-			p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
+			p.markFutureSyntax(futureSyntaxAsync, asyncRange)
 		}
 		return expr
 
@@ -1729,7 +1733,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 			p.lexer.Next()
 			expr := p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 			if _, ok := expr.Data.(*ast.EArrow); ok {
-				p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
+				p.markFutureSyntax(futureSyntaxAsync, asyncRange)
 			}
 			return expr
 		}
@@ -1738,7 +1742,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 	}
 }
 
-func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
+func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) ast.Expr {
 	p.lexer.Next()
 	isGenerator := p.lexer.Token == lexer.TAsterisk
 	if isGenerator {
@@ -1762,6 +1766,7 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool) ast.Expr {
 	}
 
 	fn, _ := p.parseFn(name, fnOpts{
+		asyncRange: asyncRange,
 		allowAwait: isAsync,
 		allowYield: isGenerator,
 	})
@@ -2147,7 +2152,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 	case lexer.TBigIntegerLiteral:
 		value := p.lexer.Identifier
-		p.markFutureSyntax(futureSyntaxBigInteger, ES2020, p.lexer.Range())
+		p.markFutureSyntax(futureSyntaxBigInteger, p.lexer.Range())
 		p.lexer.Next()
 		return ast.Expr{p.lexer.Loc(), &ast.EBigInt{value}}
 
@@ -2222,7 +2227,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		return ast.Expr{loc, &ast.EUnary{ast.UnOpPreInc, p.parseExpr(ast.LPrefix)}}
 
 	case lexer.TFunction:
-		return p.parseFnExpr(loc, false /* isAsync */)
+		return p.parseFnExpr(loc, false /* isAsync */, ast.Range{})
 
 	case lexer.TClass:
 		p.lexer.Next()
@@ -2512,19 +2517,40 @@ type futureSyntax uint8
 
 const (
 	futureSyntaxAsync futureSyntax = iota
+	futureSyntaxAsyncGenerator
 	futureSyntaxRestProperty
 	futureSyntaxForAwait
 	futureSyntaxBigInteger
 	futureSyntaxNonIdentifierArrayRest
 )
 
-func (p *parser) markFutureSyntax(syntax futureSyntax, target LanguageTarget, r ast.Range) {
+func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
+	var target LanguageTarget
+
+	switch syntax {
+	case futureSyntaxAsync:
+		target = ES2017
+	case futureSyntaxAsyncGenerator:
+		target = ES2018
+	case futureSyntaxRestProperty:
+		target = ES2018
+	case futureSyntaxForAwait:
+		target = ES2018
+	case futureSyntaxBigInteger:
+		target = ES2020
+	case futureSyntaxNonIdentifierArrayRest:
+		target = ES2016
+	}
+
 	if p.target < target {
 		var name string
 		yet := " yet"
+
 		switch syntax {
 		case futureSyntaxAsync:
 			name = "Async functions"
+		case futureSyntaxAsyncGenerator:
+			name = "Async generator functions"
 		case futureSyntaxRestProperty:
 			name = "Rest properties"
 		case futureSyntaxForAwait:
@@ -2535,6 +2561,7 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, target LanguageTarget, r 
 		case futureSyntaxNonIdentifierArrayRest:
 			name = "Non-identifier array rest patterns"
 		}
+
 		p.log.AddRangeError(p.source, r,
 			fmt.Sprintf("%s are from %s and transforming them to %s is not supported%s",
 				name, targetTable[target], targetTable[p.target], yet))
@@ -3518,7 +3545,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 					// This was a bug in the ES2015 spec that was fixed in ES2016
 					if p.lexer.Token != lexer.TIdentifier {
-						p.markFutureSyntax(futureSyntaxNonIdentifierArrayRest, ES2016, p.lexer.Range())
+						p.markFutureSyntax(futureSyntaxNonIdentifierArrayRest, p.lexer.Range())
 					}
 				}
 
@@ -3586,6 +3613,14 @@ func (p *parser) parseBinding() ast.Binding {
 }
 
 func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool) {
+	if opts.allowAwait {
+		if opts.allowYield {
+			p.markFutureSyntax(futureSyntaxAsyncGenerator, opts.asyncRange)
+		} else {
+			p.markFutureSyntax(futureSyntaxAsync, opts.asyncRange)
+		}
+	}
+
 	args := []ast.Arg{}
 	hasRestArg := false
 	p.lexer.Expect(lexer.TOpenParen)
@@ -3872,7 +3907,7 @@ func (p *parser) parsePath() ast.Path {
 }
 
 // This assumes the "function" token has already been parsed
-func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.Stmt {
+func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyncRange ast.Range) ast.Stmt {
 	isGenerator := p.lexer.Token == lexer.TAsterisk
 	if !opts.allowLexicalDecl && (isGenerator || isAsync) {
 		p.forbidLexicalDecl(loc)
@@ -3900,6 +3935,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool) ast.
 	scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 
 	fn, hadBody := p.parseFn(name, fnOpts{
+		asyncRange: asyncRange,
 		allowAwait: isAsync,
 		allowYield: isGenerator,
 
@@ -3990,11 +4026,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		case lexer.TIdentifier:
 			if p.lexer.IsContextualKeyword("async") {
 				// "export async function foo() {}"
-				p.markFutureSyntax(futureSyntaxAsync, ES2017, p.lexer.Range())
+				asyncRange := p.lexer.Range()
 				p.lexer.Next()
 				p.lexer.Expect(lexer.TFunction)
 				opts.isExport = true
-				return p.parseFnStmt(loc, opts, true /* isAsync */)
+				return p.parseFnStmt(loc, opts, true /* isAsync */, asyncRange)
 			}
 
 			if p.ts.Parse {
@@ -4039,12 +4075,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Next()
 
 				if p.lexer.Token == lexer.TFunction {
-					p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
 					p.lexer.Expect(lexer.TFunction)
 					stmt := p.parseFnStmt(loc, parseStmtOpts{
 						isNameOptional:   true,
 						allowLexicalDecl: true,
-					}, true /* isAsync */)
+					}, true /* isAsync */, asyncRange)
 					if _, ok := stmt.Data.(*ast.STypeScript); ok {
 						return stmt // This was just a type annotation
 					}
@@ -4164,7 +4199,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 	case lexer.TFunction:
 		p.lexer.Next()
-		return p.parseFnStmt(loc, opts, false /* isAsync */)
+		return p.parseFnStmt(loc, opts, false /* isAsync */, ast.Range{})
 
 	case lexer.TEnum:
 		if !p.ts.Parse {
@@ -4451,7 +4486,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.addRangeError(p.lexer.Range(), "Cannot use \"await\" outside an async function")
 				isAwait = false
 			} else {
-				p.markFutureSyntax(futureSyntaxForAwait, ES2018, p.lexer.Range())
+				p.markFutureSyntax(futureSyntaxForAwait, p.lexer.Range())
 			}
 			p.lexer.Next()
 		}
@@ -4817,9 +4852,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			asyncRange := p.lexer.Range()
 			p.lexer.Next()
 			if p.lexer.Token == lexer.TFunction {
-				p.markFutureSyntax(futureSyntaxAsync, ES2017, asyncRange)
 				p.lexer.Next()
-				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */)
+				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */, asyncRange)
 			}
 			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LLowest, nil)
 		} else {

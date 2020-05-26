@@ -46,6 +46,17 @@ let buildTests = {
   },
 }
 
+async function futureSyntax(service, js, targetBelow, targetAbove) {
+  failure: {
+    try { await service.transform(js, { target: targetBelow }) }
+    catch { break failure }
+    throw new Error(`Expected failure for ${targetBelow}: ${js}`)
+  }
+
+  try { await service.transform(js, { target: targetAbove }) }
+  catch (e) { throw new Error(`Expected success for ${targetAbove}: ${js}\n${e}`) }
+}
+
 let transformTests = {
   async cjs_require({ service }) {
     const { js } = await service.transform(`const {foo} = require('path')`, {})
@@ -140,6 +151,27 @@ let transformTests = {
     const base64 = js.slice(js.indexOf('base64,') + 'base64,'.length)
     await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
   },
+
+  // Future syntax
+  forAwait: ({ service }) => futureSyntax(service, 'async function foo() { for await (let x of y) {} }', 'es2017', 'es2018'),
+  bigInt: ({ service }) => futureSyntax(service, '123n', 'es2019', 'es2020'),
+  objRest: ({ service }) => futureSyntax(service, 'let {...x} = y', 'es2017', 'es2018'),
+  nonIdArrayRest: ({ service }) => futureSyntax(service, 'let [...[x]] = y', 'es2015', 'es2016'),
+
+  // Future syntax: async functions
+  asyncFnStmt: ({ service }) => futureSyntax(service, 'async function foo() {}', 'es2016', 'es2017'),
+  asyncFnExpr: ({ service }) => futureSyntax(service, '(async function() {})', 'es2016', 'es2017'),
+  asyncArrowFn: ({ service }) => futureSyntax(service, '(async () => {})', 'es2016', 'es2017'),
+  asyncObjFn: ({ service }) => futureSyntax(service, '({ async foo() {} })', 'es2016', 'es2017'),
+  asyncClassStmtFn: ({ service }) => futureSyntax(service, 'class Foo { async foo() {} }', 'es2016', 'es2017'),
+  asyncClassExprFn: ({ service }) => futureSyntax(service, '(class { async foo() {} })', 'es2016', 'es2017'),
+
+  // Future syntax: async generator functions
+  asyncGenFnStmt: ({ service }) => futureSyntax(service, 'async function* foo() {}', 'es2017', 'es2018'),
+  asyncGenFnExpr: ({ service }) => futureSyntax(service, '(async function*() {})', 'es2017', 'es2018'),
+  asyncGenObjFn: ({ service }) => futureSyntax(service, '({ async* foo() {} })', 'es2017', 'es2018'),
+  asyncGenClassStmtFn: ({ service }) => futureSyntax(service, 'class Foo { async* foo() {} }', 'es2017', 'es2018'),
+  asyncGenClassExprFn: ({ service }) => futureSyntax(service, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
 async function assertSourceMap(jsSourceMap, source) {

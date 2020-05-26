@@ -108,7 +108,8 @@ These syntax features are currently always passed through un-transformed:
 |----------------------------------------------------------------------------|--------------------------------------|-----------------------------|
 | [Async functions](https://github.com/tc39/ecmascript-asyncawait)           | `es2017`                             | `async () => {}`            |
 | [Rest properties](https://github.com/tc39/proposal-object-rest-spread)     | `es2018`                             | `let {...x} = y`            |
-| [Asynchronous Iteration](https://github.com/tc39/proposal-async-iteration) | `es2018`                             | `for await (let x of y) {}` |
+| [Asynchronous iteration](https://github.com/tc39/proposal-async-iteration) | `es2018`                             | `for await (let x of y) {}` |
+| [Async generators](https://github.com/tc39/proposal-async-iteration)       | `es2018`                             | `async function* foo() {}`  |
 | [BigInt](https://github.com/tc39/proposal-bigint)                          | `es2020`                             | `123n`                      |
 | [Hashbang grammar](https://github.com/tc39/proposal-hashbang)              | `esnext`                             | `#!/usr/bin/env node`       |
 
