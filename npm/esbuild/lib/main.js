@@ -86,6 +86,7 @@ exports.build = options => {
     if (options.platform) flags.push(`--platform=${options.platform}`);
     if (options.format) flags.push(`--format=${options.format}`);
     if (options.color) flags.push(`--color=${options.color}`);
+    if (options.logLevel) flags.push(`--log-level=${options.logLevel}`);
     if (options.external) for (const name of options.external) flags.push(`--external:${name}`);
     if (options.loader) for (const ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
 

@@ -2,6 +2,7 @@ export declare type Target = 'esnext' | 'es6' | 'es2015' | 'es2016' | 'es2017' |
 export declare type Platform = 'browser' | 'node';
 export declare type Format = 'iife' | 'cjs' | 'esm';
 export declare type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64' | 'dataurl';
+export declare type LogLevel = 'info' | 'warning' | 'error';
 
 interface CommonOptions {
   sourcemap?: boolean | 'inline' | 'external';
@@ -29,6 +30,7 @@ export interface BuildOptions extends CommonOptions {
   color?: boolean;
   external?: string[];
   loader?: { [ext: string]: Loader };
+  logLevel?: LogLevel;
 
   entryPoints: string[];
 

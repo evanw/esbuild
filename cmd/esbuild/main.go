@@ -54,6 +54,7 @@ Advanced options:
   --sourcemap=external  Do not link to the source map with a comment
   --sourcefile=...      Set the source file for the source map (for stdin)
   --error-limit=...     Maximum error count or 0 to disable (default 10)
+  --log-level=...       Disable logging (info, warning, error)
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
@@ -82,6 +83,12 @@ type argsObject struct {
 	resolveOptions resolver.ResolveOptions
 	logOptions     logging.StderrOptions
 	entryPaths     []string
+}
+
+func (args argsObject) logInfo(text string) {
+	if args.logOptions.LogLevel <= logging.LevelInfo {
+		fmt.Fprintf(os.Stderr, "%s\n", text)
+	}
 }
 
 func exitWithError(text string) {
@@ -377,6 +384,18 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 				return argsObject{}, fmt.Errorf("Invalid JSX fragment: %s", arg)
 			}
 
+		case strings.HasPrefix(arg, "--log-level="):
+			switch arg[len("--log-level="):] {
+			case "info":
+				args.logOptions.LogLevel = logging.LevelInfo
+			case "warning":
+				args.logOptions.LogLevel = logging.LevelWarning
+			case "error":
+				args.logOptions.LogLevel = logging.LevelError
+			default:
+				return argsObject{}, fmt.Errorf("Invalid log level: %s", arg)
+			}
+
 		case strings.HasPrefix(arg, "--trace="):
 			args.traceFile = arg[len("--trace="):]
 
@@ -438,9 +457,6 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		// Write to stdout by default if there's only one input file
 		if len(args.entryPaths) == 1 && args.bundleOptions.AbsOutputFile == "" && args.bundleOptions.AbsOutputDir == "" {
 			args.bundleOptions.WriteToStdout = true
-			if args.bundleOptions.SourceMap != bundler.SourceMapNone {
-				args.bundleOptions.SourceMap = bundler.SourceMapInline
-			}
 		}
 	} else if !logging.GetTerminalInfo(os.Stdin).IsTTY {
 		// If called with no input files and we're not a TTY, read from stdin instead
@@ -457,9 +473,16 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 				return argsObject{}, fmt.Errorf("Cannot use --outdir when reading from stdin")
 			}
 			args.bundleOptions.WriteToStdout = true
-			if args.bundleOptions.SourceMap != bundler.SourceMapNone {
-				args.bundleOptions.SourceMap = bundler.SourceMapInline
-			}
+		}
+	}
+
+	// Change the default value for some settings if we're writing to stdout
+	if args.bundleOptions.WriteToStdout {
+		if args.bundleOptions.SourceMap != bundler.SourceMapNone {
+			args.bundleOptions.SourceMap = bundler.SourceMapInline
+		}
+		if args.logOptions.LogLevel == logging.LevelNone {
+			args.logOptions.LogLevel = logging.LevelWarning
 		}
 	}
 
@@ -520,7 +543,7 @@ func main() {
 			}
 			defer func() {
 				f.Close()
-				fmt.Fprintf(os.Stderr, "Wrote to %s\n", args.traceFile)
+				args.logInfo(fmt.Sprintf("Wrote to %s", args.traceFile))
 			}()
 			trace.Start(f)
 			defer trace.Stop()
@@ -537,7 +560,7 @@ func main() {
 			}
 			defer func() {
 				f.Close()
-				fmt.Fprintf(os.Stderr, "Wrote to %s\n", args.cpuprofileFile)
+				args.logInfo(fmt.Sprintf("Wrote to %s", args.cpuprofileFile))
 			}()
 			pprof.StartCPUProfile(f)
 			defer pprof.StopCPUProfile()
@@ -548,7 +571,7 @@ func main() {
 			// return useful information for esbuild, since it's so fast. Let's keep
 			// running for 30 seconds straight, which should give us 3,000 samples.
 			seconds := 30.0
-			fmt.Fprintf(os.Stderr, "Running for %g seconds straight due to --cpuprofile...\n", seconds)
+			args.logInfo(fmt.Sprintf("Running for %g seconds straight due to --cpuprofile...", seconds))
 			for time.Since(start).Seconds() < seconds {
 				run(fs, args)
 			}
@@ -563,9 +586,7 @@ func main() {
 		}
 	}()
 
-	if !args.bundleOptions.WriteToStdout {
-		fmt.Fprintf(os.Stderr, "Done in %dms\n", time.Since(start).Nanoseconds()/1000000)
-	}
+	args.logInfo(fmt.Sprintf("Done in %dms", time.Since(start).Nanoseconds()/1000000))
 }
 
 func run(fs fs.FS, args argsObject) {
@@ -612,9 +633,7 @@ func run(fs fs.FS, args argsObject) {
 		if err != nil {
 			exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
 		}
-		if !args.bundleOptions.WriteToStdout {
-			fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.JsContents)))
-		}
+		args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(item.JsContents))))
 
 		// Also write the source map
 		if item.SourceMapAbsPath != "" {
@@ -623,9 +642,7 @@ func run(fs fs.FS, args argsObject) {
 			if err != nil {
 				exitWithError(fmt.Sprintf("Failed to write to %s: (%s)", path, err.Error()))
 			}
-			if !args.bundleOptions.WriteToStdout {
-				fmt.Fprintf(os.Stderr, "Wrote to %s (%s)\n", path, toSize(len(item.SourceMapContents)))
-			}
+			args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(item.SourceMapContents))))
 		}
 	}
 }

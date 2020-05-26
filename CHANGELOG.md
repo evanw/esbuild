@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add a log level setting ([#117](https://github.com/evanw/esbuild/issues/117))
+
+    You can now silence esbuild except for errors with `--log-level=error`, or except for errors and warnings with `--log-level=warning`.
+
 ## 0.4.0
 
 * Add the `esm` output format ([#48](https://github.com/evanw/esbuild/issues/48))
