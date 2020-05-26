@@ -15,15 +15,13 @@ Example build script:
 ```js
 const { build } = require('esbuild')
 
-const options = {
+build({
   stdio: 'inherit',
   entryPoints: ['./src/main.ts'],
   outfile: './dist/main.js',
   minify: true,
   bundle: true,
-}
-
-build(options).catch(() => process.exit(1))
+}).catch(() => process.exit(1))
 ```
 
 See [the TypeScript type definitions](https://github.com/evanw/esbuild/blob/master/npm/esbuild/lib/main.d.ts) for the complete set of options.

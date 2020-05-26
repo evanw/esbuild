@@ -10,7 +10,7 @@ Why build another JavaScript build tool? The current build tools for the web are
 
 The use case I have in mind is packaging a large codebase for production. This includes minifying the code, which reduces network transfer time, and producing source maps, which are important for debugging errors in production. Ideally the build tool should also build quickly without having to warm up a cache first.
 
-I currently have two benchmarks that I'm using to measure esbuild performance. For these benchmarks, esbuild is **100x faster** than the other JavaScript bundlers I tested:
+I currently have two benchmarks that I'm using to measure esbuild performance. For these benchmarks, esbuild is at least **100x faster** than the other JavaScript bundlers I tested:
 
 ![](images/benchmark.png)
 
