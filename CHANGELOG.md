@@ -10,6 +10,10 @@
 
     The `"baseUrl"` setting in `tsconfig.json`, which lets you avoid `../../` relative import paths, is respected by esbuild. With this change, esbuild will also check for this setting in `jsconfig.json` if no `tsconfig.json` file is found. This is relevant to some projects that use the TypeScript compiler with JavaScript files instead of TypeScript files. You can read more about this feature [here](https://code.visualstudio.com/docs/languages/jsconfig). This was contributed by [@viankakrisna](https://github.com/viankakrisna).
 
+* Chinese translation of documentation ([#129](https://github.com/evanw/esbuild/pull/129))
+
+    Both the readme and the architecture documentation have been translated into Chinese, which is available here: http://docs.breword.com/evanw-esbuild. This was contributed by [@92hackers](https://github.com/92hackers).
+
 ## 0.4.0
 
 * Add the `esm` output format ([#48](https://github.com/evanw/esbuild/issues/48))
