@@ -17,7 +17,16 @@ type Log struct {
 	msgs chan Msg
 }
 
-type MsgKind int
+type LogLevel int8
+
+const (
+	LevelNone LogLevel = iota
+	LevelInfo
+	LevelWarning
+	LevelError
+)
+
+type MsgKind uint8
 
 const (
 	Error MsgKind = iota
@@ -66,10 +75,6 @@ func (s *Source) RangeOfString(loc ast.Loc) ast.Range {
 	return ast.Range{loc, 0}
 }
 
-func NewLog(msgs chan Msg) Log {
-	return Log{msgs}
-}
-
 type MsgCounts struct {
 	Errors   int
 	Warnings int
@@ -109,7 +114,7 @@ type TerminalInfo struct {
 func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 	msgs := make(chan Msg)
 	done := make(chan MsgCounts)
-	log := NewLog(msgs)
+	log := Log{msgs}
 	terminalInfo := GetTerminalInfo(os.Stderr)
 
 	switch options.Color {
@@ -122,15 +127,22 @@ func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 	go func(msgs chan Msg, done chan MsgCounts) {
 		counts := MsgCounts{}
 		for msg := range msgs {
-			os.Stderr.WriteString(msg.String(options, terminalInfo))
 			switch msg.Kind {
 			case Error:
 				counts.Errors++
+				if options.LogLevel <= LevelError {
+					os.Stderr.WriteString(msg.String(options, terminalInfo))
+				}
 			case Warning:
 				counts.Warnings++
+				if options.LogLevel <= LevelWarning {
+					os.Stderr.WriteString(msg.String(options, terminalInfo))
+				}
 			}
 			if options.ExitWhenLimitIsHit && options.ErrorLimit != 0 && counts.Errors >= options.ErrorLimit {
-				fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", counts.String())
+				if options.LogLevel <= LevelError {
+					fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", counts.String())
+				}
 				os.Exit(1)
 			}
 		}
@@ -140,7 +152,7 @@ func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 	return log, func() MsgCounts {
 		close(log.msgs)
 		counts := <-done
-		if counts.Warnings != 0 || counts.Errors != 0 {
+		if options.LogLevel <= LevelInfo && (counts.Warnings != 0 || counts.Errors != 0) {
 			fmt.Fprintf(os.Stderr, "%s\n", counts.String())
 		}
 		return counts
@@ -150,7 +162,7 @@ func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 func NewDeferLog() (Log, func() []Msg) {
 	msgs := make(chan Msg)
 	done := make(chan []Msg)
-	log := NewLog(msgs)
+	log := Log{msgs}
 
 	go func(msgs chan Msg, done chan []Msg) {
 		result := []Msg{}
@@ -186,6 +198,7 @@ type StderrOptions struct {
 	ErrorLimit         int
 	ExitWhenLimitIsHit bool
 	Color              StderrColor
+	LogLevel           LogLevel
 }
 
 func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {

@@ -175,7 +175,9 @@ THREE_FUSEBOX_RUN +=   target: 'browser',
 THREE_FUSEBOX_RUN +=   entry: './fusebox-entry.js',
 THREE_FUSEBOX_RUN +=   useSingleBundle: true,
 THREE_FUSEBOX_RUN +=   output: './dist',
-THREE_FUSEBOX_RUN += }).runProd();
+THREE_FUSEBOX_RUN += }).runProd({
+THREE_FUSEBOX_RUN +=   bundles: { app: './app.js' },
+THREE_FUSEBOX_RUN += });
 
 demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-parcel demo-three-fusebox
 
@@ -184,6 +186,7 @@ demo-three-esbuild: esbuild | demo/three
 	mkdir -p demo/three/esbuild
 	cd demo/three/esbuild && time -p ../../../esbuild --bundle --name=THREE --sourcemap --minify ../src/Three.js --outfile=Three.esbuild.js
 	du -h demo/three/esbuild/Three.esbuild.js*
+	shasum demo/three/esbuild/Three.esbuild.js*
 
 demo-three-rollup: | node_modules demo/three
 	rm -fr demo/three/rollup
@@ -221,6 +224,7 @@ bench-three-esbuild: esbuild | bench/three
 	mkdir -p bench/three/esbuild
 	cd bench/three/esbuild && time -p ../../../esbuild --bundle --name=THREE --sourcemap --minify ../entry.js --outfile=entry.esbuild.js
 	du -h bench/three/esbuild/entry.esbuild.js*
+	shasum bench/three/esbuild/entry.esbuild.js*
 
 bench-three-rollup: | node_modules bench/three
 	rm -fr bench/three/rollup
@@ -320,6 +324,7 @@ bench-rome-esbuild: esbuild | bench/rome
 	mkdir -p bench/rome/esbuild
 	cd bench/rome/esbuild && time -p ../../../esbuild --bundle --sourcemap --minify ../src/entry.ts --outfile=rome.esbuild.js --platform=node
 	du -h bench/rome/esbuild/rome.esbuild.js*
+	shasum bench/rome/esbuild/rome.esbuild.js*
 
 bench-rome-webpack: | node_modules bench/rome
 	rm -fr bench/rome/webpack node_modules/.cache/terser-webpack-plugin

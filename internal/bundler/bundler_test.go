@@ -1,18 +1,23 @@
 package bundler
 
 import (
+	"fmt"
 	"path"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/parser"
+	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
+	"github.com/kylelemons/godebug/diff"
 )
 
 func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
-		t.Fatalf("%s != %s", a, b)
+		stringA := fmt.Sprintf("%v", a)
+		stringB := fmt.Sprintf("%v", b)
+		t.Fatalf(diff.Diff(stringA, stringB))
 	}
 }
 
@@ -101,21 +106,16 @@ func TestSimpleES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			ModuleName:    "testModule",
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `let testModule = bootstrap({
-  0() {
-    // /foo.js
-    function fn() {
-      return 123;
-    }
+			"/out.js": `// /foo.js
+function fn() {
+  return 123;
+}
 
-    // /entry.js
-    console.log(fn());
-  }
-}, 0);
+// /entry.js
+console.log(fn());
 `,
 		},
 	})
@@ -140,24 +140,19 @@ func TestSimpleCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			ModuleName:    "testModule",
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `let testModule = bootstrap({
-  1(exports, module) {
-    // /foo.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /entry.js
-    const fn = __require(1 /* ./foo */);
-    console.log(fn());
-  }
-}, 0);
+// /entry.js
+const fn = require_foo();
+console.log(fn());
 `,
 		},
 	})
@@ -191,23 +186,19 @@ func TestNestedCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /foo.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /entry.js
-    function nestedScope() {
-      const fn = __require(1 /* ./foo */);
-      console.log(fn());
-    }
-    nestedScope();
-  }
-}, 0);
+// /entry.js
+function nestedScope() {
+  const fn = require_foo();
+  console.log(fn());
+}
+nestedScope();
 `,
 		},
 	})
@@ -217,12 +208,18 @@ func TestCommonJSFromES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				const fn = require('./foo')
-				console.log(fn())
+				const {foo} = require('./foo')
+				console.log(foo(), bar())
+				const {bar} = require('./bar') // This should not be hoisted
 			`,
 			"/foo.js": `
-				export function fn() {
-					return 123
+				export function foo() {
+					return 'foo'
+				}
+			`,
+			"/bar.js": `
+				export function bar() {
+					return 'bar'
 				}
 			`,
 		},
@@ -235,23 +232,30 @@ func TestCommonJSFromES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    __export(exports, {
-      fn: () => fn
-    });
-    function fn() {
-      return 123;
-    }
-  },
-
-  0() {
-    // /entry.js
-    const fn = __require(1 /* ./foo */);
-    console.log(fn());
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo2
+  });
+  function foo2() {
+    return "foo";
   }
-}, 0);
+});
+
+// /bar.js
+var require_bar = __commonJS((exports) => {
+  __export(exports, {
+    bar: () => bar2
+  });
+  function bar2() {
+    return "bar";
+  }
+});
+
+// /entry.js
+const {foo} = require_foo();
+console.log(foo(), bar());
+const {bar} = require_bar();
 `,
 		},
 	})
@@ -261,12 +265,18 @@ func TestES6FromCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import {fn} from './foo'
-				console.log(fn())
+				import {foo} from './foo'
+				console.log(foo(), bar())
+				import {bar} from './bar' // This should be hoisted
 			`,
 			"/foo.js": `
-				exports.fn = function() {
-					return 123
+				exports.foo = function() {
+					return 'foo'
+				}
+			`,
+			"/bar.js": `
+				exports.bar = function() {
+					return 'bar'
 				}
 			`,
 		},
@@ -279,20 +289,24 @@ func TestES6FromCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.fn = function() {
-      return 123;
-    };
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.foo = function() {
+    return "foo";
+  };
+});
 
-  0() {
-    // /entry.js
-    const foo = __import(1 /* ./foo */);
-    console.log(foo.fn());
-  }
-}, 0);
+// /bar.js
+var require_bar = __commonJS((exports) => {
+  exports.bar = function() {
+    return "bar";
+  };
+});
+
+// /entry.js
+const foo = __toModule(require_foo());
+const bar = __toModule(require_bar());
+console.log(foo.foo(), bar.bar());
 `,
 		},
 	})
@@ -325,28 +339,24 @@ func TestNestedES6FromCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.fn = function() {
-      return 123;
-    };
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.fn = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /entry.js
-    const foo = __import(1 /* ./foo */);
-    (() => {
-      console.log(foo.fn());
-    })();
-  }
-}, 0);
+// /entry.js
+const foo = __toModule(require_foo());
+(() => {
+  console.log(foo.fn());
+})();
 `,
 		},
 	})
 }
 
-func TestExportForms(t *testing.T) {
+func TestExportFormsES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -369,34 +379,78 @@ func TestExportForms(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  2(exports) {
-    // /a.js
-    const abc = void 0;
+			"/out.js": `// /a.js
+const abc = void 0;
 
-    // /b.js
-    var b = {};
-    __export(b, {
-      xyz: () => xyz
-    });
-    const xyz = null;
+// /b.js
+const b_exports = {};
+__export(b_exports, {
+  xyz: () => xyz
+});
+const xyz = null;
 
-    // /entry.js
+// /entry.js
+const entry_default = 123;
+var v = 234;
+let l = 234;
+const c = 234;
+function Fn() {
+}
+class Class {
+}
+export {Class as C, Class, Fn, abc, b_exports as b, c, entry_default as default, l, v};
+`,
+		},
+	})
+}
+
+func TestExportFormsIIFE(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default 123
+				export var v = 234
+				export let l = 234
+				export const c = 234
+				export {Class as C}
+				export function Fn() {}
+				export class Class {}
+				export * from './a'
+				export * as b from './b'
+			`,
+			"/a.js": "export const abc = undefined",
+			"/b.js": "export const xyz = null",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatIIFE,
+			ModuleName:    "moduleName",
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var moduleName = (() => {
+  // /entry.js
+  var require_entry = __commonJS((exports) => {
     __export(exports, {
       C: () => Class,
       Class: () => Class,
       Fn: () => Fn,
       abc: () => abc,
-      b: () => b,
+      b: () => b_exports,
       c: () => c,
-      default: () => default2,
+      default: () => entry_default,
       l: () => l,
       v: () => v
     });
-    const default2 = 123;
+    const entry_default = 123;
     var v = 234;
     let l = 234;
     const c = 234;
@@ -404,8 +458,19 @@ func TestExportForms(t *testing.T) {
     }
     class Class {
     }
-  }
-}, 2);
+  });
+
+  // /a.js
+  const abc = void 0;
+
+  // /b.js
+  const b_exports = {};
+  __export(b_exports, {
+    xyz: () => xyz
+  });
+  const xyz = null;
+  return require_entry();
+})();
 `,
 		},
 	})
@@ -452,11 +517,11 @@ func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 export var varName = 234;
 export let letName = 234;
 export const constName = 234;
-function m() {
+function a() {
 }
-class n {
+class b {
 }
-export {Class as Cls, m as Fn2, n as Cls2};
+export {Class as Cls, a as Fn2, b as Cls2};
 export function Func() {
 }
 export class Class {
@@ -467,13 +532,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function s() {
+			"/out/c.js": `export default function a() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class s {
+			"/out/e.js": `export default class a {
 }
 `,
 		},
@@ -553,15 +618,15 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `import "foo";
 import {} from "foo";
-import * as m from "foo";
-import {a as n, b as o} from "foo";
-import p from "foo";
-import r, * as q from "foo";
-import s, {a2 as t, b as u} from "foo";
-const v = [import("foo"), function a() {
+import * as a from "foo";
+import {a as b, b as c} from "foo";
+import d from "foo";
+import f, * as e from "foo";
+import g, {a2 as h, b as i} from "foo";
+const j = [import("foo"), function C() {
   return import("foo");
 }];
-console.log(m, n, o, p, r, q, s, t, u, v);
+console.log(a, b, c, d, f, e, g, h, i, j);
 `,
 		},
 	})
@@ -608,111 +673,101 @@ func TestExportFormsCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /a.js
-    __export(exports, {
-      abc: () => abc
-    });
-    const abc = void 0;
-  },
-
-  1(exports) {
-    // /b.js
-    __export(exports, {
-      xyz: () => xyz
-    });
-    const xyz = null;
-  },
-
-  3(exports) {
-    // /commonjs.js
-    __export(exports, {
-      C: () => Class,
-      Class: () => Class,
-      Fn: () => Fn,
-      b: () => b,
-      c: () => c,
-      default: () => default2,
-      l: () => l,
-      v: () => v
-    });
-    const b = __import(1 /* ./b */);
-    const default2 = 123;
-    var v = 234;
-    let l = 234;
-    const c = 234;
-    function Fn() {
-    }
-    class Class {
-    }
-  },
-
-  2(exports) {
-    // /c.js
-    __export(exports, {
-      default: () => default2
-    });
-    class default2 {
-    }
-  },
-
-  4(exports) {
-    // /d.js
-    __export(exports, {
-      default: () => Foo
-    });
-    class Foo {
-    }
-  },
-
-  5(exports) {
-    // /e.js
-    __export(exports, {
-      default: () => default2
-    });
-    function default2() {
-    }
-  },
-
-  7(exports) {
-    // /f.js
-    __export(exports, {
-      default: () => foo
-    });
-    function foo() {
-    }
-  },
-
-  8(exports) {
-    // /g.js
-    __export(exports, {
-      default: () => default2
-    });
-    async function default2() {
-    }
-  },
-
-  9(exports) {
-    // /h.js
-    __export(exports, {
-      default: () => foo
-    });
-    async function foo() {
-    }
-  },
-
-  6() {
-    // /entry.js
-    __require(3 /* ./commonjs */);
-    __require(2 /* ./c */);
-    __require(4 /* ./d */);
-    __require(5 /* ./e */);
-    __require(7 /* ./f */);
-    __require(8 /* ./g */);
-    __require(9 /* ./h */);
+			"/out.js": `// /commonjs.js
+var require_commonjs = __commonJS((exports) => {
+  __export(exports, {
+    C: () => Class,
+    Class: () => Class,
+    Fn: () => Fn,
+    abc: () => abc,
+    b: () => b_exports,
+    c: () => c,
+    default: () => commonjs_default,
+    l: () => l,
+    v: () => v
+  });
+  const commonjs_default = 123;
+  var v = 234;
+  let l = 234;
+  const c = 234;
+  function Fn() {
   }
-}, 6);
+  class Class {
+  }
+});
+
+// /c.js
+var require_c = __commonJS((exports) => {
+  __export(exports, {
+    default: () => c_default
+  });
+  class c_default {
+  }
+});
+
+// /d.js
+var require_d = __commonJS((exports) => {
+  __export(exports, {
+    default: () => Foo
+  });
+  class Foo {
+  }
+});
+
+// /e.js
+var require_e = __commonJS((exports) => {
+  __export(exports, {
+    default: () => e_default
+  });
+  function e_default() {
+  }
+});
+
+// /f.js
+var require_f = __commonJS((exports) => {
+  __export(exports, {
+    default: () => foo
+  });
+  function foo() {
+  }
+});
+
+// /g.js
+var require_g = __commonJS((exports) => {
+  __export(exports, {
+    default: () => g_default
+  });
+  async function g_default() {
+  }
+});
+
+// /h.js
+var require_h = __commonJS((exports) => {
+  __export(exports, {
+    default: () => foo
+  });
+  async function foo() {
+  }
+});
+
+// /a.js
+const abc = void 0;
+
+// /b.js
+const b_exports = {};
+__export(b_exports, {
+  xyz: () => xyz
+});
+const xyz = null;
+
+// /entry.js
+require_commonjs();
+require_c();
+require_d();
+require_e();
+require_f();
+require_g();
+require_h();
 `,
 		},
 	})
@@ -743,36 +798,37 @@ func TestReExportDefaultCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /bar.js
-    __export(exports, {
-      default: () => foo
-    });
-    function foo() {
-      return exports;
-    }
-  },
-
-  1() {
-    // /foo.js
-    const bar = __import(0 /* ./bar */);
-
-    // /entry.js
-    bar.default();
+			"/out.js": `// /bar.js
+var require_bar = __commonJS((exports) => {
+  __export(exports, {
+    default: () => foo2
+  });
+  function foo2() {
+    return exports;
   }
-}, 1);
+});
+
+// /foo.js
+const bar = __toModule(require_bar());
+
+// /entry.js
+bar.default();
 `,
 		},
 	})
 }
 
-func TestExportSelf(t *testing.T) {
+func TestExportChain(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				export const foo = 123
-				export * from './entry'
+				export {b as a} from './foo'
+			`,
+			"/foo.js": `
+				export {c as b} from './bar'
+			`,
+			"/bar.js": `
+				export const c = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -784,26 +840,26 @@ func TestExportSelf(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /entry.js
-    __export(exports, {
-      foo: () => foo
-    });
-    const foo = 123;
-  }
-}, 0);
+			"/out.js": `// /bar.js
+const c = 123;
+
+// /foo.js
+
+// /entry.js
+export {c as a};
 `,
 		},
 	})
 }
 
-func TestExportSelfAsNamespace(t *testing.T) {
+func TestExportInfiniteCycle1(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				export const foo = 123
-				export * as ns from './entry'
+				export {a as b} from './entry'
+				export {b as c} from './entry'
+				export {c as d} from './entry'
+				export {d as a} from './entry'
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -814,19 +870,39 @@ func TestExportSelfAsNamespace(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /entry.js
-    __export(exports, {
-      foo: () => foo,
-      ns: () => exports
-    });
-    const foo = 123;
-  }
-}, 0);
+		expectedCompileLog: `/entry.js: error: Detected cycle while resolving import "a"
+/entry.js: error: Detected cycle while resolving import "b"
+/entry.js: error: Detected cycle while resolving import "c"
+/entry.js: error: Detected cycle while resolving import "d"
 `,
+	})
+}
+
+func TestExportInfiniteCycle2(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {a as b} from './foo'
+				export {c as d} from './foo'
+			`,
+			"/foo.js": `
+				export {b as c} from './entry'
+				export {d as a} from './entry'
+			`,
 		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.js: error: Detected cycle while resolving import "a"
+/entry.js: error: Detected cycle while resolving import "c"
+/foo.js: error: Detected cycle while resolving import "b"
+/foo.js: error: Detected cycle while resolving import "d"
+`,
 	})
 }
 
@@ -854,18 +930,14 @@ func TestJSXImportsCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports, module) {
-    // /custom-react.js
-    module.exports = {};
-  },
+			"/out.js": `// /custom-react.js
+var require_custom_react = __commonJS((exports, module) => {
+  module.exports = {};
+});
 
-  1() {
-    // /entry.jsx
-    const custom_react = __import(0 /* ./custom-react */);
-    console.log(custom_react.elem("div", null), custom_react.elem(custom_react.frag, null, "fragment"));
-  }
-}, 1);
+// /entry.jsx
+const custom_react = __toModule(require_custom_react());
+console.log(custom_react.elem("div", null), custom_react.elem(custom_react.frag, null, "fragment"));
 `,
 		},
 	})
@@ -896,18 +968,14 @@ func TestJSXImportsES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /custom-react.js
-    function elem() {
-    }
-    function frag() {
-    }
+			"/out.js": `// /custom-react.js
+function elem() {
+}
+function frag() {
+}
 
-    // /entry.jsx
-    console.log(elem("div", null), elem(frag, null, "fragment"));
-  }
-}, 1);
+// /entry.jsx
+console.log(elem("div", null), elem(frag, null, "fragment"));
 `,
 		},
 	})
@@ -952,12 +1020,8 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    console.log(React.createElement("div", null));
-  }
-}, 0);
+			"/out.js": `// /entry.js
+console.log(React.createElement("div", null));
 `,
 		},
 	})
@@ -985,20 +1049,16 @@ func TestNodeModules(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/index.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1031,20 +1091,16 @@ func TestPackageJsonMain(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/custom-main.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/custom-main.js
+var require_custom_main = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_custom_main());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1141,20 +1197,60 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/src/lib/util.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
+var require_util = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /Users/user/project/src/app/entry.js
-    const util = __import(1 /* lib/util */);
-    console.log(util.default());
-  }
-}, 0);
+// /Users/user/project/src/app/entry.js
+const util = __toModule(require_util());
+console.log(util.default());
+`,
+		},
+	})
+}
+
+func TestJsconfigJsonBaseUrl(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.js": `
+				import fn from 'lib/util'
+				console.log(fn())
+			`,
+			"/Users/user/project/src/jsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "."
+					}
+				}
+			`,
+			"/Users/user/project/src/lib/util.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
+var require_util = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/src/app/entry.js
+const util = __toModule(require_util());
+console.log(util.default());
 `,
 		},
 	})
@@ -1190,20 +1286,16 @@ func TestTsconfigJsonCommentAllowed(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/src/lib/util.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
+var require_util = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /Users/user/project/src/app/entry.js
-    const util = __import(1 /* lib/util */);
-    console.log(util.default());
-  }
-}, 0);
+// /Users/user/project/src/app/entry.js
+const util = __toModule(require_util());
+console.log(util.default());
 `,
 		},
 	})
@@ -1238,20 +1330,16 @@ func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/src/lib/util.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
+var require_util = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0() {
-    // /Users/user/project/src/app/entry.js
-    const util = __import(1 /* lib/util */);
-    console.log(util.default());
-  }
-}, 0);
+// /Users/user/project/src/app/entry.js
+const util = __toModule(require_util());
+console.log(util.default());
 `,
 		},
 	})
@@ -1290,17 +1378,13 @@ func TestPackageJsonModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/node_modules/demo-pkg/main.esm.js
-    function default2() {
-      return 123;
-    }
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/main.esm.js
+function main_esm_default() {
+  return 123;
+}
 
-    // /Users/user/project/src/entry.js
-    console.log(default2());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+console.log(main_esm_default());
 `,
 		},
 	})
@@ -1333,20 +1417,16 @@ func TestPackageJsonBrowserString(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/browser.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/browser.js
+var require_browser = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_browser());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1396,26 +1476,22 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/lib/util-browser.js
-    module.exports = "util-browser";
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/lib/util-browser.js
+var require_util_browser = __commonJS((exports, module) => {
+  module.exports = "util-browser";
+});
 
-  1(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/main-browser.js
-    const util = __require(0 /* ./lib/util */);
-    module.exports = function() {
-      return ["main-browser", util];
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/main-browser.js
+var require_main_browser = __commonJS((exports, module) => {
+  const util = require_util_browser();
+  module.exports = function() {
+    return ["main-browser", util];
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(1 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main_browser());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1458,26 +1534,22 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/node_modules/util-browser/index.js
-    module.exports = "util-browser";
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/util-browser/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = "util-browser";
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/main.js
-    const util = __require(1 /* ./util */);
-    module.exports = function() {
-      return ["main", util];
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  const util = require_index();
+  module.exports = function() {
+    return ["main", util];
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1517,25 +1589,21 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/node_modules/demo-pkg/util-node.js
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/util-node.js
+var require_util_node = __commonJS(() => {
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/main.js
-    const util = __require(1 /* ./util-node */);
-    module.exports = function(obj) {
-      return util.inspect(obj);
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  const util = require_util_node();
+  module.exports = function(obj) {
+    return util.inspect(obj);
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1581,28 +1649,24 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/node-pkg-browser.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/node-pkg-browser.js
+var require_node_pkg_browser = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/index.js
-    const fn = __require(1 /* node-pkg */);
-    module.exports = function() {
-      return fn();
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/index.js
+var require_index = __commonJS((exports, module) => {
+  const fn2 = require_node_pkg_browser();
+  module.exports = function() {
+    return fn2();
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1648,28 +1712,24 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/node_modules/node-pkg-browser/index.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg-browser/index.js
+var require_index2 = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/index.js
-    const fn = __require(1 /* node-pkg */);
-    module.exports = function() {
-      return fn();
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/index.js
+var require_index = __commonJS((exports, module) => {
+  const fn2 = require_index2();
+  module.exports = function() {
+    return fn2();
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1710,25 +1770,21 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/node_modules/node-pkg/index.js
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg/index.js
+var require_index2 = __commonJS(() => {
+});
 
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/index.js
-    const fn = __require(1 /* node-pkg */);
-    module.exports = function() {
-      return fn();
-    };
-  },
+// /Users/user/project/node_modules/demo-pkg/index.js
+var require_index = __commonJS((exports, module) => {
+  const fn2 = require_index2();
+  module.exports = function() {
+    return fn2();
+  };
+});
 
-  2() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 2);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1769,25 +1825,21 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/node_modules/component-indexof/index.js
-    module.exports = function() {
-      return 234;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/component-indexof/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 234;
+  };
+});
 
-  2() {
-    // /Users/user/project/node_modules/component-classes/index.js
-    try {
-      var index2 = __require(1 /* indexof */);
-    } catch (err) {
-      var index2 = __require(1 /* component-indexof */);
-    }
+// /Users/user/project/node_modules/component-classes/index.js
+try {
+  var index = require_index();
+} catch (err) {
+  var index = require_index();
+}
 
-    // /Users/user/project/src/entry.js
-  }
-}, 2);
+// /Users/user/project/src/entry.js
 `,
 		},
 	})
@@ -1832,20 +1884,16 @@ func TestPackageJsonBrowserOverModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/node_modules/demo-pkg/main.browser.js
-    module.exports = function() {
-      return 123;
-    };
-  },
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/main.browser.js
+var require_main_browser = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    const demo_pkg = __import(0 /* demo-pkg */);
-    console.log(demo_pkg.default());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main_browser());
+console.log(demo_pkg.default());
 `,
 		},
 	})
@@ -1898,17 +1946,13 @@ func TestPackageJsonBrowserWithModule(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/node_modules/demo-pkg/main.browser.esm.js
-    function default2() {
-      return 123;
-    }
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/main.browser.esm.js
+function main_browser_esm_default() {
+  return 123;
+}
 
-    // /Users/user/project/src/entry.js
-    console.log(default2());
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+console.log(main_browser_esm_default());
 `,
 		},
 	})
@@ -1933,17 +1977,13 @@ func TestRequireChildDirCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports, module) {
-    // /Users/user/project/src/dir/index.js
-    module.exports = 123;
-  },
+			"/out.js": `// /Users/user/project/src/dir/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = 123;
+});
 
-  1() {
-    // /Users/user/project/src/entry.js
-    console.log(__require(0 /* ./dir */));
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+console.log(require_index());
 `,
 		},
 	})
@@ -1969,15 +2009,11 @@ func TestRequireChildDirES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/src/dir/index.js
-    const default2 = 123;
+			"/out.js": `// /Users/user/project/src/dir/index.js
+const index_default = 123;
 
-    // /Users/user/project/src/entry.js
-    console.log(default2);
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+console.log(index_default);
 `,
 		},
 	})
@@ -2002,17 +2038,13 @@ func TestRequireParentDirCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /Users/user/project/src/index.js
-    module.exports = 123;
-  },
+			"/out.js": `// /Users/user/project/src/index.js
+var require_index = __commonJS((exports, module) => {
+  module.exports = 123;
+});
 
-  0() {
-    // /Users/user/project/src/dir/entry.js
-    console.log(__require(1 /* .. */));
-  }
-}, 0);
+// /Users/user/project/src/dir/entry.js
+console.log(require_index());
 `,
 		},
 	})
@@ -2038,21 +2070,17 @@ func TestRequireParentDirES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /Users/user/project/src/index.js
-    const default2 = 123;
+			"/out.js": `// /Users/user/project/src/index.js
+const index_default = 123;
 
-    // /Users/user/project/src/dir/entry.js
-    console.log(default2);
-  }
-}, 0);
+// /Users/user/project/src/dir/entry.js
+console.log(index_default);
 `,
 		},
 	})
 }
 
-func TestPackageImportMissingES6(t *testing.T) {
+func TestImportMissingES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2060,7 +2088,7 @@ func TestPackageImportMissingES6(t *testing.T) {
 				console.log(fn(a, b))
 			`,
 			"/foo.js": `
-				export const x = 132
+				export const x = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -2074,22 +2102,34 @@ func TestPackageImportMissingES6(t *testing.T) {
 		expectedCompileLog: `/entry.js: error: No matching export for import "default"
 /entry.js: error: No matching export for import "y"
 `,
-		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /foo.js
-    const x = 132;
-
-    // /entry.js
-    console.log(fn(x, b));
-  }
-}, 0);
-`,
-		},
 	})
 }
 
-func TestPackageImportMissingCommonJS(t *testing.T) {
+func TestImportMissingUnusedES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import fn, {x as a, y as b} from './foo'
+			`,
+			"/foo.js": `
+				export const x = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.js: error: No matching export for import "default"
+/entry.js: error: No matching export for import "y"
+`,
+	})
+}
+
+func TestImportMissingCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2097,7 +2137,7 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 				console.log(fn(a, b))
 			`,
 			"/foo.js": `
-				exports.x = 132
+				exports.x = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -2109,20 +2149,82 @@ func TestPackageImportMissingCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    exports.x = 132;
-  },
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.x = 123;
+});
 
-  0() {
-    // /entry.js
-    const foo = __import(1 /* ./foo */);
-    console.log(foo.default(foo.x, foo.y));
-  }
-}, 0);
+// /entry.js
+const foo = __toModule(require_foo());
+console.log(foo.default(foo.x, foo.y));
 `,
 		},
+	})
+}
+
+func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import fn, {x as a, y as b} from './foo'
+				import * as ns from './foo'
+				console.log(fn(a, b))
+			`,
+			"/foo.js": `
+				console.log('no exports here')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.js: warning: Import "default" will always be undefined
+/entry.js: warning: Import "x" will always be undefined
+/entry.js: warning: Import "y" will always be undefined
+`,
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+var require_foo = __commonJS(() => {
+  console.log("no exports here");
+});
+
+// /entry.js
+const foo = __toModule(require_foo());
+const ns = __toModule(require_foo());
+console.log(foo.default(foo.x, foo.y));
+`,
+		},
+	})
+}
+
+func TestExportMissingES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from './foo'
+				console.log(ns)
+			`,
+			"/foo.js": `
+				export {nope} from './bar'
+			`,
+			"/bar.js": `
+				export const yep = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/foo.js: error: No matching export for import "nope"
+`,
 	})
 }
 
@@ -2146,18 +2248,14 @@ func TestDotImport(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /index.js
-    exports.x = 123;
-  },
+			"/out.js": `// /index.js
+var require_index = __commonJS((exports) => {
+  exports.x = 123;
+});
 
-  0() {
-    // /entry.js
-    const _ = __import(1 /* . */);
-    console.log(_.x);
-  }
-}, 0);
+// /entry.js
+const _ = __toModule(require_index());
+console.log(_.x);
 `,
 		},
 	})
@@ -2183,24 +2281,20 @@ func TestRequireWithTemplate(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /b.js
-    exports.x = 123;
-  },
+			"/out.js": `// /b.js
+var require_b = __commonJS((exports) => {
+  exports.x = 123;
+});
 
-  0() {
-    // /a.js
-    console.log(__require(1 /* ./b */));
-    console.log(__require(1 /* ./b */));
-  }
-}, 0);
+// /a.js
+console.log(require_b());
+console.log(require_b());
 `,
 		},
 	})
 }
 
-func TestDynamicImportWithTemplate(t *testing.T) {
+func TestDynamicImportWithTemplateIIFE(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -2217,21 +2311,20 @@ func TestDynamicImportWithTemplate(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatIIFE,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /b.js
+			"/out.js": `(() => {
+  // /b.js
+  var require_b = __commonJS((exports) => {
     exports.x = 123;
-  },
+  });
 
-  0() {
-    // /a.js
-    Promise.resolve().then(() => __import(1 /* ./b */)).then((ns) => console.log(ns));
-    Promise.resolve().then(() => __import(1 /* ./b */)).then((ns) => console.log(ns));
-  }
-}, 0);
+  // /a.js
+  Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
+  Promise.resolve().then(() => __toModule(require_b())).then((ns) => console.log(ns));
+})();
 `,
 		},
 	})
@@ -2286,21 +2379,17 @@ func TestRequireJson(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.json
-    module.exports = {
-      a: true,
-      b: 123,
-      c: [null]
-    };
-  },
+			"/out.js": `// /test.json
+var require_test = __commonJS((exports, module) => {
+  module.exports = {
+    a: true,
+    b: 123,
+    c: [null]
+  };
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.json */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2323,17 +2412,13 @@ func TestRequireTxt(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.txt
-    module.exports = "This is a test.";
-  },
+			"/out.js": `// /test.txt
+var require_test = __commonJS((exports, module) => {
+  module.exports = "This is a test.";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.txt */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2360,17 +2445,13 @@ func TestRequireCustomExtensionString(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.custom
-    module.exports = "#include <stdio.h>";
-  },
+			"/out.js": `// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "#include <stdio.h>";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.custom */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2397,17 +2478,13 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.custom
-    module.exports = "YQBigGP/ZA==";
-  },
+			"/out.js": `// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "YQBigGP/ZA==";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.custom */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2434,17 +2511,13 @@ func TestRequireCustomExtensionDataURL(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /test.custom
-    module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
-  },
+			"/out.js": `// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.custom */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2508,17 +2581,13 @@ func TestLoaderURL(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out/entry.js": `bootstrap({
-  1(exports, module) {
-    // /test.svg
-    module.exports = "test.svg";
-  },
+			"/out/entry.js": `// /test.svg
+var require_test = __commonJS((exports, module) => {
+  module.exports = "test.svg";
+});
 
-  0() {
-    // /entry.js
-    console.log(__require(1 /* ./test.svg */));
-  }
-}, 0);
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})
@@ -2562,12 +2631,8 @@ func TestFalseRequire(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    ((require3) => require3("/test.txt"))();
-  }
-}, 0);
+			"/out.js": `// /entry.js
+((require4) => require4("/test.txt"))();
 `,
 		},
 	})
@@ -2639,18 +2704,14 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    try {
-      oldLocale = globalLocale._abbr;
-      var aliasedRequire = null;
-      aliasedRequire("./locale/" + name);
-      getSetGlobalLocale(oldLocale);
-    } catch (e) {
-    }
-  }
-}, 0);
+			"/out.js": `// /entry.js
+try {
+  oldLocale = globalLocale._abbr;
+  var aliasedRequire = null;
+  aliasedRequire("./locale/" + name);
+  getSetGlobalLocale(oldLocale);
+} catch (e) {
+}
 `,
 		},
 	})
@@ -2678,20 +2739,16 @@ func TestSourceMap(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `bootstrap({
-  1() {
-    // /Users/user/project/src/bar.js
-    function bar2() {
-      throw new Error("test");
-    }
+			"/Users/user/project/out.js": `// /Users/user/project/src/bar.js
+function bar() {
+  throw new Error("test");
+}
 
-    // /Users/user/project/src/entry.js
-    function foo() {
-      bar2();
-    }
-    foo();
-  }
-}, 1);
+// /Users/user/project/src/entry.js
+function foo() {
+  bar();
+}
+foo();
 //# sourceMappingURL=out.js.map
 `,
 		},
@@ -2727,21 +2784,17 @@ func TestNestedScopeBug(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    (() => {
-      function a() {
-        b();
-      }
-      {
-        var b = () => {
-        };
-      }
-      a();
-    })();
+			"/out.js": `// /entry.js
+(() => {
+  function a() {
+    b();
   }
-}, 0);
+  {
+    var b = () => {
+    };
+  }
+  a();
+})();
 `,
 		},
 	})
@@ -2768,15 +2821,12 @@ func TestHashbangBundle(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `#!/usr/bin/env a
-bootstrap({
-  1() {
-    // /code.js
-    const code2 = 0;
 
-    // /entry.js
-    process.exit(code2);
-  }
-}, 1);
+// /code.js
+const code = 0;
+
+// /entry.js
+process.exit(code);
 `,
 		},
 	})
@@ -2821,12 +2871,8 @@ func TestTypeofRequireBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    console.log("function");
-  }
-}, 0);
+			"/out.js": `// /entry.js
+console.log("function");
 `,
 		},
 	})
@@ -2889,18 +2935,15 @@ func TestRequireFSNode(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    return require("fs");
-  }
-}, 0);
+			"/out.js": `// /entry.js
+return require("fs");
 `,
 		},
 	})
@@ -2920,13 +2963,14 @@ func TestRequireFSNodeMinify(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:       true,
 			RemoveWhitespace: true,
+			OutputFormat:     printer.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(){return require("fs")}},0);
+			"/out.js": `return require("fs");
 `,
 		},
 	})
@@ -2962,7 +3006,7 @@ func TestImportFSBrowser(t *testing.T) {
 	})
 }
 
-func TestImportFSNode(t *testing.T) {
+func TestImportFSNodeCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2979,22 +3023,54 @@ func TestImportFSNode(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    const fs = __toModule(require("fs"));
-    const fs2 = __toModule(require("fs"));
-    const fs3 = __toModule(require("fs"));
-    const fs4 = __toModule(require("fs"));
-    console.log(fs2, fs4.readFileSync, fs3.default);
-  }
-}, 0);
+			"/out.js": `// /entry.js
+const fs = __toModule(require("fs"));
+const fs2 = __toModule(require("fs"));
+const fs3 = __toModule(require("fs"));
+const fs4 = __toModule(require("fs"));
+console.log(fs2, fs4.readFileSync, fs3.default);
+`,
+		},
+	})
+}
+
+func TestImportFSNodeES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import 'fs'
+				import * as fs from 'fs'
+				import defaultValue from 'fs'
+				import {readFileSync} from 'fs'
+				console.log(fs, readFileSync, defaultValue)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+import "fs";
+import * as fs2 from "fs";
+import defaultValue from "fs";
+import {readFileSync} from "fs";
+console.log(fs2, readFileSync, defaultValue);
 `,
 		},
 	})
@@ -3045,17 +3121,84 @@ func TestExportFSNode(t *testing.T) {
 			Platform: resolver.PlatformNode,
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /entry.js
-    __export(exports, {
-      fs: () => fs,
-      readFileSync: () => fs2.readFileSync
-    });
-    const fs = __toModule(require("fs"));
-    const fs2 = __toModule(require("fs"));
-  }
-}, 0);
+			"/out.js": `// /entry.js
+import * as fs from "fs";
+import {readFileSync} from "fs";
+export {fs, readFileSync};
+`,
+		},
+	})
+}
+
+func TestReExportFSNode(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {fs as f} from './foo'
+				export {readFileSync as rfs} from './foo'
+			`,
+			"/foo.js": `
+				export * as fs from 'fs'
+				export {readFileSync} from 'fs'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+import * as fs from "fs";
+import {readFileSync} from "fs";
+
+// /entry.js
+export {fs as f, readFileSync as rfs};
+`,
+		},
+	})
+}
+
+func TestExportFSNodeInCommonJSModule(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * as fs from 'fs'
+				export {readFileSync} from 'fs'
+
+				// Force this to be a CommonJS module
+				exports.foo = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+import * as fs from "fs";
+import {readFileSync} from "fs";
+var require_entry = __commonJS((exports) => {
+  __export(exports, {
+    fs: () => fs,
+    readFileSync: () => readFileSync
+  });
+  exports.foo = 123;
+});
+export default require_entry();
 `,
 		},
 	})
@@ -3109,7 +3252,7 @@ func TestMinifiedBundleES6(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({1(){function a(){return 123}a();console.log(a())}},1);
+			"/out.js": `function a(){return 123}a();console.log(a());
 `,
 		},
 	})
@@ -3143,7 +3286,7 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=k$(0);console.log(b(),k$(2))}},1);
+			"/out.js": `var d=c(b=>{b.foo=function(){return 123}});var f=c((b,g)=>{g.exports={test:!0}});const{foo:e}=d();console.log(e(),f());
 `,
 		},
 	})
@@ -3153,7 +3296,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				while(foo()); // This must not be stripped
+				while(foo()); // This semicolon must not be stripped
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3163,10 +3306,11 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:       true,
 			RemoveWhitespace: true,
+			OutputFormat:     printer.FormatIIFE,
 			AbsOutputFile:    "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(){while(foo());}},0);
+			"/out.js": `(()=>{while(foo());})();
 `,
 		},
 	})
@@ -3251,24 +3395,20 @@ func TestTopLevelReturn(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports) {
-    // /foo.js
-    __export(exports, {
-      foo: () => foo
-    });
-    if (Math.random() < 0.5)
-      return;
-    function foo() {
-    }
-  },
-
-  0() {
-    // /entry.js
-    const foo = __import(1 /* ./foo */);
-    foo.foo();
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo3
+  });
+  if (Math.random() < 0.5)
+    return;
+  function foo3() {
   }
-}, 0);
+});
+
+// /entry.js
+const foo = __toModule(require_foo());
+foo.foo();
 `,
 		},
 	})
@@ -3293,18 +3433,17 @@ func TestThisOutsideFunction(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0(exports) {
-    // /entry.js
-    console.log(exports);
-    console.log((x = exports) => exports);
-    console.log({
-      x: exports
-    });
-    console.log(class extends exports.foo {
-    });
-  }
-}, 0);
+			"/out.js": `// /entry.js
+var require_entry = __commonJS((exports) => {
+  console.log(exports);
+  console.log((x = exports) => exports);
+  console.log({
+    x: exports
+  });
+  console.log(class extends exports.foo {
+  });
+});
+export default require_entry();
 `,
 		},
 	})
@@ -3324,6 +3463,7 @@ func TestThisInsideFunction(t *testing.T) {
 					foo(x = this) { console.log(this) }
 					static bar(x = this) { console.log(this) }
 				}
+				new Foo(foo(obj))
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3335,29 +3475,313 @@ func TestThisInsideFunction(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    function foo(x = this) {
-      console.log(this);
-    }
-    const obj = {
-      foo(x = this) {
-        console.log(this);
-      }
-    };
-    class Foo {
-      x = this;
-      static y = this.z;
-      foo(x = this) {
-        console.log(this);
-      }
-      static bar(x = this) {
-        console.log(this);
-      }
-    }
+			"/out.js": `// /entry.js
+function foo(x = this) {
+  console.log(this);
+}
+const obj = {
+  foo(x = this) {
+    console.log(this);
   }
-}, 0);
+};
+class Foo {
+  x = this;
+  static y = this.z;
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+}
+new Foo(foo(obj));
+`,
+		},
+	})
+}
+
+// The value of "this" is "exports" in CommonJS modules and undefined in ES6
+// modules. This is determined by the presence of ES6 import/export syntax.
+func TestThisWithES6Syntax(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './cjs'
+
+				import './es6-import-stmt'
+				import './es6-import-assign'
+				import './es6-import-dynamic'
+				import './es6-import-meta'
+				import './es6-expr-import-dynamic'
+				import './es6-expr-import-meta'
+
+				import './es6-export-variable'
+				import './es6-export-function'
+				import './es6-export-async-function'
+				import './es6-export-enum'
+				import './es6-export-const-enum'
+				import './es6-export-module'
+				import './es6-export-namespace'
+				import './es6-export-class'
+				import './es6-export-abstract-class'
+				import './es6-export-default'
+				import './es6-export-clause'
+				import './es6-export-clause-from'
+				import './es6-export-star'
+				import './es6-export-star-as'
+				import './es6-export-assign'
+				import './es6-export-import-assign'
+
+				import './es6-ns-export-variable'
+				import './es6-ns-export-function'
+				import './es6-ns-export-async-function'
+				import './es6-ns-export-enum'
+				import './es6-ns-export-const-enum'
+				import './es6-ns-export-module'
+				import './es6-ns-export-namespace'
+				import './es6-ns-export-class'
+				import './es6-ns-export-abstract-class'
+				`,
+			"/dummy.js": `export const dummy = 123`,
+			"/cjs.js":   `console.log(this)`,
+
+			"/es6-import-stmt.js":         `import './dummy'; console.log(this)`,
+			"/es6-import-assign.ts":       `import x = require('./dummy'); console.log(this)`,
+			"/es6-import-dynamic.js":      `import('./dummy'); console.log(this)`,
+			"/es6-import-meta.js":         `import.meta; console.log(this)`,
+			"/es6-expr-import-dynamic.js": `(import('./dummy')); console.log(this)`,
+			"/es6-expr-import-meta.js":    `(import.meta); console.log(this)`,
+
+			"/es6-export-variable.js":       `export const foo = 123; console.log(this)`,
+			"/es6-export-function.js":       `export function foo() {} console.log(this)`,
+			"/es6-export-async-function.js": `export async function foo() {} console.log(this)`,
+			"/es6-export-enum.ts":           `export enum Foo {} console.log(this)`,
+			"/es6-export-const-enum.ts":     `export const enum Foo {} console.log(this)`,
+			"/es6-export-module.ts":         `export module Foo {} console.log(this)`,
+			"/es6-export-namespace.ts":      `export namespace Foo {} console.log(this)`,
+			"/es6-export-class.js":          `export class Foo {} console.log(this)`,
+			"/es6-export-abstract-class.ts": `export abstract class Foo {} console.log(this)`,
+			"/es6-export-default.js":        `export default 123; console.log(this)`,
+			"/es6-export-clause.js":         `export {}; console.log(this)`,
+			"/es6-export-clause-from.js":    `export {} from './dummy'; console.log(this)`,
+			"/es6-export-star.js":           `export * from './dummy'; console.log(this)`,
+			"/es6-export-star-as.js":        `export * as ns from './dummy'; console.log(this)`,
+			"/es6-export-assign.ts":         `export = 123; console.log(this)`,
+			"/es6-export-import-assign.ts":  `export import x = require('./dummy'); console.log(this)`,
+
+			"/es6-ns-export-variable.ts":       `namespace ns { export const foo = 123; } console.log(this)`,
+			"/es6-ns-export-function.ts":       `namespace ns { export function foo() {} } console.log(this)`,
+			"/es6-ns-export-async-function.ts": `namespace ns { export async function foo() {} } console.log(this)`,
+			"/es6-ns-export-enum.ts":           `namespace ns { export enum Foo {} } console.log(this)`,
+			"/es6-ns-export-const-enum.ts":     `namespace ns { export const enum Foo {} } console.log(this)`,
+			"/es6-ns-export-module.ts":         `namespace ns { export module Foo {} } console.log(this)`,
+			"/es6-ns-export-namespace.ts":      `namespace ns { export namespace Foo {} } console.log(this)`,
+			"/es6-ns-export-class.ts":          `namespace ns { export class Foo {} } console.log(this)`,
+			"/es6-ns-export-abstract-class.ts": `namespace ns { export abstract class Foo {} } console.log(this)`,
+		},
+		entryPaths: []string{
+			"/entry.js",
+		},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /cjs.js
+var require_cjs = __commonJS((exports) => {
+  console.log(exports);
+});
+
+// /dummy.js
+var require_dummy = __commonJS((exports) => {
+  __export(exports, {
+    dummy: () => dummy3
+  });
+  const dummy3 = 123;
+});
+
+// /es6-export-assign.ts
+var require_es6_export_assign = __commonJS((exports, module) => {
+  console.log(void 0);
+  module.exports = 123;
+});
+
+// /es6-ns-export-variable.ts
+var require_es6_ns_export_variable = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    ns3.foo = 123;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-function.ts
+var require_es6_ns_export_function = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    function foo4() {
+    }
+    ns3.foo = foo4;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-async-function.ts
+var require_es6_ns_export_async_function = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    async function foo4() {
+    }
+    ns3.foo = foo4;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-enum.ts
+var require_es6_ns_export_enum = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    let Foo5;
+    (function(Foo6) {
+    })(Foo5 = ns3.Foo || (ns3.Foo = {}));
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-const-enum.ts
+var require_es6_ns_export_const_enum = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    let Foo5;
+    (function(Foo6) {
+    })(Foo5 = ns3.Foo || (ns3.Foo = {}));
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-module.ts
+var require_es6_ns_export_module = __commonJS((exports) => {
+  console.log(exports);
+});
+
+// /es6-ns-export-namespace.ts
+var require_es6_ns_export_namespace = __commonJS((exports) => {
+  console.log(exports);
+});
+
+// /es6-ns-export-class.ts
+var require_es6_ns_export_class = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    class Foo5 {
+    }
+    ns3.Foo = Foo5;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-ns-export-abstract-class.ts
+var require_es6_ns_export_abstract_class = __commonJS((exports) => {
+  var ns2;
+  (function(ns3) {
+    class Foo5 {
+    }
+    ns3.Foo = Foo5;
+  })(ns2 || (ns2 = {}));
+  console.log(exports);
+});
+
+// /es6-import-stmt.js
+const dummy2 = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-import-assign.ts
+const x2 = require_dummy();
+console.log(void 0);
+
+// /es6-import-dynamic.js
+Promise.resolve().then(() => __toModule(require_dummy()));
+console.log(void 0);
+
+// /es6-import-meta.js
+console.log(void 0);
+
+// /es6-expr-import-dynamic.js
+Promise.resolve().then(() => __toModule(require_dummy()));
+console.log(void 0);
+
+// /es6-expr-import-meta.js
+console.log(void 0);
+
+// /es6-export-variable.js
+console.log(void 0);
+
+// /es6-export-function.js
+console.log(void 0);
+
+// /es6-export-async-function.js
+console.log(void 0);
+
+// /es6-export-enum.ts
+var Foo4;
+(function(Foo5) {
+})(Foo4 || (Foo4 = {}));
+console.log(void 0);
+
+// /es6-export-const-enum.ts
+var Foo3;
+(function(Foo5) {
+})(Foo3 || (Foo3 = {}));
+console.log(void 0);
+
+// /es6-export-module.ts
+console.log(void 0);
+
+// /es6-export-namespace.ts
+console.log(void 0);
+
+// /es6-export-class.js
+console.log(void 0);
+
+// /es6-export-abstract-class.ts
+console.log(void 0);
+
+// /es6-export-default.js
+console.log(void 0);
+
+// /es6-export-clause.js
+console.log(void 0);
+
+// /es6-export-clause-from.js
+const dummy = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-export-star.js
+console.log(void 0);
+
+// /es6-export-star-as.js
+const ns = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-export-import-assign.ts
+const x = require_dummy();
+console.log(void 0);
+
+// /entry.js
+const cjs = __toModule(require_cjs());
+const es6_export_assign = __toModule(require_es6_export_assign());
+const es6_ns_export_variable = __toModule(require_es6_ns_export_variable());
+const es6_ns_export_function = __toModule(require_es6_ns_export_function());
+const es6_ns_export_async_function = __toModule(require_es6_ns_export_async_function());
+const es6_ns_export_enum = __toModule(require_es6_ns_export_enum());
+const es6_ns_export_const_enum = __toModule(require_es6_ns_export_const_enum());
+const es6_ns_export_module = __toModule(require_es6_ns_export_module());
+const es6_ns_export_namespace = __toModule(require_es6_ns_export_namespace());
+const es6_ns_export_class = __toModule(require_es6_ns_export_class());
+const es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstract_class());
 `,
 		},
 	})
@@ -3367,14 +3791,16 @@ func TestArrowFnScope(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				(x = y => x + y, y) => x + y;
-				(y, x = y => x + y) => x + y;
-				(x = (y = z => x + y + z, z) => x + y + z, y, z) => x + y + z;
-				(y, z, x = (z, y = z => x + y + z) => x + y + z) => x + y + z;
-				(x = y => x + y, y), x + y;
-				(y, x = y => x + y), x + y;
-				(x = (y = z => x + y + z, z) => x + y + z, y, z), x + y + z;
-				(y, z, x = (z, y = z => x + y + z) => x + y + z), x + y + z;
+				tests = {
+					0: ((x = y => x + y, y) => x + y),
+					1: ((y, x = y => x + y) => x + y),
+					2: ((x = (y = z => x + y + z, z) => x + y + z, y, z) => x + y + z),
+					3: ((y, z, x = (z, y = z => x + y + z) => x + y + z) => x + y + z),
+					4: ((x = y => x + y, y), x + y),
+					5: ((y, x = y => x + y), x + y),
+					6: ((x = (y = z => x + y + z, z) => x + y + z, y, z), x + y + z),
+					7: ((y, z, x = (z, y = z => x + y + z) => x + y + z), x + y + z),
+				};
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3387,19 +3813,17 @@ func TestArrowFnScope(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.js
-    (a = (c) => a + c, b) => a + b;
-    (a, b = (c) => b + c) => b + a;
-    (a = (d = (f) => a + d + f, e) => a + d + e, b, c) => a + b + c;
-    (a, b, c = (d, e = (f) => c + e + f) => c + e + d) => c + a + b;
-    x = (a) => x + a, y, x + y;
-    y, x = (a) => x + a, x + y;
-    x = (a = (c) => x + a + c, b) => x + a + b, y, z, x + y + z;
-    y, z, x = (a, b = (c) => x + b + c) => x + b + a, x + y + z;
-  }
-}, 0);
+			"/out.js": `// /entry.js
+tests = {
+  0: (a = (c) => a + c, b) => a + b,
+  1: (a, b = (c) => b + c) => b + a,
+  2: (a = (d = (f) => a + d + f, e) => a + d + e, b, c) => a + b + c,
+  3: (a, b, c = (d, e = (f) => c + e + f) => c + e + d) => c + a + b,
+  4: (x = (a) => x + a, y, x + y),
+  5: (y, x = (a) => x + a, x + y),
+  6: (x = (a = (c) => x + a + c, b) => x + a + b, y, z, x + y + z),
+  7: (y, z, x = (a, b = (c) => x + b + c) => x + b + a, x + y + z)
+};
 `,
 		},
 	})
@@ -3435,8 +3859,7 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `let __assign = Object.assign;
-let tests = [__assign(__assign({}, a), b), __assign({
+			"/out.js": `let tests = [__assign(__assign({}, a), b), __assign({
   a,
   b
 }, c), __assign(__assign({}, a), {
@@ -3525,10 +3948,9 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: "/entry.js: warning: This syntax is from ES2020 and is not available in ES2015\n",
+		expectedScanLog: "/entry.js: error: Big integer literals are from ES2020 and transforming them to ES2015 is not supported\n",
 		expected: map[string]string{
-			"/out.js": `let __pow = Math.pow;
-var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+			"/out.js": `var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
 let tests = {
   0: __pow(a, __pow(b, c)),
   1: __pow(__pow(a, b), c),
@@ -3904,25 +4326,25 @@ func TestDirectEvalTaintingNoBundle(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `function test1() {
-  function add(a, b) {
-    return a + b;
+  function add(b, a) {
+    return b + a;
   }
   eval("add(1, 2)");
 }
 function test2() {
-  function a(b, c) {
-    return b + c;
+  function b(a, c) {
+    return a + c;
   }
   (0, eval)("add(1, 2)");
 }
 function test3() {
-  function a(b, c) {
-    return b + c;
+  function b(a, c) {
+    return a + c;
   }
 }
 function test4(eval) {
-  function add(a, b) {
-    return a + b;
+  function add(b, a) {
+    return b + a;
   }
   eval("add(1, 2)");
 }

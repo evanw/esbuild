@@ -3,8 +3,6 @@ package ast
 import (
 	"path"
 	"strings"
-
-	"github.com/evanw/esbuild/internal/runtime"
 )
 
 // Every module (i.e. file) is parsed into a separate AST data structure. For
@@ -229,7 +227,18 @@ type LocRef struct {
 type Path struct {
 	Loc  Loc
 	Text string
+
+	// If "UseSourceIndex" is true, the path is already resolved. This is used
+	// for generated paths. The source file it has been resolved to is stored in
+	// the "SourceIndex" field.
+	UseSourceIndex bool
+	SourceIndex    uint32
 }
+
+// The runtime source is always at a special index. The index is always zero
+// but this constant is always used instead to improve readability and ensure
+// all code that references this index can be discovered easily.
+const RuntimeSourceIndex = 0
 
 type PropertyKind int
 
@@ -377,17 +386,15 @@ type ECall struct {
 	IsDirectEval    bool
 }
 
-type ERuntimeCall struct {
-	Sym  runtime.Sym
-	Args []Expr
-}
-
 type EDot struct {
 	Target          Expr
 	Name            string
 	NameLoc         Loc
 	IsOptionalChain bool
 	IsParenthesized bool
+
+	// If true, this property access is known to be free of side-effects
+	CanBeRemovedIfUnused bool
 }
 
 type EIndex struct {
@@ -504,7 +511,6 @@ func (*ENew) isExpr()              {}
 func (*ENewTarget) isExpr()        {}
 func (*EImportMeta) isExpr()       {}
 func (*ECall) isExpr()             {}
-func (*ERuntimeCall) isExpr()      {}
 func (*EDot) isExpr()              {}
 func (*EIndex) isExpr()            {}
 func (*EArrow) isExpr()            {}
@@ -705,11 +711,11 @@ type SSwitch struct {
 
 // This object represents all of these types of import statements:
 //
-//   import 'path'
-//   import {item1, item2} from 'path'
-//   import * as ns from 'path'
-//   import defaultItem, {item1, item2} from 'path'
-//   import defaultItem, * as ns from 'path'
+//    import 'path'
+//    import {item1, item2} from 'path'
+//    import * as ns from 'path'
+//    import defaultItem, {item1, item2} from 'path'
+//    import defaultItem, * as ns from 'path'
 //
 // Many parts are optional and can be combined in different ways. The only
 // restriction is that you cannot have both a clause and a star namespace.
@@ -724,7 +730,7 @@ type SImport struct {
 
 	DefaultName *LocRef
 	Items       *[]ClauseItem
-	StarLoc     *Loc
+	StarNameLoc *Loc
 	Path        Path
 }
 
@@ -896,6 +902,18 @@ type Ref struct {
 	InnerIndex uint32
 }
 
+type ImportItemStatus uint8
+
+const (
+	ImportItemNone ImportItemStatus = iota
+
+	// The linker doesn't report import/export mismatch errors
+	ImportItemGenerated
+
+	// The printer will replace this import with "undefined"
+	ImportItemMissing
+)
+
 type Symbol struct {
 	Kind SymbolKind
 
@@ -903,6 +921,25 @@ type Symbol struct {
 	// "arguments" variable is declared by the runtime for every function.
 	// Renaming can also break any identifier used inside a "with" statement.
 	MustNotBeRenamed bool
+
+	// We automatically generate import items for property accesses off of
+	// namespace imports. This lets us remove the expensive namespace imports
+	// while bundling in many cases, replacing them with a cheap import item
+	// instead:
+	//
+	//   import * as ns from 'path'
+	//   ns.foo()
+	//
+	// That can often be replaced by this, which avoids needing the namespace:
+	//
+	//   import {foo} from 'path'
+	//   foo()
+	//
+	// However, if the import is actually missing then we don't want to report a
+	// compile-time error like we do for real import items. This status lets us
+	// avoid this. We also need to be able to replace such import items with
+	// undefined, which this status is also used for.
+	ImportItemStatus ImportItemStatus
 
 	// An estimate of the number of uses of this symbol. This is used for
 	// minification (to prefer shorter names for more frequently used symbols).
@@ -983,29 +1020,12 @@ type SymbolMap struct {
 	Outer [][]Symbol
 }
 
-func NewSymbolMap(sourceCount int) *SymbolMap {
-	return &SymbolMap{make([][]Symbol, sourceCount)}
+func NewSymbolMap(sourceCount int) SymbolMap {
+	return SymbolMap{make([][]Symbol, sourceCount)}
 }
 
-func (sm *SymbolMap) Get(ref Ref) Symbol {
-	return sm.Outer[ref.OuterIndex][ref.InnerIndex]
-}
-
-func (sm *SymbolMap) IncrementUseCountEstimate(ref Ref) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex].UseCountEstimate++
-}
-
-func (sm *SymbolMap) SetNamespaceAlias(ref Ref, alias NamespaceAlias) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex].NamespaceAlias = &alias
-}
-
-// The symbol must already exist to call this
-func (sm *SymbolMap) Set(ref Ref, symbol Symbol) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex] = symbol
-}
-
-func (sm *SymbolMap) SetKind(ref Ref, kind SymbolKind) {
-	sm.Outer[ref.OuterIndex][ref.InnerIndex].Kind = kind
+func (sm SymbolMap) Get(ref Ref) *Symbol {
+	return &sm.Outer[ref.OuterIndex][ref.InnerIndex]
 }
 
 type ImportKind uint8
@@ -1019,35 +1039,116 @@ const (
 type ImportPath struct {
 	Path Path
 	Kind ImportKind
+
+	// If this is true, the import doesn't actually use any imported values. The
+	// import is only used for its side effects.
+	DoesNotUseExports bool
 }
 
 type AST struct {
-	ImportPaths   []ImportPath
 	WasTypeScript bool
 
-	// This is true if something used the "exports" or "module" variables, which
-	// means they could have exported something. It's also true if the file
-	// contains a top-level return statement. When a file uses CommonJS features,
+	// This is a list of CommonJS features. When a file uses CommonJS features,
 	// it's not a candidate for "flat bundling" and must be wrapped in its own
 	// closure.
-	UsesCommonJSFeatures bool
+	HasTopLevelReturn bool
+	UsesExportsRef    bool
+	UsesModuleRef     bool
+
+	// This is a list of ES6 features
+	HasES6Imports bool
+	HasES6Exports bool
 
 	Hashbang    string
-	Stmts       []Stmt
-	Symbols     *SymbolMap
+	Parts       []Part
+	Symbols     SymbolMap
 	ModuleScope *Scope
 	ExportsRef  Ref
 	ModuleRef   Ref
+	WrapperRef  Ref
 
-	// This is a bitwise-or of all runtime symbols used by this AST. Runtime
-	// symbols are used by ERuntimeCall expressions.
-	UsedRuntimeSyms runtime.Sym
+	// These are used when bundling. They are filled in during the parser pass
+	// since we already have to traverse the AST then anyway and the parser pass
+	// is conveniently fully parallelized.
+	NamedImports          map[Ref]NamedImport
+	NamedExports          map[string]Ref
+	TopLevelSymbolToParts map[Ref][]uint32
+	ExportStars           []Path
+}
+
+func (ast *AST) HasCommonJSFeatures() bool {
+	return ast.HasTopLevelReturn || ast.UsesExportsRef || ast.UsesModuleRef
+}
+
+func (ast *AST) UsesCommonJSExports() bool {
+	return ast.UsesExportsRef || ast.UsesModuleRef
+}
+
+func (ast *AST) HasES6Syntax() bool {
+	return ast.HasES6Imports || ast.HasES6Exports
+}
+
+type NamedImport struct {
+	Alias        string
+	AliasLoc     Loc
+	ImportPath   Path
+	NamespaceRef Ref
+
+	// Parts within this file that use this import
+	LocalPartsWithUses []uint32
+
+	// It's useful to flag exported imports because if they are in a TypeScript
+	// file, we can't tell if they are a type or a value.
+	IsExported bool
+}
+
+// Each file is made up of multiple parts, and each part consists of one or
+// more top-level statements. Parts are used for tree shaking and code
+// splitting analysis. Individual parts of a file can be discarded by tree
+// shaking and can be assigned to separate chunks (i.e. output files) by code
+// splitting.
+type Part struct {
+	ImportPaths []ImportPath
+	Stmts       []Stmt
+
+	// All symbols that are declared in this part. Note that a given symbol may
+	// have multiple declarations, and so may end up being declared in multiple
+	// parts (e.g. multiple "var" declarations with the same name). Also note
+	// that this list isn't deduplicated and may contain duplicates.
+	DeclaredSymbols []DeclaredSymbol
+
+	// An estimate of the number of uses of all symbols used within this part.
+	UseCountEstimates map[Ref]uint32
+
+	// The indices of the other parts in this file that are needed if this part
+	// is needed.
+	LocalDependencies map[uint32]bool
+
+	// If true, this part can be removed if none of the declared symbols are
+	// used. If the file containing this part is imported, then all parts that
+	// don't have this flag enabled must be included.
+	CanBeRemovedIfUnused bool
+
+	// If true, this is the automatically-generated part for this file's ES6
+	// exports. It may hold the "const exports = {};" statement and also the
+	// "__export(exports, { ... })" call to initialize the getters.
+	IsNamespaceExport bool
+
+	// This is used for generated parts that we don't want to be present if they
+	// aren't needed. This enables tree shaking for these parts even if global
+	// tree shaking isn't enabled.
+	ForceTreeShaking bool
+}
+
+type DeclaredSymbol struct {
+	Ref        Ref
+	IsTopLevel bool
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.
 // This may not be the provided ref if the symbol has been merged with another
 // symbol.
-func FollowSymbols(symbols *SymbolMap, ref Ref) Ref {
+func FollowSymbols(symbols SymbolMap, ref Ref) Ref {
 	symbol := symbols.Get(ref)
 	if symbol.Link == InvalidRef {
 		return ref
@@ -1058,7 +1159,6 @@ func FollowSymbols(symbols *SymbolMap, ref Ref) Ref {
 	// Only write if needed to avoid concurrent map update hazards
 	if symbol.Link != link {
 		symbol.Link = link
-		symbols.Set(ref, symbol)
 	}
 
 	return link
@@ -1068,7 +1168,7 @@ func FollowSymbols(symbols *SymbolMap, ref Ref) Ref {
 // concurrent map update hazards. In Go, mutating a map is not threadsafe
 // but reading from a map is. Calling "FollowAllSymbols" first ensures that
 // all mutation is done up front.
-func FollowAllSymbols(symbols *SymbolMap) {
+func FollowAllSymbols(symbols SymbolMap) {
 	for sourceIndex, inner := range symbols.Outer {
 		for symbolIndex, _ := range inner {
 			FollowSymbols(symbols, Ref{uint32(sourceIndex), uint32(symbolIndex)})
@@ -1079,7 +1179,7 @@ func FollowAllSymbols(symbols *SymbolMap) {
 // Makes "old" point to "new" by joining the linked lists for the two symbols
 // together. That way "FollowSymbols" on both "old" and "new" will result in
 // the same ref.
-func MergeSymbols(symbols *SymbolMap, old Ref, new Ref) Ref {
+func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	if old == new {
 		return new
 	}
@@ -1087,14 +1187,12 @@ func MergeSymbols(symbols *SymbolMap, old Ref, new Ref) Ref {
 	oldSymbol := symbols.Get(old)
 	if oldSymbol.Link != InvalidRef {
 		oldSymbol.Link = MergeSymbols(symbols, oldSymbol.Link, new)
-		symbols.Set(old, oldSymbol)
 		return oldSymbol.Link
 	}
 
 	newSymbol := symbols.Get(new)
 	if newSymbol.Link != InvalidRef {
 		newSymbol.Link = MergeSymbols(symbols, old, newSymbol.Link)
-		symbols.Set(new, newSymbol)
 		return newSymbol.Link
 	}
 
@@ -1103,8 +1201,6 @@ func MergeSymbols(symbols *SymbolMap, old Ref, new Ref) Ref {
 	if oldSymbol.MustNotBeRenamed {
 		newSymbol.MustNotBeRenamed = true
 	}
-	symbols.Set(old, oldSymbol)
-	symbols.Set(new, newSymbol)
 	return new
 }
 

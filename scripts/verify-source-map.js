@@ -1,10 +1,12 @@
 const { SourceMapConsumer } = require('source-map')
 const { buildBinary } = require('./esbuild')
 const childProcess = require('child_process')
+const mkdirp = require('mkdirp')
 const rimraf = require('rimraf')
 const path = require('path')
 const util = require('util')
 const fs = require('fs')
+const testDir = path.join(__dirname, '.verify-source-map')
 let tempDirCount = 0
 
 const toSearchBundle = [
@@ -73,7 +75,7 @@ const testCaseTypeScriptRuntime = {
 }
 
 const testCaseStdin = {
-  '<stdin>': `
+  '<stdin>': `#!/usr/bin/env node
     function a0() { a1("a0") }
     function a1() { a2("a1") }
     function a2() { throw new Error("a2") }
@@ -92,8 +94,8 @@ async function check(kind, testCase, toSearch, flags) {
       }
     }
 
-    const tempDir = path.join(__dirname, '.verify-source-map' + tempDirCount++)
-    try { await util.promisify(fs.mkdir)(tempDir) } catch (e) { }
+    const tempDir = path.join(testDir, '' + tempDirCount++)
+    mkdirp.sync(tempDir)
 
     for (const name in testCase) {
       if (name !== '<stdin>') {
@@ -157,7 +159,7 @@ async function check(kind, testCase, toSearch, flags) {
       recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
     }
 
-    rimraf.sync(tempDir, { disableGlob: true })
+    if (!failed) rimraf.sync(tempDir, { disableGlob: true })
   }
 
   catch (e) {
@@ -188,6 +190,7 @@ async function main() {
     process.exit(1)
   } else {
     console.log(`✅ verify source map passed`)
+    rimraf.sync(testDir, { disableGlob: true })
   }
 }
 

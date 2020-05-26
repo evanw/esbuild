@@ -10,7 +10,7 @@ Why build another JavaScript build tool? The current build tools for the web are
 
 The use case I have in mind is packaging a large codebase for production. This includes minifying the code, which reduces network transfer time, and producing source maps, which are important for debugging errors in production. Ideally the build tool should also build quickly without having to warm up a cache first.
 
-I currently have two benchmarks that I'm using to measure esbuild performance. For these benchmarks, esbuild is **10-100x faster** than the other JavaScript bundlers I tested:
+I currently have two benchmarks that I'm using to measure esbuild performance. For these benchmarks, esbuild is at least **100x faster** than the other JavaScript bundlers I tested:
 
 ![](images/benchmark.png)
 
@@ -20,27 +20,34 @@ Here are the details about each benchmark:
 
   This benchmark approximates a large JavaScript codebase by duplicating the [three.js](https://github.com/mrdoob/three.js) library 10 times and building a single bundle from scratch, without any caches. The benchmark can be run with `make bench-three`.
 
-    | Bundler         |    Time | Relative slowdown | Absolute speed | Output size |
-    | :-------------- | ------: | ----------------: | -------------: | ----------: |
-    | esbuild         |   0.54s |                1x |  1013.8 kloc/s |      5.83mb |
-    | rollup + terser |  40.48s |               75x |    13.5 kloc/s |      5.80mb |
-    | webpack         |  46.46s |               86x |    11.8 kloc/s |      5.97mb |
-    | parcel          | 124.65s |              231x |     4.4 kloc/s |      5.90mb |
-    | fuse-box@next   | 172.56s |              320x |     3.2 kloc/s |      6.55mb |
+    | Bundler            |    Time | Relative slowdown | Absolute speed | Output size |
+    | :----------------- | ------: | ----------------: | -------------: | ----------: |
+    | esbuild            |   0.36s |                1x |  1520.7 kloc/s |      5.82mb |
+    | esbuild (1 thread) |   1.25s |                4x |   438.0 kloc/s |      5.82mb |
+    | rollup + terser    |  36.06s |              100x |    15.2 kloc/s |      5.80mb |
+    | webpack            |  44.74s |              124x |    12.2 kloc/s |      5.97mb |
+    | fuse-box@next      |  59.52s |              165x |     9.2 kloc/s |      6.34mb |
+    | parcel             | 121.18s |              337x |     4.5 kloc/s |      5.89mb |
 
-    Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap`. I used the `rollup-plugin-terser` plugin because Rollup itself doesn't support minification. Webpack uses `--mode=production --devtool=sourcemap`. Parcel uses the default options. FuseBox is configured with `useSingleBundle: true`. Absolute speed is based on the total line count including comments and blank lines, which is currently 547,441. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
+    Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap` (the single-threaded version uses `GOMAXPROCS=1`). I used the `rollup-plugin-terser` plugin because Rollup itself doesn't support minification. Webpack uses `--mode=production --devtool=sourcemap`. Parcel uses the default options. FuseBox is configured with `useSingleBundle: true`. Absolute speed is based on the total line count including comments and blank lines, which is currently 547,441. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
+
+    Caveats:
+
+    * Parcel: The bundle crashes at run time with `TypeError: Cannot redefine property: dynamic`
+    * FuseBox: The line numbers in source maps appear to be off by one
 
 * #### TypeScript benchmark
 
   This benchmark uses the [Rome](https://github.com/facebookexperimental/rome) build tool to approximate a large TypeScript codebase. All code must be combined into a single minified bundle with source maps and the resulting bundle must work correctly. The benchmark can be run with `make bench-rome`.
 
-    | Bundler         |    Time | Relative slowdown | Absolute speed | Output size |
-    | :-------------- | ------: | ----------------: | -------------: | ----------: |
-    | esbuild         |   0.13s |                1x |  1014.1 kloc/s |      0.99mb |
-    | parcel          |  15.89s |              122x |     8.3 kloc/s |      1.50mb |
-    | webpack         |  18.37s |              141x |     7.2 kloc/s |      1.22mb |
+    | Bundler            |    Time | Relative slowdown | Absolute speed | Output size |
+    | :----------------- | ------: | ----------------: | -------------: | ----------: |
+    | esbuild            |   0.10s |                1x |  1287.5 kloc/s |      0.98mb |
+    | esbuild (1 thread) |   0.32s |                2x |   412.0 kloc/s |      0.98mb |
+    | parcel             |  16.77s |              168x |     7.9 kloc/s |      1.55mb |
+    | webpack            |  18.67s |              187x |     7.1 kloc/s |      1.26mb |
 
-    Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap --platform=node`. Webpack uses `ts-loader` with `transpileOnly: true` and `--mode=production --devtool=sourcemap`. Parcel uses `--target node --bundle-node-modules`. Absolute speed is based on the total line count including comments and blank lines, which is currently 131,836. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
+    Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap --platform=node` (the single-threaded version uses `GOMAXPROCS=1`). Webpack uses `ts-loader` with `transpileOnly: true` and `--mode=production --devtool=sourcemap`. Parcel uses `--target node --bundle-node-modules`. Absolute speed is based on the total line count including comments and blank lines, which is currently 131,836. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
 
     The results don't include Rollup because I couldn't get it to work. I tried `rollup-plugin-typescript`, `@rollup/plugin-typescript`, and `@rollup/plugin-sucrase` and they all didn't work for different reasons relating to TypeScript compilation. And I'm not familiar with FuseBox so I'm not sure how work around build failures due to the use of builtin node modules.
 
@@ -53,6 +60,11 @@ Several reasons:
 * Everything is done in very few passes without expensive data transformations
 * Code is written with speed in mind, and tries to avoid unnecessary allocations
 
+## Documentation
+
+* [Architecture](docs/architecture.md)
+* [中文文档](http://docs.breword.com/evanw-esbuild/)
+
 ## Status
 
 #### Currently supported:
@@ -60,7 +72,7 @@ Several reasons:
 * JavaScript and TypeScript syntax
 * CommonJS and ES6 modules
 * JSX-to-JavaScript conversion
-* Bundling with static binding of ES6 modules using `--bundle`
+* Bundling using `--bundle` with scope hoisting and tree shaking of ES6 modules
 * Full minification with `--minify` (whitespace, identifiers, and mangling)
 * Full source map support when `--sourcemap` is enabled
 * Compile-time identifier substitutions via `--define`
@@ -96,7 +108,8 @@ These syntax features are currently always passed through un-transformed:
 |----------------------------------------------------------------------------|--------------------------------------|-----------------------------|
 | [Async functions](https://github.com/tc39/ecmascript-asyncawait)           | `es2017`                             | `async () => {}`            |
 | [Rest properties](https://github.com/tc39/proposal-object-rest-spread)     | `es2018`                             | `let {...x} = y`            |
-| [Asynchronous Iteration](https://github.com/tc39/proposal-async-iteration) | `es2018`                             | `for await (let x of y) {}` |
+| [Asynchronous iteration](https://github.com/tc39/proposal-async-iteration) | `es2018`                             | `for await (let x of y) {}` |
+| [Async generators](https://github.com/tc39/proposal-async-iteration)       | `es2018`                             | `async function* foo() {}`  |
 | [BigInt](https://github.com/tc39/proposal-bigint)                          | `es2020`                             | `123n`                      |
 | [Hashbang grammar](https://github.com/tc39/proposal-hashbang)              | `esnext`                             | `#!/usr/bin/env node`       |
 
@@ -158,7 +171,7 @@ These TypeScript-only syntax features are not yet supported, and currently canno
 
     That said, esbuild now has a [JavaScript API](#transforming-a-file) that exposes some of its transform code. This means it can be used as a library to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript to older JavaScript. So even if esbuild doesn't support a particular technology, it's possible that esbuild can still be integrated as a library to help speed it up. For example, [Vite](https://github.com/vuejs/vite) recently started using esbuild's transform library to add support for TypeScript (the official TypeScript compiler was too slow).
 
-* I'm mainly looking for feedback at the moment, not contributions. The project is early and I'm still working toward an MVP bundler that can reasonably replace real-world toolchains. There are still major fundamental pieces that haven't been put in place yet (e.g. CSS support, watch mode, tree shaking, code splitting) and they all need to work well together to have best-in-class performance.
+* I'm mainly looking for feedback at the moment, not contributions. The project is early and I'm still working toward an MVP bundler that can reasonably replace real-world toolchains. There are still major fundamental pieces that haven't been put in place yet (e.g. CSS support, watch mode, code splitting) and they all need to work well together to have best-in-class performance.
 
 * The Go code in this repo isn't intended to be built upon. Go is just an implementation detail of how I built this tool. The stable interfaces for this project are the command-line API and the JavaScript API, not the internal Go code. I'm may change the internals in a backwards-incompatible way at any time to improve performance or introduce new features.
 
@@ -213,7 +226,7 @@ Options:
   --target=...          Language target (default esnext)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
-  --format=...          Output format (iife or cjs)
+  --format=...          Output format (iife, cjs, esm)
   --color=...           Force use of color terminal escapes (true or false)
 
   --minify              Sets all --minify-* flags
@@ -233,6 +246,7 @@ Advanced options:
   --sourcemap=external  Do not link to the source map with a comment
   --sourcefile=...      Set the source file for the source map (for stdin)
   --error-limit=...     Maximum error count or 0 to disable (default 10)
+  --log-level=...       Disable logging (info, warning, error)
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
@@ -264,15 +278,13 @@ Example build script:
 ```js
 const { build } = require('esbuild')
 
-const options = {
+build({
   stdio: 'inherit',
   entryPoints: ['./src/main.ts'],
   outfile: './dist/main.js',
   minify: true,
   bundle: true,
-}
-
-build(options).catch(() => process.exit(1))
+}).catch(() => process.exit(1))
 ```
 
 See [the TypeScript type definitions](./npm/esbuild/lib/main.d.ts) for the complete set of options.

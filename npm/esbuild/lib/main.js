@@ -58,7 +58,14 @@ function pushCommonFlags(flags, options) {
 }
 
 function failureErrorWithLog(text, errors, warnings) {
-  const summary = errors.length < 1 ? '' : ` with ${errors.length} error${errors.length < 2 ? '' : 's'}`;
+  const limit = 5
+  const summary = errors.length < 1 ? '' : ` with ${errors.length} error${errors.length < 2 ? '' : 's'}:` +
+    errors.slice(0, limit + 1).map((e, i) => {
+      if (i === limit) return '\n...'
+      if (!e.location) return `\nerror: ${e.text}`;
+      const { file, line, column } = e.location;
+      return `\n${file}:${line}:${column}: error: ${e.text}`;
+    }).join('');
   const error = new Error(`${text}${summary}`);
   error.errors = errors;
   error.warnings = warnings;
@@ -79,6 +86,7 @@ exports.build = options => {
     if (options.platform) flags.push(`--platform=${options.platform}`);
     if (options.format) flags.push(`--format=${options.format}`);
     if (options.color) flags.push(`--color=${options.color}`);
+    if (options.logLevel) flags.push(`--log-level=${options.logLevel}`);
     if (options.external) for (const name of options.external) flags.push(`--external:${name}`);
     if (options.loader) for (const ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
 

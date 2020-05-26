@@ -1,51 +1,15 @@
 package runtime
 
-type Sym uint16
-
-const (
-	// These flags are designed to be merged together using bitwise-or to figure
-	// out what runtime symbols are used. Each flag includes its dependencies so
-	// that a bitwise-or will automatically also mark them as used too.
-	PowSym                   Sym = (1 << 0)
-	AssignSym                Sym = (1 << 1)
-	DefinePropertySym        Sym = (1 << 2)
-	HasOwnPropertySym        Sym = (1 << 3)
-	GetOwnPropertySymbolsSym Sym = (1 << 4)
-	PropertyIsEnumerableSym  Sym = (1 << 5)
-	RestSym                  Sym = (1 << 6) | HasOwnPropertySym | GetOwnPropertySymbolsSym | PropertyIsEnumerableSym
-	ModulesSym               Sym = (1 << 7)
-	CommonJsSym              Sym = (1 << 8)
-	RequireSym               Sym = (1 << 9) | ModulesSym | CommonJsSym
-	ToModuleSym              Sym = (1 << 10) | HasOwnPropertySym
-	ImportSym                Sym = (1 << 11) | ToModuleSym | RequireSym
-	ExportSym                Sym = (1 << 12) | DefinePropertySym
-)
-
-var SymMap = map[string]Sym{
-	"__pow":                   PowSym,
-	"__assign":                AssignSym,
-	"__defineProperty":        DefinePropertySym,
-	"__hasOwnProperty":        HasOwnPropertySym,
-	"__getOwnPropertySymbols": GetOwnPropertySymbolsSym,
-	"__propertyIsEnumerable":  PropertyIsEnumerableSym,
-	"__rest":                  RestSym,
-	"__modules":               ModulesSym,
-	"__commonjs":              CommonJsSym,
-	"__require":               RequireSym,
-	"__toModule":              ToModuleSym,
-	"__import":                ImportSym,
-	"__export":                ExportSym,
-}
-
 const Code = `
-	let __pow = Math.pow
-	let __assign = Object.assign
 	let __defineProperty = Object.defineProperty
-	let __hasOwnProperty = Object.hasOwnProperty
+	let __hasOwnProperty = Object.prototype.hasOwnProperty
 	let __getOwnPropertySymbols = Object.getOwnPropertySymbols
 	let __propertyIsEnumerable = Object.propertyIsEnumerable
 
-	let __rest = (source, exclude) => {
+	export let __pow = Math.pow
+	export let __assign = Object.assign
+
+	export let __rest = (source, exclude) => {
 		let target = {}
 		for (let prop in source)
 			if (__hasOwnProperty.call(source, prop) && exclude.indexOf(prop) < 0)
@@ -57,47 +21,34 @@ const Code = `
 		return target
 	}
 
-	// Holds the exports for all modules that have been evaluated
-	let __modules = {}
-
-	// Will be filled in with the CommonJS module map
-	let __commonjs
-
-	// Used to import a bundled module using require()
-	let __require = id => {
-		let module = __modules[id]
-		if (!module) {
-			module = __modules[id] = {exports: {}}
-			__commonjs[id](module.exports, module)
+	// Wraps a CommonJS closure and returns a require() function
+	export let __commonJS = callback => {
+		let module
+		return () => {
+			if (!module) {
+				module = {exports: {}}
+				callback(module.exports, module)
+			}
+			return module.exports
 		}
-		return module.exports
 	}
 
 	// Converts the module from CommonJS to ES6 if necessary
-	let __toModule = module => {
-		if (module && module.__esModule) {
+	export let __toModule = module => {
+		if (module && module.__esModule)
 			return module
-		}
 		let result = {}
-		for (let key in module) {
-			if (__hasOwnProperty.call(module, key)) {
-				result[key] = module[key]
-			}
-		}
-		result.default = module
+		__defineProperty(result, 'default', { value: module, enumerable: true })
+		for (let key in module)
+			if (__hasOwnProperty.call(module, key) && key !== 'default')
+				__defineProperty(result, key, { get: () => module[key], enumerable: true })
 		return result
 	}
 
-	// Used to import a bundled module using an ES6 import statement
-	let __import = id => {
-		return __toModule(__require(id))
-	}
-
 	// Used to implement ES6 exports to CommonJS
-	let __export = (target, all) => {
+	export let __export = (target, all) => {
 		__defineProperty(target, '__esModule', { value: true })
-		for (let name in all) {
+		for (let name in all)
 			__defineProperty(target, name, { get: all[name], enumerable: true })
-		}
 	}
 `

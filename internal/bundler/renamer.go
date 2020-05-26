@@ -3,12 +3,14 @@ package bundler
 import (
 	"sort"
 	"strconv"
+	"sync"
+	"sync/atomic"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
-func computeReservedNames(moduleScopes []*ast.Scope, symbols *ast.SymbolMap) map[string]bool {
+func computeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[string]bool {
 	names := make(map[string]bool)
 
 	// All keywords are reserved names
@@ -57,23 +59,35 @@ type renamer struct {
 	nameCounts map[string]uint32
 }
 
-func (r *renamer) findNameUse(name string) *renamer {
+type nameUse uint8
+
+const (
+	nameUnused nameUse = iota
+	nameUsed
+	nameUsedInSameScope
+)
+
+func (r *renamer) findNameUse(name string) nameUse {
+	original := r
 	for {
 		if _, ok := r.nameCounts[name]; ok {
-			return r
+			if r == original {
+				return nameUsedInSameScope
+			}
+			return nameUsed
 		}
 		r = r.parent
 		if r == nil {
-			return nil
+			return nameUnused
 		}
 	}
 }
 
 func (r *renamer) findUnusedName(name string) string {
-	if renamerWithName := r.findNameUse(name); renamerWithName != nil {
+	if use := r.findNameUse(name); use != nameUnused {
 		// If the name is already in use, generate a new name by appending a number
 		tries := uint32(1)
-		if renamerWithName == r {
+		if use == nameUsedInSameScope {
 			// To avoid O(n^2) behavior, the number must start off being the number
 			// that we used last time there was a collision with this name. Otherwise
 			// if there are many collisions with the same name, each name collision
@@ -81,7 +95,7 @@ func (r *renamer) findUnusedName(name string) string {
 			// which is a O(n^2) time algorithm. Only do this if this symbol comes
 			// from the same scope as the previous one since sibling scopes can reuse
 			// the same name without problems.
-			tries = renamerWithName.nameCounts[name]
+			tries = r.nameCounts[name]
 		}
 		prefix := name
 
@@ -91,10 +105,12 @@ func (r *renamer) findUnusedName(name string) string {
 			name = prefix + strconv.Itoa(int(tries))
 
 			// Make sure this new name is unused
-			if r.findNameUse(name) == nil {
+			if r.findNameUse(name) == nameUnused {
 				// Store the count so we can start here next time instead of starting
 				// from 1. This means we avoid O(n^2) behavior.
-				renamerWithName.nameCounts[prefix] = tries
+				if use == nameUsedInSameScope {
+					r.nameCounts[prefix] = tries
+				}
 				break
 			}
 		}
@@ -106,7 +122,7 @@ func (r *renamer) findUnusedName(name string) string {
 	return name
 }
 
-func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols *ast.SymbolMap) {
+func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols ast.SymbolMap) {
 	reservedNameCounts := make(map[string]uint32)
 	for name, _ := range reservedNames {
 		// Each name starts off with a count of 1 so that the first collision with
@@ -114,7 +130,13 @@ func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 		reservedNameCounts[name] = 1
 	}
 	r := &renamer{nil, reservedNameCounts}
-	alreadyRenamed := make(map[ast.Ref]bool)
+
+	// This is essentially a "map[ast.Ref]bool" but we use an array instead of a
+	// map so we can mutate it concurrently from multiple threads.
+	alreadyRenamed := make([][]bool, len(symbols.Outer))
+	for sourceIndex, inner := range symbols.Outer {
+		alreadyRenamed[sourceIndex] = make([]bool, len(inner))
+	}
 
 	// Rename top-level symbols across all files all at once since after
 	// bundling, they will all be in the same scope
@@ -122,15 +144,23 @@ func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 		r.renameSymbolsInScope(scope, symbols, alreadyRenamed)
 	}
 
-	// Symbols in child scopes may also have to be renamed to avoid conflicts
+	// Symbols in child scopes may also have to be renamed to avoid conflicts.
+	// Since child scopes in different files are isolated from each other, we
+	// can process each file independently in parallel.
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(moduleScopes))
 	for _, scope := range moduleScopes {
-		for _, child := range scope.Children {
-			r.renameAllSymbolsRecursive(child, symbols, alreadyRenamed)
-		}
+		go func(scope *ast.Scope) {
+			for _, child := range scope.Children {
+				r.renameAllSymbolsRecursive(child, symbols, alreadyRenamed)
+			}
+			waitGroup.Done()
+		}(scope)
 	}
+	waitGroup.Wait()
 }
 
-func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
+func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, alreadyRenamed [][]bool) {
 	sorted := sortedSymbolsInScope(scope)
 
 	// Rename all symbols in this scope
@@ -139,10 +169,10 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap,
 		ref = ast.FollowSymbols(symbols, ref)
 
 		// Don't rename the same symbol more than once
-		if alreadyRenamed[ref] {
+		if alreadyRenamed[ref.OuterIndex][ref.InnerIndex] {
 			continue
 		}
-		alreadyRenamed[ref] = true
+		alreadyRenamed[ref.OuterIndex][ref.InnerIndex] = true
 
 		symbol := symbols.Get(ref)
 
@@ -152,11 +182,10 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap,
 		}
 
 		symbol.Name = r.findUnusedName(symbol.Name)
-		symbols.Set(ref, symbol)
 	}
 }
 
-func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols *ast.SymbolMap, alreadyRenamed map[ast.Ref]bool) {
+func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols ast.SymbolMap, alreadyRenamed [][]bool) {
 	r := &renamer{parent, make(map[string]uint32)}
 	r.renameSymbolsInScope(scope, symbols, alreadyRenamed)
 
@@ -169,8 +198,11 @@ func (parent *renamer) renameAllSymbolsRecursive(scope *ast.Scope, symbols *ast.
 ////////////////////////////////////////////////////////////////////////////////
 // minifyAllSymbols() implementation
 
-func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols *ast.SymbolMap, nextName int) {
-	g := minifyGroup{[]uint32{}, make(map[ast.Ref]uint32)}
+func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols ast.SymbolMap) {
+	g := minifyGroup{make([][]minifyInfo, len(symbols.Outer))}
+	for sourceIndex, inner := range symbols.Outer {
+		g.symbolToMinifyInfo[sourceIndex] = make([]minifyInfo, len(inner))
+	}
 	var next uint32 = 0
 
 	// Allocate a slot for every symbol in each top-level scope. These slots must
@@ -188,25 +220,55 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 	// One good heuristic is to merge slots from different nested scopes using
 	// sequential assignment. Then top-level function statements will always have
 	// the same argument names, which is better for gzip compression.
+	//
+	// This code uses atomics to avoid counting the same symbol twice, so it can
+	// be parallelized across multiple threads.
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(moduleScopes))
 	for _, scope := range moduleScopes {
-		for _, child := range scope.Children {
-			// Deliberately don't update "next" here. Sibling scopes can't collide and
-			// so can reuse slots.
-			g.countSymbolsRecursive(child, symbols, next, 0)
+		go func(scope *ast.Scope) {
+			for _, child := range scope.Children {
+				// Deliberately don't update "next" here. Sibling scopes can't collide and
+				// so can reuse slots.
+				g.countSymbolsRecursive(child, symbols, next, 0)
+			}
+			waitGroup.Done()
+		}(scope)
+	}
+	waitGroup.Wait()
+
+	// Find the largest slot value
+	maxSlot := uint32(0)
+	for _, array := range g.symbolToMinifyInfo {
+		for _, data := range array {
+			if data.used != 0 && data.slot > maxSlot {
+				maxSlot = data.slot
+			}
+		}
+	}
+
+	// Allocate one count for each slot
+	slotToCount := make([]uint32, maxSlot+1)
+	for _, array := range g.symbolToMinifyInfo {
+		for _, data := range array {
+			if data.used != 0 {
+				slotToCount[data.slot] += data.count
+			}
 		}
 	}
 
 	// Sort slot indices descending by the count for that slot
-	sorted := slotArray(make([]slot, len(g.slotToCount)))
-	for index, count := range g.slotToCount {
-		sorted[index] = slot{count, uint32(index)}
+	sorted := slotAndCountArray(make([]slotAndCount, len(slotToCount)))
+	for slot, count := range slotToCount {
+		sorted[slot] = slotAndCount{uint32(slot), count}
 	}
 	sort.Sort(sorted)
 
 	// Assign names sequentially in order so the most frequent symbols get the
 	// shortest names
+	nextName := 0
 	names := make([]string, len(sorted))
-	for _, slot := range sorted {
+	for _, data := range sorted {
 		name := lexer.NumberToMinifiedName(nextName)
 		nextName++
 
@@ -216,46 +278,49 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 			nextName++
 		}
 
-		names[slot.index] = name
+		names[data.slot] = name
 	}
 
 	// Copy the names to the appropriate symbols
-	for ref, i := range g.symbolToSlot {
-		symbol := symbols.Get(ref)
-		symbol.Name = names[i]
-		symbols.Set(ref, symbol)
+	for outer, array := range g.symbolToMinifyInfo {
+		for inner, data := range array {
+			if data.used != 0 {
+				ref := ast.Ref{uint32(outer), uint32(inner)}
+				symbols.Get(ref).Name = names[data.slot]
+			}
+		}
 	}
 }
 
 type minifyGroup struct {
-	slotToCount  []uint32
-	symbolToSlot map[ast.Ref]uint32
+	symbolToMinifyInfo [][]minifyInfo
+}
+
+type minifyInfo struct {
+	used  uint32
+	slot  uint32
+	count uint32
 }
 
 func (g *minifyGroup) countSymbol(slot uint32, ref ast.Ref, count uint32) bool {
 	// Don't double-count symbols that have already been counted
-	if _, ok := g.symbolToSlot[ref]; ok {
+	minifyInfo := &g.symbolToMinifyInfo[ref.OuterIndex][ref.InnerIndex]
+	if !atomic.CompareAndSwapUint32(&minifyInfo.used, 0, 1) {
 		return false
 	}
 
-	// Optionally extend the slot array
-	if slot == uint32(len(g.slotToCount)) {
-		g.slotToCount = append(g.slotToCount, 0)
-	}
-
 	// Count this symbol in this slot
-	g.slotToCount[slot] += count
-	g.symbolToSlot[ref] = slot
+	minifyInfo.slot = slot
+	minifyInfo.count = count
 	return true
 }
 
-func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolMap, next uint32) uint32 {
+func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, next uint32) uint32 {
 	sorted := sortedSymbolsInScope(scope)
 
 	for _, i := range sorted {
 		ref := ast.Ref{uint32(i >> 32), uint32(i)}
 		ref = ast.FollowSymbols(symbols, ref)
-
 		symbol := symbols.Get(ref)
 
 		// Don't rename unbound symbols and symbols marked as reserved names
@@ -263,22 +328,21 @@ func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols *ast.SymbolM
 			continue
 		}
 
-		// Add 1 to the count to also include the declaration
-		if g.countSymbol(next, ref, symbol.UseCountEstimate+1) {
-			next += 1
+		if g.countSymbol(next, ref, symbol.UseCountEstimate) {
+			next++
 		}
 	}
 
 	return next
 }
 
-func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols *ast.SymbolMap, next uint32, labelCount uint32) uint32 {
+func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols ast.SymbolMap, next uint32, labelCount uint32) uint32 {
 	next = g.countSymbolsInScope(scope, symbols, next)
 
 	// Labels are in a separate namespace from symbols
 	if scope.Kind == ast.ScopeLabel {
 		symbol := symbols.Get(scope.LabelRef)
-		g.countSymbol(labelCount, scope.LabelRef, symbol.UseCountEstimate+1)
+		g.countSymbol(labelCount, scope.LabelRef, symbol.UseCountEstimate+1) // +1 for the label itself
 		labelCount += 1
 	}
 
@@ -290,22 +354,22 @@ func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols *ast.Symbo
 	return next
 }
 
-type slot struct {
+type slotAndCount struct {
+	slot  uint32
 	count uint32
-	index uint32
 }
 
 // These types are just so we can use Go's native sort function
 type uint64Array []uint64
-type slotArray []slot
+type slotAndCountArray []slotAndCount
 
 func (a uint64Array) Len() int               { return len(a) }
 func (a uint64Array) Swap(i int, j int)      { a[i], a[j] = a[j], a[i] }
 func (a uint64Array) Less(i int, j int) bool { return a[i] < a[j] }
 
-func (a slotArray) Len() int          { return len(a) }
-func (a slotArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
-func (a slotArray) Less(i int, j int) bool {
+func (a slotAndCountArray) Len() int          { return len(a) }
+func (a slotAndCountArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+func (a slotAndCountArray) Less(i int, j int) bool {
 	ai, aj := a[i], a[j]
-	return ai.count > aj.count || (ai.count == aj.count && ai.index < aj.index)
+	return ai.count > aj.count || (ai.count == aj.count && ai.slot < aj.slot)
 }

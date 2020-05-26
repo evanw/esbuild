@@ -112,6 +112,8 @@ One TypeScript subtlety is that unused imports in TypeScript code must be remove
 
 ## Notes about linking
 
+*Note: This section is outdated. It describes how esbuild v0.3 works. Tree shaking was added in v0.4 and linking now works differently.*
+
 The goal of linking is to merge multiple modules into a single bundle so that imports from one module can reference exports from another module. This is accomplished in several different ways depending on the import and export features used.
 
 ### CommonJS linking

@@ -15,7 +15,7 @@ func TestTSDeclareConst(t *testing.T) {
 				declare const module: any
 
 				declare const foo: any
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -27,12 +27,8 @@ func TestTSDeclareConst(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -47,7 +43,7 @@ func TestTSDeclareLet(t *testing.T) {
 				declare let module: any
 
 				declare let foo: any
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -59,12 +55,8 @@ func TestTSDeclareLet(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -79,7 +71,7 @@ func TestTSDeclareVar(t *testing.T) {
 				declare var module: any
 
 				declare var foo: any
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -91,12 +83,8 @@ func TestTSDeclareVar(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -111,7 +99,7 @@ func TestTSDeclareClass(t *testing.T) {
 				declare class module {}
 
 				declare class foo {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -123,13 +111,8 @@ func TestTSDeclareClass(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    ;
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -144,7 +127,7 @@ func TestTSDeclareFunction(t *testing.T) {
 				declare function module(): void
 
 				declare function foo() {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -156,12 +139,8 @@ func TestTSDeclareFunction(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -176,7 +155,7 @@ func TestTSDeclareNamespace(t *testing.T) {
 				declare namespace module {}
 
 				declare namespace foo {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -188,13 +167,8 @@ func TestTSDeclareNamespace(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    ;
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -209,7 +183,7 @@ func TestTSDeclareEnum(t *testing.T) {
 				declare enum module {}
 
 				declare enum foo {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -221,13 +195,8 @@ func TestTSDeclareEnum(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    ;
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -242,7 +211,7 @@ func TestTSDeclareConstEnum(t *testing.T) {
 				declare const enum module {}
 
 				declare const enum foo {}
-				let foo
+				let foo = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -254,13 +223,8 @@ func TestTSDeclareConstEnum(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    ;
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -271,7 +235,8 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 		files: map[string]string{
 			"/entry.ts": `
 				import {ns} from './ns.ts'
-				console.log(ns)
+				function foo(): ns.type {}
+				foo();
 			`,
 			"/ns.ts": `
 				export namespace ns {}
@@ -286,20 +251,16 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /ns.ts
-
-    // /entry.ts
-    console.log(ns2);
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+function foo() {
+}
+foo();
 `,
 		},
 	})
 }
 
-func TestPackageImportMissingTS(t *testing.T) {
+func TestTSImportMissingES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -307,7 +268,31 @@ func TestPackageImportMissingTS(t *testing.T) {
 				console.log(fn(a, b))
 			`,
 			"/foo.js": `
-				export const x = 132
+				export const x = 123
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/entry.ts: error: No matching export for import "default"
+/entry.ts: error: No matching export for import "y"
+`,
+	})
+}
+
+func TestTSImportMissingUnusedES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import fn, {x as a, y as b} from './foo'
+			`,
+			"/foo.js": `
+				export const x = 123
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -319,15 +304,41 @@ func TestPackageImportMissingTS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /foo.js
-    const x = 132;
+			"/out.js": ``,
+		},
+	})
+}
 
-    // /entry.ts
-    console.log(fn(x, b));
-  }
-}, 0);
+func TestTSExportMissingES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from './foo'
+				console.log(ns)
+			`,
+			"/foo.ts": `
+				export {nope} from './bar'
+			`,
+			"/bar.js": `
+				export const yep = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /bar.js
+
+// /foo.ts
+const foo_exports = {};
+
+// /entry.js
+console.log(foo_exports);
 `,
 		},
 	})
@@ -361,7 +372,7 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 			"/entry.ts": `
 				import {SomeType1} from './doesNotExist1.ts'
 				import {SomeType2} from './doesNotExist2.ts'
-				let foo: SomeType1
+				let foo: SomeType1 = bar()
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -373,12 +384,8 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let foo;
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let foo = bar();
 `,
 		},
 	})
@@ -405,20 +412,16 @@ func TestTSExportEquals(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  1(exports, module) {
-    // /b.ts
-    function foo() {
-    }
-    module.exports = [123, foo];
-  },
-
-  0() {
-    // /a.ts
-    const b = __import(1 /* ./b.ts */);
-    console.log(b.default);
+			"/out.js": `// /b.ts
+var require_b = __commonJS((exports, module) => {
+  function foo() {
   }
-}, 0);
+  module.exports = [123, foo];
+});
+
+// /a.ts
+const b = __toModule(require_b());
+console.log(b.default);
 `,
 		},
 	})
@@ -450,22 +453,18 @@ func TestTSExportNamespace(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /b.ts
-    class Foo {
-    }
-    (function(Foo2) {
-      Foo2.foo = 1;
-    })(Foo || (Foo = {}));
-    (function(Foo2) {
-      Foo2.bar = 2;
-    })(Foo || (Foo = {}));
+			"/out.js": `// /b.ts
+class Foo {
+}
+(function(Foo2) {
+  Foo2.foo = 1;
+})(Foo || (Foo = {}));
+(function(Foo2) {
+  Foo2.bar = 2;
+})(Foo || (Foo = {}));
 
-    // /a.ts
-    console.log(new Foo());
-  }
-}, 0);
+// /a.ts
+console.log(new Foo());
 `,
 		},
 	})
@@ -592,19 +591,15 @@ func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /entry.ts
-    let a;
-    const b = 0;
-    var c;
-    function d() {
-    }
-    class e {
-    }
-    console.log(a, b, c, d, e);
-  }
-}, 0);
+			"/out.js": `// /entry.ts
+let a;
+const b = 0;
+var c;
+function d() {
+}
+class e {
+}
+console.log(a, b, c, d, e);
 `,
 		},
 	})
@@ -635,22 +630,18 @@ func TestTSImportVsLocalCollisionMixed(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({
-  0() {
-    // /other.ts
-    let real = 123;
+			"/out.js": `// /other.ts
+let real = 123;
 
-    // /entry.ts
-    let a;
-    const b = 0;
-    var c;
-    function d() {
-    }
-    class e {
-    }
-    console.log(a, b, c, d, e, real);
-  }
-}, 0);
+// /entry.ts
+let a;
+const b = 0;
+var c;
+function d() {
+}
+class e {
+}
+console.log(a, b, c, d, e, real);
 `,
 		},
 	})
@@ -681,7 +672,7 @@ func TestTSMinifiedBundleES6(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({1(){function a(){return 123}console.log(a())}},1);
+			"/out.js": `function a(){return 123}console.log(a());
 `,
 		},
 	})
@@ -715,29 +706,13 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `bootstrap({0(a){a.foo=function(){return 123}},2(b,a){a.exports={test:!0}},1(){const{foo:b}=k$(0);console.log(b(),k$(2))}},1);
+			"/out.js": `var d=c(b=>{b.foo=function(){return 123}});var f=c((b,g)=>{g.exports={test:!0}});const{foo:e}=d();console.log(e(),f());
 `,
 		},
 	})
 }
 
 func TestTSNamespaceExportObjectSpreadNoBundle(t *testing.T) {
-	__rest := `let __hasOwnProperty = Object.hasOwnProperty;
-let __getOwnPropertySymbols = Object.getOwnPropertySymbols;
-let __propertyIsEnumerable = Object.propertyIsEnumerable;
-let __rest = (source, exclude) => {
-  let target = {};
-  for (let prop in source)
-    if (__hasOwnProperty.call(source, prop) && exclude.indexOf(prop) < 0)
-      target[prop] = source[prop];
-  if (source != null && typeof __getOwnPropertySymbols === "function") {
-    for (let prop of __getOwnPropertySymbols(source))
-      if (exclude.indexOf(prop) < 0 && __propertyIsEnumerable.call(source, prop))
-        target[prop] = source[prop];
-  }
-  return target;
-};
-`
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": "namespace A { export var {a, x: b, ...c} = ref }",
@@ -751,30 +726,31 @@ let __rest = (source, exclude) => {
 			IsBundling: false,
 		},
 		bundleOptions: BundleOptions{
-			IsBundling: false,
+			IsBundling:   false,
+			AbsOutputDir: "/",
 		},
 		expected: map[string]string{
-			"/a.js": __rest + `var A;
+			"/a.js": `var A;
 (function(A2) {
   A2.a = ref.a, A2.b = ref.x, A2.c = __rest(ref, ["a", "x"]);
 })(A || (A = {}));
 `,
-			"/b.js": __rest + `var A;
+			"/b.js": `var A;
 (function(A2) {
   A2.a = ref.a, A2.b = ref[123], A2.c = __rest(ref, ["a", "123"]);
 })(A || (A = {}));
 `,
-			"/c.js": __rest + `var A;
+			"/c.js": `var A;
 (function(A2) {
   A2.a = ref.a, A2.b = ref[1.2], A2.c = __rest(ref, ["a", 1.2 + ""]);
 })(A || (A = {}));
 `,
-			"/d.js": __rest + `var A;
+			"/d.js": `var A;
 (function(A2) {
   A2.a = ref.a, A2.b = ref[x], A2.c = __rest(ref, ["a", typeof x === "symbol" ? x : x + ""]);
 })(A || (A = {}));
 `,
-			"/e.js": __rest + `var A;
+			"/e.js": `var A;
 (function(A2) {
   var _a;
   A2.a = ref.a, A2.b = ref[_a = x()], A2.c = __rest(ref, ["a", typeof _a === "symbol" ? _a : _a + ""]);
@@ -795,7 +771,8 @@ func TestTSNamespaceExportArraySpreadNoBundle(t *testing.T) {
 			IsBundling: false,
 		},
 		bundleOptions: BundleOptions{
-			IsBundling: false,
+			IsBundling:   false,
+			AbsOutputDir: "/",
 		},
 		expected: map[string]string{
 			"/a.js": `var A;

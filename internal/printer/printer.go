@@ -10,8 +10,50 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/runtime"
 )
+
+type Format uint8
+
+const (
+	// This is used when not bundling. It means to preserve whatever form the
+	// import or export was originally in. ES6 syntax stays ES6 syntax and
+	// CommonJS syntax stays CommonJS syntax.
+	FormatPreserve Format = iota
+
+	// IIFE stands for immediately-invoked function expression. That looks like
+	// this:
+	//
+	//   (() => {
+	//     ... bundled code ...
+	//   })();
+	//
+	// If the optional ModuleName is configured, then we'll write out this:
+	//
+	//   let moduleName = (() => {
+	//     ... bundled code ...
+	//     return exports;
+	//   })();
+	//
+	FormatIIFE
+
+	// The CommonJS format looks like this:
+	//
+	//   ... bundled code ...
+	//   module.exports = exports;
+	//
+	FormatCommonJS
+
+	// The ES module format looks like this:
+	//
+	//   ... bundled code ...
+	//   export {...};
+	//
+	FormatESModule
+)
+
+func (f Format) KeepES6ImportExportSyntax() bool {
+	return f == FormatPreserve || f == FormatESModule
+}
 
 var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 var positiveInfinity = math.Inf(1)
@@ -116,7 +158,7 @@ type SourceMapState struct {
 // After all chunks are computed, they are joined together in a second pass.
 // This rewrites the first mapping in each chunk to be relative to the end
 // state of the previous chunk.
-func AppendSourceMapChunk(buffer []byte, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) []byte {
+func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
 	// Strip off the first mapping from the buffer. The first mapping should be
 	// for the start of the original file (the printer always generates one for
 	// the start of the file).
@@ -137,20 +179,16 @@ func AppendSourceMapChunk(buffer []byte, prevEndState SourceMapState, startState
 	// chunk. We now know what the end state is because we're in the second pass
 	// where all chunks have already been generated.
 	startState.GeneratedColumn += generatedColumn
-	buffer = appendMapping(buffer, prevEndState, startState)
+	j.AddBytes(appendMapping(nil, j.lastByte, prevEndState, startState))
 
 	// Then append everything after that without modification.
-	buffer = append(buffer, sourceMap...)
-	return buffer
+	j.AddBytes(sourceMap)
 }
 
-func appendMapping(buffer []byte, prevState SourceMapState, currentState SourceMapState) []byte {
+func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
 	// Put commas in between mappings
-	if len(buffer) != 0 {
-		c := buffer[len(buffer)-1]
-		if c != ';' && c != '"' {
-			buffer = append(buffer, ',')
-		}
+	if lastByte != 0 && lastByte != ';' && lastByte != '"' {
+		buffer = append(buffer, ',')
 	}
 
 	// Record the generated column (the line is recorded using ';' elsewhere)
@@ -169,6 +207,62 @@ func appendMapping(buffer []byte, prevState SourceMapState, currentState SourceM
 	buffer = append(buffer, encodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
 	prevState.OriginalColumn = currentState.OriginalColumn
 
+	return buffer
+}
+
+// This provides an efficient way to join lots of big string and byte slices
+// together. It avoids the cost of repeatedly reallocating as the buffer grows
+// by measuring exactly how big the buffer should be and then allocating once.
+// This is a measurable speedup.
+type Joiner struct {
+	lastByte byte
+	strings  []joinerString
+	bytes    []joinerBytes
+	length   uint32
+}
+
+type joinerString struct {
+	data   string
+	offset uint32
+}
+
+type joinerBytes struct {
+	data   []byte
+	offset uint32
+}
+
+func (j *Joiner) AddString(data string) {
+	if len(data) > 0 {
+		j.lastByte = data[len(data)-1]
+	}
+	j.strings = append(j.strings, joinerString{data, j.length})
+	j.length += uint32(len(data))
+}
+
+func (j *Joiner) AddBytes(data []byte) {
+	if len(data) > 0 {
+		j.lastByte = data[len(data)-1]
+	}
+	j.bytes = append(j.bytes, joinerBytes{data, j.length})
+	j.length += uint32(len(data))
+}
+
+func (j *Joiner) LastByte() byte {
+	return j.lastByte
+}
+
+func (j *Joiner) Length() uint32 {
+	return j.length
+}
+
+func (j *Joiner) Done() []byte {
+	buffer := make([]byte, j.length)
+	for _, item := range j.strings {
+		copy(buffer[item.offset:], item.data)
+	}
+	for _, item := range j.bytes {
+		copy(buffer[item.offset:], item.data)
+	}
 	return buffer
 }
 
@@ -306,7 +400,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 				js = append(js, '\n')
 
 				// Make sure to do with print() does for newlines
-				if p.writeSourceMap {
+				if p.options.SourceMapContents != nil {
 					p.prevLineStart = len(js)
 					p.prevState.GeneratedLine++
 					p.prevState.GeneratedColumn = 0
@@ -395,10 +489,9 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 }
 
 type printer struct {
-	symbols            *ast.SymbolMap
-	minify             bool
+	symbols            ast.SymbolMap
+	options            PrintOptions
 	needsSemicolon     bool
-	indent             int
 	js                 []byte
 	stmtStart          int
 	exportDefaultStart int
@@ -408,21 +501,16 @@ type printer struct {
 	prevNumEnd         int
 	prevRegExpEnd      int
 
-	// For imports
-	resolvedImports map[string]uint32
-	runtimeSymRefs  map[runtime.Sym]ast.Ref
-
 	// For source maps
-	writeSourceMap bool
-	sourceMap      []byte
-	prevLoc        ast.Loc
-	prevLineStart  int
-	prevState      SourceMapState
-	lineStarts     []int32
+	sourceMap     []byte
+	prevLoc       ast.Loc
+	prevLineStart int
+	prevState     SourceMapState
+	lineStarts    []int32
 }
 
 func (p *printer) print(text string) {
-	if p.writeSourceMap {
+	if p.options.SourceMapContents != nil {
 		start := len(p.js)
 		for i, c := range text {
 			if c == '\n' {
@@ -440,7 +528,7 @@ func (p *printer) print(text string) {
 // This is the same as "print(lexer.UTF16ToString(text))" without any
 // unnecessary temporary allocations
 func (p *printer) printUTF16(text []uint16) {
-	if p.writeSourceMap {
+	if p.options.SourceMapContents != nil {
 		start := len(p.js)
 		for i, c := range text {
 			if c == '\n' {
@@ -456,7 +544,7 @@ func (p *printer) printUTF16(text []uint16) {
 }
 
 func (p *printer) addSourceMapping(loc ast.Loc) {
-	if !p.writeSourceMap || loc == p.prevLoc {
+	if p.options.SourceMapContents == nil || loc == p.prevLoc {
 		return
 	}
 	p.prevLoc = loc
@@ -492,13 +580,18 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 		OriginalColumn:  originalColumn,
 	}
 
-	p.sourceMap = appendMapping(p.sourceMap, p.prevState, currentState)
+	var lastByte byte
+	if len(p.sourceMap) != 0 {
+		lastByte = p.sourceMap[len(p.sourceMap)-1]
+	}
+
+	p.sourceMap = appendMapping(p.sourceMap, lastByte, p.prevState, currentState)
 	p.prevState = currentState
 }
 
 func (p *printer) printIndent() {
-	if !p.minify {
-		for i := 0; i < p.indent; i++ {
+	if !p.options.RemoveWhitespace {
+		for i := 0; i < p.options.Indent; i++ {
 			p.print("  ")
 		}
 	}
@@ -507,14 +600,6 @@ func (p *printer) printIndent() {
 func (p *printer) symbolName(ref ast.Ref) string {
 	ref = ast.FollowSymbols(p.symbols, ref)
 	return p.symbols.Get(ref).Name
-}
-
-func (p *printer) printRuntimeSym(sym runtime.Sym) {
-	ref, ok := p.runtimeSymRefs[sym]
-	if !ok {
-		panic("Internal error")
-	}
-	p.printSymbol(ref)
 }
 
 func (p *printer) printSymbol(ref ast.Ref) {
@@ -588,6 +673,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 
 				if str, ok := item.Key.Data.(*ast.EString); ok {
 					if lexer.IsIdentifierUTF16(str.Value) {
+						p.addSourceMapping(item.Key.Loc)
 						p.printSpaceBeforeIdentifier()
 						p.printUTF16(str.Value)
 
@@ -629,13 +715,13 @@ func (p *printer) printBinding(binding ast.Binding) {
 }
 
 func (p *printer) printSpace() {
-	if !p.minify {
+	if !p.options.RemoveWhitespace {
 		p.print(" ")
 	}
 }
 
 func (p *printer) printNewline() {
-	if !p.minify {
+	if !p.options.RemoveWhitespace {
 		p.print("\n")
 	}
 }
@@ -661,7 +747,7 @@ func (p *printer) printSpaceBeforeOperator(next ast.OpCode) {
 }
 
 func (p *printer) printSemicolonAfterStatement() {
-	if !p.minify {
+	if !p.options.RemoveWhitespace {
 		p.print(";\n")
 	} else {
 		p.needsSemicolon = true
@@ -687,7 +773,7 @@ func (p *printer) printFnArgs(args []ast.Arg, hasRestArg bool, isArrow bool) {
 	wrap := true
 
 	// Minify "(a) => {}" as "a=>{}"
-	if p.minify && !hasRestArg && isArrow && len(args) == 1 {
+	if p.options.RemoveWhitespace && !hasRestArg && isArrow && len(args) == 1 {
 		if _, ok := args[0].Binding.Data.(*ast.BIdentifier); ok && args[0].Default == nil {
 			wrap = false
 		}
@@ -736,7 +822,7 @@ func (p *printer) printClass(class ast.Class) {
 
 	p.print("{")
 	p.printNewline()
-	p.indent++
+	p.options.Indent++
 
 	for _, item := range class.Properties {
 		p.printSemicolonIfNeeded()
@@ -752,7 +838,7 @@ func (p *printer) printClass(class ast.Class) {
 	}
 
 	p.needsSemicolon = false
-	p.indent--
+	p.options.Indent--
 	p.printIndent()
 	p.print("}")
 }
@@ -820,6 +906,7 @@ func (p *printer) printProperty(item ast.Property) {
 	}
 
 	if str, ok := item.Key.Data.(*ast.EString); ok {
+		p.addSourceMapping(item.Key.Loc)
 		if lexer.IsIdentifierUTF16(str.Value) {
 			p.printSpaceBeforeIdentifier()
 			p.printUTF16(str.Value)
@@ -898,7 +985,7 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	for i, c := range data {
 		switch c {
 		case '\n':
-			if p.minify {
+			if p.options.RemoveWhitespace {
 				// The backslash for the newline costs an extra character for old-style
 				// string literals when compared to a template literal
 				backtickCost--
@@ -929,46 +1016,75 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	return c
 }
 
-func (p *printer) printRequireCall(path string, isES6Import bool) {
-	sym := runtime.RequireSym
-	if isES6Import {
-		sym = runtime.ImportSym
+type requireCallArgs struct {
+	isES6Import       bool
+	mustReturnPromise bool
+}
+
+func (p *printer) printRequireCall(path string, args requireCallArgs) {
+	space := " "
+	if p.options.RemoveWhitespace {
+		space = ""
 	}
 
-	if p.resolvedImports != nil {
-		// If we're bundling require calls, convert the string to a source index
-		if sourceIndex, ok := p.resolvedImports[path]; ok {
-			p.printRuntimeSym(sym)
-			p.print(fmt.Sprintf("(%d", sourceIndex))
-			if !p.minify {
-				p.print(fmt.Sprintf(" /* %s */", path))
-			}
-		} else {
-			// If we get here, the module was marked as an external module
-			if isES6Import {
-				p.printRuntimeSym(runtime.ToModuleSym)
-				p.print("(")
-			}
-			p.printSpaceBeforeIdentifier()
-			p.print("require(")
-			p.print(Quote(path))
-			if isES6Import {
-				p.print(")")
-			}
-		}
-	} else {
-		p.printRuntimeSym(sym)
-		p.print("(")
+	sourceIndex, ok := p.options.ResolvedImports[path]
+	p.printSpaceBeforeIdentifier()
+
+	// Preserve "import()" expressions that don't point inside the bundle
+	if !ok && args.mustReturnPromise && p.options.OutputFormat.KeepES6ImportExportSyntax() {
+		p.print("import(")
 		p.print(Quote(path))
+		p.print(")")
+		return
 	}
 
-	p.print(")")
+	// Make sure "import()" expressions return promises
+	if args.mustReturnPromise {
+		p.print("Promise.resolve().then(()" + space + "=>" + space)
+	}
+
+	// Make sure CommonJS imports are converted to ES6 if necessary
+	if args.isES6Import {
+		p.printSymbol(p.options.ToModuleRef)
+		p.print("(")
+	}
+
+	// If this import points inside the bundle, then call the "require()"
+	// function for that module directly. The linker must ensure that the
+	// module's require function exists by this point. Otherwise, fall back to a
+	// bare "require()" call. Then it's up to the user to provide it.
+	if ok {
+		p.printSymbol(p.options.WrapperRefs[sourceIndex])
+		p.print("()")
+	} else {
+		p.print("require(")
+		p.print(Quote(path))
+		p.print(")")
+	}
+
+	if args.isES6Import {
+		p.print(")")
+	}
+
+	if args.mustReturnPromise {
+		p.print(")")
+	}
 }
 
 const (
 	forbidCall = 1 << iota
 	forbidIn
 )
+
+func (p *printer) printUndefined(level ast.L) {
+	if level >= ast.LPrefix {
+		p.print("(void 0)")
+	} else {
+		p.printSpaceBeforeIdentifier()
+		p.print("void 0")
+		p.prevNumEnd = len(p.js)
+	}
+}
 
 func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	p.addSourceMapping(expr.Loc)
@@ -977,13 +1093,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	case *ast.EMissing:
 
 	case *ast.EUndefined:
-		if level >= ast.LPrefix {
-			p.print("(void 0)")
-		} else {
-			p.printSpaceBeforeIdentifier()
-			p.print("void 0")
-			p.prevNumEnd = len(p.js)
-		}
+		p.printUndefined(level)
 
 	case *ast.ESuper:
 		p.printSpaceBeforeIdentifier()
@@ -1042,7 +1152,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 		// We don't ever want to accidentally generate a direct eval expression here
 		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
-			if p.minify {
+			if p.options.RemoveWhitespace {
 				p.print("(0,")
 			} else {
 				p.print("(0, ")
@@ -1069,31 +1179,12 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.ERuntimeCall:
-		wrap := level >= ast.LNew || (flags&forbidCall) != 0
-		if wrap {
-			p.print("(")
-		}
-		p.printRuntimeSym(e.Sym)
-		p.print("(")
-		for i, arg := range e.Args {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
-			}
-			p.printExpr(arg, ast.LComma, 0)
-		}
-		p.print(")")
-		if wrap {
-			p.print(")")
-		}
-
 	case *ast.ERequire:
 		wrap := level >= ast.LNew
 		if wrap {
 			p.print("(")
 		}
-		p.printRequireCall(e.Path.Text, e.IsES6Import)
+		p.printRequireCall(e.Path.Text, requireCallArgs{isES6Import: e.IsES6Import})
 		if wrap {
 			p.print(")")
 		}
@@ -1103,20 +1194,16 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
-		p.printSpaceBeforeIdentifier()
-		if s, ok := e.Expr.Data.(*ast.EString); ok && p.resolvedImports != nil {
+		if s, ok := e.Expr.Data.(*ast.EString); ok {
 			path := lexer.UTF16ToString(s.Value)
-			if p.minify {
-				p.print("Promise.resolve().then(()=>")
-			} else {
-				p.print("Promise.resolve().then(() => ")
-			}
-			p.printRequireCall(path, true)
+			p.printRequireCall(path, requireCallArgs{isES6Import: true, mustReturnPromise: true})
 		} else {
+			// Handle non-string expressions
+			p.printSpaceBeforeIdentifier()
 			p.print("import(")
 			p.printExpr(e.Expr, ast.LComma, 0)
+			p.print(")")
 		}
-		p.print(")")
 		if wrap {
 			p.print(")")
 		}
@@ -1254,7 +1341,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 		p.print("{")
 		if len(e.Properties) != 0 {
-			p.indent++
+			p.options.Indent++
 
 			for i, item := range e.Properties {
 				if i != 0 {
@@ -1266,7 +1353,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				p.printProperty(item)
 			}
 
-			p.indent--
+			p.options.Indent--
 			p.printNewline()
 			p.printIndent()
 		}
@@ -1277,7 +1364,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EBoolean:
-		if p.minify {
+		if p.options.RemoveWhitespace {
 			if level >= ast.LPrefix {
 				if e.Value {
 					p.print("(!0)")
@@ -1308,7 +1395,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.ETemplate:
 		// Convert no-substitution template literals into strings if it's smaller
-		if p.minify && e.Tag == nil && len(e.Parts) == 0 {
+		if p.options.RemoveWhitespace && e.Tag == nil && len(e.Parts) == 0 {
 			c := p.bestQuoteCharForString(e.Head, true /* allowBacktick */)
 			p.print(c)
 			p.printQuotedUTF16(e.Head, rune(c[0]))
@@ -1433,7 +1520,10 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		// Potentially use a property access instead of an identifier
 		ref := ast.FollowSymbols(p.symbols, e.Ref)
 		symbol := p.symbols.Get(ref)
-		if symbol.NamespaceAlias != nil {
+
+		if symbol.ImportItemStatus == ast.ImportItemMissing {
+			p.printUndefined(level)
+		} else if symbol.NamespaceAlias != nil {
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			p.print(".")
 			p.print(symbol.NamespaceAlias.Alias)
@@ -1554,7 +1644,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			} else if _, ok := e.Left.Data.(*ast.EUndefined); ok {
 				// Undefined is printed as "void 0"
 				leftLevel = ast.LCall
-			} else if p.minify {
+			} else if p.options.RemoveWhitespace {
 				// When minifying, booleans are printed as "!0 and "!1"
 				if _, ok := e.Left.Data.(*ast.EBoolean); ok {
 					leftLevel = ast.LCall
@@ -1602,7 +1692,7 @@ func (p *printer) isUnboundEvalIdentifier(value ast.Expr) bool {
 func (p *printer) slowFloatToString(value float64) string {
 	text := strconv.FormatFloat(value, 'g', -1, 64)
 
-	if p.minify {
+	if p.options.RemoveWhitespace {
 		// Replace "e+" with "e"
 		if e := strings.LastIndexByte(text, 'e'); e != -1 && text[e+1] == '+' {
 			text = text[:e+1] + text[e+2:]
@@ -1672,9 +1762,9 @@ func (p *printer) printBody(body ast.Stmt) {
 		p.printNewline()
 	} else {
 		p.printNewline()
-		p.indent++
+		p.options.Indent++
 		p.printStmt(body)
-		p.indent--
+		p.options.Indent--
 	}
 }
 
@@ -1682,12 +1772,12 @@ func (p *printer) printBlock(stmts []ast.Stmt) {
 	p.print("{")
 	p.printNewline()
 
-	p.indent++
+	p.options.Indent++
 	for _, stmt := range stmts {
 		p.printSemicolonIfNeeded()
 		p.printStmt(stmt)
 	}
-	p.indent--
+	p.options.Indent--
 	p.needsSemicolon = false
 
 	p.printIndent()
@@ -1746,9 +1836,9 @@ func (p *printer) printIf(s *ast.SIf) {
 		p.print("{")
 		p.printNewline()
 
-		p.indent++
+		p.options.Indent++
 		p.printStmt(s.Yes)
-		p.indent--
+		p.options.Indent--
 		p.needsSemicolon = false
 
 		p.printIndent()
@@ -1761,9 +1851,9 @@ func (p *printer) printIf(s *ast.SIf) {
 		}
 	} else {
 		p.printNewline()
-		p.indent++
+		p.options.Indent++
 		p.printStmt(s.Yes)
-		p.indent--
+		p.options.Indent--
 
 		if s.No != nil {
 			p.printIndent()
@@ -1783,9 +1873,9 @@ func (p *printer) printIf(s *ast.SIf) {
 			p.printIf(no)
 		} else {
 			p.printNewline()
-			p.indent++
+			p.options.Indent++
 			p.printStmt(*s.No)
-			p.indent--
+			p.options.Indent--
 		}
 	}
 }
@@ -1968,10 +2058,10 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.printSpace()
 		} else {
 			p.printNewline()
-			p.indent++
+			p.options.Indent++
 			p.printStmt(s.Body)
 			p.printSemicolonIfNeeded()
-			p.indent--
+			p.options.Indent--
 			p.printIndent()
 		}
 		p.print("while")
@@ -2102,7 +2192,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpace()
 		p.print("{")
 		p.printNewline()
-		p.indent++
+		p.options.Indent++
 
 		for _, c := range s.Cases {
 			p.printSemicolonIfNeeded()
@@ -2127,15 +2217,15 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			}
 
 			p.printNewline()
-			p.indent++
+			p.options.Indent++
 			for _, stmt := range c.Body {
 				p.printSemicolonIfNeeded()
 				p.printStmt(stmt)
 			}
-			p.indent--
+			p.options.Indent--
 		}
 
-		p.indent--
+		p.options.Indent--
 		p.printIndent()
 		p.print("}")
 		p.printNewline()
@@ -2178,7 +2268,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			itemCount++
 		}
 
-		if s.StarLoc != nil {
+		if s.StarNameLoc != nil {
 			if itemCount > 0 {
 				p.print(",")
 				p.printSpace()
@@ -2271,11 +2361,13 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 }
 
 type PrintOptions struct {
+	OutputFormat      Format
 	RemoveWhitespace  bool
 	SourceMapContents *string
 	Indent            int
 	ResolvedImports   map[string]uint32
-	RuntimeSymRefs    map[runtime.Sym]ast.Ref
+	ToModuleRef       ast.Ref
+	WrapperRefs       []ast.Ref
 }
 
 type SourceMapChunk struct {
@@ -2292,15 +2384,12 @@ type SourceMapChunk struct {
 }
 
 func createPrinter(
-	symbols *ast.SymbolMap,
+	symbols ast.SymbolMap,
 	options PrintOptions,
 ) *printer {
 	p := &printer{
 		symbols:            symbols,
-		writeSourceMap:     options.SourceMapContents != nil,
-		minify:             options.RemoveWhitespace,
-		resolvedImports:    options.ResolvedImports,
-		indent:             options.Indent,
+		options:            options,
 		stmtStart:          -1,
 		exportDefaultStart: -1,
 		arrowExprStart:     -1,
@@ -2308,7 +2397,6 @@ func createPrinter(
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
 		prevLoc:            ast.Loc{-1},
-		runtimeSymRefs:     options.RuntimeSymRefs,
 	}
 
 	// If we're writing out a source map, prepare a table of line start indices
@@ -2338,13 +2426,6 @@ func createPrinter(
 type PrintResult struct {
 	JS []byte
 
-	// For minification, it's desirable to strip off unnecessary trailing
-	// semicolons from modules inside closures before the ending "}". However,
-	// there are some syntax constructs where you can't just remove the trailing
-	// semicolon (e.g. "while(foo());"). So we also return the source without the
-	// unnecessary trailing semicolon added in case the caller needs it.
-	JSWithoutTrailingSemicolon []byte
-
 	// This source map chunk just contains the VLQ-encoded offsets for the "JS"
 	// field above. It's not a full source map. The bundler will be joining many
 	// source map chunks together to form the final source map.
@@ -2357,26 +2438,20 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 	// Always add a mapping at the beginning of the file
 	p.addSourceMapping(ast.Loc{0})
 
-	for _, stmt := range tree.Stmts {
-		p.printSemicolonIfNeeded()
-		p.printStmt(stmt)
-	}
-
-	// Make sure each module ends in a semicolon so we don't have weird issues
-	// with automatic semicolon insertion when concatenating modules together
-	jsWithoutTrailingSemicolon := p.js
-	if options.RemoveWhitespace && len(p.js) > 0 && p.js[len(p.js)-1] != '\n' {
-		p.printSemicolonIfNeeded()
+	for _, part := range tree.Parts {
+		for _, stmt := range part.Stmts {
+			p.printStmt(stmt)
+			p.printSemicolonIfNeeded()
+		}
 	}
 
 	return PrintResult{
-		JS:                         p.js,
-		JSWithoutTrailingSemicolon: jsWithoutTrailingSemicolon,
-		SourceMapChunk:             SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+		JS:             p.js,
+		SourceMapChunk: SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
 	}
 }
 
-func PrintExpr(expr ast.Expr, symbols *ast.SymbolMap, options PrintOptions) PrintResult {
+func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) PrintResult {
 	p := createPrinter(symbols, options)
 
 	// Always add a mapping at the beginning of the file
@@ -2384,8 +2459,7 @@ func PrintExpr(expr ast.Expr, symbols *ast.SymbolMap, options PrintOptions) Prin
 
 	p.printExpr(expr, ast.LLowest, 0)
 	return PrintResult{
-		JS:                         p.js,
-		JSWithoutTrailingSemicolon: p.js,
-		SourceMapChunk:             SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+		JS:             p.js,
+		SourceMapChunk: SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
 	}
 }
