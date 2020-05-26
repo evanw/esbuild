@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.1
 
 * Add a log level setting ([#117](https://github.com/evanw/esbuild/issues/117))
 
