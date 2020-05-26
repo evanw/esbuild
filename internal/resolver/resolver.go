@@ -353,14 +353,11 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		}
 	}
 
-	// Record if this directory has a jsconfig.json file
-	if entries["jsconfig.json"].Kind == fs.FileEntry {
-		r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, info)
-	}
-
-	// Record if this directory has a tsconfig.json file
+	// Record if this directory has a tsconfig.json or jsconfig.json file
 	if entries["tsconfig.json"].Kind == fs.FileEntry {
 		r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), path, info)
+	} else if entries["jsconfig.json"].Kind == fs.FileEntry {
+		r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, info)
 	}
 
 	// Is the "main" field from "package.json" missing?

@@ -6,6 +6,10 @@
 
     You can now silence esbuild except for errors with `--log-level=error`, or except for errors and warnings with `--log-level=warning`.
 
+* Now `jsconfig.json` is an alternative to `tsconfig.json` ([#132](https://github.com/evanw/esbuild/pull/132))
+
+    The `"baseUrl"` setting in `tsconfig.json`, which lets you avoid `../../` relative import paths, is respected by esbuild. With this change, esbuild will also check for this setting in `jsconfig.json` if no `tsconfig.json` file is found. This is relevant to some projects that use the TypeScript compiler with JavaScript files instead of TypeScript files. You can read more about this feature [here](https://code.visualstudio.com/docs/languages/jsconfig). This was contributed by [@viankakrisna](https://github.com/viankakrisna).
+
 ## 0.4.0
 
 * Add the `esm` output format ([#48](https://github.com/evanw/esbuild/issues/48))
