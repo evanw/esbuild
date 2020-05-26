@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"os"
 	fp "path/filepath"
 	"regexp"
 	"strings"
@@ -620,9 +621,8 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 
 									elements = elements[1:]
 
-									resolved := append([]string{absoluteOriginalPath}, elements...)
-									basePath := r.fs.Join(resolved...)
-
+									resolved := append(strings.Split(absoluteOriginalPath, string(os.PathSeparator)), elements...)
+									basePath := strings.Join(resolved, "/")
 									if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
 										return absolute, true
 									}
