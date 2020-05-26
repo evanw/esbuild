@@ -1236,7 +1236,8 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 	sort.Sort(sorted)
 
 	visited := make(map[uint32]bool)
-	order := []uint32{}
+	prefixOrder := []uint32{}
+	suffixOrder := []uint32{}
 
 	// Traverse the graph using this stable order and linearize the files with
 	// dependencies before dependents
@@ -1257,7 +1258,18 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 				}
 			}
 		}
-		order = append(order, sourceIndex)
+
+		// Always put all CommonJS wrappers before any other non-runtime code to
+		// deal with cycles in the module graph. CommonJS wrapper declarations
+		// aren't hoisted so starting to evaluate them before they are all declared
+		// could end up with one being used before being declared. These wrappers
+		// don't have side effects so an easy fix is to just declare them all
+		// before starting to evaluate them.
+		if sourceIndex == ast.RuntimeSourceIndex || fileMeta.cjsWrap {
+			prefixOrder = append(prefixOrder, sourceIndex)
+		} else {
+			suffixOrder = append(suffixOrder, sourceIndex)
+		}
 	}
 
 	// Always put the runtime code first before anything else
@@ -1265,7 +1277,7 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 	for _, data := range sorted {
 		visit(data.sourceIndex)
 	}
-	return order
+	return append(prefixOrder, suffixOrder...)
 }
 
 func (c *linkerContext) shouldRemoveImportExportStmt(
@@ -1605,49 +1617,6 @@ func (c *linkerContext) generateCodeForFileInChunk(
 				Value:   &value,
 			}},
 		}})
-
-		// If we're an entry point, call the require function immediately
-		if fileMeta.entryPointStatus != entryPointNone {
-			switch c.options.OutputFormat {
-			case printer.FormatPreserve:
-				// "require_foo();"
-				stmts = append(stmts, ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
-				}}}})
-
-			case printer.FormatIIFE:
-				if c.options.ModuleName != "" {
-					// "return require_foo();"
-					stmts = append(stmts, ast.Stmt{Data: &ast.SReturn{&ast.Expr{Data: &ast.ECall{
-						Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
-					}}}})
-				} else {
-					// "require_foo();"
-					stmts = append(stmts, ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
-						Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
-					}}}})
-				}
-
-			case printer.FormatCommonJS:
-				// "module.exports = require_foo();"
-				stmts = append(stmts, ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.EBinary{
-					Op: ast.BinOpAssign,
-					Left: ast.Expr{Data: &ast.EDot{
-						Target: ast.Expr{Data: &ast.EIdentifier{unboundModuleRef}},
-						Name:   "exports",
-					}},
-					Right: ast.Expr{Data: &ast.ECall{
-						Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
-					}},
-				}}}})
-
-			case printer.FormatESModule:
-				// "export default require_foo();"
-				stmts = append(stmts, ast.Stmt{Data: &ast.SExportDefault{Value: ast.ExprOrStmt{Expr: &ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
-				}}}}})
-			}
-		}
 	}
 
 	// Only generate a source map if needed
@@ -1663,19 +1632,74 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	}
 
 	// Convert the AST to JavaScript code
+	printOptions := printer.PrintOptions{
+		Indent:            indent,
+		OutputFormat:      c.options.OutputFormat,
+		RemoveWhitespace:  c.options.RemoveWhitespace,
+		ResolvedImports:   file.resolvedImports,
+		ToModuleRef:       toModuleRef,
+		WrapperRefs:       wrapperRefs,
+		SourceMapContents: sourceMapContents,
+	}
 	tree := file.ast
 	tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
 	*result = compileResult{
-		PrintResult: printer.Print(tree, printer.PrintOptions{
-			Indent:            indent,
-			OutputFormat:      c.options.OutputFormat,
-			RemoveWhitespace:  c.options.RemoveWhitespace,
-			ResolvedImports:   file.resolvedImports,
-			ToModuleRef:       toModuleRef,
-			WrapperRefs:       wrapperRefs,
-			SourceMapContents: sourceMapContents,
-		}),
+		PrintResult: printer.Print(tree, printOptions),
 		sourceIndex: sourceIndex,
+	}
+
+	// If we're an entry point, call the require function at the end of the
+	// bundle right before bundle evaluation ends
+	if fileMeta.cjsWrap && fileMeta.entryPointStatus != entryPointNone {
+		var stmt ast.Stmt
+
+		switch c.options.OutputFormat {
+		case printer.FormatPreserve:
+			// "require_foo();"
+			stmt = ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
+				Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+			}}}}
+
+		case printer.FormatIIFE:
+			if c.options.ModuleName != "" {
+				// "return require_foo();"
+				stmt = ast.Stmt{Data: &ast.SReturn{&ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+				}}}}
+			} else {
+				// "require_foo();"
+				stmt = ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+				}}}}
+			}
+
+		case printer.FormatCommonJS:
+			// "module.exports = require_foo();"
+			stmt = ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.EBinary{
+				Op: ast.BinOpAssign,
+				Left: ast.Expr{Data: &ast.EDot{
+					Target: ast.Expr{Data: &ast.EIdentifier{unboundModuleRef}},
+					Name:   "exports",
+				}},
+				Right: ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+				}},
+			}}}}
+
+		case printer.FormatESModule:
+			// "export default require_foo();"
+			stmt = ast.Stmt{Data: &ast.SExportDefault{Value: ast.ExprOrStmt{Expr: &ast.Expr{Data: &ast.ECall{
+				Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+			}}}}}
+		}
+
+		// Write this separately as the entry point tail so it can be split off
+		// from the main entry point code. This is sometimes required to deal with
+		// CommonJS import cycles.
+		tree := file.ast
+		tree.Parts = []ast.Part{ast.Part{Stmts: []ast.Stmt{stmt}}}
+		entryPointTail := printer.Print(tree, printOptions)
+		result.entryPointTail = &entryPointTail
 	}
 
 	// Also quote the source for the source map while we're running in parallel
@@ -1767,8 +1791,15 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 
 	// Concatenate the generated JavaScript chunks together
 	var compileResultsForSourceMap []compileResult
-	for i, compileResult := range compileResults {
+	var entryPointTail *printer.PrintResult
+	for _, compileResult := range compileResults {
 		isRuntime := compileResult.sourceIndex == ast.RuntimeSourceIndex
+
+		// If this is the entry point, it may have some extra code to stick at the
+		// end of the chunk after all modules have evaluated
+		if compileResult.entryPointTail != nil {
+			entryPointTail = compileResult.entryPointTail
+		}
 
 		// Don't add a file name comment for the runtime
 		if c.options.IsBundling && !c.options.RemoveWhitespace && !isRuntime {
@@ -1783,22 +1814,18 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 		}
 
 		// Omit the trailing semicolon when minifying the last file in IIFE mode
-		bytes := compileResult.JS
-		if c.options.OutputFormat == printer.FormatIIFE && c.options.RemoveWhitespace && i+1 == len(compileResults) {
-			bytes = compileResult.JSWithoutTrailingSemicolon
-		}
-		if !isRuntime || len(bytes) > 0 {
+		if !isRuntime || len(compileResult.JS) > 0 {
 			newlineBeforeComment = true
 		}
 
 		// Don't include the runtime in source maps
 		if isRuntime {
-			prevOffset.advance(string(bytes))
-			j.AddBytes(bytes)
+			prevOffset.advance(string(compileResult.JS))
+			j.AddBytes(compileResult.JS)
 		} else {
 			// Save the offset to the start of the stored JavaScript
 			compileResult.generatedOffset = prevOffset
-			j.AddBytes(bytes)
+			j.AddBytes(compileResult.JS)
 			prevOffset = lineColumnOffset{}
 
 			// Include this file in the source map
@@ -1806,6 +1833,13 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 				compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
 			}
 		}
+	}
+
+	// Stick the entry point tail at the end of the file. Deliberately don't
+	// include any source mapping information for this because it's automatically
+	// generated and doesn't correspond to a location in the input file.
+	if entryPointTail != nil {
+		j.AddBytes(entryPointTail.JS)
 	}
 
 	// Optionally wrap with an IIFE

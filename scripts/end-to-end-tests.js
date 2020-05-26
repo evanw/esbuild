@@ -249,6 +249,15 @@
     }),
   )
 
+  // Test cyclic import issues (shouldn't crash on evaluation)
+  tests.push(
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import * as foo from './foo'; export default {foo, bar: require('./bar')}`,
+      'foo.js': `import * as a from './entry'; import * as b from './bar'; export default {a, b}`,
+      'bar.js': `const entry = require('./entry'); export function foo() { return entry }`,
+    }),
+  )
+
   function test(args, files, options) {
     return async () => {
       const hasBundle = args.includes('--bundle')

@@ -370,6 +370,11 @@ type lineColumnOffset struct {
 type compileResult struct {
 	printer.PrintResult
 
+	// If this is an entry point, this is optional code to stick on the end of
+	// the chunk. This is used to for example trigger the lazily-evaluated
+	// CommonJS wrapper for the entry point.
+	entryPointTail *printer.PrintResult
+
 	sourceIndex uint32
 
 	// This is the line and column offset since the previous JavaScript string

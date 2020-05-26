@@ -433,16 +433,6 @@ func TestExportFormsIIFE(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `var moduleName = (() => {
-  // /a.js
-  const abc = void 0;
-
-  // /b.js
-  const b_exports = {};
-  __export(b_exports, {
-    xyz: () => xyz
-  });
-  const xyz = null;
-
   // /entry.js
   var require_entry = __commonJS((exports) => {
     __export(exports, {
@@ -465,6 +455,16 @@ func TestExportFormsIIFE(t *testing.T) {
     class Class {
     }
   });
+
+  // /a.js
+  const abc = void 0;
+
+  // /b.js
+  const b_exports = {};
+  __export(b_exports, {
+    xyz: () => xyz
+  });
+  const xyz = null;
   return require_entry();
 })();
 `,
@@ -669,17 +669,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `// /a.js
-const abc = void 0;
-
-// /b.js
-const b_exports = {};
-__export(b_exports, {
-  xyz: () => xyz
-});
-const xyz = null;
-
-// /commonjs.js
+			"/out.js": `// /commonjs.js
 var require_commonjs = __commonJS((exports) => {
   __export(exports, {
     C: () => Class,
@@ -755,6 +745,16 @@ var require_h = __commonJS((exports) => {
   async function foo() {
   }
 });
+
+// /a.js
+const abc = void 0;
+
+// /b.js
+const b_exports = {};
+__export(b_exports, {
+  xyz: () => xyz
+});
+const xyz = null;
 
 // /entry.js
 require_commonjs();
@@ -3566,87 +3566,11 @@ var require_dummy = __commonJS((exports) => {
   const dummy3 = 123;
 });
 
-// /es6-import-stmt.js
-const dummy2 = __toModule(require_dummy());
-console.log(void 0);
-
-// /es6-import-assign.ts
-const x2 = require_dummy();
-console.log(void 0);
-
-// /es6-import-dynamic.js
-Promise.resolve().then(() => __toModule(require_dummy()));
-console.log(void 0);
-
-// /es6-import-meta.js
-console.log(void 0);
-
-// /es6-expr-import-dynamic.js
-Promise.resolve().then(() => __toModule(require_dummy()));
-console.log(void 0);
-
-// /es6-expr-import-meta.js
-console.log(void 0);
-
-// /es6-export-variable.js
-console.log(void 0);
-
-// /es6-export-function.js
-console.log(void 0);
-
-// /es6-export-async-function.js
-console.log(void 0);
-
-// /es6-export-enum.ts
-var Foo4;
-(function(Foo5) {
-})(Foo4 || (Foo4 = {}));
-console.log(void 0);
-
-// /es6-export-const-enum.ts
-var Foo3;
-(function(Foo5) {
-})(Foo3 || (Foo3 = {}));
-console.log(void 0);
-
-// /es6-export-module.ts
-console.log(void 0);
-
-// /es6-export-namespace.ts
-console.log(void 0);
-
-// /es6-export-class.js
-console.log(void 0);
-
-// /es6-export-abstract-class.ts
-console.log(void 0);
-
-// /es6-export-default.js
-console.log(void 0);
-
-// /es6-export-clause.js
-console.log(void 0);
-
-// /es6-export-clause-from.js
-const dummy = __toModule(require_dummy());
-console.log(void 0);
-
-// /es6-export-star.js
-console.log(void 0);
-
-// /es6-export-star-as.js
-const ns = __toModule(require_dummy());
-console.log(void 0);
-
 // /es6-export-assign.ts
 var require_es6_export_assign = __commonJS((exports, module) => {
   console.log(void 0);
   module.exports = 123;
 });
-
-// /es6-export-import-assign.ts
-const x = require_dummy();
-console.log(void 0);
 
 // /es6-ns-export-variable.ts
 var require_es6_ns_export_variable = __commonJS((exports) => {
@@ -3732,6 +3656,82 @@ var require_es6_ns_export_abstract_class = __commonJS((exports) => {
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
+
+// /es6-import-stmt.js
+const dummy2 = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-import-assign.ts
+const x2 = require_dummy();
+console.log(void 0);
+
+// /es6-import-dynamic.js
+Promise.resolve().then(() => __toModule(require_dummy()));
+console.log(void 0);
+
+// /es6-import-meta.js
+console.log(void 0);
+
+// /es6-expr-import-dynamic.js
+Promise.resolve().then(() => __toModule(require_dummy()));
+console.log(void 0);
+
+// /es6-expr-import-meta.js
+console.log(void 0);
+
+// /es6-export-variable.js
+console.log(void 0);
+
+// /es6-export-function.js
+console.log(void 0);
+
+// /es6-export-async-function.js
+console.log(void 0);
+
+// /es6-export-enum.ts
+var Foo4;
+(function(Foo5) {
+})(Foo4 || (Foo4 = {}));
+console.log(void 0);
+
+// /es6-export-const-enum.ts
+var Foo3;
+(function(Foo5) {
+})(Foo3 || (Foo3 = {}));
+console.log(void 0);
+
+// /es6-export-module.ts
+console.log(void 0);
+
+// /es6-export-namespace.ts
+console.log(void 0);
+
+// /es6-export-class.js
+console.log(void 0);
+
+// /es6-export-abstract-class.ts
+console.log(void 0);
+
+// /es6-export-default.js
+console.log(void 0);
+
+// /es6-export-clause.js
+console.log(void 0);
+
+// /es6-export-clause-from.js
+const dummy = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-export-star.js
+console.log(void 0);
+
+// /es6-export-star-as.js
+const ns = __toModule(require_dummy());
+console.log(void 0);
+
+// /es6-export-import-assign.ts
+const x = require_dummy();
+console.log(void 0);
 
 // /entry.js
 const cjs = __toModule(require_cjs());
