@@ -14,6 +14,10 @@
 
     Both the readme and the architecture documentation have been translated into Chinese, which is available here: http://docs.breword.com/evanw-esbuild. This was contributed by [@92hackers](https://github.com/92hackers).
 
+* Async generator functions require `--target=es2018`
+
+    This fixes a bug where async generator functions were incorrectly allowed with `--target=es2017`, which is incorrect because the [asynchronous iteration spec](https://github.com/tc39/proposal-async-iteration) is part of ES2018.
+
 ## 0.4.0
 
 * Add the `esm` output format ([#48](https://github.com/evanw/esbuild/issues/48))

@@ -140,7 +140,7 @@ func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 				}
 			}
 			if options.ExitWhenLimitIsHit && options.ErrorLimit != 0 && counts.Errors >= options.ErrorLimit {
-				if options.LogLevel <= LevelInfo {
+				if options.LogLevel <= LevelError {
 					fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", counts.String())
 				}
 				os.Exit(1)
