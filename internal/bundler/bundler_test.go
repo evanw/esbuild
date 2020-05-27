@@ -2560,7 +2560,7 @@ func testAutoDetectMimeTypeFromExtension(t *testing.T) {
 	})
 }
 
-func TestLoaderURL(t *testing.T) {
+func TestLoaderFile(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2577,7 +2577,7 @@ func TestLoaderURL(t *testing.T) {
 			AbsOutputDir: "/out/",
 			ExtensionToLoader: map[string]Loader{
 				".js":  LoaderJS,
-				".svg": LoaderURL,
+				".svg": LoaderFile,
 			},
 		},
 		expected: map[string]string{

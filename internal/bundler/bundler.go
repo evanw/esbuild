@@ -34,6 +34,9 @@ type file struct {
 	// This is used by the printer to write out the source index for modules that
 	// are referenced in the AST.
 	resolvedImports map[string]uint32
+
+	// This is used for file-loader to emit files
+	additionalFile AdditionalFile
 }
 
 func (f *file) resolveImport(path ast.Path) (uint32, bool) {
@@ -52,9 +55,10 @@ type Bundle struct {
 }
 
 type parseResult struct {
-	source logging.Source
-	ast    ast.AST
-	ok     bool
+	source     logging.Source
+	ast        ast.AST
+	ok         bool
+	outputPath string
 }
 
 func parseFile(
@@ -122,39 +126,39 @@ func parseFile(
 	switch loader {
 	case LoaderJS:
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source, ast, ok}
+		results <- parseResult{source, ast, ok, ""}
 
 	case LoaderJSX:
 		parseOptions.JSX.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source, ast, ok}
+		results <- parseResult{source, ast, ok, ""}
 
 	case LoaderTS:
 		parseOptions.TS.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source, ast, ok}
+		results <- parseResult{source, ast, ok, ""}
 
 	case LoaderTSX:
 		parseOptions.TS.Parse = true
 		parseOptions.JSX.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source, ast, ok}
+		results <- parseResult{source, ast, ok, ""}
 
 	case LoaderJSON:
 		expr, ok := parser.ParseJSON(log, source, parser.ParseJSONOptions{})
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, ok}
+		results <- parseResult{source, ast, ok, ""}
 
 	case LoaderText:
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(source.Contents)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, true}
+		results <- parseResult{source, ast, true, ""}
 
 	case LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(encoded)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, true}
+		results <- parseResult{source, ast, true, ""}
 
 	case LoaderDataURL:
 		mimeType := mime.TypeByExtension(extension)
@@ -165,18 +169,17 @@ func parseFile(
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, true}
+		results <- parseResult{source, ast, true, ""}
 
-	case LoaderURL:
+	case LoaderFile:
 		url := path.Base(sourcePath)
 		targetFolder := bundleOptions.AbsOutputDir
 		if targetFolder == "" {
 			targetFolder = path.Dir(bundleOptions.AbsOutputFile)
 		}
-		defer ioutil.WriteFile(path.Join(targetFolder, url), []byte(source.Contents), 0644)
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, true}
+		results <- parseResult{source, ast, true, path.Join(targetFolder, url)}
 
 	default:
 		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", sourcePath))
@@ -217,7 +220,7 @@ func ScanBundle(
 			runtimeParseOptions.IsBundling = true
 
 			ast, ok := parser.Parse(log, source, runtimeParseOptions)
-			results <- parseResult{source, ast, ok}
+			results <- parseResult{source, ast, ok, ""}
 		}()
 	}
 
@@ -298,7 +301,8 @@ func ScanBundle(
 		}
 
 		sources[source.Index] = source
-		files[source.Index] = file{result.ast, resolvedImports}
+
+		files[source.Index] = file{result.ast, resolvedImports, AdditionalFile{result.outputPath, source.Contents}}
 	}
 
 	return Bundle{fs, sources, files, entryPoints}
@@ -316,7 +320,7 @@ const (
 	LoaderText
 	LoaderBase64
 	LoaderDataURL
-	LoaderURL
+	LoaderFile
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {
@@ -368,11 +372,17 @@ type BundleOptions struct {
 	omitRuntimeForTests bool
 }
 
+type AdditionalFile struct {
+	Path     string
+	Contents string
+}
+
 type BundleResult struct {
 	JsAbsPath         string
 	JsContents        []byte
 	SourceMapAbsPath  string
 	SourceMapContents []byte
+	AdditionalFiles   []AdditionalFile
 }
 
 type lineColumnOffset struct {
