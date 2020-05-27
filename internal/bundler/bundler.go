@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -110,10 +109,7 @@ func parseFile(
 	}
 
 	// Get the file extension
-	extension := ""
-	if lastDot := strings.LastIndexByte(sourcePath, '.'); lastDot >= 0 {
-		extension = sourcePath[lastDot:]
-	}
+	extension := path.Ext(sourcePath)
 
 	// Pick the loader based on the file extension
 	loader := bundleOptions.ExtensionToLoader[extension]
