@@ -631,11 +631,10 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 						}
 
 					}
-				} else {
-					basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
-					if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-						return absolute, true
-					}
+				}
+				basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+				if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+					return absolute, true
 				}
 
 			}
