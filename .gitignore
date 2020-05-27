@@ -6,6 +6,7 @@
 /npm/esbuild-darwin-64/bin/esbuild
 /npm/esbuild-linux-64/bin/esbuild
 /npm/esbuild-linux-arm64/bin/esbuild
+/npm/esbuild-linux-ppc64le/bin/esbuild
 /npm/esbuild-wasm/esbuild.wasm
 /npm/esbuild-wasm/lib/
 /npm/esbuild-wasm/wasm_exec.js

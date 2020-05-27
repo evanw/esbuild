@@ -22,6 +22,13 @@ function esbuildSpawn({ flags, stdio }) {
     });
   }
 
+  if (process.platform === 'linux' && os.arch() === 'ppc64' && os.endianness() === 'LE') {
+    return child_process.spawn(path.join(__dirname, '..', 'bin', 'esbuild'), flags, {
+      cwd: process.cwd(),
+      stdio,
+    });
+  }
+
   if (process.platform === 'win32' && os.arch() === 'x64') {
     if (WASM) {
       return child_process.spawn('node', [path.join(__dirname, '..', 'bin', 'esbuild')].concat(flags), {
