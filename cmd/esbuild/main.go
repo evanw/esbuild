@@ -639,7 +639,7 @@ func run(fs fs.FS, args argsObject) {
 
 		for _, file := range item.AdditionalFiles {
 			if file.Path != "" {
-				// Write out the JavaScript file
+				// Write out the additional file
 				err := ioutil.WriteFile(file.Path, []byte(file.Contents), 0644)
 				path := resolver.PrettyPath(file.Path)
 				if err != nil {
