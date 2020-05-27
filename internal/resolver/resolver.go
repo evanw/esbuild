@@ -600,6 +600,11 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 
 func isTsConfigPathMatch(pattern string, path string) (string, bool) {
 	starIndex := strings.IndexRune(pattern, '*')
+	if starIndex == -1 {
+		firstPath := strings.Split(path, "/")[0]
+		return pattern, firstPath == pattern
+	}
+
 	elements := strings.Split(pattern, "*")
 	if starIndex == 0 {
 		suffix := elements[1]
