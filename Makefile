@@ -3,9 +3,16 @@ ESBUILD_VERSION = $(shell cat version.txt)
 esbuild: cmd/esbuild/*.go internal/*/*.go
 	go build ./cmd/esbuild
 
+# These tests are for development
 test:
+	make -j4 test-go verify-source-map end-to-end-tests js-api-tests
+
+# These tests are for release ("test-wasm" is not included in "test" because it's pretty slow)
+test-all:
+	make -j5 test-go verify-source-map end-to-end-tests js-api-tests test-wasm
+
+test-go:
 	go test ./internal/...
-	make -j3 verify-source-map end-to-end-tests js-api-tests
 
 test-wasm:
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
@@ -22,8 +29,8 @@ js-api-tests: | scripts/node_modules
 update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
 
-platform-all: update-version-go test test-wasm
-	make -j6 platform-windows platform-darwin platform-linux platform-linux-arm64 platform-linux-ppc64le platform-wasm platform-neutral
+platform-all: update-version-go test-all
+	make -j7 platform-windows platform-darwin platform-linux platform-linux-arm64 platform-linux-ppc64le platform-wasm platform-neutral
 
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
@@ -59,8 +66,8 @@ platform-wasm:
 platform-neutral:
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 
-publish-all: update-version-go test test-wasm
-	make -j6 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm publish-neutral
+publish-all: update-version-go test-all
+	make -j7 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm publish-neutral
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
 	git push origin master "v$(ESBUILD_VERSION)"

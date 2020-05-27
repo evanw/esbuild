@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Support for the PowerPC 64-bit Little Endian architecture on Linux ([#146](https://github.com/evanw/esbuild/pull/146))
+
+    This was contributed by [@runlevel5](https://github.com/runlevel5).
+
 ## 0.4.2
 
 * Bind imports to re-exports ([#149](https://github.com/evanw/esbuild/issues/149))
