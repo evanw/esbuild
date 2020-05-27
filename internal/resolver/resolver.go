@@ -602,7 +602,7 @@ func isTsConfigPathMatch(pattern string, path string) (string, bool) {
 	starIndex := strings.IndexRune(pattern, '*')
 	if starIndex == -1 {
 		firstPath := strings.Split(path, "/")[0]
-		return pattern, firstPath == pattern
+		return strings.Replace(path, pattern+"/", "", 1), firstPath == pattern
 	}
 
 	elements := strings.Split(pattern, "*")

@@ -1391,19 +1391,29 @@ func TestTsConfigPaths(t *testing.T) {
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import fn from 'core/test'
+				import fn2 from 'testing/test'
+
 				console.log(fn())
+				console.log(fn2())
+
 			`,
 			"/Users/user/project/tsconfig.json": `
 				{
 					"compilerOptions": {
 						"baseUrl": ".",
 						"paths": {
-							"core/*": ["./src/*"]
+							"core/*": ["./src/*"],
+							"testing": ["./someotherdir/*"]
 						}
 					}
 				}
 			`,
 			"/Users/user/project/src/test.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/someotherdir/test.js": `
 				module.exports = function() {
 					return 123
 				}
@@ -1419,6 +1429,13 @@ func TestTsConfigPaths(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/src/test.js
+var require_test2 = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/someotherdir/test.js
 var require_test = __commonJS((exports, module) => {
   module.exports = function() {
     return 123;
@@ -1426,8 +1443,10 @@ var require_test = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const test = __toModule(require_test());
+const test = __toModule(require_test2());
+const test2 = __toModule(require_test());
 console.log(test.default());
+console.log(test2.default());
 `,
 		},
 	})
