@@ -4323,3 +4323,54 @@ function test5() {
 		},
 	})
 }
+
+func TestImportReExportES6Issue149(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/app.jsx": `
+				import { p as Part, h, render } from './import';
+				import { Internal } from './in2';
+				const App = () => <Part> <Internal /> T </Part>;
+				render(<App />, document.getElementById('app'));
+			`,
+			"/in2.jsx": `
+				import { p as Part, h } from './import';
+				export const Internal = () => <Part> Test 2 </Part>;
+			`,
+			"/import.js": `
+				import { h, render } from 'preact';
+				export const p = "p";
+				export { h, render }
+			`,
+		},
+		entryPaths: []string{"/app.jsx"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			JSX: parser.JSXOptions{
+				Factory: []string{"h"},
+			},
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			ExternalModules: map[string]bool{
+				"preact": true,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /import.js
+import {h, render} from "preact";
+const p = "p";
+
+// /in2.jsx
+const Internal = () => h(p, null, " Test 2 ");
+
+// /app.jsx
+const App = () => h(p, null, h(Internal, null), " T ");
+render(h(App, null), document.getElementById("app"));
+`,
+		},
+	})
+}

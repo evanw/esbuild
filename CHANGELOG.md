@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2
+
+* Bind imports to re-exports ([#149](https://github.com/evanw/esbuild/issues/149))
+
+    This fixes a bug where imports of re-exported symbols were not correctly merged in some cases. This resulted in the generated code referencing symbols that were not declared, resulting in a crash.
+
 ## 0.4.1
 
 * Add a log level setting ([#117](https://github.com/evanw/esbuild/issues/117))
