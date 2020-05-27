@@ -637,9 +637,9 @@ func run(fs fs.FS, args argsObject) {
 		}
 		args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(item.JsContents))))
 
+		// Write out the additional files
 		for _, file := range item.AdditionalFiles {
 			if file.Path != "" {
-				// Write out the additional file
 				err := ioutil.WriteFile(file.Path, []byte(file.Contents), 0644)
 				path := resolver.PrettyPath(file.Path)
 				if err != nil {

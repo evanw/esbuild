@@ -434,6 +434,13 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 	var results []BundleResult
 	for _, group := range resultGroups {
 		results = append(results, group...)
+		for _, bundle := range group {
+			for _, additionalFile := range bundle.AdditionalFiles {
+				if additionalFile.Path != "" {
+					results = append(results, BundleResult{additionalFile.Path, []byte(additionalFile.Contents), "", []byte(""), []AdditionalFile{}})
+				}
+			}
+		}
 	}
 	return results
 }

@@ -3,6 +3,7 @@ package bundler
 import (
 	"fmt"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/fs"
@@ -17,7 +18,11 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
 		stringA := fmt.Sprintf("%v", a)
 		stringB := fmt.Sprintf("%v", b)
-		t.Fatalf(diff.Diff(stringA, stringB))
+		if strings.Contains(stringA, "\n") {
+			t.Fatal(diff.Diff(stringA, stringB))
+		} else {
+			t.Fatalf("%s != %s", a, b)
+		}
 	}
 }
 
@@ -2581,6 +2586,7 @@ func TestLoaderFile(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
+			"/out/test.svg": "<svg></svg>",
 			"/out/entry.js": `// /test.svg
 var require_test = __commonJS((exports, module) => {
   module.exports = "test.svg";
