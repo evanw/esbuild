@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"os"
-	fp "path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -601,9 +600,9 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 	return "", false
 }
 
-func resolvePathWithoutStar(from, path string) (string, error) {
+func (r *resolver) resolvePathWithoutStar(from, path string) (string, error) {
 	replaced := strings.Replace(path, "/*", "", -1)
-	return fp.Join(from, replaced), nil
+	return r.fs.Join(from, replaced), nil
 }
 
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
@@ -616,7 +615,7 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 					for key, originalPaths := range dirInfo.tsConfigJson.paths {
 						for _, originalPath := range originalPaths {
 							if matched, err := regexp.MatchString("^"+key, path); matched && err == nil {
-								if absoluteOriginalPath, err := resolvePathWithoutStar(*dirInfo.tsConfigJson.absPathBaseUrl, originalPath); err == nil {
+								if absoluteOriginalPath, err := r.resolvePathWithoutStar(*dirInfo.tsConfigJson.absPathBaseUrl, originalPath); err == nil {
 									elements := strings.Split(path, "/")
 
 									elements = elements[1:]
