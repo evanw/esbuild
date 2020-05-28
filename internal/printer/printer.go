@@ -1074,6 +1074,7 @@ func (p *printer) printRequireCall(path string, args requireCallArgs) {
 const (
 	forbidCall = 1 << iota
 	forbidIn
+	hasNonOptionalChainParent
 )
 
 func (p *printer) printUndefined(level ast.L) {
@@ -1146,6 +1147,12 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.ECall:
 		wrap := level >= ast.LNew || (flags&forbidCall) != 0
+		targetFlags := 0
+		if e.OptionalChain == ast.OptionalChainNone {
+			targetFlags = hasNonOptionalChainParent
+		} else if (flags & hasNonOptionalChainParent) != 0 {
+			wrap = true
+		}
 		if wrap {
 			p.print("(")
 		}
@@ -1160,10 +1167,10 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.printExpr(e.Target, ast.LPostfix, 0)
 			p.print(")")
 		} else {
-			p.printExpr(e.Target, ast.LPostfix, 0)
+			p.printExpr(e.Target, ast.LPostfix, targetFlags)
 		}
 
-		if e.IsOptionalChain {
+		if e.OptionalChain == ast.OptionalChainStart {
 			p.print("?.")
 		}
 		p.print("(")
@@ -1209,8 +1216,18 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EDot:
+		wrap := false
+		if e.OptionalChain == ast.OptionalChainNone {
+			flags |= hasNonOptionalChainParent
+		} else {
+			if (flags & hasNonOptionalChainParent) != 0 {
+				wrap = true
+				p.print("(")
+			}
+			flags &= ^hasNonOptionalChainParent
+		}
 		p.printExpr(e.Target, ast.LPostfix, flags)
-		if e.IsOptionalChain {
+		if e.OptionalChain == ast.OptionalChainStart {
 			p.print("?")
 		} else if p.prevNumEnd == len(p.js) {
 			// "1.toString" is a syntax error, so print "1 .toString" instead
@@ -1219,15 +1236,31 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.print(".")
 		p.addSourceMapping(e.NameLoc)
 		p.print(e.Name)
+		if wrap {
+			p.print(")")
+		}
 
 	case *ast.EIndex:
+		wrap := false
+		if e.OptionalChain == ast.OptionalChainNone {
+			flags |= hasNonOptionalChainParent
+		} else {
+			if (flags & hasNonOptionalChainParent) != 0 {
+				wrap = true
+				p.print("(")
+			}
+			flags &= ^hasNonOptionalChainParent
+		}
 		p.printExpr(e.Target, ast.LPostfix, flags)
-		if e.IsOptionalChain {
+		if e.OptionalChain == ast.OptionalChainStart {
 			p.print("?.")
 		}
 		p.print("[")
 		p.printExpr(e.Index, ast.LLowest, 0)
 		p.print("]")
+		if wrap {
+			p.print(")")
+		}
 
 	case *ast.EIf:
 		wrap := level >= ast.LConditional

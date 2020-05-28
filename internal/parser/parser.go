@@ -1932,17 +1932,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 }
 
 func markExprAsParenthesized(value ast.Expr) {
-	switch e := value.Data.(type) {
-	case *ast.EDot:
-		e.IsParenthesized = true
-
-	case *ast.EIndex:
-		e.IsParenthesized = true
-
-	case *ast.ECall:
-		e.IsParenthesized = true
-
-	case *ast.EArrow:
+	if e, ok := value.Data.(*ast.EArrow); ok {
 		e.IsParenthesized = true
 	}
 }
@@ -2635,7 +2625,14 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 		}
 	}
 
+	optionalChain := ast.OptionalChainNone
+
 	for {
+		// Reset the optional chain flag by default. That way we won't accidentally
+		// treat "c.d" as OptionalChainContinue in "a?.b + c.d".
+		oldOptionalChain := optionalChain
+		optionalChain = ast.OptionalChainNone
+
 		switch p.lexer.Token {
 		case lexer.TDot:
 			p.lexer.Next()
@@ -2646,10 +2643,12 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			nameLoc := p.lexer.Loc()
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EDot{
-				Target:  left,
-				Name:    name,
-				NameLoc: nameLoc,
+				Target:        left,
+				Name:          name,
+				NameLoc:       nameLoc,
+				OptionalChain: oldOptionalChain,
 			}}
+			optionalChain = oldOptionalChain
 
 		case lexer.TQuestionDot:
 			p.lexer.Next()
@@ -2668,9 +2667,9 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 
 				p.lexer.Expect(lexer.TCloseBracket)
 				left = ast.Expr{left.Loc, &ast.EIndex{
-					Target:          left,
-					Index:           index,
-					IsOptionalChain: true,
+					Target:        left,
+					Index:         index,
+					OptionalChain: ast.OptionalChainStart,
 				}}
 
 			case lexer.TOpenParen:
@@ -2678,9 +2677,9 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 					return left
 				}
 				left = ast.Expr{left.Loc, &ast.ECall{
-					Target:          left,
-					Args:            p.parseCallArgs(),
-					IsOptionalChain: true,
+					Target:        left,
+					Args:          p.parseCallArgs(),
+					OptionalChain: ast.OptionalChainStart,
 				}}
 
 			default:
@@ -2691,12 +2690,14 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 				nameLoc := p.lexer.Loc()
 				p.lexer.Next()
 				left = ast.Expr{left.Loc, &ast.EDot{
-					Target:          left,
-					Name:            name,
-					NameLoc:         nameLoc,
-					IsOptionalChain: true,
+					Target:        left,
+					Name:          name,
+					NameLoc:       nameLoc,
+					OptionalChain: ast.OptionalChainStart,
 				}}
 			}
+
+			optionalChain = ast.OptionalChainContinue
 
 		case lexer.TNoSubstitutionTemplateLiteral:
 			if level >= ast.LPrefix {
@@ -2731,18 +2732,22 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 
 			p.lexer.Expect(lexer.TCloseBracket)
 			left = ast.Expr{left.Loc, &ast.EIndex{
-				Target: left,
-				Index:  index,
+				Target:        left,
+				Index:         index,
+				OptionalChain: oldOptionalChain,
 			}}
+			optionalChain = oldOptionalChain
 
 		case lexer.TOpenParen:
 			if level >= ast.LCall {
 				return left
 			}
 			left = ast.Expr{left.Loc, &ast.ECall{
-				Target: left,
-				Args:   p.parseCallArgs(),
+				Target:        left,
+				Args:          p.parseCallArgs(),
+				OptionalChain: oldOptionalChain,
 			}}
+			optionalChain = oldOptionalChain
 
 		case lexer.TQuestion:
 			if level >= ast.LConditional {
@@ -5612,7 +5617,7 @@ func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
 	switch left := e.Left.Data.(type) {
 	case *ast.EDot:
-		if !left.IsOptionalChain {
+		if left.OptionalChain == ast.OptionalChainNone {
 			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
 			return wrapFunc(ast.Expr{loc, &ast.EBinary{
 				Op: ast.BinOpAssign,
@@ -5633,7 +5638,7 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 		}
 
 	case *ast.EIndex:
-		if !left.IsOptionalChain {
+		if left.OptionalChain == ast.OptionalChainNone {
 			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
 			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Index)
 			return targetWrapFunc(indexWrapFunc(ast.Expr{loc, &ast.EBinary{
@@ -7163,7 +7168,7 @@ func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 		// Intermediates must be dot expressions
 		e, ok := expr.Data.(*ast.EDot)
 		last := len(parts) - 1
-		return ok && parts[last] == e.Name && !e.IsOptionalChain && p.isDotDefineMatch(e.Target, parts[:last])
+		return ok && parts[last] == e.Name && e.OptionalChain == ast.OptionalChainNone && p.isDotDefineMatch(e.Target, parts[:last])
 	}
 
 	// The last expression must be an identifier
@@ -7392,7 +7397,7 @@ flatten:
 			if len(chain) == 1 {
 				endsWithPropertyAccess = true
 			}
-			if e.IsOptionalChain {
+			if e.OptionalChain == ast.OptionalChainStart {
 				break flatten
 			}
 
@@ -7401,13 +7406,13 @@ flatten:
 			if len(chain) == 1 {
 				endsWithPropertyAccess = true
 			}
-			if e.IsOptionalChain {
+			if e.OptionalChain == ast.OptionalChainStart {
 				break flatten
 			}
 
 		case *ast.ECall:
 			expr = e.Target
-			if e.IsOptionalChain {
+			if e.OptionalChain == ast.OptionalChainStart {
 				startsWithCall = true
 				break flatten
 			}
@@ -7589,9 +7594,9 @@ type exprIn struct {
 	//   a?.b[c] // EIndex
 	//   a?.b()  // ECall
 	//
-	// Note that this is false if our parent is a node with a IsOptionalChain
-	// value of true. That means it's the start of a new chain, so it's not
-	// considered part of this one.
+	// Note that this is false if our parent is a node with a OptionalChain
+	// value of OptionalChainStart. That means it's the start of a new chain, so
+	// it's not considered part of this one.
 	//
 	// Some examples:
 	//
@@ -7599,13 +7604,24 @@ type exprIn struct {
 	//   a?.b?.[c] // EIndex
 	//   a?.b?.()  // ECall
 	//
+	// Also note that this is false if our parent is a node with a OptionalChain
+	// value of OptionalChainNone. That means it's outside parentheses, which
+	// means it's no longer part of the chain.
+	//
+	// Some examples:
+	//
+	//   (a?.b).c  // EDot
+	//   (a?.b)[c] // EIndex
+	//   (a?.b)()  // ECall
+	//
 	hasChainParent bool
 
-	// If our parent is an ECall node with an IsOptionalChain value of true, then
-	// we will need to store the value for the "this" of that call somewhere if
-	// the current expression is an optional chain that ends in a property access.
-	// That's because the value for "this" will be used twice: once for the inner
-	// optional chain and once for the outer optional chain.
+	// If our parent is an ECall node with an OptionalChain value of
+	// OptionalChainStart, then we will need to store the value for the "this" of
+	// that call somewhere if the current expression is an optional chain that
+	// ends in a property access. That's because the value for "this" will be
+	// used twice: once for the inner optional chain and once for the outer
+	// optional chain.
 	//
 	// Example:
 	//
@@ -7935,14 +7951,15 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EIndex:
-		target, out := p.visitExprInOut(e.Target, exprIn{hasChainParent: !e.IsOptionalChain})
+		target, out := p.visitExprInOut(e.Target, exprIn{
+			hasChainParent: e.OptionalChain == ast.OptionalChainContinue,
+		})
 		e.Target = target
 		e.Index = p.visitExpr(e.Index)
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
-		isEndOfChain := e.IsParenthesized || !in.hasChainParent
-		if containsOptionalChain && isEndOfChain {
+		containsOptionalChain := e.OptionalChain != ast.OptionalChainNone
+		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
@@ -8047,13 +8064,14 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 		}
 
-		target, out := p.visitExprInOut(e.Target, exprIn{hasChainParent: !e.IsOptionalChain})
+		target, out := p.visitExprInOut(e.Target, exprIn{
+			hasChainParent: e.OptionalChain == ast.OptionalChainContinue,
+		})
 		e.Target = target
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
-		isEndOfChain := e.IsParenthesized || !in.hasChainParent
-		if containsOptionalChain && isEndOfChain {
+		containsOptionalChain := e.OptionalChain != ast.OptionalChainNone
+		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
@@ -8146,7 +8164,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		var thisArgFunc func() ast.Expr
 		var thisArgWrapFunc func(ast.Expr) ast.Expr
 		p.callTarget = e.Target.Data
-		if e.IsOptionalChain {
+		if e.OptionalChain == ast.OptionalChainStart {
 			// Signal to our child if this is an ECall at the start of an optional
 			// chain. If so, the child will need to stash the "this" context for us
 			// that we need for the ".call(this, ...args)".
@@ -8157,7 +8175,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 		_, wasIdentifierBeforeVisit := e.Target.Data.(*ast.EIdentifier)
 		target, out := p.visitExprInOut(e.Target, exprIn{
-			hasChainParent:                     !e.IsOptionalChain,
+			hasChainParent:                     e.OptionalChain == ast.OptionalChainContinue,
 			storeThisArgForParentOptionalChain: storeThisArg,
 		})
 		e.Target = target
@@ -8183,9 +8201,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.IsOptionalChain || out.childContainsOptionalChain
-		isEndOfChain := e.IsParenthesized || !in.hasChainParent
-		if containsOptionalChain && isEndOfChain {
+		containsOptionalChain := e.OptionalChain != ast.OptionalChainNone
+		if containsOptionalChain && !in.hasChainParent {
 			result, out := p.lowerOptionalChain(expr, in, out, thisArgFunc)
 			if thisArgWrapFunc != nil {
 				result = thisArgWrapFunc(result)

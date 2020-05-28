@@ -1539,6 +1539,35 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "(class Foo {})", "(class Foo {\n});\n")
 }
 
+func TestPreserveOptionalChainParentheses(t *testing.T) {
+	expectPrinted(t, "a?.b.c", "a?.b.c;\n")
+	expectPrinted(t, "(a?.b).c", "(a?.b).c;\n")
+	expectPrinted(t, "a?.b.c.d", "a?.b.c.d;\n")
+	expectPrinted(t, "(a?.b.c).d", "(a?.b.c).d;\n")
+	expectPrinted(t, "a?.b[c]", "a?.b[c];\n")
+	expectPrinted(t, "(a?.b)[c]", "(a?.b)[c];\n")
+	expectPrinted(t, "a?.b(c)", "a?.b(c);\n")
+	expectPrinted(t, "(a?.b)(c)", "(a?.b)(c);\n")
+
+	expectPrinted(t, "a?.[b][c]", "a?.[b][c];\n")
+	expectPrinted(t, "(a?.[b])[c]", "(a?.[b])[c];\n")
+	expectPrinted(t, "a?.[b][c][d]", "a?.[b][c][d];\n")
+	expectPrinted(t, "(a?.[b][c])[d]", "(a?.[b][c])[d];\n")
+	expectPrinted(t, "a?.[b].c", "a?.[b].c;\n")
+	expectPrinted(t, "(a?.[b]).c", "(a?.[b]).c;\n")
+	expectPrinted(t, "a?.[b](c)", "a?.[b](c);\n")
+	expectPrinted(t, "(a?.[b])(c)", "(a?.[b])(c);\n")
+
+	expectPrinted(t, "a?.(b)(c)", "a?.(b)(c);\n")
+	expectPrinted(t, "(a?.(b))(c)", "(a?.(b))(c);\n")
+	expectPrinted(t, "a?.(b)(c)(d)", "a?.(b)(c)(d);\n")
+	expectPrinted(t, "(a?.(b)(c))(d)", "(a?.(b)(c))(d);\n")
+	expectPrinted(t, "a?.(b).c", "a?.(b).c;\n")
+	expectPrinted(t, "(a?.(b)).c", "(a?.(b)).c;\n")
+	expectPrinted(t, "a?.(b)[c]", "a?.(b)[c];\n")
+	expectPrinted(t, "(a?.(b))[c]", "(a?.(b))[c];\n")
+}
+
 func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, ES2019, "a?.b.c", "a == null ? void 0 : a.b.c;\n")
 	expectPrintedTarget(t, ES2019, "(a?.b).c", "(a == null ? void 0 : a.b).c;\n")

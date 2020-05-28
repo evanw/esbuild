@@ -378,30 +378,41 @@ type ENewTarget struct{}
 
 type EImportMeta struct{}
 
+type OptionalChain uint8
+
+const (
+	// "a.b"
+	OptionalChainNone OptionalChain = iota
+
+	// "a?.b"
+	OptionalChainStart
+
+	// "a?.b.c" => ".c" is OptionalChainContinue
+	// "(a?.b).c" => ".c" is OptionalChainNone
+	OptionalChainContinue
+)
+
 type ECall struct {
-	Target          Expr
-	Args            []Expr
-	IsOptionalChain bool
-	IsParenthesized bool
-	IsDirectEval    bool
+	Target        Expr
+	Args          []Expr
+	OptionalChain OptionalChain
+	IsDirectEval  bool
 }
 
 type EDot struct {
-	Target          Expr
-	Name            string
-	NameLoc         Loc
-	IsOptionalChain bool
-	IsParenthesized bool
+	Target        Expr
+	Name          string
+	NameLoc       Loc
+	OptionalChain OptionalChain
 
 	// If true, this property access is known to be free of side-effects
 	CanBeRemovedIfUnused bool
 }
 
 type EIndex struct {
-	Target          Expr
-	Index           Expr
-	IsOptionalChain bool
-	IsParenthesized bool
+	Target        Expr
+	Index         Expr
+	OptionalChain OptionalChain
 }
 
 type EArrow struct {
