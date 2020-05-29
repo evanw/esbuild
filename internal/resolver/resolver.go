@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -230,8 +231,17 @@ type packageJson struct {
 }
 
 type tsConfigJson struct {
-	absPathBaseUrl *string             // The absolute path of "compilerOptions.baseUrl"
-	paths          map[string][]string // The absolute paths of "compilerOptions.paths"
+	// The absolute path of "compilerOptions.baseUrl"
+	absPathBaseUrl *string
+
+	// The verbatim values of "compilerOptions.paths". The keys are patterns to
+	// match and the values are arrays of fallback paths to search. Each key and
+	// each fallback path can optionally have a single "*" wildcard character.
+	// If both the key and the value have a wildcard, the substring matched by
+	// the wildcard is substituted into the fallback path. The keys represent
+	// module-style path names and the fallback paths are relative to the
+	// "baseUrl" value in the "tsconfig.json" file.
+	paths map[string][]string
 }
 
 type dirInfo struct {
@@ -294,28 +304,63 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 		AllowTrailingCommas: true,
 	}
 
-	if json, ok := r.parseJSON(file, options); ok {
-		if compilerOptionsJson, ok := getProperty(json, "compilerOptions"); ok {
-			if baseUrlJson, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
+	if json, tsConfigSource, ok := r.parseJSON(file, options); ok {
+		if compilerOptionsJson, _, ok := getProperty(json, "compilerOptions"); ok {
+			// Parse the "baseUrl" field
+			if baseUrlJson, _, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
 				if baseUrl, ok := getString(baseUrlJson); ok {
 					baseUrl = r.fs.Join(path, baseUrl)
 					info.tsConfigJson.absPathBaseUrl = &baseUrl
 				}
 			}
-			if pathsJson, ok := getProperty(compilerOptionsJson, "paths"); ok {
-				if paths, ok := pathsJson.Data.(*ast.EObject); ok {
+
+			// Parse the "paths" field
+			if pathsJson, pathsKeyLoc, ok := getProperty(compilerOptionsJson, "paths"); ok {
+				if info.tsConfigJson.absPathBaseUrl == nil {
+					warnRange := tsConfigSource.RangeOfString(pathsKeyLoc)
+					r.log.AddRangeWarning(tsConfigSource, warnRange,
+						"Cannot use the \"paths\" property without the \"baseUrl\" property")
+				} else if paths, ok := pathsJson.Data.(*ast.EObject); ok {
 					info.tsConfigJson.paths = map[string][]string{}
 					for _, prop := range paths.Properties {
 						if key, ok := getString(prop.Key); ok {
-							if value, ok := getProperty(pathsJson, key); ok {
-								if array, ok := value.Data.(*ast.EArray); ok {
-									for _, item := range array.Items {
-										if str, ok := getString(item); ok {
-											// If this is a string, it's a replacement module
+							if !isValidTSConfigPathPattern(key, r.log, tsConfigSource, prop.Key.Loc) {
+								continue
+							}
+
+							// The "paths" field is an object which maps a pattern to an
+							// array of remapping patterns to try, in priority order. See
+							// the documentation for examples of how this is used:
+							// https://www.typescriptlang.org/docs/handbook/module-resolution.html#path-mapping.
+							//
+							// One particular example:
+							//
+							//   {
+							//     "compilerOptions": {
+							//       "baseUrl": "projectRoot",
+							//       "paths": {
+							//         "*": [
+							//           "*",
+							//           "generated/*"
+							//         ]
+							//       }
+							//     }
+							//   }
+							//
+							// Matching "folder1/file2" should first check "projectRoot/folder1/file2"
+							// and then, if that didn't work, also check "projectRoot/generated/folder1/file2".
+							if array, ok := prop.Value.Data.(*ast.EArray); ok {
+								for _, item := range array.Items {
+									if str, ok := getString(item); ok {
+										if isValidTSConfigPathPattern(str, r.log, tsConfigSource, item.Loc) {
 											info.tsConfigJson.paths[key] = append(info.tsConfigJson.paths[key], str)
 										}
 									}
 								}
+							} else {
+								warnRange := tsConfigSource.RangeOfString(prop.Value.Loc)
+								r.log.AddRangeWarning(tsConfigSource, warnRange, fmt.Sprintf(
+									"Substitutions for pattern %q should be an array", key))
 							}
 						}
 					}
@@ -323,6 +368,22 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 			}
 		}
 	}
+}
+
+func isValidTSConfigPathPattern(text string, log logging.Log, source logging.Source, loc ast.Loc) bool {
+	foundAsterisk := false
+	for i := 0; i < len(text); i++ {
+		if text[i] == '*' {
+			if foundAsterisk {
+				r := source.RangeOfString(loc)
+				log.AddRangeWarning(source, r, fmt.Sprintf(
+					"Invalid pattern %q, must have at most one \"*\" character", text))
+				return false
+			}
+			foundAsterisk = true
+		}
+	}
+	return true
 }
 
 func (r *resolver) dirInfoUncached(path string) *dirInfo {
@@ -392,7 +453,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 }
 
 func (r *resolver) parsePackageJSON(path string) *packageJson {
-	json, ok := r.parseJSON(r.fs.Join(path, "package.json"), parser.ParseJSONOptions{})
+	json, _, ok := r.parseJSON(r.fs.Join(path, "package.json"), parser.ParseJSONOptions{})
 	if !ok {
 		return nil
 	}
@@ -404,18 +465,18 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	// "main" property is supposed to be CommonJS, and ES6 helps us generate
 	// better code.
 	mainPath := ""
-	if moduleJson, ok := getProperty(json, "module"); ok {
+	if moduleJson, _, ok := getProperty(json, "module"); ok {
 		if main, ok := getString(moduleJson); ok {
 			mainPath = r.fs.Join(path, main)
 		}
-	} else if mainJson, ok := getProperty(json, "main"); ok {
+	} else if mainJson, _, ok := getProperty(json, "main"); ok {
 		if main, ok := getString(mainJson); ok {
 			mainPath = r.fs.Join(path, main)
 		}
 	}
 
 	// Read the "browser" property, but only when targeting the browser
-	if browserJson, ok := getProperty(json, "browser"); ok && r.options.Platform == PlatformBrowser {
+	if browserJson, _, ok := getProperty(json, "browser"); ok && r.options.Platform == PlatformBrowser {
 		if browser, ok := getString(browserJson); ok {
 			// If the value is a string, then we should just replace the main path.
 			//
@@ -534,28 +595,29 @@ func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string
 	return "", false
 }
 
-func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, bool) {
+func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logging.Source, bool) {
 	if contents, ok := r.fs.ReadFile(path); ok {
 		source := logging.Source{
 			AbsolutePath: path,
 			PrettyPath:   r.PrettyPath(path),
 			Contents:     contents,
 		}
-		return parser.ParseJSON(r.log, source, options)
+		result, ok := parser.ParseJSON(r.log, source, options)
+		return result, source, ok
 	}
-	return ast.Expr{}, false
+	return ast.Expr{}, logging.Source{}, false
 }
 
-func getProperty(json ast.Expr, name string) (ast.Expr, bool) {
+func getProperty(json ast.Expr, name string) (ast.Expr, ast.Loc, bool) {
 	if obj, ok := json.Data.(*ast.EObject); ok {
 		for _, prop := range obj.Properties {
 			if key, ok := prop.Key.Data.(*ast.EString); ok && key.Value != nil &&
 				len(key.Value) == len(name) && lexer.UTF16ToString(key.Value) == name {
-				return *prop.Value, true
+				return *prop.Value, prop.Key.Loc, true
 			}
 		}
 	}
-	return ast.Expr{}, false
+	return ast.Expr{}, ast.Loc{}, false
 }
 
 func getString(json ast.Expr) (string, bool) {
@@ -598,47 +660,89 @@ func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
 	return "", false
 }
 
-func isTsConfigPathMatch(pattern string, path string) (string, bool) {
-	starIndex := strings.IndexRune(pattern, '*')
-	if starIndex == -1 {
-		firstPath := strings.Split(path, "/")[0]
-		return strings.Replace(path, pattern+"/", "", 1), firstPath == pattern
+// This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
+// official TypeScript compiler
+func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string) (string, bool) {
+	// Check for exact matches first
+	for key, originalPaths := range tsConfigJson.paths {
+		if key == path {
+			for _, originalPath := range originalPaths {
+				// Load the original path relative to the "baseUrl" from tsconfig.json
+				absoluteOriginalPath := r.fs.Join(*tsConfigJson.absPathBaseUrl, originalPath)
+				if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath); ok {
+					return absolute, true
+				}
+			}
+			return "", false
+		}
 	}
 
-	elements := strings.Split(pattern, "*")
-	if starIndex == 0 {
-		suffix := elements[1]
-		return strings.Replace(path, suffix, "", 1), strings.HasSuffix(path, suffix)
+	type match struct {
+		prefix        string
+		suffix        string
+		originalPaths []string
 	}
-	prefix := elements[0]
-	return strings.Replace(path, prefix, "", 1), strings.HasPrefix(path, prefix)
+
+	// Check for pattern matches next
+	longestMatchPrefixLength := -1
+	longestMatchSuffixLength := -1
+	var longestMatch match
+	for key, originalPaths := range tsConfigJson.paths {
+		if starIndex := strings.IndexByte(key, '*'); starIndex != -1 {
+			prefix, suffix := key[:starIndex], key[starIndex+1:]
+
+			// Find the match with the longest prefix. If two matches have the same
+			// prefix length, pick the one with the longest suffix. This second edge
+			// case isn't handled by the TypeScript compiler, but we handle it
+			// because we want the output to always be deterministic and Go map
+			// iteration order is deliberately non-deterministic.
+			if strings.HasPrefix(path, prefix) && strings.HasSuffix(path, suffix) && (len(prefix) > longestMatchPrefixLength ||
+				(len(prefix) == longestMatchPrefixLength && len(suffix) > longestMatchSuffixLength)) {
+				longestMatchPrefixLength = len(prefix)
+				longestMatchSuffixLength = len(suffix)
+				longestMatch = match{
+					prefix:        prefix,
+					suffix:        suffix,
+					originalPaths: originalPaths,
+				}
+			}
+		}
+	}
+
+	// If there is at least one match, only consider the one with the longest
+	// prefix. This matches the behavior of the TypeScript compiler.
+	if longestMatchPrefixLength != -1 {
+		for _, originalPath := range longestMatch.originalPaths {
+			// Swap out the "*" in the original path for whatever the "*" matched
+			matchedText := path[len(longestMatch.prefix) : len(path)-len(longestMatch.suffix)]
+			originalPath = strings.Replace(originalPath, "*", matchedText, 1)
+
+			// Load the original path relative to the "baseUrl" from tsconfig.json
+			absoluteOriginalPath := r.fs.Join(*tsConfigJson.absPathBaseUrl, originalPath)
+			if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath); ok {
+				return absolute, true
+			}
+		}
+	}
+
+	return "", false
 }
 
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
 	for {
 		// Handle TypeScript base URLs for TypeScript code
-		if dirInfo.tsConfigJson != nil {
-
-			if dirInfo.tsConfigJson.absPathBaseUrl != nil {
-				if dirInfo.tsConfigJson.paths != nil {
-					for key, originalPaths := range dirInfo.tsConfigJson.paths {
-						for _, originalPath := range originalPaths {
-							if parts, ok := isTsConfigPathMatch(key, path); ok {
-								absoluteOriginalPath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, originalPath)
-								basePath := strings.Replace(absoluteOriginalPath, "*", parts, 1)
-								if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-									return absolute, true
-								}
-							}
-						}
-
-					}
-				}
-				basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
-				if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+		if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
+			// Try path substitutions first
+			if dirInfo.tsConfigJson.paths != nil {
+				if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJson, path); ok {
 					return absolute, true
 				}
+			}
 
+			// Try looking up the path relative to the base URL
+			basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+			if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+				return absolute, true
 			}
 		}
 
