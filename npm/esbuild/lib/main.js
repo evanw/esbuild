@@ -53,7 +53,6 @@ function pushCommonFlags(flags, options) {
 
   if (options.sourcefile) flags.push(`--sourcefile=${options.sourcefile}`);
   if (options.target) flags.push(`--target=${options.target}`);
-  if (options.resolve && options.resolve.extensionOrder) flags.push(`--resolve-extension-order=${options.resolve.extensionOrder.join(',')}`);
 
   if (options.minify) flags.push('--minify');
   if (options.minifySyntax) flags.push('--minify-syntax');
@@ -95,6 +94,7 @@ exports.build = options => {
     if (options.format) flags.push(`--format=${options.format}`);
     if (options.color) flags.push(`--color=${options.color}`);
     if (options.logLevel) flags.push(`--log-level=${options.logLevel}`);
+    if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
     if (options.external) for (const name of options.external) flags.push(`--external:${name}`);
     if (options.loader) for (const ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
 

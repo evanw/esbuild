@@ -5,7 +5,6 @@ const assert = require('assert')
 const path = require('path')
 const util = require('util')
 const fs = require('fs')
-const { execSync } = require('child_process');
 
 const repoDir = path.dirname(__dirname)
 const testDir = path.join(repoDir, 'scripts', '.js-api-tests')
@@ -46,17 +45,22 @@ let buildTests = {
     assert.strictEqual(json.version, 3)
   },
 
-  async resolveExtensionOrder({esbuild}) {
+  async resolveExtensionOrder({ esbuild }) {
     const input = path.join(testDir, '4-in.js');
     const inputBare = path.join(testDir, '4-module.js')
     const inputSomething = path.join(testDir, '4-module.something.js')
     const output = path.join(testDir, '4-out.js')
-    await util.promisify(fs.writeFile)(input, 'console.log(require("./4-module").foo)')
+    await util.promisify(fs.writeFile)(input, 'exports.result = require("./4-module").foo')
     await util.promisify(fs.writeFile)(inputBare, 'exports.foo = 321')
     await util.promisify(fs.writeFile)(inputSomething, 'exports.foo = 123')
-
-    await esbuild.build({ entryPoints: [input], outfile: output, bundle: true, resolve: {extensionOrder: ['.something.js','.js']} })
-    assert.strictEqual(execSync(`node ${output}`).toString(), "123\n")
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      format: 'cjs',
+      bundle: true,
+      resolveExtensions: ['.something.js', '.js'],
+    })
+    assert.strictEqual(require(output).result, 123)
   }
 }
 
@@ -214,13 +218,13 @@ async function main() {
 
   // Clean up test output
   service.stop()
-  rimraf.sync(testDir, { disableGlob: true })
 
   if (!allTestsPassed) {
     console.error(`❌ js api tests failed`)
     process.exit(1)
   } else {
     console.log(`✅ js api tests passed`)
+    rimraf.sync(testDir, { disableGlob: true })
   }
 }
 

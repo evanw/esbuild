@@ -241,12 +241,13 @@ Options:
                         one of: js, jsx, ts, tsx, json, text, base64, dataurl
 
 Advanced options:
-  --version             Print the current version and exit
-  --sourcemap=inline    Emit the source map with an inline data URL
-  --sourcemap=external  Do not link to the source map with a comment
-  --sourcefile=...      Set the source file for the source map (for stdin)
-  --error-limit=...     Maximum error count or 0 to disable (default 10)
-  --log-level=...       Disable logging (info, warning, error)
+  --version                 Print the current version and exit
+  --sourcemap=inline        Emit the source map with an inline data URL
+  --sourcemap=external      Do not link to the source map with a comment
+  --sourcefile=...          Set the source file for the source map (for stdin)
+  --error-limit=...         Maximum error count or 0 to disable (default 10)
+  --log-level=...           Disable logging (info, warning, error)
+  --resolve-extensions=...  A comma-separated list of implicit extensions
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file

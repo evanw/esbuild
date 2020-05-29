@@ -31,6 +31,7 @@ export interface BuildOptions extends CommonOptions {
   external?: string[];
   loader?: { [ext: string]: Loader };
   logLevel?: LogLevel;
+  resolveExtensions?: string[];
 
   entryPoints: string[];
 
