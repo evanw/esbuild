@@ -1386,6 +1386,72 @@ console.log(main_esm_default());
 	})
 }
 
+func TestTsConfigPaths(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'core/test'
+				import fn2 from 'testing/test'
+
+				console.log(fn())
+				console.log(fn2())
+
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"core/*": ["./src/*"],
+							"testing": ["./someotherdir/*"]
+						}
+					}
+				}
+			`,
+			"/Users/user/project/src/test.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/someotherdir/test.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/src/test.js
+var require_test2 = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/someotherdir/test.js
+var require_test = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/src/entry.js
+const test = __toModule(require_test2());
+const test2 = __toModule(require_test());
+console.log(test.default());
+console.log(test2.default());
+`,
+		},
+	})
+}
+
 func TestPackageJsonBrowserString(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
