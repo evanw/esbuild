@@ -1,7 +1,9 @@
 package bundler
 
 import (
+	"fmt"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/fs"
@@ -9,11 +11,18 @@ import (
 	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
+	"github.com/kylelemons/godebug/diff"
 )
 
 func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
-		t.Fatalf("%s != %s", a, b)
+		stringA := fmt.Sprintf("%v", a)
+		stringB := fmt.Sprintf("%v", b)
+		if strings.Contains(stringA, "\n") {
+			t.Fatal(diff.Diff(stringA, stringB))
+		} else {
+			t.Fatalf("%s != %s", a, b)
+		}
 	}
 }
 
@@ -2734,6 +2743,40 @@ func testAutoDetectMimeTypeFromExtension(t *testing.T) {
     console.log(__require(1 /* ./test.svg */));
   }
 }, 0);
+`,
+		},
+	})
+}
+
+func TestLoaderFile(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.svg'))
+			`,
+			"/test.svg": "<svg></svg>",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:   true,
+			AbsOutputDir: "/out/",
+			ExtensionToLoader: map[string]Loader{
+				".js":  LoaderJS,
+				".svg": LoaderFile,
+			},
+		},
+		expected: map[string]string{
+			"/out/test.svg": "<svg></svg>",
+			"/out/entry.js": `// /test.svg
+var require_test = __commonJS((exports, module) => {
+  module.exports = "test.svg";
+});
+
+// /entry.js
+console.log(require_test());
 `,
 		},
 	})

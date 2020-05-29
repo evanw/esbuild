@@ -1714,6 +1714,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 }
 
 func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
+	additionalFiles := []AdditionalFile{}
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResult, 0, len(filesInChunkInOrder))
 	runtimeMembers := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members
@@ -1738,6 +1739,9 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range filesInChunkInOrder {
+		file := c.files[sourceIndex]
+
+		additionalFiles = append(additionalFiles, file.additionalFile)
 		// Skip the runtime in test output
 		if sourceIndex == ast.RuntimeSourceIndex && c.options.omitRuntimeForTests {
 			continue
@@ -1797,7 +1801,6 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	var entryPointTail *printer.PrintResult
 	for _, compileResult := range compileResults {
 		isRuntime := compileResult.sourceIndex == ast.RuntimeSourceIndex
-
 		// If this is the entry point, it may have some extra code to stick at the
 		// end of the chunk after all modules have evaluated
 		if compileResult.entryPointTail != nil {
@@ -1856,7 +1859,8 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) BundleResult {
 	}
 
 	result := BundleResult{
-		JsAbsPath: c.fs.Join(c.options.AbsOutputDir, chunk.name),
+		AdditionalFiles: additionalFiles,
+		JsAbsPath:       c.fs.Join(c.options.AbsOutputDir, chunk.name),
 	}
 
 	if c.options.SourceMap != SourceMapNone {
