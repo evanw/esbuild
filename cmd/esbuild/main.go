@@ -317,9 +317,11 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		case strings.HasPrefix(arg, "--loader="):
 			loader := arg[len("--loader="):]
 			parsedLoader := args.parseLoader(loader)
-			if parsedLoader == bundler.LoaderNone {
+			switch parsedLoader {
+			// Forbid the "file" loader with stdin
+			case bundler.LoaderNone, bundler.LoaderFile:
 				return argsObject{}, fmt.Errorf("Invalid loader: %s", arg)
-			} else {
+			default:
 				args.bundleOptions.LoaderForStdin = parsedLoader
 			}
 
@@ -496,6 +498,13 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		if args.logOptions.LogLevel == logging.LevelNone {
 			args.logOptions.LogLevel = logging.LevelWarning
 		}
+
+		// Forbid the "file" loader since stdout only allows one output file
+		for _, loader := range args.bundleOptions.ExtensionToLoader {
+			if loader == bundler.LoaderFile {
+				return argsObject{}, fmt.Errorf("Cannot use the \"file\" loader when writing to stdout")
+			}
+		}
 	}
 
 	// Processing defines is expensive. Process them once here so the same object
@@ -632,41 +641,20 @@ func run(fs fs.FS, args argsObject) {
 	for _, item := range result {
 		// Special-case writing to stdout
 		if args.bundleOptions.WriteToStdout {
-			_, err := os.Stdout.Write(item.JsContents)
+			_, err := os.Stdout.Write(item.Contents)
 			if err != nil {
 				exitWithError(fmt.Sprintf("Failed to write to stdout: %s", err.Error()))
 			}
 			continue
 		}
 
-		// Write out the JavaScript file
-		err := ioutil.WriteFile(item.JsAbsPath, []byte(item.JsContents), 0644)
-		path := resolver.PrettyPath(item.JsAbsPath)
+		// Write out the file
+		err := ioutil.WriteFile(item.AbsPath, []byte(item.Contents), 0644)
+		path := resolver.PrettyPath(item.AbsPath)
 		if err != nil {
 			exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
 		}
-		args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(item.JsContents))))
-
-		// Write out the additional files
-		for _, file := range item.AdditionalFiles {
-			if file.Path != "" {
-				err := ioutil.WriteFile(file.Path, []byte(file.Contents), 0644)
-				path := resolver.PrettyPath(file.Path)
-				if err != nil {
-					exitWithError(fmt.Sprintf("Failed to write to %s (%s)", path, err.Error()))
-				}
-				args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(file.Contents))))
-			}
-		}
-		// Also write the source map
-		if item.SourceMapAbsPath != "" {
-			err := ioutil.WriteFile(item.SourceMapAbsPath, item.SourceMapContents, 0644)
-			path := resolver.PrettyPath(item.SourceMapAbsPath)
-			if err != nil {
-				exitWithError(fmt.Sprintf("Failed to write to %s: (%s)", path, err.Error()))
-			}
-			args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(item.SourceMapContents))))
-		}
+		args.logInfo(fmt.Sprintf("Wrote to %s (%s)", path, toSize(len(item.Contents))))
 	}
 }
 

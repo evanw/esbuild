@@ -83,11 +83,21 @@ func expectBundled(t *testing.T, args bundled) {
 			return
 		}
 
-		assertEqual(t, len(results), len(args.expected))
+		// Don't include source maps in results since they are just noise. Source
+		// map validity is tested separately in a test that uses Mozilla's source
+		// map parsing library.
+		resultsWithoutSourceMaps := []OutputFile{}
 		for _, result := range results {
-			file := args.expected[result.JsAbsPath]
-			path := "[" + result.JsAbsPath + "]\n"
-			assertEqual(t, path+string(result.JsContents), path+file)
+			if !strings.HasSuffix(result.AbsPath, ".map") {
+				resultsWithoutSourceMaps = append(resultsWithoutSourceMaps, result)
+			}
+		}
+
+		assertEqual(t, len(resultsWithoutSourceMaps), len(args.expected))
+		for _, result := range resultsWithoutSourceMaps {
+			file := args.expected[result.AbsPath]
+			path := "[" + result.AbsPath + "]\n"
+			assertEqual(t, path+string(result.Contents), path+file)
 		}
 	})
 }
@@ -2769,10 +2779,10 @@ func TestLoaderFile(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out/test.svg": "<svg></svg>",
+			"/out/test.ntXZxVw0.svg": "<svg></svg>",
 			"/out/entry.js": `// /test.svg
 var require_test = __commonJS((exports, module) => {
-  module.exports = "test.svg";
+  module.exports = "test.ntXZxVw0.svg";
 });
 
 // /entry.js

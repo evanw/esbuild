@@ -229,10 +229,7 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 			messagesOfKind(logging.Warning, msgs2)...)),
 	}
 	for _, result := range results {
-		response[result.JsAbsPath] = result.JsContents
-		if result.SourceMapAbsPath != "" {
-			response[result.SourceMapAbsPath] = result.SourceMapContents
-		}
+		response[result.AbsPath] = result.Contents
 	}
 	responses <- response
 }

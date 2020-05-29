@@ -1,6 +1,7 @@
 package bundler
 
 import (
+	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -34,8 +35,10 @@ type file struct {
 	// are referenced in the AST.
 	resolvedImports map[string]uint32
 
-	// This is used for file-loader to emit files
-	additionalFile AdditionalFile
+	// If this file ends up being used in the bundle, this is an additional file
+	// that must be written to the output directory. It's used by the "file"
+	// loader.
+	additionalFile *OutputFile
 }
 
 func (f *file) resolveImport(path ast.Path) (uint32, bool) {
@@ -54,13 +57,14 @@ type Bundle struct {
 }
 
 type parseResult struct {
-	source     logging.Source
-	ast        ast.AST
-	ok         bool
-	outputPath string
+	source         logging.Source
+	ast            ast.AST
+	ok             bool
+	additionalFile *OutputFile
 }
 
 func parseFile(
+	fs fs.FS,
 	log logging.Log,
 	res resolver.Resolver,
 	sourcePath string,
@@ -122,39 +126,39 @@ func parseFile(
 	switch loader {
 	case LoaderJS:
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source, ast, ok, ""}
+		results <- parseResult{source, ast, ok, nil}
 
 	case LoaderJSX:
 		parseOptions.JSX.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source, ast, ok, ""}
+		results <- parseResult{source, ast, ok, nil}
 
 	case LoaderTS:
 		parseOptions.TS.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source, ast, ok, ""}
+		results <- parseResult{source, ast, ok, nil}
 
 	case LoaderTSX:
 		parseOptions.TS.Parse = true
 		parseOptions.JSX.Parse = true
 		ast, ok := parser.Parse(log, source, parseOptions)
-		results <- parseResult{source, ast, ok, ""}
+		results <- parseResult{source, ast, ok, nil}
 
 	case LoaderJSON:
 		expr, ok := parser.ParseJSON(log, source, parser.ParseJSONOptions{})
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, ok, ""}
+		results <- parseResult{source, ast, ok, nil}
 
 	case LoaderText:
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(source.Contents)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, true, ""}
+		results <- parseResult{source, ast, true, nil}
 
 	case LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(encoded)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, true, ""}
+		results <- parseResult{source, ast, true, nil}
 
 	case LoaderDataURL:
 		mimeType := mime.TypeByExtension(extension)
@@ -165,17 +169,37 @@ func parseFile(
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, true, ""}
+		results <- parseResult{source, ast, true, nil}
 
 	case LoaderFile:
-		url := path.Base(sourcePath)
+		// Get the file name, making sure to use the "fs" interface so we do the
+		// right thing on Windows (Windows-style paths for the command-line
+		// interface and Unix-style paths for tests, even on Windows)
+		baseName := fs.Base(sourcePath)
+
+		// Add a hash to the file name to prevent multiple files with the same name
+		// but different contents from colliding
+		bytes := []byte(source.Contents)
+		hashBytes := sha1.Sum(bytes)
+		hash := base64.StdEncoding.EncodeToString(hashBytes[:])[:8]
+		baseName = baseName[:len(baseName)-len(extension)] + "." + hash + extension
+
+		// Determine the destination folder
 		targetFolder := bundleOptions.AbsOutputDir
 		if targetFolder == "" {
-			targetFolder = path.Dir(bundleOptions.AbsOutputFile)
+			targetFolder = fs.Dir(bundleOptions.AbsOutputFile)
 		}
-		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(url)}}
+
+		// Export the resulting relative path as a string
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(baseName)}}
 		ast := parser.ModuleExportsAST(log, source, parseOptions, expr)
-		results <- parseResult{source, ast, true, path.Join(targetFolder, url)}
+
+		// Copy the file using an additional file payload to make sure we only copy
+		// the file if the module isn't removed due to tree shaking.
+		results <- parseResult{source, ast, true, &OutputFile{
+			AbsPath:  fs.Join(targetFolder, baseName),
+			Contents: bytes,
+		}}
 
 	default:
 		log.AddRangeError(importSource, pathRange, fmt.Sprintf("File extension not supported: %s", sourcePath))
@@ -216,7 +240,7 @@ func ScanBundle(
 			runtimeParseOptions.IsBundling = true
 
 			ast, ok := parser.Parse(log, source, runtimeParseOptions)
-			results <- parseResult{source, ast, ok, ""}
+			results <- parseResult{source, ast, ok, nil}
 		}()
 	}
 
@@ -237,6 +261,7 @@ func ScanBundle(
 			files = append(files, file{})
 			remaining++
 			go parseFile(
+				fs,
 				log,
 				res,
 				path,
@@ -297,8 +322,7 @@ func ScanBundle(
 		}
 
 		sources[source.Index] = source
-
-		files[source.Index] = file{result.ast, resolvedImports, AdditionalFile{result.outputPath, source.Contents}}
+		files[source.Index] = file{result.ast, resolvedImports, result.additionalFile}
 	}
 
 	return Bundle{fs, sources, files, entryPoints}
@@ -368,17 +392,9 @@ type BundleOptions struct {
 	omitRuntimeForTests bool
 }
 
-type AdditionalFile struct {
-	Path     string
-	Contents string
-}
-
-type BundleResult struct {
-	JsAbsPath         string
-	JsContents        []byte
-	SourceMapAbsPath  string
-	SourceMapContents []byte
-	AdditionalFiles   []AdditionalFile
+type OutputFile struct {
+	AbsPath  string
+	Contents []byte
 }
 
 type lineColumnOffset struct {
@@ -406,7 +422,7 @@ type compileResult struct {
 	quotedSource string
 }
 
-func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult {
+func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
@@ -417,7 +433,7 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 	}
 
 	waitGroup := sync.WaitGroup{}
-	resultGroups := make([][]BundleResult, len(b.entryPoints))
+	resultGroups := make([][]OutputFile, len(b.entryPoints))
 
 	// Link each file with the runtime file separately in parallel
 	for i, entryPoint := range b.entryPoints {
@@ -431,16 +447,9 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []BundleResult 
 	waitGroup.Wait()
 
 	// Join the results in entry point order for determinism
-	var results []BundleResult
+	var results []OutputFile
 	for _, group := range resultGroups {
 		results = append(results, group...)
-		for _, bundle := range group {
-			for _, additionalFile := range bundle.AdditionalFiles {
-				if additionalFile.Path != "" {
-					results = append(results, BundleResult{additionalFile.Path, []byte(additionalFile.Contents), "", []byte(""), []AdditionalFile{}})
-				}
-			}
-		}
 	}
 	return results
 }
