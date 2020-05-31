@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"runtime/pprof"
 	"runtime/trace"
@@ -649,6 +650,7 @@ func run(fs fs.FS, args argsObject) {
 		}
 
 		// Write out the file
+		os.MkdirAll(filepath.Dir(item.AbsPath), 0755)
 		err := ioutil.WriteFile(item.AbsPath, []byte(item.Contents), 0644)
 		path := resolver.PrettyPath(item.AbsPath)
 		if err != nil {
