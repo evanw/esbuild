@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.4
 
 * Fix optional chaining with TypeScript operators ([#168](https://github.com/evanw/esbuild/issues/168))
 
