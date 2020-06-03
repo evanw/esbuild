@@ -1138,6 +1138,21 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrinted(t, "export {Foo}", "export {Foo};\n")
 }
 
+func TestTSPreserveOptionalChainParentheses(t *testing.T) {
+	expectPrintedTS(t, "a?.b.c", "a?.b.c;\n")
+	expectPrintedTS(t, "(a?.b).c", "(a?.b).c;\n")
+	expectPrintedTS(t, "a?.b!.c", "a?.b.c;\n")
+
+	expectPrintedTS(t, "a?.b[c]", "a?.b[c];\n")
+	expectPrintedTS(t, "(a?.b)[c]", "(a?.b)[c];\n")
+	expectPrintedTS(t, "a?.b![c]", "a?.b[c];\n")
+
+	expectPrintedTS(t, "a?.b(c)", "a?.b(c);\n")
+	expectPrintedTS(t, "(a?.b)(c)", "(a?.b)(c);\n")
+	expectPrintedTS(t, "a?.b!(c)", "a?.b(c);\n")
+	expectPrintedTS(t, "a?.b<T>(c)", "a?.b(c);\n")
+}
+
 func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <number>1", "const x = 1;\n")
 	expectPrintedTSX(t, "const x = <number>1</number>", "const x = React.createElement(\"number\", null, \"1\");\n")

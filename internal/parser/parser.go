@@ -2792,6 +2792,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 				return left
 			}
 			p.lexer.Next()
+			optionalChain = oldOptionalChain
 
 		case lexer.TMinusMinus:
 			if p.lexer.HasNewlineBefore || level >= ast.LPostfix {
@@ -2931,6 +2932,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			// inside an expression. Unlike in other languages, this unfortunately
 			// appears to require backtracking to parse.
 			if p.ts.Parse && p.trySkipTypeScriptTypeArgumentsWithBacktracking() {
+				optionalChain = oldOptionalChain
 				continue
 			}
 
