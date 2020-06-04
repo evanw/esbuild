@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Respect the `sideEffects` field when tree shaking ([#50](https://github.com/evanw/esbuild/issues/50))
+
+    Tree shaking now respects `"sideEffects": false` in `package.json`, which means esbuild now generates smaller bundles with certain libraries such as [lodash-es](https://www.npmjs.com/package/lodash-es). This setting is a convention from Webpack: https://webpack.js.org/guides/tree-shaking/. Any files in a package with this setting will not be included in the bundle if they are imported using an ES6 import and then never used.
+
 ## 0.4.5
 
 * Fix a crash with more than 8 entry points ([#162](https://github.com/evanw/esbuild/pull/162))

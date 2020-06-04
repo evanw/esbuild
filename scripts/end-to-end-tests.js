@@ -258,6 +258,51 @@
     }),
   )
 
+  // Test tree shaking
+  tests.push(
+    // Keep because used (ES6)
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import * as foo from './foo'; if (global.dce0 !== 123 || foo.abc !== 'abc') throw 'fail'`,
+      'foo/index.js': `global.dce0 = 123; export const abc = 'abc'`,
+      'foo/package.json': `{ "sideEffects": false }`,
+    }),
+
+    // Remove because unused (ES6)
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import * as foo from './foo'; if (global.dce1 !== void 0) throw 'fail'`,
+      'foo/index.js': `global.dce1 = 123; export const abc = 'abc'`,
+      'foo/package.json': `{ "sideEffects": false }`,
+    }),
+
+    // Keep because side effects (ES6)
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import * as foo from './foo'; if (global.dce2 !== 123) throw 'fail'`,
+      'foo/index.js': `global.dce2 = 123; export const abc = 'abc'`,
+      'foo/package.json': `{ "sideEffects": true }`,
+    }),
+
+    // Keep because used (CommonJS)
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import foo from './foo'; if (global.dce3 !== 123 || foo.abc !== 'abc') throw 'fail'`,
+      'foo/index.js': `global.dce3 = 123; exports.abc = 'abc'`,
+      'foo/package.json': `{ "sideEffects": false }`,
+    }),
+
+    // Remove because unused (CommonJS)
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import foo from './foo'; if (global.dce4 !== void 0) throw 'fail'`,
+      'foo/index.js': `global.dce4 = 123; exports.abc = 'abc'`,
+      'foo/package.json': `{ "sideEffects": false }`,
+    }),
+
+    // Keep because side effects (CommonJS)
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import foo from './foo'; if (global.dce5 !== 123) throw 'fail'`,
+      'foo/index.js': `global.dce5 = 123; exports.abc = 'abc'`,
+      'foo/package.json': `{ "sideEffects": true }`,
+    }),
+  )
+
   function test(args, files, options) {
     return async () => {
       const hasBundle = args.includes('--bundle')

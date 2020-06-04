@@ -39,6 +39,10 @@ type file struct {
 	// that must be written to the output directory. It's used by the "file"
 	// loader.
 	additionalFile *OutputFile
+
+	// If true, this file was listed as not having side effects by a package.json
+	// file in one of our containing directories with a "sideEffects" field.
+	ignoreIfUnused bool
 }
 
 func (f *file) resolveImport(path ast.Path) (uint32, bool) {
@@ -57,8 +61,9 @@ type Bundle struct {
 }
 
 type parseFlags struct {
-	isEntryPoint bool
-	isDisabled   bool
+	isEntryPoint   bool
+	isDisabled     bool
+	ignoreIfUnused bool
 }
 
 type parseArgs struct {
@@ -77,10 +82,9 @@ type parseArgs struct {
 }
 
 type parseResult struct {
-	source         logging.Source
-	ast            ast.AST
-	ok             bool
-	additionalFile *OutputFile
+	source logging.Source
+	file   file
+	ok     bool
 }
 
 func parseFile(args parseArgs) {
@@ -132,37 +136,44 @@ func parseFile(args parseArgs) {
 		loader = args.bundleOptions.LoaderForStdin
 	}
 
-	result := parseResult{source: source, ok: true}
+	result := parseResult{
+		source: source,
+		file: file{
+			ignoreIfUnused: args.flags.ignoreIfUnused,
+		},
+		ok: true,
+	}
+
 	switch loader {
 	case LoaderJS:
-		result.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
 
 	case LoaderJSX:
 		args.parseOptions.JSX.Parse = true
-		result.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
 
 	case LoaderTS:
 		args.parseOptions.TS.Parse = true
-		result.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
 
 	case LoaderTSX:
 		args.parseOptions.TS.Parse = true
 		args.parseOptions.JSX.Parse = true
-		result.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
 
 	case LoaderJSON:
 		var expr ast.Expr
 		expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
-		result.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 
 	case LoaderText:
 		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(source.Contents)}}
-		result.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 
 	case LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(encoded)}}
-		result.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 
 	case LoaderDataURL:
 		mimeType := mime.TypeByExtension(extension)
@@ -172,7 +183,7 @@ func parseFile(args parseArgs) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(url)}}
-		result.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 
 	case LoaderFile:
 		// Get the file name, making sure to use the "fs" interface so we do the
@@ -195,11 +206,11 @@ func parseFile(args parseArgs) {
 
 		// Export the resulting relative path as a string
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(baseName)}}
-		result.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 
 		// Copy the file using an additional file payload to make sure we only copy
 		// the file if the module isn't removed due to tree shaking.
-		result.additionalFile = &OutputFile{
+		result.file.additionalFile = &OutputFile{
 			AbsPath:  args.fs.Join(targetFolder, baseName),
 			Contents: bytes,
 		}
@@ -246,7 +257,7 @@ func ScanBundle(
 			runtimeParseOptions.IsBundling = true
 
 			ast, ok := parser.Parse(log, source, runtimeParseOptions)
-			results <- parseResult{source: source, ast: ast, ok: ok}
+			results <- parseResult{source: source, file: file{ast: ast}, ok: ok}
 		}()
 	}
 
@@ -294,11 +305,11 @@ func ScanBundle(
 		}
 
 		source := result.source
-		resolvedImports := make(map[string]uint32)
+		result.file.resolvedImports = make(map[string]uint32)
 
 		// Don't try to resolve paths if we're not bundling
 		if bundleOptions.IsBundling {
-			for _, part := range result.ast.Parts {
+			for _, part := range result.file.ast.Parts {
 				for _, importPath := range part.ImportPaths {
 					// Don't try to resolve imports of the special runtime path
 					if importPath.Path.UseSourceIndex && importPath.Path.SourceIndex == ast.RuntimeSourceIndex {
@@ -308,12 +319,16 @@ func ScanBundle(
 					sourcePath := source.AbsolutePath
 					pathText := importPath.Path.Text
 					pathRange := source.RangeOfString(importPath.Path.Loc)
+					resolveResult := res.Resolve(sourcePath, pathText)
 
-					switch path, status := res.Resolve(sourcePath, pathText); status {
+					switch resolveResult.Status {
 					case resolver.ResolveEnabled, resolver.ResolveDisabled:
-						flags := parseFlags{isDisabled: status == resolver.ResolveDisabled}
-						sourceIndex := maybeParseFile(path, source, pathRange, flags)
-						resolvedImports[pathText] = sourceIndex
+						flags := parseFlags{
+							isDisabled:     resolveResult.Status == resolver.ResolveDisabled,
+							ignoreIfUnused: resolveResult.IgnoreIfUnused,
+						}
+						sourceIndex := maybeParseFile(resolveResult.AbsolutePath, source, pathRange, flags)
+						result.file.resolvedImports[pathText] = sourceIndex
 
 					case resolver.ResolveMissing:
 						log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
@@ -323,7 +338,7 @@ func ScanBundle(
 		}
 
 		sources[source.Index] = source
-		files[source.Index] = file{result.ast, resolvedImports, result.additionalFile}
+		files[source.Index] = result.file
 	}
 
 	return Bundle{fs, sources, files, entryPoints}

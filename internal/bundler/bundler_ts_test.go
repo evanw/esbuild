@@ -706,7 +706,7 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `var d=c(b=>{b.foo=function(){return 123}});var f=c((b,g)=>{g.exports={test:!0}});const{foo:e}=d();console.log(e(),f());
+			"/out.js": `var d=c(b=>{b.foo=function(){return 123}});var f=c((b,h)=>{h.exports={test:!0}});const{foo:e}=d();console.log(e(),f());
 `,
 		},
 	})

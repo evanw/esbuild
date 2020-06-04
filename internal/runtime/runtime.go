@@ -4,7 +4,7 @@ const Code = `
 	let __defineProperty = Object.defineProperty
 	let __hasOwnProperty = Object.prototype.hasOwnProperty
 	let __getOwnPropertySymbols = Object.getOwnPropertySymbols
-	let __propertyIsEnumerable = Object.propertyIsEnumerable
+	let __propertyIsEnumerable = Object.prototype.propertyIsEnumerable
 
 	export let __pow = Math.pow
 	export let __assign = Object.assign

@@ -8660,6 +8660,12 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []ast.Stmt) bool {
 		case *ast.SFunction, *ast.SEmpty:
 			// These never have side effects
 
+		case *ast.SImport:
+			// Let these be removed if they are unused. Note that we also need to
+			// check if the imported file is marked as "sideEffects: false" before we
+			// can remove a SImport statement. Otherwise the import must be kept for
+			// its side effects.
+
 		case *ast.SClass:
 			if !p.classCanBeRemovedIfUnused(s.Class) {
 				return false

@@ -21,8 +21,17 @@ const (
 	ResolveExternal
 )
 
+type ResolveResult struct {
+	AbsolutePath string
+	Status       ResolveStatus
+
+	// If true, any ES6 imports to this file can be considered to have no side
+	// effects. This means they should be removed if unused.
+	IgnoreIfUnused bool
+}
+
 type Resolver interface {
-	Resolve(sourcePath string, importPath string) (string, ResolveStatus)
+	Resolve(sourcePath string, importPath string) ResolveResult
 	Read(path string) (string, bool)
 	PrettyPath(path string) string
 }
@@ -74,27 +83,34 @@ func NewResolver(fs fs.FS, log logging.Log, options ResolveOptions) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourcePath string, importPath string) (string, ResolveStatus) {
-	absolute, status := r.resolveWithoutSymlinks(sourcePath, importPath)
+func (r *resolver) Resolve(sourcePath string, importPath string) (result ResolveResult) {
+	result.AbsolutePath, result.Status = r.resolveWithoutSymlinks(sourcePath, importPath)
 
 	// If successful, resolve symlinks using the directory info cache
-	if status == ResolveEnabled || status == ResolveDisabled {
-		if dirInfo := r.dirInfoCached(r.fs.Dir(absolute)); dirInfo != nil {
-			base := r.fs.Base(absolute)
+	if result.Status == ResolveEnabled || result.Status == ResolveDisabled {
+		if dirInfo := r.dirInfoCached(r.fs.Dir(result.AbsolutePath)); dirInfo != nil {
+			base := r.fs.Base(result.AbsolutePath)
+
+			// Look up this file in the "sideEffects" map in "package.json"
+			if dirInfo.packageJson != nil && dirInfo.packageJson.sideEffectsMap != nil {
+				result.IgnoreIfUnused = !dirInfo.packageJson.sideEffectsMap[result.AbsolutePath]
+			}
 
 			// Is this entry itself a symlink?
 			if entry := dirInfo.entries[base]; entry.Symlink != "" {
-				return entry.Symlink, status
+				result.AbsolutePath = entry.Symlink
+				return
 			}
 
 			// Is there at least one parent directory with a symlink?
 			if dirInfo.absRealPath != "" {
-				return r.fs.Join(dirInfo.absRealPath, base), status
+				result.AbsolutePath = r.fs.Join(dirInfo.absRealPath, base)
+				return
 			}
 		}
 	}
 
-	return absolute, status
+	return
 }
 
 func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) (string, ResolveStatus) {
@@ -228,6 +244,18 @@ type packageJson struct {
 	// say almost nothing: https://docs.npmjs.com/files/package.json.
 	browserNonModuleMap map[string]*string
 	browserModuleMap    map[string]*string
+
+	// If this is non-nil, each entry in this map is the absolute path of a file
+	// with side effects. Any entry not in this map should be considered to have
+	// no side effects, which means import statements for these files can be
+	// removed if none of the imports are used. This is a convention from Webpack:
+	// https://webpack.js.org/guides/tree-shaking/.
+	//
+	// Note that if a file is included, all statements that can't be proven to be
+	// free of side effects must be included. This convention does not say
+	// anything about whether any statements within the file have side effects or
+	// not.
+	sideEffectsMap map[string]bool
 }
 
 type tsConfigJson struct {
@@ -453,7 +481,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 }
 
 func (r *resolver) parsePackageJSON(path string) *packageJson {
-	json, _, ok := r.parseJSON(r.fs.Join(path, "package.json"), parser.ParseJSONOptions{})
+	json, jsonSource, ok := r.parseJSON(r.fs.Join(path, "package.json"), parser.ParseJSONOptions{})
 	if !ok {
 		return nil
 	}
@@ -535,6 +563,36 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 
 			packageJson.browserModuleMap = browserModuleMap
 			packageJson.browserNonModuleMap = browserNonModuleMap
+		}
+	}
+
+	// Read the "sideEffects" property
+	if sideEffectsJson, _, ok := getProperty(json, "sideEffects"); ok {
+		switch data := sideEffectsJson.Data.(type) {
+		case *ast.EBoolean:
+			if !data.Value {
+				// Make an empty map for "sideEffects: false", which indicates all
+				// files in this module can be considered to not have side effects.
+				packageJson.sideEffectsMap = make(map[string]bool)
+			}
+
+		case *ast.EArray:
+			// The "sideEffects: []" format means all files in this module but not in
+			// the array can be considered to not have side effects.
+			packageJson.sideEffectsMap = make(map[string]bool)
+			for _, itemJson := range data.Items {
+				if item, ok := itemJson.Data.(*ast.EString); ok && item.Value != nil {
+					absolute := r.fs.Join(path, lexer.UTF16ToString(item.Value))
+					packageJson.sideEffectsMap[absolute] = true
+				} else {
+					r.log.AddWarning(jsonSource, itemJson.Loc,
+						"Expected string in array for \"sideEffects\"")
+				}
+			}
+
+		default:
+			r.log.AddWarning(jsonSource, sideEffectsJson.Loc,
+				"Invalid value for \"sideEffects\"")
 		}
 	}
 

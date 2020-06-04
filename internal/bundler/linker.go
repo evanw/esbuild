@@ -1018,30 +1018,36 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 		c.accumulateSymbolCount(file.ast.WrapperRef, 1)
 	}
 
-	needsToModule := false
 	for partIndex, part := range file.ast.Parts {
-		// Include all parts in this file with side effects, or just include
-		// everything if tree-shaking is disabled. Note that we still want to
-		// perform tree-shaking on the runtime even if tree-shaking is disabled.
-		if !part.CanBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.IsBundling && sourceIndex != ast.RuntimeSourceIndex) {
-			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
-		}
+		canBeRemovedIfUnused := part.CanBeRemovedIfUnused
 
 		// Also include any statement-level imports
 		for _, importPath := range part.ImportPaths {
-			switch importPath.Kind {
-			case ast.ImportStmt, ast.ImportDynamic:
-				if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
-					c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
-					if c.fileMeta[otherSourceIndex].cjsStyleExports {
-						// This is an ES6 import of a module that's potentially CommonJS
-						needsToModule = true
-					}
-				} else if !c.options.OutputFormat.KeepES6ImportExportSyntax() {
-					// This is an ES6 import of an external module that may be CommonJS
-					needsToModule = true
-				}
+			if importPath.Kind != ast.ImportStmt {
+				continue
 			}
+
+			if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
+				// Don't include this module for its side effects if it can be
+				// considered to have no side effects
+				if c.files[otherSourceIndex].ignoreIfUnused {
+					continue
+				}
+
+				// Otherwise, include this module for its side effects
+				c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
+			}
+
+			// If we get here then the import was included for its side effects, so
+			// we must also keep this part
+			canBeRemovedIfUnused = false
+		}
+
+		// Include all parts in this file with side effects, or just include
+		// everything if tree-shaking is disabled. Note that we still want to
+		// perform tree-shaking on the runtime even if tree-shaking is disabled.
+		if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.IsBundling && sourceIndex != ast.RuntimeSourceIndex) {
+			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
 		}
 	}
 
@@ -1049,12 +1055,6 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	// from the runtime
 	if fileMeta.cjsWrap {
 		c.includePartsForRuntimeSymbol("__commonJS", entryPoint, distanceFromEntryPoint)
-	}
-
-	// If there's an ES6 import of a non-ES6 module, then we're going to need the
-	// "__toModule" symbol from the runtime
-	if needsToModule {
-		c.includePartsForRuntimeSymbol("__toModule", entryPoint, distanceFromEntryPoint)
 	}
 
 	// If this is an entry point, include all exports
@@ -1096,6 +1096,9 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	}
 	partMeta.entryBits.setBit(entryPoint)
 
+	// Include the file containing this part
+	c.includeFile(sourceIndex, entryPoint, distanceFromEntryPoint)
+
 	// Accumulate symbol usage counts
 	file := &c.files[sourceIndex]
 	part := &file.ast.Parts[partIndex]
@@ -1108,11 +1111,30 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	}
 
 	// Also include any require() imports
+	needsToModule := false
 	for _, importPath := range part.ImportPaths {
-		if importPath.Kind == ast.ImportRequire {
-			if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
-				c.accumulateSymbolCount(c.files[otherSourceIndex].ast.WrapperRef, 1)
-				c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
+		if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
+			if importPath.Kind == ast.ImportStmt && !c.fileMeta[otherSourceIndex].cjsStyleExports {
+				// Skip this since it's not a require() import
+				continue
+			}
+
+			// This is a require() import
+			c.accumulateSymbolCount(c.files[otherSourceIndex].ast.WrapperRef, 1)
+			c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
+
+			// This is an ES6 import of a CommonJS module, so it needs the
+			// "__toModule" wrapper
+			if importPath.Kind == ast.ImportStmt || importPath.Kind == ast.ImportDynamic {
+				needsToModule = true
+			}
+		} else {
+			// This is an external import
+			if (importPath.Kind == ast.ImportStmt || importPath.Kind == ast.ImportDynamic) &&
+				!c.options.OutputFormat.KeepES6ImportExportSyntax() {
+				// This is an ES6 import of an external module that may be CommonJS,
+				// so it needs the "__toModule" wrapper
+				needsToModule = true
 			}
 		}
 	}
@@ -1125,6 +1147,12 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	// Also include any non-local dependencies
 	for _, nonLocalDependency := range partMeta.nonLocalDependencies {
 		c.includePart(nonLocalDependency.sourceIndex, nonLocalDependency.partIndex, entryPoint, distanceFromEntryPoint)
+	}
+
+	// If there's an ES6 import of a non-ES6 module, then we're going to need the
+	// "__toModule" symbol from the runtime
+	if needsToModule {
+		c.includePartsForRuntimeSymbol("__toModule", entryPoint, distanceFromEntryPoint)
 	}
 }
 
@@ -1249,12 +1277,21 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 		if visited[sourceIndex] {
 			return
 		}
+
 		visited[sourceIndex] = true
 		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
+		isFileInThisChunk := chunk.entryBits.equals(fileMeta.entryBits)
+
 		for partIndex, part := range file.ast.Parts {
+			isPartInThisChunk := chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits)
+			if isPartInThisChunk {
+				isFileInThisChunk = true
+			}
+
+			// Also traverse any files imported by this part
 			for _, importPath := range part.ImportPaths {
-				if importPath.Kind == ast.ImportStmt || chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+				if importPath.Kind == ast.ImportStmt || isPartInThisChunk {
 					if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
 						visit(otherSourceIndex)
 					}
@@ -1268,10 +1305,12 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 		// could end up with one being used before being declared. These wrappers
 		// don't have side effects so an easy fix is to just declare them all
 		// before starting to evaluate them.
-		if sourceIndex == ast.RuntimeSourceIndex || fileMeta.cjsWrap {
-			prefixOrder = append(prefixOrder, sourceIndex)
-		} else {
-			suffixOrder = append(suffixOrder, sourceIndex)
+		if isFileInThisChunk {
+			if sourceIndex == ast.RuntimeSourceIndex || fileMeta.cjsWrap {
+				prefixOrder = append(prefixOrder, sourceIndex)
+			} else {
+				suffixOrder = append(suffixOrder, sourceIndex)
+			}
 		}
 	}
 
