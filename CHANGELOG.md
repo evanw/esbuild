@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.5
 
 * Fix a crash with more than 8 entry points ([#162](https://github.com/evanw/esbuild/pull/162))
 
