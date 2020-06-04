@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix a crash with more than 8 entry points ([#162](https://github.com/evanw/esbuild/pull/162))
+
+    This bug was due to the wrong index being used for an internal bit set. That caused a crash due to an out-of-bounds array read when esbuild is run with more than 8 entry points. I now have test coverage for large numbers of entry points, so this should not happen again.
+
 * Fix slash characters in file loader ([#164](https://github.com/evanw/esbuild/pull/164))
 
     This fixes a bug where the base64-encoded hash included in the file name could sometimes contain a `/` character. The fix is to use the base64 character set for URL-encoding, which replaces the `/` character with a `_` character.

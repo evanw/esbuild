@@ -981,8 +981,8 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	}
 
 	// Each entry point marks all files reachable from itself
-	for _, entryPoint := range c.entryPoints {
-		c.includeFile(entryPoint, uint(entryPoint), 0)
+	for i, entryPoint := range c.entryPoints {
+		c.includeFile(entryPoint, uint(i), 0)
 	}
 }
 
@@ -1145,7 +1145,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
 		entryBits := newBitSet(uint(len(c.entryPoints)))
-		entryBits.setBit(uint(entryPoint))
+		entryBits.setBit(uint(i))
 		chunks[string(entryBits.entries)] = chunkMeta{
 			entryBits:             entryBits,
 			hashbang:              c.files[entryPoint].ast.Hashbang,
@@ -1165,8 +1165,8 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			chunk, ok := chunks[key]
 			if !ok {
 				// Initialize the chunk for the first time
-				for i, entryPoint := range c.entryPoints {
-					if partMeta.entryBits.hasBit(uint(entryPoint)) {
+				for i, _ := range c.entryPoints {
+					if partMeta.entryBits.hasBit(uint(i)) {
 						if chunk.name != "" {
 							chunk.name = c.stripKnownFileExtension(chunk.name) + "_"
 						}
