@@ -2764,7 +2764,9 @@ func TestLoaderFile(t *testing.T) {
 			"/entry.js": `
 				console.log(require('./test.svg'))
 			`,
-			"/test.svg": "<svg></svg>",
+
+			// Use an SVG string that has a base64-encoded SHA1 has with a "/" in it
+			"/test.svg": "<svg>$</svg>",
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
@@ -2779,10 +2781,10 @@ func TestLoaderFile(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out/test.ntXZxVw0.svg": "<svg></svg>",
+			"/out/test.1HOBn_hi.svg": "<svg>$</svg>",
 			"/out/entry.js": `// /test.svg
 var require_test = __commonJS((exports, module) => {
-  module.exports = "test.ntXZxVw0.svg";
+  module.exports = "test.1HOBn_hi.svg";
 });
 
 // /entry.js

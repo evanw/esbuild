@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix slash characters in file loader ([#164](https://github.com/evanw/esbuild/pull/164))
+
+    This fixes a bug where the base64-encoded hash included in the file name could sometimes contain a `/` character. The fix is to use the base64 character set for URL-encoding, which replaces the `/` character with a `_` character.
+
 ## 0.4.4
 
 * Fix optional chaining with TypeScript operators ([#168](https://github.com/evanw/esbuild/issues/168))
