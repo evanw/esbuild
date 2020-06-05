@@ -591,3 +591,36 @@ console.log("unused import");
 		},
 	})
 }
+
+func TestPackageJsonSideEffectsNestedDirectoryRemove(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg/a/b/c"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"sideEffects": false
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/a/b/c/index.js": `
+				export const foo = 123
+				console.log('hello')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /Users/user/project/src/entry.js
+console.log("unused import");
+`,
+		},
+	})
+}

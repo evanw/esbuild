@@ -91,9 +91,15 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (result Resolve
 		if dirInfo := r.dirInfoCached(r.fs.Dir(result.AbsolutePath)); dirInfo != nil {
 			base := r.fs.Base(result.AbsolutePath)
 
-			// Look up this file in the "sideEffects" map in "package.json"
-			if dirInfo.packageJson != nil && dirInfo.packageJson.sideEffectsMap != nil {
-				result.IgnoreIfUnused = !dirInfo.packageJson.sideEffectsMap[result.AbsolutePath]
+			// Look up this file in the "sideEffects" map in the nearest enclosing
+			// directory with a "package.json" file
+			for info := dirInfo; info != nil; info = info.parent {
+				if info.packageJson != nil {
+					if info.packageJson.sideEffectsMap != nil {
+						result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[result.AbsolutePath]
+					}
+					break
+				}
 			}
 
 			// Is this entry itself a symlink?
