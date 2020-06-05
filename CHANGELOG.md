@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.8
 
 * Add the `--metafile` flag ([#140](https://github.com/evanw/esbuild/issues/140))
 
