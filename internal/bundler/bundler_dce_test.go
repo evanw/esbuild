@@ -659,3 +659,140 @@ console.log(index_default);
 		},
 	})
 }
+
+func TestJSONLoaderRemoveUnused(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import unused from "./example.json"
+				console.log('unused import')
+			`,
+			"/example.json": `{"data": true}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log("unused import");
+`,
+		},
+	})
+}
+
+func TestTextLoaderRemoveUnused(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import unused from "./example.txt"
+				console.log('unused import')
+			`,
+			"/example.txt": `some data`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log("unused import");
+`,
+		},
+	})
+}
+
+func TestBase64LoaderRemoveUnused(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import unused from "./example.data"
+				console.log('unused import')
+			`,
+			"/example.data": `some data`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":   LoaderJS,
+				".data": LoaderBase64,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log("unused import");
+`,
+		},
+	})
+}
+
+func TestDataURLLoaderRemoveUnused(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import unused from "./example.data"
+				console.log('unused import')
+			`,
+			"/example.data": `some data`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":   LoaderJS,
+				".data": LoaderDataURL,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log("unused import");
+`,
+		},
+	})
+}
+
+func TestFileLoaderRemoveUnused(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import unused from "./example.data"
+				console.log('unused import')
+			`,
+			"/example.data": `some data`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":   LoaderJS,
+				".data": LoaderFile,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log("unused import");
+`,
+		},
+	})
+}

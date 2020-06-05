@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Data loaders now set "no side effects"
+
+    Files loaded using the `json`, `text`, `base64`, `dataurl`, and `file` loaders are now removed from the bundle if the files that import them never use the imports. This is the same behavior as the `"sideEffects": false` setting in `package.json`.
+
 ## 0.4.8
 
 * Add the `--metafile` flag ([#140](https://github.com/evanw/esbuild/issues/140))
