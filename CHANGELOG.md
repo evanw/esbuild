@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.7
+
+* Fixed `sideEffects` and nested directories
+
+    This fixes a bug where `package.json` files with `"sideEffects": false` were not respected for files in nested directories. When this bug occurred, bundles could be bigger than necessary. The `sideEffects` hint is now respected if any parent directory contains the hint instead of just the immediate enclosing directory.
+
+* Fixed `sideEffects` and default exports with side effects
+
+    This fixes a bug with default exports with side effects inside a `"sideEffects": false` context that were imported and used. These exports were incorrectly discarded instead of being retained, which could cause the resulting bundle to crash.
+
 ## 0.4.6
 
 * Respect the `sideEffects` field when tree shaking ([#50](https://github.com/evanw/esbuild/issues/50))
