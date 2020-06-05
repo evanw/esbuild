@@ -500,6 +500,7 @@ type printer struct {
 	prevOpEnd          int
 	prevNumEnd         int
 	prevRegExpEnd      int
+	intToBytesBuffer   [64]byte
 
 	// For source maps
 	sourceMap     []byte
@@ -523,6 +524,24 @@ func (p *printer) print(text string) {
 	}
 
 	p.js = append(p.js, text...)
+}
+
+// This is the same as "print(string(bytes))" without any unnecessary temporary
+// allocations
+func (p *printer) printBytes(bytes []byte) {
+	if p.options.SourceMapContents != nil {
+		start := len(p.js)
+		for i, c := range bytes {
+			if c == '\n' {
+				p.prevLineStart = start + i + 1
+				p.prevState.GeneratedLine++
+				p.prevState.GeneratedColumn = 0
+				p.sourceMap = append(p.sourceMap, ';')
+			}
+		}
+	}
+
+	p.js = append(p.js, bytes...)
 }
 
 // This is the same as "print(lexer.UTF16ToString(text))" without any
@@ -1493,37 +1512,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				p.print("-Infinity")
 			}
 		} else {
-			var text string
-
-			if absValue < 1000 {
-				// We can avoid calling the call to slowFloatToString() because
-				// we know that exponential notation will always be longer than the
-				// integer representation for integers less than 1000.
-				if asInt := int64(absValue); absValue == float64(asInt) {
-					text = strconv.FormatInt(asInt, 10)
-				} else {
-					text = p.slowFloatToString(absValue)
-				}
-			} else {
-				text = p.slowFloatToString(absValue)
-
-				// Also try printing this number as an integer in case that's smaller.
-				// We must test that the value is within the range of 64-bit numbers to
-				// avoid crashing due to a bug in the Go WebAssembly runtime:
-				// https://github.com/golang/go/issues/38839.
-				if absValue < 9223372036854776000.0 {
-					if asInt := int64(absValue); absValue == float64(asInt) {
-						intText := strconv.FormatInt(asInt, 10)
-						if len(intText) <= len(text) {
-							text = intText
-						}
-					}
-				}
-			}
-
 			if !math.Signbit(value) {
 				p.printSpaceBeforeIdentifier()
-				p.print(text)
+				p.printNonNegativeFloat(absValue)
 
 				// Remember the end of the latest number
 				p.prevNumEnd = len(p.js)
@@ -1533,12 +1524,12 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				// "!isNaN(value)" because we need this to be true for "-0" and "-0 < 0"
 				// is false.
 				p.print("(-")
-				p.print(text)
+				p.printNonNegativeFloat(absValue)
 				p.print(")")
 			} else {
 				p.printSpaceBeforeOperator(ast.UnOpNeg)
 				p.print("-")
-				p.print(text)
+				p.printNonNegativeFloat(absValue)
 
 				// Remember the end of the latest number
 				p.prevNumEnd = len(p.js)
@@ -1722,22 +1713,169 @@ func (p *printer) isUnboundEvalIdentifier(value ast.Expr) bool {
 	return false
 }
 
-func (p *printer) slowFloatToString(value float64) string {
-	text := strconv.FormatFloat(value, 'g', -1, 64)
+// Convert an integer to a byte slice without any allocations
+func (p *printer) smallIntToBytes(n int) []byte {
+	wasNegative := n < 0
+	if wasNegative {
+		// This assumes that -math.MinInt isn't a problem. This is fine because
+		// these integers are floating-point exponents which never go up that high.
+		n = -n
+	}
 
-	if p.options.RemoveWhitespace {
-		// Replace "e+" with "e"
-		if e := strings.LastIndexByte(text, 'e'); e != -1 && text[e+1] == '+' {
-			text = text[:e+1] + text[e+2:]
-		}
+	bytes := p.intToBytesBuffer[:]
+	start := len(bytes)
 
-		// Strip off the leading zero when minifying
-		if strings.HasPrefix(text, "0.") {
-			text = text[1:]
+	// Write out the number from the end to the front
+	for {
+		start--
+		bytes[start] = '0' + byte(n%10)
+		n /= 10
+		if n == 0 {
+			break
 		}
 	}
 
-	return text
+	// Stick a negative sign on the front if needed
+	if wasNegative {
+		start--
+		bytes[start] = '-'
+	}
+
+	return bytes[start:]
+}
+
+func parseSmallInt(bytes []byte) int {
+	wasNegative := bytes[0] == '-'
+	if wasNegative {
+		bytes = bytes[1:]
+	}
+
+	// Parse the integer without any error checking. This doesn't need to handle
+	// integer overflow because these integers are floating-point exponents which
+	// never go up that high.
+	n := 0
+	for _, c := range bytes {
+		n = n*10 + int(c-'0')
+	}
+
+	if wasNegative {
+		return -n
+	}
+	return n
+}
+
+func (p *printer) printNonNegativeFloat(absValue float64) {
+	// We can avoid the slow call to strconv.FormatFloat() for integers less than
+	// 1000 because we know that exponential notation will always be longer than
+	// the integer representation. This is not the case for 1000 which is "1e3".
+	if absValue < 1000 {
+		if asInt := int64(absValue); absValue == float64(asInt) {
+			p.printBytes(p.smallIntToBytes(int(asInt)))
+			return
+		}
+	}
+
+	// Format this number into a byte slice so we can mutate it in place without
+	// further reallocation
+	result := []byte(strconv.FormatFloat(absValue, 'g', -1, 64))
+
+	// Simplify the exponent
+	// "e+05" => "e5"
+	// "e-05" => "e-5"
+	if e := bytes.LastIndexByte(result, 'e'); e != -1 {
+		from := e + 1
+		to := from
+
+		switch result[from] {
+		case '+':
+			// Strip off the leading "+"
+			from++
+
+		case '-':
+			// Skip past the leading "-"
+			to++
+			from++
+		}
+
+		// Strip off leading zeros
+		for from < len(result) && result[from] == '0' {
+			from++
+		}
+
+		result = append(result[:to], result[from:]...)
+	}
+
+	dot := bytes.IndexByte(result, '.')
+
+	if dot == 1 && result[0] == '0' {
+		// Simplify numbers starting with "0."
+		afterDot := 2
+
+		// Strip off the leading zero when minifying
+		// "0.5" => ".5"
+		if p.options.RemoveWhitespace {
+			result = result[1:]
+			afterDot--
+		}
+
+		// Try using an exponent
+		// "0.001" => "1e-3"
+		if result[afterDot] == '0' {
+			i := afterDot + 1
+			for result[i] == '0' {
+				i++
+			}
+			remaining := result[i:]
+			exponent := p.smallIntToBytes(afterDot - i - len(remaining))
+
+			// Only switch if it's actually shorter
+			if len(result) > len(remaining)+1+len(exponent) {
+				result = append(append(remaining, 'e'), exponent...)
+			}
+		}
+	} else if dot != -1 {
+		// Try to get rid of a "." and maybe also an "e"
+		if e := bytes.LastIndexByte(result, 'e'); e != -1 {
+			integer := result[:dot]
+			fraction := result[dot+1 : e]
+			exponent := parseSmallInt(result[e+1:]) - len(fraction)
+
+			// Handle small exponents by appending zeros instead
+			if exponent >= 0 && exponent <= 2 {
+				// "1.2e1" => "12"
+				// "1.2e2" => "120"
+				// "1.2e3" => "1200"
+				if len(result) >= len(integer)+len(fraction)+exponent {
+					result = append(integer, fraction...)
+					for i := 0; i < exponent; i++ {
+						result = append(result, '0')
+					}
+				}
+			} else {
+				// "1.2e4" => "12e3"
+				exponent := p.smallIntToBytes(exponent)
+				if len(result) >= len(integer)+len(fraction)+1+len(exponent) {
+					result = append(append(append(integer, fraction...), 'e'), exponent...)
+				}
+			}
+		}
+	} else if result[len(result)-1] == '0' {
+		// Simplify numbers ending with "0" by trying to use an exponent
+		// "1000" => "1e3"
+		i := len(result) - 1
+		for i > 0 && result[i-1] == '0' {
+			i--
+		}
+		remaining := result[:i]
+		exponent := p.smallIntToBytes(len(result) - i)
+
+		// Only switch if it's actually shorter
+		if len(result) > len(remaining)+1+len(exponent) {
+			result = append(append(remaining, 'e'), exponent...)
+		}
+	}
+
+	p.printBytes(result)
 }
 
 func (p *printer) printDeclStmt(isExport bool, keyword string, decls []ast.Decl) {

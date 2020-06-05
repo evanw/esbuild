@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Shorten numeric literals ([#122](https://github.com/evanw/esbuild/issues/122))
+
+    Certain numeric literals now use shorter representations in the generated JavaScript code. For example, `123400000` is now written out as `1234e5`.
+
 ## 0.4.7
 
 * Fixed `sideEffects` and nested directories

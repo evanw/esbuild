@@ -170,6 +170,22 @@ let transformTests = {
     await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
   },
 
+  async numericLiteralPrinting({ service }) {
+    async function checkLiteral(text) {
+      const { js } = await service.transform(`return ${text}`, { minify: true })
+      assert.strictEqual(+text, new Function(js)())
+    }
+    const promises = []
+    for (let i = 0; i < 10; i++) {
+      for (let j = 0; j < 10; j++) {
+        promises.push(checkLiteral(`0.${'0'.repeat(i)}${'123456789'.slice(0, j)}`))
+        promises.push(checkLiteral(`1${'0'.repeat(i)}.${'123456789'.slice(0, j)}`))
+        promises.push(checkLiteral(`1${'123456789'.slice(0, j)}${'0'.repeat(i)}`))
+      }
+    }
+    await Promise.all(promises)
+  },
+
   // Future syntax
   forAwait: ({ service }) => futureSyntax(service, 'async function foo() { for await (let x of y) {} }', 'es2017', 'es2018'),
   bigInt: ({ service }) => futureSyntax(service, '123n', 'es2019', 'es2020'),
