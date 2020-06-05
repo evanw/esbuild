@@ -624,3 +624,38 @@ console.log("unused import");
 		},
 	})
 }
+
+func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import foo from "demo-pkg"
+				console.log(foo)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				export default exprWithSideEffects()
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"sideEffects": false
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
+const index_default = exprWithSideEffects();
+
+// /Users/user/project/src/entry.js
+console.log(index_default);
+`,
+		},
+	})
+}

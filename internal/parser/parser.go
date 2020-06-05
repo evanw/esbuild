@@ -9046,11 +9046,6 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		// Map locals to parts
 		p.topLevelSymbolToParts = make(map[ast.Ref][]uint32)
 		for partIndex, part := range parts {
-			if !part.CanBeRemovedIfUnused {
-				// Optimization: skip this if there are side effects because it'll have
-				// to be included anyway
-				continue
-			}
 			for _, declared := range part.DeclaredSymbols {
 				if declared.IsTopLevel {
 					p.topLevelSymbolToParts[declared.Ref] = append(
