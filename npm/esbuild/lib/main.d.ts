@@ -24,6 +24,7 @@ export interface BuildOptions extends CommonOptions {
   name?: string;
   bundle?: boolean;
   outfile?: string;
+  metafile?: string;
   outdir?: string;
   platform?: Platform;
   format?: Format;
@@ -117,4 +118,26 @@ export interface TransformResult {
 export interface TransformFailure extends Error {
   errors: Message[];
   warnings: Message[];
+}
+
+// This is the type information for the "metafile" JSON format
+export interface Metadata {
+  inputs: {
+    [path: string]: {
+      bytes: number
+      imports: {
+        path: string
+      }[]
+    }
+  }
+  outputs: {
+    [path: string]: {
+      bytes: number
+      inputs: {
+        [path: string]: {
+          bytesInOutput: number
+        }
+      }
+    }
+  }
 }

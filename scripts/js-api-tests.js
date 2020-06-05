@@ -61,7 +61,58 @@ let buildTests = {
       resolveExtensions: ['.something.js', '.js'],
     })
     assert.strictEqual(require(output).result, 123)
-  }
+  },
+
+  async metafile({ esbuild }) {
+    const entry = path.join(testDir, '5-entry.js')
+    const imported = path.join(testDir, '5-imported.js')
+    const text = path.join(testDir, '5-text.txt')
+    const output = path.join(testDir, '5-out.js')
+    const meta = path.join(testDir, '5-meta.json')
+    await util.promisify(fs.writeFile)(entry, `
+      import x from "./5-imported"
+      import y from "./5-text.txt"
+      console.log(x, y)
+    `)
+    await util.promisify(fs.writeFile)(imported, 'export default 123')
+    await util.promisify(fs.writeFile)(text, 'some text')
+    await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      outfile: output,
+      metafile: meta,
+      sourcemap: true,
+      loader: { '.txt': 'file' },
+    })
+
+    const json = JSON.parse(await util.promisify(fs.readFile)(meta))
+    assert.strictEqual(Object.keys(json.inputs).length, 3)
+    assert.strictEqual(Object.keys(json.outputs).length, 3)
+    const cwd = process.cwd()
+
+    // Check inputs
+    assert.deepStrictEqual(json.inputs[path.relative(cwd, entry)].bytes, 99)
+    assert.deepStrictEqual(json.inputs[path.relative(cwd, entry)].imports, [
+      { path: path.relative(cwd, imported) },
+      { path: path.relative(cwd, text) },
+    ])
+    assert.deepStrictEqual(json.inputs[path.relative(cwd, imported)].bytes, 18)
+    assert.deepStrictEqual(json.inputs[path.relative(cwd, imported)].imports, [])
+    assert.deepStrictEqual(json.inputs[path.relative(cwd, text)].bytes, 9)
+    assert.deepStrictEqual(json.inputs[path.relative(cwd, text)].imports, [])
+
+    // Check outputs
+    assert.strictEqual(typeof json.outputs[path.relative(cwd, output)].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[path.relative(cwd, output) + '.map'].bytes, 'number')
+    assert.deepStrictEqual(json.outputs[path.relative(cwd, output) + '.map'].inputs, {})
+
+    // Check inputs for main output
+    const outputInputs = json.outputs[path.relative(cwd, output)].inputs
+    assert.strictEqual(Object.keys(outputInputs).length, 3)
+    assert.strictEqual(typeof outputInputs[path.relative(cwd, entry)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[path.relative(cwd, imported)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[path.relative(cwd, text)].bytesInOutput, 'number')
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {

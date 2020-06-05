@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+* Add the `--metafile` flag ([#140](https://github.com/evanw/esbuild/issues/140))
+
+    Pass `--metafile=meta.json` to write metadata about the build to the file `meta.json`. This includes information such as which files are in the bundle, what other files a given file depends on, and how much of each file ended up in the bundle. This is similar to the [stats option in Webpack](https://webpack.js.org/api/stats/).
+
+    The format looks like this:
+
+    ```ts
+    interface Metadata {
+      inputs: {
+        [path: string]: {
+          bytes: number
+          imports: {
+            path: string
+          }[]
+        }
+      }
+      outputs: {
+        [path: string]: {
+          bytes: number
+          inputs: {
+            [path: string]: {
+              bytesInOutput: number
+            }
+          }
+        }
+      }
+    }
+    ```
+
 * Shorten numeric literals ([#122](https://github.com/evanw/esbuild/issues/122))
 
     Certain numeric literals now use shorter representations in the generated JavaScript code. For example, `123400000` is now written out as `1234e5`.

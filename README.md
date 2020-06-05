@@ -248,6 +248,7 @@ Advanced options:
   --error-limit=...         Maximum error count or 0 to disable (default 10)
   --log-level=...           Disable logging (info, warning, error)
   --resolve-extensions=...  A comma-separated list of implicit extensions
+  --metafile=...            Write metadata about the build to a JSON file
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file

@@ -1839,11 +1839,19 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		newlineBeforeComment = false
 	}
 
+	// Start the metadata
+	jMeta := printer.Joiner{}
+	isFirstMeta := true
+	if c.options.AbsMetadataFile != "" {
+		jMeta.AddString("{\n      \"inputs\": {")
+	}
+
 	// Concatenate the generated JavaScript chunks together
 	var compileResultsForSourceMap []compileResult
 	var entryPointTail *printer.PrintResult
 	for _, compileResult := range compileResults {
 		isRuntime := compileResult.sourceIndex == ast.RuntimeSourceIndex
+
 		// If this is the entry point, it may have some extra code to stick at the
 		// end of the chunk after all modules have evaluated
 		if compileResult.entryPointTail != nil {
@@ -1881,6 +1889,19 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 			if c.options.SourceMap != SourceMapNone {
 				compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
 			}
+
+			// Include this file in the metadata
+			if c.options.AbsMetadataFile != "" {
+				if isFirstMeta {
+					isFirstMeta = false
+					jMeta.AddString("\n")
+				} else {
+					jMeta.AddString(",\n")
+				}
+				jMeta.AddString(fmt.Sprintf("        %s: {\n          \"bytesInOutput\": %d\n        }",
+					printer.QuoteForJSON(c.sources[compileResult.sourceIndex].PrettyPath),
+					len(compileResult.JS)))
+			}
 		}
 	}
 
@@ -1914,9 +1935,17 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 			j.AddString("\n")
 
 		case SourceMapLinkedWithComment, SourceMapExternalWithoutComment:
+			// Optionally add metadata about the file
+			var jsonMetadataChunk []byte
+			if c.options.AbsMetadataFile != "" {
+				jsonMetadataChunk = []byte(fmt.Sprintf(
+					"{\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
+			}
+
 			results = append(results, OutputFile{
-				AbsPath:  jsAbsPath + ".map",
-				Contents: sourceMap,
+				AbsPath:           jsAbsPath + ".map",
+				Contents:          sourceMap,
+				jsonMetadataChunk: jsonMetadataChunk,
 			})
 
 			// Add a comment linking the source to its map
@@ -1928,9 +1957,22 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		}
 	}
 
+	jsContents := j.Done()
+
+	// End the metadata
+	var jsonMetadataChunk []byte
+	if c.options.AbsMetadataFile != "" {
+		if !isFirstMeta {
+			jMeta.AddString("\n      ")
+		}
+		jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", len(jsContents)))
+		jsonMetadataChunk = jMeta.Done()
+	}
+
 	results = append(results, OutputFile{
-		AbsPath:  jsAbsPath,
-		Contents: j.Done(),
+		AbsPath:           jsAbsPath,
+		Contents:          jsContents,
+		jsonMetadataChunk: jsonMetadataChunk,
 	})
 	return
 }

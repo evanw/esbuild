@@ -56,6 +56,7 @@ Advanced options:
   --error-limit=...         Maximum error count or 0 to disable (default 10)
   --log-level=...           Disable logging (info, warning, error)
   --resolve-extensions=...  A comma-separated list of implicit extensions
+  --metafile=...            Write metadata about the build to a JSON file
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file
@@ -267,6 +268,14 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 				return argsObject{}, fmt.Errorf("Invalid name: %s", arg)
 			}
 			args.bundleOptions.ModuleName = value
+
+		case strings.HasPrefix(arg, "--metafile="):
+			value := arg[len("--metafile="):]
+			file, ok := fs.Abs(value)
+			if !ok {
+				return argsObject{}, fmt.Errorf("Invalid metadata file: %s", arg)
+			}
+			args.bundleOptions.AbsMetadataFile = file
 
 		case strings.HasPrefix(arg, "--outfile="):
 			value := arg[len("--outfile="):]
@@ -497,6 +506,9 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 		}
 		if args.logOptions.LogLevel == logging.LevelNone {
 			args.logOptions.LogLevel = logging.LevelWarning
+		}
+		if args.bundleOptions.AbsMetadataFile != "" {
+			return argsObject{}, fmt.Errorf("Cannot generate metadata when writing to stdout")
 		}
 
 		// Forbid the "file" loader since stdout only allows one output file

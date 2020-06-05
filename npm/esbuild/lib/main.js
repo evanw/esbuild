@@ -88,6 +88,7 @@ exports.build = options => {
     if (options.sourcemap) flags.push(`--sourcemap${options.sourcemap === true ? '' : `=${options.sourcemap}`}`);
     if (options.name) flags.push(`--name=${options.name}`);
     if (options.bundle) flags.push('--bundle');
+    if (options.metafile) flags.push(`--metafile=${options.metafile}`);
     if (options.outfile) flags.push(`--outfile=${options.outfile}`);
     if (options.outdir) flags.push(`--outdir=${options.outdir}`);
     if (options.platform) flags.push(`--platform=${options.platform}`);

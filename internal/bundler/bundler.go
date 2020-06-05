@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sort"
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -43,6 +44,11 @@ type file struct {
 	// If true, this file was listed as not having side effects by a package.json
 	// file in one of our containing directories with a "sideEffects" field.
 	ignoreIfUnused bool
+
+	// If "AbsMetadataFile" is present, this will be filled out with information
+	// about this file in JSON format. This is a partial JSON file that will be
+	// fully assembled later.
+	jsonMetadataChunk []byte
 }
 
 func (f *file) resolveImport(path ast.Path) (uint32, bool) {
@@ -55,12 +61,14 @@ func (f *file) resolveImport(path ast.Path) (uint32, bool) {
 
 type Bundle struct {
 	fs          fs.FS
+	res         resolver.Resolver
 	sources     []logging.Source
 	files       []file
 	entryPoints []uint32
 }
 
 type parseFlags struct {
+	isStdin        bool
 	isEntryPoint   bool
 	isDisabled     bool
 	ignoreIfUnused bool
@@ -70,9 +78,9 @@ type parseArgs struct {
 	fs            fs.FS
 	log           logging.Log
 	res           resolver.Resolver
-	sourcePath    string
+	absPath       string
+	prettyPath    string
 	sourceIndex   uint32
-	isStdin       bool
 	importSource  logging.Source
 	flags         parseFlags
 	pathRange     ast.Range
@@ -88,15 +96,11 @@ type parseResult struct {
 }
 
 func parseFile(args parseArgs) {
-	prettyPath := args.sourcePath
-	if !args.isStdin {
-		prettyPath = args.res.PrettyPath(args.sourcePath)
-	}
 	contents := ""
 
 	// Disabled files are left empty
 	if !args.flags.isDisabled {
-		if args.isStdin {
+		if args.flags.isStdin {
 			bytes, err := ioutil.ReadAll(os.Stdin)
 			if err != nil {
 				args.log.AddRangeError(args.importSource, args.pathRange,
@@ -107,10 +111,10 @@ func parseFile(args parseArgs) {
 			contents = string(bytes)
 		} else {
 			var ok bool
-			contents, ok = args.res.Read(args.sourcePath)
+			contents, ok = args.res.Read(args.absPath)
 			if !ok {
 				args.log.AddRangeError(args.importSource, args.pathRange,
-					fmt.Sprintf("Could not read from file: %s", args.sourcePath))
+					fmt.Sprintf("Could not read from file: %s", args.absPath))
 				args.results <- parseResult{}
 				return
 			}
@@ -119,14 +123,14 @@ func parseFile(args parseArgs) {
 
 	source := logging.Source{
 		Index:        args.sourceIndex,
-		IsStdin:      args.isStdin,
-		AbsolutePath: args.sourcePath,
-		PrettyPath:   prettyPath,
+		IsStdin:      args.flags.isStdin,
+		AbsolutePath: args.absPath,
+		PrettyPath:   args.prettyPath,
 		Contents:     contents,
 	}
 
 	// Get the file extension
-	extension := path.Ext(args.sourcePath)
+	extension := path.Ext(args.absPath)
 
 	// Pick the loader based on the file extension
 	loader := args.bundleOptions.ExtensionToLoader[extension]
@@ -189,7 +193,7 @@ func parseFile(args parseArgs) {
 		// Get the file name, making sure to use the "fs" interface so we do the
 		// right thing on Windows (Windows-style paths for the command-line
 		// interface and Unix-style paths for tests, even on Windows)
-		baseName := args.fs.Base(args.sourcePath)
+		baseName := args.fs.Base(args.absPath)
 
 		// Add a hash to the file name to prevent multiple files with the same name
 		// but different contents from colliding
@@ -208,17 +212,25 @@ func parseFile(args parseArgs) {
 		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(baseName)}}
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 
+		// Optionally add metadata about the file
+		var jsonMetadataChunk []byte
+		if args.bundleOptions.AbsMetadataFile != "" {
+			jsonMetadataChunk = []byte(fmt.Sprintf(
+				"{\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(source.Contents)))
+		}
+
 		// Copy the file using an additional file payload to make sure we only copy
 		// the file if the module isn't removed due to tree shaking.
 		result.file.additionalFile = &OutputFile{
-			AbsPath:  args.fs.Join(targetFolder, baseName),
-			Contents: bytes,
+			AbsPath:           args.fs.Join(targetFolder, baseName),
+			Contents:          bytes,
+			jsonMetadataChunk: jsonMetadataChunk,
 		}
 
 	default:
 		result.ok = false
 		args.log.AddRangeError(args.importSource, args.pathRange,
-			fmt.Sprintf("File extension not supported: %s", args.sourcePath))
+			fmt.Sprintf("File extension not supported: %s", args.prettyPath))
 	}
 
 	args.results <- result
@@ -261,13 +273,18 @@ func ScanBundle(
 		}()
 	}
 
-	maybeParseFile := func(path string, importSource logging.Source, pathRange ast.Range, flags parseFlags) uint32 {
-		sourceIndex, ok := visited[path]
+	maybeParseFile := func(
+		absPath string,
+		prettyPath string,
+		importSource logging.Source,
+		pathRange ast.Range,
+		flags parseFlags,
+	) uint32 {
+		sourceIndex, ok := visited[absPath]
 		if !ok {
 			sourceIndex = uint32(len(sources))
-			isStdin := bundleOptions.LoaderForStdin != LoaderNone && flags.isEntryPoint
-			if !isStdin {
-				visited[path] = sourceIndex
+			if !flags.isStdin {
+				visited[absPath] = sourceIndex
 			}
 			sources = append(sources, logging.Source{})
 			files = append(files, file{})
@@ -276,9 +293,9 @@ func ScanBundle(
 				fs:            fs,
 				log:           log,
 				res:           res,
-				sourcePath:    path,
+				absPath:       absPath,
+				prettyPath:    prettyPath,
 				sourceIndex:   sourceIndex,
-				isStdin:       isStdin,
 				importSource:  importSource,
 				flags:         flags,
 				pathRange:     pathRange,
@@ -291,9 +308,16 @@ func ScanBundle(
 	}
 
 	entryPoints := []uint32{}
-	for _, path := range entryPaths {
-		flags := parseFlags{isEntryPoint: true}
-		sourceIndex := maybeParseFile(path, logging.Source{}, ast.Range{}, flags)
+	for _, absPath := range entryPaths {
+		flags := parseFlags{
+			isEntryPoint: true,
+			isStdin:      bundleOptions.LoaderForStdin != LoaderNone,
+		}
+		prettyPath := absPath
+		if !flags.isStdin {
+			prettyPath = res.PrettyPath(absPath)
+		}
+		sourceIndex := maybeParseFile(absPath, prettyPath, logging.Source{}, ast.Range{}, flags)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -306,6 +330,14 @@ func ScanBundle(
 
 		source := result.source
 		result.file.resolvedImports = make(map[string]uint32)
+		j := printer.Joiner{}
+		isFirstImport := true
+
+		// Begin the metadata chunk
+		if bundleOptions.AbsMetadataFile != "" {
+			j.AddString(printer.QuoteForJSON(source.PrettyPath))
+			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(source.Contents)))
+		}
 
 		// Don't try to resolve paths if we're not bundling
 		if bundleOptions.IsBundling {
@@ -327,8 +359,21 @@ func ScanBundle(
 							isDisabled:     resolveResult.Status == resolver.ResolveDisabled,
 							ignoreIfUnused: resolveResult.IgnoreIfUnused,
 						}
-						sourceIndex := maybeParseFile(resolveResult.AbsolutePath, source, pathRange, flags)
+						prettyPath := res.PrettyPath(resolveResult.AbsolutePath)
+						sourceIndex := maybeParseFile(resolveResult.AbsolutePath, prettyPath, source, pathRange, flags)
 						result.file.resolvedImports[pathText] = sourceIndex
+
+						// Generate metadata about each import
+						if bundleOptions.AbsMetadataFile != "" {
+							if isFirstImport {
+								isFirstImport = false
+								j.AddString("\n        ")
+							} else {
+								j.AddString(",\n        ")
+							}
+							j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
+								printer.QuoteForJSON(prettyPath)))
+						}
 
 					case resolver.ResolveMissing:
 						log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
@@ -337,11 +382,20 @@ func ScanBundle(
 			}
 		}
 
+		// End the metadata chunk
+		if bundleOptions.AbsMetadataFile != "" {
+			if !isFirstImport {
+				j.AddString("\n      ")
+			}
+			j.AddString("]\n    }")
+		}
+
+		result.file.jsonMetadataChunk = j.Done()
 		sources[source.Index] = source
 		files[source.Index] = result.file
 	}
 
-	return Bundle{fs, sources, files, entryPoints}
+	return Bundle{fs, res, sources, files, entryPoints}
 }
 
 type Loader int
@@ -395,6 +449,9 @@ type BundleOptions struct {
 	ExtensionToLoader map[string]Loader
 	OutputFormat      printer.Format
 
+	// If present, metadata about the bundle is written as JSON here
+	AbsMetadataFile string
+
 	SourceMap  SourceMap
 	SourceFile string // The "original file path" for the source map
 
@@ -411,6 +468,11 @@ type BundleOptions struct {
 type OutputFile struct {
 	AbsPath  string
 	Contents []byte
+
+	// If "AbsMetadataFile" is present, this will be filled out with information
+	// about this file in JSON format. This is a partial JSON file that will be
+	// fully assembled later.
+	jsonMetadataChunk []byte
 }
 
 type lineColumnOffset struct {
@@ -467,5 +529,58 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
 	for _, group := range resultGroups {
 		results = append(results, group...)
 	}
+
+	// Also generate the metadata file if necessary
+	if options.AbsMetadataFile != "" {
+		results = append(results, OutputFile{
+			AbsPath:  options.AbsMetadataFile,
+			Contents: b.generateMetadataJSON(results),
+		})
+	}
+
 	return results
+}
+
+func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
+	// Sort files by absolute path for determinism
+	sorted := make(indexAndPathArray, 0, len(b.sources))
+	for sourceIndex, source := range b.sources {
+		if sourceIndex != ast.RuntimeSourceIndex {
+			sorted = append(sorted, indexAndPath{uint32(sourceIndex), source.PrettyPath})
+		}
+	}
+	sort.Sort(sorted)
+
+	j := printer.Joiner{}
+	j.AddString("{\n  \"inputs\": {")
+
+	// Write inputs
+	for i, item := range sorted {
+		if i > 0 {
+			j.AddString(",\n    ")
+		} else {
+			j.AddString("\n    ")
+		}
+		j.AddBytes(b.files[item.sourceIndex].jsonMetadataChunk)
+	}
+
+	j.AddString("\n  },\n  \"outputs\": {")
+
+	// Write outputs
+	isFirst := true
+	for _, result := range results {
+		if len(result.jsonMetadataChunk) > 0 {
+			if isFirst {
+				isFirst = false
+				j.AddString("\n    ")
+			} else {
+				j.AddString(",\n    ")
+			}
+			j.AddString(fmt.Sprintf("%s: ", printer.QuoteForJSON(b.res.PrettyPath(result.AbsPath))))
+			j.AddBytes(result.jsonMetadataChunk)
+		}
+	}
+
+	j.AddString("\n  }\n}\n")
+	return j.Done()
 }
