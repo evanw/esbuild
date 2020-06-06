@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const rimraf = require('rimraf');
 const jsYaml = require('js-yaml');
-const child_process = require('child_process');
+const { installForTests } = require('./esbuild');
+const test262Dir = path.join(__dirname, '..', 'demo', 'test262', 'test');
 
 function findFiles() {
   function visit(dir) {
@@ -18,12 +19,28 @@ function findFiles() {
   }
 
   const files = [];
-  visit(path.join(__dirname, '..', 'demo', 'test262', 'test'));
+  visit(test262Dir);
   return files;
 }
 
+function formatErrors(content, error) {
+  if (error.errors) {
+    return error.errors.map(({ text, location }) => {
+      if (location) {
+        const { line, column } = location;
+        const contentLine = content.split(/(?:\r\n|\n|\r|\u2028|\u2029)/g)[line - 1];
+        return `<stdin>:${line}:${column}: error: ${text}\n${contentLine}\n${' '.repeat(column)}^`;
+      }
+      return `error: ${text}`;
+    }).join('\n');
+  }
+  return error + '';
+}
+
 async function main() {
-  const esbuild = path.join(__dirname, '..', 'esbuild');
+  const testDir = path.join(__dirname, '.test262');
+  const { startService } = installForTests(testDir);
+  const service = await startService();
   const files = findFiles();
   let runCount = 0;
   let shouldHavePassed = 0;
@@ -32,47 +49,25 @@ async function main() {
   let reprintCount = 0;
   let minifyCount = 0;
 
-  function esbuildFile(file, outfile, {minify}) {
-    const child = child_process.spawn(esbuild, [
-      file,
-      `--outfile=${outfile}`,
-    ].concat(
-      minify ? ['--minify'] : []
-    ), {
-      stdio: ['inherit', 'pipe', 'pipe'],
-    });
-    let done = false;
-    const promise = new Promise(resolve => {
-      const chunks = [];
-      child.stderr.on('data', chunk => chunks.push(chunk));
-      child.on('close', status => {
-        done = true;
-        resolve({
-          status,
-          stderr: Buffer.concat(chunks).toString(),
-        });
-      })
-    });
-    const timeout = new Promise((_, reject) => {
-      setTimeout(() => {
-        if (!done) {
-          console.log(`${file}: TIMED OUT!`);
-          child.kill();
-          reject();
-        }
-      }, 1000);
-    });
-    return Promise.race([promise, timeout]);
+  async function esbuildFile(input, options) {
+    try {
+      const { js } = await service.transform(input, options);
+      return { success: true, output: js };
+    } catch (error) {
+      return { success: false, error };
+    }
   }
 
   async function processFile(file) {
     const content = fs.readFileSync(file, 'utf8');
     const start = content.indexOf('/*---');
     const end = content.indexOf('---*/');
+
     if (start < 0 || end < 0) {
       console.warn(`Missing YAML metadata: ${file}`);
       return;
     }
+
     const yaml = jsYaml.safeLoad(content.slice(start + 5, end));
     const shouldParse = !yaml.negative || yaml.negative.phase === 'runtime';
 
@@ -88,38 +83,32 @@ async function main() {
       if (yaml.features.includes('top-level-await')) return
     }
 
-    const hash = crypto.createHash('md5').update(file).digest('hex');
-    const output1 = path.join(process.env.HOME, '.Trash', hash + '-1.js');
-    const output2 = path.join(process.env.HOME, '.Trash', hash + '-2.js');
-    const result = await esbuildFile(file, output1, {minify: false});
-    const parsed = result.status === 0;
+    const result = await esbuildFile(content, { minify: false });
 
-    if (parsed !== shouldParse) {
-      if (!parsed) shouldHavePassed++;
+    if (result.success !== shouldParse) {
+      if (!result.success) shouldHavePassed++;
       else shouldHaveFailed++;
-      if (!result.stderr.includes(path.basename(file))) {
-        console.log(`${file}: error: ${(yaml.description || '').trim()}`);
-      } else {
-        process.stdout.write(result.stderr);
-      }
-    } else if (parsed) {
-      const result2 = await esbuildFile(output1, output2, {minify: false});
-      if (result2.status !== 0) {
-        console.log(`!!! REPARSE ERROR: ${file} !!!`);
-        process.stdout.write(result2.stderr);
+      const text = result.success
+        ? (yaml.description || '').trim()
+        : formatErrors(content, result.error);
+      console.log('\n' + `${file}\n${text}`.replace(/\n/g, '\n  '));
+    }
+
+    else if (result.success) {
+      const result2 = await esbuildFile(result.output, { minify: false });
+      if (!result2.success) {
+        console.log(`\n!!! REPARSE ERROR: ${file} !!!`);
+        console.log(`${result2.error}`);
         reparseCount++;
-      } else if (fs.readFileSync(output1, 'utf8') !== fs.readFileSync(output2, 'utf8')) {
-        console.log(`!!! REPRINT ERROR: ${file} !!!`);
-        reprintCount++;
       } else {
-        const result3 = await esbuildFile(file, output1, {minify: true});
-        if (result3.status !== 0) {
+        const result3 = await esbuildFile(result2.output, { minify: true });
+        if (!result3.success) {
           throw new Error('This should have succeeded');
         }
-        const result4 = await esbuildFile(output1, output2, {minify: true});
-        if (result4.status !== 0) {
-          console.log(`!!! MINIFY ERROR: ${file} !!!`);
-          process.stdout.write(result4.stderr);
+        const result4 = await esbuildFile(result3.output, { minify: true });
+        if (!result4.success) {
+          console.log(`\n!!! MINIFY ERROR: ${file} !!!`);
+          console.log(`${result4.error}`);
           minifyCount++;
         }
       }
@@ -156,6 +145,10 @@ async function main() {
   console.log(`reparse failures: ${reparseCount}`);
   console.log(`reprint failures: ${reprintCount}`);
   console.log(`minify failures: ${minifyCount}`);
+
+  // Clean up after all tests finish
+  rimraf.sync(testDir, { disableGlob: true });
+  service.stop();
 }
 
 main().catch(e => setTimeout(() => {
