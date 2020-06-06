@@ -14,6 +14,16 @@
     }
     ```
 
+    You can read more about these features here:
+
+    * https://github.com/tc39/proposal-private-methods
+    * https://github.com/tc39/proposal-class-fields
+    * https://github.com/tc39/proposal-static-class-features
+
+* Initial support for logical assignment operators
+
+    This adds support for the three new logical assignment operators `||=`, `&&=`, and `??=`, which can now be parsed and passed through to the output. Transforming this syntax for older browsers is not supported yet. You can read more about these operators here: https://github.com/tc39/proposal-logical-assignment.
+
 * Data loaders now set "no side effects"
 
     Files loaded using the `json`, `text`, `base64`, `dataurl`, and `file` loaders are now removed from the bundle if the files that import them never use the imports. This is the same behavior as the `"sideEffects": false` setting in `package.json`.

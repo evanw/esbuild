@@ -2543,6 +2543,7 @@ const (
 	futureSyntaxBigInteger
 	futureSyntaxNonIdentifierArrayRest
 	futureSyntaxPrivateName
+	futureSyntaxLogicalAssign
 )
 
 func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
@@ -2562,6 +2563,8 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 	case futureSyntaxNonIdentifierArrayRest:
 		target = ES2016
 	case futureSyntaxPrivateName:
+		target = ESNext
+	case futureSyntaxLogicalAssign:
 		target = ESNext
 	}
 
@@ -2585,6 +2588,8 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 			name = "Non-identifier array rest patterns"
 		case futureSyntaxPrivateName:
 			name = "Private names"
+		case futureSyntaxLogicalAssign:
+			name = "Logical assignment operators"
 		}
 
 		p.log.AddRangeError(p.source, r,
@@ -3079,6 +3084,14 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpNullishCoalescing, left, p.parseExpr(ast.LNullishCoalescing)}}
 
+		case lexer.TQuestionQuestionEquals:
+			if level >= ast.LAssign {
+				return left
+			}
+			p.markFutureSyntax(futureSyntaxLogicalAssign, p.lexer.Range())
+			p.lexer.Next()
+			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpNullishCoalescingAssign, left, p.parseExpr(ast.LAssign - 1)}}
+
 		case lexer.TBarBar:
 			if level >= ast.LLogicalOr {
 				return left
@@ -3086,12 +3099,28 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalOr, left, p.parseExpr(ast.LLogicalOr)}}
 
+		case lexer.TBarBarEquals:
+			if level >= ast.LAssign {
+				return left
+			}
+			p.markFutureSyntax(futureSyntaxLogicalAssign, p.lexer.Range())
+			p.lexer.Next()
+			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalOrAssign, left, p.parseExpr(ast.LAssign - 1)}}
+
 		case lexer.TAmpersandAmpersand:
 			if level >= ast.LLogicalAnd {
 				return left
 			}
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalAnd, left, p.parseExpr(ast.LLogicalAnd)}}
+
+		case lexer.TAmpersandAmpersandEquals:
+			if level >= ast.LAssign {
+				return left
+			}
+			p.markFutureSyntax(futureSyntaxLogicalAssign, p.lexer.Range())
+			p.lexer.Next()
+			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalAndAssign, left, p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TBar:
 			if level >= ast.LBitwiseOr {

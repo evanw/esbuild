@@ -91,9 +91,11 @@ const (
 	TTilde
 
 	// Assignments
+	TAmpersandAmpersandEquals
 	TAmpersandEquals
 	TAsteriskAsteriskEquals
 	TAsteriskEquals
+	TBarBarEquals
 	TBarEquals
 	TCaretEquals
 	TEquals
@@ -103,6 +105,7 @@ const (
 	TMinusEquals
 	TPercentEquals
 	TPlusEquals
+	TQuestionQuestionEquals
 	TSlashEquals
 
 	// Class-private fields and methods
@@ -957,12 +960,18 @@ func (lexer *Lexer) Next() {
 			lexer.Token = TTilde
 
 		case '?':
-			// '?' or '??' or '?.'
+			// '?' or '?.' or '??' or '??='
 			lexer.step()
 			switch lexer.codePoint {
 			case '?':
 				lexer.step()
-				lexer.Token = TQuestionQuestion
+				switch lexer.codePoint {
+				case '=':
+					lexer.step()
+					lexer.Token = TQuestionQuestionEquals
+				default:
+					lexer.Token = TQuestionQuestion
+				}
 			case '.':
 				lexer.Token = TQuestion
 				current := lexer.current
@@ -992,7 +1001,7 @@ func (lexer *Lexer) Next() {
 			}
 
 		case '&':
-			// '&' or '&=' or '&&'
+			// '&' or '&=' or '&&' or '&&='
 			lexer.step()
 			switch lexer.codePoint {
 			case '=':
@@ -1000,13 +1009,19 @@ func (lexer *Lexer) Next() {
 				lexer.Token = TAmpersandEquals
 			case '&':
 				lexer.step()
-				lexer.Token = TAmpersandAmpersand
+				switch lexer.codePoint {
+				case '=':
+					lexer.step()
+					lexer.Token = TAmpersandAmpersandEquals
+				default:
+					lexer.Token = TAmpersandAmpersand
+				}
 			default:
 				lexer.Token = TAmpersand
 			}
 
 		case '|':
-			// '|' or '|=' or '||'
+			// '|' or '|=' or '||' or '||='
 			lexer.step()
 			switch lexer.codePoint {
 			case '=':
@@ -1014,7 +1029,13 @@ func (lexer *Lexer) Next() {
 				lexer.Token = TBarEquals
 			case '|':
 				lexer.step()
-				lexer.Token = TBarBar
+				switch lexer.codePoint {
+				case '=':
+					lexer.step()
+					lexer.Token = TBarBarEquals
+				default:
+					lexer.Token = TBarBar
+				}
 			default:
 				lexer.Token = TBar
 			}

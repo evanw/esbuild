@@ -100,29 +100,29 @@ These syntax features are conditionally transformed for older browsers depending
 | [Optional chaining](https://github.com/tc39/proposal-optional-chaining)             | `es2020`                             | `a?.b`               |
 | [Nullish coalescing](https://github.com/tc39/proposal-nullish-coalescing)           | `es2020`                             | `a ?? b`             |
 | [Class instance fields](https://github.com/tc39/proposal-class-fields)              | `esnext`                             | `class { x }`        |
-| [Static class fields](https://github.com/tc39/proposal-static-class-features/)      | `esnext`                             | `class { static x }` |
+| [Static class fields](https://github.com/tc39/proposal-static-class-features)       | `esnext`                             | `class { static x }` |
 
 These syntax features are currently always passed through un-transformed:
 
-| Syntax transform                                                                  | Unsupported when `--target` is below | Example                     |
-|-----------------------------------------------------------------------------------|--------------------------------------|-----------------------------|
-| [Async functions](https://github.com/tc39/ecmascript-asyncawait)                  | `es2017`                             | `async () => {}`            |
-| [Rest properties](https://github.com/tc39/proposal-object-rest-spread)            | `es2018`                             | `let {...x} = y`            |
-| [Asynchronous iteration](https://github.com/tc39/proposal-async-iteration)        | `es2018`                             | `for await (let x of y) {}` |
-| [Async generators](https://github.com/tc39/proposal-async-iteration)              | `es2018`                             | `async function* foo() {}`  |
-| [BigInt](https://github.com/tc39/proposal-bigint)                                 | `es2020`                             | `123n`                      |
-| [Hashbang grammar](https://github.com/tc39/proposal-hashbang)                     | `esnext`                             | `#!/usr/bin/env node`       |
-| [Private instance methods](https://github.com/tc39/proposal-private-methods)      | `esnext`                             | `class { #x() {} }`         |
-| [Private instance fields](https://github.com/tc39/proposal-class-fields)          | `esnext`                             | `class { #x }`              |
-| [Private static methods](https://github.com/tc39/proposal-static-class-features/) | `esnext`                             | `class { static #x() {} }`  |
-| [Private static fields](https://github.com/tc39/proposal-static-class-features/)  | `esnext`                             | `class { static #x }`       |
+| Syntax transform                                                                    | Unsupported when `--target` is below | Example                     |
+|-------------------------------------------------------------------------------------|--------------------------------------|-----------------------------|
+| [Async functions](https://github.com/tc39/ecmascript-asyncawait)                    | `es2017`                             | `async () => {}`            |
+| [Rest properties](https://github.com/tc39/proposal-object-rest-spread)              | `es2018`                             | `let {...x} = y`            |
+| [Asynchronous iteration](https://github.com/tc39/proposal-async-iteration)          | `es2018`                             | `for await (let x of y) {}` |
+| [Async generators](https://github.com/tc39/proposal-async-iteration)                | `es2018`                             | `async function* foo() {}`  |
+| [BigInt](https://github.com/tc39/proposal-bigint)                                   | `es2020`                             | `123n`                      |
+| [Hashbang grammar](https://github.com/tc39/proposal-hashbang)                       | `esnext`                             | `#!/usr/bin/env node`       |
+| [Private instance methods](https://github.com/tc39/proposal-private-methods)        | `esnext`                             | `class { #x() {} }`         |
+| [Private instance fields](https://github.com/tc39/proposal-class-fields)            | `esnext`                             | `class { #x }`              |
+| [Private static methods](https://github.com/tc39/proposal-static-class-features)    | `esnext`                             | `class { static #x() {} }`  |
+| [Private static fields](https://github.com/tc39/proposal-static-class-features)     | `esnext`                             | `class { static #x }`       |
+| [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment) | `esnext`                             | `a ??= b`                   |
 
 These syntax features are not yet supported, and currently cannot be parsed:
 
-| Syntax transform                                                                    | Language version | Example           |
-|-------------------------------------------------------------------------------------|------------------|-------------------|
-| [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment) | `esnext`         | `a ??= b`         |
-| [Top-level await](https://github.com/tc39/proposal-top-level-await)                 | `esnext`         | `await import(x)` |
+| Syntax transform                                                    | Language version | Example           |
+|---------------------------------------------------------------------|------------------|-------------------|
+| [Top-level await](https://github.com/tc39/proposal-top-level-await) | `esnext`         | `await import(x)` |
 
 See also [the list of finished ECMAScript proposals](https://github.com/tc39/proposals/blob/master/finished-proposals.md) and [the list of active ECMAScript proposals](https://github.com/tc39/proposals/blob/master/README.md).
 

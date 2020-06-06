@@ -133,6 +133,9 @@ const (
 	BinOpBitwiseOrAssign
 	BinOpBitwiseAndAssign
 	BinOpBitwiseXorAssign
+	BinOpNullishCoalescingAssign
+	BinOpLogicalOrAssign
+	BinOpLogicalAndAssign
 )
 
 type opTableEntry struct {
@@ -203,6 +206,9 @@ var OpTable = []opTableEntry{
 	{"|=", LAssign, false},
 	{"&=", LAssign, false},
 	{"^=", LAssign, false},
+	{"??=", LAssign, false},
+	{"||=", LAssign, false},
+	{"&&=", LAssign, false},
 }
 
 type Loc struct {

@@ -65,9 +65,11 @@ var tokenToString = map[T]string{
 	TTilde:                             "\"~\"",
 
 	// Assignments
+	TAmpersandAmpersandEquals:                "\"&&=\"",
 	TAmpersandEquals:                         "\"&=\"",
 	TAsteriskAsteriskEquals:                  "\"**=\"",
 	TAsteriskEquals:                          "\"*=\"",
+	TBarBarEquals:                            "\"||=\"",
 	TBarEquals:                               "\"|=\"",
 	TCaretEquals:                             "\"^=\"",
 	TEquals:                                  "\"=\"",
@@ -77,6 +79,7 @@ var tokenToString = map[T]string{
 	TMinusEquals:                             "\"-=\"",
 	TPercentEquals:                           "\"%=\"",
 	TPlusEquals:                              "\"+=\"",
+	TQuestionQuestionEquals:                  "\"??=\"",
 	TSlashEquals:                             "\"/=\"",
 
 	// Class-private fields and methods
