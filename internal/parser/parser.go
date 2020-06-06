@@ -2710,6 +2710,9 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			if p.lexer.Token == lexer.TPrivateIdentifier && p.allowPrivateIdentifiers {
 				// "a.#b"
 				// "a?.b.#c"
+				if _, ok := left.Data.(*ast.ESuper); ok {
+					p.lexer.Expected(lexer.TIdentifier)
+				}
 				name := p.lexer.Identifier
 				nameLoc := p.lexer.Loc()
 				p.lexer.Next()

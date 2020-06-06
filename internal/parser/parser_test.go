@@ -1675,6 +1675,8 @@ func TestPrivateIdentifiers(t *testing.T) {
 		"<stdin>: error: Deleting the private name \"#foo\" is forbidden\n")
 	expectParseError(t, "class Foo { #foo; foo() { delete this?.#foo } }",
 		"<stdin>: error: Deleting the private name \"#foo\" is forbidden\n")
+	expectParseError(t, "class Foo extends Bar { #foo; foo() { super.#foo } }",
+		"<stdin>: error: Expected identifier but found \"#foo\"\n")
 
 	expectPrinted(t, "class Foo { #foo }", "class Foo {\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { #foo = 1 }", "class Foo {\n  #foo = 1;\n}\n")
