@@ -386,6 +386,7 @@ const (
 	mergeForbidden = iota
 	mergeReplaceWithNew
 	mergeKeepExisting
+	mergeBecomePrivateGetSetPair
 )
 
 func canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) mergeResult {
@@ -417,6 +418,13 @@ func canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) mergeResult {
 	// "function foo() {} var foo;"
 	if new.IsHoisted() && existing.IsHoisted() {
 		return mergeKeepExisting
+	}
+
+	// "get #foo() {} set #foo() {}"
+	// "set #foo() {} get #foo() {}"
+	if (existing == ast.SymbolPrivateGet && new == ast.SymbolPrivateSet) ||
+		(existing == ast.SymbolPrivateSet && new == ast.SymbolPrivateGet) {
+		return mergeBecomePrivateGetSetPair
 	}
 
 	return mergeForbidden
@@ -452,7 +460,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 
 	// Check for a collision in the declaring scope
 	if existing, ok := scope.Members[name]; ok {
-		symbol := p.symbols[existing.InnerIndex]
+		symbol := &p.symbols[existing.InnerIndex]
 
 		switch canMergeSymbols(symbol.Kind, kind) {
 		case mergeForbidden:
@@ -464,7 +472,11 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 			ref = existing
 
 		case mergeReplaceWithNew:
-			p.symbols[existing.InnerIndex].Link = ref
+			symbol.Link = ref
+
+		case mergeBecomePrivateGetSetPair:
+			ref = existing
+			symbol.Kind = ast.SymbolPrivateGetSetPair
 		}
 	}
 
@@ -1371,9 +1383,7 @@ func (p *parser) parseProperty(
 			p.lexer.Expected(lexer.TIdentifier)
 		}
 		p.markFutureSyntax(futureSyntaxPrivateName, p.lexer.Range())
-		nameLoc := p.lexer.Loc()
-		ref := p.declareSymbol(ast.SymbolPrivate, nameLoc, p.lexer.Identifier)
-		key = ast.Expr{nameLoc, &ast.EPrivateIdentifier{ref}}
+		key = ast.Expr{p.lexer.Loc(), &ast.EPrivateIdentifier{p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Next()
 
 	case lexer.TOpenBracket:
@@ -1520,6 +1530,11 @@ func (p *parser) parseProperty(
 			initializer = &value
 		}
 
+		// Special-case private identifiers
+		if private, ok := key.Data.(*ast.EPrivateIdentifier); ok {
+			private.Ref = p.declareSymbol(ast.SymbolPrivate, key.Loc, p.loadNameFromRef(private.Ref))
+		}
+
 		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Property{
 			Kind:        kind,
@@ -1554,6 +1569,21 @@ func (p *parser) parseProperty(
 
 		p.popScope()
 		value := ast.Expr{loc, &ast.EFunction{fn}}
+
+		// Special-case private identifiers
+		if private, ok := key.Data.(*ast.EPrivateIdentifier); ok {
+			var declare ast.SymbolKind
+			switch kind {
+			case ast.PropertyGet:
+				declare = ast.SymbolPrivateGet
+			case ast.PropertySet:
+				declare = ast.SymbolPrivateSet
+			default:
+				declare = ast.SymbolPrivate
+			}
+			private.Ref = p.declareSymbol(declare, key.Loc, p.loadNameFromRef(private.Ref))
+		}
+
 		return ast.Property{
 			Kind:       kind,
 			IsComputed: isComputed,
@@ -8096,7 +8126,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			private.Ref = result.ref
 
 			// Unlike regular identifiers, there are no unbound private identifiers
-			if p.symbols[result.ref.InnerIndex].Kind != ast.SymbolPrivate {
+			if !p.symbols[result.ref.InnerIndex].Kind.IsPrivate() {
 				r := ast.Range{e.Index.Loc, int32(len(name))}
 				p.addRangeError(r, fmt.Sprintf("Private name %q is not available here", name))
 			}

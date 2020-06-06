@@ -1695,6 +1695,22 @@ func TestPrivateIdentifiers(t *testing.T) {
 
 	// Scope tests
 	expectParseError(t, "class Foo { #foo; #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { #foo; static #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { static #foo; #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { #foo; #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { #foo; get #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { #foo; set #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { get #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { set #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { get #foo() {} get #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { set #foo() {} set #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { get #foo() {} set #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { set #foo() {} get #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectPrinted(t, "class Foo { get #foo() {} set #foo() { this.#foo } }",
+		"class Foo {\n  get #foo() {\n  }\n  set #foo() {\n    this.#foo;\n  }\n}\n")
+	expectPrinted(t, "class Foo { set #foo() { this.#foo } get #foo() {} }",
+		"class Foo {\n  set #foo() {\n    this.#foo;\n  }\n  get #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { #foo } class Bar { #foo }", "class Foo {\n  #foo;\n}\nclass Bar {\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { foo = this.#foo; #foo }", "class Foo {\n  foo = this.#foo;\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { foo = this?.#foo; #foo }", "class Foo {\n  foo = this?.#foo;\n  #foo;\n}\n")

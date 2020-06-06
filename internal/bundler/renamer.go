@@ -244,7 +244,7 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 	for outer, array := range g.symbolToMinifyInfo {
 		for inner, data := range array {
 			if data.used != 0 {
-				if symbols.Outer[outer][inner].Kind == ast.SymbolPrivate {
+				if symbols.Outer[outer][inner].Kind.IsPrivate() {
 					if data.slot > maxPrivateSlot {
 						maxPrivateSlot = data.slot
 					}
@@ -263,7 +263,7 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 	for outer, array := range g.symbolToMinifyInfo {
 		for inner, data := range array {
 			if data.used != 0 {
-				if symbols.Outer[outer][inner].Kind == ast.SymbolPrivate {
+				if symbols.Outer[outer][inner].Kind.IsPrivate() {
 					privateSlotToCount[data.slot] += data.count
 				} else {
 					slotToCount[data.slot] += data.count
@@ -311,7 +311,7 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 		for inner, data := range array {
 			if data.used != 0 {
 				symbol := &symbols.Outer[outer][inner]
-				if symbol.Kind == ast.SymbolPrivate {
+				if symbol.Kind.IsPrivate() {
 					symbol.Name = privateNames[data.slot]
 				} else {
 					symbol.Name = names[data.slot]
@@ -358,7 +358,7 @@ func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMa
 		}
 
 		// Private symbols are in a different namespace
-		if symbol.Kind == ast.SymbolPrivate {
+		if symbol.Kind.IsPrivate() {
 			if g.countSymbol(nextPrivate, ref, symbol.UseCountEstimate) {
 				nextPrivate++
 			}

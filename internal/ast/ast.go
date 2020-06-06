@@ -898,6 +898,9 @@ const (
 
 	// A class-private identifier (i.e. "#foo").
 	SymbolPrivate
+	SymbolPrivateGet
+	SymbolPrivateSet
+	SymbolPrivateGetSetPair
 
 	// TypeScript enums can merge with TypeScript namespaces and other TypeScript
 	// enums.
@@ -914,6 +917,10 @@ const (
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther
 )
+
+func (kind SymbolKind) IsPrivate() bool {
+	return kind >= SymbolPrivate && kind <= SymbolPrivateGetSetPair
+}
 
 func (kind SymbolKind) IsHoisted() bool {
 	return kind == SymbolHoisted || kind == SymbolHoistedFunction

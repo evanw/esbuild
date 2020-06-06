@@ -4729,14 +4729,20 @@ func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
 					foo = class {
 						#foo
 						#foo2
+						#bar
 					}
+					get #bar() {}
+					set #bar() {}
 				}
 				class Bar {
 					#foo
 					foo = class {
 						#foo2
 						#foo
+						#bar
 					}
+					get #bar() {}
+					set #bar() {}
 				}
 			`,
 		},
@@ -4754,14 +4760,24 @@ func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
   foo = class {
     #foo2;
     #foo22;
+    #bar2;
   };
+  get #bar() {
+  }
+  set #bar() {
+  }
 }
 class Bar {
   #foo;
   foo = class {
     #foo2;
     #foo3;
+    #bar2;
   };
+  get #bar() {
+  }
+  set #bar() {
+  }
 }
 `,
 		},
@@ -4777,14 +4793,20 @@ func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
 					foo = class {
 						#foo
 						#foo2
+						#bar
 					}
+					get #bar() {}
+					set #bar() {}
 				}
 				class Bar {
 					#foo
 					foo = class {
 						#foo2
 						#foo
+						#bar
 					}
+					get #bar() {}
+					set #bar() {}
 				}
 			`,
 		},
@@ -4801,16 +4823,26 @@ func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
 			"/out.js": `class Foo {
   #a;
   foo = class {
-    #b;
     #c;
+    #d;
+    #e;
   };
+  get #b() {
+  }
+  set #b() {
+  }
 }
 class Bar {
   #a;
   foo = class {
-    #b;
     #c;
+    #d;
+    #e;
   };
+  get #b() {
+  }
+  set #b() {
+  }
 }
 `,
 		},
