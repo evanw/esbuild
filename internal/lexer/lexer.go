@@ -894,14 +894,22 @@ func (lexer *Lexer) Next() {
 			} else {
 				// "#foo"
 				lexer.step()
-				if !IsIdentifierStart(lexer.codePoint) {
-					lexer.SyntaxError()
-				}
-				lexer.step()
-				for IsIdentifierContinue(lexer.codePoint) {
+				if lexer.codePoint == '\\' {
+					lexer.Identifier, _ = lexer.scanIdentifierWithEscapes(privateIdentifier)
+				} else {
+					if !IsIdentifierStart(lexer.codePoint) {
+						lexer.SyntaxError()
+					}
 					lexer.step()
+					for IsIdentifierContinue(lexer.codePoint) {
+						lexer.step()
+					}
+					if lexer.codePoint == '\\' {
+						lexer.Identifier, _ = lexer.scanIdentifierWithEscapes(privateIdentifier)
+					} else {
+						lexer.Identifier = lexer.Raw()
+					}
 				}
-				lexer.Identifier = lexer.Raw()
 				lexer.Token = TPrivateIdentifier
 			}
 
@@ -1350,7 +1358,7 @@ func (lexer *Lexer) Next() {
 				lexer.step()
 			}
 			if lexer.codePoint == '\\' {
-				lexer.Identifier, lexer.Token = lexer.scanIdentifierWithEscapes()
+				lexer.Identifier, lexer.Token = lexer.scanIdentifierWithEscapes(normalIdentifier)
 			} else {
 				contents := lexer.Raw()
 				lexer.Identifier = contents
@@ -1361,7 +1369,7 @@ func (lexer *Lexer) Next() {
 			}
 
 		case '\\':
-			lexer.Identifier, lexer.Token = lexer.scanIdentifierWithEscapes()
+			lexer.Identifier, lexer.Token = lexer.scanIdentifierWithEscapes(normalIdentifier)
 
 		case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			lexer.parseNumericLiteralOrDot()
@@ -1379,7 +1387,7 @@ func (lexer *Lexer) Next() {
 					lexer.step()
 				}
 				if lexer.codePoint == '\\' {
-					lexer.Identifier, lexer.Token = lexer.scanIdentifierWithEscapes()
+					lexer.Identifier, lexer.Token = lexer.scanIdentifierWithEscapes(normalIdentifier)
 				} else {
 					lexer.Token = TIdentifier
 					lexer.Identifier = lexer.Raw()
@@ -1395,9 +1403,16 @@ func (lexer *Lexer) Next() {
 	}
 }
 
+type identifierKind uint8
+
+const (
+	normalIdentifier identifierKind = iota
+	privateIdentifier
+)
+
 // This is an edge case that doesn't really exist in the wild, so it doesn't
 // need to be as fast as possible.
-func (lexer *Lexer) scanIdentifierWithEscapes() (string, T) {
+func (lexer *Lexer) scanIdentifierWithEscapes(kind identifierKind) (string, T) {
 	// First pass: scan over the identifier to see how long it is
 	for {
 		// Scan a unicode escape sequence. There is at least one because that's
@@ -1449,7 +1464,11 @@ func (lexer *Lexer) scanIdentifierWithEscapes() (string, T) {
 	text := string(utf16.Decode(lexer.decodeEscapeSequences(lexer.start, lexer.Raw())))
 
 	// Even though it was escaped, it must still be a valid identifier
-	if !IsIdentifier(text) {
+	identifier := text
+	if kind == privateIdentifier {
+		identifier = identifier[1:] // Skip over the "#"
+	}
+	if !IsIdentifier(identifier) {
 		lexer.addRangeError(ast.Range{ast.Loc{int32(lexer.start)}, int32(lexer.end - lexer.start)},
 			fmt.Sprintf("Invalid identifier: %q", text))
 	}

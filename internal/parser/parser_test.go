@@ -1687,6 +1687,12 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectPrinted(t, "class Foo { static get #foo() {} }", "class Foo {\n  static get #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static set #foo() {} }", "class Foo {\n  static set #foo() {\n  }\n}\n")
 
+	// Test escape sequences
+	expectPrinted(t, "class Foo { #\\u0066oo; foo = this.#foo }", "class Foo {\n  #foo;\n  foo = this.#foo;\n}\n")
+	expectPrinted(t, "class Foo { #fo\\u006f; foo = this.#foo }", "class Foo {\n  #foo;\n  foo = this.#foo;\n}\n")
+	expectParseError(t, "class Foo { #\\u0020oo }", "<stdin>: error: Invalid identifier: \"# oo\"\n")
+	expectParseError(t, "class Foo { #fo\\u0020 }", "<stdin>: error: Invalid identifier: \"#fo \"\n")
+
 	// Scope tests
 	expectParseError(t, "class Foo { #foo; #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
 	expectPrinted(t, "class Foo { #foo } class Bar { #foo }", "class Foo {\n  #foo;\n}\nclass Bar {\n  #foo;\n}\n")
