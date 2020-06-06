@@ -1367,6 +1367,7 @@ func (p *parser) parseProperty(
 	context propertyContext, kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors,
 ) (ast.Property, bool) {
 	var key ast.Expr
+	keyRange := p.lexer.Range()
 	isComputed := false
 
 	switch p.lexer.Token {
@@ -1518,6 +1519,14 @@ func (p *parser) parseProperty(
 		!opts.isAsync && !opts.isGenerator && p.lexer.Token != lexer.TOpenParen {
 		var initializer *ast.Expr
 
+		// Forbid the names "constructor" and "prototype" in some cases
+		if !isComputed {
+			if str, ok := key.Data.(*ast.EString); ok && (lexer.UTF16EqualsString(str.Value, "constructor") ||
+				(opts.isStatic && lexer.UTF16EqualsString(str.Value, "prototype"))) {
+				p.addRangeError(keyRange, fmt.Sprintf("Invalid field name %q", lexer.UTF16ToString(str.Value)))
+			}
+		}
+
 		// Skip over types
 		if p.ts.Parse && p.lexer.Token == lexer.TColon {
 			p.lexer.Next()
@@ -1550,6 +1559,26 @@ func (p *parser) parseProperty(
 		context == propertyContextClass || opts.isAsync || opts.isGenerator {
 		loc := p.lexer.Loc()
 		scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
+
+		// Forbid the names "constructor" and "prototype" in some cases
+		if context == propertyContextClass && !isComputed {
+			if str, ok := key.Data.(*ast.EString); ok {
+				if !opts.isStatic && lexer.UTF16EqualsString(str.Value, "constructor") {
+					switch {
+					case kind == ast.PropertyGet:
+						p.addRangeError(keyRange, "Class constructor cannot be a getter")
+					case kind == ast.PropertySet:
+						p.addRangeError(keyRange, "Class constructor cannot be a setter")
+					case opts.isAsync:
+						p.addRangeError(keyRange, "Class constructor cannot be an async function")
+					case opts.isGenerator:
+						p.addRangeError(keyRange, "Class constructor cannot be a generator")
+					}
+				} else if opts.isStatic && lexer.UTF16EqualsString(str.Value, "prototype") {
+					p.addRangeError(keyRange, "Invalid static method name \"prototype\"")
+				}
+			}
+		}
 
 		fn, hadBody := p.parseFn(nil, fnOpts{
 			asyncRange: opts.asyncRange,
@@ -5995,7 +6024,7 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 
 		// Remember where the constructor is for later
 		if prop.IsMethod && prop.Value != nil {
-			if str, ok := prop.Key.Data.(*ast.EString); ok && lexer.UTF16ToString(str.Value) == "constructor" {
+			if str, ok := prop.Key.Data.(*ast.EString); ok && lexer.UTF16EqualsString(str.Value, "constructor") {
 				if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
 					ctor = fn
 
