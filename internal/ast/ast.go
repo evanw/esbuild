@@ -346,7 +346,10 @@ type Expr struct {
 // Go's type system.
 type E interface{ isExpr() }
 
-type EArray struct{ Items []Expr }
+type EArray struct {
+	Items        []Expr
+	IsSingleLine bool
+}
 
 type EUnary struct {
 	Op    OpCode
@@ -465,7 +468,10 @@ type ENumber struct{ Value float64 }
 
 type EBigInt struct{ Value string }
 
-type EObject struct{ Properties []Property }
+type EObject struct {
+	Properties   []Property
+	IsSingleLine bool
+}
 
 type ESpread struct{ Value Expr }
 

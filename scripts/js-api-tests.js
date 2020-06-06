@@ -175,7 +175,7 @@ let transformTests = {
 
   async json({ service }) {
     const { js } = await service.transform(`{ "x": "y" }`, { loader: 'json' })
-    assert.strictEqual(js, `module.exports = {\n  x: "y"\n};\n`)
+    assert.strictEqual(js, `module.exports = {x: "y"};\n`)
   },
 
   async text({ service }) {

@@ -2278,6 +2278,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		return ast.Expr{loc, &ast.ENew{target, args}}
 
 	case lexer.TOpenBracket:
+		lineCountAtStart := p.lexer.ApproximateLineCount
 		p.lexer.Next()
 		items := []ast.Expr{}
 		selfErrors := deferredErrors{}
@@ -2313,6 +2314,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			p.lexer.Next()
 		}
 
+		isSingleLine := p.lexer.ApproximateLineCount == lineCountAtStart
 		p.lexer.Expect(lexer.TCloseBracket)
 		p.allowIn = oldAllowIn
 
@@ -2327,9 +2329,13 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			selfErrors.mergeInto(errors)
 		}
 
-		return ast.Expr{loc, &ast.EArray{items}}
+		return ast.Expr{loc, &ast.EArray{
+			Items:        items,
+			IsSingleLine: isSingleLine,
+		}}
 
 	case lexer.TOpenBrace:
+		lineCountAtStart := p.lexer.ApproximateLineCount
 		p.lexer.Next()
 		properties := []ast.Property{}
 		selfErrors := deferredErrors{}
@@ -2364,6 +2370,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			p.lexer.Next()
 		}
 
+		isSingleLine := p.lexer.ApproximateLineCount == lineCountAtStart
 		p.lexer.Expect(lexer.TCloseBrace)
 		p.allowIn = oldAllowIn
 
@@ -2378,7 +2385,10 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			selfErrors.mergeInto(errors)
 		}
 
-		return ast.Expr{loc, &ast.EObject{properties}}
+		return ast.Expr{loc, &ast.EObject{
+			Properties:   properties,
+			IsSingleLine: isSingleLine,
+		}}
 
 	case lexer.TLessThan:
 		// This is a very complicated and highly ambiguous area of TypeScript
@@ -5725,11 +5735,17 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 		if len(properties) > 0 || result.Data == nil {
 			if result.Data == nil {
 				// "{a, ...b}" => "__assign({a}, b)"
-				result = ast.Expr{loc, &ast.EObject{properties}}
+				result = ast.Expr{loc, &ast.EObject{
+					Properties:   properties,
+					IsSingleLine: e.IsSingleLine,
+				}}
 			} else {
 				// "{...a, b, ...c}" => "__assign(__assign(__assign({}, a), {b}), c)"
 				result = p.callRuntime(loc, "__assign",
-					[]ast.Expr{result, ast.Expr{loc, &ast.EObject{properties}}})
+					[]ast.Expr{result, ast.Expr{loc, &ast.EObject{
+						Properties:   properties,
+						IsSingleLine: e.IsSingleLine,
+					}}})
 			}
 			properties = []ast.Property{}
 		}
@@ -5740,7 +5756,10 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 
 	if len(properties) > 0 {
 		// "{...a, b}" => "__assign(__assign({}, a), {b})"
-		result = p.callRuntime(loc, "__assign", []ast.Expr{result, ast.Expr{loc, &ast.EObject{properties}}})
+		result = p.callRuntime(loc, "__assign", []ast.Expr{result, ast.Expr{loc, &ast.EObject{
+			Properties:   properties,
+			IsSingleLine: e.IsSingleLine,
+		}}})
 	}
 
 	return result
@@ -7041,7 +7060,10 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 				// Call out to the __rest() helper function to implement spread
 				propertyValue = p.callRuntime(loc, "__rest", []ast.Expr{
 					valueFunc(),
-					ast.Expr{loc, &ast.EArray{keysForSpread}},
+					ast.Expr{loc, &ast.EArray{
+						Items:        keysForSpread,
+						IsSingleLine: true,
+					}},
 				})
 			} else {
 				key := property.Key
@@ -7734,7 +7756,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Arguments to createElement()
 		args := []ast.Expr{*tag}
 		if len(e.Properties) > 0 {
-			args = append(args, p.lowerObjectSpread(expr.Loc, &ast.EObject{e.Properties}))
+			args = append(args, p.lowerObjectSpread(expr.Loc, &ast.EObject{
+				Properties: e.Properties,
+			}))
 		} else {
 			args = append(args, ast.Expr{expr.Loc, &ast.ENull{}})
 		}

@@ -1370,17 +1370,36 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.EArray:
 		p.print("[")
-		for i, item := range e.Items {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
+		if len(e.Items) > 0 {
+			if !e.IsSingleLine {
+				p.options.Indent++
 			}
-			p.printExpr(item, ast.LComma, 0)
 
-			// Make sure there's a comma after trailing missing items
-			_, ok := item.Data.(*ast.EMissing)
-			if ok && i == len(e.Items)-1 {
-				p.print(",")
+			for i, item := range e.Items {
+				if i != 0 {
+					p.print(",")
+					if e.IsSingleLine {
+						p.printSpace()
+					}
+				}
+
+				if !e.IsSingleLine {
+					p.printNewline()
+					p.printIndent()
+				}
+				p.printExpr(item, ast.LComma, 0)
+
+				// Make sure there's a comma after trailing missing items
+				_, ok := item.Data.(*ast.EMissing)
+				if ok && i == len(e.Items)-1 {
+					p.print(",")
+				}
+			}
+
+			if !e.IsSingleLine {
+				p.options.Indent--
+				p.printNewline()
+				p.printIndent()
 			}
 		}
 		p.print("]")
@@ -1393,21 +1412,30 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 		p.print("{")
 		if len(e.Properties) != 0 {
-			p.options.Indent++
+			if !e.IsSingleLine {
+				p.options.Indent++
+			}
 
 			for i, item := range e.Properties {
 				if i != 0 {
 					p.print(",")
+					if e.IsSingleLine {
+						p.printSpace()
+					}
 				}
 
-				p.printNewline()
-				p.printIndent()
+				if !e.IsSingleLine {
+					p.printNewline()
+					p.printIndent()
+				}
 				p.printProperty(item)
 			}
 
-			p.options.Indent--
-			p.printNewline()
-			p.printIndent()
+			if !e.IsSingleLine {
+				p.options.Indent--
+				p.printNewline()
+				p.printIndent()
+			}
 		}
 
 		p.print("}")

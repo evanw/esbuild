@@ -19,7 +19,7 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 		stringA := fmt.Sprintf("%v", a)
 		stringB := fmt.Sprintf("%v", b)
 		if strings.Contains(stringA, "\n") {
-			t.Fatal(diff.Diff(stringA, stringB))
+			t.Fatal(diff.Diff(stringB, stringA))
 		} else {
 			t.Fatalf("%s != %s", a, b)
 		}
@@ -594,9 +594,12 @@ import {a, b as c} from "foo";
 import def from "foo";
 import def2, * as ns2 from "foo";
 import def3, {a2, b as c3} from "foo";
-const imp = [import("foo"), function nested() {
-  return import("foo");
-}];
+const imp = [
+  import("foo"),
+  function nested() {
+    return import("foo");
+  }
+];
 console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp);
 `,
 		},
@@ -638,9 +641,12 @@ import {a as b, b as c} from "foo";
 import d from "foo";
 import f, * as e from "foo";
 import g, {a2 as h, b as i} from "foo";
-const j = [import("foo"), function C() {
-  return import("foo");
-}];
+const j = [
+  import("foo"),
+  function C() {
+    return import("foo");
+  }
+];
 console.log(a, b, c, d, f, e, g, h, i, j);
 `,
 		},
@@ -3638,9 +3644,7 @@ func TestThisOutsideFunction(t *testing.T) {
 var require_entry = __commonJS((exports) => {
   console.log(exports);
   console.log((x = exports) => exports);
-  console.log({
-    x: exports
-  });
+  console.log({x: exports});
   console.log(class extends exports.foo {
   });
 });
@@ -4060,46 +4064,39 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `let tests = [__assign(__assign({}, a), b), __assign({
-  a,
-  b
-}, c), __assign(__assign({}, a), {
-  b,
-  c
-}), __assign(__assign({
-  a
-}, b), {
-  c
-}), __assign(__assign(__assign(__assign(__assign(__assign({
-  a,
-  b
-}, c), d), {
-  e,
-  f
-}), g), h), {
-  i,
-  j
-})];
-let jsx = [React.createElement("div", __assign(__assign({}, a), b)), React.createElement("div", __assign({
-  a: true,
-  b: true
-}, c)), React.createElement("div", __assign(__assign({}, a), {
-  b: true,
-  c: true
-})), React.createElement("div", __assign(__assign({
-  a: true
-}, b), {
-  c: true
-})), React.createElement("div", __assign(__assign(__assign(__assign(__assign(__assign({
-  a: true,
-  b: true
-}, c), d), {
-  e: true,
-  f: true
-}), g), h), {
-  i: true,
-  j: true
-}))];
+			"/out.js": `let tests = [
+  __assign(__assign({}, a), b),
+  __assign({a, b}, c),
+  __assign(__assign({}, a), {b, c}),
+  __assign(__assign({a}, b), {c}),
+  __assign(__assign(__assign(__assign(__assign(__assign({a, b}, c), d), {e, f}), g), h), {i, j})
+];
+let jsx = [
+  React.createElement("div", __assign(__assign({}, a), b)),
+  React.createElement("div", __assign({
+    a: true,
+    b: true
+  }, c)),
+  React.createElement("div", __assign(__assign({}, a), {
+    b: true,
+    c: true
+  })),
+  React.createElement("div", __assign(__assign({
+    a: true
+  }, b), {
+    c: true
+  })),
+  React.createElement("div", __assign(__assign(__assign(__assign(__assign(__assign({
+    a: true,
+    b: true
+  }, c), d), {
+    e: true,
+    f: true
+  }), g), h), {
+    i: true,
+    j: true
+  }))
+];
 `,
 		},
 	})
@@ -4246,23 +4243,26 @@ export class b {
     return d;
   }
 }
-export let c = [function(d = foo) {
-  var e;
-  return d;
-}, (d = foo) => {
-  var e;
-  return d;
-}, {
-  fn(d = foo) {
+export let c = [
+  function(d = foo) {
     var e;
     return d;
-  }
-}, class {
-  fn(d = foo) {
+  },
+  (d = foo) => {
     var e;
     return d;
+  },
+  {fn(d = foo) {
+    var e;
+    return d;
+  }},
+  class {
+    fn(d = foo) {
+      var e;
+      return d;
+    }
   }
-}];
+];
 `,
 		},
 	})
@@ -4331,11 +4331,9 @@ func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
   (function(b = arguments) {
     return arguments;
   });
-  ({
-    foo(b = arguments) {
-      return arguments;
-    }
-  });
+  ({foo(b = arguments) {
+    return arguments;
+  }});
   class d {
     foo(b = arguments) {
       return arguments;
@@ -4354,12 +4352,10 @@ func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
     var arguments;
     return arguments;
   });
-  ({
-    foo(b = arguments) {
-      var arguments;
-      return arguments;
-    }
-  });
+  ({foo(b = arguments) {
+    var arguments;
+    return arguments;
+  }});
   class e {
     foo(b = arguments) {
       var arguments;

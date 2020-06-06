@@ -278,10 +278,10 @@ func TestDecls(t *testing.T) {
 
 	expectPrinted(t, "[b, ...c] = d", "[b, ...c] = d;\n")
 	expectPrinted(t, "([b, ...c] = d)", "[b, ...c] = d;\n")
-	expectPrinted(t, "({b, ...c} = d)", "({\n  b,\n  ...c\n} = d);\n")
-	expectPrinted(t, "({a = b} = c)", "({\n  a = b\n} = c);\n")
-	expectPrinted(t, "({a: b = c} = d)", "({\n  a: b = c\n} = d);\n")
-	expectPrinted(t, "({a: b.c} = d)", "({\n  a: b.c\n} = d);\n")
+	expectPrinted(t, "({b, ...c} = d)", "({b, ...c} = d);\n")
+	expectPrinted(t, "({a = b} = c)", "({a = b} = c);\n")
+	expectPrinted(t, "({a: b = c} = d)", "({a: b = c} = d);\n")
+	expectPrinted(t, "({a: b.c} = d)", "({a: b.c} = d);\n")
 	expectPrinted(t, "[a = {}] = b", "[a = {}] = b;\n")
 
 	expectParseError(t, "[b, ...c,] = d", "<stdin>: error: Unexpected \",\" after rest pattern\n")
@@ -291,10 +291,10 @@ func TestDecls(t *testing.T) {
 	expectParseError(t, "({a = b}) = c", "<stdin>: error: Unexpected \"=\"\n")
 	expectParseError(t, "[a = {b = c}] = d", "<stdin>: error: Unexpected \"=\"\n")
 
-	expectPrinted(t, "for ([{a = {}}] in b) {}", "for ([{\n  a = {}\n}] in b) {\n}\n")
-	expectPrinted(t, "for ([{a = {}}] of b) {}", "for ([{\n  a = {}\n}] of b) {\n}\n")
-	expectPrinted(t, "for ({a = {}} in b) {}", "for ({\n  a = {}\n} in b) {\n}\n")
-	expectPrinted(t, "for ({a = {}} of b) {}", "for ({\n  a = {}\n} of b) {\n}\n")
+	expectPrinted(t, "for ([{a = {}}] in b) {}", "for ([{a = {}}] in b) {\n}\n")
+	expectPrinted(t, "for ([{a = {}}] of b) {}", "for ([{a = {}}] of b) {\n}\n")
+	expectPrinted(t, "for ({a = {}} in b) {}", "for ({a = {}} in b) {\n}\n")
+	expectPrinted(t, "for ({a = {}} of b) {}", "for ({a = {}} of b) {\n}\n")
 
 	expectParseError(t, "({a = {}} in b)", "<stdin>: error: Unexpected \"=\"\n")
 	expectParseError(t, "[{a = {}}]\nof()", "<stdin>: error: Unexpected \"=\"\n")
@@ -357,7 +357,7 @@ func TestFor(t *testing.T) {
 	expectPrinted(t, "for (var x = (a in b);;);", "for (var x = (a in b); ; )\n  ;\n")
 	expectPrinted(t, "for (var x = [a in b];;);", "for (var x = [a in b]; ; )\n  ;\n")
 	expectPrinted(t, "for (var x = y(a in b);;);", "for (var x = y(a in b); ; )\n  ;\n")
-	expectPrinted(t, "for (var x = {y: a in b};;);", "for (var x = {\n  y: a in b\n}; ; )\n  ;\n")
+	expectPrinted(t, "for (var x = {y: a in b};;);", "for (var x = {y: a in b}; ; )\n  ;\n")
 	expectPrinted(t, "for (a ? b in c : d;;);", "for (a ? b in c : d; ; )\n  ;\n")
 	expectPrinted(t, "for (var x = () => { a in b };;);", "for (var x = () => {\n  a in b;\n}; ; )\n  ;\n")
 	expectPrinted(t, "for (var x = async () => { a in b };;);", "for (var x = async () => {\n  a in b;\n}; ; )\n  ;\n")
@@ -475,25 +475,25 @@ func TestPattern(t *testing.T) {
 }
 
 func TestObject(t *testing.T) {
-	expectPrinted(t, "({foo:0})", "({\n  foo: 0\n});\n")
-	expectPrinted(t, "({foo() {}})", "({\n  foo() {\n  }\n});\n")
-	expectPrinted(t, "({*foo() {}})", "({\n  *foo() {\n  }\n});\n")
-	expectPrinted(t, "({get foo() {}})", "({\n  get foo() {\n  }\n});\n")
-	expectPrinted(t, "({set foo() {}})", "({\n  set foo() {\n  }\n});\n")
+	expectPrinted(t, "({foo:0})", "({foo: 0});\n")
+	expectPrinted(t, "({foo() {}})", "({foo() {\n}});\n")
+	expectPrinted(t, "({*foo() {}})", "({*foo() {\n}});\n")
+	expectPrinted(t, "({get foo() {}})", "({get foo() {\n}});\n")
+	expectPrinted(t, "({set foo() {}})", "({set foo() {\n}});\n")
 
-	expectPrinted(t, "({if:0})", "({\n  if: 0\n});\n")
-	expectPrinted(t, "({if() {}})", "({\n  if() {\n  }\n});\n")
-	expectPrinted(t, "({*if() {}})", "({\n  *if() {\n  }\n});\n")
-	expectPrinted(t, "({get if() {}})", "({\n  get if() {\n  }\n});\n")
-	expectPrinted(t, "({set if() {}})", "({\n  set if() {\n  }\n});\n")
+	expectPrinted(t, "({if:0})", "({if: 0});\n")
+	expectPrinted(t, "({if() {}})", "({if() {\n}});\n")
+	expectPrinted(t, "({*if() {}})", "({*if() {\n}});\n")
+	expectPrinted(t, "({get if() {}})", "({get if() {\n}});\n")
+	expectPrinted(t, "({set if() {}})", "({set if() {\n}});\n")
 
 	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 }
 
 func TestComputedProperty(t *testing.T) {
-	expectPrinted(t, "({[a]: foo})", "({\n  [a]: foo\n});\n")
-	expectPrinted(t, "({[(a, b)]: foo})", "({\n  [(a, b)]: foo\n});\n")
+	expectPrinted(t, "({[a]: foo})", "({[a]: foo});\n")
+	expectPrinted(t, "({[(a, b)]: foo})", "({[(a, b)]: foo});\n")
 	expectParseError(t, "({[a, b]: foo})", "<stdin>: error: Expected \"]\" but found \",\"\n")
 
 	expectPrinted(t, "({[a]: foo}) => {}", "({[a]: foo}) => {\n};\n")
@@ -680,7 +680,7 @@ func TestAsync(t *testing.T) {
 
 func TestLabels(t *testing.T) {
 	expectPrinted(t, "{a:b}", "{\n  a:\n    b;\n}\n")
-	expectPrinted(t, "({a:b})", "({\n  a: b\n});\n")
+	expectPrinted(t, "({a:b})", "({a: b});\n")
 
 	expectParseError(t, "while (1) break x", "<stdin>: error: There is no containing label named \"x\"\n")
 	expectParseError(t, "while (1) continue x", "<stdin>: error: There is no containing label named \"x\"\n")
@@ -1053,7 +1053,7 @@ func TestMangleUndefined(t *testing.T) {
 	expectPrintedMangle(t, "++undefined", "++undefined;\n")
 	expectPrintedMangle(t, "undefined = 1", "undefined = 1;\n")
 	expectPrintedMangle(t, "[undefined] = 1", "[undefined] = 1;\n")
-	expectPrintedMangle(t, "({x: undefined} = 1)", "({\n  x: undefined\n} = 1);\n")
+	expectPrintedMangle(t, "({x: undefined} = 1)", "({x: undefined} = 1);\n")
 	expectPrintedMangle(t, "with (x) y(undefined); z(undefined)", "with (x)\n  y(undefined);\nz(void 0);\n")
 	expectPrintedMangle(t, "with (x) while (i) y(undefined); z(undefined)", "with (x)\n  for (; i; )\n    y(undefined);\nz(void 0);\n")
 }

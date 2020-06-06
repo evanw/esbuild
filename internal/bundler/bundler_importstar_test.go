@@ -1089,9 +1089,7 @@ func TestExportSelfCommonJSMinified(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `// /entry.js
 var b = c((d, e) => {
-  e.exports = {
-    foo: 123
-  };
+  e.exports = {foo: 123};
   console.log(b());
 });
 module.exports = b();

@@ -62,6 +62,7 @@ func (p *jsonParser) parseExpr() ast.Expr {
 		return ast.Expr{loc, &ast.ENumber{-value}}
 
 	case lexer.TOpenBracket:
+		lineCountAtStart := p.lexer.ApproximateLineCount
 		p.lexer.Next()
 		items := []ast.Expr{}
 
@@ -74,10 +75,15 @@ func (p *jsonParser) parseExpr() ast.Expr {
 			items = append(items, item)
 		}
 
+		isSingleLine := p.lexer.ApproximateLineCount == lineCountAtStart
 		p.lexer.Expect(lexer.TCloseBracket)
-		return ast.Expr{loc, &ast.EArray{items}}
+		return ast.Expr{loc, &ast.EArray{
+			Items:        items,
+			IsSingleLine: isSingleLine,
+		}}
 
 	case lexer.TOpenBrace:
+		lineCountAtStart := p.lexer.ApproximateLineCount
 		p.lexer.Next()
 		properties := []ast.Property{}
 		duplicates := make(map[string]bool)
@@ -111,8 +117,12 @@ func (p *jsonParser) parseExpr() ast.Expr {
 			properties = append(properties, property)
 		}
 
+		isSingleLine := p.lexer.ApproximateLineCount == lineCountAtStart
 		p.lexer.Expect(lexer.TCloseBrace)
-		return ast.Expr{loc, &ast.EObject{properties}}
+		return ast.Expr{loc, &ast.EObject{
+			Properties:   properties,
+			IsSingleLine: isSingleLine,
+		}}
 
 	default:
 		p.lexer.Unexpected()

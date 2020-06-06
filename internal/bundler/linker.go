@@ -669,7 +669,9 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 			Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
 			Args: []ast.Expr{
 				ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
-				ast.Expr{ast.Loc{}, &ast.EObject{properties}},
+				ast.Expr{ast.Loc{}, &ast.EObject{
+					Properties: properties,
+				}},
 			},
 		}}}})
 		useCountEstimates[exportRef] = useCountEstimates[exportRef] + 1

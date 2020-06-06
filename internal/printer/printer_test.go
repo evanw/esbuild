@@ -159,7 +159,7 @@ func TestArray(t *testing.T) {
 func TestSplat(t *testing.T) {
 	expectPrinted(t, "[...(a, b)]", "[...(a, b)];\n")
 	expectPrinted(t, "x(...(a, b))", "x(...(a, b));\n")
-	expectPrinted(t, "({...(a, b)})", "({\n  ...(a, b)\n});\n")
+	expectPrinted(t, "({...(a, b)})", "({...(a, b)});\n")
 }
 
 func TestNew(t *testing.T) {
@@ -309,7 +309,7 @@ func TestTemplate(t *testing.T) {
 }
 
 func TestObject(t *testing.T) {
-	expectPrinted(t, "let x = {'(':')'}", "let x = {\n  \"(\": \")\"\n};\n")
+	expectPrinted(t, "let x = {'(':')'}", "let x = {\"(\": \")\"};\n")
 }
 
 func TestFor(t *testing.T) {
@@ -339,7 +339,7 @@ func TestFunction(t *testing.T) {
 		"function foo(a = (b, c), ...d) {\n}\n")
 	expectPrinted(t,
 		"function foo({[1 + 2]: a = 3} = {[1 + 2]: 3}) {}",
-		"function foo({[1 + 2]: a = 3} = {\n  [1 + 2]: 3\n}) {\n}\n")
+		"function foo({[1 + 2]: a = 3} = {[1 + 2]: 3}) {\n}\n")
 	expectPrinted(t,
 		"function foo([a = (1, 2), ...[b, ...c]] = [1, [2, 3]]) {}",
 		"function foo([a = (1, 2), ...[b, ...c]] = [1, [2, 3]]) {\n}\n")
@@ -401,7 +401,7 @@ func TestArrow(t *testing.T) {
 		"(a = (b, c), ...d) => {\n};\n")
 	expectPrinted(t,
 		"({[1 + 2]: a = 3} = {[1 + 2]: 3}) => {}",
-		"({[1 + 2]: a = 3} = {\n  [1 + 2]: 3\n}) => {\n};\n")
+		"({[1 + 2]: a = 3} = {[1 + 2]: 3}) => {\n};\n")
 	expectPrinted(t,
 		"([a = (1, 2), ...[b, ...c]] = [1, [2, 3]]) => {}",
 		"([a = (1, 2), ...[b, ...c]] = [1, [2, 3]]) => {\n};\n")
@@ -434,9 +434,9 @@ func TestArrow(t *testing.T) {
 	expectPrinted(t, "(a = b, c)", "a = b, c;\n")
 	expectPrinted(t, "([...a = b])", "[...a = b];\n")
 	expectPrinted(t, "([...a, ...b])", "[...a, ...b];\n")
-	expectPrinted(t, "({a: b, c() {}})", "({\n  a: b,\n  c() {\n  }\n});\n")
-	expectPrinted(t, "({a: b, get c() {}})", "({\n  a: b,\n  get c() {\n  }\n});\n")
-	expectPrinted(t, "({a: b, set c() {}})", "({\n  a: b,\n  set c() {\n  }\n});\n")
+	expectPrinted(t, "({a: b, c() {}})", "({a: b, c() {\n}});\n")
+	expectPrinted(t, "({a: b, get c() {}})", "({a: b, get c() {\n}});\n")
+	expectPrinted(t, "({a: b, set c() {}})", "({a: b, set c() {\n}});\n")
 }
 
 func TestClass(t *testing.T) {
