@@ -79,6 +79,9 @@ var tokenToString = map[T]string{
 	TPlusEquals:                              "\"+=\"",
 	TSlashEquals:                             "\"/=\"",
 
+	// Class-private fields and methods
+	TPrivateIdentifier: "private identifier",
+
 	// Identifiers
 	TIdentifier:     "identifier",
 	TEscapedKeyword: "escaped keyword",

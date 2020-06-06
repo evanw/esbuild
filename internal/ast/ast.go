@@ -304,6 +304,7 @@ type FnBody struct {
 type Class struct {
 	Name       *LocRef
 	Extends    *Expr
+	BodyLoc    Loc
 	Properties []Property
 }
 
@@ -456,6 +457,13 @@ type EImportIdentifier struct {
 	Ref Ref
 }
 
+// This is similar to EIdentifier but it represents class-private fields and
+// methods. It can be used where computed properties can be used, such as
+// EIndex and Property.
+type EPrivateIdentifier struct {
+	Ref Ref
+}
+
 type EJSXElement struct {
 	Tag        *Expr
 	Properties []Property
@@ -516,39 +524,40 @@ type EImport struct {
 	Expr Expr
 }
 
-func (*EArray) isExpr()            {}
-func (*EUnary) isExpr()            {}
-func (*EBinary) isExpr()           {}
-func (*EBoolean) isExpr()          {}
-func (*ESuper) isExpr()            {}
-func (*ENull) isExpr()             {}
-func (*EUndefined) isExpr()        {}
-func (*EThis) isExpr()             {}
-func (*ENew) isExpr()              {}
-func (*ENewTarget) isExpr()        {}
-func (*EImportMeta) isExpr()       {}
-func (*ECall) isExpr()             {}
-func (*EDot) isExpr()              {}
-func (*EIndex) isExpr()            {}
-func (*EArrow) isExpr()            {}
-func (*EFunction) isExpr()         {}
-func (*EClass) isExpr()            {}
-func (*EIdentifier) isExpr()       {}
-func (*EImportIdentifier) isExpr() {}
-func (*EJSXElement) isExpr()       {}
-func (*EMissing) isExpr()          {}
-func (*ENumber) isExpr()           {}
-func (*EBigInt) isExpr()           {}
-func (*EObject) isExpr()           {}
-func (*ESpread) isExpr()           {}
-func (*EString) isExpr()           {}
-func (*ETemplate) isExpr()         {}
-func (*ERegExp) isExpr()           {}
-func (*EAwait) isExpr()            {}
-func (*EYield) isExpr()            {}
-func (*EIf) isExpr()               {}
-func (*ERequire) isExpr()          {}
-func (*EImport) isExpr()           {}
+func (*EArray) isExpr()             {}
+func (*EUnary) isExpr()             {}
+func (*EBinary) isExpr()            {}
+func (*EBoolean) isExpr()           {}
+func (*ESuper) isExpr()             {}
+func (*ENull) isExpr()              {}
+func (*EUndefined) isExpr()         {}
+func (*EThis) isExpr()              {}
+func (*ENew) isExpr()               {}
+func (*ENewTarget) isExpr()         {}
+func (*EImportMeta) isExpr()        {}
+func (*ECall) isExpr()              {}
+func (*EDot) isExpr()               {}
+func (*EIndex) isExpr()             {}
+func (*EArrow) isExpr()             {}
+func (*EFunction) isExpr()          {}
+func (*EClass) isExpr()             {}
+func (*EIdentifier) isExpr()        {}
+func (*EImportIdentifier) isExpr()  {}
+func (*EPrivateIdentifier) isExpr() {}
+func (*EJSXElement) isExpr()        {}
+func (*EMissing) isExpr()           {}
+func (*ENumber) isExpr()            {}
+func (*EBigInt) isExpr()            {}
+func (*EObject) isExpr()            {}
+func (*ESpread) isExpr()            {}
+func (*EString) isExpr()            {}
+func (*ETemplate) isExpr()          {}
+func (*ERegExp) isExpr()            {}
+func (*EAwait) isExpr()             {}
+func (*EYield) isExpr()             {}
+func (*EIf) isExpr()                {}
+func (*ERequire) isExpr()           {}
+func (*EImport) isExpr()            {}
 
 func JoinWithComma(a Expr, b Expr) Expr {
 	return Expr{a.Loc, &EBinary{BinOpComma, a, b}}
@@ -881,6 +890,9 @@ const (
 	// Classes can merge with TypeScript namespaces.
 	SymbolClass
 
+	// A class-private identifier (i.e. "#foo").
+	SymbolPrivate
+
 	// TypeScript enums can merge with TypeScript namespaces and other TypeScript
 	// enums.
 	SymbolTSEnum
@@ -999,6 +1011,7 @@ const (
 	ScopeWith
 	ScopeLabel
 	ScopeClassName
+	ScopeClassBody
 
 	// The scopes below stop hoisted variables from extending into parent scopes
 	ScopeEntry // This is a module, TypeScript enum, or TypeScript namespace

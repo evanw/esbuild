@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* Initial support for private names ([#47](https://github.com/evanw/esbuild/issues/47))
+
+    Private names are an access control mechanism for classes. They begin with a `#` and are not accessible outside of the class they are declared in. The private name syntax can now be parsed, printed, and minified correctly. Transforming this syntax for older browsers is not supported yet. This is what the syntax looks like:
+
+    ```js
+    class Counter {
+      #count = 1
+      get value() { return this.#count }
+      increment() { this.#count++ }
+    }
+    ```
+
 * Data loaders now set "no side effects"
 
     Files loaded using the `json`, `text`, `base64`, `dataurl`, and `file` loaders are now removed from the bundle if the files that import them never use the imports. This is the same behavior as the `"sideEffects": false` setting in `package.json`.

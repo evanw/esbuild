@@ -35,6 +35,7 @@ type parser struct {
 	exportStars              []ast.Path
 	omitWarnings             bool
 	allowIn                  bool
+	allowPrivateIdentifiers  bool
 	hasTopLevelReturn        bool
 	currentFnOpts            fnOpts
 	target                   LanguageTarget
@@ -1365,6 +1366,16 @@ func (p *parser) parseProperty(
 		key = ast.Expr{p.lexer.Loc(), &ast.EString{p.lexer.StringLiteral}}
 		p.lexer.Next()
 
+	case lexer.TPrivateIdentifier:
+		if context != propertyContextClass {
+			p.lexer.Expected(lexer.TIdentifier)
+		}
+		p.markFutureSyntax(futureSyntaxPrivateName, p.lexer.Range())
+		nameLoc := p.lexer.Loc()
+		ref := p.declareSymbol(ast.SymbolPrivate, nameLoc, p.lexer.Identifier)
+		key = ast.Expr{nameLoc, &ast.EPrivateIdentifier{ref}}
+		p.lexer.Next()
+
 	case lexer.TOpenBracket:
 		isComputed = true
 		p.lexer.Next()
@@ -1413,7 +1424,8 @@ func (p *parser) parseProperty(
 			couldBeModifierKeyword := p.lexer.IsIdentifierOrKeyword()
 			if !couldBeModifierKeyword {
 				switch p.lexer.Token {
-				case lexer.TOpenBracket, lexer.TNumericLiteral, lexer.TStringLiteral, lexer.TAsterisk:
+				case lexer.TOpenBracket, lexer.TNumericLiteral, lexer.TStringLiteral,
+					lexer.TAsterisk, lexer.TPrivateIdentifier:
 					couldBeModifierKeyword = true
 				}
 			}
@@ -1491,7 +1503,7 @@ func (p *parser) parseProperty(
 		p.skipTypeScriptTypeParameters()
 	}
 
-	// Parse a field
+	// Parse a class field with an optional initial value
 	if context == propertyContextClass && kind == ast.PropertyNormal &&
 		!opts.isAsync && !opts.isGenerator && p.lexer.Token != lexer.TOpenParen {
 		var initializer *ast.Expr
@@ -1552,6 +1564,7 @@ func (p *parser) parseProperty(
 		}, true
 	}
 
+	// Parse an object key/value pair
 	p.lexer.Expect(lexer.TColon)
 	value := p.parseExprOrBindings(ast.LComma, errors)
 	return ast.Property{
@@ -2174,6 +2187,13 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 		if p.lexer.Token == lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
+		if index, ok := value.Data.(*ast.EIndex); ok {
+			if private, ok := index.Index.Data.(*ast.EPrivateIdentifier); ok {
+				name := p.loadNameFromRef(private.Ref)
+				r := ast.Range{index.Index.Loc, int32(len(name))}
+				p.addRangeError(r, fmt.Sprintf("Deleting the private name %q is forbidden", name))
+			}
+		}
 		return ast.Expr{loc, &ast.EUnary{ast.UnOpDelete, value}}
 
 	case lexer.TPlus:
@@ -2522,6 +2542,7 @@ const (
 	futureSyntaxForAwait
 	futureSyntaxBigInteger
 	futureSyntaxNonIdentifierArrayRest
+	futureSyntaxPrivateName
 )
 
 func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
@@ -2540,6 +2561,8 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 		target = ES2020
 	case futureSyntaxNonIdentifierArrayRest:
 		target = ES2016
+	case futureSyntaxPrivateName:
+		target = ESNext
 	}
 
 	if p.target < target {
@@ -2560,6 +2583,8 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 			yet = "" // This will never be supported
 		case futureSyntaxNonIdentifierArrayRest:
 			name = "Non-identifier array rest patterns"
+		case futureSyntaxPrivateName:
+			name = "Private names"
 		}
 
 		p.log.AddRangeError(p.source, r,
@@ -2646,18 +2671,36 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 		switch p.lexer.Token {
 		case lexer.TDot:
 			p.lexer.Next()
-			if !p.lexer.IsIdentifierOrKeyword() {
-				p.lexer.Expect(lexer.TIdentifier)
+
+			if p.lexer.Token == lexer.TPrivateIdentifier && p.allowPrivateIdentifiers {
+				// "a.#b"
+				// "a?.b.#c"
+				name := p.lexer.Identifier
+				nameLoc := p.lexer.Loc()
+				p.lexer.Next()
+				ref := p.storeNameInRef(name)
+				left = ast.Expr{left.Loc, &ast.EIndex{
+					Target:        left,
+					Index:         ast.Expr{nameLoc, &ast.EPrivateIdentifier{ref}},
+					OptionalChain: oldOptionalChain,
+				}}
+			} else {
+				// "a.b"
+				// "a?.b.c"
+				if !p.lexer.IsIdentifierOrKeyword() {
+					p.lexer.Expect(lexer.TIdentifier)
+				}
+				name := p.lexer.Identifier
+				nameLoc := p.lexer.Loc()
+				p.lexer.Next()
+				left = ast.Expr{left.Loc, &ast.EDot{
+					Target:        left,
+					Name:          name,
+					NameLoc:       nameLoc,
+					OptionalChain: oldOptionalChain,
+				}}
 			}
-			name := p.lexer.Identifier
-			nameLoc := p.lexer.Loc()
-			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EDot{
-				Target:        left,
-				Name:          name,
-				NameLoc:       nameLoc,
-				OptionalChain: oldOptionalChain,
-			}}
+
 			optionalChain = oldOptionalChain
 
 		case lexer.TQuestionDot:
@@ -2693,18 +2736,32 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 				}}
 
 			default:
-				if !p.lexer.IsIdentifierOrKeyword() {
-					p.lexer.Expect(lexer.TIdentifier)
+				if p.lexer.Token == lexer.TPrivateIdentifier && p.allowPrivateIdentifiers {
+					// "a?.#b"
+					name := p.lexer.Identifier
+					nameLoc := p.lexer.Loc()
+					p.lexer.Next()
+					ref := p.storeNameInRef(name)
+					left = ast.Expr{left.Loc, &ast.EIndex{
+						Target:        left,
+						Index:         ast.Expr{nameLoc, &ast.EPrivateIdentifier{ref}},
+						OptionalChain: ast.OptionalChainStart,
+					}}
+				} else {
+					// "a?.b"
+					if !p.lexer.IsIdentifierOrKeyword() {
+						p.lexer.Expect(lexer.TIdentifier)
+					}
+					name := p.lexer.Identifier
+					nameLoc := p.lexer.Loc()
+					p.lexer.Next()
+					left = ast.Expr{left.Loc, &ast.EDot{
+						Target:        left,
+						Name:          name,
+						NameLoc:       nameLoc,
+						OptionalChain: ast.OptionalChainStart,
+					}}
 				}
-				name := p.lexer.Identifier
-				nameLoc := p.lexer.Loc()
-				p.lexer.Next()
-				left = ast.Expr{left.Loc, &ast.EDot{
-					Target:        left,
-					Name:          name,
-					NameLoc:       nameLoc,
-					OptionalChain: ast.OptionalChainStart,
-				}}
 			}
 
 			optionalChain = ast.OptionalChainContinue
@@ -3870,12 +3927,18 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 		}
 	}
 
+	bodyLoc := p.lexer.Loc()
 	p.lexer.Expect(lexer.TOpenBrace)
 	properties := []ast.Property{}
 
-	// Allow "in" inside class bodies
+	// Allow "in" and private fields inside class bodies
 	oldAllowIn := p.allowIn
+	oldAllowPrivateIdentifiers := p.allowPrivateIdentifiers
 	p.allowIn = true
+	p.allowPrivateIdentifiers = true
+
+	// A scope is needed for private identifiers
+	p.pushScopeForParsePass(ast.ScopeClassBody, bodyLoc)
 
 	for p.lexer.Token != lexer.TCloseBrace {
 		if p.lexer.Token == lexer.TSemicolon {
@@ -3894,10 +3957,13 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 		}
 	}
 
+	p.popScope()
+
 	p.allowIn = oldAllowIn
+	p.allowPrivateIdentifiers = oldAllowPrivateIdentifiers
 
 	p.lexer.Expect(lexer.TCloseBrace)
-	return ast.Class{name, extends, properties}
+	return ast.Class{name, extends, bodyLoc, properties}
 }
 
 func (p *parser) parseLabelName() *ast.LocRef {
@@ -7165,8 +7231,14 @@ func (p *parser) visitClass(class *ast.Class) {
 	oldIsThisCaptured := p.isThisCaptured
 	p.isThisCaptured = true
 
+	// A scope is needed for private identifiers
+	p.pushScopeForVisitPass(ast.ScopeClassBody, class.BodyLoc)
+
 	for i, property := range class.Properties {
-		class.Properties[i].Key = p.visitExpr(property.Key)
+		// Special-case EPrivateIdentifier to allow it here
+		if _, ok := property.Key.Data.(*ast.EPrivateIdentifier); !ok {
+			class.Properties[i].Key = p.visitExpr(property.Key)
+		}
 		if property.Value != nil {
 			*property.Value = p.visitExpr(*property.Value)
 		}
@@ -7174,6 +7246,8 @@ func (p *parser) visitClass(class *ast.Class) {
 			*property.Initializer = p.visitExpr(*property.Initializer)
 		}
 	}
+
+	p.popScope()
 
 	p.isThisCaptured = oldIsThisCaptured
 }
@@ -7729,6 +7803,10 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		return p.handleIdentifier(expr.Loc, e), exprOut{}
 
+	case *ast.EPrivateIdentifier:
+		// We should never get here
+		panic("Internal error")
+
 	case *ast.EJSXElement:
 		// A missing tag is a fragment
 		tag := e.Tag
@@ -7981,7 +8059,21 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			hasChainParent: e.OptionalChain == ast.OptionalChainContinue,
 		})
 		e.Target = target
-		e.Index = p.visitExpr(e.Index)
+
+		// Special-case EPrivateIdentifier to allow it here
+		if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok {
+			name := p.loadNameFromRef(private.Ref)
+			result := p.findSymbol(name)
+			private.Ref = result.ref
+
+			// Unlike regular identifiers, there are no unbound private identifiers
+			if p.symbols[result.ref.InnerIndex].Kind != ast.SymbolPrivate {
+				r := ast.Range{e.Index.Loc, int32(len(name))}
+				p.addRangeError(r, fmt.Sprintf("Private name %q is not available here", name))
+			}
+		} else {
+			e.Index = p.visitExpr(e.Index)
+		}
 
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != ast.OptionalChainNone

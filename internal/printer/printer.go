@@ -924,17 +924,21 @@ func (p *printer) printProperty(item ast.Property) {
 		return
 	}
 
-	if str, ok := item.Key.Data.(*ast.EString); ok {
+	switch key := item.Key.Data.(type) {
+	case *ast.EPrivateIdentifier:
+		p.printSymbol(key.Ref)
+
+	case *ast.EString:
 		p.addSourceMapping(item.Key.Loc)
-		if lexer.IsIdentifierUTF16(str.Value) {
+		if lexer.IsIdentifierUTF16(key.Value) {
 			p.printSpaceBeforeIdentifier()
-			p.printUTF16(str.Value)
+			p.printUTF16(key.Value)
 
 			// Use a shorthand property if the names are the same
 			if item.Value != nil {
 				switch e := item.Value.Data.(type) {
 				case *ast.EIdentifier:
-					if lexer.UTF16EqualsString(str.Value, p.symbolName(e.Ref)) {
+					if lexer.UTF16EqualsString(key.Value, p.symbolName(e.Ref)) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -948,7 +952,7 @@ func (p *printer) printProperty(item ast.Property) {
 					// Make sure we're not using a property access instead of an identifier
 					ref := ast.FollowSymbols(p.symbols, e.Ref)
 					symbol := p.symbols.Get(ref)
-					if symbol.NamespaceAlias == nil && lexer.UTF16EqualsString(str.Value, symbol.Name) {
+					if symbol.NamespaceAlias == nil && lexer.UTF16EqualsString(key.Value, symbol.Name) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -960,12 +964,13 @@ func (p *printer) printProperty(item ast.Property) {
 				}
 			}
 		} else {
-			c := p.bestQuoteCharForString(str.Value, false /* allowBacktick */)
+			c := p.bestQuoteCharForString(key.Value, false /* allowBacktick */)
 			p.print(c)
-			p.printQuotedUTF16(str.Value, rune(c[0]))
+			p.printQuotedUTF16(key.Value, rune(c[0]))
 			p.print(c)
 		}
-	} else {
+
+	default:
 		p.printExpr(item.Key, ast.LLowest, 0)
 	}
 
@@ -1274,9 +1279,16 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if e.OptionalChain == ast.OptionalChainStart {
 			p.print("?.")
 		}
-		p.print("[")
-		p.printExpr(e.Index, ast.LLowest, 0)
-		p.print("]")
+		if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok {
+			if e.OptionalChain != ast.OptionalChainStart {
+				p.print(".")
+			}
+			p.printSymbol(private.Ref)
+		} else {
+			p.print("[")
+			p.printExpr(e.Index, ast.LLowest, 0)
+			p.print("]")
+		}
 		if wrap {
 			p.print(")")
 		}

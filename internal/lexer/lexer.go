@@ -105,6 +105,9 @@ const (
 	TPlusEquals
 	TSlashEquals
 
+	// Class-private fields and methods
+	TPrivateIdentifier
+
 	// Identifiers
 	TIdentifier     // Contents are in lexer.Identifier (string)
 	TEscapedKeyword // A keyword that has been escaped as an identifer
@@ -871,6 +874,7 @@ func (lexer *Lexer) Next() {
 
 		case '#':
 			if lexer.start == 0 && strings.HasPrefix(lexer.source.Contents, "#!") {
+				// "#!/usr/bin/env node"
 				lexer.Token = THashbang
 			hashbang:
 				for {
@@ -885,7 +889,17 @@ func (lexer *Lexer) Next() {
 				}
 				lexer.Identifier = lexer.Raw()
 			} else {
-				lexer.SyntaxError()
+				// "#foo"
+				lexer.step()
+				if !IsIdentifierStart(lexer.codePoint) {
+					lexer.SyntaxError()
+				}
+				lexer.step()
+				for IsIdentifierContinue(lexer.codePoint) {
+					lexer.step()
+				}
+				lexer.Identifier = lexer.Raw()
+				lexer.Token = TPrivateIdentifier
 			}
 
 		case '\r', '\n', '\u2028', '\u2029':

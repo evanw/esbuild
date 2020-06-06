@@ -1664,3 +1664,68 @@ func TestLowerOptionalCatchBinding(t *testing.T) {
 	expectPrintedTarget(t, ES2019, "try {} catch {}", "try {\n} catch {\n}\n")
 	expectPrintedTarget(t, ES2018, "try {} catch {}", "try {\n} catch (e) {\n}\n")
 }
+
+func TestPrivateIdentifiers(t *testing.T) {
+	expectParseError(t, "#foo", "<stdin>: error: Unexpected \"#foo\"\n")
+	expectParseError(t, "this.#foo", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseError(t, "this?.#foo", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseError(t, "({ #foo: 1 })", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseError(t, "class Foo { x = { #foo: 1 } }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseError(t, "class Foo { #foo; foo() { delete this.#foo } }",
+		"<stdin>: error: Deleting the private name \"#foo\" is forbidden\n")
+	expectParseError(t, "class Foo { #foo; foo() { delete this?.#foo } }",
+		"<stdin>: error: Deleting the private name \"#foo\" is forbidden\n")
+
+	expectPrinted(t, "class Foo { #foo }", "class Foo {\n  #foo;\n}\n")
+	expectPrinted(t, "class Foo { #foo = 1 }", "class Foo {\n  #foo = 1;\n}\n")
+	expectPrinted(t, "class Foo { #foo() {} }", "class Foo {\n  #foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { get #foo() {} }", "class Foo {\n  get #foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set #foo() {} }", "class Foo {\n  set #foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static #foo }", "class Foo {\n  static #foo;\n}\n")
+	expectPrinted(t, "class Foo { static #foo = 1 }", "class Foo {\n  static #foo = 1;\n}\n")
+	expectPrinted(t, "class Foo { static #foo() {} }", "class Foo {\n  static #foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static get #foo() {} }", "class Foo {\n  static get #foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set #foo() {} }", "class Foo {\n  static set #foo() {\n  }\n}\n")
+
+	// Scope tests
+	expectParseError(t, "class Foo { #foo; #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectPrinted(t, "class Foo { #foo } class Bar { #foo }", "class Foo {\n  #foo;\n}\nclass Bar {\n  #foo;\n}\n")
+	expectPrinted(t, "class Foo { foo = this.#foo; #foo }", "class Foo {\n  foo = this.#foo;\n  #foo;\n}\n")
+	expectPrinted(t, "class Foo { foo = this?.#foo; #foo }", "class Foo {\n  foo = this?.#foo;\n  #foo;\n}\n")
+	expectParseError(t, "class Foo { #foo } class Bar { foo = this.#foo }",
+		"<stdin>: error: Private name \"#foo\" is not available here\n")
+	expectParseError(t, "class Foo { #foo } class Bar { foo = this?.#foo }",
+		"<stdin>: error: Private name \"#foo\" is not available here\n")
+
+	expectPrinted(t, `class Foo {
+	#if
+	#im() { return this.#im(this.#if) }
+	static #sf
+	static #sm() { return this.#sm(this.#sf) }
+	foo() {
+		return class {
+			#inner() {
+				return [this.#im, this?.#inner, this?.x.#if]
+			}
+		}
+	}
+}
+`, `class Foo {
+  #if;
+  #im() {
+    return this.#im(this.#if);
+  }
+  static #sf;
+  static #sm() {
+    return this.#sm(this.#sf);
+  }
+  foo() {
+    return class {
+      #inner() {
+        return [this.#im, this?.#inner, this?.x.#if];
+      }
+    };
+  }
+}
+`)
+}

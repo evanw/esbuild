@@ -4719,3 +4719,100 @@ func TestManyEntryPoints(t *testing.T) {
 		},
 	})
 }
+
+func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo
+					foo = class {
+						#foo
+						#foo2
+					}
+				}
+				class Bar {
+					#foo
+					foo = class {
+						#foo2
+						#foo
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo {
+  #foo;
+  foo = class {
+    #foo2;
+    #foo22;
+  };
+}
+class Bar {
+  #foo;
+  foo = class {
+    #foo2;
+    #foo3;
+  };
+}
+`,
+		},
+	})
+}
+
+func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo
+					foo = class {
+						#foo
+						#foo2
+					}
+				}
+				class Bar {
+					#foo
+					foo = class {
+						#foo2
+						#foo
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        false,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo {
+  #a;
+  foo = class {
+    #b;
+    #c;
+  };
+}
+class Bar {
+  #a;
+  foo = class {
+    #b;
+    #c;
+  };
+}
+`,
+		},
+	})
+}

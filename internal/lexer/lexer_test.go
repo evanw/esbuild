@@ -100,7 +100,7 @@ func TestHashbang(t *testing.T) {
 	expectHashbang(t, "#!/usr/bin/env node", "#!/usr/bin/env node")
 	expectHashbang(t, "#!/usr/bin/env node\n", "#!/usr/bin/env node")
 	expectHashbang(t, "#!/usr/bin/env node\nlet x", "#!/usr/bin/env node")
-	expectLexerError(t, " #!/usr/bin/env node", "<stdin>: error: Syntax error \"#\"\n")
+	expectLexerError(t, " #!/usr/bin/env node", "<stdin>: error: Syntax error \"!\"\n")
 }
 
 func expectIdentifier(t *testing.T, contents string, expected string) {

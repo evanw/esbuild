@@ -203,13 +203,14 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 	for sourceIndex, inner := range symbols.Outer {
 		g.symbolToMinifyInfo[sourceIndex] = make([]minifyInfo, len(inner))
 	}
-	var next uint32 = 0
+	next := uint32(0)
+	nextPrivate := uint32(0)
 
 	// Allocate a slot for every symbol in each top-level scope. These slots must
 	// not overlap between files because the bundler may smoosh everything
 	// together into a single scope.
 	for _, scope := range moduleScopes {
-		next = g.countSymbolsInScope(scope, symbols, next)
+		next, nextPrivate = g.countSymbolsInScope(scope, symbols, next, nextPrivate)
 	}
 
 	// Allocate a slot for every symbol in each nested scope. Since it's
@@ -228,9 +229,9 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 	for _, scope := range moduleScopes {
 		go func(scope *ast.Scope) {
 			for _, child := range scope.Children {
-				// Deliberately don't update "next" here. Sibling scopes can't collide and
-				// so can reuse slots.
-				g.countSymbolsRecursive(child, symbols, next, 0)
+				// Deliberately don't update "next" and "nextPrivate" here. Sibling
+				// scopes can't collide and so can reuse slots.
+				g.countSymbolsRecursive(child, symbols, next, nextPrivate, 0)
 			}
 			waitGroup.Done()
 		}(scope)
@@ -239,35 +240,55 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 
 	// Find the largest slot value
 	maxSlot := uint32(0)
-	for _, array := range g.symbolToMinifyInfo {
-		for _, data := range array {
-			if data.used != 0 && data.slot > maxSlot {
-				maxSlot = data.slot
+	maxPrivateSlot := uint32(0)
+	for outer, array := range g.symbolToMinifyInfo {
+		for inner, data := range array {
+			if data.used != 0 {
+				if symbols.Outer[outer][inner].Kind == ast.SymbolPrivate {
+					if data.slot > maxPrivateSlot {
+						maxPrivateSlot = data.slot
+					}
+				} else {
+					if data.slot > maxSlot {
+						maxSlot = data.slot
+					}
+				}
 			}
 		}
 	}
 
 	// Allocate one count for each slot
 	slotToCount := make([]uint32, maxSlot+1)
-	for _, array := range g.symbolToMinifyInfo {
-		for _, data := range array {
+	privateSlotToCount := make([]uint32, maxPrivateSlot+1)
+	for outer, array := range g.symbolToMinifyInfo {
+		for inner, data := range array {
 			if data.used != 0 {
-				slotToCount[data.slot] += data.count
+				if symbols.Outer[outer][inner].Kind == ast.SymbolPrivate {
+					privateSlotToCount[data.slot] += data.count
+				} else {
+					slotToCount[data.slot] += data.count
+				}
 			}
 		}
 	}
 
 	// Sort slot indices descending by the count for that slot
 	sorted := slotAndCountArray(make([]slotAndCount, len(slotToCount)))
+	privateSorted := slotAndCountArray(make([]slotAndCount, len(privateSlotToCount)))
 	for slot, count := range slotToCount {
 		sorted[slot] = slotAndCount{uint32(slot), count}
 	}
+	for slot, count := range privateSlotToCount {
+		privateSorted[slot] = slotAndCount{uint32(slot), count}
+	}
 	sort.Sort(sorted)
+	sort.Sort(privateSorted)
 
 	// Assign names sequentially in order so the most frequent symbols get the
 	// shortest names
 	nextName := 0
 	names := make([]string, len(sorted))
+	privateNames := make([]string, len(privateSorted))
 	for _, data := range sorted {
 		name := lexer.NumberToMinifiedName(nextName)
 		nextName++
@@ -280,13 +301,21 @@ func minifyAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, 
 
 		names[data.slot] = name
 	}
+	for i, data := range privateSorted {
+		// Don't need to worry about collisions with reserved names here
+		privateNames[data.slot] = "#" + lexer.NumberToMinifiedName(i)
+	}
 
 	// Copy the names to the appropriate symbols
 	for outer, array := range g.symbolToMinifyInfo {
 		for inner, data := range array {
 			if data.used != 0 {
-				ref := ast.Ref{uint32(outer), uint32(inner)}
-				symbols.Get(ref).Name = names[data.slot]
+				symbol := &symbols.Outer[outer][inner]
+				if symbol.Kind == ast.SymbolPrivate {
+					symbol.Name = privateNames[data.slot]
+				} else {
+					symbol.Name = names[data.slot]
+				}
 			}
 		}
 	}
@@ -315,7 +344,7 @@ func (g *minifyGroup) countSymbol(slot uint32, ref ast.Ref, count uint32) bool {
 	return true
 }
 
-func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, next uint32) uint32 {
+func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, next uint32, nextPrivate uint32) (uint32, uint32) {
 	sorted := sortedSymbolsInScope(scope)
 
 	for _, i := range sorted {
@@ -328,16 +357,25 @@ func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMa
 			continue
 		}
 
-		if g.countSymbol(next, ref, symbol.UseCountEstimate) {
-			next++
+		// Private symbols are in a different namespace
+		if symbol.Kind == ast.SymbolPrivate {
+			if g.countSymbol(nextPrivate, ref, symbol.UseCountEstimate) {
+				nextPrivate++
+			}
+		} else {
+			if g.countSymbol(next, ref, symbol.UseCountEstimate) {
+				next++
+			}
 		}
 	}
 
-	return next
+	return next, nextPrivate
 }
 
-func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols ast.SymbolMap, next uint32, labelCount uint32) uint32 {
-	next = g.countSymbolsInScope(scope, symbols, next)
+func (g *minifyGroup) countSymbolsRecursive(
+	scope *ast.Scope, symbols ast.SymbolMap, next uint32, nextPrivate uint32, labelCount uint32,
+) (uint32, uint32) {
+	next, nextPrivate = g.countSymbolsInScope(scope, symbols, next, nextPrivate)
 
 	// Labels are in a separate namespace from symbols
 	if scope.Kind == ast.ScopeLabel {
@@ -347,11 +385,11 @@ func (g *minifyGroup) countSymbolsRecursive(scope *ast.Scope, symbols ast.Symbol
 	}
 
 	for _, child := range scope.Children {
-		// Deliberately don't update "next" here. Sibling scopes can't collide and
-		// so can reuse slots.
-		g.countSymbolsRecursive(child, symbols, next, labelCount)
+		// Deliberately don't update "next" and "nextPrivate" here. Sibling scopes
+		// can't collide and so can reuse slots.
+		g.countSymbolsRecursive(child, symbols, next, nextPrivate, labelCount)
 	}
-	return next
+	return next, nextPrivate
 }
 
 type slotAndCount struct {
