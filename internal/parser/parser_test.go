@@ -41,13 +41,13 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
-			OmitWarnings: true,
-		})
+		}, ParseOptions{})
 		msgs := join()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			if msg.Kind != logging.Warning {
+				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			}
 		}
 		assertEqual(t, text, "")
 		if !ok {
@@ -92,13 +92,14 @@ func expectPrintedTarget(t *testing.T, target LanguageTarget, contents string, e
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseOptions{
-			OmitWarnings: true,
-			Target:       target,
+			Target: target,
 		})
 		msgs := join()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			if msg.Kind != logging.Warning {
+				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			}
 		}
 		assertEqual(t, text, "")
 		if !ok {
@@ -174,6 +175,22 @@ func TestBinOp(t *testing.T) {
 			expectPrinted(t, "a "+op+" (b "+op+" c)", "a "+op+" b "+op+" c;\n")
 		}
 	}
+}
+
+func TestComments(t *testing.T) {
+	expectParseError(t, "throw //\n x", "<stdin>: error: Unexpected newline after \"throw\"\n")
+	expectParseError(t, "throw /**/\n x", "<stdin>: error: Unexpected newline after \"throw\"\n")
+	expectParseError(t, "throw <!--\n x",
+		"<stdin>: warning: Treating \"<!--\" as the start of a legacy HTML single-line comment\n"+
+			"<stdin>: error: Unexpected newline after \"throw\"\n")
+	expectParseError(t, "throw -->\n x",
+		"<stdin>: warning: Treating \"-->\" as the start of a legacy HTML single-line comment\n"+
+			"<stdin>: error: Unexpected newline after \"throw\"\n")
+
+	expectPrinted(t, "return //\n x", "return;\nx;\n")
+	expectPrinted(t, "return /**/\n x", "return;\nx;\n")
+	expectPrinted(t, "return <!--\n x", "return;\nx;\n")
+	expectPrinted(t, "return -->\n x", "return;\nx;\n")
 }
 
 func TestExponentiation(t *testing.T) {

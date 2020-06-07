@@ -33,7 +33,6 @@ type parser struct {
 	lexer                    lexer.Lexer
 	importPaths              []ast.ImportPath
 	exportStars              []ast.Path
-	omitWarnings             bool
 	allowIn                  bool
 	allowPrivateIdentifiers  bool
 	hasTopLevelReturn        bool
@@ -3256,11 +3255,9 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			}
 
 			// Warn about "!a in b" instead of "!(a in b)"
-			if !p.omitWarnings {
-				if e, ok := left.Data.(*ast.EUnary); ok && e.Op == ast.UnOpNot {
-					p.log.AddWarning(p.source, left.Loc,
-						"Suspicious use of the \"!\" operator inside the \"in\" operator")
-				}
+			if e, ok := left.Data.(*ast.EUnary); ok && e.Op == ast.UnOpNot {
+				p.log.AddWarning(p.source, left.Loc,
+					"Suspicious use of the \"!\" operator inside the \"in\" operator")
 			}
 
 			p.lexer.Next()
@@ -3272,11 +3269,9 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			}
 
 			// Warn about "!a instanceof b" instead of "!(a instanceof b)"
-			if !p.omitWarnings {
-				if e, ok := left.Data.(*ast.EUnary); ok && e.Op == ast.UnOpNot {
-					p.log.AddWarning(p.source, left.Loc,
-						"Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
-				}
+			if e, ok := left.Data.(*ast.EUnary); ok && e.Op == ast.UnOpNot {
+				p.log.AddWarning(p.source, left.Loc,
+					"Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
 			}
 
 			p.lexer.Next()
@@ -5312,18 +5307,16 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 		stmts = append(stmts, stmt)
 
 		// Warn about ASI and return statements
-		if !p.omitWarnings {
-			if s, ok := stmt.Data.(*ast.SReturn); ok && s.Value == nil && !p.latestReturnHadSemicolon {
-				returnWithoutSemicolonStart = stmt.Loc.Start
-			} else {
-				if returnWithoutSemicolonStart != -1 {
-					if _, ok := stmt.Data.(*ast.SExpr); ok {
-						p.log.AddWarning(p.source, ast.Loc{returnWithoutSemicolonStart + 6},
-							"The following expression is not returned because of an automatically-inserted semicolon")
-					}
+		if s, ok := stmt.Data.(*ast.SReturn); ok && s.Value == nil && !p.latestReturnHadSemicolon {
+			returnWithoutSemicolonStart = stmt.Loc.Start
+		} else {
+			if returnWithoutSemicolonStart != -1 {
+				if _, ok := stmt.Data.(*ast.SExpr); ok {
+					p.log.AddWarning(p.source, ast.Loc{returnWithoutSemicolonStart + 6},
+						"The following expression is not returned because of an automatically-inserted semicolon")
 				}
-				returnWithoutSemicolonStart = -1
 			}
+			returnWithoutSemicolonStart = -1
 		}
 	}
 
@@ -7980,37 +7973,29 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.BinOpLooseEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EBoolean{result}}, exprOut{}
-			} else if !p.omitWarnings {
-				if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
-					p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
-				}
+			} else if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
+				p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
 			}
 
 		case ast.BinOpStrictEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EBoolean{result}}, exprOut{}
-			} else if !p.omitWarnings {
-				if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
-					p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
-				}
+			} else if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
+				p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
 			}
 
 		case ast.BinOpLooseNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}, exprOut{}
-			} else if !p.omitWarnings {
-				if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
-					p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
-				}
+			} else if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
+				p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
 			}
 
 		case ast.BinOpStrictNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}, exprOut{}
-			} else if !p.omitWarnings {
-				if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
-					p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
-				}
+			} else if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
+				p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
 			}
 
 		case ast.BinOpNullishCoalescing:
@@ -9083,7 +9068,6 @@ type ParseOptions struct {
 
 	Defines      *ProcessedDefines
 	MangleSyntax bool
-	OmitWarnings bool
 	TS           TypeScriptOptions
 	JSX          JSXOptions
 	Target       LanguageTarget
@@ -9103,7 +9087,6 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		target:            options.Target,
 		ts:                options.TS,
 		jsx:               options.JSX,
-		omitWarnings:      options.OmitWarnings,
 		mangleSyntax:      options.MangleSyntax,
 		isBundling:        options.IsBundling,
 		processedDefines:  *options.Defines,

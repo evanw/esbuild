@@ -1074,7 +1074,7 @@ func (lexer *Lexer) Next() {
 			}
 
 		case '-':
-			// '-' or '-=' or '--'
+			// '-' or '-=' or '--' or '-->'
 			lexer.step()
 			switch lexer.codePoint {
 			case '=':
@@ -1082,6 +1082,26 @@ func (lexer *Lexer) Next() {
 				lexer.Token = TMinusEquals
 			case '-':
 				lexer.step()
+
+				// Handle legacy HTML-style comments
+				if lexer.codePoint == '>' {
+					lexer.step()
+					lexer.log.AddRangeWarning(lexer.source, lexer.Range(),
+						"Treating \"-->\" as the start of a legacy HTML single-line comment")
+				singleLineHTMLCloseComment:
+					for {
+						switch lexer.codePoint {
+						case '\r', '\n', '\u2028', '\u2029':
+							break singleLineHTMLCloseComment
+
+						case -1: // This indicates the end of the file
+							break singleLineHTMLCloseComment
+						}
+						lexer.step()
+					}
+					continue
+				}
+
 				lexer.Token = TMinusMinus
 			default:
 				lexer.Token = TMinus
@@ -1193,7 +1213,7 @@ func (lexer *Lexer) Next() {
 			}
 
 		case '<':
-			// '<' or '<<' or '<=' or '<<='
+			// '<' or '<<' or '<=' or '<<=' or '<!--'
 			lexer.step()
 			switch lexer.codePoint {
 			case '=':
@@ -1208,6 +1228,31 @@ func (lexer *Lexer) Next() {
 				default:
 					lexer.Token = TLessThanLessThan
 				}
+
+				// Handle legacy HTML-style comments
+			case '!':
+				if strings.HasPrefix(lexer.source.Contents[lexer.start:], "<!--") {
+					lexer.step()
+					lexer.step()
+					lexer.step()
+					lexer.log.AddRangeWarning(lexer.source, lexer.Range(),
+						"Treating \"<!--\" as the start of a legacy HTML single-line comment")
+				singleLineHTMLOpenComment:
+					for {
+						switch lexer.codePoint {
+						case '\r', '\n', '\u2028', '\u2029':
+							break singleLineHTMLOpenComment
+
+						case -1: // This indicates the end of the file
+							break singleLineHTMLOpenComment
+						}
+						lexer.step()
+					}
+					continue
+				}
+
+				lexer.Token = TLessThan
+
 			default:
 				lexer.Token = TLessThan
 			}
