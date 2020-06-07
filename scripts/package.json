@@ -2,6 +2,7 @@
   "dependencies": {
     "mkdirp": "1.0.4",
     "rimraf": "3.0.2",
-    "source-map": "0.7.3"
+    "source-map": "0.7.3",
+    "unicode-13.0.0": "0.8.0"
   }
 }
