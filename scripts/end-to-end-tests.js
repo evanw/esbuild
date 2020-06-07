@@ -18,6 +18,7 @@
   const { default: rimraf } = await import('rimraf')
   const path = await import('path')
   const util = await import('util')
+  const url = await import('url')
   const fs = await import('fs')
   const testDir = path.join(dirname, '.end-to-end-tests')
   const esbuildPath = buildBinary()
@@ -333,18 +334,21 @@
           await util.promisify(childProcess.execFile)(esbuildPath, modifiedArgs,
             { cwd: thisTestDir, stdio: 'pipe' })
 
-          // Run the resulting node.js file and make sure it exits cleanly
+          // Run the resulting node.js file and make sure it exits cleanly. The
+          // use of "pathToFileURL" is a workaround for a problem where node
+          // only supports absolute paths on Unix-style systems, not on Windows.
+          // See https://github.com/nodejs/node/issues/31710 for more info.
           const nodePath = path.join(thisTestDir, 'node')
           let testExports
           switch (format) {
             case 'cjs':
-              ({ default: testExports } = await import(nodePath + '.js'))
+              ({ default: testExports } = await import(url.pathToFileURL(`${nodePath}.js`)))
               break
 
             case 'esm':
               if (!(await util.promisify(fs.exists)(nodePath + '.mjs')))
                 await util.promisify(fs.rename)(nodePath + '.js', nodePath + '.mjs')
-              testExports = await import(nodePath + '.mjs')
+              testExports = await import(url.pathToFileURL(`${nodePath}.mjs`))
               break
           }
 
