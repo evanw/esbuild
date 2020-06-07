@@ -232,6 +232,28 @@ func TestTSClass(t *testing.T) {
 	expectParseErrorTS(t, "class Foo<T><T> {}", "<stdin>: error: Expected \"{\" but found \"<\"\n")
 }
 
+func TestTSPrivateIdentifiers(t *testing.T) {
+	// The TypeScript compiler still moves private field initializers into the
+	// constructor, but it has to leave the private field declaration in place so
+	// the private field is still declared.
+	expectPrintedTS(t, "class Foo { #foo }", "class Foo {\n  #foo;\n}\n")
+	expectPrintedTS(t, "class Foo { #foo = 1 }", "class Foo {\n  constructor() {\n    this.#foo = 1;\n  }\n  #foo;\n}\n")
+	expectPrintedTS(t, "class Foo { #foo() {} }", "class Foo {\n  #foo() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { get #foo() {} }", "class Foo {\n  get #foo() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { set #foo() {} }", "class Foo {\n  set #foo() {\n  }\n}\n")
+
+	// The TypeScript compiler doesn't currently support static private fields
+	// because it moves static field initializers to after the class body and
+	// private fields can't be used outside the class body. It remains to be seen
+	// how the TypeScript compiler will transform private static fields once it
+	// finally does support them.
+	expectPrintedTS(t, "class Foo { static #foo }", "class Foo {\n  static #foo;\n}\n")
+	expectPrintedTS(t, "class Foo { static #foo = 1 }", "class Foo {\n  static #foo;\n}\nFoo.#foo = 1;\n")
+	expectPrintedTS(t, "class Foo { static #foo() {} }", "class Foo {\n  static #foo() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { static get #foo() {} }", "class Foo {\n  static get #foo() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { static set #foo() {} }", "class Foo {\n  static set #foo() {\n  }\n}\n")
+}
+
 func TestTSInterface(t *testing.T) {
 	expectPrintedTS(t, "interface A { a } x", "x;\n")
 	expectPrintedTS(t, "interface A { a; b } x", "x;\n")

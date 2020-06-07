@@ -5949,6 +5949,8 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 	staticFields []ast.Expr, // Generated static field initializers
 	newExpr ast.Expr, // Only for !isStmt, should replace the expression if not nil
 ) {
+	// We always lower class fields when parsing TypeScript since class fields in
+	// TypeScript don't follow the JavaScript spec.
 	if !p.ts.Parse && p.target >= ESNext {
 		return
 	}
@@ -5967,81 +5969,88 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 	for _, prop := range props {
 		// Instance and static fields are a JavaScript feature
 		if (p.ts.Parse || p.target < ESNext) && !prop.IsMethod && (prop.IsStatic || prop.Value == nil) {
+			_, isPrivateField := prop.Key.Data.(*ast.EPrivateIdentifier)
+
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
-			if p.ts.Parse && prop.Initializer == nil && prop.Value == nil {
-				continue
-			}
+			if !p.ts.Parse || prop.Initializer != nil || prop.Value != nil {
+				// Determine where to store the field
+				var target ast.Expr
+				if prop.IsStatic {
+					if nameFunc == nil {
+						if !isStmt {
+							// If this is a class expression, capture and store it. We have to
+							// do this even if it has a name since the name isn't exposed
+							// outside the class body.
+							classExpr = &ast.EClass{}
+							nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
+							newExpr = nameFunc()
+						} else {
+							// Otherwise, this is a class statement. Just use the class name.
+							nameFunc = func() ast.Expr {
+								p.recordUsage(class.Name.Ref)
+								return ast.Expr{classLoc, &ast.EIdentifier{class.Name.Ref}}
+							}
 
-			// Determine where to store the field
-			var target ast.Expr
-			if prop.IsStatic {
-				if nameFunc == nil {
-					if !isStmt {
-						// If this is a class expression, capture and store it. We have to
-						// do this even if it has a name since the name isn't exposed
-						// outside the class body.
-						classExpr = &ast.EClass{}
-						nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
-						newExpr = nameFunc()
-					} else {
-						// Otherwise, this is a class statement. Just use the class name.
-						nameFunc = func() ast.Expr {
-							p.recordUsage(class.Name.Ref)
-							return ast.Expr{classLoc, &ast.EIdentifier{class.Name.Ref}}
-						}
-
-						// Class statements can be missing a name if they are in an
-						// "export default" statement:
-						//
-						//   export default class {
-						//     static foo = 123
-						//   }
-						//
-						if class.Name == nil {
-							class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare)}
+							// Class statements can be missing a name if they are in an
+							// "export default" statement:
+							//
+							//   export default class {
+							//     static foo = 123
+							//   }
+							//
+							if class.Name == nil {
+								class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare)}
+							}
 						}
 					}
+					target = nameFunc()
+				} else {
+					target = ast.Expr{prop.Key.Loc, &ast.EThis{}}
 				}
-				target = nameFunc()
-			} else {
-				target = ast.Expr{prop.Key.Loc, &ast.EThis{}}
+
+				// Generate the assignment target
+				if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
+					target = ast.Expr{prop.Key.Loc, &ast.EDot{
+						Target:  target,
+						Name:    lexer.UTF16ToString(key.Value),
+						NameLoc: prop.Key.Loc,
+					}}
+				} else {
+					target = ast.Expr{prop.Key.Loc, &ast.EIndex{
+						Target: target,
+						Index:  prop.Key,
+					}}
+				}
+
+				// Generate the assignment initializer
+				var init ast.Expr
+				if prop.Initializer != nil {
+					init = *prop.Initializer
+				} else if prop.Value != nil {
+					init = *prop.Value
+				} else {
+					init = ast.Expr{prop.Key.Loc, &ast.EUndefined{}}
+				}
+
+				expr := ast.Expr{prop.Key.Loc, &ast.EBinary{ast.BinOpAssign, target, init}}
+				if prop.IsStatic {
+					// Move this property to an assignment after the class ends
+					staticFields = append(staticFields, expr)
+				} else {
+					// Move this property to an assignment inside the class constructor
+					instanceFields = append(instanceFields, ast.Stmt{prop.Key.Loc, &ast.SExpr{expr}})
+				}
 			}
 
-			// Generate the assignment target
-			if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
-				target = ast.Expr{prop.Key.Loc, &ast.EDot{
-					Target:  target,
-					Name:    lexer.UTF16ToString(key.Value),
-					NameLoc: prop.Key.Loc,
-				}}
+			if isPrivateField {
+				// Keep the private field but remove the initializer
+				prop.Initializer = nil
 			} else {
-				target = ast.Expr{prop.Key.Loc, &ast.EIndex{
-					Target: target,
-					Index:  prop.Key,
-				}}
+				// Remove the field from the class body
+				continue
 			}
-
-			// Generate the assignment initializer
-			var init ast.Expr
-			if prop.Initializer != nil {
-				init = *prop.Initializer
-			} else if prop.Value != nil {
-				init = *prop.Value
-			} else {
-				init = ast.Expr{prop.Key.Loc, &ast.EUndefined{}}
-			}
-
-			expr := ast.Expr{prop.Key.Loc, &ast.EBinary{ast.BinOpAssign, target, init}}
-			if prop.IsStatic {
-				// Move this property to an assignment after the class ends
-				staticFields = append(staticFields, expr)
-			} else {
-				// Move this property to an assignment inside the class constructor
-				instanceFields = append(instanceFields, ast.Stmt{prop.Key.Loc, &ast.SExpr{expr}})
-			}
-			continue
 		}
 
 		// Remember where the constructor is for later

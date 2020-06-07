@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Fix private fields in TypeScript
+
+    This fixes a bug with private instance fields in TypeScript where the private field declaration was incorrectly removed during the TypeScript class field transform, which inlines the initializers into the constructor. Now the initializers are still moved to the constructor but the private field declaration is preserved without the initializer.
+
+    Note that since static private fields are not currently supported by the official TypeScript compiler, they are also not supported by esbuild in TypeScript files. They are supported by esbuild in JavaScript files, however.
+
 ## 0.4.9
 
 * Initial support for private names ([#47](https://github.com/evanw/esbuild/issues/47))
