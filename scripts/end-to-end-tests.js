@@ -8,6 +8,7 @@
     })
     child.stdin.write(require('fs').readFileSync(__filename))
     child.stdin.end()
+    child.on('close', code => process.exit(code))
     return
   }
 
