@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.9
 
 * Initial support for private names ([#47](https://github.com/evanw/esbuild/issues/47))
 
