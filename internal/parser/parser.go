@@ -1543,7 +1543,11 @@ func (p *parser) parseProperty(
 
 		// Special-case private identifiers
 		if private, ok := key.Data.(*ast.EPrivateIdentifier); ok {
-			private.Ref = p.declareSymbol(ast.SymbolPrivate, key.Loc, p.loadNameFromRef(private.Ref))
+			name := p.loadNameFromRef(private.Ref)
+			if name == "#constructor" {
+				p.addRangeError(keyRange, fmt.Sprintf("Invalid field name %q", name))
+			}
+			private.Ref = p.declareSymbol(ast.SymbolPrivate, key.Loc, name)
 		}
 
 		p.lexer.ExpectOrInsertSemicolon()
@@ -1616,7 +1620,11 @@ func (p *parser) parseProperty(
 			default:
 				declare = ast.SymbolPrivate
 			}
-			private.Ref = p.declareSymbol(declare, key.Loc, p.loadNameFromRef(private.Ref))
+			name := p.loadNameFromRef(private.Ref)
+			if name == "#constructor" {
+				p.addRangeError(keyRange, fmt.Sprintf("Invalid method name %q", name))
+			}
+			private.Ref = p.declareSymbol(declare, key.Loc, name)
 		}
 
 		return ast.Property{
