@@ -644,6 +644,22 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "({ async* prototype() {} })", "({async *prototype() {\n}});\n")
 }
 
+func TestSuperCall(t *testing.T) {
+	expectParseError(t, "super()", "<stdin>: error: Unexpected \"(\"\n")
+	expectParseError(t, "class Foo { foo = super() }", "<stdin>: error: Unexpected \"(\"\n")
+	expectParseError(t, "class Foo { foo() { super() } }", "<stdin>: error: Unexpected \"(\"\n")
+	expectParseError(t, "class Foo extends Bar { foo = super() }", "<stdin>: error: Unexpected \"(\"\n")
+	expectParseError(t, "class Foo extends Bar { foo() { super() } }", "<stdin>: error: Unexpected \"(\"\n")
+	expectParseError(t, "class Foo extends Bar { static constructor() { super() } }", "<stdin>: error: Unexpected \"(\"\n")
+	expectParseError(t, "class Foo extends Bar { constructor() { function foo() { super() } } }", "<stdin>: error: Unexpected \"(\"\n")
+	expectPrinted(t, "class Foo extends Bar { constructor() { super() } }",
+		"class Foo extends Bar {\n  constructor() {\n    super();\n  }\n}\n")
+	expectPrinted(t, "class Foo extends Bar { constructor() { () => super() } }",
+		"class Foo extends Bar {\n  constructor() {\n    () => super();\n  }\n}\n")
+	expectPrinted(t, "class Foo extends Bar { constructor() { () => { super() } } }",
+		"class Foo extends Bar {\n  constructor() {\n    () => {\n      super();\n    };\n  }\n}\n")
+}
+
 func TestClassFields(t *testing.T) {
 	expectPrinted(t, "class Foo { a }", "class Foo {\n  a;\n}\n")
 	expectPrinted(t, "class Foo { a = 1 }", "class Foo {\n  a = 1;\n}\n")

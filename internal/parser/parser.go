@@ -116,10 +116,11 @@ type scopeOrder struct {
 }
 
 type fnOpts struct {
-	asyncRange  ast.Range
-	isOutsideFn bool
-	allowAwait  bool
-	allowYield  bool
+	asyncRange     ast.Range
+	isOutsideFn    bool
+	allowAwait     bool
+	allowYield     bool
+	allowSuperCall bool
 
 	// In TypeScript, forward declarations of functions have no bodies
 	allowMissingBodyForTypeScript bool
@@ -1357,10 +1358,11 @@ const (
 )
 
 type propertyOpts struct {
-	asyncRange  ast.Range
-	isAsync     bool
-	isGenerator bool
-	isStatic    bool
+	asyncRange      ast.Range
+	isAsync         bool
+	isGenerator     bool
+	isStatic        bool
+	classHasExtends bool
 }
 
 func (p *parser) parseProperty(
@@ -1559,6 +1561,7 @@ func (p *parser) parseProperty(
 		context == propertyContextClass || opts.isAsync || opts.isGenerator {
 		loc := p.lexer.Loc()
 		scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
+		isConstructor := false
 
 		// Forbid the names "constructor" and "prototype" in some cases
 		if context == propertyContextClass && !isComputed {
@@ -1573,6 +1576,8 @@ func (p *parser) parseProperty(
 						p.addRangeError(keyRange, "Class constructor cannot be an async function")
 					case opts.isGenerator:
 						p.addRangeError(keyRange, "Class constructor cannot be a generator")
+					default:
+						isConstructor = true
 					}
 				} else if opts.isStatic && lexer.UTF16EqualsString(str.Value, "prototype") {
 					p.addRangeError(keyRange, "Invalid static method name \"prototype\"")
@@ -1581,9 +1586,10 @@ func (p *parser) parseProperty(
 		}
 
 		fn, hadBody := p.parseFn(nil, fnOpts{
-			asyncRange: opts.asyncRange,
-			allowAwait: opts.isAsync,
-			allowYield: opts.isGenerator,
+			asyncRange:     opts.asyncRange,
+			allowAwait:     opts.isAsync,
+			allowYield:     opts.isGenerator,
+			allowSuperCall: opts.classHasExtends && isConstructor,
 
 			// Only allow omitting the body if we're parsing TypeScript class
 			allowMissingBodyForTypeScript: p.ts.Parse && context == propertyContextClass,
@@ -1724,6 +1730,9 @@ func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 	for _, arg := range args {
 		p.declareBinding(ast.SymbolHoisted, arg.Binding, parseStmtOpts{})
 	}
+
+	// The ability to call "super()" is inherited by arrow functions
+	opts.allowSuperCall = p.currentFnOpts.allowSuperCall
 
 	if p.lexer.Token == lexer.TOpenBrace {
 		return &ast.EArrow{
@@ -2081,7 +2090,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 
 		switch p.lexer.Token {
 		case lexer.TOpenParen:
-			if level < ast.LCall {
+			if level < ast.LCall && p.currentFnOpts.allowSuperCall {
 				return ast.Expr{loc, &ast.ESuper{}}
 			}
 
@@ -4021,6 +4030,9 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 	bodyLoc := p.lexer.Loc()
 	p.lexer.Expect(lexer.TOpenBrace)
 	properties := []ast.Property{}
+	opts := propertyOpts{
+		classHasExtends: extends != nil,
+	}
 
 	// Allow "in" and private fields inside class bodies
 	oldAllowIn := p.allowIn
@@ -4043,7 +4055,7 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 		}
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
-		if property, ok := p.parseProperty(propertyContextClass, ast.PropertyNormal, propertyOpts{}, nil); ok {
+		if property, ok := p.parseProperty(propertyContextClass, ast.PropertyNormal, opts, nil); ok {
 			properties = append(properties, property)
 		}
 	}
