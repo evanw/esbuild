@@ -46,7 +46,6 @@ async function main() {
   let shouldHavePassed = 0;
   let shouldHaveFailed = 0;
   let reparseCount = 0;
-  let reprintCount = 0;
   let minifyCount = 0;
 
   async function esbuildFile(input, options) {
@@ -72,10 +71,6 @@ async function main() {
     const shouldParse = !yaml.negative || yaml.negative.phase === 'runtime';
 
     if (yaml.features) {
-      if (yaml.features.includes('class-fields-private')) return
-      if (yaml.features.includes('class-methods-private')) return
-      if (yaml.features.includes('class-static-fields-private')) return
-      if (yaml.features.includes('class-static-methods-private')) return
       if (yaml.features.includes('hashbang')) return
       if (yaml.features.includes('regexp-match-indices')) return
       if (yaml.features.includes('regexp-named-groups')) return
@@ -143,7 +138,6 @@ async function main() {
   console.log(`  tests incorrectly passed: ${shouldHaveFailed}`);
   console.log(`tests skipped: ${files.length - runCount}`);
   console.log(`reparse failures: ${reparseCount}`);
-  console.log(`reprint failures: ${reprintCount}`);
   console.log(`minify failures: ${minifyCount}`);
 
   // Clean up after all tests finish
