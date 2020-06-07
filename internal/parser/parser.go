@@ -2330,7 +2330,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			p.skipTypeScriptTypeParameters()
 		}
 
-		class := p.parseClass(name)
+		class := p.parseClass(name, parseClassOpts{})
 
 		if name != nil {
 			p.popScope()
@@ -3952,7 +3952,7 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		p.skipTypeScriptTypeParameters()
 	}
 
-	class := p.parseClass(name)
+	class := p.parseClass(name, parseClassOpts{isTypeScriptDeclare: opts.isTypeScriptDeclare})
 	return ast.Stmt{loc, &ast.SClass{class, opts.isExport}}
 }
 
@@ -3997,9 +3997,13 @@ func (p *parser) parseAndSkipDecorators() {
 	}
 }
 
+type parseClassOpts struct {
+	isTypeScriptDeclare bool
+}
+
 // By the time we call this, the identifier and type parameters have already
 // been parsed. We need to start parsing from the "extends" clause.
-func (p *parser) parseClass(name *ast.LocRef) ast.Class {
+func (p *parser) parseClass(name *ast.LocRef, classOpts parseClassOpts) ast.Class {
 	var extends *ast.Expr
 
 	if p.lexer.Token == lexer.TExtends {
@@ -4044,7 +4048,7 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 	p.allowPrivateIdentifiers = true
 
 	// A scope is needed for private identifiers
-	p.pushScopeForParsePass(ast.ScopeClassBody, bodyLoc)
+	scopeIndex := p.pushScopeForParsePass(ast.ScopeClassBody, bodyLoc)
 
 	for p.lexer.Token != lexer.TCloseBrace {
 		if p.lexer.Token == lexer.TSemicolon {
@@ -4063,7 +4067,12 @@ func (p *parser) parseClass(name *ast.LocRef) ast.Class {
 		}
 	}
 
-	p.popScope()
+	// Discard the private identifier scope inside a TypeScript "declare class"
+	if classOpts.isTypeScriptDeclare {
+		p.popAndDiscardScope(scopeIndex)
+	} else {
+		p.popScope()
+	}
 
 	p.allowIn = oldAllowIn
 	p.allowPrivateIdentifiers = oldAllowPrivateIdentifiers
@@ -7337,6 +7346,7 @@ func (p *parser) visitClass(class *ast.Class) {
 
 	// A scope is needed for private identifiers
 	p.pushScopeForVisitPass(ast.ScopeClassBody, class.BodyLoc)
+	defer p.popScope()
 
 	for i, property := range class.Properties {
 		// Special-case EPrivateIdentifier to allow it here
@@ -7350,8 +7360,6 @@ func (p *parser) visitClass(class *ast.Class) {
 			*property.Initializer = p.visitExpr(*property.Initializer)
 		}
 	}
-
-	p.popScope()
 
 	p.isThisCaptured = oldIsThisCaptured
 }
