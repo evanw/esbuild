@@ -2023,6 +2023,14 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 		for _, stmt := range part.Stmts {
 			switch s := stmt.Data.(type) {
 			case *ast.SImport:
+				// Ignore imports from the internal runtime code. These are generated
+				// automatically and aren't part of the original source code. We
+				// shouldn't consider the file a module if the only ES6 import or
+				// export is the automatically generated one.
+				if otherSourceIndex, ok := file.resolveImport(s.Path); ok && otherSourceIndex == ast.RuntimeSourceIndex {
+					continue
+				}
+
 				hasImportOrExport = true
 
 			case *ast.SLocal:

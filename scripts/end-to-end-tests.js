@@ -260,6 +260,23 @@
     }),
   )
 
+  // Test minification of top-level symbols
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      // Top-level names should not be minified
+      'in.js': `function foo() {} if (foo.name !== 'foo') throw 'fail'`,
+    }),
+
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      // Nested names should be minified
+      'in.js': `(() => { function foo() {} if (foo.name === 'foo') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--target=es6'], {
+      // Importing the "__pow()" runtime function should not affect top-level name minification
+      'in.js': `let _8 = 2 ** 3; function foo8() {} if (foo8.name !== 'foo' + _8) throw 'fail'`,
+    }),
+  )
+
   // Test tree shaking
   tests.push(
     // Keep because used (ES6)
