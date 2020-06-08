@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.11
 
 * Fix top-level name minification with runtime
 
