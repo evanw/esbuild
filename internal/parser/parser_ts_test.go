@@ -940,36 +940,54 @@ func TestTSDeclare(t *testing.T) {
 }
 
 func TestTSDecorator(t *testing.T) {
-	expectParseErrorTS(t, "@Dec @Dec class Foo {}",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n")
-	expectParseErrorTS(t, "@Dec @Dec export class Foo {}",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n")
-	expectParseErrorTS(t, "class Foo { @Dec foo() {} @Dec bar() {} }",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n")
-	expectParseErrorTS(t, "class Foo { foo(@Dec x, @Dec y) {} }",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n")
+	// Tests of "declare class"
+	expectPrintedTS(t, "@dec(() => 0) declare class Foo {} {let foo}", "{\n  let foo;\n}\n")
+	expectPrintedTS(t, "@dec(() => 0) declare abstract class Foo {} {let foo}", "{\n  let foo;\n}\n")
+	expectPrintedTS(t, "@dec(() => 0) export declare class Foo {} {let foo}", "{\n  let foo;\n}\n")
+	expectPrintedTS(t, "@dec(() => 0) export declare abstract class Foo {} {let foo}", "{\n  let foo;\n}\n")
+	expectPrintedTS(t, "declare class Foo { @dec(() => 0) foo } {let foo}", "{\n  let foo;\n}\n")
+	expectPrintedTS(t, "declare class Foo { @dec(() => 0) foo() } {let foo}", "{\n  let foo;\n}\n")
+	expectPrintedTS(t, "declare class Foo { foo(@dec(() => 0) x) } {let foo}", "{\n  let foo;\n}\n")
 
-	expectParseErrorTS(t, "@Dec(a(), b()) @Dec class Foo {}",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n")
-	expectParseErrorTS(t, "@Dec(a(), b()) @Dec export class Foo {}",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n")
-	expectParseErrorTS(t, "class Foo { @Dec(a(), b()) foo() {} @Dec bar() {} }",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n")
-	expectParseErrorTS(t, "class Foo { foo(@Dec(a(), b()) x, @Dec y) {} }",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n")
+	// Decorators must only work on class statements
+	expectParseErrorTS(t, "@dec enum foo {}", "<stdin>: error: Expected \"class\" but found \"enum\"\n")
+	expectParseErrorTS(t, "@dec namespace foo {}", "<stdin>: error: Expected \"class\" but found \"namespace\"\n")
+	expectParseErrorTS(t, "@dec function foo() {}", "<stdin>: error: Expected \"class\" but found \"function\"\n")
+	expectParseErrorTS(t, "@dec abstract", "<stdin>: error: Expected \"class\" but found end of file\n")
+	expectParseErrorTS(t, "@dec declare: x", "<stdin>: error: Expected \"class\" but found \":\"\n")
+	expectParseErrorTS(t, "@dec declare enum foo {}", "<stdin>: error: Expected \"class\" but found \"enum\"\n")
+	expectParseErrorTS(t, "@dec declare namespace foo {}", "<stdin>: error: Expected \"class\" but found \"namespace\"\n")
+	expectParseErrorTS(t, "@dec declare function foo()", "<stdin>: error: Expected \"class\" but found \"function\"\n")
+	expectParseErrorTS(t, "@dec export {}", "<stdin>: error: Expected \"class\" but found \"{\"\n")
+	expectParseErrorTS(t, "@dec export enum foo {}", "<stdin>: error: Expected \"class\" but found \"enum\"\n")
+	expectParseErrorTS(t, "@dec export namespace foo {}", "<stdin>: error: Expected \"class\" but found \"namespace\"\n")
+	expectParseErrorTS(t, "@dec export function foo() {}", "<stdin>: error: Expected \"class\" but found \"function\"\n")
+	expectParseErrorTS(t, "@dec export default abstract", "<stdin>: error: Expected \"class\" but found end of file\n")
+	expectParseErrorTS(t, "@dec export declare enum foo {}", "<stdin>: error: Expected \"class\" but found \"enum\"\n")
+	expectParseErrorTS(t, "@dec export declare namespace foo {}", "<stdin>: error: Expected \"class\" but found \"namespace\"\n")
+	expectParseErrorTS(t, "@dec export declare function foo()", "<stdin>: error: Expected \"class\" but found \"function\"\n")
 
-	expectParseErrorTS(t, "@Dec @Dec let x",
-		"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Decorators are not supported yet\n"+
-			"<stdin>: error: Expected \"class\" but found \"let\"\n")
+	// Decorators must be forbidden outside class statements
+	expectParseErrorTS(t, "(class { @dec foo })", "<stdin>: error: Expected identifier but found \"@\"\n")
+	expectParseErrorTS(t, "(class { @dec foo() {} })", "<stdin>: error: Expected identifier but found \"@\"\n")
+	expectParseErrorTS(t, "(class { foo(@dec x) {} })", "<stdin>: error: Expected identifier but found \"@\"\n")
+	expectParseErrorTS(t, "({ @dec foo })", "<stdin>: error: Expected identifier but found \"@\"\n")
+	expectParseErrorTS(t, "({ @dec foo() {} })", "<stdin>: error: Expected identifier but found \"@\"\n")
+	expectParseErrorTS(t, "({ foo(@dec x) {} })", "<stdin>: error: Expected identifier but found \"@\"\n")
+
+	// Decorators aren't allowed with private names
+	expectParseErrorTS(t, "class Foo { @dec #foo }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec #foo = 1 }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec *#foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec async #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec async* #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static #foo }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static #foo = 1 }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static *#foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static async #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static async* #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 }
 
 func TestTSArrow(t *testing.T) {

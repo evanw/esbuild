@@ -4,6 +4,7 @@ const Code = `
 	let __defineProperty = Object.defineProperty
 	let __hasOwnProperty = Object.prototype.hasOwnProperty
 	let __getOwnPropertySymbols = Object.getOwnPropertySymbols
+	let __getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
 	let __propertyIsEnumerable = Object.prototype.propertyIsEnumerable
 
 	export let __pow = Math.pow
@@ -51,4 +52,75 @@ const Code = `
 		for (let name in all)
 			__defineProperty(target, name, { get: all[name], enumerable: true })
 	}
+
+	// For TypeScript decorators
+	// - kind === undefined: class
+	// - kind === 1: method, parameter
+	// - kind === 2: field
+	export let __decorate = (decorators, target, key, kind) => {
+		var result = kind > 1 ? void 0 : kind ? __getOwnPropertyDescriptor(target, key) : target
+		for (var i = decorators.length - 1, decorator; i >= 0; i--)
+			if (decorator = decorators[i])
+				result = (kind ? decorator(target, key, result) : decorator(result)) || result
+		if (kind && result)
+			__defineProperty(target, key, result)
+		return result
+	}
+	export let __param = (index, decorator) => (target, key) => decorator(target, key, index)
 `
+
+// The TypeScript decorator transform behaves similar to the official
+// TypeScript compiler.
+//
+// One difference is that the "__decorate" function doesn't contain a reference
+// to the non-existent "Reflect.decorate" function. This function was never
+// standardized and checking for it is wasted code (as well as a potentially
+// dangerous cause of unintentional behavior changes in the future).
+//
+// Another difference is that the "__decorate" function doesn't take in an
+// optional property descriptor like it does in the official TypeScript
+// compiler's support code. This appears to be a dead code path in the official
+// support code that is only there for legacy reasons.
+//
+// Here are some examples of how esbuild's decorator transform works:
+//
+// ============================= Class decorator ==============================
+//
+//   // TypeScript                      // JavaScript
+//   @dec                               let C = class {
+//   class C {                          };
+//   }                                  C = __decorate([
+//                                        dec
+//                                      ], C);
+//
+// ============================ Method decorator ==============================
+//
+//   // TypeScript                      // JavaScript
+//   class C {                          class C {
+//     @dec                               foo() {}
+//     foo() {}                         }
+//   }                                  __decorate([
+//                                        dec
+//                                      ], C.prototype, 'foo', 1);
+//
+// =========================== Parameter decorator ============================
+//
+//   // TypeScript                      // JavaScript
+//   class C {                          class C {
+//     foo(@dec bar) {}                   foo(bar) {}
+//   }                                  }
+//                                      __decorate([
+//                                        __param(0, dec)
+//                                      ], C.prototype, 'foo', 1);
+//
+// ============================= Field decorator ==============================
+//
+//   // TypeScript                      // JavaScript
+//   class C {                          class C {
+//     @dec                               constructor() {
+//     foo = 123                            this.foo = 123
+//   }                                    }
+//                                      }
+//                                      __decorate([
+//                                        dec
+//                                      ], C.prototype, 'foo', 2);

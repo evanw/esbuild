@@ -1483,21 +1483,21 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					case *ast.SFunction:
 						// "export default function() {}" => "function default() {}"
 						// "export default function foo() {}" => "function foo() {}"
-						if s2.Fn.Name == nil {
-							// Be careful to not modify the original statement
-							s2 = &ast.SFunction{Fn: s2.Fn}
-							s2.Fn.Name = &s.DefaultName
-						}
+
+						// Be careful to not modify the original statement
+						s2 = &ast.SFunction{Fn: s2.Fn}
+						s2.Fn.Name = &s.DefaultName
+
 						stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
 
 					case *ast.SClass:
 						// "export default class {}" => "class default {}"
 						// "export default class Foo {}" => "class Foo {}"
-						if s2.Class.Name == nil {
-							// Be careful to not modify the original statement
-							s2 = &ast.SClass{Class: s2.Class}
-							s2.Class.Name = &s.DefaultName
-						}
+
+						// Be careful to not modify the original statement
+						s2 = &ast.SClass{Class: s2.Class}
+						s2.Class.Name = &s.DefaultName
+
 						stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
 
 					default:

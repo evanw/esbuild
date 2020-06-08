@@ -144,6 +144,7 @@ These TypeScript-only syntax features are supported, and are always converted to
 | Type casts              | `a as B` and `<B>a`        | |
 | Type imports            | `import {Type} from 'foo'` | Handled by removing all unused imports |
 | Type exports            | `export {Type} from 'foo'` | Handled by ignoring missing exports in TypeScript files |
+| Experimental decorators | `@sealed class Foo {}`     | |
 
 These TypeScript-only syntax features are parsed and ignored (a non-exhaustive list):
 
@@ -155,12 +156,6 @@ These TypeScript-only syntax features are parsed and ignored (a non-exhaustive l
 | Ambient declarations   | `declare module 'foo' {}`       |
 | Type-only imports      | `import type {Type} from 'foo'` |
 | Type-only exports      | `export type {Type} from 'foo'` |
-
-These TypeScript-only syntax features are not yet supported, and currently cannot be parsed (an exhaustive list):
-
-| Syntax feature          | Example                | Notes |
-|-------------------------|------------------------|-------|
-| Experimental decorators | `@sealed class Foo {}` | This is tracked [here](https://github.com/evanw/esbuild/issues/104) |
 
 #### Disclaimers:
 

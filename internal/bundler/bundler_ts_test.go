@@ -788,3 +788,368 @@ func TestTSNamespaceExportArraySpreadNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestTypeScriptDecorators(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import all from './all'
+				import all_computed from './all_computed'
+				import {a} from './a'
+				import {b} from './b'
+				import {c} from './c'
+				import {d} from './d'
+				import e from './e'
+				import f from './f'
+				import g from './g'
+				import h from './h'
+				import {i} from './i'
+				import {j} from './j'
+				import k from './k'
+				console.log(all, all_computed, a, b, c, d, e, f, g, h, i, j, k)
+			`,
+			"/all.ts": `
+				@x.y()
+				@new y.x()
+				export default class Foo {
+					@x @y mUndef
+					@x @y mDef = 1
+					@x @y method(@x0 @y0 arg0, @x1 @y1 arg1) { return new Foo }
+					@x @y static sUndef
+					@x @y static sDef = new Foo
+					@x @y static sMethod(@x0 @y0 arg0, @x1 @y1 arg1) { return new Foo }
+				}
+			`,
+			"/all_computed.ts": `
+				@x?.[_ + 'y']()
+				@new y?.[_ + 'x']()
+				export default class Foo {
+					@x @y [mUndef()]
+					@x @y [mDef()] = 1
+					@x @y [method()](@x0 @y0 arg0, @x1 @y1 arg1) { return new Foo }
+
+					// Side effect order must be preserved even for fields without decorators
+					[xUndef()]
+					[xDef()] = 2
+					static [yUndef()]
+					static [yDef()] = 3
+
+					@x @y static [sUndef()]
+					@x @y static [sDef()] = new Foo
+					@x @y static [sMethod()](@x0 @y0 arg0, @x1 @y1 arg1) { return new Foo }
+				}
+			`,
+			"/a.ts": `
+				@x(() => 0) @y(() => 1)
+				class a_class {
+					fn() { return new a_class }
+					static z = new a_class
+				}
+				export let a = a_class
+			`,
+			"/b.ts": `
+				@x(() => 0) @y(() => 1)
+				abstract class b_class {
+					fn() { return new b_class }
+					static z = new b_class
+				}
+				export let b = b_class
+			`,
+			"/c.ts": `
+				@x(() => 0) @y(() => 1)
+				export class c {
+					fn() { return new c }
+					static z = new c
+				}
+			`,
+			"/d.ts": `
+				@x(() => 0) @y(() => 1)
+				export abstract class d {
+					fn() { return new d }
+					static z = new d
+				}
+			`,
+			"/e.ts": `
+				@x(() => 0) @y(() => 1)
+				export default class {}
+			`,
+			"/f.ts": `
+				@x(() => 0) @y(() => 1)
+				export default class f {
+					fn() { return new f }
+					static z = new f
+				}
+			`,
+			"/g.ts": `
+				@x(() => 0) @y(() => 1)
+				export default abstract class {}
+			`,
+			"/h.ts": `
+				@x(() => 0) @y(() => 1)
+				export default abstract class h {
+					fn() { return new h }
+					static z = new h
+				}
+			`,
+			"/i.ts": `
+				class i_class {
+					@x(() => 0) @y(() => 1)
+					foo
+				}
+				export let i = i_class
+			`,
+			"/j.ts": `
+				export class j {
+					@x(() => 0) @y(() => 1)
+					foo() {}
+				}
+			`,
+			"/k.ts": `
+				export default class {
+					foo(@x(() => 0) @y(() => 1) x) {}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /all.ts
+let Foo = class {
+  constructor() {
+    this.mDef = 1;
+  }
+  method(arg0, arg1) {
+    return new Foo();
+  }
+  static sMethod(arg0, arg1) {
+    return new Foo();
+  }
+};
+Foo.sDef = new Foo();
+__decorate([
+  x,
+  y
+], Foo.prototype, "mUndef", 2);
+__decorate([
+  x,
+  y
+], Foo.prototype, "mDef", 2);
+__decorate([
+  x,
+  y,
+  __param(0, x0),
+  __param(0, y0),
+  __param(1, x1),
+  __param(1, y1)
+], Foo.prototype, "method", 1);
+__decorate([
+  x,
+  y
+], Foo.prototype, "sUndef", 2);
+__decorate([
+  x,
+  y
+], Foo.prototype, "sDef", 2);
+__decorate([
+  x,
+  y,
+  __param(0, x0),
+  __param(0, y0),
+  __param(1, x1),
+  __param(1, y1)
+], Foo.prototype, "sMethod", 1);
+Foo = __decorate([
+  x.y(),
+  new y.x()
+], Foo);
+const all_default = Foo;
+
+// /all_computed.ts
+var _a, _b, _c, _d, _e, _f, _g, _h;
+let Foo2 = class {
+  constructor() {
+    this[_b] = 1;
+    this[_d] = 2;
+  }
+  [(_a = mUndef(), _b = mDef(), _c = method())](arg0, arg1) {
+    return new Foo2();
+  }
+  static [(xUndef(), _d = xDef(), yUndef(), _e = yDef(), _f = sUndef(), _g = sDef(), _h = sMethod())](arg0, arg1) {
+    return new Foo2();
+  }
+};
+Foo2[_e] = 3;
+Foo2[_g] = new Foo2();
+__decorate([
+  x,
+  y
+], Foo2.prototype, _a, 2);
+__decorate([
+  x,
+  y
+], Foo2.prototype, _b, 2);
+__decorate([
+  x,
+  y,
+  __param(0, x0),
+  __param(0, y0),
+  __param(1, x1),
+  __param(1, y1)
+], Foo2.prototype, _c, 1);
+__decorate([
+  x,
+  y
+], Foo2.prototype, _f, 2);
+__decorate([
+  x,
+  y
+], Foo2.prototype, _g, 2);
+__decorate([
+  x,
+  y,
+  __param(0, x0),
+  __param(0, y0),
+  __param(1, x1),
+  __param(1, y1)
+], Foo2.prototype, _h, 1);
+Foo2 = __decorate([
+  x?.[_ + "y"](),
+  new y?.[_ + "x"]()
+], Foo2);
+const all_computed_default = Foo2;
+
+// /a.ts
+let a_class = class {
+  fn() {
+    return new a_class();
+  }
+};
+a_class.z = new a_class();
+a_class = __decorate([
+  x(() => 0),
+  y(() => 1)
+], a_class);
+let a = a_class;
+
+// /b.ts
+let b_class = class {
+  fn() {
+    return new b_class();
+  }
+};
+b_class.z = new b_class();
+b_class = __decorate([
+  x(() => 0),
+  y(() => 1)
+], b_class);
+let b = b_class;
+
+// /c.ts
+let c = class {
+  fn() {
+    return new c();
+  }
+};
+c.z = new c();
+c = __decorate([
+  x(() => 0),
+  y(() => 1)
+], c);
+
+// /d.ts
+let d = class {
+  fn() {
+    return new d();
+  }
+};
+d.z = new d();
+d = __decorate([
+  x(() => 0),
+  y(() => 1)
+], d);
+
+// /e.ts
+let _a2 = class {
+};
+_a2 = __decorate([
+  x(() => 0),
+  y(() => 1)
+], _a2);
+const e_default = _a2;
+
+// /f.ts
+let f2 = class {
+  fn() {
+    return new f2();
+  }
+};
+f2.z = new f2();
+f2 = __decorate([
+  x(() => 0),
+  y(() => 1)
+], f2);
+const f_default = f2;
+
+// /g.ts
+let _a3 = class {
+};
+_a3 = __decorate([
+  x(() => 0),
+  y(() => 1)
+], _a3);
+const g_default = _a3;
+
+// /h.ts
+let h2 = class {
+  fn() {
+    return new h2();
+  }
+};
+h2.z = new h2();
+h2 = __decorate([
+  x(() => 0),
+  y(() => 1)
+], h2);
+const h2 = h2;
+
+// /i.ts
+class i_class {
+}
+__decorate([
+  x(() => 0),
+  y(() => 1)
+], i_class.prototype, "foo", 2);
+let i2 = i_class;
+
+// /j.ts
+class j2 {
+  foo() {
+  }
+}
+__decorate([
+  x(() => 0),
+  y(() => 1)
+], j2.prototype, "foo", 1);
+
+// /k.ts
+class k_default {
+  foo(x2) {
+  }
+}
+__decorate([
+  __param(0, x2(() => 0)),
+  __param(0, y(() => 1))
+], _a4.prototype, "foo", 1);
+
+// /entry.js
+console.log(all_default, all_computed_default, a, b, c, d, e_default, f_default, g_default, h2, i2, j2, k_default);
+`,
+		},
+	})
+}

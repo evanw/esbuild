@@ -123,6 +123,9 @@ type fnOpts struct {
 
 	// In TypeScript, forward declarations of functions have no bodies
 	allowMissingBodyForTypeScript bool
+
+	// Allow TypeScript decorators in function arguments
+	allowTSDecorators bool
 }
 
 func isJumpStatement(data ast.S) bool {
@@ -365,6 +368,27 @@ func (p *parser) popAndFlattenScope(scopeIndex int) {
 		scope.Parent = parent
 		parent.Children = append(parent.Children, scope)
 	}
+}
+
+// Undo all scopes pushed and popped after this scope index. This assumes that
+// the scope stack is at the same level now as it was at the given scope index.
+func (p *parser) discardScopesUpTo(scopeIndex int) {
+	// Remove any direct children from their parent
+	children := p.currentScope.Children
+	for _, child := range p.scopesInOrder[scopeIndex:] {
+		if child.scope.Parent == p.currentScope {
+			for i := len(children) - 1; i >= 0; i-- {
+				if children[i] == child.scope {
+					children = append(children[:i], children[i+1:]...)
+					break
+				}
+			}
+		}
+	}
+	p.currentScope.Children = children
+
+	// Truncate the scope order where we started to pretend we never saw this scope
+	p.scopesInOrder = p.scopesInOrder[:scopeIndex]
 }
 
 func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
@@ -1349,23 +1373,21 @@ func (p *parser) logBindingErrors(errors *deferredErrors) {
 	}
 }
 
-type propertyContext int
-
-const (
-	propertyContextObject = iota
-	propertyContextClass
-)
-
 type propertyOpts struct {
-	asyncRange      ast.Range
-	isAsync         bool
-	isGenerator     bool
-	isStatic        bool
-	classHasExtends bool
+	asyncRange  ast.Range
+	isAsync     bool
+	isGenerator bool
+
+	// Class-related options
+	isStatic          bool
+	isClass           bool
+	classHasExtends   bool
+	allowTSDecorators bool
+	tsDecorators      []ast.Expr
 }
 
 func (p *parser) parseProperty(
-	context propertyContext, kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors,
+	kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors,
 ) (ast.Property, bool) {
 	var key ast.Expr
 	keyRange := p.lexer.Range()
@@ -1381,7 +1403,7 @@ func (p *parser) parseProperty(
 		p.lexer.Next()
 
 	case lexer.TPrivateIdentifier:
-		if context != propertyContextClass {
+		if !opts.isClass || len(opts.tsDecorators) > 0 {
 			p.lexer.Expected(lexer.TIdentifier)
 		}
 		p.markFutureSyntax(futureSyntaxPrivateName, p.lexer.Range())
@@ -1395,8 +1417,7 @@ func (p *parser) parseProperty(
 		expr := p.parseExpr(ast.LComma)
 
 		// Handle index signatures
-		if p.ts.Parse && p.lexer.Token == lexer.TColon && wasIdentifier &&
-			context == propertyContextClass {
+		if p.ts.Parse && p.lexer.Token == lexer.TColon && wasIdentifier && opts.isClass {
 			if _, ok := expr.Data.(*ast.EIdentifier); ok {
 				// "[key: string]: any;"
 				p.lexer.Next()
@@ -1420,7 +1441,7 @@ func (p *parser) parseProperty(
 		}
 		p.lexer.Next()
 		opts.isGenerator = true
-		return p.parseProperty(context, ast.PropertyNormal, opts, errors)
+		return p.parseProperty(ast.PropertyNormal, opts, errors)
 
 	default:
 		name := p.lexer.Identifier
@@ -1447,31 +1468,31 @@ func (p *parser) parseProperty(
 				switch name {
 				case "get":
 					if !opts.isAsync {
-						return p.parseProperty(context, ast.PropertyGet, opts, nil)
+						return p.parseProperty(ast.PropertyGet, opts, nil)
 					}
 
 				case "set":
 					if !opts.isAsync {
-						return p.parseProperty(context, ast.PropertySet, opts, nil)
+						return p.parseProperty(ast.PropertySet, opts, nil)
 					}
 
 				case "async":
 					if !opts.isAsync {
 						opts.isAsync = true
 						opts.asyncRange = nameRange
-						return p.parseProperty(context, kind, opts, nil)
+						return p.parseProperty(kind, opts, nil)
 					}
 
 				case "static":
-					if !opts.isStatic && !opts.isAsync && context == propertyContextClass {
+					if !opts.isStatic && !opts.isAsync && opts.isClass {
 						opts.isStatic = true
-						return p.parseProperty(context, kind, opts, nil)
+						return p.parseProperty(kind, opts, nil)
 					}
 
 				case "private", "protected", "public", "readonly", "abstract":
 					// Skip over TypeScript keywords
-					if context == propertyContextClass && p.ts.Parse {
-						return p.parseProperty(context, kind, opts, nil)
+					if opts.isClass && p.ts.Parse {
+						return p.parseProperty(kind, opts, nil)
 					}
 				}
 			}
@@ -1480,7 +1501,7 @@ func (p *parser) parseProperty(
 		key = ast.Expr{nameRange.Loc, &ast.EString{lexer.StringToUTF16(name)}}
 
 		// Parse a shorthand property
-		if context == propertyContextObject && kind == ast.PropertyNormal && p.lexer.Token != lexer.TColon &&
+		if !opts.isClass && kind == ast.PropertyNormal && p.lexer.Token != lexer.TColon &&
 			p.lexer.Token != lexer.TOpenParen && p.lexer.Token != lexer.TLessThan && !opts.isGenerator {
 			ref := p.storeNameInRef(name)
 			value := ast.Expr{key.Loc, &ast.EIdentifier{ref}}
@@ -1506,7 +1527,7 @@ func (p *parser) parseProperty(
 	if p.ts.Parse {
 		// "class X { foo?: number }"
 		// "class X { foo!: number }"
-		if context == propertyContextClass && (p.lexer.Token == lexer.TQuestion || p.lexer.Token == lexer.TExclamation) {
+		if opts.isClass && (p.lexer.Token == lexer.TQuestion || p.lexer.Token == lexer.TExclamation) {
 			p.lexer.Next()
 		}
 
@@ -1516,8 +1537,8 @@ func (p *parser) parseProperty(
 	}
 
 	// Parse a class field with an optional initial value
-	if context == propertyContextClass && kind == ast.PropertyNormal &&
-		!opts.isAsync && !opts.isGenerator && p.lexer.Token != lexer.TOpenParen {
+	if opts.isClass && kind == ast.PropertyNormal && !opts.isAsync &&
+		!opts.isGenerator && p.lexer.Token != lexer.TOpenParen {
 		var initializer *ast.Expr
 
 		// Forbid the names "constructor" and "prototype" in some cases
@@ -1551,23 +1572,24 @@ func (p *parser) parseProperty(
 
 		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Property{
-			Kind:        kind,
-			IsComputed:  isComputed,
-			IsStatic:    opts.isStatic,
-			Key:         key,
-			Initializer: initializer,
+			TSDecorators: opts.tsDecorators,
+			Kind:         kind,
+			IsComputed:   isComputed,
+			IsStatic:     opts.isStatic,
+			Key:          key,
+			Initializer:  initializer,
 		}, true
 	}
 
 	// Parse a method expression
 	if p.lexer.Token == lexer.TOpenParen || kind != ast.PropertyNormal ||
-		context == propertyContextClass || opts.isAsync || opts.isGenerator {
+		opts.isClass || opts.isAsync || opts.isGenerator {
 		loc := p.lexer.Loc()
 		scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 		isConstructor := false
 
 		// Forbid the names "constructor" and "prototype" in some cases
-		if context == propertyContextClass && !isComputed {
+		if opts.isClass && !isComputed {
 			if str, ok := key.Data.(*ast.EString); ok {
 				if !opts.isStatic && lexer.UTF16EqualsString(str.Value, "constructor") {
 					switch {
@@ -1589,13 +1611,14 @@ func (p *parser) parseProperty(
 		}
 
 		fn, hadBody := p.parseFn(nil, fnOpts{
-			asyncRange:     opts.asyncRange,
-			allowAwait:     opts.isAsync,
-			allowYield:     opts.isGenerator,
-			allowSuperCall: opts.classHasExtends && isConstructor,
+			asyncRange:        opts.asyncRange,
+			allowAwait:        opts.isAsync,
+			allowYield:        opts.isGenerator,
+			allowSuperCall:    opts.classHasExtends && isConstructor,
+			allowTSDecorators: opts.allowTSDecorators,
 
 			// Only allow omitting the body if we're parsing TypeScript class
-			allowMissingBodyForTypeScript: p.ts.Parse && context == propertyContextClass,
+			allowMissingBodyForTypeScript: p.ts.Parse && opts.isClass,
 		})
 
 		// "class Foo { foo(): void; foo(): void {} }"
@@ -1627,12 +1650,13 @@ func (p *parser) parseProperty(
 		}
 
 		return ast.Property{
-			Kind:       kind,
-			IsComputed: isComputed,
-			IsMethod:   true,
-			IsStatic:   opts.isStatic,
-			Key:        key,
-			Value:      &value,
+			TSDecorators: opts.tsDecorators,
+			Kind:         kind,
+			IsComputed:   isComputed,
+			IsMethod:     true,
+			IsStatic:     opts.isStatic,
+			Key:          key,
+			Value:        &value,
 		}, true
 	}
 
@@ -2088,7 +2112,13 @@ func (p *parser) convertExprToBinding(expr ast.Expr, invalidLog []ast.Loc) (ast.
 	}
 }
 
-func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
+type exprFlag uint8
+
+const (
+	exprFlagTSDecorator exprFlag = 1 << iota
+)
+
+func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag) ast.Expr {
 	loc := p.lexer.Loc()
 
 	switch p.lexer.Token {
@@ -2351,7 +2381,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			return ast.Expr{loc, &ast.ENewTarget{}}
 		}
 
-		target := p.parseExpr(ast.LCall)
+		target := p.parseExprWithFlags(ast.LCall, flags)
 		args := []ast.Expr{}
 
 		if p.ts.Parse {
@@ -2454,7 +2484,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 				}
 			} else {
 				// This property may turn out to be a type in TypeScript, which should be ignored
-				if property, ok := p.parseProperty(propertyContextObject, ast.PropertyNormal, propertyOpts{}, &selfErrors); ok {
+				if property, ok := p.parseProperty(ast.PropertyNormal, propertyOpts{}, &selfErrors); ok {
 					properties = append(properties, property)
 				}
 			}
@@ -2572,7 +2602,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors) ast.Expr {
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LLowest)
 			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
-			return p.parsePrefix(level, errors)
+			return p.parsePrefix(level, errors, flags)
 		}
 
 		p.lexer.Unexpected()
@@ -2698,14 +2728,18 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 }
 
 func (p *parser) parseExprOrBindings(level ast.L, errors *deferredErrors) ast.Expr {
-	return p.parseSuffix(p.parsePrefix(level, errors), level, errors)
+	return p.parseSuffix(p.parsePrefix(level, errors, 0), level, errors, 0)
 }
 
 func (p *parser) parseExpr(level ast.L) ast.Expr {
-	return p.parseSuffix(p.parsePrefix(level, nil), level, nil)
+	return p.parseSuffix(p.parsePrefix(level, nil, 0), level, nil, 0)
 }
 
-func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors) ast.Expr {
+func (p *parser) parseExprWithFlags(level ast.L, flags exprFlag) ast.Expr {
+	return p.parseSuffix(p.parsePrefix(level, nil, flags), level, nil, flags)
+}
+
+func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors, flags exprFlag) ast.Expr {
 	// ArrowFunction is a special case in the grammar. Although it appears to be
 	// a PrimaryExpression, it's actually an AssigmentExpression. This means if
 	// a AssigmentExpression ends up producing an ArrowFunction then nothing can
@@ -2870,6 +2904,18 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors)
 			left = ast.Expr{left.Loc, &ast.ETemplate{&tag, head, headRaw, parts}}
 
 		case lexer.TOpenBracket:
+			// When parsing a decorator, ignore EIndex expressions since they may be
+			// part of a computed property:
+			//
+			//   class Foo {
+			//     @foo ['computed']() {}
+			//   }
+			//
+			// This matches the behavior of the TypeScript compiler.
+			if (flags & exprFlagTSDecorator) != 0 {
+				return left
+			}
+
 			p.lexer.Next()
 
 			// Allow "in" inside the brackets
@@ -3822,9 +3868,9 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			continue
 		}
 
-		// Skip past decorators and recover even though they aren't supported
-		if p.ts.Parse {
-			p.parseAndSkipDecorators()
+		var tsDecorators []ast.Expr
+		if opts.allowTSDecorators {
+			tsDecorators = p.parseTSDecorators()
 		}
 
 		if !hasRestArg && p.lexer.Token == lexer.TDotDotDot {
@@ -3888,8 +3934,9 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 		}
 
 		args = append(args, ast.Arg{
-			Binding: arg,
-			Default: defaultValue,
+			TSDecorators: tsDecorators,
+			Binding:      arg,
+			Default:      defaultValue,
 
 			// We need to track this because it affects code generation
 			IsTypeScriptCtorField: isTypeScriptField,
@@ -3952,52 +3999,40 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		p.skipTypeScriptTypeParameters()
 	}
 
-	class := p.parseClass(name, parseClassOpts{isTypeScriptDeclare: opts.isTypeScriptDeclare})
+	classOpts := parseClassOpts{
+		allowTSDecorators:   true,
+		isTypeScriptDeclare: opts.isTypeScriptDeclare,
+	}
+	if opts.tsDecorators != nil {
+		classOpts.tsDecorators = opts.tsDecorators.values
+	}
+	class := p.parseClass(name, classOpts)
 	return ast.Stmt{loc, &ast.SClass{class, opts.isExport}}
 }
 
-func (p *parser) parseAndSkipDecorators() {
-	for p.lexer.Token == lexer.TAt {
-		r := p.lexer.Range()
-		p.lexer.Next()
-
-		// Eat an identifier
-		r.Len = p.lexer.Range().End() - r.Loc.Start
-		p.lexer.Expect(lexer.TIdentifier)
-
-		// Eat an property access chain
-		for p.lexer.Token == lexer.TDot {
+func (p *parser) parseTSDecorators() []ast.Expr {
+	var tsDecorators []ast.Expr
+	if p.ts.Parse {
+		for p.lexer.Token == lexer.TAt {
 			p.lexer.Next()
-			r.Len = p.lexer.Range().End() - r.Loc.Start
-			p.lexer.Expect(lexer.TIdentifier)
+
+			// Parse a new/call expression with "exprFlagTSDecorator" so we ignore
+			// EIndex expressions, since they may be part of a computed property:
+			//
+			//   class Foo {
+			//     @foo ['computed']() {}
+			//   }
+			//
+			// This matches the behavior of the TypeScript compiler.
+			tsDecorators = append(tsDecorators, p.parseExprWithFlags(ast.LNew, exprFlagTSDecorator))
 		}
-
-		// Eat call expression arguments
-		if p.lexer.Token == lexer.TOpenParen {
-			p.lexer.Next()
-			depth := 0
-
-			// Skip to the matching close parenthesis. This doesn't have to be super
-			// accurate because we're in error recovery mode.
-			for p.lexer.Token != lexer.TEndOfFile && (p.lexer.Token != lexer.TCloseParen || depth > 0) {
-				switch p.lexer.Token {
-				case lexer.TOpenParen:
-					depth++
-				case lexer.TCloseParen:
-					depth--
-				}
-				p.lexer.Next()
-			}
-
-			r.Len = p.lexer.Range().End() - r.Loc.Start
-			p.lexer.Expect(lexer.TCloseParen)
-		}
-
-		p.addRangeError(r, "Decorators are not supported yet")
 	}
+	return tsDecorators
 }
 
 type parseClassOpts struct {
+	tsDecorators        []ast.Expr
+	allowTSDecorators   bool
 	isTypeScriptDeclare bool
 }
 
@@ -4037,9 +4072,6 @@ func (p *parser) parseClass(name *ast.LocRef, classOpts parseClassOpts) ast.Clas
 	bodyLoc := p.lexer.Loc()
 	p.lexer.Expect(lexer.TOpenBrace)
 	properties := []ast.Property{}
-	opts := propertyOpts{
-		classHasExtends: extends != nil,
-	}
 
 	// Allow "in" and private fields inside class bodies
 	oldAllowIn := p.allowIn
@@ -4056,13 +4088,19 @@ func (p *parser) parseClass(name *ast.LocRef, classOpts parseClassOpts) ast.Clas
 			continue
 		}
 
-		// Skip past decorators and recover even though they aren't supported
-		if p.ts.Parse {
-			p.parseAndSkipDecorators()
+		opts := propertyOpts{
+			isClass:           true,
+			allowTSDecorators: classOpts.allowTSDecorators,
+			classHasExtends:   extends != nil,
+		}
+
+		// Parse decorators for this property
+		if opts.allowTSDecorators {
+			opts.tsDecorators = p.parseTSDecorators()
 		}
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
-		if property, ok := p.parseProperty(propertyContextClass, ast.PropertyNormal, opts, nil); ok {
+		if property, ok := p.parseProperty(ast.PropertyNormal, opts, nil); ok {
 			properties = append(properties, property)
 		}
 	}
@@ -4078,7 +4116,7 @@ func (p *parser) parseClass(name *ast.LocRef, classOpts parseClassOpts) ast.Clas
 	p.allowPrivateIdentifiers = oldAllowPrivateIdentifiers
 
 	p.lexer.Expect(lexer.TCloseBrace)
-	return ast.Class{name, extends, bodyLoc, properties}
+	return ast.Class{classOpts.tsDecorators, name, extends, bodyLoc, properties}
 }
 
 func (p *parser) parseLabelName() *ast.LocRef {
@@ -4166,7 +4204,16 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 	return ast.Stmt{loc, &ast.SFunction{fn, opts.isExport}}
 }
 
+type deferredTSDecorators struct {
+	values []ast.Expr
+
+	// If this turns out to be a "declare class" statement, we need to undo the
+	// scopes that were potentially pushed while parsing the decorator arguments.
+	scopeIndex int
+}
+
 type parseStmtOpts struct {
+	tsDecorators        *deferredTSDecorators
 	allowLexicalDecl    bool
 	isModuleScope       bool
 	isNamespaceScope    bool
@@ -4190,6 +4237,18 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.Unexpected()
 		}
 		p.lexer.Next()
+
+		// TypeScript decorators only work on class declarations
+		// "@decorator export class Foo {}"
+		// "@decorator export abstract class Foo {}"
+		// "@decorator export default class Foo {}"
+		// "@decorator export default abstract class Foo {}"
+		// "@decorator export declare class Foo {}"
+		// "@decorator export declare abstract class Foo {}"
+		if opts.tsDecorators != nil && p.lexer.Token != lexer.TClass && p.lexer.Token != lexer.TDefault &&
+			!p.lexer.IsContextualKeyword("abstract") && !p.lexer.IsContextualKeyword("declare") {
+			p.lexer.Expected(lexer.TClass)
+		}
 
 		switch p.lexer.Token {
 		case lexer.TClass, lexer.TConst, lexer.TFunction, lexer.TLet, lexer.TVar:
@@ -4268,6 +4327,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
 			p.lexer.Next()
 
+			// TypeScript decorators only work on class declarations
+			// "@decorator export default class Foo {}"
+			// "@decorator export default abstract class Foo {}"
+			if opts.tsDecorators != nil && p.lexer.Token != lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
+				p.lexer.Expected(lexer.TClass)
+			}
+
 			if p.lexer.IsContextualKeyword("async") {
 				asyncRange := p.lexer.Range()
 				p.lexer.Next()
@@ -4282,40 +4348,24 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						return stmt // This was just a type annotation
 					}
 
-					// Use the statement name if present, since it's a better name
-					if s, ok := stmt.Data.(*ast.SFunction); ok && s.Fn.Name != nil {
-						defaultName.Ref = s.Fn.Name.Ref
-					}
-
 					p.recordExport(defaultName.Loc, "default", defaultName.Ref)
 					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 
 				p.recordExport(defaultName.Loc, "default", defaultName.Ref)
-				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LComma, nil)
+				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LComma, nil, 0)
 				p.lexer.ExpectOrInsertSemicolon()
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
 			}
 
 			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass || p.lexer.Token == lexer.TInterface {
 				stmt := p.parseStmt(parseStmtOpts{
+					tsDecorators:     opts.tsDecorators,
 					isNameOptional:   true,
 					allowLexicalDecl: true,
 				})
 				if _, ok := stmt.Data.(*ast.STypeScript); ok {
 					return stmt // This was just a type annotation
-				}
-
-				// Use the statement name if present, since it's a better name
-				switch s := stmt.Data.(type) {
-				case *ast.SFunction:
-					if s.Fn.Name != nil {
-						defaultName.Ref = s.Fn.Name.Ref
-					}
-				case *ast.SClass:
-					if s.Class.Name != nil {
-						defaultName.Ref = s.Class.Name.Ref
-					}
 				}
 
 				p.recordExport(defaultName.Loc, "default", defaultName.Ref)
@@ -4327,9 +4377,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			expr := p.parseExpr(ast.LComma)
 
 			// Handle the default export of an abstract class in TypeScript
-			if p.ts.Parse && isIdentifier && name == "abstract" && p.lexer.Token == lexer.TClass {
-				if _, ok := expr.Data.(*ast.EIdentifier); ok {
-					stmt := p.parseClassStmt(loc, parseStmtOpts{isNameOptional: true})
+			if p.ts.Parse && isIdentifier && name == "abstract" {
+				if _, ok := expr.Data.(*ast.EIdentifier); ok && (p.lexer.Token == lexer.TClass || opts.tsDecorators != nil) {
+					stmt := p.parseClassStmt(loc, parseStmtOpts{
+						tsDecorators:   opts.tsDecorators,
+						isNameOptional: true,
+					})
 
 					// Use the statement name if present, since it's a better name
 					if s, ok := stmt.Data.(*ast.SClass); ok && s.Class.Name != nil {
@@ -4440,15 +4493,40 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{loc, &ast.STypeScript{}}
 
 	case lexer.TAt:
-		// Skip past decorators and recover even though they aren't supported
+		// Parse decorators before class statements, which are potentially exported
 		if p.ts.Parse {
-			p.parseAndSkipDecorators()
-			if p.lexer.Token == lexer.TExport {
-				p.lexer.Next()
+			scopeIndex := len(p.scopesInOrder)
+			tsDecorators := p.parseTSDecorators()
+
+			// If this turns out to be a "declare class" statement, we need to undo the
+			// scopes that were potentially pushed while parsing the decorator arguments.
+			// That can look like any one of the following:
+			//
+			//   "@decorator declare class Foo {}"
+			//   "@decorator declare abstract class Foo {}"
+			//   "@decorator export declare class Foo {}"
+			//   "@decorator export declare abstract class Foo {}"
+			//
+			opts.tsDecorators = &deferredTSDecorators{
+				values:     tsDecorators,
+				scopeIndex: scopeIndex,
 			}
-			if p.lexer.Token != lexer.TClass {
+
+			// "@decorator class Foo {}"
+			// "@decorator abstract class Foo {}"
+			// "@decorator declare class Foo {}"
+			// "@decorator declare abstract class Foo {}"
+			// "@decorator export class Foo {}"
+			// "@decorator export abstract class Foo {}"
+			// "@decorator export declare class Foo {}"
+			// "@decorator export declare abstract class Foo {}"
+			// "@decorator export default class Foo {}"
+			// "@decorator export default abstract class Foo {}"
+			if p.lexer.Token != lexer.TClass && p.lexer.Token != lexer.TExport &&
+				!p.lexer.IsContextualKeyword("abstract") && !p.lexer.IsContextualKeyword("declare") {
 				p.lexer.Expected(lexer.TClass)
 			}
+
 			return p.parseStmt(opts)
 		}
 
@@ -4794,7 +4872,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		case lexer.TOpenParen, lexer.TDot:
 			// "import('path')"
 			// "import.meta"
-			expr := p.parseSuffix(p.parseImportExpr(loc), ast.LLowest, nil)
+			expr := p.parseSuffix(p.parseImportExpr(loc), ast.LLowest, nil, 0)
 			p.lexer.ExpectOrInsertSemicolon()
 			return ast.Stmt{loc, &ast.SExpr{expr}}
 
@@ -5053,14 +5131,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Next()
 				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */, asyncRange)
 			}
-			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LLowest, nil)
+			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LLowest, nil, 0)
 		} else {
 			expr = p.parseExpr(ast.LLowest)
 		}
 
 		if isIdentifier {
 			if ident, ok := expr.Data.(*ast.EIdentifier); ok {
-				if p.lexer.Token == lexer.TColon {
+				if p.lexer.Token == lexer.TColon && opts.tsDecorators == nil {
 					p.pushScopeForParsePass(ast.ScopeLabel, loc)
 					defer p.popScope()
 
@@ -5091,13 +5169,19 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						}
 
 					case "abstract":
-						if p.lexer.Token == lexer.TClass {
+						if p.lexer.Token == lexer.TClass || opts.tsDecorators != nil {
 							return p.parseClassStmt(loc, opts)
 						}
 
 					case "declare":
 						opts.allowLexicalDecl = true
 						opts.isTypeScriptDeclare = true
+
+						// "@decorator declare class Foo {}"
+						// "@decorator declare abstract class Foo {}"
+						if opts.tsDecorators != nil && p.lexer.Token != lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
+							p.lexer.Expected(lexer.TClass)
+						}
 
 						// "declare global { ... }"
 						if p.lexer.IsContextualKeyword("global") {
@@ -5110,6 +5194,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 						// "declare const x: any"
 						p.parseStmt(opts)
+						if opts.tsDecorators != nil {
+							p.discardScopesUpTo(opts.tsDecorators.scopeIndex)
+						}
 						return ast.Stmt{loc, &ast.STypeScript{}}
 					}
 				}
@@ -5980,7 +6067,8 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	}
 
 	// We always lower class fields when parsing TypeScript since class fields in
-	// TypeScript don't follow the JavaScript spec.
+	// TypeScript don't follow the JavaScript spec. We also need to always lower
+	// TypeScript-style decorators since they don't have a JavaScript equivalent.
 	if !p.ts.Parse && p.target >= ESNext {
 		if kind == classKindExpr {
 			return nil, expr
@@ -5997,6 +6085,8 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	// These expressions are generated after the class body, in this order
 	var computedPropertyCache ast.Expr
 	var staticFields []ast.Expr
+	var instanceDecorators []ast.Expr
+	var staticDecorators []ast.Expr
 
 	// These are only for class expressions that need to be captured
 	var nameFunc func() ast.Expr
@@ -6020,15 +6110,34 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	}
 
 	for _, prop := range class.Properties {
+		// Merge parameter decorators with method decorators
+		if p.ts.Parse && prop.IsMethod {
+			if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
+				for i, arg := range fn.Fn.Args {
+					for _, decorator := range arg.TSDecorators {
+						// Generate a call to "__param()" for this parameter decorator
+						prop.TSDecorators = append(prop.TSDecorators,
+							p.callRuntime(decorator.Loc, "__param", []ast.Expr{
+								ast.Expr{decorator.Loc, &ast.ENumber{float64(i)}},
+								decorator,
+							}),
+						)
+					}
+				}
+			}
+		}
+
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
-		if prop.IsComputed && (p.ts.Parse || computedPropertyCache.Data != nil || (!prop.IsMethod && p.target < ESNext)) {
+		keyExprNoSideEffects := prop.Key
+		if prop.IsComputed && (p.ts.Parse || computedPropertyCache.Data != nil ||
+			(!prop.IsMethod && p.target < ESNext) || len(prop.TSDecorators) > 0) {
 			needsKey := true
 
 			// The TypeScript class field transform requires removing fields without
 			// initializers. If the field is removed, then we only need the key for
 			// its side effects and we don't need a temporary reference for the key.
-			if prop.IsMethod || (p.ts.Parse && prop.Initializer == nil) {
+			if len(prop.TSDecorators) == 0 && (prop.IsMethod || (p.ts.Parse && prop.Initializer == nil)) {
 				needsKey = false
 			}
 
@@ -6044,6 +6153,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 					Right: prop.Key,
 				}})
 				prop.Key = ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}
+				keyExprNoSideEffects = prop.Key
 			}
 
 			// If this is a computed method, the property value will be used
@@ -6052,6 +6162,51 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			if prop.IsMethod {
 				prop.Key = computedPropertyCache
 				computedPropertyCache = ast.Expr{}
+			}
+		}
+
+		// Handle decorators
+		if p.ts.Parse {
+			// Generate a single call to "__decorate()" for this property
+			if len(prop.TSDecorators) > 0 {
+				loc := prop.Key.Loc
+
+				// Clone the key for the property descriptor
+				var descriptorKey ast.Expr
+				switch k := keyExprNoSideEffects.Data.(type) {
+				case *ast.ENumber:
+					descriptorKey = ast.Expr{loc, &ast.ENumber{k.Value}}
+				case *ast.EString:
+					descriptorKey = ast.Expr{loc, &ast.EString{k.Value}}
+				case *ast.EIdentifier:
+					descriptorKey = ast.Expr{loc, &ast.EIdentifier{k.Ref}}
+				default:
+					panic("Internal error")
+				}
+
+				// This code tells "__decorate()" if the descriptor should be undefined
+				descriptorKind := float64(1)
+				if !prop.IsMethod {
+					descriptorKind = 2
+				}
+
+				decorator := p.callRuntime(loc, "__decorate", []ast.Expr{
+					ast.Expr{loc, &ast.EArray{Items: prop.TSDecorators}},
+					ast.Expr{loc, &ast.EDot{
+						Target:  nameFunc(),
+						Name:    "prototype",
+						NameLoc: loc,
+					}},
+					descriptorKey,
+					ast.Expr{loc, &ast.ENumber{descriptorKind}},
+				})
+
+				// Static decorators are grouped after instance decorators
+				if prop.IsStatic {
+					staticDecorators = append(staticDecorators, decorator)
+				} else {
+					instanceDecorators = append(instanceDecorators, decorator)
+				}
 			}
 		}
 
@@ -6209,7 +6364,8 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		}
 	}
 
-	// Pack the class back into an expression
+	// Pack the class back into an expression. We don't need to handle TypeScript
+	// decorators for class expressions because TypeScript doesn't support them.
 	if kind == classKindExpr {
 		// Initialize any remaining computed properties immediately after the end
 		// of the class body
@@ -6233,16 +6389,31 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	// Pack the class back into a statement, with potentially some extra
 	// statements afterwards
 	var stmts []ast.Stmt
-	switch kind {
-	case classKindStmt:
-		stmts = append(stmts, ast.Stmt{classLoc, &ast.SClass{Class: *class}})
-	case classKindExportStmt:
-		stmts = append(stmts, ast.Stmt{classLoc, &ast.SClass{Class: *class, IsExport: true}})
-	case classKindExportDefaultStmt:
-		stmts = append(stmts, ast.Stmt{classLoc, &ast.SExportDefault{
-			DefaultName: defaultName,
-			Value:       ast.ExprOrStmt{Stmt: &ast.Stmt{classLoc, &ast.SClass{Class: *class}}},
+	if len(class.TSDecorators) > 0 {
+		name := nameFunc()
+		id, _ := name.Data.(*ast.EIdentifier)
+		classExpr := ast.EClass{Class: *class}
+		class = &classExpr.Class
+		stmts = append(stmts, ast.Stmt{classLoc, &ast.SLocal{
+			Kind:     ast.LocalLet,
+			IsExport: kind == classKindExportStmt,
+			Decls: []ast.Decl{ast.Decl{
+				Binding: ast.Binding{name.Loc, &ast.BIdentifier{id.Ref}},
+				Value:   &ast.Expr{classLoc, &classExpr},
+			}},
 		}})
+	} else {
+		switch kind {
+		case classKindStmt:
+			stmts = append(stmts, ast.Stmt{classLoc, &ast.SClass{Class: *class}})
+		case classKindExportStmt:
+			stmts = append(stmts, ast.Stmt{classLoc, &ast.SClass{Class: *class, IsExport: true}})
+		case classKindExportDefaultStmt:
+			stmts = append(stmts, ast.Stmt{classLoc, &ast.SExportDefault{
+				DefaultName: defaultName,
+				Value:       ast.ExprOrStmt{Stmt: &ast.Stmt{classLoc, &ast.SClass{Class: *class}}},
+			}})
+		}
 	}
 
 	// The official TypeScript compiler adds generated code after the class body
@@ -6253,7 +6424,30 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	for _, expr := range staticFields {
 		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 	}
-
+	for _, expr := range instanceDecorators {
+		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+	}
+	for _, expr := range staticDecorators {
+		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+	}
+	if len(class.TSDecorators) > 0 {
+		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{ast.Expr{classLoc, &ast.EBinary{
+			Op:   ast.BinOpAssign,
+			Left: nameFunc(),
+			Right: p.callRuntime(classLoc, "__decorate", []ast.Expr{
+				ast.Expr{classLoc, &ast.EArray{Items: class.TSDecorators}},
+				nameFunc(),
+			}),
+		}}}})
+		if kind == classKindExportDefaultStmt {
+			name := nameFunc()
+			stmts = append(stmts, ast.Stmt{classLoc, &ast.SExportDefault{
+				DefaultName: defaultName,
+				Value:       ast.ExprOrStmt{Expr: &name},
+			}})
+		}
+		class.Name = nil
+	}
 	return stmts, ast.Expr{}
 }
 
@@ -7444,7 +7638,16 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 	}
 }
 
+func (p *parser) visitTSDecorators(tsDecorators []ast.Expr) []ast.Expr {
+	for i, decorator := range tsDecorators {
+		tsDecorators[i] = p.visitExpr(decorator)
+	}
+	return tsDecorators
+}
+
 func (p *parser) visitClass(class *ast.Class) {
+	class.TSDecorators = p.visitTSDecorators(class.TSDecorators)
+
 	if class.Extends != nil {
 		*class.Extends = p.visitExpr(*class.Extends)
 	}
@@ -7457,6 +7660,8 @@ func (p *parser) visitClass(class *ast.Class) {
 	defer p.popScope()
 
 	for i, property := range class.Properties {
+		property.TSDecorators = p.visitTSDecorators(property.TSDecorators)
+
 		// Special-case EPrivateIdentifier to allow it here
 		if _, ok := property.Key.Data.(*ast.EPrivateIdentifier); !ok {
 			class.Properties[i].Key = p.visitExpr(property.Key)
@@ -7474,6 +7679,7 @@ func (p *parser) visitClass(class *ast.Class) {
 
 func (p *parser) visitArgs(args []ast.Arg) {
 	for _, arg := range args {
+		arg.TSDecorators = p.visitTSDecorators(arg.TSDecorators)
 		p.visitBinding(arg.Binding)
 		if arg.Default != nil {
 			*arg.Default = p.visitExpr(*arg.Default)

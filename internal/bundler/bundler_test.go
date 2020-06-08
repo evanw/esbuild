@@ -547,13 +547,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function a() {
+			"/out/c.js": `export default function b() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class a {
+			"/out/e.js": `export default class b {
 }
 `,
 		},
@@ -643,7 +643,7 @@ import f, * as e from "foo";
 import g, {a2 as h, b as i} from "foo";
 const j = [
   import("foo"),
-  function C() {
+  function F() {
     return import("foo");
   }
 ];
@@ -729,9 +729,9 @@ var require_c = __commonJS((exports) => {
 // /d.js
 var require_d = __commonJS((exports) => {
   __export(exports, {
-    default: () => Foo
+    default: () => d_default
   });
-  class Foo {
+  class d_default {
   }
 });
 
@@ -747,9 +747,9 @@ var require_e = __commonJS((exports) => {
 // /f.js
 var require_f = __commonJS((exports) => {
   __export(exports, {
-    default: () => foo
+    default: () => f_default
   });
-  function foo() {
+  function f_default() {
   }
 });
 
@@ -765,9 +765,9 @@ var require_g = __commonJS((exports) => {
 // /h.js
 var require_h = __commonJS((exports) => {
   __export(exports, {
-    default: () => foo
+    default: () => h_default
   });
-  async function foo() {
+  async function h_default() {
   }
 });
 
@@ -822,9 +822,9 @@ func TestReExportDefaultCommonJS(t *testing.T) {
 			"/out.js": `// /bar.js
 var require_bar = __commonJS((exports) => {
   __export(exports, {
-    default: () => foo2
+    default: () => bar_default
   });
-  function foo2() {
+  function bar_default() {
     return exports;
   }
 });

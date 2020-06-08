@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+* Initial implementation of TypeScript decorators ([#104](https://github.com/evanw/esbuild/issues/104))
+
+    This release contains an initial implementation of the non-standard TypeScript-specific decorator syntax. This syntax transformation is enabled by default in esbuild, so no extra configuration is needed. The TypeScript compiler will need `"experimentalDecorators": true` configured in `tsconfig.json` for type checking to work with TypeScript decorators.
+
+    Here's an example of a method decorator:
+
+    ```ts
+    function logged(target, key, descriptor) {
+      let method = descriptor.value
+      descriptor.value = function(...args) {
+        let result = method.apply(this, args)
+        let joined = args.map(x => JSON.stringify(x)).join(', ')
+        console.log(`${key}(${joined}) => ${JSON.stringify(result)}`)
+        return result
+      }
+    }
+
+    class Example {
+      @logged
+      method(text: string) {
+        return text + '!'
+      }
+    }
+
+    const x = new Example
+    x.method('text')
+    ```
+
+    There are four kinds of TypeScript decorators: class, method, parameter, and field decorators. See [the TypeScript decorator documentation](https://www.typescriptlang.org/docs/handbook/decorators.html) for more information. Note that esbuild only implements TypeScript's `experimentalDecorators` setting. It does not implement the `emitDecoratorMetadata` setting because that requires type information.
+
+* Fix order of side effects for computed fields
+
+    When transforming computed class fields, esbuild had a bug where the side effects of the field property names were not evaluated in source code order. The order of side effects now matches the order in the source code.
+
 * Fix private fields in TypeScript
 
     This fixes a bug with private instance fields in TypeScript where the private field declaration was incorrectly removed during the TypeScript class field transform, which inlines the initializers into the constructor. Now the initializers are still moved to the constructor but the private field declaration is preserved without the initializer.

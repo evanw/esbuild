@@ -256,11 +256,8 @@ const (
 )
 
 type Property struct {
-	Kind       PropertyKind
-	IsComputed bool
-	IsMethod   bool
-	IsStatic   bool
-	Key        Expr
+	TSDecorators []Expr
+	Key          Expr
 
 	// This is omitted for class fields
 	Value *Expr
@@ -275,6 +272,11 @@ type Property struct {
 	//   class Foo { a = 1 }
 	//
 	Initializer *Expr
+
+	Kind       PropertyKind
+	IsComputed bool
+	IsMethod   bool
+	IsStatic   bool
 }
 
 type PropertyBinding struct {
@@ -286,20 +288,22 @@ type PropertyBinding struct {
 }
 
 type Arg struct {
+	TSDecorators []Expr
+	Binding      Binding
+	Default      *Expr
+
 	// "constructor(public x: boolean) {}"
 	IsTypeScriptCtorField bool
-
-	Binding Binding
-	Default *Expr
 }
 
 type Fn struct {
-	Name        *LocRef
-	Args        []Arg
+	Name *LocRef
+	Args []Arg
+	Body FnBody
+
 	IsAsync     bool
 	IsGenerator bool
 	HasRestArg  bool
-	Body        FnBody
 }
 
 type FnBody struct {
@@ -308,10 +312,11 @@ type FnBody struct {
 }
 
 type Class struct {
-	Name       *LocRef
-	Extends    *Expr
-	BodyLoc    Loc
-	Properties []Property
+	TSDecorators []Expr
+	Name         *LocRef
+	Extends      *Expr
+	BodyLoc      Loc
+	Properties   []Property
 }
 
 type ArrayBinding struct {
@@ -1257,11 +1262,16 @@ func GenerateNonUniqueNameFromPath(text string) string {
 
 	// Convert it to an ASCII identifier
 	bytes := []byte{}
+	needsGap := false
 	for _, c := range base {
 		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (len(bytes) > 0 && c >= '0' && c <= '9') {
+			if needsGap {
+				bytes = append(bytes, '_')
+				needsGap = false
+			}
 			bytes = append(bytes, byte(c))
-		} else if len(bytes) > 0 && bytes[len(bytes)-1] != '_' {
-			bytes = append(bytes, '_')
+		} else if len(bytes) > 0 {
+			needsGap = true
 		}
 	}
 
