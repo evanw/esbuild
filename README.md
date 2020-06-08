@@ -144,7 +144,7 @@ These TypeScript-only syntax features are supported, and are always converted to
 | Type casts              | `a as B` and `<B>a`        | |
 | Type imports            | `import {Type} from 'foo'` | Handled by removing all unused imports |
 | Type exports            | `export {Type} from 'foo'` | Handled by ignoring missing exports in TypeScript files |
-| Experimental decorators | `@sealed class Foo {}`     | |
+| Experimental decorators | `@sealed class Foo {}`     | The `emitDecoratorMetadata` flag is not supported |
 
 These TypeScript-only syntax features are parsed and ignored (a non-exhaustive list):
 
