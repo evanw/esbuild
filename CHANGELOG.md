@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.10
 
 * Initial implementation of TypeScript decorators ([#104](https://github.com/evanw/esbuild/issues/104))
 
