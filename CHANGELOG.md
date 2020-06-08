@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Support `export * from ...` for CommonJS modules ([#159](https://github.com/evanw/esbuild/issues/159))
+
+    Wildcard re-exports are now supported when the exports come from a CommonJS or external module. Since CommonJS modules are not statically analyzable, this means in these cases the re-exports are evaluated at run time instead of at bundle time. Modules that re-export symbols this way will also be considered CommonJS modules during bundling because their exports are now also not statically analyzable.
+
 ## 0.4.11
 
 * Fix top-level name minification with runtime

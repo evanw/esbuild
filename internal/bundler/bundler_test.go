@@ -619,7 +619,7 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 				import def3, {a2, b as c3} from 'foo'
 				const imp = [
 					import('foo'),
-					function nested() { return import('foo') },
+					function() { return import('foo') },
 				]
 				console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp)
 			`,
@@ -643,7 +643,7 @@ import f, * as e from "foo";
 import g, {a2 as h, b as i} from "foo";
 const j = [
   import("foo"),
-  function F() {
+  function() {
     return import("foo");
   }
 ];
@@ -3414,7 +3414,7 @@ export default require_entry();
 	})
 }
 
-func TestExportWildcardFSNode(t *testing.T) {
+func TestExportWildcardFSNodeES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3427,12 +3427,48 @@ func TestExportWildcardFSNode(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
 			Platform: resolver.PlatformNode,
 		},
-		expectedCompileLog: "/entry.js: error: Wildcard exports are not supported for this module\n",
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+import * as fs_star from "fs";
+var require_entry = __commonJS((exports) => {
+  __exportStar(exports, fs_star);
+});
+export default require_entry();
+`,
+		},
+	})
+}
+
+func TestExportWildcardFSNodeCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from 'fs'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+__exportStar(exports, __toModule(require("fs")));
+`,
+		},
 	})
 }
 
@@ -3811,6 +3847,12 @@ var require_dummy = __commonJS((exports) => {
   const dummy3 = 123;
 });
 
+// /es6-export-star.js
+var require_es6_export_star = __commonJS((exports) => {
+  __exportStar(exports, __toModule(require_dummy()));
+  console.log(void 0);
+});
+
 // /es6-export-assign.ts
 var require_es6_export_assign = __commonJS((exports, module) => {
   console.log(void 0);
@@ -3967,9 +4009,6 @@ console.log(void 0);
 const dummy = __toModule(require_dummy());
 console.log(void 0);
 
-// /es6-export-star.js
-console.log(void 0);
-
 // /es6-export-star-as.js
 const ns = __toModule(require_dummy());
 console.log(void 0);
@@ -3980,6 +4019,7 @@ console.log(void 0);
 
 // /entry.js
 const cjs = __toModule(require_cjs());
+const es6_export_star = __toModule(require_es6_export_star());
 const es6_export_assign = __toModule(require_es6_export_assign());
 const es6_ns_export_variable = __toModule(require_es6_ns_export_variable());
 const es6_ns_export_function = __toModule(require_es6_ns_export_function());

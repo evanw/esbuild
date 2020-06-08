@@ -170,6 +170,41 @@
     }),
   )
 
+  // ES6 export star of CommonJS module
+  tests.push(
+    // Internal
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import * as ns from './re-export'; if (ns.foo !== 123) throw 'fail'`,
+      're-export.js': `export * from './commonjs'`,
+      'commonjs.js': `exports.foo = 123`,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import {foo} from './re-export'; if (foo !== 123) throw 'fail'`,
+      're-export.js': `export * from './commonjs'`,
+      'commonjs.js': `exports.foo = 123`,
+    }),
+
+    // External
+    test(['--bundle', 'entry.js', '--outfile=node.js', '--external:fs'], {
+      'entry.js': `import * as ns from './re-export'; if (typeof ns.exists !== 'function') throw 'fail'`,
+      're-export.js': `export * from 'fs'`,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=node.js', '--external:fs'], {
+      'entry.js': `import {exists} from './re-export'; if (typeof exists !== 'function') throw 'fail'`,
+      're-export.js': `export * from 'fs'`,
+    }),
+
+    // External (masked)
+    test(['--bundle', 'entry.js', '--outfile=node.js', '--external:fs'], {
+      'entry.js': `import * as ns from './re-export'; if (ns.exists !== 123) throw 'fail'`,
+      're-export.js': `export * from 'fs'; export let exists = 123`,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=node.js', '--external:fs'], {
+      'entry.js': `import {exists} from './re-export'; if (exists !== 123) throw 'fail'`,
+      're-export.js': `export * from 'fs'; export let exists = 123`,
+    }),
+  )
+
   // Tests for catch scope issues
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {
@@ -266,7 +301,6 @@
       // Top-level names should not be minified
       'in.js': `function foo() {} if (foo.name !== 'foo') throw 'fail'`,
     }),
-
     test(['in.js', '--outfile=node.js', '--minify'], {
       // Nested names should be minified
       'in.js': `(() => { function foo() {} if (foo.name === 'foo') throw 'fail' })()`,

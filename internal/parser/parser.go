@@ -4442,18 +4442,29 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			}
 
 			p.lexer.Next()
-			var item *ast.ClauseItem
+			var namespaceRef ast.Ref
+			var alias *ast.ExportStarAlias
+			var path ast.Path
+
 			if p.lexer.IsContextualKeyword("as") {
+				// "export * as ns from 'path'"
 				p.lexer.Next()
 				name := p.lexer.Identifier
-				nameLoc := p.lexer.Loc()
-				item = &ast.ClauseItem{name, nameLoc, ast.LocRef{nameLoc, p.storeNameInRef(name)}}
+				namespaceRef = p.storeNameInRef(name)
+				alias = &ast.ExportStarAlias{p.lexer.Loc(), name}
 				p.lexer.Expect(lexer.TIdentifier)
+				p.lexer.ExpectContextualKeyword("from")
+				path = p.parsePath()
+			} else {
+				// "export * from 'path'"
+				p.lexer.ExpectContextualKeyword("from")
+				path = p.parsePath()
+				name := ast.GenerateNonUniqueNameFromPath(path.Text) + "_star"
+				namespaceRef = p.storeNameInRef(name)
 			}
-			p.lexer.ExpectContextualKeyword("from")
-			path := p.parsePath()
+
 			p.lexer.ExpectOrInsertSemicolon()
-			return ast.Stmt{loc, &ast.SExportStar{item, path}}
+			return ast.Stmt{loc, &ast.SExportStar{namespaceRef, alias, path}}
 
 		case lexer.TOpenBrace:
 			if !opts.isModuleScope {
@@ -6814,17 +6825,17 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SExportStar:
-		if s.Item != nil {
-			// "export * as ns from 'path'"
-			name := p.loadNameFromRef(s.Item.Name.Ref)
-			ref := p.newSymbol(ast.SymbolOther, name)
+		// "export * as ns from 'path'"
+		name := p.loadNameFromRef(s.NamespaceRef)
+		s.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
 
-			// This name isn't ever declared in this scope, so code in this module
-			// must not be able to get to it. Still, we need to associate it with
-			// the scope somehow so it will be minified.
-			p.currentScope.Generated = append(p.currentScope.Generated, ref)
-			s.Item.Name.Ref = ref
-			p.recordExport(s.Item.AliasLoc, s.Item.Alias, ref)
+		// This name isn't ever declared in this scope, so code in this module
+		// must not be able to get to it. Still, we need to associate it with
+		// the scope somehow so it will be minified.
+		p.currentScope.Generated = append(p.currentScope.Generated, s.NamespaceRef)
+
+		if s.Alias != nil {
+			p.recordExport(s.Alias.Loc, s.Alias.Name, s.NamespaceRef)
 		}
 
 	case *ast.SExportDefault:
@@ -9153,11 +9164,11 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 			if isBundling {
 				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
 
-				if s.Item != nil {
+				if s.Alias != nil {
 					// "export * as ns from 'path'"
-					p.namedImports[s.Item.Name.Ref] = ast.NamedImport{
+					p.namedImports[s.NamespaceRef] = ast.NamedImport{
 						Alias:        "*",
-						AliasLoc:     s.Item.Name.Loc,
+						AliasLoc:     s.Alias.Loc,
 						ImportPath:   s.Path,
 						NamespaceRef: ast.InvalidRef,
 					}
