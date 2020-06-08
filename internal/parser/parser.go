@@ -5944,29 +5944,117 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 	return result
 }
 
-// Lower class fields for environments that don't support them
-func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
-	staticFields []ast.Expr, // Generated static field initializers
-	newExpr ast.Expr, // Only for !isStmt, should replace the expression if not nil
-) {
+// Lower class fields for environments that don't support them. This either
+// takes a statement or an expression.
+func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr) {
+	type classKind uint8
+	const (
+		classKindExpr classKind = iota
+		classKindStmt
+		classKindExportStmt
+		classKindExportDefaultStmt
+	)
+
+	// Unpack the class from the statement or expression
+	var kind classKind
+	var class *ast.Class
+	var classLoc ast.Loc
+	var defaultName ast.LocRef
+	if stmt.Data == nil {
+		e, _ := expr.Data.(*ast.EClass)
+		class = &e.Class
+		kind = classKindExpr
+	} else if s, ok := stmt.Data.(*ast.SClass); ok {
+		class = &s.Class
+		if s.IsExport {
+			kind = classKindExportStmt
+		} else {
+			kind = classKindStmt
+		}
+	} else {
+		s, _ := stmt.Data.(*ast.SExportDefault)
+		s2, _ := s.Value.Stmt.Data.(*ast.SClass)
+		class = &s2.Class
+		defaultName = s.DefaultName
+		kind = classKindExportDefaultStmt
+	}
+
 	// We always lower class fields when parsing TypeScript since class fields in
 	// TypeScript don't follow the JavaScript spec.
 	if !p.ts.Parse && p.target >= ESNext {
-		return
+		if kind == classKindExpr {
+			return nil, expr
+		} else {
+			return []ast.Stmt{stmt}, ast.Expr{}
+		}
 	}
 
 	var ctor *ast.EFunction
-	props := class.Properties
-	parameterFields := []ast.Stmt{}
-	instanceFields := []ast.Stmt{}
+	var parameterFields []ast.Stmt
+	var instanceFields []ast.Stmt
 	end := 0
+
+	// These expressions are generated after the class body, in this order
+	var computedPropertyCache ast.Expr
+	var staticFields []ast.Expr
 
 	// These are only for class expressions that need to be captured
 	var nameFunc func() ast.Expr
 	var wrapFunc func(ast.Expr) ast.Expr
-	var classExpr *ast.EClass
 
-	for _, prop := range props {
+	// Class statements can be missing a name if they are in an
+	// "export default" statement:
+	//
+	//   export default class {
+	//     static foo = 123
+	//   }
+	//
+	if kind != classKindExpr {
+		nameFunc = func() ast.Expr {
+			if class.Name == nil {
+				class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare)}
+			}
+			p.recordUsage(class.Name.Ref)
+			return ast.Expr{classLoc, &ast.EIdentifier{class.Name.Ref}}
+		}
+	}
+
+	for _, prop := range class.Properties {
+		// Make sure the order of computed property keys doesn't change. These
+		// expressions have side effects and must be evaluated in order.
+		if prop.IsComputed && (p.ts.Parse || computedPropertyCache.Data != nil || (!prop.IsMethod && p.target < ESNext)) {
+			needsKey := true
+
+			// The TypeScript class field transform requires removing fields without
+			// initializers. If the field is removed, then we only need the key for
+			// its side effects and we don't need a temporary reference for the key.
+			if prop.IsMethod || (p.ts.Parse && prop.Initializer == nil) {
+				needsKey = false
+			}
+
+			if !needsKey {
+				// Just evaluate the key for its side effects
+				computedPropertyCache = maybeJoinWithComma(computedPropertyCache, prop.Key)
+			} else {
+				// Store the key in a temporary so we can assign to it later
+				ref := p.generateTempRef(tempRefNeedsDeclare)
+				computedPropertyCache = maybeJoinWithComma(computedPropertyCache, ast.Expr{prop.Key.Loc, &ast.EBinary{
+					Op:    ast.BinOpAssign,
+					Left:  ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}},
+					Right: prop.Key,
+				}})
+				prop.Key = ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}
+			}
+
+			// If this is a computed method, the property value will be used
+			// immediately. In this case we inline all computed properties so far to
+			// make sure all computed properties before this one are evaluated first.
+			if prop.IsMethod {
+				prop.Key = computedPropertyCache
+				computedPropertyCache = ast.Expr{}
+			}
+		}
+
 		// Instance and static fields are a JavaScript feature
 		if (p.ts.Parse || p.target < ESNext) && !prop.IsMethod && (prop.IsStatic || prop.Value == nil) {
 			_, isPrivateField := prop.Key.Data.(*ast.EPrivateIdentifier)
@@ -5979,31 +6067,13 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 				var target ast.Expr
 				if prop.IsStatic {
 					if nameFunc == nil {
-						if !isStmt {
-							// If this is a class expression, capture and store it. We have to
-							// do this even if it has a name since the name isn't exposed
-							// outside the class body.
-							classExpr = &ast.EClass{}
-							nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
-							newExpr = nameFunc()
-						} else {
-							// Otherwise, this is a class statement. Just use the class name.
-							nameFunc = func() ast.Expr {
-								p.recordUsage(class.Name.Ref)
-								return ast.Expr{classLoc, &ast.EIdentifier{class.Name.Ref}}
-							}
-
-							// Class statements can be missing a name if they are in an
-							// "export default" statement:
-							//
-							//   export default class {
-							//     static foo = 123
-							//   }
-							//
-							if class.Name == nil {
-								class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare)}
-							}
-						}
+						// If this is a class expression, capture and store it. We have to
+						// do this even if it has a name since the name isn't exposed
+						// outside the class body.
+						classExpr := &ast.EClass{Class: *class}
+						class = &classExpr.Class
+						nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
+						expr = nameFunc()
 					}
 					target = nameFunc()
 				} else {
@@ -6082,12 +6152,12 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 		}
 
 		// Keep this property
-		props[end] = prop
+		class.Properties[end] = prop
 		end++
 	}
 
 	// Finish the filtering operation
-	props = props[:end]
+	class.Properties = class.Properties[:end]
 
 	// Insert instance field initializers into the constructor
 	if len(instanceFields) > 0 || len(parameterFields) > 0 {
@@ -6096,7 +6166,7 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 			ctor = &ast.EFunction{}
 
 			// Append it to the list to reuse existing allocation space
-			props = append(props, ast.Property{
+			class.Properties = append(class.Properties, ast.Property{
 				IsMethod: true,
 				Key:      ast.Expr{classLoc, &ast.EString{lexer.StringToUTF16("constructor")}},
 				Value:    &ast.Expr{classLoc, ctor},
@@ -6127,33 +6197,64 @@ func (p *parser) lowerClass(classLoc ast.Loc, class *ast.Class, isStmt bool) (
 		ctor.Fn.Body.Stmts = append(stmtsTo, stmtsFrom...)
 
 		// Sort the constructor first to match the TypeScript compiler's output
-		for i := 0; i < len(props); i++ {
-			if props[i].Value != nil && props[i].Value.Data == ctor {
-				ctorProp := props[i]
+		for i := 0; i < len(class.Properties); i++ {
+			if class.Properties[i].Value != nil && class.Properties[i].Value.Data == ctor {
+				ctorProp := class.Properties[i]
 				for j := i; j > 0; j-- {
-					props[j] = props[j-1]
+					class.Properties[j] = class.Properties[j-1]
 				}
-				props[0] = ctorProp
+				class.Properties[0] = ctorProp
 				break
 			}
 		}
 	}
 
-	class.Properties = props
+	// Pack the class back into an expression
+	if kind == classKindExpr {
+		// Initialize any remaining computed properties immediately after the end
+		// of the class body
+		if computedPropertyCache.Data != nil {
+			expr = ast.JoinWithComma(expr, computedPropertyCache)
+		}
 
-	// Join the static field initializers if this is a class expression
-	if !isStmt && len(staticFields) > 0 {
-		classExpr.Class = *class
-		for _, initializer := range staticFields {
-			newExpr = ast.JoinWithComma(newExpr, initializer)
+		// Join the static field initializers if this is a class expression
+		if len(staticFields) > 0 {
+			for _, initializer := range staticFields {
+				expr = ast.JoinWithComma(expr, initializer)
+			}
+			expr = ast.JoinWithComma(expr, nameFunc())
+			if wrapFunc != nil {
+				expr = wrapFunc(expr)
+			}
 		}
-		newExpr = ast.JoinWithComma(newExpr, nameFunc())
-		if wrapFunc != nil {
-			newExpr = wrapFunc(newExpr)
-		}
+		return nil, expr
 	}
 
-	return
+	// Pack the class back into a statement, with potentially some extra
+	// statements afterwards
+	var stmts []ast.Stmt
+	switch kind {
+	case classKindStmt:
+		stmts = append(stmts, ast.Stmt{classLoc, &ast.SClass{Class: *class}})
+	case classKindExportStmt:
+		stmts = append(stmts, ast.Stmt{classLoc, &ast.SClass{Class: *class, IsExport: true}})
+	case classKindExportDefaultStmt:
+		stmts = append(stmts, ast.Stmt{classLoc, &ast.SExportDefault{
+			DefaultName: defaultName,
+			Value:       ast.ExprOrStmt{Stmt: &ast.Stmt{classLoc, &ast.SClass{Class: *class}}},
+		}})
+	}
+
+	// The official TypeScript compiler adds generated code after the class body
+	// in this exact order. Matching this order is important for correctness.
+	if computedPropertyCache.Data != nil {
+		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{computedPropertyCache}})
+	}
+	for _, expr := range staticFields {
+		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+	}
+
+	return stmts, ast.Expr{}
 }
 
 func (p *parser) recordDeclaredSymbol(ref ast.Ref) {
@@ -6495,14 +6596,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 			case *ast.SClass:
 				p.visitClass(&s2.Class)
-				stmts = append(stmts, stmt)
 
 				// Lower class field syntax for browsers that don't support it
-				extraExprs, _ := p.lowerClass(s.Value.Stmt.Loc, &s2.Class, true /* isStmt */)
-				for _, expr := range extraExprs {
-					stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
-				}
-				return stmts
+				classStmts, _ := p.lowerClass(stmt, ast.Expr{})
+				return append(stmts, classStmts...)
 
 			default:
 				panic("Internal error")
@@ -6780,17 +6877,19 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SClass:
 		p.recordDeclaredSymbol(s.Class.Name.Ref)
 		p.visitClass(&s.Class)
-		stmts = append(stmts, stmt)
 
-		// Lower class field syntax for browsers that don't support it
-		extraExprs, _ := p.lowerClass(stmt.Loc, &s.Class, true /* isStmt */)
-		for _, expr := range extraExprs {
-			stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+		// Remove the export flag inside a namespace
+		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceRef != nil
+		if wasExportInsideNamespace {
+			s.IsExport = false
 		}
 
+		// Lower class field syntax for browsers that don't support it
+		classStmts, _ := p.lowerClass(stmt, ast.Expr{})
+		stmts = append(stmts, classStmts...)
+
 		// Handle exporting this class from a namespace
-		if s.IsExport && p.enclosingNamespaceRef != nil {
-			s.IsExport = false
+		if wasExportInsideNamespace {
 			stmts = append(stmts,
 				ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
 					ast.BinOpAssign,
@@ -8531,10 +8630,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 		// Lower class field syntax for browsers that don't support it
-		_, newExpr := p.lowerClass(expr.Loc, &e.Class, false /* isStmt */)
-		if newExpr.Data != nil {
-			expr = newExpr
-		}
+		_, expr = p.lowerClass(ast.Stmt{}, expr)
 
 	default:
 		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))

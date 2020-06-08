@@ -1236,3 +1236,32 @@ func TestTSJSX(t *testing.T) {
 	expectParseErrorTSX(t, "(<T, X>(y))", "<stdin>: error: Expected \"=>\" but found \")\"\n")
 	expectParseErrorTSX(t, "(<T, X>y => {})", "<stdin>: error: Expected \"(\" but found \"y\"\n")
 }
+
+func TestClassSideEffectOrder(t *testing.T) {
+	// The order of computed property side effects must not change
+	expectPrintedTS(t, `class Foo {
+	[a()]() {}
+	[b()];
+	[c()] = 1;
+	[d()]() {}
+	static [e()];
+	static [f()] = 1;
+	static [g()]() {}
+	[h()];
+}
+`, `var _a, _b;
+class Foo {
+  constructor() {
+    this[_a] = 1;
+  }
+  [a()]() {
+  }
+  [(b(), _a = c(), d())]() {
+  }
+  static [(e(), _b = f(), g())]() {
+  }
+}
+h();
+Foo[_b] = 1;
+`)
+}
