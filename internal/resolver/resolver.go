@@ -47,6 +47,7 @@ type ResolveOptions struct {
 	ExtensionOrder  []string
 	Platform        Platform
 	ExternalModules map[string]bool
+	OriginDir       string
 }
 
 type resolver struct {
@@ -127,7 +128,13 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 	// Get the cached information for this directory and all parent directories
 	sourceDir := r.fs.Dir(sourcePath)
 
-	if IsNonModulePath(importPath) {
+	if r.options.OriginDir != "" && isSlashPath(importPath) {
+		if absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(r.options.OriginDir, importPath)); ok {
+			result = absolute
+		} else {
+			return "", ResolveMissing
+		}
+	} else if IsNonModulePath(importPath) {
 		if absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath)); ok {
 			result = absolute
 		} else {
@@ -826,6 +833,10 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 	}
 
 	return "", false
+}
+
+func isSlashPath(path string) bool {
+	return strings.HasPrefix(path, "/")
 }
 
 func IsNonModulePath(path string) bool {

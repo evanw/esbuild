@@ -35,6 +35,7 @@ Options:
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife, cjs, esm)
+  --origindir=...       Resolve imports starting with / relative to directory
   --color=...           Force use of color terminal escapes (true or false)
 
   --minify              Sets all --minify-* flags
@@ -293,6 +294,14 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 			}
 			args.bundleOptions.AbsOutputDir = dir
 
+		case strings.HasPrefix(arg, "--origindir="):
+			value := arg[len("--origindir="):]
+			dir, ok := fs.Abs(value)
+			if !ok {
+				return argsObject{}, fmt.Errorf("Invalid bundle origin directory: %s", arg)
+			}
+			args.resolveOptions.OriginDir = dir
+
 		case strings.HasPrefix(arg, "--define:"):
 			text := arg[len("--define:"):]
 			equals := strings.IndexByte(text, '=')
@@ -458,6 +467,10 @@ func parseArgs(fs fs.FS, rawArgs []string) (argsObject, error) {
 
 		if len(args.resolveOptions.ExternalModules) > 0 {
 			return argsObject{}, fmt.Errorf("Cannot use --external without --bundle")
+		}
+
+		if args.resolveOptions.OriginDir != "" {
+			return argsObject{}, fmt.Errorf("Cannot use --origindir without --bundle")
 		}
 	}
 
