@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-Fix top-level name minification with runtime
+* Fix top-level name minification with runtime
 
     When not bundling, esbuild only minifies top-level names if the file is an ES6 module (as determined by the presence of an ES6 import or export statement). This determination had a bug where a non-module file was considered a module if esbuild automatically generated an import to some internal support code called the "runtime". For example, using the `**` operator with `--target=es2015` generates an import for the `__pow` runtime function. Runtime imports are now ignored for module determination, so an automatically-generated runtime import no longer causes top-level names to be minified.
+
+* Fix class name generation for default exports
+
+    Some changes to name generation for TypeScript decorators caused the generated class name for `export default class` statements to sometimes not match the name used for other references to that class in the same file. This bug has been fixed.
 
 ## 0.4.10
 

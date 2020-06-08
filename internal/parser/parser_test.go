@@ -1644,18 +1644,24 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "export default class Foo { static get [foo]() {} }", "export default class Foo {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class Foo { static set [foo](a) {} }", "export default class Foo {\n  static set [foo](a) {\n  }\n}\n")
 
-	expectPrintedTarget(t, ES2015, "export default class { static foo }", "export default class _a {\n}\n_a.foo = void 0;\n")
-	expectPrintedTarget(t, ES2015, "export default class { static foo = null }", "export default class _a {\n}\n_a.foo = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static foo }",
+		"export default class stdin_default {\n}\nstdin_default.foo = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static foo = null }",
+		"export default class stdin_default {\n}\nstdin_default.foo = null;\n")
 	expectPrintedTarget(t, ES2015, "export default class { static foo(a, b) {} }", "export default class {\n  static foo(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static get foo() {} }", "export default class {\n  static get foo() {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static set foo(a) {} }", "export default class {\n  static set foo(a) {\n  }\n}\n")
-	expectPrintedTarget(t, ES2015, "export default class { static 123 }", "export default class _a {\n}\n_a[123] = void 0;\n")
-	expectPrintedTarget(t, ES2015, "export default class { static 123 = null }", "export default class _a {\n}\n_a[123] = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static 123 }",
+		"export default class stdin_default {\n}\nstdin_default[123] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static 123 = null }",
+		"export default class stdin_default {\n}\nstdin_default[123] = null;\n")
 	expectPrintedTarget(t, ES2015, "export default class { static 123(a, b) {} }", "export default class {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static get 123() {} }", "export default class {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static set 123(a) {} }", "export default class {\n  static set 123(a) {\n  }\n}\n")
-	expectPrintedTarget(t, ES2015, "export default class { static [foo] }", "var _a;\nexport default class _b {\n}\n_a = foo;\n_b[_a] = void 0;\n")
-	expectPrintedTarget(t, ES2015, "export default class { static [foo] = null }", "var _a;\nexport default class _b {\n}\n_a = foo;\n_b[_a] = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static [foo] }",
+		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\nstdin_default[_a] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static [foo] = null }",
+		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\nstdin_default[_a] = null;\n")
 	expectPrintedTarget(t, ES2015, "export default class { static [foo](a, b) {} }", "export default class {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static get [foo]() {} }", "export default class {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static set [foo](a) {} }", "export default class {\n  static set [foo](a) {\n  }\n}\n")

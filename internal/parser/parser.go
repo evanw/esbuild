@@ -4322,10 +4322,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Unexpected()
 			}
 
-			defaultIdentifier := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
-			defaultName := ast.LocRef{p.lexer.Loc(), p.newSymbol(ast.SymbolOther, defaultIdentifier)}
-			p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
+			defaultLoc := p.lexer.Loc()
 			p.lexer.Next()
+
+			// The default name is lazily generated only if no other name is present
+			createDefaultName := func() ast.LocRef {
+				name := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
+				defaultName := ast.LocRef{defaultLoc, p.newSymbol(ast.SymbolOther, name)}
+				p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
+				return defaultName
+			}
 
 			// TypeScript decorators only work on class declarations
 			// "@decorator export default class Foo {}"
@@ -4348,11 +4354,20 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						return stmt // This was just a type annotation
 					}
 
-					p.recordExport(defaultName.Loc, "default", defaultName.Ref)
+					// Use the statement name if present, since it's a better name
+					var defaultName ast.LocRef
+					if s, ok := stmt.Data.(*ast.SFunction); ok && s.Fn.Name != nil {
+						defaultName = ast.LocRef{defaultLoc, s.Fn.Name.Ref}
+					} else {
+						defaultName = createDefaultName()
+					}
+
+					p.recordExport(defaultLoc, "default", defaultName.Ref)
 					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 
-				p.recordExport(defaultName.Loc, "default", defaultName.Ref)
+				defaultName := createDefaultName()
+				p.recordExport(defaultLoc, "default", defaultName.Ref)
 				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LComma, nil, 0)
 				p.lexer.ExpectOrInsertSemicolon()
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
@@ -4368,7 +4383,26 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					return stmt // This was just a type annotation
 				}
 
-				p.recordExport(defaultName.Loc, "default", defaultName.Ref)
+				// Use the statement name if present, since it's a better name
+				var defaultName ast.LocRef
+				switch s := stmt.Data.(type) {
+				case *ast.SFunction:
+					if s.Fn.Name != nil {
+						defaultName = ast.LocRef{defaultLoc, s.Fn.Name.Ref}
+					} else {
+						defaultName = createDefaultName()
+					}
+				case *ast.SClass:
+					if s.Class.Name != nil {
+						defaultName = ast.LocRef{defaultLoc, s.Class.Name.Ref}
+					} else {
+						defaultName = createDefaultName()
+					}
+				default:
+					defaultName = createDefaultName()
+				}
+
+				p.recordExport(defaultLoc, "default", defaultName.Ref)
 				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
@@ -4385,17 +4419,21 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					})
 
 					// Use the statement name if present, since it's a better name
+					var defaultName ast.LocRef
 					if s, ok := stmt.Data.(*ast.SClass); ok && s.Class.Name != nil {
-						defaultName.Ref = s.Class.Name.Ref
+						defaultName = ast.LocRef{defaultLoc, s.Class.Name.Ref}
+					} else {
+						defaultName = createDefaultName()
 					}
 
-					p.recordExport(defaultName.Loc, "default", defaultName.Ref)
+					p.recordExport(defaultLoc, "default", defaultName.Ref)
 					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 			}
 
 			p.lexer.ExpectOrInsertSemicolon()
-			p.recordExport(defaultName.Loc, "default", defaultName.Ref)
+			defaultName := createDefaultName()
+			p.recordExport(defaultLoc, "default", defaultName.Ref)
 			return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
 
 		case lexer.TAsterisk:
@@ -6102,7 +6140,11 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	if kind != classKindExpr {
 		nameFunc = func() ast.Expr {
 			if class.Name == nil {
-				class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare)}
+				if kind == classKindExportDefaultStmt {
+					class.Name = &defaultName
+				} else {
+					class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare)}
+				}
 			}
 			p.recordUsage(class.Name.Ref)
 			return ast.Expr{classLoc, &ast.EIdentifier{class.Name.Ref}}
@@ -6440,9 +6482,18 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			}),
 		}}}})
 		if kind == classKindExportDefaultStmt {
+			// Generate a new default name symbol since the current one is being used
+			// by the class. If this SExportDefault turns into a variable declaration,
+			// we don't want it to accidentally use the same variable as the class and
+			// cause a name collision.
+			nameFromPath := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
+			defaultRef := p.generateTempRef(tempRefNoDeclare)
+			p.symbols[defaultRef.InnerIndex].Name = nameFromPath
+			p.namedExports["default"] = defaultRef
+
 			name := nameFunc()
 			stmts = append(stmts, ast.Stmt{classLoc, &ast.SExportDefault{
-				DefaultName: defaultName,
+				DefaultName: ast.LocRef{defaultName.Loc, defaultRef},
 				Value:       ast.ExprOrStmt{Expr: &name},
 			}})
 		}

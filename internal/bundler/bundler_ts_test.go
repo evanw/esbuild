@@ -1075,13 +1075,13 @@ d = __decorate([
 ], d);
 
 // /e.ts
-let _a2 = class {
+let e_default = class {
 };
-_a2 = __decorate([
+e_default = __decorate([
   x(() => 0),
   y(() => 1)
-], _a2);
-const e_default = _a2;
+], e_default);
+const e_default2 = e_default;
 
 // /f.ts
 let f2 = class {
@@ -1097,13 +1097,13 @@ f2 = __decorate([
 const f_default = f2;
 
 // /g.ts
-let _a3 = class {
+let g_default2 = class {
 };
-_a3 = __decorate([
+g_default2 = __decorate([
   x(() => 0),
   y(() => 1)
-], _a3);
-const g_default = _a3;
+], g_default2);
+const g_default = g_default2;
 
 // /h.ts
 let h2 = class {
@@ -1116,7 +1116,7 @@ h2 = __decorate([
   x(() => 0),
   y(() => 1)
 ], h2);
-const h2 = h2;
+const h_default = h2;
 
 // /i.ts
 class i_class {
@@ -1145,10 +1145,10 @@ class k_default {
 __decorate([
   __param(0, x2(() => 0)),
   __param(0, y(() => 1))
-], _a4.prototype, "foo", 1);
+], k_default.prototype, "foo", 1);
 
 // /entry.js
-console.log(all_default, all_computed_default, a, b, c, d, e_default, f_default, g_default, h2, i2, j2, k_default);
+console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default, h_default, i2, j2, k_default);
 `,
 		},
 	})

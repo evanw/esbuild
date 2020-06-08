@@ -547,13 +547,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function b() {
+			"/out/c.js": `export default function a() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class b {
+			"/out/e.js": `export default class a {
 }
 `,
 		},
@@ -679,11 +679,11 @@ func TestExportFormsCommonJS(t *testing.T) {
 			"/a.js": "export const abc = undefined",
 			"/b.js": "export const xyz = null",
 			"/c.js": "export default class {}",
-			"/d.js": "export default class Foo {}",
+			"/d.js": "export default class Foo {} Foo.prop = 123",
 			"/e.js": "export default function() {}",
-			"/f.js": "export default function foo() {}",
+			"/f.js": "export default function foo() {} foo.prop = 123",
 			"/g.js": "export default async function() {}",
-			"/h.js": "export default async function foo() {}",
+			"/h.js": "export default async function foo() {} foo.prop = 123",
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
@@ -729,10 +729,11 @@ var require_c = __commonJS((exports) => {
 // /d.js
 var require_d = __commonJS((exports) => {
   __export(exports, {
-    default: () => d_default
+    default: () => Foo
   });
-  class d_default {
+  class Foo {
   }
+  Foo.prop = 123;
 });
 
 // /e.js
@@ -747,10 +748,11 @@ var require_e = __commonJS((exports) => {
 // /f.js
 var require_f = __commonJS((exports) => {
   __export(exports, {
-    default: () => f_default
+    default: () => foo
   });
-  function f_default() {
+  function foo() {
   }
+  foo.prop = 123;
 });
 
 // /g.js
@@ -765,10 +767,11 @@ var require_g = __commonJS((exports) => {
 // /h.js
 var require_h = __commonJS((exports) => {
   __export(exports, {
-    default: () => h_default
+    default: () => foo
   });
-  async function h_default() {
+  async function foo() {
   }
+  foo.prop = 123;
 });
 
 // /a.js
@@ -822,9 +825,9 @@ func TestReExportDefaultCommonJS(t *testing.T) {
 			"/out.js": `// /bar.js
 var require_bar = __commonJS((exports) => {
   __export(exports, {
-    default: () => bar_default
+    default: () => foo2
   });
-  function bar_default() {
+  function foo2() {
     return exports;
   }
 });
