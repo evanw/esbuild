@@ -11,6 +11,9 @@ test:
 test-all:
 	make -j5 test-go verify-source-map end-to-end-tests js-api-tests test-wasm
 
+# This includes tests of some 3rd-party libraries, which can be very slow
+test-extra: test-all test-sucrase test-rollup
+
 test-go:
 	go test ./internal/...
 
