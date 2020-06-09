@@ -1178,7 +1178,12 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrinted(t, "export {Foo}", "export {Foo};\n")
 }
 
-func TestTSPreserveOptionalChainParentheses(t *testing.T) {
+func TestTSOptionalChain(t *testing.T) {
+	expectParseError(t, "a?.<T>()", "<stdin>: error: Expected identifier but found \"<\"\n")
+	expectPrintedTS(t, "a?.<T>()", "a?.();\n")
+	expectParseErrorTS(t, "a?.<T>b", "<stdin>: error: Expected \"(\" but found \"b\"\n")
+	expectParseErrorTS(t, "a?.<T>[b]", "<stdin>: error: Expected \"(\" but found \"[\"\n")
+
 	expectPrintedTS(t, "a?.b.c", "a?.b.c;\n")
 	expectPrintedTS(t, "(a?.b).c", "(a?.b).c;\n")
 	expectPrintedTS(t, "a?.b!.c", "a?.b.c;\n")

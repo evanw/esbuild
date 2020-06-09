@@ -2825,6 +2825,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 
 			switch p.lexer.Token {
 			case lexer.TOpenBracket:
+				// "a?.[b]"
 				p.lexer.Next()
 
 				// Allow "in" inside the brackets
@@ -2843,6 +2844,25 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				}}
 
 			case lexer.TOpenParen:
+				// "a?.()"
+				if level >= ast.LCall {
+					return left
+				}
+				left = ast.Expr{left.Loc, &ast.ECall{
+					Target:        left,
+					Args:          p.parseCallArgs(),
+					OptionalChain: ast.OptionalChainStart,
+				}}
+
+			case lexer.TLessThan:
+				// "a?.<T>()"
+				if !p.ts.Parse {
+					p.lexer.Expected(lexer.TIdentifier)
+				}
+				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				if p.lexer.Token != lexer.TOpenParen {
+					p.lexer.Expected(lexer.TOpenParen)
+				}
 				if level >= ast.LCall {
 					return left
 				}
