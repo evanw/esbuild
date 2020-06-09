@@ -174,6 +174,24 @@ test-rollup: esbuild | demo/rollup
 	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) --minify && npm run test:only
 
 ################################################################################
+# This builds Sucrase using esbuild and then uses it to run Sucrase's test suite
+
+github/sucrase:
+	mkdir -p github/sucrase
+	cd github/sucrase && git init && git remote add origin https://github.com/alangpierce/sucrase.git
+	cd github/sucrase && git fetch --depth 1 origin a4a596e5cdd57362f309ae50cc32a235d7817d34 && git checkout FETCH_HEAD
+
+demo/sucrase: | github/sucrase
+	mkdir -p demo/sucrase
+	cp -r github/sucrase/ demo/sucrase
+	cd demo/sucrase && npm i
+	cd demo/sucrase && find test -name '*.ts' | sed 's/\(.*\)\.ts/import ".\/\1"/g' > all-tests.ts
+
+test-sucrase: esbuild | demo/sucrase
+	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --platform=node > out.js && npx mocha out.js
+	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --platform=node --minify > out.js && npx mocha out.js
+
+################################################################################
 # This runs terser's test suite through esbuild
 
 github/terser:
