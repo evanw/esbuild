@@ -4,10 +4,8 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"mime"
 	"net/http"
-	"os"
 	"path"
 	"sort"
 	"sync"
@@ -68,7 +66,6 @@ type Bundle struct {
 }
 
 type parseFlags struct {
-	isStdin        bool
 	isEntryPoint   bool
 	isDisabled     bool
 	ignoreIfUnused bool
@@ -81,7 +78,7 @@ type parseArgs struct {
 	absPath       string
 	prettyPath    string
 	sourceIndex   uint32
-	importSource  logging.Source
+	importSource  *logging.Source
 	flags         parseFlags
 	pathRange     ast.Range
 	parseOptions  parser.ParseOptions
@@ -96,22 +93,24 @@ type parseResult struct {
 }
 
 func parseFile(args parseArgs) {
-	contents := ""
+	source := logging.Source{
+		Index:        args.sourceIndex,
+		AbsolutePath: args.absPath,
+		PrettyPath:   args.prettyPath,
+	}
 
 	// Disabled files are left empty
+	stdin := args.bundleOptions.Stdin
 	if !args.flags.isDisabled {
-		if args.flags.isStdin {
-			bytes, err := ioutil.ReadAll(os.Stdin)
-			if err != nil {
-				args.log.AddRangeError(args.importSource, args.pathRange,
-					fmt.Sprintf("Could not read from stdin: %s", err.Error()))
-				args.results <- parseResult{}
-				return
+		if stdin != nil {
+			source.Contents = stdin.Contents
+			source.PrettyPath = "<stdin>"
+			if stdin.SourceFile != "" {
+				source.PrettyPath = stdin.SourceFile
 			}
-			contents = string(bytes)
 		} else {
 			var ok bool
-			contents, ok = args.res.Read(args.absPath)
+			source.Contents, ok = args.res.Read(args.absPath)
 			if !ok {
 				args.log.AddRangeError(args.importSource, args.pathRange,
 					fmt.Sprintf("Could not read from file: %s", args.absPath))
@@ -121,14 +120,6 @@ func parseFile(args parseArgs) {
 		}
 	}
 
-	source := logging.Source{
-		Index:        args.sourceIndex,
-		IsStdin:      args.flags.isStdin,
-		AbsolutePath: args.absPath,
-		PrettyPath:   args.prettyPath,
-		Contents:     contents,
-	}
-
 	// Get the file extension
 	extension := path.Ext(args.absPath)
 
@@ -136,8 +127,8 @@ func parseFile(args parseArgs) {
 	loader := args.bundleOptions.ExtensionToLoader[extension]
 
 	// Special-case reading from stdin
-	if args.bundleOptions.LoaderForStdin != LoaderNone && source.IsStdin {
-		loader = args.bundleOptions.LoaderForStdin
+	if stdin != nil {
+		loader = stdin.Loader
 	}
 
 	result := parseResult{
@@ -281,16 +272,14 @@ func ScanBundle(
 	maybeParseFile := func(
 		absPath string,
 		prettyPath string,
-		importSource logging.Source,
+		importSource *logging.Source,
 		pathRange ast.Range,
 		flags parseFlags,
 	) uint32 {
 		sourceIndex, ok := visited[absPath]
 		if !ok {
 			sourceIndex = uint32(len(sources))
-			if !flags.isStdin {
-				visited[absPath] = sourceIndex
-			}
+			visited[absPath] = sourceIndex
 			sources = append(sources, logging.Source{})
 			files = append(files, file{})
 			remaining++
@@ -316,13 +305,9 @@ func ScanBundle(
 	for _, absPath := range entryPaths {
 		flags := parseFlags{
 			isEntryPoint: true,
-			isStdin:      bundleOptions.LoaderForStdin != LoaderNone,
 		}
-		prettyPath := absPath
-		if !flags.isStdin {
-			prettyPath = res.PrettyPath(absPath)
-		}
-		sourceIndex := maybeParseFile(absPath, prettyPath, logging.Source{}, ast.Range{}, flags)
+		prettyPath := res.PrettyPath(absPath)
+		sourceIndex := maybeParseFile(absPath, prettyPath, nil, ast.Range{}, flags)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -365,7 +350,7 @@ func ScanBundle(
 							ignoreIfUnused: resolveResult.IgnoreIfUnused,
 						}
 						prettyPath := res.PrettyPath(resolveResult.AbsolutePath)
-						sourceIndex := maybeParseFile(resolveResult.AbsolutePath, prettyPath, source, pathRange, flags)
+						sourceIndex := maybeParseFile(resolveResult.AbsolutePath, prettyPath, &source, pathRange, flags)
 						result.file.resolvedImports[pathText] = sourceIndex
 
 						// Generate metadata about each import
@@ -381,7 +366,7 @@ func ScanBundle(
 						}
 
 					case resolver.ResolveMissing:
-						log.AddRangeError(source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
+						log.AddRangeError(&source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
 					}
 				}
 			}
@@ -440,6 +425,12 @@ const (
 	SourceMapExternalWithoutComment
 )
 
+type StdinInfo struct {
+	Loader     Loader
+	Contents   string
+	SourceFile string
+}
+
 type BundleOptions struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
@@ -457,12 +448,8 @@ type BundleOptions struct {
 	// If present, metadata about the bundle is written as JSON here
 	AbsMetadataFile string
 
-	SourceMap  SourceMap
-	SourceFile string // The "original file path" for the source map
-
-	// If this isn't LoaderNone, all entry point contents are assumed to come
-	// from stdin and must be loaded with this loader
-	LoaderForStdin Loader
+	SourceMap SourceMap
+	Stdin     *StdinInfo
 
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool

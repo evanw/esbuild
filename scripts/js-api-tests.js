@@ -11,8 +11,19 @@ const testDir = path.join(repoDir, 'scripts', '.js-api-tests')
 
 let buildTests = {
   async es6_to_cjs({ esbuild }) {
-    const input = path.join(testDir, '1-in.js')
-    const output = path.join(testDir, '1-out.js')
+    const input = path.join(testDir, 'es6_to_cjs-in.js')
+    const output = path.join(testDir, 'es6_to_cjs-out.js')
+    await util.promisify(fs.writeFile)(input, 'export default 123')
+    await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    const result = require(output)
+    assert.strictEqual(result.default, 123)
+    assert.strictEqual(result.__esModule, true)
+  },
+
+  // Test recursive directory creation
+  async recursiveMkdir({ esbuild }) {
+    const input = path.join(testDir, 'recursiveMkdir-in.js')
+    const output = path.join(testDir, 'a/b/c/d/recursiveMkdir-out.js')
     await util.promisify(fs.writeFile)(input, 'export default 123')
     await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     const result = require(output)
@@ -21,20 +32,38 @@ let buildTests = {
   },
 
   async sourceMap({ esbuild }) {
-    const input = path.join(testDir, '2-in.js')
-    const output = path.join(testDir, '2-out.js')
+    const input = path.join(testDir, 'sourceMap-in.js')
+    const output = path.join(testDir, 'sourceMap-out.js')
     await util.promisify(fs.writeFile)(input, 'exports.foo = 123')
     await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
+    const outputFile = await util.promisify(fs.readFile)(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
+    assert.strictEqual(match[1], 'sourceMap-out.js.map')
+    const resultMap = await util.promisify(fs.readFile)(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+  },
+
+  async sourceMapExternal({ esbuild }) {
+    const input = path.join(testDir, 'sourceMapExternal-in.js')
+    const output = path.join(testDir, 'sourceMapExternal-out.js')
+    await util.promisify(fs.writeFile)(input, 'exports.foo = 123')
+    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'external' })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await util.promisify(fs.readFile)(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
+    assert.strictEqual(match, null)
     const resultMap = await util.promisify(fs.readFile)(output + '.map', 'utf8')
     const json = JSON.parse(resultMap)
     assert.strictEqual(json.version, 3)
   },
 
   async sourceMapInline({ esbuild }) {
-    const input = path.join(testDir, '3-in.js')
-    const output = path.join(testDir, '3-out.js')
+    const input = path.join(testDir, 'sourceMapInline-in.js')
+    const output = path.join(testDir, 'sourceMapInline-out.js')
     await util.promisify(fs.writeFile)(input, 'exports.foo = 123')
     await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'inline' })
     const result = require(output)
@@ -46,11 +75,11 @@ let buildTests = {
   },
 
   async resolveExtensionOrder({ esbuild }) {
-    const input = path.join(testDir, '4-in.js');
-    const inputBare = path.join(testDir, '4-module.js')
-    const inputSomething = path.join(testDir, '4-module.something.js')
-    const output = path.join(testDir, '4-out.js')
-    await util.promisify(fs.writeFile)(input, 'exports.result = require("./4-module").foo')
+    const input = path.join(testDir, 'resolveExtensionOrder-in.js');
+    const inputBare = path.join(testDir, 'resolveExtensionOrder-module.js')
+    const inputSomething = path.join(testDir, 'resolveExtensionOrder-module.something.js')
+    const output = path.join(testDir, 'resolveExtensionOrder-out.js')
+    await util.promisify(fs.writeFile)(input, 'exports.result = require("./resolveExtensionOrder-module").foo')
     await util.promisify(fs.writeFile)(inputBare, 'exports.foo = 321')
     await util.promisify(fs.writeFile)(inputSomething, 'exports.foo = 123')
     await esbuild.build({
@@ -64,14 +93,14 @@ let buildTests = {
   },
 
   async metafile({ esbuild }) {
-    const entry = path.join(testDir, '5-entry.js')
-    const imported = path.join(testDir, '5-imported.js')
-    const text = path.join(testDir, '5-text.txt')
-    const output = path.join(testDir, '5-out.js')
-    const meta = path.join(testDir, '5-meta.json')
+    const entry = path.join(testDir, 'metafile-entry.js')
+    const imported = path.join(testDir, 'metafile-imported.js')
+    const text = path.join(testDir, 'metafile-text.txt')
+    const output = path.join(testDir, 'metafile-out.js')
+    const meta = path.join(testDir, 'metafile-meta.json')
     await util.promisify(fs.writeFile)(entry, `
-      import x from "./5-imported"
-      import y from "./5-text.txt"
+      import x from "./metafile-imported"
+      import y from "./metafile-text.txt"
       console.log(x, y)
     `)
     await util.promisify(fs.writeFile)(imported, 'export default 123')
@@ -91,7 +120,7 @@ let buildTests = {
     const cwd = process.cwd()
 
     // Check inputs
-    assert.deepStrictEqual(json.inputs[path.relative(cwd, entry)].bytes, 99)
+    assert.deepStrictEqual(json.inputs[path.relative(cwd, entry)].bytes, 113)
     assert.deepStrictEqual(json.inputs[path.relative(cwd, entry)].imports, [
       { path: path.relative(cwd, imported) },
       { path: path.relative(cwd, text) },
@@ -193,30 +222,22 @@ let transformTests = {
     assert.strictEqual(js, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
   },
 
-  async sourceMap({ service }) {
-    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true })
-    assert.strictEqual(js, `let x;\n`)
-    await assertSourceMap(jsSourceMap, '/input.js')
-  },
-
   async sourceMapWithName({ service }) {
     const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js' })
     assert.strictEqual(js, `let x;\n`)
     await assertSourceMap(jsSourceMap, 'afile.js')
   },
 
-  async sourceMapInline({ service }) {
-    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'inline' })
-    assert(js.startsWith(`let x;\n//# sourceMappingURL=`))
-    assert.strictEqual(jsSourceMap, undefined)
-    const base64 = js.slice(js.indexOf('base64,') + 'base64,'.length)
-    await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), '/input.js')
+  async sourceMapExternalWithName({ service }) {
+    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'external', sourcefile: 'afile.js' })
+    assert.strictEqual(js, `let x;\n`)
+    await assertSourceMap(jsSourceMap, 'afile.js')
   },
 
   async sourceMapInlineWithName({ service }) {
     const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'inline', sourcefile: 'afile.js' })
     assert(js.startsWith(`let x;\n//# sourceMappingURL=`))
-    assert.strictEqual(jsSourceMap, undefined)
+    assert.strictEqual(jsSourceMap, '')
     const base64 = js.slice(js.indexOf('base64,') + 'base64,'.length)
     await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
   },
@@ -267,6 +288,23 @@ let transformTests = {
   asyncGenClassExprFn: ({ service }) => futureSyntax(service, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
+let syncTests = {
+  async buildSync({ esbuild }) {
+    const input = path.join(testDir, 'buildSync-in.js')
+    const output = path.join(testDir, 'buildSync-out.js')
+    await util.promisify(fs.writeFile)(input, 'export default 123')
+    esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    const result = require(output)
+    assert.strictEqual(result.default, 123)
+    assert.strictEqual(result.__esModule, true)
+  },
+
+  async transformSync({ esbuild }) {
+    const { js } = esbuild.transformSync(`console.log(1+2)`, {})
+    assert.strictEqual(js, `console.log(1 + 2);\n`)
+  },
+}
+
 async function assertSourceMap(jsSourceMap, source) {
   const map = await new SourceMapConsumer(jsSourceMap)
   const original = map.originalPositionFor({ line: 1, column: 4 })
@@ -285,10 +323,13 @@ async function main() {
     () => true,
     e => {
       console.error(`❌ ${name}: ${e && e.message || e}`)
-      if (e.errors) console.error(e.errors.map(x => x.text).join('\n'))
       return false
     })
-  const tests = [...Object.entries(buildTests), ...Object.entries(transformTests)]
+  const tests = [
+    ...Object.entries(buildTests),
+    ...Object.entries(transformTests),
+    ...Object.entries(syncTests),
+  ]
   const allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
 
   // Clean up test output

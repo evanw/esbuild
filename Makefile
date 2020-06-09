@@ -1,6 +1,6 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
-esbuild: cmd/esbuild/*.go internal/*/*.go
+esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
 	go build ./cmd/esbuild
 
 # These tests are for development
@@ -59,15 +59,16 @@ platform-linux-ppc64le:
 	cd npm/esbuild-linux-ppc64le && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=linux GOARCH=ppc64le go build -o npm/esbuild-linux-ppc64le/bin/esbuild ./cmd/esbuild
 
-platform-wasm:
+platform-wasm: | esbuild
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
-	rm -fr npm/esbuild-wasm/lib && cp -r npm/esbuild/lib npm/esbuild-wasm/lib
-	cat npm/esbuild/lib/main.js | sed 's/WASM = false/WASM = true/' > npm/esbuild-wasm/lib/main.js
+	mkdir -p npm/esbuild-wasm/lib
+	node scripts/esbuild.js ./esbuild --wasm
 
-platform-neutral:
+platform-neutral: | esbuild
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js ./esbuild
 
 publish-all: update-version-go test-all
 	make -j7 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm publish-neutral
@@ -104,6 +105,7 @@ clean:
 	rm -rf npm/esbuild-linux-arm64/bin
 	rm -rf npm/esbuild-linux-ppc64le/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
+	rm -rf npm/esbuild/lib
 	rm -rf npm/esbuild-wasm/lib
 	go clean -testcache ./internal/...
 

@@ -34,7 +34,7 @@ const (
 )
 
 type Msg struct {
-	Source Source
+	Source *Source
 	Start  int32
 	Length int32
 	Text   string
@@ -43,7 +43,6 @@ type Msg struct {
 
 type Source struct {
 	Index        uint32
-	IsStdin      bool
 	AbsolutePath string
 	PrettyPath   string
 	Contents     string
@@ -75,9 +74,11 @@ func (s *Source) RangeOfString(loc ast.Loc) ast.Range {
 	return ast.Range{loc, 0}
 }
 
-type MsgCounts struct {
-	Errors   int
-	Warnings int
+type stderrLogInfo struct {
+	msgs             []Msg
+	errors           int
+	warnings         int
+	errorLimitWasHit bool
 }
 
 func plural(prefix string, count int) string {
@@ -87,20 +88,20 @@ func plural(prefix string, count int) string {
 	return fmt.Sprintf("%d %ss", count, prefix)
 }
 
-func (counts MsgCounts) String() string {
-	if counts.Errors == 0 {
-		if counts.Warnings == 0 {
+func (counts stderrLogInfo) String() string {
+	if counts.errors == 0 {
+		if counts.warnings == 0 {
 			return "no errors"
 		} else {
-			return plural("warning", counts.Warnings)
+			return plural("warning", counts.warnings)
 		}
 	} else {
-		if counts.Warnings == 0 {
-			return plural("error", counts.Errors)
+		if counts.warnings == 0 {
+			return plural("error", counts.errors)
 		} else {
 			return fmt.Sprintf("%s and %s",
-				plural("warning", counts.Warnings),
-				plural("error", counts.Errors))
+				plural("warning", counts.warnings),
+				plural("error", counts.errors))
 		}
 	}
 }
@@ -111,9 +112,9 @@ type TerminalInfo struct {
 	Width           int
 }
 
-func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
+func NewStderrLog(options StderrOptions) (Log, func() []Msg) {
 	msgs := make(chan Msg)
-	done := make(chan MsgCounts)
+	done := make(chan stderrLogInfo)
 	log := Log{msgs}
 	terminalInfo := GetTerminalInfo(os.Stderr)
 
@@ -124,39 +125,76 @@ func NewStderrLog(options StderrOptions) (Log, func() MsgCounts) {
 		terminalInfo.UseColorEscapes = SupportsColorEscapes
 	}
 
-	go func(msgs chan Msg, done chan MsgCounts) {
-		counts := MsgCounts{}
+	go func(msgs chan Msg, done chan stderrLogInfo) {
+		result := stderrLogInfo{}
 		for msg := range msgs {
+			result.msgs = append(result.msgs, msg)
+
+			// Be silent if we're past the limit so we don't flood the terminal
+			if result.errorLimitWasHit {
+				continue
+			}
+
 			switch msg.Kind {
 			case Error:
-				counts.Errors++
+				result.errors++
 				if options.LogLevel <= LevelError {
 					os.Stderr.WriteString(msg.String(options, terminalInfo))
 				}
 			case Warning:
-				counts.Warnings++
+				result.warnings++
 				if options.LogLevel <= LevelWarning {
 					os.Stderr.WriteString(msg.String(options, terminalInfo))
 				}
 			}
-			if options.ExitWhenLimitIsHit && options.ErrorLimit != 0 && counts.Errors >= options.ErrorLimit {
+
+			// Silence further output if we reached the error limit
+			if options.ErrorLimit != 0 && result.errors >= options.ErrorLimit {
+				result.errorLimitWasHit = true
 				if options.LogLevel <= LevelError {
-					fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", counts.String())
+					fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", result.String())
 				}
-				os.Exit(1)
 			}
 		}
-		done <- counts
+		done <- result
 	}(msgs, done)
 
-	return log, func() MsgCounts {
+	return log, func() []Msg {
 		close(log.msgs)
-		counts := <-done
-		if options.LogLevel <= LevelInfo && (counts.Warnings != 0 || counts.Errors != 0) {
-			fmt.Fprintf(os.Stderr, "%s\n", counts.String())
+		result := <-done
+
+		// Print out a summary if the error limit wasn't hit
+		if !result.errorLimitWasHit && options.LogLevel <= LevelInfo && (result.warnings != 0 || result.errors != 0) {
+			fmt.Fprintf(os.Stderr, "%s\n", result.String())
 		}
-		return counts
+
+		return result.msgs
 	}
+}
+
+func PrintErrorToStderr(osArgs []string, text string) {
+	options := StderrOptions{}
+
+	// Implement a mini argument parser so these options always work even if we
+	// haven't yet gotten to the general-purpose argument parsing code
+	for _, arg := range osArgs {
+		switch arg {
+		case "--color=false":
+			options.Color = ColorNever
+		case "--color=true":
+			options.Color = ColorAlways
+		case "--log-level=info":
+			options.LogLevel = LevelInfo
+		case "--log-level=warning":
+			options.LogLevel = LevelWarning
+		case "--log-level=error":
+			options.LogLevel = LevelError
+		}
+	}
+
+	log, join := NewStderrLog(options)
+	log.AddError(nil, ast.Loc{}, text)
+	join()
 }
 
 func NewDeferLog() (Log, func() []Msg) {
@@ -165,7 +203,7 @@ func NewDeferLog() (Log, func() []Msg) {
 	log := Log{msgs}
 
 	go func(msgs chan Msg, done chan []Msg) {
-		result := []Msg{}
+		var result []Msg
 		for msg := range msgs {
 			result = append(result, msg)
 		}
@@ -194,11 +232,10 @@ const (
 )
 
 type StderrOptions struct {
-	IncludeSource      bool
-	ErrorLimit         int
-	ExitWhenLimitIsHit bool
-	Color              StderrColor
-	LogLevel           LogLevel
+	IncludeSource bool
+	ErrorLimit    int
+	Color         StderrColor
+	LogLevel      LogLevel
 }
 
 func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
@@ -210,7 +247,7 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 		kindColor = colorMagenta
 	}
 
-	if msg.Source.PrettyPath == "" {
+	if msg.Source == nil {
 		if terminalInfo.UseColorEscapes {
 			return fmt.Sprintf("%s%s%s: %s%s%s\n",
 				colorBold, kindColor, kind,
@@ -424,18 +461,18 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 	return withoutTabs.String()
 }
 
-func (log Log) AddError(source Source, loc ast.Loc, text string) {
+func (log Log) AddError(source *Source, loc ast.Loc, text string) {
 	log.msgs <- Msg{source, loc.Start, 0, text, Error}
 }
 
-func (log Log) AddWarning(source Source, loc ast.Loc, text string) {
+func (log Log) AddWarning(source *Source, loc ast.Loc, text string) {
 	log.msgs <- Msg{source, loc.Start, 0, text, Warning}
 }
 
-func (log Log) AddRangeError(source Source, r ast.Range, text string) {
+func (log Log) AddRangeError(source *Source, r ast.Range, text string) {
 	log.msgs <- Msg{source, r.Loc.Start, r.Len, text, Error}
 }
 
-func (log Log) AddRangeWarning(source Source, r ast.Range, text string) {
+func (log Log) AddRangeWarning(source *Source, r ast.Range, text string) {
 	log.msgs <- Msg{source, r.Loc.Start, r.Len, text, Warning}
 }

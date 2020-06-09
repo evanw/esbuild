@@ -352,7 +352,7 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 			if pathsJson, pathsKeyLoc, ok := getProperty(compilerOptionsJson, "paths"); ok {
 				if info.tsConfigJson.absPathBaseUrl == nil {
 					warnRange := tsConfigSource.RangeOfString(pathsKeyLoc)
-					r.log.AddRangeWarning(tsConfigSource, warnRange,
+					r.log.AddRangeWarning(&tsConfigSource, warnRange,
 						"Cannot use the \"paths\" property without the \"baseUrl\" property")
 				} else if paths, ok := pathsJson.Data.(*ast.EObject); ok {
 					info.tsConfigJson.paths = map[string][]string{}
@@ -393,7 +393,7 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 								}
 							} else {
 								warnRange := tsConfigSource.RangeOfString(prop.Value.Loc)
-								r.log.AddRangeWarning(tsConfigSource, warnRange, fmt.Sprintf(
+								r.log.AddRangeWarning(&tsConfigSource, warnRange, fmt.Sprintf(
 									"Substitutions for pattern %q should be an array", key))
 							}
 						}
@@ -410,7 +410,7 @@ func isValidTSConfigPathPattern(text string, log logging.Log, source logging.Sou
 		if text[i] == '*' {
 			if foundAsterisk {
 				r := source.RangeOfString(loc)
-				log.AddRangeWarning(source, r, fmt.Sprintf(
+				log.AddRangeWarning(&source, r, fmt.Sprintf(
 					"Invalid pattern %q, must have at most one \"*\" character", text))
 				return false
 			}
@@ -591,13 +591,13 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 					absolute := r.fs.Join(path, lexer.UTF16ToString(item.Value))
 					packageJson.sideEffectsMap[absolute] = true
 				} else {
-					r.log.AddWarning(jsonSource, itemJson.Loc,
+					r.log.AddWarning(&jsonSource, itemJson.Loc,
 						"Expected string in array for \"sideEffects\"")
 				}
 			}
 
 		default:
-			r.log.AddWarning(jsonSource, sideEffectsJson.Loc,
+			r.log.AddWarning(&jsonSource, sideEffectsJson.Loc,
 				"Invalid value for \"sideEffects\"")
 		}
 	}

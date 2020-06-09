@@ -122,7 +122,7 @@ async function check(kind, testCase, toSearch, flags) {
     let outJs
     let outJsMap
 
-    if (stdout !== '') {
+    if (isStdin) {
       outJs = stdout
       recordCheck(outJs.includes(`//# sourceMappingURL=data:application/json;base64,`), `.js file contains source map`)
       outJsMap = Buffer.from(outJs.slice(outJs.indexOf('base64,') + 'base64,'.length).trim(), 'base64').toString()
@@ -179,8 +179,7 @@ async function main() {
       check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, flags.concat('--outfile=out.js', '--bundle')),
       check('es6' + suffix, testCaseES6, toSearchBundle, flags.concat('--outfile=out.js', '--bundle')),
       check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, flags.concat('--outfile=out.js')),
-      check('stdin' + suffix, testCaseStdin, toSearchNoBundle, flags.concat('--outfile=out.js')),
-      check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, flags),
+      check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, flags.concat('--sourcefile=<stdin>')),
     )
   }
 

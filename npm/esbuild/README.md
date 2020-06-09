@@ -16,7 +16,6 @@ Example build script:
 const { build } = require('esbuild')
 
 build({
-  stdio: 'inherit',
   entryPoints: ['./src/main.ts'],
   outfile: './dist/main.js',
   minify: true,
@@ -50,12 +49,16 @@ Example usage:
   const esbuild = require('esbuild')
   const service = await esbuild.startService()
 
-  // This can be called many times without the overhead of starting a service
-  const { js } = await service.transform(jsx, { loader: 'jsx' })
-  console.log(js)
+  try {
+    // This can be called many times without the overhead of starting a service
+    const { js } = await service.transform(jsx, { loader: 'jsx' })
+    console.log(js)
+  }
 
-  // The child process can be explicitly killed when it's no longer needed
-  service.stop()
+  finally {
+    // The child process can be explicitly killed when it's no longer needed
+    service.stop()
+  }
 })()
 ```
 

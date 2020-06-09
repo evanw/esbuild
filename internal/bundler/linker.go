@@ -331,7 +331,7 @@ func findReachableFiles(sources []logging.Source, files []file, entryPoints []ui
 }
 
 func (c *linkerContext) addRangeError(source logging.Source, r ast.Range, text string) {
-	c.log.AddRangeError(source, r, text)
+	c.log.AddRangeError(&source, r, text)
 	c.hasErrors = true
 }
 
@@ -775,7 +775,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// Warn about importing from a file that is known to not have any exports
 				if status == importCommonJSWithoutExports {
 					source := c.sources[tracker.sourceIndex]
-					c.log.AddRangeWarning(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+					c.log.AddRangeWarning(&source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 						fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
 				}
 
@@ -2251,9 +2251,6 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 	j.AddString(",\n  \"sources\": [")
 	for i, result := range results {
 		sourceFile := c.sources[result.sourceIndex].PrettyPath
-		if c.options.SourceFile != "" {
-			sourceFile = c.options.SourceFile
-		}
 		if i > 0 {
 			j.AddString(", ")
 		}

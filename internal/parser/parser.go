@@ -471,7 +471,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 					// symbol exists.
 				default:
 					r := lexer.RangeOfIdentifier(p.source, loc)
-					p.log.AddRangeError(p.source, r, fmt.Sprintf("%q has already been declared", name))
+					p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", name))
 					return existing
 				}
 			}
@@ -489,7 +489,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 		switch canMergeSymbols(symbol.Kind, kind) {
 		case mergeForbidden:
 			r := lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeError(p.source, r, fmt.Sprintf("%q has already been declared", name))
+			p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", name))
 			return existing
 
 		case mergeKeepExisting:
@@ -587,7 +587,7 @@ func (p *parser) recordExport(loc ast.Loc, alias string, ref ast.Ref) {
 	if p.enclosingNamespaceRef == nil {
 		if _, ok := p.namedExports[alias]; ok {
 			// Warn about duplicate exports
-			p.log.AddRangeError(p.source, lexer.RangeOfIdentifier(p.source, loc),
+			p.log.AddRangeError(&p.source, lexer.RangeOfIdentifier(p.source, loc),
 				fmt.Sprintf("Multiple exports with the same name %q", alias))
 		} else {
 			p.namedExports[alias] = ref
@@ -621,14 +621,6 @@ func (p *parser) ignoreUsage(ref ast.Ref) {
 
 	// Don't roll back the "tsUseCounts" increment. This must be counted even if
 	// the value is ignored because that's what the TypeScript compiler does.
-}
-
-func (p *parser) addError(loc ast.Loc, text string) {
-	p.log.AddError(p.source, loc, text)
-}
-
-func (p *parser) addRangeError(r ast.Range, text string) {
-	p.log.AddRangeError(p.source, r, text)
 }
 
 func (p *parser) callRuntime(loc ast.Loc, name string, args []ast.Expr) ast.Expr {
@@ -1358,18 +1350,18 @@ func (from *deferredErrors) mergeInto(to *deferredErrors) {
 
 func (p *parser) logExprErrors(errors *deferredErrors) {
 	if errors.invalidExprDefaultValue.Len > 0 {
-		p.addRangeError(errors.invalidExprDefaultValue, "Unexpected \"=\"")
+		p.log.AddRangeError(&p.source, errors.invalidExprDefaultValue, "Unexpected \"=\"")
 	}
 
 	if errors.invalidExprAfterQuestion.Len > 0 {
 		r := errors.invalidExprAfterQuestion
-		p.addRangeError(r, fmt.Sprintf("Unexpected %q", p.source.Contents[r.Loc.Start:r.Loc.Start+r.Len]))
+		p.log.AddRangeError(&p.source, r, fmt.Sprintf("Unexpected %q", p.source.Contents[r.Loc.Start:r.Loc.Start+r.Len]))
 	}
 }
 
 func (p *parser) logBindingErrors(errors *deferredErrors) {
 	if errors.invalidBindingCommaAfterSpread.Len > 0 {
-		p.addRangeError(errors.invalidBindingCommaAfterSpread, "Unexpected \",\" after rest pattern")
+		p.log.AddRangeError(&p.source, errors.invalidBindingCommaAfterSpread, "Unexpected \",\" after rest pattern")
 	}
 }
 
@@ -1545,7 +1537,7 @@ func (p *parser) parseProperty(
 		if !isComputed {
 			if str, ok := key.Data.(*ast.EString); ok && (lexer.UTF16EqualsString(str.Value, "constructor") ||
 				(opts.isStatic && lexer.UTF16EqualsString(str.Value, "prototype"))) {
-				p.addRangeError(keyRange, fmt.Sprintf("Invalid field name %q", lexer.UTF16ToString(str.Value)))
+				p.log.AddRangeError(&p.source, keyRange, fmt.Sprintf("Invalid field name %q", lexer.UTF16ToString(str.Value)))
 			}
 		}
 
@@ -1565,7 +1557,7 @@ func (p *parser) parseProperty(
 		if private, ok := key.Data.(*ast.EPrivateIdentifier); ok {
 			name := p.loadNameFromRef(private.Ref)
 			if name == "#constructor" {
-				p.addRangeError(keyRange, fmt.Sprintf("Invalid field name %q", name))
+				p.log.AddRangeError(&p.source, keyRange, fmt.Sprintf("Invalid field name %q", name))
 			}
 			private.Ref = p.declareSymbol(ast.SymbolPrivate, key.Loc, name)
 		}
@@ -1594,18 +1586,18 @@ func (p *parser) parseProperty(
 				if !opts.isStatic && lexer.UTF16EqualsString(str.Value, "constructor") {
 					switch {
 					case kind == ast.PropertyGet:
-						p.addRangeError(keyRange, "Class constructor cannot be a getter")
+						p.log.AddRangeError(&p.source, keyRange, "Class constructor cannot be a getter")
 					case kind == ast.PropertySet:
-						p.addRangeError(keyRange, "Class constructor cannot be a setter")
+						p.log.AddRangeError(&p.source, keyRange, "Class constructor cannot be a setter")
 					case opts.isAsync:
-						p.addRangeError(keyRange, "Class constructor cannot be an async function")
+						p.log.AddRangeError(&p.source, keyRange, "Class constructor cannot be an async function")
 					case opts.isGenerator:
-						p.addRangeError(keyRange, "Class constructor cannot be a generator")
+						p.log.AddRangeError(&p.source, keyRange, "Class constructor cannot be a generator")
 					default:
 						isConstructor = true
 					}
 				} else if opts.isStatic && lexer.UTF16EqualsString(str.Value, "prototype") {
-					p.addRangeError(keyRange, "Invalid static method name \"prototype\"")
+					p.log.AddRangeError(&p.source, keyRange, "Invalid static method name \"prototype\"")
 				}
 			}
 		}
@@ -1644,7 +1636,7 @@ func (p *parser) parseProperty(
 			}
 			name := p.loadNameFromRef(private.Ref)
 			if name == "#constructor" {
-				p.addRangeError(keyRange, fmt.Sprintf("Invalid method name %q", name))
+				p.log.AddRangeError(&p.source, keyRange, fmt.Sprintf("Invalid method name %q", name))
 			}
 			private.Ref = p.declareSymbol(declare, key.Loc, name)
 		}
@@ -1752,7 +1744,7 @@ func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 
 	// Newlines are not allowed before "=>"
 	if p.lexer.HasNewlineBefore {
-		p.log.AddRangeError(p.source, p.lexer.Range(), "Unexpected newline before \"=>\"")
+		p.log.AddRangeError(&p.source, p.lexer.Range(), "Unexpected newline before \"=>\"")
 		panic(lexer.LexerPanic{})
 	}
 
@@ -1992,7 +1984,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 			// conversion errors
 			if len(invalidLog) > 0 {
 				for _, loc := range invalidLog {
-					p.addError(loc, "Invalid binding pattern")
+					p.log.AddError(&p.source, loc, "Invalid binding pattern")
 				}
 				panic(lexer.LexerPanic{})
 			}
@@ -2012,7 +2004,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 
 	// If this isn't an arrow function, then types aren't allowed
 	if typeColonRange.Len > 0 {
-		p.addRangeError(typeColonRange, "Unexpected \":\"")
+		p.log.AddRangeError(&p.source, typeColonRange, "Unexpected \":\"")
 		panic(lexer.LexerPanic{})
 	}
 
@@ -2030,7 +2022,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	if len(items) > 0 {
 		p.logExprErrors(&errors)
 		if spreadRange.Len > 0 {
-			p.addRangeError(spreadRange, "Unexpected \"...\"")
+			p.log.AddRangeError(&p.source, spreadRange, "Unexpected \"...\"")
 			panic(lexer.LexerPanic{})
 		}
 		value := ast.JoinAllWithComma(items)
@@ -2176,12 +2168,12 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 
 	case lexer.TYield:
 		if !p.currentFnOpts.allowYield {
-			p.addRangeError(p.lexer.Range(), "Cannot use \"yield\" outside a generator function")
+			p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"yield\" outside a generator function")
 			panic(lexer.LexerPanic{})
 		}
 
 		if level > ast.LAssign {
-			p.addRangeError(p.lexer.Range(), "Cannot use a \"yield\" expression here without parentheses")
+			p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use a \"yield\" expression here without parentheses")
 			panic(lexer.LexerPanic{})
 		}
 
@@ -2296,7 +2288,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			if private, ok := index.Index.Data.(*ast.EPrivateIdentifier); ok {
 				name := p.loadNameFromRef(private.Ref)
 				r := ast.Range{index.Index.Loc, int32(len(name))}
-				p.addRangeError(r, fmt.Sprintf("Deleting the private name %q is forbidden", name))
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Deleting the private name %q is forbidden", name))
 			}
 		}
 		return ast.Expr{loc, &ast.EUnary{ast.UnOpDelete, value}}
@@ -2697,7 +2689,7 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 			name = "Logical assignment operators"
 		}
 
-		p.log.AddRangeError(p.source, r,
+		p.log.AddRangeError(&p.source, r,
 			fmt.Sprintf("%s are from %s and transforming them to %s is not supported%s",
 				name, targetTable[target], targetTable[p.target], yet))
 	}
@@ -3322,7 +3314,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 
 			// Warn about "!a in b" instead of "!(a in b)"
 			if e, ok := left.Data.(*ast.EUnary); ok && e.Op == ast.UnOpNot {
-				p.log.AddWarning(p.source, left.Loc,
+				p.log.AddWarning(&p.source, left.Loc,
 					"Suspicious use of the \"!\" operator inside the \"in\" operator")
 			}
 
@@ -3336,7 +3328,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 
 			// Warn about "!a instanceof b" instead of "!(a instanceof b)"
 			if e, ok := left.Data.(*ast.EUnary); ok && e.Op == ast.UnOpNot {
-				p.log.AddWarning(p.source, left.Loc,
+				p.log.AddWarning(&p.source, left.Loc,
 					"Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
 			}
 
@@ -3417,7 +3409,7 @@ func (p *parser) parseJSXTag() (ast.Range, string, *ast.Expr) {
 		// Dashes are not allowed in member expression chains
 		index := strings.IndexByte(member, '-')
 		if index >= 0 {
-			p.addError(ast.Loc{memberRange.Loc.Start + int32(index)}, "Unexpected \"-\"")
+			p.log.AddError(&p.source, ast.Loc{memberRange.Loc.Start + int32(index)}, "Unexpected \"-\"")
 			panic(lexer.LexerPanic{})
 		}
 
@@ -3560,7 +3552,7 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 			p.lexer.NextInsideJSXElement()
 			endRange, endText, _ := p.parseJSXTag()
 			if startText != endText {
-				p.addRangeError(endRange, fmt.Sprintf("Expected closing tag %q to match opening tag %q", endText, startText))
+				p.log.AddRangeError(&p.source, endRange, fmt.Sprintf("Expected closing tag %q to match opening tag %q", endText, startText))
 			}
 			if p.lexer.Token != lexer.TGreaterThan {
 				p.lexer.Expected(lexer.TGreaterThan)
@@ -3638,7 +3630,7 @@ func (p *parser) requireInitializers(decls []ast.Decl) {
 	for _, d := range decls {
 		if d.Value == nil {
 			if _, ok := d.Binding.Data.(*ast.BIdentifier); ok {
-				p.addError(d.Binding.Loc, "This constant must be initialized")
+				p.log.AddError(&p.source, d.Binding.Loc, "This constant must be initialized")
 			}
 		}
 	}
@@ -3646,7 +3638,7 @@ func (p *parser) requireInitializers(decls []ast.Decl) {
 
 func (p *parser) forbidInitializers(decls []ast.Decl, loopType string, isVar bool) {
 	if len(decls) > 1 {
-		p.addError(decls[0].Binding.Loc, fmt.Sprintf("for-%s loops must have a single declaration", loopType))
+		p.log.AddError(&p.source, decls[0].Binding.Loc, fmt.Sprintf("for-%s loops must have a single declaration", loopType))
 	} else if len(decls) == 1 && decls[0].Value != nil {
 		if isVar {
 			if _, ok := decls[0].Binding.Data.(*ast.BIdentifier); ok {
@@ -3655,7 +3647,7 @@ func (p *parser) forbidInitializers(decls []ast.Decl, loopType string, isVar boo
 				return
 			}
 		}
-		p.addError(decls[0].Value.Loc, fmt.Sprintf("for-%s loop variables cannot have an initializer", loopType))
+		p.log.AddError(&p.source, decls[0].Value.Loc, fmt.Sprintf("for-%s loop variables cannot have an initializer", loopType))
 	}
 }
 
@@ -3752,7 +3744,7 @@ func (p *parser) parseExportClause() []ast.ClauseItem {
 	// "export from" statement after all
 	if firstKeywordItemLoc.Start != 0 && !p.lexer.IsContextualKeyword("from") {
 		r := lexer.RangeOfIdentifier(p.source, firstKeywordItemLoc)
-		p.addRangeError(r, fmt.Sprintf("Expected identifier but found %q", p.source.TextForRange(r)))
+		p.log.AddRangeError(&p.source, r, fmt.Sprintf("Expected identifier but found %q", p.source.TextForRange(r)))
 		panic(lexer.LexerPanic{})
 	}
 
@@ -3805,7 +3797,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 				// Commas after spread elements are not allowed
 				if hasSpread && p.lexer.Token == lexer.TComma {
-					p.addRangeError(p.lexer.Range(), "Unexpected \",\" after rest pattern")
+					p.log.AddRangeError(&p.source, p.lexer.Range(), "Unexpected \",\" after rest pattern")
 					panic(lexer.LexerPanic{})
 				}
 			}
@@ -3835,7 +3827,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 			// Commas after spread elements are not allowed
 			if property.IsSpread && p.lexer.Token == lexer.TComma {
-				p.addRangeError(p.lexer.Range(), "Unexpected \",\" after rest pattern")
+				p.log.AddRangeError(&p.source, p.lexer.Range(), "Unexpected \",\" after rest pattern")
 				panic(lexer.LexerPanic{})
 			}
 
@@ -4725,7 +4717,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 			if p.lexer.Token == lexer.TDefault {
 				if foundDefault {
-					p.log.AddRangeError(p.source, p.lexer.Range(), "Multiple default clauses are not allowed")
+					p.log.AddRangeError(&p.source, p.lexer.Range(), "Multiple default clauses are not allowed")
 					panic(lexer.LexerPanic{})
 				}
 				foundDefault = true
@@ -4828,7 +4820,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		isAwait := p.lexer.IsContextualKeyword("await")
 		if isAwait {
 			if !p.currentFnOpts.allowAwait {
-				p.addRangeError(p.lexer.Range(), "Cannot use \"await\" outside an async function")
+				p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"await\" outside an async function")
 				isAwait = false
 			} else {
 				p.markFutureSyntax(futureSyntaxForAwait, p.lexer.Range())
@@ -5166,7 +5158,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 	case lexer.TThrow:
 		p.lexer.Next()
 		if p.lexer.HasNewlineBefore {
-			p.addError(ast.Loc{loc.Start + 5}, "Unexpected newline after \"throw\"")
+			p.log.AddError(&p.source, ast.Loc{loc.Start + 5}, "Unexpected newline after \"throw\"")
 			panic(lexer.LexerPanic{})
 		}
 		expr := p.parseExpr(ast.LLowest)
@@ -5442,7 +5434,7 @@ func (p *parser) parseFnBody(opts fnOpts) ast.FnBody {
 }
 
 func (p *parser) forbidLexicalDecl(loc ast.Loc) {
-	p.addError(loc, "Cannot use a declaration in a single-statement context")
+	p.log.AddError(&p.source, loc, "Cannot use a declaration in a single-statement context")
 }
 
 func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
@@ -5468,7 +5460,7 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 		} else {
 			if returnWithoutSemicolonStart != -1 {
 				if _, ok := stmt.Data.(*ast.SExpr); ok {
-					p.log.AddWarning(p.source, ast.Loc{returnWithoutSemicolonStart + 6},
+					p.log.AddWarning(&p.source, ast.Loc{returnWithoutSemicolonStart + 6},
 						"The following expression is not returned because of an automatically-inserted semicolon")
 				}
 			}
@@ -5569,7 +5561,7 @@ func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
 	}
 
 	r := lexer.RangeOfIdentifier(p.source, loc)
-	p.log.AddRangeError(p.source, r, fmt.Sprintf("There is no containing label named %q", name))
+	p.log.AddRangeError(&p.source, r, fmt.Sprintf("There is no containing label named %q", name))
 
 	// Allocate an "unbound" symbol
 	ref := p.newSymbol(ast.SymbolUnbound, name)
@@ -7814,7 +7806,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 	switch e := value.Data.(type) {
 	case *ast.ENumber:
 		if e.Value == 0 && math.Signbit(e.Value) {
-			p.log.AddWarning(p.source, value.Loc,
+			p.log.AddWarning(&p.source, value.Loc,
 				fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op))
 			return true
 		}
@@ -7822,7 +7814,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 	case *ast.EArray, *ast.EArrow, *ast.EClass,
 		*ast.EFunction, *ast.EObject, *ast.ERegExp:
 		index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
-		p.log.AddRangeWarning(p.source, ast.Range{ast.Loc{int32(index)}, int32(len(op))},
+		p.log.AddRangeWarning(&p.source, ast.Range{ast.Loc{int32(index)}, int32(len(op))},
 			fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!'))
 		return true
 	}
@@ -8579,7 +8571,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// Unlike regular identifiers, there are no unbound private identifiers
 			if !p.symbols[result.ref.InnerIndex].Kind.IsPrivate() {
 				r := ast.Range{e.Index.Loc, int32(len(name))}
-				p.addRangeError(r, fmt.Sprintf("Private name %q is not available here", name))
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q is not available here", name))
 			}
 		} else {
 			e.Index = p.visitExpr(e.Index)
@@ -8768,7 +8760,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		str, ok := e.Expr.Data.(*ast.EString)
 		if !ok {
 			if p.isBundling {
-				p.log.AddError(p.source, e.Expr.Loc, "The argument to import() must be a string literal")
+				p.log.AddError(&p.source, e.Expr.Loc, "The argument to import() must be a string literal")
 			}
 			return expr, exprOut{}
 		}
@@ -8842,7 +8834,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef && p.isBundling {
 			// There must be one argument
 			if len(e.Args) != 1 {
-				p.log.AddError(p.source, expr.Loc,
+				p.log.AddError(&p.source, expr.Loc,
 					fmt.Sprintf("Calls to %s() must take a single argument", p.symbols[id.Ref.InnerIndex].Name))
 				return expr, exprOut{}
 			}
@@ -8856,7 +8848,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// The argument must be a string
 			str, ok := arg.Data.(*ast.EString)
 			if !ok {
-				p.log.AddError(p.source, arg.Loc,
+				p.log.AddError(&p.source, arg.Loc,
 					fmt.Sprintf("The argument to %s() must be a string literal", p.symbols[id.Ref.InnerIndex].Name))
 				return expr, exprOut{}
 			}
@@ -8976,7 +8968,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, e *ast.EIdentifier) ast.Expr {
 	if e.Ref == p.requireRef && (e != p.callTarget && e != p.typeofTarget) {
 		if p.tryBodyCount == 0 {
 			r := lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeError(p.source, r, "\"require\" must not be called indirectly")
+			p.log.AddRangeError(&p.source, r, "\"require\" must not be called indirectly")
 		} else {
 			// The "moment" library contains code that looks like this:
 			//

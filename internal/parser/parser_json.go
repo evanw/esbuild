@@ -21,7 +21,7 @@ func (p *jsonParser) parseMaybeTrailingComma(closeToken lexer.T) bool {
 
 	if p.lexer.Token == closeToken {
 		if !p.allowTrailingCommas {
-			p.log.AddRangeError(p.source, commaRange, "JSON does not support trailing commas")
+			p.log.AddRangeError(&p.source, commaRange, "JSON does not support trailing commas")
 		}
 		return false
 	}
@@ -101,7 +101,7 @@ func (p *jsonParser) parseExpr() ast.Expr {
 			// Warn about duplicate keys
 			keyText := lexer.UTF16ToString(keyString)
 			if duplicates[keyText] {
-				p.log.AddRangeWarning(p.source, keyRange, fmt.Sprintf("Duplicate key: %q", keyText))
+				p.log.AddRangeWarning(&p.source, keyRange, fmt.Sprintf("Duplicate key: %q", keyText))
 			} else {
 				duplicates[keyText] = true
 			}

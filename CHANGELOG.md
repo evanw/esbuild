@@ -1,5 +1,53 @@
 # Changelog
 
+## Unreleased
+
+* Overhaul public-facing API code
+
+    This is a rewrite of all externally facing API code. It fixes some bugs and inconsistencies, adds some new features, and makes it easier to support various use cases going forward.
+
+    At a high-level, esbuild's API supports two separate operations: "build" and "transform". Building means reading from the file system and writing back to the file system. Transforming takes an input string and generates an output string. You should use the build API if you want to take advantage of esbuild's bundling capability, and you should use the transform API if you want to integrate esbuild as a library inside another tool (e.g. a "minify" plugin). This rewrite ensures the APIs for these two operations are exposed consistently for all ways of interacting with esbuild (both through the CLI and as a library).
+
+    Here are some of the highlights:
+
+    * There is now a public Go API ([#152](https://github.com/evanw/esbuild/issues/152))
+
+        The main API can be found in the [`github.com/evanw/esbuild/pkg/api`](pkg/api/api.go) module. It exposes the exact same features as the JavaScript API. This means you can use esbuild as a JavaScript transformation and bundling library from Go code without having to run esbuild as a child process. There is also the [`github.com/evanw/esbuild/pkg/cli`](pkg/cli/cli.go) module which can be used to wrap the esbuild CLI itself.
+
+    * There are now synchronous JavaScript APIs ([#136](https://github.com/evanw/esbuild/issues/136))
+
+        Sometimes JavaScript source transformations must be synchronous. For example, using esbuild's API to shim `require()` for `.ts` files was previously not possible because esbuild only had an asynchronous transform API.
+
+        This release adds the new `transformSync()` and `buildSync()` synchronous functions to mirror the existing `transform()` and `build()` asynchronous functions. Note that these synchronous calls incur the cost of starting up a new child process each time, so you should only use these instead of `startService()` if you have to (or if you don't care about optimal performance).
+
+    * There is now an experimental browser-based API ([#172](https://github.com/evanw/esbuild/issues/172))
+
+        The `esbuild-wasm` package now has a file called `browser.js` that exposes a `createService()` API which is similar to the esbuild API available in node. You can either import the `esbuild-wasm` package using a bundler that respects the `browser` field in `package.json` or import the `esbuild-wasm/lib/browser.js` file directly.
+
+        This is what esbuild's browser API looks like:
+
+        ```ts
+        interface BrowserOptions {
+          wasmURL: string
+          worker?: boolean
+        }
+
+        interface BrowserService {
+          transform(input: string, options: TransformOptions): Promise<TransformResult>
+          stop(): void
+        }
+
+        declare function createService(options: BrowserOptions): Promise<BrowserService>
+        ```
+
+        You must provide the URL to the `esbuild-wasm/esbuild.wasm` file in `wasmURL`. The optional `worker` parameter can be set to `false` to load the WebAssembly module in the same thread instead of creating a worker thread. Using a worker thread is recommended because it means transforming will not block the main thread.
+
+        This API is experimental and may be changed in the future depending on the feedback it gets.
+
+    * Error messages now use `sourcefile` ([#131](https://github.com/evanw/esbuild/issues/131))
+
+        Errors from transform API calls now use `sourcefile` as the the original file name if present. Previously the file name in error messages was always `/input.js`.
+
 ## 0.4.14
 
 * Do not reorder `"use strict"` after support code ([#173](https://github.com/evanw/esbuild/issues/173))

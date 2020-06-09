@@ -215,7 +215,6 @@ Usage:
   esbuild [options] [entry points]
 
 Options:
-  --name=...            The name of the module
   --bundle              Bundle all dependencies into the output files
   --outfile=...         The output file (for one entry point)
   --outdir=...          The output directory (for multiple entry points)
@@ -225,6 +224,7 @@ Options:
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife, cjs, esm)
   --color=...           Force use of color terminal escapes (true or false)
+  --global-name=...     The name of the global for the IIFE format
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -243,7 +243,7 @@ Advanced options:
   --sourcemap=external      Do not link to the source map with a comment
   --sourcefile=...          Set the source file for the source map (for stdin)
   --error-limit=...         Maximum error count or 0 to disable (default 10)
-  --log-level=...           Disable logging (info, warning, error)
+  --log-level=...           Disable logging (info, warning, error, silent)
   --resolve-extensions=...  A comma-separated list of implicit extensions
   --metafile=...            Write metadata about the build to a JSON file
 
@@ -278,7 +278,6 @@ Example build script:
 const { build } = require('esbuild')
 
 build({
-  stdio: 'inherit',
   entryPoints: ['./src/main.ts'],
   outfile: './dist/main.js',
   minify: true,
@@ -312,12 +311,16 @@ Example usage:
   const esbuild = require('esbuild')
   const service = await esbuild.startService()
 
-  // This can be called many times without the overhead of starting a service
-  const { js } = await service.transform(jsx, { loader: 'jsx' })
-  console.log(js)
+  try {
+    // This can be called many times without the overhead of starting a service
+    const { js } = await service.transform(jsx, { loader: 'jsx' })
+    console.log(js)
+  }
 
-  // The child process can be explicitly killed when it's no longer needed
-  service.stop()
+  finally {
+    // The child process can be explicitly killed when it's no longer needed
+    service.stop()
+  }
 })()
 ```
 

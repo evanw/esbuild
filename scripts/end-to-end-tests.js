@@ -16,16 +16,18 @@
   const { default: { buildBinary, dirname } } = await import('./esbuild.js')
   const { default: mkdirp } = await import('mkdirp')
   const { default: rimraf } = await import('rimraf')
+  const assert = await import('assert')
   const path = await import('path')
   const util = await import('util')
   const url = await import('url')
   const fs = await import('fs')
   const testDir = path.join(dirname, '.end-to-end-tests')
   const esbuildPath = buildBinary()
+  const tests = []
   let testCount = 0
 
-  let tests = [
-    // Tests for "--define"
+  // Tests for "--define"
+  tests.push(
     test(['--define:foo=null', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== null) throw 'fail'` }),
     test(['--define:foo=true', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== true) throw 'fail'` }),
     test(['--define:foo=false', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== false) throw 'fail'` }),
@@ -36,7 +38,15 @@
     test(['--define:foo=bar', 'in.js', '--outfile=node.js'], { 'in.js': `let bar = {x: 123}; if (foo.x !== 123) throw 'fail'` }),
     test(['--define:a.x=1', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x !== 1) throw 'fail'` }),
     test(['--define:a.x=1', '--define:b.x=1', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + b.x !== 2) throw 'fail'` }),
-  ]
+  )
+
+  // Test recursive directory creation
+  tests.push(
+    test(['entry.js', '--outfile=a/b/c/d/index.js'], {
+      'entry.js': `exports.foo = 123`,
+      'node.js': `const ns = require('./a/b/c/d'); if (ns.foo !== 123) throw 'fail'`,
+    }),
+  )
 
   // Tests for symlinks
   //
@@ -372,6 +382,53 @@
     }),
   )
 
+  // Test writing to stdout
+  tests.push(
+    // These should succeed
+    testStdout('exports.foo = 123', [], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, `exports.foo = 123;\n`)
+    }),
+    testStdout('exports.foo = 123', ['--bundle', '--format=cjs'], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, `// example.js\nexports.foo = 123;\n`)
+    }),
+    testStdout('exports.foo = 123', ['--sourcemap'], async (build) => {
+      const stdout = await build()
+      const start = `exports.foo = 123;\n//# sourceMappingURL=data:application/json;base64,`
+      assert.default(stdout.startsWith(start))
+      const json = JSON.parse(Buffer.from(stdout.slice(start.length), 'base64').toString())
+      assert.strictEqual(json.version, 3)
+      assert.deepStrictEqual(json.sources, ['example.js'])
+    }),
+    testStdout('exports.foo = 123', ['--bundle', '--format=cjs', '--sourcemap'], async (build) => {
+      const stdout = await build()
+      const start = `// example.js\nexports.foo = 123;\n//# sourceMappingURL=data:application/json;base64,`
+      assert.default(stdout.startsWith(start))
+      const json = JSON.parse(Buffer.from(stdout.slice(start.length), 'base64').toString())
+      assert.strictEqual(json.version, 3)
+      assert.deepStrictEqual(json.sources, ['example.js'])
+    }),
+    testStdout('stuff', ['--loader:.js=text'], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, `module.exports = "stuff";\n`)
+    }),
+
+    // These should fail
+    testStdout('exports.foo = 123', ['--metafile=graph.json'], async (build) => {
+      try { await build() } catch (e) { return }
+      throw new Error('Expected build failure for "--metafile"')
+    }),
+    testStdout('exports.foo = 123', ['--sourcemap=external'], async (build) => {
+      try { await build() } catch (e) { return }
+      throw new Error('Expected build failure for "--metafile"')
+    }),
+    testStdout('exports.foo = 123', ['--loader:.js=file'], async (build) => {
+      try { await build() } catch (e) { return }
+      throw new Error('Expected build failure for "--metafile"')
+    }),
+  )
+
   function test(args, files, options) {
     return async () => {
       const hasBundle = args.includes('--bundle')
@@ -439,6 +496,35 @@
 `)
           return false
         }
+      }
+
+      return true
+    }
+  }
+
+  // There's a feature where bundling without "outfile" or "outdir" writes to stdout instead
+  function testStdout(input, args, callback) {
+    return async () => {
+      const thisTestDir = path.join(testDir, '' + testCount++)
+
+      try {
+        mkdirp.sync(thisTestDir)
+        const inputFile = path.join(thisTestDir, 'example.js')
+        await util.promisify(fs.writeFile)(inputFile, input)
+
+        // Run whatever check the caller is doing
+        await callback(async () => {
+          const { stdout } = await util.promisify(childProcess.execFile)(
+            esbuildPath, [inputFile].concat(args), { cwd: thisTestDir, stdio: 'pipe' })
+          return stdout
+        })
+
+        // Clean up test output
+        rimraf.sync(thisTestDir, { disableGlob: true })
+      } catch (e) {
+        console.error(`❌ test failed: ${e && e.message || e}
+  dir: ${path.relative(dirname, thisTestDir)}`)
+        return false
       }
 
       return true
