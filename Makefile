@@ -111,6 +111,7 @@ scripts/node_modules:
 	cd scripts && npm ci
 
 ################################################################################
+# This runs the test262 official JavaScript test suite through esbuild
 
 github/test262:
 	mkdir -p github
@@ -124,6 +125,7 @@ test262: esbuild | demo/test262
 	node scripts/test262.js
 
 ################################################################################
+# This runs UglifyJS's test suite through esbuild
 
 github/uglify:
 	mkdir -p github/uglify
@@ -139,6 +141,40 @@ uglify: esbuild | demo/uglify
 	node scripts/uglify-tests.js
 
 ################################################################################
+# This builds Rollup using esbuild and then uses it to run Rollup's test suite
+
+TEST_ROLLUP_FIND = "compilerOptions": {
+
+TEST_ROLLUP_REPLACE += "compilerOptions": {
+TEST_ROLLUP_REPLACE += "baseUrl": ".",
+TEST_ROLLUP_REPLACE += "paths": { "package.json": [".\/package.json"] },
+
+TEST_ROLLUP_FLAGS += --bundle
+TEST_ROLLUP_FLAGS += --external:fsevents
+TEST_ROLLUP_FLAGS += --outfile=dist/rollup.js
+TEST_ROLLUP_FLAGS += --platform=node
+TEST_ROLLUP_FLAGS += --target=es2019
+TEST_ROLLUP_FLAGS += src/node-entry.ts
+
+github/rollup:
+	mkdir -p github
+	git clone --depth 1 --branch v2.15.0 https://github.com/rollup/rollup.git github/rollup
+
+demo/rollup: | github/rollup
+	mkdir -p demo/rollup
+	cp -RP github/rollup/ demo/rollup
+	cd demo/rollup && npm ci
+
+	# Patch over Rollup's custom "package.json" alias using "tsconfig.json"
+	cat demo/rollup/tsconfig.json | sed 's/$(TEST_ROLLUP_FIND)/$(TEST_ROLLUP_REPLACE)/' > demo/rollup/tsconfig2.json
+	mv demo/rollup/tsconfig2.json demo/rollup/tsconfig.json
+
+test-rollup: esbuild | demo/rollup
+	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) && npm run test:only
+	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) --minify && npm run test:only
+
+################################################################################
+# This runs terser's test suite through esbuild
 
 github/terser:
 	mkdir -p github/terser
@@ -154,6 +190,7 @@ terser: esbuild | demo/terser
 	node scripts/terser-tests.js
 
 ################################################################################
+# This generates a project containing 10 copies of the Three.js library
 
 github/three:
 	mkdir -p github
