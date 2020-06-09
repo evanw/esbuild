@@ -12,7 +12,7 @@ test-all:
 	make -j5 test-go verify-source-map end-to-end-tests js-api-tests test-wasm
 
 # This includes tests of some 3rd-party libraries, which can be very slow
-test-extra: test-all test-sucrase test-rollup
+test-extra: test-all test-sucrase test-esprima test-rollup
 
 test-go:
 	go test ./internal/...
@@ -193,6 +193,23 @@ demo/sucrase: | github/sucrase
 test-sucrase: esbuild | demo/sucrase
 	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --platform=node > out.js && npx mocha out.js
 	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --platform=node --minify > out.js && npx mocha out.js
+
+################################################################################
+# This builds Esprima using esbuild and then uses it to run Esprima's test suite
+
+github/esprima:
+	mkdir -p github/esprima
+	cd github/esprima && git init && git remote add origin https://github.com/jquery/esprima.git
+	cd github/esprima && git fetch --depth 1 origin fa49b2edc288452eb49441054ce6f7ff4b891eb4 && git checkout FETCH_HEAD
+
+demo/esprima: | github/esprima
+	mkdir -p demo/esprima
+	cp -r github/esprima/ demo/esprima
+	cd demo/esprima && npm ci
+
+test-esprima: esbuild | demo/esprima
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --platform=node && npm run all-tests
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --platform=node --minify && npm run all-tests
 
 ################################################################################
 # This runs terser's test suite through esbuild
