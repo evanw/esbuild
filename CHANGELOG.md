@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.12
 
 * Support `export * from ...` for CommonJS modules ([#159](https://github.com/evanw/esbuild/issues/159))
 
