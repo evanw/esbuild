@@ -72,12 +72,13 @@ Several reasons:
 * JavaScript and TypeScript syntax
 * CommonJS and ES6 modules
 * JSX-to-JavaScript conversion
-* Bundling using `--bundle` with scope hoisting and tree shaking of ES6 modules
+* Bundling using `--bundle` with scope hoisting ES6 modules
 * Full minification with `--minify` (whitespace, identifiers, and mangling)
 * Full source map support when `--sourcemap` is enabled
 * Compile-time identifier substitutions via `--define`
+* Tree shaking of ES6 modules supporting `sideEffects` in `package.json`
 * Path substitution using the `browser` field in `package.json`
-* Automatic detection of `baseUrl` in `tsconfig.json`
+* Automatic detection of `baseUrl` and `paths` in `tsconfig.json`
 
 #### JavaScript syntax support:
 
