@@ -1489,7 +1489,7 @@ func (p *parser) parseProperty(
 						return p.parseProperty(kind, opts, nil)
 					}
 
-				case "private", "protected", "public", "readonly", "abstract":
+				case "private", "protected", "public", "readonly", "abstract", "declare":
 					// Skip over TypeScript keywords
 					if opts.isClass && p.ts.Parse {
 						return p.parseProperty(kind, opts, nil)
