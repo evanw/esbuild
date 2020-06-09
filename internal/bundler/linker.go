@@ -513,7 +513,8 @@ func (c *linkerContext) scanImportsAndExports() {
 		// then we'll be using the actual CommonJS "exports" and/or "module"
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
-		if c.options.OutputFormat == printer.FormatCommonJS && !fileMeta.cjsWrap {
+		if c.options.OutputFormat == printer.FormatCommonJS && !fileMeta.cjsWrap &&
+			fileMeta.entryPointStatus == entryPointUserSpecified {
 			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
 			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
 			c.symbols.Get(exportsRef).Kind = ast.SymbolUnbound

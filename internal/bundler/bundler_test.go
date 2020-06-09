@@ -4891,3 +4891,107 @@ class Bar {
 		},
 	})
 }
+
+func TestExportsAndModuleFormatCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as foo from './foo/test'
+				import * as bar from './bar/test'
+				console.log(exports, module.exports, foo, bar)
+			`,
+			"/foo/test.js": `
+				export let foo = 123
+			`,
+			"/bar/test.js": `
+				export let bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+
+		// The "test_exports" names must be different
+		expected: map[string]string{
+			"/out.js": `// /foo/test.js
+const test_exports2 = {};
+__export(test_exports2, {
+  foo: () => foo
+});
+let foo = 123;
+
+// /bar/test.js
+const test_exports = {};
+__export(test_exports, {
+  bar: () => bar
+});
+let bar = 123;
+
+// /entry.js
+console.log(exports, module.exports, test_exports2, test_exports);
+`,
+		},
+	})
+}
+
+func TestMinifiedExportsAndModuleFormatCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as foo from './foo/test'
+				import * as bar from './bar/test'
+				console.log(exports, module.exports, foo, bar)
+			`,
+			"/foo/test.js": `
+				export let foo = 123
+			`,
+			"/bar/test.js": `
+				export let bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        true,
+			MinifyIdentifiers: true,
+			OutputFormat:      printer.FormatCommonJS,
+			AbsOutputFile:     "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: resolver.PlatformNode,
+		},
+
+		// The "test_exports" names must be minified, and the "exports" and
+		// "module" names must not be minified
+		expected: map[string]string{
+			"/out.js": `// /foo/test.js
+const c = {};
+e(c, {
+  foo: () => i
+});
+let i = 123;
+
+// /bar/test.js
+const b = {};
+e(b, {
+  bar: () => h
+});
+let h = 123;
+
+// /entry.js
+console.log(exports, module.exports, c, b);
+`,
+		},
+	})
+}

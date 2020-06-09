@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix possible name collision with CommonJS the target ([#174](https://github.com/evanw/esbuild/issues/174))
+
+    A bug meant that the export objects for individual modules with the same filename could in some cases end up reusing the same name in the output file, which then caused a syntax error. This only happened with the `cjs` target. The bug has been fixed.
+
 ## 0.4.12
 
 * Support `export * from ...` for CommonJS modules ([#159](https://github.com/evanw/esbuild/issues/159))
