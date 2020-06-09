@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.13
 
 * Fix possible name collision with CommonJS the target ([#174](https://github.com/evanw/esbuild/issues/174))
 
