@@ -8359,6 +8359,25 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			e.Parts[i].Value = p.visitExpr(part.Value)
 		}
 
+		// "`a${'b'}c`" => "`abc`"
+		if p.mangleSyntax && e.Tag == nil {
+			end := 0
+			for _, part := range e.Parts {
+				if str, ok := part.Value.Data.(*ast.EString); ok {
+					if end == 0 {
+						e.Head = append(append(e.Head, str.Value...), part.Tail...)
+					} else {
+						prevPart := &e.Parts[end-1]
+						prevPart.Tail = append(append(prevPart.Tail, str.Value...), part.Tail...)
+					}
+				} else {
+					e.Parts[end] = part
+					end++
+				}
+			}
+			e.Parts = e.Parts[:end]
+		}
+
 	case *ast.EBinary:
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{isAssignTarget: e.Op.IsBinaryAssign()})
 		e.Right = p.visitExpr(e.Right)

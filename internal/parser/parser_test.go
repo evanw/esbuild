@@ -1275,6 +1275,18 @@ func TestMangleArrow(t *testing.T) {
 	expectPrintedMangle(t, "var a = () => {throw 123}", "var a = () => {\n  throw 123;\n};\n")
 }
 
+func TestMangleTemplate(t *testing.T) {
+	expectPrintedMangle(t, "`a${x}b${y}c`", "`a${x}b${y}c`;\n")
+	expectPrintedMangle(t, "`a${x}b${'y'}c`", "`a${x}byc`;\n")
+	expectPrintedMangle(t, "`a${'x'}b${y}c`", "`axb${y}c`;\n")
+	expectPrintedMangle(t, "`a${'x'}b${'y'}c`", "`axbyc`;\n")
+
+	expectPrintedMangle(t, "tag`a${x}b${y}c`", "tag`a${x}b${y}c`;\n")
+	expectPrintedMangle(t, "tag`a${x}b${'y'}c`", "tag`a${x}b${\"y\"}c`;\n")
+	expectPrintedMangle(t, "tag`a${'x'}b${y}c`", "tag`a${\"x\"}b${y}c`;\n")
+	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
+}
+
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { ; }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { b() }", "a();\n")
