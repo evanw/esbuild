@@ -603,38 +603,22 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 	for _, alias := range fileMeta.sortedAndFilteredExportAliases {
 		export := fileMeta.resolvedExports[alias]
 
+		// If this is an export of an import, reference the symbol that the import
+		// was eventually resolved to. We need to do this because imports have
+		// already been resolved by this point, so we can't generate a new import
+		// and have that be resolved later.
+		otherFileMeta := &c.fileMeta[export.sourceIndex]
+		if importToBind, ok := otherFileMeta.importsToBind[export.ref]; ok {
+			export.ref = importToBind.ref
+			export.sourceIndex = importToBind.sourceIndex
+		}
+
 		// Exports of imports need EImportIdentifier in case they need to be re-
 		// written to a property access later on
 		var value ast.Expr
 		otherFile := &c.files[export.sourceIndex]
 		if _, ok := otherFile.ast.NamedImports[export.ref]; ok {
 			value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{export.ref}}
-
-			// Mark that the import is used by the part we're about to generate.
-			// That way when the import is later bound to its matching export,
-			// the export will be assigned as a dependency of the part we're about
-			// to generate.
-			namedImport, ok := file.ast.NamedImports[export.ref]
-			if !ok {
-
-				// The import may be in another file because of an export star, but
-				// we want to add the dependency to the original file since the
-				// dependency propagation uses local part references. In that case,
-				// add a new import to the original file.
-				namedImport = ast.NamedImport{
-					Alias:        alias,
-					AliasLoc:     *export.pathLoc,
-					NamespaceRef: ast.InvalidRef,
-					ImportPath: ast.Path{
-						UseSourceIndex: true,
-						SourceIndex:    export.sourceIndex,
-					},
-				}
-
-			}
-			clone := append(make([]uint32, 0, len(namedImport.LocalPartsWithUses)+1), namedImport.LocalPartsWithUses...)
-			namedImport.LocalPartsWithUses = append(clone, nsExportPartIndex)
-			file.ast.NamedImports[export.ref] = namedImport
 		} else {
 			value = ast.Expr{ast.Loc{}, &ast.EIdentifier{export.ref}}
 		}

@@ -6,6 +6,10 @@
 
     Even when not in bundling mode, esbuild sometimes adds automatically-generated support code at the start of the output file. For example, using the `**` operator with `--target=es2015` causes `let __pow = Math.pow` to be inserted at the start of the file. This interfered with `"use strict"` directives, which must come first. Now `"use strict"` directives are written out first before any automatically-generated support code.
 
+* Fix bug with export star pointing to a re-export ([#176](https://github.com/evanw/esbuild/issues/176))
+
+    This fixes a tree shaking bug that involves an `export * from ...` statement pointing to a file with a `export {name} from ...` statement. Now `name` will no longer be incorrectly removed from the bundle.
+
 ## 0.4.13
 
 * Fix possible name collision with CommonJS the target ([#174](https://github.com/evanw/esbuild/issues/174))

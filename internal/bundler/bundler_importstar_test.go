@@ -1908,3 +1908,47 @@ console.log(void 0);
 		},
 	})
 }
+
+func TestIssue176(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as things from './folders'
+				console.log(JSON.stringify(things))
+			`,
+			"/folders/index.js": `
+				export * from "./child"
+			`,
+			"/folders/child/index.js": `
+				export { foo } from './foo'
+			`,
+			"/folders/child/foo.js": `
+				export const foo = () => 'hi there'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /folders/child/foo.js
+const foo = () => "hi there";
+
+// /folders/child/index.js
+
+// /folders/index.js
+const index_exports = {};
+__export(index_exports, {
+  foo: () => foo
+});
+
+// /entry.js
+console.log(JSON.stringify(index_exports));
+`,
+		},
+	})
+}
