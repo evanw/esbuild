@@ -1909,6 +1909,39 @@ console.log(void 0);
 	})
 }
 
+func TestExportStarDefaultExportCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from './foo'
+			`,
+			"/foo.js": `
+				export default 'default' // This should not be picked up
+				export let foo = 'foo'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+let foo = "foo";
+
+// /entry.js
+__export(exports, {
+  foo: () => foo
+});
+`,
+		},
+	})
+}
+
 func TestIssue176(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

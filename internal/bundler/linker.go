@@ -903,6 +903,11 @@ func (c *linkerContext) addExportsForExportStar(
 
 		// Accumulate this file's exports
 		for name, ref := range c.files[otherSourceIndex].ast.NamedExports {
+			// ES6 export star statements ignore exports named "default"
+			if name == "default" {
+				continue
+			}
+
 			existing, ok := resolvedExports[name]
 
 			// Don't overwrite real exports, which shadow export stars
