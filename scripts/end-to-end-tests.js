@@ -295,6 +295,22 @@
     }),
   )
 
+  // Test directive preservation
+  tests.push(
+    // The "__pow" symbol must not be hoisted above "use strict"
+    test(['entry.js', '--outfile=node.js', '--target=es6'], {
+      'entry.js': `
+        'use strict'
+        function f(a) {
+          a **= 2
+          return [a, arguments[0]]
+        }
+        let pair = f(2)
+        if (pair[0] !== 4 || pair[1] !== 2) throw 'fail'
+      `,
+    }),
+  )
+
   // Test minification of top-level symbols
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {

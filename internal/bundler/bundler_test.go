@@ -4995,3 +4995,32 @@ console.log(exports, module.exports, c, b);
 		},
 	})
 }
+
+// The minifier should not remove "use strict" or join it with other expressions
+func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				'use strict'
+				'use loose'
+				a
+				b
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:   false,
+			MangleSyntax: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:       false,
+			MangleSyntax:     true,
+			RemoveWhitespace: true,
+			AbsOutputFile:    "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `"use strict";a,b;
+`,
+		},
+	})
+}

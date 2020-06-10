@@ -1114,6 +1114,7 @@ type AST struct {
 	HasES6Exports bool
 
 	Hashbang    string
+	Directive   string
 	Parts       []Part
 	Symbols     SymbolMap
 	ModuleScope *Scope

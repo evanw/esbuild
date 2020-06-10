@@ -188,6 +188,7 @@ type partRef struct {
 type chunkMeta struct {
 	name                  string
 	hashbang              string
+	directive             string
 	filesWithPartsInChunk map[uint32]bool
 	entryBits             bitSet
 }
@@ -1234,6 +1235,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		chunks[string(entryBits.entries)] = chunkMeta{
 			entryBits:             entryBits,
 			hashbang:              c.files[entryPoint].ast.Hashbang,
+			directive:             c.files[entryPoint].ast.Directive,
 			name:                  entryPointNames[i],
 			filesWithPartsInChunk: make(map[uint32]bool),
 		}
@@ -1925,8 +1927,17 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 	// Start with the hashbang if there is one
 	if chunk.hashbang != "" {
-		prevOffset.advance(chunk.hashbang + "\n")
-		j.AddString(chunk.hashbang + "\n")
+		hashbang := chunk.hashbang + "\n"
+		prevOffset.advance(hashbang)
+		j.AddString(hashbang)
+		newlineBeforeComment = true
+	}
+
+	// Add the top-level directive if present
+	if chunk.directive != "" {
+		quoted := printer.Quote(chunk.directive) + ";" + newline
+		prevOffset.advance(quoted)
+		j.AddString(quoted)
 		newlineBeforeComment = true
 	}
 

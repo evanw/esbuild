@@ -5275,17 +5275,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.ExpectOrInsertSemicolon()
 
 		// Parse a "use strict" directive
-		if str, ok := expr.Data.(*ast.EString); ok && len(str.Value) == len("use strict") {
-			isEqual := true
-			for i, c := range str.Value {
-				if c != uint16("use strict"[i]) {
-					isEqual = false
-					break
-				}
-			}
-			if isEqual {
-				return ast.Stmt{loc, &ast.SDirective{Value: str.Value}}
-			}
+		if str, ok := expr.Data.(*ast.EString); ok && lexer.UTF16EqualsString(str.Value, "use strict") {
+			return ast.Stmt{loc, &ast.SDirective{Value: str.Value}}
 		}
 
 		return ast.Stmt{loc, &ast.SExpr{expr}}
@@ -9557,6 +9548,15 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{isModuleScope: true})
 	p.prepareForVisitPass()
 
+	// Strip off a leading "use strict" directive when not bundling
+	directive := ""
+	if !options.IsBundling && len(stmts) > 0 {
+		if s, ok := stmts[0].Data.(*ast.SDirective); ok {
+			directive = lexer.UTF16ToString(s.Value)
+			stmts = stmts[1:]
+		}
+	}
+
 	// Bind symbols in a second pass over the AST. I started off doing this in a
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
@@ -9683,7 +9683,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		}
 	}
 
-	result = p.toAST(source, parts, hashbang)
+	result = p.toAST(source, parts, hashbang, directive)
 	result.WasTypeScript = options.TS.Parse
 	return
 }
@@ -9713,7 +9713,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 	// Mark that we used the "module" variable
 	p.symbols[p.moduleRef.InnerIndex].UseCountEstimate++
 
-	return p.toAST(source, []ast.Part{ast.Part{Stmts: []ast.Stmt{stmt}}}, "")
+	return p.toAST(source, []ast.Part{ast.Part{Stmts: []ast.Stmt{stmt}}}, "", "")
 }
 
 func (p *parser) prepareForVisitPass() {
@@ -9721,7 +9721,7 @@ func (p *parser) prepareForVisitPass() {
 	p.moduleScope = p.currentScope
 }
 
-func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string) ast.AST {
+func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string, directive string) ast.AST {
 	// Make a wrapper symbol in case we need to be wrapped in a closure
 	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+
 		ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath))
@@ -9738,6 +9738,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string)
 		ModuleRef:             p.moduleRef,
 		WrapperRef:            wrapperRef,
 		Hashbang:              hashbang,
+		Directive:             directive,
 		NamedImports:          p.namedImports,
 		NamedExports:          p.namedExports,
 		TopLevelSymbolToParts: p.topLevelSymbolToParts,

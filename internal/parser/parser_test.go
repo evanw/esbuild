@@ -1265,11 +1265,6 @@ func TestMangleInitializer(t *testing.T) {
 	expectPrintedMangle(t, "var [] = undefined", "var [] = void 0;\n")
 }
 
-func TestMangleUseStrict(t *testing.T) {
-	// The mangler should not remove "use strict" or join it with other expressions
-	expectPrintedMangle(t, "'use strict'; 'use loose'; a; b", "\"use strict\";\na, b;\n")
-}
-
 func TestMangleArrow(t *testing.T) {
 	expectPrintedMangle(t, "var a = () => {}", "var a = () => {\n};\n")
 	expectPrintedMangle(t, "var a = () => 123", "var a = () => 123;\n")
