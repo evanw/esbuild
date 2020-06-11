@@ -278,7 +278,7 @@ demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-p
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
 	mkdir -p demo/three/esbuild
-	cd demo/three/esbuild && time -p ../../../esbuild --bundle --name=THREE --sourcemap --minify ../src/Three.js --outfile=Three.esbuild.js
+	cd demo/three/esbuild && time -p ../../../esbuild --bundle --global-name=THREE --sourcemap --minify ../src/Three.js --outfile=Three.esbuild.js
 	du -h demo/three/esbuild/Three.esbuild.js*
 	shasum demo/three/esbuild/Three.esbuild.js*
 
@@ -316,7 +316,7 @@ bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-th
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
 	mkdir -p bench/three/esbuild
-	cd bench/three/esbuild && time -p ../../../esbuild --bundle --name=THREE --sourcemap --minify ../entry.js --outfile=entry.esbuild.js
+	cd bench/three/esbuild && time -p ../../../esbuild --bundle --global-name=THREE --sourcemap --minify ../entry.js --outfile=entry.esbuild.js
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 
