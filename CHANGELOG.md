@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.14
 
 * Do not reorder `"use strict"` after support code ([#173](https://github.com/evanw/esbuild/issues/173))
 
