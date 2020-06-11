@@ -1,0 +1,1 @@
+This directory contains the TypeScript code that becomes the JavaScript API code in the `esbuild` and `esbuild-wasm` packages. It's automatically built during the build process for those packages (i.e. the top-level `make platform-neutral` and `make platform-wasm` commands).

@@ -15,7 +15,7 @@ declare let WASM_EXEC_JS: string
 let workerThread = () => {
   onmessage = ({ data: wasm }) => {
     let decoder = new TextDecoder()
-    let fs = (self as any).fs
+    let fs = (global as any).fs
 
     let stderr = ''
     fs.writeSync = (fd: number, buffer: Uint8Array) => {
@@ -67,7 +67,7 @@ let workerThread = () => {
       callback(null, count)
     }
 
-    let go = new Go()
+    let go = new (global as any).Go()
     go.argv = ['', '--service']
 
     WebAssembly.instantiate(wasm, go.importObject)
@@ -77,7 +77,13 @@ let workerThread = () => {
 
 export let startService = (options: BrowserOptions): Promise<types.Service> => {
   return fetch(options.wasmURL).then(r => r.arrayBuffer()).then(wasm => {
-    let code = `${WASM_EXEC_JS};(${workerThread})();`
+    let cloneGlobal = () => {
+      // Clone the global object to prevent the Go wrapper from polluting the actual global object
+      for (let obj: any = self; obj; obj = Object.getPrototypeOf(obj))
+        for (let key of Object.getOwnPropertyNames(obj))
+          (global as any)[key] = (self as any)[key]
+    };
+    let code = `{let global={};(${cloneGlobal})();${WASM_EXEC_JS};(${workerThread})();}`
     let worker: {
       onmessage: ((event: any) => void) | null
       postMessage: (data: Uint8Array | ArrayBuffer) => void

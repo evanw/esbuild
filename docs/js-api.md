@@ -112,4 +112,19 @@ Example usage:
 })()
 ```
 
+You can also use this API as a script tag in a HTML file. In this case the API creates a global called `esbuild` with a `startService` property:
+
+```html
+<script src="node_modules/esbuild-wasm/lib/browser.js"></script>
+<script>
+  esbuild.startService({
+    wasmURL: 'node_modules/esbuild-wasm/esbuild.wasm',
+  }).then(service => {
+    // Use service
+  })
+</script>
+```
+
+If you're already running this code from a worker and don't want `startService()` to create another worker, you can pass `startService({ wasmURL, worker: false })`. Then it will create a WebAssembly module in the same thread as the thread that calls `startService()`.
+
 The `esbuild-wasm` package can also be used from node in addition to being used from the browser. It exposes the exact same [node API](#node-api) as the `esbuild` package. To use it, just substitute `require('esbuild')` with `require('esbuild-wasm')` in the examples for the node API. However, you should always prefer the `esbuild` package if at all possible since it offers substantially better performance (in some cases it's around 10x faster). The node API in the `esbuild-wasm` package is only for compatibility with obscure platforms that the `esbuild` package doesn't have a native executable for.

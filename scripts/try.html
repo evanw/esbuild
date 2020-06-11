@@ -172,10 +172,9 @@
     <h2>Output</h2>
     <div class="outer"></div>
   </section>
-  <script>let exports = {}</script>
   <script src="../npm/esbuild-wasm/lib/browser.js"></script>
   <script>
-    exports.startService({
+    esbuild.startService({
       wasmURL: '../npm/esbuild-wasm/esbuild.wasm',
     }).then(service => {
       const input = document.querySelector('#input textarea')

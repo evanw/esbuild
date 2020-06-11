@@ -15,19 +15,16 @@ function buildNativeLib(esbuildPath) {
 
   // Generate "npm/esbuild/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
-    '--bundle',
     path.join(repoDir, 'lib', 'api-node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
+    '--bundle',
     '--format=cjs',
     '--define:WASM=false',
     '--platform=node',
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild/lib/main.d.ts"
-  fs.copyFileSync(
-    path.join(repoDir, 'lib', 'api-types.ts'),
-    path.join(libDir, 'main.d.ts'),
-  )
+  fs.copyFileSync(path.join(repoDir, 'lib', 'api-types.ts'), path.join(libDir, 'main.d.ts'))
 }
 
 function buildWasmLib(esbuildPath) {
@@ -40,29 +37,38 @@ function buildWasmLib(esbuildPath) {
 
   // Generate "npm/esbuild-wasm/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
-    '--bundle',
     path.join(repoDir, 'lib', 'api-node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
+    '--bundle',
     '--format=cjs',
     '--define:WASM=true',
     '--platform=node',
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild-wasm/lib/main.d.ts"
-  fs.copyFileSync(
-    path.join(repoDir, 'lib', 'api-types.ts'),
-    path.join(libDir, 'main.d.ts'),
-  )
+  fs.copyFileSync(path.join(repoDir, 'lib', 'api-types.ts'), path.join(libDir, 'main.d.ts'))
+
+  // Minify "npm/esbuild-wasm/wasm_exec.js"
+  const wasm_exec_js = path.join(npmWasmDir, 'wasm_exec.js')
+  const wasmExecMin = childProcess.execFileSync(esbuildPath, [
+    wasm_exec_js,
+    '--minify',
+  ], { cwd: repoDir }).toString()
+  const commentLines = fs.readFileSync(wasm_exec_js, 'utf8').split('\n')
+  const firstNonComment = commentLines.findIndex(line => !line.startsWith('//'))
+  const WASM_EXEC_JS = commentLines.slice(0, firstNonComment).concat(wasmExecMin).join('\n')
 
   // Generate "npm/esbuild-wasm/browser.js"
-  const wasm_exec_js = path.join(npmWasmDir, 'wasm_exec.js')
-  childProcess.execFileSync(esbuildPath, [
-    '--bundle',
+  const umdPrefix = `(exports=>{`
+  const umdSuffix = `})(typeof exports==="object"?exports:(typeof self!=="undefined"?self:this).esbuild={});\n`
+  const browserJs = childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'api-browser.ts'),
-    '--outfile=' + path.join(libDir, 'browser.js'),
+    '--bundle',
+    '--minify',
     '--format=cjs',
-    '--define:WASM_EXEC_JS=' + JSON.stringify(fs.readFileSync(wasm_exec_js, 'utf8')),
-  ], { cwd: repoDir })
+    '--define:WASM_EXEC_JS=' + JSON.stringify(WASM_EXEC_JS),
+  ], { cwd: repoDir }).toString()
+  fs.writeFileSync(path.join(libDir, 'browser.js'), umdPrefix + browserJs.trim() + umdSuffix)
 }
 
 exports.buildBinary = () => {
