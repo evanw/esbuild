@@ -50,7 +50,7 @@ Here are the details about each benchmark:
     | Bundler            |    Time | Relative slowdown | Absolute speed | Output size |
     | :----------------- | ------: | ----------------: | -------------: | ----------: |
     | esbuild            |   0.10s |                1x |  1287.5 kloc/s |      0.98mb |
-    | esbuild (1 thread) |   0.32s |                2x |   412.0 kloc/s |      0.98mb |
+    | esbuild (1 thread) |   0.32s |                3x |   412.0 kloc/s |      0.98mb |
     | parcel             |  16.77s |              168x |     7.9 kloc/s |      1.55mb |
     | webpack            |  18.67s |              187x |     7.1 kloc/s |      1.26mb |
 
