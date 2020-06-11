@@ -5,7 +5,7 @@ This is a JavaScript bundler and minifier. It packages up JavaScript and TypeScr
 ## Documentation
 
 * [JavaScript API documentation](docs/js-api.md)
-* [Go API documentation](docs/go-api.md)
+* [Go API documentation](https://godoc.org/github.com/evanw/esbuild/pkg/api)
 * [Architecture documentation](docs/architecture.md)
 * [中文文档](http://docs.breword.com/evanw-esbuild/)
 
