@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a regression with `--define` and identifiers
+
+    The API refactor introduced a regression where using a `--define` flag to replace something with an identifier followed by another `--define` flag unintentionally caused the first `--define` to use the value from the second `--define` for replacement. This regression was caused by a loop that was added around a Go closure, which caused all closures in that loop to close over the same variable. The bug has been fixed.
+
 ## 0.5.1
 
 * Go documentation was moved to godoc ([#177](https://github.com/evanw/esbuild/pull/177))

@@ -203,8 +203,9 @@ func validateDefines(log logging.Log, defines map[string]string) *parser.Process
 		// Allow substituting for an identifier
 		if lexer.IsIdentifier(value) {
 			if _, ok := lexer.Keywords()[value]; !ok {
+				name := value // The closure must close over a variable inside the loop
 				rawDefines[key] = func(findSymbol parser.FindSymbol) ast.E {
-					return &ast.EIdentifier{findSymbol(value)}
+					return &ast.EIdentifier{findSymbol(name)}
 				}
 				continue
 			}

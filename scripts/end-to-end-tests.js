@@ -37,7 +37,12 @@
     test(['--define:foo=global', 'in.js', '--outfile=node.js'], { 'in.js': `foo.bar = 123; if (bar !== 123) throw 'fail'` }),
     test(['--define:foo=bar', 'in.js', '--outfile=node.js'], { 'in.js': `let bar = {x: 123}; if (foo.x !== 123) throw 'fail'` }),
     test(['--define:a.x=1', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x !== 1) throw 'fail'` }),
-    test(['--define:a.x=1', '--define:b.x=1', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + b.x !== 2) throw 'fail'` }),
+    test(['--define:a.x=1', '--define:a.y=2', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + a.y !== 3) throw 'fail'` }),
+    test(['--define:a.x=1', '--define:b.y=2', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + b.y !== 3) throw 'fail'` }),
+    test(['--define:a.x=1', '--define:b.x=2', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + b.x !== 3) throw 'fail'` }),
+    test(['--define:x=y', '--define:y=x', 'in.js', '--outfile=node.js'], {
+      'in.js': `eval('var x="x",y="y"'); if (x + y !== 'yx') throw 'fail'`,
+    }),
   )
 
   // Test recursive directory creation
