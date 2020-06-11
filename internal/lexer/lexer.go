@@ -865,7 +865,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 }
 
 func (lexer *Lexer) Next() {
-	lexer.HasNewlineBefore = false
+	lexer.HasNewlineBefore = lexer.end == 0
 
 	for {
 		lexer.start = lexer.end
@@ -1084,7 +1084,7 @@ func (lexer *Lexer) Next() {
 				lexer.step()
 
 				// Handle legacy HTML-style comments
-				if lexer.codePoint == '>' {
+				if lexer.codePoint == '>' && lexer.HasNewlineBefore {
 					lexer.step()
 					lexer.log.AddRangeWarning(&lexer.source, lexer.Range(),
 						"Treating \"-->\" as the start of a legacy HTML single-line comment")

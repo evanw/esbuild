@@ -183,14 +183,18 @@ func TestComments(t *testing.T) {
 	expectParseError(t, "throw <!--\n x",
 		"<stdin>: warning: Treating \"<!--\" as the start of a legacy HTML single-line comment\n"+
 			"<stdin>: error: Unexpected newline after \"throw\"\n")
-	expectParseError(t, "throw -->\n x",
-		"<stdin>: warning: Treating \"-->\" as the start of a legacy HTML single-line comment\n"+
-			"<stdin>: error: Unexpected newline after \"throw\"\n")
+	expectParseError(t, "throw -->\n x", "<stdin>: error: Unexpected \">\"\n")
 
 	expectPrinted(t, "return //\n x", "return;\nx;\n")
 	expectPrinted(t, "return /**/\n x", "return;\nx;\n")
 	expectPrinted(t, "return <!--\n x", "return;\nx;\n")
-	expectPrinted(t, "return -->\n x", "return;\nx;\n")
+	expectPrinted(t, "-->\nx", "x;\n")
+	expectPrinted(t, "x\n-->\ny", "x;\ny;\n")
+	expectPrinted(t, "x\n -->\ny", "x;\ny;\n")
+	expectPrinted(t, "x\n/**/-->\ny", "x;\ny;\n")
+	expectPrinted(t, "x/*\n*/-->\ny", "x;\ny;\n")
+	expectPrinted(t, "x\n/**/ /**/-->\ny", "x;\ny;\n")
+	expectPrinted(t, "if(x-->y)z", "if (x-- > y)\n  z;\n")
 }
 
 func TestExponentiation(t *testing.T) {
