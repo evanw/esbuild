@@ -225,6 +225,15 @@
         return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       }
 
+      function renderTabs(text) {
+        let result = ''
+        for (let c of text) {
+          if (c === '\t') result += ' '.repeat(8 - result.length % 8)
+          else result += c
+        }
+        return result
+      }
+
       function messagesToHTML(kind, messages) {
         return messages.map(({ text, location }) => {
           let html = ''
@@ -234,9 +243,10 @@
           html += `<span class="terminal-${kind}">${kind}: </span>`
           html += `<span class="terminal-bold">${textToHTML(text)}</span><br>`
           if (location) {
+            let spaces = ' '.repeat(renderTabs(location.lineText.slice(0, location.column)).length)
             let underline = location.length > 1 ? '~'.repeat(location.length) : '^'
-            html += `${textToHTML(location.lineText)}<br>`
-            html += `<span class="terminal-underline">${' '.repeat(location.column)}${underline}</span><br>`
+            html += `${textToHTML(renderTabs(location.lineText))}<br>`
+            html += `<span class="terminal-underline">${spaces}${underline}</span><br>`
           }
           return html
         }).join('');
