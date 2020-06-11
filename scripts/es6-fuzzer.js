@@ -53,27 +53,38 @@
   }
 
   async function fuzzOnce(parentDir) {
-    const names = ['a.mjs', 'b.mjs', 'c.mjs', 'd.mjs', 'e.mjs'];
+    const mjs_or_cjs = () => Math.random() < 0.1 ? 'cjs' : 'mjs';
+    const names = [
+      'a.' + mjs_or_cjs(),
+      'b.' + mjs_or_cjs(),
+      'c.' + mjs_or_cjs(),
+      'd.' + mjs_or_cjs(),
+      'e.' + mjs_or_cjs(),
+    ];
     const randomName = () => names[Math.random() * names.length | 0];
     const files = {};
 
     for (const name of names) {
-      switch (Math.random() * 5 | 0) {
-        case 0:
-          files[name] = `export const foo = 123`;
-          break;
-        case 1:
-          files[name] = `export default 123`;
-          break;
-        case 2:
-          files[name] = `export * from "./${randomName()}"`;
-          break;
-        case 3:
-          files[name] = `export * as foo from "./${randomName()}"`;
-          break;
-        case 4:
-          files[name] = `import * as foo from "./${randomName()}"; export {foo}`;
-          break;
+      if (name.endsWith('.cjs')) {
+        files[name] = `module.exports = 123`;
+      } else {
+        switch (Math.random() * 5 | 0) {
+          case 0:
+            files[name] = `export const foo = 123`;
+            break;
+          case 1:
+            files[name] = `export default 123`;
+            break;
+          case 2:
+            files[name] = `export * from "./${randomName()}"`;
+            break;
+          case 3:
+            files[name] = `export * as foo from "./${randomName()}"`;
+            break;
+          case 4:
+            files[name] = `import * as foo from "./${randomName()}"; export {foo}`;
+            break;
+        }
       }
     }
 
@@ -87,7 +98,8 @@
 
     // Load the raw module using node
     const entryPoint = path.join(testDir, names[0]);
-    const realExports = await import(entryPoint);
+    let realExports = await import(entryPoint);
+    if (entryPoint.endsWith('.cjs')) realExports = realExports.default;
 
     // Bundle to a CommonJS module using esbuild
     const cjsFile = path.join(testDir, 'out.cjs');
