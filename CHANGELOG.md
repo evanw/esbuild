@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.5.1
+
+* Go documentation was moved to godoc ([#177](https://github.com/evanw/esbuild/pull/177))
+
+    The Go documentation is now in the source files itself instead of in an external Markdown file. View it online at https://godoc.org/github.com/evanw/esbuild/pkg/api and https://godoc.org/github.com/evanw/esbuild/pkg/cli.
+
+* The browser API now works in a script tag
+
+    The initial release of the browser API required a bundler to use correctly since it was in CommonJS format. This release adds the ability to use the browser API directly in HTML.
+
+    Here's an example using https://unpkg.com/ for simplicity, although you should consider hosting the files yourself:
+
+    ```html
+    <script src="https://unpkg.com/esbuild-wasm@0.5.1/lib/browser.js"></script>
+    <script>
+      (async () => {
+        const service = await esbuild.startService({
+          wasmURL: 'https://unpkg.com/esbuild-wasm@0.5.1/esbuild.wasm'
+        })
+        try {
+          const ts = 'enum Foo { A, B, C }'
+          const { js } = await service.transform(ts, { loader: 'ts' })
+          console.log(js)
+        } finally {
+          service.stop()
+        }
+      })()
+    </script>
+    ```
+
 ## 0.5.0
 
 * Overhaul public-facing API code
