@@ -1,5 +1,7 @@
 # esbuild
 
+[![Godoc](https://godoc.org/github.com/evanw/esbuild?status.svg)](https://godoc.org/github.com/evanw/esbuild/pkg/api)
+
 This is a JavaScript bundler and minifier. It packages up JavaScript and TypeScript code for distribution on the web.
 
 ## Documentation
