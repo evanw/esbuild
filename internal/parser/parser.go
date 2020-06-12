@@ -88,12 +88,88 @@ type parser struct {
 	// The visit pass binds identifiers to declared symbols, does constant
 	// folding, substitutes compile-time variable definitions, and lowers certain
 	// syntactic constructs as appropriate.
-	tryBodyCount      int
 	isThisCaptured    bool
 	callTarget        ast.E
-	typeofTarget      ast.E
 	moduleScope       *ast.Scope
 	isControlFlowDead bool
+
+	// These are for recognizing "typeof require == 'function' && require". This
+	// is a workaround for code that browserify generates that looks like this:
+	//
+	//   (function e(t, n, r) {
+	//     function s(o2, u) {
+	//       if (!n[o2]) {
+	//         if (!t[o2]) {
+	//           var a = typeof require == "function" && require;
+	//           if (!u && a)
+	//             return a(o2, true);
+	//           if (i)
+	//             return i(o2, true);
+	//           throw new Error("Cannot find module '" + o2 + "'");
+	//         }
+	//         var f = n[o2] = {exports: {}};
+	//         t[o2][0].call(f.exports, function(e2) {
+	//           var n2 = t[o2][1][e2];
+	//           return s(n2 ? n2 : e2);
+	//         }, f, f.exports, e, t, n, r);
+	//       }
+	//       return n[o2].exports;
+	//     }
+	//     var i = typeof require == "function" && require;
+	//     for (var o = 0; o < r.length; o++)
+	//       s(r[o]);
+	//     return s;
+	//   });
+	//
+	// It's checking to see if the environment it's running in has a "require"
+	// function before calling it. However, esbuild's bundling environment has a
+	// bundle-time require function because it's a bundler. So in this case
+	// "typeof require == 'function'" is true and the "&&" expression just
+	// becomes a single "require" identifier, which will then crash at run time.
+	//
+	// The workaround is to explicitly pattern-match for the exact expression
+	// "typeof require == 'function' && require" and replace it with "false" if
+	// we're targeting the browser.
+	//
+	// Note that we can't just leave "typeof require == 'function'" alone because
+	// there is other code in the wild that legitimately does need it to become
+	// "true" when bundling. Specifically, the package "@dagrejs/graphlib" has
+	// code that looks like this:
+	//
+	//   if (typeof require === "function") {
+	//     try {
+	//       lodash = {
+	//         clone: require("lodash/clone"),
+	//         constant: require("lodash/constant"),
+	//         each: require("lodash/each"),
+	//         // ... more calls to require() here ...
+	//       };
+	//     } catch (e) {
+	//       // continue regardless of error
+	//     }
+	//   }
+	//
+	// That library will crash later on during startup if that branch isn't
+	// taken because "typeof require === 'function'" is false at run time.
+	typeofTarget                ast.E
+	typeofRequire               ast.E
+	typeofRequireEqualsFn       ast.E
+	typeofRequireEqualsFnTarget ast.E
+
+	// This is used to silence references to "require" inside a try/catch
+	// statement. The assumption is that the try/catch statement is there to
+	// handle the case where the reference to "require" crashes. Specifically,
+	// the workaround handles the "moment" library which contains code that
+	// looks like this:
+	//
+	//   try {
+	//     oldLocale = globalLocale._abbr;
+	//     var aliasedRequire = require;
+	//     aliasedRequire('./locale/' + name);
+	//     getSetGlobalLocale(oldLocale);
+	//   } catch (e) {}
+	//
+	tryBodyCount int
 
 	// Temporary variables used for lowering
 	tempRefsToDeclare []ast.Ref
@@ -8367,13 +8443,26 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EBinary:
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{isAssignTarget: e.Op.IsBinaryAssign()})
+
+		// Pattern-match "typeof require == 'function' && ___" from browserify
+		if e.Op == ast.BinOpLogicalAnd && e.Left.Data == p.typeofRequireEqualsFn {
+			p.typeofRequireEqualsFnTarget = e.Right.Data
+		}
+
 		e.Right = p.visitExpr(e.Right)
 
 		// Fold constants
 		switch e.Op {
 		case ast.BinOpLooseEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{result}}, exprOut{}
+				data := &ast.EBoolean{result}
+
+				// Pattern-match "typeof require == 'function'" from browserify
+				if result && e.Left.Data == p.typeofRequire {
+					p.typeofRequireEqualsFn = data
+				}
+
+				return ast.Expr{expr.Loc, data}, exprOut{}
 			} else if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
 			}
@@ -8644,7 +8733,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// "typeof require" => "'function'"
 			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
 				p.ignoreUsage(p.requireRef)
-				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16("function")}}, exprOut{}
+				p.typeofRequire = &ast.EString{lexer.StringToUTF16("function")}
+				return ast.Expr{expr.Loc, p.typeofRequire}, exprOut{}
 			}
 
 			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
@@ -8752,27 +8842,25 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 		// The argument must be a string
-		str, ok := e.Expr.Data.(*ast.EString)
-		if !ok {
-			if p.IsBundling {
-				p.log.AddError(&p.source, e.Expr.Loc, "The argument to import() must be a string literal")
+		if str, ok := e.Expr.Data.(*ast.EString); ok {
+			// Ignore calls to import() if the control flow is provably dead here.
+			// We don't want to spend time scanning the required files if they will
+			// never be used.
+			if p.isControlFlowDead {
+				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
 			}
-			return expr, exprOut{}
-		}
 
-		// Ignore calls to import() if the control flow is provably dead here.
-		// We don't want to spend time scanning the required files if they will
-		// never be used.
-		if p.isControlFlowDead {
-			return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
-		}
+			path := ast.Path{
+				Loc:  e.Expr.Loc,
+				Text: lexer.UTF16ToString(str.Value),
+			}
 
-		path := ast.Path{
-			Loc:  e.Expr.Loc,
-			Text: lexer.UTF16ToString(str.Value),
+			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
+		} else if p.IsBundling {
+			r := lexer.RangeOfIdentifier(p.source, expr.Loc)
+			p.log.AddRangeWarning(&p.source, r,
+				"This dynamic import will not be bundled because the argument is not a string literal")
 		}
-
-		p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
 
 	case *ast.ECall:
 		var storeThisArg func(ast.Expr) ast.Expr
@@ -8829,42 +8917,42 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef && p.IsBundling {
 			// There must be one argument
 			if len(e.Args) != 1 {
-				p.log.AddError(&p.source, expr.Loc,
-					fmt.Sprintf("Calls to %s() must take a single argument", p.symbols[id.Ref.InnerIndex].Name))
-				return expr, exprOut{}
+				r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
+					"This call to \"require\" will not be bundled because it has %d arguments", len(e.Args)))
+			} else {
+				arg := e.Args[0]
+
+				// Convert no-substitution template literals into strings when bundling
+				if template, ok := arg.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
+					arg.Data = &ast.EString{template.Head}
+				}
+
+				// The argument must be a string
+				if str, ok := arg.Data.(*ast.EString); ok {
+					// Ignore calls to require() if the control flow is provably dead here.
+					// We don't want to spend time scanning the required files if they will
+					// never be used.
+					if p.isControlFlowDead {
+						return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
+					}
+
+					path := ast.Path{
+						Loc:  arg.Loc,
+						Text: lexer.UTF16ToString(str.Value),
+					}
+
+					p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
+
+					// Create a new expression to represent the operation
+					p.ignoreUsage(p.requireRef)
+					return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}, exprOut{}
+				}
+
+				r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+				p.log.AddRangeWarning(&p.source, r,
+					"This call to \"require\" will not be bundled because the argument is not a string literal")
 			}
-			arg := e.Args[0]
-
-			// Convert no-substitution template literals into strings when bundling
-			if template, ok := arg.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
-				arg.Data = &ast.EString{template.Head}
-			}
-
-			// The argument must be a string
-			str, ok := arg.Data.(*ast.EString)
-			if !ok {
-				p.log.AddError(&p.source, arg.Loc,
-					fmt.Sprintf("The argument to %s() must be a string literal", p.symbols[id.Ref.InnerIndex].Name))
-				return expr, exprOut{}
-			}
-
-			// Ignore calls to require() if the control flow is provably dead here.
-			// We don't want to spend time scanning the required files if they will
-			// never be used.
-			if p.isControlFlowDead {
-				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
-			}
-
-			path := ast.Path{
-				Loc:  arg.Loc,
-				Text: lexer.UTF16ToString(str.Value),
-			}
-
-			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
-
-			// Create a new expression to represent the operation
-			p.ignoreUsage(p.requireRef)
-			return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}, exprOut{}
 		}
 
 		return expr, exprOut{
@@ -8959,29 +9047,17 @@ func (p *parser) handleIdentifier(loc ast.Loc, e *ast.EIdentifier) ast.Expr {
 		}
 	}
 
-	// Disallow capturing the "require" variable without calling it
-	if e.Ref == p.requireRef && (e != p.callTarget && e != p.typeofTarget) {
-		if p.tryBodyCount == 0 {
-			r := lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeError(&p.source, r, "\"require\" must not be called indirectly")
+	// Warn about uses of "require" other than a direct call
+	if e.Ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.tryBodyCount == 0 {
+		// "typeof require == 'function' && require"
+		if e == p.typeofRequireEqualsFnTarget {
+			// Become "false" in the browser and "require" in node
+			if p.Platform == PlatformBrowser {
+				return ast.Expr{loc, &ast.EBoolean{false}}
+			}
 		} else {
-			// The "moment" library contains code that looks like this:
-			//
-			//   try {
-			//     oldLocale = globalLocale._abbr;
-			//     var aliasedRequire = require;
-			//     aliasedRequire('./locale/' + name);
-			//     getSetGlobalLocale(oldLocale);
-			//   } catch (e) {}
-			//
-			// This is unfortunate because it prevents the module graph from being
-			// statically determined. However, the dependencies are optional and
-			// the library will work fine without them.
-			//
-			// Handle this case by deliberately ignoring code that uses require
-			// incorrectly inside a try statement like this. We replace it with
-			// null so it's guaranteed to crash at runtime.
-			return ast.Expr{loc, &ast.ENull{}}
+			r := lexer.RangeOfIdentifier(p.source, loc)
+			p.log.AddRangeWarning(&p.source, r, "Indirect calls to \"require\" will not be bundled")
 		}
 	}
 
@@ -9459,6 +9535,13 @@ type TypeScriptOptions struct {
 	Parse bool
 }
 
+type Platform uint8
+
+const (
+	PlatformBrowser Platform = iota
+	PlatformNode
+)
+
 type ParseOptions struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
@@ -9469,6 +9552,7 @@ type ParseOptions struct {
 	TS           TypeScriptOptions
 	JSX          JSXOptions
 	Target       LanguageTarget
+	Platform     Platform
 }
 
 func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options ParseOptions) *parser {
@@ -9710,18 +9794,17 @@ func (p *parser) prepareForVisitPass(options *ParseOptions) {
 	p.moduleScope = p.currentScope
 
 	if options.IsBundling {
-		hasES6Syntax := p.hasES6ImportSyntax || p.hasES6ExportSyntax
-		p.exportsRef = p.declareCommonJSSymbol("exports", !hasES6Syntax)
-		p.requireRef = p.declareCommonJSSymbol("require", false)
-		p.moduleRef = p.declareCommonJSSymbol("module", !hasES6Syntax)
+		p.exportsRef = p.declareCommonJSSymbol(ast.SymbolHoisted, "exports")
+		p.requireRef = p.declareCommonJSSymbol(ast.SymbolUnbound, "require")
+		p.moduleRef = p.declareCommonJSSymbol(ast.SymbolHoisted, "module")
 	} else {
 		p.exportsRef = p.newSymbol(ast.SymbolHoisted, "exports")
-		p.requireRef = p.newSymbol(ast.SymbolHoisted, "require")
+		p.requireRef = p.newSymbol(ast.SymbolUnbound, "require")
 		p.moduleRef = p.newSymbol(ast.SymbolHoisted, "module")
 	}
 }
 
-func (p *parser) declareCommonJSSymbol(name string, mergeWithVar bool) ast.Ref {
+func (p *parser) declareCommonJSSymbol(kind ast.SymbolKind, name string) ast.Ref {
 	ref, ok := p.moduleScope.Members[name]
 
 	// If the code declared this symbol using "var name", then this is actually
@@ -9742,12 +9825,13 @@ func (p *parser) declareCommonJSSymbol(name string, mergeWithVar bool) ast.Ref {
 	//
 	// Both the "exports" argument and "var exports" are hoisted variables, so
 	// they don't collide.
-	if mergeWithVar && ok && p.symbols[ref.InnerIndex].Kind == ast.SymbolHoisted {
+	if ok && p.symbols[ref.InnerIndex].Kind == ast.SymbolHoisted &&
+		kind == ast.SymbolHoisted && !p.hasES6ImportSyntax && !p.hasES6ExportSyntax {
 		return ref
 	}
 
 	// Create a new symbol if we didn't merge with an existing one above
-	ref = p.newSymbol(ast.SymbolHoisted, name)
+	ref = p.newSymbol(kind, name)
 
 	// If the variable wasn't declared, declare it now. This means any references
 	// to this name will become bound to this symbol after this (since we haven't

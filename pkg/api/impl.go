@@ -14,15 +14,15 @@ import (
 	"github.com/evanw/esbuild/internal/resolver"
 )
 
-func validatePlatform(value Platform) resolver.Platform {
+func validatePlatform(value Platform) parser.Platform {
 	switch value {
 	case PlatformBrowser:
-		return resolver.PlatformBrowser
+		return parser.PlatformBrowser
 	case PlatformNode:
-		return resolver.PlatformNode
+		return parser.PlatformNode
 	default:
 		panic("Invalid platform")
-		return ^resolver.Platform(0)
+		return ^parser.Platform(0)
 	}
 }
 
@@ -323,6 +323,7 @@ func buildImpl(options BuildOptions) BuildResult {
 			Fragment: validateJSX(validateLog, options.JSXFragment, "fragment"),
 		},
 		Defines:    validateDefines(validateLog, options.Defines),
+		Platform:   validatePlatform(options.Platform),
 		IsBundling: options.Bundle,
 	}
 	bundleOptions := bundler.BundleOptions{
@@ -383,9 +384,9 @@ func buildImpl(options BuildOptions) BuildResult {
 	} else if bundleOptions.OutputFormat == printer.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
 		switch resolveOptions.Platform {
-		case resolver.PlatformBrowser:
+		case parser.PlatformBrowser:
 			bundleOptions.OutputFormat = printer.FormatIIFE
-		case resolver.PlatformNode:
+		case parser.PlatformNode:
 			bundleOptions.OutputFormat = printer.FormatCommonJS
 		}
 	}

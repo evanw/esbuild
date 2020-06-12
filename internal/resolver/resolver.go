@@ -36,16 +36,9 @@ type Resolver interface {
 	PrettyPath(path string) string
 }
 
-type Platform uint8
-
-const (
-	PlatformBrowser Platform = iota
-	PlatformNode
-)
-
 type ResolveOptions struct {
 	ExtensionOrder  []string
-	Platform        Platform
+	Platform        parser.Platform
 	ExternalModules map[string]bool
 }
 
@@ -62,7 +55,7 @@ type resolver struct {
 
 func NewResolver(fs fs.FS, log logging.Log, options ResolveOptions) Resolver {
 	// Bundling for node implies allowing node's builtin modules
-	if options.Platform == PlatformNode {
+	if options.Platform == parser.PlatformNode {
 		externalModules := make(map[string]bool)
 		if options.ExternalModules != nil {
 			for name, _ := range options.ExternalModules {
@@ -510,7 +503,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	}
 
 	// Read the "browser" property, but only when targeting the browser
-	if browserJson, _, ok := getProperty(json, "browser"); ok && r.options.Platform == PlatformBrowser {
+	if browserJson, _, ok := getProperty(json, "browser"); ok && r.options.Platform == parser.PlatformBrowser {
 		if browser, ok := getString(browserJson); ok {
 			// If the value is a string, then we should just replace the main path.
 			//
