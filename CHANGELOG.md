@@ -10,6 +10,10 @@
 
     The `-->` sequence starts a single-line comment similar to `//`. This is legacy behavior from [annex B](http://www.ecma-international.org/ecma-262/6.0/#sec-html-like-comments) under the name `SingleLineHTMLCloseComment`. However, `-->` was incorrectly treated as the start of a comment even when it didn't come at the beginning of the line. Now `-->` only starts a comment if there are no tokens before it on that line.
 
+* Allow shadowing of CommonJS variables ([#165](https://github.com/evanw/esbuild/issues/165))
+
+    It's now no longer an error to re-declare `exports`, `module`, or `require` in a module scope. The re-declared symbol will just silently shadow the CommonJS variable with that name. This allows to use a variable called `exports` in an ES6 module, for example.
+
 ## 0.5.1
 
 * Go documentation was moved to godoc ([#177](https://github.com/evanw/esbuild/pull/177))

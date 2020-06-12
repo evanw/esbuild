@@ -387,6 +387,43 @@
     }),
   )
 
+  // Test obscure CommonJS symbol edge cases
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns.foo !== 123 || ns.bar !== 123) throw 'fail'`,
+      'foo.js': `var exports, module; module.exports.foo = 123; exports.bar = exports.foo`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `require('./foo'); require('./bar')`,
+      'foo.js': `let exports; if (exports !== void 0) throw 'fail'`,
+      'bar.js': `let module; if (module !== void 0) throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns.foo !== void 0 || ns.default.foo !== 123) throw 'fail'`,
+      'foo.js': `var exports = {foo: 123}; export default exports`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns !== 123) throw 'fail'`,
+      'foo.ts': `let module = 123; export = module`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `require('./foo')`,
+      'foo.js': `var require; if (require !== void 0) throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `require('./foo')`,
+      'foo.js': `var require = x => x; if (require('does not exist') !== 'does not exist') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns.a !== 123 || ns.b.a !== 123) throw 'fail'`,
+      'foo.js': `exports.a = 123; exports.b = this`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns.a !== 123 || ns.b !== void 0) throw 'fail'`,
+      'foo.js': `export let a = 123, b = this`,
+    }),
+  )
+
   // Test writing to stdout
   tests.push(
     // These should succeed

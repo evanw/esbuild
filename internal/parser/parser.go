@@ -9512,18 +9512,6 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 	p.findSymbolHelper = func(name string) ast.Ref { return p.findSymbol(name).ref }
 	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{locModuleScope})
 
-	// The bundler pre-declares these symbols
-	p.exportsRef = p.newSymbol(ast.SymbolHoisted, "exports")
-	p.requireRef = p.newSymbol(ast.SymbolHoisted, "require")
-	p.moduleRef = p.newSymbol(ast.SymbolHoisted, "module")
-
-	// Only declare these symbols if we're bundling
-	if options.IsBundling {
-		p.currentScope.Members["exports"] = p.exportsRef
-		p.currentScope.Members["require"] = p.requireRef
-		p.currentScope.Members["module"] = p.moduleRef
-	}
-
 	return p
 }
 
@@ -9557,7 +9545,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 
 	// Parse the file in the first pass, but do not bind symbols
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{isModuleScope: true})
-	p.prepareForVisitPass()
+	p.prepareForVisitPass(&options)
 
 	// Strip off a leading "use strict" directive when not bundling
 	directive := ""
@@ -9704,7 +9692,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 	// actually attempt to parse the first token, which might cause a syntax
 	// error.
 	p := newParser(log, source, lexer.Lexer{}, options)
-	p.prepareForVisitPass()
+	p.prepareForVisitPass(&options)
 
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
@@ -9727,9 +9715,64 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 	return p.toAST(source, []ast.Part{ast.Part{Stmts: []ast.Stmt{stmt}}}, "", "")
 }
 
-func (p *parser) prepareForVisitPass() {
+func (p *parser) prepareForVisitPass(options *ParseOptions) {
 	p.pushScopeForVisitPass(ast.ScopeEntry, ast.Loc{locModuleScope})
 	p.moduleScope = p.currentScope
+
+	if options.IsBundling {
+		hasES6Syntax := p.hasES6ImportSyntax || p.hasES6ExportSyntax
+		p.exportsRef = p.declareCommonJSSymbol("exports", !hasES6Syntax)
+		p.requireRef = p.declareCommonJSSymbol("require", false)
+		p.moduleRef = p.declareCommonJSSymbol("module", !hasES6Syntax)
+	} else {
+		p.exportsRef = p.newSymbol(ast.SymbolHoisted, "exports")
+		p.requireRef = p.newSymbol(ast.SymbolHoisted, "require")
+		p.moduleRef = p.newSymbol(ast.SymbolHoisted, "module")
+	}
+}
+
+func (p *parser) declareCommonJSSymbol(name string, mergeWithVar bool) ast.Ref {
+	ref, ok := p.moduleScope.Members[name]
+
+	// If the code declared this symbol using "var name", then this is actually
+	// not a collision. For example, node will let you do this:
+	//
+	//   var exports;
+	//   module.exports.foo = 123;
+	//   console.log(exports.foo);
+	//
+	// This works because node's implementation of CommonJS wraps the entire
+	// source file like this:
+	//
+	//   (function(require, exports, module, __filename, __dirname) {
+	//     var exports;
+	//     module.exports.foo = 123;
+	//     console.log(exports.foo);
+	//   })
+	//
+	// Both the "exports" argument and "var exports" are hoisted variables, so
+	// they don't collide.
+	if mergeWithVar && ok && p.symbols[ref.InnerIndex].Kind == ast.SymbolHoisted {
+		return ref
+	}
+
+	// Create a new symbol if we didn't merge with an existing one above
+	ref = p.newSymbol(ast.SymbolHoisted, name)
+
+	// If the variable wasn't declared, declare it now. This means any references
+	// to this name will become bound to this symbol after this (since we haven't
+	// run the visit pass yet).
+	if !ok {
+		p.moduleScope.Members[name] = ref
+		return ref
+	}
+
+	// If the variable was declared, then it shadows this symbol. The code in
+	// this module will be unable to reference this symbol. However, we must
+	// still add the symbol to the scope so it gets minified (automatically-
+	// generated code may still reference the symbol).
+	p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
+	return ref
 }
 
 func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string, directive string) ast.AST {
