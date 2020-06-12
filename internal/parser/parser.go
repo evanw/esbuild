@@ -8457,8 +8457,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				data := &ast.EBoolean{result}
 
-				// Pattern-match "typeof require == 'function'" from browserify
-				if result && e.Left.Data == p.typeofRequire {
+				// Pattern-match "typeof require == 'function'" from browserify. Also
+				// match "'function' == typeof require" because some minifiers such as
+				// terser transpose the left and right operands to "==" to form a
+				// different but equivalent expression.
+				if result && (e.Left.Data == p.typeofRequire || e.Right.Data == p.typeofRequire) {
 					p.typeofRequireEqualsFn = data
 				}
 

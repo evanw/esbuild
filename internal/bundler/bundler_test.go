@@ -3123,6 +3123,8 @@ func TestTypeofRequireBundle(t *testing.T) {
 					typeof require,
 					typeof require == 'function',
 					typeof require == 'function' && require,
+					'function' == typeof require,
+					'function' == typeof require && require,
 				]);
 			`,
 		},
@@ -3139,6 +3141,8 @@ func TestTypeofRequireBundle(t *testing.T) {
 console.log([
   "function",
   true,
+  false,
+  true,
   false
 ]);
 `,
@@ -3154,6 +3158,8 @@ func TestTypeofRequireNoBundle(t *testing.T) {
 					typeof require,
 					typeof require == 'function',
 					typeof require == 'function' && require,
+					'function' == typeof require,
+					'function' == typeof require && require,
 				]);
 			`,
 		},
@@ -3169,7 +3175,9 @@ func TestTypeofRequireNoBundle(t *testing.T) {
 			"/out.js": `console.log([
   typeof require,
   typeof require == "function",
-  typeof require == "function" && require
+  typeof require == "function" && require,
+  "function" == typeof require,
+  "function" == typeof require && require
 ]);
 `,
 		},
@@ -3186,6 +3194,12 @@ func TestTypeofRequireBadPatterns(t *testing.T) {
 					typeof require == 'function' || require,
 					typeof require == 'function' && notRequire,
 					typeof notRequire == 'function' && require,
+
+					'function' != typeof require && require,
+					'function' === typeof require && require,
+					'function' == typeof require || require,
+					'function' == typeof require && notRequire,
+					'function' == typeof notRequire && require,
 				]);
 			`,
 		},
@@ -3201,6 +3215,10 @@ func TestTypeofRequireBadPatterns(t *testing.T) {
 /entry.js: warning: Indirect calls to "require" will not be bundled
 /entry.js: warning: Indirect calls to "require" will not be bundled
 /entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
 `,
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3209,7 +3227,12 @@ console.log([
   require,
   true,
   notRequire,
-  typeof notRequire == "function" && require
+  typeof notRequire == "function" && require,
+  false,
+  require,
+  true,
+  notRequire,
+  "function" == typeof notRequire && require
 ]);
 `,
 		},
