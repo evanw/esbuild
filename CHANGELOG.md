@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.2
 
 * Fix a regression with `--define` and identifiers
 
