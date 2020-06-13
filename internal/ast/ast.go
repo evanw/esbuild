@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"path"
 	"strings"
 )
 
@@ -1259,12 +1258,53 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	return new
 }
 
-func GenerateNonUniqueNameFromPath(text string) string {
+// This has a custom implementation instead of using "filepath.Base" because it
+// should work the same on Unix and Windows. These names end up in the generated
+// output and the generated output should not depend on the OS.
+func platformIndependentPathDirAndBaseWithoutExt(path string) (string, string) {
+	dir := ""
+	for {
+		i := strings.LastIndexAny(path, "/\\")
+		if i < 0 {
+			break
+		}
+		if i+1 != len(path) {
+			dir = path[:i]
+			path = path[i+1:]
+			break
+		}
+		path = path[:i]
+	}
+	if dot := strings.LastIndexByte(path, '.'); dot >= 0 {
+		path = path[:dot]
+	}
+	return dir, path
+}
+
+// For readability, the names of certain automatically-generated symbols are
+// derived from the file name. For example, instead of the CommonJS wrapper for
+// a file being called something like "require273" it can be called something
+// like "require_react" instead. This function generates the part of these
+// identifiers that's specific to the file path. It can take both an absolute
+// path (OS-specific) and a path in the source code (OS-independent).
+//
+// Note that these generated names do not at all relate to the correctness of
+// the code as far as avoiding symbol name collisions. These names still go
+// through the renaming logic that all other symbols go through to avoid name
+// collisions.
+func GenerateNonUniqueNameFromPath(path string) string {
 	// Get the file name without the extension
-	base := path.Base(text)
-	lastDot := strings.LastIndexByte(base, '.')
-	if lastDot >= 0 {
-		base = base[:lastDot]
+	dir, base := platformIndependentPathDirAndBaseWithoutExt(path)
+
+	// If the name is "index", use the directory name instead. This is because
+	// many packages in npm use the file name "index.js" because it triggers
+	// node's implicit module resolution rules that allows you to import it by
+	// just naming the directory.
+	if base == "index" {
+		_, dirBase := platformIndependentPathDirAndBaseWithoutExt(dir)
+		if dirBase != "" {
+			base = dirBase
+		}
 	}
 
 	// Convert it to an ASCII identifier
