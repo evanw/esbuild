@@ -2,6 +2,7 @@ package bundler
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"sort"
@@ -1241,14 +1242,25 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			chunk, ok := chunks[key]
 			if !ok {
 				// Initialize the chunk for the first time
+				isMultiPart := false
 				for i, _ := range c.entryPoints {
 					if partMeta.entryBits.hasBit(uint(i)) {
 						if chunk.name != "" {
 							chunk.name = c.stripKnownFileExtension(chunk.name) + "_"
+							isMultiPart = true
 						}
 						chunk.name += entryPointNames[i]
 					}
 				}
+
+				// Avoid really long automatically-generated chunk names
+				if isMultiPart {
+					bytes := []byte(chunk.name)
+					hashBytes := sha1.Sum(bytes)
+					hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+					chunk.name = "chunk." + hash + ".js"
+				}
+
 				chunk.entryBits = partMeta.entryBits
 				chunk.filesWithPartsInChunk = make(map[uint32]bool)
 				chunks[key] = chunk
