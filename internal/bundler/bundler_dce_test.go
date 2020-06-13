@@ -70,13 +70,13 @@ func TestPackageJsonSideEffectsFalseKeepNamedImportCommonJS(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports) => {
+var require_demo_pkg = __commonJS((exports) => {
   exports.foo = 123;
   console.log("hello");
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_index());
+const demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.foo);
 `,
 		},
@@ -110,15 +110,15 @@ func TestPackageJsonSideEffectsFalseKeepStarImportES6(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-const index_exports = {};
-__export(index_exports, {
+const demo_pkg_exports = {};
+__export(demo_pkg_exports, {
   foo: () => foo
 });
 const foo = 123;
 console.log("hello");
 
 // /Users/user/project/src/entry.js
-console.log(index_exports);
+console.log(demo_pkg_exports);
 `,
 		},
 	})
@@ -151,13 +151,13 @@ func TestPackageJsonSideEffectsFalseKeepStarImportCommonJS(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports) => {
+var require_demo_pkg = __commonJS((exports) => {
   exports.foo = 123;
   console.log("hello");
 });
 
 // /Users/user/project/src/entry.js
-const ns = __toModule(require_index());
+const ns = __toModule(require_demo_pkg());
 console.log(ns);
 `,
 		},
@@ -227,13 +227,13 @@ func TestPackageJsonSideEffectsTrueKeepCommonJS(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports) => {
+var require_demo_pkg = __commonJS((exports) => {
   exports.foo = 123;
   console.log("hello");
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_index());
+const demo_pkg = __toModule(require_demo_pkg());
 console.log("unused import");
 `,
 		},
@@ -268,7 +268,7 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports) => {
+var require_demo_pkg = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo
   });
@@ -277,7 +277,7 @@ var require_index = __commonJS((exports) => {
 });
 
 // /Users/user/project/src/entry.js
-require_index();
+require_demo_pkg();
 console.log("unused import");
 `,
 		},
@@ -312,13 +312,13 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports) => {
+var require_demo_pkg = __commonJS((exports) => {
   exports.foo = 123;
   console.log("hello");
 });
 
 // /Users/user/project/src/entry.js
-require_index();
+require_demo_pkg();
 console.log("unused import");
 `,
 		},
@@ -651,10 +651,10 @@ func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-const index_default = exprWithSideEffects();
+const demo_pkg_default = exprWithSideEffects();
 
 // /Users/user/project/src/entry.js
-console.log(index_default);
+console.log(demo_pkg_default);
 `,
 		},
 	})

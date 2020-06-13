@@ -1074,14 +1074,14 @@ func TestNodeModules(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports, module) => {
+var require_demo_pkg = __commonJS((exports, module) => {
   module.exports = function() {
     return 123;
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_index());
+const demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 `,
 		},
@@ -1553,7 +1553,7 @@ const foo_default2 = "test4-success";
 const foo_default3 = "test5-success";
 
 // /Users/user/project/baseurl_dot/index.ts
-const index_default = {
+const baseurl_dot_default = {
   test0: test0_success_default,
   test1: test1_success_default,
   test2: foo_default,
@@ -1581,7 +1581,7 @@ const foo_default5 = "test4-success";
 const foo_default6 = "test5-success";
 
 // /Users/user/project/baseurl_nested/index.ts
-const index_default2 = {
+const baseurl_nested_default = {
   test0: test0_success_default2,
   test1: test1_success_default2,
   test2: foo_default4,
@@ -1591,7 +1591,7 @@ const index_default2 = {
 };
 
 // /Users/user/project/entry.ts
-console.log(index_default, index_default2);
+console.log(baseurl_dot_default, baseurl_nested_default);
 `,
 		},
 	})
@@ -1742,13 +1742,13 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/node_modules/util-browser/index.js
-var require_index = __commonJS((exports, module) => {
+var require_util_browser = __commonJS((exports, module) => {
   module.exports = "util-browser";
 });
 
 // /Users/user/project/node_modules/demo-pkg/main.js
 var require_main = __commonJS((exports, module) => {
-  const util = require_index();
+  const util = require_util_browser();
   module.exports = function() {
     return ["main", util];
   };
@@ -1864,7 +1864,7 @@ var require_node_pkg_browser = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports, module) => {
+var require_demo_pkg = __commonJS((exports, module) => {
   const fn2 = require_node_pkg_browser();
   module.exports = function() {
     return fn2();
@@ -1872,7 +1872,7 @@ var require_index = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_index());
+const demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 `,
 		},
@@ -1920,22 +1920,22 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg-browser/index.js
-var require_index2 = __commonJS((exports, module) => {
+var require_node_pkg_browser = __commonJS((exports, module) => {
   module.exports = function() {
     return 123;
   };
 });
 
 // /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports, module) => {
-  const fn2 = require_index2();
+var require_demo_pkg = __commonJS((exports, module) => {
+  const fn2 = require_node_pkg_browser();
   module.exports = function() {
     return fn2();
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_index());
+const demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 `,
 		},
@@ -1978,19 +1978,19 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg/index.js
-var require_index2 = __commonJS(() => {
+var require_node_pkg = __commonJS(() => {
 });
 
 // /Users/user/project/node_modules/demo-pkg/index.js
-var require_index = __commonJS((exports, module) => {
-  const fn2 = require_index2();
+var require_demo_pkg = __commonJS((exports, module) => {
+  const fn2 = require_node_pkg();
   module.exports = function() {
     return fn2();
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_index());
+const demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 `,
 		},
@@ -2033,7 +2033,7 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/node_modules/component-indexof/index.js
-var require_index = __commonJS((exports, module) => {
+var require_component_indexof = __commonJS((exports, module) => {
   module.exports = function() {
     return 234;
   };
@@ -2041,9 +2041,9 @@ var require_index = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/component-classes/index.js
 try {
-  var index = require_index();
+  var index = require_component_indexof();
 } catch (err) {
-  var index = require_index();
+  var index = require_component_indexof();
 }
 
 // /Users/user/project/src/entry.js
@@ -2185,12 +2185,12 @@ func TestRequireChildDirCommonJS(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/src/dir/index.js
-var require_index = __commonJS((exports, module) => {
+var require_dir = __commonJS((exports, module) => {
   module.exports = 123;
 });
 
 // /Users/user/project/src/entry.js
-console.log(require_index());
+console.log(require_dir());
 `,
 		},
 	})
@@ -2217,10 +2217,10 @@ func TestRequireChildDirES6(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/src/dir/index.js
-const index_default = 123;
+const dir_default = 123;
 
 // /Users/user/project/src/entry.js
-console.log(index_default);
+console.log(dir_default);
 `,
 		},
 	})
@@ -2246,12 +2246,12 @@ func TestRequireParentDirCommonJS(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/src/index.js
-var require_index = __commonJS((exports, module) => {
+var require_src = __commonJS((exports, module) => {
   module.exports = 123;
 });
 
 // /Users/user/project/src/dir/entry.js
-console.log(require_index());
+console.log(require_src());
 `,
 		},
 	})
@@ -2278,10 +2278,10 @@ func TestRequireParentDirES6(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/src/index.js
-const index_default = 123;
+const src_default = 123;
 
 // /Users/user/project/src/dir/entry.js
-console.log(index_default);
+console.log(src_default);
 `,
 		},
 	})

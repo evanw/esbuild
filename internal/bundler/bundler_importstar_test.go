@@ -1974,13 +1974,13 @@ const foo = () => "hi there";
 // /folders/child/index.js
 
 // /folders/index.js
-const index_exports = {};
-__export(index_exports, {
+const folders_exports = {};
+__export(folders_exports, {
   foo: () => foo
 });
 
 // /entry.js
-console.log(JSON.stringify(index_exports));
+console.log(JSON.stringify(folders_exports));
 `,
 		},
 	})
