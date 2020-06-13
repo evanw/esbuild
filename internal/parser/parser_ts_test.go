@@ -224,6 +224,21 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { foo!(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { foo!(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 
+	expectPrintedTS(t, "class Foo { public foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { private foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { protected foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { declare foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { declare public foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public declare foo: number }", "class Foo {\n}\n")
+
+	expectPrintedTS(t, "class Foo { public static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { private static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { protected static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { declare static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { declare public static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public declare static foo: number }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { public static declare foo: number }", "class Foo {\n}\n")
+
 	expectPrintedTS(t, "class Foo { [key: string]: any\nfoo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { [key: string]: any; foo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 
@@ -1178,7 +1193,12 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrinted(t, "export {Foo}", "export {Foo};\n")
 }
 
-func TestTSPreserveOptionalChainParentheses(t *testing.T) {
+func TestTSOptionalChain(t *testing.T) {
+	expectParseError(t, "a?.<T>()", "<stdin>: error: Expected identifier but found \"<\"\n")
+	expectPrintedTS(t, "a?.<T>()", "a?.();\n")
+	expectParseErrorTS(t, "a?.<T>b", "<stdin>: error: Expected \"(\" but found \"b\"\n")
+	expectParseErrorTS(t, "a?.<T>[b]", "<stdin>: error: Expected \"(\" but found \"[\"\n")
+
 	expectPrintedTS(t, "a?.b.c", "a?.b.c;\n")
 	expectPrintedTS(t, "(a?.b).c", "(a?.b).c;\n")
 	expectPrintedTS(t, "a?.b!.c", "a?.b.c;\n")

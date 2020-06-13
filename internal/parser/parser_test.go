@@ -183,14 +183,18 @@ func TestComments(t *testing.T) {
 	expectParseError(t, "throw <!--\n x",
 		"<stdin>: warning: Treating \"<!--\" as the start of a legacy HTML single-line comment\n"+
 			"<stdin>: error: Unexpected newline after \"throw\"\n")
-	expectParseError(t, "throw -->\n x",
-		"<stdin>: warning: Treating \"-->\" as the start of a legacy HTML single-line comment\n"+
-			"<stdin>: error: Unexpected newline after \"throw\"\n")
+	expectParseError(t, "throw -->\n x", "<stdin>: error: Unexpected \">\"\n")
 
 	expectPrinted(t, "return //\n x", "return;\nx;\n")
 	expectPrinted(t, "return /**/\n x", "return;\nx;\n")
 	expectPrinted(t, "return <!--\n x", "return;\nx;\n")
-	expectPrinted(t, "return -->\n x", "return;\nx;\n")
+	expectPrinted(t, "-->\nx", "x;\n")
+	expectPrinted(t, "x\n-->\ny", "x;\ny;\n")
+	expectPrinted(t, "x\n -->\ny", "x;\ny;\n")
+	expectPrinted(t, "x\n/**/-->\ny", "x;\ny;\n")
+	expectPrinted(t, "x/*\n*/-->\ny", "x;\ny;\n")
+	expectPrinted(t, "x\n/**/ /**/-->\ny", "x;\ny;\n")
+	expectPrinted(t, "if(x-->y)z", "if (x-- > y)\n  z;\n")
 }
 
 func TestExponentiation(t *testing.T) {
@@ -1265,11 +1269,6 @@ func TestMangleInitializer(t *testing.T) {
 	expectPrintedMangle(t, "var [] = undefined", "var [] = void 0;\n")
 }
 
-func TestMangleUseStrict(t *testing.T) {
-	// The mangler should not remove "use strict" or join it with other expressions
-	expectPrintedMangle(t, "'use strict'; 'use loose'; a; b", "\"use strict\";\na, b;\n")
-}
-
 func TestMangleArrow(t *testing.T) {
 	expectPrintedMangle(t, "var a = () => {}", "var a = () => {\n};\n")
 	expectPrintedMangle(t, "var a = () => 123", "var a = () => 123;\n")
@@ -1278,6 +1277,18 @@ func TestMangleArrow(t *testing.T) {
 	expectPrintedMangle(t, "var a = () => {return}", "var a = () => {\n};\n")
 	expectPrintedMangle(t, "var a = () => {return 123}", "var a = () => 123;\n")
 	expectPrintedMangle(t, "var a = () => {throw 123}", "var a = () => {\n  throw 123;\n};\n")
+}
+
+func TestMangleTemplate(t *testing.T) {
+	expectPrintedMangle(t, "`a${x}b${y}c`", "`a${x}b${y}c`;\n")
+	expectPrintedMangle(t, "`a${x}b${'y'}c`", "`a${x}byc`;\n")
+	expectPrintedMangle(t, "`a${'x'}b${y}c`", "`axb${y}c`;\n")
+	expectPrintedMangle(t, "`a${'x'}b${'y'}c`", "`axbyc`;\n")
+
+	expectPrintedMangle(t, "tag`a${x}b${y}c`", "tag`a${x}b${y}c`;\n")
+	expectPrintedMangle(t, "tag`a${x}b${'y'}c`", "tag`a${x}b${\"y\"}c`;\n")
+	expectPrintedMangle(t, "tag`a${'x'}b${y}c`", "tag`a${\"x\"}b${y}c`;\n")
+	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
@@ -1644,18 +1655,24 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "export default class Foo { static get [foo]() {} }", "export default class Foo {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class Foo { static set [foo](a) {} }", "export default class Foo {\n  static set [foo](a) {\n  }\n}\n")
 
-	expectPrintedTarget(t, ES2015, "export default class { static foo }", "export default class _a {\n}\n_a.foo = void 0;\n")
-	expectPrintedTarget(t, ES2015, "export default class { static foo = null }", "export default class _a {\n}\n_a.foo = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static foo }",
+		"export default class stdin_default {\n}\nstdin_default.foo = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static foo = null }",
+		"export default class stdin_default {\n}\nstdin_default.foo = null;\n")
 	expectPrintedTarget(t, ES2015, "export default class { static foo(a, b) {} }", "export default class {\n  static foo(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static get foo() {} }", "export default class {\n  static get foo() {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static set foo(a) {} }", "export default class {\n  static set foo(a) {\n  }\n}\n")
-	expectPrintedTarget(t, ES2015, "export default class { static 123 }", "export default class _a {\n}\n_a[123] = void 0;\n")
-	expectPrintedTarget(t, ES2015, "export default class { static 123 = null }", "export default class _a {\n}\n_a[123] = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static 123 }",
+		"export default class stdin_default {\n}\nstdin_default[123] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static 123 = null }",
+		"export default class stdin_default {\n}\nstdin_default[123] = null;\n")
 	expectPrintedTarget(t, ES2015, "export default class { static 123(a, b) {} }", "export default class {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static get 123() {} }", "export default class {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static set 123(a) {} }", "export default class {\n  static set 123(a) {\n  }\n}\n")
-	expectPrintedTarget(t, ES2015, "export default class { static [foo] }", "var _a;\nexport default class _b {\n}\n_a = foo;\n_b[_a] = void 0;\n")
-	expectPrintedTarget(t, ES2015, "export default class { static [foo] = null }", "var _a;\nexport default class _b {\n}\n_a = foo;\n_b[_a] = null;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static [foo] }",
+		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\nstdin_default[_a] = void 0;\n")
+	expectPrintedTarget(t, ES2015, "export default class { static [foo] = null }",
+		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\nstdin_default[_a] = null;\n")
 	expectPrintedTarget(t, ES2015, "export default class { static [foo](a, b) {} }", "export default class {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static get [foo]() {} }", "export default class {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, ES2015, "export default class { static set [foo](a) {} }", "export default class {\n  static set [foo](a) {\n  }\n}\n")

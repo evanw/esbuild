@@ -1,6 +1,6 @@
 {
   "name": "esbuild-wasm",
-  "version": "0.4.10",
+  "version": "0.5.3",
   "description": "The cross-platform WebAssembly binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
@@ -8,6 +8,7 @@
     "node": ">=8"
   },
   "main": "lib/main.js",
+  "browser": "lib/browser.js",
   "types": "lib/main.d.ts",
   "directories": {
     "bin": "bin"

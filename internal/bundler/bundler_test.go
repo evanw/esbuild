@@ -547,13 +547,13 @@ export * as fromB from "./b";
 			"/out/b.js": `export default function() {
 }
 `,
-			"/out/c.js": `export default function b() {
+			"/out/c.js": `export default function a() {
 }
 `,
 			"/out/d.js": `export default class {
 }
 `,
-			"/out/e.js": `export default class b {
+			"/out/e.js": `export default class a {
 }
 `,
 		},
@@ -619,7 +619,7 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 				import def3, {a2, b as c3} from 'foo'
 				const imp = [
 					import('foo'),
-					function nested() { return import('foo') },
+					function() { return import('foo') },
 				]
 				console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp)
 			`,
@@ -643,7 +643,7 @@ import f, * as e from "foo";
 import g, {a2 as h, b as i} from "foo";
 const j = [
   import("foo"),
-  function F() {
+  function() {
     return import("foo");
   }
 ];
@@ -679,11 +679,11 @@ func TestExportFormsCommonJS(t *testing.T) {
 			"/a.js": "export const abc = undefined",
 			"/b.js": "export const xyz = null",
 			"/c.js": "export default class {}",
-			"/d.js": "export default class Foo {}",
+			"/d.js": "export default class Foo {} Foo.prop = 123",
 			"/e.js": "export default function() {}",
-			"/f.js": "export default function foo() {}",
+			"/f.js": "export default function foo() {} foo.prop = 123",
 			"/g.js": "export default async function() {}",
-			"/h.js": "export default async function foo() {}",
+			"/h.js": "export default async function foo() {} foo.prop = 123",
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
@@ -729,10 +729,11 @@ var require_c = __commonJS((exports) => {
 // /d.js
 var require_d = __commonJS((exports) => {
   __export(exports, {
-    default: () => d_default
+    default: () => Foo
   });
-  class d_default {
+  class Foo {
   }
+  Foo.prop = 123;
 });
 
 // /e.js
@@ -747,10 +748,11 @@ var require_e = __commonJS((exports) => {
 // /f.js
 var require_f = __commonJS((exports) => {
   __export(exports, {
-    default: () => f_default
+    default: () => foo
   });
-  function f_default() {
+  function foo() {
   }
+  foo.prop = 123;
 });
 
 // /g.js
@@ -765,10 +767,11 @@ var require_g = __commonJS((exports) => {
 // /h.js
 var require_h = __commonJS((exports) => {
   __export(exports, {
-    default: () => h_default
+    default: () => foo
   });
-  async function h_default() {
+  async function foo() {
   }
+  foo.prop = 123;
 });
 
 // /a.js
@@ -822,9 +825,9 @@ func TestReExportDefaultCommonJS(t *testing.T) {
 			"/out.js": `// /bar.js
 var require_bar = __commonJS((exports) => {
   __export(exports, {
-    default: () => bar_default
+    default: () => foo2
   });
-  function bar_default() {
+  function foo2() {
     return exports;
   }
 });
@@ -2552,11 +2555,47 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: The argument to require() must be a string literal
-/entry.js: error: The argument to require() must be a string literal
-/entry.js: error: The argument to import() must be a string literal
-/entry.js: error: The argument to import() must be a string literal
+		expectedScanLog: `/entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal
+/entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal
+/entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+/entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
 `,
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+require(tag` + "`./b`" + `);
+require(` + "`./${b}`" + `);
+import(tag` + "`./b`" + `);
+import(` + "`./${b}`" + `);
+`,
+		},
+	})
+}
+
+func TestRequireBadArgumentCount(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require()
+				require("a", "b")
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: warning: This call to "require" will not be bundled because it has 0 arguments
+/entry.js: warning: This call to "require" will not be bundled because it has 2 arguments
+`,
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+require();
+require("a", "b");
+`,
+		},
 	})
 }
 
@@ -2839,7 +2878,7 @@ func TestFalseRequire(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
-((require4) => require4("/test.txt"))();
+((require2) => require2("/test.txt"))();
 `,
 		},
 	})
@@ -2861,8 +2900,14 @@ func TestRequireWithoutCall(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: "require" must not be called indirectly
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
 `,
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+const req = require;
+req("./entry");
+`,
+		},
 	})
 }
 
@@ -2884,8 +2929,16 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: "require" must not be called indirectly
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
 `,
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+(() => {
+  const req = require;
+  req("./entry");
+})();
+`,
+		},
 	})
 }
 
@@ -2914,7 +2967,7 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 			"/out.js": `// /entry.js
 try {
   oldLocale = globalLocale._abbr;
-  var aliasedRequire = null;
+  var aliasedRequire = require;
   aliasedRequire("./locale/" + name);
   getSetGlobalLocale(oldLocale);
 } catch (e) {
@@ -3066,7 +3119,13 @@ func TestTypeofRequireBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				console.log(typeof require);
+				console.log([
+					typeof require,
+					typeof require == 'function',
+					typeof require == 'function' && require,
+					'function' == typeof require,
+					'function' == typeof require && require,
+				]);
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3079,7 +3138,13 @@ func TestTypeofRequireBundle(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
-console.log("function");
+console.log([
+  "function",
+  true,
+  false,
+  true,
+  false
+]);
 `,
 		},
 	})
@@ -3089,7 +3154,13 @@ func TestTypeofRequireNoBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				console.log(typeof require);
+				console.log([
+					typeof require,
+					typeof require == 'function',
+					typeof require == 'function' && require,
+					'function' == typeof require,
+					'function' == typeof require && require,
+				]);
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3101,7 +3172,68 @@ func TestTypeofRequireNoBundle(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `console.log(typeof require);
+			"/out.js": `console.log([
+  typeof require,
+  typeof require == "function",
+  typeof require == "function" && require,
+  "function" == typeof require,
+  "function" == typeof require && require
+]);
+`,
+		},
+	})
+}
+
+func TestTypeofRequireBadPatterns(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log([
+					typeof require != 'function' && require,
+					typeof require === 'function' && require,
+					typeof require == 'function' || require,
+					typeof require == 'function' && notRequire,
+					typeof notRequire == 'function' && require,
+
+					'function' != typeof require && require,
+					'function' === typeof require && require,
+					'function' == typeof require || require,
+					'function' == typeof require && notRequire,
+					'function' == typeof notRequire && require,
+				]);
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+/entry.js: warning: Indirect calls to "require" will not be bundled
+`,
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log([
+  false,
+  require,
+  true,
+  notRequire,
+  typeof notRequire == "function" && require,
+  false,
+  require,
+  true,
+  notRequire,
+  "function" == typeof notRequire && require
+]);
 `,
 		},
 	})
@@ -3123,7 +3255,7 @@ func TestRequireFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformBrowser,
+			Platform: parser.PlatformBrowser,
 		},
 		expectedScanLog: "/entry.js: error: Could not resolve \"fs\"\n",
 	})
@@ -3146,7 +3278,7 @@ func TestRequireFSNode(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformNode,
+			Platform: parser.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3174,7 +3306,7 @@ func TestRequireFSNodeMinify(t *testing.T) {
 			AbsOutputFile:    "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformNode,
+			Platform: parser.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `return require("fs");
@@ -3203,7 +3335,7 @@ func TestImportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformBrowser,
+			Platform: parser.PlatformBrowser,
 		},
 		expectedScanLog: `/entry.js: error: Could not resolve "fs"
 /entry.js: error: Could not resolve "fs"
@@ -3234,7 +3366,7 @@ func TestImportFSNodeCommonJS(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformNode,
+			Platform: parser.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3269,7 +3401,7 @@ func TestImportFSNodeES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformNode,
+			Platform: parser.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3300,7 +3432,7 @@ func TestExportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformBrowser,
+			Platform: parser.PlatformBrowser,
 		},
 		expectedScanLog: `/entry.js: error: Could not resolve "fs"
 /entry.js: error: Could not resolve "fs"
@@ -3325,7 +3457,7 @@ func TestExportFSNode(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformNode,
+			Platform: parser.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3358,7 +3490,7 @@ func TestReExportFSNode(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformNode,
+			Platform: parser.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
@@ -3392,7 +3524,7 @@ func TestExportFSNodeInCommonJSModule(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformNode,
+			Platform: parser.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3411,7 +3543,7 @@ export default require_entry();
 	})
 }
 
-func TestExportWildcardFSNode(t *testing.T) {
+func TestExportWildcardFSNodeES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3424,12 +3556,48 @@ func TestExportWildcardFSNode(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
+			OutputFormat:  printer.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: resolver.PlatformNode,
+			Platform: parser.PlatformNode,
 		},
-		expectedCompileLog: "/entry.js: error: Wildcard exports are not supported for this module\n",
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+import * as fs_star from "fs";
+var require_entry = __commonJS((exports) => {
+  __exportStar(exports, fs_star);
+});
+export default require_entry();
+`,
+		},
+	})
+}
+
+func TestExportWildcardFSNodeCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from 'fs'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: parser.PlatformNode,
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+__exportStar(exports, __toModule(require("fs")));
+`,
+		},
 	})
 }
 
@@ -3493,7 +3661,7 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
-			"/out.js": `var d=c(b=>{b.foo=function(){return 123}});var f=c((b,h)=>{h.exports={test:!0}});const{foo:e}=d();console.log(e(),f());
+			"/out.js": `var d=c(b=>{b.foo=function(){return 123}});var f=c((b,a)=>{a.exports={test:!0}});const{foo:e}=d();console.log(e(),f());
 `,
 		},
 	})
@@ -3808,6 +3976,12 @@ var require_dummy = __commonJS((exports) => {
   const dummy3 = 123;
 });
 
+// /es6-export-star.js
+var require_es6_export_star = __commonJS((exports) => {
+  __exportStar(exports, __toModule(require_dummy()));
+  console.log(void 0);
+});
+
 // /es6-export-assign.ts
 var require_es6_export_assign = __commonJS((exports, module) => {
   console.log(void 0);
@@ -3964,9 +4138,6 @@ console.log(void 0);
 const dummy = __toModule(require_dummy());
 console.log(void 0);
 
-// /es6-export-star.js
-console.log(void 0);
-
 // /es6-export-star-as.js
 const ns = __toModule(require_dummy());
 console.log(void 0);
@@ -3977,6 +4148,7 @@ console.log(void 0);
 
 // /entry.js
 const cjs = __toModule(require_cjs());
+const es6_export_star = __toModule(require_es6_export_star());
 const es6_export_assign = __toModule(require_es6_export_assign());
 const es6_ns_export_variable = __toModule(require_es6_ns_export_variable());
 const es6_ns_export_function = __toModule(require_es6_ns_export_function());
@@ -4849,6 +5021,139 @@ class Bar {
 	})
 }
 
+func TestExportsAndModuleFormatCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as foo from './foo/test'
+				import * as bar from './bar/test'
+				console.log(exports, module.exports, foo, bar)
+			`,
+			"/foo/test.js": `
+				export let foo = 123
+			`,
+			"/bar/test.js": `
+				export let bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: parser.PlatformNode,
+		},
+
+		// The "test_exports" names must be different
+		expected: map[string]string{
+			"/out.js": `// /foo/test.js
+const test_exports2 = {};
+__export(test_exports2, {
+  foo: () => foo
+});
+let foo = 123;
+
+// /bar/test.js
+const test_exports = {};
+__export(test_exports, {
+  bar: () => bar
+});
+let bar = 123;
+
+// /entry.js
+console.log(exports, module.exports, test_exports2, test_exports);
+`,
+		},
+	})
+}
+
+func TestMinifiedExportsAndModuleFormatCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as foo from './foo/test'
+				import * as bar from './bar/test'
+				console.log(exports, module.exports, foo, bar)
+			`,
+			"/foo/test.js": `
+				export let foo = 123
+			`,
+			"/bar/test.js": `
+				export let bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:        true,
+			MinifyIdentifiers: true,
+			OutputFormat:      printer.FormatCommonJS,
+			AbsOutputFile:     "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Platform: parser.PlatformNode,
+		},
+
+		// The "test_exports" names must be minified, and the "exports" and
+		// "module" names must not be minified
+		expected: map[string]string{
+			"/out.js": `// /foo/test.js
+const c = {};
+e(c, {
+  foo: () => i
+});
+let i = 123;
+
+// /bar/test.js
+const b = {};
+e(b, {
+  bar: () => h
+});
+let h = 123;
+
+// /entry.js
+console.log(exports, module.exports, c, b);
+`,
+		},
+	})
+}
+
+// The minifier should not remove "use strict" or join it with other expressions
+func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				'use strict'
+				'use loose'
+				a
+				b
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling:   false,
+			MangleSyntax: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:       false,
+			MangleSyntax:     true,
+			RemoveWhitespace: true,
+			AbsOutputFile:    "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `"use strict";a,b;
+`,
+		},
+	})
+}
+
 func TestOriginDirImportES6(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
@@ -4873,7 +5178,7 @@ func TestOriginDirImportES6(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			OriginDir: "/",
+			Origindir: "/",
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js

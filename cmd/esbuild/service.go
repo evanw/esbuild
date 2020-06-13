@@ -9,14 +9,15 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime/debug"
+	"sync"
 
-	"github.com/evanw/esbuild/internal/bundler"
-	"github.com/evanw/esbuild/internal/fs"
-	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
-	"github.com/evanw/esbuild/internal/resolver"
+	"github.com/evanw/esbuild/pkg/api"
+	"github.com/evanw/esbuild/pkg/cli"
 )
 
 type responseType = map[string][]byte
@@ -42,8 +43,9 @@ func runService() {
 	stream := []byte{}
 
 	// Write responses on a single goroutine so they aren't interleaved
+	waitGroup := &sync.WaitGroup{}
 	responses := make(chan responseType)
-	go writeResponses(responses)
+	go writeResponses(responses, waitGroup)
 
 	for {
 		// Read more data from stdin
@@ -66,48 +68,62 @@ func runService() {
 			bytes = afterRequest
 
 			// Clone the input and run it on another goroutine
+			waitGroup.Add(1)
 			clone := append([]byte{}, request...)
-			go handleRequest(clone, responses)
+			go handleRequest(clone, responses, waitGroup)
 		}
 
 		// Move the remaining partial request to the end to avoid reallocating
 		stream = append(stream[:0], bytes...)
 	}
+
+	// Wait for the last response to be written to stdout
+	waitGroup.Wait()
 }
 
-func writeUint32(value uint32) {
-	bytes := []byte{0, 0, 0, 0}
-	binary.LittleEndian.PutUint32(bytes, value)
-	os.Stdout.Write(bytes)
+func writeUint32(bytes []byte, value uint32) []byte {
+	bytes = append(bytes, 0, 0, 0, 0)
+	binary.LittleEndian.PutUint32(bytes[len(bytes)-4:], value)
+	return bytes
 }
 
-func writeResponses(responses chan responseType) {
+func writeResponses(responses chan responseType, waitGroup *sync.WaitGroup) {
 	for {
-		response := <-responses
+		response, ok := <-responses
+		if !ok {
+			break // No more responses
+		}
 
 		// Each response is length-prefixed
 		length := 4
 		for k, v := range response {
 			length += 4 + len(k) + 4 + len(v)
 		}
-		writeUint32(uint32(length))
+		bytes := make([]byte, 0, 4+length)
+		bytes = writeUint32(bytes, uint32(length))
 
 		// Each response is formatted as a series of key/value pairs
-		writeUint32(uint32(len(response)))
+		bytes = writeUint32(bytes, uint32(len(response)))
 		for k, v := range response {
-			writeUint32(uint32(len(k)))
-			os.Stdout.Write([]byte(k))
-			writeUint32(uint32(len(v)))
-			os.Stdout.Write(v)
+			bytes = writeUint32(bytes, uint32(len(k)))
+			bytes = append(bytes, k...)
+			bytes = writeUint32(bytes, uint32(len(v)))
+			bytes = append(bytes, v...)
 		}
+		os.Stdout.Write(bytes)
+
+		// Only signal that this request is done when it has actually been written
+		waitGroup.Done()
 	}
 }
 
-func handleRequest(bytes []byte, responses chan responseType) {
+func handleRequest(bytes []byte, responses chan responseType, waitGroup *sync.WaitGroup) {
 	// Read the argument count
 	argCount, bytes, ok := readUint32(bytes)
 	if !ok {
-		return // Invalid request
+		// Invalid request
+		waitGroup.Done()
+		return
 	}
 
 	// Read the arguments
@@ -115,13 +131,17 @@ func handleRequest(bytes []byte, responses chan responseType) {
 	for i := uint32(0); i < argCount; i++ {
 		slice, afterSlice, ok := readLengthPrefixedSlice(bytes)
 		if !ok {
-			return // Invalid request
+			// Invalid request
+			waitGroup.Done()
+			return
 		}
 		rawArgs = append(rawArgs, string(slice))
 		bytes = afterSlice
 	}
 	if len(rawArgs) < 2 {
-		return // Invalid request
+		// Invalid request
+		waitGroup.Done()
+		return
 	}
 
 	// Requests have the format "id command [args...]"
@@ -145,6 +165,9 @@ func handleRequest(bytes []byte, responses chan responseType) {
 	case "build":
 		handleBuildRequest(responses, id, rawArgs)
 
+	case "transform":
+		handleTransformRequest(responses, id, rawArgs)
+
 	default:
 		responses <- responseType{
 			"id":    []byte(id),
@@ -160,17 +183,7 @@ func handlePingRequest(responses chan responseType, id string, rawArgs []string)
 }
 
 func handleBuildRequest(responses chan responseType, id string, rawArgs []string) {
-	files, rawArgs := stripFilesFromBuildArgs(rawArgs)
-	if files == nil {
-		responses <- responseType{
-			"id":    []byte(id),
-			"error": []byte("Invalid build request"),
-		}
-		return
-	}
-
-	mockFS := fs.MockFS(nil)
-	args, err := parseArgs(mockFS, rawArgs)
+	options, err := cli.ParseBuildOptions(rawArgs)
 	if err != nil {
 		responses <- responseType{
 			"id":    []byte(id),
@@ -179,107 +192,79 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 		return
 	}
 
-	// Make sure we don't accidentally try to read from stdin here
-	if args.bundleOptions.LoaderForStdin != bundler.LoaderNone {
+	result := api.Build(options)
+	for _, outputFile := range result.OutputFiles {
+		if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
+			result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
+				"Failed to create output directory: %s", err.Error())})
+		} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
+			result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
+				"Failed to write to output file: %s", err.Error())})
+		}
+	}
+
+	responses <- responseType{
+		"id":       []byte(id),
+		"errors":   messagesToJSON(result.Errors),
+		"warnings": messagesToJSON(result.Warnings),
+	}
+}
+
+func handleTransformRequest(responses chan responseType, id string, rawArgs []string) {
+	if len(rawArgs) == 0 {
 		responses <- responseType{
 			"id":    []byte(id),
-			"error": []byte("Cannot read from stdin in service mode"),
+			"error": []byte("Invalid transform request"),
 		}
 		return
 	}
 
-	// Make sure we don't accidentally try to write to stdout here
-	if args.bundleOptions.WriteToStdout {
+	options, err := cli.ParseTransformOptions(rawArgs[1:])
+	if err != nil {
 		responses <- responseType{
 			"id":    []byte(id),
-			"error": []byte("Cannot write to stdout in service mode"),
+			"error": []byte(err.Error()),
 		}
 		return
 	}
 
-	mockFS = fs.MockFS(files)
-	log, join := logging.NewDeferLog()
-	resolver := resolver.NewResolver(mockFS, log, args.resolveOptions)
-	bundle := bundler.ScanBundle(log, mockFS, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
-
-	// Stop now if there were errors
-	msgs := join()
-	errors := messagesOfKind(logging.Error, msgs)
-	if len(errors) != 0 {
-		responses <- responseType{
-			"id":       []byte(id),
-			"errors":   messagesToJSON(errors),
-			"warnings": messagesToJSON(messagesOfKind(logging.Warning, msgs)),
-		}
-		return
+	result := api.Transform(rawArgs[0], options)
+	responses <- responseType{
+		"id":          []byte(id),
+		"errors":      messagesToJSON(result.Errors),
+		"warnings":    messagesToJSON(result.Warnings),
+		"js":          result.JS,
+		"jsSourceMap": result.JSSourceMap,
 	}
-
-	// Generate the results
-	log, join = logging.NewDeferLog()
-	results := bundle.Compile(log, args.bundleOptions)
-
-	// Return the results
-	msgs2 := join()
-	errors = messagesOfKind(logging.Error, msgs2)
-	response := responseType{
-		"id":     []byte(id),
-		"errors": messagesToJSON(errors),
-		"warnings": messagesToJSON(append(
-			messagesOfKind(logging.Warning, msgs),
-			messagesOfKind(logging.Warning, msgs2)...)),
-	}
-	for _, result := range results {
-		response[result.AbsPath] = result.Contents
-	}
-	responses <- response
 }
 
-func stripFilesFromBuildArgs(args []string) (map[string]string, []string) {
-	for i, arg := range args {
-		if arg == "--" && i%2 == 0 {
-			files := make(map[string]string)
-			for j := 0; j < i; j += 2 {
-				files[args[j]] = args[j+1]
-			}
-			return files, args[i+1:]
-		}
-	}
-	return nil, []string{}
-}
-
-func messagesOfKind(kind logging.MsgKind, msgs []logging.Msg) []logging.Msg {
-	filtered := []logging.Msg{}
-	for _, msg := range msgs {
-		if msg.Kind == kind {
-			filtered = append(filtered, msg)
-		}
-	}
-	return filtered
-}
-
-func messagesToJSON(msgs []logging.Msg) []byte {
-	bytes := []byte{'['}
+func messagesToJSON(msgs []api.Message) []byte {
+	j := printer.Joiner{}
+	j.AddString("[")
 
 	for _, msg := range msgs {
-		if len(bytes) > 1 {
-			bytes = append(bytes, ',')
-		}
-		lineCount := 0
-		columnCount := 0
-
-		// Some errors won't have a location
-		if msg.Source.PrettyPath != "" {
-			lineCount, columnCount, _ = logging.ComputeLineAndColumn(msg.Source.Contents[0:msg.Start])
-			lineCount++
+		if j.Length() > 1 {
+			j.AddString(",")
 		}
 
-		bytes = append(bytes, fmt.Sprintf("%s,%s,%d,%d",
+		// Some messages won't have a location
+		var location api.Location
+		if msg.Location != nil {
+			location = *msg.Location
+		} else {
+			location.Length = -1 // Signal that there's no location
+		}
+
+		j.AddString(fmt.Sprintf("%s,%d,%s,%d,%d,%s",
 			printer.QuoteForJSON(msg.Text),
-			printer.QuoteForJSON(msg.Source.PrettyPath),
-			lineCount,
-			columnCount)...)
+			location.Length,
+			printer.QuoteForJSON(location.File),
+			location.Line,
+			location.Column,
+			printer.QuoteForJSON(location.LineText),
+		))
 	}
 
-	bytes = append(bytes, ']')
-	return bytes
+	j.AddString("]")
+	return j.Done()
 }

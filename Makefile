@@ -1,6 +1,6 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
-esbuild: cmd/esbuild/*.go internal/*/*.go
+esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
 	go build ./cmd/esbuild
 
 # These tests are for development
@@ -10,6 +10,9 @@ test:
 # These tests are for release ("test-wasm" is not included in "test" because it's pretty slow)
 test-all:
 	make -j5 test-go verify-source-map end-to-end-tests js-api-tests test-wasm
+
+# This includes tests of some 3rd-party libraries, which can be very slow
+test-extra: test-all test-sucrase test-esprima test-rollup
 
 test-go:
 	go test ./internal/...
@@ -56,15 +59,16 @@ platform-linux-ppc64le:
 	cd npm/esbuild-linux-ppc64le && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=linux GOARCH=ppc64le go build -o npm/esbuild-linux-ppc64le/bin/esbuild ./cmd/esbuild
 
-platform-wasm:
+platform-wasm: | esbuild
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
-	rm -fr npm/esbuild-wasm/lib && cp -r npm/esbuild/lib npm/esbuild-wasm/lib
-	cat npm/esbuild/lib/main.js | sed 's/WASM = false/WASM = true/' > npm/esbuild-wasm/lib/main.js
+	mkdir -p npm/esbuild-wasm/lib
+	node scripts/esbuild.js ./esbuild --wasm
 
-platform-neutral:
+platform-neutral: | esbuild
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	node scripts/esbuild.js ./esbuild
 
 publish-all: update-version-go test-all
 	make -j7 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm publish-neutral
@@ -101,6 +105,7 @@ clean:
 	rm -rf npm/esbuild-linux-arm64/bin
 	rm -rf npm/esbuild-linux-ppc64le/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
+	rm -rf npm/esbuild/lib
 	rm -rf npm/esbuild-wasm/lib
 	go clean -testcache ./internal/...
 
@@ -111,6 +116,7 @@ scripts/node_modules:
 	cd scripts && npm ci
 
 ################################################################################
+# This runs the test262 official JavaScript test suite through esbuild
 
 github/test262:
 	mkdir -p github
@@ -124,6 +130,7 @@ test262: esbuild | demo/test262
 	node scripts/test262.js
 
 ################################################################################
+# This runs UglifyJS's test suite through esbuild
 
 github/uglify:
 	mkdir -p github/uglify
@@ -139,6 +146,75 @@ uglify: esbuild | demo/uglify
 	node scripts/uglify-tests.js
 
 ################################################################################
+# This builds Rollup using esbuild and then uses it to run Rollup's test suite
+
+TEST_ROLLUP_FIND = "compilerOptions": {
+
+TEST_ROLLUP_REPLACE += "compilerOptions": {
+TEST_ROLLUP_REPLACE += "baseUrl": ".",
+TEST_ROLLUP_REPLACE += "paths": { "package.json": [".\/package.json"] },
+
+TEST_ROLLUP_FLAGS += --bundle
+TEST_ROLLUP_FLAGS += --external:fsevents
+TEST_ROLLUP_FLAGS += --outfile=dist/rollup.js
+TEST_ROLLUP_FLAGS += --platform=node
+TEST_ROLLUP_FLAGS += --target=es2019
+TEST_ROLLUP_FLAGS += src/node-entry.ts
+
+github/rollup:
+	mkdir -p github
+	git clone --depth 1 --branch v2.15.0 https://github.com/rollup/rollup.git github/rollup
+
+demo/rollup: | github/rollup
+	mkdir -p demo/rollup
+	cp -RP github/rollup/ demo/rollup
+	cd demo/rollup && npm ci
+
+	# Patch over Rollup's custom "package.json" alias using "tsconfig.json"
+	cat demo/rollup/tsconfig.json | sed 's/$(TEST_ROLLUP_FIND)/$(TEST_ROLLUP_REPLACE)/' > demo/rollup/tsconfig2.json
+	mv demo/rollup/tsconfig2.json demo/rollup/tsconfig.json
+
+test-rollup: esbuild | demo/rollup
+	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) && npm run test:only
+	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) --minify && npm run test:only
+
+################################################################################
+# This builds Sucrase using esbuild and then uses it to run Sucrase's test suite
+
+github/sucrase:
+	mkdir -p github/sucrase
+	cd github/sucrase && git init && git remote add origin https://github.com/alangpierce/sucrase.git
+	cd github/sucrase && git fetch --depth 1 origin a4a596e5cdd57362f309ae50cc32a235d7817d34 && git checkout FETCH_HEAD
+
+demo/sucrase: | github/sucrase
+	mkdir -p demo/sucrase
+	cp -r github/sucrase/ demo/sucrase
+	cd demo/sucrase && npm i
+	cd demo/sucrase && find test -name '*.ts' | sed 's/\(.*\)\.ts/import ".\/\1"/g' > all-tests.ts
+
+test-sucrase: esbuild | demo/sucrase
+	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --platform=node > out.js && npx mocha out.js
+	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --platform=node --minify > out.js && npx mocha out.js
+
+################################################################################
+# This builds Esprima using esbuild and then uses it to run Esprima's test suite
+
+github/esprima:
+	mkdir -p github/esprima
+	cd github/esprima && git init && git remote add origin https://github.com/jquery/esprima.git
+	cd github/esprima && git fetch --depth 1 origin fa49b2edc288452eb49441054ce6f7ff4b891eb4 && git checkout FETCH_HEAD
+
+demo/esprima: | github/esprima
+	mkdir -p demo/esprima
+	cp -r github/esprima/ demo/esprima
+	cd demo/esprima && npm ci
+
+test-esprima: esbuild | demo/esprima
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --platform=node && npm run all-tests
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --platform=node --minify && npm run all-tests
+
+################################################################################
+# This runs terser's test suite through esbuild
 
 github/terser:
 	mkdir -p github/terser
@@ -154,6 +230,7 @@ terser: esbuild | demo/terser
 	node scripts/terser-tests.js
 
 ################################################################################
+# This generates a project containing 10 copies of the Three.js library
 
 github/three:
 	mkdir -p github
@@ -201,7 +278,7 @@ demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-p
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
 	mkdir -p demo/three/esbuild
-	cd demo/three/esbuild && time -p ../../../esbuild --bundle --name=THREE --sourcemap --minify ../src/Three.js --outfile=Three.esbuild.js
+	cd demo/three/esbuild && time -p ../../../esbuild --bundle --global-name=THREE --sourcemap --minify ../src/Three.js --outfile=Three.esbuild.js
 	du -h demo/three/esbuild/Three.esbuild.js*
 	shasum demo/three/esbuild/Three.esbuild.js*
 
@@ -239,7 +316,7 @@ bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-th
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
 	mkdir -p bench/three/esbuild
-	cd bench/three/esbuild && time -p ../../../esbuild --bundle --name=THREE --sourcemap --minify ../entry.js --outfile=entry.esbuild.js
+	cd bench/three/esbuild && time -p ../../../esbuild --bundle --global-name=THREE --sourcemap --minify ../entry.js --outfile=entry.esbuild.js
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 

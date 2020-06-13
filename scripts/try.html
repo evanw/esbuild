@@ -87,15 +87,18 @@
       white-space: nowrap;
     }
 
-    .terminal-31 {
+    .terminal-error {
+      font-weight: bold;
       color: #F00;
     }
 
-    .terminal-32 {
+    .terminal-underline {
+      font-weight: bold;
       color: #0F0;
     }
 
-    .terminal-35 {
+    .terminal-warning {
+      font-weight: bold;
       color: #F0F;
     }
 
@@ -110,7 +113,7 @@
       border: 1px solid #CCC;
     }
 
-    .terminal-1 {
+    .terminal-bold {
       font-weight: bold;
       color: #000;
     }
@@ -127,8 +130,7 @@
         border: 1px solid #555;
       }
 
-      .terminal-1 {
-        font-weight: bold;
+      .terminal-bold {
         color: #FFF;
       }
     }
@@ -159,12 +161,6 @@
           <option>TSX</option>
         </select>
       </label>
-      <label for="platform">
-        Platform: <select id="platform">
-          <option selected>Browser</option>
-          <option>Node</option>
-        </select>
-      </label>
       <label for="minify">
         <input id="minify" type="checkbox">
         Minify
@@ -176,18 +172,15 @@
     <h2>Output</h2>
     <div class="outer"></div>
   </section>
-  <script src="browser.js"></script>
+  <script src="../npm/esbuild-wasm/lib/browser.js"></script>
   <script>
-    esbuildStartWorker({
-      wasmExecJsUrl: 'wasm_exec.js',
-      esbuildWasmUrl: 'esbuild.wasm',
-      worker: false,
-    }).then(esbuild => {
+    esbuild.startService({
+      wasmURL: '../npm/esbuild-wasm/esbuild.wasm',
+    }).then(service => {
       const input = document.querySelector('#input textarea')
       const output = document.querySelector('#output .outer')
       const target = document.querySelector('#target')
       const loader = document.querySelector('#loader')
-      const platform = document.querySelector('#platform')
       const minify = document.querySelector('#minify')
       let debounceTimeout = 0
       let isRunning = false
@@ -195,12 +188,11 @@
 
       target.onchange = runIfIdle
       loader.onchange = runIfIdle
-      platform.onchange = runIfIdle
       minify.onchange = runIfIdle
 
       input.oninput = () => {
         clearTimeout(debounceTimeout)
-        debounceTimeout = setTimeout(runIfIdle, 250)
+        debounceTimeout = setTimeout(runIfIdle, 50)
       }
 
       function runIfIdle() {
@@ -214,27 +206,16 @@
         isRunning = true
         needsRun = false
 
-        esbuild({
-          files: {
-            '/home/user/in.js': input.value,
-          },
-          flags: [
-            'in.js',
-            '--outfile=out.js',
-            '--target=' + target.value.toLowerCase(),
-            '--loader:.js=' + loader.value.toLowerCase(),
-            '--platform=' + platform.value.toLowerCase(),
-          ].concat(minify.checked ? ['--minify'] : []),
-        }).then(
-          ({ files, code }) => {
-            const stderr = files['/dev/stderr'] || ''
-            const out_js = files['/home/user/out.js'] || ''
-            output.innerHTML =
-              terminalEscapesToHTML(textToHTML(stderr)) +
-              (code ? '' : '<hr>' + textToHTML(out_js))
-          },
-          error => output.textContent = error + '',
-        ).then(() => {
+        service.transform(input.value, {
+          target: target.value.toLowerCase(),
+          loader: loader.value.toLowerCase(),
+          minify: minify.checked,
+        }).then(({ js, warnings }) => {
+          let html = messagesToHTML('warning', warnings)
+          output.innerHTML = (html && html + '<hr>') + textToHTML(js);
+        }, ({ errors, warnings }) => {
+          output.innerHTML = messagesToHTML('error', errors) + messagesToHTML('warning', warnings);
+        }).then(() => {
           isRunning = false
           if (needsRun) runIfIdle()
         })
@@ -244,9 +225,31 @@
         return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       }
 
-      function terminalEscapesToHTML(text) {
-        const fn = (_, code) => code.split(';').map(x => `</span><span class="terminal-${code}">`).join('');
-        return '<span>' + text.replace(/\x1B\[([0-9;]+)m/g, fn) + '</span>'
+      function renderTabs(text) {
+        let result = ''
+        for (let c of text) {
+          if (c === '\t') result += ' '.repeat(8 - result.length % 8)
+          else result += c
+        }
+        return result
+      }
+
+      function messagesToHTML(kind, messages) {
+        return messages.map(({ text, location }) => {
+          let html = ''
+          if (location) {
+            html = `<span class="terminal-bold">${textToHTML(location.file)}:${location.line}:${location.column}: </span>`
+          }
+          html += `<span class="terminal-${kind}">${kind}: </span>`
+          html += `<span class="terminal-bold">${textToHTML(text)}</span><br>`
+          if (location) {
+            let spaces = ' '.repeat(renderTabs(location.lineText.slice(0, location.column)).length)
+            let underline = location.length > 1 ? '~'.repeat(location.length) : '^'
+            html += `${textToHTML(renderTabs(location.lineText))}<br>`
+            html += `<span class="terminal-underline">${spaces}${underline}</span><br>`
+          }
+          return html
+        }).join('');
       }
     })
   </script>

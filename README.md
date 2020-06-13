@@ -1,6 +1,15 @@
 # esbuild
 
+[![Godoc](https://godoc.org/github.com/evanw/esbuild?status.svg)](https://godoc.org/github.com/evanw/esbuild/pkg/api)
+
 This is a JavaScript bundler and minifier. It packages up JavaScript and TypeScript code for distribution on the web.
+
+## Documentation
+
+* [JavaScript API documentation](docs/js-api.md)
+* [Go API documentation](https://godoc.org/github.com/evanw/esbuild/pkg/api)
+* [Architecture documentation](docs/architecture.md)
+* [中文文档](http://docs.breword.com/evanw-esbuild/)
 
 ## Why?
 
@@ -43,7 +52,7 @@ Here are the details about each benchmark:
     | Bundler            |    Time | Relative slowdown | Absolute speed | Output size |
     | :----------------- | ------: | ----------------: | -------------: | ----------: |
     | esbuild            |   0.10s |                1x |  1287.5 kloc/s |      0.98mb |
-    | esbuild (1 thread) |   0.32s |                2x |   412.0 kloc/s |      0.98mb |
+    | esbuild (1 thread) |   0.32s |                3x |   412.0 kloc/s |      0.98mb |
     | parcel             |  16.77s |              168x |     7.9 kloc/s |      1.55mb |
     | webpack            |  18.67s |              187x |     7.1 kloc/s |      1.26mb |
 
@@ -60,11 +69,6 @@ Several reasons:
 * Everything is done in very few passes without expensive data transformations
 * Code is written with speed in mind, and tries to avoid unnecessary allocations
 
-## Documentation
-
-* [Architecture](docs/architecture.md)
-* [中文文档](http://docs.breword.com/evanw-esbuild/)
-
 ## Status
 
 #### Currently supported:
@@ -72,12 +76,13 @@ Several reasons:
 * JavaScript and TypeScript syntax
 * CommonJS and ES6 modules
 * JSX-to-JavaScript conversion
-* Bundling using `--bundle` with scope hoisting and tree shaking of ES6 modules
+* Bundling using `--bundle` with scope hoisting ES6 modules
 * Full minification with `--minify` (whitespace, identifiers, and mangling)
 * Full source map support when `--sourcemap` is enabled
 * Compile-time identifier substitutions via `--define`
+* Tree shaking of ES6 modules supporting `sideEffects` in `package.json`
 * Path substitution using the `browser` field in `package.json`
-* Automatic detection of `baseUrl` in `tsconfig.json`
+* Automatic detection of `baseUrl` and `paths` in `tsconfig.json`
 
 #### JavaScript syntax support:
 
@@ -144,7 +149,7 @@ These TypeScript-only syntax features are supported, and are always converted to
 | Type casts              | `a as B` and `<B>a`        | |
 | Type imports            | `import {Type} from 'foo'` | Handled by removing all unused imports |
 | Type exports            | `export {Type} from 'foo'` | Handled by ignoring missing exports in TypeScript files |
-| Experimental decorators | `@sealed class Foo {}`     | |
+| Experimental decorators | `@sealed class Foo {}`     | The `emitDecoratorMetadata` flag is not supported |
 
 These TypeScript-only syntax features are parsed and ignored (a non-exhaustive list):
 
@@ -165,13 +170,9 @@ These TypeScript-only syntax features are parsed and ignored (a non-exhaustive l
 
 * This project is still pretty early and I'd like to keep the scope relatively focused, at least for now. I'm trying to create a build tool that a) works well for a given sweet spot of use cases and b) resets the expectations of the community for what it means for a JavaScript build tool to be fast. I'm not trying to create an extremely flexible build system that can build anything.
 
-    That said, esbuild now has a [JavaScript API](#transforming-a-file) that exposes some of its transform code. This means it can be used as a library to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript to older JavaScript. So even if esbuild doesn't support a particular technology, it's possible that esbuild can still be integrated as a library to help speed it up. For example, [Vite](https://github.com/vuejs/vite) recently started using esbuild's transform library to add support for TypeScript (the official TypeScript compiler was too slow).
+    That said, esbuild now has a [JavaScript API](docs/js-api.md) and a [Go API](https://godoc.org/github.com/evanw/esbuild/pkg/api). This can be used as a library to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript to older JavaScript. So even if esbuild doesn't support a particular technology, it's possible that esbuild can still be integrated as a library to help speed it up. For example, [Vite](https://github.com/vuejs/vite) recently started using esbuild's transform library to add support for TypeScript (the official TypeScript compiler was too slow).
 
 * I'm mainly looking for feedback at the moment, not contributions. The project is early and I'm still working toward an MVP bundler that can reasonably replace real-world toolchains. There are still major fundamental pieces that haven't been put in place yet (e.g. CSS support, watch mode, code splitting) and they all need to work well together to have best-in-class performance.
-
-* The Go code in this repo isn't intended to be built upon. Go is just an implementation detail of how I built this tool. The stable interfaces for this project are the command-line API and the JavaScript API, not the internal Go code. I'm may change the internals in a backwards-incompatible way at any time to improve performance or introduce new features.
-
-There is now some documentation about the architecture and about certain subtleties in the code here: [docs/architecture.md](docs/architecture.md). I hope it will be helpful for those interested in learning more about how the code works.
 
 ## Install
 
@@ -214,7 +215,6 @@ Usage:
   esbuild [options] [entry points]
 
 Options:
-  --name=...            The name of the module
   --bundle              Bundle all dependencies into the output files
   --outfile=...         The output file (for one entry point)
   --outdir=...          The output directory (for multiple entry points)
@@ -224,6 +224,7 @@ Options:
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife, cjs, esm)
   --color=...           Force use of color terminal escapes (true or false)
+  --global-name=...     The name of the global for the IIFE format
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -242,7 +243,7 @@ Advanced options:
   --sourcemap=external      Do not link to the source map with a comment
   --sourcefile=...          Set the source file for the source map (for stdin)
   --error-limit=...         Maximum error count or 0 to disable (default 10)
-  --log-level=...           Disable logging (info, warning, error)
+  --log-level=...           Disable logging (info, warning, error, silent)
   --resolve-extensions=...  A comma-separated list of implicit extensions
   --metafile=...            Write metadata about the build to a JSON file
 
@@ -262,65 +263,6 @@ Examples:
   # Provide input via stdin, get output via stdout
   esbuild --minify --loader=ts < input.ts > output.js
 ```
-
-## JavaScript API usage
-
-The `esbuild` npm package also exposes a JavaScript API that can be used to invoke the command-line tool from JavaScript.
-
-### Running a build
-
-The `build()` API is the same as invoking the command-line tool. It reads from files on disk and writes back to files on disk. Using this API can be more convenient than managing a lot of command-line flags and also works on all platforms, unlike shell scripts. This is similar to "config files" from other bundlers.
-
-Example build script:
-
-```js
-const { build } = require('esbuild')
-
-build({
-  stdio: 'inherit',
-  entryPoints: ['./src/main.ts'],
-  outfile: './dist/main.js',
-  minify: true,
-  bundle: true,
-}).catch(() => process.exit(1))
-```
-
-See [the TypeScript type definitions](./npm/esbuild/lib/main.d.ts) for the complete set of options.
-
-### Transforming a file
-
-The `transform()` API transforms a single file in memory. It can be used to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript to older JavaScript. It's roughly equivalent to running `build()` on a single file with `bundle: false`.
-
-To access this API you need to start a service, which is a long-lived `esbuild` child process that is then reused. You can use the service to transform many files without the overhead of starting up a new child process each time.
-
-Example usage:
-
-```js
-(async () => {
-  const jsx = `
-    import * as React from 'react'
-    import * as ReactDOM from 'react-dom'
-
-    ReactDOM.render(
-      <h1>Hello, world!</h1>,
-      document.getElementById('root')
-    );
-  `
-
-  // Start the esbuild child process once
-  const esbuild = require('esbuild')
-  const service = await esbuild.startService()
-
-  // This can be called many times without the overhead of starting a service
-  const { js } = await service.transform(jsx, { loader: 'jsx' })
-  console.log(js)
-
-  // The child process can be explicitly killed when it's no longer needed
-  service.stop()
-})()
-```
-
-See [the TypeScript type definitions](./npm/esbuild/lib/main.d.ts) for the complete set of options.
 
 ## Using with React
 

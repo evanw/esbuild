@@ -16,16 +16,18 @@
   const { default: { buildBinary, dirname } } = await import('./esbuild.js')
   const { default: mkdirp } = await import('mkdirp')
   const { default: rimraf } = await import('rimraf')
+  const assert = await import('assert')
   const path = await import('path')
   const util = await import('util')
   const url = await import('url')
   const fs = await import('fs')
   const testDir = path.join(dirname, '.end-to-end-tests')
   const esbuildPath = buildBinary()
+  const tests = []
   let testCount = 0
 
-  let tests = [
-    // Tests for "--define"
+  // Tests for "--define"
+  tests.push(
     test(['--define:foo=null', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== null) throw 'fail'` }),
     test(['--define:foo=true', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== true) throw 'fail'` }),
     test(['--define:foo=false', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== false) throw 'fail'` }),
@@ -35,8 +37,21 @@
     test(['--define:foo=global', 'in.js', '--outfile=node.js'], { 'in.js': `foo.bar = 123; if (bar !== 123) throw 'fail'` }),
     test(['--define:foo=bar', 'in.js', '--outfile=node.js'], { 'in.js': `let bar = {x: 123}; if (foo.x !== 123) throw 'fail'` }),
     test(['--define:a.x=1', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x !== 1) throw 'fail'` }),
-    test(['--define:a.x=1', '--define:b.x=1', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + b.x !== 2) throw 'fail'` }),
-  ]
+    test(['--define:a.x=1', '--define:a.y=2', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + a.y !== 3) throw 'fail'` }),
+    test(['--define:a.x=1', '--define:b.y=2', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + b.y !== 3) throw 'fail'` }),
+    test(['--define:a.x=1', '--define:b.x=2', 'in.js', '--outfile=node.js'], { 'in.js': `if (a.x + b.x !== 3) throw 'fail'` }),
+    test(['--define:x=y', '--define:y=x', 'in.js', '--outfile=node.js'], {
+      'in.js': `eval('var x="x",y="y"'); if (x + y !== 'yx') throw 'fail'`,
+    }),
+  )
+
+  // Test recursive directory creation
+  tests.push(
+    test(['entry.js', '--outfile=a/b/c/d/index.js'], {
+      'entry.js': `exports.foo = 123`,
+      'node.js': `const ns = require('./a/b/c/d'); if (ns.foo !== 123) throw 'fail'`,
+    }),
+  )
 
   // Tests for symlinks
   //
@@ -170,6 +185,41 @@
     }),
   )
 
+  // ES6 export star of CommonJS module
+  tests.push(
+    // Internal
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import * as ns from './re-export'; if (ns.foo !== 123) throw 'fail'`,
+      're-export.js': `export * from './commonjs'`,
+      'commonjs.js': `exports.foo = 123`,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import {foo} from './re-export'; if (foo !== 123) throw 'fail'`,
+      're-export.js': `export * from './commonjs'`,
+      'commonjs.js': `exports.foo = 123`,
+    }),
+
+    // External
+    test(['--bundle', 'entry.js', '--outfile=node.js', '--external:fs'], {
+      'entry.js': `import * as ns from './re-export'; if (typeof ns.exists !== 'function') throw 'fail'`,
+      're-export.js': `export * from 'fs'`,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=node.js', '--external:fs'], {
+      'entry.js': `import {exists} from './re-export'; if (typeof exists !== 'function') throw 'fail'`,
+      're-export.js': `export * from 'fs'`,
+    }),
+
+    // External (masked)
+    test(['--bundle', 'entry.js', '--outfile=node.js', '--external:fs'], {
+      'entry.js': `import * as ns from './re-export'; if (ns.exists !== 123) throw 'fail'`,
+      're-export.js': `export * from 'fs'; export let exists = 123`,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=node.js', '--external:fs'], {
+      'entry.js': `import {exists} from './re-export'; if (exists !== 123) throw 'fail'`,
+      're-export.js': `export * from 'fs'; export let exists = 123`,
+    }),
+  )
+
   // Tests for catch scope issues
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {
@@ -260,6 +310,38 @@
     }),
   )
 
+  // Test directive preservation
+  tests.push(
+    // The "__pow" symbol must not be hoisted above "use strict"
+    test(['entry.js', '--outfile=node.js', '--target=es6'], {
+      'entry.js': `
+        'use strict'
+        function f(a) {
+          a **= 2
+          return [a, arguments[0]]
+        }
+        let pair = f(2)
+        if (pair[0] !== 4 || pair[1] !== 2) throw 'fail'
+      `,
+    }),
+  )
+
+  // Test minification of top-level symbols
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      // Top-level names should not be minified
+      'in.js': `function foo() {} if (foo.name !== 'foo') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      // Nested names should be minified
+      'in.js': `(() => { function foo() {} if (foo.name === 'foo') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--target=es6'], {
+      // Importing the "__pow()" runtime function should not affect top-level name minification
+      'in.js': `let _8 = 2 ** 3; function foo8() {} if (foo8.name !== 'foo' + _8) throw 'fail'`,
+    }),
+  )
+
   // Test tree shaking
   tests.push(
     // Keep because used (ES6)
@@ -302,6 +384,90 @@
       'entry.js': `import foo from './foo'; if (global.dce5 !== 123) throw 'fail'`,
       'foo/index.js': `global.dce5 = 123; exports.abc = 'abc'`,
       'foo/package.json': `{ "sideEffects": true }`,
+    }),
+  )
+
+  // Test obscure CommonJS symbol edge cases
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns.foo !== 123 || ns.bar !== 123) throw 'fail'`,
+      'foo.js': `var exports, module; module.exports.foo = 123; exports.bar = exports.foo`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `require('./foo'); require('./bar')`,
+      'foo.js': `let exports; if (exports !== void 0) throw 'fail'`,
+      'bar.js': `let module; if (module !== void 0) throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns.foo !== void 0 || ns.default.foo !== 123) throw 'fail'`,
+      'foo.js': `var exports = {foo: 123}; export default exports`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns !== 123) throw 'fail'`,
+      'foo.ts': `let module = 123; export = module`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `require('./foo')`,
+      'foo.js': `var require; if (require !== void 0) throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `require('./foo')`,
+      'foo.js': `var require = x => x; if (require('does not exist') !== 'does not exist') throw 'fail'`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns.a !== 123 || ns.b.a !== 123) throw 'fail'`,
+      'foo.js': `exports.a = 123; exports.b = this`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `const ns = require('./foo'); if (ns.a !== 123 || ns.b !== void 0) throw 'fail'`,
+      'foo.js': `export let a = 123, b = this`,
+    }),
+  )
+
+  // Test writing to stdout
+  tests.push(
+    // These should succeed
+    testStdout('exports.foo = 123', [], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, `exports.foo = 123;\n`)
+    }),
+    testStdout('exports.foo = 123', ['--bundle', '--format=cjs'], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, `// example.js\nexports.foo = 123;\n`)
+    }),
+    testStdout('exports.foo = 123', ['--sourcemap'], async (build) => {
+      const stdout = await build()
+      const start = `exports.foo = 123;\n//# sourceMappingURL=data:application/json;base64,`
+      assert.default(stdout.startsWith(start))
+      const json = JSON.parse(Buffer.from(stdout.slice(start.length), 'base64').toString())
+      assert.strictEqual(json.version, 3)
+      assert.deepStrictEqual(json.sources, ['example.js'])
+    }),
+    testStdout('exports.foo = 123', ['--bundle', '--format=cjs', '--sourcemap'], async (build) => {
+      const stdout = await build()
+      const start = `// example.js\nexports.foo = 123;\n//# sourceMappingURL=data:application/json;base64,`
+      assert.default(stdout.startsWith(start))
+      const json = JSON.parse(Buffer.from(stdout.slice(start.length), 'base64').toString())
+      assert.strictEqual(json.version, 3)
+      assert.deepStrictEqual(json.sources, ['example.js'])
+    }),
+    testStdout('stuff', ['--loader:.js=text'], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, `module.exports = "stuff";\n`)
+    }),
+
+    // These should fail
+    testStdout('exports.foo = 123', ['--metafile=graph.json'], async (build) => {
+      try { await build() } catch (e) { return }
+      throw new Error('Expected build failure for "--metafile"')
+    }),
+    testStdout('exports.foo = 123', ['--sourcemap=external'], async (build) => {
+      try { await build() } catch (e) { return }
+      throw new Error('Expected build failure for "--metafile"')
+    }),
+    testStdout('exports.foo = 123', ['--loader:.js=file'], async (build) => {
+      try { await build() } catch (e) { return }
+      throw new Error('Expected build failure for "--metafile"')
     }),
   )
 
@@ -372,6 +538,35 @@
 `)
           return false
         }
+      }
+
+      return true
+    }
+  }
+
+  // There's a feature where bundling without "outfile" or "outdir" writes to stdout instead
+  function testStdout(input, args, callback) {
+    return async () => {
+      const thisTestDir = path.join(testDir, '' + testCount++)
+
+      try {
+        mkdirp.sync(thisTestDir)
+        const inputFile = path.join(thisTestDir, 'example.js')
+        await util.promisify(fs.writeFile)(inputFile, input)
+
+        // Run whatever check the caller is doing
+        await callback(async () => {
+          const { stdout } = await util.promisify(childProcess.execFile)(
+            esbuildPath, [inputFile].concat(args), { cwd: thisTestDir, stdio: 'pipe' })
+          return stdout
+        })
+
+        // Clean up test output
+        rimraf.sync(thisTestDir, { disableGlob: true })
+      } catch (e) {
+        console.error(`❌ test failed: ${e && e.message || e}
+  dir: ${path.relative(dirname, thisTestDir)}`)
+        return false
       }
 
       return true

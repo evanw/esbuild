@@ -16,7 +16,7 @@
     * [The runtime library](#the-runtime-library)
 * [Notes about printing](#notes-about-printing)
 
-# Architecture
+# Architecture Documentation
 
 This document covers how esbuild's bundler works. It's intended to aid in understanding the code, in understanding what tricks esbuild uses to improve performance, and hopefully to enable people to modify the code.
 

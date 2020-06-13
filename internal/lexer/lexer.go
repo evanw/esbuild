@@ -865,7 +865,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 }
 
 func (lexer *Lexer) Next() {
-	lexer.HasNewlineBefore = false
+	lexer.HasNewlineBefore = lexer.end == 0
 
 	for {
 		lexer.start = lexer.end
@@ -1084,9 +1084,9 @@ func (lexer *Lexer) Next() {
 				lexer.step()
 
 				// Handle legacy HTML-style comments
-				if lexer.codePoint == '>' {
+				if lexer.codePoint == '>' && lexer.HasNewlineBefore {
 					lexer.step()
-					lexer.log.AddRangeWarning(lexer.source, lexer.Range(),
+					lexer.log.AddRangeWarning(&lexer.source, lexer.Range(),
 						"Treating \"-->\" as the start of a legacy HTML single-line comment")
 				singleLineHTMLCloseComment:
 					for {
@@ -1235,7 +1235,7 @@ func (lexer *Lexer) Next() {
 					lexer.step()
 					lexer.step()
 					lexer.step()
-					lexer.log.AddRangeWarning(lexer.source, lexer.Range(),
+					lexer.log.AddRangeWarning(&lexer.source, lexer.Range(),
 						"Treating \"<!--\" as the start of a legacy HTML single-line comment")
 				singleLineHTMLOpenComment:
 					for {
@@ -2210,13 +2210,13 @@ func (lexer *Lexer) step() {
 
 func (lexer *Lexer) addError(loc ast.Loc, text string) {
 	if !lexer.IsLogDisabled {
-		lexer.log.AddError(lexer.source, loc, text)
+		lexer.log.AddError(&lexer.source, loc, text)
 	}
 }
 
 func (lexer *Lexer) addRangeError(r ast.Range, text string) {
 	if !lexer.IsLogDisabled {
-		lexer.log.AddRangeError(lexer.source, r, text)
+		lexer.log.AddRangeError(&lexer.source, r, text)
 	}
 }
 

@@ -1,5 +1,147 @@
 # Changelog
 
+## 0.5.3
+
+* Special-case `require` in browserify bundles ([#80](https://github.com/evanw/esbuild/issues/80) and [#90](https://github.com/evanw/esbuild/issues/90))
+
+    [Browserify](http://browserify.org/) generates code containing the expression `typeof require == "function" && require` which then ends up in a lot of npm packages. This expression is problematic because bundling involves statically determining all source files and their dependencies. Using `require` dynamically like this defeats the static analysis. It's also problematic because esbuild replaces `typeof require == "function"` with `true` since `require` is a function at compile-time when bundling. Then `true && require` becomes `require` in the generated code, which crashes at run time.
+
+    Previously esbuild would generate an error for these expressions. Now esbuild replaces `typeof require == "function" && require` with `false` when targeting the browser and `require` when targeting node. This matches the intent of the browserify prelude snippet and allows esbuild to build libraries containing this code without errors or warnings.
+
+* Allow dynamic dependencies ([#113](https://github.com/evanw/esbuild/issues/113))
+
+    Bundling `require()` or `import()` when the argument isn't a string literal is a dynamic dependency. The dependency path relies on dynamic run-time behavior and cannot be statically determined by esbuild at bundle time.
+
+    Dynamic dependencies used to be an error but are now just a warning. Builds containing them now succeed and the generated code contains the `require()` or `import()` expression. This is useful either when the dynamic dependency is intentional or when you know the dynamic dependency won't ever be triggered. Doing this still generates a warning to alert you that some code was excluded from the bundle and because these expressions may still crash at run time if the imported path isn't valid.
+
+## 0.5.2
+
+* Fix a regression with `--define` and identifiers
+
+    The API refactor introduced a regression where using a `--define` flag to replace something with an identifier followed by another `--define` flag unintentionally caused the first `--define` to use the value from the second `--define` for replacement. This regression was caused by a loop that was added around a Go closure, which caused all closures in that loop to close over the same variable. The bug has been fixed.
+
+* Fix interpretation of legacy `-->` single-line HTML comments
+
+    The `-->` sequence starts a single-line comment similar to `//`. This is legacy behavior from [annex B](http://www.ecma-international.org/ecma-262/6.0/#sec-html-like-comments) under the name `SingleLineHTMLCloseComment`. However, `-->` was incorrectly treated as the start of a comment even when it didn't come at the beginning of the line. Now `-->` only starts a comment if there are no tokens before it on that line.
+
+* Allow shadowing of CommonJS variables ([#165](https://github.com/evanw/esbuild/issues/165))
+
+    It's now no longer an error to re-declare `exports`, `module`, or `require` in a module scope. The re-declared symbol will just silently shadow the CommonJS variable with that name. This allows to use a variable called `exports` in an ES6 module, for example.
+
+## 0.5.1
+
+* Go documentation was moved to godoc ([#177](https://github.com/evanw/esbuild/pull/177))
+
+    The Go documentation is now in the source files itself instead of in an external Markdown file. View it online at https://godoc.org/github.com/evanw/esbuild/pkg/api and https://godoc.org/github.com/evanw/esbuild/pkg/cli.
+
+* The browser API now works in a script tag
+
+    The initial release of the browser API required a bundler to use correctly since it was in CommonJS format. This release adds the ability to use the browser API directly in HTML.
+
+    Here's an example using https://unpkg.com/ for simplicity, although you should consider hosting the files yourself:
+
+    ```html
+    <script src="https://unpkg.com/esbuild-wasm@0.5.1/lib/browser.js"></script>
+    <script>
+      (async () => {
+        const service = await esbuild.startService({
+          wasmURL: 'https://unpkg.com/esbuild-wasm@0.5.1/esbuild.wasm'
+        })
+        try {
+          const ts = 'enum Foo { A, B, C }'
+          const { js } = await service.transform(ts, { loader: 'ts' })
+          console.log(js)
+        } finally {
+          service.stop()
+        }
+      })()
+    </script>
+    ```
+
+## 0.5.0
+
+* Overhaul public-facing API code
+
+    This is a rewrite of all externally facing API code. It fixes some bugs and inconsistencies, adds some new features, and makes it easier to support various use cases going forward.
+
+    At a high-level, esbuild's API supports two separate operations: "build" and "transform". Building means reading from the file system and writing back to the file system. Transforming takes an input string and generates an output string. You should use the build API if you want to take advantage of esbuild's bundling capability, and you should use the transform API if you want to integrate esbuild as a library inside another tool (e.g. a "minify" plugin). This rewrite ensures the APIs for these two operations are exposed consistently for all ways of interacting with esbuild (both through the CLI and as a library).
+
+    Here are some of the highlights:
+
+    * There is now a public Go API ([#152](https://github.com/evanw/esbuild/issues/152))
+
+        The main API can be found in the [`github.com/evanw/esbuild/pkg/api`](pkg/api/api.go) module. It exposes the exact same features as the JavaScript API. This means you can use esbuild as a JavaScript transformation and bundling library from Go code without having to run esbuild as a child process. There is also the [`github.com/evanw/esbuild/pkg/cli`](pkg/cli/cli.go) module which can be used to wrap the esbuild CLI itself.
+
+    * There are now synchronous JavaScript APIs ([#136](https://github.com/evanw/esbuild/issues/136))
+
+        Sometimes JavaScript source transformations must be synchronous. For example, using esbuild's API to shim `require()` for `.ts` files was previously not possible because esbuild only had an asynchronous transform API.
+
+        This release adds the new `transformSync()` and `buildSync()` synchronous functions to mirror the existing `transform()` and `build()` asynchronous functions. Note that these synchronous calls incur the cost of starting up a new child process each time, so you should only use these instead of `startService()` if you have to (or if you don't care about optimal performance).
+
+    * There is now an experimental browser-based API ([#172](https://github.com/evanw/esbuild/issues/172))
+
+        The `esbuild-wasm` package now has a file called `browser.js` that exposes a `createService()` API which is similar to the esbuild API available in node. You can either import the `esbuild-wasm` package using a bundler that respects the `browser` field in `package.json` or import the `esbuild-wasm/lib/browser.js` file directly.
+
+        This is what esbuild's browser API looks like:
+
+        ```ts
+        interface BrowserOptions {
+          wasmURL: string
+          worker?: boolean
+        }
+
+        interface BrowserService {
+          transform(input: string, options: TransformOptions): Promise<TransformResult>
+          stop(): void
+        }
+
+        declare function createService(options: BrowserOptions): Promise<BrowserService>
+        ```
+
+        You must provide the URL to the `esbuild-wasm/esbuild.wasm` file in `wasmURL`. The optional `worker` parameter can be set to `false` to load the WebAssembly module in the same thread instead of creating a worker thread. Using a worker thread is recommended because it means transforming will not block the main thread.
+
+        This API is experimental and may be changed in the future depending on the feedback it gets.
+
+    * Error messages now use `sourcefile` ([#131](https://github.com/evanw/esbuild/issues/131))
+
+        Errors from transform API calls now use `sourcefile` as the the original file name if present. Previously the file name in error messages was always `/input.js`.
+
+## 0.4.14
+
+* Do not reorder `"use strict"` after support code ([#173](https://github.com/evanw/esbuild/issues/173))
+
+    Even when not in bundling mode, esbuild sometimes adds automatically-generated support code at the start of the output file. For example, using the `**` operator with `--target=es2015` causes `let __pow = Math.pow` to be inserted at the start of the file. This interfered with `"use strict"` directives, which must come first. Now `"use strict"` directives are written out first before any automatically-generated support code.
+
+* Fix bug with export star pointing to a re-export ([#176](https://github.com/evanw/esbuild/issues/176))
+
+    This fixes a tree shaking bug that involves an `export * from ...` statement pointing to a file with a `export {name} from ...` statement. Now `name` will no longer be incorrectly removed from the bundle.
+
+## 0.4.13
+
+* Fix possible name collision with CommonJS the target ([#174](https://github.com/evanw/esbuild/issues/174))
+
+    A bug meant that the export objects for individual modules with the same filename could in some cases end up reusing the same name in the output file, which then caused a syntax error. This only happened with the `cjs` target. The bug has been fixed.
+
+## 0.4.12
+
+* Support `export * from ...` for CommonJS modules ([#159](https://github.com/evanw/esbuild/issues/159))
+
+    Wildcard re-exports are now supported when the exports come from a CommonJS or external module. Since CommonJS modules are not statically analyzable, this means in these cases the re-exports are evaluated at run time instead of at bundle time. Modules that re-export symbols this way will also be considered CommonJS modules during bundling because their exports are now also not statically analyzable.
+
+* Add 3rd-party library test coverage
+
+    From the esbuild repo, you can now run `make test-extra` to build some 3rd-party libraries (Rollup, Sucrase, and Esprima) with esbuild and run their test suites. This ensures that these libraries will continue to work as esbuild releases new features.
+
+## 0.4.11
+
+* Fix top-level name minification with runtime
+
+    When not bundling, esbuild only minifies top-level names if the file is an ES6 module (as determined by the presence of an ES6 import or export statement). This determination had a bug where a non-module file was considered a module if esbuild automatically generated an import to some internal support code called the "runtime". For example, using the `**` operator with `--target=es2015` generates an import for the `__pow` runtime function. Runtime imports are now ignored for module determination, so an automatically-generated runtime import no longer causes top-level names to be minified.
+
+* Fix class name generation for default exports
+
+    Some changes to name generation for TypeScript decorators caused the generated class name for `export default class` statements to sometimes not match the name used for other references to that class in the same file. This bug has been fixed.
+
 ## 0.4.10
 
 * Initial implementation of TypeScript decorators ([#104](https://github.com/evanw/esbuild/issues/104))

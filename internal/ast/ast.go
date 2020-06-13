@@ -626,9 +626,15 @@ type SExportDefault struct {
 	Value       ExprOrStmt // May be a SFunction or SClass
 }
 
+type ExportStarAlias struct {
+	Loc  Loc
+	Name string
+}
+
 type SExportStar struct {
-	Item *ClauseItem
-	Path Path
+	NamespaceRef Ref
+	Alias        *ExportStarAlias
+	Path         Path
 }
 
 // This is an "export = value;" statement in TypeScript
@@ -1108,6 +1114,7 @@ type AST struct {
 	HasES6Exports bool
 
 	Hashbang    string
+	Directive   string
 	Parts       []Part
 	Symbols     SymbolMap
 	ModuleScope *Scope

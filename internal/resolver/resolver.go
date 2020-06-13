@@ -36,18 +36,11 @@ type Resolver interface {
 	PrettyPath(path string) string
 }
 
-type Platform uint8
-
-const (
-	PlatformBrowser Platform = iota
-	PlatformNode
-)
-
 type ResolveOptions struct {
 	ExtensionOrder  []string
-	Platform        Platform
+	Platform        parser.Platform
 	ExternalModules map[string]bool
-	OriginDir       string
+	Origindir       string
 }
 
 type resolver struct {
@@ -63,7 +56,7 @@ type resolver struct {
 
 func NewResolver(fs fs.FS, log logging.Log, options ResolveOptions) Resolver {
 	// Bundling for node implies allowing node's builtin modules
-	if options.Platform == PlatformNode {
+	if options.Platform == parser.PlatformNode {
 		externalModules := make(map[string]bool)
 		if options.ExternalModules != nil {
 			for name, _ := range options.ExternalModules {
@@ -128,8 +121,8 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 	// Get the cached information for this directory and all parent directories
 	sourceDir := r.fs.Dir(sourcePath)
 
-	if r.options.OriginDir != "" && isSlashPath(importPath) {
-		if absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(r.options.OriginDir, importPath)); ok {
+	if r.options.Origindir != "" && isSlashPath(importPath) {
+		if absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(r.options.Origindir, importPath)); ok {
 			result = absolute
 		} else {
 			return "", ResolveMissing
@@ -359,7 +352,7 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 			if pathsJson, pathsKeyLoc, ok := getProperty(compilerOptionsJson, "paths"); ok {
 				if info.tsConfigJson.absPathBaseUrl == nil {
 					warnRange := tsConfigSource.RangeOfString(pathsKeyLoc)
-					r.log.AddRangeWarning(tsConfigSource, warnRange,
+					r.log.AddRangeWarning(&tsConfigSource, warnRange,
 						"Cannot use the \"paths\" property without the \"baseUrl\" property")
 				} else if paths, ok := pathsJson.Data.(*ast.EObject); ok {
 					info.tsConfigJson.paths = map[string][]string{}
@@ -400,7 +393,7 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 								}
 							} else {
 								warnRange := tsConfigSource.RangeOfString(prop.Value.Loc)
-								r.log.AddRangeWarning(tsConfigSource, warnRange, fmt.Sprintf(
+								r.log.AddRangeWarning(&tsConfigSource, warnRange, fmt.Sprintf(
 									"Substitutions for pattern %q should be an array", key))
 							}
 						}
@@ -417,7 +410,7 @@ func isValidTSConfigPathPattern(text string, log logging.Log, source logging.Sou
 		if text[i] == '*' {
 			if foundAsterisk {
 				r := source.RangeOfString(loc)
-				log.AddRangeWarning(source, r, fmt.Sprintf(
+				log.AddRangeWarning(&source, r, fmt.Sprintf(
 					"Invalid pattern %q, must have at most one \"*\" character", text))
 				return false
 			}
@@ -517,7 +510,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	}
 
 	// Read the "browser" property, but only when targeting the browser
-	if browserJson, _, ok := getProperty(json, "browser"); ok && r.options.Platform == PlatformBrowser {
+	if browserJson, _, ok := getProperty(json, "browser"); ok && r.options.Platform == parser.PlatformBrowser {
 		if browser, ok := getString(browserJson); ok {
 			// If the value is a string, then we should just replace the main path.
 			//
@@ -598,13 +591,13 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 					absolute := r.fs.Join(path, lexer.UTF16ToString(item.Value))
 					packageJson.sideEffectsMap[absolute] = true
 				} else {
-					r.log.AddWarning(jsonSource, itemJson.Loc,
+					r.log.AddWarning(&jsonSource, itemJson.Loc,
 						"Expected string in array for \"sideEffects\"")
 				}
 			}
 
 		default:
-			r.log.AddWarning(jsonSource, sideEffectsJson.Loc,
+			r.log.AddWarning(&jsonSource, sideEffectsJson.Loc,
 				"Invalid value for \"sideEffects\"")
 		}
 	}

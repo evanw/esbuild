@@ -2181,11 +2181,11 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpace()
 		p.print("*")
 		p.printSpace()
-		if s.Item != nil {
+		if s.Alias != nil {
 			p.print("as")
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
-			p.print(s.Item.Alias)
+			p.print(s.Alias.Name)
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
 		}

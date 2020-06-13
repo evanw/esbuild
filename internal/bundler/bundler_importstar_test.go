@@ -1088,8 +1088,8 @@ func TestExportSelfCommonJSMinified(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
-var b = c((d, e) => {
-  e.exports = {foo: 123};
+var b = c((d, a) => {
+  a.exports = {foo: 123};
   console.log(b());
 });
 module.exports = b();
@@ -1904,6 +1904,83 @@ func TestNamespaceImportReExportStarUnusedMissingES6(t *testing.T) {
 
 // /entry.js
 console.log(void 0);
+`,
+		},
+	})
+}
+
+func TestExportStarDefaultExportCommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from './foo'
+			`,
+			"/foo.js": `
+				export default 'default' // This should not be picked up
+				export let foo = 'foo'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			OutputFormat:  printer.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+let foo = "foo";
+
+// /entry.js
+__export(exports, {
+  foo: () => foo
+});
+`,
+		},
+	})
+}
+
+func TestIssue176(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as things from './folders'
+				console.log(JSON.stringify(things))
+			`,
+			"/folders/index.js": `
+				export * from "./child"
+			`,
+			"/folders/child/index.js": `
+				export { foo } from './foo'
+			`,
+			"/folders/child/foo.js": `
+				export const foo = () => 'hi there'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /folders/child/foo.js
+const foo = () => "hi there";
+
+// /folders/child/index.js
+
+// /folders/index.js
+const index_exports = {};
+__export(index_exports, {
+  foo: () => foo
+});
+
+// /entry.js
+console.log(JSON.stringify(index_exports));
 `,
 		},
 	})

@@ -188,6 +188,7 @@ type partRef struct {
 type chunkMeta struct {
 	name                  string
 	hashbang              string
+	directive             string
 	filesWithPartsInChunk map[uint32]bool
 	entryBits             bitSet
 }
@@ -330,7 +331,7 @@ func findReachableFiles(sources []logging.Source, files []file, entryPoints []ui
 }
 
 func (c *linkerContext) addRangeError(source logging.Source, r ast.Range, text string) {
-	c.log.AddRangeError(source, r, text)
+	c.log.AddRangeError(&source, r, text)
 	c.hasErrors = true
 }
 
@@ -427,7 +428,18 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 	}
 
-	// Step 2: Resolve "export * from" statements. This must be done after we
+	// Step 2: Propagate CommonJS status for export star statements that are re-
+	// exports from a CommonJS module. Exports from a CommonJS module are not
+	// statically analyzable, so the export star must be evaluated at run time
+	// instead of at bundle time.
+	for _, sourceIndex := range c.reachableFiles {
+		if len(c.files[sourceIndex].ast.ExportStars) > 0 {
+			visited := make(map[uint32]bool)
+			c.isCommonJSDueToExportStar(sourceIndex, visited)
+		}
+	}
+
+	// Step 3: Resolve "export * from" statements. This must be done after we
 	// discover all modules that can be CommonJS because export stars are ignored
 	// for CommonJS modules.
 	for _, sourceIndex := range c.reachableFiles {
@@ -454,7 +466,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// Propagate exports for export star statements
 		if len(file.ast.ExportStars) > 0 {
 			visited := make(map[uint32]bool)
-			c.addExportsForExportStar(fileMeta.resolvedExports, uint32(sourceIndex), nil, visited)
+			c.addExportsForExportStar(fileMeta.resolvedExports, sourceIndex, nil, visited)
 		}
 
 		// Add an empty part for the namespace export that we can fill in later
@@ -479,7 +491,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		file.ast.TopLevelSymbolToParts[file.ast.ExportsRef] = []uint32{nsExportPartIndex}
 	}
 
-	// Step 3: Match imports with exports. This must be done after we process all
+	// Step 4: Match imports with exports. This must be done after we process all
 	// export stars because imports can bind to export star re-exports.
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
@@ -502,7 +514,8 @@ func (c *linkerContext) scanImportsAndExports() {
 		// then we'll be using the actual CommonJS "exports" and/or "module"
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
-		if c.options.OutputFormat == printer.FormatCommonJS && !fileMeta.cjsWrap {
+		if c.options.OutputFormat == printer.FormatCommonJS && !fileMeta.cjsWrap &&
+			fileMeta.entryPointStatus == entryPointUserSpecified {
 			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
 			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
 			c.symbols.Get(exportsRef).Kind = ast.SymbolUnbound
@@ -510,7 +523,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 	}
 
-	// Step 4: Create namespace exports for every file. This is always necessary
+	// Step 5: Create namespace exports for every file. This is always necessary
 	// for CommonJS files, and is also necessary for other files if they are
 	// imported using an import star statement.
 	for _, sourceIndex := range c.reachableFiles {
@@ -548,7 +561,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		c.createNamespaceExportForFile(uint32(sourceIndex))
 	}
 
-	// Step 5: Bind imports to exports. This adds non-local dependencies on the
+	// Step 6: Bind imports to exports. This adds non-local dependencies on the
 	// parts that declare the export to all parts that use the import.
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
@@ -590,38 +603,22 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 	for _, alias := range fileMeta.sortedAndFilteredExportAliases {
 		export := fileMeta.resolvedExports[alias]
 
+		// If this is an export of an import, reference the symbol that the import
+		// was eventually resolved to. We need to do this because imports have
+		// already been resolved by this point, so we can't generate a new import
+		// and have that be resolved later.
+		otherFileMeta := &c.fileMeta[export.sourceIndex]
+		if importToBind, ok := otherFileMeta.importsToBind[export.ref]; ok {
+			export.ref = importToBind.ref
+			export.sourceIndex = importToBind.sourceIndex
+		}
+
 		// Exports of imports need EImportIdentifier in case they need to be re-
 		// written to a property access later on
 		var value ast.Expr
 		otherFile := &c.files[export.sourceIndex]
 		if _, ok := otherFile.ast.NamedImports[export.ref]; ok {
 			value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{export.ref}}
-
-			// Mark that the import is used by the part we're about to generate.
-			// That way when the import is later bound to its matching export,
-			// the export will be assigned as a dependency of the part we're about
-			// to generate.
-			namedImport, ok := file.ast.NamedImports[export.ref]
-			if !ok {
-
-				// The import may be in another file because of an export star, but
-				// we want to add the dependency to the original file since the
-				// dependency propagation uses local part references. In that case,
-				// add a new import to the original file.
-				namedImport = ast.NamedImport{
-					Alias:        alias,
-					AliasLoc:     *export.pathLoc,
-					NamespaceRef: ast.InvalidRef,
-					ImportPath: ast.Path{
-						UseSourceIndex: true,
-						SourceIndex:    export.sourceIndex,
-					},
-				}
-
-			}
-			clone := append(make([]uint32, 0, len(namedImport.LocalPartsWithUses)+1), namedImport.LocalPartsWithUses...)
-			namedImport.LocalPartsWithUses = append(clone, nsExportPartIndex)
-			file.ast.NamedImports[export.ref] = namedImport
 		} else {
 			value = ast.Expr{ast.Loc{}, &ast.EIdentifier{export.ref}}
 		}
@@ -778,7 +775,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// Warn about importing from a file that is known to not have any exports
 				if status == importCommonJSWithoutExports {
 					source := c.sources[tracker.sourceIndex]
-					c.log.AddRangeWarning(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+					c.log.AddRangeWarning(&source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 						fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
 				}
 
@@ -834,6 +831,37 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 	}
 }
 
+func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited map[uint32]bool) bool {
+	// Terminate the traversal now if this file is CommonJS
+	fileMeta := &c.fileMeta[sourceIndex]
+	if fileMeta.cjsStyleExports {
+		return true
+	}
+
+	// Avoid infinite loops due to cycles in the export star graph
+	if visited[sourceIndex] {
+		return false
+	}
+	visited[sourceIndex] = true
+
+	// Scan over the export star graph
+	file := &c.files[sourceIndex]
+	for _, path := range file.ast.ExportStars {
+		otherSourceIndex, isInternal := file.resolveImport(path)
+
+		// This file is CommonJS if the exported imports are from a file that is
+		// either CommonJS directly or transitively by itself having an export star
+		// from a CommonJS file.
+		if !isInternal || (otherSourceIndex != sourceIndex &&
+			c.isCommonJSDueToExportStar(otherSourceIndex, visited)) {
+			fileMeta.cjsStyleExports = true
+			return true
+		}
+	}
+
+	return false
+}
+
 func (c *linkerContext) addExportsForExportStar(
 	resolvedExports map[string]exportData,
 	sourceIndex uint32,
@@ -850,9 +878,7 @@ func (c *linkerContext) addExportsForExportStar(
 	for _, path := range file.ast.ExportStars {
 		otherSourceIndex, ok := file.resolveImport(path)
 		if !ok {
-			source := c.sources[sourceIndex]
-			c.addRangeError(source, source.RangeOfString(path.Loc),
-				"Wildcard exports are not supported for this module")
+			// This will be resolved at run time instead
 			continue
 		}
 
@@ -871,11 +897,17 @@ func (c *linkerContext) addExportsForExportStar(
 		// doing this we'd also have to rewrite any imports of these export star
 		// re-exports as property accesses off of a generated require() call.
 		if c.fileMeta[otherSourceIndex].cjsStyleExports {
+			// This will be resolved at run time instead
 			continue
 		}
 
 		// Accumulate this file's exports
 		for name, ref := range c.files[otherSourceIndex].ast.NamedExports {
+			// ES6 export star statements ignore exports named "default"
+			if name == "default" {
+				continue
+			}
+
 			existing, ok := resolvedExports[name]
 
 			// Don't overwrite real exports, which shadow export stars
@@ -1156,6 +1188,19 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	if needsToModule {
 		c.includePartsForRuntimeSymbol("__toModule", entryPoint, distanceFromEntryPoint)
 	}
+
+	// If there's an ES6 export star statement of a non-ES6 module, then we're
+	// going to need the "__exportStar" symbol from the runtime
+	for _, path := range file.ast.ExportStars {
+		otherSourceIndex, isInternal := c.files[sourceIndex].resolveImport(path)
+
+		// Is this export star evaluated at run time?
+		if !isInternal || (otherSourceIndex != sourceIndex && c.fileMeta[otherSourceIndex].cjsStyleExports) {
+			c.includePartsForRuntimeSymbol("__exportStar", entryPoint, distanceFromEntryPoint)
+			file.ast.UsesExportsRef = true
+			break
+		}
+	}
 }
 
 func (c *linkerContext) computeChunks() []chunkMeta {
@@ -1179,6 +1224,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		chunks[string(entryBits.entries)] = chunkMeta{
 			entryBits:             entryBits,
 			hashbang:              c.files[entryPoint].ast.Hashbang,
+			directive:             c.files[entryPoint].ast.Directive,
 			name:                  entryPointNames[i],
 			filesWithPartsInChunk: make(map[uint32]bool),
 		}
@@ -1382,23 +1428,69 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 		case *ast.SExportStar:
-			if s.Item == nil {
+			if s.Alias == nil {
 				// "export * from 'path'"
 				if shouldStripExports {
-					// Remove re-export statements entirely
-					continue
+					otherSourceIndex, isInternal := c.files[sourceIndex].resolveImport(s.Path)
+
+					// Is this export star evaluated at run time?
+					if !isInternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
+						// Turn this statement into "import * as ns from 'path'"
+						stmt.Data = &ast.SImport{
+							NamespaceRef: s.NamespaceRef,
+							StarNameLoc:  &stmt.Loc,
+							Path:         s.Path,
+						}
+
+						// Prefix this module with "__exportStar(exports, ns)"
+						exportStarRef := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members["__exportStar"]
+						stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
+							Loc: stmt.Loc,
+							Data: &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
+								Target: ast.Expr{stmt.Loc, &ast.EIdentifier{exportStarRef}},
+								Args: []ast.Expr{
+									ast.Expr{stmt.Loc, &ast.EIdentifier{c.files[sourceIndex].ast.ExportsRef}},
+									ast.Expr{stmt.Loc, &ast.EIdentifier{s.NamespaceRef}},
+								},
+							}}},
+						})
+
+						// Make sure these don't end up in a CommonJS wrapper
+						if shouldExtractES6StmtsForCJSWrap {
+							stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+							continue
+						}
+					} else {
+						if !isInternal || (otherSourceIndex != sourceIndex && c.fileMeta[otherSourceIndex].cjsStyleExports) {
+							// Prefix this module with "__exportStar(exports, require(path))"
+							exportStarRef := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members["__exportStar"]
+							stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
+								Loc: stmt.Loc,
+								Data: &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
+									Target: ast.Expr{stmt.Loc, &ast.EIdentifier{exportStarRef}},
+									Args: []ast.Expr{
+										ast.Expr{stmt.Loc, &ast.EIdentifier{c.files[sourceIndex].ast.ExportsRef}},
+										ast.Expr{s.Path.Loc, &ast.ERequire{Path: s.Path, IsES6Import: true}},
+									},
+								}}},
+							})
+						}
+
+						// Remove the export star statement
+						continue
+					}
 				}
 			} else {
 				// "export * as ns from 'path'"
-				if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, partStmts, stmt.Loc, s.Item.Name.Ref, s.Path) {
+				if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, partStmts, stmt.Loc, s.NamespaceRef, s.Path) {
 					continue
 				}
 
 				if shouldStripExports {
 					// Turn this statement into "import * as ns from 'path'"
 					stmt.Data = &ast.SImport{
-						NamespaceRef: s.Item.Name.Ref,
-						StarNameLoc:  &s.Item.Name.Loc,
+						NamespaceRef: s.NamespaceRef,
+						StarNameLoc:  &s.Alias.Loc,
 						Path:         s.Path,
 					}
 				}
@@ -1824,8 +1916,17 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 	// Start with the hashbang if there is one
 	if chunk.hashbang != "" {
-		prevOffset.advance(chunk.hashbang + "\n")
-		j.AddString(chunk.hashbang + "\n")
+		hashbang := chunk.hashbang + "\n"
+		prevOffset.advance(hashbang)
+		j.AddString(hashbang)
+		newlineBeforeComment = true
+	}
+
+	// Add the top-level directive if present
+	if chunk.directive != "" {
+		quoted := printer.Quote(chunk.directive) + ";" + newline
+		prevOffset.advance(quoted)
+		j.AddString(quoted)
 		newlineBeforeComment = true
 	}
 
@@ -2023,6 +2124,14 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 		for _, stmt := range part.Stmts {
 			switch s := stmt.Data.(type) {
 			case *ast.SImport:
+				// Ignore imports from the internal runtime code. These are generated
+				// automatically and aren't part of the original source code. We
+				// shouldn't consider the file a module if the only ES6 import or
+				// export is the automatically generated one.
+				if otherSourceIndex, ok := file.resolveImport(s.Path); ok && otherSourceIndex == ast.RuntimeSourceIndex {
+					continue
+				}
+
 				hasImportOrExport = true
 
 			case *ast.SLocal:
@@ -2142,9 +2251,6 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 	j.AddString(",\n  \"sources\": [")
 	for i, result := range results {
 		sourceFile := c.sources[result.sourceIndex].PrettyPath
-		if c.options.SourceFile != "" {
-			sourceFile = c.options.SourceFile
-		}
 		if i > 0 {
 			j.AddString(", ")
 		}
