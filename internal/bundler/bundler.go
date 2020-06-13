@@ -194,7 +194,7 @@ func parseFile(args parseArgs) {
 		// but different contents from colliding
 		bytes := []byte(source.Contents)
 		hashBytes := sha1.Sum(bytes)
-		hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+		hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:12]
 		baseName = baseName[:len(baseName)-len(extension)] + "." + hash + extension
 
 		// Determine the destination folder

@@ -2826,10 +2826,10 @@ func TestLoaderFile(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out/test.1HOBn_hi.svg": "<svg>$</svg>",
+			"/out/test.1HOBn_hiliuO.svg": "<svg>$</svg>",
 			"/out/entry.js": `// /test.svg
 var require_test = __commonJS((exports, module) => {
-  module.exports = "test.1HOBn_hi.svg";
+  module.exports = "test.1HOBn_hiliuO.svg";
 });
 
 // /entry.js
