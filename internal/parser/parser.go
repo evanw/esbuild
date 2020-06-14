@@ -6861,12 +6861,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SImport:
+		p.recordDeclaredSymbol(s.NamespaceRef)
+
 		if s.DefaultName != nil {
 			p.recordDeclaredSymbol(s.DefaultName.Ref)
-		}
-
-		if s.StarNameLoc != nil {
-			p.recordDeclaredSymbol(s.NamespaceRef)
 		}
 
 		if s.Items != nil {
@@ -6876,6 +6874,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SExportClause:
+		// "export {foo}
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
 			ref := p.findSymbol(name).ref
@@ -6884,30 +6883,31 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SExportFrom:
-		// Generate a symbol for the namespace
+		// "export {foo} from 'path'"
 		name := ast.GenerateNonUniqueNameFromPath(s.Path.Text)
-		namespaceRef := p.newSymbol(ast.SymbolOther, name)
-		p.currentScope.Generated = append(p.currentScope.Generated, namespaceRef)
-		s.NamespaceRef = namespaceRef
+		s.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
+		p.currentScope.Generated = append(p.currentScope.Generated, s.NamespaceRef)
+		p.recordDeclaredSymbol(s.NamespaceRef)
 
-		// Path: this is a re-export and the names are symbols in another file
+		// This is a re-export and the names are symbols in another file
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
-			ref := p.newSymbol(ast.SymbolUnbound, name)
+			ref := p.newSymbol(ast.SymbolOther, name)
+			p.currentScope.Generated = append(p.currentScope.Generated, ref)
+			p.recordDeclaredSymbol(ref)
 			s.Items[i].Name.Ref = ref
 			p.recordExport(item.AliasLoc, item.Alias, ref)
 		}
 
 	case *ast.SExportStar:
+		// "export * from 'path'"
 		// "export * as ns from 'path'"
 		name := p.loadNameFromRef(s.NamespaceRef)
 		s.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
-
-		// This name isn't ever declared in this scope, so code in this module
-		// must not be able to get to it. Still, we need to associate it with
-		// the scope somehow so it will be minified.
 		p.currentScope.Generated = append(p.currentScope.Generated, s.NamespaceRef)
+		p.recordDeclaredSymbol(s.NamespaceRef)
 
+		// "export * as ns from 'path'"
 		if s.Alias != nil {
 			p.recordExport(s.Alias.Loc, s.Alias.Name, s.NamespaceRef)
 		}
