@@ -1152,12 +1152,33 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	}
 }
 
-func (c *linkerContext) includePartsForRuntimeSymbol(name string, entryPoint uint, distanceFromEntryPoint uint32) {
-	file := &c.files[ast.RuntimeSourceIndex]
-	ref := file.ast.NamedExports[name]
-	c.accumulateSymbolCount(ref, 1)
-	for _, partIndex := range file.ast.TopLevelSymbolToParts[ref] {
-		c.includePart(ast.RuntimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
+func (c *linkerContext) includePartsForRuntimeSymbol(
+	part *ast.Part, fileMeta *fileMeta, useCount uint32,
+	name string, entryPoint uint, distanceFromEntryPoint uint32,
+) {
+	if useCount > 0 {
+		file := &c.files[ast.RuntimeSourceIndex]
+		ref := file.ast.NamedExports[name]
+
+		// Depend on the symbol from the runtime
+		c.generateUseOfSymbolForInclude(part, fileMeta, useCount, ref, ast.RuntimeSourceIndex)
+
+		// Since this part was included, also include the parts from the runtime
+		// that declare this symbol
+		for _, partIndex := range file.ast.TopLevelSymbolToParts[ref] {
+			c.includePart(ast.RuntimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
+		}
+	}
+}
+
+func (c *linkerContext) generateUseOfSymbolForInclude(
+	part *ast.Part, fileMeta *fileMeta, useCount uint32,
+	ref ast.Ref, otherSourceIndex uint32,
+) {
+	part.UseCountEstimates[ref] += useCount
+	fileMeta.importsToBind[ref] = importToBind{
+		sourceIndex: otherSourceIndex,
+		ref:         ref,
 	}
 }
 
@@ -1170,48 +1191,12 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	}
 	partMeta.entryBits.setBit(entryPoint)
 
-	// Include the file containing this part
-	c.includeFile(sourceIndex, entryPoint, distanceFromEntryPoint)
-
-	// Accumulate symbol usage counts
 	file := &c.files[sourceIndex]
 	part := &file.ast.Parts[partIndex]
-	for ref, count := range part.UseCountEstimates {
-		c.accumulateSymbolCount(ref, count)
-	}
-	for _, declared := range part.DeclaredSymbols {
-		// Make sure to also count the declaration in addition to the uses
-		c.accumulateSymbolCount(declared.Ref, 1)
-	}
+	fileMeta := &c.fileMeta[sourceIndex]
 
-	// Also include any require() imports
-	needsToModule := false
-	for _, importPath := range part.ImportPaths {
-		if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
-			if importPath.Kind == ast.ImportStmt && !c.fileMeta[otherSourceIndex].cjsStyleExports {
-				// Skip this since it's not a require() import
-				continue
-			}
-
-			// This is a require() import
-			c.accumulateSymbolCount(c.files[otherSourceIndex].ast.WrapperRef, 1)
-			c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
-
-			// This is an ES6 import of a CommonJS module, so it needs the
-			// "__toModule" wrapper
-			if importPath.Kind == ast.ImportStmt || importPath.Kind == ast.ImportDynamic {
-				needsToModule = true
-			}
-		} else {
-			// This is an external import
-			if (importPath.Kind == ast.ImportStmt || importPath.Kind == ast.ImportDynamic) &&
-				!c.options.OutputFormat.KeepES6ImportExportSyntax() {
-				// This is an ES6 import of an external module that may be CommonJS,
-				// so it needs the "__toModule" wrapper
-				needsToModule = true
-			}
-		}
-	}
+	// Include the file containing this part
+	c.includeFile(sourceIndex, entryPoint, distanceFromEntryPoint)
 
 	// Also include any local dependencies
 	for otherPartIndex, _ := range part.LocalDependencies {
@@ -1223,23 +1208,62 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		c.includePart(nonLocalDependency.sourceIndex, nonLocalDependency.partIndex, entryPoint, distanceFromEntryPoint)
 	}
 
-	// If there's an ES6 import of a non-ES6 module, then we're going to need the
-	// "__toModule" symbol from the runtime
-	if needsToModule {
-		c.includePartsForRuntimeSymbol("__toModule", entryPoint, distanceFromEntryPoint)
+	// Also include any require() imports
+	toModuleUses := uint32(0)
+	for _, importPath := range part.ImportPaths {
+		if otherSourceIndex, ok := file.resolveImport(importPath.Path); ok {
+			if importPath.Kind == ast.ImportStmt && !c.fileMeta[otherSourceIndex].cjsStyleExports {
+				// Skip this since it's not a require() import
+				continue
+			}
+
+			// This is a require() import
+			c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
+
+			// Depend on the automatically-generated require wrapper symbol
+			wrapperRef := c.files[otherSourceIndex].ast.WrapperRef
+			c.generateUseOfSymbolForInclude(part, fileMeta, 1, wrapperRef, otherSourceIndex)
+
+			// This is an ES6 import of a CommonJS module, so it needs the
+			// "__toModule" wrapper as long as it's not a bare "require()"
+			if importPath.Kind != ast.ImportRequire {
+				toModuleUses++
+			}
+		} else {
+			// This is an external import, so it needs the "__toModule" wrapper as
+			// long as it's not a bare "require()"
+			if importPath.Kind != ast.ImportRequire && !c.options.OutputFormat.KeepES6ImportExportSyntax() {
+				toModuleUses++
+			}
+		}
 	}
+
+	// If there's an ES6 import of a non-ES6 module, then we're going to need the
+	// "__toModule" symbol from the runtime to wrap the result of "require()"
+	c.includePartsForRuntimeSymbol(part, fileMeta, toModuleUses, "__toModule", entryPoint, distanceFromEntryPoint)
 
 	// If there's an ES6 export star statement of a non-ES6 module, then we're
 	// going to need the "__exportStar" symbol from the runtime
+	exportStarUses := uint32(0)
 	for _, path := range file.ast.ExportStars {
 		otherSourceIndex, isInternal := c.files[sourceIndex].resolveImport(path)
 
 		// Is this export star evaluated at run time?
 		if !isInternal || (otherSourceIndex != sourceIndex && c.fileMeta[otherSourceIndex].cjsStyleExports) {
-			c.includePartsForRuntimeSymbol("__exportStar", entryPoint, distanceFromEntryPoint)
 			file.ast.UsesExportsRef = true
-			break
+			exportStarUses++
 		}
+	}
+	c.includePartsForRuntimeSymbol(part, fileMeta, exportStarUses, "__exportStar", entryPoint, distanceFromEntryPoint)
+
+	// Accumulate symbol usage counts. Do this last to also include
+	// automatically-generated usages from the code above.
+	for ref, count := range part.UseCountEstimates {
+		c.accumulateSymbolCount(ref, count)
+	}
+	for _, declared := range part.DeclaredSymbols {
+		// Make sure to also count the declaration in addition to the uses
+		c.accumulateSymbolCount(declared.Ref, 1)
 	}
 }
 
