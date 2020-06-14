@@ -302,11 +302,17 @@ func ScanBundle(
 	}
 
 	entryPoints := []uint32{}
+	duplicateEntryPoints := make(map[string]bool)
 	for _, absPath := range entryPaths {
 		flags := parseFlags{
 			isEntryPoint: true,
 		}
 		prettyPath := res.PrettyPath(absPath)
+		if duplicateEntryPoints[absPath] {
+			log.AddError(nil, ast.Loc{}, "Duplicate entry point: "+prettyPath)
+			continue
+		}
+		duplicateEntryPoints[absPath] = true
 		sourceIndex := maybeParseFile(absPath, prettyPath, nil, ast.Range{}, flags)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
@@ -502,35 +508,55 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
 		options.OutputFormat = printer.FormatESModule
 	}
 
+	type linkGroup struct {
+		outputFiles    []OutputFile
+		reachableFiles []uint32
+	}
+
 	waitGroup := sync.WaitGroup{}
-	resultGroups := make([][]OutputFile, len(b.entryPoints))
+	resultGroups := make([]linkGroup, len(b.entryPoints))
 
 	// Link each file with the runtime file separately in parallel
 	for i, entryPoint := range b.entryPoints {
 		waitGroup.Add(1)
 		go func(i int, entryPoint uint32) {
+			group := &resultGroups[i]
 			c := newLinkerContext(&options, log, b.fs, b.sources, b.files, []uint32{entryPoint})
-			resultGroups[i] = c.link()
+			group.outputFiles = c.link()
+			group.reachableFiles = c.reachableFiles
 			waitGroup.Done()
 		}(i, entryPoint)
 	}
 	waitGroup.Wait()
 
 	// Join the results in entry point order for determinism
-	var results []OutputFile
+	var outputFiles []OutputFile
 	for _, group := range resultGroups {
-		results = append(results, group...)
+		outputFiles = append(outputFiles, group.outputFiles...)
 	}
 
 	// Also generate the metadata file if necessary
 	if options.AbsMetadataFile != "" {
-		results = append(results, OutputFile{
+		outputFiles = append(outputFiles, OutputFile{
 			AbsPath:  options.AbsMetadataFile,
-			Contents: b.generateMetadataJSON(results),
+			Contents: b.generateMetadataJSON(outputFiles),
 		})
 	}
 
-	return results
+	// Make sure an output file never overwrites an input file
+	sourceAbsPaths := make(map[string]uint32)
+	for _, group := range resultGroups {
+		for _, sourceIndex := range group.reachableFiles {
+			sourceAbsPaths[b.sources[sourceIndex].AbsolutePath] = sourceIndex
+		}
+	}
+	for _, outputFile := range outputFiles {
+		if sourceIndex, ok := sourceAbsPaths[outputFile.AbsPath]; ok {
+			log.AddError(nil, ast.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
+		}
+	}
+
+	return outputFiles
 }
 
 func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {

@@ -5153,3 +5153,41 @@ func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestNoOverwriteInputFileError(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(123)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:   true,
+			AbsOutputDir: "/",
+		},
+		expectedCompileLog: "error: Refusing to overwrite input file: /entry.js\n",
+	})
+}
+
+func TestDuplicateEntryPointError(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(123)
+			`,
+		},
+		entryPaths: []string{"/entry.js", "/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:   true,
+			AbsOutputDir: "/out.js",
+		},
+		expectedScanLog: "error: Duplicate entry point: /entry.js\n",
+	})
+}

@@ -473,6 +473,7 @@ func transformImpl(input string, options TransformOptions) TransformResult {
 		MangleSyntax:      options.MinifySyntax,
 		RemoveWhitespace:  options.MinifyWhitespace,
 		MinifyIdentifiers: options.MinifyIdentifiers,
+		AbsOutputFile:     options.Sourcefile + "-out",
 		Stdin: &bundler.StdinInfo{
 			Loader:     validateLoader(options.Loader),
 			Contents:   input,
