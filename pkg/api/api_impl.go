@@ -128,6 +128,8 @@ func validateLoader(value Loader) bundler.Loader {
 		return bundler.LoaderDataURL
 	case LoaderFile:
 		return bundler.LoaderFile
+	case LoaderEmpty:
+		return bundler.LoaderEmpty
 	default:
 		panic("Invalid loader")
 		return ^bundler.Loader(0)

@@ -222,6 +222,11 @@ let transformTests = {
     assert.strictEqual(js, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
   },
 
+  async empty({ service }) {
+    const { js } = await service.transform(`\x00\x01\x02`, { loader: 'empty' })
+    assert.strictEqual(js, `module.exports = "";\n`)
+  },
+
   async sourceMapWithName({ service }) {
     const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js' })
     assert.strictEqual(js, `let x;\n`)

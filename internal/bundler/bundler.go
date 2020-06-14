@@ -216,6 +216,10 @@ func parseFile(args parseArgs) {
 			jsonMetadataChunk: jsonMetadataChunk,
 		}
 
+	case LoaderEmpty:
+		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16("")}}
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+
 	default:
 		result.ok = false
 		args.log.AddRangeError(args.importSource, args.pathRange,
@@ -424,6 +428,7 @@ const (
 	LoaderBase64
 	LoaderDataURL
 	LoaderFile
+	LoaderEmpty
 )
 
 func DefaultExtensionToLoaderMap() map[string]Loader {

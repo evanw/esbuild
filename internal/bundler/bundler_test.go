@@ -2803,6 +2803,41 @@ func testAutoDetectMimeTypeFromExtension(t *testing.T) {
 	})
 }
 
+func TestLoaderEmpty(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.svg'))
+			`,
+
+			// Use an SVG string that has a base64-encoded SHA1 has with a "/" in it
+			"/test.svg": "<svg>$</svg>",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:   true,
+			AbsOutputDir: "/out/",
+			ExtensionToLoader: map[string]Loader{
+				".js":  LoaderJS,
+				".svg": LoaderEmpty,
+			},
+		},
+		expected: map[string]string{
+			"/out/entry.js": `// /test.svg
+var require_test = __commonJS((exports, module) => {
+  module.exports = "";
+});
+
+// /entry.js
+console.log(require_test());
+`,
+		},
+	})
+}
+
 func TestLoaderFile(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
