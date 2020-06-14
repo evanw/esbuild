@@ -68,6 +68,12 @@ type fileMeta struct {
 	partMeta         []partMeta
 	entryPointStatus entryPointStatus
 
+	// This is the index to the automatically-generated part containing code that
+	// calls "__export(exports, { ... getters ... })". This is used to generate
+	// getters on an exports object for ES6 export statements, and is both for
+	// ES6 star imports and CommonJS-style modules.
+	nsExportPartIndex uint32
+
 	// This is only for TypeScript files. If an import symbol is in this map, it
 	// means the import couldn't be found and doesn't actually exist. This is not
 	// an error in TypeScript because the import is probably just a type.
@@ -471,7 +477,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 
 		// Add an empty part for the namespace export that we can fill in later
-		nsExportPartIndex := uint32(len(file.ast.Parts))
+		fileMeta.nsExportPartIndex = uint32(len(file.ast.Parts))
 		file.ast.Parts = append(file.ast.Parts, ast.Part{
 			LocalDependencies:    make(map[uint32]bool),
 			UseCountEstimates:    make(map[ast.Ref]uint32),
@@ -489,7 +495,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			ref:         file.ast.ExportsRef,
 			sourceIndex: sourceIndex,
 		}
-		file.ast.TopLevelSymbolToParts[file.ast.ExportsRef] = []uint32{nsExportPartIndex}
+		file.ast.TopLevelSymbolToParts[file.ast.ExportsRef] = []uint32{fileMeta.nsExportPartIndex}
 	}
 
 	// Step 4: Match imports with exports. This must be done after we process all
@@ -592,10 +598,6 @@ func (c *linkerContext) scanImportsAndExports() {
 func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 	fileMeta := &c.fileMeta[sourceIndex]
 	file := &c.files[sourceIndex]
-	nsExportPartIndex := uint32(len(file.ast.Parts) - 1)
-	if !file.ast.Parts[nsExportPartIndex].IsNamespaceExport {
-		panic("Internal error")
-	}
 
 	// Generate a getter per export
 	properties := []ast.Property{}
@@ -632,7 +634,7 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 				Body:       ast.FnBody{Stmts: []ast.Stmt{ast.Stmt{value.Loc, &ast.SReturn{&value}}}},
 			}},
 		})
-		useCountEstimates[export.ref] = useCountEstimates[export.ref] + 1
+		useCountEstimates[export.ref]++
 
 		// Make sure the part that declares the export is included
 		for _, partIndex := range otherFile.ast.TopLevelSymbolToParts[export.ref] {
@@ -672,7 +674,7 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 				}},
 			},
 		}}}})
-		useCountEstimates[exportRef] = useCountEstimates[exportRef] + 1
+		useCountEstimates[exportRef]++
 
 		// Make sure this file depends on the "__export" symbol
 		for _, partIndex := range runtimeFile.ast.TopLevelSymbolToParts[exportRef] {
@@ -693,7 +695,7 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 
 	// Initialize the part that was allocated for us earlier. The information
 	// here will be used after this during tree shaking.
-	file.ast.Parts[nsExportPartIndex] = ast.Part{
+	file.ast.Parts[fileMeta.nsExportPartIndex] = ast.Part{
 		Stmts:             stmts,
 		LocalDependencies: make(map[uint32]bool),
 		UseCountEstimates: useCountEstimates,
@@ -709,7 +711,7 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 		// Make sure this is trimmed if unused even if tree shaking is disabled
 		ForceTreeShaking: true,
 	}
-	fileMeta.partMeta[nsExportPartIndex].nonLocalDependencies = nonLocalDependencies
+	fileMeta.partMeta[fileMeta.nsExportPartIndex].nonLocalDependencies = nonLocalDependencies
 }
 
 func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
@@ -1013,6 +1015,52 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 		for partIndex, _ := range fileMeta.partMeta {
 			fileMeta.partMeta[partIndex].entryBits = newBitSet(bitCount)
 		}
+
+		// If this is a CommonJS file, we're going to need to generate a wrapper
+		// for the CommonJS closure. That will end up looking something like this:
+		//
+		//   var require_foo = __commonJS((exports, module) => {
+		//     ...
+		//   });
+		//
+		// However, that generation is special-cased for various reasons and is
+		// done later on. Still, we're going to need to ensure that this file
+		// both depends on the "__commonJS" symbol and declares the "require_foo"
+		// symbol. Instead of special-casing this during the reachablity analysis
+		// below, we just append a dummy part to the end of the file with these
+		// dependencies and let the general-purpose reachablity analysis take care
+		// of it.
+		if fileMeta.cjsWrap {
+			file := &c.files[sourceIndex]
+			runtimeFile := &c.files[ast.RuntimeSourceIndex]
+			commonJSRef := runtimeFile.ast.NamedExports["__commonJS"]
+			commonJSParts := runtimeFile.ast.TopLevelSymbolToParts[commonJSRef]
+
+			// Generate the dummy part
+			file.ast.Parts = append(file.ast.Parts, ast.Part{
+				LocalDependencies: make(map[uint32]bool),
+				UseCountEstimates: map[ast.Ref]uint32{
+					file.ast.WrapperRef: 1,
+					commonJSRef:         1,
+				},
+				DeclaredSymbols: []ast.DeclaredSymbol{ast.DeclaredSymbol{
+					Ref:        file.ast.WrapperRef,
+					IsTopLevel: true,
+				}},
+			})
+			nonLocalDependencies := make([]partRef, len(commonJSParts))
+			for i, partIndex := range commonJSParts {
+				nonLocalDependencies[i] = partRef{sourceIndex: ast.RuntimeSourceIndex, partIndex: partIndex}
+			}
+			fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
+				entryBits:            newBitSet(uint(len(c.entryPoints))),
+				nonLocalDependencies: nonLocalDependencies,
+			})
+			fileMeta.importsToBind[commonJSRef] = importToBind{
+				ref:         commonJSRef,
+				sourceIndex: ast.RuntimeSourceIndex,
+			}
+		}
 	}
 
 	// Each entry point marks all files reachable from itself
@@ -1049,9 +1097,6 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	if file.ast.UsesModuleRef {
 		c.accumulateSymbolCount(file.ast.ModuleRef, 1)
 	}
-	if fileMeta.cjsWrap {
-		c.accumulateSymbolCount(file.ast.WrapperRef, 1)
-	}
 
 	for partIndex, part := range file.ast.Parts {
 		canBeRemovedIfUnused := part.CanBeRemovedIfUnused
@@ -1084,12 +1129,6 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 		if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.IsBundling && sourceIndex != ast.RuntimeSourceIndex) {
 			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
 		}
-	}
-
-	// If this is a CommonJS file, we're going to need the "__commonJS" symbol
-	// from the runtime
-	if fileMeta.cjsWrap {
-		c.includePartsForRuntimeSymbol("__commonJS", entryPoint, distanceFromEntryPoint)
 	}
 
 	// If this is an entry point, include all exports
@@ -1686,24 +1725,20 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	stmtList := stmtList{}
 	{
 		parts := file.ast.Parts
-		end := len(parts)
 
-		// Make sure to move the trailing part marked "IsNamespaceExport" up to the
-		// front. It's a generated part that is supposed to be a prefix for the file.
-		if end > 0 && parts[end-1].IsNamespaceExport {
-			end--
-			if entryBits.equals(fileMeta.partMeta[end].entryBits) {
-				c.convertStmtsForChunk(sourceIndex, &stmtList, parts[end].Stmts)
+		// Make sure the generated call to "__export(exports, ...)" comes first
+		// before anything else.
+		if entryBits.equals(fileMeta.partMeta[fileMeta.nsExportPartIndex].entryBits) {
+			c.convertStmtsForChunk(sourceIndex, &stmtList, parts[fileMeta.nsExportPartIndex].Stmts)
 
-				// Move everything to the prefix list
-				stmtList.prefixStmts = append(stmtList.prefixStmts, stmtList.normalStmts...)
-				stmtList.normalStmts = nil
-			}
+			// Move everything to the prefix list
+			stmtList.prefixStmts = append(stmtList.prefixStmts, stmtList.normalStmts...)
+			stmtList.normalStmts = nil
 		}
 
 		// Add all other parts in this chunk
-		for partIndex, part := range parts[:end] {
-			if entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+		for partIndex, part := range parts {
+			if uint32(partIndex) != fileMeta.nsExportPartIndex && entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
 				c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
 			}
 		}
