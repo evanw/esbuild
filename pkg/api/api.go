@@ -184,6 +184,7 @@ type BuildOptions struct {
 	Outfile           string
 	Metafile          string
 	Outdir            string
+	Origindir         string
 	Platform          Platform
 	Format            Format
 	Externals         []string

@@ -26,6 +26,7 @@ Options:
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife, cjs, esm)
+  --origindir=...       Resolve imports starting with / relative to directory
   --color=...           Force use of color terminal escapes (true or false)
   --global-name=...     The name of the global for the IIFE format
 

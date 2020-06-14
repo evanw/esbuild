@@ -343,6 +343,7 @@ func buildImpl(options BuildOptions) BuildResult {
 		Platform:        validatePlatform(options.Platform),
 		ExtensionOrder:  validateResolveExtensions(validateLog, options.ResolveExtensions),
 		ExternalModules: validateExternals(validateLog, options.Externals),
+		Origindir:       validatePath(validateLog, realFS, options.Origindir),
 	}
 	entryPaths := make([]string, len(options.EntryPoints))
 	for i, entryPoint := range options.EntryPoints {
@@ -380,6 +381,9 @@ func buildImpl(options BuildOptions) BuildResult {
 		}
 		if len(resolveOptions.ExternalModules) > 0 {
 			validateLog.AddError(nil, ast.Loc{}, "Cannot use \"external\" without \"bundle\"")
+		}
+		if resolveOptions.Origindir != "" {
+			validateLog.AddError(nil, ast.Loc{}, "Cannot use \"origindir\" without \"bundle\"")
 		}
 	} else if bundleOptions.OutputFormat == printer.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform

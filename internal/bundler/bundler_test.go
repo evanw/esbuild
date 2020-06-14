@@ -5153,3 +5153,43 @@ func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestOriginDirImportES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {y} from './dir/bar.js'
+				console.log(y)
+			`,
+			"/foo.js": `
+				export const x = 123
+			`,
+			"/dir/bar.js": `
+				import {x} from '/foo.js'
+				export const y = x + 1
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			Origindir: "/",
+		},
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+const x = 123;
+
+// /dir/bar.js
+const y = x + 1;
+
+// /entry.js
+console.log(y);
+`,
+		},
+	})
+}
