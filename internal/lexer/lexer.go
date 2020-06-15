@@ -244,10 +244,6 @@ type Lexer struct {
 	rescanCloseBraceAsTemplateToken bool
 	json                            json
 
-	// This is approximate because it increases twice for "\r\n". It's only
-	// useful for detecting when there has been a line break between tokens.
-	ApproximateLineCount int
-
 	// The log is disabled during speculative scans that may backtrack
 	IsLogDisabled bool
 }
@@ -621,7 +617,6 @@ func (lexer *Lexer) NextJSXElementChild() {
 		case '\r', '\n', '\u2028', '\u2029':
 			lexer.step()
 			lexer.HasNewlineBefore = true
-			lexer.ApproximateLineCount++
 			continue
 
 		case '\t', ' ':
@@ -713,7 +708,6 @@ func (lexer *Lexer) NextInsideJSXElement() {
 		case '\r', '\n', '\u2028', '\u2029':
 			lexer.step()
 			lexer.HasNewlineBefore = true
-			lexer.ApproximateLineCount++
 			continue
 
 		case '\t', ' ':
@@ -777,7 +771,6 @@ func (lexer *Lexer) NextInsideJSXElement() {
 					case '\r', '\n', '\u2028', '\u2029':
 						lexer.step()
 						lexer.HasNewlineBefore = true
-						lexer.ApproximateLineCount++
 
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
@@ -916,7 +909,6 @@ func (lexer *Lexer) Next() {
 		case '\r', '\n', '\u2028', '\u2029':
 			lexer.step()
 			lexer.HasNewlineBefore = true
-			lexer.ApproximateLineCount++
 			continue
 
 		case '\t', ' ':
@@ -1171,7 +1163,6 @@ func (lexer *Lexer) Next() {
 					case '\r', '\n', '\u2028', '\u2029':
 						lexer.step()
 						lexer.HasNewlineBefore = true
-						lexer.ApproximateLineCount++
 
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end

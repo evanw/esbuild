@@ -2466,8 +2466,8 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		return ast.Expr{loc, &ast.ENew{target, args}}
 
 	case lexer.TOpenBracket:
-		lineCountAtStart := p.lexer.ApproximateLineCount
 		p.lexer.Next()
+		isSingleLine := !p.lexer.HasNewlineBefore
 		items := []ast.Expr{}
 		selfErrors := deferredErrors{}
 
@@ -2499,10 +2499,18 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			if p.lexer.Token != lexer.TComma {
 				break
 			}
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
 			p.lexer.Next()
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
 		}
 
-		isSingleLine := p.lexer.ApproximateLineCount == lineCountAtStart
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 		p.lexer.Expect(lexer.TCloseBracket)
 		p.allowIn = oldAllowIn
 
@@ -2523,8 +2531,8 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		}}
 
 	case lexer.TOpenBrace:
-		lineCountAtStart := p.lexer.ApproximateLineCount
 		p.lexer.Next()
+		isSingleLine := !p.lexer.HasNewlineBefore
 		properties := []ast.Property{}
 		selfErrors := deferredErrors{}
 
@@ -2555,10 +2563,18 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			if p.lexer.Token != lexer.TComma {
 				break
 			}
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
 			p.lexer.Next()
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
 		}
 
-		isSingleLine := p.lexer.ApproximateLineCount == lineCountAtStart
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 		p.lexer.Expect(lexer.TCloseBrace)
 		p.allowIn = oldAllowIn
 

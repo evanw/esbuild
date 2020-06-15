@@ -62,20 +62,30 @@ func (p *jsonParser) parseExpr() ast.Expr {
 		return ast.Expr{loc, &ast.ENumber{-value}}
 
 	case lexer.TOpenBracket:
-		lineCountAtStart := p.lexer.ApproximateLineCount
 		p.lexer.Next()
+		isSingleLine := !p.lexer.HasNewlineBefore
 		items := []ast.Expr{}
 
 		for p.lexer.Token != lexer.TCloseBracket {
-			if len(items) > 0 && !p.parseMaybeTrailingComma(lexer.TCloseBracket) {
-				break
+			if len(items) > 0 {
+				if p.lexer.HasNewlineBefore {
+					isSingleLine = false
+				}
+				if !p.parseMaybeTrailingComma(lexer.TCloseBracket) {
+					break
+				}
+				if p.lexer.HasNewlineBefore {
+					isSingleLine = false
+				}
 			}
 
 			item := p.parseExpr()
 			items = append(items, item)
 		}
 
-		isSingleLine := p.lexer.ApproximateLineCount == lineCountAtStart
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 		p.lexer.Expect(lexer.TCloseBracket)
 		return ast.Expr{loc, &ast.EArray{
 			Items:        items,
@@ -83,14 +93,22 @@ func (p *jsonParser) parseExpr() ast.Expr {
 		}}
 
 	case lexer.TOpenBrace:
-		lineCountAtStart := p.lexer.ApproximateLineCount
 		p.lexer.Next()
+		isSingleLine := !p.lexer.HasNewlineBefore
 		properties := []ast.Property{}
 		duplicates := make(map[string]bool)
 
 		for p.lexer.Token != lexer.TCloseBrace {
-			if len(properties) > 0 && !p.parseMaybeTrailingComma(lexer.TCloseBrace) {
-				break
+			if len(properties) > 0 {
+				if p.lexer.HasNewlineBefore {
+					isSingleLine = false
+				}
+				if !p.parseMaybeTrailingComma(lexer.TCloseBrace) {
+					break
+				}
+				if p.lexer.HasNewlineBefore {
+					isSingleLine = false
+				}
 			}
 
 			keyString := p.lexer.StringLiteral
@@ -117,7 +135,9 @@ func (p *jsonParser) parseExpr() ast.Expr {
 			properties = append(properties, property)
 		}
 
-		isSingleLine := p.lexer.ApproximateLineCount == lineCountAtStart
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 		p.lexer.Expect(lexer.TCloseBrace)
 		return ast.Expr{loc, &ast.EObject{
 			Properties:   properties,
