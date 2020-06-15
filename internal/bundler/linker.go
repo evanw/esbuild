@@ -231,6 +231,13 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 
 		// Clone the parts
 		file.ast.Parts = append([]ast.Part{}, file.ast.Parts...)
+		for i, part := range file.ast.Parts {
+			clone := make(map[ast.Ref]uint32, len(part.UseCountEstimates))
+			for ref, count := range part.UseCountEstimates {
+				clone[ref] = count
+			}
+			file.ast.Parts[i].UseCountEstimates = clone
+		}
 
 		// Clone the import map
 		namedImports := make(map[ast.Ref]ast.NamedImport, len(file.ast.NamedImports))
