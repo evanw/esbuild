@@ -5238,3 +5238,22 @@ func TestDuplicateEntryPointError(t *testing.T) {
 		expectedScanLog: "error: Duplicate entry point: /entry.js\n",
 	})
 }
+
+func TestMultipleEntryPointsSameNameCollision(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a/entry.js": `import {foo} from '../common.js'; console.log(foo)`,
+			"/b/entry.js": `import {foo} from '../common.js'; console.log(foo)`,
+			"/common.js":  `export let foo = 123`,
+		},
+		entryPaths: []string{"/a/entry.js", "/b/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:   true,
+			AbsOutputDir: "/out/",
+		},
+		expectedCompileLog: "error: Two output files share the same path: /out/entry.js\n",
+	})
+}

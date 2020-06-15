@@ -573,6 +573,20 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
 		}
 	}
 
+	// Make sure an output file never overwrites another output file. This
+	// is almost certainly unintentional and would otherwise happen silently.
+	outputFileMap := make(map[string]bool)
+	for _, outputFile := range outputFiles {
+		if outputFileMap[outputFile.AbsPath] {
+			outputPath := outputFile.AbsPath
+			if relPath, ok := b.fs.RelativeToCwd(outputPath); ok {
+				outputPath = relPath
+			}
+			log.AddError(nil, ast.Loc{}, "Two output files share the same path: "+outputPath)
+		}
+		outputFileMap[outputFile.AbsPath] = true
+	}
+
 	return outputFiles
 }
 
