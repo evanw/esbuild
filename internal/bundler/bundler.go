@@ -7,6 +7,7 @@ import (
 	"mime"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -184,17 +185,10 @@ func parseFile(args parseArgs) {
 		result.file.ignoreIfUnused = true
 
 	case LoaderFile:
-		// Get the file name, making sure to use the "fs" interface so we do the
-		// right thing on Windows (Windows-style paths for the command-line
-		// interface and Unix-style paths for tests, even on Windows)
-		baseName := args.fs.Base(args.absPath)
-
-		// Add a hash to the file name to prevent multiple files with the same name
-		// but different contents from colliding
-		bytes := []byte(source.Contents)
-		hashBytes := sha1.Sum(bytes)
-		hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
-		baseName = baseName[:len(baseName)-len(extension)] + "." + hash + extension
+		// Add a hash to the file name to prevent multiple files with the same base
+		// name from colliding. Avoid using the absolute path to prevent build
+		// output from being different on different machines.
+		baseName := baseNameForAvoidingCollisions(args.fs, args.absPath)
 
 		// Determine the destination folder
 		targetFolder := args.bundleOptions.AbsOutputDir
@@ -218,7 +212,7 @@ func parseFile(args parseArgs) {
 		// the file if the module isn't removed due to tree shaking.
 		result.file.additionalFile = &OutputFile{
 			AbsPath:           args.fs.Join(targetFolder, baseName),
-			Contents:          bytes,
+			Contents:          []byte(source.Contents),
 			jsonMetadataChunk: jsonMetadataChunk,
 		}
 
@@ -229,6 +223,30 @@ func parseFile(args parseArgs) {
 	}
 
 	args.results <- result
+}
+
+func baseNameForAvoidingCollisions(fs fs.FS, absPath string) string {
+	var toHash []byte
+	if relPath, ok := fs.RelativeToCwd(absPath); ok {
+		// Attempt to generate the same base name regardless of what machine or
+		// operating system we're on. We want to avoid absolute paths because they
+		// will have different home directories. We also want to avoid path
+		// separators because they are different on Windows.
+		toHash = []byte(strings.ReplaceAll(relPath, "\\", "/"))
+	} else {
+		// Just use the absolute path if this environment doesn't have a current
+		// directory. This is the case when running tests, for example.
+		toHash = []byte(absPath)
+	}
+
+	// Use "URLEncoding" instead of "StdEncoding" to avoid introducing "/"
+	hashBytes := sha1.Sum(toHash)
+	hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+
+	// Insert the hash before the extension
+	base := fs.Base(absPath)
+	ext := fs.Ext(absPath)
+	return base[:len(base)-len(ext)] + "." + hash + ext
 }
 
 func ScanBundle(

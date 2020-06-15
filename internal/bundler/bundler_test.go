@@ -2807,11 +2807,12 @@ func TestLoaderFile(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				console.log(require('./test.svg'))
+				console.log(require('./test3.svg'))
 			`,
 
-			// Use an SVG string that has a base64-encoded SHA1 has with a "/" in it
-			"/test.svg": "<svg>$</svg>",
+			// "/test3.svg" generates the file name "test3.0sKdZN/F.svg" if the
+			// standard base64 encoding is used instead of the URL base64 encoding
+			"/test3.svg": "<svg></svg>",
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
@@ -2826,14 +2827,60 @@ func TestLoaderFile(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out/test.1HOBn_hi.svg": "<svg>$</svg>",
-			"/out/entry.js": `// /test.svg
-var require_test = __commonJS((exports, module) => {
-  module.exports = "test.1HOBn_hi.svg";
+			"/out/test3.0sKdZN_F.svg": "<svg></svg>",
+			"/out/entry.js": `// /test3.svg
+var require_test3 = __commonJS((exports, module) => {
+  module.exports = "test3.0sKdZN_F.svg";
 });
 
 // /entry.js
-console.log(require_test());
+console.log(require_test3());
+`,
+		},
+	})
+}
+
+func TestLoaderFileMultipleNoCollision(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(
+					require('./a/test.txt'),
+					require('./b/test.txt'),
+				)
+			`,
+
+			// Two files with the same contents but different paths
+			"/a/test.txt": "test",
+			"/b/test.txt": "test",
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/dist/out.js",
+			ExtensionToLoader: map[string]Loader{
+				".js":  LoaderJS,
+				".txt": LoaderFile,
+			},
+		},
+		expected: map[string]string{
+			"/dist/test.d-VvEp_S.txt": "test",
+			"/dist/test.pL3kpHJC.txt": "test",
+			"/dist/out.js": `// /a/test.txt
+var require_test = __commonJS((exports, module) => {
+  module.exports = "test.d-VvEp_S.txt";
+});
+
+// /b/test.txt
+var require_test2 = __commonJS((exports, module) => {
+  module.exports = "test.pL3kpHJC.txt";
+});
+
+// /entry.js
+console.log(require_test(), require_test2());
 `,
 		},
 	})
