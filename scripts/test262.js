@@ -46,6 +46,7 @@ async function main() {
   let shouldHavePassed = 0;
   let shouldHaveFailed = 0;
   let reparseCount = 0;
+  let reprintCount = 0;
   let minifyCount = 0;
 
   async function esbuildFile(input, options) {
@@ -95,6 +96,9 @@ async function main() {
         console.log(`\n!!! REPARSE ERROR: ${file} !!!`);
         console.log(`${result2.error}`);
         reparseCount++;
+      } else if (result2.output !== result.output) {
+        console.log(`\n!!! REPRINT ERROR: ${file} !!!`);
+        reprintCount++;
       } else {
         const result3 = await esbuildFile(result2.output, { minify: true });
         if (!result3.success) {
@@ -138,6 +142,7 @@ async function main() {
   console.log(`  tests incorrectly passed: ${shouldHaveFailed}`);
   console.log(`tests skipped: ${files.length - runCount}`);
   console.log(`reparse failures: ${reparseCount}`);
+  console.log(`reprint failures: ${reprintCount}`);
   console.log(`minify failures: ${minifyCount}`);
 
   // Clean up after all tests finish
