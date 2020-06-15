@@ -417,7 +417,17 @@ function Fn() {
 }
 class Class {
 }
-export {Class as C, Class, Fn, abc, b_exports as b, c, entry_default as default, l, v};
+export {
+  Class as C,
+  Class,
+  Fn,
+  abc,
+  b_exports as b,
+  c,
+  entry_default as default,
+  l,
+  v
+};
 `,
 		},
 	})
@@ -870,7 +880,9 @@ const c = 123;
 // /foo.js
 
 // /entry.js
-export {c as a};
+export {
+  c as a
+};
 `,
 		},
 	})
@@ -3510,7 +3522,10 @@ func TestExportFSNode(t *testing.T) {
 			"/out.js": `// /entry.js
 import * as fs from "fs";
 import {readFileSync} from "fs";
-export {fs, readFileSync};
+export {
+  fs,
+  readFileSync
+};
 `,
 		},
 	})
@@ -3545,7 +3560,10 @@ import * as fs from "fs";
 import {readFileSync} from "fs";
 
 // /entry.js
-export {fs as f, readFileSync as rfs};
+export {
+  fs as f,
+  readFileSync as rfs
+};
 `,
 		},
 	})

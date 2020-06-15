@@ -1596,6 +1596,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					NamespaceRef: s.NamespaceRef,
 					Items:        &s.Items,
 					Path:         s.Path,
+					IsSingleLine: s.IsSingleLine,
 				}
 			}
 

@@ -2199,22 +2199,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
 		p.printSpace()
-
-		p.print("{")
-		for i, item := range s.Items {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
-			}
-			name := p.symbolName(item.Name.Ref)
-			p.print(name)
-			if name != item.Alias {
-				p.print(" as ")
-				p.print(item.Alias)
-			}
-		}
-		p.print("}")
-
+		p.printExportClause(s.Items, s.IsSingleLine)
 		p.printSemicolonAfterStatement()
 
 	case *ast.SExportFrom:
@@ -2222,27 +2207,11 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
 		p.printSpace()
-
-		p.print("{")
-		for i, item := range s.Items {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
-			}
-			name := p.symbolName(item.Name.Ref)
-			p.print(name)
-			if name != item.Alias {
-				p.print(" as ")
-				p.print(item.Alias)
-			}
-		}
-		p.print("}")
-
+		p.printExportClause(s.Items, s.IsSingleLine)
 		p.printSpace()
 		p.print("from")
 		p.printSpace()
 		p.print(Quote(s.Path.Text))
-
 		p.printSemicolonAfterStatement()
 
 	case *ast.SLocal:
@@ -2462,18 +2431,34 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			}
 
 			p.print("{")
+			if !s.IsSingleLine {
+				p.options.Indent++
+			}
+
 			for i, item := range *s.Items {
 				if i != 0 {
 					p.print(",")
-					p.printSpace()
+					if s.IsSingleLine {
+						p.printSpace()
+					}
 				}
 
+				if !s.IsSingleLine {
+					p.printNewline()
+					p.printIndent()
+				}
 				p.print(item.Alias)
 				name := p.symbolName(item.Name.Ref)
 				if name != item.Alias {
 					p.print(" as ")
 					p.print(name)
 				}
+			}
+
+			if !s.IsSingleLine {
+				p.options.Indent--
+				p.printNewline()
+				p.printIndent()
 			}
 			p.print("}")
 			itemCount++
@@ -2569,6 +2554,40 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 	default:
 		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
 	}
+}
+
+func (p *printer) printExportClause(items []ast.ClauseItem, isSingleLine bool) {
+	p.print("{")
+	if !isSingleLine {
+		p.options.Indent++
+	}
+
+	for i, item := range items {
+		if i != 0 {
+			p.print(",")
+			if isSingleLine {
+				p.printSpace()
+			}
+		}
+
+		if !isSingleLine {
+			p.printNewline()
+			p.printIndent()
+		}
+		name := p.symbolName(item.Name.Ref)
+		p.print(name)
+		if name != item.Alias {
+			p.print(" as ")
+			p.print(item.Alias)
+		}
+	}
+
+	if !isSingleLine {
+		p.options.Indent--
+		p.printNewline()
+		p.printIndent()
+	}
+	p.print("}")
 }
 
 type PrintOptions struct {

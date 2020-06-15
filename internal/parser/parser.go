@@ -3738,9 +3738,10 @@ func (p *parser) forbidInitializers(decls []ast.Decl, loopType string, isVar boo
 	}
 }
 
-func (p *parser) parseImportClause() []ast.ClauseItem {
+func (p *parser) parseImportClause() ([]ast.ClauseItem, bool) {
 	items := []ast.ClauseItem{}
 	p.lexer.Expect(lexer.TOpenBrace)
+	isSingleLine := !p.lexer.HasNewlineBefore
 
 	for p.lexer.Token != lexer.TCloseBrace {
 		alias := p.lexer.Identifier
@@ -3768,17 +3769,27 @@ func (p *parser) parseImportClause() []ast.ClauseItem {
 		if p.lexer.Token != lexer.TComma {
 			break
 		}
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 		p.lexer.Next()
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 	}
 
+	if p.lexer.HasNewlineBefore {
+		isSingleLine = false
+	}
 	p.lexer.Expect(lexer.TCloseBrace)
-	return items
+	return items, isSingleLine
 }
 
-func (p *parser) parseExportClause() []ast.ClauseItem {
+func (p *parser) parseExportClause() ([]ast.ClauseItem, bool) {
 	items := []ast.ClauseItem{}
 	firstKeywordItemLoc := ast.Loc{}
 	p.lexer.Expect(lexer.TOpenBrace)
+	isSingleLine := !p.lexer.HasNewlineBefore
 
 	for p.lexer.Token != lexer.TCloseBrace {
 		alias := p.lexer.Identifier
@@ -3822,9 +3833,18 @@ func (p *parser) parseExportClause() []ast.ClauseItem {
 		if p.lexer.Token != lexer.TComma {
 			break
 		}
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 		p.lexer.Next()
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 	}
 
+	if p.lexer.HasNewlineBefore {
+		isSingleLine = false
+	}
 	p.lexer.Expect(lexer.TCloseBrace)
 
 	// Throw an error here if we found a keyword earlier and this isn't an
@@ -3835,7 +3855,7 @@ func (p *parser) parseExportClause() []ast.ClauseItem {
 		panic(lexer.LexerPanic{})
 	}
 
-	return items
+	return items, isSingleLine
 }
 
 func (p *parser) parseBinding() ast.Binding {
@@ -4570,15 +4590,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Unexpected()
 			}
 
-			items := p.parseExportClause()
+			items, isSingleLine := p.parseExportClause()
 			if p.lexer.IsContextualKeyword("from") {
 				p.lexer.Next()
 				path := p.parsePath()
 				p.lexer.ExpectOrInsertSemicolon()
-				return ast.Stmt{loc, &ast.SExportFrom{items, ast.InvalidRef, path}}
+				return ast.Stmt{loc, &ast.SExportFrom{items, ast.InvalidRef, path, isSingleLine}}
 			}
 			p.lexer.ExpectOrInsertSemicolon()
-			return ast.Stmt{loc, &ast.SExportClause{items}}
+			return ast.Stmt{loc, &ast.SExportClause{items, isSingleLine}}
 
 		case lexer.TEquals:
 			// "export = value;"
@@ -5053,8 +5073,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				return ast.Stmt{}
 			}
 
-			items := p.parseImportClause()
+			items, isSingleLine := p.parseImportClause()
 			stmt.Items = &items
+			stmt.IsSingleLine = isSingleLine
 			p.lexer.ExpectContextualKeyword("from")
 
 		case lexer.TIdentifier:
@@ -5152,8 +5173,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 				case lexer.TOpenBrace:
 					// "import defaultItem, {item1, item2} from 'path'"
-					items := p.parseImportClause()
+					items, isSingleLine := p.parseImportClause()
 					stmt.Items = &items
+					stmt.IsSingleLine = isSingleLine
 
 				default:
 					p.lexer.Unexpected()

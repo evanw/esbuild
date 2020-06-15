@@ -611,13 +611,15 @@ type SDirective struct {
 }
 
 type SExportClause struct {
-	Items []ClauseItem
+	Items        []ClauseItem
+	IsSingleLine bool
 }
 
 type SExportFrom struct {
 	Items        []ClauseItem
 	NamespaceRef Ref
 	Path         Path
+	IsSingleLine bool
 }
 
 type SExportDefault struct {
@@ -770,10 +772,11 @@ type SImport struct {
 	// when converting this module to a CommonJS module.
 	NamespaceRef Ref
 
-	DefaultName *LocRef
-	Items       *[]ClauseItem
-	StarNameLoc *Loc
-	Path        Path
+	DefaultName  *LocRef
+	Items        *[]ClauseItem
+	StarNameLoc  *Loc
+	Path         Path
+	IsSingleLine bool
 }
 
 type SReturn struct {

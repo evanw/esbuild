@@ -1031,7 +1031,9 @@ func TestExportSelfES6(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `// /entry.js
 const foo = 123;
-export {foo};
+export {
+  foo
+};
 `,
 		},
 	})
@@ -1154,7 +1156,10 @@ __export(entry_exports, {
   ns: () => entry_exports
 });
 const foo = 123;
-export {foo, entry_exports as ns};
+export {
+  foo,
+  entry_exports as ns
+};
 `,
 		},
 	})
@@ -1186,7 +1191,10 @@ __export(entry_exports, {
   ns: () => entry_exports
 });
 const foo = 123;
-export {foo, entry_exports as ns};
+export {
+  foo,
+  entry_exports as ns
+};
 `,
 		},
 	})
@@ -1222,7 +1230,10 @@ __export(foo_exports, {
 const foo = 123;
 
 // /entry.js
-export {foo, foo_exports as ns};
+export {
+  foo,
+  foo_exports as ns
+};
 `,
 		},
 	})
@@ -1259,7 +1270,10 @@ __export(foo_exports, {
 const foo = 123;
 
 // /entry.js
-export {foo, foo_exports as ns};
+export {
+  foo,
+  foo_exports as ns
+};
 `,
 		},
 	})
@@ -1290,7 +1304,9 @@ func TestOtherFileExportSelfAsNamespaceUnusedES6(t *testing.T) {
 const foo2 = 123;
 
 // /entry.js
-export {foo2 as foo};
+export {
+  foo2 as foo
+};
 `,
 		},
 	})
@@ -1322,7 +1338,9 @@ func TestOtherFileImportExportSelfAsNamespaceUnusedES6(t *testing.T) {
 const foo2 = 123;
 
 // /entry.js
-export {foo2 as foo};
+export {
+  foo2 as foo
+};
 `,
 		},
 	})
