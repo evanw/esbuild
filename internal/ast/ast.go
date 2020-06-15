@@ -1258,27 +1258,35 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	return new
 }
 
-// This has a custom implementation instead of using "filepath.Base" because it
-// should work the same on Unix and Windows. These names end up in the generated
-// output and the generated output should not depend on the OS.
-func platformIndependentPathDirAndBaseWithoutExt(path string) (string, string) {
-	dir := ""
+// This has a custom implementation instead of using "filepath.Dir/Base/Ext"
+// because it should work the same on Unix and Windows. These names end up in
+// the generated output and the generated output should not depend on the OS.
+func platformIndependentPathDirBaseExt(path string) (dir string, base string, ext string) {
 	for {
 		i := strings.LastIndexAny(path, "/\\")
+
+		// Stop if there are no more slashes
 		if i < 0 {
+			base = path
 			break
 		}
+
+		// Stop if we found a non-trailing slash
 		if i+1 != len(path) {
-			dir = path[:i]
-			path = path[i+1:]
+			dir, base = path[:i], path[i+1:]
 			break
 		}
+
+		// Ignore trailing slashes
 		path = path[:i]
 	}
-	if dot := strings.LastIndexByte(path, '.'); dot >= 0 {
-		path = path[:dot]
+
+	// Strip off the extension
+	if dot := strings.LastIndexByte(base, '.'); dot >= 0 {
+		base, ext = base[:dot], base[dot:]
 	}
-	return dir, path
+
+	return
 }
 
 // For readability, the names of certain automatically-generated symbols are
@@ -1294,14 +1302,14 @@ func platformIndependentPathDirAndBaseWithoutExt(path string) (string, string) {
 // collisions.
 func GenerateNonUniqueNameFromPath(path string) string {
 	// Get the file name without the extension
-	dir, base := platformIndependentPathDirAndBaseWithoutExt(path)
+	dir, base, _ := platformIndependentPathDirBaseExt(path)
 
 	// If the name is "index", use the directory name instead. This is because
 	// many packages in npm use the file name "index.js" because it triggers
 	// node's implicit module resolution rules that allows you to import it by
 	// just naming the directory.
 	if base == "index" {
-		_, dirBase := platformIndependentPathDirAndBaseWithoutExt(dir)
+		_, dirBase, _ := platformIndependentPathDirBaseExt(dir)
 		if dirBase != "" {
 			base = dirBase
 		}

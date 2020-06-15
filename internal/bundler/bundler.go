@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
-	"path"
 	"sort"
 	"sync"
 
@@ -121,7 +120,7 @@ func parseFile(args parseArgs) {
 	}
 
 	// Get the file extension
-	extension := path.Ext(args.absPath)
+	extension := args.fs.Ext(args.absPath)
 
 	// Pick the loader based on the file extension
 	loader := args.bundleOptions.ExtensionToLoader[extension]

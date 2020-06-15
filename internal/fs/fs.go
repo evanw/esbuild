@@ -32,6 +32,7 @@ type FS interface {
 	Abs(path string) (string, bool)
 	Dir(path string) string
 	Base(path string) string
+	Ext(path string) string
 	Join(parts ...string) string
 	RelativeToCwd(path string) (string, bool)
 }
@@ -93,6 +94,10 @@ func (*mockFS) Dir(p string) string {
 
 func (*mockFS) Base(p string) string {
 	return path.Base(p)
+}
+
+func (*mockFS) Ext(p string) string {
+	return path.Ext(p)
 }
 
 func (*mockFS) Join(parts ...string) string {
@@ -207,6 +212,10 @@ func (*realFS) Dir(p string) string {
 
 func (*realFS) Base(p string) string {
 	return filepath.Base(p)
+}
+
+func (*realFS) Ext(p string) string {
+	return filepath.Ext(p)
 }
 
 func (*realFS) Join(parts ...string) string {
