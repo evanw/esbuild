@@ -74,6 +74,11 @@ type fileMeta struct {
 	// ES6 star imports and CommonJS-style modules.
 	nsExportPartIndex uint32
 
+	// The index of the automatically-generated part containing an ES6 export
+	// clause for every export in the entry point. This is only used for the ES6
+	// module output format, and only if the entry point is not CommonJS-style.
+	entryPointExportPartIndex *uint32
+
 	// This is only for TypeScript files. If an import symbol is in this map, it
 	// means the import couldn't be found and doesn't actually exist. This is not
 	// an error in TypeScript because the import is probably just a type.
@@ -579,9 +584,9 @@ func (c *linkerContext) scanImportsAndExports() {
 		sort.Strings(aliases)
 		fileMeta.sortedAndFilteredExportAliases = aliases
 
-		// Namespace creation uses "sortedAndFilteredExportAliases" so this must
+		// Export creation uses "sortedAndFilteredExportAliases" so this must
 		// come second after we fill in that array
-		c.createNamespaceExportForFile(uint32(sourceIndex))
+		c.createExportsForFile(uint32(sourceIndex))
 	}
 
 	// Step 6: Bind imports to exports. This adds non-local dependencies on the
@@ -611,7 +616,7 @@ func (c *linkerContext) scanImportsAndExports() {
 	}
 }
 
-func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
+func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	fileMeta := &c.fileMeta[sourceIndex]
 	file := &c.files[sourceIndex]
 
@@ -705,29 +710,64 @@ func (c *linkerContext) createNamespaceExportForFile(sourceIndex uint32) {
 	}
 
 	// No need to generate a part if it'll be empty
-	if len(stmts) == 0 {
-		return
+	if len(stmts) > 0 {
+		// Initialize the part that was allocated for us earlier. The information
+		// here will be used after this during tree shaking.
+		file.ast.Parts[fileMeta.nsExportPartIndex] = ast.Part{
+			Stmts:             stmts,
+			LocalDependencies: make(map[uint32]bool),
+			UseCountEstimates: useCountEstimates,
+			DeclaredSymbols:   declaredSymbols,
+
+			// This can be removed if nothing uses it. Except if we're a CommonJS
+			// module, in which case it's always necessary.
+			CanBeRemovedIfUnused: !fileMeta.cjsStyleExports,
+
+			// Put the export definitions first before anything else gets evaluated
+			IsNamespaceExport: true,
+
+			// Make sure this is trimmed if unused even if tree shaking is disabled
+			ForceTreeShaking: true,
+		}
+		fileMeta.partMeta[fileMeta.nsExportPartIndex].nonLocalDependencies = nonLocalDependencies
 	}
 
-	// Initialize the part that was allocated for us earlier. The information
-	// here will be used after this during tree shaking.
-	file.ast.Parts[fileMeta.nsExportPartIndex] = ast.Part{
-		Stmts:             stmts,
-		LocalDependencies: make(map[uint32]bool),
-		UseCountEstimates: useCountEstimates,
-		DeclaredSymbols:   declaredSymbols,
+	// If the output format is ES6 modules and we're an entry point, generate an
+	// ES6 export statement containing all exports. Except don't do that if this
+	// entry point is a CommonJS-style module, since that would generate an ES6
+	// export statement that's not top-level. Instead, we will export the CommonJS
+	// exports as a default export later on.
+	if fileMeta.entryPointStatus != entryPointNone && c.options.OutputFormat == printer.FormatESModule &&
+		!fileMeta.cjsWrap && len(fileMeta.sortedAndFilteredExportAliases) > 0 {
+		// Generate one export item for each export
+		items := make([]ast.ClauseItem, len(fileMeta.sortedAndFilteredExportAliases))
+		for i, alias := range fileMeta.sortedAndFilteredExportAliases {
+			items[i] = ast.ClauseItem{
+				Name:  ast.LocRef{Ref: fileMeta.resolvedExports[alias].ref},
+				Alias: alias,
+			}
+		}
 
-		// This can be removed if nothing uses it. Except if we're a CommonJS
-		// module, in which case it's always necessary.
-		CanBeRemovedIfUnused: !fileMeta.cjsStyleExports,
+		// Clone the use count estimates so they aren't shared with the other part
+		useCountEstimatesClone := make(map[ast.Ref]uint32, len(useCountEstimates))
+		for ref, count := range useCountEstimates {
+			useCountEstimatesClone[ref] = count
+		}
 
-		// Put the export definitions first before anything else gets evaluated
-		IsNamespaceExport: true,
-
-		// Make sure this is trimmed if unused even if tree shaking is disabled
-		ForceTreeShaking: true,
+		// Add a part for this export clause
+		file := &c.files[sourceIndex]
+		partIndex := uint32(len(file.ast.Parts))
+		fileMeta.entryPointExportPartIndex = &partIndex
+		file.ast.Parts = append(file.ast.Parts, ast.Part{
+			Stmts:             []ast.Stmt{ast.Stmt{Data: &ast.SExportClause{Items: items}}},
+			LocalDependencies: make(map[uint32]bool),
+			UseCountEstimates: useCountEstimatesClone,
+		})
+		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
+			entryBits:            newBitSet(uint(len(c.entryPoints))),
+			nonLocalDependencies: append([]partRef{}, nonLocalDependencies...),
+		})
 	}
-	fileMeta.partMeta[fileMeta.nsExportPartIndex].nonLocalDependencies = nonLocalDependencies
 }
 
 func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
@@ -1791,9 +1831,15 @@ func (c *linkerContext) generateCodeForFileInChunk(
 
 		// Add all other parts in this chunk
 		for partIndex, part := range parts {
-			if uint32(partIndex) != fileMeta.nsExportPartIndex && entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+			if uint32(partIndex) != fileMeta.nsExportPartIndex && entryBits.equals(fileMeta.partMeta[partIndex].entryBits) &&
+				(fileMeta.entryPointExportPartIndex == nil || uint32(partIndex) != *fileMeta.entryPointExportPartIndex) {
 				c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
 			}
+		}
+
+		// Put the entry point exports at the end
+		if fileMeta.entryPointExportPartIndex != nil {
+			stmtList.normalStmts = append(stmtList.normalStmts, parts[*fileMeta.entryPointExportPartIndex].Stmts...)
 		}
 
 		// Hoist all import statements before any normal statements. ES6 imports
@@ -1808,24 +1854,6 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		}
 		if c.options.MangleSyntax {
 			stmts = mergeAdjacentLocalStmts(stmts)
-		}
-
-		// If this is an entry point, include all exports for the ES6 output
-		// format. Except don't do that if this entry point is a CommonJS-style
-		// module, since that would generate an ES6 export statement that's not
-		// top-level. Instead, we will export the CommonJS exports as a default
-		// export later on.
-		if fileMeta.entryPointStatus != entryPointNone && c.options.OutputFormat == printer.FormatESModule && !fileMeta.cjsWrap {
-			items := []ast.ClauseItem{}
-			for _, alias := range fileMeta.sortedAndFilteredExportAliases {
-				items = append(items, ast.ClauseItem{
-					Name:  ast.LocRef{Ref: fileMeta.resolvedExports[alias].ref},
-					Alias: alias,
-				})
-			}
-			if len(items) > 0 {
-				stmts = append(stmts, ast.Stmt{Data: &ast.SExportClause{Items: items}})
-			}
 		}
 	}
 
