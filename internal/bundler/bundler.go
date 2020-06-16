@@ -23,17 +23,6 @@ import (
 type file struct {
 	ast ast.AST
 
-	// This maps the non-unique import path present in the source file to the
-	// unique source index for that module. This isn't unique because two paths
-	// in the source file may refer to the same module:
-	//
-	//   import "../lib/util";
-	//   import "./util";
-	//
-	// This is used by the printer to write out the source index for modules that
-	// are referenced in the AST.
-	resolvedImports map[string]uint32
-
 	// If this file ends up being used in the bundle, this is an additional file
 	// that must be written to the output directory. It's used by the "file"
 	// loader.
@@ -47,14 +36,6 @@ type file struct {
 	// about this file in JSON format. This is a partial JSON file that will be
 	// fully assembled later.
 	jsonMetadataChunk []byte
-}
-
-func (f *file) resolveImport(path ast.Path) (uint32, bool) {
-	if path.UseSourceIndex {
-		return path.SourceIndex, true
-	}
-	sourceIndex, ok := f.resolvedImports[path.Text]
-	return sourceIndex, ok
 }
 
 type Bundle struct {
@@ -342,7 +323,6 @@ func ScanBundle(
 		}
 
 		source := result.source
-		result.file.resolvedImports = make(map[string]uint32)
 		j := printer.Joiner{}
 		isFirstImport := true
 
@@ -355,15 +335,17 @@ func ScanBundle(
 		// Don't try to resolve paths if we're not bundling
 		if bundleOptions.IsBundling {
 			for _, part := range result.file.ast.Parts {
-				for _, importPath := range part.ImportPaths {
-					// Don't try to resolve imports of the special runtime path
-					if importPath.Path.UseSourceIndex && importPath.Path.SourceIndex == ast.RuntimeSourceIndex {
+				for _, importRecordIndex := range part.ImportRecordIndices {
+					record := &result.file.ast.ImportRecords[importRecordIndex]
+
+					// Don't try to resolve imports that are already resolved
+					if record.SourceIndex != nil {
 						continue
 					}
 
 					sourcePath := source.AbsolutePath
-					pathText := importPath.Path.Text
-					pathRange := source.RangeOfString(importPath.Path.Loc)
+					pathText := record.Path.Text
+					pathRange := source.RangeOfString(record.Path.Loc)
 					resolveResult := res.Resolve(sourcePath, pathText)
 
 					switch resolveResult.Status {
@@ -374,7 +356,7 @@ func ScanBundle(
 						}
 						prettyPath := res.PrettyPath(resolveResult.AbsolutePath)
 						sourceIndex := maybeParseFile(resolveResult.AbsolutePath, prettyPath, &source, pathRange, flags)
-						result.file.resolvedImports[pathText] = sourceIndex
+						record.SourceIndex = &sourceIndex
 
 						// Generate metadata about each import
 						if bundleOptions.AbsMetadataFile != "" {
@@ -594,7 +576,7 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 	// Sort files by absolute path for determinism
 	sorted := make(indexAndPathArray, 0, len(b.sources))
 	for sourceIndex, source := range b.sources {
-		if sourceIndex != ast.RuntimeSourceIndex {
+		if uint32(sourceIndex) != ast.RuntimeSourceIndex {
 			sorted = append(sorted, indexAndPath{uint32(sourceIndex), source.PrettyPath})
 		}
 	}

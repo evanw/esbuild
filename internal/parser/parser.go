@@ -32,8 +32,6 @@ type parser struct {
 	log                      logging.Log
 	source                   logging.Source
 	lexer                    lexer.Lexer
-	importPaths              []ast.ImportPath
-	exportStars              []ast.Path
 	allowIn                  bool
 	allowPrivateIdentifiers  bool
 	hasTopLevelReturn        bool
@@ -58,6 +56,11 @@ type parser struct {
 	emittedNamespaceVars       map[ast.Ref]bool
 	isExportedInsideNamespace  map[ast.Ref]ast.Ref
 	knownEnumValues            map[ast.Ref]map[string]float64
+
+	// Imports (both ES6 and CommonJS) are tracked at the top level
+	importRecords               []ast.ImportRecord
+	importRecordsForCurrentPart []uint32
+	exportStarImportRecords     []uint32
 
 	// These are for handling ES6 imports and exports
 	hasES6ImportSyntax      bool
@@ -2803,7 +2806,7 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 	p.lexer.Expect(lexer.TCloseParen)
 
 	p.allowIn = oldAllowIn
-	return ast.Expr{loc, &ast.EImport{value}}
+	return ast.Expr{loc, &ast.EImport{value, nil}}
 }
 
 func (p *parser) parseExprOrBindings(level ast.L, errors *deferredErrors) ast.Expr {
@@ -4581,9 +4584,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				name := ast.GenerateNonUniqueNameFromPath(path.Text) + "_star"
 				namespaceRef = p.storeNameInRef(name)
 			}
+			importRecordIndex := p.addImportRecord(ast.ImportStmt, path)
 
 			p.lexer.ExpectOrInsertSemicolon()
-			return ast.Stmt{loc, &ast.SExportStar{namespaceRef, alias, path}}
+			return ast.Stmt{loc, &ast.SExportStar{namespaceRef, alias, importRecordIndex}}
 
 		case lexer.TOpenBrace:
 			if !opts.isModuleScope {
@@ -4594,8 +4598,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			if p.lexer.IsContextualKeyword("from") {
 				p.lexer.Next()
 				path := p.parsePath()
+				importRecordIndex := p.addImportRecord(ast.ImportStmt, path)
+				name := ast.GenerateNonUniqueNameFromPath(path.Text)
+				namespaceRef := p.storeNameInRef(name)
 				p.lexer.ExpectOrInsertSemicolon()
-				return ast.Stmt{loc, &ast.SExportFrom{items, ast.InvalidRef, path, isSingleLine}}
+				return ast.Stmt{loc, &ast.SExportFrom{items, namespaceRef, importRecordIndex, isSingleLine}}
 			}
 			p.lexer.ExpectOrInsertSemicolon()
 			return ast.Stmt{loc, &ast.SExportClause{items, isSingleLine}}
@@ -5189,7 +5196,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			return ast.Stmt{}
 		}
 
-		stmt.Path = p.parsePath()
+		path := p.parsePath()
+		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, path)
 		p.lexer.ExpectOrInsertSemicolon()
 		kind := ast.SymbolOther
 
@@ -5204,7 +5212,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmt.NamespaceRef = p.declareSymbol(kind, *stmt.StarNameLoc, name)
 		} else {
 			// Generate a symbol for the namespace
-			name := ast.GenerateNonUniqueNameFromPath(stmt.Path.Text)
+			name := ast.GenerateNonUniqueNameFromPath(path.Text)
 			stmt.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
 			p.currentScope.Generated = append(p.currentScope.Generated, stmt.NamespaceRef)
 		}
@@ -5382,6 +5390,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		return ast.Stmt{loc, &ast.SExpr{expr}}
 	}
+}
+
+func (p *parser) addImportRecord(kind ast.ImportKind, path ast.Path) uint32 {
+	index := uint32(len(p.importRecords))
+	p.importRecords = append(p.importRecords, ast.ImportRecord{
+		Kind:       kind,
+		Path:       path,
+		WrapperRef: ast.InvalidRef,
+	})
+	return index
 }
 
 func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
@@ -6922,7 +6940,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SExportFrom:
 		// "export {foo} from 'path'"
-		name := ast.GenerateNonUniqueNameFromPath(s.Path.Text)
+		name := p.loadNameFromRef(s.NamespaceRef)
 		s.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
 		p.currentScope.Generated = append(p.currentScope.Generated, s.NamespaceRef)
 		p.recordDeclaredSymbol(s.NamespaceRef)
@@ -8891,12 +8909,13 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
 			}
 
-			path := ast.Path{
+			importRecordIndex := p.addImportRecord(ast.ImportDynamic, ast.Path{
 				Loc:  e.Expr.Loc,
 				Text: lexer.UTF16ToString(str.Value),
-			}
+			})
+			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
-			p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportDynamic})
+			e.ImportRecordIndex = &importRecordIndex
 		} else if p.IsBundling {
 			r := lexer.RangeOfIdentifier(p.source, expr.Loc)
 			p.log.AddRangeWarning(&p.source, r,
@@ -8978,16 +8997,15 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 						return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
 					}
 
-					path := ast.Path{
+					importRecordIndex := p.addImportRecord(ast.ImportRequire, ast.Path{
 						Loc:  arg.Loc,
 						Text: lexer.UTF16ToString(str.Value),
-					}
-
-					p.importPaths = append(p.importPaths, ast.ImportPath{Path: path, Kind: ast.ImportRequire})
+					})
+					p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 					// Create a new expression to represent the operation
 					p.ignoreUsage(p.requireRef)
-					return ast.Expr{expr.Loc, &ast.ERequire{Path: path}}, exprOut{}
+					return ast.Expr{expr.Loc, &ast.ERequire{importRecordIndex}}, exprOut{}
 				}
 
 				r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
@@ -9258,75 +9276,75 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 
 				if s.DefaultName != nil {
 					p.namedImports[s.DefaultName.Ref] = ast.NamedImport{
-						Alias:        "default",
-						AliasLoc:     s.DefaultName.Loc,
-						ImportPath:   s.Path,
-						NamespaceRef: s.NamespaceRef,
+						Alias:             "default",
+						AliasLoc:          s.DefaultName.Loc,
+						NamespaceRef:      s.NamespaceRef,
+						ImportRecordIndex: s.ImportRecordIndex,
 					}
 				}
 
 				if s.StarNameLoc != nil {
 					p.namedImports[s.NamespaceRef] = ast.NamedImport{
-						Alias:        "*",
-						AliasLoc:     *s.StarNameLoc,
-						ImportPath:   s.Path,
-						NamespaceRef: ast.InvalidRef,
+						Alias:             "*",
+						AliasLoc:          *s.StarNameLoc,
+						NamespaceRef:      ast.InvalidRef,
+						ImportRecordIndex: s.ImportRecordIndex,
 					}
 				}
 
 				if s.Items != nil {
 					for _, item := range *s.Items {
 						p.namedImports[item.Name.Ref] = ast.NamedImport{
-							Alias:        item.Alias,
-							AliasLoc:     item.AliasLoc,
-							ImportPath:   s.Path,
-							NamespaceRef: s.NamespaceRef,
+							Alias:             item.Alias,
+							AliasLoc:          item.AliasLoc,
+							NamespaceRef:      s.NamespaceRef,
+							ImportRecordIndex: s.ImportRecordIndex,
 						}
 					}
 				}
 			}
 
-			p.importPaths = append(p.importPaths, ast.ImportPath{
-				Path: s.Path,
+			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
-				// This is true for import statements without imports like "import 'foo'"
-				DoesNotUseExports: s.DefaultName == nil && s.StarNameLoc == nil && s.Items == nil,
-			})
+			// This is true for import statements without imports like "import 'foo'"
+			if s.DefaultName == nil && s.StarNameLoc == nil && s.Items == nil {
+				p.importRecords[s.ImportRecordIndex].DoesNotUseExports = true
+			}
 
 		case *ast.SExportStar:
+			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
+
 			// Only track import paths if we want dependencies
 			if isBundling {
-				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
-
 				if s.Alias != nil {
 					// "export * as ns from 'path'"
 					p.namedImports[s.NamespaceRef] = ast.NamedImport{
-						Alias:        "*",
-						AliasLoc:     s.Alias.Loc,
-						ImportPath:   s.Path,
-						NamespaceRef: ast.InvalidRef,
+						Alias:             "*",
+						AliasLoc:          s.Alias.Loc,
+						NamespaceRef:      ast.InvalidRef,
+						ImportRecordIndex: s.ImportRecordIndex,
 					}
 				} else {
 					// "export * from 'path'"
-					p.exportStars = append(p.exportStars, s.Path)
+					p.exportStarImportRecords = append(p.exportStarImportRecords, s.ImportRecordIndex)
 				}
 			}
 
 		case *ast.SExportFrom:
+			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
+
 			// Only track import paths if we want dependencies
 			if isBundling {
-				p.importPaths = append(p.importPaths, ast.ImportPath{Path: s.Path})
-
 				for _, item := range s.Items {
 					// Note that the imported alias is not item.Alias, which is the
 					// exported alias. This is somewhat confusing because each
 					// SExportFrom statement is basically SImport + SExportClause in one.
 					p.namedImports[item.Name.Ref] = ast.NamedImport{
-						Alias:        p.symbols[item.Name.Ref.InnerIndex].Name,
-						AliasLoc:     item.Name.Loc,
-						ImportPath:   s.Path,
-						NamespaceRef: s.NamespaceRef,
-						IsExported:   true,
+						Alias:             p.symbols[item.Name.Ref.InnerIndex].Name,
+						AliasLoc:          item.Name.Loc,
+						NamespaceRef:      s.NamespaceRef,
+						ImportRecordIndex: s.ImportRecordIndex,
+						IsExported:        true,
 					}
 				}
 			}
@@ -9367,7 +9385,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 func (p *parser) appendPart(parts []ast.Part, stmts []ast.Stmt) []ast.Part {
 	p.useCountEstimates = make(map[ast.Ref]uint32)
 	p.declaredSymbols = nil
-	p.importPaths = nil
+	p.importRecordsForCurrentPart = nil
 	part := ast.Part{
 		Stmts:             p.visitStmtsAndPrependTempRefs(stmts),
 		UseCountEstimates: p.useCountEstimates,
@@ -9375,7 +9393,7 @@ func (p *parser) appendPart(parts []ast.Part, stmts []ast.Stmt) []ast.Part {
 	if len(part.Stmts) > 0 {
 		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts)
 		part.DeclaredSymbols = p.declaredSymbols
-		part.ImportPaths = p.importPaths
+		part.ImportRecordIndices = p.importRecordsForCurrentPart
 		parts = append(parts, part)
 	}
 	return parts
@@ -9718,10 +9736,9 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 		declaredSymbols := make([]ast.DeclaredSymbol, len(keys))
 		clauseItems := make([]ast.ClauseItem, len(keys))
-		runtimePath := ast.Path{
-			UseSourceIndex: true,
-			SourceIndex:    ast.RuntimeSourceIndex,
-		}
+		importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.Path{})
+		sourceIndex := ast.RuntimeSourceIndex
+		p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
 
 		// Create per-import information
 		for i, key := range keys {
@@ -9729,24 +9746,21 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 			declaredSymbols[i] = ast.DeclaredSymbol{Ref: ref, IsTopLevel: true}
 			clauseItems[i] = ast.ClauseItem{Alias: key, Name: ast.LocRef{Ref: ref}}
 			p.namedImports[ref] = ast.NamedImport{
-				Alias:        key,
-				ImportPath:   runtimePath,
-				NamespaceRef: namespaceRef,
+				Alias:             key,
+				NamespaceRef:      namespaceRef,
+				ImportRecordIndex: importRecordIndex,
 			}
 		}
 
 		// Append a single import to the end of the file (ES6 imports are hoisted
 		// so we don't need to worry about where the import statement goes)
 		parts = append(parts, ast.Part{
-			DeclaredSymbols: declaredSymbols,
-			ImportPaths: []ast.ImportPath{ast.ImportPath{
-				Kind: ast.ImportStmt,
-				Path: runtimePath,
-			}},
+			DeclaredSymbols:     declaredSymbols,
+			ImportRecordIndices: []uint32{importRecordIndex},
 			Stmts: []ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SImport{
-				NamespaceRef: namespaceRef,
-				Items:        &clauseItems,
-				Path:         runtimePath,
+				NamespaceRef:      namespaceRef,
+				Items:             &clauseItems,
+				ImportRecordIndex: importRecordIndex,
 			}}},
 		})
 	}
@@ -9756,9 +9770,9 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	// TypeScript code.
 	partsEnd := 0
 	for _, part := range parts {
-		p.importPaths = []ast.ImportPath{}
+		p.importRecordsForCurrentPart = nil
 		part.Stmts = p.scanForImportsAndExports(part.Stmts, options.IsBundling)
-		part.ImportPaths = append(part.ImportPaths, p.importPaths...)
+		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
 		if len(part.Stmts) > 0 {
 			parts[partsEnd] = part
 			partsEnd++
@@ -9900,18 +9914,19 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 	symbols.Outer[source.Index] = p.symbols
 
 	return ast.AST{
-		Parts:                 parts,
-		ModuleScope:           p.moduleScope,
-		Symbols:               symbols,
-		ExportsRef:            p.exportsRef,
-		ModuleRef:             p.moduleRef,
-		WrapperRef:            wrapperRef,
-		Hashbang:              hashbang,
-		Directive:             directive,
-		NamedImports:          p.namedImports,
-		NamedExports:          p.namedExports,
-		TopLevelSymbolToParts: p.topLevelSymbolToParts,
-		ExportStars:           p.exportStars,
+		Parts:                   parts,
+		ModuleScope:             p.moduleScope,
+		Symbols:                 symbols,
+		ExportsRef:              p.exportsRef,
+		ModuleRef:               p.moduleRef,
+		WrapperRef:              wrapperRef,
+		Hashbang:                hashbang,
+		Directive:               directive,
+		NamedImports:            p.namedImports,
+		NamedExports:            p.namedExports,
+		TopLevelSymbolToParts:   p.topLevelSymbolToParts,
+		ExportStarImportRecords: p.exportStarImportRecords,
+		ImportRecords:           p.importRecords,
 
 		// CommonJS features
 		HasTopLevelReturn: p.hasTopLevelReturn,

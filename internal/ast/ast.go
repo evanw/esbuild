@@ -232,18 +232,12 @@ type LocRef struct {
 type Path struct {
 	Loc  Loc
 	Text string
-
-	// If "UseSourceIndex" is true, the path is already resolved. This is used
-	// for generated paths. The source file it has been resolved to is stored in
-	// the "SourceIndex" field.
-	UseSourceIndex bool
-	SourceIndex    uint32
 }
 
 // The runtime source is always at a special index. The index is always zero
 // but this constant is always used instead to improve readability and ensure
 // all code that references this index can be discovered easily.
-const RuntimeSourceIndex = 0
+const RuntimeSourceIndex = uint32(0)
 
 type PropertyKind int
 
@@ -526,12 +520,12 @@ type EIf struct {
 }
 
 type ERequire struct {
-	Path        Path
-	IsES6Import bool
+	ImportRecordIndex uint32
 }
 
 type EImport struct {
-	Expr Expr
+	Expr              Expr
+	ImportRecordIndex *uint32
 }
 
 func (*EArray) isExpr()             {}
@@ -616,10 +610,10 @@ type SExportClause struct {
 }
 
 type SExportFrom struct {
-	Items        []ClauseItem
-	NamespaceRef Ref
-	Path         Path
-	IsSingleLine bool
+	Items             []ClauseItem
+	NamespaceRef      Ref
+	ImportRecordIndex uint32
+	IsSingleLine      bool
 }
 
 type SExportDefault struct {
@@ -633,9 +627,9 @@ type ExportStarAlias struct {
 }
 
 type SExportStar struct {
-	NamespaceRef Ref
-	Alias        *ExportStarAlias
-	Path         Path
+	NamespaceRef      Ref
+	Alias             *ExportStarAlias
+	ImportRecordIndex uint32
 }
 
 // This is an "export = value;" statement in TypeScript
@@ -772,11 +766,11 @@ type SImport struct {
 	// when converting this module to a CommonJS module.
 	NamespaceRef Ref
 
-	DefaultName  *LocRef
-	Items        *[]ClauseItem
-	StarNameLoc  *Loc
-	Path         Path
-	IsSingleLine bool
+	DefaultName       *LocRef
+	Items             *[]ClauseItem
+	StarNameLoc       *Loc
+	ImportRecordIndex uint32
+	IsSingleLine      bool
 }
 
 type SReturn struct {
@@ -1087,18 +1081,40 @@ func (sm SymbolMap) Get(ref Ref) *Symbol {
 type ImportKind uint8
 
 const (
+	// An ES6 import or re-export statement
 	ImportStmt ImportKind = iota
+
+	// A call to "require()"
 	ImportRequire
+
+	// An "import()" expression with a string argument
 	ImportDynamic
 )
 
-type ImportPath struct {
+type ImportRecord struct {
 	Path Path
-	Kind ImportKind
+
+	// If this is an internal CommonJS import, this is the symbol of a function
+	// that takes no arguments which, when called, implements require() for this
+	// import. This is a wrapper function returned by "__commonJS()".
+	WrapperRef Ref
+
+	// The resolved source index for an internal import (within the bundle) or
+	// nil for an external import (not included in the bundle)
+	SourceIndex *uint32
 
 	// If this is true, the import doesn't actually use any imported values. The
 	// import is only used for its side effects.
 	DoesNotUseExports bool
+
+	// If true, this "export * from 'path'" statement is evaluated at run-time by
+	// calling the "__exportStar()" helper function
+	IsExportStarRunTimeEval bool
+
+	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
+	WrapWithToModule bool
+
+	Kind ImportKind
 }
 
 type AST struct {
@@ -1124,13 +1140,17 @@ type AST struct {
 	ModuleRef   Ref
 	WrapperRef  Ref
 
+	// These are stored at the AST level instead of on individual AST nodes so
+	// they can be manipulated efficiently without a full AST traversal
+	ImportRecords []ImportRecord
+
 	// These are used when bundling. They are filled in during the parser pass
 	// since we already have to traverse the AST then anyway and the parser pass
 	// is conveniently fully parallelized.
-	NamedImports          map[Ref]NamedImport
-	NamedExports          map[string]Ref
-	TopLevelSymbolToParts map[Ref][]uint32
-	ExportStars           []Path
+	NamedImports            map[Ref]NamedImport
+	NamedExports            map[string]Ref
+	TopLevelSymbolToParts   map[Ref][]uint32
+	ExportStarImportRecords []uint32
 }
 
 func (ast *AST) HasCommonJSFeatures() bool {
@@ -1146,13 +1166,13 @@ func (ast *AST) HasES6Syntax() bool {
 }
 
 type NamedImport struct {
-	Alias        string
-	AliasLoc     Loc
-	ImportPath   Path
-	NamespaceRef Ref
-
 	// Parts within this file that use this import
 	LocalPartsWithUses []uint32
+
+	Alias             string
+	AliasLoc          Loc
+	NamespaceRef      Ref
+	ImportRecordIndex uint32
 
 	// It's useful to flag exported imports because if they are in a TypeScript
 	// file, we can't tell if they are a type or a value.
@@ -1165,8 +1185,10 @@ type NamedImport struct {
 // shaking and can be assigned to separate chunks (i.e. output files) by code
 // splitting.
 type Part struct {
-	ImportPaths []ImportPath
-	Stmts       []Stmt
+	Stmts []Stmt
+
+	// Each is an index into the file-level import record list
+	ImportRecordIndices []uint32
 
 	// All symbols that are declared in this part. Note that a given symbol may
 	// have multiple declarations, and so may end up being declared in multiple

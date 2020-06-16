@@ -490,6 +490,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 
 type printer struct {
 	symbols            ast.SymbolMap
+	importRecords      []ast.ImportRecord
 	options            PrintOptions
 	needsSemicolon     bool
 	js                 []byte
@@ -1045,30 +1046,30 @@ type requireCallArgs struct {
 	mustReturnPromise bool
 }
 
-func (p *printer) printRequireCall(path string, args requireCallArgs) {
+func (p *printer) printRequireOrImportExpr(importRecordIndex uint32) {
 	space := " "
 	if p.options.RemoveWhitespace {
 		space = ""
 	}
 
-	sourceIndex, ok := p.options.ResolvedImports[path]
+	record := &p.importRecords[importRecordIndex]
 	p.printSpaceBeforeIdentifier()
 
 	// Preserve "import()" expressions that don't point inside the bundle
-	if !ok && args.mustReturnPromise && p.options.OutputFormat.KeepES6ImportExportSyntax() {
+	if record.SourceIndex == nil && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
 		p.print("import(")
-		p.print(Quote(path))
+		p.print(Quote(record.Path.Text))
 		p.print(")")
 		return
 	}
 
 	// Make sure "import()" expressions return promises
-	if args.mustReturnPromise {
+	if record.Kind == ast.ImportDynamic {
 		p.print("Promise.resolve().then(()" + space + "=>" + space)
 	}
 
 	// Make sure CommonJS imports are converted to ES6 if necessary
-	if args.isES6Import {
+	if record.WrapWithToModule {
 		p.printSymbol(p.options.ToModuleRef)
 		p.print("(")
 	}
@@ -1077,20 +1078,20 @@ func (p *printer) printRequireCall(path string, args requireCallArgs) {
 	// function for that module directly. The linker must ensure that the
 	// module's require function exists by this point. Otherwise, fall back to a
 	// bare "require()" call. Then it's up to the user to provide it.
-	if ok {
-		p.printSymbol(p.options.WrapperRefs[sourceIndex])
+	if record.SourceIndex != nil {
+		p.printSymbol(record.WrapperRef)
 		p.print("()")
 	} else {
 		p.print("require(")
-		p.print(Quote(path))
+		p.print(Quote(record.Path.Text))
 		p.print(")")
 	}
 
-	if args.isES6Import {
+	if record.WrapWithToModule {
 		p.print(")")
 	}
 
-	if args.mustReturnPromise {
+	if record.Kind == ast.ImportDynamic {
 		p.print(")")
 	}
 }
@@ -1215,7 +1216,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
-		p.printRequireCall(e.Path.Text, requireCallArgs{isES6Import: e.IsES6Import})
+		p.printRequireOrImportExpr(e.ImportRecordIndex)
 		if wrap {
 			p.print(")")
 		}
@@ -1225,9 +1226,8 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
-		if s, ok := e.Expr.Data.(*ast.EString); ok {
-			path := lexer.UTF16ToString(s.Value)
-			p.printRequireCall(path, requireCallArgs{isES6Import: true, mustReturnPromise: true})
+		if e.ImportRecordIndex != nil {
+			p.printRequireOrImportExpr(*e.ImportRecordIndex)
 		} else {
 			// Handle non-string expressions
 			p.printSpaceBeforeIdentifier()
@@ -2191,7 +2191,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		}
 		p.print("from")
 		p.printSpace()
-		p.print(Quote(s.Path.Text))
+		p.print(Quote(p.importRecords[s.ImportRecordIndex].Path.Text))
 		p.printSemicolonAfterStatement()
 
 	case *ast.SExportClause:
@@ -2211,7 +2211,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpace()
 		p.print("from")
 		p.printSpace()
-		p.print(Quote(s.Path.Text))
+		p.print(Quote(p.importRecords[s.ImportRecordIndex].Path.Text))
 		p.printSemicolonAfterStatement()
 
 	case *ast.SLocal:
@@ -2484,7 +2484,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.printSpace()
 		}
 
-		p.print(Quote(s.Path.Text))
+		p.print(Quote(p.importRecords[s.ImportRecordIndex].Path.Text))
 		p.printSemicolonAfterStatement()
 
 	case *ast.SBlock:
@@ -2595,9 +2595,7 @@ type PrintOptions struct {
 	RemoveWhitespace  bool
 	SourceMapContents *string
 	Indent            int
-	ResolvedImports   map[string]uint32
 	ToModuleRef       ast.Ref
-	WrapperRefs       []ast.Ref
 }
 
 type SourceMapChunk struct {
@@ -2615,10 +2613,12 @@ type SourceMapChunk struct {
 
 func createPrinter(
 	symbols ast.SymbolMap,
+	importRecords []ast.ImportRecord,
 	options PrintOptions,
 ) *printer {
 	p := &printer{
 		symbols:            symbols,
+		importRecords:      importRecords,
 		options:            options,
 		stmtStart:          -1,
 		exportDefaultStart: -1,
@@ -2663,7 +2663,7 @@ type PrintResult struct {
 }
 
 func Print(tree ast.AST, options PrintOptions) PrintResult {
-	p := createPrinter(tree.Symbols, options)
+	p := createPrinter(tree.Symbols, tree.ImportRecords, options)
 
 	// Always add a mapping at the beginning of the file
 	p.addSourceMapping(ast.Loc{0})
@@ -2682,7 +2682,7 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 }
 
 func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) PrintResult {
-	p := createPrinter(symbols, options)
+	p := createPrinter(symbols, nil, options)
 
 	// Always add a mapping at the beginning of the file
 	p.addSourceMapping(ast.Loc{0})
