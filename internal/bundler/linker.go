@@ -1060,10 +1060,11 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 					file.ast.WrapperRef: 1,
 					commonJSRef:         1,
 				},
-				DeclaredSymbols: []ast.DeclaredSymbol{ast.DeclaredSymbol{
-					Ref:        file.ast.WrapperRef,
-					IsTopLevel: true,
-				}},
+				DeclaredSymbols: []ast.DeclaredSymbol{
+					ast.DeclaredSymbol{Ref: file.ast.ExportsRef, IsTopLevel: true},
+					ast.DeclaredSymbol{Ref: file.ast.ModuleRef, IsTopLevel: true},
+					ast.DeclaredSymbol{Ref: file.ast.WrapperRef, IsTopLevel: true},
+				},
 			})
 			nonLocalDependencies := make([]partRef, len(commonJSParts))
 			for i, partIndex := range commonJSParts {

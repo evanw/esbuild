@@ -6631,6 +6631,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			defaultRef := p.generateTempRef(tempRefNoDeclare)
 			p.symbols[defaultRef.InnerIndex].Name = nameFromPath
 			p.namedExports["default"] = defaultRef
+			p.recordDeclaredSymbol(defaultRef)
 
 			name := nameFunc()
 			stmts = append(stmts, ast.Stmt{classLoc, &ast.SExportDefault{
