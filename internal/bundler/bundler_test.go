@@ -5275,3 +5275,38 @@ func TestMultipleEntryPointsSameNameCollision(t *testing.T) {
 		expectedCompileLog: "error: Two output files share the same path: /out/entry.js\n",
 	})
 }
+
+func TestReExportCommonJSAsES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {bar} from './foo'
+			`,
+			"/foo.js": `
+				exports.bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.bar = 123;
+});
+
+// /entry.js
+const foo = __toModule(require_foo());
+const export_bar = foo.bar;
+export {
+  export_bar as bar
+};
+`,
+		},
+	})
+}

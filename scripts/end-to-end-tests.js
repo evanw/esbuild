@@ -218,6 +218,18 @@
       'entry.js': `import {exists} from './re-export'; if (exists !== 123) throw 'fail'`,
       're-export.js': `export * from 'fs'; export let exists = 123`,
     }),
+
+    // Export CommonJS export from ES6 module
+    test(['--bundle', 'entry.js', '--outfile=out.js', '--format=cjs'], {
+      'entry.js': `export {bar} from './foo'`,
+      'foo.js': `exports.bar = 123`,
+      'node.js': `const out = require('./out.js'); if (out.bar !== 123) throw 'fail'`,
+    }),
+    test(['--bundle', 'entry.js', '--outfile=out.mjs', '--format=esm'], {
+      'entry.js': `export {bar} from './foo'`,
+      'foo.js': `exports.bar = 123`,
+      'node.mjs': `import {bar} from './out.mjs'; if (bar !== 123) throw 'fail'`,
+    }),
   )
 
   // Tests for catch scope issues

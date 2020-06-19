@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+* Fix re-exports of a CommonJS module in `esm` format
+
+    Previously re-exports of an individual identifier from a CommonJS module generated JavaScript that crashed at run-time when using the `esm` output format. This was because esbuild always tries to generate "live" exports for CommonJS modules that always return the current value of the export instead of "dead" bindings that only return the initial value of the export. The bug happened because the ES6 module format doesn't have a way to forward a live binding to a CommonJS module as an ES6 export. The fix is to generate "dead" exports instead, which is the only available option in this edge case.
+
+    These input files:
+
+    ```js
+    // entry_point.js
+    export {foo} from './cjs-format.js'
+    ```
+
+    ```js
+    // cjs-format.js
+    Object.defineProperty(exports, 'foo', {
+      enumerable: true,
+      get: () => Math.random(),
+    })
+    ```
+
+    Now become this output file:
+
+    ```js
+    // cjs-format.js
+    var require_cjs_format = __commonJS((exports) => {
+      Object.defineProperty(exports, "foo", {
+        enumerable: true,
+        get: () => Math.random()
+      });
+    });
+
+    // entry_point.js
+    const cjs_format = __toModule(require_cjs_format());
+    const export_foo = cjs_format.foo; // This is a "dead" re-export
+    export {
+      export_foo as foo
+    };
+    ```
+
 ## 0.5.4
 
 * Source maps use `/` on Windows ([#188](https://github.com/evanw/esbuild/issues/188))

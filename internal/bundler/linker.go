@@ -620,6 +620,17 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	fileMeta := &c.fileMeta[sourceIndex]
 	file := &c.files[sourceIndex]
 
+	// If the output format is ES6 modules and we're an entry point, generate an
+	// ES6 export statement containing all exports. Except don't do that if this
+	// entry point is a CommonJS-style module, since that would generate an ES6
+	// export statement that's not top-level. Instead, we will export the CommonJS
+	// exports as a default export later on.
+	var entryPointES6ExportItems []ast.ClauseItem
+	var entryPointES6ExportStmts []ast.Stmt
+	didCloneModuleScopeGenerated := false
+	needsEntryPointES6ExportPart := fileMeta.entryPointStatus != entryPointNone && !fileMeta.cjsWrap &&
+		c.options.OutputFormat == printer.FormatESModule && len(fileMeta.sortedAndFilteredExportAliases) > 0
+
 	// Generate a getter per export
 	properties := []ast.Property{}
 	nonLocalDependencies := []partRef{}
@@ -640,11 +651,110 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		// Exports of imports need EImportIdentifier in case they need to be re-
 		// written to a property access later on
 		var value ast.Expr
-		otherFile := &c.files[export.sourceIndex]
-		if _, ok := otherFile.ast.NamedImports[export.ref]; ok {
-			value = ast.Expr{ast.Loc{}, &ast.EImportIdentifier{export.ref}}
+		if c.symbols.Get(export.ref).NamespaceAlias != nil {
+			value = ast.Expr{Data: &ast.EImportIdentifier{export.ref}}
+
+			// Imported identifiers must be assigned to a local variable to be
+			// exported using an ES6 export clause. The import needs to be an
+			// EImportIdentifier in case it's imported from a CommonJS module.
+			if needsEntryPointES6ExportPart {
+				// Generate a temporary variable
+				inner := &c.symbols.Outer[sourceIndex]
+				tempRef := ast.Ref{sourceIndex, uint32(len(*inner))}
+				*inner = append(*inner, ast.Symbol{
+					Kind: ast.SymbolOther,
+					Name: "export_" + alias,
+					Link: ast.InvalidRef,
+				})
+
+				// Stick it on the module scope so it gets renamed and minified. Clone
+				// the array first though so we don't mutate the input file.
+				generated := &file.ast.ModuleScope.Generated
+				if !didCloneModuleScopeGenerated {
+					*generated = append([]ast.Ref{}, *generated...)
+					didCloneModuleScopeGenerated = true
+				}
+				*generated = append(*generated, tempRef)
+
+				// Create both a local variable and an export clause for that variable.
+				// The local variable is initialized with the initial value of the
+				// export. This isn't fully correct because it's a "dead" binding and
+				// doesn't update with the "live" value as it changes. But ES6 modules
+				// don't have any syntax for bare named getter functions so this is the
+				// best we can do.
+				//
+				// These input files:
+				//
+				//   // entry_point.js
+				//   export {foo} from './cjs-format.js'
+				//
+				//   // cjs-format.js
+				//   Object.defineProperty(exports, 'foo', {
+				//     enumerable: true,
+				//     get: () => Math.random(),
+				//   })
+				//
+				// Become this output file:
+				//
+				//   // cjs-format.js
+				//   var require_cjs_format = __commonJS((exports) => {
+				//     Object.defineProperty(exports, "foo", {
+				//       enumerable: true,
+				//       get: () => Math.random()
+				//     });
+				//   });
+				//
+				//   // entry_point.js
+				//   const cjs_format = __toModule(require_cjs_format());
+				//   const export_foo = cjs_format.foo;
+				//   export {
+				//     export_foo as foo
+				//   };
+				//
+				entryPointES6ExportStmts = append(entryPointES6ExportStmts, ast.Stmt{Data: &ast.SLocal{
+					Kind: ast.LocalConst,
+					Decls: []ast.Decl{ast.Decl{
+						Binding: ast.Binding{Data: &ast.BIdentifier{tempRef}},
+						Value:   &ast.Expr{Data: &ast.EImportIdentifier{export.ref}},
+					}},
+				}})
+				entryPointES6ExportItems = append(entryPointES6ExportItems, ast.ClauseItem{
+					Name:  ast.LocRef{Ref: tempRef},
+					Alias: alias,
+				})
+			}
 		} else {
-			value = ast.Expr{ast.Loc{}, &ast.EIdentifier{export.ref}}
+			value = ast.Expr{Data: &ast.EIdentifier{export.ref}}
+
+			if needsEntryPointES6ExportPart {
+				// Local identifiers can be exported using an export clause. This is done
+				// this way instead of leaving the "export" keyword on the local declaration
+				// itself both because it lets the local identifier be minified and because
+				// it works transparently for re-exports across files.
+				//
+				// These input files:
+				//
+				//   // entry_point.js
+				//   export * from './esm-format.js'
+				//
+				//   // esm-format.js
+				//   export let foo = 123
+				//
+				// Become this output file:
+				//
+				//   // esm-format.js
+				//   let foo = 123;
+				//
+				//   // entry_point.js
+				//   export {
+				//     foo
+				//   };
+				//
+				entryPointES6ExportItems = append(entryPointES6ExportItems, ast.ClauseItem{
+					Name:  ast.LocRef{Ref: export.ref},
+					Alias: alias,
+				})
+			}
 		}
 
 		// Add a getter property
@@ -658,7 +768,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		useCountEstimates[export.ref]++
 
 		// Make sure the part that declares the export is included
-		for _, partIndex := range otherFile.ast.TopLevelSymbolToParts[export.ref] {
+		for _, partIndex := range c.files[export.sourceIndex].ast.TopLevelSymbolToParts[export.ref] {
 			// Use a non-local dependency since this is likely from a different
 			// file if it came in through an export star
 			nonLocalDependencies = append(nonLocalDependencies, partRef{
@@ -732,22 +842,12 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		fileMeta.partMeta[fileMeta.nsExportPartIndex].nonLocalDependencies = nonLocalDependencies
 	}
 
-	// If the output format is ES6 modules and we're an entry point, generate an
-	// ES6 export statement containing all exports. Except don't do that if this
-	// entry point is a CommonJS-style module, since that would generate an ES6
-	// export statement that's not top-level. Instead, we will export the CommonJS
-	// exports as a default export later on.
-	if fileMeta.entryPointStatus != entryPointNone && c.options.OutputFormat == printer.FormatESModule &&
-		!fileMeta.cjsWrap && len(fileMeta.sortedAndFilteredExportAliases) > 0 {
-		// Generate one export item for each export
-		items := make([]ast.ClauseItem, len(fileMeta.sortedAndFilteredExportAliases))
-		for i, alias := range fileMeta.sortedAndFilteredExportAliases {
-			items[i] = ast.ClauseItem{
-				Name:  ast.LocRef{Ref: fileMeta.resolvedExports[alias].ref},
-				Alias: alias,
-			}
-		}
+	if len(entryPointES6ExportItems) > 0 {
+		entryPointES6ExportStmts = append(entryPointES6ExportStmts,
+			ast.Stmt{Data: &ast.SExportClause{Items: entryPointES6ExportItems}})
+	}
 
+	if len(entryPointES6ExportStmts) > 0 {
 		// Clone the use count estimates so they aren't shared with the other part
 		useCountEstimatesClone := make(map[ast.Ref]uint32, len(useCountEstimates))
 		for ref, count := range useCountEstimates {
@@ -759,7 +859,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		partIndex := uint32(len(file.ast.Parts))
 		fileMeta.entryPointExportPartIndex = &partIndex
 		file.ast.Parts = append(file.ast.Parts, ast.Part{
-			Stmts:             []ast.Stmt{ast.Stmt{Data: &ast.SExportClause{Items: items}}},
+			Stmts:             entryPointES6ExportStmts,
 			LocalDependencies: make(map[uint32]bool),
 			UseCountEstimates: useCountEstimatesClone,
 		})
