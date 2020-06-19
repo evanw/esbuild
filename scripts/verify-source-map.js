@@ -21,19 +21,19 @@ const toSearchNoBundle = [
 
 const testCaseES6 = {
   'a.js': `
-    import {b0} from './b'
+    import {b0} from './b-dir/b'
     function a0() { a1("a0") }
     function a1() { a2("a1") }
     function a2() { b0("a2") }
     a0()
   `,
-  'b.js': `
-    import {c0} from './c'
+  'b-dir/b.js': `
+    import {c0} from './c-dir/c'
     export function b0() { b1("b0") }
     function b1() { b2("b1") }
     function b2() { c0("b2") }
   `,
-  'c.js': `
+  'b-dir/c-dir/c.js': `
     export function c0() { c1("c0") }
     function c1() { c2("c1") }
     function c2() { throw new Error("c2") }
@@ -42,19 +42,19 @@ const testCaseES6 = {
 
 const testCaseCommonJS = {
   'a.js': `
-    const {b0} = require('./b')
+    const {b0} = require('./b-dir/b')
     function a0() { a1("a0") }
     function a1() { a2("a1") }
     function a2() { b0("a2") }
     a0()
   `,
-  'b.js': `
-    const {c0} = require('./c')
+  'b-dir/b.js': `
+    const {c0} = require('./c-dir/c')
     exports.b0 = function() { b1("b0") }
     function b1() { b2("b1") }
     function b2() { c0("b2") }
   `,
-  'c.js': `
+  'b-dir/c-dir/c.js': `
     exports.c0 = function() { c1("c0") }
     function c1() { c2("c1") }
     function c2() { throw new Error("c2") }
@@ -99,7 +99,9 @@ async function check(kind, testCase, toSearch, flags) {
 
     for (const name in testCase) {
       if (name !== '<stdin>') {
-        await util.promisify(fs.writeFile)(path.join(tempDir, name), testCase[name])
+        const tempPath = path.join(tempDir, name)
+        mkdirp.sync(path.dirname(tempPath))
+        await util.promisify(fs.writeFile)(tempPath, testCase[name])
       }
     }
 
@@ -137,7 +139,7 @@ async function check(kind, testCase, toSearch, flags) {
     const map = await new SourceMapConsumer(outJsMap)
 
     for (const id of toSearch) {
-      const inSource = isStdin ? '<stdin>' : files.find(x => x.startsWith(id[0]))
+      const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
       const inJs = testCase[inSource]
       const inIndex = inJs.indexOf(`"${id}"`)
       const outIndex = outJs.indexOf(`"${id}"`)
