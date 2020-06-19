@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.5.4
 
 * Source maps use `/` on Windows ([#188](https://github.com/evanw/esbuild/issues/188))
 
     Before generated source maps used `\` on Windows, which meant that tools consuming these source maps (e.g. Chrome) didn't recognize these characters as path separators. Now all platforms consistently use `/` as a path separator.
+
+* Prevent input files from being overwritten
+
+    There are now checks in place to avoid input files being accidentally overwritten. This could easily happen with `--bundle --outdir=.` when bundling JavaScript files since the output file name ends up being the same as the entry point name, and is written to the same directory.
 
 ## 0.5.3
 
