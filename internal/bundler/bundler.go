@@ -206,6 +206,13 @@ func parseFile(args parseArgs) {
 	args.results <- result
 }
 
+// Identify the path by its lowercase absolute path name. This should
+// hopefully avoid path case issues on Windows, which has case-insensitive
+// file system paths.
+func lowerCaseAbsPathForWindows(absPath string) string {
+	return strings.ToLower(absPath)
+}
+
 func baseNameForAvoidingCollisions(fs fs.FS, absPath string) string {
 	var toHash []byte
 	if relPath, ok := fs.RelativeToCwd(absPath); ok {
@@ -274,10 +281,11 @@ func ScanBundle(
 		pathRange ast.Range,
 		flags parseFlags,
 	) uint32 {
-		sourceIndex, ok := visited[absPath]
+		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
+		sourceIndex, ok := visited[lowerAbsPath]
 		if !ok {
 			sourceIndex = uint32(len(sources))
-			visited[absPath] = sourceIndex
+			visited[lowerAbsPath] = sourceIndex
 			sources = append(sources, logging.Source{})
 			files = append(files, file{})
 			remaining++
@@ -306,11 +314,12 @@ func ScanBundle(
 			isEntryPoint: true,
 		}
 		prettyPath := res.PrettyPath(absPath)
-		if duplicateEntryPoints[absPath] {
+		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
+		if duplicateEntryPoints[lowerAbsPath] {
 			log.AddError(nil, ast.Loc{}, "Duplicate entry point: "+prettyPath)
 			continue
 		}
-		duplicateEntryPoints[absPath] = true
+		duplicateEntryPoints[lowerAbsPath] = true
 		sourceIndex := maybeParseFile(absPath, prettyPath, nil, ast.Range{}, flags)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
@@ -546,11 +555,13 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
 	sourceAbsPaths := make(map[string]uint32)
 	for _, group := range resultGroups {
 		for _, sourceIndex := range group.reachableFiles {
-			sourceAbsPaths[b.sources[sourceIndex].AbsolutePath] = sourceIndex
+			lowerAbsPath := lowerCaseAbsPathForWindows(b.sources[sourceIndex].AbsolutePath)
+			sourceAbsPaths[lowerAbsPath] = sourceIndex
 		}
 	}
 	for _, outputFile := range outputFiles {
-		if sourceIndex, ok := sourceAbsPaths[outputFile.AbsPath]; ok {
+		lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
+		if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
 			log.AddError(nil, ast.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
 		}
 	}
@@ -559,14 +570,16 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
 	// is almost certainly unintentional and would otherwise happen silently.
 	outputFileMap := make(map[string]bool)
 	for _, outputFile := range outputFiles {
-		if outputFileMap[outputFile.AbsPath] {
+		lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
+		if outputFileMap[lowerAbsPath] {
 			outputPath := outputFile.AbsPath
 			if relPath, ok := b.fs.RelativeToCwd(outputPath); ok {
 				outputPath = relPath
 			}
 			log.AddError(nil, ast.Loc{}, "Two output files share the same path: "+outputPath)
+		} else {
+			outputFileMap[lowerAbsPath] = true
 		}
-		outputFileMap[outputFile.AbsPath] = true
 	}
 
 	return outputFiles
