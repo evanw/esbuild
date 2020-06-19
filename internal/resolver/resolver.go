@@ -206,8 +206,16 @@ func (r *resolver) Read(path string) (string, bool) {
 
 func (r *resolver) PrettyPath(path string) string {
 	if rel, ok := r.fs.RelativeToCwd(path); ok {
-		return rel
+		path = rel
 	}
+
+	// These human-readable paths are used in error messages, comments in output
+	// files, source names in source maps, and paths in the metadata JSON file.
+	// These should be platform-independent so our output doesn't depend on which
+	// operating system it was run. Replace Windows backward slashes with standard
+	// forward slashes.
+	path = strings.ReplaceAll(path, "\\", "/")
+
 	return path
 }
 

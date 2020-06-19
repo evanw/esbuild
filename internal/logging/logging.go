@@ -42,10 +42,22 @@ type Msg struct {
 }
 
 type Source struct {
-	Index        uint32
+	Index uint32
+
+	// This is a platform-dependent path that includes environment-specific things
+	// such as Windows backslash path separators and potentially the user's home
+	// directory. Only use this for passing to syscalls for reading and writing to
+	// the file system. Do not include this in any output data.
 	AbsolutePath string
-	PrettyPath   string
-	Contents     string
+
+	// This is a mostly platform-independent path. It's relative to the current
+	// working directory and always uses standard path separators. Use this for
+	// referencing a file in all output data. These paths still use the original
+	// case of the path so they may still work differently on file systems that
+	// are case-insensitive vs. case-sensitive.
+	PrettyPath string
+
+	Contents string
 }
 
 func (s *Source) TextForRange(r ast.Range) string {

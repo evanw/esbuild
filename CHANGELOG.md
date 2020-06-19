@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Source maps use `/` on Windows ([#188](https://github.com/evanw/esbuild/issues/188))
+
+    Before generated source maps used `\` on Windows, which meant that tools consuming these source maps (e.g. Chrome) didn't recognize these characters as path separators. Now all platforms consistently use `/` as a path separator.
+
 ## 0.5.3
 
 * Special-case `require` in browserify bundles ([#80](https://github.com/evanw/esbuild/issues/80) and [#90](https://github.com/evanw/esbuild/issues/90))

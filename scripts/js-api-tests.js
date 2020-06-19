@@ -118,29 +118,30 @@ let buildTests = {
     assert.strictEqual(Object.keys(json.inputs).length, 3)
     assert.strictEqual(Object.keys(json.outputs).length, 3)
     const cwd = process.cwd()
+    const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
 
     // Check inputs
-    assert.deepStrictEqual(json.inputs[path.relative(cwd, entry)].bytes, 113)
-    assert.deepStrictEqual(json.inputs[path.relative(cwd, entry)].imports, [
-      { path: path.relative(cwd, imported) },
-      { path: path.relative(cwd, text) },
+    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 113)
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
+      { path: makePath(imported) },
+      { path: makePath(text) },
     ])
-    assert.deepStrictEqual(json.inputs[path.relative(cwd, imported)].bytes, 18)
-    assert.deepStrictEqual(json.inputs[path.relative(cwd, imported)].imports, [])
-    assert.deepStrictEqual(json.inputs[path.relative(cwd, text)].bytes, 9)
-    assert.deepStrictEqual(json.inputs[path.relative(cwd, text)].imports, [])
+    assert.deepStrictEqual(json.inputs[makePath(imported)].bytes, 18)
+    assert.deepStrictEqual(json.inputs[makePath(imported)].imports, [])
+    assert.deepStrictEqual(json.inputs[makePath(text)].bytes, 9)
+    assert.deepStrictEqual(json.inputs[makePath(text)].imports, [])
 
     // Check outputs
-    assert.strictEqual(typeof json.outputs[path.relative(cwd, output)].bytes, 'number')
-    assert.strictEqual(typeof json.outputs[path.relative(cwd, output) + '.map'].bytes, 'number')
-    assert.deepStrictEqual(json.outputs[path.relative(cwd, output) + '.map'].inputs, {})
+    assert.strictEqual(typeof json.outputs[makePath(output)].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(output) + '.map'].bytes, 'number')
+    assert.deepStrictEqual(json.outputs[makePath(output) + '.map'].inputs, {})
 
     // Check inputs for main output
-    const outputInputs = json.outputs[path.relative(cwd, output)].inputs
+    const outputInputs = json.outputs[makePath(output)].inputs
     assert.strictEqual(Object.keys(outputInputs).length, 3)
-    assert.strictEqual(typeof outputInputs[path.relative(cwd, entry)].bytesInOutput, 'number')
-    assert.strictEqual(typeof outputInputs[path.relative(cwd, imported)].bytesInOutput, 'number')
-    assert.strictEqual(typeof outputInputs[path.relative(cwd, text)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[makePath(entry)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[makePath(imported)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[makePath(text)].bytesInOutput, 'number')
   },
 }
 
