@@ -796,3 +796,29 @@ console.log("unused import");
 		},
 	})
 }
+
+func TestRemoveUnusedImportMeta(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function foo() {
+					console.log(import.meta.url, import.meta.path)
+				}
+				console.log('foo is unused')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log("foo is unused");
+`,
+		},
+	})
+}

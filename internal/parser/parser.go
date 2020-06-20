@@ -37,6 +37,7 @@ type parser struct {
 	hasTopLevelReturn        bool
 	currentFnOpts            fnOpts
 	latestReturnHadSemicolon bool
+	hasImportMeta            bool
 	allocatedNames           []string
 	latestArrowArgLoc        ast.Loc
 	currentScope             *ast.Scope
@@ -45,6 +46,7 @@ type parser struct {
 	exportsRef               ast.Ref
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
+	importMetaRef            ast.Ref
 	findSymbolHelper         FindSymbol
 	useCountEstimates        map[ast.Ref]uint32
 	declaredSymbols          []ast.DeclaredSymbol
@@ -2786,6 +2788,7 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 		p.lexer.Next()
 		if p.lexer.IsContextualKeyword("meta") {
 			p.lexer.Next()
+			p.hasImportMeta = true
 			return ast.Expr{loc, &ast.EImportMeta{}}
 		} else {
 			p.lexer.ExpectedString("\"meta\"")
@@ -8431,9 +8434,10 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EImportMeta:
-		if p.IsBundling {
-			// Replace "import.meta" with a dummy object when bundling
-			return ast.Expr{expr.Loc, &ast.EObject{}}, exprOut{}
+		if p.importMetaRef != ast.InvalidRef {
+			// Replace "import.meta" with a reference to the symbol
+			p.recordUsage(p.importMetaRef)
+			return ast.Expr{expr.Loc, &ast.EIdentifier{p.importMetaRef}}, exprOut{}
 		}
 
 	case *ast.ESpread:
@@ -9742,6 +9746,21 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		}
 	}
 
+	// Insert a variable for "import.meta" at the top of the file if it was used.
+	// We don't need to worry about "use strict" directives because this only
+	// happens when bundling, in which case we are flatting the module scopes of
+	// all modules together anyway so such directives are meaningless.
+	if p.importMetaRef != ast.InvalidRef {
+		importMetaStmt := ast.Stmt{Data: &ast.SLocal{
+			Kind: ast.LocalConst,
+			Decls: []ast.Decl{ast.Decl{
+				Binding: ast.Binding{Data: &ast.BIdentifier{p.importMetaRef}},
+				Value:   &ast.Expr{Data: &ast.EObject{}},
+			}},
+		}}
+		stmts = append(append(make([]ast.Stmt, 0, len(stmts)+1), importMetaStmt), stmts...)
+	}
+
 	// Bind symbols in a second pass over the AST. I started off doing this in a
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
@@ -9909,6 +9928,13 @@ func (p *parser) prepareForVisitPass(options *ParseOptions) {
 		p.exportsRef = p.newSymbol(ast.SymbolHoisted, "exports")
 		p.requireRef = p.newSymbol(ast.SymbolUnbound, "require")
 		p.moduleRef = p.newSymbol(ast.SymbolHoisted, "module")
+	}
+
+	if options.IsBundling && p.hasImportMeta {
+		p.importMetaRef = p.newSymbol(ast.SymbolOther, "import_meta")
+		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
+	} else {
+		p.importMetaRef = ast.InvalidRef
 	}
 }
 

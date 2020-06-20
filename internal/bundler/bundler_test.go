@@ -5373,3 +5373,49 @@ export {default as bar} from "./bar";
 		},
 	})
 }
+
+func TestImportMeta(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(import.meta.url, import.meta.path)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+const import_meta = {};
+console.log(import_meta.url, import_meta.path);
+`,
+		},
+	})
+}
+
+func TestImportMetaNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(import.meta.url, import.meta.path)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `console.log(import.meta.url, import.meta.path);
+`,
+		},
+	})
+}
