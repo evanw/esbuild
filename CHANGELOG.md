@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.5
 
 * Implement logical assignment operator transforms
 
