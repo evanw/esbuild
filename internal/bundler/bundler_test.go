@@ -5311,7 +5311,7 @@ export {
 	})
 }
 
-func TestReExportDefault(t *testing.T) {
+func TestReExportDefaultInternal(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `

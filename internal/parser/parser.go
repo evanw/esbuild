@@ -6984,12 +6984,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.recordDeclaredSymbol(s.NamespaceRef)
 
 		// This is a re-export and the symbols created here are used to reference
-		// names in another file. This means the symbols are really aliases. The
-		// symbols are marked as "unbound" so that they aren't accidentally renamed
-		// by the code that avoids symbol name collisions.
+		// names in another file. This means the symbols are really aliases.
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
-			ref := p.newSymbol(ast.SymbolUnbound, name)
+			ref := p.newSymbol(ast.SymbolOther, name)
 			p.currentScope.Generated = append(p.currentScope.Generated, ref)
 			p.recordDeclaredSymbol(ref)
 			s.Items[i].Name.Ref = ref

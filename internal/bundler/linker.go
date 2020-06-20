@@ -2374,7 +2374,17 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 					hasImportOrExport = true
 				}
 
-			case *ast.SExportClause, *ast.SExportDefault, *ast.SExportStar, *ast.SExportFrom:
+			case *ast.SExportClause, *ast.SExportDefault, *ast.SExportStar:
+				hasImportOrExport = true
+
+			case *ast.SExportFrom:
+				// This is a re-export and the symbols created here are used to reference
+				// names in another file. This means the symbols are really aliases. The
+				// symbols are marked as "unbound" so that they aren't accidentally renamed
+				// by the code that avoids symbol name collisions.
+				for _, item := range s.Items {
+					c.symbols.Get(item.Name.Ref).Kind = ast.SymbolUnbound
+				}
 				hasImportOrExport = true
 			}
 		}

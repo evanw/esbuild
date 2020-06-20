@@ -26,6 +26,12 @@ func computeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[
 				names[symbol.Name] = true
 			}
 		}
+		for _, ref := range scope.Generated {
+			symbol := symbols.Get(ref)
+			if symbol.Kind == ast.SymbolUnbound {
+				names[symbol.Name] = true
+			}
+		}
 	}
 
 	return names
