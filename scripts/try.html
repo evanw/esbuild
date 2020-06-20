@@ -89,17 +89,17 @@
 
     .terminal-error {
       font-weight: bold;
-      color: #F00;
+      color: #D00;
     }
 
     .terminal-underline {
       font-weight: bold;
-      color: #0F0;
+      color: #0D0;
     }
 
     .terminal-warning {
       font-weight: bold;
-      color: #F0F;
+      color: #D0D;
     }
 
     body {
@@ -111,6 +111,10 @@
     #output .outer {
       background: #FFF;
       border: 1px solid #CCC;
+    }
+
+    .terminal-subtle {
+      color: #777;
     }
 
     .terminal-bold {
@@ -128,6 +132,10 @@
       #output .outer {
         background: #111;
         border: 1px solid #555;
+      }
+
+      .terminal-subtle {
+        color: #999;
       }
 
       .terminal-bold {
@@ -211,10 +219,10 @@
           loader: loader.value.toLowerCase(),
           minify: minify.checked,
         }).then(({ js, warnings }) => {
-          let html = messagesToHTML('warning', warnings)
+          let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
           output.innerHTML = (html && html + '<hr>') + textToHTML(js);
         }, ({ errors, warnings }) => {
-          output.innerHTML = messagesToHTML('error', errors) + messagesToHTML('warning', warnings);
+          output.innerHTML = messagesToHTML(addKindToMessages(errors, 'error').concat(addKindToMessages(warnings, 'warning')));
         }).then(() => {
           isRunning = false
           if (needsRun) runIfIdle()
@@ -234,8 +242,15 @@
         return result
       }
 
-      function messagesToHTML(kind, messages) {
-        return messages.map(({ text, location }) => {
+      function addKindToMessages(messages, kind) {
+        return messages.map(({ text, location }) => ({ text, location, kind }))
+      }
+
+      function messagesToHTML(messages) {
+        return messages.sort((a, b) => {
+          let al = a.location, bl = b.location
+          return al && bl && (al.line - bl.line || al.column - bl.column) || (a.text < b.text) - (a.text > b.text)
+        }).map(({ text, location, kind }) => {
           let html = ''
           if (location) {
             html = `<span class="terminal-bold">${textToHTML(location.file)}:${location.line}:${location.column}: </span>`
@@ -243,10 +258,13 @@
           html += `<span class="terminal-${kind}">${kind}: </span>`
           html += `<span class="terminal-bold">${textToHTML(text)}</span><br>`
           if (location) {
-            let spaces = ' '.repeat(renderTabs(location.lineText.slice(0, location.column)).length)
+            let indent = renderTabs(location.lineText.slice(0, location.column)).length
             let underline = location.length > 1 ? '~'.repeat(location.length) : '^'
-            html += `${textToHTML(renderTabs(location.lineText))}<br>`
-            html += `<span class="terminal-underline">${spaces}${underline}</span><br>`
+            let line = renderTabs(location.lineText)
+            html += `<span class="terminal-subtle">${textToHTML(line.slice(0, indent))}</span>`
+            html += `<span class="terminal-underline">${line.slice(indent, indent + location.length)}</span>`
+            html += `<span class="terminal-subtle">${textToHTML(line.slice(indent + location.length))}</span>`
+            html += `<br><span class="terminal-underline">${' '.repeat(indent)}${underline}</span><br>`
           }
           return html
         }).join('');
