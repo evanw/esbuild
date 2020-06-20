@@ -204,7 +204,50 @@ A prebuilt binary can be installed using npm:
 
 The `esbuild` package should work on 64-bit macOS, Linux, and Windows systems. It contains an install script that downloads the appropriate package for the current platform. If the install script isn't working or you need to run esbuild on an unsupported platform, there is a fallback WebAssembly package called [esbuild-wasm](https://npmjs.com/package/esbuild-wasm) that should work on all platforms.
 
-For development, the executable can be built by running `make` (assuming you have the Go language toolchain installed).
+<details>
+<summary>Other installation methods (click to expand)</summary><br>
+
+The binary is only hosted on npm for convenience. Since esbuild is a native binary, it's not necessary to install npm to use esbuild.
+
+### Install using HTTP
+
+The binary can be downloaded from the npm registry directly over HTTP without needing to install npm first.
+
+* For Linux (the binary will be `./package/bin/esbuild`):
+
+    ```
+    curl -O https://registry.npmjs.org/esbuild-linux-64/-/esbuild-linux-64-0.0.0.tgz
+    tar xf ./esbuild-linux-64-0.0.0.tgz
+    ```
+
+* For macOS (the binary will be `./package/bin/esbuild`):
+
+    ```
+    curl -O https://registry.npmjs.org/esbuild-darwin-64/-/esbuild-darwin-64-0.0.0.tgz
+    tar xf ./esbuild-darwin-64-0.0.0.tgz
+    ```
+
+* For Windows (the binary will be `./package/esbuild.exe`):
+
+    ```
+    curl -O https://registry.npmjs.org/esbuild-windows-64/-/esbuild-windows-64-0.0.0.tgz
+    tar xf ./esbuild-windows-64-0.0.0.tgz
+    ```
+
+Substitute `0.0.0` for the version of esbuild that you want to download.
+
+### Build from source
+
+If you have the Go compiler toolchain installed, you can also build esbuild from source:
+
+```
+git clone --depth 1 --branch v0.0.0 https://github.com/evanw/esbuild.git
+cd esbuild
+go build ./cmd/esbuild
+```
+
+This will create a binary called `esbuild` (`esbuild.exe` on Windows). Substitute `v0.0.0` for the version of esbuild that you want to build.
+</details>
 
 ## Command-line usage
 
