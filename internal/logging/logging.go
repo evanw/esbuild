@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
 )
 
 type Log struct {
-	msgs chan Msg
+	addMsg func(Msg)
 }
 
 type LogLevel int8
@@ -86,13 +87,6 @@ func (s *Source) RangeOfString(loc ast.Loc) ast.Range {
 	return ast.Range{loc, 0}
 }
 
-type stderrLogInfo struct {
-	msgs             []Msg
-	errors           int
-	warnings         int
-	errorLimitWasHit bool
-}
-
 func plural(prefix string, count int) string {
 	if count == 1 {
 		return fmt.Sprintf("%d %s", count, prefix)
@@ -100,21 +94,16 @@ func plural(prefix string, count int) string {
 	return fmt.Sprintf("%d %ss", count, prefix)
 }
 
-func (counts stderrLogInfo) String() string {
-	if counts.errors == 0 {
-		if counts.warnings == 0 {
-			return "no errors"
-		} else {
-			return plural("warning", counts.warnings)
-		}
-	} else {
-		if counts.warnings == 0 {
-			return plural("error", counts.errors)
-		} else {
-			return fmt.Sprintf("%s and %s",
-				plural("warning", counts.warnings),
-				plural("error", counts.errors))
-		}
+func errorAndWarningSummary(errors int, warnings int) string {
+	switch {
+	case errors == 0:
+		return plural("warning", warnings)
+	case warnings == 0:
+		return plural("error", errors)
+	default:
+		return fmt.Sprintf("%s and %s",
+			plural("warning", warnings),
+			plural("error", errors))
 	}
 }
 
@@ -125,10 +114,44 @@ type TerminalInfo struct {
 }
 
 func NewStderrLog(options StderrOptions) (Log, func() []Msg) {
-	msgs := make(chan Msg)
-	done := make(chan stderrLogInfo)
-	log := Log{msgs}
+	var mutex sync.Mutex
+	var msgs []Msg
 	terminalInfo := GetTerminalInfo(os.Stderr)
+	errors := 0
+	warnings := 0
+	errorLimitWasHit := false
+
+	log := Log{func(msg Msg) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		msgs = append(msgs, msg)
+
+		// Be silent if we're past the limit so we don't flood the terminal
+		if errorLimitWasHit {
+			return
+		}
+
+		switch msg.Kind {
+		case Error:
+			errors++
+			if options.LogLevel <= LevelError {
+				os.Stderr.WriteString(msg.String(options, terminalInfo))
+			}
+		case Warning:
+			warnings++
+			if options.LogLevel <= LevelWarning {
+				os.Stderr.WriteString(msg.String(options, terminalInfo))
+			}
+		}
+
+		// Silence further output if we reached the error limit
+		if options.ErrorLimit != 0 && errors >= options.ErrorLimit {
+			errorLimitWasHit = true
+			if options.LogLevel <= LevelError {
+				fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", errorAndWarningSummary(errors, warnings))
+			}
+		}
+	}}
 
 	switch options.Color {
 	case ColorNever:
@@ -137,50 +160,16 @@ func NewStderrLog(options StderrOptions) (Log, func() []Msg) {
 		terminalInfo.UseColorEscapes = SupportsColorEscapes
 	}
 
-	go func(msgs chan Msg, done chan stderrLogInfo) {
-		result := stderrLogInfo{}
-		for msg := range msgs {
-			result.msgs = append(result.msgs, msg)
-
-			// Be silent if we're past the limit so we don't flood the terminal
-			if result.errorLimitWasHit {
-				continue
-			}
-
-			switch msg.Kind {
-			case Error:
-				result.errors++
-				if options.LogLevel <= LevelError {
-					os.Stderr.WriteString(msg.String(options, terminalInfo))
-				}
-			case Warning:
-				result.warnings++
-				if options.LogLevel <= LevelWarning {
-					os.Stderr.WriteString(msg.String(options, terminalInfo))
-				}
-			}
-
-			// Silence further output if we reached the error limit
-			if options.ErrorLimit != 0 && result.errors >= options.ErrorLimit {
-				result.errorLimitWasHit = true
-				if options.LogLevel <= LevelError {
-					fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", result.String())
-				}
-			}
-		}
-		done <- result
-	}(msgs, done)
-
 	return log, func() []Msg {
-		close(log.msgs)
-		result := <-done
+		mutex.Lock()
+		defer mutex.Unlock()
 
 		// Print out a summary if the error limit wasn't hit
-		if !result.errorLimitWasHit && options.LogLevel <= LevelInfo && (result.warnings != 0 || result.errors != 0) {
-			fmt.Fprintf(os.Stderr, "%s\n", result.String())
+		if !errorLimitWasHit && options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
+			fmt.Fprintf(os.Stderr, "%s\n", errorAndWarningSummary(errors, warnings))
 		}
 
-		return result.msgs
+		return msgs
 	}
 }
 
@@ -210,21 +199,19 @@ func PrintErrorToStderr(osArgs []string, text string) {
 }
 
 func NewDeferLog() (Log, func() []Msg) {
-	msgs := make(chan Msg)
-	done := make(chan []Msg)
-	log := Log{msgs}
+	var msgs []Msg
+	var mutex sync.Mutex
 
-	go func(msgs chan Msg, done chan []Msg) {
-		var result []Msg
-		for msg := range msgs {
-			result = append(result, msg)
-		}
-		done <- result
-	}(msgs, done)
+	log := Log{func(msg Msg) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		msgs = append(msgs, msg)
+	}}
 
 	return log, func() []Msg {
-		close(log.msgs)
-		return <-done
+		mutex.Lock()
+		defer mutex.Unlock()
+		return msgs
 	}
 }
 
@@ -474,17 +461,17 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 }
 
 func (log Log) AddError(source *Source, loc ast.Loc, text string) {
-	log.msgs <- Msg{source, loc.Start, 0, text, Error}
+	log.addMsg(Msg{source, loc.Start, 0, text, Error})
 }
 
 func (log Log) AddWarning(source *Source, loc ast.Loc, text string) {
-	log.msgs <- Msg{source, loc.Start, 0, text, Warning}
+	log.addMsg(Msg{source, loc.Start, 0, text, Warning})
 }
 
 func (log Log) AddRangeError(source *Source, r ast.Range, text string) {
-	log.msgs <- Msg{source, r.Loc.Start, r.Len, text, Error}
+	log.addMsg(Msg{source, r.Loc.Start, r.Len, text, Error})
 }
 
 func (log Log) AddRangeWarning(source *Source, r ast.Range, text string) {
-	log.msgs <- Msg{source, r.Loc.Start, r.Len, text, Warning}
+	log.addMsg(Msg{source, r.Loc.Start, r.Len, text, Warning})
 }
