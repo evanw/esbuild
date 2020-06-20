@@ -209,7 +209,7 @@ The `esbuild` package should work on 64-bit macOS, Linux, and Windows systems. I
 
 The binary is only hosted on npm for convenience. Since esbuild is a native binary, it's not necessary to install npm to use esbuild.
 
-### Install using HTTP
+### Download using HTTP
 
 The binary can be downloaded from the npm registry directly over HTTP without needing to install npm first.
 
@@ -236,9 +236,19 @@ The binary can be downloaded from the npm registry directly over HTTP without ne
 
 Substitute `0.0.0` for the version of esbuild that you want to download.
 
+### Install using Go
+
+If you have the Go compiler toolchain installed, you can use it to install the `esbuild` command globally:
+
+```
+GO111MODULE=on go get https://github.com/evanw/esbuild@v0.0.0
+```
+
+The binary will be placed in Go's global binary directory (the directory called `bin` located inside the directory returned by `go env GOPATH`). You may need to add that `bin` directory to your `PATH`. Substitute `v0.0.0` for the version of esbuild that you want to build.
+
 ### Build from source
 
-If you have the Go compiler toolchain installed, you can also build esbuild from source:
+You can also build esbuild from source:
 
 ```
 git clone --depth 1 --branch v0.0.0 https://github.com/evanw/esbuild.git
@@ -246,7 +256,7 @@ cd esbuild
 go build ./cmd/esbuild
 ```
 
-This will create a binary called `esbuild` (`esbuild.exe` on Windows). Substitute `v0.0.0` for the version of esbuild that you want to build.
+This will create a binary called `esbuild` (`esbuild.exe` on Windows) in the current directory. Substitute `v0.0.0` for the version of esbuild that you want to build.
 </details>
 
 ## Command-line usage
