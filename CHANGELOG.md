@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix re-export statements ([#190](https://github.com/evanw/esbuild/issues/190))
+
+    The previous release caused a regression due to some behind-the-scenes work for the upcoming code splitting feature. The re-export alias in statements of the form `export { foo as bar } from 'path'` could sometimes incorrectly be renamed to something else, such as `foo` becoming `foo2`. This release fixes the bug.
+
 ## 0.5.5
 
 * Implement logical assignment operator transforms

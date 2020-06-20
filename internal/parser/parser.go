@@ -6965,7 +6965,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SExportClause:
-		// "export {foo}
+		// "export {foo}"
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
 			ref := p.findSymbol(name).ref
@@ -6980,10 +6980,13 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.currentScope.Generated = append(p.currentScope.Generated, s.NamespaceRef)
 		p.recordDeclaredSymbol(s.NamespaceRef)
 
-		// This is a re-export and the names are symbols in another file
+		// This is a re-export and the symbols created here are used to reference
+		// names in another file. This means the symbols are really aliases. The
+		// symbols are marked as "unbound" so that they aren't accidentally renamed
+		// by the code that avoids symbol name collisions.
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
-			ref := p.newSymbol(ast.SymbolOther, name)
+			ref := p.newSymbol(ast.SymbolUnbound, name)
 			p.currentScope.Generated = append(p.currentScope.Generated, ref)
 			p.recordDeclaredSymbol(ref)
 			s.Items[i].Name.Ref = ref

@@ -5310,3 +5310,66 @@ export {
 		},
 	})
 }
+
+func TestReExportDefault(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {default as foo} from './foo'
+				export {default as bar} from './bar'
+			`,
+			"/foo.js": `
+				export default 'foo'
+			`,
+			"/bar.js": `
+				export default 'bar'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /foo.js
+const foo_default = "foo";
+
+// /bar.js
+const bar_default = "bar";
+
+// /entry.js
+export {
+  bar_default as bar,
+  foo_default as foo
+};
+`,
+		},
+	})
+}
+
+func TestReExportDefaultNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {default as foo} from './foo'
+				export {default as bar} from './bar'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `export {default as foo} from "./foo";
+export {default as bar} from "./bar";
+`,
+		},
+	})
+}
