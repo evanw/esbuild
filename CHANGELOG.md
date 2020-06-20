@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.6
 
 * Fix re-export statements ([#190](https://github.com/evanw/esbuild/issues/190))
 
