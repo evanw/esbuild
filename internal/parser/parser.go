@@ -6127,17 +6127,26 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 
 func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
-		// "a ??= b" => "(_a = a) != null ? _a : a = b"
-		testFunc, testWrapFunc := p.captureValueWithPossibleSideEffects(a.Loc, 2, a)
-		return testWrapFunc(ast.Expr{loc, &ast.EIf{
-			Test: ast.Expr{loc, &ast.EBinary{
-				Op:    ast.BinOpLooseNe,
-				Left:  testFunc(),
-				Right: ast.Expr{loc, &ast.ENull{}},
-			}},
-			Yes: testFunc(),
-			No:  ast.Expr{loc, &ast.EBinary{Op: ast.BinOpAssign, Left: b, Right: e.Right}},
-		}})
+		if p.Target < ES2020 {
+			// "a ??= b" => "(_a = a) != null ? _a : a = b"
+			testFunc, testWrapFunc := p.captureValueWithPossibleSideEffects(a.Loc, 2, a)
+			return testWrapFunc(ast.Expr{loc, &ast.EIf{
+				Test: ast.Expr{loc, &ast.EBinary{
+					Op:    ast.BinOpLooseNe,
+					Left:  testFunc(),
+					Right: ast.Expr{loc, &ast.ENull{}},
+				}},
+				Yes: testFunc(),
+				No:  ast.Expr{loc, &ast.EBinary{Op: ast.BinOpAssign, Left: b, Right: e.Right}},
+			}})
+		}
+
+		// "a ??= b" => "a ?? (a = b)"
+		return ast.Expr{loc, &ast.EBinary{
+			Op:    ast.BinOpNullishCoalescing,
+			Left:  a,
+			Right: ast.Expr{loc, &ast.EBinary{Op: ast.BinOpAssign, Left: b, Right: e.Right}},
+		}}
 	})
 }
 

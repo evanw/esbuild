@@ -1535,6 +1535,7 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 
 func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrintedTarget(t, ES2020, "a ?? b", "a ?? b;\n")
+
 	expectPrintedTarget(t, ES2019, "a ?? b", "a != null ? a : b;\n")
 	expectPrintedTarget(t, ES2019, "a() ?? b()", "var _a;\n(_a = a()) != null ? _a : b();\n")
 	expectPrintedTarget(t, ES2019, "function foo() { if (x) { a() ?? b() ?? c() } }",
@@ -1545,22 +1546,30 @@ func TestLowerNullishCoalescing(t *testing.T) {
 
 func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, ESNext, "a ??= b", "a ??= b;\n")
-	expectPrintedTarget(t, ES2020, "a ??= b", "a != null ? a : a = b;\n")
-	expectPrintedTarget(t, ES2020, "a.b ??= c", "var _a;\n(_a = a.b) != null ? _a : a.b = c;\n")
-	expectPrintedTarget(t, ES2020, "a().b ??= c", "var _a, _b;\n(_b = (_a = a()).b) != null ? _b : _a.b = c;\n")
-	expectPrintedTarget(t, ES2020, "a[b] ??= c", "var _a;\n(_a = a[b]) != null ? _a : a[b] = c;\n")
-	expectPrintedTarget(t, ES2020, "a()[b()] ??= c", "var _a, _b, _c;\n(_c = (_a = a())[_b = b()]) != null ? _c : _a[_b] = c;\n")
+
+	expectPrintedTarget(t, ES2019, "a ??= b", "a != null ? a : a = b;\n")
+	expectPrintedTarget(t, ES2019, "a.b ??= c", "var _a;\n(_a = a.b) != null ? _a : a.b = c;\n")
+	expectPrintedTarget(t, ES2019, "a().b ??= c", "var _a, _b;\n(_b = (_a = a()).b) != null ? _b : _a.b = c;\n")
+	expectPrintedTarget(t, ES2019, "a[b] ??= c", "var _a;\n(_a = a[b]) != null ? _a : a[b] = c;\n")
+	expectPrintedTarget(t, ES2019, "a()[b()] ??= c", "var _a, _b, _c;\n(_c = (_a = a())[_b = b()]) != null ? _c : _a[_b] = c;\n")
+
+	expectPrintedTarget(t, ES2020, "a ??= b", "a ?? (a = b);\n")
+	expectPrintedTarget(t, ES2020, "a.b ??= c", "a.b ?? (a.b = c);\n")
+	expectPrintedTarget(t, ES2020, "a().b ??= c", "var _a;\n(_a = a()).b ?? (_a.b = c);\n")
+	expectPrintedTarget(t, ES2020, "a[b] ??= c", "a[b] ?? (a[b] = c);\n")
+	expectPrintedTarget(t, ES2020, "a()[b()] ??= c", "var _a, _b;\n(_a = a())[_b = b()] ?? (_a[_b] = c);\n")
 }
 
 func TestLowerLogicalAssign(t *testing.T) {
 	expectPrintedTarget(t, ESNext, "a &&= b", "a &&= b;\n")
+	expectPrintedTarget(t, ESNext, "a ||= b", "a ||= b;\n")
+
 	expectPrintedTarget(t, ES2020, "a &&= b", "a && (a = b);\n")
 	expectPrintedTarget(t, ES2020, "a.b &&= c", "a.b && (a.b = c);\n")
 	expectPrintedTarget(t, ES2020, "a().b &&= c", "var _a;\n(_a = a()).b && (_a.b = c);\n")
 	expectPrintedTarget(t, ES2020, "a[b] &&= c", "a[b] && (a[b] = c);\n")
 	expectPrintedTarget(t, ES2020, "a()[b()] &&= c", "var _a, _b;\n(_a = a())[_b = b()] && (_a[_b] = c);\n")
 
-	expectPrintedTarget(t, ESNext, "a ||= b", "a ||= b;\n")
 	expectPrintedTarget(t, ES2020, "a ||= b", "a || (a = b);\n")
 	expectPrintedTarget(t, ES2020, "a.b ||= c", "a.b || (a.b = c);\n")
 	expectPrintedTarget(t, ES2020, "a().b ||= c", "var _a;\n(_a = a()).b || (_a.b = c);\n")
