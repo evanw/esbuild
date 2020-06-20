@@ -2730,7 +2730,6 @@ const (
 	futureSyntaxBigInteger
 	futureSyntaxNonIdentifierArrayRest
 	futureSyntaxPrivateName
-	futureSyntaxLogicalAssign
 )
 
 func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
@@ -2750,8 +2749,6 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 	case futureSyntaxNonIdentifierArrayRest:
 		target = ES2016
 	case futureSyntaxPrivateName:
-		target = ESNext
-	case futureSyntaxLogicalAssign:
 		target = ESNext
 	}
 
@@ -2775,8 +2772,6 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 			name = "Non-identifier array rest patterns"
 		case futureSyntaxPrivateName:
 			name = "Private names"
-		case futureSyntaxLogicalAssign:
-			name = "Logical assignment operators"
 		}
 
 		p.log.AddRangeError(&p.source, r,
@@ -3314,7 +3309,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			if level >= ast.LAssign {
 				return left
 			}
-			p.markFutureSyntax(futureSyntaxLogicalAssign, p.lexer.Range())
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpNullishCoalescingAssign, left, p.parseExpr(ast.LAssign - 1)}}
 
@@ -3329,7 +3323,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			if level >= ast.LAssign {
 				return left
 			}
-			p.markFutureSyntax(futureSyntaxLogicalAssign, p.lexer.Range())
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalOrAssign, left, p.parseExpr(ast.LAssign - 1)}}
 
@@ -3344,7 +3337,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			if level >= ast.LAssign {
 				return left
 			}
-			p.markFutureSyntax(futureSyntaxLogicalAssign, p.lexer.Range())
 			p.lexer.Next()
 			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalAndAssign, left, p.parseExpr(ast.LAssign - 1)}}
 
@@ -6071,61 +6063,94 @@ func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 	}
 }
 
-func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
-	switch left := e.Left.Data.(type) {
+func (p *parser) lowerAssignmentOperator(
+	value ast.Expr,
+	callback func(ast.Expr, ast.Expr) ast.Expr,
+) ast.Expr {
+	switch left := value.Data.(type) {
 	case *ast.EDot:
 		if left.OptionalChain == ast.OptionalChainNone {
-			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
-			return wrapFunc(ast.Expr{loc, &ast.EBinary{
-				Op: ast.BinOpAssign,
-				Left: ast.Expr{e.Left.Loc, &ast.EDot{
+			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target)
+			return wrapFunc(callback(
+				ast.Expr{value.Loc, &ast.EDot{
 					Target:  referenceFunc(),
 					Name:    left.Name,
 					NameLoc: left.NameLoc,
 				}},
-				Right: p.callRuntime(loc, "__pow", []ast.Expr{
-					ast.Expr{e.Left.Loc, &ast.EDot{
-						Target:  referenceFunc(),
-						Name:    left.Name,
-						NameLoc: left.NameLoc,
-					}},
-					e.Right,
-				}),
-			}})
+				ast.Expr{value.Loc, &ast.EDot{
+					Target:  referenceFunc(),
+					Name:    left.Name,
+					NameLoc: left.NameLoc,
+				}},
+			))
 		}
 
 	case *ast.EIndex:
 		if left.OptionalChain == ast.OptionalChainNone {
-			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Target)
-			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left.Index)
-			return targetWrapFunc(indexWrapFunc(ast.Expr{loc, &ast.EBinary{
-				Op: ast.BinOpAssign,
-				Left: ast.Expr{e.Left.Loc, &ast.EIndex{
+			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target)
+			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Index)
+			return targetWrapFunc(indexWrapFunc(callback(
+				ast.Expr{value.Loc, &ast.EIndex{
 					Target: targetFunc(),
 					Index:  indexFunc(),
 				}},
-				Right: p.callRuntime(loc, "__pow", []ast.Expr{
-					ast.Expr{e.Left.Loc, &ast.EIndex{
-						Target: targetFunc(),
-						Index:  indexFunc(),
-					}},
-					e.Right,
-				}),
-			}}))
+				ast.Expr{value.Loc, &ast.EIndex{
+					Target: targetFunc(),
+					Index:  indexFunc(),
+				}},
+			)))
 		}
 
 	case *ast.EIdentifier:
-		return ast.Expr{loc, &ast.EBinary{
-			Op:    ast.BinOpAssign,
-			Left:  ast.Expr{e.Left.Loc, &ast.EIdentifier{left.Ref}},
-			Right: p.callRuntime(loc, "__pow", []ast.Expr{e.Left, e.Right}),
-		}}
+		return callback(
+			ast.Expr{value.Loc, &ast.EIdentifier{left.Ref}},
+			value,
+		)
 	}
 
 	// We shouldn't get here with valid syntax? Just let this through for now
 	// since there's currently no assignment target validation. Garbage in,
 	// garbage out.
-	return ast.Expr{loc, e}
+	return value
+}
+
+func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
+	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
+		// "a **= b" => "a = __pow(a, b)"
+		return ast.Expr{loc, &ast.EBinary{
+			Op:    ast.BinOpAssign,
+			Left:  a,
+			Right: p.callRuntime(loc, "__pow", []ast.Expr{b, e.Right}),
+		}}
+	})
+}
+
+func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
+	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
+		// "a ??= b" => "(_a = a) != null ? _a : a = b"
+		testFunc, testWrapFunc := p.captureValueWithPossibleSideEffects(a.Loc, 2, a)
+		return testWrapFunc(ast.Expr{loc, &ast.EIf{
+			Test: ast.Expr{loc, &ast.EBinary{
+				Op:    ast.BinOpLooseNe,
+				Left:  testFunc(),
+				Right: ast.Expr{loc, &ast.ENull{}},
+			}},
+			Yes: testFunc(),
+			No:  ast.Expr{loc, &ast.EBinary{Op: ast.BinOpAssign, Left: b, Right: e.Right}},
+		}})
+	})
+}
+
+func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op ast.OpCode) ast.Expr {
+	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
+		// "a &&= b" => "a && (a = b)"
+		// "a ||= b" => "a || (a = b)"
+		return ast.Expr{loc, &ast.EBinary{
+			Op:    op,
+			Left:  a,
+			Right: ast.Expr{loc, &ast.EBinary{Op: ast.BinOpAssign, Left: b, Right: e.Right}},
+		}}
+	})
 }
 
 // Lower object spread for environments that don't support them. Non-spread
@@ -8655,6 +8680,21 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// Lower the exponentiation operator for browsers that don't support it
 			if p.Target < ES2016 {
 				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
+			}
+
+		case ast.BinOpNullishCoalescingAssign:
+			if p.Target < ESNext {
+				return p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e), exprOut{}
+			}
+
+		case ast.BinOpLogicalAndAssign:
+			if p.Target < ESNext {
+				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalAnd), exprOut{}
+			}
+
+		case ast.BinOpLogicalOrAssign:
+			if p.Target < ESNext {
+				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalOr), exprOut{}
 			}
 
 		case ast.BinOpShl:

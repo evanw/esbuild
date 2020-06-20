@@ -106,6 +106,7 @@ These syntax features are conditionally transformed for older browsers depending
 | [Nullish coalescing](https://github.com/tc39/proposal-nullish-coalescing)           | `es2020`                             | `a ?? b`             |
 | [Class instance fields](https://github.com/tc39/proposal-class-fields)              | `esnext`                             | `class { x }`        |
 | [Static class fields](https://github.com/tc39/proposal-static-class-features)       | `esnext`                             | `class { static x }` |
+| [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment) | `esnext`                             | `a ??= b`            |
 
 These syntax features are currently always passed through un-transformed:
 
@@ -121,7 +122,6 @@ These syntax features are currently always passed through un-transformed:
 | [Private instance fields](https://github.com/tc39/proposal-class-fields)            | `esnext`                             | `class { #x }`              |
 | [Private static methods](https://github.com/tc39/proposal-static-class-features)    | `esnext`                             | `class { static #x() {} }`  |
 | [Private static fields](https://github.com/tc39/proposal-static-class-features)     | `esnext`                             | `class { static #x }`       |
-| [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment) | `esnext`                             | `a ??= b`                   |
 
 These syntax features are not yet supported, and currently cannot be parsed:
 
