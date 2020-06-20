@@ -9,7 +9,7 @@ import (
 
 func expectParseErrorTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
@@ -20,7 +20,7 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 				Parse: true,
 			},
 		})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -31,7 +31,7 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 
 func expectPrintedTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		ast, ok := Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
@@ -42,7 +42,7 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 				Parse: true,
 			},
 		})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -58,7 +58,7 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 
 func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
@@ -72,7 +72,7 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 				Parse: true,
 			},
 		})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -83,7 +83,7 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 
 func expectPrintedTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		ast, ok := Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
@@ -97,7 +97,7 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 				Parse: true,
 			},
 		})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})

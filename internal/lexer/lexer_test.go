@@ -35,20 +35,19 @@ func assertEqualStrings(t *testing.T, a string, b string) {
 }
 
 func lexToken(t *testing.T, contents string) T {
-	log, join := logging.NewDeferLog()
+	log := logging.NewDeferLog()
 	lexer := NewLexer(log, logging.Source{
 		Index:        0,
 		AbsolutePath: "<stdin>",
 		PrettyPath:   "<stdin>",
 		Contents:     contents,
 	})
-	join()
 	return lexer.Token
 }
 
 func expectLexerError(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		func() {
 			defer func() {
 				r := recover()
@@ -63,7 +62,7 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 				Contents:     contents,
 			})
 		}()
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -74,7 +73,7 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 
 func expectHashbang(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -89,7 +88,7 @@ func expectHashbang(t *testing.T, contents string, expected string) {
 				Contents:     contents,
 			})
 		}()
-		msgs := join()
+		msgs := log.Done()
 		assertEqual(t, len(msgs), 0)
 		assertEqual(t, lexer.Token, THashbang)
 		assertEqual(t, lexer.Identifier, expected)
@@ -105,7 +104,7 @@ func TestHashbang(t *testing.T) {
 
 func expectIdentifier(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -120,7 +119,7 @@ func expectIdentifier(t *testing.T, contents string, expected string) {
 				Contents:     contents,
 			})
 		}()
-		msgs := join()
+		msgs := log.Done()
 		assertEqual(t, len(msgs), 0)
 		assertEqual(t, lexer.Token, TIdentifier)
 		assertEqual(t, lexer.Identifier, expected)
@@ -147,7 +146,7 @@ func TestIdentifier(t *testing.T) {
 
 func expectNumber(t *testing.T, contents string, expected float64) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -162,7 +161,7 @@ func expectNumber(t *testing.T, contents string, expected float64) {
 				Contents:     contents,
 			})
 		}()
-		msgs := join()
+		msgs := log.Done()
 		assertEqual(t, len(msgs), 0)
 		assertEqual(t, lexer.Token, TNumericLiteral)
 		assertEqual(t, lexer.Number, expected)
@@ -339,7 +338,7 @@ func TestNumericLiteral(t *testing.T) {
 
 func expectBigInteger(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -354,7 +353,7 @@ func expectBigInteger(t *testing.T, contents string, expected string) {
 				Contents:     contents,
 			})
 		}()
-		msgs := join()
+		msgs := log.Done()
 		assertEqual(t, len(msgs), 0)
 		assertEqual(t, lexer.Token, TBigIntegerLiteral)
 		assertEqual(t, lexer.Identifier, expected)
@@ -397,7 +396,7 @@ func TestBigIntegerLiteral(t *testing.T) {
 
 func expectString(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -412,7 +411,7 @@ func expectString(t *testing.T, contents string, expected string) {
 				Contents:     contents,
 			})
 		}()
-		msgs := join()
+		msgs := log.Done()
 		assertEqual(t, len(msgs), 0)
 		assertEqual(t, lexer.Token, TStringLiteral)
 		assertEqualStrings(t, UTF16ToString(lexer.StringLiteral), expected)

@@ -15,14 +15,14 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 
 func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options PrintOptions) {
 	t.Run(name, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		ast, ok := parser.Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, parser.ParseOptions{})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})

@@ -212,10 +212,9 @@ func validateDefines(log logging.Log, defines map[string]string) *parser.Process
 		}
 
 		// Parse the value as JSON
-		valueLog, done := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		source := logging.Source{Contents: value}
-		expr, ok := parser.ParseJSON(valueLog, source, parser.ParseJSONOptions{})
-		done()
+		expr, ok := parser.ParseJSON(log, source, parser.ParseJSONOptions{})
 		if !ok {
 			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue
@@ -300,11 +299,11 @@ func messagesOfKind(kind logging.MsgKind, msgs []logging.Msg) []Message {
 // Build API
 
 func buildImpl(options BuildOptions) BuildResult {
-	newLog := func() (logging.Log, func() []logging.Msg) {
-		if options.LogLevel == LogLevelSilent {
-			return logging.NewDeferLog()
-		}
-		return logging.NewStderrLog(logging.StderrOptions{
+	var log logging.Log
+	if options.LogLevel == LogLevelSilent {
+		log = logging.NewDeferLog()
+	} else {
+		log = logging.NewStderrLog(logging.StderrOptions{
 			IncludeSource: true,
 			ErrorLimit:    options.ErrorLimit,
 			Color:         validateColor(options.Color),
@@ -314,15 +313,14 @@ func buildImpl(options BuildOptions) BuildResult {
 
 	// Convert and validate the options
 	realFS := fs.RealFS()
-	validateLog, validateJoin := newLog()
 	parseOptions := parser.ParseOptions{
 		Target:       validateTarget(options.Target),
 		MangleSyntax: options.MinifySyntax,
 		JSX: parser.JSXOptions{
-			Factory:  validateJSX(validateLog, options.JSXFactory, "factory"),
-			Fragment: validateJSX(validateLog, options.JSXFragment, "fragment"),
+			Factory:  validateJSX(log, options.JSXFactory, "factory"),
+			Fragment: validateJSX(log, options.JSXFragment, "fragment"),
 		},
-		Defines:    validateDefines(validateLog, options.Defines),
+		Defines:    validateDefines(log, options.Defines),
 		Platform:   validatePlatform(options.Platform),
 		IsBundling: options.Bundle,
 	}
@@ -334,40 +332,40 @@ func buildImpl(options BuildOptions) BuildResult {
 		ModuleName:        options.GlobalName,
 		IsBundling:        options.Bundle,
 		OutputFormat:      validateFormat(options.Format),
-		AbsOutputFile:     validatePath(validateLog, realFS, options.Outfile),
-		AbsOutputDir:      validatePath(validateLog, realFS, options.Outdir),
-		AbsMetadataFile:   validatePath(validateLog, realFS, options.Metafile),
-		ExtensionToLoader: validateLoaders(validateLog, options.Loaders),
+		AbsOutputFile:     validatePath(log, realFS, options.Outfile),
+		AbsOutputDir:      validatePath(log, realFS, options.Outdir),
+		AbsMetadataFile:   validatePath(log, realFS, options.Metafile),
+		ExtensionToLoader: validateLoaders(log, options.Loaders),
 	}
 	resolveOptions := resolver.ResolveOptions{
 		Platform:        validatePlatform(options.Platform),
-		ExtensionOrder:  validateResolveExtensions(validateLog, options.ResolveExtensions),
-		ExternalModules: validateExternals(validateLog, options.Externals),
+		ExtensionOrder:  validateResolveExtensions(log, options.ResolveExtensions),
+		ExternalModules: validateExternals(log, options.Externals),
 	}
 	entryPaths := make([]string, len(options.EntryPoints))
 	for i, entryPoint := range options.EntryPoints {
-		entryPaths[i] = validatePath(validateLog, realFS, entryPoint)
+		entryPaths[i] = validatePath(log, realFS, entryPoint)
 	}
 
 	if bundleOptions.AbsOutputDir == "" && len(entryPaths) > 1 {
-		validateLog.AddError(nil, ast.Loc{},
+		log.AddError(nil, ast.Loc{},
 			"Must use \"outdir\" when there are multiple input files")
 	} else if bundleOptions.AbsOutputFile != "" && bundleOptions.AbsOutputDir != "" {
-		validateLog.AddError(nil, ast.Loc{}, "Cannot use both \"outfile\" and \"outdir\"")
+		log.AddError(nil, ast.Loc{}, "Cannot use both \"outfile\" and \"outdir\"")
 	} else if bundleOptions.AbsOutputFile != "" {
 		// If the output file is specified, use it to derive the output directory
 		bundleOptions.AbsOutputDir = realFS.Dir(bundleOptions.AbsOutputFile)
 	} else if bundleOptions.AbsOutputDir == "" {
 		// Forbid certain features when writing to stdout
 		if bundleOptions.SourceMap != bundler.SourceMapNone && bundleOptions.SourceMap != bundler.SourceMapInline {
-			validateLog.AddError(nil, ast.Loc{}, "Cannot use an external source map without an output path")
+			log.AddError(nil, ast.Loc{}, "Cannot use an external source map without an output path")
 		}
 		if bundleOptions.AbsMetadataFile != "" {
-			validateLog.AddError(nil, ast.Loc{}, "Cannot use \"metafile\" without an output path")
+			log.AddError(nil, ast.Loc{}, "Cannot use \"metafile\" without an output path")
 		}
 		for _, loader := range bundleOptions.ExtensionToLoader {
 			if loader == bundler.LoaderFile {
-				validateLog.AddError(nil, ast.Loc{}, "Cannot use the \"file\" loader without an output path")
+				log.AddError(nil, ast.Loc{}, "Cannot use the \"file\" loader without an output path")
 				break
 			}
 		}
@@ -376,10 +374,10 @@ func buildImpl(options BuildOptions) BuildResult {
 	if !bundleOptions.IsBundling {
 		// Disallow bundle-only options when not bundling
 		if bundleOptions.OutputFormat != printer.FormatPreserve {
-			validateLog.AddError(nil, ast.Loc{}, "Cannot use \"format\" without \"bundle\"")
+			log.AddError(nil, ast.Loc{}, "Cannot use \"format\" without \"bundle\"")
 		}
 		if len(resolveOptions.ExternalModules) > 0 {
-			validateLog.AddError(nil, ast.Loc{}, "Cannot use \"external\" without \"bundle\"")
+			log.AddError(nil, ast.Loc{}, "Cannot use \"external\" without \"bundle\"")
 		}
 	} else if bundleOptions.OutputFormat == printer.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
@@ -391,52 +389,34 @@ func buildImpl(options BuildOptions) BuildResult {
 		}
 	}
 
-	// Stop now if there were errors
-	validateMsgs := validateJoin()
-	validateErrors := messagesOfKind(logging.Error, validateMsgs)
-	if len(validateErrors) > 0 {
-		return BuildResult{
-			Errors:   validateErrors,
-			Warnings: messagesOfKind(logging.Warning, validateMsgs),
-		}
-	}
-
-	// Scan over the bundle
-	scanLog, scanJoin := newLog()
-	resolver := resolver.NewResolver(realFS, scanLog, resolveOptions)
-	bundle := bundler.ScanBundle(scanLog, realFS, resolver, entryPaths, parseOptions, bundleOptions)
+	var outputFiles []OutputFile
 
 	// Stop now if there were errors
-	scanMsgs := scanJoin()
-	scanErrors := messagesOfKind(logging.Error, scanMsgs)
-	if len(scanErrors) > 0 {
-		return BuildResult{
-			Errors: scanErrors,
-			Warnings: append(
-				messagesOfKind(logging.Warning, validateMsgs),
-				messagesOfKind(logging.Warning, scanMsgs)...),
+	if !log.HasErrors() {
+		// Scan over the bundle
+		resolver := resolver.NewResolver(realFS, log, resolveOptions)
+		bundle := bundler.ScanBundle(log, realFS, resolver, entryPaths, parseOptions, bundleOptions)
+
+		// Stop now if there were errors
+		if !log.HasErrors() {
+			// Compile the bundle
+			results := bundle.Compile(log, bundleOptions)
+
+			// Return the results
+			outputFiles = make([]OutputFile, len(results))
+			for i, result := range results {
+				outputFiles[i] = OutputFile{
+					Path:     result.AbsPath,
+					Contents: result.Contents,
+				}
+			}
 		}
 	}
 
-	// Compile the bundle
-	compileLog, compileJoin := newLog()
-	results := bundle.Compile(compileLog, bundleOptions)
-
-	// Return the results
-	compileMsgs := compileJoin()
-	outputFiles := make([]OutputFile, len(results))
-	for i, result := range results {
-		outputFiles[i] = OutputFile{
-			Path:     result.AbsPath,
-			Contents: result.Contents,
-		}
-	}
+	msgs := log.Done()
 	return BuildResult{
-		Errors: messagesOfKind(logging.Error, compileMsgs),
-		Warnings: append(append(
-			messagesOfKind(logging.Warning, validateMsgs),
-			messagesOfKind(logging.Warning, scanMsgs)...),
-			messagesOfKind(logging.Warning, compileMsgs)...),
+		Errors:      messagesOfKind(logging.Error, msgs),
+		Warnings:    messagesOfKind(logging.Warning, msgs),
 		OutputFiles: outputFiles,
 	}
 }
@@ -445,11 +425,11 @@ func buildImpl(options BuildOptions) BuildResult {
 // Transform API
 
 func transformImpl(input string, options TransformOptions) TransformResult {
-	newLog := func() (logging.Log, func() []logging.Msg) {
-		if options.LogLevel == LogLevelSilent {
-			return logging.NewDeferLog()
-		}
-		return logging.NewStderrLog(logging.StderrOptions{
+	var log logging.Log
+	if options.LogLevel == LogLevelSilent {
+		log = logging.NewDeferLog()
+	} else {
+		log = logging.NewStderrLog(logging.StderrOptions{
 			IncludeSource: true,
 			ErrorLimit:    options.ErrorLimit,
 			Color:         validateColor(options.Color),
@@ -458,15 +438,14 @@ func transformImpl(input string, options TransformOptions) TransformResult {
 	}
 
 	// Convert and validate the options
-	validateLog, validateJoin := newLog()
 	parseOptions := parser.ParseOptions{
 		Target:       validateTarget(options.Target),
 		MangleSyntax: options.MinifySyntax,
 		JSX: parser.JSXOptions{
-			Factory:  validateJSX(validateLog, options.JSXFactory, "factory"),
-			Fragment: validateJSX(validateLog, options.JSXFragment, "fragment"),
+			Factory:  validateJSX(log, options.JSXFactory, "factory"),
+			Fragment: validateJSX(log, options.JSXFragment, "fragment"),
 		},
-		Defines: validateDefines(validateLog, options.Defines),
+		Defines: validateDefines(log, options.Defines),
 	}
 	bundleOptions := bundler.BundleOptions{
 		SourceMap:         validateSourceMap(options.Sourcemap),
@@ -482,47 +461,30 @@ func transformImpl(input string, options TransformOptions) TransformResult {
 	}
 	if bundleOptions.SourceMap == bundler.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name
-		validateLog.AddError(nil, ast.Loc{}, "Cannot transform with linked source maps")
+		log.AddError(nil, ast.Loc{}, "Cannot transform with linked source maps")
 	}
 	if bundleOptions.SourceMap != bundler.SourceMapNone && bundleOptions.Stdin.SourceFile == "" {
-		validateLog.AddError(nil, ast.Loc{},
+		log.AddError(nil, ast.Loc{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
 	}
 
-	// Stop now if there were errors
-	validateMsgs := validateJoin()
-	validateErrors := messagesOfKind(logging.Error, validateMsgs)
-	if len(validateErrors) > 0 {
-		return TransformResult{
-			Errors:   validateErrors,
-			Warnings: messagesOfKind(logging.Warning, validateMsgs),
-		}
-	}
-
-	// Scan over the bundle
-	scanLog, scanJoin := newLog()
-	mockFS := fs.MockFS(map[string]string{options.Sourcefile: input})
-	resolver := resolver.NewResolver(mockFS, scanLog, resolver.ResolveOptions{})
-	bundle := bundler.ScanBundle(scanLog, mockFS, resolver, []string{options.Sourcefile}, parseOptions, bundleOptions)
+	var results []bundler.OutputFile
 
 	// Stop now if there were errors
-	scanMsgs := scanJoin()
-	scanErrors := messagesOfKind(logging.Error, scanMsgs)
-	if len(scanErrors) > 0 {
-		return TransformResult{
-			Errors: scanErrors,
-			Warnings: append(
-				messagesOfKind(logging.Warning, validateMsgs),
-				messagesOfKind(logging.Warning, scanMsgs)...),
+	if !log.HasErrors() {
+		// Scan over the bundle
+		mockFS := fs.MockFS(map[string]string{options.Sourcefile: input})
+		resolver := resolver.NewResolver(mockFS, log, resolver.ResolveOptions{})
+		bundle := bundler.ScanBundle(log, mockFS, resolver, []string{options.Sourcefile}, parseOptions, bundleOptions)
+
+		// Stop now if there were errors
+		if !log.HasErrors() {
+			// Compile the bundle
+			results = bundle.Compile(log, bundleOptions)
 		}
 	}
-
-	// Compile the bundle
-	compileLog, compileJoin := newLog()
-	results := bundle.Compile(compileLog, bundleOptions)
 
 	// Return the results
-	compileMsgs := compileJoin()
 	var js []byte
 	var jsSourceMap []byte
 
@@ -538,12 +500,10 @@ func transformImpl(input string, options TransformOptions) TransformResult {
 		}
 	}
 
+	msgs := log.Done()
 	return TransformResult{
-		Errors: messagesOfKind(logging.Error, compileMsgs),
-		Warnings: append(append(
-			messagesOfKind(logging.Warning, validateMsgs),
-			messagesOfKind(logging.Warning, scanMsgs)...),
-			messagesOfKind(logging.Warning, compileMsgs)...),
+		Errors:      messagesOfKind(logging.Error, msgs),
+		Warnings:    messagesOfKind(logging.Warning, msgs),
 		JS:          js,
 		JSSourceMap: jsSourceMap,
 	}

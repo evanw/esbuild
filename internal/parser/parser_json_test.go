@@ -11,14 +11,14 @@ import (
 
 func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		ParseJSON(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseJSONOptions{})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -32,14 +32,14 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 // bundles, not JSON bundles.
 func expectPrintedJSON(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		expr, ok := ParseJSON(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseJSONOptions{})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -57,14 +57,14 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 
 func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		expr, ok := ParseJSON(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseJSONOptions{})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})

@@ -58,10 +58,10 @@ func expectBundled(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
 		fs := fs.MockFS(args.files)
 		args.resolveOptions.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".json"}
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		resolver := resolver.NewResolver(fs, log, args.resolveOptions)
 		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
-		msgs := join()
+		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 
 		// Stop now if there were any errors during the scan
@@ -69,13 +69,13 @@ func expectBundled(t *testing.T, args bundled) {
 			return
 		}
 
-		log, join = logging.NewDeferLog()
+		log = logging.NewDeferLog()
 		args.bundleOptions.omitRuntimeForTests = true
 		if args.bundleOptions.AbsOutputFile != "" {
 			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
 		}
 		results := bundle.Compile(log, args.bundleOptions)
-		msgs = join()
+		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 
 		// Stop now if there were any errors during the compile

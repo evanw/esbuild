@@ -15,7 +15,9 @@ import (
 )
 
 type Log struct {
-	addMsg func(Msg)
+	addMsg    func(Msg)
+	hasErrors func() bool
+	done      func() []Msg
 }
 
 type LogLevel int8
@@ -113,45 +115,13 @@ type TerminalInfo struct {
 	Width           int
 }
 
-func NewStderrLog(options StderrOptions) (Log, func() []Msg) {
+func NewStderrLog(options StderrOptions) Log {
 	var mutex sync.Mutex
 	var msgs []Msg
 	terminalInfo := GetTerminalInfo(os.Stderr)
 	errors := 0
 	warnings := 0
 	errorLimitWasHit := false
-
-	log := Log{func(msg Msg) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		msgs = append(msgs, msg)
-
-		// Be silent if we're past the limit so we don't flood the terminal
-		if errorLimitWasHit {
-			return
-		}
-
-		switch msg.Kind {
-		case Error:
-			errors++
-			if options.LogLevel <= LevelError {
-				os.Stderr.WriteString(msg.String(options, terminalInfo))
-			}
-		case Warning:
-			warnings++
-			if options.LogLevel <= LevelWarning {
-				os.Stderr.WriteString(msg.String(options, terminalInfo))
-			}
-		}
-
-		// Silence further output if we reached the error limit
-		if options.ErrorLimit != 0 && errors >= options.ErrorLimit {
-			errorLimitWasHit = true
-			if options.LogLevel <= LevelError {
-				fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", errorAndWarningSummary(errors, warnings))
-			}
-		}
-	}}
 
 	switch options.Color {
 	case ColorNever:
@@ -160,16 +130,54 @@ func NewStderrLog(options StderrOptions) (Log, func() []Msg) {
 		terminalInfo.UseColorEscapes = SupportsColorEscapes
 	}
 
-	return log, func() []Msg {
-		mutex.Lock()
-		defer mutex.Unlock()
+	return Log{
+		addMsg: func(msg Msg) {
+			mutex.Lock()
+			defer mutex.Unlock()
+			msgs = append(msgs, msg)
 
-		// Print out a summary if the error limit wasn't hit
-		if !errorLimitWasHit && options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
-			fmt.Fprintf(os.Stderr, "%s\n", errorAndWarningSummary(errors, warnings))
-		}
+			// Be silent if we're past the limit so we don't flood the terminal
+			if errorLimitWasHit {
+				return
+			}
 
-		return msgs
+			switch msg.Kind {
+			case Error:
+				errors++
+				if options.LogLevel <= LevelError {
+					os.Stderr.WriteString(msg.String(options, terminalInfo))
+				}
+			case Warning:
+				warnings++
+				if options.LogLevel <= LevelWarning {
+					os.Stderr.WriteString(msg.String(options, terminalInfo))
+				}
+			}
+
+			// Silence further output if we reached the error limit
+			if options.ErrorLimit != 0 && errors >= options.ErrorLimit {
+				errorLimitWasHit = true
+				if options.LogLevel <= LevelError {
+					fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", errorAndWarningSummary(errors, warnings))
+				}
+			}
+		},
+		hasErrors: func() bool {
+			mutex.Lock()
+			defer mutex.Unlock()
+			return errors > 0
+		},
+		done: func() []Msg {
+			mutex.Lock()
+			defer mutex.Unlock()
+
+			// Print out a summary if the error limit wasn't hit
+			if !errorLimitWasHit && options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
+				fmt.Fprintf(os.Stderr, "%s\n", errorAndWarningSummary(errors, warnings))
+			}
+
+			return msgs
+		},
 	}
 }
 
@@ -193,25 +201,35 @@ func PrintErrorToStderr(osArgs []string, text string) {
 		}
 	}
 
-	log, join := NewStderrLog(options)
+	log := NewStderrLog(options)
 	log.AddError(nil, ast.Loc{}, text)
-	join()
+	log.Done()
 }
 
-func NewDeferLog() (Log, func() []Msg) {
+func NewDeferLog() Log {
 	var msgs []Msg
 	var mutex sync.Mutex
+	var hasErrors bool
 
-	log := Log{func(msg Msg) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		msgs = append(msgs, msg)
-	}}
-
-	return log, func() []Msg {
-		mutex.Lock()
-		defer mutex.Unlock()
-		return msgs
+	return Log{
+		addMsg: func(msg Msg) {
+			mutex.Lock()
+			defer mutex.Unlock()
+			if msg.Kind == Error {
+				hasErrors = true
+			}
+			msgs = append(msgs, msg)
+		},
+		hasErrors: func() bool {
+			mutex.Lock()
+			defer mutex.Unlock()
+			return hasErrors
+		},
+		done: func() []Msg {
+			mutex.Lock()
+			defer mutex.Unlock()
+			return msgs
+		},
 	}
 }
 
@@ -458,6 +476,14 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 	}
 
 	return withoutTabs.String()
+}
+
+func (log Log) HasErrors() bool {
+	return log.hasErrors()
+}
+
+func (log Log) Done() []Msg {
+	return log.done()
 }
 
 func (log Log) AddError(source *Source, loc ast.Loc, text string) {

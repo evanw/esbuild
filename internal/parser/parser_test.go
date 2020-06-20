@@ -17,14 +17,14 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 
 func expectParseError(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseOptions{})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -35,14 +35,14 @@ func expectParseError(t *testing.T, contents string, expected string) {
 
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		ast, ok := Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseOptions{})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			if msg.Kind != logging.Warning {
@@ -60,7 +60,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		ast, ok := Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
@@ -69,7 +69,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 		}, ParseOptions{
 			MangleSyntax: true,
 		})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -85,7 +85,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 
 func expectPrintedTarget(t *testing.T, target LanguageTarget, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		ast, ok := Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
@@ -94,7 +94,7 @@ func expectPrintedTarget(t *testing.T, target LanguageTarget, contents string, e
 		}, ParseOptions{
 			Target: target,
 		})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			if msg.Kind != logging.Warning {
@@ -112,7 +112,7 @@ func expectPrintedTarget(t *testing.T, target LanguageTarget, contents string, e
 
 func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
@@ -123,7 +123,7 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 				Parse: true,
 			},
 		})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
@@ -134,7 +134,7 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 
 func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log, join := logging.NewDeferLog()
+		log := logging.NewDeferLog()
 		ast, ok := Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
@@ -145,7 +145,7 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 				Parse: true,
 			},
 		})
-		msgs := join()
+		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
