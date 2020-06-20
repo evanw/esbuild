@@ -854,6 +854,11 @@ type ClauseItem struct {
 	Alias    string
 	AliasLoc Loc
 	Name     LocRef
+
+	// This is needed for "export {foo as bar} from 'path'" statements. This case
+	// is a re-export and "foo" and "bar" are both aliases. We need to preserve
+	// both aliases in case the symbol is renamed.
+	OriginalName string
 }
 
 type Decl struct {

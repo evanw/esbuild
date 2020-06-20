@@ -3745,6 +3745,7 @@ func (p *parser) parseImportClause() ([]ast.ClauseItem, bool) {
 		alias := p.lexer.Identifier
 		aliasLoc := p.lexer.Loc()
 		name := ast.LocRef{aliasLoc, p.storeNameInRef(alias)}
+		originalName := alias
 
 		// The alias may be a keyword
 		isIdentifier := p.lexer.Token == lexer.TIdentifier
@@ -3755,14 +3756,15 @@ func (p *parser) parseImportClause() ([]ast.ClauseItem, bool) {
 
 		if p.lexer.IsContextualKeyword("as") {
 			p.lexer.Next()
-			name = ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
+			originalName := p.lexer.Identifier
+			name = ast.LocRef{p.lexer.Loc(), p.storeNameInRef(originalName)}
 			p.lexer.Expect(lexer.TIdentifier)
 		} else if !isIdentifier {
 			// An import where the name is a keyword must have an alias
 			p.lexer.Unexpected()
 		}
 
-		items = append(items, ast.ClauseItem{alias, aliasLoc, name})
+		items = append(items, ast.ClauseItem{alias, aliasLoc, name, originalName})
 
 		if p.lexer.Token != lexer.TComma {
 			break
@@ -3793,6 +3795,7 @@ func (p *parser) parseExportClause() ([]ast.ClauseItem, bool) {
 		alias := p.lexer.Identifier
 		aliasLoc := p.lexer.Loc()
 		name := ast.LocRef{aliasLoc, p.storeNameInRef(alias)}
+		originalName := alias
 
 		// The name can actually be a keyword if we're really an "export from"
 		// statement. However, we won't know until later. Allow keywords as
@@ -3826,7 +3829,7 @@ func (p *parser) parseExportClause() ([]ast.ClauseItem, bool) {
 			p.lexer.Next()
 		}
 
-		items = append(items, ast.ClauseItem{alias, aliasLoc, name})
+		items = append(items, ast.ClauseItem{alias, aliasLoc, name, originalName})
 
 		if p.lexer.Token != lexer.TComma {
 			break
@@ -9310,8 +9313,9 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 						if items == nil {
 							items = &[]ast.ClauseItem{}
 						}
-						for name, item := range importItems {
-							*items = append(*items, ast.ClauseItem{name, item.Loc, item})
+						for alias, name := range importItems {
+							originalName := p.symbols[name.Ref.InnerIndex].Name
+							*items = append(*items, ast.ClauseItem{alias, name.Loc, name, originalName})
 						}
 						s.Items = items
 					}

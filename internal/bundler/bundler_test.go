@@ -5350,6 +5350,46 @@ export {
 	})
 }
 
+func TestReExportDefaultExternal(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {default as foo} from 'foo'
+				export {bar} from './bar'
+			`,
+			"/bar.js": `
+				export {default as bar} from 'bar'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			ExternalModules: map[string]bool{
+				"foo": true,
+				"bar": true,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /bar.js
+import {default as default2} from "bar";
+
+// /entry.js
+import {default as default3} from "foo";
+export {
+  default2 as bar,
+  default3 as foo
+};
+`,
+		},
+	})
+}
+
 func TestReExportDefaultNoBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

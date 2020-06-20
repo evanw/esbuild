@@ -2199,7 +2199,39 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
 		p.printSpace()
-		p.printExportClause(s.Items, s.IsSingleLine)
+		p.print("{")
+
+		if !s.IsSingleLine {
+			p.options.Indent++
+		}
+
+		for i, item := range s.Items {
+			if i != 0 {
+				p.print(",")
+				if s.IsSingleLine {
+					p.printSpace()
+				}
+			}
+
+			if !s.IsSingleLine {
+				p.printNewline()
+				p.printIndent()
+			}
+			name := p.symbolName(item.Name.Ref)
+			p.print(name)
+			if name != item.Alias {
+				p.print(" as ")
+				p.print(item.Alias)
+			}
+		}
+
+		if !s.IsSingleLine {
+			p.options.Indent--
+			p.printNewline()
+			p.printIndent()
+		}
+
+		p.print("}")
 		p.printSemicolonAfterStatement()
 
 	case *ast.SExportFrom:
@@ -2207,7 +2239,38 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
 		p.printSpace()
-		p.printExportClause(s.Items, s.IsSingleLine)
+		p.print("{")
+
+		if !s.IsSingleLine {
+			p.options.Indent++
+		}
+
+		for i, item := range s.Items {
+			if i != 0 {
+				p.print(",")
+				if s.IsSingleLine {
+					p.printSpace()
+				}
+			}
+
+			if !s.IsSingleLine {
+				p.printNewline()
+				p.printIndent()
+			}
+			p.print(item.OriginalName)
+			if item.OriginalName != item.Alias {
+				p.print(" as ")
+				p.print(item.Alias)
+			}
+		}
+
+		if !s.IsSingleLine {
+			p.options.Indent--
+			p.printNewline()
+			p.printIndent()
+		}
+
+		p.print("}")
 		p.printSpace()
 		p.print("from")
 		p.printSpace()
@@ -2554,40 +2617,6 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 	default:
 		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
 	}
-}
-
-func (p *printer) printExportClause(items []ast.ClauseItem, isSingleLine bool) {
-	p.print("{")
-	if !isSingleLine {
-		p.options.Indent++
-	}
-
-	for i, item := range items {
-		if i != 0 {
-			p.print(",")
-			if isSingleLine {
-				p.printSpace()
-			}
-		}
-
-		if !isSingleLine {
-			p.printNewline()
-			p.printIndent()
-		}
-		name := p.symbolName(item.Name.Ref)
-		p.print(name)
-		if name != item.Alias {
-			p.print(" as ")
-			p.print(item.Alias)
-		}
-	}
-
-	if !isSingleLine {
-		p.options.Indent--
-		p.printNewline()
-		p.printIndent()
-	}
-	p.print("}")
 }
 
 type PrintOptions struct {

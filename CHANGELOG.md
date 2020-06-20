@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix re-exports when bundling
+
+    This is similar to the fix for re-exports in version 0.5.6 except that it applies when bundling, instead of just when transforming. It needed to be fixed differently because of how cross-file linking works when bundling.
+
 ## 0.5.6
 
 * Fix re-export statements ([#190](https://github.com/evanw/esbuild/issues/190))
