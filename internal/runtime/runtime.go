@@ -73,17 +73,20 @@ const Code = `
 	export let __param = (index, decorator) => (target, key) => decorator(target, key, index)
 
 	// For class private members
+	let __accessCheck = (obj, member, msg) => {
+		if (!member.has(obj)) throw TypeError('Cannot ' + msg)
+	}
 	export let __privateGet = (obj, member, getter) => {
-		if (!member.has(obj)) throw new TypeError('Cannot read from private field')
+		__accessCheck(obj, member, 'read from private field')
 		return getter ? getter.call(obj) : member.get(obj)
 	}
 	export let __privateSet = (obj, member, value, setter) => {
-		if (!member.has(obj)) throw new TypeError('Cannot write to private field')
+		__accessCheck(obj, member, 'write to private field')
 		setter ? setter.call(obj, value) : member.set(obj, value)
 		return value
 	}
 	export let __privateMethod = (obj, member, method) => {
-		if (!member.has(obj)) throw new TypeError('Cannot access private method')
+		__accessCheck(obj, member, 'access private method')
 		return method
 	}
 
