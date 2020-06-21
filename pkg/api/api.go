@@ -160,6 +160,10 @@ const (
 	LogLevelError
 )
 
+type StrictOptions struct {
+	NullishCoalescing bool
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -170,6 +174,7 @@ type BuildOptions struct {
 
 	Sourcemap SourceMap
 	Target    Target
+	Strict    StrictOptions
 
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
@@ -219,6 +224,7 @@ type TransformOptions struct {
 
 	Sourcemap SourceMap
 	Target    Target
+	Strict    StrictOptions
 
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool

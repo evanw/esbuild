@@ -172,6 +172,35 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.Target = target
 			}
 
+		case arg == "--strict":
+			value := api.StrictOptions{
+				NullishCoalescing: true,
+			}
+			if buildOpts != nil {
+				buildOpts.Strict = value
+			} else {
+				transformOpts.Strict = value
+			}
+
+		case strings.HasPrefix(arg, "--strict="):
+			value := api.StrictOptions{}
+			parts := arg[len("--strict="):]
+			if parts != "" {
+				for _, part := range strings.Split(parts, ",") {
+					switch part {
+					case "nullish-coalescing":
+						value.NullishCoalescing = true
+					default:
+						return fmt.Errorf("Invalid strict value: %q (valid: nullish-coalescing)", part)
+					}
+				}
+			}
+			if buildOpts != nil {
+				buildOpts.Strict = value
+			} else {
+				transformOpts.Strict = value
+			}
+
 		case strings.HasPrefix(arg, "--platform=") && buildOpts != nil:
 			value := arg[len("--platform="):]
 			switch value {

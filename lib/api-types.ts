@@ -3,10 +3,12 @@ export declare type Platform = 'browser' | 'node';
 export declare type Format = 'iife' | 'cjs' | 'esm';
 export declare type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64' | 'file' | 'dataurl';
 export declare type LogLevel = 'info' | 'warning' | 'error' | 'silent';
+export declare type Strict = 'nullish-coalescing';
 
 export interface CommonOptions {
   sourcemap?: boolean | 'inline' | 'external';
   target?: Target;
+  strict?: boolean | Strict[];
 
   minify?: boolean;
   minifyWhitespace?: boolean;

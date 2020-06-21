@@ -259,6 +259,21 @@ let transformTests = {
     await Promise.all(promises)
   },
 
+  async nullishCoalescingLoose({ service }) {
+    const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: false })
+    assert.strictEqual(js, `a != null ? a : b;\n`)
+  },
+
+  async nullishCoalescingStrict({ service }) {
+    const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: true })
+    assert.strictEqual(js, `a !== null && a !== void 0 ? a : b;\n`)
+  },
+
+  async nullishCoalescingStrictExplicit({ service }) {
+    const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: ['nullish-coalescing'] })
+    assert.strictEqual(js, `a !== null && a !== void 0 ? a : b;\n`)
+  },
+
   // Future syntax
   forAwait: ({ service }) => futureSyntax(service, 'async function foo() { for await (let x of y) {} }', 'es2017', 'es2018'),
   bigInt: ({ service }) => futureSyntax(service, '123n', 'es2019', 'es2020'),

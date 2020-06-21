@@ -2,6 +2,7 @@ import * as types from "./api-types";
 
 function pushCommonFlags(flags: string[], options: types.CommonOptions, isTTY: boolean, logLevelDefault: types.LogLevel): void {
   if (options.target) flags.push(`--target=${options.target}`);
+  if (options.strict) flags.push(`--strict${options.strict === true ? '' : `=${options.strict.join(',')}`}`);
 
   if (options.minify) flags.push('--minify');
   if (options.minifySyntax) flags.push('--minify-syntax');

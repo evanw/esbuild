@@ -108,6 +108,12 @@ func validateTarget(value Target) parser.LanguageTarget {
 	}
 }
 
+func validateStrict(value StrictOptions) parser.StrictOptions {
+	return parser.StrictOptions{
+		NullishCoalescing: value.NullishCoalescing,
+	}
+}
+
 func validateLoader(value Loader) bundler.Loader {
 	switch value {
 	case LoaderJS:
@@ -315,6 +321,7 @@ func buildImpl(options BuildOptions) BuildResult {
 	realFS := fs.RealFS()
 	parseOptions := parser.ParseOptions{
 		Target:       validateTarget(options.Target),
+		Strict:       validateStrict(options.Strict),
 		MangleSyntax: options.MinifySyntax,
 		JSX: parser.JSXOptions{
 			Factory:  validateJSX(log, options.JSXFactory, "factory"),
@@ -440,6 +447,7 @@ func transformImpl(input string, options TransformOptions) TransformResult {
 	// Convert and validate the options
 	parseOptions := parser.ParseOptions{
 		Target:       validateTarget(options.Target),
+		Strict:       validateStrict(options.Strict),
 		MangleSyntax: options.MinifySyntax,
 		JSX: parser.JSXOptions{
 			Factory:  validateJSX(log, options.JSXFactory, "factory"),

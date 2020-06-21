@@ -113,6 +113,18 @@ These syntax features are conditionally transformed for older browsers depending
 | [Private static fields](https://github.com/tc39/proposal-static-class-features)     | `esnext`                             | `class { static #x }`      |
 | [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment) | `esnext`                             | `a ??= b`                  |
 
+<details>
+<summary>Syntax transform caveats (click to expand)</summary><br>
+
+* **Nullish coalescing correctness**
+
+    By default `a ?? b` is transformed into `a != null ? a : b`, which works because `a != null` is only false if `a` is `null` or `undefined`. However, there's exactly one obscure edge case where this doesn't work. For legacy reasons, the value of `document.all` is special-cased such that `document.all != null` is false. If you need to use this value with the nullish coalescing operator, you should enable `--strict` transforms so `a ?? b` becomes `a !== null && a !== void 0 ? a : b` instead, which works correctly with `document.all`. The strict transform isn't done by default because it causes code bloat for an obscure edge case that shouldn't matter in modern code.
+
+* **Private member performance**
+
+    This transform uses `WeakMap` and `WeakSet` to preserve the privacy properties of this feature, similar to the corresponding transforms in the Babel and TypeScript compilers. Most modern JavaScript engines (V8, JavaScriptCore, and SpiderMonkey but not ChakraCore) may not have good performance characteristics for large `WeakMap` and `WeakSet` objects. Creating many instances of classes with private fields or private methods with this syntax transform active may cause a lot of overhead for the garbage collector. This is because modern engines (other than ChakraCore) store weak values in an actual map object instead of as hidden properties on the keys themselves, and large map objects can cause performance issues with garbage collection. See [this reference](https://github.com/tc39/ecma262/issues/1657#issuecomment-518916579) for more information.
+</details>
+
 These syntax features are currently always passed through un-transformed:
 
 | Syntax transform                                                                    | Unsupported when `--target` is below | Example                     |
@@ -299,6 +311,7 @@ Advanced options:
   --log-level=...           Disable logging (info, warning, error, silent)
   --resolve-extensions=...  A comma-separated list of implicit extensions
   --metafile=...            Write metadata about the build to a JSON file
+  --strict                  Transforms handle edge cases but have more overhead
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file

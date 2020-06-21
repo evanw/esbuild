@@ -110,6 +110,36 @@ func expectPrintedTarget(t *testing.T, target LanguageTarget, contents string, e
 	})
 }
 
+func expectPrintedTargetStrict(t *testing.T, target LanguageTarget, contents string, expected string) {
+	t.Run(contents, func(t *testing.T) {
+		log := logging.NewDeferLog()
+		ast, ok := Parse(log, logging.Source{
+			Index:        0,
+			AbsolutePath: "<stdin>",
+			PrettyPath:   "<stdin>",
+			Contents:     contents,
+		}, ParseOptions{
+			Target: target,
+			Strict: StrictOptions{
+				NullishCoalescing: true,
+			},
+		})
+		msgs := log.Done()
+		text := ""
+		for _, msg := range msgs {
+			if msg.Kind != logging.Warning {
+				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			}
+		}
+		assertEqual(t, text, "")
+		if !ok {
+			t.Fatal("Parse error")
+		}
+		js := printer.Print(ast, printer.PrintOptions{}).JS
+		assertEqual(t, string(js), expected)
+	})
+}
+
 func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
@@ -1535,6 +1565,7 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 
 func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrintedTarget(t, ES2020, "a ?? b", "a ?? b;\n")
+	expectPrintedTargetStrict(t, ES2020, "a ?? b", "a ?? b;\n")
 
 	expectPrintedTarget(t, ES2019, "a ?? b", "a != null ? a : b;\n")
 	expectPrintedTarget(t, ES2019, "a() ?? b()", "var _a;\n(_a = a()) != null ? _a : b();\n")
@@ -1542,10 +1573,15 @@ func TestLowerNullishCoalescing(t *testing.T) {
 		"function foo() {\n  var _a, _b;\n  if (x) {\n    (_b = (_a = a()) != null ? _a : b()) != null ? _b : c();\n  }\n}\n")
 	expectPrintedTarget(t, ES2019, "() => a ?? b", "() => a != null ? a : b;\n")
 	expectPrintedTarget(t, ES2019, "() => a() ?? b()", "() => {\n  var _a;\n  return (_a = a()) != null ? _a : b();\n};\n")
+
+	expectPrintedTargetStrict(t, ES2019, "a ?? b", "a !== null && a !== void 0 ? a : b;\n")
+	expectPrintedTargetStrict(t, ES2019, "a() ?? b()", "var _a;\n(_a = a()) !== null && _a !== void 0 ? _a : b();\n")
 }
 
 func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, ESNext, "a ??= b", "a ??= b;\n")
+	expectPrintedTargetStrict(t, ESNext, "a ??= b", "a ??= b;\n")
+	expectPrintedTargetStrict(t, ESNext, "a.b ??= c", "a.b ??= c;\n")
 
 	expectPrintedTarget(t, ES2019, "a ??= b", "a != null ? a : a = b;\n")
 	expectPrintedTarget(t, ES2019, "a.b ??= c", "var _a;\n(_a = a.b) != null ? _a : a.b = c;\n")
@@ -1553,11 +1589,17 @@ func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, ES2019, "a[b] ??= c", "var _a;\n(_a = a[b]) != null ? _a : a[b] = c;\n")
 	expectPrintedTarget(t, ES2019, "a()[b()] ??= c", "var _a, _b, _c;\n(_c = (_a = a())[_b = b()]) != null ? _c : _a[_b] = c;\n")
 
+	expectPrintedTargetStrict(t, ES2019, "a ??= b", "a !== null && a !== void 0 ? a : a = b;\n")
+	expectPrintedTargetStrict(t, ES2019, "a.b ??= c", "var _a;\n(_a = a.b) !== null && _a !== void 0 ? _a : a.b = c;\n")
+
 	expectPrintedTarget(t, ES2020, "a ??= b", "a ?? (a = b);\n")
 	expectPrintedTarget(t, ES2020, "a.b ??= c", "a.b ?? (a.b = c);\n")
 	expectPrintedTarget(t, ES2020, "a().b ??= c", "var _a;\n(_a = a()).b ?? (_a.b = c);\n")
 	expectPrintedTarget(t, ES2020, "a[b] ??= c", "a[b] ?? (a[b] = c);\n")
 	expectPrintedTarget(t, ES2020, "a()[b()] ??= c", "var _a, _b;\n(_a = a())[_b = b()] ?? (_a[_b] = c);\n")
+
+	expectPrintedTargetStrict(t, ES2020, "a ??= b", "a ?? (a = b);\n")
+	expectPrintedTargetStrict(t, ES2020, "a.b ??= c", "a.b ?? (a.b = c);\n")
 }
 
 func TestLowerLogicalAssign(t *testing.T) {

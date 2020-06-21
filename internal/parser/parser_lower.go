@@ -13,6 +13,7 @@ import (
 
 const asyncAwaitTarget = ES2017
 const objectPropertyBindingTarget = ES2018
+const nullishCoalescingTarget = ES2020
 const privateNameTarget = ESNext
 
 type futureSyntax uint8
@@ -462,20 +463,12 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 
 func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
-		if p.Target < ES2020 {
+		if p.Target < nullishCoalescingTarget {
 			// "a.#b ??= c" => "(_a = __privateGet(a, #b)) != null ? _a : __privateSet(a, #b, c)"
 			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
-			testFunc, testWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2,
-				p.lowerPrivateGet(targetFunc(), privateLoc, private))
-			return testWrapFunc(targetWrapFunc(ast.Expr{loc, &ast.EIf{
-				Test: ast.Expr{loc, &ast.EBinary{
-					Op:    ast.BinOpLooseNe,
-					Left:  testFunc(),
-					Right: ast.Expr{loc, &ast.ENull{}},
-				}},
-				Yes: testFunc(),
-				No:  p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right),
-			}}))
+			left := p.lowerPrivateGet(targetFunc(), privateLoc, private)
+			right := p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right)
+			return targetWrapFunc(p.lowerNullishCoalescing(loc, left, right))
 		}
 
 		// "a.#b ??= c" => "__privateGet(a, #b) ?? __privateSet(a, #b, c)"
@@ -488,17 +481,12 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EB
 	}
 
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
-		if p.Target < ES2020 {
+		if p.Target < nullishCoalescingTarget {
 			// "a ??= b" => "(_a = a) != null ? _a : a = b"
-			testFunc, testWrapFunc := p.captureValueWithPossibleSideEffects(a.Loc, 2, a)
-			return testWrapFunc(ast.Expr{loc, &ast.EIf{
-				Test: ast.Expr{loc, &ast.EBinary{
-					Op:    ast.BinOpLooseNe,
-					Left:  testFunc(),
-					Right: ast.Expr{loc, &ast.ENull{}},
-				}},
-				Yes: testFunc(),
-				No:  ast.Expr{loc, &ast.EBinary{Op: ast.BinOpAssign, Left: b, Right: e.Right}},
+			return p.lowerNullishCoalescing(loc, a, ast.Expr{loc, &ast.EBinary{
+				Op:    ast.BinOpAssign,
+				Left:  b,
+				Right: e.Right,
 			}})
 		}
 
@@ -534,18 +522,41 @@ func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op 
 	})
 }
 
-func (p *parser) lowerNullishCoalescing(loc ast.Loc, e *ast.EBinary) ast.Expr {
-	// "a ?? b" => "a != null ? a : b"
-	// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
-	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Left)
-	return wrapFunc(ast.Expr{e.Right.Loc, &ast.EIf{
-		ast.Expr{loc, &ast.EBinary{
-			ast.BinOpLooseNe,
-			leftFunc(),
-			ast.Expr{loc, &ast.ENull{}},
+func (p *parser) lowerNullishCoalescing(loc ast.Loc, left ast.Expr, right ast.Expr) ast.Expr {
+	if p.Strict.NullishCoalescing {
+		// "x ?? y" => "x !== null && x !== void 0 ? x : y"
+		// "x() ?? y()" => "_a = x(), _a !== null && _a !== void 0 ? _a : y"
+		leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 3, left)
+		return wrapFunc(ast.Expr{loc, &ast.EIf{
+			Test: ast.Expr{loc, &ast.EBinary{
+				Op: ast.BinOpLogicalAnd,
+				Left: ast.Expr{loc, &ast.EBinary{
+					Op:    ast.BinOpStrictNe,
+					Left:  leftFunc(),
+					Right: ast.Expr{loc, &ast.ENull{}},
+				}},
+				Right: ast.Expr{loc, &ast.EBinary{
+					Op:    ast.BinOpStrictNe,
+					Left:  leftFunc(),
+					Right: ast.Expr{loc, &ast.EUndefined{}},
+				}},
+			}},
+			Yes: leftFunc(),
+			No:  right,
+		}})
+	}
+
+	// "x ?? y" => "x != null ? x : y"
+	// "x() ?? y()" => "_a = x(), _a != null ? _a : y"
+	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left)
+	return wrapFunc(ast.Expr{loc, &ast.EIf{
+		Test: ast.Expr{loc, &ast.EBinary{
+			Op:    ast.BinOpLooseNe,
+			Left:  leftFunc(),
+			Right: ast.Expr{loc, &ast.ENull{}},
 		}},
-		leftFunc(),
-		e.Right,
+		Yes: leftFunc(),
+		No:  right,
 	}})
 }
 

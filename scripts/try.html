@@ -173,6 +173,10 @@
         <input id="minify" type="checkbox">
         Minify
       </label>
+      <label for="strict">
+        <input id="strict" type="checkbox">
+        Strict
+      </label>
     </p>
     <div class="outer"><textarea autofocus spellcheck="false"></textarea></div>
   </section>
@@ -190,6 +194,7 @@
       const target = document.querySelector('#target')
       const loader = document.querySelector('#loader')
       const minify = document.querySelector('#minify')
+      const strict = document.querySelector('#strict')
       let debounceTimeout = 0
       let isRunning = false
       let needsRun = false
@@ -197,6 +202,7 @@
       target.onchange = runIfIdle
       loader.onchange = runIfIdle
       minify.onchange = runIfIdle
+      strict.onchange = runIfIdle
 
       input.oninput = () => {
         clearTimeout(debounceTimeout)
@@ -218,6 +224,7 @@
           target: target.value.toLowerCase(),
           loader: loader.value.toLowerCase(),
           minify: minify.checked,
+          strict: strict.checked,
         }).then(({ js, warnings }) => {
           let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
           output.innerHTML = (html && html + '<hr>') + textToHTML(js);

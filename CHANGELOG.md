@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add the `--strict` option
+
+    This currently only affects the transform for the `??` nullish coalescing operator. In loose mode (the default), `a ?? b` is transformed to `a != null ? a : b`. This works fine in all cases except when `a` is the special object `document.all`. In strict mode, `a ?? b` is transformed to `a !== null && a !== void 0 ? a : b` which works correctly with `document.all`. Enable `--strict` if you need to use `document.all` with the `??` operator.
+
 ## 0.5.8
 
 * Transform async functions ([#137](https://github.com/evanw/esbuild/issues/137))

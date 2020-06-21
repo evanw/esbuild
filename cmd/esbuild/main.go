@@ -49,6 +49,7 @@ Advanced options:
   --log-level=...           Disable logging (info, warning, error, silent)
   --resolve-extensions=...  A comma-separated list of implicit extensions
   --metafile=...            Write metadata about the build to a JSON file
+  --strict                  Transforms handle edge cases but have more overhead
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file

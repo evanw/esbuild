@@ -7749,8 +7749,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return e.Right, exprOut{}
 
 			default:
-				if p.Target < ES2020 {
-					return p.lowerNullishCoalescing(expr.Loc, e), exprOut{}
+				if p.Target < nullishCoalescingTarget {
+					return p.lowerNullishCoalescing(expr.Loc, e.Left, e.Right), exprOut{}
 				}
 			}
 
@@ -8932,13 +8932,26 @@ const (
 	PlatformNode
 )
 
+type StrictOptions struct {
+	// Loose:  "a ?? b" => "a != null ? a : b"
+	// Strict: "a ?? b" => "a !== null && a !== void 0 ? a : b"
+	//
+	// The disadvantage of strictness here is code bloat. The only observable
+	// difference between the two is when the left operand is the bizarre legacy
+	// value "document.all". This value is special-cased in the standard for
+	// legacy reasons such that "document.all != null" is false even though it's
+	// not "null" or "undefined".
+	NullishCoalescing bool
+}
+
 type ParseOptions struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
 	IsBundling bool
 
-	Defines      *ProcessedDefines
 	MangleSyntax bool
+	Strict       StrictOptions
+	Defines      *ProcessedDefines
 	TS           TypeScriptOptions
 	JSX          JSXOptions
 	Target       LanguageTarget
