@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.5.7
 
-* Transform private names ([#47](https://github.com/evanw/esbuild/issues/47))
+* Transform private fields and private methods ([#47](https://github.com/evanw/esbuild/issues/47))
 
     Private names are an access control mechanism for classes. They begin with a `#` and are not accessible outside of the class they are declared in. Support for parsing this syntax was added in esbuild version 0.4.9 but the syntax was passed through unmodified, meaning it didn't work in older browsers.
 
@@ -18,7 +18,7 @@
     }
     ```
 
-    is transformed to this code when using `--target=es2020`:
+    is transformed into this code when using `--target=es2020`:
 
     ```js
     var _count;
