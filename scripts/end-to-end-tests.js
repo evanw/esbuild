@@ -480,6 +480,37 @@
         new Foo().bar()
       `,
     }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        function expect(fn, msg) {
+          try {
+            fn()
+          } catch (e) {
+            if (e instanceof TypeError && e.message === msg) return
+          }
+          throw 'expected ' + msg
+        }
+        class Foo {
+          #foo
+          #method() {}
+          get #getter() {}
+          set #setter() {}
+          bar() {
+            let obj = {}
+            expect(() => obj.#foo, 'Cannot read from private field')
+            expect(() => obj.#foo = 1, 'Cannot write to private field')
+            expect(() => obj.#getter, 'Cannot read from private field')
+            expect(() => obj.#setter = 1, 'Cannot write to private field')
+            expect(() => obj.#method, 'Cannot access private method')
+            expect(() => obj.#method = 1, 'Cannot write to private field')
+            expect(() => this.#setter, 'member.get is not a function')
+            expect(() => this.#getter = 1, 'member.set is not a function')
+            expect(() => this.#method = 1, 'member.set is not a function')
+          }
+        }
+        new Foo().bar()
+      `,
+    }),
   )
 
   // Async lowering tests
