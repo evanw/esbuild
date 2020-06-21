@@ -733,7 +733,31 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
 			expr = nameFunc()
 			didCaptureClassExpr = true
-			return nameFunc()
+			name := nameFunc()
+
+			// If we're storing the class expression in a variable, remove the class
+			// name and rewrite all references to the class name with references to
+			// the temporary variable holding the class expression. This ensures that
+			// references to the class expression by name in any expressions that end
+			// up being pulled outside of the class body still work. For example:
+			//
+			//   let Bar = class Foo {
+			//     static foo = 123
+			//     static bar = Foo.foo
+			//   }
+			//
+			// This might be converted into the following:
+			//
+			//   var _a;
+			//   let Bar = (_a = class {
+			//   }, _a.foo = 123, _a.bar = _a.foo, _a);
+			//
+			if class.Name != nil {
+				p.symbols[class.Name.Ref.InnerIndex].Link = name.Data.(*ast.EIdentifier).Ref
+				class.Name = nil
+			}
+
+			return name
 		} else {
 			if class.Name == nil {
 				if kind == classKindExportDefaultStmt {
