@@ -12,6 +12,7 @@ import (
 )
 
 const asyncAwaitTarget = ES2017
+const objectPropertyBindingTarget = ES2018
 const privateNameTarget = ESNext
 
 type futureSyntax uint8
@@ -100,6 +101,41 @@ func (p *parser) lowerAsyncFunction(loc ast.Loc, isAsync *bool, stmts *[]ast.Stm
 		}}},
 	})
 	*stmts = []ast.Stmt{ast.Stmt{loc, &ast.SReturn{&callAsync}}}
+}
+
+func (p *parser) lowerBindingsInDecls(decls []ast.Decl) []ast.Decl {
+	if p.Target >= objectPropertyBindingTarget {
+		return decls
+	}
+
+	var visit func(ast.Binding)
+	visit = func(binding ast.Binding) {
+		switch b := binding.Data.(type) {
+		case *ast.BMissing:
+
+		case *ast.BIdentifier:
+
+		case *ast.BArray:
+			for _, item := range b.Items {
+				visit(item.Binding)
+			}
+
+		case *ast.BObject:
+			for _, property := range b.Properties {
+				// property.IsSpread
+				visit(property.Value)
+			}
+
+		default:
+			panic("Internal error")
+		}
+	}
+
+	for _, decl := range decls {
+		visit(decl.Binding)
+	}
+
+	return decls
 }
 
 func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut, thisArgFunc func() ast.Expr) (ast.Expr, exprOut) {

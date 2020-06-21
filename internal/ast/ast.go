@@ -53,8 +53,11 @@ func (op OpCode) IsPrefix() bool {
 	return op < UnOpPostDec
 }
 
-func (op OpCode) IsUnaryUpdate() bool {
-	return op >= UnOpPreDec && op <= UnOpPostInc
+func (op OpCode) UnaryAssignTarget() AssignTarget {
+	if op >= UnOpPreDec && op <= UnOpPostInc {
+		return AssignTargetUpdate
+	}
+	return AssignTargetNone
 }
 
 func (op OpCode) IsLeftAssociative() bool {
@@ -65,9 +68,23 @@ func (op OpCode) IsRightAssociative() bool {
 	return op >= BinOpAssign || op == BinOpPow
 }
 
-func (op OpCode) IsBinaryAssign() bool {
-	return op >= BinOpAssign
+func (op OpCode) BinaryAssignTarget() AssignTarget {
+	if op == BinOpAssign {
+		return AssignTargetReplace
+	}
+	if op > BinOpAssign {
+		return AssignTargetUpdate
+	}
+	return AssignTargetNone
 }
+
+type AssignTarget uint8
+
+const (
+	AssignTargetNone    AssignTarget = iota
+	AssignTargetReplace              // "a = b"
+	AssignTargetUpdate               // "a += b"
+)
 
 // If you add a new token, remember to add it to "OpTable" too
 const (

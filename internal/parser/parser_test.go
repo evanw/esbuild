@@ -1953,6 +1953,16 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectParseError(t, "class Foo { #foo } class Bar { foo = this?.#foo }",
 		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
 
+	// Getter and setter warnings
+	expectParseError(t, "class Foo { get #x() { this.#x = 1 } }",
+		"<stdin>: warning: Writing to getter-only property \"#x\" will throw\n")
+	expectParseError(t, "class Foo { get #x() { this.#x += 1 } }",
+		"<stdin>: warning: Writing to getter-only property \"#x\" will throw\n")
+	expectParseError(t, "class Foo { set #x() { this.#x } }",
+		"<stdin>: warning: Reading from setter-only property \"#x\" will throw\n")
+	expectParseError(t, "class Foo { set #x() { this.#x += 1 } }",
+		"<stdin>: warning: Reading from setter-only property \"#x\" will throw\n")
+
 	expectPrinted(t, `class Foo {
 	#if
 	#im() { return this.#im(this.#if) }

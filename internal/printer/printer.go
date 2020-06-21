@@ -1703,7 +1703,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 		case ast.BinOpPow:
 			// "**" can't contain certain unary expressions
-			if left, ok := e.Left.Data.(*ast.EUnary); ok && !left.Op.IsUnaryUpdate() {
+			if left, ok := e.Left.Data.(*ast.EUnary); ok && left.Op.UnaryAssignTarget() == ast.AssignTargetNone {
 				leftLevel = ast.LCall
 			} else if _, ok := e.Left.Data.(*ast.EUndefined); ok {
 				// Undefined is printed as "void 0"

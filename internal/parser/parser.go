@@ -6432,6 +6432,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			return stmts
 		}
 
+		s.Decls = p.lowerBindingsInDecls(s.Decls)
+
 	case *ast.SExpr:
 		s.Value = p.visitExpr(s.Value)
 
@@ -7537,7 +7539,7 @@ type exprIn struct {
 	// For example, we shouldn't transform "undefined = 1" into "void 0 = 1". This
 	// isn't something real-world code would do but it matters for conformance
 	// tests.
-	isAssignTarget bool
+	assignTarget ast.AssignTarget
 }
 
 type exprOut struct {
@@ -7603,7 +7605,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 				// Don't substitute an identifier for a non-identifier if this is an
 				// assignment target, since it'll cause a syntax error
-				if _, ok := new.Data.(*ast.EIdentifier); !in.isAssignTarget || ok {
+				if _, ok := new.Data.(*ast.EIdentifier); in.assignTarget == ast.AssignTargetNone || ok {
 					return new, exprOut{}
 				}
 			}
@@ -7688,7 +7690,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EBinary:
-		e.Left, _ = p.visitExprInOut(e.Left, exprIn{isAssignTarget: e.Op.IsBinaryAssign()})
+		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 
 		// Pattern-match "typeof require == 'function' && ___" from browserify
 		if e.Op == ast.BinOpLogicalAnd && e.Left.Data == p.typeofRequireEqualsFn {
@@ -7985,15 +7987,23 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			private.Ref = result.ref
 
 			// Unlike regular identifiers, there are no unbound private identifiers
-			if !p.symbols[result.ref.InnerIndex].Kind.IsPrivate() {
+			kind := p.symbols[result.ref.InnerIndex].Kind
+			if !kind.IsPrivate() {
 				r := ast.Range{e.Index.Loc, int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
+			} else if in.assignTarget != ast.AssignTargetNone && kind == ast.SymbolPrivateGet {
+				r := ast.Range{e.Index.Loc, int32(len(name))}
+				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to getter-only property %q will throw", name))
+			} else if in.assignTarget != ast.AssignTargetReplace && kind == ast.SymbolPrivateSet {
+				r := ast.Range{e.Index.Loc, int32(len(name))}
+				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Reading from setter-only property %q will throw", name))
 			}
 
 			// Lower private member access only if we're sure the target isn't needed
 			// for the value of "this" for a call expression. All other cases will be
 			// taken care of by the enclosing call expression.
-			if p.Target < privateNameTarget && e.OptionalChain == ast.OptionalChainNone && !in.isAssignTarget && !isCallTarget {
+			if p.Target < privateNameTarget && e.OptionalChain == ast.OptionalChainNone &&
+				in.assignTarget == ast.AssignTargetNone && !isCallTarget {
 				// "foo.#bar" => "__privateGet(foo, #bar)"
 				return p.lowerPrivateGet(e.Target, e.Index.Loc, private), exprOut{}
 			}
@@ -8043,7 +8053,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			p.typeofTarget = e.Value.Data
 
 		case ast.UnOpDelete:
-			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true, isAssignTarget: true})
+			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true, assignTarget: ast.AssignTargetReplace})
 			e.Value = value
 
 			// Lower optional chaining if present since we're guaranteed to be the
@@ -8055,7 +8065,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			return expr, exprOut{}
 		}
 
-		e.Value, _ = p.visitExprInOut(e.Value, exprIn{isAssignTarget: e.Op.IsUnaryUpdate()})
+		e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
 
 		// Post-process the binary expression
 		switch e.Op {
@@ -8184,7 +8194,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EArray:
 		for i, item := range e.Items {
-			e.Items[i], _ = p.visitExprInOut(item, exprIn{isAssignTarget: in.isAssignTarget})
+			e.Items[i], _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
 		}
 
 	case *ast.EObject:
@@ -8193,7 +8203,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				e.Properties[i].Key = p.visitExpr(property.Key)
 			}
 			if property.Value != nil {
-				*property.Value, _ = p.visitExprInOut(*property.Value, exprIn{isAssignTarget: in.isAssignTarget})
+				*property.Value, _ = p.visitExprInOut(*property.Value, exprIn{assignTarget: in.assignTarget})
 			}
 			if property.Initializer != nil {
 				*property.Initializer = p.visitExpr(*property.Initializer)
