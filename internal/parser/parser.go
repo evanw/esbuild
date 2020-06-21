@@ -7750,18 +7750,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 			default:
 				if p.Target < ES2020 {
-					// "a ?? b" => "a != null ? a : b"
-					// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
-					leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(expr.Loc, 2, e.Left)
-					return wrapFunc(ast.Expr{e.Right.Loc, &ast.EIf{
-						ast.Expr{expr.Loc, &ast.EBinary{
-							ast.BinOpLooseNe,
-							leftFunc(),
-							ast.Expr{expr.Loc, &ast.ENull{}},
-						}},
-						leftFunc(),
-						e.Right,
-					}}), exprOut{}
+					return p.lowerNullishCoalescing(expr.Loc, e), exprOut{}
 				}
 			}
 

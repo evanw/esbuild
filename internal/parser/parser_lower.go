@@ -534,6 +534,21 @@ func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op 
 	})
 }
 
+func (p *parser) lowerNullishCoalescing(loc ast.Loc, e *ast.EBinary) ast.Expr {
+	// "a ?? b" => "a != null ? a : b"
+	// "a() ?? b()" => "_ = a(), _ != null ? _ : b"
+	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Left)
+	return wrapFunc(ast.Expr{e.Right.Loc, &ast.EIf{
+		ast.Expr{loc, &ast.EBinary{
+			ast.BinOpLooseNe,
+			leftFunc(),
+			ast.Expr{loc, &ast.ENull{}},
+		}},
+		leftFunc(),
+		e.Right,
+	}})
+}
+
 // Lower object spread for environments that don't support them. Non-spread
 // properties are grouped into object literals and then passed to __assign()
 // like this (__assign() is an alias for Object.assign()):
