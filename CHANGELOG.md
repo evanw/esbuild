@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.8
 
 * Transform async functions ([#137](https://github.com/evanw/esbuild/issues/137))
 
