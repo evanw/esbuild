@@ -86,6 +86,30 @@ const Code = `
 		if (!member.has(obj)) throw new TypeError('Cannot access private method')
 		return method
 	}
+
+	// This helps for lowering async functions
+	export let __async = (__this, __arguments, generator) => {
+		return new Promise((resolve, reject) => {
+			let fulfilled = value => {
+				try {
+					step(generator.next(value))
+				} catch (e) {
+					reject(e)
+				}
+			}
+			let rejected = value => {
+				try {
+					step(generator.throw(value))
+				} catch (e) {
+					reject(e)
+				}
+			}
+			let step = result => {
+				return result.done ? resolve(result.value) : Promise.resolve(result.value).then(fulfilled, rejected)
+			}
+			step((generator = generator.apply(__this, __arguments)).next())
+		})
+	}
 `
 
 // The TypeScript decorator transform behaves similar to the official

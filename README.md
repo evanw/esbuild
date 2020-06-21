@@ -100,6 +100,7 @@ These syntax features are conditionally transformed for older browsers depending
 | Syntax transform                                                                    | Transformed when `--target` is below | Example                    |
 |-------------------------------------------------------------------------------------|--------------------------------------|----------------------------|
 | [Exponentiation operator](https://github.com/tc39/proposal-exponentiation-operator) | `es2016`                             | `a ** b`                   |
+| [Async functions](https://github.com/tc39/ecmascript-asyncawait)                    | `es2017`                             | `async () => {}`            |
 | [Spread properties](https://github.com/tc39/proposal-object-rest-spread)            | `es2018`                             | `let x = {...y}`           |
 | [Optional catch binding](https://github.com/tc39/proposal-optional-catch-binding)   | `es2019`                             | `try {} catch {}`          |
 | [Optional chaining](https://github.com/tc39/proposal-optional-chaining)             | `es2020`                             | `a?.b`                     |
@@ -116,7 +117,6 @@ These syntax features are currently always passed through un-transformed:
 
 | Syntax transform                                                                    | Unsupported when `--target` is below | Example                     |
 |-------------------------------------------------------------------------------------|--------------------------------------|-----------------------------|
-| [Async functions](https://github.com/tc39/ecmascript-asyncawait)                    | `es2017`                             | `async () => {}`            |
 | [Rest properties](https://github.com/tc39/proposal-object-rest-spread)              | `es2018`                             | `let {...x} = y`            |
 | [Asynchronous iteration](https://github.com/tc39/proposal-async-iteration)          | `es2018`                             | `for await (let x of y) {}` |
 | [Async generators](https://github.com/tc39/proposal-async-iteration)                | `es2018`                             | `async function* foo() {}`  |

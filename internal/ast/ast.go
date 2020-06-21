@@ -290,9 +290,10 @@ type Arg struct {
 }
 
 type Fn struct {
-	Name *LocRef
-	Args []Arg
-	Body FnBody
+	Name         *LocRef
+	Args         []Arg
+	Body         FnBody
+	ArgumentsRef Ref
 
 	IsAsync     bool
 	IsGenerator bool

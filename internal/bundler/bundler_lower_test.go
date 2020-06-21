@@ -1546,3 +1546,207 @@ _sag.add(Foo);
 		},
 	})
 }
+
+func TestLowerAsync2016NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				async function foo(bar) {
+					await bar
+					return [this, arguments]
+				}
+				class Foo {async foo() {}}
+				export default [
+					foo,
+					Foo,
+					async function() {},
+					async () => {},
+					{async foo() {}},
+					class {async foo() {}},
+					function() {
+						return async (bar) => {
+							await bar
+							return [this, arguments]
+						}
+					},
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2016,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `function foo(bar) {
+  return __async(this, arguments, function* () {
+    yield bar;
+    return [this, arguments];
+  });
+}
+class Foo {
+  foo() {
+    return __async(this, [], function* () {
+    });
+  }
+}
+export default [
+  foo,
+  Foo,
+  function() {
+    return __async(this, [], function* () {
+    });
+  },
+  () => __async(this, [], function* () {
+  }),
+  {foo() {
+    return __async(this, [], function* () {
+    });
+  }},
+  class {
+    foo() {
+      return __async(this, [], function* () {
+      });
+    }
+  },
+  function() {
+    return (bar) => __async(this, arguments, function* () {
+      yield bar;
+      return [this, arguments];
+    });
+  }
+];
+`,
+		},
+	})
+}
+
+func TestLowerAsync2017NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				async function foo(bar) {
+					await bar
+					return arguments
+				}
+				class Foo {async foo() {}}
+				export default [
+					foo,
+					Foo,
+					async function() {},
+					async () => {},
+					{async foo() {}},
+					class {async foo() {}},
+					function() {
+						return async (bar) => {
+							await bar
+							return [this, arguments]
+						}
+					},
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2017,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `async function foo(bar) {
+  await bar;
+  return arguments;
+}
+class Foo {
+  async foo() {
+  }
+}
+export default [
+  foo,
+  Foo,
+  async function() {
+  },
+  async () => {
+  },
+  {async foo() {
+  }},
+  class {
+    async foo() {
+    }
+  },
+  function() {
+    return async (bar) => {
+      await bar;
+      return [this, arguments];
+    };
+  }
+];
+`,
+		},
+	})
+}
+
+func TestLowerAsyncThis2016CommonJS(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				exports.foo = async () => this
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2016,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+var require_entry = __commonJS((exports) => {
+  exports.foo = () => __async(exports, [], function* () {
+    return exports;
+  });
+});
+export default require_entry();
+`,
+		},
+	})
+}
+
+func TestLowerAsyncThis2016ES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export let foo = async () => this
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2016,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+let foo = () => __async(void 0, [], function* () {
+  return void 0;
+});
+export {
+  foo
+};
+`,
+		},
+	})
+}

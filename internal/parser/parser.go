@@ -100,6 +100,7 @@ type parser struct {
 	// folding, substitutes compile-time variable definitions, and lowers certain
 	// syntactic constructs as appropriate.
 	isThisCaptured    bool
+	argumentsRef      *ast.Ref
 	callTarget        ast.E
 	moduleScope       *ast.Scope
 	isControlFlowDead bool
@@ -1886,7 +1887,6 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 	switch p.lexer.Token {
 	// "async function() {}"
 	case lexer.TFunction:
-		p.markFutureSyntax(futureSyntaxAsync, asyncRange)
 		return p.parseFnExpr(asyncRange.Loc, true /* isAsync */, asyncRange)
 
 		// "async => {}"
@@ -1900,7 +1900,6 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 
 		// "async x => {}"
 	case lexer.TIdentifier:
-		p.markFutureSyntax(futureSyntaxAsync, asyncRange)
 		ref := p.storeNameInRef(p.lexer.Identifier)
 		arg := ast.Arg{Binding: ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}}
 		p.lexer.Next()
@@ -1916,11 +1915,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 		// "async () => {}"
 	case lexer.TOpenParen:
 		p.lexer.Next()
-		expr := p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
-		if _, ok := expr.Data.(*ast.EArrow); ok {
-			p.markFutureSyntax(futureSyntaxAsync, asyncRange)
-		}
-		return expr
+		return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 
 		// "async"
 		// "async + 1"
@@ -1928,11 +1923,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 		// Distinguish between a call like "async<T>()" and an arrow like "async <T>() => {}"
 		if p.TS.Parse && p.lexer.Token == lexer.TLessThan && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
 			p.lexer.Next()
-			expr := p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
-			if _, ok := expr.Data.(*ast.EArrow); ok {
-				p.markFutureSyntax(futureSyntaxAsync, asyncRange)
-			}
-			return expr
+			return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 		}
 
 		return ast.Expr{asyncRange.Loc, &ast.EIdentifier{p.storeNameInRef("async")}}
@@ -3913,22 +3904,20 @@ func (p *parser) parseBinding() ast.Binding {
 }
 
 func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool) {
-	if opts.allowAwait {
-		if opts.allowYield {
-			p.markFutureSyntax(futureSyntaxAsyncGenerator, opts.asyncRange)
-		} else {
-			p.markFutureSyntax(futureSyntaxAsync, opts.asyncRange)
-		}
+	if opts.allowAwait && opts.allowYield {
+		p.markFutureSyntax(futureSyntaxAsyncGenerator, opts.asyncRange)
 	}
 
-	args := []ast.Arg{}
-	hasRestArg := false
+	fn.Name = name
+	fn.HasRestArg = false
+	fn.IsAsync = opts.allowAwait
+	fn.IsGenerator = opts.allowYield
 	p.lexer.Expect(lexer.TOpenParen)
 
 	// Reserve the special name "arguments" in this scope. This ensures that it
 	// shadows any variable called "arguments" in any parent scopes.
-	argumentsRef := p.declareSymbol(ast.SymbolHoisted, ast.Loc{}, "arguments")
-	p.symbols[argumentsRef.InnerIndex].MustNotBeRenamed = true
+	fn.ArgumentsRef = p.declareSymbol(ast.SymbolHoisted, ast.Loc{}, "arguments")
+	p.symbols[fn.ArgumentsRef.InnerIndex].MustNotBeRenamed = true
 
 	for p.lexer.Token != lexer.TCloseParen {
 		// Skip over "this" type annotations
@@ -3950,9 +3939,9 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			tsDecorators = p.parseTSDecorators()
 		}
 
-		if !hasRestArg && p.lexer.Token == lexer.TDotDotDot {
+		if !fn.HasRestArg && p.lexer.Token == lexer.TDotDotDot {
 			p.lexer.Next()
-			hasRestArg = true
+			fn.HasRestArg = true
 		}
 
 		// Potentially parse a TypeScript accessibility modifier
@@ -4004,13 +3993,13 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 		p.declareBinding(ast.SymbolHoisted, arg, parseStmtOpts{})
 
 		var defaultValue *ast.Expr
-		if !hasRestArg && p.lexer.Token == lexer.TEquals {
+		if !fn.HasRestArg && p.lexer.Token == lexer.TEquals {
 			p.lexer.Next()
 			value := p.parseExpr(ast.LComma)
 			defaultValue = &value
 		}
 
-		args = append(args, ast.Arg{
+		fn.Args = append(fn.Args, ast.Arg{
 			TSDecorators: tsDecorators,
 			Binding:      arg,
 			Default:      defaultValue,
@@ -4022,21 +4011,13 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 		if p.lexer.Token != lexer.TComma {
 			break
 		}
-		if hasRestArg {
+		if fn.HasRestArg {
 			p.lexer.Expect(lexer.TCloseParen)
 		}
 		p.lexer.Next()
 	}
 
 	p.lexer.Expect(lexer.TCloseParen)
-
-	fn = ast.Fn{
-		Name:        name,
-		Args:        args,
-		HasRestArg:  hasRestArg,
-		IsAsync:     opts.allowAwait,
-		IsGenerator: opts.allowYield,
-	}
 
 	// "function foo(): any {}"
 	if p.TS.Parse && p.lexer.Token == lexer.TColon {
@@ -7570,6 +7551,25 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 	return expr
 }
 
+func (p *parser) valueForThis(loc ast.Loc) (ast.Expr, bool) {
+	if p.IsBundling && !p.isThisCaptured {
+		if p.hasES6ImportSyntax || p.hasES6ExportSyntax {
+			// In an ES6 module, "this" is supposed to be undefined. Instead of
+			// doing this at runtime using "fn.call(undefined)", we do it at
+			// compile time using expression substitution here.
+			return ast.Expr{loc, &ast.EUndefined{}}, true
+		} else {
+			// In a CommonJS module, "this" is supposed to be the same as "exports".
+			// Instead of doing this at runtime using "fn.call(module.exports)", we
+			// do it at compile time using expression substitution here.
+			p.recordUsage(p.exportsRef)
+			return ast.Expr{loc, &ast.EIdentifier{p.exportsRef}}, true
+		}
+	}
+
+	return ast.Expr{}, false
+}
+
 func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
@@ -7577,19 +7577,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		*ast.ERegExp, *ast.ENewTarget, *ast.EUndefined:
 
 	case *ast.EThis:
-		if p.IsBundling && !p.isThisCaptured {
-			if p.hasES6ImportSyntax || p.hasES6ExportSyntax {
-				// In an ES6 module, "this" is supposed to be undefined. Instead of
-				// doing this at runtime using "fn.call(undefined)", we do it at
-				// compile time using expression substitution here.
-				return ast.Expr{expr.Loc, &ast.EUndefined{}}, exprOut{}
-			} else {
-				// In a CommonJS module, "this" is supposed to be the same as "exports".
-				// Instead of doing this at runtime using "fn.call(module.exports)", we
-				// do it at compile time using expression substitution here.
-				p.recordUsage(p.exportsRef)
-				return ast.Expr{expr.Loc, &ast.EIdentifier{p.exportsRef}}, exprOut{}
-			}
+		if value, ok := p.valueForThis(expr.Loc); ok {
+			return value, exprOut{}
 		}
 
 	case *ast.EImportMeta:
@@ -8183,6 +8172,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	case *ast.EAwait:
 		e.Value = p.visitExpr(e.Value)
 
+		// "await" expressions turn into "yield" expressions when lowering
+		if p.Target < asyncAwaitTarget {
+			return ast.Expr{expr.Loc, &ast.EYield{Value: &e.Value}}, exprOut{}
+		}
+
 	case *ast.EYield:
 		if e.Value != nil {
 			*e.Value = p.visitExpr(*e.Value)
@@ -8366,6 +8360,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts)
 		p.popScope()
 		p.popScope()
+		p.lowerAsyncFunction(e.Body.Loc, &e.IsAsync, &e.Body.Stmts, &e.PreferExpr)
 
 		if p.MangleSyntax && len(e.Body.Stmts) == 1 {
 			if s, ok := e.Body.Stmts[0].Data.(*ast.SReturn); ok {
@@ -8467,8 +8462,10 @@ func extractNumericValues(left ast.Expr, right ast.Expr) (float64, float64, bool
 func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	oldTryBodyCount := p.tryBodyCount
 	oldIsThisCaptured := p.isThisCaptured
+	oldArgumentsRef := p.argumentsRef
 	p.tryBodyCount = 0
 	p.isThisCaptured = true
+	p.argumentsRef = &fn.ArgumentsRef
 
 	p.pushScopeForVisitPass(ast.ScopeFunctionArgs, scopeLoc)
 	p.visitArgs(fn.Args)
@@ -8476,9 +8473,11 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts)
 	p.popScope()
 	p.popScope()
+	p.lowerAsyncFunction(fn.Body.Loc, &fn.IsAsync, &fn.Body.Stmts, nil)
 
 	p.tryBodyCount = oldTryBodyCount
 	p.isThisCaptured = oldIsThisCaptured
+	p.argumentsRef = oldArgumentsRef
 }
 
 func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []ast.Stmt {

@@ -11,13 +11,13 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
+const asyncAwaitTarget = ES2017
 const privateNameTarget = ESNext
 
 type futureSyntax uint8
 
 const (
-	futureSyntaxAsync futureSyntax = iota
-	futureSyntaxAsyncGenerator
+	futureSyntaxAsyncGenerator futureSyntax = iota
 	futureSyntaxRestProperty
 	futureSyntaxForAwait
 	futureSyntaxBigInteger
@@ -28,8 +28,6 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 	var target LanguageTarget
 
 	switch syntax {
-	case futureSyntaxAsync:
-		target = ES2017
 	case futureSyntaxAsyncGenerator:
 		target = ES2018
 	case futureSyntaxRestProperty:
@@ -47,8 +45,6 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 		yet := " yet"
 
 		switch syntax {
-		case futureSyntaxAsync:
-			name = "Async functions"
 		case futureSyntaxAsyncGenerator:
 			name = "Async generator functions"
 		case futureSyntaxRestProperty:
@@ -66,6 +62,44 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 			fmt.Sprintf("%s are from %s and transforming them to %s is not supported%s",
 				name, targetTable[target], targetTable[p.Target], yet))
 	}
+}
+
+func (p *parser) lowerAsyncFunction(loc ast.Loc, isAsync *bool, stmts *[]ast.Stmt, preferExpr *bool) {
+	// Only lower this function if necessary
+	if p.Target >= asyncAwaitTarget || !*isAsync {
+		return
+	}
+
+	// Use the shortened form if we're an arrow function
+	if preferExpr != nil {
+		*preferExpr = true
+	}
+
+	// Determine the value for "this"
+	thisValue, hasThisValue := p.valueForThis(loc)
+	if !hasThisValue {
+		thisValue = ast.Expr{loc, &ast.EThis{}}
+	}
+
+	// Only reference the "arguments" variable if it's actually used
+	var arguments ast.Expr
+	if p.argumentsRef != nil && p.useCountEstimates[*p.argumentsRef] > 0 {
+		arguments = ast.Expr{loc, &ast.EIdentifier{*p.argumentsRef}}
+	} else {
+		arguments = ast.Expr{loc, &ast.EArray{}}
+	}
+
+	// "async function foo() { stmts }" => "function foo() { return __async(this, arguments, function* () { stmts }) }"
+	*isAsync = false
+	callAsync := p.callRuntime(loc, "__async", []ast.Expr{
+		thisValue,
+		arguments,
+		ast.Expr{loc, &ast.EFunction{Fn: ast.Fn{
+			IsGenerator: true,
+			Body:        ast.FnBody{loc, *stmts},
+		}}},
+	})
+	*stmts = []ast.Stmt{ast.Stmt{loc, &ast.SReturn{&callAsync}}}
 }
 
 func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut, thisArgFunc func() ast.Expr) (ast.Expr, exprOut) {

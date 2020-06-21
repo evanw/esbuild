@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Transform async functions ([#137](https://github.com/evanw/esbuild/issues/137))
+
+    This release transforms async functions into generator functions for older browsers when the language target is set to `--target=es2016` or below. The transform esbuild uses is similar to the one used by the TypeScript compiler.
+
 ## 0.5.7
 
 * Transform private fields and private methods ([#47](https://github.com/evanw/esbuild/issues/47))

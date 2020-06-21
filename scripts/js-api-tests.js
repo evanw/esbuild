@@ -265,14 +265,6 @@ let transformTests = {
   objRest: ({ service }) => futureSyntax(service, 'let {...x} = y', 'es2017', 'es2018'),
   nonIdArrayRest: ({ service }) => futureSyntax(service, 'let [...[x]] = y', 'es2015', 'es2016'),
 
-  // Future syntax: async functions
-  asyncFnStmt: ({ service }) => futureSyntax(service, 'async function foo() {}', 'es2016', 'es2017'),
-  asyncFnExpr: ({ service }) => futureSyntax(service, '(async function() {})', 'es2016', 'es2017'),
-  asyncArrowFn: ({ service }) => futureSyntax(service, '(async () => {})', 'es2016', 'es2017'),
-  asyncObjFn: ({ service }) => futureSyntax(service, '({ async foo() {} })', 'es2016', 'es2017'),
-  asyncClassStmtFn: ({ service }) => futureSyntax(service, 'class Foo { async foo() {} }', 'es2016', 'es2017'),
-  asyncClassExprFn: ({ service }) => futureSyntax(service, '(class { async foo() {} })', 'es2016', 'es2017'),
-
   // Future syntax: async generator functions
   asyncGenFnStmt: ({ service }) => futureSyntax(service, 'async function* foo() {}', 'es2017', 'es2018'),
   asyncGenFnExpr: ({ service }) => futureSyntax(service, '(async function*() {})', 'es2017', 'es2018'),

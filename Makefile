@@ -158,7 +158,7 @@ TEST_ROLLUP_FLAGS += --bundle
 TEST_ROLLUP_FLAGS += --external:fsevents
 TEST_ROLLUP_FLAGS += --outfile=dist/rollup.js
 TEST_ROLLUP_FLAGS += --platform=node
-TEST_ROLLUP_FLAGS += --target=es2019
+TEST_ROLLUP_FLAGS += --target=es6
 TEST_ROLLUP_FLAGS += src/node-entry.ts
 
 github/rollup:
@@ -193,8 +193,8 @@ demo/sucrase: | github/sucrase
 	cd demo/sucrase && find test -name '*.ts' | sed 's/\(.*\)\.ts/import ".\/\1"/g' > all-tests.ts
 
 test-sucrase: esbuild | demo/sucrase
-	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --platform=node > out.js && npx mocha out.js
-	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --platform=node --minify > out.js && npx mocha out.js
+	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --target=es6 --platform=node > out.js && npx mocha out.js
+	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --target=es6 --platform=node --minify > out.js && npx mocha out.js
 
 ################################################################################
 # This builds Esprima using esbuild and then uses it to run Esprima's test suite
@@ -210,8 +210,8 @@ demo/esprima: | github/esprima
 	cd demo/esprima && npm ci
 
 test-esprima: esbuild | demo/esprima
-	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --platform=node && npm run all-tests
-	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --platform=node --minify && npm run all-tests
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node && npm run all-tests
+	cd demo/esprima && ../../esbuild --bundle src/esprima.ts --outfile=dist/esprima.js --target=es6 --platform=node --minify && npm run all-tests
 
 ################################################################################
 # This runs terser's test suite through esbuild

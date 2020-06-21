@@ -482,6 +482,56 @@
     }),
   )
 
+  // Async lowering tests
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        exports.async = async () => {
+          const value = await Promise.resolve(123)
+          if (value !== 123) throw 'fail'
+
+          let uncaught = false
+          let caught = false
+          try {
+            await Promise.reject(234)
+            uncaught = true
+          } catch (error) {
+            if (error !== 234) throw 'fail'
+            caught = true
+          }
+          if (uncaught || !caught) throw 'fail'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        async function throws() {
+          throw 123
+        }
+        exports.async = () => throws().then(
+          () => {
+            throw 'fail'
+          },
+          error => {
+            if (error !== 123) throw 'fail'
+          }
+        )
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        exports.async = async () => {
+          "use strict"
+          async function foo() {
+            return [this, arguments]
+          }
+          let [t, a] = await foo.call(0, 1, 2, 3)
+          if (t !== 0 || a.length !== 3 || a[0] !== 1 || a[1] !== 2 || a[2] !== 3) throw 'fail'
+        }
+      `,
+    }, { async: true }),
+  )
+
   // Test writing to stdout
   tests.push(
     // These should succeed
@@ -578,9 +628,8 @@
 
           // If this is an async test, run the async part
           if (options && options.async) {
-            const AsyncFunction = async function () { }.constructor
-            if (!(testExports.async instanceof AsyncFunction))
-              throw new Error('Expected async instanceof AsyncFunction')
+            if (!(testExports.async instanceof Function))
+              throw new Error('Expected async instanceof Function')
             await testExports.async()
           }
 
