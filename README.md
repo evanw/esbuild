@@ -114,15 +114,54 @@ These syntax features are conditionally transformed for older browsers depending
 | [Logical assignment operators](https://github.com/tc39/proposal-logical-assignment) | `esnext`                             | `a ??= b`                  |
 
 <details>
-<summary>Syntax transform caveats (click to expand)</summary><br>
+<summary>Syntax transform caveats (click to expand)</summary>
 
 * **Nullish coalescing correctness**
 
-    By default `a ?? b` is transformed into `a != null ? a : b`, which works because `a != null` is only false if `a` is `null` or `undefined`. However, there's exactly one obscure edge case where this doesn't work. For legacy reasons, the value of `document.all` is special-cased such that `document.all != null` is false. If you need to use this value with the nullish coalescing operator, you should enable `--strict` transforms so `a ?? b` becomes `a !== null && a !== void 0 ? a : b` instead, which works correctly with `document.all`. The strict transform isn't done by default because it causes code bloat for an obscure edge case that shouldn't matter in modern code.
+    By default `a ?? b` is transformed into `a != null ? a : b`, which works because `a != null` is only false if `a` is `null` or `undefined`. However, there's exactly one obscure edge case where this doesn't work. For legacy reasons, the value of `document.all` is special-cased such that `document.all != null` is false. If you need to use this value with the nullish coalescing operator, you should enable `--strict:nullish-coalescing` transforms so `a ?? b` becomes `a !== null && a !== void 0 ? a : b` instead, which works correctly with `document.all`. The strict transform isn't done by default because it causes code bloat for an obscure edge case that shouldn't matter in modern code.
+
+* **Class field correctness**
+
+    Class fields look like this:
+
+    ```js
+    class Foo {
+      foo = 123
+    }
+    ```
+
+    By default, the transform for class fields uses a normal assignment for initialization. That looks like this:
+
+    ```js
+    class Foo {
+      constructor() {
+        this.foo = 123;
+      }
+    }
+    ```
+
+    This doesn't increase code size by much and stays on the heavily-optimized path for modern JavaScript JITs. It also matches the default behavior of the TypeScript compiler. However, this doesn't exactly follow the initialization behavior in the JavaScript specification. For example, it can cause a setter to be called if one exists with that property name, which isn't supposed to happen. A more accurate transformation would be to use `Object.defineProperty()` instead like this:
+
+    ```js
+    class Foo {
+      constructor() {
+        Object.defineProperty(this, "foo", {
+          enumerable: true,
+          configurable: true,
+          writable: true,
+          value: 123
+        });
+      }
+    }
+    ```
+
+    This increases code size and decreases performance, but follows the JavaScript specification more accurately. If you need this accuracy, you should enable the `--strict:class-fields` option.
 
 * **Private member performance**
 
     This transform uses `WeakMap` and `WeakSet` to preserve the privacy properties of this feature, similar to the corresponding transforms in the Babel and TypeScript compilers. Most modern JavaScript engines (V8, JavaScriptCore, and SpiderMonkey but not ChakraCore) may not have good performance characteristics for large `WeakMap` and `WeakSet` objects. Creating many instances of classes with private fields or private methods with this syntax transform active may cause a lot of overhead for the garbage collector. This is because modern engines (other than ChakraCore) store weak values in an actual map object instead of as hidden properties on the keys themselves, and large map objects can cause performance issues with garbage collection. See [this reference](https://github.com/tc39/ecma262/issues/1657#issuecomment-518916579) for more information.
+
+Note that if you want to enable strictness for all transforms, you can just pass `--strict` instead of using `--strict:...` for each transform.
 </details>
 
 These syntax features are currently always passed through un-transformed:

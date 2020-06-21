@@ -111,6 +111,7 @@ func validateTarget(value Target) parser.LanguageTarget {
 func validateStrict(value StrictOptions) parser.StrictOptions {
 	return parser.StrictOptions{
 		NullishCoalescing: value.NullishCoalescing,
+		ClassFields:       value.ClassFields,
 	}
 }
 

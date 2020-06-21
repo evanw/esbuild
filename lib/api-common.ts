@@ -2,7 +2,8 @@ import * as types from "./api-types";
 
 function pushCommonFlags(flags: string[], options: types.CommonOptions, isTTY: boolean, logLevelDefault: types.LogLevel): void {
   if (options.target) flags.push(`--target=${options.target}`);
-  if (options.strict) flags.push(`--strict${options.strict === true ? '' : `=${options.strict.join(',')}`}`);
+  if (options.strict === true) flags.push(`--strict`);
+  else if (options.strict) for (let key of options.strict) flags.push(`--strict:${key}`);
 
   if (options.minify) flags.push('--minify');
   if (options.minifySyntax) flags.push('--minify-syntax');

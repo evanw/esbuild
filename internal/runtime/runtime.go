@@ -72,7 +72,10 @@ const Code = `
 	}
 	export let __param = (index, decorator) => (target, key) => decorator(target, key, index)
 
-	// For class private members
+	// For class members
+	export let __publicField = (obj, key, value) => {
+		return __defineProperty(obj, key, {enumerable: true, configurable: true, writable: true, value})
+	}
 	let __accessCheck = (obj, member, msg) => {
 		if (!member.has(obj)) throw TypeError('Cannot ' + msg)
 	}

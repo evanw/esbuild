@@ -885,17 +885,20 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			}
 		}
 
+		// The TypeScript class field transform requires removing fields without
+		// initializers. If the field is removed, then we only need the key for
+		// its side effects and we don't need a temporary reference for the key.
+		// However, the TypeScript compiler doesn't remove the field when doing
+		// strict class field initialization, so we shouldn't either.
+		shouldOmitFieldInitializer := p.TS.Parse && !prop.IsMethod && prop.Initializer == nil && !p.Strict.ClassFields
+
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
 		if prop.IsComputed && (p.TS.Parse || computedPropertyCache.Data != nil ||
 			(!prop.IsMethod && p.Target < ESNext) || len(prop.TSDecorators) > 0) {
 			needsKey := true
-
-			// The TypeScript class field transform requires removing fields without
-			// initializers. If the field is removed, then we only need the key for
-			// its side effects and we don't need a temporary reference for the key.
-			if len(prop.TSDecorators) == 0 && (prop.IsMethod || (p.TS.Parse && prop.Initializer == nil)) {
+			if len(prop.TSDecorators) == 0 && (prop.IsMethod || shouldOmitFieldInitializer) {
 				needsKey = false
 			}
 
@@ -975,7 +978,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
-			if !p.TS.Parse || prop.Initializer != nil || prop.Value != nil || (privateField != nil && p.Target < privateNameTarget) {
+			if !p.TS.Parse || !shouldOmitFieldInitializer || prop.Value != nil || (privateField != nil && p.Target < privateNameTarget) {
 				loc := prop.Key.Loc
 
 				// Determine where to store the field
@@ -1028,6 +1031,12 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 							init,
 						},
 					}}
+				} else if p.Strict.ClassFields {
+					expr = p.callRuntime(loc, "__publicField", []ast.Expr{
+						target,
+						prop.Key,
+						init,
+					})
 				} else {
 					if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
 						target = ast.Expr{loc, &ast.EDot{

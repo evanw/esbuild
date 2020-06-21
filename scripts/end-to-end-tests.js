@@ -511,6 +511,28 @@
         new Foo().bar()
       `,
     }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let called = false
+        class Foo {
+          foo
+          set foo(x) { called = true }
+        }
+        new Foo()
+        if (!called) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6', '--strict'], {
+      'in.js': `
+        let called = false
+        class Foo {
+          foo
+          set foo(x) { called = true }
+        }
+        new Foo()
+        if (called) throw 'fail'
+      `,
+    }),
   )
 
   // Async lowering tests

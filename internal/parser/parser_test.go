@@ -122,6 +122,7 @@ func expectPrintedTargetStrict(t *testing.T, target LanguageTarget, contents str
 			Target: target,
 			Strict: StrictOptions{
 				NullishCoalescing: true,
+				ClassFields:       true,
 			},
 		})
 		msgs := log.Done()

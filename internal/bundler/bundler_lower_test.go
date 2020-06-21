@@ -1750,3 +1750,79 @@ export {
 		},
 	})
 }
+
+func TestLowerClassFieldStrictNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					foo = 123
+					bar
+					static foo = 234
+					static bar
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2019,
+			Strict: parser.StrictOptions{
+				ClassFields: true,
+			},
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo {
+  constructor() {
+    __publicField(this, "foo", 123);
+    __publicField(this, "bar", void 0);
+  }
+}
+__publicField(Foo, "foo", 234);
+__publicField(Foo, "bar", void 0);
+`,
+		},
+	})
+}
+
+func TestTSLowerClassFieldStrictNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					foo = 123
+					bar
+					static foo = 234
+					static bar
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2019,
+			Strict: parser.StrictOptions{
+				ClassFields: true,
+			},
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo {
+  constructor() {
+    __publicField(this, "foo", 123);
+    __publicField(this, "bar", void 0);
+  }
+}
+__publicField(Foo, "foo", 234);
+__publicField(Foo, "bar", void 0);
+`,
+		},
+	})
+}

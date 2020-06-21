@@ -2,9 +2,15 @@
 
 ## Unreleased
 
-* Add the `--strict` option
+* Add the `--strict:nullish-coalescing` option
 
-    This currently only affects the transform for the `??` nullish coalescing operator. In loose mode (the default), `a ?? b` is transformed to `a != null ? a : b`. This works fine in all cases except when `a` is the special object `document.all`. In strict mode, `a ?? b` is transformed to `a !== null && a !== void 0 ? a : b` which works correctly with `document.all`. Enable `--strict` if you need to use `document.all` with the `??` operator.
+    This affects the transform for the `??` nullish coalescing operator. In loose mode (the default), `a ?? b` is transformed to `a != null ? a : b`. This works fine in all cases except when `a` is the special object `document.all`. In strict mode, `a ?? b` is transformed to `a !== null && a !== void 0 ? a : b` which works correctly with `document.all`. Enable `--strict:nullish-coalescing` if you need to use `document.all` with the `??` operator.
+
+* Add the `--strict:class-fields` option
+
+    This affects the transform for instance and static class fields. In loose mode (the default), class field initialization is transformed to a normal assignment. This is what the TypeScript compiler does by default. However, it doesn't follow the JavaScript specification exactly (e.g. it may call setter methods). Enable `--strict:class-fields` if you need accurate class field initialization.
+
+Note that you can also just use `--strict` to enable strictness for all transforms instead of using `--strict:...` for each transform.
 
 ## 0.5.8
 
