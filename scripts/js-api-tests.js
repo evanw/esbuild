@@ -264,14 +264,6 @@ let transformTests = {
   bigInt: ({ service }) => futureSyntax(service, '123n', 'es2019', 'es2020'),
   objRest: ({ service }) => futureSyntax(service, 'let {...x} = y', 'es2017', 'es2018'),
   nonIdArrayRest: ({ service }) => futureSyntax(service, 'let [...[x]] = y', 'es2015', 'es2016'),
-  privateField: ({ service }) => futureSyntax(service, 'class Foo { #foo }', 'es2020', 'esnext'),
-  privateMethod: ({ service }) => futureSyntax(service, 'class Foo { #foo() {} }', 'es2020', 'esnext'),
-  privateGetter: ({ service }) => futureSyntax(service, 'class Foo { get #foo() {} }', 'es2020', 'esnext'),
-  privateSetter: ({ service }) => futureSyntax(service, 'class Foo { set #foo() {} }', 'es2020', 'esnext'),
-  privateStaticField: ({ service }) => futureSyntax(service, 'class Foo { static #foo }', 'es2020', 'esnext'),
-  privateStaticMethod: ({ service }) => futureSyntax(service, 'class Foo { static #foo() {} }', 'es2020', 'esnext'),
-  privateStaticGetter: ({ service }) => futureSyntax(service, 'class Foo { static get #foo() {} }', 'es2020', 'esnext'),
-  privateStaticSetter: ({ service }) => futureSyntax(service, 'class Foo { static set #foo() {} }', 'es2020', 'esnext'),
 
   // Future syntax: async functions
   asyncFnStmt: ({ service }) => futureSyntax(service, 'async function foo() {}', 'es2016', 'es2017'),

@@ -71,6 +71,21 @@ const Code = `
 		return result
 	}
 	export let __param = (index, decorator) => (target, key) => decorator(target, key, index)
+
+	// For class private members
+	export let __privateGet = (obj, member, getter) => {
+		if (!member.has(obj)) throw new TypeError('Cannot read from private field')
+		return getter ? getter.call(obj) : member.get(obj)
+	}
+	export let __privateSet = (obj, member, value, setter) => {
+		if (!member.has(obj)) throw new TypeError('Cannot write to private field')
+		setter ? setter.call(obj, value) : member.set(obj, value)
+		return value
+	}
+	export let __privateMethod = (obj, member, method) => {
+		if (!member.has(obj)) throw new TypeError('Cannot access private method')
+		return method
+	}
 `
 
 // The TypeScript decorator transform behaves similar to the official

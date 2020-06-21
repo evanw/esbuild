@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+* Transform private names ([#47](https://github.com/evanw/esbuild/issues/47))
+
+    Private names are an access control mechanism for classes. They begin with a `#` and are not accessible outside of the class they are declared in. Support for parsing this syntax was added in esbuild version 0.4.9 but the syntax was passed through unmodified, meaning it didn't work in older browsers.
+
+    This release adds support for transforming private fields and private methods for older browsers that don't support this syntax. This transform uses `WeakMap` and `WeakSet` to preserve the privacy properties of this feature, similar to the corresponding transforms in the Babel and TypeScript compilers.
+
+    This code:
+
+    ```js
+    class Counter {
+      #count = 1
+      get value() { return this.#count }
+      increment() { ++this.#count }
+    }
+    ```
+
+    is transformed to this code when using `--target=es2020`:
+
+    ```js
+    var _count;
+    class Counter {
+      constructor() { _count.set(this, 1); }
+      get value() { return __privateGet(this, _count); }
+      increment() { __privateSet(this, _count, +__privateGet(this, _count) + 1); }
+    }
+    _count = new WeakMap();
+    ```
+
+    Note that as far as I know, most modern JavaScript engines (V8, JavaScriptCore, and SpiderMonkey but not ChakraCore) may not have good performance characteristics for large `WeakMap` and `WeakSet` objects. Creating many instances of classes with private fields or private methods with this syntax transform active may cause a lot of overhead for the garbage collector. This is because engines other than ChakraCore store weak values in an actual map object instead of as hidden properties on the keys themselves, and large map objects can cause performance issues with garbage collection.
+
 * Fix re-exports when bundling
 
     This is similar to the fix for re-exports in version 0.5.6 except that it applies when bundling, instead of just when transforming. It needed to be fixed differently because of how cross-file linking works when bundling.

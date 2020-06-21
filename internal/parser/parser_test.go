@@ -1623,8 +1623,8 @@ func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, ES2015, "(class { foo = null })", "(class {\n  constructor() {\n    this.foo = null;\n  }\n});\n")
 	expectPrintedTarget(t, ES2015, "(class { 123 })", "(class {\n  constructor() {\n    this[123] = void 0;\n  }\n});\n")
 	expectPrintedTarget(t, ES2015, "(class { 123 = null })", "(class {\n  constructor() {\n    this[123] = null;\n  }\n});\n")
-	expectPrintedTarget(t, ES2015, "(class { [foo] })", "var _a;\n(class {\n  constructor() {\n    this[_a] = void 0;\n  }\n}), _a = foo;\n")
-	expectPrintedTarget(t, ES2015, "(class { [foo] = null })", "var _a;\n(class {\n  constructor() {\n    this[_a] = null;\n  }\n}), _a = foo;\n")
+	expectPrintedTarget(t, ES2015, "(class { [foo] })", "var _a, _b;\n_b = class {\n  constructor() {\n    this[_a] = void 0;\n  }\n}, _a = foo, _b;\n")
+	expectPrintedTarget(t, ES2015, "(class { [foo] = null })", "var _a, _b;\n_b = class {\n  constructor() {\n    this[_a] = null;\n  }\n}, _a = foo, _b;\n")
 
 	expectPrintedTarget(t, ES2015, "class Foo extends Bar {}", `class Foo extends Bar {
 }
@@ -1937,9 +1937,9 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectPrinted(t, "class Foo { foo = this.#foo; #foo }", "class Foo {\n  foo = this.#foo;\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { foo = this?.#foo; #foo }", "class Foo {\n  foo = this?.#foo;\n  #foo;\n}\n")
 	expectParseError(t, "class Foo { #foo } class Bar { foo = this.#foo }",
-		"<stdin>: error: Private name \"#foo\" is not available here\n")
+		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
 	expectParseError(t, "class Foo { #foo } class Bar { foo = this?.#foo }",
-		"<stdin>: error: Private name \"#foo\" is not available here\n")
+		"<stdin>: error: Private name \"#foo\" must be declared in an enclosing class\n")
 
 	expectPrinted(t, `class Foo {
 	#if

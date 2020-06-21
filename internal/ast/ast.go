@@ -909,7 +909,8 @@ const (
 	SymbolClass
 
 	// A class-private identifier (i.e. "#foo").
-	SymbolPrivate
+	SymbolPrivateField
+	SymbolPrivateMethod
 	SymbolPrivateGet
 	SymbolPrivateSet
 	SymbolPrivateGetSetPair
@@ -931,7 +932,7 @@ const (
 )
 
 func (kind SymbolKind) IsPrivate() bool {
-	return kind >= SymbolPrivate && kind <= SymbolPrivateGetSetPair
+	return kind >= SymbolPrivateField && kind <= SymbolPrivateGetSetPair
 }
 
 func (kind SymbolKind) IsHoisted() bool {

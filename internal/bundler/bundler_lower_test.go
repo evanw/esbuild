@@ -182,3 +182,1367 @@ let tests = {
 		},
 	})
 }
+
+func TestLowerPrivateFieldAssignments2015NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#x
+					unary() {
+						this.#x++
+						this.#x--
+						++this.#x
+						--this.#x
+					}
+					binary() {
+						this.#x = 1
+						this.#x += 1
+						this.#x -= 1
+						this.#x *= 1
+						this.#x /= 1
+						this.#x %= 1
+						this.#x **= 1
+						this.#x <<= 1
+						this.#x >>= 1
+						this.#x >>>= 1
+						this.#x &= 1
+						this.#x |= 1
+						this.#x ^= 1
+						this.#x &&= 1
+						this.#x ||= 1
+						this.#x ??= 1
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2015,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _x;
+class Foo {
+  constructor() {
+    _x.set(this, void 0);
+  }
+  unary() {
+    var _a, _b;
+    __privateSet(this, _x, (_a = +__privateGet(this, _x)) + 1), _a;
+    __privateSet(this, _x, (_b = +__privateGet(this, _x)) - 1), _b;
+    __privateSet(this, _x, +__privateGet(this, _x) + 1);
+    __privateSet(this, _x, +__privateGet(this, _x) - 1);
+  }
+  binary() {
+    var _a;
+    __privateSet(this, _x, 1);
+    __privateSet(this, _x, __privateGet(this, _x) + 1);
+    __privateSet(this, _x, __privateGet(this, _x) - 1);
+    __privateSet(this, _x, __privateGet(this, _x) * 1);
+    __privateSet(this, _x, __privateGet(this, _x) / 1);
+    __privateSet(this, _x, __privateGet(this, _x) % 1);
+    __privateSet(this, _x, __pow(__privateGet(this, _x), 1));
+    __privateSet(this, _x, __privateGet(this, _x) << 1);
+    __privateSet(this, _x, __privateGet(this, _x) >> 1);
+    __privateSet(this, _x, __privateGet(this, _x) >>> 1);
+    __privateSet(this, _x, __privateGet(this, _x) & 1);
+    __privateSet(this, _x, __privateGet(this, _x) | 1);
+    __privateSet(this, _x, __privateGet(this, _x) ^ 1);
+    __privateGet(this, _x) && __privateSet(this, _x, 1);
+    __privateGet(this, _x) || __privateSet(this, _x, 1);
+    (_a = __privateGet(this, _x)) != null ? _a : __privateSet(this, _x, 1);
+  }
+}
+_x = new WeakMap();
+`,
+		},
+	})
+}
+
+func TestLowerPrivateFieldAssignments2019NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#x
+					unary() {
+						this.#x++
+						this.#x--
+						++this.#x
+						--this.#x
+					}
+					binary() {
+						this.#x = 1
+						this.#x += 1
+						this.#x -= 1
+						this.#x *= 1
+						this.#x /= 1
+						this.#x %= 1
+						this.#x **= 1
+						this.#x <<= 1
+						this.#x >>= 1
+						this.#x >>>= 1
+						this.#x &= 1
+						this.#x |= 1
+						this.#x ^= 1
+						this.#x &&= 1
+						this.#x ||= 1
+						this.#x ??= 1
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2019,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _x;
+class Foo {
+  constructor() {
+    _x.set(this, void 0);
+  }
+  unary() {
+    var _a, _b;
+    __privateSet(this, _x, (_a = +__privateGet(this, _x)) + 1), _a;
+    __privateSet(this, _x, (_b = +__privateGet(this, _x)) - 1), _b;
+    __privateSet(this, _x, +__privateGet(this, _x) + 1);
+    __privateSet(this, _x, +__privateGet(this, _x) - 1);
+  }
+  binary() {
+    var _a;
+    __privateSet(this, _x, 1);
+    __privateSet(this, _x, __privateGet(this, _x) + 1);
+    __privateSet(this, _x, __privateGet(this, _x) - 1);
+    __privateSet(this, _x, __privateGet(this, _x) * 1);
+    __privateSet(this, _x, __privateGet(this, _x) / 1);
+    __privateSet(this, _x, __privateGet(this, _x) % 1);
+    __privateSet(this, _x, __privateGet(this, _x) ** 1);
+    __privateSet(this, _x, __privateGet(this, _x) << 1);
+    __privateSet(this, _x, __privateGet(this, _x) >> 1);
+    __privateSet(this, _x, __privateGet(this, _x) >>> 1);
+    __privateSet(this, _x, __privateGet(this, _x) & 1);
+    __privateSet(this, _x, __privateGet(this, _x) | 1);
+    __privateSet(this, _x, __privateGet(this, _x) ^ 1);
+    __privateGet(this, _x) && __privateSet(this, _x, 1);
+    __privateGet(this, _x) || __privateSet(this, _x, 1);
+    (_a = __privateGet(this, _x)) != null ? _a : __privateSet(this, _x, 1);
+  }
+}
+_x = new WeakMap();
+`,
+		},
+	})
+}
+
+func TestLowerPrivateFieldAssignments2020NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#x
+					unary() {
+						this.#x++
+						this.#x--
+						++this.#x
+						--this.#x
+					}
+					binary() {
+						this.#x = 1
+						this.#x += 1
+						this.#x -= 1
+						this.#x *= 1
+						this.#x /= 1
+						this.#x %= 1
+						this.#x **= 1
+						this.#x <<= 1
+						this.#x >>= 1
+						this.#x >>>= 1
+						this.#x &= 1
+						this.#x |= 1
+						this.#x ^= 1
+						this.#x &&= 1
+						this.#x ||= 1
+						this.#x ??= 1
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _x;
+class Foo {
+  constructor() {
+    _x.set(this, void 0);
+  }
+  unary() {
+    var _a, _b;
+    __privateSet(this, _x, (_a = +__privateGet(this, _x)) + 1), _a;
+    __privateSet(this, _x, (_b = +__privateGet(this, _x)) - 1), _b;
+    __privateSet(this, _x, +__privateGet(this, _x) + 1);
+    __privateSet(this, _x, +__privateGet(this, _x) - 1);
+  }
+  binary() {
+    __privateSet(this, _x, 1);
+    __privateSet(this, _x, __privateGet(this, _x) + 1);
+    __privateSet(this, _x, __privateGet(this, _x) - 1);
+    __privateSet(this, _x, __privateGet(this, _x) * 1);
+    __privateSet(this, _x, __privateGet(this, _x) / 1);
+    __privateSet(this, _x, __privateGet(this, _x) % 1);
+    __privateSet(this, _x, __privateGet(this, _x) ** 1);
+    __privateSet(this, _x, __privateGet(this, _x) << 1);
+    __privateSet(this, _x, __privateGet(this, _x) >> 1);
+    __privateSet(this, _x, __privateGet(this, _x) >>> 1);
+    __privateSet(this, _x, __privateGet(this, _x) & 1);
+    __privateSet(this, _x, __privateGet(this, _x) | 1);
+    __privateSet(this, _x, __privateGet(this, _x) ^ 1);
+    __privateGet(this, _x) && __privateSet(this, _x, 1);
+    __privateGet(this, _x) || __privateSet(this, _x, 1);
+    __privateGet(this, _x) ?? __privateSet(this, _x, 1);
+  }
+}
+_x = new WeakMap();
+`,
+		},
+	})
+}
+
+func TestLowerPrivateFieldAssignmentsNextNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#x
+					unary() {
+						this.#x++
+						this.#x--
+						++this.#x
+						--this.#x
+					}
+					binary() {
+						this.#x = 1
+						this.#x += 1
+						this.#x -= 1
+						this.#x *= 1
+						this.#x /= 1
+						this.#x %= 1
+						this.#x **= 1
+						this.#x <<= 1
+						this.#x >>= 1
+						this.#x >>>= 1
+						this.#x &= 1
+						this.#x |= 1
+						this.#x ^= 1
+						this.#x &&= 1
+						this.#x ||= 1
+						this.#x ??= 1
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo {
+  #x;
+  unary() {
+    this.#x++;
+    this.#x--;
+    ++this.#x;
+    --this.#x;
+  }
+  binary() {
+    this.#x = 1;
+    this.#x += 1;
+    this.#x -= 1;
+    this.#x *= 1;
+    this.#x /= 1;
+    this.#x %= 1;
+    this.#x **= 1;
+    this.#x <<= 1;
+    this.#x >>= 1;
+    this.#x >>>= 1;
+    this.#x &= 1;
+    this.#x |= 1;
+    this.#x ^= 1;
+    this.#x &&= 1;
+    this.#x ||= 1;
+    this.#x ??= 1;
+  }
+}
+`,
+		},
+	})
+}
+
+func TestLowerPrivateFieldOptionalChain2019NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#x
+					foo() {
+						this?.#x.y
+						this?.y.#x
+						this.#x?.y
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2019,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _x;
+class Foo {
+  constructor() {
+    _x.set(this, void 0);
+  }
+  foo() {
+    var _a;
+    this == null ? void 0 : __privateGet(this, _x).y;
+    this == null ? void 0 : __privateGet(this.y, _x);
+    (_a = __privateGet(this, _x)) == null ? void 0 : _a.y;
+  }
+}
+_x = new WeakMap();
+`,
+		},
+	})
+}
+
+func TestLowerPrivateFieldOptionalChain2020NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#x
+					foo() {
+						this?.#x.y
+						this?.y.#x
+						this.#x?.y
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _x;
+class Foo {
+  constructor() {
+    _x.set(this, void 0);
+  }
+  foo() {
+    this == null ? void 0 : __privateGet(this, _x).y;
+    this == null ? void 0 : __privateGet(this.y, _x);
+    __privateGet(this, _x)?.y;
+  }
+}
+_x = new WeakMap();
+`,
+		},
+	})
+}
+
+func TestLowerPrivateFieldOptionalChainNextNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#x
+					foo() {
+						this?.#x.y
+						this?.y.#x
+						this.#x?.y
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo {
+  #x;
+  foo() {
+    this?.#x.y;
+    this?.y.#x;
+    this.#x?.y;
+  }
+}
+`,
+		},
+	})
+}
+
+func TestTSLowerPrivateFieldOptionalChain2015NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					#x
+					foo() {
+						this?.#x.y
+						this?.y.#x
+						this.#x?.y
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2015,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _x;
+class Foo {
+  constructor() {
+    _x.set(this, void 0);
+  }
+  foo() {
+    var _a;
+    this == null ? void 0 : __privateGet(this, _x).y;
+    this == null ? void 0 : __privateGet(this.y, _x);
+    (_a = __privateGet(this, _x)) == null ? void 0 : _a.y;
+  }
+}
+_x = new WeakMap();
+`,
+		},
+	})
+}
+
+func TestTSLowerPrivateStaticMembers2015NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					static #x
+					static get #y() {}
+					static set #y() {}
+					static #z() {}
+					foo() {
+						Foo.#x += 1
+						Foo.#y += 1
+						Foo.#z()
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2015,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _x, _y, y_get, y_set, _z, z_fn;
+class Foo {
+  foo() {
+    __privateSet(Foo, _x, __privateGet(Foo, _x) + 1);
+    __privateSet(Foo, _y, __privateGet(Foo, _y, y_get) + 1, y_set);
+    __privateMethod(Foo, _z, z_fn).call(Foo);
+  }
+}
+_x = new WeakMap();
+_y = new WeakSet();
+y_get = function() {
+};
+y_set = function() {
+};
+_z = new WeakSet();
+z_fn = function() {
+};
+_x.set(Foo, void 0);
+_y.add(Foo);
+_z.add(Foo);
+`,
+		},
+	})
+}
+
+func TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class WeakMap {
+					#x
+				}
+				class WeakSet {
+					#y() {}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2015,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.ts
+var _x;
+class WeakMap2 {
+  constructor() {
+    _x.set(this, void 0);
+  }
+}
+_x = new WeakMap();
+var _y, y_fn;
+class WeakSet2 {
+  constructor() {
+    _y.add(this);
+  }
+}
+_y = new WeakSet();
+y_fn = function() {
+};
+`,
+		},
+	})
+}
+
+func TestLowerPrivateGetterSetter2015(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					get #foo() { return this.foo }
+					set #bar(val) { this.bar = val }
+					get #prop() { return this.prop }
+					set #prop(val) { this.prop = val }
+					foo(fn) {
+						fn().#foo
+						fn().#bar = 1
+						fn().#prop
+						fn().#prop = 2
+					}
+					unary(fn) {
+						fn().#prop++;
+						fn().#prop--;
+						++fn().#prop;
+						--fn().#prop;
+					}
+					binary(fn) {
+						fn().#prop = 1;
+						fn().#prop += 1;
+						fn().#prop -= 1;
+						fn().#prop *= 1;
+						fn().#prop /= 1;
+						fn().#prop %= 1;
+						fn().#prop **= 1;
+						fn().#prop <<= 1;
+						fn().#prop >>= 1;
+						fn().#prop >>>= 1;
+						fn().#prop &= 1;
+						fn().#prop |= 1;
+						fn().#prop ^= 1;
+						fn().#prop &&= 1;
+						fn().#prop ||= 1;
+						fn().#prop ??= 1;
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2015,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
+class Foo {
+  constructor() {
+    _foo.add(this);
+    _bar.add(this);
+    _prop.add(this);
+  }
+  foo(fn) {
+    __privateGet(fn(), _foo, foo_get);
+    __privateSet(fn(), _bar, 1, bar_set);
+    __privateGet(fn(), _prop, prop_get);
+    __privateSet(fn(), _prop, 2, prop_set);
+  }
+  unary(fn) {
+    var _a, _b, _c, _d, _e, _f;
+    __privateSet(_a = fn(), _prop, (_b = +__privateGet(_a, _prop, prop_get)) + 1, prop_set), _b;
+    __privateSet(_c = fn(), _prop, (_d = +__privateGet(_c, _prop, prop_get)) - 1, prop_set), _d;
+    __privateSet(_e = fn(), _prop, +__privateGet(_e, _prop, prop_get) + 1, prop_set);
+    __privateSet(_f = fn(), _prop, +__privateGet(_f, _prop, prop_get) - 1, prop_set);
+  }
+  binary(fn) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+    __privateSet(fn(), _prop, 1, prop_set);
+    __privateSet(_a = fn(), _prop, __privateGet(_a, _prop, prop_get) + 1, prop_set);
+    __privateSet(_b = fn(), _prop, __privateGet(_b, _prop, prop_get) - 1, prop_set);
+    __privateSet(_c = fn(), _prop, __privateGet(_c, _prop, prop_get) * 1, prop_set);
+    __privateSet(_d = fn(), _prop, __privateGet(_d, _prop, prop_get) / 1, prop_set);
+    __privateSet(_e = fn(), _prop, __privateGet(_e, _prop, prop_get) % 1, prop_set);
+    __privateSet(_f = fn(), _prop, __pow(__privateGet(_f, _prop, prop_get), 1), prop_set);
+    __privateSet(_g = fn(), _prop, __privateGet(_g, _prop, prop_get) << 1, prop_set);
+    __privateSet(_h = fn(), _prop, __privateGet(_h, _prop, prop_get) >> 1, prop_set);
+    __privateSet(_i = fn(), _prop, __privateGet(_i, _prop, prop_get) >>> 1, prop_set);
+    __privateSet(_j = fn(), _prop, __privateGet(_j, _prop, prop_get) & 1, prop_set);
+    __privateSet(_k = fn(), _prop, __privateGet(_k, _prop, prop_get) | 1, prop_set);
+    __privateSet(_l = fn(), _prop, __privateGet(_l, _prop, prop_get) ^ 1, prop_set);
+    __privateGet(_m = fn(), _prop, prop_get) && __privateSet(_m, _prop, 1, prop_set);
+    __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
+    (_p = __privateGet(_o = fn(), _prop, prop_get)) != null ? _p : __privateSet(_o, _prop, 1, prop_set);
+  }
+}
+_foo = new WeakSet();
+foo_get = function() {
+  return this.foo;
+};
+_bar = new WeakSet();
+bar_set = function(val) {
+  this.bar = val;
+};
+_prop = new WeakSet();
+prop_get = function() {
+  return this.prop;
+};
+prop_set = function(val) {
+  this.prop = val;
+};
+`,
+		},
+	})
+}
+
+func TestLowerPrivateGetterSetter2019(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					get #foo() { return this.foo }
+					set #bar(val) { this.bar = val }
+					get #prop() { return this.prop }
+					set #prop(val) { this.prop = val }
+					foo(fn) {
+						fn().#foo
+						fn().#bar = 1
+						fn().#prop
+						fn().#prop = 2
+					}
+					unary(fn) {
+						fn().#prop++;
+						fn().#prop--;
+						++fn().#prop;
+						--fn().#prop;
+					}
+					binary(fn) {
+						fn().#prop = 1;
+						fn().#prop += 1;
+						fn().#prop -= 1;
+						fn().#prop *= 1;
+						fn().#prop /= 1;
+						fn().#prop %= 1;
+						fn().#prop **= 1;
+						fn().#prop <<= 1;
+						fn().#prop >>= 1;
+						fn().#prop >>>= 1;
+						fn().#prop &= 1;
+						fn().#prop |= 1;
+						fn().#prop ^= 1;
+						fn().#prop &&= 1;
+						fn().#prop ||= 1;
+						fn().#prop ??= 1;
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2019,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
+class Foo {
+  constructor() {
+    _foo.add(this);
+    _bar.add(this);
+    _prop.add(this);
+  }
+  foo(fn) {
+    __privateGet(fn(), _foo, foo_get);
+    __privateSet(fn(), _bar, 1, bar_set);
+    __privateGet(fn(), _prop, prop_get);
+    __privateSet(fn(), _prop, 2, prop_set);
+  }
+  unary(fn) {
+    var _a, _b, _c, _d, _e, _f;
+    __privateSet(_a = fn(), _prop, (_b = +__privateGet(_a, _prop, prop_get)) + 1, prop_set), _b;
+    __privateSet(_c = fn(), _prop, (_d = +__privateGet(_c, _prop, prop_get)) - 1, prop_set), _d;
+    __privateSet(_e = fn(), _prop, +__privateGet(_e, _prop, prop_get) + 1, prop_set);
+    __privateSet(_f = fn(), _prop, +__privateGet(_f, _prop, prop_get) - 1, prop_set);
+  }
+  binary(fn) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+    __privateSet(fn(), _prop, 1, prop_set);
+    __privateSet(_a = fn(), _prop, __privateGet(_a, _prop, prop_get) + 1, prop_set);
+    __privateSet(_b = fn(), _prop, __privateGet(_b, _prop, prop_get) - 1, prop_set);
+    __privateSet(_c = fn(), _prop, __privateGet(_c, _prop, prop_get) * 1, prop_set);
+    __privateSet(_d = fn(), _prop, __privateGet(_d, _prop, prop_get) / 1, prop_set);
+    __privateSet(_e = fn(), _prop, __privateGet(_e, _prop, prop_get) % 1, prop_set);
+    __privateSet(_f = fn(), _prop, __privateGet(_f, _prop, prop_get) ** 1, prop_set);
+    __privateSet(_g = fn(), _prop, __privateGet(_g, _prop, prop_get) << 1, prop_set);
+    __privateSet(_h = fn(), _prop, __privateGet(_h, _prop, prop_get) >> 1, prop_set);
+    __privateSet(_i = fn(), _prop, __privateGet(_i, _prop, prop_get) >>> 1, prop_set);
+    __privateSet(_j = fn(), _prop, __privateGet(_j, _prop, prop_get) & 1, prop_set);
+    __privateSet(_k = fn(), _prop, __privateGet(_k, _prop, prop_get) | 1, prop_set);
+    __privateSet(_l = fn(), _prop, __privateGet(_l, _prop, prop_get) ^ 1, prop_set);
+    __privateGet(_m = fn(), _prop, prop_get) && __privateSet(_m, _prop, 1, prop_set);
+    __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
+    (_p = __privateGet(_o = fn(), _prop, prop_get)) != null ? _p : __privateSet(_o, _prop, 1, prop_set);
+  }
+}
+_foo = new WeakSet();
+foo_get = function() {
+  return this.foo;
+};
+_bar = new WeakSet();
+bar_set = function(val) {
+  this.bar = val;
+};
+_prop = new WeakSet();
+prop_get = function() {
+  return this.prop;
+};
+prop_set = function(val) {
+  this.prop = val;
+};
+`,
+		},
+	})
+}
+
+func TestLowerPrivateGetterSetter2020(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					get #foo() { return this.foo }
+					set #bar(val) { this.bar = val }
+					get #prop() { return this.prop }
+					set #prop(val) { this.prop = val }
+					foo(fn) {
+						fn().#foo
+						fn().#bar = 1
+						fn().#prop
+						fn().#prop = 2
+					}
+					unary(fn) {
+						fn().#prop++;
+						fn().#prop--;
+						++fn().#prop;
+						--fn().#prop;
+					}
+					binary(fn) {
+						fn().#prop = 1;
+						fn().#prop += 1;
+						fn().#prop -= 1;
+						fn().#prop *= 1;
+						fn().#prop /= 1;
+						fn().#prop %= 1;
+						fn().#prop **= 1;
+						fn().#prop <<= 1;
+						fn().#prop >>= 1;
+						fn().#prop >>>= 1;
+						fn().#prop &= 1;
+						fn().#prop |= 1;
+						fn().#prop ^= 1;
+						fn().#prop &&= 1;
+						fn().#prop ||= 1;
+						fn().#prop ??= 1;
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
+class Foo {
+  constructor() {
+    _foo.add(this);
+    _bar.add(this);
+    _prop.add(this);
+  }
+  foo(fn) {
+    __privateGet(fn(), _foo, foo_get);
+    __privateSet(fn(), _bar, 1, bar_set);
+    __privateGet(fn(), _prop, prop_get);
+    __privateSet(fn(), _prop, 2, prop_set);
+  }
+  unary(fn) {
+    var _a, _b, _c, _d, _e, _f;
+    __privateSet(_a = fn(), _prop, (_b = +__privateGet(_a, _prop, prop_get)) + 1, prop_set), _b;
+    __privateSet(_c = fn(), _prop, (_d = +__privateGet(_c, _prop, prop_get)) - 1, prop_set), _d;
+    __privateSet(_e = fn(), _prop, +__privateGet(_e, _prop, prop_get) + 1, prop_set);
+    __privateSet(_f = fn(), _prop, +__privateGet(_f, _prop, prop_get) - 1, prop_set);
+  }
+  binary(fn) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+    __privateSet(fn(), _prop, 1, prop_set);
+    __privateSet(_a = fn(), _prop, __privateGet(_a, _prop, prop_get) + 1, prop_set);
+    __privateSet(_b = fn(), _prop, __privateGet(_b, _prop, prop_get) - 1, prop_set);
+    __privateSet(_c = fn(), _prop, __privateGet(_c, _prop, prop_get) * 1, prop_set);
+    __privateSet(_d = fn(), _prop, __privateGet(_d, _prop, prop_get) / 1, prop_set);
+    __privateSet(_e = fn(), _prop, __privateGet(_e, _prop, prop_get) % 1, prop_set);
+    __privateSet(_f = fn(), _prop, __privateGet(_f, _prop, prop_get) ** 1, prop_set);
+    __privateSet(_g = fn(), _prop, __privateGet(_g, _prop, prop_get) << 1, prop_set);
+    __privateSet(_h = fn(), _prop, __privateGet(_h, _prop, prop_get) >> 1, prop_set);
+    __privateSet(_i = fn(), _prop, __privateGet(_i, _prop, prop_get) >>> 1, prop_set);
+    __privateSet(_j = fn(), _prop, __privateGet(_j, _prop, prop_get) & 1, prop_set);
+    __privateSet(_k = fn(), _prop, __privateGet(_k, _prop, prop_get) | 1, prop_set);
+    __privateSet(_l = fn(), _prop, __privateGet(_l, _prop, prop_get) ^ 1, prop_set);
+    __privateGet(_m = fn(), _prop, prop_get) && __privateSet(_m, _prop, 1, prop_set);
+    __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
+    __privateGet(_o = fn(), _prop, prop_get) ?? __privateSet(_o, _prop, 1, prop_set);
+  }
+}
+_foo = new WeakSet();
+foo_get = function() {
+  return this.foo;
+};
+_bar = new WeakSet();
+bar_set = function(val) {
+  this.bar = val;
+};
+_prop = new WeakSet();
+prop_get = function() {
+  return this.prop;
+};
+prop_set = function(val) {
+  this.prop = val;
+};
+`,
+		},
+	})
+}
+
+func TestLowerPrivateGetterSetterNext(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					get #foo() { return this.foo }
+					set #bar(val) { this.bar = val }
+					get #prop() { return this.prop }
+					set #prop(val) { this.prop = val }
+					foo(fn) {
+						fn().#foo
+						fn().#bar = 1
+						fn().#prop
+						fn().#prop = 2
+					}
+					unary(fn) {
+						fn().#prop++;
+						fn().#prop--;
+						++fn().#prop;
+						--fn().#prop;
+					}
+					binary(fn) {
+						fn().#prop = 1;
+						fn().#prop += 1;
+						fn().#prop -= 1;
+						fn().#prop *= 1;
+						fn().#prop /= 1;
+						fn().#prop %= 1;
+						fn().#prop **= 1;
+						fn().#prop <<= 1;
+						fn().#prop >>= 1;
+						fn().#prop >>>= 1;
+						fn().#prop &= 1;
+						fn().#prop |= 1;
+						fn().#prop ^= 1;
+						fn().#prop &&= 1;
+						fn().#prop ||= 1;
+						fn().#prop ??= 1;
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+class Foo {
+  get #foo() {
+    return this.foo;
+  }
+  set #bar(val) {
+    this.bar = val;
+  }
+  get #prop() {
+    return this.prop;
+  }
+  set #prop(val) {
+    this.prop = val;
+  }
+  foo(fn) {
+    fn().#foo;
+    fn().#bar = 1;
+    fn().#prop;
+    fn().#prop = 2;
+  }
+  unary(fn) {
+    fn().#prop++;
+    fn().#prop--;
+    ++fn().#prop;
+    --fn().#prop;
+  }
+  binary(fn) {
+    fn().#prop = 1;
+    fn().#prop += 1;
+    fn().#prop -= 1;
+    fn().#prop *= 1;
+    fn().#prop /= 1;
+    fn().#prop %= 1;
+    fn().#prop **= 1;
+    fn().#prop <<= 1;
+    fn().#prop >>= 1;
+    fn().#prop >>>= 1;
+    fn().#prop &= 1;
+    fn().#prop |= 1;
+    fn().#prop ^= 1;
+    fn().#prop &&= 1;
+    fn().#prop ||= 1;
+    fn().#prop ??= 1;
+  }
+}
+`,
+		},
+	})
+}
+
+func TestLowerPrivateMethod2019(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#field
+					#method() {}
+					baseline() {
+						a().foo
+						b().foo(x)
+						c()?.foo(x)
+						d().foo?.(x)
+						e()?.foo?.(x)
+					}
+					privateField() {
+						a().#field
+						b().#field(x)
+						c()?.#field(x)
+						d().#field?.(x)
+						e()?.#field?.(x)
+						f()?.foo.#field(x).bar()
+					}
+					privateMethod() {
+						a().#method
+						b().#method(x)
+						c()?.#method(x)
+						d().#method?.(x)
+						e()?.#method?.(x)
+						f()?.foo.#method(x).bar()
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2019,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+var _field, _method, method_fn;
+class Foo {
+  constructor() {
+    _field.set(this, void 0);
+    _method.add(this);
+  }
+  baseline() {
+    var _a, _b, _c, _d, _e;
+    a().foo;
+    b().foo(x);
+    (_a = c()) == null ? void 0 : _a.foo(x);
+    (_c = (_b = d()).foo) == null ? void 0 : _c.call(_b, x);
+    (_e = (_d = e()) == null ? void 0 : _d.foo) == null ? void 0 : _e.call(_d, x);
+  }
+  privateField() {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    __privateGet(a(), _field);
+    __privateGet(_a = b(), _field).call(_a, x);
+    (_b = c()) == null ? void 0 : __privateGet(_b, _field).call(_b, x);
+    (_d = __privateGet(_c = d(), _field)) == null ? void 0 : _d.call(_c, x);
+    (_f = (_e = e()) == null ? void 0 : __privateGet(_e, _field)) == null ? void 0 : _f.call(_e, x);
+    (_g = f()) == null ? void 0 : __privateGet(_h = _g.foo, _field).call(_h, x).bar();
+  }
+  privateMethod() {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    __privateMethod(a(), _method, method_fn);
+    __privateMethod(_a = b(), _method, method_fn).call(_a, x);
+    (_b = c()) == null ? void 0 : __privateMethod(_b, _method, method_fn).call(_b, x);
+    (_d = __privateMethod(_c = d(), _method, method_fn)) == null ? void 0 : _d.call(_c, x);
+    (_f = (_e = e()) == null ? void 0 : __privateMethod(_e, _method, method_fn)) == null ? void 0 : _f.call(_e, x);
+    (_g = f()) == null ? void 0 : __privateMethod(_h = _g.foo, _method, method_fn).call(_h, x).bar();
+  }
+}
+_field = new WeakMap();
+_method = new WeakSet();
+method_fn = function() {
+};
+`,
+		},
+	})
+}
+
+func TestLowerPrivateMethod2020(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#field
+					#method() {}
+					baseline() {
+						a().foo
+						b().foo(x)
+						c()?.foo(x)
+						d().foo?.(x)
+						e()?.foo?.(x)
+					}
+					privateField() {
+						a().#field
+						b().#field(x)
+						c()?.#field(x)
+						d().#field?.(x)
+						e()?.#field?.(x)
+						f()?.foo.#field(x).bar()
+					}
+					privateMethod() {
+						a().#method
+						b().#method(x)
+						c()?.#method(x)
+						d().#method?.(x)
+						e()?.#method?.(x)
+						f()?.foo.#method(x).bar()
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+var _field, _method, method_fn;
+class Foo {
+  constructor() {
+    _field.set(this, void 0);
+    _method.add(this);
+  }
+  baseline() {
+    a().foo;
+    b().foo(x);
+    c()?.foo(x);
+    d().foo?.(x);
+    e()?.foo?.(x);
+  }
+  privateField() {
+    var _a, _b, _c, _d, _e, _f, _g;
+    __privateGet(a(), _field);
+    __privateGet(_a = b(), _field).call(_a, x);
+    (_b = c()) == null ? void 0 : __privateGet(_b, _field).call(_b, x);
+    (_d = __privateGet(_c = d(), _field)) == null ? void 0 : _d.call(_c, x);
+    ((_e = e()) == null ? void 0 : __privateGet(_e, _field))?.(x);
+    (_f = f()) == null ? void 0 : __privateGet(_g = _f.foo, _field).call(_g, x).bar();
+  }
+  privateMethod() {
+    var _a, _b, _c, _d, _e, _f, _g;
+    __privateMethod(a(), _method, method_fn);
+    __privateMethod(_a = b(), _method, method_fn).call(_a, x);
+    (_b = c()) == null ? void 0 : __privateMethod(_b, _method, method_fn).call(_b, x);
+    (_d = __privateMethod(_c = d(), _method, method_fn)) == null ? void 0 : _d.call(_c, x);
+    ((_e = e()) == null ? void 0 : __privateMethod(_e, _method, method_fn))?.(x);
+    (_f = f()) == null ? void 0 : __privateMethod(_g = _f.foo, _method, method_fn).call(_g, x).bar();
+  }
+}
+_field = new WeakMap();
+_method = new WeakSet();
+method_fn = function() {
+};
+`,
+		},
+	})
+}
+
+func TestLowerPrivateMethodNext(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#field
+					#method() {}
+					baseline() {
+						a().foo
+						b().foo(x)
+						c()?.foo(x)
+						d().foo?.(x)
+						e()?.foo?.(x)
+					}
+					privateField() {
+						a().#field
+						b().#field(x)
+						c()?.#field(x)
+						d().#field?.(x)
+						e()?.#field?.(x)
+						f()?.foo.#field(x).bar()
+					}
+					privateMethod() {
+						a().#method
+						b().#method(x)
+						c()?.#method(x)
+						d().#method?.(x)
+						e()?.#method?.(x)
+						f()?.foo.#method(x).bar()
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+class Foo {
+  #field;
+  #method() {
+  }
+  baseline() {
+    a().foo;
+    b().foo(x);
+    c()?.foo(x);
+    d().foo?.(x);
+    e()?.foo?.(x);
+  }
+  privateField() {
+    a().#field;
+    b().#field(x);
+    c()?.#field(x);
+    d().#field?.(x);
+    e()?.#field?.(x);
+    f()?.foo.#field(x).bar();
+  }
+  privateMethod() {
+    a().#method;
+    b().#method(x);
+    c()?.#method(x);
+    d().#method?.(x);
+    e()?.#method?.(x);
+    f()?.foo.#method(x).bar();
+  }
+}
+`,
+		},
+	})
+}
+
+func TestLowerPrivateClassExpr2020NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export let Foo = class {
+					#field
+					#method() {}
+					static #staticField
+					static #staticMethod() {}
+					foo() {
+						this.#field = this.#method()
+						Foo.#staticField = Foo.#staticMethod()
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _field, _method, method_fn, _a, _staticField, _staticMethod, staticMethod_fn;
+export let Foo = (_a = class {
+  constructor() {
+    _field.set(this, void 0);
+    _method.add(this);
+  }
+  foo() {
+    __privateSet(this, _field, __privateMethod(this, _method, method_fn).call(this));
+    __privateSet(Foo, _staticField, __privateMethod(Foo, _staticMethod, staticMethod_fn).call(Foo));
+  }
+}, _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
+}, _staticField = new WeakMap(), _staticMethod = new WeakSet(), staticMethod_fn = function() {
+}, _staticField.set(_a, void 0), _staticMethod.add(_a), _a);
+`,
+		},
+	})
+}
+
+func TestLowerPrivateMethodWithModifiers2020(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					*#g() {}
+					async #a() {}
+					async *#ag() {}
+
+					static *#sg() {}
+					static async #sa() {}
+					static async *#sag() {}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+var _g, g_fn, _a, a_fn, _ag, ag_fn, _sg, sg_fn, _sa, sa_fn, _sag, sag_fn;
+class Foo {
+  constructor() {
+    _g.add(this);
+    _a.add(this);
+    _ag.add(this);
+  }
+}
+_g = new WeakSet();
+g_fn = function* () {
+};
+_a = new WeakSet();
+a_fn = async function() {
+};
+_ag = new WeakSet();
+ag_fn = async function* () {
+};
+_sg = new WeakSet();
+sg_fn = function* () {
+};
+_sa = new WeakSet();
+sa_fn = async function() {
+};
+_sag = new WeakSet();
+sag_fn = async function* () {
+};
+_sg.add(Foo);
+_sa.add(Foo);
+_sag.add(Foo);
+`,
+		},
+	})
+}

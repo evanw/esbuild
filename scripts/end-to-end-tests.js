@@ -436,6 +436,52 @@
     }),
   )
 
+  // Class lowering tests
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          foo = 123
+          self = this
+          #method() {
+            if (this.foo !== 123) throw 'fail'
+          }
+          bar() {
+            let that = () => this
+            that().#method()
+            that().#method?.()
+            that()?.#method()
+            that()?.#method?.()
+            that().self.#method()
+            that().self.#method?.()
+            that().self?.#method()
+            that().self?.#method?.()
+            that()?.self.#method()
+            that()?.self.#method?.()
+            that()?.self?.#method()
+            that()?.self?.#method?.()
+          }
+        }
+        new Foo().bar()
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          foo = 123
+          get #bar() { return this.foo }
+          set #bar(x) { this.foo = x }
+          bar() {
+            let that = () => this
+            that().#bar **= 2
+            if (this.foo !== 15129) throw 'fail'
+          }
+        }
+        new Foo().bar()
+      `,
+    }),
+  )
+
   // Test writing to stdout
   tests.push(
     // These should succeed

@@ -3767,7 +3767,6 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2018,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,

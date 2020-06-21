@@ -52,6 +52,12 @@ type parser struct {
 	declaredSymbols          []ast.DeclaredSymbol
 	runtimeImports           map[string]ast.Ref
 
+	// For lowering private methods
+	weakMapRef     ast.Ref
+	weakSetRef     ast.Ref
+	privateGetters map[ast.Ref]ast.Ref
+	privateSetters map[ast.Ref]ast.Ref
+
 	// These are for TypeScript
 	shouldFoldNumericConstants bool
 	enclosingNamespaceRef      *ast.Ref
@@ -1474,7 +1480,6 @@ func (p *parser) parseProperty(
 		if !opts.isClass || len(opts.tsDecorators) > 0 {
 			p.lexer.Expected(lexer.TIdentifier)
 		}
-		p.markFutureSyntax(futureSyntaxPrivateName, p.lexer.Range())
 		key = ast.Expr{p.lexer.Loc(), &ast.EPrivateIdentifier{p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Next()
 
@@ -1635,7 +1640,7 @@ func (p *parser) parseProperty(
 			if name == "#constructor" {
 				p.log.AddRangeError(&p.source, keyRange, fmt.Sprintf("Invalid field name %q", name))
 			}
-			private.Ref = p.declareSymbol(ast.SymbolPrivate, key.Loc, name)
+			private.Ref = p.declareSymbol(ast.SymbolPrivateField, key.Loc, name)
 		}
 
 		p.lexer.ExpectOrInsertSemicolon()
@@ -1702,19 +1707,31 @@ func (p *parser) parseProperty(
 		// Special-case private identifiers
 		if private, ok := key.Data.(*ast.EPrivateIdentifier); ok {
 			var declare ast.SymbolKind
+			var suffix string
 			switch kind {
 			case ast.PropertyGet:
 				declare = ast.SymbolPrivateGet
+				suffix = "_get"
 			case ast.PropertySet:
 				declare = ast.SymbolPrivateSet
+				suffix = "_set"
 			default:
-				declare = ast.SymbolPrivate
+				declare = ast.SymbolPrivateMethod
+				suffix = "_fn"
 			}
 			name := p.loadNameFromRef(private.Ref)
 			if name == "#constructor" {
 				p.log.AddRangeError(&p.source, keyRange, fmt.Sprintf("Invalid method name %q", name))
 			}
 			private.Ref = p.declareSymbol(declare, key.Loc, name)
+			if p.Target < privateNameTarget {
+				methodRef := p.newSymbol(ast.SymbolOther, name[1:]+suffix)
+				if kind == ast.PropertySet {
+					p.privateSetters[private.Ref] = methodRef
+				} else {
+					p.privateGetters[private.Ref] = methodRef
+				}
+			}
 		}
 
 		return ast.Property{
@@ -5543,13 +5560,16 @@ const (
 	tempRefNoDeclare
 )
 
-func (p *parser) generateTempRef(declare generateTempRefArg) ast.Ref {
+func (p *parser) generateTempRef(declare generateTempRefArg, optionalName string) ast.Ref {
 	scope := p.currentScope
 	for !scope.Kind.StopsHoisting() {
 		scope = scope.Parent
 	}
-	ref := p.newSymbol(ast.SymbolOther, "_"+lexer.NumberToMinifiedName(p.tempRefCount))
-	p.tempRefCount++
+	if optionalName == "" {
+		optionalName = "_" + lexer.NumberToMinifiedName(p.tempRefCount)
+		p.tempRefCount++
+	}
+	ref := p.newSymbol(ast.SymbolOther, optionalName)
 	if declare == tempRefNeedsDeclare {
 		p.tempRefsToDeclare = append(p.tempRefsToDeclare, ref)
 	}
@@ -6951,7 +6971,7 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	if p.currentScope.Kind == ast.ScopeFunctionArgs {
 		return func() ast.Expr {
 				if tempRef == ast.InvalidRef {
-					tempRef = p.generateTempRef(tempRefNoDeclare)
+					tempRef = p.generateTempRef(tempRefNoDeclare, "")
 
 					// Assign inline so the order of side effects remains the same
 					p.recordUsage(tempRef)
@@ -6983,7 +7003,7 @@ func (p *parser) captureValueWithPossibleSideEffects(
 
 	return func() ast.Expr {
 		if tempRef == ast.InvalidRef {
-			tempRef = p.generateTempRef(tempRefNeedsDeclare)
+			tempRef = p.generateTempRef(tempRefNeedsDeclare, "")
 			p.recordUsage(tempRef)
 			return ast.Expr{loc, &ast.EBinary{
 				ast.BinOpAssign,
@@ -7059,7 +7079,7 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 
 			// Handle default values
 			if item.DefaultValue != nil {
-				tempRef := p.generateTempRef(tempRefNeedsDeclare)
+				tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
 				expr = maybeJoinWithComma(expr, ast.Expr{loc, &ast.EBinary{
 					ast.BinOpAssign,
 					ast.Expr{loc, &ast.EIdentifier{tempRef}},
@@ -7139,7 +7159,7 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 						keysForSpread = append(keysForSpread, symbolOrString(key.Loc, k.Ref))
 
 					default:
-						tempRef := p.generateTempRef(tempRefNeedsDeclare)
+						tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
 						key = ast.Expr{loc, &ast.EBinary{
 							ast.BinOpAssign,
 							ast.Expr{loc, &ast.EIdentifier{tempRef}},
@@ -7170,7 +7190,7 @@ func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value as
 
 			// Handle default values
 			if property.DefaultValue != nil {
-				tempRef := p.generateTempRef(tempRefNeedsDeclare)
+				tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
 				expr = maybeJoinWithComma(expr, ast.Expr{loc, &ast.EBinary{
 					ast.BinOpAssign,
 					ast.Expr{loc, &ast.EIdentifier{tempRef}},
@@ -7688,7 +7708,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		e.Right = p.visitExpr(e.Right)
 
-		// Fold constants
+		// Post-process the binary expression
 		switch e.Op {
 		case ast.BinOpLooseEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
@@ -7831,27 +7851,6 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return p.callRuntime(expr.Loc, "__pow", []ast.Expr{e.Left, e.Right}), exprOut{}
 			}
 
-		case ast.BinOpPowAssign:
-			// Lower the exponentiation operator for browsers that don't support it
-			if p.Target < ES2016 {
-				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
-			}
-
-		case ast.BinOpNullishCoalescingAssign:
-			if p.Target < ESNext {
-				return p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e), exprOut{}
-			}
-
-		case ast.BinOpLogicalAndAssign:
-			if p.Target < ESNext {
-				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalAnd), exprOut{}
-			}
-
-		case ast.BinOpLogicalOrAssign:
-			if p.Target < ESNext {
-				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalOr), exprOut{}
-			}
-
 		case ast.BinOpShl:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
@@ -7893,9 +7892,98 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) ^ toInt32(right))}}, exprOut{}
 				}
 			}
+
+			////////////////////////////////////////////////////////////////////////////////
+			// All assignment operators below here
+
+		case ast.BinOpAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSet(target, loc, private, e.Right), exprOut{}
+			}
+
+		case ast.BinOpAddAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpAdd, e.Right), exprOut{}
+			}
+
+		case ast.BinOpSubAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpSub, e.Right), exprOut{}
+			}
+
+		case ast.BinOpMulAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpMul, e.Right), exprOut{}
+			}
+
+		case ast.BinOpDivAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpDiv, e.Right), exprOut{}
+			}
+
+		case ast.BinOpRemAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpRem, e.Right), exprOut{}
+			}
+
+		case ast.BinOpPowAssign:
+			// Lower the exponentiation operator for browsers that don't support it
+			if p.Target < ES2016 {
+				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
+			}
+
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpPow, e.Right), exprOut{}
+			}
+
+		case ast.BinOpShlAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpShl, e.Right), exprOut{}
+			}
+
+		case ast.BinOpShrAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpShr, e.Right), exprOut{}
+			}
+
+		case ast.BinOpUShrAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpUShr, e.Right), exprOut{}
+			}
+
+		case ast.BinOpBitwiseOrAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseOr, e.Right), exprOut{}
+			}
+
+		case ast.BinOpBitwiseAndAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseAnd, e.Right), exprOut{}
+			}
+
+		case ast.BinOpBitwiseXorAssign:
+			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseXor, e.Right), exprOut{}
+			}
+
+		case ast.BinOpNullishCoalescingAssign:
+			if p.Target < ESNext {
+				return p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e), exprOut{}
+			}
+
+		case ast.BinOpLogicalAndAssign:
+			if p.Target < ESNext {
+				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalAnd), exprOut{}
+			}
+
+		case ast.BinOpLogicalOrAssign:
+			if p.Target < ESNext {
+				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalOr), exprOut{}
+			}
 		}
 
 	case *ast.EIndex:
+		isCallTarget := e == p.callTarget
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == ast.OptionalChainContinue,
 		})
@@ -7910,7 +7998,15 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// Unlike regular identifiers, there are no unbound private identifiers
 			if !p.symbols[result.ref.InnerIndex].Kind.IsPrivate() {
 				r := ast.Range{e.Index.Loc, int32(len(name))}
-				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q is not available here", name))
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
+			}
+
+			// Lower private member access only if we're sure the target isn't needed
+			// for the value of "this" for a call expression. All other cases will be
+			// taken care of by the enclosing call expression.
+			if p.Target < privateNameTarget && e.OptionalChain == ast.OptionalChainNone && !in.isAssignTarget && !isCallTarget {
+				// "foo.#bar" => "__privateGet(foo, #bar)"
+				return p.lowerPrivateGet(e.Target, e.Index.Loc, private), exprOut{}
 			}
 		} else {
 			e.Index = p.visitExpr(e.Index)
@@ -7972,7 +8068,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		e.Value, _ = p.visitExprInOut(e.Value, exprIn{isAssignTarget: e.Op.IsUnaryUpdate()})
 
-		// Fold constants
+		// Post-process the binary expression
 		switch e.Op {
 		case ast.UnOpNot:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Value.Data); ok {
@@ -8004,6 +8100,29 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.UnOpNeg:
 			if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
 				return ast.Expr{expr.Loc, &ast.ENumber{-number}}, exprOut{}
+			}
+
+			////////////////////////////////////////////////////////////////////////////////
+			// All assignment operators below here
+
+		case ast.UnOpPreDec:
+			if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
+				return p.lowerPrivateSetUnOp(target, loc, private, ast.BinOpSub, false), exprOut{}
+			}
+
+		case ast.UnOpPreInc:
+			if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
+				return p.lowerPrivateSetUnOp(target, loc, private, ast.BinOpAdd, false), exprOut{}
+			}
+
+		case ast.UnOpPostDec:
+			if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
+				return p.lowerPrivateSetUnOp(target, loc, private, ast.BinOpSub, true), exprOut{}
+			}
+
+		case ast.UnOpPostInc:
+			if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
+				return p.lowerPrivateSetUnOp(target, loc, private, ast.BinOpAdd, true), exprOut{}
 			}
 		}
 
@@ -8167,6 +8286,23 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				result = thisArgWrapFunc(result)
 			}
 			return result, out
+		}
+
+		// If this is a plain call expression (instead of an optional chain), lower
+		// private member access in the call target now if there is one
+		if !containsOptionalChain {
+			if target, loc, private := p.extractPrivateIndex(e.Target); private != nil {
+				// "foo.#bar(123)" => "__privateGet(foo, #bar).call(foo, 123)"
+				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+				return targetWrapFunc(ast.Expr{target.Loc, &ast.ECall{
+					Target: ast.Expr{target.Loc, &ast.EDot{
+						Target:  p.lowerPrivateGet(targetFunc(), loc, private),
+						Name:    "call",
+						NameLoc: target.Loc,
+					}},
+					Args: append([]ast.Expr{targetFunc()}, e.Args...),
+				}}), exprOut{}
+			}
 		}
 
 		// Track calls to require() so we can use them while bundling
@@ -8826,6 +8962,12 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		currentFnOpts:     fnOpts{isOutsideFn: true},
 		useCountEstimates: make(map[ast.Ref]uint32),
 		runtimeImports:    make(map[string]ast.Ref),
+
+		// For lowering private methods
+		weakMapRef:     ast.InvalidRef,
+		weakSetRef:     ast.InvalidRef,
+		privateGetters: make(map[ast.Ref]ast.Ref),
+		privateSetters: make(map[ast.Ref]ast.Ref),
 
 		// These are for TypeScript
 		emittedNamespaceVars:      make(map[ast.Ref]bool),

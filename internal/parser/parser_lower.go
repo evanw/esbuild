@@ -11,6 +11,8 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
+const privateNameTarget = ESNext
+
 type futureSyntax uint8
 
 const (
@@ -20,7 +22,6 @@ const (
 	futureSyntaxForAwait
 	futureSyntaxBigInteger
 	futureSyntaxNonIdentifierArrayRest
-	futureSyntaxPrivateName
 )
 
 func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
@@ -39,8 +40,6 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 		target = ES2020
 	case futureSyntaxNonIdentifierArrayRest:
 		target = ES2016
-	case futureSyntaxPrivateName:
-		target = ESNext
 	}
 
 	if p.Target < target {
@@ -61,8 +60,6 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 			yet = "" // This will never be supported
 		case futureSyntaxNonIdentifierArrayRest:
 			name = "Non-identifier array rest patterns"
-		case futureSyntaxPrivateName:
-			name = "Private names"
 		}
 
 		p.log.AddRangeError(&p.source, r,
@@ -74,6 +71,7 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut, thisArgFunc func() ast.Expr) (ast.Expr, exprOut) {
 	valueWhenUndefined := ast.Expr{expr.Loc, &ast.EUndefined{}}
 	endsWithPropertyAccess := false
+	containsPrivateName := false
 	startsWithCall := false
 	originalExpr := expr
 	chain := []ast.Expr{}
@@ -100,6 +98,17 @@ flatten:
 			if len(chain) == 1 {
 				endsWithPropertyAccess = true
 			}
+
+			// If this is a private name that needs to be lowered, the entire chain
+			// itself will have to be lowered even if the language target supports
+			// optional chaining. This is because there's no way to use our shim
+			// function for private names with optional chaining syntax.
+			if p.Target < privateNameTarget {
+				if _, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok {
+					containsPrivateName = true
+				}
+			}
+
 			if e.OptionalChain == ast.OptionalChainStart {
 				break flatten
 			}
@@ -127,10 +136,18 @@ flatten:
 		return valueWhenUndefined, exprOut{}
 	}
 
+	// We need to lower this if this is an optional call off of a private name
+	// such as "foo.#bar?.()" because the value of "this" must be captured.
+	if p.Target < privateNameTarget {
+		if _, _, private := p.extractPrivateIndex(expr); private != nil {
+			containsPrivateName = true
+		}
+	}
+
 	// Don't lower this if we don't need to. This check must be done here instead
 	// of earlier so we can do the dead code elimination above when the target is
 	// null or undefined.
-	if p.Target >= ES2020 {
+	if p.Target >= ES2020 && !containsPrivateName {
 		return originalExpr, exprOut{}
 	}
 
@@ -162,12 +179,24 @@ flatten:
 
 			case *ast.EIndex:
 				targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+				targetWrapFunc = wrapFunc
+
+				// Capture the value of "this" if the target of the starting call
+				// expression is a private property access
+				if p.Target < privateNameTarget {
+					if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok {
+						// "foo().#bar?.()" must capture "foo()" for "this"
+						expr = p.lowerPrivateGet(targetFunc(), e.Index.Loc, private)
+						thisArg = targetFunc()
+						break
+					}
+				}
+
 				expr = ast.Expr{loc, &ast.EIndex{
 					Target: targetFunc(),
 					Index:  e.Index,
 				}}
 				thisArg = targetFunc()
-				targetWrapFunc = wrapFunc
 			}
 		}
 	}
@@ -183,6 +212,8 @@ flatten:
 	// Step 4: Wrap the starting value by each expression in the chain. We
 	// traverse the chain in reverse because we want to go from the inside out
 	// and the chain was built from the outside in.
+	var privateThisFunc func() ast.Expr
+	var privateThisWrapFunc func(ast.Expr) ast.Expr
 	for i := len(chain) - 1; i >= 0; i-- {
 		// Save a reference to the value of "this" for our parent ECall
 		if i == 0 && in.storeThisArgForParentOptionalChain != nil && endsWithPropertyAccess {
@@ -198,6 +229,22 @@ flatten:
 			}}
 
 		case *ast.EIndex:
+			if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok && p.Target < privateNameTarget {
+				// If this is private name property access inside a call expression and
+				// the call expression is part of this chain, then the call expression
+				// is going to need a copy of the property access target as the value
+				// for "this" for the call. Example for this case: "foo.#bar?.()"
+				if i > 0 {
+					if _, ok := chain[i-1].Data.(*ast.ECall); ok {
+						privateThisFunc, privateThisWrapFunc = p.captureValueWithPossibleSideEffects(loc, 2, result)
+						result = privateThisFunc()
+					}
+				}
+
+				result = p.lowerPrivateGet(result, e.Index.Loc, private)
+				continue
+			}
+
 			result = ast.Expr{loc, &ast.EIndex{
 				Target: result,
 				Index:  e.Index,
@@ -216,6 +263,23 @@ flatten:
 					}},
 					Args: append([]ast.Expr{thisArg}, e.Args...),
 				}}
+				break
+			}
+
+			// If the target of this call expression is a private name property
+			// access that's also part of this chain, then we must use the copy of
+			// the property access target that was stashed away earlier as the value
+			// for "this" for the call. Example for this case: "foo.#bar?.()"
+			if privateThisFunc != nil {
+				result = privateThisWrapFunc(ast.Expr{loc, &ast.ECall{
+					Target: ast.Expr{loc, &ast.EDot{
+						Target:  result,
+						Name:    "call",
+						NameLoc: loc,
+					}},
+					Args: append([]ast.Expr{privateThisFunc()}, e.Args...),
+				}})
+				privateThisFunc = nil
 				break
 			}
 
@@ -306,6 +370,16 @@ func (p *parser) lowerAssignmentOperator(value ast.Expr, callback func(ast.Expr,
 }
 
 func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
+	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
+		// "a.#b **= c" => "__privateSet(a, #b, __pow(__privateGet(a, #b), c))"
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		return targetWrapFunc(p.lowerPrivateSet(targetFunc(), privateLoc, private,
+			p.callRuntime(loc, "__pow", []ast.Expr{
+				p.lowerPrivateGet(targetFunc(), privateLoc, private),
+				e.Right,
+			})))
+	}
+
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
 		// "a **= b" => "a = __pow(a, b)"
 		return ast.Expr{loc, &ast.EBinary{
@@ -317,6 +391,32 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 }
 
 func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
+	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
+		if p.Target < ES2020 {
+			// "a.#b ??= c" => "(_a = __privateGet(a, #b)) != null ? _a : __privateSet(a, #b, c)"
+			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+			testFunc, testWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2,
+				p.lowerPrivateGet(targetFunc(), privateLoc, private))
+			return testWrapFunc(targetWrapFunc(ast.Expr{loc, &ast.EIf{
+				Test: ast.Expr{loc, &ast.EBinary{
+					Op:    ast.BinOpLooseNe,
+					Left:  testFunc(),
+					Right: ast.Expr{loc, &ast.ENull{}},
+				}},
+				Yes: testFunc(),
+				No:  p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right),
+			}}))
+		}
+
+		// "a.#b ??= c" => "__privateGet(a, #b) ?? __privateSet(a, #b, c)"
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		return targetWrapFunc(ast.Expr{loc, &ast.EBinary{
+			Op:    ast.BinOpNullishCoalescing,
+			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
+			Right: p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right),
+		}})
+	}
+
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
 		if p.Target < ES2020 {
 			// "a ??= b" => "(_a = a) != null ? _a : a = b"
@@ -342,6 +442,17 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EB
 }
 
 func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op ast.OpCode) ast.Expr {
+	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
+		// "a.#b &&= c" => "__privateGet(a, #b) && __privateSet(a, #b, c)"
+		// "a.#b ||= c" => "__privateGet(a, #b) || __privateSet(a, #b, c)"
+		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
+		return targetWrapFunc(ast.Expr{loc, &ast.EBinary{
+			Op:    op,
+			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
+			Right: p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right),
+		}})
+	}
+
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
 		// "a &&= b" => "a && (a = b)"
 		// "a ||= b" => "a || (a = b)"
@@ -435,6 +546,113 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 	return result
 }
 
+func (p *parser) lowerPrivateGet(target ast.Expr, loc ast.Loc, private *ast.EPrivateIdentifier) ast.Expr {
+	switch p.symbols[private.Ref.InnerIndex].Kind {
+	case ast.SymbolPrivateMethod:
+		// "this.#method" => "__privateMethod(this, #method, method_fn)"
+		return p.callRuntime(target.Loc, "__privateMethod", []ast.Expr{
+			target,
+			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
+			ast.Expr{loc, &ast.EIdentifier{p.privateGetters[private.Ref]}},
+		})
+
+	case ast.SymbolPrivateGet, ast.SymbolPrivateGetSetPair:
+		// "this.#getter" => "__privateGet(this, #getter, getter_get)"
+		return p.callRuntime(target.Loc, "__privateGet", []ast.Expr{
+			target,
+			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
+			ast.Expr{loc, &ast.EIdentifier{p.privateGetters[private.Ref]}},
+		})
+
+	default:
+		// "this.#field" => "__privateGet(this, #field)"
+		return p.callRuntime(target.Loc, "__privateGet", []ast.Expr{
+			target,
+			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
+		})
+	}
+}
+
+func (p *parser) lowerPrivateSet(
+	target ast.Expr,
+	loc ast.Loc,
+	private *ast.EPrivateIdentifier,
+	value ast.Expr,
+) ast.Expr {
+	switch p.symbols[private.Ref.InnerIndex].Kind {
+	case ast.SymbolPrivateSet, ast.SymbolPrivateGetSetPair:
+		// "this.#setter = 123" => "__privateSet(this, #setter, 123, setter_set)"
+		return p.callRuntime(target.Loc, "__privateSet", []ast.Expr{
+			target,
+			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
+			value,
+			ast.Expr{loc, &ast.EIdentifier{p.privateSetters[private.Ref]}},
+		})
+
+	default:
+		// "this.#field = 123" => "__privateSet(this, #field, 123)"
+		return p.callRuntime(target.Loc, "__privateSet", []ast.Expr{
+			target,
+			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
+			value,
+		})
+	}
+}
+
+func (p *parser) lowerPrivateSetUnOp(target ast.Expr, loc ast.Loc, private *ast.EPrivateIdentifier, op ast.OpCode, isSuffix bool) ast.Expr {
+	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+	target = targetFunc()
+
+	// Load the private field and then use the unary "+" operator to force it to
+	// be a number. Otherwise the binary "+" operator may cause string
+	// concatenation instead of addition if one of the operands is not a number.
+	value := ast.Expr{target.Loc, &ast.EUnary{
+		Op:    ast.UnOpPos,
+		Value: p.lowerPrivateGet(targetFunc(), loc, private),
+	}}
+
+	if isSuffix {
+		// "target.#private++" => "__privateSet(target, #private, _a = +__privateGet(target, #private) + 1), _a"
+		valueFunc, valueWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, value)
+		assign := valueWrapFunc(targetWrapFunc(p.lowerPrivateSet(target, loc, private, ast.Expr{target.Loc, &ast.EBinary{
+			Op:    op,
+			Left:  valueFunc(),
+			Right: ast.Expr{target.Loc, &ast.ENumber{1}},
+		}})))
+		return ast.JoinWithComma(assign, valueFunc())
+	}
+
+	// "++target.#private" => "__privateSet(target, #private, +__privateGet(target, #private) + 1)"
+	return targetWrapFunc(p.lowerPrivateSet(target, loc, private, ast.Expr{target.Loc, &ast.EBinary{
+		Op:    op,
+		Left:  value,
+		Right: ast.Expr{target.Loc, &ast.ENumber{1}},
+	}}))
+}
+
+func (p *parser) lowerPrivateSetBinOp(target ast.Expr, loc ast.Loc, private *ast.EPrivateIdentifier, op ast.OpCode, value ast.Expr) ast.Expr {
+	// "target.#private += 123" => "__privateSet(target, #private, __privateGet(target, #private) + 123)"
+	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
+	return targetWrapFunc(p.lowerPrivateSet(targetFunc(), loc, private, ast.Expr{value.Loc, &ast.EBinary{
+		Op:    op,
+		Left:  p.lowerPrivateGet(targetFunc(), loc, private),
+		Right: value,
+	}}))
+}
+
+// Returns valid data if target is an expression of the form "foo.#bar" and if
+// the language target is such that private members must be lowered
+func (p *parser) extractPrivateIndex(target ast.Expr) (ast.Expr, ast.Loc, *ast.EPrivateIdentifier) {
+	if p.Target < privateNameTarget {
+		if index, ok := target.Data.(*ast.EIndex); ok {
+			if private, ok := index.Index.Data.(*ast.EPrivateIdentifier); ok {
+				return index.Target, index.Index.Loc, private
+			}
+		}
+	}
+	return ast.Expr{}, ast.Loc{}, nil
+}
+
 // Lower class fields for environments that don't support them. This either
 // takes a statement or an expression.
 func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr) {
@@ -483,18 +701,20 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 
 	var ctor *ast.EFunction
 	var parameterFields []ast.Stmt
-	var instanceFields []ast.Stmt
+	var instanceMembers []ast.Stmt
 	end := 0
 
 	// These expressions are generated after the class body, in this order
 	var computedPropertyCache ast.Expr
-	var staticFields []ast.Expr
+	var privateMembers []ast.Expr
+	var staticMembers []ast.Expr
 	var instanceDecorators []ast.Expr
 	var staticDecorators []ast.Expr
 
 	// These are only for class expressions that need to be captured
 	var nameFunc func() ast.Expr
 	var wrapFunc func(ast.Expr) ast.Expr
+	didCaptureClassExpr := false
 
 	// Class statements can be missing a name if they are in an
 	// "export default" statement:
@@ -503,13 +723,23 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	//     static foo = 123
 	//   }
 	//
-	if kind != classKindExpr {
-		nameFunc = func() ast.Expr {
+	nameFunc = func() ast.Expr {
+		if kind == classKindExpr {
+			// If this is a class expression, capture and store it. We have to
+			// do this even if it has a name since the name isn't exposed
+			// outside the class body.
+			classExpr := &ast.EClass{Class: *class}
+			class = &classExpr.Class
+			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
+			expr = nameFunc()
+			didCaptureClassExpr = true
+			return nameFunc()
+		} else {
 			if class.Name == nil {
 				if kind == classKindExportDefaultStmt {
 					class.Name = &defaultName
 				} else {
-					class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare)}
+					class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare, "")}
 				}
 			}
 			p.recordUsage(class.Name.Ref)
@@ -554,7 +784,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				computedPropertyCache = maybeJoinWithComma(computedPropertyCache, prop.Key)
 			} else {
 				// Store the key in a temporary so we can assign to it later
-				ref := p.generateTempRef(tempRefNeedsDeclare)
+				ref := p.generateTempRef(tempRefNeedsDeclare, "")
 				computedPropertyCache = maybeJoinWithComma(computedPropertyCache, ast.Expr{prop.Key.Loc, &ast.EBinary{
 					Op:    ast.BinOpAssign,
 					Left:  ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}},
@@ -620,41 +850,20 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 
 		// Instance and static fields are a JavaScript feature
 		if (p.TS.Parse || p.Target < ESNext) && !prop.IsMethod && (prop.IsStatic || prop.Value == nil) {
-			_, isPrivateField := prop.Key.Data.(*ast.EPrivateIdentifier)
+			privateField, _ := prop.Key.Data.(*ast.EPrivateIdentifier)
 
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
-			if !p.TS.Parse || prop.Initializer != nil || prop.Value != nil {
+			if !p.TS.Parse || prop.Initializer != nil || prop.Value != nil || (privateField != nil && p.Target < privateNameTarget) {
+				loc := prop.Key.Loc
+
 				// Determine where to store the field
 				var target ast.Expr
 				if prop.IsStatic {
-					if nameFunc == nil {
-						// If this is a class expression, capture and store it. We have to
-						// do this even if it has a name since the name isn't exposed
-						// outside the class body.
-						classExpr := &ast.EClass{Class: *class}
-						class = &classExpr.Class
-						nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
-						expr = nameFunc()
-					}
 					target = nameFunc()
 				} else {
-					target = ast.Expr{prop.Key.Loc, &ast.EThis{}}
-				}
-
-				// Generate the assignment target
-				if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
-					target = ast.Expr{prop.Key.Loc, &ast.EDot{
-						Target:  target,
-						Name:    lexer.UTF16ToString(key.Value),
-						NameLoc: prop.Key.Loc,
-					}}
-				} else {
-					target = ast.Expr{prop.Key.Loc, &ast.EIndex{
-						Target: target,
-						Index:  prop.Key,
-					}}
+					target = ast.Expr{loc, &ast.EThis{}}
 				}
 
 				// Generate the assignment initializer
@@ -664,20 +873,68 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				} else if prop.Value != nil {
 					init = *prop.Value
 				} else {
-					init = ast.Expr{prop.Key.Loc, &ast.EUndefined{}}
+					init = ast.Expr{loc, &ast.EUndefined{}}
 				}
 
-				expr := ast.Expr{prop.Key.Loc, &ast.EBinary{ast.BinOpAssign, target, init}}
+				// Generate the assignment target
+				var expr ast.Expr
+				if privateField != nil && p.Target < privateNameTarget {
+					// Generate a new symbol for this private field
+					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[privateField.Ref.InnerIndex].Name[1:])
+					p.symbols[privateField.Ref.InnerIndex].Link = ref
+
+					// Initialize the private field to a new WeakMap
+					if p.weakMapRef == ast.InvalidRef {
+						p.weakMapRef = p.newSymbol(ast.SymbolUnbound, "WeakMap")
+						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
+					}
+					privateMembers = append(privateMembers, ast.Expr{loc, &ast.EBinary{
+						Op:   ast.BinOpAssign,
+						Left: ast.Expr{loc, &ast.EIdentifier{ref}},
+						Right: ast.Expr{loc, &ast.ENew{
+							Target: ast.Expr{loc, &ast.EIdentifier{p.weakMapRef}},
+						}},
+					}})
+
+					// Add every newly-constructed instance into this map
+					expr = ast.Expr{loc, &ast.ECall{
+						Target: ast.Expr{loc, &ast.EDot{
+							Target:  ast.Expr{loc, &ast.EIdentifier{ref}},
+							Name:    "set",
+							NameLoc: loc,
+						}},
+						Args: []ast.Expr{
+							target,
+							init,
+						},
+					}}
+				} else {
+					if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
+						target = ast.Expr{loc, &ast.EDot{
+							Target:  target,
+							Name:    lexer.UTF16ToString(key.Value),
+							NameLoc: loc,
+						}}
+					} else {
+						target = ast.Expr{loc, &ast.EIndex{
+							Target: target,
+							Index:  prop.Key,
+						}}
+					}
+
+					expr = ast.Expr{loc, &ast.EBinary{ast.BinOpAssign, target, init}}
+				}
+
 				if prop.IsStatic {
 					// Move this property to an assignment after the class ends
-					staticFields = append(staticFields, expr)
+					staticMembers = append(staticMembers, expr)
 				} else {
 					// Move this property to an assignment inside the class constructor
-					instanceFields = append(instanceFields, ast.Stmt{prop.Key.Loc, &ast.SExpr{expr}})
+					instanceMembers = append(instanceMembers, ast.Stmt{loc, &ast.SExpr{expr}})
 				}
 			}
 
-			if isPrivateField {
+			if privateField != nil && p.Target >= privateNameTarget {
 				// Keep the private field but remove the initializer
 				prop.Initializer = nil
 			} else {
@@ -688,24 +945,95 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 
 		// Remember where the constructor is for later
 		if prop.IsMethod && prop.Value != nil {
-			if str, ok := prop.Key.Data.(*ast.EString); ok && lexer.UTF16EqualsString(str.Value, "constructor") {
-				if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
-					ctor = fn
+			switch key := prop.Key.Data.(type) {
+			case *ast.EPrivateIdentifier:
+				if p.Target >= privateNameTarget {
+					break
+				}
+				loc := prop.Key.Loc
 
-					// Initialize TypeScript constructor parameter fields
-					if p.TS.Parse {
-						for _, arg := range ctor.Fn.Args {
-							if arg.IsTypeScriptCtorField {
-								if id, ok := arg.Binding.Data.(*ast.BIdentifier); ok {
-									parameterFields = append(parameterFields, ast.Stmt{arg.Binding.Loc, &ast.SExpr{ast.Expr{arg.Binding.Loc, &ast.EBinary{
-										ast.BinOpAssign,
-										ast.Expr{arg.Binding.Loc, &ast.EDot{
-											Target:  ast.Expr{arg.Binding.Loc, &ast.EThis{}},
-											Name:    p.symbols[id.Ref.InnerIndex].Name,
-											NameLoc: arg.Binding.Loc,
-										}},
-										ast.Expr{arg.Binding.Loc, &ast.EIdentifier{id.Ref}},
-									}}}})
+				// Don't generate a symbol for a getter/setter pair twice
+				if p.symbols[key.Ref.InnerIndex].Link == ast.InvalidRef {
+					// Generate a new symbol for this private method
+					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[key.Ref.InnerIndex].Name[1:])
+					p.symbols[key.Ref.InnerIndex].Link = ref
+
+					// Initialize the private method to a new WeakSet
+					if p.weakSetRef == ast.InvalidRef {
+						p.weakSetRef = p.newSymbol(ast.SymbolUnbound, "WeakSet")
+						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
+					}
+					privateMembers = append(privateMembers, ast.Expr{loc, &ast.EBinary{
+						Op:   ast.BinOpAssign,
+						Left: ast.Expr{loc, &ast.EIdentifier{ref}},
+						Right: ast.Expr{loc, &ast.ENew{
+							Target: ast.Expr{loc, &ast.EIdentifier{p.weakSetRef}},
+						}},
+					}})
+
+					// Determine where to store the private method
+					var target ast.Expr
+					if prop.IsStatic {
+						target = nameFunc()
+					} else {
+						target = ast.Expr{loc, &ast.EThis{}}
+					}
+
+					// Add every newly-constructed instance into this map
+					expr := ast.Expr{loc, &ast.ECall{
+						Target: ast.Expr{loc, &ast.EDot{
+							Target:  ast.Expr{loc, &ast.EIdentifier{ref}},
+							Name:    "add",
+							NameLoc: loc,
+						}},
+						Args: []ast.Expr{
+							target,
+						},
+					}}
+
+					if prop.IsStatic {
+						// Move this property to an assignment after the class ends
+						staticMembers = append(staticMembers, expr)
+					} else {
+						// Move this property to an assignment inside the class constructor
+						instanceMembers = append(instanceMembers, ast.Stmt{loc, &ast.SExpr{expr}})
+					}
+				}
+
+				// Move the method definition outside the class body
+				methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
+				if prop.Kind == ast.PropertySet {
+					p.symbols[methodRef.InnerIndex].Link = p.privateSetters[key.Ref]
+				} else {
+					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[key.Ref]
+				}
+				privateMembers = append(privateMembers, ast.Expr{loc, &ast.EBinary{
+					Op:    ast.BinOpAssign,
+					Left:  ast.Expr{loc, &ast.EIdentifier{methodRef}},
+					Right: *prop.Value,
+				}})
+				continue
+
+			case *ast.EString:
+				if lexer.UTF16EqualsString(key.Value, "constructor") {
+					if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
+						ctor = fn
+
+						// Initialize TypeScript constructor parameter fields
+						if p.TS.Parse {
+							for _, arg := range ctor.Fn.Args {
+								if arg.IsTypeScriptCtorField {
+									if id, ok := arg.Binding.Data.(*ast.BIdentifier); ok {
+										parameterFields = append(parameterFields, ast.Stmt{arg.Binding.Loc, &ast.SExpr{ast.Expr{arg.Binding.Loc, &ast.EBinary{
+											ast.BinOpAssign,
+											ast.Expr{arg.Binding.Loc, &ast.EDot{
+												Target:  ast.Expr{arg.Binding.Loc, &ast.EThis{}},
+												Name:    p.symbols[id.Ref.InnerIndex].Name,
+												NameLoc: arg.Binding.Loc,
+											}},
+											ast.Expr{arg.Binding.Loc, &ast.EIdentifier{id.Ref}},
+										}}}})
+									}
 								}
 							}
 						}
@@ -723,7 +1051,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	class.Properties = class.Properties[:end]
 
 	// Insert instance field initializers into the constructor
-	if len(instanceFields) > 0 || len(parameterFields) > 0 {
+	if len(instanceMembers) > 0 || len(parameterFields) > 0 {
 		// Create a constructor if one doesn't already exist
 		if ctor == nil {
 			ctor = &ast.EFunction{}
@@ -756,7 +1084,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			stmtsFrom = stmtsFrom[1:]
 		}
 		stmtsTo = append(stmtsTo, parameterFields...)
-		stmtsTo = append(stmtsTo, instanceFields...)
+		stmtsTo = append(stmtsTo, instanceMembers...)
 		ctor.Fn.Body.Stmts = append(stmtsTo, stmtsFrom...)
 
 		// Sort the constructor first to match the TypeScript compiler's output
@@ -775,21 +1103,31 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	// Pack the class back into an expression. We don't need to handle TypeScript
 	// decorators for class expressions because TypeScript doesn't support them.
 	if kind == classKindExpr {
-		// Initialize any remaining computed properties immediately after the end
-		// of the class body
+		// Calling "nameFunc" will replace "expr", so make sure to do that first
+		// before joining "expr" with any other expressions
+		var nameToJoin ast.Expr
+		if didCaptureClassExpr || computedPropertyCache.Data != nil ||
+			len(privateMembers) > 0 || len(staticMembers) > 0 {
+			nameToJoin = nameFunc()
+		}
+
+		// Then join "expr" with any other expressions that apply
 		if computedPropertyCache.Data != nil {
 			expr = ast.JoinWithComma(expr, computedPropertyCache)
 		}
+		for _, value := range privateMembers {
+			expr = ast.JoinWithComma(expr, value)
+		}
+		for _, value := range staticMembers {
+			expr = ast.JoinWithComma(expr, value)
+		}
 
-		// Join the static field initializers if this is a class expression
-		if len(staticFields) > 0 {
-			for _, initializer := range staticFields {
-				expr = ast.JoinWithComma(expr, initializer)
-			}
-			expr = ast.JoinWithComma(expr, nameFunc())
-			if wrapFunc != nil {
-				expr = wrapFunc(expr)
-			}
+		// Finally join "expr" with the variable that holds the class object
+		if nameToJoin.Data != nil {
+			expr = ast.JoinWithComma(expr, nameToJoin)
+		}
+		if wrapFunc != nil {
+			expr = wrapFunc(expr)
 		}
 		return nil, expr
 	}
@@ -829,7 +1167,10 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	if computedPropertyCache.Data != nil {
 		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{computedPropertyCache}})
 	}
-	for _, expr := range staticFields {
+	for _, expr := range privateMembers {
+		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+	}
+	for _, expr := range staticMembers {
 		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 	}
 	for _, expr := range instanceDecorators {
@@ -853,8 +1194,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			// we don't want it to accidentally use the same variable as the class and
 			// cause a name collision.
 			nameFromPath := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
-			defaultRef := p.generateTempRef(tempRefNoDeclare)
-			p.symbols[defaultRef.InnerIndex].Name = nameFromPath
+			defaultRef := p.generateTempRef(tempRefNoDeclare, nameFromPath)
 			p.namedExports["default"] = defaultRef
 			p.recordDeclaredSymbol(defaultRef)
 
