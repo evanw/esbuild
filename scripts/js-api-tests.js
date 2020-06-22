@@ -277,7 +277,6 @@ let transformTests = {
   // Future syntax
   forAwait: ({ service }) => futureSyntax(service, 'async function foo() { for await (let x of y) {} }', 'es2017', 'es2018'),
   bigInt: ({ service }) => futureSyntax(service, '123n', 'es2019', 'es2020'),
-  objRest: ({ service }) => futureSyntax(service, 'let {...x} = y', 'es2017', 'es2018'),
   nonIdArrayRest: ({ service }) => futureSyntax(service, 'let [...[x]] = y', 'es2015', 'es2016'),
 
   // Future syntax: async generator functions

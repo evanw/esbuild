@@ -3,11 +3,26 @@ package runtime
 const Code = `
 	let __defineProperty = Object.defineProperty
 	let __hasOwnProperty = Object.prototype.hasOwnProperty
+	let __getOwnPropertySymbols = Object.getOwnPropertySymbols
 	let __getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor
 	let __propertyIsEnumerable = Object.prototype.propertyIsEnumerable
 
 	export let __pow = Math.pow
 	export let __assign = Object.assign
+
+	// For object rest patterns
+	export let __restKey = key => typeof key === 'symbol' ? key : key + ''
+	export let __rest = (source, exclude) => {
+		let target = {}
+		for (let prop in source)
+			if (__hasOwnProperty.call(source, prop) && exclude.indexOf(prop) < 0)
+				target[prop] = source[prop]
+		if (source != null && __getOwnPropertySymbols)
+			for (let prop of __getOwnPropertySymbols(source))
+				if (exclude.indexOf(prop) < 0 && __propertyIsEnumerable.call(source, prop))
+					target[prop] = source[prop]
+		return target
+	}
 
 	// Wraps a CommonJS closure and returns a require() function
 	export let __commonJS = (callback, module) => () => {

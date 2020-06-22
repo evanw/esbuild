@@ -20,7 +20,6 @@ type futureSyntax uint8
 
 const (
 	futureSyntaxAsyncGenerator futureSyntax = iota
-	futureSyntaxRestProperty
 	futureSyntaxForAwait
 	futureSyntaxBigInteger
 	futureSyntaxNonIdentifierArrayRest
@@ -31,8 +30,6 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 
 	switch syntax {
 	case futureSyntaxAsyncGenerator:
-		target = ES2018
-	case futureSyntaxRestProperty:
 		target = ES2018
 	case futureSyntaxForAwait:
 		target = ES2018
@@ -49,8 +46,6 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 		switch syntax {
 		case futureSyntaxAsyncGenerator:
 			name = "Async generator functions"
-		case futureSyntaxRestProperty:
-			name = "Rest properties"
 		case futureSyntaxForAwait:
 			name = "For-await loops"
 		case futureSyntaxBigInteger:
@@ -66,77 +61,102 @@ func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
 	}
 }
 
-func (p *parser) lowerAsyncFunction(loc ast.Loc, isAsync *bool, stmts *[]ast.Stmt, preferExpr *bool) {
-	// Only lower this function if necessary
-	if p.Target >= asyncAwaitTarget || !*isAsync {
-		return
-	}
+func (p *parser) lowerFunction(
+	isAsync *bool,
+	args *[]ast.Arg,
+	bodyLoc ast.Loc,
+	bodyStmts *[]ast.Stmt,
+	preferExpr *bool,
+) {
+	// Lower object rest binding patterns in function arguments
+	if p.Target < objectPropertyBindingTarget {
+		var prefixStmts []ast.Stmt
 
-	// Use the shortened form if we're an arrow function
-	if preferExpr != nil {
-		*preferExpr = true
-	}
+		// Lower each argument individually instead of lowering all arguments
+		// together. There is a correctness tradeoff here around default values
+		// for function arguments, with no right answer.
+		//
+		// Lowering all arguments together will preserve the order of side effects
+		// for default values, but will mess up their scope:
+		//
+		//   // Side effect order: a(), b(), c()
+		//   function foo([{[a()]: w, ...x}, y = b()], z = c()) {}
+		//
+		//   // Side effect order is correct but scope is wrong
+		//   function foo(_a, _b) {
+		//     var [[{[a()]: w, ...x}, y = b()], z = c()] = [_a, _b]
+		//   }
+		//
+		// Lowering each argument individually will preserve the scope for default
+		// values that don't contain object rest binding patterns, but will mess up
+		// the side effect order:
+		//
+		//   // Side effect order: a(), b(), c()
+		//   function foo([{[a()]: w, ...x}, y = b()], z = c()) {}
+		//
+		//   // Side effect order is wrong but scope for c() is correct
+		//   function foo(_a, z = c()) {
+		//     var [{[a()]: w, ...x}, y = b()] = _a
+		//   }
+		//
+		// This transform chooses to lower each argument individually with the
+		// thinking that perhaps scope matters more in real-world code than side
+		// effect order.
+		for i, arg := range *args {
+			if bindingHasObjectRest(arg.Binding) {
+				ref := p.generateTempRef(tempRefNoDeclare, "")
+				target := p.convertBindingToExpr(arg.Binding, nil)
+				init := ast.Expr{arg.Binding.Loc, &ast.EIdentifier{ref}}
 
-	// Determine the value for "this"
-	thisValue, hasThisValue := p.valueForThis(loc)
-	if !hasThisValue {
-		thisValue = ast.Expr{loc, &ast.EThis{}}
-	}
+				if decls, ok := p.lowerObjectRestToDecls(target, init, nil); ok {
+					// Replace the binding but leave the default value intact
+					(*args)[i].Binding.Data = &ast.BIdentifier{ref}
 
-	// Only reference the "arguments" variable if it's actually used
-	var arguments ast.Expr
-	if p.argumentsRef != nil && p.useCountEstimates[*p.argumentsRef] > 0 {
-		arguments = ast.Expr{loc, &ast.EIdentifier{*p.argumentsRef}}
-	} else {
-		arguments = ast.Expr{loc, &ast.EArray{}}
-	}
-
-	// "async function foo() { stmts }" => "function foo() { return __async(this, arguments, function* () { stmts }) }"
-	*isAsync = false
-	callAsync := p.callRuntime(loc, "__async", []ast.Expr{
-		thisValue,
-		arguments,
-		ast.Expr{loc, &ast.EFunction{Fn: ast.Fn{
-			IsGenerator: true,
-			Body:        ast.FnBody{loc, *stmts},
-		}}},
-	})
-	*stmts = []ast.Stmt{ast.Stmt{loc, &ast.SReturn{&callAsync}}}
-}
-
-func (p *parser) lowerBindingsInDecls(decls []ast.Decl) []ast.Decl {
-	if p.Target >= objectPropertyBindingTarget {
-		return decls
-	}
-
-	var visit func(ast.Binding)
-	visit = func(binding ast.Binding) {
-		switch b := binding.Data.(type) {
-		case *ast.BMissing:
-
-		case *ast.BIdentifier:
-
-		case *ast.BArray:
-			for _, item := range b.Items {
-				visit(item.Binding)
+					// Append a variable declaration to the function body
+					prefixStmts = append(prefixStmts, ast.Stmt{arg.Binding.Loc,
+						&ast.SLocal{Kind: ast.LocalVar, Decls: decls}})
+				}
 			}
+		}
 
-		case *ast.BObject:
-			for _, property := range b.Properties {
-				// property.IsSpread
-				visit(property.Value)
-			}
-
-		default:
-			panic("Internal error")
+		if len(prefixStmts) > 0 {
+			*bodyStmts = append(prefixStmts, *bodyStmts...)
 		}
 	}
 
-	for _, decl := range decls {
-		visit(decl.Binding)
-	}
+	// Lower async functions
+	if p.Target < asyncAwaitTarget && *isAsync {
+		// Use the shortened form if we're an arrow function
+		if preferExpr != nil {
+			*preferExpr = true
+		}
 
-	return decls
+		// Determine the value for "this"
+		thisValue, hasThisValue := p.valueForThis(bodyLoc)
+		if !hasThisValue {
+			thisValue = ast.Expr{bodyLoc, &ast.EThis{}}
+		}
+
+		// Only reference the "arguments" variable if it's actually used
+		var arguments ast.Expr
+		if p.argumentsRef != nil && p.useCountEstimates[*p.argumentsRef] > 0 {
+			arguments = ast.Expr{bodyLoc, &ast.EIdentifier{*p.argumentsRef}}
+		} else {
+			arguments = ast.Expr{bodyLoc, &ast.EArray{}}
+		}
+
+		// "async function foo() { stmts }" => "function foo() { return __async(this, arguments, function* () { stmts }) }"
+		*isAsync = false
+		callAsync := p.callRuntime(bodyLoc, "__async", []ast.Expr{
+			thisValue,
+			arguments,
+			ast.Expr{bodyLoc, &ast.EFunction{Fn: ast.Fn{
+				IsGenerator: true,
+				Body:        ast.FnBody{bodyLoc, *bodyStmts},
+			}}},
+		})
+		*bodyStmts = []ast.Stmt{ast.Stmt{bodyLoc, &ast.SReturn{&callAsync}}}
+	}
 }
 
 func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut, thisArgFunc func() ast.Expr) (ast.Expr, exprOut) {
@@ -739,6 +759,471 @@ func (p *parser) extractPrivateIndex(target ast.Expr) (ast.Expr, ast.Loc, *ast.E
 		}
 	}
 	return ast.Expr{}, ast.Loc{}, nil
+}
+
+func bindingHasObjectRest(binding ast.Binding) bool {
+	switch b := binding.Data.(type) {
+	case *ast.BArray:
+		for _, item := range b.Items {
+			if bindingHasObjectRest(item.Binding) {
+				return true
+			}
+		}
+	case *ast.BObject:
+		for _, property := range b.Properties {
+			if property.IsSpread || bindingHasObjectRest(property.Value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func exprHasObjectRest(expr ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *ast.EBinary:
+		if e.Op == ast.BinOpAssign && exprHasObjectRest(e.Left) {
+			return true
+		}
+	case *ast.EArray:
+		for _, item := range e.Items {
+			if exprHasObjectRest(item) {
+				return true
+			}
+		}
+	case *ast.EObject:
+		for _, property := range e.Properties {
+			if property.Kind == ast.PropertySpread || exprHasObjectRest(*property.Value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (p *parser) lowerObjectRestInDecls(decls []ast.Decl) []ast.Decl {
+	if p.Target >= objectPropertyBindingTarget {
+		return decls
+	}
+
+	// Don't do any allocations if there are no object rest patterns. We want as
+	// little overhead as possible in the common case.
+	for i, decl := range decls {
+		if decl.Value != nil && bindingHasObjectRest(decl.Binding) {
+			clone := append([]ast.Decl{}, decls[:i]...)
+			for _, decl := range decls[i:] {
+				if decl.Value != nil {
+					target := p.convertBindingToExpr(decl.Binding, nil)
+					if result, ok := p.lowerObjectRestToDecls(target, *decl.Value, clone); ok {
+						clone = result
+						continue
+					}
+				}
+				clone = append(clone, decl)
+			}
+
+			return clone
+		}
+	}
+
+	return decls
+}
+
+func (p *parser) lowerObjectRestInForLoopInit(init ast.Stmt, body *ast.Stmt) {
+	if p.Target >= objectPropertyBindingTarget {
+		return
+	}
+
+	var bodyPrefixStmt ast.Stmt
+
+	switch s := init.Data.(type) {
+	case *ast.SExpr:
+		// "for ({...x} in y) {}"
+		// "for ({...x} of y) {}"
+		if exprHasObjectRest(s.Value) {
+			ref := p.generateTempRef(tempRefNeedsDeclare, "")
+			if expr, ok := p.lowerObjectRestInAssign(s.Value, ast.Expr{init.Loc, &ast.EIdentifier{ref}}); ok {
+				s.Value.Data = &ast.EIdentifier{ref}
+				bodyPrefixStmt = ast.Stmt{expr.Loc, &ast.SExpr{expr}}
+			}
+		}
+
+	case *ast.SLocal:
+		// "for (let {...x} in y) {}"
+		// "for (let {...x} of y) {}"
+		if len(s.Decls) == 1 && bindingHasObjectRest(s.Decls[0].Binding) {
+			ref := p.generateTempRef(tempRefNoDeclare, "")
+			decl := ast.Decl{s.Decls[0].Binding, &ast.Expr{init.Loc, &ast.EIdentifier{ref}}}
+			decls := p.lowerObjectRestInDecls([]ast.Decl{decl})
+			s.Decls[0].Binding.Data = &ast.BIdentifier{ref}
+			bodyPrefixStmt = ast.Stmt{init.Loc, &ast.SLocal{Kind: s.Kind, Decls: decls}}
+		}
+	}
+
+	if bodyPrefixStmt.Data != nil {
+		if block, ok := body.Data.(*ast.SBlock); ok {
+			// If there's already a block, insert at the front
+			stmts := make([]ast.Stmt, 0, 1+len(block.Stmts))
+			block.Stmts = append(append(stmts, bodyPrefixStmt), block.Stmts...)
+		} else {
+			// Otherwise, make a block and insert at the front
+			body.Data = &ast.SBlock{[]ast.Stmt{bodyPrefixStmt, *body}}
+		}
+	}
+}
+
+func (p *parser) lowerObjectRestInCatchBinding(catch *ast.Catch) {
+	if p.Target >= objectPropertyBindingTarget {
+		return
+	}
+
+	if catch.Binding != nil && bindingHasObjectRest(*catch.Binding) {
+		ref := p.generateTempRef(tempRefNoDeclare, "")
+		decl := ast.Decl{*catch.Binding, &ast.Expr{catch.Binding.Loc, &ast.EIdentifier{ref}}}
+		decls := p.lowerObjectRestInDecls([]ast.Decl{decl})
+		catch.Binding.Data = &ast.BIdentifier{ref}
+		stmts := make([]ast.Stmt, 0, 1+len(catch.Body))
+		stmts = append(stmts, ast.Stmt{catch.Binding.Loc, &ast.SLocal{Kind: ast.LocalLet, Decls: decls}})
+		catch.Body = append(stmts, catch.Body...)
+	}
+}
+
+func (p *parser) lowerObjectRestInAssign(rootExpr ast.Expr, rootInit ast.Expr) (ast.Expr, bool) {
+	var expr ast.Expr
+
+	assign := func(left ast.Expr, right ast.Expr) {
+		expr = maybeJoinWithComma(expr, ast.Assign(left, right))
+	}
+
+	if p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNeedsDeclare) {
+		return expr, true
+	}
+
+	return ast.Expr{}, false
+}
+
+func (p *parser) lowerObjectRestToDecls(rootExpr ast.Expr, rootInit ast.Expr, decls []ast.Decl) ([]ast.Decl, bool) {
+	assign := func(left ast.Expr, right ast.Expr) {
+		binding, log := p.convertExprToBinding(left, nil)
+		if len(log) > 0 {
+			panic("Internal error")
+		}
+		decls = append(decls, ast.Decl{binding, &right})
+	}
+
+	if p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNoDeclare) {
+		return decls, true
+	}
+
+	return nil, false
+}
+
+func (p *parser) lowerObjectRestHelper(
+	rootExpr ast.Expr,
+	rootInit ast.Expr,
+	assign func(ast.Expr, ast.Expr),
+	declare generateTempRefArg,
+) bool {
+	if p.Target >= objectPropertyBindingTarget {
+		return false
+	}
+
+	// Check if this could possibly contain an object rest binding
+	switch rootExpr.Data.(type) {
+	case *ast.EArray, *ast.EObject:
+	default:
+		return false
+	}
+
+	// Scan for object rest bindings and initalize rest binding containment
+	containsRestBinding := make(map[ast.E]bool)
+	var findRestBindings func(ast.Expr) bool
+	findRestBindings = func(expr ast.Expr) bool {
+		found := false
+		switch e := expr.Data.(type) {
+		case *ast.EBinary:
+			if e.Op == ast.BinOpAssign && findRestBindings(e.Left) {
+				found = true
+			}
+		case *ast.EArray:
+			for _, item := range e.Items {
+				if findRestBindings(item) {
+					found = true
+				}
+			}
+		case *ast.EObject:
+			for _, property := range e.Properties {
+				if property.Kind == ast.PropertySpread || findRestBindings(*property.Value) {
+					found = true
+				}
+			}
+		}
+		if found {
+			containsRestBinding[expr.Data] = true
+		}
+		return found
+	}
+	findRestBindings(rootExpr)
+	if len(containsRestBinding) == 0 {
+		return false
+	}
+
+	// If there is at least one rest binding, lower the whole expression
+	var visit func(ast.Expr, ast.Expr, []func() ast.Expr)
+
+	captureIntoRef := func(expr ast.Expr) ast.Ref {
+		if id, ok := expr.Data.(*ast.EIdentifier); ok {
+			return id.Ref
+		}
+
+		// If the initializer isn't already a bare identifier that we can
+		// reference, store the initializer first so we can reference it later.
+		// The initializer may have side effects so we must evaluate it once.
+		ref := p.generateTempRef(declare, "")
+		assign(ast.Expr{expr.Loc, &ast.EIdentifier{ref}}, expr)
+		return ref
+	}
+
+	lowerObjectRestPattern := func(
+		before []ast.Property,
+		binding ast.Expr,
+		init ast.Expr,
+		capturedKeys []func() ast.Expr,
+		isSingleLine bool,
+	) {
+		// If there are properties before this one, store the initializer in a
+		// temporary so we can reference it multiple times, then create a new
+		// destructuring assignment for these properties
+		if len(before) > 0 {
+			// "let {a, ...b} = c"
+			ref := captureIntoRef(init)
+			assign(ast.Expr{before[0].Key.Loc, &ast.EObject{Properties: before, IsSingleLine: isSingleLine}},
+				ast.Expr{init.Loc, &ast.EIdentifier{ref}})
+			init = ast.Expr{init.Loc, &ast.EIdentifier{ref}}
+		}
+
+		// Call "__rest" to clone the initializer without the keys for previous
+		// properties, then assign the result to the binding for the rest pattern
+		keysToExclude := make([]ast.Expr, len(capturedKeys))
+		for i, capturedKey := range capturedKeys {
+			keysToExclude[i] = capturedKey()
+		}
+		assign(binding, p.callRuntime(binding.Loc, "__rest", []ast.Expr{init,
+			ast.Expr{binding.Loc, &ast.EArray{Items: keysToExclude, IsSingleLine: isSingleLine}}}))
+	}
+
+	splitArrayPattern := func(
+		before []ast.Expr,
+		split ast.Expr,
+		after []ast.Expr,
+		init ast.Expr,
+		isSingleLine bool,
+	) {
+		// If this has a default value, skip the value to target the binding
+		binding := &split
+		if binary, ok := binding.Data.(*ast.EBinary); ok && binary.Op == ast.BinOpAssign {
+			binding = &binary.Left
+		}
+
+		// Swap the binding with a temporary
+		splitRef := p.generateTempRef(declare, "")
+		deferredBinding := *binding
+		binding.Data = &ast.EIdentifier{splitRef}
+		items := append(before, split)
+
+		// If there are any items left over, defer them until later too
+		var tailExpr ast.Expr
+		var tailInit ast.Expr
+		if len(after) > 0 {
+			tailRef := p.generateTempRef(declare, "")
+			loc := after[0].Loc
+			tailExpr = ast.Expr{loc, &ast.EArray{Items: after, IsSingleLine: isSingleLine}}
+			tailInit = ast.Expr{loc, &ast.EIdentifier{tailRef}}
+			items = append(items, ast.Expr{loc, &ast.ESpread{ast.Expr{loc, &ast.EIdentifier{tailRef}}}})
+		}
+
+		// The original destructuring assignment must come first
+		assign(ast.Expr{split.Loc, &ast.EArray{Items: items, IsSingleLine: isSingleLine}}, init)
+
+		// Then the deferred split is evaluated
+		visit(deferredBinding, ast.Expr{split.Loc, &ast.EIdentifier{splitRef}}, nil)
+
+		// Then anything after the split
+		if len(after) > 0 {
+			visit(tailExpr, tailInit, nil)
+		}
+	}
+
+	splitObjectPattern := func(
+		upToSplit []ast.Property,
+		afterSplit []ast.Property,
+		init ast.Expr,
+		capturedKeys []func() ast.Expr,
+		isSingleLine bool,
+	) {
+		// If there are properties after the split, store the initializer in a
+		// temporary so we can reference it multiple times
+		var afterSplitInit ast.Expr
+		if len(afterSplit) > 0 {
+			ref := captureIntoRef(init)
+			init = ast.Expr{init.Loc, &ast.EIdentifier{ref}}
+			afterSplitInit = ast.Expr{init.Loc, &ast.EIdentifier{ref}}
+		}
+
+		split := &upToSplit[len(upToSplit)-1]
+		binding := split.Value
+
+		// If this has a default value, skip the value to target the binding
+		if binary, ok := binding.Data.(*ast.EBinary); ok && binary.Op == ast.BinOpAssign {
+			binding = &binary.Left
+		}
+
+		// Swap the binding with a temporary
+		splitRef := p.generateTempRef(declare, "")
+		deferredBinding := *binding
+		binding.Data = &ast.EIdentifier{splitRef}
+
+		// Use a destructuring assignment to unpack everything up to and including
+		// the split point
+		assign(ast.Expr{binding.Loc, &ast.EObject{Properties: upToSplit, IsSingleLine: isSingleLine}}, init)
+
+		// Handle any nested rest binding patterns inside the split point
+		visit(deferredBinding, ast.Expr{binding.Loc, &ast.EIdentifier{splitRef}}, nil)
+
+		// Then continue on to any properties after the split
+		if len(afterSplit) > 0 {
+			visit(ast.Expr{binding.Loc, &ast.EObject{
+				Properties:   afterSplit,
+				IsSingleLine: isSingleLine,
+			}}, afterSplitInit, capturedKeys)
+		}
+	}
+
+	// This takes an expression representing a binding pattern as input and
+	// returns that binding pattern with any object rest patterns stripped out.
+	// The object rest patterns are lowered and appended to "exprChain" along
+	// with any child binding patterns that came after the binding pattern
+	// containing the object rest pattern.
+	//
+	// This transform must be very careful to preserve the exact evaluation
+	// order of all assignments, default values, and computed property keys.
+	//
+	// Unlike the Babel and TypeScript compilers, this transform does not
+	// lower binding patterns other than object rest patterns. For example,
+	// array spread patterns are preserved.
+	//
+	// Certain patterns such as "{a: {...a}, b: {...b}, ...c}" may need to be
+	// split multiple times. In this case the "capturedKeys" argument allows
+	// the visitor to pass on captured keys to the tail-recursive call that
+	// handles the properties after the split.
+	visit = func(expr ast.Expr, init ast.Expr, capturedKeys []func() ast.Expr) {
+		switch e := expr.Data.(type) {
+		case *ast.EArray:
+			// Split on the first binding with a nested rest binding pattern
+			for i, item := range e.Items {
+				// "let [a, {...b}, c] = d"
+				if containsRestBinding[item.Data] {
+					splitArrayPattern(e.Items[:i], item, append([]ast.Expr{}, e.Items[i+1:]...), init, e.IsSingleLine)
+					return
+				}
+			}
+
+		case *ast.EObject:
+			last := len(e.Properties) - 1
+			endsWithRestBinding := last >= 0 && e.Properties[last].Kind == ast.PropertySpread
+
+			// Split on the first binding with a nested rest binding pattern
+			for i, _ := range e.Properties {
+				property := &e.Properties[i]
+
+				// "let {a, ...b} = c"
+				if property.Kind == ast.PropertySpread {
+					lowerObjectRestPattern(e.Properties[:i], *property.Value, init, capturedKeys, e.IsSingleLine)
+					return
+				}
+
+				// Save a copy of this key so the rest binding can exclude it
+				if endsWithRestBinding {
+					key, capturedKey := p.captureKeyForObjectRest(property.Key)
+					property.Key = key
+					capturedKeys = append(capturedKeys, capturedKey)
+				}
+
+				// "let {a: {...b}, c} = d"
+				if containsRestBinding[property.Value.Data] {
+					splitObjectPattern(e.Properties[:i+1], e.Properties[i+1:], init, capturedKeys, e.IsSingleLine)
+					return
+				}
+			}
+		}
+
+		assign(expr, init)
+	}
+
+	visit(rootExpr, rootInit, nil)
+	return true
+}
+
+// Returns "typeof ref === 'symbol' ? ref : ref + ''"
+func symbolOrString(loc ast.Loc, ref ast.Ref) ast.Expr {
+	return ast.Expr{loc, &ast.EIf{
+		Test: ast.Expr{loc, &ast.EBinary{
+			Op: ast.BinOpStrictEq,
+			Left: ast.Expr{loc, &ast.EUnary{
+				Op:    ast.UnOpTypeof,
+				Value: ast.Expr{loc, &ast.EIdentifier{ref}},
+			}},
+			Right: ast.Expr{loc, &ast.EString{lexer.StringToUTF16("symbol")}},
+		}},
+		Yes: ast.Expr{loc, &ast.EIdentifier{ref}},
+		No: ast.Expr{loc, &ast.EBinary{
+			Op:    ast.BinOpAdd,
+			Left:  ast.Expr{loc, &ast.EIdentifier{ref}},
+			Right: ast.Expr{loc, &ast.EString{}},
+		}},
+	}}
+}
+
+// Save a copy of the key for the call to "__rest" later on. Certain
+// expressions can be converted to keys more efficiently than others.
+func (p *parser) captureKeyForObjectRest(originalKey ast.Expr) (finalKey ast.Expr, capturedKey func() ast.Expr) {
+	loc := originalKey.Loc
+	finalKey = originalKey
+
+	switch k := originalKey.Data.(type) {
+	case *ast.EString:
+		capturedKey = func() ast.Expr { return ast.Expr{loc, &ast.EString{k.Value}} }
+
+	case *ast.ENumber:
+		// Emit it as the number plus a string (i.e. call toString() on it).
+		// It's important to do it this way instead of trying to print the
+		// float as a string because Go's floating-point printer doesn't
+		// behave exactly the same as JavaScript and if they are different,
+		// the generated code will be wrong.
+		capturedKey = func() ast.Expr {
+			return ast.Expr{loc, &ast.EBinary{
+				Op:    ast.BinOpAdd,
+				Left:  ast.Expr{loc, &ast.ENumber{k.Value}},
+				Right: ast.Expr{loc, &ast.EString{}},
+			}}
+		}
+
+	case *ast.EIdentifier:
+		capturedKey = func() ast.Expr {
+			return p.callRuntime(loc, "__restKey", []ast.Expr{ast.Expr{loc, &ast.EIdentifier{k.Ref}}})
+		}
+
+	default:
+		// If it's an arbitrary expression, it probably has a side effect.
+		// Stash it in a temporary reference so we don't evaluate it twice.
+		tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
+		finalKey = ast.Assign(ast.Expr{loc, &ast.EIdentifier{tempRef}}, originalKey)
+		capturedKey = func() ast.Expr {
+			return p.callRuntime(loc, "__restKey", []ast.Expr{ast.Expr{loc, &ast.EIdentifier{tempRef}}})
+		}
+	}
+
+	return
 }
 
 // Lower class fields for environments that don't support them. This either

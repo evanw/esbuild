@@ -1762,7 +1762,6 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 
 	switch p.lexer.Token {
 	case lexer.TDotDotDot:
-		p.markFutureSyntax(futureSyntaxRestProperty, p.lexer.Range())
 		p.lexer.Next()
 		value := ast.Binding{p.lexer.Loc(), &ast.BIdentifier{p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Expect(lexer.TIdentifier)
@@ -2199,7 +2198,10 @@ func (p *parser) convertBindingToExpr(binding ast.Binding, wrapIdentifier func(a
 		return ast.Expr{loc, &ast.EMissing{}}
 
 	case *ast.BIdentifier:
-		return wrapIdentifier(loc, b.Ref)
+		if wrapIdentifier != nil {
+			return wrapIdentifier(loc, b.Ref)
+		}
+		return ast.Expr{loc, &ast.EIdentifier{b.Ref}}
 
 	case *ast.BArray:
 		exprs := make([]ast.Expr, len(b.Items))
@@ -4950,11 +4952,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 
 		// "for await (let x of y) {}"
-		isAwait := p.lexer.IsContextualKeyword("await")
-		if isAwait {
+		isForAwait := p.lexer.IsContextualKeyword("await")
+		if isForAwait {
 			if !p.currentFnOpts.allowAwait {
 				p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"await\" outside an async function")
-				isAwait = false
+				isForAwait = false
 			} else {
 				p.markFutureSyntax(futureSyntaxForAwait, p.lexer.Range())
 			}
@@ -5000,8 +5002,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.allowIn = true
 
 		// Detect for-of loops
-		if p.lexer.IsContextualKeyword("of") || isAwait {
-			if isAwait && !p.lexer.IsContextualKeyword("of") {
+		if p.lexer.IsContextualKeyword("of") || isForAwait {
+			if isForAwait && !p.lexer.IsContextualKeyword("of") {
 				if init != nil {
 					p.lexer.ExpectedString("\"of\"")
 				} else {
@@ -5013,7 +5015,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			value := p.parseExpr(ast.LLowest)
 			p.lexer.Expect(lexer.TCloseParen)
 			body := p.parseStmt(parseStmtOpts{})
-			return ast.Stmt{loc, &ast.SForOf{isAwait, *init, value, body}}
+			return ast.Stmt{loc, &ast.SForOf{isForAwait, *init, value, body}}
 		}
 
 		// Detect for-in loops
@@ -6093,6 +6095,31 @@ func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 	}
 }
 
+func (p *parser) visitForLoopInit(stmt ast.Stmt, isInOrOf bool) ast.Stmt {
+	switch s := stmt.Data.(type) {
+	case *ast.SExpr:
+		assignTarget := ast.AssignTargetNone
+		if isInOrOf {
+			assignTarget = ast.AssignTargetReplace
+		}
+		s.Value, _ = p.visitExprInOut(s.Value, exprIn{assignTarget: assignTarget})
+
+	case *ast.SLocal:
+		for _, d := range s.Decls {
+			p.visitBinding(d.Binding)
+			if d.Value != nil {
+				*d.Value = p.visitExpr(*d.Value)
+			}
+		}
+		s.Decls = p.lowerObjectRestInDecls(s.Decls)
+
+	default:
+		panic("Internal error")
+	}
+
+	return stmt
+}
+
 func (p *parser) recordDeclaredSymbol(ref ast.Ref) {
 	p.declaredSymbols = append(p.declaredSymbols, ast.DeclaredSymbol{
 		Ref:        ref,
@@ -6505,7 +6532,6 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 		// Handle being exported inside a namespace
 		if s.IsExport && p.enclosingNamespaceRef != nil {
-			var expr ast.Expr
 			wrapIdentifier := func(loc ast.Loc, ref ast.Ref) ast.Expr {
 				return ast.Expr{loc, &ast.EDot{
 					Target:  ast.Expr{loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
@@ -6515,19 +6541,19 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			}
 			for _, decl := range s.Decls {
 				if decl.Value != nil {
-					expr = maybeJoinWithComma(expr, ast.Assign(
-						p.convertBindingToExpr(decl.Binding, wrapIdentifier),
-						*decl.Value,
-					))
+					target := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
+					if result, ok := p.lowerObjectRestInAssign(target, *decl.Value); ok {
+						target = result
+					} else {
+						target = ast.Assign(target, *decl.Value)
+					}
+					stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{target}})
 				}
-			}
-			if expr.Data != nil {
-				stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{expr}})
 			}
 			return stmts
 		}
 
-		s.Decls = p.lowerBindingsInDecls(s.Decls)
+		s.Decls = p.lowerObjectRestInDecls(s.Decls)
 
 	case *ast.SExpr:
 		s.Value = p.visitExpr(s.Value)
@@ -6633,7 +6659,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SFor:
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
 		if s.Init != nil {
-			p.visitSingleStmt(*s.Init)
+			p.visitForLoopInit(*s.Init, false)
 		}
 
 		if s.Test != nil {
@@ -6655,17 +6681,19 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SForIn:
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
-		p.visitSingleStmt(s.Init)
+		p.visitForLoopInit(s.Init, true)
 		s.Value = p.visitExpr(s.Value)
 		s.Body = p.visitSingleStmt(s.Body)
 		p.popScope()
+		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
 	case *ast.SForOf:
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
-		p.visitSingleStmt(s.Init)
+		p.visitForLoopInit(s.Init, true)
 		s.Value = p.visitExpr(s.Value)
 		s.Body = p.visitSingleStmt(s.Body)
 		p.popScope()
+		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
 	case *ast.STry:
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
@@ -6680,6 +6708,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				p.visitBinding(*s.Catch.Binding)
 			}
 			s.Catch.Body = p.visitStmts(s.Catch.Body)
+			p.lowerObjectRestInCatchBinding(s.Catch)
 			p.popScope()
 		}
 
@@ -7747,6 +7776,16 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return p.lowerPrivateSet(target, loc, private, e.Right), exprOut{}
 			}
 
+			// Lower object rest patterns for browsers that don't support them. Note
+			// that assignment expressions are used to represent initializers in
+			// binding patterns, so only do this if we're not ourselves the target of
+			// an assignment. Example: "[a = b] = c"
+			if in.assignTarget == ast.AssignTargetNone {
+				if result, ok := p.lowerObjectRestInAssign(e.Left, e.Right); ok {
+					return result, exprOut{}
+				}
+			}
+
 		case ast.BinOpAddAssign:
 			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
 				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpAdd, e.Right), exprOut{}
@@ -8064,7 +8103,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				*property.Initializer = p.visitExpr(*property.Initializer)
 			}
 		}
-		return p.lowerObjectSpread(expr.Loc, e), exprOut{}
+
+		// Object expressions represent both object literals and binding patterns.
+		// Only lower object spread if we're an object literal, not a binding pattern.
+		if in.assignTarget == ast.AssignTargetNone {
+			return p.lowerObjectSpread(expr.Loc, e), exprOut{}
+		}
 
 	case *ast.EImport:
 		e.Expr = p.visitExpr(e.Expr)
@@ -8224,8 +8268,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		p.pushScopeForVisitPass(ast.ScopeFunctionBody, e.Body.Loc)
 		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts)
 		p.popScope()
+		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr)
 		p.popScope()
-		p.lowerAsyncFunction(e.Body.Loc, &e.IsAsync, &e.Body.Stmts, &e.PreferExpr)
 
 		if p.MangleSyntax && len(e.Body.Stmts) == 1 {
 			if s, ok := e.Body.Stmts[0].Data.(*ast.SReturn); ok {
@@ -8337,8 +8381,8 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.pushScopeForVisitPass(ast.ScopeFunctionBody, fn.Body.Loc)
 	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts)
 	p.popScope()
+	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil)
 	p.popScope()
-	p.lowerAsyncFunction(fn.Body.Loc, &fn.IsAsync, &fn.Body.Stmts, nil)
 
 	p.tryBodyCount = oldTryBodyCount
 	p.isThisCaptured = oldIsThisCaptured

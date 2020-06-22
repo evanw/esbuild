@@ -2181,3 +2181,222 @@ console.log(loose_default, strict_default);
 		},
 	})
 }
+
+func TestTSLowerObjectRest2017NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const { ...local_const } = {};
+				let { ...local_let } = {};
+				var { ...local_var } = {};
+				let arrow_fn = ({ ...x }) => { };
+				let fn_expr = function ({ ...x } = default_value) {};
+				let class_expr = class { method(x, ...[y, { ...z }]) {} };
+
+				function fn_stmt({ a = b(), ...x }, { c = d(), ...y }) {}
+				class class_stmt { method({ ...x }) {} }
+				namespace ns { export let { ...x } = {} }
+				try { } catch ({ ...catch_clause }) {}
+
+				for (const { ...for_in_const } in { abc }) {}
+				for (let { ...for_in_let } in { abc }) {}
+				for (var { ...for_in_var } in { abc }) ;
+				for (const { ...for_of_const } of [{}]) ;
+				for (let { ...for_of_let } of [{}]) x()
+				for (var { ...for_of_var } of [{}]) x()
+				for (const { ...for_const } = {}; x; x = null) {}
+				for (let { ...for_let } = {}; x; x = null) {}
+				for (var { ...for_var } = {}; x; x = null) {}
+				for ({ ...x } in { abc }) {}
+				for ({ ...x } of [{}]) {}
+				for ({ ...x } = {}; x; x = null) {}
+
+				({ ...assign } = {});
+				({ obj_method({ ...x }) {} });
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2017,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _o, _p;
+const local_const = __rest({}, []);
+let local_let = __rest({}, []);
+var local_var = __rest({}, []);
+let arrow_fn = (_a) => {
+  var x2 = __rest(_a, []);
+};
+let fn_expr = function(_b = default_value) {
+  var x2 = __rest(_b, []);
+};
+let class_expr = class {
+  method(x2, ..._c) {
+    var [y, _d] = _c, z = __rest(_d, []);
+  }
+};
+function fn_stmt(_e, _f) {
+  var {a = b()} = _e, x2 = __rest(_e, ["a"]);
+  var {c = d()} = _f, y = __rest(_f, ["c"]);
+}
+class class_stmt {
+  method(_g) {
+    var x2 = __rest(_g, []);
+  }
+}
+var ns;
+(function(ns2) {
+  ns2.x = __rest({}, []);
+})(ns || (ns = {}));
+try {
+} catch (_h) {
+  let catch_clause = __rest(_h, []);
+}
+for (const _i in {abc}) {
+  const for_in_const = __rest(_i, []);
+}
+for (let _j in {abc}) {
+  let for_in_let = __rest(_j, []);
+}
+for (var _k in {abc}) {
+  var for_in_var = __rest(_k, []);
+  ;
+}
+for (const _l of [{}]) {
+  const for_of_const = __rest(_l, []);
+  ;
+}
+for (let _m of [{}]) {
+  let for_of_let = __rest(_m, []);
+  x();
+}
+for (var _n of [{}]) {
+  var for_of_var = __rest(_n, []);
+  x();
+}
+for (const for_const = __rest({}, []); x; x = null) {
+}
+for (let for_let = __rest({}, []); x; x = null) {
+}
+for (var for_var = __rest({}, []); x; x = null) {
+}
+for (_o in {abc}) {
+  x = __rest(_o, []);
+}
+for (_p of [{}]) {
+  x = __rest(_p, []);
+}
+for (x = __rest({}, []); x; x = null) {
+}
+assign = __rest({}, []);
+({obj_method(_q) {
+  var x2 = __rest(_q, []);
+}});
+`,
+		},
+	})
+}
+
+func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const { ...local_const } = {};
+				let { ...local_let } = {};
+				var { ...local_var } = {};
+				let arrow_fn = ({ ...x }) => { };
+				let fn_expr = function ({ ...x } = default_value) {};
+				let class_expr = class { method(x, ...[y, { ...z }]) {} };
+
+				function fn_stmt({ a = b(), ...x }, { c = d(), ...y }) {}
+				class class_stmt { method({ ...x }) {} }
+				namespace ns { export let { ...x } = {} }
+				try { } catch ({ ...catch_clause }) {}
+
+				for (const { ...for_in_const } in { abc }) {}
+				for (let { ...for_in_let } in { abc }) {}
+				for (var { ...for_in_var } in { abc }) ;
+				for (const { ...for_of_const } of [{}]) ;
+				for (let { ...for_of_let } of [{}]) x()
+				for (var { ...for_of_var } of [{}]) x()
+				for (const { ...for_const } = {}; x; x = null) {}
+				for (let { ...for_let } = {}; x; x = null) {}
+				for (var { ...for_var } = {}; x; x = null) {}
+				for ({ ...x } in { abc }) {}
+				for ({ ...x } of [{}]) {}
+				for ({ ...x } = {}; x; x = null) {}
+
+				({ ...assign } = {});
+				({ obj_method({ ...x }) {} });
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2018,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `const {...local_const} = {};
+let {...local_let} = {};
+var {...local_var} = {};
+let arrow_fn = ({...x2}) => {
+};
+let fn_expr = function({...x2} = default_value) {
+};
+let class_expr = class {
+  method(x2, ...[y, {...z}]) {
+  }
+};
+function fn_stmt({a = b(), ...x2}, {c = d(), ...y}) {
+}
+class class_stmt {
+  method({...x2}) {
+  }
+}
+var ns;
+(function(ns2) {
+  ({...ns2.x} = {});
+})(ns || (ns = {}));
+try {
+} catch ({...catch_clause}) {
+}
+for (const {...for_in_const} in {abc}) {
+}
+for (let {...for_in_let} in {abc}) {
+}
+for (var {...for_in_var} in {abc})
+  ;
+for (const {...for_of_const} of [{}])
+  ;
+for (let {...for_of_let} of [{}])
+  x();
+for (var {...for_of_var} of [{}])
+  x();
+for (const {...for_const} = {}; x; x = null) {
+}
+for (let {...for_let} = {}; x; x = null) {
+}
+for (var {...for_var} = {}; x; x = null) {
+}
+for ({...x} in {abc}) {
+}
+for ({...x} of [{}]) {
+}
+for ({...x} = {}; x; x = null) {
+}
+({...assign} = {});
+({obj_method({...x2}) {
+}});
+`,
+		},
+	})
+}

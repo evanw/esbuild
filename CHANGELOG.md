@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Transform object rest properties
+
+    This release transforms object rest property bindings such as `let {...x} = y` when the language target is set to `--target=es2017` or earlier.
+
+    If you're using Babel to transform your source code to ES6 for older browsers, this probably means esbuild's JavaScript API could now be a suitable replacement for Babel in your case. The only remaining features that esbuild can't yet transform to ES6 are a few very rarely used features that don't matter for the vast majority of real-world code (`for async` loops and `async` generators).
+
 ## 0.5.9
 
 * Add the `--strict:nullish-coalescing` option
