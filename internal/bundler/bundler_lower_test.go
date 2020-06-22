@@ -1751,22 +1751,125 @@ export {
 	})
 }
 
-func TestLowerClassFieldStrictNoBundle(t *testing.T) {
+func TestLowerClassFieldStrict2020NoBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
+					#foo = 123
+					#bar
 					foo = 123
 					bar
-					static foo = 234
-					static bar
+					static #s_foo = 123
+					static #s_bar
+					static s_foo = 123
+					static s_bar
 				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2019,
+			Target:     parser.ES2020,
+			Strict: parser.StrictOptions{
+				ClassFields: true,
+			},
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _foo, _bar, _s_foo, _s_bar;
+class Foo {
+  constructor() {
+    _foo.set(this, 123);
+    _bar.set(this, void 0);
+    __publicField(this, "foo", 123);
+    __publicField(this, "bar", void 0);
+  }
+}
+_foo = new WeakMap();
+_bar = new WeakMap();
+_s_foo = new WeakMap();
+_s_bar = new WeakMap();
+_s_foo.set(Foo, 123);
+_s_bar.set(Foo, void 0);
+__publicField(Foo, "s_foo", 123);
+__publicField(Foo, "s_bar", void 0);
+`,
+		},
+	})
+}
+
+func TestLowerClassField2020NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo = 123
+					#bar
+					foo = 123
+					bar
+					static #s_foo = 123
+					static #s_bar
+					static s_foo = 123
+					static s_bar
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _foo, _bar, _s_foo, _s_bar;
+class Foo {
+  constructor() {
+    _foo.set(this, 123);
+    _bar.set(this, void 0);
+    this.foo = 123;
+    this.bar = void 0;
+  }
+}
+_foo = new WeakMap();
+_bar = new WeakMap();
+_s_foo = new WeakMap();
+_s_bar = new WeakMap();
+_s_foo.set(Foo, 123);
+_s_bar.set(Foo, void 0);
+Foo.s_foo = 123;
+Foo.s_bar = void 0;
+`,
+		},
+	})
+}
+
+func TestLowerClassFieldStrictNextNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo = 123
+					#bar
+					foo = 123
+					bar
+					static #s_foo = 123
+					static #s_bar
+					static s_foo = 123
+					static s_bar
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ESNext,
 			Strict: parser.StrictOptions{
 				ClassFields: true,
 			},
@@ -1777,34 +1880,178 @@ func TestLowerClassFieldStrictNoBundle(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `class Foo {
-  constructor() {
-    __publicField(this, "foo", 123);
-    __publicField(this, "bar", void 0);
-  }
+  #foo = 123;
+  #bar;
+  foo = 123;
+  bar;
+  static #s_foo = 123;
+  static #s_bar;
+  static s_foo = 123;
+  static s_bar;
 }
-__publicField(Foo, "foo", 234);
-__publicField(Foo, "bar", void 0);
 `,
 		},
 	})
 }
 
-func TestTSLowerClassFieldStrictNoBundle(t *testing.T) {
+func TestLowerClassFieldNextNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo = 123
+					#bar
+					foo = 123
+					bar
+					static #s_foo = 123
+					static #s_bar
+					static s_foo = 123
+					static s_bar
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ESNext,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo {
+  #foo = 123;
+  #bar;
+  foo = 123;
+  bar;
+  static #s_foo = 123;
+  static #s_bar;
+  static s_foo = 123;
+  static s_bar;
+}
+`,
+		},
+	})
+}
+
+func TestTSLowerClassFieldStrict2020NoBundle(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
+					#foo = 123
+					#bar
 					foo = 123
 					bar
-					static foo = 234
-					static bar
+					static #s_foo = 123
+					static #s_bar
+					static s_foo = 123
+					static s_bar
 				}
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2019,
+			Target:     parser.ES2020,
+			Strict: parser.StrictOptions{
+				ClassFields: true,
+			},
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _foo, _bar, _s_foo, _s_bar;
+class Foo {
+  constructor() {
+    _foo.set(this, 123);
+    _bar.set(this, void 0);
+    __publicField(this, "foo", 123);
+    __publicField(this, "bar", void 0);
+  }
+}
+_foo = new WeakMap();
+_bar = new WeakMap();
+_s_foo = new WeakMap();
+_s_bar = new WeakMap();
+_s_foo.set(Foo, 123);
+_s_bar.set(Foo, void 0);
+__publicField(Foo, "s_foo", 123);
+__publicField(Foo, "s_bar", void 0);
+`,
+		},
+	})
+}
+
+func TestTSLowerClassField2020NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					#foo = 123
+					#bar
+					foo = 123
+					bar
+					static #s_foo = 123
+					static #s_bar
+					static s_foo = 123
+					static s_bar
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _foo, _bar, _s_foo, _s_bar;
+class Foo {
+  constructor() {
+    _foo.set(this, 123);
+    _bar.set(this, void 0);
+    this.foo = 123;
+  }
+}
+_foo = new WeakMap();
+_bar = new WeakMap();
+_s_foo = new WeakMap();
+_s_bar = new WeakMap();
+_s_foo.set(Foo, 123);
+_s_bar.set(Foo, void 0);
+Foo.s_foo = 123;
+`,
+		},
+	})
+}
+
+func TestTSLowerClassPrivateFieldStrictNextNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					#foo = 123
+					#bar
+					foo = 123
+					bar
+					static #s_foo = 123
+					static #s_bar
+					static s_foo = 123
+					static s_bar
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ESNext,
 			Strict: parser.StrictOptions{
 				ClassFields: true,
 			},
@@ -1815,13 +2062,57 @@ func TestTSLowerClassFieldStrictNoBundle(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `class Foo {
-  constructor() {
-    __publicField(this, "foo", 123);
-    __publicField(this, "bar", void 0);
-  }
+  #foo = 123;
+  #bar;
+  foo = 123;
+  bar;
+  static #s_foo = 123;
+  static #s_bar;
+  static s_foo = 123;
+  static s_bar;
 }
-__publicField(Foo, "foo", 234);
-__publicField(Foo, "bar", void 0);
+`,
+		},
+	})
+}
+
+func TestTSLowerClassPrivateFieldNextNoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					#foo = 123
+					#bar
+					foo = 123
+					bar
+					static #s_foo = 123
+					static #s_bar
+					static s_foo = 123
+					static s_bar
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: false,
+			Target:     parser.ESNext,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    false,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `class Foo {
+  constructor() {
+    this.#foo = 123;
+    this.foo = 123;
+  }
+  #foo;
+  #bar;
+  static #s_foo = 123;
+  static #s_bar;
+}
+Foo.s_foo = 123;
 `,
 		},
 	})

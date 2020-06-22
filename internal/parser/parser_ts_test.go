@@ -261,9 +261,9 @@ func TestTSPrivateIdentifiers(t *testing.T) {
 	// because it moves static field initializers to after the class body and
 	// private fields can't be used outside the class body. It remains to be seen
 	// how the TypeScript compiler will transform private static fields once it
-	// finally does support them.
+	// finally does support them. For now just leave the initializer in place.
 	expectPrintedTS(t, "class Foo { static #foo }", "class Foo {\n  static #foo;\n}\n")
-	expectPrintedTS(t, "class Foo { static #foo = 1 }", "class Foo {\n  static #foo;\n}\nFoo.#foo = 1;\n")
+	expectPrintedTS(t, "class Foo { static #foo = 1 }", "class Foo {\n  static #foo = 1;\n}\n")
 	expectPrintedTS(t, "class Foo { static #foo() {} }", "class Foo {\n  static #foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { static get #foo() {} }", "class Foo {\n  static get #foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { static set #foo() {} }", "class Foo {\n  static set #foo() {\n  }\n}\n")

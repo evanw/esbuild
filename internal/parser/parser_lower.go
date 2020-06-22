@@ -890,7 +890,9 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		// its side effects and we don't need a temporary reference for the key.
 		// However, the TypeScript compiler doesn't remove the field when doing
 		// strict class field initialization, so we shouldn't either.
-		shouldOmitFieldInitializer := p.TS.Parse && !prop.IsMethod && prop.Initializer == nil && !p.Strict.ClassFields
+		privateName, _ := prop.Key.Data.(*ast.EPrivateIdentifier)
+		shouldOmitFieldInitializer := p.TS.Parse && !prop.IsMethod && prop.Initializer == nil &&
+			!p.Strict.ClassFields && (privateName == nil || p.Target >= privateNameTarget)
 
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
@@ -971,14 +973,15 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			}
 		}
 
-		// Instance and static fields are a JavaScript feature
-		if (p.TS.Parse || p.Target < ESNext) && !prop.IsMethod && (prop.IsStatic || prop.Value == nil) {
-			privateField, _ := prop.Key.Data.(*ast.EPrivateIdentifier)
-
+		// Instance and static fields are a JavaScript feature, not just a
+		// TypeScript feature. Move their initializers from the class body to
+		// either the constructor (instance fields) or after the class (static
+		// fields).
+		if (p.Target < ESNext || (p.TS.Parse && !p.Strict.ClassFields && (!prop.IsStatic || privateName == nil))) && !prop.IsMethod {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
-			if !p.TS.Parse || !shouldOmitFieldInitializer || prop.Value != nil || (privateField != nil && p.Target < privateNameTarget) {
+			if !shouldOmitFieldInitializer {
 				loc := prop.Key.Loc
 
 				// Determine where to store the field
@@ -993,18 +996,16 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				var init ast.Expr
 				if prop.Initializer != nil {
 					init = *prop.Initializer
-				} else if prop.Value != nil {
-					init = *prop.Value
 				} else {
 					init = ast.Expr{loc, &ast.EUndefined{}}
 				}
 
 				// Generate the assignment target
 				var expr ast.Expr
-				if privateField != nil && p.Target < privateNameTarget {
+				if privateName != nil && p.Target < privateNameTarget {
 					// Generate a new symbol for this private field
-					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[privateField.Ref.InnerIndex].Name[1:])
-					p.symbols[privateField.Ref.InnerIndex].Link = ref
+					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[privateName.Ref.InnerIndex].Name[1:])
+					p.symbols[privateName.Ref.InnerIndex].Link = ref
 
 					// Initialize the private field to a new WeakMap
 					if p.weakMapRef == ast.InvalidRef {
@@ -1031,7 +1032,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 							init,
 						},
 					}}
-				} else if p.Strict.ClassFields {
+				} else if privateName == nil && p.Strict.ClassFields {
 					expr = p.callRuntime(loc, "__publicField", []ast.Expr{
 						target,
 						prop.Key,
@@ -1063,29 +1064,25 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				}
 			}
 
-			if privateField != nil && p.Target >= privateNameTarget {
-				// Keep the private field but remove the initializer
-				prop.Initializer = nil
-			} else {
+			if privateName == nil || p.Target < privateNameTarget {
 				// Remove the field from the class body
 				continue
 			}
+
+			// Keep the private field but remove the initializer
+			prop.Initializer = nil
 		}
 
 		// Remember where the constructor is for later
-		if prop.IsMethod && prop.Value != nil {
-			switch key := prop.Key.Data.(type) {
-			case *ast.EPrivateIdentifier:
-				if p.Target >= privateNameTarget {
-					break
-				}
+		if prop.IsMethod {
+			if privateName != nil && p.Target < privateNameTarget {
 				loc := prop.Key.Loc
 
 				// Don't generate a symbol for a getter/setter pair twice
-				if p.symbols[key.Ref.InnerIndex].Link == ast.InvalidRef {
+				if p.symbols[privateName.Ref.InnerIndex].Link == ast.InvalidRef {
 					// Generate a new symbol for this private method
-					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[key.Ref.InnerIndex].Name[1:])
-					p.symbols[key.Ref.InnerIndex].Link = ref
+					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[privateName.Ref.InnerIndex].Name[1:])
+					p.symbols[privateName.Ref.InnerIndex].Link = ref
 
 					// Initialize the private method to a new WeakSet
 					if p.weakSetRef == ast.InvalidRef {
@@ -1132,9 +1129,9 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				// Move the method definition outside the class body
 				methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
 				if prop.Kind == ast.PropertySet {
-					p.symbols[methodRef.InnerIndex].Link = p.privateSetters[key.Ref]
+					p.symbols[methodRef.InnerIndex].Link = p.privateSetters[privateName.Ref]
 				} else {
-					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[key.Ref]
+					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[privateName.Ref]
 				}
 				privateMembers = append(privateMembers, ast.Expr{loc, &ast.EBinary{
 					Op:    ast.BinOpAssign,
@@ -1142,27 +1139,24 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 					Right: *prop.Value,
 				}})
 				continue
+			} else if key, ok := prop.Key.Data.(*ast.EString); ok && lexer.UTF16EqualsString(key.Value, "constructor") {
+				if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
+					ctor = fn
 
-			case *ast.EString:
-				if lexer.UTF16EqualsString(key.Value, "constructor") {
-					if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
-						ctor = fn
-
-						// Initialize TypeScript constructor parameter fields
-						if p.TS.Parse {
-							for _, arg := range ctor.Fn.Args {
-								if arg.IsTypeScriptCtorField {
-									if id, ok := arg.Binding.Data.(*ast.BIdentifier); ok {
-										parameterFields = append(parameterFields, ast.Stmt{arg.Binding.Loc, &ast.SExpr{ast.Expr{arg.Binding.Loc, &ast.EBinary{
-											ast.BinOpAssign,
-											ast.Expr{arg.Binding.Loc, &ast.EDot{
-												Target:  ast.Expr{arg.Binding.Loc, &ast.EThis{}},
-												Name:    p.symbols[id.Ref.InnerIndex].Name,
-												NameLoc: arg.Binding.Loc,
-											}},
-											ast.Expr{arg.Binding.Loc, &ast.EIdentifier{id.Ref}},
-										}}}})
-									}
+					// Initialize TypeScript constructor parameter fields
+					if p.TS.Parse {
+						for _, arg := range ctor.Fn.Args {
+							if arg.IsTypeScriptCtorField {
+								if id, ok := arg.Binding.Data.(*ast.BIdentifier); ok {
+									parameterFields = append(parameterFields, ast.Stmt{arg.Binding.Loc, &ast.SExpr{ast.Expr{arg.Binding.Loc, &ast.EBinary{
+										ast.BinOpAssign,
+										ast.Expr{arg.Binding.Loc, &ast.EDot{
+											Target:  ast.Expr{arg.Binding.Loc, &ast.EThis{}},
+											Name:    p.symbols[id.Ref.InnerIndex].Name,
+											NameLoc: arg.Binding.Loc,
+										}},
+										ast.Expr{arg.Binding.Loc, &ast.EIdentifier{id.Ref}},
+									}}}})
 								}
 							}
 						}
