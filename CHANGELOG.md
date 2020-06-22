@@ -8,7 +8,7 @@
 
 * Add the `--strict:class-fields` option
 
-    This affects the transform for instance and static class fields. In loose mode (the default), class field initialization is transformed to a normal assignment. This is what the TypeScript compiler does by default. However, it doesn't follow the JavaScript specification exactly (e.g. it may call setter methods). Enable `--strict:class-fields` if you need accurate class field initialization.
+    This affects the transform for instance and static class fields. In loose mode (the default), class field initialization is transformed to a normal assignment. This is what the TypeScript compiler does by default. However, it doesn't follow the JavaScript specification exactly (e.g. it may call setter methods). Either enable `--strict:class-fields` or add `useDefineForClassFields` to your `tsconfig.json` file if you need accurate class field initialization.
 
 Note that you can also just use `--strict` to enable strictness for all transforms instead of using `--strict:...` for each transform.
 

@@ -155,7 +155,7 @@ These syntax features are conditionally transformed for older browsers depending
     }
     ```
 
-    This increases code size and decreases performance, but follows the JavaScript specification more accurately. If you need this accuracy, you should enable the `--strict:class-fields` option.
+    This increases code size and decreases performance, but follows the JavaScript specification more accurately. If you need this accuracy, you should either enable the `--strict:class-fields` option or add the `useDefineForClassFields` flag to your `tsconfig.json` file.
 
 * **Private member performance**
 

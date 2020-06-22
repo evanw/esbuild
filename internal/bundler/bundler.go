@@ -47,9 +47,10 @@ type Bundle struct {
 }
 
 type parseFlags struct {
-	isEntryPoint   bool
-	isDisabled     bool
-	ignoreIfUnused bool
+	isEntryPoint      bool
+	isDisabled        bool
+	ignoreIfUnused    bool
+	strictClassFields bool
 }
 
 type parseArgs struct {
@@ -99,6 +100,11 @@ func parseFile(args parseArgs) {
 				return
 			}
 		}
+	}
+
+	// Allow the strict class field transform flag to be overridden
+	if args.flags.strictClassFields {
+		args.parseOptions.Strict.ClassFields = true
 	}
 
 	// Get the file extension
@@ -360,8 +366,9 @@ func ScanBundle(
 					switch resolveResult.Status {
 					case resolver.ResolveEnabled, resolver.ResolveDisabled:
 						flags := parseFlags{
-							isDisabled:     resolveResult.Status == resolver.ResolveDisabled,
-							ignoreIfUnused: resolveResult.IgnoreIfUnused,
+							isDisabled:        resolveResult.Status == resolver.ResolveDisabled,
+							ignoreIfUnused:    resolveResult.IgnoreIfUnused,
+							strictClassFields: resolveResult.StrictClassFields,
 						}
 						prettyPath := res.PrettyPath(resolveResult.AbsolutePath)
 						sourceIndex := maybeParseFile(resolveResult.AbsolutePath, prettyPath, &source, pathRange, flags)

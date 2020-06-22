@@ -2117,3 +2117,67 @@ Foo.s_foo = 123;
 		},
 	})
 }
+
+func TestLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import loose from './loose'
+				import strict from './strict'
+				console.log(loose, strict)
+			`,
+			"/loose/index.js": `
+				export default class {
+					foo
+				}
+			`,
+			"/loose/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"useDefineForClassFields": false
+					}
+				}
+			`,
+			"/strict/index.js": `
+				export default class {
+					foo
+				}
+			`,
+			"/strict/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"useDefineForClassFields": true
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+			Target:     parser.ES2020,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /loose/index.js
+class loose_default {
+  constructor() {
+    this.foo = void 0;
+  }
+}
+
+// /strict/index.js
+class strict_default {
+  constructor() {
+    __publicField(this, "foo", void 0);
+  }
+}
+
+// /entry.js
+console.log(loose_default, strict_default);
+`,
+		},
+	})
+}

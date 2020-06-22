@@ -28,6 +28,9 @@ type ResolveResult struct {
 	// If true, any ES6 imports to this file can be considered to have no side
 	// effects. This means they should be removed if unused.
 	IgnoreIfUnused bool
+
+	// If true, the class field transform should use Object.defineProperty().
+	StrictClassFields bool
 }
 
 type Resolver interface {
@@ -91,6 +94,15 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (result Resolve
 					if info.packageJson.sideEffectsMap != nil {
 						result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[result.AbsolutePath]
 					}
+					break
+				}
+			}
+
+			// Copy the "useDefineForClassFields" value from the nearest enclosing
+			// "tsconfig.json" file if present
+			for info := dirInfo; info != nil; info = info.parent {
+				if info.tsConfigJson != nil {
+					result.StrictClassFields = info.tsConfigJson.useDefineForClassFields
 					break
 				}
 			}
@@ -277,6 +289,8 @@ type tsConfigJson struct {
 	// module-style path names and the fallback paths are relative to the
 	// "baseUrl" value in the "tsconfig.json" file.
 	paths map[string][]string
+
+	useDefineForClassFields bool
 }
 
 type dirInfo struct {
@@ -346,6 +360,13 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 				if baseUrl, ok := getString(baseUrlJson); ok {
 					baseUrl = r.fs.Join(path, baseUrl)
 					info.tsConfigJson.absPathBaseUrl = &baseUrl
+				}
+			}
+
+			// Parse the "useDefineForClassFields" field
+			if useDefineForClassFieldsJson, _, ok := getProperty(compilerOptionsJson, "useDefineForClassFields"); ok {
+				if useDefineForClassFields, ok := getBool(useDefineForClassFieldsJson); ok {
+					info.tsConfigJson.useDefineForClassFields = useDefineForClassFields
 				}
 			}
 
