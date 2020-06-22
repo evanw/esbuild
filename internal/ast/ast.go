@@ -349,11 +349,15 @@ type BMissing struct{}
 type BIdentifier struct{ Ref Ref }
 
 type BArray struct {
-	Items     []ArrayBinding
-	HasSpread bool
+	Items        []ArrayBinding
+	HasSpread    bool
+	IsSingleLine bool
 }
 
-type BObject struct{ Properties []PropertyBinding }
+type BObject struct {
+	Properties   []PropertyBinding
+	IsSingleLine bool
+}
 
 func (*BMissing) isBinding()    {}
 func (*BIdentifier) isBinding() {}

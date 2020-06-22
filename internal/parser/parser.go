@@ -2156,12 +2156,13 @@ func (p *parser) convertExprToBinding(expr ast.Expr, invalidLog []ast.Loc) (ast.
 			items = append(items, ast.ArrayBinding{binding, initializer})
 		}
 		return ast.Binding{expr.Loc, &ast.BArray{
-			Items:     items,
-			HasSpread: isSpread,
+			Items:        items,
+			HasSpread:    isSpread,
+			IsSingleLine: e.IsSingleLine,
 		}}, invalidLog
 
 	case *ast.EObject:
-		items := []ast.PropertyBinding{}
+		properties := []ast.PropertyBinding{}
 		for _, item := range e.Properties {
 			if item.IsMethod || item.Kind == ast.PropertyGet || item.Kind == ast.PropertySet {
 				invalidLog = append(invalidLog, item.Key.Loc)
@@ -2172,7 +2173,7 @@ func (p *parser) convertExprToBinding(expr ast.Expr, invalidLog []ast.Loc) (ast.
 			if initializer == nil {
 				initializer = item.Initializer
 			}
-			items = append(items, ast.PropertyBinding{
+			properties = append(properties, ast.PropertyBinding{
 				IsSpread:     item.Kind == ast.PropertySpread,
 				IsComputed:   item.IsComputed,
 				Key:          item.Key,
@@ -2180,7 +2181,10 @@ func (p *parser) convertExprToBinding(expr ast.Expr, invalidLog []ast.Loc) (ast.
 				DefaultValue: initializer,
 			})
 		}
-		return ast.Binding{expr.Loc, &ast.BObject{items}}, invalidLog
+		return ast.Binding{expr.Loc, &ast.BObject{
+			Properties:   properties,
+			IsSingleLine: e.IsSingleLine,
+		}}, invalidLog
 
 	default:
 		invalidLog = append(invalidLog, expr.Loc)
@@ -3818,6 +3822,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 	case lexer.TOpenBracket:
 		p.lexer.Next()
+		isSingleLine := !p.lexer.HasNewlineBefore
 		items := []ast.ArrayBinding{}
 		hasSpread := false
 
@@ -3861,16 +3866,30 @@ func (p *parser) parseBinding() ast.Binding {
 			if p.lexer.Token != lexer.TComma {
 				break
 			}
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
 			p.lexer.Next()
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
 		}
 
 		p.allowIn = oldAllowIn
 
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 		p.lexer.Expect(lexer.TCloseBracket)
-		return ast.Binding{loc, &ast.BArray{items, hasSpread}}
+		return ast.Binding{loc, &ast.BArray{
+			Items:        items,
+			HasSpread:    hasSpread,
+			IsSingleLine: isSingleLine,
+		}}
 
 	case lexer.TOpenBrace:
 		p.lexer.Next()
+		isSingleLine := !p.lexer.HasNewlineBefore
 		properties := []ast.PropertyBinding{}
 
 		// "in" expressions are allowed
@@ -3890,13 +3909,25 @@ func (p *parser) parseBinding() ast.Binding {
 			if p.lexer.Token != lexer.TComma {
 				break
 			}
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
 			p.lexer.Next()
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
 		}
 
 		p.allowIn = oldAllowIn
 
+		if p.lexer.HasNewlineBefore {
+			isSingleLine = false
+		}
 		p.lexer.Expect(lexer.TCloseBrace)
-		return ast.Binding{loc, &ast.BObject{properties}}
+		return ast.Binding{loc, &ast.BObject{
+			Properties:   properties,
+			IsSingleLine: isSingleLine,
+		}}
 	}
 
 	p.lexer.Expect(lexer.TIdentifier)

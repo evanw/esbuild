@@ -640,93 +640,128 @@ func (p *printer) printBinding(binding ast.Binding) {
 
 	case *ast.BArray:
 		p.print("[")
-		for i, item := range b.Items {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
-			}
-			if b.HasSpread && i+1 == len(b.Items) {
-				p.print("...")
-			}
-			p.printBinding(item.Binding)
-
-			if item.DefaultValue != nil {
-				p.printSpace()
-				p.print("=")
-				p.printSpace()
-				p.printExpr(*item.DefaultValue, ast.LComma, 0)
+		if len(b.Items) > 0 {
+			if !b.IsSingleLine {
+				p.options.Indent++
 			}
 
-			// Make sure there's a comma after trailing missing items
-			if _, ok := item.Binding.Data.(*ast.BMissing); ok && i == len(b.Items)-1 {
-				p.print(",")
+			for i, item := range b.Items {
+				if i != 0 {
+					p.print(",")
+					if b.IsSingleLine {
+						p.printSpace()
+					}
+				}
+				if !b.IsSingleLine {
+					p.printNewline()
+					p.printIndent()
+				}
+				if b.HasSpread && i+1 == len(b.Items) {
+					p.print("...")
+				}
+				p.printBinding(item.Binding)
+
+				if item.DefaultValue != nil {
+					p.printSpace()
+					p.print("=")
+					p.printSpace()
+					p.printExpr(*item.DefaultValue, ast.LComma, 0)
+				}
+
+				// Make sure there's a comma after trailing missing items
+				if _, ok := item.Binding.Data.(*ast.BMissing); ok && i == len(b.Items)-1 {
+					p.print(",")
+				}
+			}
+
+			if !b.IsSingleLine {
+				p.options.Indent--
+				p.printNewline()
+				p.printIndent()
 			}
 		}
 		p.print("]")
 
 	case *ast.BObject:
 		p.print("{")
-		for i, item := range b.Properties {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
+		if len(b.Properties) > 0 {
+			if !b.IsSingleLine {
+				p.options.Indent++
 			}
 
-			if item.IsSpread {
-				p.print("...")
-			} else {
-				if item.IsComputed {
-					p.print("[")
-					p.printExpr(item.Key, ast.LComma, 0)
-					p.print("]:")
-					p.printSpace()
-					p.printBinding(item.Value)
-
-					if item.DefaultValue != nil {
+			for i, property := range b.Properties {
+				if i != 0 {
+					p.print(",")
+					if b.IsSingleLine {
 						p.printSpace()
-						p.print("=")
-						p.printSpace()
-						p.printExpr(*item.DefaultValue, ast.LComma, 0)
 					}
-					continue
+				}
+				if !b.IsSingleLine {
+					p.printNewline()
+					p.printIndent()
 				}
 
-				if str, ok := item.Key.Data.(*ast.EString); ok {
-					if lexer.IsIdentifierUTF16(str.Value) {
-						p.addSourceMapping(item.Key.Loc)
-						p.printSpaceBeforeIdentifier()
-						p.printUTF16(str.Value)
+				if property.IsSpread {
+					p.print("...")
+				} else {
+					if property.IsComputed {
+						p.print("[")
+						p.printExpr(property.Key, ast.LComma, 0)
+						p.print("]:")
+						p.printSpace()
+						p.printBinding(property.Value)
 
-						// Use a shorthand property if the names are the same
-						if id, ok := item.Value.Data.(*ast.BIdentifier); ok && lexer.UTF16EqualsString(str.Value, p.symbolName(id.Ref)) {
-							if item.DefaultValue != nil {
-								p.printSpace()
-								p.print("=")
-								p.printSpace()
-								p.printExpr(*item.DefaultValue, ast.LComma, 0)
+						if property.DefaultValue != nil {
+							p.printSpace()
+							p.print("=")
+							p.printSpace()
+							p.printExpr(*property.DefaultValue, ast.LComma, 0)
+						}
+						continue
+					}
+
+					if str, ok := property.Key.Data.(*ast.EString); ok {
+						if lexer.IsIdentifierUTF16(str.Value) {
+							p.addSourceMapping(property.Key.Loc)
+							p.printSpaceBeforeIdentifier()
+							p.printUTF16(str.Value)
+
+							// Use a shorthand property if the names are the same
+							if id, ok := property.Value.Data.(*ast.BIdentifier); ok && lexer.UTF16EqualsString(str.Value, p.symbolName(id.Ref)) {
+								if property.DefaultValue != nil {
+									p.printSpace()
+									p.print("=")
+									p.printSpace()
+									p.printExpr(*property.DefaultValue, ast.LComma, 0)
+								}
+								continue
 							}
-							continue
+						} else {
+							p.printExpr(property.Key, ast.LLowest, 0)
 						}
 					} else {
-						p.printExpr(item.Key, ast.LLowest, 0)
+						p.printExpr(property.Key, ast.LLowest, 0)
 					}
-				} else {
-					p.printExpr(item.Key, ast.LLowest, 0)
+
+					p.print(":")
+					p.printSpace()
 				}
+				p.printBinding(property.Value)
 
-				p.print(":")
-				p.printSpace()
+				if property.DefaultValue != nil {
+					p.printSpace()
+					p.print("=")
+					p.printSpace()
+					p.printExpr(*property.DefaultValue, ast.LComma, 0)
+				}
 			}
-			p.printBinding(item.Value)
 
-			if item.DefaultValue != nil {
-				p.printSpace()
-				p.print("=")
-				p.printSpace()
-				p.printExpr(*item.DefaultValue, ast.LComma, 0)
+			if !b.IsSingleLine {
+				p.options.Indent--
+				p.printNewline()
+				p.printIndent()
 			}
 		}
-
 		p.print("}")
 
 	default:
@@ -1394,7 +1429,6 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 						p.printSpace()
 					}
 				}
-
 				if !e.IsSingleLine {
 					p.printNewline()
 					p.printIndent()
@@ -1435,7 +1469,6 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 						p.printSpace()
 					}
 				}
-
 				if !e.IsSingleLine {
 					p.printNewline()
 					p.printIndent()
@@ -1449,7 +1482,6 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				p.printIndent()
 			}
 		}
-
 		p.print("}")
 		if wrap {
 			p.print(")")
