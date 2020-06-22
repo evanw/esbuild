@@ -5,7 +5,6 @@ import (
 	"math"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"unsafe"
 
@@ -2189,6 +2188,63 @@ func (p *parser) convertExprToBinding(expr ast.Expr, invalidLog []ast.Loc) (ast.
 	default:
 		invalidLog = append(invalidLog, expr.Loc)
 		return ast.Binding{}, invalidLog
+	}
+}
+
+func (p *parser) convertBindingToExpr(binding ast.Binding, wrapIdentifier func(ast.Loc, ast.Ref) ast.Expr) ast.Expr {
+	loc := binding.Loc
+
+	switch b := binding.Data.(type) {
+	case *ast.BMissing:
+		return ast.Expr{loc, &ast.EMissing{}}
+
+	case *ast.BIdentifier:
+		return wrapIdentifier(loc, b.Ref)
+
+	case *ast.BArray:
+		exprs := make([]ast.Expr, len(b.Items))
+		for i, item := range b.Items {
+			expr := p.convertBindingToExpr(item.Binding, wrapIdentifier)
+			if b.HasSpread && i+1 == len(b.Items) {
+				expr = ast.Expr{loc, &ast.ESpread{expr}}
+			} else if item.DefaultValue != nil {
+				expr = ast.Expr{loc, &ast.EBinary{
+					ast.BinOpAssign,
+					expr,
+					*item.DefaultValue,
+				}}
+			}
+			exprs[i] = expr
+		}
+		return ast.Expr{loc, &ast.EArray{
+			Items:        exprs,
+			IsSingleLine: b.IsSingleLine,
+		}}
+
+	case *ast.BObject:
+		properties := make([]ast.Property, len(b.Properties))
+		for i, property := range b.Properties {
+			value := p.convertBindingToExpr(property.Value, wrapIdentifier)
+			kind := ast.PropertyNormal
+			if property.IsSpread {
+				kind = ast.PropertySpread
+			}
+			properties[i] = ast.Property{
+				Kind:        kind,
+				IsComputed:  property.IsComputed,
+				Key:         property.Key,
+				Value:       &value,
+				Initializer: property.DefaultValue,
+			}
+		}
+		return ast.Expr{loc, &ast.EObject{
+			Properties:   properties,
+			IsSingleLine: b.IsSingleLine,
+		}}
+
+	default:
+		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+		return ast.Expr{}
 	}
 }
 
@@ -6457,8 +6513,25 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 		// Handle being exported inside a namespace
 		if s.IsExport && p.enclosingNamespaceRef != nil {
-			if exprOrNil := p.exprForExportedDeclsInNamespace(s.Decls); exprOrNil.Data != nil {
-				stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{exprOrNil}})
+			var expr ast.Expr
+			wrapIdentifier := func(loc ast.Loc, ref ast.Ref) ast.Expr {
+				return ast.Expr{loc, &ast.EDot{
+					Target:  ast.Expr{loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+					Name:    p.symbols[ref.InnerIndex].Name,
+					NameLoc: loc,
+				}}
+			}
+			for _, decl := range s.Decls {
+				if decl.Value != nil {
+					expr = maybeJoinWithComma(expr, ast.Expr{decl.Binding.Loc, &ast.EBinary{
+						Op:    ast.BinOpAssign,
+						Left:  p.convertBindingToExpr(decl.Binding, wrapIdentifier),
+						Right: *decl.Value,
+					}})
+				}
+			}
+			if expr.Data != nil {
+				stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{expr}})
 			}
 			return stmts
 		}
@@ -6889,16 +6962,6 @@ func maybeJoinWithComma(a ast.Expr, b ast.Expr) ast.Expr {
 	return ast.JoinWithComma(a, b)
 }
 
-func (p *parser) exprForExportedDeclsInNamespace(decls []ast.Decl) ast.Expr {
-	var expr ast.Expr
-	for _, decl := range decls {
-		if decl.Value != nil {
-			expr = maybeJoinWithComma(expr, p.exprForExportedBindingInNamespace(decl.Binding, *decl.Value))
-		}
-	}
-	return expr
-}
-
 // This is a helper function to use when you need to capture a value that may
 // have side effects so you can use it multiple times. It guarantees that the
 // side effects take place exactly once.
@@ -7028,207 +7091,6 @@ func (p *parser) captureValueWithPossibleSideEffects(
 		p.recordUsage(tempRef)
 		return ast.Expr{loc, &ast.EIdentifier{tempRef}}
 	}, wrapFunc
-}
-
-// Returns "typeof ref === 'symbol' ? ref : ref + ''"
-func symbolOrString(loc ast.Loc, ref ast.Ref) ast.Expr {
-	return ast.Expr{loc, &ast.EIf{
-		Test: ast.Expr{loc, &ast.EBinary{
-			Op: ast.BinOpStrictEq,
-			Left: ast.Expr{loc, &ast.EUnary{
-				Op:    ast.UnOpTypeof,
-				Value: ast.Expr{loc, &ast.EIdentifier{ref}},
-			}},
-			Right: ast.Expr{loc, &ast.EString{lexer.StringToUTF16("symbol")}},
-		}},
-		Yes: ast.Expr{loc, &ast.EIdentifier{ref}},
-		No: ast.Expr{loc, &ast.EBinary{
-			Op:    ast.BinOpAdd,
-			Left:  ast.Expr{loc, &ast.EIdentifier{ref}},
-			Right: ast.Expr{loc, &ast.EString{}},
-		}},
-	}}
-}
-
-func (p *parser) exprForExportedBindingInNamespace(binding ast.Binding, value ast.Expr) ast.Expr {
-	loc := binding.Loc
-
-	switch d := binding.Data.(type) {
-	case *ast.BMissing:
-		return ast.Expr{}
-
-	case *ast.BIdentifier:
-		return ast.Expr{loc, &ast.EBinary{
-			ast.BinOpAssign,
-			ast.Expr{loc, &ast.EDot{
-				Target:  ast.Expr{loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
-				Name:    p.symbols[d.Ref.InnerIndex].Name,
-				NameLoc: loc,
-			}},
-			value,
-		}}
-
-	case *ast.BArray:
-		var expr ast.Expr
-		valueFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, len(d.Items), value)
-		for i, item := range d.Items {
-			var itemValue ast.Expr
-			if d.HasSpread && i+1 == len(d.Items) {
-				// "array.slice(i)"
-				itemValue = ast.Expr{loc, &ast.ECall{
-					Target: ast.Expr{loc, &ast.EDot{
-						Target:  valueFunc(),
-						Name:    "slice",
-						NameLoc: loc,
-					}},
-					Args: []ast.Expr{ast.Expr{loc, &ast.ENumber{float64(i)}}},
-				}}
-			} else {
-				// "array[i]"
-				itemValue = ast.Expr{loc, &ast.EIndex{
-					Target: valueFunc(),
-					Index:  ast.Expr{loc, &ast.ENumber{float64(i)}},
-				}}
-			}
-
-			// Handle default values
-			if item.DefaultValue != nil {
-				tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
-				expr = maybeJoinWithComma(expr, ast.Expr{loc, &ast.EBinary{
-					ast.BinOpAssign,
-					ast.Expr{loc, &ast.EIdentifier{tempRef}},
-					itemValue,
-				}})
-				itemValue = ast.Expr{loc, &ast.EIf{
-					ast.Expr{loc, &ast.EBinary{
-						ast.BinOpStrictEq,
-						ast.Expr{loc, &ast.EIdentifier{tempRef}},
-						ast.Expr{loc, &ast.EUndefined{}},
-					}},
-					*item.DefaultValue,
-					ast.Expr{loc, &ast.EIdentifier{tempRef}},
-				}}
-			}
-
-			expr = maybeJoinWithComma(expr, p.exprForExportedBindingInNamespace(item.Binding, itemValue))
-		}
-		return wrapFunc(expr)
-
-	case *ast.BObject:
-		var expr ast.Expr
-		valueFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, len(d.Properties), value)
-
-		// We will need to track the keys we use if this pattern contains a spread
-		keysForSpread := []ast.Expr{}
-		isSpread := false
-		for _, property := range d.Properties {
-			if property.IsSpread {
-				isSpread = true
-				break
-			}
-		}
-
-		for _, property := range d.Properties {
-			var propertyValue ast.Expr
-			if property.IsSpread {
-				// Call out to the __rest() helper function to implement spread
-				propertyValue = p.callRuntime(loc, "__rest", []ast.Expr{
-					valueFunc(),
-					ast.Expr{loc, &ast.EArray{
-						Items:        keysForSpread,
-						IsSingleLine: true,
-					}},
-				})
-			} else {
-				key := property.Key
-
-				// We need to save a copy of the key if there's a spread later on
-				if isSpread {
-					// Do different things based on the key expression. Certain
-					// expressions can be converted to keys more efficiently than others.
-					switch k := key.Data.(type) {
-					case *ast.EString:
-						keysForSpread = append(keysForSpread, ast.Expr{key.Loc, &ast.EString{k.Value}})
-
-					case *ast.ENumber:
-						asUint32 := uint32(k.Value)
-						if k.Value == float64(asUint32) {
-							// If this is an integer, emit it as a string
-							text := lexer.StringToUTF16(strconv.FormatInt(int64(asUint32), 10))
-							keysForSpread = append(keysForSpread, ast.Expr{key.Loc, &ast.EString{text}})
-						} else {
-							// Otherwise, emit it as the number plus a string (i.e. call
-							// toString() on it). It's important to do it this way instead of
-							// trying to print the float as a string because Go's floating-
-							// point printer doesn't behave exactly the same as JavaScript
-							// and if they are different, the generated code will be wrong.
-							keysForSpread = append(keysForSpread, ast.Expr{key.Loc, &ast.EBinary{
-								Op:    ast.BinOpAdd,
-								Left:  ast.Expr{key.Loc, &ast.ENumber{k.Value}},
-								Right: ast.Expr{key.Loc, &ast.EString{}},
-							}})
-						}
-
-					case *ast.EIdentifier:
-						keysForSpread = append(keysForSpread, symbolOrString(key.Loc, k.Ref))
-
-					default:
-						tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
-						key = ast.Expr{loc, &ast.EBinary{
-							ast.BinOpAssign,
-							ast.Expr{loc, &ast.EIdentifier{tempRef}},
-							key,
-						}}
-						keysForSpread = append(keysForSpread, symbolOrString(key.Loc, tempRef))
-					}
-				}
-
-				// Try to use a dot expression but fall back to an index expression
-				name := ""
-				if id, ok := key.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(id.Value) {
-					name = lexer.UTF16ToString(id.Value)
-				}
-				if name != "" {
-					propertyValue = ast.Expr{loc, &ast.EDot{
-						Target:  valueFunc(),
-						Name:    name,
-						NameLoc: loc,
-					}}
-				} else {
-					propertyValue = ast.Expr{loc, &ast.EIndex{
-						Target: valueFunc(),
-						Index:  key,
-					}}
-				}
-			}
-
-			// Handle default values
-			if property.DefaultValue != nil {
-				tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
-				expr = maybeJoinWithComma(expr, ast.Expr{loc, &ast.EBinary{
-					ast.BinOpAssign,
-					ast.Expr{loc, &ast.EIdentifier{tempRef}},
-					propertyValue,
-				}})
-				propertyValue = ast.Expr{loc, &ast.EIf{
-					ast.Expr{loc, &ast.EBinary{
-						ast.BinOpStrictEq,
-						ast.Expr{loc, &ast.EIdentifier{tempRef}},
-						ast.Expr{loc, &ast.EUndefined{}},
-					}},
-					*property.DefaultValue,
-					ast.Expr{loc, &ast.EIdentifier{tempRef}},
-				}}
-			}
-
-			expr = maybeJoinWithComma(expr, p.exprForExportedBindingInNamespace(property.Value, propertyValue))
-		}
-		return wrapFunc(expr)
-
-	default:
-		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
-		return ast.Expr{}
-	}
 }
 
 func (p *parser) visitTSDecorators(tsDecorators []ast.Expr) []ast.Expr {

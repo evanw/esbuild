@@ -650,83 +650,21 @@ func TestTSNamespaceExports(t *testing.T) {
 }
 
 func TestTSNamespaceDestructuring(t *testing.T) {
-	// Identifiers should be referenced directly
-	expectPrintedTS(t, "namespace A { export var [a, b] = ref }", `var A;
+	expectPrintedTS(t, `
+		namespace A {
+			export var [
+				a,
+				[, b = c, ...d],
+				{[x]: [[y]] = z, ...o},
+			] = ref
+		}
+	`, `var A;
 (function(A) {
-  A.a = ref[0], A.b = ref[1];
-})(A || (A = {}));
-`)
-
-	// Other expressions should be saved (since they may have side effects)
-	expectPrintedTS(t, "namespace A { export var [a, b] = ref.prop }", `var A;
-(function(A) {
-  var _a;
-  A.a = (_a = ref.prop)[0], A.b = _a[1];
-})(A || (A = {}));
-`)
-
-	// Nested results used once should not be saved
-	expectPrintedTS(t, "namespace A { export var [[[x]]] = ref }", `var A;
-(function(A) {
-  A.x = ref[0][0][0];
-})(A || (A = {}));
-`)
-	expectPrintedTS(t, "namespace A { export var {x: {y: {z}}} = ref }", `var A;
-(function(A) {
-  A.z = ref.x.y.z;
-})(A || (A = {}));
-`)
-
-	// Nested results used more than once should be saved
-	expectPrintedTS(t, "namespace A { export var [[[x, y]]] = ref }", `var A;
-(function(A) {
-  var _a;
-  A.x = (_a = ref[0][0])[0], A.y = _a[1];
-})(A || (A = {}));
-`)
-	expectPrintedTS(t, "namespace A { export var {x: {y: {z, w}}} = ref }", `var A;
-(function(A) {
-  var _a;
-  A.z = (_a = ref.x.y).z, A.w = _a.w;
-})(A || (A = {}));
-`)
-
-	// Values with side effects that appear to be used once but are actually used
-	// zero times should still take effect
-	expectPrintedTS(t, "namespace A { export var [[,]] = ref() }", `var A;
-(function(A) {
-  ref()[0];
-})(A || (A = {}));
-`)
-	expectPrintedTS(t, "namespace A { export var {x: [,]} = ref() }", `var A;
-(function(A) {
-  ref().x;
-})(A || (A = {}));
-`)
-
-	// Handle default values
-	expectPrintedTS(t, "namespace A { export var [a = {}] = ref }", `var A;
-(function(A) {
-  var _a;
-  _a = ref[0], A.a = _a === void 0 ? {} : _a;
-})(A || (A = {}));
-`)
-	expectPrintedTS(t, "namespace A { export var {a = []} = ref }", `var A;
-(function(A) {
-  var _a;
-  _a = ref.a, A.a = _a === void 0 ? [] : _a;
-})(A || (A = {}));
-`)
-	expectPrintedTS(t, "namespace A { export var [[a, b] = {}] = ref }", `var A;
-(function(A) {
-  var _a, _b;
-  _a = ref[0], A.a = (_b = _a === void 0 ? {} : _a)[0], A.b = _b[1];
-})(A || (A = {}));
-`)
-	expectPrintedTS(t, "namespace A { export var {a: {b, c} = []} = ref }", `var A;
-(function(A) {
-  var _a, _b;
-  _a = ref.a, A.b = (_b = _a === void 0 ? [] : _a).b, A.c = _b.c;
+  [
+    A.a,
+    [, A.b = c, ...A.d],
+    {[x]: [[A.y]] = z, ...A.o}
+  ] = ref;
 })(A || (A = {}));
 `)
 }
