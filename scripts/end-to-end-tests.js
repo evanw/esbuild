@@ -585,6 +585,54 @@
     }, { async: true }),
   )
 
+  // Object rest pattern tests
+  tests.push(
+    // Test the correctness of side effect order for the TypeScript namespace exports
+    test(['in.ts', '--outfile=node.js'], {
+      'in.ts': `
+        function fn() {
+          let trail = []
+          let t = k => (trail.push(k), k)
+          let [
+            { [t('a')]: a } = { a: t('x') },
+            { [t('b')]: b, ...c } = { b: t('y') },
+            { [t('d')]: d } = { d: t('z') },
+          ] = [{ a: 1 }, { b: 2, bb: 3 }]
+          return JSON.stringify({a, b, c, d, trail})
+        }
+        namespace ns {
+          let trail = []
+          let t = k => (trail.push(k), k)
+          export let [
+            { [t('a')]: a } = { a: t('x') },
+            { [t('b')]: b, ...c } = { b: t('y') },
+            { [t('d')]: d } = { d: t('z') },
+          ] = [{ a: 1 }, { b: 2, bb: 3 }]
+          export let result = JSON.stringify({a, b, c, d, trail})
+        }
+        if (fn() !== ns.result) throw 'fail'
+      `,
+    }),
+
+    // Test the array and object rest patterns in TypeScript namespace exports
+    test(['in.ts', '--outfile=node.js'], {
+      'in.ts': `
+        let obj = {};
+        ({a: obj.a, ...obj.b} = {a: 1, b: 2, c: 3});
+        [obj.c, , ...obj.d] = [1, 2, 3];
+        ({e: obj.e, f: obj.f = 'f'} = {e: 'e'});
+        [obj.g, , obj.h = 'h'] = ['g', 'gg'];
+        namespace ns {
+          export let {a, ...b} = {a: 1, b: 2, c: 3};
+          export let [c, , ...d] = [1, 2, 3];
+          export let {e, f = 'f'} = {e: 'e'};
+          export let [g, , h = 'h'] = ['g', 'gg'];
+        }
+        if (JSON.stringify(obj) !== JSON.stringify(ns)) throw 'fail'
+      `,
+    }),
+  )
+
   // Test writing to stdout
   tests.push(
     // These should succeed
