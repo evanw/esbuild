@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.9
 
 * Add the `--strict:nullish-coalescing` option
 
