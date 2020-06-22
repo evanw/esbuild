@@ -74,7 +74,8 @@ const Code = `
 
 	// For class members
 	export let __publicField = (obj, key, value) => {
-		return __defineProperty(obj, key, {enumerable: true, configurable: true, writable: true, value})
+		if (key in obj) return __defineProperty(obj, key, {enumerable: true, configurable: true, writable: true, value})
+		else return obj[key] = value
 	}
 	let __accessCheck = (obj, member, msg) => {
 		if (!member.has(obj)) throw TypeError('Cannot ' + msg)
