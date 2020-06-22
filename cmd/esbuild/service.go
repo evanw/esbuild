@@ -152,7 +152,7 @@ func handleRequest(bytes []byte, responses chan responseType, waitGroup *sync.Wa
 		if r := recover(); r != nil {
 			responses <- responseType{
 				"id":    []byte(id),
-				"error": []byte(fmt.Sprintf("%v\n\n%s", r, debug.Stack())),
+				"error": []byte(fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack())),
 			}
 		}
 	}()

@@ -31,6 +31,7 @@
       line-height: 110%;
       font-family: monospace;
       cursor: text;
+      tab-size: 2;
     }
 
     #output .outer {
@@ -228,8 +229,11 @@
         }).then(({ js, warnings }) => {
           let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
           output.innerHTML = (html && html + '<hr>') + textToHTML(js);
-        }, ({ errors, warnings }) => {
-          output.innerHTML = messagesToHTML(addKindToMessages(errors, 'error').concat(addKindToMessages(warnings, 'warning')));
+        }, error => {
+          let { errors, warnings } = error
+          if (errors && warnings) output.innerHTML = messagesToHTML(
+            addKindToMessages(errors, 'error').concat(addKindToMessages(warnings, 'warning')));
+          else output.textContent = (error && error.message) || (error + '')
         }).then(() => {
           isRunning = false
           if (needsRun) runIfIdle()

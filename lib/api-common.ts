@@ -192,7 +192,7 @@ export function createChannel(options: StreamIn): StreamOut {
       build(options, isTTY, callback) {
         let flags = flagsForBuildOptions(options, isTTY);
         sendRequest(['build'].concat(flags), (error, response) => {
-          if (error) return callback(failureErrorWithLog(error, [], []), null);
+          if (error) return callback(new Error(error), null);
           let errors = jsonToMessages(response.errors);
           let warnings = jsonToMessages(response.warnings);
           if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
@@ -203,7 +203,7 @@ export function createChannel(options: StreamIn): StreamOut {
       transform(input, options, isTTY, callback) {
         let flags = flagsForTransformOptions(options, isTTY);
         sendRequest(['transform', input].concat(flags), (error, response) => {
-          if (error) return callback(failureErrorWithLog(error, [], []), null);
+          if (error) return callback(new Error(error), null);
           let errors = jsonToMessages(response.errors);
           let warnings = jsonToMessages(response.warnings);
           if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
