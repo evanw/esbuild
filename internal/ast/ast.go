@@ -585,6 +585,14 @@ func (*EIf) isExpr()                {}
 func (*ERequire) isExpr()           {}
 func (*EImport) isExpr()            {}
 
+func Assign(a Expr, b Expr) Expr {
+	return Expr{a.Loc, &EBinary{BinOpAssign, a, b}}
+}
+
+func AssignStmt(a Expr, b Expr) Stmt {
+	return Stmt{a.Loc, &SExpr{Expr{a.Loc, &EBinary{BinOpAssign, a, b}}}}
+}
+
 func JoinWithComma(a Expr, b Expr) Expr {
 	return Expr{a.Loc, &EBinary{BinOpComma, a, b}}
 }

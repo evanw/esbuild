@@ -453,11 +453,7 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
 		// "a **= b" => "a = __pow(a, b)"
-		return ast.Expr{loc, &ast.EBinary{
-			Op:    ast.BinOpAssign,
-			Left:  a,
-			Right: p.callRuntime(loc, "__pow", []ast.Expr{b, e.Right}),
-		}}
+		return ast.Assign(a, p.callRuntime(loc, "__pow", []ast.Expr{b, e.Right}))
 	})
 }
 
@@ -483,18 +479,14 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EB
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
 		if p.Target < nullishCoalescingTarget {
 			// "a ??= b" => "(_a = a) != null ? _a : a = b"
-			return p.lowerNullishCoalescing(loc, a, ast.Expr{loc, &ast.EBinary{
-				Op:    ast.BinOpAssign,
-				Left:  b,
-				Right: e.Right,
-			}})
+			return p.lowerNullishCoalescing(loc, a, ast.Assign(b, e.Right))
 		}
 
 		// "a ??= b" => "a ?? (a = b)"
 		return ast.Expr{loc, &ast.EBinary{
 			Op:    ast.BinOpNullishCoalescing,
 			Left:  a,
-			Right: ast.Expr{loc, &ast.EBinary{Op: ast.BinOpAssign, Left: b, Right: e.Right}},
+			Right: ast.Assign(b, e.Right),
 		}}
 	})
 }
@@ -517,7 +509,7 @@ func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op 
 		return ast.Expr{loc, &ast.EBinary{
 			Op:    op,
 			Left:  a,
-			Right: ast.Expr{loc, &ast.EBinary{Op: ast.BinOpAssign, Left: b, Right: e.Right}},
+			Right: ast.Assign(b, e.Right),
 		}}
 	})
 }
@@ -910,11 +902,8 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			} else {
 				// Store the key in a temporary so we can assign to it later
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
-				computedPropertyCache = maybeJoinWithComma(computedPropertyCache, ast.Expr{prop.Key.Loc, &ast.EBinary{
-					Op:    ast.BinOpAssign,
-					Left:  ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}},
-					Right: prop.Key,
-				}})
+				computedPropertyCache = maybeJoinWithComma(computedPropertyCache,
+					ast.Assign(ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}, prop.Key))
 				prop.Key = ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}
 				keyExprNoSideEffects = prop.Key
 			}
@@ -1012,13 +1001,10 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						p.weakMapRef = p.newSymbol(ast.SymbolUnbound, "WeakMap")
 						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
 					}
-					privateMembers = append(privateMembers, ast.Expr{loc, &ast.EBinary{
-						Op:   ast.BinOpAssign,
-						Left: ast.Expr{loc, &ast.EIdentifier{ref}},
-						Right: ast.Expr{loc, &ast.ENew{
-							Target: ast.Expr{loc, &ast.EIdentifier{p.weakMapRef}},
-						}},
-					}})
+					privateMembers = append(privateMembers, ast.Assign(
+						ast.Expr{loc, &ast.EIdentifier{ref}},
+						ast.Expr{loc, &ast.ENew{Target: ast.Expr{loc, &ast.EIdentifier{p.weakMapRef}}}},
+					))
 
 					// Add every newly-constructed instance into this map
 					expr = ast.Expr{loc, &ast.ECall{
@@ -1052,7 +1038,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						}}
 					}
 
-					expr = ast.Expr{loc, &ast.EBinary{ast.BinOpAssign, target, init}}
+					expr = ast.Assign(target, init)
 				}
 
 				if prop.IsStatic {
@@ -1089,13 +1075,10 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						p.weakSetRef = p.newSymbol(ast.SymbolUnbound, "WeakSet")
 						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
 					}
-					privateMembers = append(privateMembers, ast.Expr{loc, &ast.EBinary{
-						Op:   ast.BinOpAssign,
-						Left: ast.Expr{loc, &ast.EIdentifier{ref}},
-						Right: ast.Expr{loc, &ast.ENew{
-							Target: ast.Expr{loc, &ast.EIdentifier{p.weakSetRef}},
-						}},
-					}})
+					privateMembers = append(privateMembers, ast.Assign(
+						ast.Expr{loc, &ast.EIdentifier{ref}},
+						ast.Expr{loc, &ast.ENew{Target: ast.Expr{loc, &ast.EIdentifier{p.weakSetRef}}}},
+					))
 
 					// Determine where to store the private method
 					var target ast.Expr
@@ -1133,11 +1116,10 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				} else {
 					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[privateName.Ref]
 				}
-				privateMembers = append(privateMembers, ast.Expr{loc, &ast.EBinary{
-					Op:    ast.BinOpAssign,
-					Left:  ast.Expr{loc, &ast.EIdentifier{methodRef}},
-					Right: *prop.Value,
-				}})
+				privateMembers = append(privateMembers, ast.Assign(
+					ast.Expr{loc, &ast.EIdentifier{methodRef}},
+					*prop.Value,
+				))
 				continue
 			} else if key, ok := prop.Key.Data.(*ast.EString); ok && lexer.UTF16EqualsString(key.Value, "constructor") {
 				if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
@@ -1148,15 +1130,14 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						for _, arg := range ctor.Fn.Args {
 							if arg.IsTypeScriptCtorField {
 								if id, ok := arg.Binding.Data.(*ast.BIdentifier); ok {
-									parameterFields = append(parameterFields, ast.Stmt{arg.Binding.Loc, &ast.SExpr{ast.Expr{arg.Binding.Loc, &ast.EBinary{
-										ast.BinOpAssign,
+									parameterFields = append(parameterFields, ast.AssignStmt(
 										ast.Expr{arg.Binding.Loc, &ast.EDot{
 											Target:  ast.Expr{arg.Binding.Loc, &ast.EThis{}},
 											Name:    p.symbols[id.Ref.InnerIndex].Name,
 											NameLoc: arg.Binding.Loc,
 										}},
 										ast.Expr{arg.Binding.Loc, &ast.EIdentifier{id.Ref}},
-									}}}})
+									))
 								}
 							}
 						}
@@ -1303,14 +1284,13 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
 	}
 	if len(class.TSDecorators) > 0 {
-		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{ast.Expr{classLoc, &ast.EBinary{
-			Op:   ast.BinOpAssign,
-			Left: nameFunc(),
-			Right: p.callRuntime(classLoc, "__decorate", []ast.Expr{
+		stmts = append(stmts, ast.AssignStmt(
+			nameFunc(),
+			p.callRuntime(classLoc, "__decorate", []ast.Expr{
 				ast.Expr{classLoc, &ast.EArray{Items: class.TSDecorators}},
 				nameFunc(),
 			}),
-		}}}})
+		))
 		if kind == classKindExportDefaultStmt {
 			// Generate a new default name symbol since the current one is being used
 			// by the class. If this SExportDefault turns into a variable declaration,

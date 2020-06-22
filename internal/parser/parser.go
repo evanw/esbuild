@@ -2015,7 +2015,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 		// There may be a "=" after the type
 		if p.TS.Parse && p.lexer.Token == lexer.TEquals {
 			p.lexer.Next()
-			item = ast.Expr{item.Loc, &ast.EBinary{ast.BinOpAssign, item, p.parseExpr(ast.LComma)}}
+			item = ast.Assign(item, p.parseExpr(ast.LComma))
 		}
 
 		items = append(items, item)
@@ -2206,13 +2206,9 @@ func (p *parser) convertBindingToExpr(binding ast.Binding, wrapIdentifier func(a
 		for i, item := range b.Items {
 			expr := p.convertBindingToExpr(item.Binding, wrapIdentifier)
 			if b.HasSpread && i+1 == len(b.Items) {
-				expr = ast.Expr{loc, &ast.ESpread{expr}}
+				expr = ast.Expr{expr.Loc, &ast.ESpread{expr}}
 			} else if item.DefaultValue != nil {
-				expr = ast.Expr{loc, &ast.EBinary{
-					ast.BinOpAssign,
-					expr,
-					*item.DefaultValue,
-				}}
+				expr = ast.Assign(expr, *item.DefaultValue)
 			}
 			exprs[i] = expr
 		}
@@ -3398,7 +3394,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Assign(left, p.parseExpr(ast.LAssign-1))
 
 		case lexer.TIn:
 			if level >= ast.LCompare || !p.allowIn {
@@ -6310,8 +6306,7 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 	if isExport && p.enclosingNamespaceRef != nil {
 		// "name = enclosing.name || (enclosing.name = {})"
 		name := p.symbols[nameRef.InnerIndex].Name
-		argExpr = ast.Expr{nameLoc, &ast.EBinary{
-			ast.BinOpAssign,
+		argExpr = ast.Assign(
 			ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
 			ast.Expr{nameLoc, &ast.EBinary{
 				ast.BinOpLogicalOr,
@@ -6320,17 +6315,16 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 					Name:    name,
 					NameLoc: nameLoc,
 				}},
-				ast.Expr{nameLoc, &ast.EBinary{
-					ast.BinOpAssign,
+				ast.Assign(
 					ast.Expr{nameLoc, &ast.EDot{
 						Target:  ast.Expr{nameLoc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
 						Name:    name,
 						NameLoc: nameLoc,
 					}},
 					ast.Expr{nameLoc, &ast.EObject{}},
-				}},
+				),
 			}},
-		}}
+		)
 		p.recordUsage(*p.enclosingNamespaceRef)
 		p.recordUsage(*p.enclosingNamespaceRef)
 		p.recordUsage(nameRef)
@@ -6339,11 +6333,10 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 		argExpr = ast.Expr{nameLoc, &ast.EBinary{
 			ast.BinOpLogicalOr,
 			ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
-			ast.Expr{nameLoc, &ast.EBinary{
-				ast.BinOpAssign,
+			ast.Assign(
 				ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
 				ast.Expr{nameLoc, &ast.EObject{}},
-			}},
+			),
 		}}
 		p.recordUsage(nameRef)
 		p.recordUsage(nameRef)
@@ -6449,15 +6442,14 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SExportEquals:
 		// "module.exports = value"
-		stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
-			ast.BinOpAssign,
+		stmts = append(stmts, ast.AssignStmt(
 			ast.Expr{stmt.Loc, &ast.EDot{
 				Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{p.moduleRef}},
 				Name:    "exports",
 				NameLoc: stmt.Loc,
 			}},
 			p.visitExpr(s.Value),
-		}}}})
+		))
 		p.recordUsage(p.moduleRef)
 		return stmts
 
@@ -6523,11 +6515,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			}
 			for _, decl := range s.Decls {
 				if decl.Value != nil {
-					expr = maybeJoinWithComma(expr, ast.Expr{decl.Binding.Loc, &ast.EBinary{
-						Op:    ast.BinOpAssign,
-						Left:  p.convertBindingToExpr(decl.Binding, wrapIdentifier),
-						Right: *decl.Value,
-					}})
+					expr = maybeJoinWithComma(expr, ast.Assign(
+						p.convertBindingToExpr(decl.Binding, wrapIdentifier),
+						*decl.Value,
+					))
 				}
 			}
 			if expr.Data != nil {
@@ -6719,18 +6710,14 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		// Handle exporting this function from a namespace
 		if s.IsExport && p.enclosingNamespaceRef != nil {
 			s.IsExport = false
-			stmts = append(stmts,
-				stmt,
-				ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
-					ast.BinOpAssign,
-					ast.Expr{stmt.Loc, &ast.EDot{
-						Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
-						Name:    p.symbols[s.Fn.Name.Ref.InnerIndex].Name,
-						NameLoc: s.Fn.Name.Loc,
-					}},
-					ast.Expr{s.Fn.Name.Loc, &ast.EIdentifier{s.Fn.Name.Ref}},
-				}}}},
-			)
+			stmts = append(stmts, stmt, ast.AssignStmt(
+				ast.Expr{stmt.Loc, &ast.EDot{
+					Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+					Name:    p.symbols[s.Fn.Name.Ref.InnerIndex].Name,
+					NameLoc: s.Fn.Name.Loc,
+				}},
+				ast.Expr{s.Fn.Name.Loc, &ast.EIdentifier{s.Fn.Name.Ref}},
+			))
 			return stmts
 		}
 
@@ -6750,17 +6737,14 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 		// Handle exporting this class from a namespace
 		if wasExportInsideNamespace {
-			stmts = append(stmts,
-				ast.Stmt{stmt.Loc, &ast.SExpr{ast.Expr{stmt.Loc, &ast.EBinary{
-					ast.BinOpAssign,
-					ast.Expr{stmt.Loc, &ast.EDot{
-						Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
-						Name:    p.symbols[s.Class.Name.Ref.InnerIndex].Name,
-						NameLoc: s.Class.Name.Loc,
-					}},
-					ast.Expr{s.Class.Name.Loc, &ast.EIdentifier{s.Class.Name.Ref}},
-				}}}},
-			)
+			stmts = append(stmts, ast.AssignStmt(
+				ast.Expr{stmt.Loc, &ast.EDot{
+					Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+					Name:    p.symbols[s.Class.Name.Ref.InnerIndex].Name,
+					NameLoc: s.Class.Name.Loc,
+				}},
+				ast.Expr{s.Class.Name.Loc, &ast.EIdentifier{s.Class.Name.Ref}},
+			))
 			return stmts
 		}
 
@@ -6829,25 +6813,23 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 			if p.MangleSyntax && lexer.IsIdentifier(name) {
 				// "Enum.Name = value"
-				assignTarget = ast.Expr{value.Loc, &ast.EBinary{
-					ast.BinOpAssign,
+				assignTarget = ast.Assign(
 					ast.Expr{value.Loc, &ast.EDot{
 						Target:  ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
 						Name:    name,
 						NameLoc: value.Loc,
 					}},
 					*value.Value,
-				}}
+				)
 			} else {
 				// "Enum['Name'] = value"
-				assignTarget = ast.Expr{value.Loc, &ast.EBinary{
-					ast.BinOpAssign,
+				assignTarget = ast.Assign(
 					ast.Expr{value.Loc, &ast.EIndex{
 						Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
 						Index:  ast.Expr{value.Loc, &ast.EString{value.Name}},
 					}},
 					*value.Value,
-				}}
+				)
 			}
 			p.recordUsage(s.Arg)
 
@@ -6856,14 +6838,13 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				valueExprs = append(valueExprs, assignTarget)
 			} else {
 				// "Enum[assignTarget] = 'Name'"
-				valueExprs = append(valueExprs, ast.Expr{value.Loc, &ast.EBinary{
-					ast.BinOpAssign,
+				valueExprs = append(valueExprs, ast.Assign(
 					ast.Expr{value.Loc, &ast.EIndex{
 						Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
 						Index:  assignTarget,
 					}},
 					ast.Expr{value.Loc, &ast.EString{value.Name}},
-				}})
+				))
 			}
 			p.recordUsage(s.Arg)
 		}
@@ -7052,11 +7033,7 @@ func (p *parser) captureValueWithPossibleSideEffects(
 
 					// Assign inline so the order of side effects remains the same
 					p.recordUsage(tempRef)
-					return ast.Expr{loc, &ast.EBinary{
-						ast.BinOpAssign,
-						ast.Expr{loc, &ast.EIdentifier{tempRef}},
-						value,
-					}}
+					return ast.Assign(ast.Expr{loc, &ast.EIdentifier{tempRef}}, value)
 				}
 				p.recordUsage(tempRef)
 				return ast.Expr{loc, &ast.EIdentifier{tempRef}}
@@ -7082,11 +7059,7 @@ func (p *parser) captureValueWithPossibleSideEffects(
 		if tempRef == ast.InvalidRef {
 			tempRef = p.generateTempRef(tempRefNeedsDeclare, "")
 			p.recordUsage(tempRef)
-			return ast.Expr{loc, &ast.EBinary{
-				ast.BinOpAssign,
-				ast.Expr{loc, &ast.EIdentifier{tempRef}},
-				value,
-			}}
+			return ast.Assign(ast.Expr{loc, &ast.EIdentifier{tempRef}}, value)
 		}
 		p.recordUsage(tempRef)
 		return ast.Expr{loc, &ast.EIdentifier{tempRef}}
@@ -9095,15 +9068,14 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 	symbols.Outer[source.Index] = p.symbols
 
 	// "module.exports = [expr]"
-	stmt := ast.Stmt{expr.Loc, &ast.SExpr{ast.Expr{expr.Loc, &ast.EBinary{
-		ast.BinOpAssign,
+	stmt := ast.AssignStmt(
 		ast.Expr{expr.Loc, &ast.EDot{
 			Target:  ast.Expr{expr.Loc, &ast.EIdentifier{p.moduleRef}},
 			Name:    "exports",
 			NameLoc: expr.Loc,
 		}},
 		expr,
-	}}}}
+	)
 
 	// Mark that we used the "module" variable
 	p.symbols[p.moduleRef.InnerIndex].UseCountEstimate++

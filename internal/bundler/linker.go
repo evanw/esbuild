@@ -2040,16 +2040,15 @@ func (c *linkerContext) generateCodeForFileInChunk(
 
 		case printer.FormatCommonJS:
 			// "module.exports = require_foo();"
-			stmt = ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.EBinary{
-				Op: ast.BinOpAssign,
-				Left: ast.Expr{Data: &ast.EDot{
+			stmt = ast.AssignStmt(
+				ast.Expr{Data: &ast.EDot{
 					Target: ast.Expr{Data: &ast.EIdentifier{unboundModuleRef}},
 					Name:   "exports",
 				}},
-				Right: ast.Expr{Data: &ast.ECall{
+				ast.Expr{Data: &ast.ECall{
 					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
 				}},
-			}}}}
+			)
 
 		case printer.FormatESModule:
 			// "export default require_foo();"
