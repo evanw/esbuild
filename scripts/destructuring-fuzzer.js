@@ -150,7 +150,7 @@ function AssignmentOperator([pattern, value]) {
 }
 
 function NamespaceExport([pattern, value]) {
-  let ts = `namespace a { export var ${`${pattern} = ${value}`} }`
+  let ts = `namespace a { export const ${`${pattern} = ${value}`} }`
   let js = `(${pattern.replace(/_/g, 'a._')} = ${value});`
   return { js, ts }
 }
@@ -264,6 +264,7 @@ function ForOfLoop([pattern, value]) {
 }
 
 async function verify(test, transform, testCases) {
+  let verbose = process.argv.indexOf('--verbose') >= 0
   let indent = t => t.replace(/\n/g, '\n  ')
   let newline = false
   console.log(`${test.name} (${transform.name}):`)
@@ -278,19 +279,33 @@ async function verify(test, transform, testCases) {
     }
 
     let transformed
-    let actual
     try {
       transformed = await transform(ts)
+    } catch (e) {
+      process.stdout.write('T')
+      newline = true
+
+      if (verbose) {
+        console.log('\n' + '='.repeat(80))
+        console.log(indent(`Original code:\n${ts}`))
+        console.log(indent(`Transform error:\n${e}`))
+        newline = false
+      }
+      return
+    }
+
+    let actual
+    try {
       actual = evaluate(transformed)
     } catch (e) {
       actual = e + ''
     }
 
     if (actual !== expected) {
-      process.stdout.write('X')
+      process.stdout.write(actual.indexOf('SyntaxError') >= 0 ? 'S' : 'X')
       newline = true
 
-      if (process.argv.indexOf('--verbose') >= 0) {
+      if (verbose) {
         console.log('\n' + '='.repeat(80))
         console.log(indent(`Original code:\n${ts}`))
         console.log(indent(`Transformed code:\n${transformed}`))
@@ -343,13 +358,13 @@ Options:
   --verbose = Print details for failures
 
 Legend:
-  - = The transform function passed
-  X = The transform function failed
-`)
+  - = The test passed
+  X = The test failed
+  T = The transform function itself failed
+  S = The generated code has a syntax error`)
 
   let tests = [
-    AssignmentOperator,
-    NamespaceExport,
+    // Bindings
     ConstDeclaration,
     LetDeclaration,
     VarDeclaration,
@@ -363,11 +378,17 @@ Legend:
     ForLoopConst,
     ForLoopLet,
     ForLoopVar,
-    ForLoop,
     ForOfLoopConst,
     ForOfLoopLet,
     ForOfLoopVar,
+
+    // Destructuring
+    AssignmentOperator,
+    ForLoop,
     ForOfLoop,
+
+    // TypeScript-specific
+    NamespaceExport,
   ]
   let transforms = [
     esbuild,
@@ -375,8 +396,10 @@ Legend:
   let testCases = generateTestCases(100)
 
   for (let transform of transforms) {
-    for (let test of tests)
+    console.log()
+    for (let test of tests) {
       await verify(test, transform, testCases)
+    }
   }
 
   rimraf.sync(installDir, { disableGlob: true })
