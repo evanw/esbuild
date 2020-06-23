@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a JavaScript API crash on node 10.x
+
+    The current LTS version of node is 12.x, but some people are still running 10.x and want to use esbuild. Before this fix, attempting to use the esbuild JavaScript API with node 10.x would crash with `ReferenceError: TextEncoder is not defined`. The JavaScript API has been changed to not require `TextEncoder` and now works fine with node 10.x.
+
 ## 0.5.10
 
 * Transform object rest properties

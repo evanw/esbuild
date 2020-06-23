@@ -74,11 +74,37 @@ export interface StreamService {
   transform(input: string, options: types.TransformOptions, isTTY: boolean, callback: (err: Error | null, res: types.TransformResult | null) => void): void;
 }
 
+interface TextCodec {
+  encode(text: string): Uint8Array
+  decode(bytes: Uint8Array): string
+}
+
+function textCodec(): TextCodec {
+  // For the browser and node 12.x
+  if (typeof TextEncoder !== 'undefined' && typeof TextDecoder !== 'undefined') {
+    let encoder = new TextEncoder();
+    let decoder = new TextDecoder();
+    return {
+      encode: text => encoder.encode(text),
+      decode: bytes => decoder.decode(bytes),
+    }
+  }
+
+  // For node 10.x
+  if (typeof Buffer !== 'undefined') {
+    return {
+      encode: text => Buffer.from(text),
+      decode: bytes => Buffer.from(bytes).toString(),
+    }
+  }
+
+  throw new Error('No UTF-8 codec found');
+}
+
 // This can't use any promises because it must work for both sync and async code
 export function createChannel(options: StreamIn): StreamOut {
   let requests = new Map<string, ResponseCallback>();
-  let encoder = new TextEncoder();
-  let decoder = new TextDecoder();
+  let codec = textCodec();
   let isClosed = false;
   let nextID = 0;
 
@@ -130,10 +156,10 @@ export function createChannel(options: StreamIn): StreamOut {
     requests.set(id, callback);
 
     // Figure out how long the request will be
-    let argBuffers = [encoder.encode(id)];
+    let argBuffers = [codec.encode(id)];
     let length = 4 + 4 + 4 + argBuffers[0].length;
     for (let arg of request) {
-      let argBuffer = encoder.encode(arg);
+      let argBuffer = codec.encode(arg);
       argBuffers.push(argBuffer);
       length += 4 + argBuffer.length;
     }
@@ -169,9 +195,9 @@ export function createChannel(options: StreamIn): StreamOut {
     // Parse the response into a map
     for (let i = 0; i < count; i++) {
       let keyLength = readUInt32LE(bytes, eat(4));
-      let key = decoder.decode(bytes.slice(offset, eat(keyLength) + keyLength));
+      let key = codec.decode(bytes.slice(offset, eat(keyLength) + keyLength));
       let valueLength = readUInt32LE(bytes, eat(4));
-      let value = decoder.decode(bytes.slice(offset, eat(valueLength) + valueLength));
+      let value = codec.decode(bytes.slice(offset, eat(valueLength) + valueLength));
       if (key === 'id') id = value;
       else response[key] = value;
     }
