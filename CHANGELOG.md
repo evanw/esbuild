@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.11
 
 * Fix a JavaScript API crash on node 10.x
 
