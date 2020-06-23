@@ -71,11 +71,23 @@ Several reasons:
 
 ## Status
 
+#### Similar tools:
+
+* [Webpack](https://github.com/webpack/webpack), [Rollup](https://github.com/rollup/rollup), or [Parcel](https://github.com/parcel-bundler/parcel) for bundling
+* [Babel](https://github.com/babel/babel) or [TypeScript](https://github.com/microsoft/TypeScript) for transpiling
+* [Terser](https://github.com/terser/terser) or [UglifyJS](https://github.com/mishoo/UglifyJS) for minifying
+
+#### Used by:
+
+* [Vite](https://github.com/vuejs/vite)
+* [Snowpack](https://github.com/pikapkg/snowpack)
+
 #### Currently supported:
 
 * JavaScript and TypeScript syntax
 * CommonJS and ES6 modules
 * JSX-to-JavaScript conversion
+* Transpiling modern JS syntax down to ES6 with `--target=es6`
 * Bundling using `--bundle` with scope hoisting ES6 modules
 * Full minification with `--minify` (whitespace, identifiers, and mangling)
 * Full source map support when `--sourcemap` is enabled
@@ -221,7 +233,7 @@ These TypeScript-only syntax features are parsed and ignored (a non-exhaustive l
 
 * This project is still pretty early and I'd like to keep the scope relatively focused, at least for now. I'm trying to create a build tool that a) works well for a given sweet spot of use cases and b) resets the expectations of the community for what it means for a JavaScript build tool to be fast. I'm not trying to create an extremely flexible build system that can build anything.
 
-    That said, esbuild now has a [JavaScript API](docs/js-api.md) and a [Go API](https://godoc.org/github.com/evanw/esbuild/pkg/api). This can be used as a library to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript to older JavaScript. So even if esbuild doesn't support a particular technology, it's possible that esbuild can still be integrated as a library to help speed it up. For example, [Vite](https://github.com/vuejs/vite) recently started using esbuild's transform library to add support for TypeScript (the official TypeScript compiler was too slow).
+    That said, esbuild now has a [JavaScript API](docs/js-api.md) and a [Go API](https://godoc.org/github.com/evanw/esbuild/pkg/api). This can be used as a library to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript to older JavaScript. So even if esbuild doesn't support a particular technology, it's possible that esbuild can still be integrated as a library to help speed it up. For example, [Vite](https://github.com/vuejs/vite) and [Snowpack](https://github.com/pikapkg/snowpack) recently started using esbuild's transform library to add support for TypeScript (the official TypeScript compiler was too slow).
 
 * I'm mainly looking for feedback at the moment, not contributions. The project is early and I'm still working toward an MVP bundler that can reasonably replace real-world toolchains. There are still major fundamental pieces that haven't been put in place yet (e.g. CSS support, watch mode, code splitting) and they all need to work well together to have best-in-class performance.
 
