@@ -112,6 +112,20 @@ clean:
 node_modules:
 	npm ci
 
+# There are benchmarks below for both Parcel 1 and Parcel 2. But npm doesn't
+# support parallel installs with different versions, so use another directory.
+#
+# This also uses a symlink as a workaround for a Parcel 2 issue where it
+# searches for the "@babel/core" package relative to the input file instead of
+# within the "node_modules" folder where Parcel 2 is installed, which causes
+# builds to fail.
+parcel2/node_modules:
+	mkdir parcel2
+	echo '{}' > parcel2/package.json
+	cd parcel2 && npm install parcel@2.0.0-beta.1
+	ln -s ../demo parcel2/demo
+	ln -s ../bench parcel2/bench
+
 scripts/node_modules:
 	cd scripts && npm ci
 
@@ -301,6 +315,14 @@ demo-three-parcel: | node_modules demo/three
 	cd demo/three/parcel && time -p ../../../node_modules/.bin/parcel build ../src/Three.js $(THREE_PARCEL_FLAGS) --out-file Three.parcel.js
 	du -h demo/three/parcel/Three.parcel.js*
 
+demo-three-parcel2: | parcel2/node_modules demo/three
+	rm -fr demo/three/parcel2
+	mkdir -p demo/three/parcel2
+	echo 'import * as THREE from "../src/Three.js"; window.THREE = THREE' > demo/three/parcel2/Three.parcel2.js
+	cd parcel2 && time -p ./node_modules/.bin/parcel build --no-autoinstall demo/three/src/Three.js \
+		--dist-dir ./demo/three/parcel2 --cache-dir ./demo/three/parcel2/.cache
+	du -h demo/three/parcel2/Three.parcel2.js*
+
 demo-three-fusebox: | node_modules demo/three
 	rm -fr demo/three/fusebox
 	mkdir -p demo/three/fusebox
@@ -338,6 +360,17 @@ bench-three-parcel: | node_modules bench/three
 	mkdir -p bench/three/parcel
 	cd bench/three/parcel && time -p ../../../node_modules/.bin/parcel build ../entry.js $(THREE_PARCEL_FLAGS) --out-file entry.parcel.js
 	du -h bench/three/parcel/entry.parcel.js*
+
+# Note: This is currently broken because it runs out of memory. It's unclear
+# how to fix this because the process that runs out of memory is a child worker
+# process, and there's no option to pass a "--max-old-space-size" flag to it.
+bench-three-parcel2: | parcel2/node_modules bench/three
+	rm -fr bench/three/parcel2
+	mkdir -p bench/three/parcel2
+	echo 'import * as THREE from "../entry.js"; window.THREE = THREE' > bench/three/parcel2/entry.parcel2.js
+	cd parcel2 && time -p ./node_modules/.bin/parcel build --no-autoinstall bench/three/parcel2/entry.parcel2.js \
+		--dist-dir ./bench/three/parcel2 --cache-dir ./bench/three/parcel2/.cache
+	du -h bench/three/parcel2/entry.parcel2.js*
 
 bench-three-fusebox: | node_modules bench/three
 	rm -fr bench/three/fusebox
@@ -432,3 +465,13 @@ bench-rome-parcel: | node_modules bench/rome
 	mkdir -p bench/rome/parcel
 	cd bench/rome/parcel && time -p ../../../node_modules/.bin/parcel build ../src/entry.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
 	du -h bench/rome/parcel/rome.parcel.js*
+
+# Note: This is currently broken because it can't parse the TypeScript code in
+# the benchmark. It looks like these bugs are caused by Babel's incomplete
+# support for TypeScript syntax.
+bench-rome-parcel2: | parcel2/node_modules bench/rome
+	rm -fr bench/rome/parcel2
+	mkdir -p bench/rome/parcel2
+	cd parcel2 && time -p ./node_modules/.bin/parcel build --no-autoinstall bench/rome/src/entry.ts \
+		--dist-dir ./bench/rome/parcel2 --cache-dir ./bench/rome/parcel2/.cache
+	du -h bench/rome/parcel2/rome.parcel2.js*
