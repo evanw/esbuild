@@ -541,13 +541,17 @@ func IsIdentifierContinue(codePoint rune) bool {
 	return unicode.Is(idContinue, codePoint)
 }
 
+// See the "White Space Code Points" table in the ECMAScript standard
 func IsWhitespace(codePoint rune) bool {
 	switch codePoint {
 	case
 		'\u0009', // character tabulation
 		'\u000B', // line tabulation
 		'\u000C', // form feed
+		'\u0020', // space
 		'\u00A0', // no-break space
+
+		// Unicode "Space_Separator" code points
 		'\u1680', // ogham space mark
 		'\u2000', // en quad
 		'\u2001', // em quad
@@ -563,6 +567,7 @@ func IsWhitespace(codePoint rune) bool {
 		'\u202F', // narrow no-break space
 		'\u205F', // medium mathematical space
 		'\u3000', // ideographic space
+
 		'\uFEFF': // zero width non-breaking space
 		return true
 
@@ -614,15 +619,6 @@ func (lexer *Lexer) NextJSXElementChild() {
 		case -1: // This indicates the end of the file
 			lexer.Token = TEndOfFile
 
-		case '\r', '\n', '\u2028', '\u2029':
-			lexer.step()
-			lexer.HasNewlineBefore = true
-			continue
-
-		case '\t', ' ':
-			lexer.step()
-			continue
-
 		case '{':
 			lexer.step()
 			lexer.Token = TOpenBrace
@@ -632,14 +628,7 @@ func (lexer *Lexer) NextJSXElementChild() {
 			lexer.Token = TLessThan
 
 		default:
-			// Check for unusual whitespace characters
-			if IsWhitespace(lexer.codePoint) {
-				lexer.step()
-				continue
-			}
-
-			// This needs fixing if we skipped over whitespace characters earlier
-			needsFixing := lexer.start != originalStart
+			needsFixing := false
 
 		stringLiteral:
 			for {
@@ -672,6 +661,12 @@ func (lexer *Lexer) NextJSXElementChild() {
 			if needsFixing {
 				// Slow path
 				lexer.StringLiteral = fixWhitespaceAndDecodeJSXEntities(text)
+
+				// Skip this token if it turned out to be empty after trimming
+				if len(lexer.StringLiteral) == 0 {
+					lexer.HasNewlineBefore = true
+					continue
+				}
 			} else {
 				// Fast path
 				n := len(text)

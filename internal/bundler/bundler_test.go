@@ -4665,7 +4665,7 @@ const p = "p";
 const Internal = () => h(p, null, " Test 2 ");
 
 // /app.jsx
-const App = () => h(p, null, h(Internal, null), " T ");
+const App = () => h(p, null, " ", h(Internal, null), " T ");
 render(h(App, null), document.getElementById("app"));
 `,
 		},

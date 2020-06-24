@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Fix a JSX whitespace bug ([#195](https://github.com/evanw/esbuild/issues/195))
+
+    Whitespace behavior in JSX has unfortunately been [left out of the JSX specification](https://github.com/facebook/jsx/issues/6), so it's up to each implementation to determine how to handle whitespace characters. Most of the JSX parsers in the ecosystem have converged on similar behavior. When they differ, esbuild follows the behavior of the TypeScript JSX parser.
+
+    This release fixes a bug where esbuild's JSX parser behaved differently than TypeScript. Certain whitespace characters between JSX elements were incorrectly removed. For example, the space in `<a><b/> <c/></a>` must be preserved to match the TypeScript JSX parser. These cases now have test coverage.
+
 ## 0.5.11
 
 * Fix a JavaScript API crash on node 10.x
