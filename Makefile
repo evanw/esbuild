@@ -112,6 +112,20 @@ clean:
 node_modules:
 	npm ci
 
+# This fixes TypeScript parsing bugs in Parcel 2. Parcel 2 switched to using
+# Babel to transform TypeScript into JavaScript, and Babel's TypeScript parser is
+# incomplete. It cannot parse the code in the TypeScript benchmark.
+#
+# The suggested workaround for any Babel bugs is to install a plugin to get the
+# old TypeScript parser back. Read this thread for more information:
+# https://github.com/parcel-bundler/parcel/issues/2023
+PARCELRC += {
+PARCELRC +=   "extends": ["@parcel/config-default"],
+PARCELRC +=   "transformers": {
+PARCELRC +=     "*.ts": ["@parcel/transformer-typescript-tsc"]
+PARCELRC +=   }
+PARCELRC += }
+
 # There are benchmarks below for both Parcel 1 and Parcel 2. But npm doesn't
 # support parallel installs with different versions, so use another directory.
 #
@@ -122,7 +136,8 @@ node_modules:
 parcel2/node_modules:
 	mkdir parcel2
 	echo '{}' > parcel2/package.json
-	cd parcel2 && npm install parcel@2.0.0-beta.1
+	echo '$(PARCELRC)' > parcel2/.parcelrc
+	cd parcel2 && npm install parcel@2.0.0-beta.1 @parcel/transformer-typescript-tsc@2.0.0-beta.1 typescript@3.9.5
 	ln -s ../demo parcel2/demo
 	ln -s ../bench parcel2/bench
 
@@ -415,7 +430,7 @@ ROME_PARCEL_FLAGS += --target node
 
 github/rome:
 	mkdir -p github/rome
-	cd github/rome && git init && git remote add origin https://github.com/facebookexperimental/rome.git
+	cd github/rome && git init && git remote add origin https://github.com/romejs/rome.git
 	cd github/rome && git fetch --depth 1 origin d95a3a7aab90773c9b36d9c82a08c8c4c6b68aa5 && git checkout FETCH_HEAD
 
 bench/rome: | github/rome
@@ -466,9 +481,8 @@ bench-rome-parcel: | node_modules bench/rome
 	cd bench/rome/parcel && time -p ../../../node_modules/.bin/parcel build ../src/entry.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
 	du -h bench/rome/parcel/rome.parcel.js*
 
-# Note: This is currently broken because it can't parse the TypeScript code in
-# the benchmark. It looks like these bugs are caused by Babel's incomplete
-# support for TypeScript syntax.
+# Note: This is currently broken because Parcel 2 can't handle TypeScript files
+# that re-export types.
 bench-rome-parcel2: | parcel2/node_modules bench/rome
 	rm -fr bench/rome/parcel2
 	mkdir -p bench/rome/parcel2
