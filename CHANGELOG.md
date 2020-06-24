@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.12
 
 * Fix a JSX whitespace bug ([#195](https://github.com/evanw/esbuild/issues/195))
 
