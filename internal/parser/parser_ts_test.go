@@ -118,6 +118,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: (number | string)[]", "let x;\n")
 	expectPrintedTS(t, "let x: [string[]?]", "let x;\n")
 	expectPrintedTS(t, "let x: [number?, string?]", "let x;\n")
+	expectPrintedTS(t, "let x: [a: number, b?: string, ...c: number[]]", "let x;\n")
 	expectPrintedTS(t, "type x =\n A\n | B\n C", "C;\n")
 	expectPrintedTS(t, "type x =\n | A\n | B\n C", "C;\n")
 	expectPrintedTS(t, "type x =\n A\n & B\n C", "C;\n")

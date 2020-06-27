@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Add support for TypeScript labelled tuples
+
+    This is a new TypeScript feature to be released in TypeScript 4. Tuple types can now have labels:
+
+    ```ts
+    let foo: [number, number]           // Without labels
+    let bar: [min: number, max: number] // With labels
+    ```
+
+    These labels are ignored by the TypeScript compiler and are only there to improve readability. You can read more here: https://devblogs.microsoft.com/typescript/announcing-typescript-4-0-beta/.
+
 ## 0.5.12
 
 * Fix a JSX whitespace bug ([#195](https://github.com/evanw/esbuild/issues/195))

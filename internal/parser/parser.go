@@ -925,6 +925,8 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		p.lexer.Next()
 
 	case lexer.TMinus:
+		// "-123"
+		// "-123n"
 		p.lexer.Next()
 		if p.lexer.Token == lexer.TBigIntegerLiteral {
 			p.lexer.Next()
@@ -958,6 +960,7 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		p.skipTypeScriptParenOrFnType()
 
 	case lexer.TOpenParen:
+		// "(number | string)"
 		p.skipTypeScriptParenOrFnType()
 
 	case lexer.TIdentifier:
@@ -977,16 +980,23 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		}
 
 	case lexer.TTypeof:
+		// "typeof x"
 		p.lexer.Next()
 		p.skipTypeScriptType(ast.LPrefix)
 
 	case lexer.TOpenBracket:
+		// "[number, string]"
+		// "[first: number, second: string]"
 		p.lexer.Next()
 		for p.lexer.Token != lexer.TCloseBracket {
 			if p.lexer.Token == lexer.TDotDotDot {
 				p.lexer.Next()
 			}
 			p.skipTypeScriptType(ast.LLowest)
+			if p.lexer.Token == lexer.TColon {
+				p.lexer.Next()
+				p.skipTypeScriptType(ast.LLowest)
+			}
 			if p.lexer.Token != lexer.TComma {
 				break
 			}
