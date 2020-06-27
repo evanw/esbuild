@@ -67,6 +67,47 @@ child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' }
   );
 }
 
+function tryCompileAndInstall() {
+  try {
+    const env = {};
+    for (const key in process.env) {
+      if (!key.startsWith('npm_')) {
+        env[key] = process.env[key];
+      }
+    }
+    env['GOPATH'] = installDir;
+    env['GOCACHE'] = installDir;
+    env['GO111MODULE'] = 'on';
+
+    // It turns out that some package managers (e.g. yarn) sometimes re-run the
+    // postinstall script for this package after we have already been installed.
+    // That means this script must be idempotent. Let's skip the install if it's
+    // already happened.
+    if (fs.existsSync(installDir)) {
+      return true;
+    }
+
+    fs.mkdirSync(installDir);
+
+    child_process.execSync(`go get github.com/evanw/esbuild/...@v${version}`,
+      { cwd: installDir, stdio: 'inherit', env });
+
+    fs.renameSync(
+      path.join(installDir, 'bin', 'esbuild'),
+      binPath
+    );
+
+    // Clean installDir contents
+    child_process.execSync(`go clean -modcache -cache`,
+      { cwd: installDir, stdio: 'inherit', env });
+
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+}
+
 // Pick a package to install
 if (process.platform === 'linux' && os.arch() === 'x64') {
   installOnUnix('esbuild-linux-64');
@@ -78,7 +119,7 @@ if (process.platform === 'linux' && os.arch() === 'x64') {
   installOnUnix('esbuild-darwin-64');
 } else if (process.platform === 'win32' && os.arch() === 'x64') {
   installOnWindows();
-} else {
+} else if (!tryCompileAndInstall()) {
   console.error(`error: Unsupported platform: ${process.platform} ${os.arch()}`);
   process.exit(1);
 }
