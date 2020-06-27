@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.13
 
 * Add support for TypeScript labelled tuples
 
