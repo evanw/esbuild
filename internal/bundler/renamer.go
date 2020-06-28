@@ -171,7 +171,7 @@ func (r *renamer) renameSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMap, 
 
 	// Rename all symbols in this scope
 	for _, i := range sorted {
-		ref := ast.Ref{uint32(i >> 32), uint32(i)}
+		ref := ast.Ref{OuterIndex: uint32(i >> 32), InnerIndex: uint32(i)}
 		ref = ast.FollowSymbols(symbols, ref)
 
 		// Don't rename the same symbol more than once
@@ -354,7 +354,7 @@ func (g *minifyGroup) countSymbolsInScope(scope *ast.Scope, symbols ast.SymbolMa
 	sorted := sortedSymbolsInScope(scope)
 
 	for _, i := range sorted {
-		ref := ast.Ref{uint32(i >> 32), uint32(i)}
+		ref := ast.Ref{OuterIndex: uint32(i >> 32), InnerIndex: uint32(i)}
 		ref = ast.FollowSymbols(symbols, ref)
 		symbol := symbols.Get(ref)
 

@@ -150,13 +150,13 @@ func parseFile(args parseArgs) {
 		result.file.ignoreIfUnused = true
 
 	case LoaderText:
-		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(source.Contents)}}
+		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(source.Contents)}}
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 		result.file.ignoreIfUnused = true
 
 	case LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(encoded)}}
+		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 		result.file.ignoreIfUnused = true
 
@@ -167,7 +167,7 @@ func parseFile(args parseArgs) {
 		}
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + mimeType + ";base64," + encoded
-		expr := ast.Expr{Data: &ast.EString{lexer.StringToUTF16(url)}}
+		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(url)}}
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 		result.file.ignoreIfUnused = true
 
@@ -184,7 +184,7 @@ func parseFile(args parseArgs) {
 		}
 
 		// Export the resulting relative path as a string
-		expr := ast.Expr{ast.Loc{0}, &ast.EString{lexer.StringToUTF16(baseName)}}
+		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(baseName)}}
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 		result.file.ignoreIfUnused = true
 

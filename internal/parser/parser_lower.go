@@ -106,15 +106,15 @@ func (p *parser) lowerFunction(
 			if bindingHasObjectRest(arg.Binding) {
 				ref := p.generateTempRef(tempRefNoDeclare, "")
 				target := p.convertBindingToExpr(arg.Binding, nil)
-				init := ast.Expr{arg.Binding.Loc, &ast.EIdentifier{ref}}
+				init := ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EIdentifier{Ref: ref}}
 
 				if decls, ok := p.lowerObjectRestToDecls(target, init, nil); ok {
 					// Replace the binding but leave the default value intact
-					(*args)[i].Binding.Data = &ast.BIdentifier{ref}
+					(*args)[i].Binding.Data = &ast.BIdentifier{Ref: ref}
 
 					// Append a variable declaration to the function body
-					prefixStmts = append(prefixStmts, ast.Stmt{arg.Binding.Loc,
-						&ast.SLocal{Kind: ast.LocalVar, Decls: decls}})
+					prefixStmts = append(prefixStmts, ast.Stmt{Loc: arg.Binding.Loc,
+						Data: &ast.SLocal{Kind: ast.LocalVar, Decls: decls}})
 				}
 			}
 		}
@@ -134,15 +134,15 @@ func (p *parser) lowerFunction(
 		// Determine the value for "this"
 		thisValue, hasThisValue := p.valueForThis(bodyLoc)
 		if !hasThisValue {
-			thisValue = ast.Expr{bodyLoc, &ast.EThis{}}
+			thisValue = ast.Expr{Loc: bodyLoc, Data: &ast.EThis{}}
 		}
 
 		// Only reference the "arguments" variable if it's actually used
 		var arguments ast.Expr
 		if p.argumentsRef != nil && p.useCountEstimates[*p.argumentsRef] > 0 {
-			arguments = ast.Expr{bodyLoc, &ast.EIdentifier{*p.argumentsRef}}
+			arguments = ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: *p.argumentsRef}}
 		} else {
-			arguments = ast.Expr{bodyLoc, &ast.EArray{}}
+			arguments = ast.Expr{Loc: bodyLoc, Data: &ast.EArray{}}
 		}
 
 		// "async function foo() { stmts }" => "function foo() { return __async(this, arguments, function* () { stmts }) }"
@@ -150,17 +150,17 @@ func (p *parser) lowerFunction(
 		callAsync := p.callRuntime(bodyLoc, "__async", []ast.Expr{
 			thisValue,
 			arguments,
-			{bodyLoc, &ast.EFunction{Fn: ast.Fn{
+			{Loc: bodyLoc, Data: &ast.EFunction{Fn: ast.Fn{
 				IsGenerator: true,
-				Body:        ast.FnBody{bodyLoc, *bodyStmts},
+				Body:        ast.FnBody{Loc: bodyLoc, Stmts: *bodyStmts},
 			}}},
 		})
-		*bodyStmts = []ast.Stmt{{bodyLoc, &ast.SReturn{&callAsync}}}
+		*bodyStmts = []ast.Stmt{{Loc: bodyLoc, Data: &ast.SReturn{Value: &callAsync}}}
 	}
 }
 
 func (p *parser) lowerOptionalChain(expr ast.Expr, in exprIn, out exprOut, thisArgFunc func() ast.Expr) (ast.Expr, exprOut) {
-	valueWhenUndefined := ast.Expr{expr.Loc, &ast.EUndefined{}}
+	valueWhenUndefined := ast.Expr{Loc: expr.Loc, Data: &ast.EUndefined{}}
 	endsWithPropertyAccess := false
 	containsPrivateName := false
 	startsWithCall := false
@@ -212,7 +212,7 @@ flatten:
 			}
 
 		case *ast.EUnary: // UnOpDelete
-			valueWhenUndefined = ast.Expr{loc, &ast.EBoolean{Value: true}}
+			valueWhenUndefined = ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: true}}
 			expr = e.Value
 
 		default:
@@ -260,7 +260,7 @@ flatten:
 			switch e := expr.Data.(type) {
 			case *ast.EDot:
 				targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
-				expr = ast.Expr{loc, &ast.EDot{
+				expr = ast.Expr{Loc: loc, Data: &ast.EDot{
 					Target:  targetFunc(),
 					Name:    e.Name,
 					NameLoc: e.NameLoc,
@@ -283,7 +283,7 @@ flatten:
 					}
 				}
 
-				expr = ast.Expr{loc, &ast.EIndex{
+				expr = ast.Expr{Loc: loc, Data: &ast.EIndex{
 					Target: targetFunc(),
 					Index:  e.Index,
 				}}
@@ -313,7 +313,7 @@ flatten:
 
 		switch e := chain[i].Data.(type) {
 		case *ast.EDot:
-			result = ast.Expr{loc, &ast.EDot{
+			result = ast.Expr{Loc: loc, Data: &ast.EDot{
 				Target:  result,
 				Name:    e.Name,
 				NameLoc: e.NameLoc,
@@ -336,7 +336,7 @@ flatten:
 				continue
 			}
 
-			result = ast.Expr{loc, &ast.EIndex{
+			result = ast.Expr{Loc: loc, Data: &ast.EIndex{
 				Target: result,
 				Index:  e.Index,
 			}}
@@ -346,8 +346,8 @@ flatten:
 			// a property access, invoke the function using ".call(this, ...args)" to
 			// explicitly provide the value for "this".
 			if i == len(chain)-1 && thisArg.Data != nil {
-				result = ast.Expr{loc, &ast.ECall{
-					Target: ast.Expr{loc, &ast.EDot{
+				result = ast.Expr{Loc: loc, Data: &ast.ECall{
+					Target: ast.Expr{Loc: loc, Data: &ast.EDot{
 						Target:  result,
 						Name:    "call",
 						NameLoc: loc,
@@ -362,8 +362,8 @@ flatten:
 			// the property access target that was stashed away earlier as the value
 			// for "this" for the call. Example for this case: "foo.#bar?.()"
 			if privateThisFunc != nil {
-				result = privateThisWrapFunc(ast.Expr{loc, &ast.ECall{
-					Target: ast.Expr{loc, &ast.EDot{
+				result = privateThisWrapFunc(ast.Expr{Loc: loc, Data: &ast.ECall{
+					Target: ast.Expr{Loc: loc, Data: &ast.EDot{
 						Target:  result,
 						Name:    "call",
 						NameLoc: loc,
@@ -374,14 +374,14 @@ flatten:
 				break
 			}
 
-			result = ast.Expr{loc, &ast.ECall{
+			result = ast.Expr{Loc: loc, Data: &ast.ECall{
 				Target:       result,
 				Args:         e.Args,
 				IsDirectEval: e.IsDirectEval,
 			}}
 
 		case *ast.EUnary:
-			result = ast.Expr{loc, &ast.EUnary{
+			result = ast.Expr{Loc: loc, Data: &ast.EUnary{
 				Op:    ast.UnOpDelete,
 				Value: result,
 			}}
@@ -394,11 +394,11 @@ flatten:
 	// Step 5: Wrap it all in a conditional that returns the chain or the default
 	// value if the initial value is null/undefined. The default value is usually
 	// "undefined" but is "true" if the chain ends in a "delete" operator.
-	result = ast.Expr{loc, &ast.EIf{
-		Test: ast.Expr{loc, &ast.EBinary{
+	result = ast.Expr{Loc: loc, Data: &ast.EIf{
+		Test: ast.Expr{Loc: loc, Data: &ast.EBinary{
 			Op:    ast.BinOpLooseEq,
 			Left:  expr,
-			Right: ast.Expr{loc, &ast.ENull{}},
+			Right: ast.Expr{Loc: loc, Data: &ast.ENull{}},
 		}},
 		Yes: valueWhenUndefined,
 		No:  result,
@@ -418,12 +418,12 @@ func (p *parser) lowerAssignmentOperator(value ast.Expr, callback func(ast.Expr,
 		if left.OptionalChain == ast.OptionalChainNone {
 			referenceFunc, wrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target)
 			return wrapFunc(callback(
-				ast.Expr{value.Loc, &ast.EDot{
+				ast.Expr{Loc: value.Loc, Data: &ast.EDot{
 					Target:  referenceFunc(),
 					Name:    left.Name,
 					NameLoc: left.NameLoc,
 				}},
-				ast.Expr{value.Loc, &ast.EDot{
+				ast.Expr{Loc: value.Loc, Data: &ast.EDot{
 					Target:  referenceFunc(),
 					Name:    left.Name,
 					NameLoc: left.NameLoc,
@@ -436,11 +436,11 @@ func (p *parser) lowerAssignmentOperator(value ast.Expr, callback func(ast.Expr,
 			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Target)
 			indexFunc, indexWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, left.Index)
 			return targetWrapFunc(indexWrapFunc(callback(
-				ast.Expr{value.Loc, &ast.EIndex{
+				ast.Expr{Loc: value.Loc, Data: &ast.EIndex{
 					Target: targetFunc(),
 					Index:  indexFunc(),
 				}},
-				ast.Expr{value.Loc, &ast.EIndex{
+				ast.Expr{Loc: value.Loc, Data: &ast.EIndex{
 					Target: targetFunc(),
 					Index:  indexFunc(),
 				}},
@@ -449,7 +449,7 @@ func (p *parser) lowerAssignmentOperator(value ast.Expr, callback func(ast.Expr,
 
 	case *ast.EIdentifier:
 		return callback(
-			ast.Expr{value.Loc, &ast.EIdentifier{left.Ref}},
+			ast.Expr{Loc: value.Loc, Data: &ast.EIdentifier{Ref: left.Ref}},
 			value,
 		)
 	}
@@ -489,7 +489,7 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EB
 
 		// "a.#b ??= c" => "__privateGet(a, #b) ?? __privateSet(a, #b, c)"
 		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
-		return targetWrapFunc(ast.Expr{loc, &ast.EBinary{
+		return targetWrapFunc(ast.Expr{Loc: loc, Data: &ast.EBinary{
 			Op:    ast.BinOpNullishCoalescing,
 			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
 			Right: p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right),
@@ -503,7 +503,7 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EB
 		}
 
 		// "a ??= b" => "a ?? (a = b)"
-		return ast.Expr{loc, &ast.EBinary{
+		return ast.Expr{Loc: loc, Data: &ast.EBinary{
 			Op:    ast.BinOpNullishCoalescing,
 			Left:  a,
 			Right: ast.Assign(b, e.Right),
@@ -516,7 +516,7 @@ func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op 
 		// "a.#b &&= c" => "__privateGet(a, #b) && __privateSet(a, #b, c)"
 		// "a.#b ||= c" => "__privateGet(a, #b) || __privateSet(a, #b, c)"
 		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
-		return targetWrapFunc(ast.Expr{loc, &ast.EBinary{
+		return targetWrapFunc(ast.Expr{Loc: loc, Data: &ast.EBinary{
 			Op:    op,
 			Left:  p.lowerPrivateGet(targetFunc(), privateLoc, private),
 			Right: p.lowerPrivateSet(targetFunc(), privateLoc, private, e.Right),
@@ -526,7 +526,7 @@ func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op 
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
 		// "a &&= b" => "a && (a = b)"
 		// "a ||= b" => "a || (a = b)"
-		return ast.Expr{loc, &ast.EBinary{
+		return ast.Expr{Loc: loc, Data: &ast.EBinary{
 			Op:    op,
 			Left:  a,
 			Right: ast.Assign(b, e.Right),
@@ -539,18 +539,18 @@ func (p *parser) lowerNullishCoalescing(loc ast.Loc, left ast.Expr, right ast.Ex
 		// "x ?? y" => "x !== null && x !== void 0 ? x : y"
 		// "x() ?? y()" => "_a = x(), _a !== null && _a !== void 0 ? _a : y"
 		leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 3, left)
-		return wrapFunc(ast.Expr{loc, &ast.EIf{
-			Test: ast.Expr{loc, &ast.EBinary{
+		return wrapFunc(ast.Expr{Loc: loc, Data: &ast.EIf{
+			Test: ast.Expr{Loc: loc, Data: &ast.EBinary{
 				Op: ast.BinOpLogicalAnd,
-				Left: ast.Expr{loc, &ast.EBinary{
+				Left: ast.Expr{Loc: loc, Data: &ast.EBinary{
 					Op:    ast.BinOpStrictNe,
 					Left:  leftFunc(),
-					Right: ast.Expr{loc, &ast.ENull{}},
+					Right: ast.Expr{Loc: loc, Data: &ast.ENull{}},
 				}},
-				Right: ast.Expr{loc, &ast.EBinary{
+				Right: ast.Expr{Loc: loc, Data: &ast.EBinary{
 					Op:    ast.BinOpStrictNe,
 					Left:  leftFunc(),
-					Right: ast.Expr{loc, &ast.EUndefined{}},
+					Right: ast.Expr{Loc: loc, Data: &ast.EUndefined{}},
 				}},
 			}},
 			Yes: leftFunc(),
@@ -561,11 +561,11 @@ func (p *parser) lowerNullishCoalescing(loc ast.Loc, left ast.Expr, right ast.Ex
 	// "x ?? y" => "x != null ? x : y"
 	// "x() ?? y()" => "_a = x(), _a != null ? _a : y"
 	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left)
-	return wrapFunc(ast.Expr{loc, &ast.EIf{
-		Test: ast.Expr{loc, &ast.EBinary{
+	return wrapFunc(ast.Expr{Loc: loc, Data: &ast.EIf{
+		Test: ast.Expr{Loc: loc, Data: &ast.EBinary{
 			Op:    ast.BinOpLooseNe,
 			Left:  leftFunc(),
-			Right: ast.Expr{loc, &ast.ENull{}},
+			Right: ast.Expr{Loc: loc, Data: &ast.ENull{}},
 		}},
 		Yes: leftFunc(),
 		No:  right,
@@ -609,7 +609,7 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 	}
 
 	if !needsLowering {
-		return ast.Expr{loc, e}
+		return ast.Expr{Loc: loc, Data: e}
 	}
 
 	var result ast.Expr
@@ -624,14 +624,14 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 		if len(properties) > 0 || result.Data == nil {
 			if result.Data == nil {
 				// "{a, ...b}" => "__assign({a}, b)"
-				result = ast.Expr{loc, &ast.EObject{
+				result = ast.Expr{Loc: loc, Data: &ast.EObject{
 					Properties:   properties,
 					IsSingleLine: e.IsSingleLine,
 				}}
 			} else {
 				// "{...a, b, ...c}" => "__assign(__assign(__assign({}, a), {b}), c)"
 				result = p.callRuntime(loc, "__assign",
-					[]ast.Expr{result, {loc, &ast.EObject{
+					[]ast.Expr{result, {Loc: loc, Data: &ast.EObject{
 						Properties:   properties,
 						IsSingleLine: e.IsSingleLine,
 					}}})
@@ -645,7 +645,7 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 
 	if len(properties) > 0 {
 		// "{...a, b}" => "__assign(__assign({}, a), {b})"
-		result = p.callRuntime(loc, "__assign", []ast.Expr{result, {loc, &ast.EObject{
+		result = p.callRuntime(loc, "__assign", []ast.Expr{result, {Loc: loc, Data: &ast.EObject{
 			Properties:   properties,
 			IsSingleLine: e.IsSingleLine,
 		}}})
@@ -660,23 +660,23 @@ func (p *parser) lowerPrivateGet(target ast.Expr, loc ast.Loc, private *ast.EPri
 		// "this.#method" => "__privateMethod(this, #method, method_fn)"
 		return p.callRuntime(target.Loc, "__privateMethod", []ast.Expr{
 			target,
-			{loc, &ast.EIdentifier{private.Ref}},
-			{loc, &ast.EIdentifier{p.privateGetters[private.Ref]}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: private.Ref}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: p.privateGetters[private.Ref]}},
 		})
 
 	case ast.SymbolPrivateGet, ast.SymbolPrivateGetSetPair:
 		// "this.#getter" => "__privateGet(this, #getter, getter_get)"
 		return p.callRuntime(target.Loc, "__privateGet", []ast.Expr{
 			target,
-			{loc, &ast.EIdentifier{private.Ref}},
-			{loc, &ast.EIdentifier{p.privateGetters[private.Ref]}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: private.Ref}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: p.privateGetters[private.Ref]}},
 		})
 
 	default:
 		// "this.#field" => "__privateGet(this, #field)"
 		return p.callRuntime(target.Loc, "__privateGet", []ast.Expr{
 			target,
-			{loc, &ast.EIdentifier{private.Ref}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: private.Ref}},
 		})
 	}
 }
@@ -692,16 +692,16 @@ func (p *parser) lowerPrivateSet(
 		// "this.#setter = 123" => "__privateSet(this, #setter, 123, setter_set)"
 		return p.callRuntime(target.Loc, "__privateSet", []ast.Expr{
 			target,
-			{loc, &ast.EIdentifier{private.Ref}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: private.Ref}},
 			value,
-			{loc, &ast.EIdentifier{p.privateSetters[private.Ref]}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: p.privateSetters[private.Ref]}},
 		})
 
 	default:
 		// "this.#field = 123" => "__privateSet(this, #field, 123)"
 		return p.callRuntime(target.Loc, "__privateSet", []ast.Expr{
 			target,
-			{loc, &ast.EIdentifier{private.Ref}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: private.Ref}},
 			value,
 		})
 	}
@@ -714,7 +714,7 @@ func (p *parser) lowerPrivateSetUnOp(target ast.Expr, loc ast.Loc, private *ast.
 	// Load the private field and then use the unary "+" operator to force it to
 	// be a number. Otherwise the binary "+" operator may cause string
 	// concatenation instead of addition if one of the operands is not a number.
-	value := ast.Expr{target.Loc, &ast.EUnary{
+	value := ast.Expr{Loc: target.Loc, Data: &ast.EUnary{
 		Op:    ast.UnOpPos,
 		Value: p.lowerPrivateGet(targetFunc(), loc, private),
 	}}
@@ -722,26 +722,26 @@ func (p *parser) lowerPrivateSetUnOp(target ast.Expr, loc ast.Loc, private *ast.
 	if isSuffix {
 		// "target.#private++" => "__privateSet(target, #private, _a = +__privateGet(target, #private) + 1), _a"
 		valueFunc, valueWrapFunc := p.captureValueWithPossibleSideEffects(value.Loc, 2, value)
-		assign := valueWrapFunc(targetWrapFunc(p.lowerPrivateSet(target, loc, private, ast.Expr{target.Loc, &ast.EBinary{
+		assign := valueWrapFunc(targetWrapFunc(p.lowerPrivateSet(target, loc, private, ast.Expr{Loc: target.Loc, Data: &ast.EBinary{
 			Op:    op,
 			Left:  valueFunc(),
-			Right: ast.Expr{target.Loc, &ast.ENumber{1}},
+			Right: ast.Expr{Loc: target.Loc, Data: &ast.ENumber{Value: 1}},
 		}})))
 		return ast.JoinWithComma(assign, valueFunc())
 	}
 
 	// "++target.#private" => "__privateSet(target, #private, +__privateGet(target, #private) + 1)"
-	return targetWrapFunc(p.lowerPrivateSet(target, loc, private, ast.Expr{target.Loc, &ast.EBinary{
+	return targetWrapFunc(p.lowerPrivateSet(target, loc, private, ast.Expr{Loc: target.Loc, Data: &ast.EBinary{
 		Op:    op,
 		Left:  value,
-		Right: ast.Expr{target.Loc, &ast.ENumber{1}},
+		Right: ast.Expr{Loc: target.Loc, Data: &ast.ENumber{Value: 1}},
 	}}))
 }
 
 func (p *parser) lowerPrivateSetBinOp(target ast.Expr, loc ast.Loc, private *ast.EPrivateIdentifier, op ast.OpCode, value ast.Expr) ast.Expr {
 	// "target.#private += 123" => "__privateSet(target, #private, __privateGet(target, #private) + 123)"
 	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
-	return targetWrapFunc(p.lowerPrivateSet(targetFunc(), loc, private, ast.Expr{value.Loc, &ast.EBinary{
+	return targetWrapFunc(p.lowerPrivateSet(targetFunc(), loc, private, ast.Expr{Loc: value.Loc, Data: &ast.EBinary{
 		Op:    op,
 		Left:  p.lowerPrivateGet(targetFunc(), loc, private),
 		Right: value,
@@ -842,9 +842,9 @@ func (p *parser) lowerObjectRestInForLoopInit(init ast.Stmt, body *ast.Stmt) {
 		// "for ({...x} of y) {}"
 		if exprHasObjectRest(s.Value) {
 			ref := p.generateTempRef(tempRefNeedsDeclare, "")
-			if expr, ok := p.lowerObjectRestInAssign(s.Value, ast.Expr{init.Loc, &ast.EIdentifier{ref}}); ok {
-				s.Value.Data = &ast.EIdentifier{ref}
-				bodyPrefixStmt = ast.Stmt{expr.Loc, &ast.SExpr{expr}}
+			if expr, ok := p.lowerObjectRestInAssign(s.Value, ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}}); ok {
+				s.Value.Data = &ast.EIdentifier{Ref: ref}
+				bodyPrefixStmt = ast.Stmt{Loc: expr.Loc, Data: &ast.SExpr{Value: expr}}
 			}
 		}
 
@@ -853,10 +853,10 @@ func (p *parser) lowerObjectRestInForLoopInit(init ast.Stmt, body *ast.Stmt) {
 		// "for (let {...x} of y) {}"
 		if len(s.Decls) == 1 && bindingHasObjectRest(s.Decls[0].Binding) {
 			ref := p.generateTempRef(tempRefNoDeclare, "")
-			decl := ast.Decl{s.Decls[0].Binding, &ast.Expr{init.Loc, &ast.EIdentifier{ref}}}
+			decl := ast.Decl{Binding: s.Decls[0].Binding, Value: &ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}}}
 			decls := p.lowerObjectRestInDecls([]ast.Decl{decl})
-			s.Decls[0].Binding.Data = &ast.BIdentifier{ref}
-			bodyPrefixStmt = ast.Stmt{init.Loc, &ast.SLocal{Kind: s.Kind, Decls: decls}}
+			s.Decls[0].Binding.Data = &ast.BIdentifier{Ref: ref}
+			bodyPrefixStmt = ast.Stmt{Loc: init.Loc, Data: &ast.SLocal{Kind: s.Kind, Decls: decls}}
 		}
 	}
 
@@ -867,7 +867,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init ast.Stmt, body *ast.Stmt) {
 			block.Stmts = append(append(stmts, bodyPrefixStmt), block.Stmts...)
 		} else {
 			// Otherwise, make a block and insert at the front
-			body.Data = &ast.SBlock{[]ast.Stmt{bodyPrefixStmt, *body}}
+			body.Data = &ast.SBlock{Stmts: []ast.Stmt{bodyPrefixStmt, *body}}
 		}
 	}
 }
@@ -879,11 +879,11 @@ func (p *parser) lowerObjectRestInCatchBinding(catch *ast.Catch) {
 
 	if catch.Binding != nil && bindingHasObjectRest(*catch.Binding) {
 		ref := p.generateTempRef(tempRefNoDeclare, "")
-		decl := ast.Decl{*catch.Binding, &ast.Expr{catch.Binding.Loc, &ast.EIdentifier{ref}}}
+		decl := ast.Decl{Binding: *catch.Binding, Value: &ast.Expr{Loc: catch.Binding.Loc, Data: &ast.EIdentifier{Ref: ref}}}
 		decls := p.lowerObjectRestInDecls([]ast.Decl{decl})
-		catch.Binding.Data = &ast.BIdentifier{ref}
+		catch.Binding.Data = &ast.BIdentifier{Ref: ref}
 		stmts := make([]ast.Stmt, 0, 1+len(catch.Body))
-		stmts = append(stmts, ast.Stmt{catch.Binding.Loc, &ast.SLocal{Kind: ast.LocalLet, Decls: decls}})
+		stmts = append(stmts, ast.Stmt{Loc: catch.Binding.Loc, Data: &ast.SLocal{Kind: ast.LocalLet, Decls: decls}})
 		catch.Body = append(stmts, catch.Body...)
 	}
 }
@@ -908,7 +908,7 @@ func (p *parser) lowerObjectRestToDecls(rootExpr ast.Expr, rootInit ast.Expr, de
 		if len(log) > 0 {
 			panic("Internal error")
 		}
-		decls = append(decls, ast.Decl{binding, &right})
+		decls = append(decls, ast.Decl{Binding: binding, Value: &right})
 	}
 
 	if p.lowerObjectRestHelper(rootExpr, rootInit, assign, tempRefNoDeclare) {
@@ -980,7 +980,7 @@ func (p *parser) lowerObjectRestHelper(
 		// reference, store the initializer first so we can reference it later.
 		// The initializer may have side effects so we must evaluate it once.
 		ref := p.generateTempRef(declare, "")
-		assign(ast.Expr{expr.Loc, &ast.EIdentifier{ref}}, expr)
+		assign(ast.Expr{Loc: expr.Loc, Data: &ast.EIdentifier{Ref: ref}}, expr)
 		return ref
 	}
 
@@ -997,9 +997,9 @@ func (p *parser) lowerObjectRestHelper(
 		if len(before) > 0 {
 			// "let {a, ...b} = c"
 			ref := captureIntoRef(init)
-			assign(ast.Expr{before[0].Key.Loc, &ast.EObject{Properties: before, IsSingleLine: isSingleLine}},
-				ast.Expr{init.Loc, &ast.EIdentifier{ref}})
-			init = ast.Expr{init.Loc, &ast.EIdentifier{ref}}
+			assign(ast.Expr{Loc: before[0].Key.Loc, Data: &ast.EObject{Properties: before, IsSingleLine: isSingleLine}},
+				ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}})
+			init = ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}}
 		}
 
 		// Call "__rest" to clone the initializer without the keys for previous
@@ -1009,7 +1009,7 @@ func (p *parser) lowerObjectRestHelper(
 			keysToExclude[i] = capturedKey()
 		}
 		assign(binding, p.callRuntime(binding.Loc, "__rest", []ast.Expr{init,
-			{binding.Loc, &ast.EArray{Items: keysToExclude, IsSingleLine: isSingleLine}}}))
+			{Loc: binding.Loc, Data: &ast.EArray{Items: keysToExclude, IsSingleLine: isSingleLine}}}))
 	}
 
 	splitArrayPattern := func(
@@ -1028,7 +1028,7 @@ func (p *parser) lowerObjectRestHelper(
 		// Swap the binding with a temporary
 		splitRef := p.generateTempRef(declare, "")
 		deferredBinding := *binding
-		binding.Data = &ast.EIdentifier{splitRef}
+		binding.Data = &ast.EIdentifier{Ref: splitRef}
 		items := append(before, split)
 
 		// If there are any items left over, defer them until later too
@@ -1037,16 +1037,16 @@ func (p *parser) lowerObjectRestHelper(
 		if len(after) > 0 {
 			tailRef := p.generateTempRef(declare, "")
 			loc := after[0].Loc
-			tailExpr = ast.Expr{loc, &ast.EArray{Items: after, IsSingleLine: isSingleLine}}
-			tailInit = ast.Expr{loc, &ast.EIdentifier{tailRef}}
-			items = append(items, ast.Expr{loc, &ast.ESpread{ast.Expr{loc, &ast.EIdentifier{tailRef}}}})
+			tailExpr = ast.Expr{Loc: loc, Data: &ast.EArray{Items: after, IsSingleLine: isSingleLine}}
+			tailInit = ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tailRef}}
+			items = append(items, ast.Expr{Loc: loc, Data: &ast.ESpread{Value: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tailRef}}}})
 		}
 
 		// The original destructuring assignment must come first
-		assign(ast.Expr{split.Loc, &ast.EArray{Items: items, IsSingleLine: isSingleLine}}, init)
+		assign(ast.Expr{Loc: split.Loc, Data: &ast.EArray{Items: items, IsSingleLine: isSingleLine}}, init)
 
 		// Then the deferred split is evaluated
-		visit(deferredBinding, ast.Expr{split.Loc, &ast.EIdentifier{splitRef}}, nil)
+		visit(deferredBinding, ast.Expr{Loc: split.Loc, Data: &ast.EIdentifier{Ref: splitRef}}, nil)
 
 		// Then anything after the split
 		if len(after) > 0 {
@@ -1066,8 +1066,8 @@ func (p *parser) lowerObjectRestHelper(
 		var afterSplitInit ast.Expr
 		if len(afterSplit) > 0 {
 			ref := captureIntoRef(init)
-			init = ast.Expr{init.Loc, &ast.EIdentifier{ref}}
-			afterSplitInit = ast.Expr{init.Loc, &ast.EIdentifier{ref}}
+			init = ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}}
+			afterSplitInit = ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}}
 		}
 
 		split := &upToSplit[len(upToSplit)-1]
@@ -1081,18 +1081,18 @@ func (p *parser) lowerObjectRestHelper(
 		// Swap the binding with a temporary
 		splitRef := p.generateTempRef(declare, "")
 		deferredBinding := *binding
-		binding.Data = &ast.EIdentifier{splitRef}
+		binding.Data = &ast.EIdentifier{Ref: splitRef}
 
 		// Use a destructuring assignment to unpack everything up to and including
 		// the split point
-		assign(ast.Expr{binding.Loc, &ast.EObject{Properties: upToSplit, IsSingleLine: isSingleLine}}, init)
+		assign(ast.Expr{Loc: binding.Loc, Data: &ast.EObject{Properties: upToSplit, IsSingleLine: isSingleLine}}, init)
 
 		// Handle any nested rest binding patterns inside the split point
-		visit(deferredBinding, ast.Expr{binding.Loc, &ast.EIdentifier{splitRef}}, nil)
+		visit(deferredBinding, ast.Expr{Loc: binding.Loc, Data: &ast.EIdentifier{Ref: splitRef}}, nil)
 
 		// Then continue on to any properties after the split
 		if len(afterSplit) > 0 {
-			visit(ast.Expr{binding.Loc, &ast.EObject{
+			visit(ast.Expr{Loc: binding.Loc, Data: &ast.EObject{
 				Properties:   afterSplit,
 				IsSingleLine: isSingleLine,
 			}}, afterSplitInit, capturedKeys)
@@ -1166,20 +1166,20 @@ func (p *parser) lowerObjectRestHelper(
 
 // Returns "typeof ref === 'symbol' ? ref : ref + ''"
 func symbolOrString(loc ast.Loc, ref ast.Ref) ast.Expr {
-	return ast.Expr{loc, &ast.EIf{
-		Test: ast.Expr{loc, &ast.EBinary{
+	return ast.Expr{Loc: loc, Data: &ast.EIf{
+		Test: ast.Expr{Loc: loc, Data: &ast.EBinary{
 			Op: ast.BinOpStrictEq,
-			Left: ast.Expr{loc, &ast.EUnary{
+			Left: ast.Expr{Loc: loc, Data: &ast.EUnary{
 				Op:    ast.UnOpTypeof,
-				Value: ast.Expr{loc, &ast.EIdentifier{ref}},
+				Value: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
 			}},
-			Right: ast.Expr{loc, &ast.EString{lexer.StringToUTF16("symbol")}},
+			Right: ast.Expr{Loc: loc, Data: &ast.EString{Value: lexer.StringToUTF16("symbol")}},
 		}},
-		Yes: ast.Expr{loc, &ast.EIdentifier{ref}},
-		No: ast.Expr{loc, &ast.EBinary{
+		Yes: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
+		No: ast.Expr{Loc: loc, Data: &ast.EBinary{
 			Op:    ast.BinOpAdd,
-			Left:  ast.Expr{loc, &ast.EIdentifier{ref}},
-			Right: ast.Expr{loc, &ast.EString{}},
+			Left:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
+			Right: ast.Expr{Loc: loc, Data: &ast.EString{}},
 		}},
 	}}
 }
@@ -1192,7 +1192,7 @@ func (p *parser) captureKeyForObjectRest(originalKey ast.Expr) (finalKey ast.Exp
 
 	switch k := originalKey.Data.(type) {
 	case *ast.EString:
-		capturedKey = func() ast.Expr { return ast.Expr{loc, &ast.EString{k.Value}} }
+		capturedKey = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.EString{Value: k.Value}} }
 
 	case *ast.ENumber:
 		// Emit it as the number plus a string (i.e. call toString() on it).
@@ -1201,25 +1201,25 @@ func (p *parser) captureKeyForObjectRest(originalKey ast.Expr) (finalKey ast.Exp
 		// behave exactly the same as JavaScript and if they are different,
 		// the generated code will be wrong.
 		capturedKey = func() ast.Expr {
-			return ast.Expr{loc, &ast.EBinary{
+			return ast.Expr{Loc: loc, Data: &ast.EBinary{
 				Op:    ast.BinOpAdd,
-				Left:  ast.Expr{loc, &ast.ENumber{k.Value}},
-				Right: ast.Expr{loc, &ast.EString{}},
+				Left:  ast.Expr{Loc: loc, Data: &ast.ENumber{Value: k.Value}},
+				Right: ast.Expr{Loc: loc, Data: &ast.EString{}},
 			}}
 		}
 
 	case *ast.EIdentifier:
 		capturedKey = func() ast.Expr {
-			return p.callRuntime(loc, "__restKey", []ast.Expr{{loc, &ast.EIdentifier{k.Ref}}})
+			return p.callRuntime(loc, "__restKey", []ast.Expr{{Loc: loc, Data: &ast.EIdentifier{Ref: k.Ref}}})
 		}
 
 	default:
 		// If it's an arbitrary expression, it probably has a side effect.
 		// Stash it in a temporary reference so we don't evaluate it twice.
 		tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
-		finalKey = ast.Assign(ast.Expr{loc, &ast.EIdentifier{tempRef}}, originalKey)
+		finalKey = ast.Assign(ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tempRef}}, originalKey)
 		capturedKey = func() ast.Expr {
-			return p.callRuntime(loc, "__restKey", []ast.Expr{{loc, &ast.EIdentifier{tempRef}}})
+			return p.callRuntime(loc, "__restKey", []ast.Expr{{Loc: loc, Data: &ast.EIdentifier{Ref: tempRef}}})
 		}
 	}
 
@@ -1303,7 +1303,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			// outside the class body.
 			classExpr := &ast.EClass{Class: *class}
 			class = &classExpr.Class
-			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{classLoc, classExpr})
+			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, ast.Expr{Loc: classLoc, Data: classExpr})
 			expr = nameFunc()
 			didCaptureClassExpr = true
 			name := nameFunc()
@@ -1336,11 +1336,11 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				if kind == classKindExportDefaultStmt {
 					class.Name = &defaultName
 				} else {
-					class.Name = &ast.LocRef{classLoc, p.generateTempRef(tempRefNoDeclare, "")}
+					class.Name = &ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "")}
 				}
 			}
 			p.recordUsage(class.Name.Ref)
-			return ast.Expr{classLoc, &ast.EIdentifier{class.Name.Ref}}
+			return ast.Expr{Loc: classLoc, Data: &ast.EIdentifier{Ref: class.Name.Ref}}
 		}
 	}
 
@@ -1353,7 +1353,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						// Generate a call to "__param()" for this parameter decorator
 						prop.TSDecorators = append(prop.TSDecorators,
 							p.callRuntime(decorator.Loc, "__param", []ast.Expr{
-								{decorator.Loc, &ast.ENumber{float64(i)}},
+								{Loc: decorator.Loc, Data: &ast.ENumber{Value: float64(i)}},
 								decorator,
 							}),
 						)
@@ -1388,8 +1388,8 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				// Store the key in a temporary so we can assign to it later
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
 				computedPropertyCache = maybeJoinWithComma(computedPropertyCache,
-					ast.Assign(ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}, prop.Key))
-				prop.Key = ast.Expr{prop.Key.Loc, &ast.EIdentifier{ref}}
+					ast.Assign(ast.Expr{Loc: prop.Key.Loc, Data: &ast.EIdentifier{Ref: ref}}, prop.Key))
+				prop.Key = ast.Expr{Loc: prop.Key.Loc, Data: &ast.EIdentifier{Ref: ref}}
 				keyExprNoSideEffects = prop.Key
 			}
 
@@ -1412,11 +1412,11 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				var descriptorKey ast.Expr
 				switch k := keyExprNoSideEffects.Data.(type) {
 				case *ast.ENumber:
-					descriptorKey = ast.Expr{loc, &ast.ENumber{k.Value}}
+					descriptorKey = ast.Expr{Loc: loc, Data: &ast.ENumber{Value: k.Value}}
 				case *ast.EString:
-					descriptorKey = ast.Expr{loc, &ast.EString{k.Value}}
+					descriptorKey = ast.Expr{Loc: loc, Data: &ast.EString{Value: k.Value}}
 				case *ast.EIdentifier:
-					descriptorKey = ast.Expr{loc, &ast.EIdentifier{k.Ref}}
+					descriptorKey = ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: k.Ref}}
 				default:
 					panic("Internal error")
 				}
@@ -1428,14 +1428,14 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				}
 
 				decorator := p.callRuntime(loc, "__decorate", []ast.Expr{
-					{loc, &ast.EArray{Items: prop.TSDecorators}},
-					{loc, &ast.EDot{
+					{Loc: loc, Data: &ast.EArray{Items: prop.TSDecorators}},
+					{Loc: loc, Data: &ast.EDot{
 						Target:  nameFunc(),
 						Name:    "prototype",
 						NameLoc: loc,
 					}},
 					descriptorKey,
-					{loc, &ast.ENumber{descriptorKind}},
+					{Loc: loc, Data: &ast.ENumber{Value: descriptorKind}},
 				})
 
 				// Static decorators are grouped after instance decorators
@@ -1463,7 +1463,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				if prop.IsStatic {
 					target = nameFunc()
 				} else {
-					target = ast.Expr{loc, &ast.EThis{}}
+					target = ast.Expr{Loc: loc, Data: &ast.EThis{}}
 				}
 
 				// Generate the assignment initializer
@@ -1471,7 +1471,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				if prop.Initializer != nil {
 					init = *prop.Initializer
 				} else {
-					init = ast.Expr{loc, &ast.EUndefined{}}
+					init = ast.Expr{Loc: loc, Data: &ast.EUndefined{}}
 				}
 
 				// Generate the assignment target
@@ -1487,14 +1487,14 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
 					}
 					privateMembers = append(privateMembers, ast.Assign(
-						ast.Expr{loc, &ast.EIdentifier{ref}},
-						ast.Expr{loc, &ast.ENew{Target: ast.Expr{loc, &ast.EIdentifier{p.weakMapRef}}}},
+						ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
+						ast.Expr{Loc: loc, Data: &ast.ENew{Target: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: p.weakMapRef}}}},
 					))
 
 					// Add every newly-constructed instance into this map
-					expr = ast.Expr{loc, &ast.ECall{
-						Target: ast.Expr{loc, &ast.EDot{
-							Target:  ast.Expr{loc, &ast.EIdentifier{ref}},
+					expr = ast.Expr{Loc: loc, Data: &ast.ECall{
+						Target: ast.Expr{Loc: loc, Data: &ast.EDot{
+							Target:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
 							Name:    "set",
 							NameLoc: loc,
 						}},
@@ -1511,13 +1511,13 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 					})
 				} else {
 					if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
-						target = ast.Expr{loc, &ast.EDot{
+						target = ast.Expr{Loc: loc, Data: &ast.EDot{
 							Target:  target,
 							Name:    lexer.UTF16ToString(key.Value),
 							NameLoc: loc,
 						}}
 					} else {
-						target = ast.Expr{loc, &ast.EIndex{
+						target = ast.Expr{Loc: loc, Data: &ast.EIndex{
 							Target: target,
 							Index:  prop.Key,
 						}}
@@ -1531,7 +1531,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 					staticMembers = append(staticMembers, expr)
 				} else {
 					// Move this property to an assignment inside the class constructor
-					instanceMembers = append(instanceMembers, ast.Stmt{loc, &ast.SExpr{expr}})
+					instanceMembers = append(instanceMembers, ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: expr}})
 				}
 			}
 
@@ -1561,8 +1561,8 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
 					}
 					privateMembers = append(privateMembers, ast.Assign(
-						ast.Expr{loc, &ast.EIdentifier{ref}},
-						ast.Expr{loc, &ast.ENew{Target: ast.Expr{loc, &ast.EIdentifier{p.weakSetRef}}}},
+						ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
+						ast.Expr{Loc: loc, Data: &ast.ENew{Target: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: p.weakSetRef}}}},
 					))
 
 					// Determine where to store the private method
@@ -1570,13 +1570,13 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 					if prop.IsStatic {
 						target = nameFunc()
 					} else {
-						target = ast.Expr{loc, &ast.EThis{}}
+						target = ast.Expr{Loc: loc, Data: &ast.EThis{}}
 					}
 
 					// Add every newly-constructed instance into this map
-					expr := ast.Expr{loc, &ast.ECall{
-						Target: ast.Expr{loc, &ast.EDot{
-							Target:  ast.Expr{loc, &ast.EIdentifier{ref}},
+					expr := ast.Expr{Loc: loc, Data: &ast.ECall{
+						Target: ast.Expr{Loc: loc, Data: &ast.EDot{
+							Target:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
 							Name:    "add",
 							NameLoc: loc,
 						}},
@@ -1590,7 +1590,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						staticMembers = append(staticMembers, expr)
 					} else {
 						// Move this property to an assignment inside the class constructor
-						instanceMembers = append(instanceMembers, ast.Stmt{loc, &ast.SExpr{expr}})
+						instanceMembers = append(instanceMembers, ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: expr}})
 					}
 				}
 
@@ -1602,7 +1602,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[privateName.Ref]
 				}
 				privateMembers = append(privateMembers, ast.Assign(
-					ast.Expr{loc, &ast.EIdentifier{methodRef}},
+					ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: methodRef}},
 					*prop.Value,
 				))
 				continue
@@ -1616,12 +1616,12 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 							if arg.IsTypeScriptCtorField {
 								if id, ok := arg.Binding.Data.(*ast.BIdentifier); ok {
 									parameterFields = append(parameterFields, ast.AssignStmt(
-										ast.Expr{arg.Binding.Loc, &ast.EDot{
-											Target:  ast.Expr{arg.Binding.Loc, &ast.EThis{}},
+										ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EDot{
+											Target:  ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EThis{}},
 											Name:    p.symbols[id.Ref.InnerIndex].Name,
 											NameLoc: arg.Binding.Loc,
 										}},
-										ast.Expr{arg.Binding.Loc, &ast.EIdentifier{id.Ref}},
+										ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EIdentifier{Ref: id.Ref}},
 									))
 								}
 							}
@@ -1648,17 +1648,17 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			// Append it to the list to reuse existing allocation space
 			class.Properties = append(class.Properties, ast.Property{
 				IsMethod: true,
-				Key:      ast.Expr{classLoc, &ast.EString{lexer.StringToUTF16("constructor")}},
-				Value:    &ast.Expr{classLoc, ctor},
+				Key:      ast.Expr{Loc: classLoc, Data: &ast.EString{Value: lexer.StringToUTF16("constructor")}},
+				Value:    &ast.Expr{Loc: classLoc, Data: ctor},
 			})
 
 			// Make sure the constructor has a super() call if needed
 			if class.Extends != nil {
 				argumentsRef := p.newSymbol(ast.SymbolUnbound, "arguments")
 				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
-				ctor.Fn.Body.Stmts = append(ctor.Fn.Body.Stmts, ast.Stmt{classLoc, &ast.SExpr{ast.Expr{classLoc, &ast.ECall{
-					Target: ast.Expr{classLoc, &ast.ESuper{}},
-					Args:   []ast.Expr{{classLoc, &ast.ESpread{ast.Expr{classLoc, &ast.EIdentifier{argumentsRef}}}}},
+				ctor.Fn.Body.Stmts = append(ctor.Fn.Body.Stmts, ast.Stmt{Loc: classLoc, Data: &ast.SExpr{Value: ast.Expr{Loc: classLoc, Data: &ast.ECall{
+					Target: ast.Expr{Loc: classLoc, Data: &ast.ESuper{}},
+					Args:   []ast.Expr{{Loc: classLoc, Data: &ast.ESpread{Value: ast.Expr{Loc: classLoc, Data: &ast.EIdentifier{Ref: argumentsRef}}}}},
 				}}}})
 			}
 		}
@@ -1727,24 +1727,24 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		id, _ := name.Data.(*ast.EIdentifier)
 		classExpr := ast.EClass{Class: *class}
 		class = &classExpr.Class
-		stmts = append(stmts, ast.Stmt{classLoc, &ast.SLocal{
+		stmts = append(stmts, ast.Stmt{Loc: classLoc, Data: &ast.SLocal{
 			Kind:     ast.LocalLet,
 			IsExport: kind == classKindExportStmt,
 			Decls: []ast.Decl{{
-				Binding: ast.Binding{name.Loc, &ast.BIdentifier{id.Ref}},
-				Value:   &ast.Expr{classLoc, &classExpr},
+				Binding: ast.Binding{Loc: name.Loc, Data: &ast.BIdentifier{Ref: id.Ref}},
+				Value:   &ast.Expr{Loc: classLoc, Data: &classExpr},
 			}},
 		}})
 	} else {
 		switch kind {
 		case classKindStmt:
-			stmts = append(stmts, ast.Stmt{classLoc, &ast.SClass{Class: *class}})
+			stmts = append(stmts, ast.Stmt{Loc: classLoc, Data: &ast.SClass{Class: *class}})
 		case classKindExportStmt:
-			stmts = append(stmts, ast.Stmt{classLoc, &ast.SClass{Class: *class, IsExport: true}})
+			stmts = append(stmts, ast.Stmt{Loc: classLoc, Data: &ast.SClass{Class: *class, IsExport: true}})
 		case classKindExportDefaultStmt:
-			stmts = append(stmts, ast.Stmt{classLoc, &ast.SExportDefault{
+			stmts = append(stmts, ast.Stmt{Loc: classLoc, Data: &ast.SExportDefault{
 				DefaultName: defaultName,
-				Value:       ast.ExprOrStmt{Stmt: &ast.Stmt{classLoc, &ast.SClass{Class: *class}}},
+				Value:       ast.ExprOrStmt{Stmt: &ast.Stmt{Loc: classLoc, Data: &ast.SClass{Class: *class}}},
 			}})
 		}
 	}
@@ -1752,25 +1752,25 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	// The official TypeScript compiler adds generated code after the class body
 	// in this exact order. Matching this order is important for correctness.
 	if computedPropertyCache.Data != nil {
-		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{computedPropertyCache}})
+		stmts = append(stmts, ast.Stmt{Loc: expr.Loc, Data: &ast.SExpr{Value: computedPropertyCache}})
 	}
 	for _, expr := range privateMembers {
-		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+		stmts = append(stmts, ast.Stmt{Loc: expr.Loc, Data: &ast.SExpr{Value: expr}})
 	}
 	for _, expr := range staticMembers {
-		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+		stmts = append(stmts, ast.Stmt{Loc: expr.Loc, Data: &ast.SExpr{Value: expr}})
 	}
 	for _, expr := range instanceDecorators {
-		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+		stmts = append(stmts, ast.Stmt{Loc: expr.Loc, Data: &ast.SExpr{Value: expr}})
 	}
 	for _, expr := range staticDecorators {
-		stmts = append(stmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+		stmts = append(stmts, ast.Stmt{Loc: expr.Loc, Data: &ast.SExpr{Value: expr}})
 	}
 	if len(class.TSDecorators) > 0 {
 		stmts = append(stmts, ast.AssignStmt(
 			nameFunc(),
 			p.callRuntime(classLoc, "__decorate", []ast.Expr{
-				{classLoc, &ast.EArray{Items: class.TSDecorators}},
+				{Loc: classLoc, Data: &ast.EArray{Items: class.TSDecorators}},
 				nameFunc(),
 			}),
 		))
@@ -1785,8 +1785,8 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			p.recordDeclaredSymbol(defaultRef)
 
 			name := nameFunc()
-			stmts = append(stmts, ast.Stmt{classLoc, &ast.SExportDefault{
-				DefaultName: ast.LocRef{defaultName.Loc, defaultRef},
+			stmts = append(stmts, ast.Stmt{Loc: classLoc, Data: &ast.SExportDefault{
+				DefaultName: ast.LocRef{Loc: defaultName.Loc, Ref: defaultRef},
 				Value:       ast.ExprOrStmt{Expr: &name},
 			}})
 		}

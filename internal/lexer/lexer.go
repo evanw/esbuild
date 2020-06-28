@@ -275,11 +275,11 @@ func NewLexerJSON(log logging.Log, source logging.Source, allowComments bool) Le
 }
 
 func (lexer *Lexer) Loc() ast.Loc {
-	return ast.Loc{int32(lexer.start)}
+	return ast.Loc{Start: int32(lexer.start)}
 }
 
 func (lexer *Lexer) Range() ast.Range {
-	return ast.Range{ast.Loc{int32(lexer.start)}, int32(lexer.end - lexer.start)}
+	return ast.Range{Loc: ast.Loc{Start: int32(lexer.start)}, Len: int32(lexer.end - lexer.start)}
 }
 
 func (lexer *Lexer) Raw() string {
@@ -317,7 +317,7 @@ func (lexer *Lexer) ExpectContextualKeyword(text string) {
 }
 
 func (lexer *Lexer) SyntaxError() {
-	loc := ast.Loc{int32(lexer.end)}
+	loc := ast.Loc{Start: int32(lexer.end)}
 	message := "Unexpected end of file"
 	if lexer.end < len(lexer.source.Contents) {
 		c, _ := utf8.DecodeRuneInString(lexer.source.Contents[lexer.end:])
@@ -579,7 +579,7 @@ func IsWhitespace(codePoint rune) bool {
 func RangeOfIdentifier(source logging.Source, loc ast.Loc) ast.Range {
 	text := source.Contents[loc.Start:]
 	if len(text) == 0 {
-		return ast.Range{loc, 0}
+		return ast.Range{Loc: loc, Len: 0}
 	}
 
 	i := 0
@@ -591,7 +591,7 @@ func RangeOfIdentifier(source logging.Source, loc ast.Loc) ast.Range {
 		for i < len(text) {
 			c2, width2 := utf8.DecodeRuneInString(text[i:])
 			if !IsIdentifierContinue(c2) {
-				return ast.Range{loc, int32(i)}
+				return ast.Range{Loc: loc, Len: int32(i)}
 			}
 			i += width2
 		}
@@ -1326,7 +1326,7 @@ func (lexer *Lexer) Next() {
 
 				case '\r', '\n':
 					if quote != '`' {
-						lexer.addError(ast.Loc{int32(lexer.end)}, "Unterminated string literal")
+						lexer.addError(ast.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
 						panic(LexerPanic{})
 					}
 
@@ -1501,7 +1501,7 @@ func (lexer *Lexer) scanIdentifierWithEscapes(kind identifierKind) (string, T) {
 		identifier = identifier[1:] // Skip over the "#"
 	}
 	if !IsIdentifier(identifier) {
-		lexer.addRangeError(ast.Range{ast.Loc{int32(lexer.start)}, int32(lexer.end - lexer.start)},
+		lexer.addRangeError(ast.Range{Loc: ast.Loc{Start: int32(lexer.start)}, Len: int32(lexer.end - lexer.start)},
 			fmt.Sprintf("Invalid identifier: %q", text))
 	}
 
@@ -2094,7 +2094,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 					}
 
 					if isOutOfRange {
-						lexer.addRangeError(ast.Range{ast.Loc{int32(start + hexStart)}, int32(i - hexStart)},
+						lexer.addRangeError(ast.Range{Loc: ast.Loc{Start: int32(start + hexStart)}, Len: int32(i - hexStart)},
 							"Unicode escape sequence is out of range")
 						panic(LexerPanic{})
 					}

@@ -652,7 +652,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		// written to a property access later on
 		var value ast.Expr
 		if c.symbols.Get(export.ref).NamespaceAlias != nil {
-			value = ast.Expr{Data: &ast.EImportIdentifier{export.ref}}
+			value = ast.Expr{Data: &ast.EImportIdentifier{Ref: export.ref}}
 
 			// Imported identifiers must be assigned to a local variable to be
 			// exported using an ES6 export clause. The import needs to be an
@@ -660,7 +660,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			if needsEntryPointES6ExportPart {
 				// Generate a temporary variable
 				inner := &c.symbols.Outer[sourceIndex]
-				tempRef := ast.Ref{sourceIndex, uint32(len(*inner))}
+				tempRef := ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
 				*inner = append(*inner, ast.Symbol{
 					Kind: ast.SymbolOther,
 					Name: "export_" + alias,
@@ -714,8 +714,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				entryPointES6ExportStmts = append(entryPointES6ExportStmts, ast.Stmt{Data: &ast.SLocal{
 					Kind: ast.LocalConst,
 					Decls: []ast.Decl{{
-						Binding: ast.Binding{Data: &ast.BIdentifier{tempRef}},
-						Value:   &ast.Expr{Data: &ast.EImportIdentifier{export.ref}},
+						Binding: ast.Binding{Data: &ast.BIdentifier{Ref: tempRef}},
+						Value:   &ast.Expr{Data: &ast.EImportIdentifier{Ref: export.ref}},
 					}},
 				}})
 				entryPointES6ExportItems = append(entryPointES6ExportItems, ast.ClauseItem{
@@ -724,7 +724,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				})
 			}
 		} else {
-			value = ast.Expr{Data: &ast.EIdentifier{export.ref}}
+			value = ast.Expr{Data: &ast.EIdentifier{Ref: export.ref}}
 
 			if needsEntryPointES6ExportPart {
 				// Local identifiers can be exported using an export clause. This is done
@@ -759,10 +759,10 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Add a getter property
 		properties = append(properties, ast.Property{
-			Key: ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
-			Value: &ast.Expr{ast.Loc{}, &ast.EArrow{
+			Key: ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(alias)}},
+			Value: &ast.Expr{Data: &ast.EArrow{
 				PreferExpr: true,
-				Body:       ast.FnBody{Stmts: []ast.Stmt{{value.Loc, &ast.SReturn{&value}}}},
+				Body:       ast.FnBody{Stmts: []ast.Stmt{{Loc: value.Loc, Data: &ast.SReturn{Value: &value}}}},
 			}},
 		})
 		useCountEstimates[export.ref]++
@@ -782,9 +782,9 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	declaredSymbols := []ast.DeclaredSymbol{}
 	stmts := make([]ast.Stmt, 0, 2)
 	if !fileMeta.cjsStyleExports {
-		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{{
-			Binding: ast.Binding{ast.Loc{}, &ast.BIdentifier{file.ast.ExportsRef}},
-			Value:   &ast.Expr{ast.Loc{}, &ast.EObject{}},
+		stmts = append(stmts, ast.Stmt{Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{{
+			Binding: ast.Binding{Data: &ast.BIdentifier{Ref: file.ast.ExportsRef}},
+			Value:   &ast.Expr{Data: &ast.EObject{}},
 		}}}})
 		declaredSymbols = append(declaredSymbols, ast.DeclaredSymbol{
 			Ref:        file.ast.ExportsRef,
@@ -796,11 +796,11 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	if len(properties) > 0 {
 		runtimeFile := &c.files[ast.RuntimeSourceIndex]
 		exportRef := runtimeFile.ast.ModuleScope.Members["__export"]
-		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
-			Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
+		stmts = append(stmts, ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
+			Target: ast.Expr{Data: &ast.EIdentifier{Ref: exportRef}},
 			Args: []ast.Expr{
-				{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
-				{ast.Loc{}, &ast.EObject{
+				{Data: &ast.EIdentifier{Ref: file.ast.ExportsRef}},
+				{Data: &ast.EObject{
 					Properties: properties,
 				}},
 			},
@@ -1645,8 +1645,8 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 	stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
 		Loc: loc,
 		Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{{
-			ast.Binding{loc, &ast.BIdentifier{namespaceRef}},
-			&ast.Expr{record.Path.Loc, &ast.ERequire{importRecordIndex}},
+			Binding: ast.Binding{Loc: loc, Data: &ast.BIdentifier{Ref: namespaceRef}},
+			Value:   &ast.Expr{Loc: record.Path.Loc, Data: &ast.ERequire{ImportRecordIndex: importRecordIndex}},
 		}}},
 	})
 	return true
@@ -1690,11 +1690,11 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						exportStarRef := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members["__exportStar"]
 						stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
 							Loc: stmt.Loc,
-							Data: &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
-								Target: ast.Expr{stmt.Loc, &ast.EIdentifier{exportStarRef}},
+							Data: &ast.SExpr{Value: ast.Expr{Loc: stmt.Loc, Data: &ast.ECall{
+								Target: ast.Expr{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: exportStarRef}},
 								Args: []ast.Expr{
-									{stmt.Loc, &ast.EIdentifier{c.files[sourceIndex].ast.ExportsRef}},
-									{stmt.Loc, &ast.EIdentifier{s.NamespaceRef}},
+									{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: c.files[sourceIndex].ast.ExportsRef}},
+									{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: s.NamespaceRef}},
 								},
 							}}},
 						})
@@ -1710,11 +1710,11 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 							exportStarRef := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members["__exportStar"]
 							stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
 								Loc: stmt.Loc,
-								Data: &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
-									Target: ast.Expr{stmt.Loc, &ast.EIdentifier{exportStarRef}},
+								Data: &ast.SExpr{Value: ast.Expr{Loc: stmt.Loc, Data: &ast.ECall{
+									Target: ast.Expr{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: exportStarRef}},
 									Args: []ast.Expr{
-										{stmt.Loc, &ast.EIdentifier{c.files[sourceIndex].ast.ExportsRef}},
-										{record.Path.Loc, &ast.ERequire{s.ImportRecordIndex}},
+										{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: c.files[sourceIndex].ast.ExportsRef}},
+										{Loc: record.Path.Loc, Data: &ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}},
 									},
 								}}},
 							})
@@ -1815,8 +1815,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			if shouldStripExports {
 				if s.Value.Expr != nil {
 					// "export default foo;" => "const default = foo;"
-					stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
-						{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
+					stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
+						{Binding: ast.Binding{Loc: s.DefaultName.Loc, Data: &ast.BIdentifier{Ref: s.DefaultName.Ref}}, Value: s.Value.Expr},
 					}}}
 				} else {
 					switch s2 := s.Value.Stmt.Data.(type) {
@@ -1828,7 +1828,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						s2 = &ast.SFunction{Fn: s2.Fn}
 						s2.Fn.Name = &s.DefaultName
 
-						stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
+						stmt = ast.Stmt{Loc: s.Value.Stmt.Loc, Data: s2}
 
 					case *ast.SClass:
 						// "export default class {}" => "class default {}"
@@ -1838,7 +1838,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						s2 = &ast.SClass{Class: s2.Class}
 						s2.Class.Name = &s.DefaultName
 
-						stmt = ast.Stmt{s.Value.Stmt.Loc, s2}
+						stmt = ast.Stmt{Loc: s.Value.Stmt.Loc, Data: s2}
 
 					default:
 						panic("Internal error")
@@ -1965,22 +1965,22 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		// Only include the arguments that are actually used
 		args := []ast.Arg{}
 		if file.ast.UsesExportsRef || file.ast.UsesModuleRef {
-			args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{file.ast.ExportsRef}}})
+			args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{Ref: file.ast.ExportsRef}}})
 			if file.ast.UsesModuleRef {
-				args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{file.ast.ModuleRef}}})
+				args = append(args, ast.Arg{Binding: ast.Binding{Data: &ast.BIdentifier{Ref: file.ast.ModuleRef}}})
 			}
 		}
 
 		// "__commonJS((exports, module) => { ... })"
 		value := ast.Expr{Data: &ast.ECall{
-			Target: ast.Expr{Data: &ast.EIdentifier{commonJSRef}},
+			Target: ast.Expr{Data: &ast.EIdentifier{Ref: commonJSRef}},
 			Args:   []ast.Expr{{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
 		}}
 
 		// "var require_foo = __commonJS((exports, module) => { ... });"
 		stmts = append(stmtList.es6StmtsForCJSWrap, ast.Stmt{Data: &ast.SLocal{
 			Decls: []ast.Decl{{
-				Binding: ast.Binding{Data: &ast.BIdentifier{file.ast.WrapperRef}},
+				Binding: ast.Binding{Data: &ast.BIdentifier{Ref: file.ast.WrapperRef}},
 				Value:   &value,
 			}},
 		}})
@@ -2021,20 +2021,20 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		switch c.options.OutputFormat {
 		case printer.FormatPreserve:
 			// "require_foo();"
-			stmt = ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
-				Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+			stmt = ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
+				Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
 			}}}}
 
 		case printer.FormatIIFE:
 			if c.options.ModuleName != "" {
 				// "return require_foo();"
-				stmt = ast.Stmt{Data: &ast.SReturn{&ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+				stmt = ast.Stmt{Data: &ast.SReturn{Value: &ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
 				}}}}
 			} else {
 				// "require_foo();"
-				stmt = ast.Stmt{Data: &ast.SExpr{ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+				stmt = ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
 				}}}}
 			}
 
@@ -2042,18 +2042,18 @@ func (c *linkerContext) generateCodeForFileInChunk(
 			// "module.exports = require_foo();"
 			stmt = ast.AssignStmt(
 				ast.Expr{Data: &ast.EDot{
-					Target: ast.Expr{Data: &ast.EIdentifier{unboundModuleRef}},
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: unboundModuleRef}},
 					Name:   "exports",
 				}},
 				ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
 				}},
 			)
 
 		case printer.FormatESModule:
 			// "export default require_foo();"
 			stmt = ast.Stmt{Data: &ast.SExportDefault{Value: ast.ExprOrStmt{Expr: &ast.Expr{Data: &ast.ECall{
-				Target: ast.Expr{Data: &ast.EIdentifier{file.ast.WrapperRef}},
+				Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
 			}}}}}
 		}
 
@@ -2083,7 +2083,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 	// Allocate a new unbound symbol called "module" in case we need it
 	runtimeSymbols := &c.symbols.Outer[ast.RuntimeSourceIndex]
-	unboundModuleRef := ast.Ref{ast.RuntimeSourceIndex, uint32(len(*runtimeSymbols))}
+	unboundModuleRef := ast.Ref{OuterIndex: ast.RuntimeSourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
 	*runtimeSymbols = append(*runtimeSymbols, ast.Symbol{
 		Kind: ast.SymbolUnbound,
 		Name: "module",

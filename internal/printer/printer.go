@@ -2687,7 +2687,7 @@ func createPrinter(
 		prevOpEnd:          -1,
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
-		prevLoc:            ast.Loc{-1},
+		prevLoc:            ast.Loc{Start: -1},
 	}
 
 	// If we're writing out a source map, prepare a table of line start indices
@@ -2727,7 +2727,7 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 	p := createPrinter(tree.Symbols, tree.ImportRecords, options)
 
 	// Always add a mapping at the beginning of the file
-	p.addSourceMapping(ast.Loc{0})
+	p.addSourceMapping(ast.Loc{Start: 0})
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
@@ -2746,7 +2746,7 @@ func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) Print
 	p := createPrinter(symbols, nil, options)
 
 	// Always add a mapping at the beginning of the file
-	p.addSourceMapping(ast.Loc{0})
+	p.addSourceMapping(ast.Loc{Start: 0})
 
 	p.printExpr(expr, ast.LLowest, 0)
 	return PrintResult{

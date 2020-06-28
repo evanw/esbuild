@@ -205,7 +205,7 @@ func validateDefines(log logging.Log, defines map[string]string) *parser.Process
 			if _, ok := lexer.Keywords()[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
 				rawDefines[key] = func(findSymbol parser.FindSymbol) ast.E {
-					return &ast.EIdentifier{findSymbol(name)}
+					return &ast.EIdentifier{Ref: findSymbol(name)}
 				}
 				continue
 			}
@@ -225,11 +225,11 @@ func validateDefines(log logging.Log, defines map[string]string) *parser.Process
 		case *ast.ENull:
 			fn = func(parser.FindSymbol) ast.E { return &ast.ENull{} }
 		case *ast.EBoolean:
-			fn = func(parser.FindSymbol) ast.E { return &ast.EBoolean{e.Value} }
+			fn = func(parser.FindSymbol) ast.E { return &ast.EBoolean{Value: e.Value} }
 		case *ast.EString:
-			fn = func(parser.FindSymbol) ast.E { return &ast.EString{e.Value} }
+			fn = func(parser.FindSymbol) ast.E { return &ast.EString{Value: e.Value} }
 		case *ast.ENumber:
-			fn = func(parser.FindSymbol) ast.E { return &ast.ENumber{e.Value} }
+			fn = func(parser.FindSymbol) ast.E { return &ast.ENumber{Value: e.Value} }
 		default:
 			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue

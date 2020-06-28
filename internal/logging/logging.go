@@ -70,7 +70,7 @@ func (s *Source) TextForRange(r ast.Range) string {
 func (s *Source) RangeOfString(loc ast.Loc) ast.Range {
 	text := s.Contents[loc.Start:]
 	if len(text) == 0 {
-		return ast.Range{loc, 0}
+		return ast.Range{Loc: loc, Len: 0}
 	}
 
 	quote := text[0]
@@ -79,14 +79,14 @@ func (s *Source) RangeOfString(loc ast.Loc) ast.Range {
 		for i := 1; i < len(text); i++ {
 			c := text[i]
 			if c == quote {
-				return ast.Range{loc, int32(i + 1)}
+				return ast.Range{Loc: loc, Len: int32(i + 1)}
 			} else if c == '\\' {
 				i += 1
 			}
 		}
 	}
 
-	return ast.Range{loc, 0}
+	return ast.Range{Loc: loc, Len: 0}
 }
 
 func plural(prefix string, count int) string {

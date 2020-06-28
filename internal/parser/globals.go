@@ -147,8 +147,8 @@ func ProcessDefines(userDefines map[string]DefineFunc) ProcessedDefines {
 
 	// Swap in certain literal values because those can be constant folded
 	result.IdentifierDefines["undefined"] = func(FindSymbol) ast.E { return &ast.EUndefined{} }
-	result.IdentifierDefines["NaN"] = func(FindSymbol) ast.E { return &ast.ENumber{math.NaN()} }
-	result.IdentifierDefines["Infinity"] = func(FindSymbol) ast.E { return &ast.ENumber{math.Inf(1)} }
+	result.IdentifierDefines["NaN"] = func(FindSymbol) ast.E { return &ast.ENumber{Value: math.NaN()} }
+	result.IdentifierDefines["Infinity"] = func(FindSymbol) ast.E { return &ast.ENumber{Value: math.Inf(1)} }
 
 	// Then copy the user-specified defines in afterwards, which will overwrite
 	// any known globals above.

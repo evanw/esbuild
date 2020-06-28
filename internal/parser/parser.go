@@ -474,7 +474,7 @@ func (p *parser) discardScopesUpTo(scopeIndex int) {
 }
 
 func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
-	ref := ast.Ref{p.source.Index, uint32(len(p.symbols))}
+	ref := ast.Ref{OuterIndex: p.source.Index, InnerIndex: uint32(len(p.symbols))}
 	p.symbols = append(p.symbols, ast.Symbol{
 		Kind: kind,
 		Name: name,
@@ -717,8 +717,8 @@ func (p *parser) callRuntime(loc ast.Loc, name string, args []ast.Expr) ast.Expr
 		p.runtimeImports[name] = ref
 	}
 	p.recordUsage(ref)
-	return ast.Expr{loc, &ast.ECall{
-		Target: ast.Expr{loc, &ast.EIdentifier{ref}},
+	return ast.Expr{Loc: loc, Data: &ast.ECall{
+		Target: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
 		Args:   args,
 	}}
 }
@@ -744,13 +744,13 @@ func (p *parser) storeNameInRef(name string) ast.Ref {
 		// It's stored as a negative value so we'll crash if we try to use it. That
 		// way we'll catch cases where we've forgetten to call loadNameFromRef().
 		// The length is the negative part because we know it's non-zero.
-		return ast.Ref{-uint32(n.Len), uint32(n.Data - c.Data)}
+		return ast.Ref{OuterIndex: -uint32(n.Len), InnerIndex: uint32(n.Data - c.Data)}
 	} else {
 		// The name is some memory allocated elsewhere. This is either an inline
 		// string constant in the parser or an identifier with escape sequences
 		// in the source code, which is very unusual. Stash it away for later.
 		// This uses allocations but it should hopefully be very uncommon.
-		ref := ast.Ref{0x80000000, uint32(len(p.allocatedNames))}
+		ref := ast.Ref{OuterIndex: 0x80000000, InnerIndex: uint32(len(p.allocatedNames))}
 		p.allocatedNames = append(p.allocatedNames, name)
 		return ref
 	}
@@ -1484,18 +1484,18 @@ func (p *parser) parseProperty(
 
 	switch p.lexer.Token {
 	case lexer.TNumericLiteral:
-		key = ast.Expr{p.lexer.Loc(), &ast.ENumber{p.lexer.Number}}
+		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.ENumber{Value: p.lexer.Number}}
 		p.lexer.Next()
 
 	case lexer.TStringLiteral:
-		key = ast.Expr{p.lexer.Loc(), &ast.EString{p.lexer.StringLiteral}}
+		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EString{Value: p.lexer.StringLiteral}}
 		p.lexer.Next()
 
 	case lexer.TPrivateIdentifier:
 		if !opts.isClass || len(opts.tsDecorators) > 0 {
 			p.lexer.Expected(lexer.TIdentifier)
 		}
-		key = ast.Expr{p.lexer.Loc(), &ast.EPrivateIdentifier{p.storeNameInRef(p.lexer.Identifier)}}
+		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EPrivateIdentifier{Ref: p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Next()
 
 	case lexer.TOpenBracket:
@@ -1586,13 +1586,13 @@ func (p *parser) parseProperty(
 			}
 		}
 
-		key = ast.Expr{nameRange.Loc, &ast.EString{lexer.StringToUTF16(name)}}
+		key = ast.Expr{Loc: nameRange.Loc, Data: &ast.EString{Value: lexer.StringToUTF16(name)}}
 
 		// Parse a shorthand property
 		if !opts.isClass && kind == ast.PropertyNormal && p.lexer.Token != lexer.TColon &&
 			p.lexer.Token != lexer.TOpenParen && p.lexer.Token != lexer.TLessThan && !opts.isGenerator {
 			ref := p.storeNameInRef(name)
-			value := ast.Expr{key.Loc, &ast.EIdentifier{ref}}
+			value := ast.Expr{Loc: key.Loc, Data: &ast.EIdentifier{Ref: ref}}
 
 			// Destructuring patterns have an optional default value
 			var initializer *ast.Expr = nil
@@ -1717,7 +1717,7 @@ func (p *parser) parseProperty(
 		}
 
 		p.popScope()
-		value := ast.Expr{loc, &ast.EFunction{fn}}
+		value := ast.Expr{Loc: loc, Data: &ast.EFunction{Fn: fn}}
 
 		// Special-case private identifiers
 		if private, ok := key.Data.(*ast.EPrivateIdentifier); ok {
@@ -1778,7 +1778,7 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 	switch p.lexer.Token {
 	case lexer.TDotDotDot:
 		p.lexer.Next()
-		value := ast.Binding{p.lexer.Loc(), &ast.BIdentifier{p.storeNameInRef(p.lexer.Identifier)}}
+		value := ast.Binding{Loc: p.lexer.Loc(), Data: &ast.BIdentifier{Ref: p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Expect(lexer.TIdentifier)
 		return ast.PropertyBinding{
 			IsSpread: true,
@@ -1786,11 +1786,11 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 		}
 
 	case lexer.TNumericLiteral:
-		key = ast.Expr{p.lexer.Loc(), &ast.ENumber{p.lexer.Number}}
+		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.ENumber{Value: p.lexer.Number}}
 		p.lexer.Next()
 
 	case lexer.TStringLiteral:
-		key = ast.Expr{p.lexer.Loc(), &ast.EString{p.lexer.StringLiteral}}
+		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EString{Value: p.lexer.StringLiteral}}
 		p.lexer.Next()
 
 	case lexer.TOpenBracket:
@@ -1806,11 +1806,11 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 			p.lexer.Expect(lexer.TIdentifier)
 		}
 		p.lexer.Next()
-		key = ast.Expr{loc, &ast.EString{lexer.StringToUTF16(name)}}
+		key = ast.Expr{Loc: loc, Data: &ast.EString{Value: lexer.StringToUTF16(name)}}
 
 		if p.lexer.Token != lexer.TColon && p.lexer.Token != lexer.TOpenParen {
 			ref := p.storeNameInRef(name)
-			value := ast.Binding{loc, &ast.BIdentifier{ref}}
+			value := ast.Binding{Loc: loc, Data: &ast.BIdentifier{Ref: ref}}
 
 			var defaultValue *ast.Expr
 			if p.lexer.Token == lexer.TEquals {
@@ -1881,7 +1881,7 @@ func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 	return &ast.EArrow{
 		Args:       args,
 		PreferExpr: true,
-		Body:       ast.FnBody{arrowLoc, []ast.Stmt{{expr.Loc, &ast.SReturn{&expr}}}},
+		Body:       ast.FnBody{Loc: arrowLoc, Stmts: []ast.Stmt{{Loc: expr.Loc, Data: &ast.SReturn{Value: &expr}}}},
 	}
 }
 
@@ -1904,17 +1904,17 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 
 		// "async => {}"
 	case lexer.TEqualsGreaterThan:
-		arg := ast.Arg{Binding: ast.Binding{asyncRange.Loc, &ast.BIdentifier{p.storeNameInRef("async")}}}
+		arg := ast.Arg{Binding: ast.Binding{Loc: asyncRange.Loc, Data: &ast.BIdentifier{Ref: p.storeNameInRef("async")}}}
 
 		p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
 		defer p.popScope()
 
-		return ast.Expr{asyncRange.Loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
+		return ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
 
 		// "async x => {}"
 	case lexer.TIdentifier:
 		ref := p.storeNameInRef(p.lexer.Identifier)
-		arg := ast.Arg{Binding: ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}}
+		arg := ast.Arg{Binding: ast.Binding{Loc: p.lexer.Loc(), Data: &ast.BIdentifier{Ref: ref}}}
 		p.lexer.Next()
 
 		p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
@@ -1922,7 +1922,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 
 		arrow := p.parseArrowBody([]ast.Arg{arg}, fnOpts{allowAwait: true})
 		arrow.IsAsync = true
-		return ast.Expr{asyncRange.Loc, arrow}
+		return ast.Expr{Loc: asyncRange.Loc, Data: arrow}
 
 		// "async()"
 		// "async () => {}"
@@ -1939,7 +1939,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 			return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 		}
 
-		return ast.Expr{asyncRange.Loc, &ast.EIdentifier{p.storeNameInRef("async")}}
+		return ast.Expr{Loc: asyncRange.Loc, Data: &ast.EIdentifier{Ref: p.storeNameInRef("async")}}
 	}
 }
 
@@ -1957,7 +1957,7 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) as
 	// The name is optional
 	if p.lexer.Token == lexer.TIdentifier {
 		nameLoc := p.lexer.Loc()
-		name = &ast.LocRef{nameLoc, p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, p.lexer.Identifier)}
+		name = &ast.LocRef{Loc: nameLoc, Ref: p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, p.lexer.Identifier)}
 		p.lexer.Next()
 	}
 
@@ -1971,7 +1971,7 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) as
 		allowAwait: isAsync,
 		allowYield: isGenerator,
 	})
-	return ast.Expr{loc, &ast.EFunction{fn}}
+	return ast.Expr{Loc: loc, Data: &ast.EFunction{Fn: fn}}
 }
 
 type parenExprOpts struct {
@@ -2016,7 +2016,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 		item := p.parseExprOrBindings(ast.LComma, &errors)
 
 		if isSpread {
-			item = ast.Expr{itemLoc, &ast.ESpread{item}}
+			item = ast.Expr{Loc: itemLoc, Data: &ast.ESpread{Value: item}}
 		}
 
 		// Skip over types
@@ -2090,7 +2090,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 			arrow.IsAsync = opts.isAsync
 			arrow.HasRestArg = spreadRange.Len > 0
 			p.popScope()
-			return ast.Expr{loc, arrow}
+			return ast.Expr{Loc: loc, Data: arrow}
 		}
 	}
 
@@ -2108,8 +2108,8 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	// Are these arguments for a call to a function named "async"?
 	if opts.isAsync {
 		p.logExprErrors(&errors)
-		async := ast.Expr{loc, &ast.EIdentifier{p.storeNameInRef("async")}}
-		return ast.Expr{loc, &ast.ECall{
+		async := ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: p.storeNameInRef("async")}}
+		return ast.Expr{Loc: loc, Data: &ast.ECall{
 			Target: async,
 			Args:   items,
 		}}
@@ -2151,10 +2151,10 @@ func (p *parser) convertExprToBindingAndInitializer(expr ast.Expr, invalidLog []
 func (p *parser) convertExprToBinding(expr ast.Expr, invalidLog []ast.Loc) (ast.Binding, []ast.Loc) {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing:
-		return ast.Binding{expr.Loc, &ast.BMissing{}}, invalidLog
+		return ast.Binding{Loc: expr.Loc, Data: &ast.BMissing{}}, invalidLog
 
 	case *ast.EIdentifier:
-		return ast.Binding{expr.Loc, &ast.BIdentifier{e.Ref}}, invalidLog
+		return ast.Binding{Loc: expr.Loc, Data: &ast.BIdentifier{Ref: e.Ref}}, invalidLog
 
 	case *ast.EArray:
 		items := []ast.ArrayBinding{}
@@ -2166,9 +2166,9 @@ func (p *parser) convertExprToBinding(expr ast.Expr, invalidLog []ast.Loc) (ast.
 			}
 			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog)
 			invalidLog = log
-			items = append(items, ast.ArrayBinding{binding, initializer})
+			items = append(items, ast.ArrayBinding{Binding: binding, DefaultValue: initializer})
 		}
-		return ast.Binding{expr.Loc, &ast.BArray{
+		return ast.Binding{Loc: expr.Loc, Data: &ast.BArray{
 			Items:        items,
 			HasSpread:    isSpread,
 			IsSingleLine: e.IsSingleLine,
@@ -2194,7 +2194,7 @@ func (p *parser) convertExprToBinding(expr ast.Expr, invalidLog []ast.Loc) (ast.
 				DefaultValue: initializer,
 			})
 		}
-		return ast.Binding{expr.Loc, &ast.BObject{
+		return ast.Binding{Loc: expr.Loc, Data: &ast.BObject{
 			Properties:   properties,
 			IsSingleLine: e.IsSingleLine,
 		}}, invalidLog
@@ -2210,26 +2210,26 @@ func (p *parser) convertBindingToExpr(binding ast.Binding, wrapIdentifier func(a
 
 	switch b := binding.Data.(type) {
 	case *ast.BMissing:
-		return ast.Expr{loc, &ast.EMissing{}}
+		return ast.Expr{Loc: loc, Data: &ast.EMissing{}}
 
 	case *ast.BIdentifier:
 		if wrapIdentifier != nil {
 			return wrapIdentifier(loc, b.Ref)
 		}
-		return ast.Expr{loc, &ast.EIdentifier{b.Ref}}
+		return ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: b.Ref}}
 
 	case *ast.BArray:
 		exprs := make([]ast.Expr, len(b.Items))
 		for i, item := range b.Items {
 			expr := p.convertBindingToExpr(item.Binding, wrapIdentifier)
 			if b.HasSpread && i+1 == len(b.Items) {
-				expr = ast.Expr{expr.Loc, &ast.ESpread{expr}}
+				expr = ast.Expr{Loc: expr.Loc, Data: &ast.ESpread{Value: expr}}
 			} else if item.DefaultValue != nil {
 				expr = ast.Assign(expr, *item.DefaultValue)
 			}
 			exprs[i] = expr
 		}
-		return ast.Expr{loc, &ast.EArray{
+		return ast.Expr{Loc: loc, Data: &ast.EArray{
 			Items:        exprs,
 			IsSingleLine: b.IsSingleLine,
 		}}
@@ -2250,7 +2250,7 @@ func (p *parser) convertBindingToExpr(binding ast.Binding, wrapIdentifier func(a
 				Initializer: property.DefaultValue,
 			}
 		}
-		return ast.Expr{loc, &ast.EObject{
+		return ast.Expr{Loc: loc, Data: &ast.EObject{
 			Properties:   properties,
 			IsSingleLine: b.IsSingleLine,
 		}}
@@ -2276,11 +2276,11 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		switch p.lexer.Token {
 		case lexer.TOpenParen:
 			if level < ast.LCall && p.currentFnOpts.allowSuperCall {
-				return ast.Expr{loc, &ast.ESuper{}}
+				return ast.Expr{Loc: loc, Data: &ast.ESuper{}}
 			}
 
 		case lexer.TDot, lexer.TOpenBracket:
-			return ast.Expr{loc, &ast.ESuper{}}
+			return ast.Expr{Loc: loc, Data: &ast.ESuper{}}
 		}
 
 		p.lexer.Unexpected()
@@ -2308,19 +2308,19 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 
 	case lexer.TFalse:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EBoolean{false}}
+		return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: false}}
 
 	case lexer.TTrue:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EBoolean{true}}
+		return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: true}}
 
 	case lexer.TNull:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.ENull{}}
+		return ast.Expr{Loc: loc, Data: &ast.ENull{}}
 
 	case lexer.TThis:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EThis{}}
+		return ast.Expr{Loc: loc, Data: &ast.EThis{}}
 
 	case lexer.TYield:
 		if !p.currentFnOpts.allowYield {
@@ -2358,7 +2358,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			}
 		}
 
-		return ast.Expr{loc, &ast.EYield{value, isStar}}
+		return ast.Expr{Loc: loc, Data: &ast.EYield{Value: value, IsStar: isStar}}
 
 	case lexer.TIdentifier:
 		name := p.lexer.Identifier
@@ -2369,54 +2369,54 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if name == "async" {
 			return p.parseAsyncPrefixExpr(nameRange)
 		} else if p.currentFnOpts.allowAwait && name == "await" {
-			return ast.Expr{loc, &ast.EAwait{p.parseExpr(ast.LPrefix)}}
+			return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LPrefix)}}
 		}
 
 		// Handle the start of an arrow expression
 		if p.lexer.Token == lexer.TEqualsGreaterThan {
 			ref := p.storeNameInRef(name)
-			arg := ast.Arg{Binding: ast.Binding{loc, &ast.BIdentifier{ref}}}
+			arg := ast.Arg{Binding: ast.Binding{Loc: loc, Data: &ast.BIdentifier{Ref: ref}}}
 
 			p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 			defer p.popScope()
 
-			return ast.Expr{loc, p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
+			return ast.Expr{Loc: loc, Data: p.parseArrowBody([]ast.Arg{arg}, fnOpts{})}
 		}
 
 		ref := p.storeNameInRef(name)
-		return ast.Expr{loc, &ast.EIdentifier{ref}}
+		return ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}}
 
 	case lexer.TStringLiteral:
 		value := p.lexer.StringLiteral
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EString{value}}
+		return ast.Expr{Loc: loc, Data: &ast.EString{Value: value}}
 
 	case lexer.TNoSubstitutionTemplateLiteral:
 		head := p.lexer.StringLiteral
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.ETemplate{nil, head, "", []ast.TemplatePart{}}}
+		return ast.Expr{Loc: loc, Data: &ast.ETemplate{Head: head}}
 
 	case lexer.TTemplateHead:
 		head := p.lexer.StringLiteral
 		parts := p.parseTemplateParts(false /* includeRaw */)
-		return ast.Expr{loc, &ast.ETemplate{nil, head, "", parts}}
+		return ast.Expr{Loc: loc, Data: &ast.ETemplate{Head: head, Parts: parts}}
 
 	case lexer.TNumericLiteral:
 		value := p.lexer.Number
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.ENumber{value}}
+		return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: value}}
 
 	case lexer.TBigIntegerLiteral:
 		value := p.lexer.Identifier
 		p.markFutureSyntax(futureSyntaxBigInteger, p.lexer.Range())
 		p.lexer.Next()
-		return ast.Expr{p.lexer.Loc(), &ast.EBigInt{value}}
+		return ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EBigInt{Value: value}}
 
 	case lexer.TSlash, lexer.TSlashEquals:
 		p.lexer.ScanRegExp()
 		value := p.lexer.Raw()
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.ERegExp{value}}
+		return ast.Expr{Loc: loc, Data: &ast.ERegExp{Value: value}}
 
 	case lexer.TVoid:
 		p.lexer.Next()
@@ -2424,7 +2424,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if p.lexer.Token == lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpVoid, value}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpVoid, Value: value}}
 
 	case lexer.TTypeof:
 		p.lexer.Next()
@@ -2432,7 +2432,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if p.lexer.Token == lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpTypeof, value}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpTypeof, Value: value}}
 
 	case lexer.TDelete:
 		p.lexer.Next()
@@ -2443,11 +2443,11 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if index, ok := value.Data.(*ast.EIndex); ok {
 			if private, ok := index.Index.Data.(*ast.EPrivateIdentifier); ok {
 				name := p.loadNameFromRef(private.Ref)
-				r := ast.Range{index.Index.Loc, int32(len(name))}
+				r := ast.Range{Loc: index.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Deleting the private name %q is forbidden", name))
 			}
 		}
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpDelete, value}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpDelete, Value: value}}
 
 	case lexer.TPlus:
 		p.lexer.Next()
@@ -2455,7 +2455,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if p.lexer.Token == lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpPos, value}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpPos, Value: value}}
 
 	case lexer.TMinus:
 		p.lexer.Next()
@@ -2463,7 +2463,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if p.lexer.Token == lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpNeg, value}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpNeg, Value: value}}
 
 	case lexer.TTilde:
 		p.lexer.Next()
@@ -2471,7 +2471,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if p.lexer.Token == lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpCpl, value}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpCpl, Value: value}}
 
 	case lexer.TExclamation:
 		p.lexer.Next()
@@ -2479,15 +2479,15 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if p.lexer.Token == lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpNot, value}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpNot, Value: value}}
 
 	case lexer.TMinusMinus:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpPreDec, p.parseExpr(ast.LPrefix)}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpPreDec, Value: p.parseExpr(ast.LPrefix)}}
 
 	case lexer.TPlusPlus:
 		p.lexer.Next()
-		return ast.Expr{loc, &ast.EUnary{ast.UnOpPreInc, p.parseExpr(ast.LPrefix)}}
+		return ast.Expr{Loc: loc, Data: &ast.EUnary{Op: ast.UnOpPreInc, Value: p.parseExpr(ast.LPrefix)}}
 
 	case lexer.TFunction:
 		return p.parseFnExpr(loc, false /* isAsync */, ast.Range{})
@@ -2499,7 +2499,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		if p.lexer.Token == lexer.TIdentifier {
 			p.pushScopeForParsePass(ast.ScopeClassName, loc)
 			nameLoc := p.lexer.Loc()
-			name = &ast.LocRef{loc, p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
+			name = &ast.LocRef{Loc: loc, Ref: p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 			p.lexer.Next()
 		}
 
@@ -2514,7 +2514,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			p.popScope()
 		}
 
-		return ast.Expr{loc, &ast.EClass{class}}
+		return ast.Expr{Loc: loc, Data: &ast.EClass{Class: class}}
 
 	case lexer.TNew:
 		p.lexer.Next()
@@ -2526,7 +2526,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 				p.lexer.Unexpected()
 			}
 			p.lexer.Next()
-			return ast.Expr{loc, &ast.ENewTarget{}}
+			return ast.Expr{Loc: loc, Data: &ast.ENewTarget{}}
 		}
 
 		target := p.parseExprWithFlags(ast.LCall, flags)
@@ -2548,7 +2548,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			args = p.parseCallArgs()
 		}
 
-		return ast.Expr{loc, &ast.ENew{target, args}}
+		return ast.Expr{Loc: loc, Data: &ast.ENew{Target: target, Args: args}}
 
 	case lexer.TOpenBracket:
 		p.lexer.Next()
@@ -2563,13 +2563,13 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		for p.lexer.Token != lexer.TCloseBracket {
 			switch p.lexer.Token {
 			case lexer.TComma:
-				items = append(items, ast.Expr{loc, &ast.EMissing{}})
+				items = append(items, ast.Expr{Loc: loc, Data: &ast.EMissing{}})
 
 			case lexer.TDotDotDot:
 				dotsLoc := p.lexer.Loc()
 				p.lexer.Next()
 				item := p.parseExprOrBindings(ast.LComma, &selfErrors)
-				items = append(items, ast.Expr{dotsLoc, &ast.ESpread{item}})
+				items = append(items, ast.Expr{Loc: dotsLoc, Data: &ast.ESpread{Value: item}})
 
 				// Commas are not allowed here when destructuring
 				if p.lexer.Token == lexer.TComma {
@@ -2610,7 +2610,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			selfErrors.mergeInto(errors)
 		}
 
-		return ast.Expr{loc, &ast.EArray{
+		return ast.Expr{Loc: loc, Data: &ast.EArray{
 			Items:        items,
 			IsSingleLine: isSingleLine,
 		}}
@@ -2674,7 +2674,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			selfErrors.mergeInto(errors)
 		}
 
-		return ast.Expr{loc, &ast.EObject{
+		return ast.Expr{Loc: loc, Data: &ast.EObject{
 			Properties:   properties,
 			IsSingleLine: isSingleLine,
 		}}
@@ -2809,7 +2809,7 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 		if p.lexer.IsContextualKeyword("meta") {
 			p.lexer.Next()
 			p.hasImportMeta = true
-			return ast.Expr{loc, &ast.EImportMeta{}}
+			return ast.Expr{Loc: loc, Data: &ast.EImportMeta{}}
 		} else {
 			p.lexer.ExpectedString("\"meta\"")
 		}
@@ -2824,7 +2824,7 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 	p.lexer.Expect(lexer.TCloseParen)
 
 	p.allowIn = oldAllowIn
-	return ast.Expr{loc, &ast.EImport{value, nil}}
+	return ast.Expr{Loc: loc, Data: &ast.EImport{Expr: value}}
 }
 
 func (p *parser) parseExprOrBindings(level ast.L, errors *deferredErrors) ast.Expr {
@@ -2865,7 +2865,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 						return left
 					}
 					p.lexer.Next()
-					left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpComma, left, p.parseExpr(ast.LComma)}}
+					left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpComma, Left: left, Right: p.parseExpr(ast.LComma)}}
 
 				default:
 					return left
@@ -2896,9 +2896,9 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				nameLoc := p.lexer.Loc()
 				p.lexer.Next()
 				ref := p.storeNameInRef(name)
-				left = ast.Expr{left.Loc, &ast.EIndex{
+				left = ast.Expr{Loc: left.Loc, Data: &ast.EIndex{
 					Target:        left,
-					Index:         ast.Expr{nameLoc, &ast.EPrivateIdentifier{ref}},
+					Index:         ast.Expr{Loc: nameLoc, Data: &ast.EPrivateIdentifier{Ref: ref}},
 					OptionalChain: oldOptionalChain,
 				}}
 			} else {
@@ -2910,7 +2910,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				name := p.lexer.Identifier
 				nameLoc := p.lexer.Loc()
 				p.lexer.Next()
-				left = ast.Expr{left.Loc, &ast.EDot{
+				left = ast.Expr{Loc: left.Loc, Data: &ast.EDot{
 					Target:        left,
 					Name:          name,
 					NameLoc:       nameLoc,
@@ -2937,7 +2937,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				p.allowIn = oldAllowIn
 
 				p.lexer.Expect(lexer.TCloseBracket)
-				left = ast.Expr{left.Loc, &ast.EIndex{
+				left = ast.Expr{Loc: left.Loc, Data: &ast.EIndex{
 					Target:        left,
 					Index:         index,
 					OptionalChain: ast.OptionalChainStart,
@@ -2948,7 +2948,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				if level >= ast.LCall {
 					return left
 				}
-				left = ast.Expr{left.Loc, &ast.ECall{
+				left = ast.Expr{Loc: left.Loc, Data: &ast.ECall{
 					Target:        left,
 					Args:          p.parseCallArgs(),
 					OptionalChain: ast.OptionalChainStart,
@@ -2966,7 +2966,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				if level >= ast.LCall {
 					return left
 				}
-				left = ast.Expr{left.Loc, &ast.ECall{
+				left = ast.Expr{Loc: left.Loc, Data: &ast.ECall{
 					Target:        left,
 					Args:          p.parseCallArgs(),
 					OptionalChain: ast.OptionalChainStart,
@@ -2979,9 +2979,9 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 					nameLoc := p.lexer.Loc()
 					p.lexer.Next()
 					ref := p.storeNameInRef(name)
-					left = ast.Expr{left.Loc, &ast.EIndex{
+					left = ast.Expr{Loc: left.Loc, Data: &ast.EIndex{
 						Target:        left,
-						Index:         ast.Expr{nameLoc, &ast.EPrivateIdentifier{ref}},
+						Index:         ast.Expr{Loc: nameLoc, Data: &ast.EPrivateIdentifier{Ref: ref}},
 						OptionalChain: ast.OptionalChainStart,
 					}}
 				} else {
@@ -2992,7 +2992,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 					name := p.lexer.Identifier
 					nameLoc := p.lexer.Loc()
 					p.lexer.Next()
-					left = ast.Expr{left.Loc, &ast.EDot{
+					left = ast.Expr{Loc: left.Loc, Data: &ast.EDot{
 						Target:        left,
 						Name:          name,
 						NameLoc:       nameLoc,
@@ -3011,7 +3011,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			headRaw := p.lexer.RawTemplateContents()
 			p.lexer.Next()
 			tag := left
-			left = ast.Expr{left.Loc, &ast.ETemplate{&tag, head, headRaw, []ast.TemplatePart{}}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.ETemplate{Tag: &tag, Head: head, HeadRaw: headRaw}}
 
 		case lexer.TTemplateHead:
 			if level >= ast.LPrefix {
@@ -3021,7 +3021,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			headRaw := p.lexer.RawTemplateContents()
 			parts := p.parseTemplateParts(true /* includeRaw */)
 			tag := left
-			left = ast.Expr{left.Loc, &ast.ETemplate{&tag, head, headRaw, parts}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.ETemplate{Tag: &tag, Head: head, HeadRaw: headRaw, Parts: parts}}
 
 		case lexer.TOpenBracket:
 			// When parsing a decorator, ignore EIndex expressions since they may be
@@ -3047,7 +3047,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			p.allowIn = oldAllowIn
 
 			p.lexer.Expect(lexer.TCloseBracket)
-			left = ast.Expr{left.Loc, &ast.EIndex{
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EIndex{
 				Target:        left,
 				Index:         index,
 				OptionalChain: oldOptionalChain,
@@ -3058,7 +3058,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			if level >= ast.LCall {
 				return left
 			}
-			left = ast.Expr{left.Loc, &ast.ECall{
+			left = ast.Expr{Loc: left.Loc, Data: &ast.ECall{
 				Target:        left,
 				Args:          p.parseCallArgs(),
 				OptionalChain: oldOptionalChain,
@@ -3094,7 +3094,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 
 			p.lexer.Expect(lexer.TColon)
 			no := p.parseExpr(ast.LComma)
-			left = ast.Expr{left.Loc, &ast.EIf{left, yes, no}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EIf{Test: left, Yes: yes, No: no}}
 
 		case lexer.TExclamation:
 			// Skip over TypeScript non-null assertions
@@ -3115,133 +3115,133 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EUnary{ast.UnOpPostDec, left}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EUnary{Op: ast.UnOpPostDec, Value: left}}
 
 		case lexer.TPlusPlus:
 			if p.lexer.HasNewlineBefore || level >= ast.LPostfix {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EUnary{ast.UnOpPostInc, left}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EUnary{Op: ast.UnOpPostInc, Value: left}}
 
 		case lexer.TComma:
 			if level >= ast.LComma {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpComma, left, p.parseExpr(ast.LComma)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpComma, Left: left, Right: p.parseExpr(ast.LComma)}}
 
 		case lexer.TPlus:
 			if level >= ast.LAdd {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpAdd, left, p.parseExpr(ast.LAdd)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpAdd, Left: left, Right: p.parseExpr(ast.LAdd)}}
 
 		case lexer.TPlusEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpAddAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpAddAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TMinus:
 			if level >= ast.LAdd {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpSub, left, p.parseExpr(ast.LAdd)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpSub, Left: left, Right: p.parseExpr(ast.LAdd)}}
 
 		case lexer.TMinusEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpSubAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpSubAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TAsterisk:
 			if level >= ast.LMultiply {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpMul, left, p.parseExpr(ast.LMultiply)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpMul, Left: left, Right: p.parseExpr(ast.LMultiply)}}
 
 		case lexer.TAsteriskAsterisk:
 			if level >= ast.LExponentiation {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpPow, left, p.parseExpr(ast.LExponentiation - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpPow, Left: left, Right: p.parseExpr(ast.LExponentiation - 1)}}
 
 		case lexer.TAsteriskAsteriskEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpPowAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpPowAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TAsteriskEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpMulAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpMulAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TPercent:
 			if level >= ast.LMultiply {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpRem, left, p.parseExpr(ast.LMultiply)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpRem, Left: left, Right: p.parseExpr(ast.LMultiply)}}
 
 		case lexer.TPercentEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpRemAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpRemAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TSlash:
 			if level >= ast.LMultiply {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpDiv, left, p.parseExpr(ast.LMultiply)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpDiv, Left: left, Right: p.parseExpr(ast.LMultiply)}}
 
 		case lexer.TSlashEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpDivAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpDivAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TEqualsEquals:
 			if level >= ast.LEquals {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLooseEq, left, p.parseExpr(ast.LEquals)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLooseEq, Left: left, Right: p.parseExpr(ast.LEquals)}}
 
 		case lexer.TExclamationEquals:
 			if level >= ast.LEquals {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLooseNe, left, p.parseExpr(ast.LEquals)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLooseNe, Left: left, Right: p.parseExpr(ast.LEquals)}}
 
 		case lexer.TEqualsEqualsEquals:
 			if level >= ast.LEquals {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpStrictEq, left, p.parseExpr(ast.LEquals)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpStrictEq, Left: left, Right: p.parseExpr(ast.LEquals)}}
 
 		case lexer.TExclamationEqualsEquals:
 			if level >= ast.LEquals {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpStrictNe, left, p.parseExpr(ast.LEquals)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpStrictNe, Left: left, Right: p.parseExpr(ast.LEquals)}}
 
 		case lexer.TLessThan:
 			// TypeScript allows type arguments to be specified with angle brackets
@@ -3256,154 +3256,154 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLt, left, p.parseExpr(ast.LCompare)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLt, Left: left, Right: p.parseExpr(ast.LCompare)}}
 
 		case lexer.TLessThanEquals:
 			if level >= ast.LCompare {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLe, left, p.parseExpr(ast.LCompare)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLe, Left: left, Right: p.parseExpr(ast.LCompare)}}
 
 		case lexer.TGreaterThan:
 			if level >= ast.LCompare {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpGt, left, p.parseExpr(ast.LCompare)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpGt, Left: left, Right: p.parseExpr(ast.LCompare)}}
 
 		case lexer.TGreaterThanEquals:
 			if level >= ast.LCompare {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpGe, left, p.parseExpr(ast.LCompare)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpGe, Left: left, Right: p.parseExpr(ast.LCompare)}}
 
 		case lexer.TLessThanLessThan:
 			if level >= ast.LShift {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpShl, left, p.parseExpr(ast.LShift)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpShl, Left: left, Right: p.parseExpr(ast.LShift)}}
 
 		case lexer.TLessThanLessThanEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpShlAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpShlAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TGreaterThanGreaterThan:
 			if level >= ast.LShift {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpShr, left, p.parseExpr(ast.LShift)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpShr, Left: left, Right: p.parseExpr(ast.LShift)}}
 
 		case lexer.TGreaterThanGreaterThanEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpShrAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpShrAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TGreaterThanGreaterThanGreaterThan:
 			if level >= ast.LShift {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpUShr, left, p.parseExpr(ast.LShift)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpUShr, Left: left, Right: p.parseExpr(ast.LShift)}}
 
 		case lexer.TGreaterThanGreaterThanGreaterThanEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpUShrAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpUShrAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TQuestionQuestion:
 			if level >= ast.LNullishCoalescing {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpNullishCoalescing, left, p.parseExpr(ast.LNullishCoalescing)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpNullishCoalescing, Left: left, Right: p.parseExpr(ast.LNullishCoalescing)}}
 
 		case lexer.TQuestionQuestionEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpNullishCoalescingAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpNullishCoalescingAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TBarBar:
 			if level >= ast.LLogicalOr {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalOr, left, p.parseExpr(ast.LLogicalOr)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalOr, Left: left, Right: p.parseExpr(ast.LLogicalOr)}}
 
 		case lexer.TBarBarEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalOrAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalOrAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TAmpersandAmpersand:
 			if level >= ast.LLogicalAnd {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalAnd, left, p.parseExpr(ast.LLogicalAnd)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: left, Right: p.parseExpr(ast.LLogicalAnd)}}
 
 		case lexer.TAmpersandAmpersandEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpLogicalAndAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalAndAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TBar:
 			if level >= ast.LBitwiseOr {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpBitwiseOr, left, p.parseExpr(ast.LBitwiseOr)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpBitwiseOr, Left: left, Right: p.parseExpr(ast.LBitwiseOr)}}
 
 		case lexer.TBarEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpBitwiseOrAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpBitwiseOrAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TAmpersand:
 			if level >= ast.LBitwiseAnd {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpBitwiseAnd, left, p.parseExpr(ast.LBitwiseAnd)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpBitwiseAnd, Left: left, Right: p.parseExpr(ast.LBitwiseAnd)}}
 
 		case lexer.TAmpersandEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpBitwiseAndAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpBitwiseAndAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TCaret:
 			if level >= ast.LBitwiseXor {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpBitwiseXor, left, p.parseExpr(ast.LBitwiseXor)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpBitwiseXor, Left: left, Right: p.parseExpr(ast.LBitwiseXor)}}
 
 		case lexer.TCaretEquals:
 			if level >= ast.LAssign {
 				return left
 			}
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpBitwiseXorAssign, left, p.parseExpr(ast.LAssign - 1)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpBitwiseXorAssign, Left: left, Right: p.parseExpr(ast.LAssign - 1)}}
 
 		case lexer.TEquals:
 			if level >= ast.LAssign {
@@ -3424,7 +3424,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			}
 
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpIn, left, p.parseExpr(ast.LCompare)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpIn, Left: left, Right: p.parseExpr(ast.LCompare)}}
 
 		case lexer.TInstanceof:
 			if level >= ast.LCompare {
@@ -3438,7 +3438,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			}
 
 			p.lexer.Next()
-			left = ast.Expr{left.Loc, &ast.EBinary{ast.BinOpInstanceof, left, p.parseExpr(ast.LCompare)}}
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpInstanceof, Left: left, Right: p.parseExpr(ast.LCompare)}}
 
 		default:
 			// Handle the TypeScript "as" operator
@@ -3469,7 +3469,7 @@ func (p *parser) parseCallArgs() []ast.Expr {
 		}
 		arg := p.parseExpr(ast.LComma)
 		if isSpread {
-			arg = ast.Expr{loc, &ast.ESpread{arg}}
+			arg = ast.Expr{Loc: loc, Data: &ast.ESpread{Value: arg}}
 		}
 		args = append(args, arg)
 		if p.lexer.Token != lexer.TComma {
@@ -3488,7 +3488,7 @@ func (p *parser) parseJSXTag() (ast.Range, string, *ast.Expr) {
 
 	// A missing tag is a fragment
 	if p.lexer.Token == lexer.TGreaterThan {
-		return ast.Range{loc, 0}, "", nil
+		return ast.Range{Loc: loc, Len: 0}, "", nil
 	}
 
 	// The tag is an identifier
@@ -3498,11 +3498,11 @@ func (p *parser) parseJSXTag() (ast.Range, string, *ast.Expr) {
 
 	// Certain identifiers are strings
 	if strings.ContainsRune(name, '-') || (p.lexer.Token != lexer.TDot && name[0] >= 'a' && name[0] <= 'z') {
-		return tagRange, name, &ast.Expr{loc, &ast.EString{lexer.StringToUTF16(name)}}
+		return tagRange, name, &ast.Expr{Loc: loc, Data: &ast.EString{Value: lexer.StringToUTF16(name)}}
 	}
 
 	// Otherwise, this is an identifier
-	tag := &ast.Expr{loc, &ast.EIdentifier{p.storeNameInRef(name)}}
+	tag := &ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 
 	// Parse a member expression chain
 	for p.lexer.Token == lexer.TDot {
@@ -3514,12 +3514,12 @@ func (p *parser) parseJSXTag() (ast.Range, string, *ast.Expr) {
 		// Dashes are not allowed in member expression chains
 		index := strings.IndexByte(member, '-')
 		if index >= 0 {
-			p.log.AddError(&p.source, ast.Loc{memberRange.Loc.Start + int32(index)}, "Unexpected \"-\"")
+			p.log.AddError(&p.source, ast.Loc{Start: memberRange.Loc.Start + int32(index)}, "Unexpected \"-\"")
 			panic(lexer.LexerPanic{})
 		}
 
 		name += "." + member
-		tag = &ast.Expr{loc, &ast.EDot{
+		tag = &ast.Expr{Loc: loc, Data: &ast.EDot{
 			Target:  *tag,
 			Name:    member,
 			NameLoc: memberRange.Loc,
@@ -3552,19 +3552,19 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 			case lexer.TIdentifier:
 				// Parse the key
 				keyRange := p.lexer.Range()
-				key := ast.Expr{keyRange.Loc, &ast.EString{lexer.StringToUTF16(p.lexer.Identifier)}}
+				key := ast.Expr{Loc: keyRange.Loc, Data: &ast.EString{Value: lexer.StringToUTF16(p.lexer.Identifier)}}
 				p.lexer.NextInsideJSXElement()
 
 				// Parse the value
 				var value ast.Expr
 				if p.lexer.Token != lexer.TEquals {
 					// Implicitly true value
-					value = ast.Expr{ast.Loc{keyRange.Loc.Start + keyRange.Len}, &ast.EBoolean{true}}
+					value = ast.Expr{Loc: ast.Loc{Start: keyRange.Loc.Start + keyRange.Len}, Data: &ast.EBoolean{Value: true}}
 				} else {
 					// Use NextInsideJSXElement() not Next() so we can parse a JSX-style string literal
 					p.lexer.NextInsideJSXElement()
 					if p.lexer.Token == lexer.TStringLiteral {
-						value = ast.Expr{p.lexer.Loc(), &ast.EString{p.lexer.StringLiteral}}
+						value = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EString{Value: p.lexer.StringLiteral}}
 						p.lexer.NextInsideJSXElement()
 					} else {
 						// Use Expect() not ExpectInsideJSXElement() so we can parse expression tokens
@@ -3606,7 +3606,7 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 		if p.lexer.Token != lexer.TGreaterThan {
 			p.lexer.Expected(lexer.TGreaterThan)
 		}
-		return ast.Expr{loc, &ast.EJSXElement{startTag, properties, []ast.Expr{}}}
+		return ast.Expr{Loc: loc, Data: &ast.EJSXElement{Tag: startTag, Properties: properties}}
 	}
 
 	// Use ExpectJSXElementChild() so we parse child strings
@@ -3617,7 +3617,7 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 	for {
 		switch p.lexer.Token {
 		case lexer.TStringLiteral:
-			children = append(children, ast.Expr{p.lexer.Loc(), &ast.EString{p.lexer.StringLiteral}})
+			children = append(children, ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EString{Value: p.lexer.StringLiteral}})
 			p.lexer.NextJSXElementChild()
 
 		case lexer.TOpenBrace:
@@ -3663,7 +3663,7 @@ func (p *parser) parseJSXElement(loc ast.Loc) ast.Expr {
 				p.lexer.Expected(lexer.TGreaterThan)
 			}
 
-			return ast.Expr{loc, &ast.EJSXElement{startTag, properties, children}}
+			return ast.Expr{Loc: loc, Data: &ast.EJSXElement{Tag: startTag, Properties: properties, Children: children}}
 
 		default:
 			p.lexer.Unexpected()
@@ -3682,7 +3682,7 @@ func (p *parser) parseTemplateParts(includeRaw bool) []ast.TemplatePart {
 		if includeRaw {
 			tailRaw = p.lexer.RawTemplateContents()
 		}
-		parts = append(parts, ast.TemplatePart{value, tail, tailRaw})
+		parts = append(parts, ast.TemplatePart{Value: value, Tail: tail, TailRaw: tailRaw})
 		if p.lexer.Token == lexer.TTemplateTail {
 			p.lexer.Next()
 			break
@@ -3720,7 +3720,7 @@ func (p *parser) parseAndDeclareDecls(kind ast.SymbolKind, opts parseStmtOpts) [
 			value = &expr
 		}
 
-		decls = append(decls, ast.Decl{local, value})
+		decls = append(decls, ast.Decl{Binding: local, Value: value})
 
 		if p.lexer.Token != lexer.TComma {
 			break
@@ -3764,7 +3764,7 @@ func (p *parser) parseImportClause() ([]ast.ClauseItem, bool) {
 	for p.lexer.Token != lexer.TCloseBrace {
 		alias := p.lexer.Identifier
 		aliasLoc := p.lexer.Loc()
-		name := ast.LocRef{aliasLoc, p.storeNameInRef(alias)}
+		name := ast.LocRef{Loc: aliasLoc, Ref: p.storeNameInRef(alias)}
 		originalName := alias
 
 		// The alias may be a keyword
@@ -3777,14 +3777,19 @@ func (p *parser) parseImportClause() ([]ast.ClauseItem, bool) {
 		if p.lexer.IsContextualKeyword("as") {
 			p.lexer.Next()
 			originalName := p.lexer.Identifier
-			name = ast.LocRef{p.lexer.Loc(), p.storeNameInRef(originalName)}
+			name = ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
 			p.lexer.Expect(lexer.TIdentifier)
 		} else if !isIdentifier {
 			// An import where the name is a keyword must have an alias
 			p.lexer.Unexpected()
 		}
 
-		items = append(items, ast.ClauseItem{alias, aliasLoc, name, originalName})
+		items = append(items, ast.ClauseItem{
+			Alias:        alias,
+			AliasLoc:     aliasLoc,
+			Name:         name,
+			OriginalName: originalName,
+		})
 
 		if p.lexer.Token != lexer.TComma {
 			break
@@ -3814,7 +3819,7 @@ func (p *parser) parseExportClause() ([]ast.ClauseItem, bool) {
 	for p.lexer.Token != lexer.TCloseBrace {
 		alias := p.lexer.Identifier
 		aliasLoc := p.lexer.Loc()
-		name := ast.LocRef{aliasLoc, p.storeNameInRef(alias)}
+		name := ast.LocRef{Loc: aliasLoc, Ref: p.storeNameInRef(alias)}
 		originalName := alias
 
 		// The name can actually be a keyword if we're really an "export from"
@@ -3849,7 +3854,12 @@ func (p *parser) parseExportClause() ([]ast.ClauseItem, bool) {
 			p.lexer.Next()
 		}
 
-		items = append(items, ast.ClauseItem{alias, aliasLoc, name, originalName})
+		items = append(items, ast.ClauseItem{
+			Alias:        alias,
+			AliasLoc:     aliasLoc,
+			Name:         name,
+			OriginalName: originalName,
+		})
 
 		if p.lexer.Token != lexer.TComma {
 			break
@@ -3886,7 +3896,7 @@ func (p *parser) parseBinding() ast.Binding {
 	case lexer.TIdentifier:
 		ref := p.storeNameInRef(p.lexer.Identifier)
 		p.lexer.Next()
-		return ast.Binding{loc, &ast.BIdentifier{ref}}
+		return ast.Binding{Loc: loc, Data: &ast.BIdentifier{Ref: ref}}
 
 	case lexer.TOpenBracket:
 		p.lexer.Next()
@@ -3900,8 +3910,8 @@ func (p *parser) parseBinding() ast.Binding {
 
 		for p.lexer.Token != lexer.TCloseBracket {
 			if p.lexer.Token == lexer.TComma {
-				binding := ast.Binding{p.lexer.Loc(), &ast.BMissing{}}
-				items = append(items, ast.ArrayBinding{binding, nil})
+				binding := ast.Binding{Loc: p.lexer.Loc(), Data: &ast.BMissing{}}
+				items = append(items, ast.ArrayBinding{Binding: binding})
 			} else {
 				if p.lexer.Token == lexer.TDotDotDot {
 					p.lexer.Next()
@@ -3922,7 +3932,7 @@ func (p *parser) parseBinding() ast.Binding {
 					defaultValue = &value
 				}
 
-				items = append(items, ast.ArrayBinding{binding, defaultValue})
+				items = append(items, ast.ArrayBinding{Binding: binding, DefaultValue: defaultValue})
 
 				// Commas after spread elements are not allowed
 				if hasSpread && p.lexer.Token == lexer.TComma {
@@ -3949,7 +3959,7 @@ func (p *parser) parseBinding() ast.Binding {
 			isSingleLine = false
 		}
 		p.lexer.Expect(lexer.TCloseBracket)
-		return ast.Binding{loc, &ast.BArray{
+		return ast.Binding{Loc: loc, Data: &ast.BArray{
 			Items:        items,
 			HasSpread:    hasSpread,
 			IsSingleLine: isSingleLine,
@@ -3992,7 +4002,7 @@ func (p *parser) parseBinding() ast.Binding {
 			isSingleLine = false
 		}
 		p.lexer.Expect(lexer.TCloseBrace)
-		return ast.Binding{loc, &ast.BObject{
+		return ast.Binding{Loc: loc, Data: &ast.BObject{
 			Properties:   properties,
 			IsSingleLine: isSingleLine,
 		}}
@@ -4142,7 +4152,7 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		nameLoc := p.lexer.Loc()
 		nameText := p.lexer.Identifier
 		p.lexer.Expect(lexer.TIdentifier)
-		name = &ast.LocRef{nameLoc, ast.InvalidRef}
+		name = &ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
 		if !opts.isTypeScriptDeclare {
 			name.Ref = p.declareSymbol(ast.SymbolClass, nameLoc, nameText)
 			if opts.isExport {
@@ -4164,7 +4174,7 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		classOpts.tsDecorators = opts.tsDecorators.values
 	}
 	class := p.parseClass(name, classOpts)
-	return ast.Stmt{loc, &ast.SClass{class, opts.isExport}}
+	return ast.Stmt{Loc: loc, Data: &ast.SClass{Class: class, IsExport: opts.isExport}}
 }
 
 func (p *parser) parseTSDecorators() []ast.Expr {
@@ -4273,7 +4283,13 @@ func (p *parser) parseClass(name *ast.LocRef, classOpts parseClassOpts) ast.Clas
 	p.allowPrivateIdentifiers = oldAllowPrivateIdentifiers
 
 	p.lexer.Expect(lexer.TCloseBrace)
-	return ast.Class{classOpts.tsDecorators, name, extends, bodyLoc, properties}
+	return ast.Class{
+		TSDecorators: classOpts.tsDecorators,
+		Name:         name,
+		Extends:      extends,
+		BodyLoc:      bodyLoc,
+		Properties:   properties,
+	}
 }
 
 func (p *parser) parseLabelName() *ast.LocRef {
@@ -4281,7 +4297,7 @@ func (p *parser) parseLabelName() *ast.LocRef {
 		return nil
 	}
 
-	name := ast.LocRef{p.lexer.Loc(), p.storeNameInRef(p.lexer.Identifier)}
+	name := ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(p.lexer.Identifier)}
 	p.lexer.Next()
 	return &name
 }
@@ -4317,7 +4333,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 		nameLoc := p.lexer.Loc()
 		nameText = p.lexer.Identifier
 		p.lexer.Expect(lexer.TIdentifier)
-		name = &ast.LocRef{nameLoc, ast.InvalidRef}
+		name = &ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
 	}
 
 	// Even anonymous functions can have TypeScript type parameters
@@ -4340,7 +4356,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 	if !hadBody {
 		p.popAndDiscardScope(scopeIndex)
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.STypeScript{}}
+		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 	}
 
 	p.popScope()
@@ -4358,7 +4374,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 		}
 	}
 
-	return ast.Stmt{loc, &ast.SFunction{fn, opts.isExport}}
+	return ast.Stmt{Loc: loc, Data: &ast.SFunction{Fn: fn, IsExport: opts.isExport}}
 }
 
 type deferredTSDecorators struct {
@@ -4385,7 +4401,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 	switch p.lexer.Token {
 	case lexer.TSemicolon:
 		p.lexer.Next()
-		return ast.Stmt{loc, &ast.SEmpty{}}
+		return ast.Stmt{Loc: loc, Data: &ast.SEmpty{}}
 
 	case lexer.TExport:
 		if opts.isModuleScope {
@@ -4453,7 +4469,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					// "export type foo = ..."
 					p.lexer.Next()
 					p.skipTypeScriptTypeStmt(parseStmtOpts{isExport: true})
-					return ast.Stmt{loc, &ast.STypeScript{}}
+					return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
 				case "namespace", "abstract", "module":
 					// "export namespace Foo {}"
@@ -4485,7 +4501,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			// The default name is lazily generated only if no other name is present
 			createDefaultName := func() ast.LocRef {
 				name := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
-				defaultName := ast.LocRef{defaultLoc, p.newSymbol(ast.SymbolOther, name)}
+				defaultName := ast.LocRef{Loc: defaultLoc, Ref: p.newSymbol(ast.SymbolOther, name)}
 				p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
 				return defaultName
 			}
@@ -4514,20 +4530,20 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					// Use the statement name if present, since it's a better name
 					var defaultName ast.LocRef
 					if s, ok := stmt.Data.(*ast.SFunction); ok && s.Fn.Name != nil {
-						defaultName = ast.LocRef{defaultLoc, s.Fn.Name.Ref}
+						defaultName = ast.LocRef{Loc: defaultLoc, Ref: s.Fn.Name.Ref}
 					} else {
 						defaultName = createDefaultName()
 					}
 
 					p.recordExport(defaultLoc, "default", defaultName.Ref)
-					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
+					return ast.Stmt{Loc: loc, Data: &ast.SExportDefault{DefaultName: defaultName, Value: ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 
 				defaultName := createDefaultName()
 				p.recordExport(defaultLoc, "default", defaultName.Ref)
 				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LComma, nil, 0)
 				p.lexer.ExpectOrInsertSemicolon()
-				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
+				return ast.Stmt{Loc: loc, Data: &ast.SExportDefault{DefaultName: defaultName, Value: ast.ExprOrStmt{Expr: &expr}}}
 			}
 
 			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass || p.lexer.Token == lexer.TInterface {
@@ -4545,13 +4561,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				switch s := stmt.Data.(type) {
 				case *ast.SFunction:
 					if s.Fn.Name != nil {
-						defaultName = ast.LocRef{defaultLoc, s.Fn.Name.Ref}
+						defaultName = ast.LocRef{Loc: defaultLoc, Ref: s.Fn.Name.Ref}
 					} else {
 						defaultName = createDefaultName()
 					}
 				case *ast.SClass:
 					if s.Class.Name != nil {
-						defaultName = ast.LocRef{defaultLoc, s.Class.Name.Ref}
+						defaultName = ast.LocRef{Loc: defaultLoc, Ref: s.Class.Name.Ref}
 					} else {
 						defaultName = createDefaultName()
 					}
@@ -4560,7 +4576,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				}
 
 				p.recordExport(defaultLoc, "default", defaultName.Ref)
-				return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
+				return ast.Stmt{Loc: loc, Data: &ast.SExportDefault{DefaultName: defaultName, Value: ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
 			isIdentifier := p.lexer.Token == lexer.TIdentifier
@@ -4578,20 +4594,20 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					// Use the statement name if present, since it's a better name
 					var defaultName ast.LocRef
 					if s, ok := stmt.Data.(*ast.SClass); ok && s.Class.Name != nil {
-						defaultName = ast.LocRef{defaultLoc, s.Class.Name.Ref}
+						defaultName = ast.LocRef{Loc: defaultLoc, Ref: s.Class.Name.Ref}
 					} else {
 						defaultName = createDefaultName()
 					}
 
 					p.recordExport(defaultLoc, "default", defaultName.Ref)
-					return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Stmt: &stmt}}}
+					return ast.Stmt{Loc: loc, Data: &ast.SExportDefault{DefaultName: defaultName, Value: ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 			}
 
 			p.lexer.ExpectOrInsertSemicolon()
 			defaultName := createDefaultName()
 			p.recordExport(defaultLoc, "default", defaultName.Ref)
-			return ast.Stmt{loc, &ast.SExportDefault{defaultName, ast.ExprOrStmt{Expr: &expr}}}
+			return ast.Stmt{Loc: loc, Data: &ast.SExportDefault{DefaultName: defaultName, Value: ast.ExprOrStmt{Expr: &expr}}}
 
 		case lexer.TAsterisk:
 			if !opts.isModuleScope {
@@ -4608,7 +4624,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Next()
 				name := p.lexer.Identifier
 				namespaceRef = p.storeNameInRef(name)
-				alias = &ast.ExportStarAlias{p.lexer.Loc(), name}
+				alias = &ast.ExportStarAlias{Loc: p.lexer.Loc(), Name: name}
 				p.lexer.Expect(lexer.TIdentifier)
 				p.lexer.ExpectContextualKeyword("from")
 				path = p.parsePath()
@@ -4622,7 +4638,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			importRecordIndex := p.addImportRecord(ast.ImportStmt, path)
 
 			p.lexer.ExpectOrInsertSemicolon()
-			return ast.Stmt{loc, &ast.SExportStar{namespaceRef, alias, importRecordIndex}}
+			return ast.Stmt{Loc: loc, Data: &ast.SExportStar{
+				NamespaceRef:      namespaceRef,
+				Alias:             alias,
+				ImportRecordIndex: importRecordIndex,
+			}}
 
 		case lexer.TOpenBrace:
 			if !opts.isModuleScope {
@@ -4637,10 +4657,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				name := ast.GenerateNonUniqueNameFromPath(path.Text)
 				namespaceRef := p.storeNameInRef(name)
 				p.lexer.ExpectOrInsertSemicolon()
-				return ast.Stmt{loc, &ast.SExportFrom{items, namespaceRef, importRecordIndex, isSingleLine}}
+				return ast.Stmt{Loc: loc, Data: &ast.SExportFrom{
+					Items:             items,
+					NamespaceRef:      namespaceRef,
+					ImportRecordIndex: importRecordIndex,
+					IsSingleLine:      isSingleLine,
+				}}
 			}
 			p.lexer.ExpectOrInsertSemicolon()
-			return ast.Stmt{loc, &ast.SExportClause{items, isSingleLine}}
+			return ast.Stmt{Loc: loc, Data: &ast.SExportClause{Items: items, IsSingleLine: isSingleLine}}
 
 		case lexer.TEquals:
 			// "export = value;"
@@ -4648,7 +4673,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Next()
 				value := p.parseExpr(ast.LLowest)
 				p.lexer.ExpectOrInsertSemicolon()
-				return ast.Stmt{loc, &ast.SExportEquals{value}}
+				return ast.Stmt{Loc: loc, Data: &ast.SExportEquals{Value: value}}
 			}
 			p.lexer.Unexpected()
 			return ast.Stmt{}
@@ -4700,7 +4725,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 
 		p.skipTypeScriptObjectType()
-		return ast.Stmt{loc, &ast.STypeScript{}}
+		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
 	case lexer.TAt:
 		// Parse decorators before class statements, which are potentially exported
@@ -4753,7 +4778,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		decls := p.parseAndDeclareDecls(ast.SymbolHoisted, opts)
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.SLocal{
+		return ast.Stmt{Loc: loc, Data: &ast.SLocal{
 			Kind:     ast.LocalVar,
 			Decls:    decls,
 			IsExport: opts.isExport,
@@ -4766,7 +4791,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts)
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.SLocal{
+		return ast.Stmt{Loc: loc, Data: &ast.SLocal{
 			Kind:     ast.LocalLet,
 			Decls:    decls,
 			IsExport: opts.isExport,
@@ -4787,7 +4812,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if !opts.isTypeScriptDeclare {
 			p.requireInitializers(decls)
 		}
-		return ast.Stmt{loc, &ast.SLocal{
+		return ast.Stmt{Loc: loc, Data: &ast.SLocal{
 			Kind:     ast.LocalConst,
 			Decls:    decls,
 			IsExport: opts.isExport,
@@ -4805,7 +4830,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmt := p.parseStmt(parseStmtOpts{})
 			no = &stmt
 		}
-		return ast.Stmt{loc, &ast.SIf{test, yes, no}}
+		return ast.Stmt{Loc: loc, Data: &ast.SIf{Test: test, Yes: yes, No: no}}
 
 	case lexer.TDo:
 		p.lexer.Next()
@@ -4820,7 +4845,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if p.lexer.Token == lexer.TSemicolon {
 			p.lexer.Next()
 		}
-		return ast.Stmt{loc, &ast.SDoWhile{body, test}}
+		return ast.Stmt{Loc: loc, Data: &ast.SDoWhile{Body: body, Test: test}}
 
 	case lexer.TWhile:
 		p.lexer.Next()
@@ -4828,7 +4853,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		test := p.parseExpr(ast.LLowest)
 		p.lexer.Expect(lexer.TCloseParen)
 		body := p.parseStmt(parseStmtOpts{})
-		return ast.Stmt{loc, &ast.SWhile{test, body}}
+		return ast.Stmt{Loc: loc, Data: &ast.SWhile{Test: test, Body: body}}
 
 	case lexer.TWith:
 		p.lexer.Next()
@@ -4844,7 +4869,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		body := p.parseStmt(parseStmtOpts{})
 		p.popScope()
 
-		return ast.Stmt{loc, &ast.SWith{test, bodyLoc, body}}
+		return ast.Stmt{Loc: loc, Data: &ast.SWith{Value: test, BodyLoc: bodyLoc, Body: body}}
 
 	case lexer.TSwitch:
 		p.lexer.Next()
@@ -4890,11 +4915,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				}
 			}
 
-			cases = append(cases, ast.Case{value, body})
+			cases = append(cases, ast.Case{Value: value, Body: body})
 		}
 
 		p.lexer.Expect(lexer.TCloseBrace)
-		return ast.Stmt{loc, &ast.SSwitch{
+		return ast.Stmt{Loc: loc, Data: &ast.SSwitch{
 			Test:    test,
 			BodyLoc: bodyLoc,
 			Cases:   cases,
@@ -4923,7 +4948,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					// Generate a new symbol for the catch binding for older browsers
 					ref := p.newSymbol(ast.SymbolOther, "e")
 					p.currentScope.Generated = append(p.currentScope.Generated, ref)
-					binding = &ast.Binding{p.lexer.Loc(), &ast.BIdentifier{ref}}
+					binding = &ast.Binding{Loc: p.lexer.Loc(), Data: &ast.BIdentifier{Ref: ref}}
 				}
 			} else {
 				p.lexer.Expect(lexer.TOpenParen)
@@ -4942,7 +4967,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.Expect(lexer.TOpenBrace)
 			stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 			p.lexer.Next()
-			catch = &ast.Catch{catchLoc, binding, stmts}
+			catch = &ast.Catch{Loc: catchLoc, Binding: binding, Body: stmts}
 			p.popScope()
 		}
 
@@ -4953,11 +4978,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.Expect(lexer.TOpenBrace)
 			stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 			p.lexer.Next()
-			finally = &ast.Finally{finallyLoc, stmts}
+			finally = &ast.Finally{Loc: finallyLoc, Stmts: stmts}
 			p.popScope()
 		}
 
-		return ast.Stmt{loc, &ast.STry{body, catch, finally}}
+		return ast.Stmt{Loc: loc, Data: &ast.STry{Body: body, Catch: catch, Finally: finally}}
 
 	case lexer.TFor:
 		p.pushScopeForParsePass(ast.ScopeBlock, loc)
@@ -4994,22 +5019,22 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			isVar = true
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(ast.SymbolHoisted, parseStmtOpts{})
-			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
+			init = &ast.Stmt{Loc: initLoc, Data: &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
 
 		case lexer.TLet:
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(ast.SymbolOther, parseStmtOpts{})
-			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalLet, Decls: decls}}
+			init = &ast.Stmt{Loc: initLoc, Data: &ast.SLocal{Kind: ast.LocalLet, Decls: decls}}
 
 		case lexer.TConst:
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(ast.SymbolOther, parseStmtOpts{})
-			init = &ast.Stmt{initLoc, &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
+			init = &ast.Stmt{Loc: initLoc, Data: &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
 
 		case lexer.TSemicolon:
 
 		default:
-			init = &ast.Stmt{initLoc, &ast.SExpr{p.parseExpr(ast.LLowest)}}
+			init = &ast.Stmt{Loc: initLoc, Data: &ast.SExpr{Value: p.parseExpr(ast.LLowest)}}
 		}
 
 		// "in" expressions are allowed again
@@ -5029,7 +5054,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			value := p.parseExpr(ast.LLowest)
 			p.lexer.Expect(lexer.TCloseParen)
 			body := p.parseStmt(parseStmtOpts{})
-			return ast.Stmt{loc, &ast.SForOf{isForAwait, *init, value, body}}
+			return ast.Stmt{Loc: loc, Data: &ast.SForOf{IsAwait: isForAwait, Init: *init, Value: value, Body: body}}
 		}
 
 		// Detect for-in loops
@@ -5039,7 +5064,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			value := p.parseExpr(ast.LLowest)
 			p.lexer.Expect(lexer.TCloseParen)
 			body := p.parseStmt(parseStmtOpts{})
-			return ast.Stmt{loc, &ast.SForIn{*init, value, body}}
+			return ast.Stmt{Loc: loc, Data: &ast.SForIn{Init: *init, Value: value, Body: body}}
 		}
 
 		// Only require "const" statement initializers when we know we're a normal for loop
@@ -5065,7 +5090,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		p.lexer.Expect(lexer.TCloseParen)
 		body := p.parseStmt(parseStmtOpts{})
-		return ast.Stmt{loc, &ast.SFor{init, test, update, body}}
+		return ast.Stmt{Loc: loc, Data: &ast.SFor{Init: init, Test: test, Update: update, Body: body}}
 
 	case lexer.TImport:
 		p.hasES6ImportSyntax = true
@@ -5084,7 +5109,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			// "import.meta"
 			expr := p.parseSuffix(p.parseImportExpr(loc), ast.LLowest, nil, 0)
 			p.lexer.ExpectOrInsertSemicolon()
-			return ast.Stmt{loc, &ast.SExpr{expr}}
+			return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: expr}}
 
 		case lexer.TStringLiteral, lexer.TNoSubstitutionTemplateLiteral:
 			// "import 'path'"
@@ -5129,7 +5154,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			}
 
 			defaultName := p.lexer.Identifier
-			stmt.DefaultName = &ast.LocRef{p.lexer.Loc(), p.storeNameInRef(defaultName)}
+			stmt.DefaultName = &ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(defaultName)}
 			p.lexer.Next()
 
 			if p.TS.Parse {
@@ -5143,7 +5168,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							p.lexer.ExpectContextualKeyword("from")
 							p.parsePath()
 							p.lexer.ExpectOrInsertSemicolon()
-							return ast.Stmt{loc, &ast.STypeScript{}}
+							return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 						}
 
 					case lexer.TAsterisk:
@@ -5154,7 +5179,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						p.lexer.ExpectContextualKeyword("from")
 						p.parsePath()
 						p.lexer.ExpectOrInsertSemicolon()
-						return ast.Stmt{loc, &ast.STypeScript{}}
+						return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
 					case lexer.TOpenBrace:
 						// "import type {foo} from 'bar';"
@@ -5162,7 +5187,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						p.lexer.ExpectContextualKeyword("from")
 						p.parsePath()
 						p.lexer.ExpectOrInsertSemicolon()
-						return ast.Stmt{loc, &ast.STypeScript{}}
+						return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 					}
 				}
 
@@ -5173,8 +5198,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					p.lexer.ExpectOrInsertSemicolon()
 					ref := p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)
 					decls := []ast.Decl{{
-						ast.Binding{stmt.DefaultName.Loc, &ast.BIdentifier{ref}},
-						&value,
+						Binding: ast.Binding{Loc: stmt.DefaultName.Loc, Data: &ast.BIdentifier{Ref: ref}},
+						Value:   &value,
 					}}
 					if opts.isExport {
 						p.recordExport(stmt.DefaultName.Loc, defaultName, ref)
@@ -5183,7 +5208,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					// The kind of statement depends on the expression
 					if _, ok := value.Data.(*ast.ECall); ok {
 						// "import ns = require('x')"
-						return ast.Stmt{loc, &ast.SLocal{
+						return ast.Stmt{Loc: loc, Data: &ast.SLocal{
 							Kind:                         ast.LocalConst,
 							Decls:                        decls,
 							IsExport:                     opts.isExport,
@@ -5191,7 +5216,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						}}
 					} else {
 						// "import Foo = Bar"
-						return ast.Stmt{loc, &ast.SLocal{
+						return ast.Stmt{Loc: loc, Data: &ast.SLocal{
 							Kind:                         ast.LocalVar,
 							Decls:                        decls,
 							IsExport:                     opts.isExport,
@@ -5262,26 +5287,26 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				ref := p.declareSymbol(ast.SymbolImport, item.Name.Loc, name)
 				p.isImportItem[ref] = true
 				(*stmt.Items)[i].Name.Ref = ref
-				itemRefs[item.Alias] = ast.LocRef{item.Name.Loc, ref}
+				itemRefs[item.Alias] = ast.LocRef{Loc: item.Name.Loc, Ref: ref}
 			}
 		}
 
 		// Track the items for this namespace
 		p.importItemsForNamespace[stmt.NamespaceRef] = itemRefs
 
-		return ast.Stmt{loc, &stmt}
+		return ast.Stmt{Loc: loc, Data: &stmt}
 
 	case lexer.TBreak:
 		p.lexer.Next()
 		name := p.parseLabelName()
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.SBreak{name}}
+		return ast.Stmt{Loc: loc, Data: &ast.SBreak{Name: name}}
 
 	case lexer.TContinue:
 		p.lexer.Next()
 		name := p.parseLabelName()
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.SContinue{name}}
+		return ast.Stmt{Loc: loc, Data: &ast.SContinue{Name: name}}
 
 	case lexer.TReturn:
 		p.lexer.Next()
@@ -5298,22 +5323,22 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if p.currentFnOpts.isOutsideFn {
 			p.hasTopLevelReturn = true
 		}
-		return ast.Stmt{loc, &ast.SReturn{value}}
+		return ast.Stmt{Loc: loc, Data: &ast.SReturn{Value: value}}
 
 	case lexer.TThrow:
 		p.lexer.Next()
 		if p.lexer.HasNewlineBefore {
-			p.log.AddError(&p.source, ast.Loc{loc.Start + 5}, "Unexpected newline after \"throw\"")
+			p.log.AddError(&p.source, ast.Loc{Start: loc.Start + 5}, "Unexpected newline after \"throw\"")
 			panic(lexer.LexerPanic{})
 		}
 		expr := p.parseExpr(ast.LLowest)
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.SThrow{expr}}
+		return ast.Stmt{Loc: loc, Data: &ast.SThrow{Value: expr}}
 
 	case lexer.TDebugger:
 		p.lexer.Next()
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{loc, &ast.SDebugger{}}
+		return ast.Stmt{Loc: loc, Data: &ast.SDebugger{}}
 
 	case lexer.TOpenBrace:
 		p.pushScopeForParsePass(ast.ScopeBlock, loc)
@@ -5322,7 +5347,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		stmts := p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{})
 		p.lexer.Next()
-		return ast.Stmt{loc, &ast.SBlock{stmts}}
+		return ast.Stmt{Loc: loc, Data: &ast.SBlock{Stmts: stmts}}
 
 	default:
 		isIdentifier := p.lexer.Token == lexer.TIdentifier
@@ -5350,9 +5375,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 					// Parse a labeled statement
 					p.lexer.Next()
-					name := ast.LocRef{expr.Loc, ident.Ref}
+					name := ast.LocRef{Loc: expr.Loc, Ref: ident.Ref}
 					stmt := p.parseStmt(parseStmtOpts{})
-					return ast.Stmt{loc, &ast.SLabel{name, stmt}}
+					return ast.Stmt{Loc: loc, Data: &ast.SLabel{Name: name, Stmt: stmt}}
 				}
 
 				if p.TS.Parse {
@@ -5361,7 +5386,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						if p.lexer.Token == lexer.TIdentifier {
 							// "type Foo = any"
 							p.skipTypeScriptTypeStmt(parseStmtOpts{})
-							return ast.Stmt{loc, &ast.STypeScript{}}
+							return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 						}
 
 					case "namespace", "module":
@@ -5395,7 +5420,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							p.lexer.Expect(lexer.TOpenBrace)
 							p.parseStmtsUpTo(lexer.TCloseBrace, opts)
 							p.lexer.Next()
-							return ast.Stmt{loc, &ast.STypeScript{}}
+							return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 						}
 
 						// "declare const x: any"
@@ -5403,7 +5428,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						if opts.tsDecorators != nil {
 							p.discardScopesUpTo(opts.tsDecorators.scopeIndex)
 						}
-						return ast.Stmt{loc, &ast.STypeScript{}}
+						return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 					}
 				}
 			}
@@ -5413,10 +5438,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		// Parse a "use strict" directive
 		if str, ok := expr.Data.(*ast.EString); ok && lexer.UTF16EqualsString(str.Value, "use strict") {
-			return ast.Stmt{loc, &ast.SDirective{Value: str.Value}}
+			return ast.Stmt{Loc: loc, Data: &ast.SDirective{Value: str.Value}}
 		}
 
-		return ast.Stmt{loc, &ast.SExpr{expr}}
+		return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: expr}}
 	}
 }
 
@@ -5436,7 +5461,7 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	nameText := p.lexer.Identifier
 	p.lexer.Next()
 
-	name := ast.LocRef{nameLoc, ast.InvalidRef}
+	name := ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
 	argRef := ast.InvalidRef
 
 	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
@@ -5487,7 +5512,7 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	// real export either.
 	if len(stmts) == importEqualsCount || opts.isTypeScriptDeclare {
 		p.popAndDiscardScope(scopeIndex)
-		return ast.Stmt{loc, &ast.STypeScript{}}
+		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 	}
 
 	p.popScope()
@@ -5503,7 +5528,12 @@ func (p *parser) parseNamespaceStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 			p.recordExport(nameLoc, nameText, name.Ref)
 		}
 	}
-	return ast.Stmt{loc, &ast.SNamespace{name, argRef, stmts, opts.isExport}}
+	return ast.Stmt{Loc: loc, Data: &ast.SNamespace{
+		Name:     name,
+		Arg:      argRef,
+		Stmts:    stmts,
+		IsExport: opts.isExport,
+	}}
 }
 
 func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
@@ -5511,7 +5541,7 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
 	p.lexer.Expect(lexer.TIdentifier)
-	name := ast.LocRef{nameLoc, ast.InvalidRef}
+	name := ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
 	argRef := ast.InvalidRef
 	if !opts.isTypeScriptDeclare {
 		name.Ref = p.declareSymbol(ast.SymbolTSEnum, nameLoc, nameText)
@@ -5566,7 +5596,12 @@ func (p *parser) parseEnumStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	}
 
 	p.lexer.Expect(lexer.TCloseBrace)
-	return ast.Stmt{loc, &ast.SEnum{name, argRef, values, opts.isExport}}
+	return ast.Stmt{Loc: loc, Data: &ast.SEnum{
+		Name:     name,
+		Arg:      argRef,
+		Values:   values,
+		IsExport: opts.isExport,
+	}}
 }
 
 func (p *parser) parseFnBody(opts fnOpts) ast.FnBody {
@@ -5585,7 +5620,7 @@ func (p *parser) parseFnBody(opts fnOpts) ast.FnBody {
 
 	p.allowIn = oldAllowIn
 	p.currentFnOpts = oldFnOpts
-	return ast.FnBody{loc, stmts}
+	return ast.FnBody{Loc: loc, Stmts: stmts}
 }
 
 func (p *parser) forbidLexicalDecl(loc ast.Loc) {
@@ -5615,7 +5650,7 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 		} else {
 			if returnWithoutSemicolonStart != -1 {
 				if _, ok := stmt.Data.(*ast.SExpr); ok {
-					p.log.AddWarning(&p.source, ast.Loc{returnWithoutSemicolonStart + 6},
+					p.log.AddWarning(&p.source, ast.Loc{Start: returnWithoutSemicolonStart + 6},
 						"The following expression is not returned because of an automatically-inserted semicolon")
 				}
 			}
@@ -5798,9 +5833,9 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []ast.Stmt) []ast.Stmt {
 	if len(p.tempRefsToDeclare) > 0 {
 		decls := []ast.Decl{}
 		for _, ref := range p.tempRefsToDeclare {
-			decls = append(decls, ast.Decl{ast.Binding{ast.Loc{}, &ast.BIdentifier{ref}}, nil})
+			decls = append(decls, ast.Decl{Binding: ast.Binding{Data: &ast.BIdentifier{Ref: ref}}})
 		}
-		stmts = append([]ast.Stmt{{ast.Loc{}, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}}, stmts...)
+		stmts = append([]ast.Stmt{{Data: &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}}, stmts...)
 	}
 
 	p.tempRefsToDeclare = oldTempRefs
@@ -5903,7 +5938,7 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*ast.SExpr); ok {
 					value := ast.JoinWithComma(prevS.Value, *s.Value)
-					result[len(result)-1] = ast.Stmt{prevStmt.Loc, &ast.SReturn{&value}}
+					result[len(result)-1] = ast.Stmt{Loc: prevStmt.Loc, Data: &ast.SReturn{Value: &value}}
 					continue
 				}
 			}
@@ -5913,7 +5948,7 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*ast.SExpr); ok {
-					result[len(result)-1] = ast.Stmt{prevStmt.Loc, &ast.SThrow{ast.JoinWithComma(prevS.Value, s.Value)}}
+					result[len(result)-1] = ast.Stmt{Loc: prevStmt.Loc, Data: &ast.SThrow{Value: ast.JoinWithComma(prevS.Value, s.Value)}}
 					continue
 				}
 			}
@@ -5925,11 +5960,11 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					// Insert the previous expression into the for loop initializer
 					if s.Init == nil {
 						result[len(result)-1] = stmt
-						s.Init = &ast.Stmt{prevStmt.Loc, &ast.SExpr{prevS.Value}}
+						s.Init = &ast.Stmt{Loc: prevStmt.Loc, Data: &ast.SExpr{Value: prevS.Value}}
 						continue
 					} else if s2, ok := s.Init.Data.(*ast.SExpr); ok {
 						result[len(result)-1] = stmt
-						s.Init = &ast.Stmt{prevStmt.Loc, &ast.SExpr{ast.JoinWithComma(prevS.Value, s2.Value)}}
+						s.Init = &ast.Stmt{Loc: prevStmt.Loc, Data: &ast.SExpr{Value: ast.JoinWithComma(prevS.Value, s2.Value)}}
 						continue
 					}
 				} else {
@@ -5978,10 +6013,10 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 
 					// "a(); return b;" => "return a(), b;"
 					lastValue := ast.JoinWithComma(prevS.Value, *lastReturn.Value)
-					lastReturn = &ast.SReturn{&lastValue}
+					lastReturn = &ast.SReturn{Value: &lastValue}
 
 					// Merge the last two statements
-					lastStmt = ast.Stmt{prevStmt.Loc, lastReturn}
+					lastStmt = ast.Stmt{Loc: prevStmt.Loc, Data: lastReturn}
 					result[prevIndex] = lastStmt
 					result = result[:len(result)-1]
 
@@ -6002,11 +6037,11 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					right := lastReturn.Value
 					if left == nil {
 						// "if (a) return; return b;" => "return a ? void 0 : b;"
-						left = &ast.Expr{prevS.Yes.Loc, &ast.EUndefined{}}
+						left = &ast.Expr{Loc: prevS.Yes.Loc, Data: &ast.EUndefined{}}
 					}
 					if right == nil {
 						// "if (a) return a; return;" => "return a ? b : void 0;"
-						right = &ast.Expr{lastStmt.Loc, &ast.EUndefined{}}
+						right = &ast.Expr{Loc: lastStmt.Loc, Data: &ast.EUndefined{}}
 					}
 
 					// "if (!a) return b; return c;" => "return a ? c : b;"
@@ -6019,14 +6054,14 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					if boolean, ok := checkEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
 						// "if (a) return b; return b;" => "return a, b;"
 						lastValue := ast.JoinWithComma(prevS.Test, *left)
-						lastReturn = &ast.SReturn{&lastValue}
+						lastReturn = &ast.SReturn{Value: &lastValue}
 					} else {
 						// "if (a) return b; return c;" => "return a ? b : c;"
-						lastReturn = &ast.SReturn{&ast.Expr{prevS.Test.Loc, &ast.EIf{prevS.Test, *left, *right}}}
+						lastReturn = &ast.SReturn{Value: &ast.Expr{Loc: prevS.Test.Loc, Data: &ast.EIf{Test: prevS.Test, Yes: *left, No: *right}}}
 					}
 
 					// Merge the last two statements
-					lastStmt = ast.Stmt{prevStmt.Loc, lastReturn}
+					lastStmt = ast.Stmt{Loc: prevStmt.Loc, Data: lastReturn}
 					result[prevIndex] = lastStmt
 					result = result[:len(result)-1]
 
@@ -6044,10 +6079,10 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 				switch prevS := prevStmt.Data.(type) {
 				case *ast.SExpr:
 					// "a(); throw b;" => "throw a(), b;"
-					lastThrow = &ast.SThrow{ast.JoinWithComma(prevS.Value, lastThrow.Value)}
+					lastThrow = &ast.SThrow{Value: ast.JoinWithComma(prevS.Value, lastThrow.Value)}
 
 					// Merge the last two statements
-					lastStmt = ast.Stmt{prevStmt.Loc, lastThrow}
+					lastStmt = ast.Stmt{Loc: prevStmt.Loc, Data: lastThrow}
 					result[prevIndex] = lastStmt
 					result = result[:len(result)-1]
 
@@ -6073,8 +6108,8 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					}
 
 					// Merge the last two statements
-					lastThrow = &ast.SThrow{ast.Expr{prevS.Test.Loc, &ast.EIf{prevS.Test, left, right}}}
-					lastStmt = ast.Stmt{prevStmt.Loc, lastThrow}
+					lastThrow = &ast.SThrow{Value: ast.Expr{Loc: prevS.Test.Loc, Data: &ast.EIf{Test: prevS.Test, Yes: left, No: right}}}
+					lastStmt = ast.Stmt{Loc: prevStmt.Loc, Data: lastThrow}
 					result[prevIndex] = lastStmt
 					result = result[:len(result)-1]
 
@@ -6094,11 +6129,11 @@ func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
 	// This statement could potentially expand to several statements
 	switch len(stmts) {
 	case 0:
-		return ast.Stmt{stmt.Loc, &ast.SEmpty{}}
+		return ast.Stmt{Loc: stmt.Loc, Data: &ast.SEmpty{}}
 	case 1:
 		return stmts[0]
 	default:
-		return ast.Stmt{stmt.Loc, &ast.SBlock{stmts}}
+		return ast.Stmt{Loc: stmt.Loc, Data: &ast.SBlock{Stmts: stmts}}
 	}
 }
 
@@ -6190,7 +6225,7 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 			if s.No == nil || !shouldKeepStmtInDeadControlFlow(*s.No) {
 				// We can drop the "no" branch
 				if statementCaresAboutScope(s.Yes) {
-					return ast.Stmt{s.Yes.Loc, &ast.SBlock{[]ast.Stmt{s.Yes}}}
+					return ast.Stmt{Loc: s.Yes.Loc, Data: &ast.SBlock{Stmts: []ast.Stmt{s.Yes}}}
 				} else {
 					return s.Yes
 				}
@@ -6202,9 +6237,9 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 			if !shouldKeepStmtInDeadControlFlow(s.Yes) {
 				// We can drop the "yes" branch
 				if s.No == nil {
-					return ast.Stmt{loc, &ast.SEmpty{}}
+					return ast.Stmt{Loc: loc, Data: &ast.SEmpty{}}
 				} else if statementCaresAboutScope(*s.No) {
-					return ast.Stmt{s.No.Loc, &ast.SBlock{[]ast.Stmt{*s.No}}}
+					return ast.Stmt{Loc: s.No.Loc, Data: &ast.SBlock{Stmts: []ast.Stmt{*s.No}}}
 				} else {
 					return *s.No
 				}
@@ -6219,33 +6254,33 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 		if s.No == nil {
 			if not, ok := s.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
 				// "if (!a) b();" => "a || b();"
-				return ast.Stmt{loc, &ast.SExpr{ast.Expr{loc, &ast.EBinary{
-					ast.BinOpLogicalOr,
-					not.Value,
-					yes.Value,
+				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
+					Op:    ast.BinOpLogicalOr,
+					Left:  not.Value,
+					Right: yes.Value,
 				}}}}
 			} else {
 				// "if (a) b();" => "a && b();"
-				return ast.Stmt{loc, &ast.SExpr{ast.Expr{loc, &ast.EBinary{
-					ast.BinOpLogicalAnd,
-					s.Test,
-					yes.Value,
+				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
+					Op:    ast.BinOpLogicalAnd,
+					Left:  s.Test,
+					Right: yes.Value,
 				}}}}
 			}
 		} else if no, ok := s.No.Data.(*ast.SExpr); ok {
 			if not, ok := s.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
 				// "if (!a) b(); else c();" => "a ? c() : b();"
-				return ast.Stmt{loc, &ast.SExpr{ast.Expr{loc, &ast.EIf{
-					not.Value,
-					no.Value,
-					yes.Value,
+				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EIf{
+					Test: not.Value,
+					Yes:  no.Value,
+					No:   yes.Value,
 				}}}}
 			} else {
 				// "if (a) b(); else c();" => "a ? b() : c();"
-				return ast.Stmt{loc, &ast.SExpr{ast.Expr{loc, &ast.EIf{
-					s.Test,
-					yes.Value,
-					no.Value,
+				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EIf{
+					Test: s.Test,
+					Yes:  yes.Value,
+					No:   no.Value,
 				}}}}
 			}
 		}
@@ -6255,25 +6290,25 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 			// "yes" and "no" are both missing
 			if hasNoSideEffects(s.Test.Data) {
 				// "if (1) {}" => ";"
-				return ast.Stmt{loc, &ast.SEmpty{}}
+				return ast.Stmt{Loc: loc, Data: &ast.SEmpty{}}
 			} else {
 				// "if (a) {}" => "a;"
-				return ast.Stmt{loc, &ast.SExpr{s.Test}}
+				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: s.Test}}
 			}
 		} else if no, ok := s.No.Data.(*ast.SExpr); ok {
 			if not, ok := s.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
 				// "if (!a) {} else b();" => "a && b();"
-				return ast.Stmt{loc, &ast.SExpr{ast.Expr{loc, &ast.EBinary{
-					ast.BinOpLogicalAnd,
-					not.Value,
-					no.Value,
+				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
+					Op:    ast.BinOpLogicalAnd,
+					Left:  not.Value,
+					Right: no.Value,
 				}}}}
 			} else {
 				// "if (a) {} else b();" => "a || b();"
-				return ast.Stmt{loc, &ast.SExpr{ast.Expr{loc, &ast.EBinary{
-					ast.BinOpLogicalOr,
-					s.Test,
-					no.Value,
+				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
+					Op:    ast.BinOpLogicalOr,
+					Left:  s.Test,
+					Right: no.Value,
 				}}}}
 			}
 		} else {
@@ -6285,7 +6320,7 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 				s.No = nil
 			} else {
 				// "if (a) {} else throw b;" => "if (!a) throw b;"
-				s.Test = ast.Expr{s.Test.Loc, &ast.EUnary{ast.UnOpNot, s.Test}}
+				s.Test = ast.Expr{Loc: s.Test.Loc, Data: &ast.EUnary{Op: ast.UnOpNot, Value: s.Test}}
 				s.Yes = *s.No
 				s.No = nil
 			}
@@ -6302,7 +6337,7 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 		}
 	}
 
-	return ast.Stmt{loc, s}
+	return ast.Stmt{Loc: loc, Data: s}
 }
 
 func (p *parser) generateClosureForNamespaceOrEnum(
@@ -6322,16 +6357,16 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 		p.emittedNamespaceVars[nameRef] = true
 		if p.enclosingNamespaceRef == nil {
 			// Top-level namespace
-			stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SLocal{
+			stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SLocal{
 				Kind:     ast.LocalVar,
-				Decls:    []ast.Decl{{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
+				Decls:    []ast.Decl{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: nameRef}}}},
 				IsExport: isExport,
 			}})
 		} else {
 			// Nested namespace
-			stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SLocal{
+			stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SLocal{
 				Kind:  ast.LocalLet,
-				Decls: []ast.Decl{{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
+				Decls: []ast.Decl{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: nameRef}}}},
 			}})
 		}
 	}
@@ -6341,21 +6376,21 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 		// "name = enclosing.name || (enclosing.name = {})"
 		name := p.symbols[nameRef.InnerIndex].Name
 		argExpr = ast.Assign(
-			ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
-			ast.Expr{nameLoc, &ast.EBinary{
-				ast.BinOpLogicalOr,
-				ast.Expr{nameLoc, &ast.EDot{
-					Target:  ast.Expr{nameLoc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+			ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
+			ast.Expr{Loc: nameLoc, Data: &ast.EBinary{
+				Op: ast.BinOpLogicalOr,
+				Left: ast.Expr{Loc: nameLoc, Data: &ast.EDot{
+					Target:  ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 					Name:    name,
 					NameLoc: nameLoc,
 				}},
-				ast.Assign(
-					ast.Expr{nameLoc, &ast.EDot{
-						Target:  ast.Expr{nameLoc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+				Right: ast.Assign(
+					ast.Expr{Loc: nameLoc, Data: &ast.EDot{
+						Target:  ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 						Name:    name,
 						NameLoc: nameLoc,
 					}},
-					ast.Expr{nameLoc, &ast.EObject{}},
+					ast.Expr{Loc: nameLoc, Data: &ast.EObject{}},
 				),
 			}},
 		)
@@ -6364,12 +6399,12 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 		p.recordUsage(nameRef)
 	} else {
 		// "name || (name = {})"
-		argExpr = ast.Expr{nameLoc, &ast.EBinary{
-			ast.BinOpLogicalOr,
-			ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
-			ast.Assign(
-				ast.Expr{nameLoc, &ast.EIdentifier{nameRef}},
-				ast.Expr{nameLoc, &ast.EObject{}},
+		argExpr = ast.Expr{Loc: nameLoc, Data: &ast.EBinary{
+			Op:   ast.BinOpLogicalOr,
+			Left: ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
+			Right: ast.Assign(
+				ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
+				ast.Expr{Loc: nameLoc, Data: &ast.EObject{}},
 			),
 		}}
 		p.recordUsage(nameRef)
@@ -6377,10 +6412,10 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 	}
 
 	// Call the closure with the name object
-	stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SExpr{ast.Expr{stmtLoc, &ast.ECall{
-		Target: ast.Expr{stmtLoc, &ast.EFunction{Fn: ast.Fn{
-			Args: []ast.Arg{{Binding: ast.Binding{nameLoc, &ast.BIdentifier{argRef}}}},
-			Body: ast.FnBody{stmtLoc, stmtsInsideClosure},
+	stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SExpr{Value: ast.Expr{Loc: stmtLoc, Data: &ast.ECall{
+		Target: ast.Expr{Loc: stmtLoc, Data: &ast.EFunction{Fn: ast.Fn{
+			Args: []ast.Arg{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: argRef}}}},
+			Body: ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
 		}}},
 		Args: []ast.Expr{argExpr},
 	}}}})
@@ -6477,8 +6512,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SExportEquals:
 		// "module.exports = value"
 		stmts = append(stmts, ast.AssignStmt(
-			ast.Expr{stmt.Loc, &ast.EDot{
-				Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{p.moduleRef}},
+			ast.Expr{Loc: stmt.Loc, Data: &ast.EDot{
+				Target:  ast.Expr{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: p.moduleRef}},
 				Name:    "exports",
 				NameLoc: stmt.Loc,
 			}},
@@ -6540,8 +6575,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		// Handle being exported inside a namespace
 		if s.IsExport && p.enclosingNamespaceRef != nil {
 			wrapIdentifier := func(loc ast.Loc, ref ast.Ref) ast.Expr {
-				return ast.Expr{loc, &ast.EDot{
-					Target:  ast.Expr{loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+				return ast.Expr{Loc: loc, Data: &ast.EDot{
+					Target:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 					Name:    p.symbols[ref.InnerIndex].Name,
 					NameLoc: loc,
 				}}
@@ -6554,7 +6589,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 					} else {
 						target = ast.Assign(target, *decl.Value)
 					}
-					stmts = append(stmts, ast.Stmt{stmt.Loc, &ast.SExpr{target}})
+					stmts = append(stmts, ast.Stmt{Loc: stmt.Loc, Data: &ast.SExpr{Value: target}})
 				}
 			}
 			return stmts
@@ -6567,7 +6602,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 		// Trim expressions without side effects
 		if p.MangleSyntax && hasNoSideEffects(s.Value.Data) {
-			stmt = ast.Stmt{stmt.Loc, &ast.SEmpty{}}
+			stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SEmpty{}}
 		}
 
 	case *ast.SThrow:
@@ -6596,7 +6631,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				stmt = s.Stmts[0]
 			} else if len(s.Stmts) == 0 {
 				// Trim empty blocks
-				stmt = ast.Stmt{stmt.Loc, &ast.SEmpty{}}
+				stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SEmpty{}}
 			}
 		}
 
@@ -6616,7 +6651,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			if boolean, ok := toBooleanWithoutSideEffects(s.Test.Data); ok && boolean {
 				test = nil
 			}
-			stmt = ast.Stmt{stmt.Loc, &ast.SFor{Test: test, Body: s.Body}}
+			stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SFor{Test: test, Body: s.Body}}
 		}
 
 	case *ast.SDoWhile:
@@ -6747,12 +6782,12 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		if s.IsExport && p.enclosingNamespaceRef != nil {
 			s.IsExport = false
 			stmts = append(stmts, stmt, ast.AssignStmt(
-				ast.Expr{stmt.Loc, &ast.EDot{
-					Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+				ast.Expr{Loc: stmt.Loc, Data: &ast.EDot{
+					Target:  ast.Expr{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 					Name:    p.symbols[s.Fn.Name.Ref.InnerIndex].Name,
 					NameLoc: s.Fn.Name.Loc,
 				}},
-				ast.Expr{s.Fn.Name.Loc, &ast.EIdentifier{s.Fn.Name.Ref}},
+				ast.Expr{Loc: s.Fn.Name.Loc, Data: &ast.EIdentifier{Ref: s.Fn.Name.Ref}},
 			))
 			return stmts
 		}
@@ -6774,12 +6809,12 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		// Handle exporting this class from a namespace
 		if wasExportInsideNamespace {
 			stmts = append(stmts, ast.AssignStmt(
-				ast.Expr{stmt.Loc, &ast.EDot{
-					Target:  ast.Expr{stmt.Loc, &ast.EIdentifier{*p.enclosingNamespaceRef}},
+				ast.Expr{Loc: stmt.Loc, Data: &ast.EDot{
+					Target:  ast.Expr{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 					Name:    p.symbols[s.Class.Name.Ref.InnerIndex].Name,
 					NameLoc: s.Class.Name.Loc,
 				}},
-				ast.Expr{s.Class.Name.Loc, &ast.EIdentifier{s.Class.Name.Ref}},
+				ast.Expr{Loc: s.Class.Name.Loc, Data: &ast.EIdentifier{Ref: s.Class.Name.Ref}},
 			))
 			return stmts
 		}
@@ -6841,17 +6876,17 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				}
 			} else if hasNumericValue {
 				valuesSoFar[name] = nextNumericValue
-				value.Value = &ast.Expr{value.Loc, &ast.ENumber{nextNumericValue}}
+				value.Value = &ast.Expr{Loc: value.Loc, Data: &ast.ENumber{Value: nextNumericValue}}
 				nextNumericValue++
 			} else {
-				value.Value = &ast.Expr{value.Loc, &ast.EUndefined{}}
+				value.Value = &ast.Expr{Loc: value.Loc, Data: &ast.EUndefined{}}
 			}
 
 			if p.MangleSyntax && lexer.IsIdentifier(name) {
 				// "Enum.Name = value"
 				assignTarget = ast.Assign(
-					ast.Expr{value.Loc, &ast.EDot{
-						Target:  ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
+					ast.Expr{Loc: value.Loc, Data: &ast.EDot{
+						Target:  ast.Expr{Loc: value.Loc, Data: &ast.EIdentifier{Ref: s.Arg}},
 						Name:    name,
 						NameLoc: value.Loc,
 					}},
@@ -6860,9 +6895,9 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			} else {
 				// "Enum['Name'] = value"
 				assignTarget = ast.Assign(
-					ast.Expr{value.Loc, &ast.EIndex{
-						Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
-						Index:  ast.Expr{value.Loc, &ast.EString{value.Name}},
+					ast.Expr{Loc: value.Loc, Data: &ast.EIndex{
+						Target: ast.Expr{Loc: value.Loc, Data: &ast.EIdentifier{Ref: s.Arg}},
+						Index:  ast.Expr{Loc: value.Loc, Data: &ast.EString{Value: value.Name}},
 					}},
 					*value.Value,
 				)
@@ -6875,11 +6910,11 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			} else {
 				// "Enum[assignTarget] = 'Name'"
 				valueExprs = append(valueExprs, ast.Assign(
-					ast.Expr{value.Loc, &ast.EIndex{
-						Target: ast.Expr{value.Loc, &ast.EIdentifier{s.Arg}},
+					ast.Expr{Loc: value.Loc, Data: &ast.EIndex{
+						Target: ast.Expr{Loc: value.Loc, Data: &ast.EIdentifier{Ref: s.Arg}},
 						Index:  assignTarget,
 					}},
-					ast.Expr{value.Loc, &ast.EString{value.Name}},
+					ast.Expr{Loc: value.Loc, Data: &ast.EString{Value: value.Name}},
 				))
 			}
 			p.recordUsage(s.Arg)
@@ -6893,10 +6928,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			if p.MangleSyntax {
 				// "a; b; c;" => "a, b, c;"
 				joined := ast.JoinAllWithComma(valueExprs)
-				valueStmts = append(valueStmts, ast.Stmt{joined.Loc, &ast.SExpr{joined}})
+				valueStmts = append(valueStmts, ast.Stmt{Loc: joined.Loc, Data: &ast.SExpr{Value: joined}})
 			} else {
 				for _, expr := range valueExprs {
-					valueStmts = append(valueStmts, ast.Stmt{expr.Loc, &ast.SExpr{expr}})
+					valueStmts = append(valueStmts, ast.Stmt{Loc: expr.Loc, Data: &ast.SExpr{Value: expr}})
 				}
 			}
 		}
@@ -6988,7 +7023,7 @@ func maybeJoinWithComma(a ast.Expr, b ast.Expr) ast.Expr {
 //   // "value" => "value + value"
 //   // "value()" => "(_a = value(), _a + _a)"
 //   valueFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, value)
-//   return wrapFunc(ast.Expr{loc, &ast.EBinary{
+//   return wrapFunc(ast.Expr{Loc: loc, Data: &ast.EBinary{
 //     Op: ast.BinOpAdd,
 //     Left: valueFunc(),
 //     Right: valueFunc(),
@@ -7019,21 +7054,21 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	var valueFunc func() ast.Expr
 	switch e := value.Data.(type) {
 	case *ast.ENull:
-		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.ENull{}} }
+		valueFunc = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.ENull{}} }
 	case *ast.EUndefined:
-		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EUndefined{}} }
+		valueFunc = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.EUndefined{}} }
 	case *ast.EThis:
-		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EThis{}} }
+		valueFunc = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.EThis{}} }
 	case *ast.EBoolean:
-		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EBoolean{e.Value}} }
+		valueFunc = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: e.Value}} }
 	case *ast.ENumber:
-		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.ENumber{e.Value}} }
+		valueFunc = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: e.Value}} }
 	case *ast.EBigInt:
-		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EBigInt{e.Value}} }
+		valueFunc = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.EBigInt{Value: e.Value}} }
 	case *ast.EString:
-		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EString{e.Value}} }
+		valueFunc = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.EString{Value: e.Value}} }
 	case *ast.EIdentifier:
-		valueFunc = func() ast.Expr { return ast.Expr{loc, &ast.EIdentifier{e.Ref}} }
+		valueFunc = func() ast.Expr { return ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: e.Ref}} }
 	}
 	if valueFunc != nil {
 		return valueFunc, wrapFunc
@@ -7069,10 +7104,10 @@ func (p *parser) captureValueWithPossibleSideEffects(
 
 					// Assign inline so the order of side effects remains the same
 					p.recordUsage(tempRef)
-					return ast.Assign(ast.Expr{loc, &ast.EIdentifier{tempRef}}, value)
+					return ast.Assign(ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tempRef}}, value)
 				}
 				p.recordUsage(tempRef)
-				return ast.Expr{loc, &ast.EIdentifier{tempRef}}
+				return ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tempRef}}
 			}, func(expr ast.Expr) ast.Expr {
 				// Make sure side effects still happen if no expression was generated
 				if expr.Data == nil {
@@ -7080,11 +7115,11 @@ func (p *parser) captureValueWithPossibleSideEffects(
 				}
 
 				// Generate a new variable using an arrow function to avoid messing with "this"
-				return ast.Expr{loc, &ast.ECall{
-					Target: ast.Expr{loc, &ast.EArrow{
-						Args:       []ast.Arg{{Binding: ast.Binding{loc, &ast.BIdentifier{tempRef}}}},
+				return ast.Expr{Loc: loc, Data: &ast.ECall{
+					Target: ast.Expr{Loc: loc, Data: &ast.EArrow{
+						Args:       []ast.Arg{{Binding: ast.Binding{Loc: loc, Data: &ast.BIdentifier{Ref: tempRef}}}},
 						PreferExpr: true,
-						Body:       ast.FnBody{loc, []ast.Stmt{{loc, &ast.SReturn{&expr}}}},
+						Body:       ast.FnBody{Loc: loc, Stmts: []ast.Stmt{{Loc: loc, Data: &ast.SReturn{Value: &expr}}}},
 					}},
 					Args: []ast.Expr{},
 				}}
@@ -7095,10 +7130,10 @@ func (p *parser) captureValueWithPossibleSideEffects(
 		if tempRef == ast.InvalidRef {
 			tempRef = p.generateTempRef(tempRefNeedsDeclare, "")
 			p.recordUsage(tempRef)
-			return ast.Assign(ast.Expr{loc, &ast.EIdentifier{tempRef}}, value)
+			return ast.Assign(ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tempRef}}, value)
 		}
 		p.recordUsage(tempRef)
-		return ast.Expr{loc, &ast.EIdentifier{tempRef}}
+		return ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tempRef}}
 	}, wrapFunc
 }
 
@@ -7189,7 +7224,7 @@ func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string, assignTa
 	if len(parts) == 1 {
 		targetIfLast = assignTarget
 	}
-	value := p.handleIdentifier(loc, targetIfLast, &ast.EIdentifier{ref})
+	value := p.handleIdentifier(loc, targetIfLast, &ast.EIdentifier{Ref: ref})
 
 	// Build up a chain of property access expressions for subsequent parts
 	for i := 1; i < len(parts); i++ {
@@ -7219,7 +7254,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 	case *ast.EArray, *ast.EArrow, *ast.EClass,
 		*ast.EFunction, *ast.EObject, *ast.ERegExp:
 		index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
-		p.log.AddRangeWarning(&p.source, ast.Range{ast.Loc{int32(index)}, int32(len(op))},
+		p.log.AddRangeWarning(&p.source, ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))},
 			fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!'))
 		return true
 	}
@@ -7241,7 +7276,7 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, assignTarget ast.AssignTarget, dot
 			item, ok := importItems[dot.Name]
 			if !ok {
 				// Generate a new import item symbol in the module scope
-				item = ast.LocRef{dot.NameLoc, p.newSymbol(ast.SymbolImport, dot.Name)}
+				item = ast.LocRef{Loc: dot.NameLoc, Ref: p.newSymbol(ast.SymbolImport, dot.Name)}
 				p.moduleScope.Generated = append(p.moduleScope.Generated, item.Ref)
 
 				// Link the namespace import and the import item together
@@ -7277,20 +7312,20 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, assignTarget ast.AssignTarget, dot
 
 			// Track how many times we've referenced this symbol
 			p.recordUsage(item.Ref)
-			return p.handleIdentifier(dot.NameLoc, assignTarget, &ast.EIdentifier{item.Ref})
+			return p.handleIdentifier(dot.NameLoc, assignTarget, &ast.EIdentifier{Ref: item.Ref})
 		}
 
 		// If this is a known enum value, inline the value of the enum
 		if p.TS.Parse && dot.OptionalChain == ast.OptionalChainNone {
 			if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
 				if number, ok := enumValueMap[dot.Name]; ok {
-					return ast.Expr{loc, &ast.ENumber{number}}
+					return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: number}}
 				}
 			}
 		}
 	}
 
-	return ast.Expr{loc, dot}
+	return ast.Expr{Loc: loc, Data: dot}
 }
 
 func joinStrings(a []uint16, b []uint16) []uint16 {
@@ -7305,11 +7340,11 @@ func foldStringAddition(left ast.Expr, right ast.Expr) *ast.Expr {
 	case *ast.EString:
 		switch r := right.Data.(type) {
 		case *ast.EString:
-			return &ast.Expr{left.Loc, &ast.EString{joinStrings(l.Value, r.Value)}}
+			return &ast.Expr{Loc: left.Loc, Data: &ast.EString{Value: joinStrings(l.Value, r.Value)}}
 
 		case *ast.ETemplate:
 			if r.Tag == nil {
-				return &ast.Expr{left.Loc, &ast.ETemplate{nil, joinStrings(l.Value, r.Head), "", r.Parts}}
+				return &ast.Expr{Loc: left.Loc, Data: &ast.ETemplate{Head: joinStrings(l.Value, r.Head), Parts: r.Parts}}
 			}
 		}
 
@@ -7326,7 +7361,7 @@ func foldStringAddition(left ast.Expr, right ast.Expr) *ast.Expr {
 					copy(parts, l.Parts)
 					parts[n-1].Tail = joinStrings(parts[n-1].Tail, r.Value)
 				}
-				return &ast.Expr{left.Loc, &ast.ETemplate{nil, head, "", parts}}
+				return &ast.Expr{Loc: left.Loc, Data: &ast.ETemplate{Head: head, Parts: parts}}
 
 			case *ast.ETemplate:
 				if r.Tag == nil {
@@ -7340,7 +7375,7 @@ func foldStringAddition(left ast.Expr, right ast.Expr) *ast.Expr {
 						copy(parts[:n], l.Parts)
 						parts[n-1].Tail = joinStrings(parts[n-1].Tail, r.Head)
 					}
-					return &ast.Expr{left.Loc, &ast.ETemplate{nil, head, "", parts}}
+					return &ast.Expr{Loc: left.Loc, Data: &ast.ETemplate{Head: head, Parts: parts}}
 				}
 			}
 		}
@@ -7467,13 +7502,13 @@ func (p *parser) valueForThis(loc ast.Loc) (ast.Expr, bool) {
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
 			// compile time using expression substitution here.
-			return ast.Expr{loc, &ast.EUndefined{}}, true
+			return ast.Expr{Loc: loc, Data: &ast.EUndefined{}}, true
 		} else {
 			// In a CommonJS module, "this" is supposed to be the same as "exports".
 			// Instead of doing this at runtime using "fn.call(module.exports)", we
 			// do it at compile time using expression substitution here.
 			p.recordUsage(p.exportsRef)
-			return ast.Expr{loc, &ast.EIdentifier{p.exportsRef}}, true
+			return ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: p.exportsRef}}, true
 		}
 	}
 
@@ -7495,7 +7530,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		if p.importMetaRef != ast.InvalidRef {
 			// Replace "import.meta" with a reference to the symbol
 			p.recordUsage(p.importMetaRef)
-			return ast.Expr{expr.Loc, &ast.EIdentifier{p.importMetaRef}}, exprOut{}
+			return ast.Expr{Loc: expr.Loc, Data: &ast.EIdentifier{Ref: p.importMetaRef}}, exprOut{}
 		}
 
 	case *ast.ESpread:
@@ -7556,7 +7591,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				Properties: e.Properties,
 			}))
 		} else {
-			args = append(args, ast.Expr{expr.Loc, &ast.ENull{}})
+			args = append(args, ast.Expr{Loc: expr.Loc, Data: &ast.ENull{}})
 		}
 		if len(e.Children) > 0 {
 			for _, child := range e.Children {
@@ -7565,7 +7600,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 		// Call createElement()
-		return ast.Expr{expr.Loc, &ast.ECall{
+		return ast.Expr{Loc: expr.Loc, Data: &ast.ECall{
 			Target: p.stringsToMemberExpression(expr.Loc, p.JSX.Factory, in.assignTarget),
 			Args:   args,
 		}}, exprOut{}
@@ -7611,7 +7646,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		switch e.Op {
 		case ast.BinOpLooseEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				data := &ast.EBoolean{result}
+				data := &ast.EBoolean{Value: result}
 
 				// Pattern-match "typeof require == 'function'" from browserify. Also
 				// match "'function' == typeof require" because some minifiers such as
@@ -7621,28 +7656,28 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					p.typeofRequireEqualsFn = data
 				}
 
-				return ast.Expr{expr.Loc, data}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: data}, exprOut{}
 			} else if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
 			}
 
 		case ast.BinOpStrictEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{result}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: result}}, exprOut{}
 			} else if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
 			}
 
 		case ast.BinOpLooseNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
 			} else if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
 			}
 
 		case ast.BinOpStrictNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{!result}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
 			} else if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
 			}
@@ -7683,7 +7718,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.BinOpAdd:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{left + right}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: left + right}}, exprOut{}
 				}
 			}
 
@@ -7695,42 +7730,42 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if left, ok := e.Left.Data.(*ast.EBinary); ok && left.Op == ast.BinOpAdd {
 				// "x + 'abc' + 'xyz'" => "x + 'abcxyz'"
 				if result := foldStringAddition(left.Right, e.Right); result != nil {
-					return ast.Expr{expr.Loc, &ast.EBinary{left.Op, left.Left, *result}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.EBinary{Op: left.Op, Left: left.Left, Right: *result}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpSub:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{left - right}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: left - right}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpMul:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{left * right}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: left * right}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpDiv:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{left / right}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: left / right}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpRem:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{math.Mod(left, right)}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: math.Mod(left, right)}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpPow:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{math.Pow(left, right)}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: math.Pow(left, right)}}, exprOut{}
 				}
 			}
 
@@ -7742,42 +7777,42 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.BinOpShl:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) << (toUint32(right) & 31))}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) << (toUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpShr:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) >> (toUint32(right) & 31))}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) >> (toUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpUShr:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(toUint32(left) >> (toUint32(right) & 31))}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toUint32(left) >> (toUint32(right) & 31))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpBitwiseAnd:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) & toInt32(right))}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) & toInt32(right))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpBitwiseOr:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) | toInt32(right))}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) | toInt32(right))}}, exprOut{}
 				}
 			}
 
 		case ast.BinOpBitwiseXor:
 			if p.shouldFoldNumericConstants {
 				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{expr.Loc, &ast.ENumber{float64(toInt32(left) ^ toInt32(right))}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) ^ toInt32(right))}}, exprOut{}
 				}
 			}
 
@@ -7884,7 +7919,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// "a['b']" => "a.b"
 		if p.MangleSyntax {
 			if str, ok := e.Index.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(str.Value) {
-				return p.visitExprInOut(ast.Expr{expr.Loc, &ast.EDot{
+				return p.visitExprInOut(ast.Expr{Loc: expr.Loc, Data: &ast.EDot{
 					Target:        e.Target,
 					Name:          lexer.UTF16ToString(str.Value),
 					NameLoc:       e.Index.Loc,
@@ -7908,13 +7943,13 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// Unlike regular identifiers, there are no unbound private identifiers
 			kind := p.symbols[result.ref.InnerIndex].Kind
 			if !kind.IsPrivate() {
-				r := ast.Range{e.Index.Loc, int32(len(name))}
+				r := ast.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
 			} else if in.assignTarget != ast.AssignTargetNone && kind == ast.SymbolPrivateGet {
-				r := ast.Range{e.Index.Loc, int32(len(name))}
+				r := ast.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to getter-only property %q will throw", name))
 			} else if in.assignTarget != ast.AssignTargetReplace && kind == ast.SymbolPrivateSet {
-				r := ast.Range{e.Index.Loc, int32(len(name))}
+				r := ast.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Reading from setter-only property %q will throw", name))
 			}
 
@@ -7955,7 +7990,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
 					if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
 						if number, ok := enumValueMap[lexer.UTF16ToString(str.Value)]; ok {
-							return ast.Expr{expr.Loc, &ast.ENumber{number}}, exprOut{}
+							return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: number}}, exprOut{}
 						}
 					}
 				}
@@ -7990,34 +8025,34 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		switch e.Op {
 		case ast.UnOpNot:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EBoolean{!boolean}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !boolean}}, exprOut{}
 			}
 
 		case ast.UnOpVoid:
 			if hasNoSideEffects(e.Value.Data) {
-				return ast.Expr{expr.Loc, &ast.EUndefined{}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.EUndefined{}}, exprOut{}
 			}
 
 		case ast.UnOpTypeof:
 			// "typeof require" => "'function'"
 			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
 				p.ignoreUsage(p.requireRef)
-				p.typeofRequire = &ast.EString{lexer.StringToUTF16("function")}
-				return ast.Expr{expr.Loc, p.typeofRequire}, exprOut{}
+				p.typeofRequire = &ast.EString{Value: lexer.StringToUTF16("function")}
+				return ast.Expr{Loc: expr.Loc, Data: p.typeofRequire}, exprOut{}
 			}
 
 			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{expr.Loc, &ast.EString{lexer.StringToUTF16(typeof)}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.EString{Value: lexer.StringToUTF16(typeof)}}, exprOut{}
 			}
 
 		case ast.UnOpPos:
 			if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{expr.Loc, &ast.ENumber{number}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: number}}, exprOut{}
 			}
 
 		case ast.UnOpNeg:
 			if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{expr.Loc, &ast.ENumber{-number}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: -number}}, exprOut{}
 			}
 
 			////////////////////////////////////////////////////////////////////////////////
@@ -8103,7 +8138,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		// "await" expressions turn into "yield" expressions when lowering
 		if p.Target < asyncAwaitTarget {
-			return ast.Expr{expr.Loc, &ast.EYield{Value: &e.Value}}, exprOut{}
+			return ast.Expr{Loc: expr.Loc, Data: &ast.EYield{Value: &e.Value}}, exprOut{}
 		}
 
 	case *ast.EYield:
@@ -8140,7 +8175,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		// Convert no-substitution template literals into strings
 		if template, ok := e.Expr.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
-			e.Expr.Data = &ast.EString{template.Head}
+			e.Expr.Data = &ast.EString{Value: template.Head}
 		}
 
 		// The argument must be a string
@@ -8149,7 +8184,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// We don't want to spend time scanning the required files if they will
 			// never be used.
 			if p.isControlFlowDead {
-				return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
+				return ast.Expr{Loc: expr.Loc, Data: &ast.ENull{}}, exprOut{}
 			}
 
 			importRecordIndex := p.addImportRecord(ast.ImportDynamic, ast.Path{
@@ -8222,8 +8257,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if target, loc, private := p.extractPrivateIndex(e.Target); private != nil {
 				// "foo.#bar(123)" => "__privateGet(foo, #bar).call(foo, 123)"
 				targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
-				return targetWrapFunc(ast.Expr{target.Loc, &ast.ECall{
-					Target: ast.Expr{target.Loc, &ast.EDot{
+				return targetWrapFunc(ast.Expr{Loc: target.Loc, Data: &ast.ECall{
+					Target: ast.Expr{Loc: target.Loc, Data: &ast.EDot{
 						Target:  p.lowerPrivateGet(targetFunc(), loc, private),
 						Name:    "call",
 						NameLoc: target.Loc,
@@ -8245,7 +8280,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 				// Convert no-substitution template literals into strings when bundling
 				if template, ok := arg.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
-					arg.Data = &ast.EString{template.Head}
+					arg.Data = &ast.EString{Value: template.Head}
 				}
 
 				// The argument must be a string
@@ -8254,7 +8289,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					// We don't want to spend time scanning the required files if they will
 					// never be used.
 					if p.isControlFlowDead {
-						return ast.Expr{expr.Loc, &ast.ENull{}}, exprOut{}
+						return ast.Expr{Loc: expr.Loc, Data: &ast.ENull{}}, exprOut{}
 					}
 
 					importRecordIndex := p.addImportRecord(ast.ImportRequire, ast.Path{
@@ -8265,7 +8300,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 					// Create a new expression to represent the operation
 					p.ignoreUsage(p.requireRef)
-					return ast.Expr{expr.Loc, &ast.ERequire{importRecordIndex}}, exprOut{}
+					return ast.Expr{Loc: expr.Loc, Data: &ast.ERequire{ImportRecordIndex: importRecordIndex}}, exprOut{}
 				}
 
 				r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
@@ -8333,7 +8368,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 }
 
 func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defineFunc DefineFunc) ast.Expr {
-	expr := ast.Expr{loc, defineFunc(p.findSymbolHelper)}
+	expr := ast.Expr{Loc: loc, Data: defineFunc(p.findSymbolHelper)}
 	if id, ok := expr.Data.(*ast.EIdentifier); ok {
 		return p.handleIdentifier(loc, assignTarget, id)
 	}
@@ -8351,7 +8386,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 
 	// Substitute an EImportIdentifier now if this is an import item
 	if p.isImportItem[ref] {
-		return ast.Expr{loc, &ast.EImportIdentifier{ref}}
+		return ast.Expr{Loc: loc, Data: &ast.EImportIdentifier{Ref: ref}}
 	}
 
 	// Substitute a namespace export reference now if appropriate
@@ -8362,13 +8397,13 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 			// If this is a known enum value, inline the value of the enum
 			if enumValueMap, ok := p.knownEnumValues[nsRef]; ok {
 				if number, ok := enumValueMap[name]; ok {
-					return ast.Expr{loc, &ast.ENumber{number}}
+					return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: number}}
 				}
 			}
 
 			// Otherwise, create a property access on the namespace
-			return ast.Expr{loc, &ast.EDot{
-				Target:  ast.Expr{loc, &ast.EIdentifier{nsRef}},
+			return ast.Expr{Loc: loc, Data: &ast.EDot{
+				Target:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: nsRef}},
 				Name:    name,
 				NameLoc: loc,
 			}}
@@ -8381,7 +8416,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 		if e == p.typeofRequireEqualsFnTarget {
 			// Become "false" in the browser and "require" in node
 			if p.Platform == PlatformBrowser {
-				return ast.Expr{loc, &ast.EBoolean{false}}
+				return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: false}}
 			}
 		} else {
 			r := lexer.RangeOfIdentifier(p.source, loc)
@@ -8389,7 +8424,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 		}
 	}
 
-	return ast.Expr{loc, e}
+	return ast.Expr{Loc: loc, Data: e}
 }
 
 func extractNumericValues(left ast.Expr, right ast.Expr) (float64, float64, bool) {
@@ -8530,7 +8565,12 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 						}
 						for alias, name := range importItems {
 							originalName := p.symbols[name.Ref.InnerIndex].Name
-							*items = append(*items, ast.ClauseItem{alias, name.Loc, name, originalName})
+							*items = append(*items, ast.ClauseItem{
+								Alias:        alias,
+								AliasLoc:     name.Loc,
+								Name:         name,
+								OriginalName: originalName,
+							})
 						}
 						s.Items = items
 					}
@@ -8945,7 +8985,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 	}
 
 	p.findSymbolHelper = func(name string) ast.Ref { return p.findSymbol(name).ref }
-	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{locModuleScope})
+	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{Start: locModuleScope})
 
 	return p
 }
@@ -8999,7 +9039,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		importMetaStmt := ast.Stmt{Data: &ast.SLocal{
 			Kind: ast.LocalConst,
 			Decls: []ast.Decl{{
-				Binding: ast.Binding{Data: &ast.BIdentifier{p.importMetaRef}},
+				Binding: ast.Binding{Data: &ast.BIdentifier{Ref: p.importMetaRef}},
 				Value:   &ast.Expr{Data: &ast.EObject{}},
 			}},
 		}}
@@ -9024,7 +9064,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 				for _, decl := range s.Decls {
 					clone := *s
 					clone.Decls = []ast.Decl{decl}
-					parts = p.appendPart(parts, []ast.Stmt{{stmt.Loc, &clone}})
+					parts = p.appendPart(parts, []ast.Stmt{{Loc: stmt.Loc, Data: &clone}})
 				}
 
 			case *ast.SExportEquals:
@@ -9074,7 +9114,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		parts = append(parts, ast.Part{
 			DeclaredSymbols:     declaredSymbols,
 			ImportRecordIndices: []uint32{importRecordIndex},
-			Stmts: []ast.Stmt{{ast.Loc{}, &ast.SImport{
+			Stmts: []ast.Stmt{{Data: &ast.SImport{
 				NamespaceRef:      namespaceRef,
 				Items:             &clauseItems,
 				ImportRecordIndex: importRecordIndex,
@@ -9141,13 +9181,13 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 	p.prepareForVisitPass(&options)
 
 	// Make a symbol map that contains our file's symbols
-	symbols := ast.SymbolMap{make([][]ast.Symbol, source.Index+1)}
+	symbols := ast.SymbolMap{Outer: make([][]ast.Symbol, source.Index+1)}
 	symbols.Outer[source.Index] = p.symbols
 
 	// "module.exports = [expr]"
 	stmt := ast.AssignStmt(
-		ast.Expr{expr.Loc, &ast.EDot{
-			Target:  ast.Expr{expr.Loc, &ast.EIdentifier{p.moduleRef}},
+		ast.Expr{Loc: expr.Loc, Data: &ast.EDot{
+			Target:  ast.Expr{Loc: expr.Loc, Data: &ast.EIdentifier{Ref: p.moduleRef}},
 			Name:    "exports",
 			NameLoc: expr.Loc,
 		}},
@@ -9161,7 +9201,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 }
 
 func (p *parser) prepareForVisitPass(options *ParseOptions) {
-	p.pushScopeForVisitPass(ast.ScopeEntry, ast.Loc{locModuleScope})
+	p.pushScopeForVisitPass(ast.ScopeEntry, ast.Loc{Start: locModuleScope})
 	p.moduleScope = p.currentScope
 
 	if options.IsBundling {
