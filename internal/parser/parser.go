@@ -7227,22 +7227,22 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 // EDot nodes represent a property access. This function may return an
 // expression to replace the property access with. It assumes that the
 // target of the EDot expression has already been visited.
-func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
-	if id, ok := data.Target.Data.(*ast.EIdentifier); ok {
+func (p *parser) maybeRewriteDot(loc ast.Loc, dot *ast.EDot) ast.Expr {
+	if id, ok := dot.Target.Data.(*ast.EIdentifier); ok {
 		// Rewrite property accesses on explicit namespace imports as an identifier.
 		// This lets us replace them easily in the printer to rebind them to
 		// something else without paying the cost of a whole-tree traversal during
 		// module linking just to rewrite these EDot expressions.
 		if importItems, ok := p.importItemsForNamespace[id.Ref]; ok {
 			// Cache translation so each property access resolves to the same import
-			item, ok := importItems[data.Name]
+			item, ok := importItems[dot.Name]
 			if !ok {
 				// Generate a new import item symbol in the module scope
-				item = ast.LocRef{data.NameLoc, p.newSymbol(ast.SymbolOther, data.Name)}
+				item = ast.LocRef{dot.NameLoc, p.newSymbol(ast.SymbolOther, dot.Name)}
 				p.moduleScope.Generated = append(p.moduleScope.Generated, item.Ref)
 
 				// Link the namespace import and the import item together
-				importItems[data.Name] = item
+				importItems[dot.Name] = item
 				p.isImportItem[item.Ref] = true
 
 				symbol := &p.symbols[item.Ref.InnerIndex]
@@ -7250,7 +7250,7 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 					// Make sure the printer prints this as a property access
 					symbol.NamespaceAlias = &ast.NamespaceAlias{
 						NamespaceRef: id.Ref,
-						Alias:        data.Name,
+						Alias:        dot.Name,
 					}
 				} else {
 					// Mark this as generated in case it's missing. We don't want to
@@ -7278,16 +7278,16 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, data *ast.EDot) ast.Expr {
 		}
 
 		// If this is a known enum value, inline the value of the enum
-		if p.TS.Parse {
+		if p.TS.Parse && dot.OptionalChain == ast.OptionalChainNone {
 			if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
-				if number, ok := enumValueMap[data.Name]; ok {
+				if number, ok := enumValueMap[dot.Name]; ok {
 					return ast.Expr{loc, &ast.ENumber{number}}
 				}
 			}
 		}
 	}
 
-	return ast.Expr{loc, data}
+	return ast.Expr{loc, dot}
 }
 
 func joinStrings(a []uint16, b []uint16) []uint16 {
@@ -7878,6 +7878,18 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EIndex:
+		// "a['b']" => "a.b"
+		if p.MangleSyntax {
+			if str, ok := e.Index.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(str.Value) {
+				return p.visitExprInOut(ast.Expr{expr.Loc, &ast.EDot{
+					Target:        e.Target,
+					Name:          lexer.UTF16ToString(str.Value),
+					NameLoc:       e.Index.Loc,
+					OptionalChain: e.OptionalChain,
+				}}, in)
+			}
+		}
+
 		isCallTarget := e == p.callTarget
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == ast.OptionalChainContinue,
@@ -7921,27 +7933,14 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
-		if p.MangleSyntax || p.TS.Parse {
+		// If this is a known enum value, inline the value of the enum
+		if p.TS.Parse && e.OptionalChain == ast.OptionalChainNone {
 			if str, ok := e.Index.Data.(*ast.EString); ok {
-				// If this is a known enum value, inline the value of the enum
-				if p.TS.Parse {
-					if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
-						if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
-							if number, ok := enumValueMap[lexer.UTF16ToString(str.Value)]; ok {
-								return ast.Expr{expr.Loc, &ast.ENumber{number}}, exprOut{}
-							}
+				if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
+					if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
+						if number, ok := enumValueMap[lexer.UTF16ToString(str.Value)]; ok {
+							return ast.Expr{expr.Loc, &ast.ENumber{number}}, exprOut{}
 						}
-					}
-				}
-
-				// "a['b']" => "a.b"
-				if p.MangleSyntax {
-					if lexer.IsIdentifierUTF16(str.Value) {
-						return p.maybeRewriteDot(expr.Loc, &ast.EDot{
-							Target:  e.Target,
-							Name:    lexer.UTF16ToString(str.Value),
-							NameLoc: e.Index.Loc,
-						}), exprOut{}
 					}
 				}
 			}

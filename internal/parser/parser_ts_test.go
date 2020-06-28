@@ -741,6 +741,18 @@ var Bar;
   Bar[Bar["a"] = 10.01] = "a";
 })(Bar || (Bar = {}));
 `)
+
+	expectPrintedTS(t, `
+		enum Foo { A }
+		x = [Foo.A, Foo?.A, Foo?.A()]
+		y = [Foo['A'], Foo?.['A'], Foo?.['A']()]
+	`, `var Foo;
+(function(Foo) {
+  Foo[Foo["A"] = 0] = "A";
+})(Foo || (Foo = {}));
+x = [0, Foo?.A, Foo?.A()];
+y = [0, Foo?.["A"], Foo?.["A"]()];
+`)
 }
 
 func TestTSEnumConstantFolding(t *testing.T) {

@@ -1219,6 +1219,15 @@ func TestMangleUndefined(t *testing.T) {
 	expectPrintedMangle(t, "with (x) while (i) y(undefined); z(undefined)", "with (x)\n  for (; i; )\n    y(undefined);\nz(void 0);\n")
 }
 
+func TestMangleIndex(t *testing.T) {
+	expectPrintedMangle(t, "x['y']", "x.y;\n")
+	expectPrintedMangle(t, "x['y z']", "x[\"y z\"];\n")
+	expectPrintedMangle(t, "x?.['y']", "x?.y;\n")
+	expectPrintedMangle(t, "x?.['y z']", "x?.[\"y z\"];\n")
+	expectPrintedMangle(t, "x?.['y']()", "x?.y();\n")
+	expectPrintedMangle(t, "x?.['y z']()", "x?.[\"y z\"]();\n")
+}
+
 func TestMangleBlock(t *testing.T) {
 	expectPrintedMangle(t, "while(1) { while (1) {} }", "for (; ; )\n  for (; ; )\n    ;\n")
 	expectPrintedMangle(t, "while(1) { const x = 0; }", "for (; ; ) {\n  const x = 0;\n}\n")
