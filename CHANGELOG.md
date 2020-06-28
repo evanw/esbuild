@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.14
 
 * Prevent assignment to ES6 imports ([#202](https://github.com/evanw/esbuild/issues/202))
 
