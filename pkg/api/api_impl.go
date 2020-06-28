@@ -22,7 +22,6 @@ func validatePlatform(value Platform) parser.Platform {
 		return parser.PlatformNode
 	default:
 		panic("Invalid platform")
-		return ^parser.Platform(0)
 	}
 }
 
@@ -38,7 +37,6 @@ func validateFormat(value Format) printer.Format {
 		return printer.FormatESModule
 	default:
 		panic("Invalid format")
-		return ^printer.Format(0)
 	}
 }
 
@@ -54,7 +52,6 @@ func validateSourceMap(value SourceMap) bundler.SourceMap {
 		return bundler.SourceMapExternalWithoutComment
 	default:
 		panic("Invalid source map")
-		return ^bundler.SourceMap(0)
 	}
 }
 
@@ -68,7 +65,6 @@ func validateColor(value StderrColor) logging.StderrColor {
 		return logging.ColorAlways
 	default:
 		panic("Invalid color")
-		return ^logging.StderrColor(0)
 	}
 }
 
@@ -82,7 +78,6 @@ func validateLogLevel(value LogLevel) logging.LogLevel {
 		return logging.LevelError
 	default:
 		panic("Invalid log level")
-		return ^logging.LogLevel(0)
 	}
 }
 
@@ -104,7 +99,6 @@ func validateTarget(value Target) parser.LanguageTarget {
 		return parser.ES2020
 	default:
 		panic("Invalid target")
-		return ^parser.LanguageTarget(0)
 	}
 }
 
@@ -137,7 +131,6 @@ func validateLoader(value Loader) bundler.Loader {
 		return bundler.LoaderFile
 	default:
 		panic("Invalid loader")
-		return ^bundler.Loader(0)
 	}
 }
 

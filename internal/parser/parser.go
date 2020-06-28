@@ -2257,7 +2257,6 @@ func (p *parser) convertBindingToExpr(binding ast.Binding, wrapIdentifier func(a
 
 	default:
 		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
-		return ast.Expr{}
 	}
 }
 
