@@ -71,7 +71,8 @@ platform-neutral: | esbuild
 	node scripts/esbuild.js ./esbuild
 
 publish-all: update-version-go test-all
-	make -j7 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm publish-neutral
+	make -j6 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm
+	make publish-neutral # Do this after to avoid race conditions
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
 	git push origin master "v$(ESBUILD_VERSION)"
@@ -95,7 +96,7 @@ publish-wasm: platform-wasm
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
 
 publish-neutral: platform-neutral
-	[ ! -z "$(OTP)" ] && cd npm/esbuild && npm publish --otp="$(OTP)"
+	cd npm/esbuild && npm publish
 
 clean:
 	rm -f esbuild
