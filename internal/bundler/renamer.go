@@ -14,7 +14,7 @@ func computeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[
 	names := make(map[string]bool)
 
 	// All keywords are reserved names
-	for k, _ := range lexer.Keywords() {
+	for k := range lexer.Keywords() {
 		names[k] = true
 	}
 
@@ -130,7 +130,7 @@ func (r *renamer) findUnusedName(name string) string {
 
 func renameAllSymbols(reservedNames map[string]bool, moduleScopes []*ast.Scope, symbols ast.SymbolMap) {
 	reservedNameCounts := make(map[string]uint32)
-	for name, _ := range reservedNames {
+	for name := range reservedNames {
 		// Each name starts off with a count of 1 so that the first collision with
 		// "name" is called "name2"
 		reservedNameCounts[name] = 1

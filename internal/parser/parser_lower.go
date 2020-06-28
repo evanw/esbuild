@@ -1133,7 +1133,7 @@ func (p *parser) lowerObjectRestHelper(
 			endsWithRestBinding := last >= 0 && e.Properties[last].Kind == ast.PropertySpread
 
 			// Split on the first binding with a nested rest binding pattern
-			for i, _ := range e.Properties {
+			for i := range e.Properties {
 				property := &e.Properties[i]
 
 				// "let {a, ...b} = c"

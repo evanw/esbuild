@@ -230,7 +230,7 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 
 		// Zero out the use count statistics. These will be recomputed later after
 		// taking tree shaking into account.
-		for i, _ := range fileSymbols {
+		for i := range fileSymbols {
 			fileSymbols[i].UseCountEstimate = 0
 		}
 
@@ -876,7 +876,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 	// Sort imports for determinism. Otherwise our unit tests will randomly
 	// fail sometimes when error messages are reordered.
 	sortedImportRefs := make([]int, 0, len(file.ast.NamedImports))
-	for ref, _ := range file.ast.NamedImports {
+	for ref := range file.ast.NamedImports {
 		sortedImportRefs = append(sortedImportRefs, int(ref.InnerIndex))
 	}
 	sort.Ints(sortedImportRefs)
@@ -1169,7 +1169,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	for _, sourceIndex := range c.reachableFiles {
 		fileMeta := &c.fileMeta[sourceIndex]
 		fileMeta.entryBits = newBitSet(bitCount)
-		for partIndex, _ := range fileMeta.partMeta {
+		for partIndex := range fileMeta.partMeta {
 			fileMeta.partMeta[partIndex].entryBits = newBitSet(bitCount)
 		}
 
@@ -1360,7 +1360,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	c.includeFile(sourceIndex, entryPoint, distanceFromEntryPoint)
 
 	// Also include any local dependencies
-	for otherPartIndex, _ := range part.LocalDependencies {
+	for otherPartIndex := range part.LocalDependencies {
 		c.includePart(sourceIndex, otherPartIndex, entryPoint, distanceFromEntryPoint)
 	}
 
@@ -1475,7 +1475,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			if !ok {
 				// Initialize the chunk for the first time
 				isMultiPart := false
-				for i, _ := range c.entryPoints {
+				for i := range c.entryPoints {
 					if partMeta.entryBits.hasBit(uint(i)) {
 						if chunk.name != "" {
 							chunk.name = c.stripKnownFileExtension(chunk.name) + "_"
@@ -1505,7 +1505,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 	// chunk is a separate file, but it matters for error messages in tests since
 	// tests stop on the first output mismatch.
 	sortedKeys := make([]string, 0, len(chunks))
-	for key, _ := range chunks {
+	for key := range chunks {
 		sortedKeys = append(sortedKeys, key)
 	}
 	sort.Strings(sortedKeys)
@@ -1517,7 +1517,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 }
 
 func (c *linkerContext) stripKnownFileExtension(name string) string {
-	for ext, _ := range c.options.ExtensionToLoader {
+	for ext := range c.options.ExtensionToLoader {
 		if strings.HasSuffix(name, ext) {
 			return name[:len(name)-len(ext)]
 		}
@@ -1545,7 +1545,7 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 	sorted := make(chunkOrderArray, 0, len(chunk.filesWithPartsInChunk))
 
 	// Attach information to the files for use with sorting
-	for sourceIndex, _ := range chunk.filesWithPartsInChunk {
+	for sourceIndex := range chunk.filesWithPartsInChunk {
 		sorted = append(sorted, chunkOrder{
 			sourceIndex: sourceIndex,
 			distance:    c.fileMeta[sourceIndex].distanceFromEntryPoint,

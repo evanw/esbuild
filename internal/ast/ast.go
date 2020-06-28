@@ -1285,7 +1285,7 @@ func FollowSymbols(symbols SymbolMap, ref Ref) Ref {
 // all mutation is done up front.
 func FollowAllSymbols(symbols SymbolMap) {
 	for sourceIndex, inner := range symbols.Outer {
-		for symbolIndex, _ := range inner {
+		for symbolIndex := range inner {
 			FollowSymbols(symbols, Ref{uint32(sourceIndex), uint32(symbolIndex)})
 		}
 	}

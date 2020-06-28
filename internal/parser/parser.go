@@ -9044,7 +9044,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	if len(p.runtimeImports) > 0 {
 		// Sort the imports for determinism
 		keys := make([]string, 0, len(p.runtimeImports))
-		for key, _ := range p.runtimeImports {
+		for key := range p.runtimeImports {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
@@ -9113,7 +9113,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		// Each part tracks the other parts it depends on within this file
 		for partIndex, part := range parts {
 			localDependencies := make(map[uint32]bool)
-			for ref, _ := range part.UseCountEstimates {
+			for ref := range part.UseCountEstimates {
 				for _, otherPart := range p.topLevelSymbolToParts[ref] {
 					localDependencies[otherPart] = true
 				}
