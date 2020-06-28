@@ -713,7 +713,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				//
 				entryPointES6ExportStmts = append(entryPointES6ExportStmts, ast.Stmt{Data: &ast.SLocal{
 					Kind: ast.LocalConst,
-					Decls: []ast.Decl{ast.Decl{
+					Decls: []ast.Decl{{
 						Binding: ast.Binding{Data: &ast.BIdentifier{tempRef}},
 						Value:   &ast.Expr{Data: &ast.EImportIdentifier{export.ref}},
 					}},
@@ -762,7 +762,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			Key: ast.Expr{ast.Loc{}, &ast.EString{lexer.StringToUTF16(alias)}},
 			Value: &ast.Expr{ast.Loc{}, &ast.EArrow{
 				PreferExpr: true,
-				Body:       ast.FnBody{Stmts: []ast.Stmt{ast.Stmt{value.Loc, &ast.SReturn{&value}}}},
+				Body:       ast.FnBody{Stmts: []ast.Stmt{{value.Loc, &ast.SReturn{&value}}}},
 			}},
 		})
 		useCountEstimates[export.ref]++
@@ -782,7 +782,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	declaredSymbols := []ast.DeclaredSymbol{}
 	stmts := make([]ast.Stmt, 0, 2)
 	if !fileMeta.cjsStyleExports {
-		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
+		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{{
 			Binding: ast.Binding{ast.Loc{}, &ast.BIdentifier{file.ast.ExportsRef}},
 			Value:   &ast.Expr{ast.Loc{}, &ast.EObject{}},
 		}}}})
@@ -799,8 +799,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		stmts = append(stmts, ast.Stmt{ast.Loc{}, &ast.SExpr{ast.Expr{ast.Loc{}, &ast.ECall{
 			Target: ast.Expr{ast.Loc{}, &ast.EIdentifier{exportRef}},
 			Args: []ast.Expr{
-				ast.Expr{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
-				ast.Expr{ast.Loc{}, &ast.EObject{
+				{ast.Loc{}, &ast.EIdentifier{file.ast.ExportsRef}},
+				{ast.Loc{}, &ast.EObject{
 					Properties: properties,
 				}},
 			},
@@ -1201,9 +1201,9 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 					commonJSRef:         1,
 				},
 				DeclaredSymbols: []ast.DeclaredSymbol{
-					ast.DeclaredSymbol{Ref: file.ast.ExportsRef, IsTopLevel: true},
-					ast.DeclaredSymbol{Ref: file.ast.ModuleRef, IsTopLevel: true},
-					ast.DeclaredSymbol{Ref: file.ast.WrapperRef, IsTopLevel: true},
+					{Ref: file.ast.ExportsRef, IsTopLevel: true},
+					{Ref: file.ast.ModuleRef, IsTopLevel: true},
+					{Ref: file.ast.WrapperRef, IsTopLevel: true},
 				},
 			})
 			nonLocalDependencies := make([]partRef, len(commonJSParts))
@@ -1644,7 +1644,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 	// Replace the statement with a call to "require()"
 	stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
 		Loc: loc,
-		Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{ast.Decl{
+		Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{{
 			ast.Binding{loc, &ast.BIdentifier{namespaceRef}},
 			&ast.Expr{record.Path.Loc, &ast.ERequire{importRecordIndex}},
 		}}},
@@ -1693,8 +1693,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 							Data: &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
 								Target: ast.Expr{stmt.Loc, &ast.EIdentifier{exportStarRef}},
 								Args: []ast.Expr{
-									ast.Expr{stmt.Loc, &ast.EIdentifier{c.files[sourceIndex].ast.ExportsRef}},
-									ast.Expr{stmt.Loc, &ast.EIdentifier{s.NamespaceRef}},
+									{stmt.Loc, &ast.EIdentifier{c.files[sourceIndex].ast.ExportsRef}},
+									{stmt.Loc, &ast.EIdentifier{s.NamespaceRef}},
 								},
 							}}},
 						})
@@ -1713,8 +1713,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 								Data: &ast.SExpr{ast.Expr{stmt.Loc, &ast.ECall{
 									Target: ast.Expr{stmt.Loc, &ast.EIdentifier{exportStarRef}},
 									Args: []ast.Expr{
-										ast.Expr{stmt.Loc, &ast.EIdentifier{c.files[sourceIndex].ast.ExportsRef}},
-										ast.Expr{record.Path.Loc, &ast.ERequire{s.ImportRecordIndex}},
+										{stmt.Loc, &ast.EIdentifier{c.files[sourceIndex].ast.ExportsRef}},
+										{record.Path.Loc, &ast.ERequire{s.ImportRecordIndex}},
 									},
 								}}},
 							})
@@ -1816,7 +1816,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 				if s.Value.Expr != nil {
 					// "export default foo;" => "const default = foo;"
 					stmt = ast.Stmt{stmt.Loc, &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
-						ast.Decl{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
+						{ast.Binding{s.DefaultName.Loc, &ast.BIdentifier{s.DefaultName.Ref}}, s.Value.Expr},
 					}}}
 				} else {
 					switch s2 := s.Value.Stmt.Data.(type) {
@@ -1974,12 +1974,12 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		// "__commonJS((exports, module) => { ... })"
 		value := ast.Expr{Data: &ast.ECall{
 			Target: ast.Expr{Data: &ast.EIdentifier{commonJSRef}},
-			Args:   []ast.Expr{ast.Expr{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
+			Args:   []ast.Expr{{Data: &ast.EArrow{Args: args, Body: ast.FnBody{Stmts: stmts}}}},
 		}}
 
 		// "var require_foo = __commonJS((exports, module) => { ... });"
 		stmts = append(stmtList.es6StmtsForCJSWrap, ast.Stmt{Data: &ast.SLocal{
-			Decls: []ast.Decl{ast.Decl{
+			Decls: []ast.Decl{{
 				Binding: ast.Binding{Data: &ast.BIdentifier{file.ast.WrapperRef}},
 				Value:   &value,
 			}},
@@ -2007,7 +2007,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		SourceMapContents: sourceMapContents,
 	}
 	tree := file.ast
-	tree.Parts = []ast.Part{ast.Part{Stmts: stmts}}
+	tree.Parts = []ast.Part{{Stmts: stmts}}
 	*result = compileResult{
 		PrintResult: printer.Print(tree, printOptions),
 		sourceIndex: sourceIndex,
@@ -2061,7 +2061,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		// from the main entry point code. This is sometimes required to deal with
 		// CommonJS import cycles.
 		tree := file.ast
-		tree.Parts = []ast.Part{ast.Part{Stmts: []ast.Stmt{stmt}}}
+		tree.Parts = []ast.Part{{Stmts: []ast.Stmt{stmt}}}
 		entryPointTail := printer.Print(tree, printOptions)
 		result.entryPointTail = &entryPointTail
 	}

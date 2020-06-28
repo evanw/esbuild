@@ -150,12 +150,12 @@ func (p *parser) lowerFunction(
 		callAsync := p.callRuntime(bodyLoc, "__async", []ast.Expr{
 			thisValue,
 			arguments,
-			ast.Expr{bodyLoc, &ast.EFunction{Fn: ast.Fn{
+			{bodyLoc, &ast.EFunction{Fn: ast.Fn{
 				IsGenerator: true,
 				Body:        ast.FnBody{bodyLoc, *bodyStmts},
 			}}},
 		})
-		*bodyStmts = []ast.Stmt{ast.Stmt{bodyLoc, &ast.SReturn{&callAsync}}}
+		*bodyStmts = []ast.Stmt{{bodyLoc, &ast.SReturn{&callAsync}}}
 	}
 }
 
@@ -631,7 +631,7 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 			} else {
 				// "{...a, b, ...c}" => "__assign(__assign(__assign({}, a), {b}), c)"
 				result = p.callRuntime(loc, "__assign",
-					[]ast.Expr{result, ast.Expr{loc, &ast.EObject{
+					[]ast.Expr{result, {loc, &ast.EObject{
 						Properties:   properties,
 						IsSingleLine: e.IsSingleLine,
 					}}})
@@ -645,7 +645,7 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 
 	if len(properties) > 0 {
 		// "{...a, b}" => "__assign(__assign({}, a), {b})"
-		result = p.callRuntime(loc, "__assign", []ast.Expr{result, ast.Expr{loc, &ast.EObject{
+		result = p.callRuntime(loc, "__assign", []ast.Expr{result, {loc, &ast.EObject{
 			Properties:   properties,
 			IsSingleLine: e.IsSingleLine,
 		}}})
@@ -660,23 +660,23 @@ func (p *parser) lowerPrivateGet(target ast.Expr, loc ast.Loc, private *ast.EPri
 		// "this.#method" => "__privateMethod(this, #method, method_fn)"
 		return p.callRuntime(target.Loc, "__privateMethod", []ast.Expr{
 			target,
-			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
-			ast.Expr{loc, &ast.EIdentifier{p.privateGetters[private.Ref]}},
+			{loc, &ast.EIdentifier{private.Ref}},
+			{loc, &ast.EIdentifier{p.privateGetters[private.Ref]}},
 		})
 
 	case ast.SymbolPrivateGet, ast.SymbolPrivateGetSetPair:
 		// "this.#getter" => "__privateGet(this, #getter, getter_get)"
 		return p.callRuntime(target.Loc, "__privateGet", []ast.Expr{
 			target,
-			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
-			ast.Expr{loc, &ast.EIdentifier{p.privateGetters[private.Ref]}},
+			{loc, &ast.EIdentifier{private.Ref}},
+			{loc, &ast.EIdentifier{p.privateGetters[private.Ref]}},
 		})
 
 	default:
 		// "this.#field" => "__privateGet(this, #field)"
 		return p.callRuntime(target.Loc, "__privateGet", []ast.Expr{
 			target,
-			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
+			{loc, &ast.EIdentifier{private.Ref}},
 		})
 	}
 }
@@ -692,16 +692,16 @@ func (p *parser) lowerPrivateSet(
 		// "this.#setter = 123" => "__privateSet(this, #setter, 123, setter_set)"
 		return p.callRuntime(target.Loc, "__privateSet", []ast.Expr{
 			target,
-			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
+			{loc, &ast.EIdentifier{private.Ref}},
 			value,
-			ast.Expr{loc, &ast.EIdentifier{p.privateSetters[private.Ref]}},
+			{loc, &ast.EIdentifier{p.privateSetters[private.Ref]}},
 		})
 
 	default:
 		// "this.#field = 123" => "__privateSet(this, #field, 123)"
 		return p.callRuntime(target.Loc, "__privateSet", []ast.Expr{
 			target,
-			ast.Expr{loc, &ast.EIdentifier{private.Ref}},
+			{loc, &ast.EIdentifier{private.Ref}},
 			value,
 		})
 	}
@@ -1009,7 +1009,7 @@ func (p *parser) lowerObjectRestHelper(
 			keysToExclude[i] = capturedKey()
 		}
 		assign(binding, p.callRuntime(binding.Loc, "__rest", []ast.Expr{init,
-			ast.Expr{binding.Loc, &ast.EArray{Items: keysToExclude, IsSingleLine: isSingleLine}}}))
+			{binding.Loc, &ast.EArray{Items: keysToExclude, IsSingleLine: isSingleLine}}}))
 	}
 
 	splitArrayPattern := func(
@@ -1210,7 +1210,7 @@ func (p *parser) captureKeyForObjectRest(originalKey ast.Expr) (finalKey ast.Exp
 
 	case *ast.EIdentifier:
 		capturedKey = func() ast.Expr {
-			return p.callRuntime(loc, "__restKey", []ast.Expr{ast.Expr{loc, &ast.EIdentifier{k.Ref}}})
+			return p.callRuntime(loc, "__restKey", []ast.Expr{{loc, &ast.EIdentifier{k.Ref}}})
 		}
 
 	default:
@@ -1219,7 +1219,7 @@ func (p *parser) captureKeyForObjectRest(originalKey ast.Expr) (finalKey ast.Exp
 		tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
 		finalKey = ast.Assign(ast.Expr{loc, &ast.EIdentifier{tempRef}}, originalKey)
 		capturedKey = func() ast.Expr {
-			return p.callRuntime(loc, "__restKey", []ast.Expr{ast.Expr{loc, &ast.EIdentifier{tempRef}}})
+			return p.callRuntime(loc, "__restKey", []ast.Expr{{loc, &ast.EIdentifier{tempRef}}})
 		}
 	}
 
@@ -1353,7 +1353,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						// Generate a call to "__param()" for this parameter decorator
 						prop.TSDecorators = append(prop.TSDecorators,
 							p.callRuntime(decorator.Loc, "__param", []ast.Expr{
-								ast.Expr{decorator.Loc, &ast.ENumber{float64(i)}},
+								{decorator.Loc, &ast.ENumber{float64(i)}},
 								decorator,
 							}),
 						)
@@ -1428,14 +1428,14 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				}
 
 				decorator := p.callRuntime(loc, "__decorate", []ast.Expr{
-					ast.Expr{loc, &ast.EArray{Items: prop.TSDecorators}},
-					ast.Expr{loc, &ast.EDot{
+					{loc, &ast.EArray{Items: prop.TSDecorators}},
+					{loc, &ast.EDot{
 						Target:  nameFunc(),
 						Name:    "prototype",
 						NameLoc: loc,
 					}},
 					descriptorKey,
-					ast.Expr{loc, &ast.ENumber{descriptorKind}},
+					{loc, &ast.ENumber{descriptorKind}},
 				})
 
 				// Static decorators are grouped after instance decorators
@@ -1658,9 +1658,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
 				ctor.Fn.Body.Stmts = append(ctor.Fn.Body.Stmts, ast.Stmt{classLoc, &ast.SExpr{ast.Expr{classLoc, &ast.ECall{
 					Target: ast.Expr{classLoc, &ast.ESuper{}},
-					Args: []ast.Expr{
-						ast.Expr{classLoc, &ast.ESpread{ast.Expr{classLoc, &ast.EIdentifier{argumentsRef}}}},
-					},
+					Args:   []ast.Expr{{classLoc, &ast.ESpread{ast.Expr{classLoc, &ast.EIdentifier{argumentsRef}}}}},
 				}}}})
 			}
 		}
@@ -1732,7 +1730,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		stmts = append(stmts, ast.Stmt{classLoc, &ast.SLocal{
 			Kind:     ast.LocalLet,
 			IsExport: kind == classKindExportStmt,
-			Decls: []ast.Decl{ast.Decl{
+			Decls: []ast.Decl{{
 				Binding: ast.Binding{name.Loc, &ast.BIdentifier{id.Ref}},
 				Value:   &ast.Expr{classLoc, &classExpr},
 			}},
@@ -1772,7 +1770,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		stmts = append(stmts, ast.AssignStmt(
 			nameFunc(),
 			p.callRuntime(classLoc, "__decorate", []ast.Expr{
-				ast.Expr{classLoc, &ast.EArray{Items: class.TSDecorators}},
+				{classLoc, &ast.EArray{Items: class.TSDecorators}},
 				nameFunc(),
 			}),
 		))

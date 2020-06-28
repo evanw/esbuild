@@ -1881,7 +1881,7 @@ func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 	return &ast.EArrow{
 		Args:       args,
 		PreferExpr: true,
-		Body:       ast.FnBody{arrowLoc, []ast.Stmt{ast.Stmt{expr.Loc, &ast.SReturn{&expr}}}},
+		Body:       ast.FnBody{arrowLoc, []ast.Stmt{{expr.Loc, &ast.SReturn{&expr}}}},
 	}
 }
 
@@ -5172,7 +5172,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					value := p.parseExpr(ast.LComma)
 					p.lexer.ExpectOrInsertSemicolon()
 					ref := p.declareSymbol(ast.SymbolOther, stmt.DefaultName.Loc, defaultName)
-					decls := []ast.Decl{ast.Decl{
+					decls := []ast.Decl{{
 						ast.Binding{stmt.DefaultName.Loc, &ast.BIdentifier{ref}},
 						&value,
 					}}
@@ -5800,7 +5800,7 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []ast.Stmt) []ast.Stmt {
 		for _, ref := range p.tempRefsToDeclare {
 			decls = append(decls, ast.Decl{ast.Binding{ast.Loc{}, &ast.BIdentifier{ref}}, nil})
 		}
-		stmts = append([]ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}}, stmts...)
+		stmts = append([]ast.Stmt{{ast.Loc{}, &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}}, stmts...)
 	}
 
 	p.tempRefsToDeclare = oldTempRefs
@@ -6324,14 +6324,14 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 			// Top-level namespace
 			stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SLocal{
 				Kind:     ast.LocalVar,
-				Decls:    []ast.Decl{ast.Decl{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
+				Decls:    []ast.Decl{{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
 				IsExport: isExport,
 			}})
 		} else {
 			// Nested namespace
 			stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SLocal{
 				Kind:  ast.LocalLet,
-				Decls: []ast.Decl{ast.Decl{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
+				Decls: []ast.Decl{{ast.Binding{nameLoc, &ast.BIdentifier{nameRef}}, nil}},
 			}})
 		}
 	}
@@ -6379,7 +6379,7 @@ func (p *parser) generateClosureForNamespaceOrEnum(
 	// Call the closure with the name object
 	stmts = append(stmts, ast.Stmt{stmtLoc, &ast.SExpr{ast.Expr{stmtLoc, &ast.ECall{
 		Target: ast.Expr{stmtLoc, &ast.EFunction{Fn: ast.Fn{
-			Args: []ast.Arg{ast.Arg{Binding: ast.Binding{nameLoc, &ast.BIdentifier{argRef}}}},
+			Args: []ast.Arg{{Binding: ast.Binding{nameLoc, &ast.BIdentifier{argRef}}}},
 			Body: ast.FnBody{stmtLoc, stmtsInsideClosure},
 		}}},
 		Args: []ast.Expr{argExpr},
@@ -7082,9 +7082,9 @@ func (p *parser) captureValueWithPossibleSideEffects(
 				// Generate a new variable using an arrow function to avoid messing with "this"
 				return ast.Expr{loc, &ast.ECall{
 					Target: ast.Expr{loc, &ast.EArrow{
-						Args:       []ast.Arg{ast.Arg{Binding: ast.Binding{loc, &ast.BIdentifier{tempRef}}}},
+						Args:       []ast.Arg{{Binding: ast.Binding{loc, &ast.BIdentifier{tempRef}}}},
 						PreferExpr: true,
-						Body:       ast.FnBody{loc, []ast.Stmt{ast.Stmt{loc, &ast.SReturn{&expr}}}},
+						Body:       ast.FnBody{loc, []ast.Stmt{{loc, &ast.SReturn{&expr}}}},
 					}},
 					Args: []ast.Expr{},
 				}}
@@ -8998,7 +8998,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	if p.importMetaRef != ast.InvalidRef {
 		importMetaStmt := ast.Stmt{Data: &ast.SLocal{
 			Kind: ast.LocalConst,
-			Decls: []ast.Decl{ast.Decl{
+			Decls: []ast.Decl{{
 				Binding: ast.Binding{Data: &ast.BIdentifier{p.importMetaRef}},
 				Value:   &ast.Expr{Data: &ast.EObject{}},
 			}},
@@ -9024,7 +9024,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 				for _, decl := range s.Decls {
 					clone := *s
 					clone.Decls = []ast.Decl{decl}
-					parts = p.appendPart(parts, []ast.Stmt{ast.Stmt{stmt.Loc, &clone}})
+					parts = p.appendPart(parts, []ast.Stmt{{stmt.Loc, &clone}})
 				}
 
 			case *ast.SExportEquals:
@@ -9074,7 +9074,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		parts = append(parts, ast.Part{
 			DeclaredSymbols:     declaredSymbols,
 			ImportRecordIndices: []uint32{importRecordIndex},
-			Stmts: []ast.Stmt{ast.Stmt{ast.Loc{}, &ast.SImport{
+			Stmts: []ast.Stmt{{ast.Loc{}, &ast.SImport{
 				NamespaceRef:      namespaceRef,
 				Items:             &clauseItems,
 				ImportRecordIndex: importRecordIndex,
@@ -9157,7 +9157,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 	// Mark that we used the "module" variable
 	p.symbols[p.moduleRef.InnerIndex].UseCountEstimate++
 
-	return p.toAST(source, []ast.Part{ast.Part{Stmts: []ast.Stmt{stmt}}}, "", "")
+	return p.toAST(source, []ast.Part{{Stmts: []ast.Stmt{stmt}}}, "", "")
 }
 
 func (p *parser) prepareForVisitPass(options *ParseOptions) {

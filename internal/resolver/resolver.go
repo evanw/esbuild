@@ -61,7 +61,7 @@ func NewResolver(fs fs.FS, log logging.Log, options ResolveOptions) Resolver {
 	if options.Platform == parser.PlatformNode {
 		externalModules := make(map[string]bool)
 		if options.ExternalModules != nil {
-			for name, _ := range options.ExternalModules {
+			for name := range options.ExternalModules {
 				externalModules[name] = true
 			}
 		}
