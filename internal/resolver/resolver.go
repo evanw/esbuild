@@ -140,7 +140,8 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 		}
 	} else {
 		// Check for external modules first
-		if r.options.ExternalModules != nil && r.options.ExternalModules[importPath] {
+		importPathRoot := strings.Split(importPath, "/")[0]
+		if r.options.ExternalModules != nil && r.options.ExternalModules[importPathRoot] {
 			return "", ResolveExternal
 		}
 

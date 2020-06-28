@@ -4672,6 +4672,44 @@ render(h(App, null), document.getElementById("app"));
 	})
 }
 
+func TestExternalModuleExclusion(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/index.js": `
+				import { S3 } from 'aws-sdk';
+				import { DocumentClient } from 'aws-sdk/clients/dynamodb';
+				export const s3 = new S3();
+				export const dynamodb = new DocumentClient();
+			`,
+		},
+		entryPaths: []string{"/index.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		resolveOptions: resolver.ResolveOptions{
+			ExternalModules: map[string]bool{
+				"aws-sdk": true,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /index.js
+import {S3} from "aws-sdk";
+import {DocumentClient} from "aws-sdk/clients/dynamodb";
+const s3 = new S3();
+const dynamodb2 = new DocumentClient();
+export {
+  dynamodb2 as dynamodb,
+  s3
+};
+`,
+		},
+	})
+}
+
 // This test case makes sure many entry points don't cause a crash
 func TestManyEntryPoints(t *testing.T) {
 	expectBundled(t, bundled{
