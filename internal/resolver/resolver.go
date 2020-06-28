@@ -140,9 +140,18 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 		}
 	} else {
 		// Check for external modules first
-		importPathRoot := strings.Split(importPath, "/")[0]
-		if r.options.ExternalModules != nil && r.options.ExternalModules[importPathRoot] {
-			return "", ResolveExternal
+		if r.options.ExternalModules != nil {
+			importPathRoot := importPath
+
+			// If the module "foo" has been marked as external, we also want to treat
+			// paths into that module such as "foo/bar" as external too.
+			if slash := strings.IndexByte(importPathRoot, '/'); slash != -1 {
+				importPathRoot = importPathRoot[:slash]
+			}
+
+			if r.options.ExternalModules[importPathRoot] {
+				return "", ResolveExternal
+			}
 		}
 
 		sourceDirInfo := r.dirInfoCached(sourceDir)

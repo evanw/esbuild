@@ -8,6 +8,12 @@
 
     This release turns assignments to imports into compile-time errors to reject invalid code instead of allowing it to cause this non-conforming behavior. Handling this at compile-time is consistent with other tools such as TypeScript and Rollup.
 
+* Exclude external child paths from the bundle ([#186](https://github.com/evanw/esbuild/pull/186))
+
+    Marking a module as external via `--external:foo` means any imports for the module `foo` will be preserved in the output instead of being traversed by the bundler. This is helpful if the module contains problematic code such as a native node module that can't be bundled.
+
+    However, code often uses child paths to import a file within a module directly such as `import "foo/bar"`. These paths accidentally bypassed the external module check. The fix means all paths under an external module are now also considered external. This was contributed by [@floydspace](https://github.com/floydspace).
+
 ## 0.5.13
 
 * Add support for TypeScript labelled tuples
