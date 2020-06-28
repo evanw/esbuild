@@ -597,7 +597,8 @@ func RangeOfIdentifier(source logging.Source, loc ast.Loc) ast.Range {
 		}
 	}
 
-	return ast.Range{loc, 0}
+	// When minifying, this identifier may have originally been a string
+	return source.RangeOfString(loc)
 }
 
 func (lexer *Lexer) ExpectJSXElementChild(token T) {

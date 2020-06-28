@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Prevent assignment to ES6 imports ([#202](https://github.com/evanw/esbuild/issues/202))
+
+    ES6 imports are live bindings to other values, sort of like a getter-only property on an object. An assignment to an import identifier should cause a `TypeError` at run time according to the specification. However, when bundling esbuild performs the "scope hoisting" optimization and merges all modules into a single scope. Imports inside the bundle refer to the imported identifiers without any indirection and an assignment will not throw a `TypeError` at run time.
+
+    This release turns assignments to imports into compile-time errors to reject invalid code instead of allowing it to cause this non-conforming behavior. Handling this at compile-time is consistent with other tools such as TypeScript and Rollup.
+
 ## 0.5.13
 
 * Add support for TypeScript labelled tuples

@@ -495,13 +495,18 @@ const (
 	mergeBecomePrivateGetSetPair
 )
 
-func canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) mergeResult {
+func (p *parser) canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) mergeResult {
 	if existing == ast.SymbolUnbound {
 		return mergeReplaceWithNew
 	}
 
-	// "import {Foo} from 'bar'; class Foo {}"
-	if existing == ast.SymbolTSImport {
+	// In TypeScript, imports are allowed to silently collide with symbols within
+	// the module. Presumably this is because the imports may be type-only:
+	//
+	//   import {Foo} from 'bar'
+	//   class Foo {}
+	//
+	if p.TS.Parse && existing == ast.SymbolImport {
 		return mergeReplaceWithNew
 	}
 
@@ -568,7 +573,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 	if existing, ok := scope.Members[name]; ok {
 		symbol := &p.symbols[existing.InnerIndex]
 
-		switch canMergeSymbols(symbol.Kind, kind) {
+		switch p.canMergeSymbols(symbol.Kind, kind) {
 		case mergeForbidden:
 			r := lexer.RangeOfIdentifier(p.source, loc)
 			p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", name))
@@ -5230,17 +5235,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		path := p.parsePath()
 		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, path)
 		p.lexer.ExpectOrInsertSemicolon()
-		kind := ast.SymbolOther
-
-		// In TypeScript, imports are allowed to silently collide with symbols within
-		// the module. Presumably this is because the imports may be type-only.
-		if p.TS.Parse {
-			kind = ast.SymbolTSImport
-		}
 
 		if stmt.StarNameLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
-			stmt.NamespaceRef = p.declareSymbol(kind, *stmt.StarNameLoc, name)
+			stmt.NamespaceRef = p.declareSymbol(ast.SymbolImport, *stmt.StarNameLoc, name)
 		} else {
 			// Generate a symbol for the namespace
 			name := ast.GenerateNonUniqueNameFromPath(path.Text)
@@ -5252,7 +5250,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		// Link the default item to the namespace
 		if stmt.DefaultName != nil {
 			name := p.loadNameFromRef(stmt.DefaultName.Ref)
-			ref := p.declareSymbol(kind, stmt.DefaultName.Loc, name)
+			ref := p.declareSymbol(ast.SymbolImport, stmt.DefaultName.Loc, name)
 			p.isImportItem[ref] = true
 			stmt.DefaultName.Ref = ref
 			itemRefs["default"] = *stmt.DefaultName
@@ -5262,7 +5260,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if stmt.Items != nil {
 			for i, item := range *stmt.Items {
 				name := p.loadNameFromRef(item.Name.Ref)
-				ref := p.declareSymbol(kind, item.Name.Loc, name)
+				ref := p.declareSymbol(ast.SymbolImport, item.Name.Loc, name)
 				p.isImportItem[ref] = true
 				(*stmt.Items)[i].Name.Ref = ref
 				itemRefs[item.Alias] = ast.LocRef{item.Name.Loc, ref}
@@ -7185,22 +7183,28 @@ func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 	return p.symbols[result.ref.InnerIndex].Kind == ast.SymbolUnbound
 }
 
-func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string) ast.Expr {
+func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string, assignTarget ast.AssignTarget) ast.Expr {
+	// Generate an identifier for the first part
 	ref := p.findSymbol(parts[0]).ref
-	value := ast.Expr{loc, &ast.EIdentifier{ref}}
-
-	// Substitute an EImportIdentifier now if this is an import item
-	if p.isImportItem[ref] {
-		value.Data = &ast.EImportIdentifier{ref}
+	targetIfLast := ast.AssignTargetNone
+	if len(parts) == 1 {
+		targetIfLast = assignTarget
 	}
+	value := p.handleIdentifier(loc, targetIfLast, &ast.EIdentifier{ref})
 
+	// Build up a chain of property access expressions for subsequent parts
 	for i := 1; i < len(parts); i++ {
-		value = p.maybeRewriteDot(loc, &ast.EDot{
+		targetIfLast = ast.AssignTargetNone
+		if i+1 == len(parts) {
+			targetIfLast = assignTarget
+		}
+		value = p.maybeRewriteDot(loc, targetIfLast, &ast.EDot{
 			Target:  value,
 			Name:    parts[i],
 			NameLoc: loc,
 		})
 	}
+
 	return value
 }
 
@@ -7227,7 +7231,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 // EDot nodes represent a property access. This function may return an
 // expression to replace the property access with. It assumes that the
 // target of the EDot expression has already been visited.
-func (p *parser) maybeRewriteDot(loc ast.Loc, dot *ast.EDot) ast.Expr {
+func (p *parser) maybeRewriteDot(loc ast.Loc, assignTarget ast.AssignTarget, dot *ast.EDot) ast.Expr {
 	if id, ok := dot.Target.Data.(*ast.EIdentifier); ok {
 		// Rewrite property accesses on explicit namespace imports as an identifier.
 		// This lets us replace them easily in the printer to rebind them to
@@ -7238,7 +7242,7 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, dot *ast.EDot) ast.Expr {
 			item, ok := importItems[dot.Name]
 			if !ok {
 				// Generate a new import item symbol in the module scope
-				item = ast.LocRef{dot.NameLoc, p.newSymbol(ast.SymbolOther, dot.Name)}
+				item = ast.LocRef{dot.NameLoc, p.newSymbol(ast.SymbolImport, dot.Name)}
 				p.moduleScope.Generated = append(p.moduleScope.Generated, item.Ref)
 
 				// Link the namespace import and the import item together
@@ -7274,7 +7278,7 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, dot *ast.EDot) ast.Expr {
 
 			// Track how many times we've referenced this symbol
 			p.recordUsage(item.Ref)
-			return ast.Expr{loc, &ast.EImportIdentifier{item.Ref}}
+			return p.handleIdentifier(dot.NameLoc, assignTarget, &ast.EIdentifier{item.Ref})
 		}
 
 		// If this is a known enum value, inline the value of the enum
@@ -7506,7 +7510,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound && !result.isInsideWithScope {
 			if defineFunc, ok := p.Defines.IdentifierDefines[name]; ok {
-				new := p.valueForDefine(expr.Loc, defineFunc)
+				new := p.valueForDefine(expr.Loc, in.assignTarget, defineFunc)
 
 				// Don't substitute an identifier for a non-identifier if this is an
 				// assignment target, since it'll cause a syntax error
@@ -7516,7 +7520,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 		}
 
-		return p.handleIdentifier(expr.Loc, e), exprOut{}
+		return p.handleIdentifier(expr.Loc, in.assignTarget, e), exprOut{}
 
 	case *ast.EPrivateIdentifier:
 		// We should never get here
@@ -7526,7 +7530,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// A missing tag is a fragment
 		tag := e.Tag
 		if tag == nil {
-			value := p.stringsToMemberExpression(expr.Loc, p.JSX.Fragment)
+			value := p.stringsToMemberExpression(expr.Loc, p.JSX.Fragment, in.assignTarget)
 			tag = &value
 		} else {
 			*tag = p.visitExpr(*tag)
@@ -7563,7 +7567,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		// Call createElement()
 		return ast.Expr{expr.Loc, &ast.ECall{
-			Target: p.stringsToMemberExpression(expr.Loc, p.JSX.Factory),
+			Target: p.stringsToMemberExpression(expr.Loc, p.JSX.Factory, in.assignTarget),
 			Args:   args,
 		}}, exprOut{}
 
@@ -7927,6 +7931,19 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			e.Index = p.visitExpr(e.Index)
 		}
 
+		// Create an error for assigning to an import namespace
+		if in.assignTarget != ast.AssignTargetNone {
+			if id, ok := e.Target.Data.(*ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Kind == ast.SymbolImport {
+				if str, ok := e.Index.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(str.Value) {
+					r := p.source.RangeOfString(e.Index.Loc)
+					p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", lexer.UTF16ToString(str.Value)))
+				} else {
+					r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+					p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to property on import %q", p.symbols[id.Ref.InnerIndex].Name))
+				}
+			}
+		}
+
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
@@ -8040,7 +8057,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					}
 
 					// Substitute user-specified defines
-					return p.valueForDefine(expr.Loc, define.DefineFunc), exprOut{}
+					return p.valueForDefine(expr.Loc, in.assignTarget, define.DefineFunc), exprOut{}
 				}
 			}
 		}
@@ -8056,7 +8073,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
-		return p.maybeRewriteDot(expr.Loc, e), exprOut{
+		return p.maybeRewriteDot(expr.Loc, in.assignTarget, e), exprOut{
 			childContainsOptionalChain: containsOptionalChain,
 		}
 
@@ -8316,24 +8333,32 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	return expr, exprOut{}
 }
 
-func (p *parser) valueForDefine(loc ast.Loc, defineFunc DefineFunc) ast.Expr {
+func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defineFunc DefineFunc) ast.Expr {
 	expr := ast.Expr{loc, defineFunc(p.findSymbolHelper)}
 	if id, ok := expr.Data.(*ast.EIdentifier); ok {
-		return p.handleIdentifier(loc, id)
+		return p.handleIdentifier(loc, assignTarget, id)
 	}
 	return expr
 }
 
-func (p *parser) handleIdentifier(loc ast.Loc, e *ast.EIdentifier) ast.Expr {
+func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e *ast.EIdentifier) ast.Expr {
+	ref := e.Ref
+
+	// Create an error for assigning to an import namespace
+	if assignTarget != ast.AssignTargetNone && p.symbols[ref.InnerIndex].Kind == ast.SymbolImport {
+		r := lexer.RangeOfIdentifier(p.source, loc)
+		p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", p.symbols[ref.InnerIndex].Name))
+	}
+
 	// Substitute an EImportIdentifier now if this is an import item
-	if p.isImportItem[e.Ref] {
-		return ast.Expr{loc, &ast.EImportIdentifier{e.Ref}}
+	if p.isImportItem[ref] {
+		return ast.Expr{loc, &ast.EImportIdentifier{ref}}
 	}
 
 	// Substitute a namespace export reference now if appropriate
 	if p.TS.Parse {
-		if nsRef, ok := p.isExportedInsideNamespace[e.Ref]; ok {
-			name := p.symbols[e.Ref.InnerIndex].Name
+		if nsRef, ok := p.isExportedInsideNamespace[ref]; ok {
+			name := p.symbols[ref.InnerIndex].Name
 
 			// If this is a known enum value, inline the value of the enum
 			if enumValueMap, ok := p.knownEnumValues[nsRef]; ok {
@@ -8352,7 +8377,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, e *ast.EIdentifier) ast.Expr {
 	}
 
 	// Warn about uses of "require" other than a direct call
-	if e.Ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.tryBodyCount == 0 {
+	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.tryBodyCount == 0 {
 		// "typeof require == 'function' && require"
 		if e == p.typeofRequireEqualsFnTarget {
 			// Become "false" in the browser and "require" in node

@@ -955,7 +955,7 @@ const (
 
 	// In TypeScript, imports are allowed to silently collide with symbols within
 	// the module. Presumably this is because the imports may be type-only.
-	SymbolTSImport
+	SymbolImport
 
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther

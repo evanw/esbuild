@@ -1066,6 +1066,22 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "import.meta", "import.meta;\n")
 	expectPrinted(t, "(import.meta)", "import.meta;\n")
 	expectPrinted(t, "{import.meta}", "{\n  import.meta;\n}\n")
+
+	expectParseError(t, "import x from \"foo\"; x = 1", "<stdin>: error: Cannot assign to import \"x\"\n")
+	expectParseError(t, "import x from \"foo\"; x++", "<stdin>: error: Cannot assign to import \"x\"\n")
+	expectParseError(t, "import x from \"foo\"; ([x] = 1)", "<stdin>: error: Cannot assign to import \"x\"\n")
+	expectParseError(t, "import x from \"foo\"; ({x} = 1)", "<stdin>: error: Cannot assign to import \"x\"\n")
+	expectParseError(t, "import x from \"foo\"; ({y: x} = 1)", "<stdin>: error: Cannot assign to import \"x\"\n")
+	expectParseError(t, "import {x} from \"foo\"; x++", "<stdin>: error: Cannot assign to import \"x\"\n")
+	expectParseError(t, "import * as x from \"foo\"; x++", "<stdin>: error: Cannot assign to import \"x\"\n")
+	expectParseError(t, "import * as x from \"foo\"; x.y = 1", "<stdin>: error: Cannot assign to import \"y\"\n")
+	expectParseError(t, "import * as x from \"foo\"; x[y] = 1", "<stdin>: error: Cannot assign to property on import \"x\"\n")
+	expectParseError(t, "import * as x from \"foo\"; x['y'] = 1", "<stdin>: error: Cannot assign to import \"y\"\n")
+	expectPrinted(t, "import x from \"foo\"; ({y = x} = 1)", "import x from \"foo\";\n({y = x} = 1);\n")
+	expectPrinted(t, "import x from \"foo\"; ({[x]: y} = 1)", "import x from \"foo\";\n({[x]: y} = 1);\n")
+	expectPrinted(t, "import x from \"foo\"; x.y = 1", "import x from \"foo\";\nx.y = 1;\n")
+	expectPrinted(t, "import x from \"foo\"; x[y] = 1", "import x from \"foo\";\nx[y] = 1;\n")
+	expectPrinted(t, "import x from \"foo\"; x['y'] = 1", "import x from \"foo\";\nx[\"y\"] = 1;\n")
 }
 
 func TestExport(t *testing.T) {
