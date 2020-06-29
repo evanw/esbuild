@@ -1232,7 +1232,7 @@ func (c *linkerContext) accumulateSymbolCount(ref ast.Ref, count uint32) {
 	c.symbols.Get(ref).UseCountEstimate += count
 }
 
-func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanceFromEntryPoint uint32) {
+func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
 	fileMeta := &c.fileMeta[sourceIndex]
 
 	// Track the minimum distance to an entry point
@@ -1242,10 +1242,10 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 	distanceFromEntryPoint++
 
 	// Don't mark this file more than once
-	if fileMeta.entryBits.hasBit(entryPoint) {
+	if fileMeta.entryBits.hasBit(entryPointBit) {
 		return
 	}
-	fileMeta.entryBits.setBit(entryPoint)
+	fileMeta.entryBits.setBit(entryPointBit)
 
 	// Accumulate symbol usage counts
 	file := &c.files[sourceIndex]
@@ -1276,7 +1276,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 				}
 
 				// Otherwise, include this module for its side effects
-				c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
+				c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
 			}
 
 			// If we get here then the import was included for its side effects, so
@@ -1288,7 +1288,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 		// everything if tree-shaking is disabled. Note that we still want to
 		// perform tree-shaking on the runtime even if tree-shaking is disabled.
 		if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.IsBundling && sourceIndex != ast.RuntimeSourceIndex) {
-			c.includePart(sourceIndex, uint32(partIndex), entryPoint, distanceFromEntryPoint)
+			c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
 		}
 	}
 
@@ -1307,7 +1307,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 
 			// Pull in all declarations of this symbol
 			for _, partIndex := range c.files[targetSourceIndex].ast.TopLevelSymbolToParts[targetRef] {
-				c.includePart(targetSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
+				c.includePart(targetSourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
 			}
 		}
 	}
@@ -1315,7 +1315,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPoint uint, distanc
 
 func (c *linkerContext) includePartsForRuntimeSymbol(
 	part *ast.Part, fileMeta *fileMeta, useCount uint32,
-	name string, entryPoint uint, distanceFromEntryPoint uint32,
+	name string, entryPointBit uint, distanceFromEntryPoint uint32,
 ) {
 	if useCount > 0 {
 		file := &c.files[ast.RuntimeSourceIndex]
@@ -1327,7 +1327,7 @@ func (c *linkerContext) includePartsForRuntimeSymbol(
 		// Since this part was included, also include the parts from the runtime
 		// that declare this symbol
 		for _, partIndex := range file.ast.TopLevelSymbolToParts[ref] {
-			c.includePart(ast.RuntimeSourceIndex, partIndex, entryPoint, distanceFromEntryPoint)
+			c.includePart(ast.RuntimeSourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
 		}
 	}
 }
@@ -1343,30 +1343,30 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 	}
 }
 
-func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPoint uint, distanceFromEntryPoint uint32) {
+func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
 	partMeta := &c.fileMeta[sourceIndex].partMeta[partIndex]
 
 	// Don't mark this part more than once
-	if partMeta.entryBits.hasBit(entryPoint) {
+	if partMeta.entryBits.hasBit(entryPointBit) {
 		return
 	}
-	partMeta.entryBits.setBit(entryPoint)
+	partMeta.entryBits.setBit(entryPointBit)
 
 	file := &c.files[sourceIndex]
 	part := &file.ast.Parts[partIndex]
 	fileMeta := &c.fileMeta[sourceIndex]
 
 	// Include the file containing this part
-	c.includeFile(sourceIndex, entryPoint, distanceFromEntryPoint)
+	c.includeFile(sourceIndex, entryPointBit, distanceFromEntryPoint)
 
 	// Also include any local dependencies
 	for otherPartIndex := range part.LocalDependencies {
-		c.includePart(sourceIndex, otherPartIndex, entryPoint, distanceFromEntryPoint)
+		c.includePart(sourceIndex, otherPartIndex, entryPointBit, distanceFromEntryPoint)
 	}
 
 	// Also include any non-local dependencies
 	for _, nonLocalDependency := range partMeta.nonLocalDependencies {
-		c.includePart(nonLocalDependency.sourceIndex, nonLocalDependency.partIndex, entryPoint, distanceFromEntryPoint)
+		c.includePart(nonLocalDependency.sourceIndex, nonLocalDependency.partIndex, entryPointBit, distanceFromEntryPoint)
 	}
 
 	// Also include any require() imports
@@ -1392,7 +1392,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		}
 
 		// This is a require() import
-		c.includeFile(otherSourceIndex, entryPoint, distanceFromEntryPoint)
+		c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
 
 		// Depend on the automatically-generated require wrapper symbol
 		wrapperRef := c.files[otherSourceIndex].ast.WrapperRef
@@ -1408,7 +1408,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 	// If there's an ES6 import of a non-ES6 module, then we're going to need the
 	// "__toModule" symbol from the runtime to wrap the result of "require()"
-	c.includePartsForRuntimeSymbol(part, fileMeta, toModuleUses, "__toModule", entryPoint, distanceFromEntryPoint)
+	c.includePartsForRuntimeSymbol(part, fileMeta, toModuleUses, "__toModule", entryPointBit, distanceFromEntryPoint)
 
 	// If there's an ES6 export star statement of a non-ES6 module, then we're
 	// going to need the "__exportStar" symbol from the runtime
@@ -1423,7 +1423,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 			exportStarUses++
 		}
 	}
-	c.includePartsForRuntimeSymbol(part, fileMeta, exportStarUses, "__exportStar", entryPoint, distanceFromEntryPoint)
+	c.includePartsForRuntimeSymbol(part, fileMeta, exportStarUses, "__exportStar", entryPointBit, distanceFromEntryPoint)
 
 	// Accumulate symbol usage counts. Do this last to also include
 	// automatically-generated usages from the code above.
@@ -2093,8 +2093,6 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range filesInChunkInOrder {
-		file := c.files[sourceIndex]
-
 		// Skip the runtime in test output
 		if sourceIndex == ast.RuntimeSourceIndex && c.options.omitRuntimeForTests {
 			continue
@@ -2102,8 +2100,8 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 		// Each file may optionally contain an additional file to be copied to the
 		// output directory. This is used by the "file" loader.
-		if file.additionalFile != nil {
-			results = append(results, *file.additionalFile)
+		if additionalFile := c.files[sourceIndex].additionalFile; additionalFile != nil {
+			results = append(results, *additionalFile)
 		}
 
 		// Create a goroutine for this file
