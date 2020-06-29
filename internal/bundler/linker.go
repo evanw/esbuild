@@ -1270,6 +1270,12 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 	for partIndex, part := range file.ast.Parts {
 		canBeRemovedIfUnused := part.CanBeRemovedIfUnused
 
+		// Don't include the entry point part if we're not the entry point
+		if fileMeta.entryPointExportPartIndex != nil && uint32(partIndex) == *fileMeta.entryPointExportPartIndex &&
+			sourceIndex != c.entryPoints[entryPointBit] {
+			continue
+		}
+
 		// Also include any statement-level imports
 		for _, importRecordIndex := range part.ImportRecordIndices {
 			record := &file.ast.ImportRecords[importRecordIndex]
@@ -1946,15 +1952,15 @@ func (c *linkerContext) generateCodeForFileInChunk(
 
 		// Add all other parts in this chunk
 		for partIndex, part := range parts {
-			if uint32(partIndex) != fileMeta.nsExportPartIndex && entryBits.equals(fileMeta.partMeta[partIndex].entryBits) &&
-				(fileMeta.entryPointExportPartIndex == nil || uint32(partIndex) != *fileMeta.entryPointExportPartIndex) {
+			if uint32(partIndex) != fileMeta.nsExportPartIndex && entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+				// Emit export statements in the entry point part verbatim
+				if fileMeta.entryPointExportPartIndex != nil && uint32(partIndex) == *fileMeta.entryPointExportPartIndex {
+					stmtList.normalStmts = append(stmtList.normalStmts, part.Stmts...)
+					continue
+				}
+
 				c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
 			}
-		}
-
-		// Put the entry point exports at the end
-		if fileMeta.entryPointExportPartIndex != nil {
-			stmtList.normalStmts = append(stmtList.normalStmts, parts[*fileMeta.entryPointExportPartIndex].Stmts...)
 		}
 
 		// Hoist all import statements before any normal statements. ES6 imports
