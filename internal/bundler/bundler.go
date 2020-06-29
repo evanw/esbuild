@@ -462,6 +462,7 @@ type BundleOptions struct {
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool
+	CodeSplitting     bool
 	ModuleName        string
 	ExtensionToLoader map[string]Loader
 	OutputFormat      printer.Format
@@ -528,21 +529,31 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
 		reachableFiles []uint32
 	}
 
-	waitGroup := sync.WaitGroup{}
-	resultGroups := make([]linkGroup, len(b.entryPoints))
-
-	// Link each file with the runtime file separately in parallel
-	for i, entryPoint := range b.entryPoints {
-		waitGroup.Add(1)
-		go func(i int, entryPoint uint32) {
-			group := &resultGroups[i]
-			c := newLinkerContext(&options, log, b.fs, b.sources, b.files, []uint32{entryPoint})
-			group.outputFiles = c.link()
-			group.reachableFiles = c.reachableFiles
-			waitGroup.Done()
-		}(i, entryPoint)
+	var resultGroups []linkGroup
+	if options.CodeSplitting {
+		// If code splitting is enabled, link all entry points together
+		c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints)
+		resultGroups = []linkGroup{{
+			outputFiles:    c.link(),
+			reachableFiles: c.reachableFiles,
+		}}
+	} else {
+		// Otherwise, link each entry point with the runtime file separately
+		waitGroup := sync.WaitGroup{}
+		resultGroups = make([]linkGroup, len(b.entryPoints))
+		for i, entryPoint := range b.entryPoints {
+			waitGroup.Add(1)
+			go func(i int, entryPoint uint32) {
+				c := newLinkerContext(&options, log, b.fs, b.sources, b.files, []uint32{entryPoint})
+				resultGroups[i] = linkGroup{
+					outputFiles:    c.link(),
+					reachableFiles: c.reachableFiles,
+				}
+				waitGroup.Done()
+			}(i, entryPoint)
+		}
+		waitGroup.Wait()
 	}
-	waitGroup.Wait()
 
 	// Join the results in entry point order for determinism
 	var outputFiles []OutputFile
