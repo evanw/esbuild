@@ -36,6 +36,16 @@ func (bs bitSet) equals(other bitSet) bool {
 	return bytes.Equal(bs.entries, other.entries)
 }
 
+func (bs bitSet) copyFrom(other bitSet) {
+	copy(bs.entries, other.entries)
+}
+
+func (bs *bitSet) bitwiseOrWith(other bitSet) {
+	for i := range bs.entries {
+		bs.entries[i] |= other.entries[i]
+	}
+}
+
 type linkerContext struct {
 	options     *BundleOptions
 	log         logging.Log
@@ -264,11 +274,11 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 		// Clone the parts
 		file.ast.Parts = append([]ast.Part{}, file.ast.Parts...)
 		for i, part := range file.ast.Parts {
-			clone := make(map[ast.Ref]uint32, len(part.UseCountEstimates))
-			for ref, count := range part.UseCountEstimates {
-				clone[ref] = count
+			clone := make(map[ast.Ref]ast.SymbolUse, len(part.SymbolUses))
+			for ref, uses := range part.SymbolUses {
+				clone[ref] = uses
 			}
-			file.ast.Parts[i].UseCountEstimates = clone
+			file.ast.Parts[i].SymbolUses = clone
 		}
 
 		// Clone the import records
@@ -483,23 +493,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 				// Record each symbol used in this part. This will later be matched up
 				// with our map of which chunk a given symbol is declared in to
 				// determine if the symbol needs to be imported from another chunk.
-				for ref, count := range part.UseCountEstimates {
-					// Ignore symbols that are no longer used. This can happen with
-					// namespace imports like this:
-					//
-					//   import * as ns from 'path'
-					//   console.log(ns.foo)
-					//
-					// When bundling, the parser converts that to something like this:
-					//
-					//   import {foo} from 'path'
-					//   console.log(foo)
-					//
-					// The "ns" symbol is still there but now has a use count of 0.
-					if count < 1 {
-						continue
-					}
-
+				for ref := range part.SymbolUses {
 					symbol := c.symbols.Get(ref)
 
 					// Ignore unbound symbols, which don't have declarations
@@ -798,7 +792,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		fileMeta.nsExportPartIndex = uint32(len(file.ast.Parts))
 		file.ast.Parts = append(file.ast.Parts, ast.Part{
 			LocalDependencies:    make(map[uint32]bool),
-			UseCountEstimates:    make(map[ast.Ref]uint32),
+			SymbolUses:           make(map[ast.Ref]ast.SymbolUse),
 			CanBeRemovedIfUnused: true,
 			IsNamespaceExport:    true,
 		})
@@ -931,7 +925,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// Generate a getter per export
 	properties := []ast.Property{}
 	nonLocalDependencies := []partRef{}
-	useCountEstimates := make(map[ast.Ref]uint32)
+	symbolUses := make(map[ast.Ref]ast.SymbolUse)
 	for _, alias := range fileMeta.sortedAndFilteredExportAliases {
 		export := fileMeta.resolvedExports[alias]
 
@@ -1062,7 +1056,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				Body:       ast.FnBody{Stmts: []ast.Stmt{{Loc: value.Loc, Data: &ast.SReturn{Value: &value}}}},
 			}},
 		})
-		useCountEstimates[export.ref]++
+		symbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
 
 		// Make sure the part that declares the export is included
 		for _, partIndex := range c.files[export.sourceIndex].ast.TopLevelSymbolToParts[export.ref] {
@@ -1124,7 +1118,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		*exportPart = ast.Part{
 			Stmts:             nsExportStmts,
 			LocalDependencies: make(map[uint32]bool),
-			UseCountEstimates: useCountEstimates,
+			SymbolUses:        symbolUses,
 			DeclaredSymbols:   declaredSymbols,
 
 			// This can be removed if nothing uses it. Except if we're a CommonJS
@@ -1196,14 +1190,14 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 	if len(entryPointExportStmts) > 0 || cjsWrapStmt.Data != nil {
 		// Clone the use count estimates so they aren't shared with the other part
-		useCountEstimatesClone := make(map[ast.Ref]uint32, len(useCountEstimates))
-		for ref, count := range useCountEstimates {
-			useCountEstimatesClone[ref] = count
+		symbolUsesClone := make(map[ast.Ref]ast.SymbolUse, len(symbolUses))
+		for ref, use := range symbolUses {
+			symbolUsesClone[ref] = use
 		}
 
 		// Trigger evaluation of the CommonJS wrapper
 		if cjsWrapStmt.Data != nil {
-			useCountEstimatesClone[file.ast.WrapperRef]++
+			symbolUsesClone[file.ast.WrapperRef] = ast.SymbolUse{CountEstimate: 1}
 			entryPointExportStmts = append(entryPointExportStmts, cjsWrapStmt)
 		}
 
@@ -1214,7 +1208,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		file.ast.Parts = append(file.ast.Parts, ast.Part{
 			Stmts:             entryPointExportStmts,
 			LocalDependencies: make(map[uint32]bool),
-			UseCountEstimates: useCountEstimatesClone,
+			SymbolUses:        symbolUsesClone,
 		})
 		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
 			entryBits:            newBitSet(uint(len(c.entryPoints))),
@@ -1552,9 +1546,9 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 			file.ast.TopLevelSymbolToParts[file.ast.WrapperRef] = []uint32{partIndex}
 			file.ast.Parts = append(file.ast.Parts, ast.Part{
 				LocalDependencies: make(map[uint32]bool),
-				UseCountEstimates: map[ast.Ref]uint32{
-					file.ast.WrapperRef: 1,
-					commonJSRef:         1,
+				SymbolUses: map[ast.Ref]ast.SymbolUse{
+					file.ast.WrapperRef: {CountEstimate: 1},
+					commonJSRef:         {CountEstimate: 1},
 				},
 				DeclaredSymbols: []ast.DeclaredSymbol{
 					{Ref: file.ast.ExportsRef, IsTopLevel: true},
@@ -1580,6 +1574,73 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	// Each entry point marks all files reachable from itself
 	for i, entryPoint := range c.entryPoints {
 		c.includeFile(entryPoint, uint(i), 0)
+	}
+
+	c.handleCrossChunkAssignments()
+}
+
+// Code splitting may cause an assignment to a local variable to end up in a
+// separate chunk from the variable. This is bad because that will generate
+// an assignment to an import, which will fail. Make sure these parts end up
+// in the same chunk in these cases.
+func (c *linkerContext) handleCrossChunkAssignments() {
+	if len(c.entryPoints) < 2 {
+		// No need to do this if there cannot be cross-chunk assignments
+		return
+	}
+	neverReachedEntryBits := newBitSet(uint(len(c.entryPoints)))
+
+	for _, sourceIndex := range c.reachableFiles {
+		file := &c.files[sourceIndex]
+		partMeta := c.fileMeta[sourceIndex].partMeta
+
+		// Initialize a union-find data structure to merge parts together
+		unionFind := make([]uint32, len(file.ast.Parts))
+		for partIndex := range file.ast.Parts {
+			unionFind[partIndex] = uint32(partIndex)
+		}
+
+		// Look up a merged label
+		var find func(uint32) uint32
+		find = func(label uint32) uint32 {
+			next := unionFind[label]
+			if next != label {
+				next = find(next)
+				unionFind[label] = next
+			}
+			return next
+		}
+
+		for partIndex, part := range file.ast.Parts {
+			// Ignore this part if it's dead code
+			if partMeta[partIndex].entryBits.equals(neverReachedEntryBits) {
+				continue
+			}
+
+			// If this part assigns to a local variable, make sure the parts for the
+			// variable's declaration are in the same chunk as this part
+			for ref, use := range part.SymbolUses {
+				if use.IsAssigned {
+					if otherParts, ok := file.ast.TopLevelSymbolToParts[ref]; ok {
+						for _, otherPartIndex := range otherParts {
+							// Union the two labels together
+							a := find(uint32(partIndex))
+							b := find(otherPartIndex)
+							unionFind[a] = b
+							partMeta[b].entryBits.bitwiseOrWith(partMeta[a].entryBits)
+						}
+					}
+				}
+			}
+		}
+
+		// Update the entry bits of parts that were merged
+		for partIndex := range file.ast.Parts {
+			label := find(uint32(partIndex))
+			if label != uint32(partIndex) {
+				partMeta[partIndex].entryBits.copyFrom(partMeta[label].entryBits)
+			}
+		}
 	}
 }
 
@@ -1698,7 +1759,9 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 	part *ast.Part, fileMeta *fileMeta, useCount uint32,
 	ref ast.Ref, otherSourceIndex uint32,
 ) {
-	part.UseCountEstimates[ref] += useCount
+	use := part.SymbolUses[ref]
+	use.CountEstimate += useCount
+	part.SymbolUses[ref] = use
 	fileMeta.importsToBind[ref] = importToBind{
 		sourceIndex: otherSourceIndex,
 		ref:         ref,
@@ -1793,8 +1856,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 	// Accumulate symbol usage counts. Do this last to also include
 	// automatically-generated usages from the code above.
-	for ref, count := range part.UseCountEstimates {
-		c.accumulateSymbolCount(ref, count)
+	for ref, use := range part.SymbolUses {
+		c.accumulateSymbolCount(ref, use.CountEstimate)
 	}
 	for _, declared := range part.DeclaredSymbols {
 		// Make sure to also count the declaration in addition to the uses

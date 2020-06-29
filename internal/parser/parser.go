@@ -47,7 +47,7 @@ type parser struct {
 	moduleRef                ast.Ref
 	importMetaRef            ast.Ref
 	findSymbolHelper         FindSymbol
-	useCountEstimates        map[ast.Ref]uint32
+	symbolUses               map[ast.Ref]ast.SymbolUse
 	declaredSymbols          []ast.DeclaredSymbol
 	runtimeImports           map[string]ast.Ref
 
@@ -688,7 +688,9 @@ func (p *parser) recordUsage(ref ast.Ref) {
 	// code regions since those will be culled.
 	if !p.isControlFlowDead {
 		p.symbols[ref.InnerIndex].UseCountEstimate++
-		p.useCountEstimates[ref]++
+		use := p.symbolUses[ref]
+		use.CountEstimate++
+		p.symbolUses[ref] = use
 	}
 
 	// The correctness of TypeScript-to-JavaScript conversion relies on accurate
@@ -703,7 +705,13 @@ func (p *parser) ignoreUsage(ref ast.Ref) {
 	// Roll back the use count increment in recordUsage()
 	if !p.isControlFlowDead {
 		p.symbols[ref.InnerIndex].UseCountEstimate--
-		p.useCountEstimates[ref]--
+		use := p.symbolUses[ref]
+		use.CountEstimate--
+		if use.CountEstimate == 0 {
+			delete(p.symbolUses, ref)
+		} else {
+			p.symbolUses[ref] = use
+		}
 	}
 
 	// Don't roll back the "tsUseCounts" increment. This must be counted even if
@@ -8378,10 +8386,17 @@ func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defi
 func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e *ast.EIdentifier) ast.Expr {
 	ref := e.Ref
 
-	// Create an error for assigning to an import namespace
-	if assignTarget != ast.AssignTargetNone && p.symbols[ref.InnerIndex].Kind == ast.SymbolImport {
-		r := lexer.RangeOfIdentifier(p.source, loc)
-		p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", p.symbols[ref.InnerIndex].Name))
+	if assignTarget != ast.AssignTargetNone {
+		if p.symbols[ref.InnerIndex].Kind == ast.SymbolImport {
+			// Create an error for assigning to an import namespace
+			r := lexer.RangeOfIdentifier(p.source, loc)
+			p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", p.symbols[ref.InnerIndex].Name))
+		} else {
+			// Remember that this part assigns to this symbol for code splitting
+			use := p.symbolUses[ref]
+			use.IsAssigned = true
+			p.symbolUses[ref] = use
+		}
 	}
 
 	// Substitute an EImportIdentifier now if this is an import item
@@ -8701,12 +8716,12 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 }
 
 func (p *parser) appendPart(parts []ast.Part, stmts []ast.Stmt) []ast.Part {
-	p.useCountEstimates = make(map[ast.Ref]uint32)
+	p.symbolUses = make(map[ast.Ref]ast.SymbolUse)
 	p.declaredSymbols = nil
 	p.importRecordsForCurrentPart = nil
 	part := ast.Part{
-		Stmts:             p.visitStmtsAndPrependTempRefs(stmts),
-		UseCountEstimates: p.useCountEstimates,
+		Stmts:      p.visitStmtsAndPrependTempRefs(stmts),
+		SymbolUses: p.symbolUses,
 	}
 	if len(part.Stmts) > 0 {
 		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts)
@@ -8961,14 +8976,13 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 	}
 
 	p := &parser{
-		log:               log,
-		source:            source,
-		lexer:             lexer,
-		allowIn:           true,
-		ParseOptions:      options,
-		currentFnOpts:     fnOpts{isOutsideFn: true},
-		useCountEstimates: make(map[ast.Ref]uint32),
-		runtimeImports:    make(map[string]ast.Ref),
+		log:            log,
+		source:         source,
+		lexer:          lexer,
+		allowIn:        true,
+		ParseOptions:   options,
+		currentFnOpts:  fnOpts{isOutsideFn: true},
+		runtimeImports: make(map[string]ast.Ref),
 
 		// For lowering private methods
 		weakMapRef:     ast.InvalidRef,
@@ -9159,7 +9173,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		// Each part tracks the other parts it depends on within this file
 		for partIndex, part := range parts {
 			localDependencies := make(map[uint32]bool)
-			for ref := range part.UseCountEstimates {
+			for ref := range part.SymbolUses {
 				for _, otherPart := range p.topLevelSymbolToParts[ref] {
 					localDependencies[otherPart] = true
 				}

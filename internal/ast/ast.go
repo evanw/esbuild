@@ -1233,7 +1233,7 @@ type Part struct {
 	DeclaredSymbols []DeclaredSymbol
 
 	// An estimate of the number of uses of all symbols used within this part.
-	UseCountEstimates map[Ref]uint32
+	SymbolUses map[Ref]SymbolUse
 
 	// The indices of the other parts in this file that are needed if this part
 	// is needed.
@@ -1258,6 +1258,11 @@ type Part struct {
 type DeclaredSymbol struct {
 	Ref        Ref
 	IsTopLevel bool
+}
+
+type SymbolUse struct {
+	CountEstimate uint32
+	IsAssigned    bool
 }
 
 // Returns the canonical ref that represents the ref for the provided symbol.

@@ -275,3 +275,64 @@ export {
 		},
 	})
 }
+
+func TestSplittingAssignToLocal(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import {foo, setFoo} from "./shared.js"
+				setFoo(123)
+				console.log(foo)
+			`,
+			"/b.js": `
+				import {foo} from "./shared.js"
+				console.log(foo)
+			`,
+			"/shared.js": `
+				export let foo
+				export function setFoo(value) {
+					foo = value
+				}
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  printer.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `import {
+  foo,
+  setFoo
+} from "./chunk.n2y-pUDL.js";
+
+// /a.js
+setFoo(123);
+console.log(foo);
+`,
+			"/out/b.js": `import {
+  foo
+} from "./chunk.n2y-pUDL.js";
+
+// /b.js
+console.log(foo);
+`,
+			"/out/chunk.n2y-pUDL.js": `// /shared.js
+let foo;
+function setFoo(value) {
+  foo = value;
+}
+
+export {
+  foo,
+  setFoo
+};
+`,
+		},
+	})
+}

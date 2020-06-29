@@ -139,7 +139,7 @@ func (p *parser) lowerFunction(
 
 		// Only reference the "arguments" variable if it's actually used
 		var arguments ast.Expr
-		if p.argumentsRef != nil && p.useCountEstimates[*p.argumentsRef] > 0 {
+		if p.argumentsRef != nil && p.symbolUses[*p.argumentsRef].CountEstimate > 0 {
 			arguments = ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: *p.argumentsRef}}
 		} else {
 			arguments = ast.Expr{Loc: bodyLoc, Data: &ast.EArray{}}
