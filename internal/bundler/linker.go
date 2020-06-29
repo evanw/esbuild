@@ -225,6 +225,11 @@ type chunkMeta struct {
 	directive             string
 	filesWithPartsInChunk map[uint32]bool
 	entryBits             bitSet
+
+	// For code splitting
+	crossChunkImportRecords []ast.ImportRecord
+	crossChunkPrefixStmts   []ast.Stmt
+	crossChunkSuffixStmts   []ast.Stmt
 }
 
 func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources []logging.Source, files []file, entryPoints []uint32) linkerContext {
@@ -478,7 +483,23 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 				// Record each symbol used in this part. This will later be matched up
 				// with our map of which chunk a given symbol is declared in to
 				// determine if the symbol needs to be imported from another chunk.
-				for ref := range part.UseCountEstimates {
+				for ref, count := range part.UseCountEstimates {
+					// Ignore symbols that are no longer used. This can happen with
+					// namespace imports like this:
+					//
+					//   import * as ns from 'path'
+					//   console.log(ns.foo)
+					//
+					// When bundling, the parser converts that to something like this:
+					//
+					//   import {foo} from 'path'
+					//   console.log(foo)
+					//
+					// The "ns" symbol is still there but now has a use count of 0.
+					if count < 1 {
+						continue
+					}
+
 					symbol := c.symbols.Get(ref)
 
 					// Ignore unbound symbols, which don't have declarations
@@ -514,6 +535,137 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 			}
 		}
 	}
+
+	// Generate cross-chunk imports
+	for chunkIndex := range chunks {
+		// Find all uses in this chunk of symbols from other chunks
+		importsFromOtherChunks := make(map[uint32][]ast.Ref)
+		for importRef := range chunkMetas[chunkIndex].imports {
+			otherChunkIndex, ok := topLevelDeclaredSymbolToChunk[importRef]
+			if !ok {
+				panic("Internal error")
+			}
+			if otherChunkIndex != uint32(chunkIndex) {
+				importsFromOtherChunks[otherChunkIndex] = append(importsFromOtherChunks[otherChunkIndex], importRef)
+				chunkMetas[otherChunkIndex].exports[importRef] = true
+			}
+		}
+
+		var crossChunkImportRecords []ast.ImportRecord
+		var crossChunkPrefixStmts []ast.Stmt
+
+		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, importsFromOtherChunks) {
+			switch c.options.OutputFormat {
+			case printer.FormatESModule:
+				var items []ast.ClauseItem
+				for _, alias := range crossChunkImport.sortedImportAliases {
+					items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
+				}
+				importRecordIndex := uint32(len(crossChunkImportRecords))
+				crossChunkImportRecords = append(crossChunkImportRecords, ast.ImportRecord{
+					Kind: ast.ImportStmt,
+					Path: ast.Path{Text: "./" + chunks[crossChunkImport.chunkIndex].name},
+				})
+				crossChunkPrefixStmts = append(crossChunkPrefixStmts, ast.Stmt{Data: &ast.SImport{
+					Items:             &items,
+					ImportRecordIndex: importRecordIndex,
+				}})
+
+			default:
+				panic("Internal error")
+			}
+		}
+
+		chunk := &chunks[chunkIndex]
+		chunk.crossChunkImportRecords = crossChunkImportRecords
+		chunk.crossChunkPrefixStmts = crossChunkPrefixStmts
+	}
+
+	// Generate cross-chunk exports
+	for chunkIndex := range chunks {
+		switch c.options.OutputFormat {
+		case printer.FormatESModule:
+			var items []ast.ClauseItem
+			for _, alias := range c.sortedCrossChunkExportRefs(chunkMetas[chunkIndex].exports) {
+				items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
+			}
+			if len(items) > 0 {
+				chunks[chunkIndex].crossChunkSuffixStmts = []ast.Stmt{{Data: &ast.SExportClause{
+					Items: items,
+				}}}
+			}
+
+		default:
+			panic("Internal error")
+		}
+	}
+}
+
+type crossChunkImport struct {
+	chunkIndex          uint32
+	chunkName           string
+	sortedImportAliases crossChunkAliasArray
+}
+
+// This type is just so we can use Go's native sort function
+type crossChunkImportArray []crossChunkImport
+
+func (a crossChunkImportArray) Len() int          { return len(a) }
+func (a crossChunkImportArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a crossChunkImportArray) Less(i int, j int) bool {
+	return a[i].chunkName < a[j].chunkName
+}
+
+// Sort cross-chunk imports by chunk name for determinism
+func (c *linkerContext) sortedCrossChunkImports(chunks []chunkMeta, importsFromOtherChunks map[uint32][]ast.Ref) crossChunkImportArray {
+	result := make(crossChunkImportArray, 0, len(importsFromOtherChunks))
+
+	for otherChunkIndex, importRefs := range importsFromOtherChunks {
+		result = append(result, crossChunkImport{
+			chunkIndex:          otherChunkIndex,
+			chunkName:           chunks[otherChunkIndex].name,
+			sortedImportAliases: c.sortedCrossChunkImportRefs(importRefs),
+		})
+	}
+
+	sort.Sort(result)
+	return result
+}
+
+type crossChunkAlias struct {
+	name string
+	ref  ast.Ref
+}
+
+// This type is just so we can use Go's native sort function
+type crossChunkAliasArray []crossChunkAlias
+
+func (a crossChunkAliasArray) Len() int          { return len(a) }
+func (a crossChunkAliasArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a crossChunkAliasArray) Less(i int, j int) bool {
+	return a[i].name < a[j].name
+}
+
+// Sort cross-chunk imports by chunk name for determinism
+func (c *linkerContext) sortedCrossChunkImportRefs(importRefs []ast.Ref) crossChunkAliasArray {
+	result := make(crossChunkAliasArray, 0, len(importRefs))
+	for _, ref := range importRefs {
+		result = append(result, crossChunkAlias{ref: ref, name: c.symbols.Get(ref).Name})
+	}
+	sort.Sort(result)
+	return result
+}
+
+// Sort cross-chunk exports by chunk name for determinism
+func (c *linkerContext) sortedCrossChunkExportRefs(exportRefs map[ast.Ref]bool) crossChunkAliasArray {
+	result := make(crossChunkAliasArray, 0, len(exportRefs))
+	for ref := range exportRefs {
+		result = append(result, crossChunkAlias{ref: ref, name: c.symbols.Get(ref).Name})
+	}
+	sort.Sort(result)
+	return result
 }
 
 func (c *linkerContext) scanImportsAndExports() {
@@ -925,9 +1077,9 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []ast.DeclaredSymbol{}
-	stmts := make([]ast.Stmt, 0, 2)
+	var nsExportStmts []ast.Stmt
 	if !fileMeta.cjsStyleExports {
-		stmts = append(stmts, ast.Stmt{Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{{
+		nsExportStmts = append(nsExportStmts, ast.Stmt{Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{{
 			Binding: ast.Binding{Data: &ast.BIdentifier{Ref: file.ast.ExportsRef}},
 			Value:   &ast.Expr{Data: &ast.EObject{}},
 		}}}})
@@ -938,10 +1090,11 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	}
 
 	// "__export(exports, { foo: () => foo })"
+	exportRef := ast.InvalidRef
 	if len(properties) > 0 {
 		runtimeFile := &c.files[ast.RuntimeSourceIndex]
-		exportRef := runtimeFile.ast.ModuleScope.Members["__export"]
-		stmts = append(stmts, ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
+		exportRef = runtimeFile.ast.ModuleScope.Members["__export"]
+		nsExportStmts = append(nsExportStmts, ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
 			Target: ast.Expr{Data: &ast.EIdentifier{Ref: exportRef}},
 			Args: []ast.Expr{
 				{Data: &ast.EIdentifier{Ref: file.ast.ExportsRef}},
@@ -950,7 +1103,6 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				}},
 			},
 		}}}})
-		useCountEstimates[exportRef]++
 
 		// Make sure this file depends on the "__export" symbol
 		for _, partIndex := range runtimeFile.ast.TopLevelSymbolToParts[exportRef] {
@@ -965,11 +1117,12 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	}
 
 	// No need to generate a part if it'll be empty
-	if len(stmts) > 0 {
+	if len(nsExportStmts) > 0 {
 		// Initialize the part that was allocated for us earlier. The information
 		// here will be used after this during tree shaking.
-		file.ast.Parts[fileMeta.nsExportPartIndex] = ast.Part{
-			Stmts:             stmts,
+		exportPart := &file.ast.Parts[fileMeta.nsExportPartIndex]
+		*exportPart = ast.Part{
+			Stmts:             nsExportStmts,
 			LocalDependencies: make(map[uint32]bool),
 			UseCountEstimates: useCountEstimates,
 			DeclaredSymbols:   declaredSymbols,
@@ -985,6 +1138,11 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			ForceTreeShaking: true,
 		}
 		fileMeta.partMeta[fileMeta.nsExportPartIndex].nonLocalDependencies = nonLocalDependencies
+
+		// Pull in the "__export" symbol if it was used
+		if exportRef != ast.InvalidRef {
+			c.generateUseOfSymbolForInclude(exportPart, fileMeta, 1, exportRef, ast.RuntimeSourceIndex)
+		}
 	}
 
 	if len(entryPointES6ExportItems) > 0 {
@@ -2145,21 +2303,29 @@ func (c *linkerContext) generateCodeForFileInChunk(
 
 	// Add all other parts in this chunk
 	for partIndex, part := range file.ast.Parts {
-		if uint32(partIndex) != fileMeta.nsExportPartIndex && entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-			// Mark if we hit the dummy part representing the CommonJS wrapper
-			if fileMeta.cjsWrapperPartIndex != nil && uint32(partIndex) == *fileMeta.cjsWrapperPartIndex {
-				needsWrapper = true
-				continue
-			}
-
-			// Emit export statements in the entry point part verbatim
-			if fileMeta.entryPointExportPartIndex != nil && uint32(partIndex) == *fileMeta.entryPointExportPartIndex {
-				stmtList.entryPointTail = append(stmtList.entryPointTail, part.Stmts...)
-				continue
-			}
-
-			c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
+		if !entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+			// Skip the part if it's not in this chunk
+			continue
 		}
+
+		if uint32(partIndex) == fileMeta.nsExportPartIndex {
+			// Skip the generated call to "__export()" that was extracted above
+			continue
+		}
+
+		// Mark if we hit the dummy part representing the CommonJS wrapper
+		if fileMeta.cjsWrapperPartIndex != nil && uint32(partIndex) == *fileMeta.cjsWrapperPartIndex {
+			needsWrapper = true
+			continue
+		}
+
+		// Emit export statements in the entry point part verbatim
+		if fileMeta.entryPointExportPartIndex != nil && uint32(partIndex) == *fileMeta.entryPointExportPartIndex {
+			stmtList.entryPointTail = append(stmtList.entryPointTail, part.Stmts...)
+			continue
+		}
+
+		c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
 	}
 
 	// Hoist all import statements before any normal statements. ES6 imports
@@ -2281,6 +2447,31 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 			compileResult,
 		)
 	}
+
+	// Also generate the cross-chunk binding code
+	var crossChunkPrefix []byte
+	var crossChunkSuffix []byte
+	{
+		// Indent the file if everything is wrapped in an IIFE
+		indent := 0
+		if c.options.OutputFormat == printer.FormatIIFE {
+			indent++
+		}
+		printOptions := printer.PrintOptions{
+			Indent:           indent,
+			OutputFormat:     c.options.OutputFormat,
+			RemoveWhitespace: c.options.RemoveWhitespace,
+		}
+		crossChunkPrefix = printer.Print(ast.AST{
+			ImportRecords: chunk.crossChunkImportRecords,
+			Parts:         []ast.Part{{Stmts: chunk.crossChunkPrefixStmts}},
+			Symbols:       c.symbols,
+		}, printOptions).JS
+		crossChunkSuffix = printer.Print(ast.AST{
+			Parts:   []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
+			Symbols: c.symbols,
+		}, printOptions).JS
+	}
 	waitGroup.Wait()
 
 	j := printer.Joiner{}
@@ -2322,6 +2513,12 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		prevOffset.advance(text)
 		j.AddString(text)
 		newlineBeforeComment = false
+	}
+
+	// Put the cross-chunk prefix inside the IIFE
+	if len(crossChunkPrefix) > 0 {
+		newlineBeforeComment = true
+		j.AddBytes(crossChunkPrefix)
 	}
 
 	// Start the metadata
@@ -2395,6 +2592,14 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	// generated and doesn't correspond to a location in the input file.
 	if entryPointTail != nil {
 		j.AddBytes(entryPointTail.JS)
+	}
+
+	// Put the cross-chunk suffix inside the IIFE
+	if len(crossChunkSuffix) > 0 {
+		if newlineBeforeComment {
+			j.AddString(newline)
+		}
+		j.AddBytes(crossChunkSuffix)
 	}
 
 	// Optionally wrap with an IIFE

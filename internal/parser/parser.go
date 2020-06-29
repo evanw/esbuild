@@ -8571,6 +8571,10 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 								Name:         name,
 								OriginalName: originalName,
 							})
+							p.declaredSymbols = append(p.declaredSymbols, ast.DeclaredSymbol{
+								Ref:        name.Ref,
+								IsTopLevel: true,
+							})
 						}
 						s.Items = items
 					}
@@ -9128,8 +9132,10 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	partsEnd := 0
 	for _, part := range parts {
 		p.importRecordsForCurrentPart = nil
+		p.declaredSymbols = nil
 		part.Stmts = p.scanForImportsAndExports(part.Stmts, options.IsBundling)
 		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
+		part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
 		if len(part.Stmts) > 0 {
 			parts[partsEnd] = part
 			partsEnd++
