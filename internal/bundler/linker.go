@@ -64,8 +64,14 @@ const (
 	entryPointUserSpecified
 )
 
+// This contains linker-specific metadata corresponding to a "file" struct
+// from the initial scan phase of the bundler. It's separated out because it's
+// conceptually only used for a single linking operation and because multiple
+// linking operations may be happening in parallel with different metadata for
+// the same file.
 type fileMeta struct {
 	partMeta         []partMeta
+	entryPointName   string
 	entryPointStatus entryPointStatus
 
 	// This is the index to the automatically-generated part containing code that
@@ -183,6 +189,11 @@ type exportData struct {
 	isAmbiguous bool
 }
 
+// This contains linker-specific metadata corresponding to an "ast.Part" struct
+// from the initial scan phase of the bundler. It's separated out because it's
+// conceptually only used for a single linking operation and because multiple
+// linking operations may be happening in parallel with different metadata for
+// the same part in the same file.
 type partMeta struct {
 	// This holds all entry points that can reach this part. It will be used to
 	// assign this part to a chunk.
@@ -1441,14 +1452,15 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 	neverReachedKey := string(newBitSet(uint(len(c.entryPoints))).entries)
 
 	// Compute entry point names
-	entryPointNames := make([]string, len(c.entryPoints))
 	for i, entryPoint := range c.entryPoints {
+		var entryPointName string
 		if c.options.AbsOutputFile != "" && c.fileMeta[entryPoint].entryPointStatus == entryPointUserSpecified {
-			entryPointNames[i] = c.fs.Base(c.options.AbsOutputFile)
+			entryPointName = c.fs.Base(c.options.AbsOutputFile)
 		} else {
 			name := c.fs.Base(c.sources[entryPoint].AbsolutePath)
-			entryPointNames[i] = c.stripKnownFileExtension(name) + ".js"
+			entryPointName = c.stripKnownFileExtension(name) + ".js"
 		}
+		c.fileMeta[entryPoint].entryPointName = entryPointName
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
@@ -1458,7 +1470,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			entryBits:             entryBits,
 			hashbang:              c.files[entryPoint].ast.Hashbang,
 			directive:             c.files[entryPoint].ast.Directive,
-			name:                  entryPointNames[i],
+			name:                  entryPointName,
 			filesWithPartsInChunk: make(map[uint32]bool),
 		}
 	}
@@ -1475,13 +1487,13 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			if !ok {
 				// Initialize the chunk for the first time
 				isMultiPart := false
-				for i := range c.entryPoints {
+				for i, entryPoint := range c.entryPoints {
 					if partMeta.entryBits.hasBit(uint(i)) {
 						if chunk.name != "" {
 							chunk.name = c.stripKnownFileExtension(chunk.name) + "_"
 							isMultiPart = true
 						}
-						chunk.name += entryPointNames[i]
+						chunk.name += c.fileMeta[entryPoint].entryPointName
 					}
 				}
 
