@@ -84,9 +84,9 @@ type fileMeta struct {
 	// ES6 star imports and CommonJS-style modules.
 	nsExportPartIndex uint32
 
-	// The index of the automatically-generated part containing an ES6 export
-	// clause for every export in the entry point. This is only used for the ES6
-	// module output format, and only if the entry point is not CommonJS-style.
+	// The index of the automatically-generated part containing export statements
+	// for every export in the entry point. This also contains the call to the
+	// require wrapper for CommonJS-style entry points.
 	entryPointExportPartIndex *uint32
 
 	// This is only for TypeScript files. If an import symbol is in this map, it
@@ -141,6 +141,13 @@ type fileMeta struct {
 	// the CommonJS wrapper for this module. In addition, all ES6 exports for
 	// this module must be added as getters to the CommonJS "exports" object.
 	cjsStyleExports bool
+
+	// The index of the automatically-generated part used to represent the
+	// CommonJS wrapper. This part is empty and is only useful for tree shaking
+	// and code splitting. The CommonJS wrapper can't be inserted into the part
+	// because the wrapper contains other parts, which can't be represented by
+	// the current part system.
+	cjsWrapperPartIndex *uint32
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file
@@ -764,7 +771,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
 	var entryPointES6ExportItems []ast.ClauseItem
-	var entryPointES6ExportStmts []ast.Stmt
+	var entryPointExportStmts []ast.Stmt
 	didCloneModuleScopeGenerated := false
 	needsEntryPointES6ExportPart := fileMeta.entryPointStatus != entryPointNone && !fileMeta.cjsWrap &&
 		c.options.OutputFormat == printer.FormatESModule && len(fileMeta.sortedAndFilteredExportAliases) > 0
@@ -849,7 +856,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				//     export_foo as foo
 				//   };
 				//
-				entryPointES6ExportStmts = append(entryPointES6ExportStmts, ast.Stmt{Data: &ast.SLocal{
+				entryPointExportStmts = append(entryPointExportStmts, ast.Stmt{Data: &ast.SLocal{
 					Kind: ast.LocalConst,
 					Decls: []ast.Decl{{
 						Binding: ast.Binding{Data: &ast.BIdentifier{Ref: tempRef}},
@@ -981,15 +988,65 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	}
 
 	if len(entryPointES6ExportItems) > 0 {
-		entryPointES6ExportStmts = append(entryPointES6ExportStmts,
+		entryPointExportStmts = append(entryPointExportStmts,
 			ast.Stmt{Data: &ast.SExportClause{Items: entryPointES6ExportItems}})
 	}
 
-	if len(entryPointES6ExportStmts) > 0 {
+	// If we're an entry point, call the require function at the end of the
+	// bundle right before bundle evaluation ends
+	var cjsWrapStmt ast.Stmt
+	if fileMeta.cjsWrap && fileMeta.entryPointStatus != entryPointNone {
+		switch c.options.OutputFormat {
+		case printer.FormatPreserve:
+			// "require_foo();"
+			cjsWrapStmt = ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
+				Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
+			}}}}
+
+		case printer.FormatIIFE:
+			if c.options.ModuleName != "" {
+				// "return require_foo();"
+				cjsWrapStmt = ast.Stmt{Data: &ast.SReturn{Value: &ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
+				}}}}
+			} else {
+				// "require_foo();"
+				cjsWrapStmt = ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
+				}}}}
+			}
+
+		case printer.FormatCommonJS:
+			// "module.exports = require_foo();"
+			cjsWrapStmt = ast.AssignStmt(
+				ast.Expr{Data: &ast.EDot{
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: c.unboundModuleRef}},
+					Name:   "exports",
+				}},
+				ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
+				}},
+			)
+
+		case printer.FormatESModule:
+			// "export default require_foo();"
+			cjsWrapStmt = ast.Stmt{Data: &ast.SExportDefault{Value: ast.ExprOrStmt{Expr: &ast.Expr{Data: &ast.ECall{
+				Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
+			}}}}}
+		}
+	}
+
+	if len(entryPointExportStmts) > 0 || cjsWrapStmt.Data != nil {
 		// Clone the use count estimates so they aren't shared with the other part
 		useCountEstimatesClone := make(map[ast.Ref]uint32, len(useCountEstimates))
 		for ref, count := range useCountEstimates {
 			useCountEstimatesClone[ref] = count
+		}
+
+		// Trigger evaluation of the CommonJS wrapper
+		if cjsWrapStmt.Data != nil {
+			useCountEstimatesClone[file.ast.WrapperRef]++
+			entryPointExportStmts = append(entryPointExportStmts, cjsWrapStmt)
 		}
 
 		// Add a part for this export clause
@@ -997,7 +1054,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		partIndex := uint32(len(file.ast.Parts))
 		fileMeta.entryPointExportPartIndex = &partIndex
 		file.ast.Parts = append(file.ast.Parts, ast.Part{
-			Stmts:             entryPointES6ExportStmts,
+			Stmts:             entryPointExportStmts,
 			LocalDependencies: make(map[uint32]bool),
 			UseCountEstimates: useCountEstimatesClone,
 		})
@@ -1332,6 +1389,9 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 			commonJSParts := runtimeFile.ast.TopLevelSymbolToParts[commonJSRef]
 
 			// Generate the dummy part
+			partIndex := uint32(len(file.ast.Parts))
+			fileMeta.cjsWrapperPartIndex = &partIndex
+			file.ast.TopLevelSymbolToParts[file.ast.WrapperRef] = []uint32{partIndex}
 			file.ast.Parts = append(file.ast.Parts, ast.Part{
 				LocalDependencies: make(map[uint32]bool),
 				UseCountEstimates: map[ast.Ref]uint32{
@@ -2055,6 +2115,9 @@ type stmtList struct {
 	// Order doesn't matter for these statements, but they must be outside any
 	// CommonJS wrapper since they are top-level ES6 import/export statements
 	es6StmtsForCJSWrap []ast.Stmt
+
+	// These statements are for an entry point and come at the end of the chunk
+	entryPointTail []ast.Stmt
 }
 
 func (c *linkerContext) generateCodeForFileInChunk(
@@ -2067,53 +2130,54 @@ func (c *linkerContext) generateCodeForFileInChunk(
 ) {
 	file := &c.files[sourceIndex]
 	fileMeta := &c.fileMeta[sourceIndex]
-	stmts := []ast.Stmt{}
-
-	// Add all parts in this file that belong in this chunk
+	needsWrapper := false
 	stmtList := stmtList{}
-	{
-		parts := file.ast.Parts
 
-		// Make sure the generated call to "__export(exports, ...)" comes first
-		// before anything else.
-		if entryBits.equals(fileMeta.partMeta[fileMeta.nsExportPartIndex].entryBits) {
-			c.convertStmtsForChunk(sourceIndex, &stmtList, parts[fileMeta.nsExportPartIndex].Stmts)
+	// Make sure the generated call to "__export(exports, ...)" comes first
+	// before anything else.
+	if entryBits.equals(fileMeta.partMeta[fileMeta.nsExportPartIndex].entryBits) {
+		c.convertStmtsForChunk(sourceIndex, &stmtList, file.ast.Parts[fileMeta.nsExportPartIndex].Stmts)
 
-			// Move everything to the prefix list
-			stmtList.prefixStmts = append(stmtList.prefixStmts, stmtList.normalStmts...)
-			stmtList.normalStmts = nil
-		}
+		// Move everything to the prefix list
+		stmtList.prefixStmts = append(stmtList.prefixStmts, stmtList.normalStmts...)
+		stmtList.normalStmts = nil
+	}
 
-		// Add all other parts in this chunk
-		for partIndex, part := range parts {
-			if uint32(partIndex) != fileMeta.nsExportPartIndex && entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
-				// Emit export statements in the entry point part verbatim
-				if fileMeta.entryPointExportPartIndex != nil && uint32(partIndex) == *fileMeta.entryPointExportPartIndex {
-					stmtList.normalStmts = append(stmtList.normalStmts, part.Stmts...)
-					continue
-				}
-
-				c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
+	// Add all other parts in this chunk
+	for partIndex, part := range file.ast.Parts {
+		if uint32(partIndex) != fileMeta.nsExportPartIndex && entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+			// Mark if we hit the dummy part representing the CommonJS wrapper
+			if fileMeta.cjsWrapperPartIndex != nil && uint32(partIndex) == *fileMeta.cjsWrapperPartIndex {
+				needsWrapper = true
+				continue
 			}
-		}
 
-		// Hoist all import statements before any normal statements. ES6 imports
-		// are different than CommonJS imports. All modules imported via ES6 import
-		// statements are evaluated before the module doing the importing is
-		// evaluated (well, except for cyclic import scenarios). We need to preserve
-		// these semantics even when modules imported via ES6 import statements end
-		// up being CommonJS modules.
-		stmts = stmtList.normalStmts
-		if len(stmtList.prefixStmts) > 0 {
-			stmts = append(stmtList.prefixStmts, stmts...)
-		}
-		if c.options.MangleSyntax {
-			stmts = mergeAdjacentLocalStmts(stmts)
+			// Emit export statements in the entry point part verbatim
+			if fileMeta.entryPointExportPartIndex != nil && uint32(partIndex) == *fileMeta.entryPointExportPartIndex {
+				stmtList.entryPointTail = append(stmtList.entryPointTail, part.Stmts...)
+				continue
+			}
+
+			c.convertStmtsForChunk(sourceIndex, &stmtList, part.Stmts)
 		}
 	}
 
+	// Hoist all import statements before any normal statements. ES6 imports
+	// are different than CommonJS imports. All modules imported via ES6 import
+	// statements are evaluated before the module doing the importing is
+	// evaluated (well, except for cyclic import scenarios). We need to preserve
+	// these semantics even when modules imported via ES6 import statements end
+	// up being CommonJS modules.
+	stmts := stmtList.normalStmts
+	if len(stmtList.prefixStmts) > 0 {
+		stmts = append(stmtList.prefixStmts, stmts...)
+	}
+	if c.options.MangleSyntax {
+		stmts = mergeAdjacentLocalStmts(stmts)
+	}
+
 	// Optionally wrap all statements in a closure for CommonJS
-	if fileMeta.cjsWrap {
+	if needsWrapper {
 		// Only include the arguments that are actually used
 		args := []ast.Arg{}
 		if file.ast.UsesExportsRef || file.ast.UsesModuleRef {
@@ -2165,55 +2229,12 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		sourceIndex: sourceIndex,
 	}
 
-	// If we're an entry point, call the require function at the end of the
-	// bundle right before bundle evaluation ends
-	if fileMeta.cjsWrap && fileMeta.entryPointStatus != entryPointNone {
-		var stmt ast.Stmt
-
-		switch c.options.OutputFormat {
-		case printer.FormatPreserve:
-			// "require_foo();"
-			stmt = ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
-				Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
-			}}}}
-
-		case printer.FormatIIFE:
-			if c.options.ModuleName != "" {
-				// "return require_foo();"
-				stmt = ast.Stmt{Data: &ast.SReturn{Value: &ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
-				}}}}
-			} else {
-				// "require_foo();"
-				stmt = ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
-				}}}}
-			}
-
-		case printer.FormatCommonJS:
-			// "module.exports = require_foo();"
-			stmt = ast.AssignStmt(
-				ast.Expr{Data: &ast.EDot{
-					Target: ast.Expr{Data: &ast.EIdentifier{Ref: c.unboundModuleRef}},
-					Name:   "exports",
-				}},
-				ast.Expr{Data: &ast.ECall{
-					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
-				}},
-			)
-
-		case printer.FormatESModule:
-			// "export default require_foo();"
-			stmt = ast.Stmt{Data: &ast.SExportDefault{Value: ast.ExprOrStmt{Expr: &ast.Expr{Data: &ast.ECall{
-				Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
-			}}}}}
-		}
-
-		// Write this separately as the entry point tail so it can be split off
-		// from the main entry point code. This is sometimes required to deal with
-		// CommonJS import cycles.
+	// Write this separately as the entry point tail so it can be split off
+	// from the main entry point code. This is sometimes required to deal with
+	// CommonJS import cycles.
+	if len(stmtList.entryPointTail) > 0 {
 		tree := file.ast
-		tree.Parts = []ast.Part{{Stmts: []ast.Stmt{stmt}}}
+		tree.Parts = []ast.Part{{Stmts: stmtList.entryPointTail}}
 		entryPointTail := printer.Print(tree, printOptions)
 		result.entryPointTail = &entryPointTail
 	}
