@@ -62,6 +62,7 @@ type entryPointStatus uint8
 const (
 	entryPointNone entryPointStatus = iota
 	entryPointUserSpecified
+	entryPointDynamicImport
 )
 
 // This contains linker-specific metadata corresponding to a "file" struct
@@ -391,13 +392,107 @@ func (c *linkerContext) link() []OutputFile {
 	c.renameOrMinifyAllSymbols()
 
 	chunks := c.computeChunks()
-	results := make([]OutputFile, 0, len(chunks))
+	c.computeCrossChunkDependencies(chunks)
 
+	results := make([]OutputFile, 0, len(chunks))
 	for _, chunk := range chunks {
 		results = append(results, c.generateChunk(chunk)...)
 	}
 
 	return results
+}
+
+func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
+	if len(chunks) < 2 {
+		// No need to compute cross-chunk dependencies if there can't be any
+		return
+	}
+
+	type chunkMeta struct {
+		imports map[ast.Ref]bool
+		exports map[ast.Ref]bool
+	}
+
+	topLevelDeclaredSymbolToChunk := make(map[ast.Ref]uint32)
+	chunkMetas := make([]chunkMeta, len(chunks))
+
+	// For each chunk, see what symbols it uses from other chunks
+	for chunkIndex, chunk := range chunks {
+		chunkKey := string(chunk.entryBits.entries)
+		imports := make(map[ast.Ref]bool)
+		chunkMetas[chunkIndex] = chunkMeta{imports: imports, exports: make(map[ast.Ref]bool)}
+
+		// Go over each file in this chunk
+		for sourceIndex := range chunk.filesWithPartsInChunk {
+			file := &c.files[sourceIndex]
+			fileMeta := &c.fileMeta[sourceIndex]
+
+			// Go over each part in this file that's marked for inclusion in this chunk
+			for partIndex, partMeta := range fileMeta.partMeta {
+				if string(partMeta.entryBits.entries) != chunkKey {
+					continue
+				}
+				part := &file.ast.Parts[partIndex]
+
+				// Rewrite external dynamic imports to point to the chunk for that entry point
+				for _, importRecordIndex := range part.ImportRecordIndices {
+					record := &file.ast.ImportRecords[importRecordIndex]
+					if record.SourceIndex != nil && c.isExternalDynamicImport(record) {
+						record.Path.Text = "./" + c.fileMeta[*record.SourceIndex].entryPointName
+						record.SourceIndex = nil
+					}
+				}
+
+				// Remember what chunk each top-level symbol is declared in. Symbols
+				// with multiple declarations such as repeated "var" statements with
+				// the same name should already be marked as all being in a single
+				// chunk. In that case this will overwrite the same value below which
+				// is fine.
+				for _, declared := range part.DeclaredSymbols {
+					if declared.IsTopLevel {
+						topLevelDeclaredSymbolToChunk[declared.Ref] = uint32(chunkIndex)
+					}
+				}
+
+				// Record each symbol used in this part. This will later be matched up
+				// with our map of which chunk a given symbol is declared in to
+				// determine if the symbol needs to be imported from another chunk.
+				for ref := range part.UseCountEstimates {
+					symbol := c.symbols.Get(ref)
+
+					// Ignore unbound symbols, which don't have declarations
+					if symbol.Kind == ast.SymbolUnbound {
+						continue
+					}
+
+					if importToBind, ok := fileMeta.importsToBind[ref]; ok {
+						// If this is imported from another file, follow the import
+						// reference and reference the symbol in that file instead
+						ref = importToBind.ref
+						symbol = c.symbols.Get(ref)
+					} else if _, ok := file.ast.TopLevelSymbolToParts[ref]; !ok {
+						// Skip symbols that aren't imports or top-level symbols
+						continue
+					}
+
+					// If this is an ES6 import from a CommonJS file, it will become a
+					// property access off the namespace symbol instead of a bare
+					// identifier. In that case we want to pull in the namespace symbol
+					// instead. The namespace symbol stores the result of "require()".
+					if symbol.NamespaceAlias != nil {
+						ref = symbol.NamespaceAlias.NamespaceRef
+					}
+
+					// We must record this relationship even for symbols that are not
+					// imports. Due to code splitting, the definition of a symbol may
+					// be moved to a separate chunk than the use of a symbol even if
+					// the definition and use of that symbol are originally from the
+					// same source file.
+					imports[ref] = true
+				}
+			}
+		}
+	}
 }
 
 func (c *linkerContext) scanImportsAndExports() {
@@ -457,10 +552,28 @@ func (c *linkerContext) scanImportsAndExports() {
 						}
 					}
 
-				case ast.ImportRequire, ast.ImportDynamic:
+				case ast.ImportRequire:
 					// Files that are imported with require() must be CommonJS modules
 					if record.SourceIndex != nil {
 						c.fileMeta[*record.SourceIndex].cjsStyleExports = true
+					}
+
+				case ast.ImportDynamic:
+					if c.options.CodeSplitting {
+						// Files that are imported with import() must be entry points
+						if record.SourceIndex != nil {
+							otherFileMeta := &c.fileMeta[*record.SourceIndex]
+							if otherFileMeta.entryPointStatus == entryPointNone {
+								c.entryPoints = append(c.entryPoints, *record.SourceIndex)
+								otherFileMeta.entryPointStatus = entryPointDynamicImport
+							}
+						}
+					} else {
+						// If we're not splitting, then import() is just a require() that
+						// returns a promise, so the imported file must be a CommonJS module
+						if record.SourceIndex != nil {
+							c.fileMeta[*record.SourceIndex].cjsStyleExports = true
+						}
 					}
 				}
 			}
@@ -1360,6 +1473,10 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 	}
 }
 
+func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord) bool {
+	return record.Kind == ast.ImportDynamic && c.fileMeta[*record.SourceIndex].entryPointStatus == entryPointDynamicImport
+}
+
 func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
 	partMeta := &c.fileMeta[sourceIndex].partMeta[partIndex]
 
@@ -1391,8 +1508,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	for _, importRecordIndex := range part.ImportRecordIndices {
 		record := &file.ast.ImportRecords[importRecordIndex]
 
-		// Don't follow external imports
-		if record.SourceIndex == nil {
+		// Don't follow external imports (this includes import() expressions)
+		if record.SourceIndex == nil || c.isExternalDynamicImport(record) {
 			// This is an external import, so it needs the "__toModule" wrapper as
 			// long as it's not a bare "require()"
 			if record.Kind != ast.ImportRequire && !c.options.OutputFormat.KeepES6ImportExportSyntax() {
@@ -1603,6 +1720,10 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				record := &file.ast.ImportRecords[importRecordIndex]
 				if record.SourceIndex != nil && (record.Kind == ast.ImportStmt || isPartInThisChunk) {
+					if c.isExternalDynamicImport(record) {
+						// Don't follow import() dependencies
+						continue
+					}
 					visit(*record.SourceIndex)
 				}
 			}
