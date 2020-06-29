@@ -55,6 +55,9 @@ type linkerContext struct {
 	// over this array. This array is also sorted in a deterministic ordering
 	// to help ensure deterministic builds (source indices are random).
 	reachableFiles []uint32
+
+	// We may need to refer to the CommonJS "module" symbol for exports
+	unboundModuleRef ast.Ref
 }
 
 type entryPointStatus uint8
@@ -306,6 +309,17 @@ func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources
 		if !options.OutputFormat.KeepES6ImportExportSyntax() && c.files[sourceIndex].ast.HasES6Exports {
 			fileMeta.cjsStyleExports = true
 		}
+	}
+
+	// Allocate a new unbound symbol called "module" in case we need it later
+	{
+		runtimeSymbols := &c.symbols.Outer[ast.RuntimeSourceIndex]
+		c.unboundModuleRef = ast.Ref{OuterIndex: ast.RuntimeSourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
+		*runtimeSymbols = append(*runtimeSymbols, ast.Symbol{
+			Kind: ast.SymbolUnbound,
+			Name: "module",
+			Link: ast.InvalidRef,
+		})
 	}
 
 	return c
@@ -2047,7 +2061,6 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	waitGroup *sync.WaitGroup,
 	sourceIndex uint32,
 	entryBits bitSet,
-	unboundModuleRef ast.Ref,
 	commonJSRef ast.Ref,
 	toModuleRef ast.Ref,
 	result *compileResult,
@@ -2181,7 +2194,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 			// "module.exports = require_foo();"
 			stmt = ast.AssignStmt(
 				ast.Expr{Data: &ast.EDot{
-					Target: ast.Expr{Data: &ast.EIdentifier{Ref: unboundModuleRef}},
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: c.unboundModuleRef}},
 					Name:   "exports",
 				}},
 				ast.Expr{Data: &ast.ECall{
@@ -2220,15 +2233,6 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
 	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
 
-	// Allocate a new unbound symbol called "module" in case we need it
-	runtimeSymbols := &c.symbols.Outer[ast.RuntimeSourceIndex]
-	unboundModuleRef := ast.Ref{OuterIndex: ast.RuntimeSourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
-	*runtimeSymbols = append(*runtimeSymbols, ast.Symbol{
-		Kind: ast.SymbolUnbound,
-		Name: "module",
-		Link: ast.InvalidRef,
-	})
-
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range filesInChunkInOrder {
@@ -2251,7 +2255,6 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 			&waitGroup,
 			sourceIndex,
 			chunk.entryBits,
-			unboundModuleRef,
 			commonJSRef,
 			toModuleRef,
 			compileResult,
