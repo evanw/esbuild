@@ -908,24 +908,27 @@ func (c *linkerContext) scanImportsAndExports() {
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
+	var entryPointES6ExportItems []ast.ClauseItem
+	var entryPointExportStmts []ast.Stmt
 	fileMeta := &c.fileMeta[sourceIndex]
 	file := &c.files[sourceIndex]
+	didCloneModuleScopeGenerated := false
+	isEntryPoint := fileMeta.entryPointStatus != entryPointNone
 
 	// If the output format is ES6 modules and we're an entry point, generate an
 	// ES6 export statement containing all exports. Except don't do that if this
 	// entry point is a CommonJS-style module, since that would generate an ES6
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
-	var entryPointES6ExportItems []ast.ClauseItem
-	var entryPointExportStmts []ast.Stmt
-	didCloneModuleScopeGenerated := false
-	needsEntryPointES6ExportPart := fileMeta.entryPointStatus != entryPointNone && !fileMeta.cjsWrap &&
+	needsEntryPointES6ExportPart := isEntryPoint && !fileMeta.cjsWrap &&
 		c.options.OutputFormat == printer.FormatESModule && len(fileMeta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
 	properties := []ast.Property{}
-	nonLocalDependencies := []partRef{}
-	symbolUses := make(map[ast.Ref]ast.SymbolUse)
+	nsExportNonLocalDependencies := []partRef{}
+	entryPointExportNonLocalDependencies := []partRef{}
+	nsExportSymbolUses := make(map[ast.Ref]ast.SymbolUse)
+	entryPointExportSymbolUses := make(map[ast.Ref]ast.SymbolUse)
 	for _, alias := range fileMeta.sortedAndFilteredExportAliases {
 		export := fileMeta.resolvedExports[alias]
 
@@ -1056,16 +1059,20 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				Body:       ast.FnBody{Stmts: []ast.Stmt{{Loc: value.Loc, Data: &ast.SReturn{Value: &value}}}},
 			}},
 		})
-		symbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
+		nsExportSymbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
+		if isEntryPoint {
+			entryPointExportSymbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
+		}
 
 		// Make sure the part that declares the export is included
 		for _, partIndex := range c.files[export.sourceIndex].ast.TopLevelSymbolToParts[export.ref] {
 			// Use a non-local dependency since this is likely from a different
 			// file if it came in through an export star
-			nonLocalDependencies = append(nonLocalDependencies, partRef{
-				sourceIndex: export.sourceIndex,
-				partIndex:   partIndex,
-			})
+			dep := partRef{sourceIndex: export.sourceIndex, partIndex: partIndex}
+			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
+			if isEntryPoint {
+				entryPointExportNonLocalDependencies = append(entryPointExportNonLocalDependencies, dep)
+			}
 		}
 	}
 
@@ -1100,10 +1107,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Make sure this file depends on the "__export" symbol
 		for _, partIndex := range runtimeFile.ast.TopLevelSymbolToParts[exportRef] {
-			nonLocalDependencies = append(nonLocalDependencies, partRef{
-				sourceIndex: ast.RuntimeSourceIndex,
-				partIndex:   partIndex,
-			})
+			dep := partRef{sourceIndex: ast.RuntimeSourceIndex, partIndex: partIndex}
+			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
 		}
 
 		// Make sure the CommonJS closure, if there is one, includes "exports"
@@ -1118,7 +1123,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		*exportPart = ast.Part{
 			Stmts:             nsExportStmts,
 			LocalDependencies: make(map[uint32]bool),
-			SymbolUses:        symbolUses,
+			SymbolUses:        nsExportSymbolUses,
 			DeclaredSymbols:   declaredSymbols,
 
 			// This can be removed if nothing uses it. Except if we're a CommonJS
@@ -1131,7 +1136,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			// Make sure this is trimmed if unused even if tree shaking is disabled
 			ForceTreeShaking: true,
 		}
-		fileMeta.partMeta[fileMeta.nsExportPartIndex].nonLocalDependencies = nonLocalDependencies
+		fileMeta.partMeta[fileMeta.nsExportPartIndex].nonLocalDependencies = nsExportNonLocalDependencies
 
 		// Pull in the "__export" symbol if it was used
 		if exportRef != ast.InvalidRef {
@@ -1147,7 +1152,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// If we're an entry point, call the require function at the end of the
 	// bundle right before bundle evaluation ends
 	var cjsWrapStmt ast.Stmt
-	if fileMeta.cjsWrap && fileMeta.entryPointStatus != entryPointNone {
+	if isEntryPoint && fileMeta.cjsWrap {
 		switch c.options.OutputFormat {
 		case printer.FormatPreserve:
 			// "require_foo();"
@@ -1189,15 +1194,9 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	}
 
 	if len(entryPointExportStmts) > 0 || cjsWrapStmt.Data != nil {
-		// Clone the use count estimates so they aren't shared with the other part
-		symbolUsesClone := make(map[ast.Ref]ast.SymbolUse, len(symbolUses))
-		for ref, use := range symbolUses {
-			symbolUsesClone[ref] = use
-		}
-
 		// Trigger evaluation of the CommonJS wrapper
 		if cjsWrapStmt.Data != nil {
-			symbolUsesClone[file.ast.WrapperRef] = ast.SymbolUse{CountEstimate: 1}
+			entryPointExportSymbolUses[file.ast.WrapperRef] = ast.SymbolUse{CountEstimate: 1}
 			entryPointExportStmts = append(entryPointExportStmts, cjsWrapStmt)
 		}
 
@@ -1208,11 +1207,11 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		file.ast.Parts = append(file.ast.Parts, ast.Part{
 			Stmts:             entryPointExportStmts,
 			LocalDependencies: make(map[uint32]bool),
-			SymbolUses:        symbolUsesClone,
+			SymbolUses:        entryPointExportSymbolUses,
 		})
 		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
 			entryBits:            newBitSet(uint(len(c.entryPoints))),
-			nonLocalDependencies: append([]partRef{}, nonLocalDependencies...),
+			nonLocalDependencies: append([]partRef{}, entryPointExportNonLocalDependencies...),
 		})
 	}
 }
