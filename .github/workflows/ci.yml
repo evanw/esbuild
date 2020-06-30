@@ -34,6 +34,9 @@ jobs:
     - name: go test
       run: go test ./internal/...
 
+    - name: go vet
+      run: go vet ./cmd/... ./internal/... ./pkg/...
+
     - name: npm ci
       run: cd scripts && npm ci
 
