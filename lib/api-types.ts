@@ -27,6 +27,7 @@ export interface CommonOptions {
 export interface BuildOptions extends CommonOptions {
   globalName?: string;
   bundle?: boolean;
+  splitting?: boolean;
   outfile?: string;
   metafile?: string;
   outdir?: string;

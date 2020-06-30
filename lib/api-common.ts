@@ -27,6 +27,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): stri
   if (options.sourcemap) flags.push(`--sourcemap${options.sourcemap === true ? '' : `=${options.sourcemap}`}`);
   if (options.globalName) flags.push(`--global-name=${options.globalName}`);
   if (options.bundle) flags.push('--bundle');
+  if (options.splitting) flags.push('--splitting');
   if (options.metafile) flags.push(`--metafile=${options.metafile}`);
   if (options.outfile) flags.push(`--outfile=${options.outfile}`);
   if (options.outdir) flags.push(`--outdir=${options.outdir}`);

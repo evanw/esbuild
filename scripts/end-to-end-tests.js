@@ -633,6 +633,71 @@
     }),
   )
 
+  // Code splitting tests
+  tests.push(
+    // Code splitting via sharing
+    test(['a.js', 'b.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+      'a.js': `
+        import * as ns from './common'
+        export let a = 'a' + ns.foo
+      `,
+      'b.js': `
+        import * as ns from './common'
+        export let b = 'b' + ns.foo
+      `,
+      'common.js': `
+        export let foo = 123
+      `,
+      'node.js': `
+        import {a} from './out/a.js'
+        import {b} from './out/b.js'
+        if (a !== 'a123' || b !== 'b123') throw 'fail'
+      `,
+    }),
+
+    // Code splitting via ES6 module double-imported with sync and async imports
+    test(['a.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+      'a.js': `
+        import * as ns1 from './b'
+        export default async function () {
+          const ns2 = await import('./b')
+          return [ns1.foo, -ns2.foo]
+        }
+      `,
+      'b.js': `
+        export let foo = 123
+      `,
+      'node.js': `
+        export let async = async () => {
+          const {default: fn} = await import('./out/a.js')
+          const [a, b] = await fn()
+          if (a !== 123 || b !== -123) throw 'fail'
+        }
+      `,
+    }, { async: true }),
+
+    // Code splitting via CommonJS module double-imported with sync and async imports
+    test(['a.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+      'a.js': `
+        import * as ns1 from './b'
+        export default async function () {
+          const ns2 = await import('./b')
+          return [ns1.foo, -ns2.default.foo]
+        }
+      `,
+      'b.js': `
+        exports.foo = 123
+      `,
+      'node.js': `
+        export let async = async () => {
+          const {default: fn} = await import('./out/a.js')
+          const [a, b] = await fn()
+          if (a !== 123 || b !== -123) throw 'fail'
+        }
+      `,
+    }, { async: true }),
+  )
+
   // Test writing to stdout
   tests.push(
     // These should succeed

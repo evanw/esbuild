@@ -187,6 +187,7 @@ type BuildOptions struct {
 
 	GlobalName        string
 	Bundle            bool
+	Splitting         bool
 	Outfile           string
 	Metafile          string
 	Outdir            string

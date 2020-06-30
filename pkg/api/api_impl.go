@@ -331,6 +331,7 @@ func buildImpl(options BuildOptions) BuildResult {
 		MinifyIdentifiers: options.MinifyIdentifiers,
 		ModuleName:        options.GlobalName,
 		IsBundling:        options.Bundle,
+		CodeSplitting:     options.Splitting,
 		OutputFormat:      validateFormat(options.Format),
 		AbsOutputFile:     validatePath(log, realFS, options.Outfile),
 		AbsOutputDir:      validatePath(log, realFS, options.Outdir),
@@ -350,6 +351,9 @@ func buildImpl(options BuildOptions) BuildResult {
 	if bundleOptions.AbsOutputDir == "" && len(entryPaths) > 1 {
 		log.AddError(nil, ast.Loc{},
 			"Must use \"outdir\" when there are multiple input files")
+	} else if bundleOptions.AbsOutputDir == "" && bundleOptions.CodeSplitting {
+		log.AddError(nil, ast.Loc{},
+			"Must use \"outdir\" when code splitting is enabled")
 	} else if bundleOptions.AbsOutputFile != "" && bundleOptions.AbsOutputDir != "" {
 		log.AddError(nil, ast.Loc{}, "Cannot use both \"outfile\" and \"outdir\"")
 	} else if bundleOptions.AbsOutputFile != "" {
@@ -387,6 +391,11 @@ func buildImpl(options BuildOptions) BuildResult {
 		case parser.PlatformNode:
 			bundleOptions.OutputFormat = printer.FormatCommonJS
 		}
+	}
+
+	// Code splitting is experimental and currently only enabled for ES6 modules
+	if bundleOptions.CodeSplitting && bundleOptions.OutputFormat != printer.FormatESModule {
+		log.AddError(nil, ast.Loc{}, "Spltting currently only works with the \"esm\" format")
 	}
 
 	var outputFiles []OutputFile

@@ -34,6 +34,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case arg == "--bundle" && buildOpts != nil:
 			buildOpts.Bundle = true
 
+		case arg == "--splitting" && buildOpts != nil:
+			buildOpts.Splitting = true
+
 		case arg == "--minify":
 			if buildOpts != nil {
 				buildOpts.MinifySyntax = true
