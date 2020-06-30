@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.16
 
 * Experimental code splitting with `--splitting` ([#16](https://github.com/evanw/esbuild/issues/16))
 
