@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.15
 
 * Remove some unnecessary helper functions ([#206](https://github.com/evanw/esbuild/issues/206))
 
