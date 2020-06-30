@@ -44,9 +44,10 @@ const Code = `
 	}
 	export let __exportStar = (target, module) => {
 		__markAsModule(target)
-		for (let key in module)
-			if (__hasOwnProperty.call(module, key) && !__hasOwnProperty.call(target, key) && key !== 'default')
-				__defineProperty(target, key, { get: () => module[key], enumerable: true })
+		if (typeof module === 'object' || typeof module === 'function')
+			for (let key in module)
+				if (__hasOwnProperty.call(module, key) && !__hasOwnProperty.call(target, key) && key !== 'default')
+					__defineProperty(target, key, { get: () => module[key], enumerable: true })
 		return target
 	}
 
