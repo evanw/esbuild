@@ -14,7 +14,7 @@
 
 * Support JSX fields in `tsconfig.json`
 
-    This release adds support for the `jsxFactory` and `jsxFragmentFactory` flags in `tsconfig.json`. Now you do not have to configure JSX again for esbuild if you have already configured it for TypeScript.
+    This release adds support for the `jsxFactory` and `jsxFragmentFactory` fields in `tsconfig.json`. Now you do not have to configure JSX again for esbuild if you have already configured it for TypeScript. The `jsxFragmentFactory` field is a [new feature in the upcoming TypeScript 4.0 release](https://devblogs.microsoft.com/typescript/announcing-typescript-4-0-beta/#custom-jsx-factories).
 
 ## 0.5.14
 
