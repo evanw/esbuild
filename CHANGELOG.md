@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+* Remove some unnecessary helper functions ([#206](https://github.com/evanw/esbuild/issues/206))
+
+    Certain unnecessary helper functions were sometimes generated when the output format was `esm`. These helper functions should now only be generated when necessary.
+
+* Optimize CommonJS-to-ES6 module conversion
+
+    CommonJS modules that exported raw strings were unnecessarily slow when imported using an ES6 import statement. This scenario should now be much faster.
+
+    The CommonJS-to-ES6 module conversion in esbuild copies properties off the object one-by-one onto a new object. This is the same approach that the TypeScript compiler uses. However, strings have numeric properties 0 to N-1 where N is the length of the string. Copying all of these numeric properties can take a significantly long time for long strings and is almost certainly unhelpful. Now esbuild's CommonJS-to-ES6 module conversion only copies properties if the export is an object.
+
 ## 0.5.14
 
 * Prevent assignment to ES6 imports ([#202](https://github.com/evanw/esbuild/issues/202))
