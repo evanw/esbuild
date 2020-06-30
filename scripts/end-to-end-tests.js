@@ -155,13 +155,13 @@
       'foo.js': `module.exports = 123`,
       'node.js': `const out = require('./out'); if (out.__esModule || out !== 123) throw 'fail'`,
     }),
-    test(['--bundle', 'foo.js', '--outfile=out.mjs', '--format=esm'], {
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm'], {
       'foo.js': `exports.foo = 123`,
-      'node.mjs': `import out from './out.mjs'; if (out.foo !== 123) throw 'fail'`,
+      'node.js': `import out from './out.js'; if (out.foo !== 123) throw 'fail'`,
     }),
-    test(['--bundle', 'foo.js', '--outfile=out.mjs', '--format=esm'], {
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm'], {
       'foo.js': `module.exports = 123`,
-      'node.mjs': `import out from './out.mjs'; if (out !== 123) throw 'fail'`,
+      'node.js': `import out from './out.js'; if (out !== 123) throw 'fail'`,
     }),
   )
 
@@ -175,13 +175,13 @@
       'foo.js': `export default 123`,
       'node.js': `const out = require('./out'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
     }),
-    test(['--bundle', 'foo.js', '--outfile=out.mjs', '--format=esm'], {
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm'], {
       'foo.js': `export const foo = 123`,
-      'node.mjs': `import {foo} from './out.mjs'; if (foo !== 123) throw 'fail'`,
+      'node.js': `import {foo} from './out.js'; if (foo !== 123) throw 'fail'`,
     }),
-    test(['--bundle', 'foo.js', '--outfile=out.mjs', '--format=esm'], {
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm'], {
       'foo.js': `export default 123`,
-      'node.mjs': `import out from './out.mjs'; if (out !== 123) throw 'fail'`,
+      'node.js': `import out from './out.js'; if (out !== 123) throw 'fail'`,
     }),
   )
 
@@ -225,10 +225,10 @@
       'foo.js': `exports.bar = 123`,
       'node.js': `const out = require('./out.js'); if (out.bar !== 123) throw 'fail'`,
     }),
-    test(['--bundle', 'entry.js', '--outfile=out.mjs', '--format=esm'], {
+    test(['--bundle', 'entry.js', '--outfile=out.js', '--format=esm'], {
       'entry.js': `export {bar} from './foo'`,
       'foo.js': `exports.bar = 123`,
-      'node.mjs': `import {bar} from './out.mjs'; if (bar !== 123) throw 'fail'`,
+      'node.js': `import {bar} from './out.js'; if (bar !== 123) throw 'fail'`,
     }),
   )
 
@@ -717,13 +717,13 @@
           let testExports
           switch (format) {
             case 'cjs':
-              ({ default: testExports } = await import(url.pathToFileURL(`${nodePath}.js`)))
+              await util.promisify(fs.writeFile)(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
+              testExports = (await import(url.pathToFileURL(`${nodePath}.js`))).default
               break
 
             case 'esm':
-              if (!(await util.promisify(fs.exists)(nodePath + '.mjs')))
-                await util.promisify(fs.rename)(nodePath + '.js', nodePath + '.mjs')
-              testExports = await import(url.pathToFileURL(`${nodePath}.mjs`))
+              await util.promisify(fs.writeFile)(path.join(thisTestDir, 'package.json'), '{"type": "module"}')
+              testExports = await import(url.pathToFileURL(`${nodePath}.js`))
               break
           }
 
