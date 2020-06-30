@@ -395,7 +395,7 @@ To use esbuild with [React](https://reactjs.org/):
 
     *Note that the double quotes around `"production"` are important because the replacement should be a string, not an identifier. The outer single quotes are for escaping the double quotes in Bash but may not be necessary in other shells.*
 
-* If you're using [Preact](https://preactjs.com/) instead of React, you'll also need to pass `--jsx-factory=preact.h --jsx-fragment=preact.Fragment` to esbuild on the command line.
+* If you're using [Preact](https://preactjs.com/) instead of React, you'll need to configure the JSX factory. You can either pass `--jsx-factory=preact.h --jsx-fragment=preact.Fragment` to esbuild on the command line, or add `"jsxFactory": "preact.h", "jsxFragmentFactory": "preact.Fragment"` to your `tsconfig.json` file.
 
 For example, if you have a file called `example.tsx` with the following contents:
 

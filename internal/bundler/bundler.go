@@ -47,6 +47,8 @@ type Bundle struct {
 }
 
 type parseFlags struct {
+	jsxFactory        []string
+	jsxFragment       []string
 	isEntryPoint      bool
 	isDisabled        bool
 	ignoreIfUnused    bool
@@ -102,7 +104,13 @@ func parseFile(args parseArgs) {
 		}
 	}
 
-	// Allow the strict class field transform flag to be overridden
+	// Allow certain properties to be overridden
+	if len(args.flags.jsxFactory) > 0 {
+		args.parseOptions.JSX.Factory = args.flags.jsxFactory
+	}
+	if len(args.flags.jsxFragment) > 0 {
+		args.parseOptions.JSX.Fragment = args.flags.jsxFragment
+	}
 	if args.flags.strictClassFields {
 		args.parseOptions.Strict.ClassFields = true
 	}
@@ -368,6 +376,8 @@ func ScanBundle(
 						flags := parseFlags{
 							isDisabled:        resolveResult.Status == resolver.ResolveDisabled,
 							ignoreIfUnused:    resolveResult.IgnoreIfUnused,
+							jsxFactory:        resolveResult.JSXFactory,
+							jsxFragment:       resolveResult.JSXFragment,
 							strictClassFields: resolveResult.StrictClassFields,
 						}
 						prettyPath := res.PrettyPath(resolveResult.AbsolutePath)

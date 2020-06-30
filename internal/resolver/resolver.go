@@ -25,6 +25,10 @@ type ResolveResult struct {
 	AbsolutePath string
 	Status       ResolveStatus
 
+	// If not empty, these should override the default values
+	JSXFactory  []string // Default if empty: "React.createElement"
+	JSXFragment []string // Default if empty: "React.Fragment"
+
 	// If true, any ES6 imports to this file can be considered to have no side
 	// effects. This means they should be removed if unused.
 	IgnoreIfUnused bool
@@ -98,10 +102,11 @@ func (r *resolver) Resolve(sourcePath string, importPath string) (result Resolve
 				}
 			}
 
-			// Copy the "useDefineForClassFields" value from the nearest enclosing
-			// "tsconfig.json" file if present
+			// Copy various fields from the nearest enclosing "tsconfig.json" file if present
 			for info := dirInfo; info != nil; info = info.parent {
 				if info.tsConfigJson != nil {
+					result.JSXFactory = info.tsConfigJson.jsxFactory
+					result.JSXFragment = info.tsConfigJson.jsxFragmentFactory
 					result.StrictClassFields = info.tsConfigJson.useDefineForClassFields
 					break
 				}
@@ -300,6 +305,8 @@ type tsConfigJson struct {
 	// "baseUrl" value in the "tsconfig.json" file.
 	paths map[string][]string
 
+	jsxFactory              []string
+	jsxFragmentFactory      []string
 	useDefineForClassFields bool
 }
 
@@ -347,6 +354,21 @@ func (r *resolver) dirInfoCached(path string) *dirInfo {
 	return info
 }
 
+func (r *resolver) parseMemberExpressionForJSX(source logging.Source, loc ast.Loc, text string) []string {
+	if text == "" {
+		return nil
+	}
+	parts := strings.Split(text, ".")
+	for _, part := range parts {
+		if !lexer.IsIdentifier(part) {
+			warnRange := source.RangeOfString(loc)
+			r.log.AddRangeWarning(&source, warnRange, fmt.Sprintf("Invalid JSX member expression: %q", text))
+			return nil
+		}
+	}
+	return parts
+}
+
 func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 	info.tsConfigJson = &tsConfigJson{}
 
@@ -370,6 +392,20 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 				if baseUrl, ok := getString(baseUrlJson); ok {
 					baseUrl = r.fs.Join(path, baseUrl)
 					info.tsConfigJson.absPathBaseUrl = &baseUrl
+				}
+			}
+
+			// Parse the "jsxFactory" field
+			if jsxFactoryJson, _, ok := getProperty(compilerOptionsJson, "jsxFactory"); ok {
+				if jsxFactory, ok := getString(jsxFactoryJson); ok {
+					info.tsConfigJson.jsxFactory = r.parseMemberExpressionForJSX(tsConfigSource, jsxFactoryJson.Loc, jsxFactory)
+				}
+			}
+
+			// Parse the "jsxFragmentFactory" field
+			if jsxFragmentFactoryJson, _, ok := getProperty(compilerOptionsJson, "jsxFragmentFactory"); ok {
+				if jsxFragmentFactory, ok := getString(jsxFragmentFactoryJson); ok {
+					info.tsConfigJson.jsxFragmentFactory = r.parseMemberExpressionForJSX(tsConfigSource, jsxFragmentFactoryJson.Loc, jsxFragmentFactory)
 				}
 			}
 

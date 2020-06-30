@@ -12,6 +12,10 @@
 
     The CommonJS-to-ES6 module conversion in esbuild copies properties off the object one-by-one onto a new object. This is the same approach that the TypeScript compiler uses. However, strings have numeric properties 0 to N-1 where N is the length of the string. Copying all of these numeric properties can take a significantly long time for long strings and is almost certainly unhelpful. Now esbuild's CommonJS-to-ES6 module conversion only copies properties if the export is an object.
 
+* Support JSX fields in `tsconfig.json`
+
+    This release adds support for the `jsxFactory` and `jsxFragmentFactory` flags in `tsconfig.json`. Now you do not have to configure JSX again for esbuild if you have already configured it for TypeScript.
+
 ## 0.5.14
 
 * Prevent assignment to ES6 imports ([#202](https://github.com/evanw/esbuild/issues/202))

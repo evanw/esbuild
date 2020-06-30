@@ -1609,6 +1609,72 @@ console.log(baseurl_dot_default, baseurl_nested_default);
 	})
 }
 
+func TestTsConfigJSX(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.ts": `
+				import factory from './factory'
+				import fragment from './fragment'
+				import both from './both'
+				console.log(factory, fragment, both)
+			`,
+			"/Users/user/project/factory/index.tsx": `
+				export default <><div/><div/></>
+			`,
+			"/Users/user/project/factory/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "h"
+					}
+				}
+			`,
+			"/Users/user/project/fragment/index.tsx": `
+				export default <><div/><div/></>
+			`,
+			"/Users/user/project/fragment/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFragmentFactory": "a.b"
+					}
+				}
+			`,
+			"/Users/user/project/both/index.tsx": `
+				export default <><div/><div/></>
+			`,
+			"/Users/user/project/both/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "R.c",
+						"jsxFragmentFactory": "R.F"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.ts"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/factory/index.tsx
+const factory_default = h(React.Fragment, null, h("div", null), h("div", null));
+
+// /Users/user/project/fragment/index.tsx
+const fragment_default = React.createElement(a.b, null, React.createElement("div", null), React.createElement("div", null));
+
+// /Users/user/project/both/index.tsx
+const both_default = R.c(R.F, null, R.c("div", null), R.c("div", null));
+
+// /Users/user/project/entry.ts
+console.log(factory_default, fragment_default, both_default);
+`,
+		},
+	})
+}
+
 func TestPackageJsonBrowserString(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
