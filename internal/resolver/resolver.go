@@ -39,6 +39,7 @@ type ResolveResult struct {
 
 type Resolver interface {
 	Resolve(sourcePath string, importPath string) ResolveResult
+	ResolveAbs(absPath string) ResolveResult
 	Read(path string) (string, bool)
 	PrettyPath(path string) string
 }
@@ -83,46 +84,60 @@ func NewResolver(fs fs.FS, log logging.Log, options ResolveOptions) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourcePath string, importPath string) (result ResolveResult) {
-	result.AbsolutePath, result.Status = r.resolveWithoutSymlinks(sourcePath, importPath)
+func (r *resolver) Resolve(sourcePath string, importPath string) ResolveResult {
+	absPath, status := r.resolveWithoutSymlinks(sourcePath, importPath)
 
 	// If successful, resolve symlinks using the directory info cache
-	if result.Status == ResolveEnabled || result.Status == ResolveDisabled {
-		if dirInfo := r.dirInfoCached(r.fs.Dir(result.AbsolutePath)); dirInfo != nil {
-			base := r.fs.Base(result.AbsolutePath)
+	if status == ResolveEnabled || status == ResolveDisabled {
+		return r.finalizeResolve(absPath, status)
+	}
 
-			// Look up this file in the "sideEffects" map in the nearest enclosing
-			// directory with a "package.json" file
-			for info := dirInfo; info != nil; info = info.parent {
-				if info.packageJson != nil {
-					if info.packageJson.sideEffectsMap != nil {
-						result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[result.AbsolutePath]
-					}
-					break
+	return ResolveResult{AbsolutePath: absPath, Status: status}
+}
+
+func (r *resolver) ResolveAbs(absPath string) ResolveResult {
+	// Just decorate the absolute path with information from parent directories
+	return r.finalizeResolve(absPath, ResolveEnabled)
+}
+
+func (r *resolver) finalizeResolve(absPath string, status ResolveStatus) (result ResolveResult) {
+	result.AbsolutePath = absPath
+	result.Status = status
+
+	if dirInfo := r.dirInfoCached(r.fs.Dir(result.AbsolutePath)); dirInfo != nil {
+		base := r.fs.Base(result.AbsolutePath)
+
+		// Look up this file in the "sideEffects" map in the nearest enclosing
+		// directory with a "package.json" file
+		for info := dirInfo; info != nil; info = info.parent {
+			if info.packageJson != nil {
+				if info.packageJson.sideEffectsMap != nil {
+					result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[result.AbsolutePath]
 				}
+				break
 			}
+		}
 
-			// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-			for info := dirInfo; info != nil; info = info.parent {
-				if info.tsConfigJson != nil {
-					result.JSXFactory = info.tsConfigJson.jsxFactory
-					result.JSXFragment = info.tsConfigJson.jsxFragmentFactory
-					result.StrictClassFields = info.tsConfigJson.useDefineForClassFields
-					break
-				}
+		// Copy various fields from the nearest enclosing "tsconfig.json" file if present
+		for info := dirInfo; info != nil; info = info.parent {
+			if info.tsConfigJson != nil {
+				result.JSXFactory = info.tsConfigJson.jsxFactory
+				result.JSXFragment = info.tsConfigJson.jsxFragmentFactory
+				result.StrictClassFields = info.tsConfigJson.useDefineForClassFields
+				break
 			}
+		}
 
-			// Is this entry itself a symlink?
-			if entry := dirInfo.entries[base]; entry.Symlink != "" {
-				result.AbsolutePath = entry.Symlink
-				return
-			}
+		// Is this entry itself a symlink?
+		if entry := dirInfo.entries[base]; entry.Symlink != "" {
+			result.AbsolutePath = entry.Symlink
+			return
+		}
 
-			// Is there at least one parent directory with a symlink?
-			if dirInfo.absRealPath != "" {
-				result.AbsolutePath = r.fs.Join(dirInfo.absRealPath, base)
-				return
-			}
+		// Is there at least one parent directory with a symlink?
+		if dirInfo.absRealPath != "" {
+			result.AbsolutePath = r.fs.Join(dirInfo.absRealPath, base)
+			return
 		}
 	}
 

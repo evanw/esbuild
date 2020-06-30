@@ -1612,6 +1612,37 @@ console.log(baseurl_dot_default, baseurl_nested_default);
 func TestTsConfigJSX(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
+			"/Users/user/project/entry.tsx": `
+				console.log(<><div/><div/></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "R.c",
+						"jsxFragmentFactory": "R.F"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.tsx"},
+		parseOptions: parser.ParseOptions{
+			IsBundling: true,
+		},
+		bundleOptions: BundleOptions{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/entry.tsx
+console.log(R.c(R.F, null, R.c("div", null), R.c("div", null)));
+`,
+		},
+	})
+}
+
+func TestTsConfigNestedJSX(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
 			"/Users/user/project/entry.ts": `
 				import factory from './factory'
 				import fragment from './fragment'

@@ -289,25 +289,33 @@ func ScanBundle(
 	}
 
 	maybeParseFile := func(
-		absPath string,
+		resolveResult resolver.ResolveResult,
 		prettyPath string,
 		importSource *logging.Source,
 		pathRange ast.Range,
-		flags parseFlags,
+		isEntryPoint bool,
 	) uint32 {
-		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
+		lowerAbsPath := lowerCaseAbsPathForWindows(resolveResult.AbsolutePath)
 		sourceIndex, ok := visited[lowerAbsPath]
 		if !ok {
 			sourceIndex = uint32(len(sources))
 			visited[lowerAbsPath] = sourceIndex
 			sources = append(sources, logging.Source{})
 			files = append(files, file{})
+			flags := parseFlags{
+				isEntryPoint:      isEntryPoint,
+				isDisabled:        resolveResult.Status == resolver.ResolveDisabled,
+				ignoreIfUnused:    resolveResult.IgnoreIfUnused,
+				jsxFactory:        resolveResult.JSXFactory,
+				jsxFragment:       resolveResult.JSXFragment,
+				strictClassFields: resolveResult.StrictClassFields,
+			}
 			remaining++
 			go parseFile(parseArgs{
 				fs:            fs,
 				log:           log,
 				res:           res,
-				absPath:       absPath,
+				absPath:       resolveResult.AbsolutePath,
 				prettyPath:    prettyPath,
 				sourceIndex:   sourceIndex,
 				importSource:  importSource,
@@ -324,9 +332,6 @@ func ScanBundle(
 	entryPoints := []uint32{}
 	duplicateEntryPoints := make(map[string]bool)
 	for _, absPath := range entryPaths {
-		flags := parseFlags{
-			isEntryPoint: true,
-		}
 		prettyPath := res.PrettyPath(absPath)
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
 		if duplicateEntryPoints[lowerAbsPath] {
@@ -334,7 +339,8 @@ func ScanBundle(
 			continue
 		}
 		duplicateEntryPoints[lowerAbsPath] = true
-		sourceIndex := maybeParseFile(absPath, prettyPath, nil, ast.Range{}, flags)
+		resolveResult := res.ResolveAbs(absPath)
+		sourceIndex := maybeParseFile(resolveResult, prettyPath, nil, ast.Range{}, true /*isEntryPoint*/)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -373,15 +379,8 @@ func ScanBundle(
 
 					switch resolveResult.Status {
 					case resolver.ResolveEnabled, resolver.ResolveDisabled:
-						flags := parseFlags{
-							isDisabled:        resolveResult.Status == resolver.ResolveDisabled,
-							ignoreIfUnused:    resolveResult.IgnoreIfUnused,
-							jsxFactory:        resolveResult.JSXFactory,
-							jsxFragment:       resolveResult.JSXFragment,
-							strictClassFields: resolveResult.StrictClassFields,
-						}
 						prettyPath := res.PrettyPath(resolveResult.AbsolutePath)
-						sourceIndex := maybeParseFile(resolveResult.AbsolutePath, prettyPath, &source, pathRange, flags)
+						sourceIndex := maybeParseFile(resolveResult, prettyPath, &source, pathRange, false /*isEntryPoint*/)
 						record.SourceIndex = &sourceIndex
 
 						// Generate metadata about each import
