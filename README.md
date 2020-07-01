@@ -304,7 +304,7 @@ Substitute `0.0.0` for the version of esbuild that you want to download.
 If you have the Go compiler toolchain installed, you can use it to install the `esbuild` command globally:
 
 ```
-GO111MODULE=on go get https://github.com/evanw/esbuild@v0.0.0
+GO111MODULE=on go get github.com/evanw/esbuild/cmd/esbuild@v0.0.0
 ```
 
 The binary will be placed in Go's global binary directory (the directory called `bin` located inside the directory returned by `go env GOPATH`). You may need to add that `bin` directory to your `PATH`. Substitute `v0.0.0` for the version of esbuild that you want to build.
