@@ -2816,8 +2816,14 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 	if p.lexer.Token == lexer.TDot {
 		p.lexer.Next()
 		if p.lexer.IsContextualKeyword("meta") {
+			r := p.lexer.Range()
 			p.lexer.Next()
 			p.hasImportMeta = true
+			if p.Target < importMetaTarget {
+				r = ast.Range{Loc: loc, Len: r.End() - loc.Start}
+				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
+					"\"import.meta\" is from ES2020 and will be empty when targeting %s", targetTable[p.Target]))
+			}
 			return ast.Expr{Loc: loc, Data: &ast.EImportMeta{}}
 		} else {
 			p.lexer.ExpectedString("\"meta\"")
@@ -8852,7 +8858,7 @@ func (p *parser) bindingCanBeRemovedIfUnused(binding ast.Binding) bool {
 func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 	switch e := expr.Data.(type) {
 	case *ast.ENull, *ast.EUndefined, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
-		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow:
+		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow, *ast.EImportMeta:
 		return true
 
 	case *ast.EDot:
@@ -9169,7 +9175,8 @@ func (p *parser) prepareForVisitPass(options *config.Options) {
 		p.moduleRef = p.newSymbol(ast.SymbolHoisted, "module")
 	}
 
-	if options.IsBundling && p.hasImportMeta {
+	// Convert "import.meta" to a variable if it's not supported in the output format
+	if p.hasImportMeta && (p.Target < importMetaTarget || (options.IsBundling && !p.OutputFormat.KeepES6ImportExportSyntax())) {
 		p.importMetaRef = p.newSymbol(ast.SymbolOther, "import_meta")
 		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
 	} else {

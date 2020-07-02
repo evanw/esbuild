@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Pass through `import.meta` syntax ([#208](https://github.com/evanw/esbuild/issues/208))
+
+    The `import.meta` syntax is a way for code in an ES6 module to access metadata about itself. For example, `import.meta.url` in the browser is the URL of the current module.
+
+    It's a new feature that doesn't work in older browsers, so esbuild converts it to a module-local variable to avoid generating code with a syntax error. However, this is only necessary when targeting older browsers or if the output format doesn't support `import.meta`.
+
+    The `import.meta` syntax is now passed through unmodified when the target is `es2020` or newer and the output format is `esm`. This lets you use features such as `import.meta.url` in those situations.
+
 ## 0.5.16
 
 * Experimental code splitting with `--splitting` ([#16](https://github.com/evanw/esbuild/issues/16))

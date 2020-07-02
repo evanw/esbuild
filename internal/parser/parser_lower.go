@@ -16,6 +16,7 @@ const asyncAwaitTarget = config.ES2017
 const objectPropertyBindingTarget = config.ES2018
 const nullishCoalescingTarget = config.ES2020
 const privateNameTarget = config.ESNext
+const importMetaTarget = config.ES2020
 
 type futureSyntax uint8
 

@@ -4986,7 +4986,7 @@ export {default as bar} from "./bar";
 	})
 }
 
-func TestImportMeta(t *testing.T) {
+func TestImportMetaCommonJS(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4996,12 +4996,34 @@ func TestImportMeta(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			IsBundling:    true,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
 const import_meta = {};
 console.log(import_meta.url, import_meta.path);
+`,
+		},
+	})
+}
+
+func TestImportMetaES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(import.meta.url, import.meta.path)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log(import.meta.url, import.meta.path);
 `,
 		},
 	})
