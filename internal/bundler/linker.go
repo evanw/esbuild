@@ -236,8 +236,9 @@ type chunkMeta struct {
 	entryBits             bitSet
 
 	// This information is only useful if "isEntryPoint" is true
-	isEntryPoint bool
-	sourceIndex  uint32 // An index into "c.sources"
+	isEntryPoint  bool
+	sourceIndex   uint32 // An index into "c.sources"
+	entryPointBit uint   // An index into "c.entryPoints"
 
 	// For code splitting
 	crossChunkImportRecords []ast.ImportRecord
@@ -535,6 +536,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 
 	// Generate cross-chunk imports
 	for chunkIndex := range chunks {
+		chunk := &chunks[chunkIndex]
+
 		// Find all uses in this chunk of symbols from other chunks
 		importsFromOtherChunks := make(map[uint32][]ast.Ref)
 		for importRef := range chunkMetas[chunkIndex].imports {
@@ -545,6 +548,18 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 			if otherChunkIndex != uint32(chunkIndex) {
 				importsFromOtherChunks[otherChunkIndex] = append(importsFromOtherChunks[otherChunkIndex], importRef)
 				chunkMetas[otherChunkIndex].exports[importRef] = true
+			}
+		}
+
+		// If this is an entry point, make sure we import all chunks belonging to
+		// this entry point, even if there are no imports. We need to make sure
+		// these chunks are evaluated for their side effects too.
+		if chunk.isEntryPoint {
+			for otherChunkIndex, otherChunk := range chunks {
+				if chunkIndex != otherChunkIndex && otherChunk.entryBits.hasBit(chunk.entryPointBit) {
+					imports := importsFromOtherChunks[uint32(otherChunkIndex)]
+					importsFromOtherChunks[uint32(otherChunkIndex)] = imports
+				}
 			}
 		}
 
@@ -563,17 +578,24 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 					Kind: ast.ImportStmt,
 					Path: ast.Path{Text: "./" + chunks[crossChunkImport.chunkIndex].name},
 				})
-				crossChunkPrefixStmts = append(crossChunkPrefixStmts, ast.Stmt{Data: &ast.SImport{
-					Items:             &items,
-					ImportRecordIndex: importRecordIndex,
-				}})
+				if len(items) > 0 {
+					// "import {a, b} from './chunk.js'"
+					crossChunkPrefixStmts = append(crossChunkPrefixStmts, ast.Stmt{Data: &ast.SImport{
+						Items:             &items,
+						ImportRecordIndex: importRecordIndex,
+					}})
+				} else {
+					// "import './chunk.js'"
+					crossChunkPrefixStmts = append(crossChunkPrefixStmts, ast.Stmt{Data: &ast.SImport{
+						ImportRecordIndex: importRecordIndex,
+					}})
+				}
 
 			default:
 				panic("Internal error")
 			}
 		}
 
-		chunk := &chunks[chunkIndex]
 		chunk.crossChunkImportRecords = crossChunkImportRecords
 		chunk.crossChunkPrefixStmts = crossChunkPrefixStmts
 	}
@@ -1890,6 +1912,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			entryBits:             entryBits,
 			isEntryPoint:          true,
 			sourceIndex:           entryPoint,
+			entryPointBit:         uint(i),
 			name:                  entryPointName,
 			filesWithPartsInChunk: make(map[uint32]bool),
 		}

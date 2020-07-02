@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix bug with code splitting and side effects
+
+    This release fixes a bug with experimental code splitting. Chunks with side effects but without any exports were not imported by the entry points that depended on them, which meant that their side effects accidentally did not occur. The fix ensures that all entry points import all relevant chunks regardless of whether or not the chunks have exports, so their side effects should never be omitted.
+
 ## 0.5.17
 
 * Pass through `import.meta` syntax ([#208](https://github.com/evanw/esbuild/issues/208))

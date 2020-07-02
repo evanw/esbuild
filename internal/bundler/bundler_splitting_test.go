@@ -314,3 +314,51 @@ export {
 		},
 	})
 }
+
+func TestSplittingSideEffectsWithoutDependencies(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import {a} from "./shared.js"
+				console.log(a)
+			`,
+			"/b.js": `
+				import {b} from "./shared.js"
+				console.log(b)
+			`,
+			"/shared.js": `
+				export let a = 1
+				export let b = 2
+				console.log('side effect')
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `import "./chunk.n2y-pUDL.js";
+
+// /shared.js
+let a = 1;
+
+// /a.js
+console.log(a);
+`,
+			"/out/b.js": `import "./chunk.n2y-pUDL.js";
+
+// /shared.js
+let b = 2;
+
+// /b.js
+console.log(b);
+`,
+			"/out/chunk.n2y-pUDL.js": `// /shared.js
+console.log("side effect");
+`,
+		},
+	})
+}
