@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.18
 
 * Fix bug with code splitting and side effects
 
