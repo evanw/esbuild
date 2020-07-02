@@ -232,10 +232,12 @@ type partRef struct {
 
 type chunkMeta struct {
 	name                  string
-	hashbang              string
-	directive             string
 	filesWithPartsInChunk map[uint32]bool
 	entryBits             bitSet
+
+	// This information is only useful if "isEntryPoint" is true
+	isEntryPoint bool
+	sourceIndex  uint32 // An index into "c.sources"
 
 	// For code splitting
 	crossChunkImportRecords []ast.ImportRecord
@@ -1886,8 +1888,8 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		entryBits.setBit(uint(i))
 		chunks[string(entryBits.entries)] = chunkMeta{
 			entryBits:             entryBits,
-			hashbang:              c.files[entryPoint].ast.Hashbang,
-			directive:             c.files[entryPoint].ast.Directive,
+			isEntryPoint:          true,
+			sourceIndex:           entryPoint,
 			name:                  entryPointName,
 			filesWithPartsInChunk: make(map[uint32]bool),
 		}
@@ -2550,20 +2552,24 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	}
 	newlineBeforeComment := false
 
-	// Start with the hashbang if there is one
-	if chunk.hashbang != "" {
-		hashbang := chunk.hashbang + "\n"
-		prevOffset.advance(hashbang)
-		j.AddString(hashbang)
-		newlineBeforeComment = true
-	}
+	if chunk.isEntryPoint {
+		file := &c.files[chunk.sourceIndex]
 
-	// Add the top-level directive if present
-	if chunk.directive != "" {
-		quoted := printer.Quote(chunk.directive) + ";" + newline
-		prevOffset.advance(quoted)
-		j.AddString(quoted)
-		newlineBeforeComment = true
+		// Start with the hashbang if there is one
+		if file.ast.Hashbang != "" {
+			hashbang := file.ast.Hashbang + "\n"
+			prevOffset.advance(hashbang)
+			j.AddString(hashbang)
+			newlineBeforeComment = true
+		}
+
+		// Add the top-level directive if present
+		if file.ast.Directive != "" {
+			quoted := printer.Quote(file.ast.Directive) + ";" + newline
+			prevOffset.advance(quoted)
+			j.AddString(quoted)
+			newlineBeforeComment = true
+		}
 	}
 
 	// Optionally wrap with an IIFE
