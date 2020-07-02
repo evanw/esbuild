@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix bug with TypeScript `typeof` operator ([#213](https://github.com/evanw/esbuild/issues/213))
+
+    The TypeScript parser in esbuild incorrectly treated `readonly` in `typeof readonly` as a type operator instead of an identifier, which meant that it expected a type expression to follow the `readonly` identifier. Type expressions containing `typeof readonly` are now parsed correctly.
+
 ## 0.5.18
 
 * Fix bug with code splitting and side effects

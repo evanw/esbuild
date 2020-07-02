@@ -994,9 +994,24 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		}
 
 	case lexer.TTypeof:
-		// "typeof x"
 		p.lexer.Next()
-		p.skipTypeScriptType(ast.LPrefix)
+		if p.lexer.Token == lexer.TImport {
+			// "typeof import('fs')"
+			p.skipTypeScriptTypePrefix()
+		} else {
+			// "typeof x"
+			// "typeof x.y"
+			for {
+				if !p.lexer.IsIdentifierOrKeyword() {
+					p.lexer.Expected(lexer.TIdentifier)
+				}
+				p.lexer.Next()
+				if p.lexer.Token != lexer.TDot {
+					break
+				}
+				p.lexer.Next()
+			}
+		}
 
 	case lexer.TOpenBracket:
 		// "[number, string]"
