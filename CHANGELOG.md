@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.17
 
 * Pass through `import.meta` syntax ([#208](https://github.com/evanw/esbuild/issues/208))
 
