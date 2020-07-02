@@ -3,6 +3,7 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/parser"
 )
 
@@ -726,9 +727,9 @@ func TestBase64LoaderRemoveUnused(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":   LoaderJS,
-				".data": LoaderBase64,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".data": config.LoaderBase64,
 			},
 		},
 		expected: map[string]string{
@@ -755,9 +756,9 @@ func TestDataURLLoaderRemoveUnused(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":   LoaderJS,
-				".data": LoaderDataURL,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".data": config.LoaderDataURL,
 			},
 		},
 		expected: map[string]string{
@@ -784,9 +785,9 @@ func TestFileLoaderRemoveUnused(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":   LoaderJS,
-				".data": LoaderFile,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".data": config.LoaderFile,
 			},
 		},
 		expected: map[string]string{

@@ -6,50 +6,50 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/bundler"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/parser"
-	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
 )
 
-func validatePlatform(value Platform) parser.Platform {
+func validatePlatform(value Platform) config.Platform {
 	switch value {
 	case PlatformBrowser:
-		return parser.PlatformBrowser
+		return config.PlatformBrowser
 	case PlatformNode:
-		return parser.PlatformNode
+		return config.PlatformNode
 	default:
 		panic("Invalid platform")
 	}
 }
 
-func validateFormat(value Format) printer.Format {
+func validateFormat(value Format) config.Format {
 	switch value {
 	case FormatDefault:
-		return printer.FormatPreserve
+		return config.FormatPreserve
 	case FormatIIFE:
-		return printer.FormatIIFE
+		return config.FormatIIFE
 	case FormatCommonJS:
-		return printer.FormatCommonJS
+		return config.FormatCommonJS
 	case FormatESModule:
-		return printer.FormatESModule
+		return config.FormatESModule
 	default:
 		panic("Invalid format")
 	}
 }
 
-func validateSourceMap(value SourceMap) bundler.SourceMap {
+func validateSourceMap(value SourceMap) config.SourceMap {
 	switch value {
 	case SourceMapNone:
-		return bundler.SourceMapNone
+		return config.SourceMapNone
 	case SourceMapLinked:
-		return bundler.SourceMapLinkedWithComment
+		return config.SourceMapLinkedWithComment
 	case SourceMapInline:
-		return bundler.SourceMapInline
+		return config.SourceMapInline
 	case SourceMapExternal:
-		return bundler.SourceMapExternalWithoutComment
+		return config.SourceMapExternalWithoutComment
 	default:
 		panic("Invalid source map")
 	}
@@ -81,54 +81,54 @@ func validateLogLevel(value LogLevel) logging.LogLevel {
 	}
 }
 
-func validateTarget(value Target) parser.LanguageTarget {
+func validateTarget(value Target) config.LanguageTarget {
 	switch value {
 	case ESNext:
-		return parser.ESNext
+		return config.ESNext
 	case ES2015:
-		return parser.ES2015
+		return config.ES2015
 	case ES2016:
-		return parser.ES2016
+		return config.ES2016
 	case ES2017:
-		return parser.ES2017
+		return config.ES2017
 	case ES2018:
-		return parser.ES2018
+		return config.ES2018
 	case ES2019:
-		return parser.ES2019
+		return config.ES2019
 	case ES2020:
-		return parser.ES2020
+		return config.ES2020
 	default:
 		panic("Invalid target")
 	}
 }
 
-func validateStrict(value StrictOptions) parser.StrictOptions {
-	return parser.StrictOptions{
+func validateStrict(value StrictOptions) config.StrictOptions {
+	return config.StrictOptions{
 		NullishCoalescing: value.NullishCoalescing,
 		ClassFields:       value.ClassFields,
 	}
 }
 
-func validateLoader(value Loader) bundler.Loader {
+func validateLoader(value Loader) config.Loader {
 	switch value {
 	case LoaderJS:
-		return bundler.LoaderJS
+		return config.LoaderJS
 	case LoaderJSX:
-		return bundler.LoaderJSX
+		return config.LoaderJSX
 	case LoaderTS:
-		return bundler.LoaderTS
+		return config.LoaderTS
 	case LoaderTSX:
-		return bundler.LoaderTSX
+		return config.LoaderTSX
 	case LoaderJSON:
-		return bundler.LoaderJSON
+		return config.LoaderJSON
 	case LoaderText:
-		return bundler.LoaderText
+		return config.LoaderText
 	case LoaderBase64:
-		return bundler.LoaderBase64
+		return config.LoaderBase64
 	case LoaderDataURL:
-		return bundler.LoaderDataURL
+		return config.LoaderDataURL
 	case LoaderFile:
-		return bundler.LoaderFile
+		return config.LoaderFile
 	default:
 		panic("Invalid loader")
 	}
@@ -157,7 +157,7 @@ func validateResolveExtensions(log logging.Log, order []string) []string {
 	return order
 }
 
-func validateLoaders(log logging.Log, loaders map[string]Loader) map[string]bundler.Loader {
+func validateLoaders(log logging.Log, loaders map[string]Loader) map[string]config.Loader {
 	result := bundler.DefaultExtensionToLoaderMap()
 	if loaders != nil {
 		for ext, loader := range loaders {
@@ -184,12 +184,12 @@ func validateJSX(log logging.Log, text string, name string) []string {
 	return parts
 }
 
-func validateDefines(log logging.Log, defines map[string]string) *parser.ProcessedDefines {
+func validateDefines(log logging.Log, defines map[string]string) *config.ProcessedDefines {
 	if len(defines) == 0 {
 		return nil
 	}
 
-	rawDefines := make(map[string]parser.DefineFunc)
+	rawDefines := make(map[string]config.DefineFunc)
 
 	for key, value := range defines {
 		// The key must be a dot-separated identifier list
@@ -204,7 +204,7 @@ func validateDefines(log logging.Log, defines map[string]string) *parser.Process
 		if lexer.IsIdentifier(value) {
 			if _, ok := lexer.Keywords()[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
-				rawDefines[key] = func(findSymbol parser.FindSymbol) ast.E {
+				rawDefines[key] = func(findSymbol config.FindSymbol) ast.E {
 					return &ast.EIdentifier{Ref: findSymbol(name)}
 				}
 				continue
@@ -220,16 +220,16 @@ func validateDefines(log logging.Log, defines map[string]string) *parser.Process
 		}
 
 		// Only allow atoms for now
-		var fn parser.DefineFunc
+		var fn config.DefineFunc
 		switch e := expr.Data.(type) {
 		case *ast.ENull:
-			fn = func(parser.FindSymbol) ast.E { return &ast.ENull{} }
+			fn = func(config.FindSymbol) ast.E { return &ast.ENull{} }
 		case *ast.EBoolean:
-			fn = func(parser.FindSymbol) ast.E { return &ast.EBoolean{Value: e.Value} }
+			fn = func(config.FindSymbol) ast.E { return &ast.EBoolean{Value: e.Value} }
 		case *ast.EString:
-			fn = func(parser.FindSymbol) ast.E { return &ast.EString{Value: e.Value} }
+			fn = func(config.FindSymbol) ast.E { return &ast.EString{Value: e.Value} }
 		case *ast.ENumber:
-			fn = func(parser.FindSymbol) ast.E { return &ast.ENumber{Value: e.Value} }
+			fn = func(config.FindSymbol) ast.E { return &ast.ENumber{Value: e.Value} }
 		default:
 			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue
@@ -240,7 +240,7 @@ func validateDefines(log logging.Log, defines map[string]string) *parser.Process
 
 	// Processing defines is expensive. Process them once here so the same object
 	// can be shared between all parsers we create using these arguments.
-	processed := parser.ProcessDefines(rawDefines)
+	processed := config.ProcessDefines(rawDefines)
 	return &processed
 }
 
@@ -316,7 +316,7 @@ func buildImpl(options BuildOptions) BuildResult {
 		Target:       validateTarget(options.Target),
 		Strict:       validateStrict(options.Strict),
 		MangleSyntax: options.MinifySyntax,
-		JSX: parser.JSXOptions{
+		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, options.JSXFactory, "factory"),
 			Fragment: validateJSX(log, options.JSXFragment, "fragment"),
 		},
@@ -361,14 +361,14 @@ func buildImpl(options BuildOptions) BuildResult {
 		bundleOptions.AbsOutputDir = realFS.Dir(bundleOptions.AbsOutputFile)
 	} else if bundleOptions.AbsOutputDir == "" {
 		// Forbid certain features when writing to stdout
-		if bundleOptions.SourceMap != bundler.SourceMapNone && bundleOptions.SourceMap != bundler.SourceMapInline {
+		if bundleOptions.SourceMap != config.SourceMapNone && bundleOptions.SourceMap != config.SourceMapInline {
 			log.AddError(nil, ast.Loc{}, "Cannot use an external source map without an output path")
 		}
 		if bundleOptions.AbsMetadataFile != "" {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"metafile\" without an output path")
 		}
 		for _, loader := range bundleOptions.ExtensionToLoader {
-			if loader == bundler.LoaderFile {
+			if loader == config.LoaderFile {
 				log.AddError(nil, ast.Loc{}, "Cannot use the \"file\" loader without an output path")
 				break
 			}
@@ -377,24 +377,24 @@ func buildImpl(options BuildOptions) BuildResult {
 
 	if !bundleOptions.IsBundling {
 		// Disallow bundle-only options when not bundling
-		if bundleOptions.OutputFormat != printer.FormatPreserve {
+		if bundleOptions.OutputFormat != config.FormatPreserve {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"format\" without \"bundle\"")
 		}
 		if len(resolveOptions.ExternalModules) > 0 {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"external\" without \"bundle\"")
 		}
-	} else if bundleOptions.OutputFormat == printer.FormatPreserve {
+	} else if bundleOptions.OutputFormat == config.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
 		switch resolveOptions.Platform {
-		case parser.PlatformBrowser:
-			bundleOptions.OutputFormat = printer.FormatIIFE
-		case parser.PlatformNode:
-			bundleOptions.OutputFormat = printer.FormatCommonJS
+		case config.PlatformBrowser:
+			bundleOptions.OutputFormat = config.FormatIIFE
+		case config.PlatformNode:
+			bundleOptions.OutputFormat = config.FormatCommonJS
 		}
 	}
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
-	if bundleOptions.CodeSplitting && bundleOptions.OutputFormat != printer.FormatESModule {
+	if bundleOptions.CodeSplitting && bundleOptions.OutputFormat != config.FormatESModule {
 		log.AddError(nil, ast.Loc{}, "Spltting currently only works with the \"esm\" format")
 	}
 
@@ -451,7 +451,7 @@ func transformImpl(input string, options TransformOptions) TransformResult {
 		Target:       validateTarget(options.Target),
 		Strict:       validateStrict(options.Strict),
 		MangleSyntax: options.MinifySyntax,
-		JSX: parser.JSXOptions{
+		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, options.JSXFactory, "factory"),
 			Fragment: validateJSX(log, options.JSXFragment, "fragment"),
 		},
@@ -469,11 +469,11 @@ func transformImpl(input string, options TransformOptions) TransformResult {
 			SourceFile: options.Sourcefile,
 		},
 	}
-	if bundleOptions.SourceMap == bundler.SourceMapLinkedWithComment {
+	if bundleOptions.SourceMap == config.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name
 		log.AddError(nil, ast.Loc{}, "Cannot transform with linked source maps")
 	}
-	if bundleOptions.SourceMap != bundler.SourceMapNone && bundleOptions.Stdin.SourceFile == "" {
+	if bundleOptions.SourceMap != config.SourceMapNone && bundleOptions.Stdin.SourceFile == "" {
 		log.AddError(nil, ast.Loc{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
 	}

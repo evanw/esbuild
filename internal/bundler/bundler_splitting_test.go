@@ -3,8 +3,8 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/parser"
-	"github.com/evanw/esbuild/internal/printer"
 )
 
 func TestSplittingSharedES6IntoES6(t *testing.T) {
@@ -27,7 +27,7 @@ func TestSplittingSharedES6IntoES6(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			CodeSplitting: true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
@@ -76,7 +76,7 @@ func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			CodeSplitting: true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
@@ -126,7 +126,7 @@ func TestSplittingDynamicES6IntoES6(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			CodeSplitting: true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
@@ -160,7 +160,7 @@ func TestSplittingDynamicCommonJSIntoES6(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			CodeSplitting: true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
@@ -195,7 +195,7 @@ func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			CodeSplitting: true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
@@ -244,7 +244,7 @@ func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			CodeSplitting: true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
@@ -302,7 +302,7 @@ func TestSplittingAssignToLocal(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			CodeSplitting: true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{

@@ -8,13 +8,14 @@ import (
 	"fmt"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
-const asyncAwaitTarget = ES2017
-const objectPropertyBindingTarget = ES2018
-const nullishCoalescingTarget = ES2020
-const privateNameTarget = ESNext
+const asyncAwaitTarget = config.ES2017
+const objectPropertyBindingTarget = config.ES2018
+const nullishCoalescingTarget = config.ES2020
+const privateNameTarget = config.ESNext
 
 type futureSyntax uint8
 
@@ -26,17 +27,17 @@ const (
 )
 
 func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
-	var target LanguageTarget
+	var target config.LanguageTarget
 
 	switch syntax {
 	case futureSyntaxAsyncGenerator:
-		target = ES2018
+		target = config.ES2018
 	case futureSyntaxForAwait:
-		target = ES2018
+		target = config.ES2018
 	case futureSyntaxBigInteger:
-		target = ES2020
+		target = config.ES2020
 	case futureSyntaxNonIdentifierArrayRest:
-		target = ES2016
+		target = config.ES2016
 	}
 
 	if p.Target < target {
@@ -238,7 +239,7 @@ flatten:
 	// Don't lower this if we don't need to. This check must be done here instead
 	// of earlier so we can do the dead code elimination above when the target is
 	// null or undefined.
-	if p.Target >= ES2020 && !containsPrivateName {
+	if p.Target >= config.ES2020 && !containsPrivateName {
 		return originalExpr, exprOut{}
 	}
 
@@ -599,7 +600,7 @@ func (p *parser) lowerNullishCoalescing(loc ast.Loc, left ast.Expr, right ast.Ex
 func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 	needsLowering := false
 
-	if p.Target < ES2018 {
+	if p.Target < config.ES2018 {
 		for _, property := range e.Properties {
 			if property.Kind == ast.PropertySpread {
 				needsLowering = true
@@ -1264,7 +1265,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	// We always lower class fields when parsing TypeScript since class fields in
 	// TypeScript don't follow the JavaScript spec. We also need to always lower
 	// TypeScript-style decorators since they don't have a JavaScript equivalent.
-	if !p.TS.Parse && p.Target >= ESNext {
+	if !p.TS.Parse && p.Target >= config.ESNext {
 		if kind == classKindExpr {
 			return nil, expr
 		} else {
@@ -1375,7 +1376,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
 		if prop.IsComputed && (p.TS.Parse || computedPropertyCache.Data != nil ||
-			(!prop.IsMethod && p.Target < ESNext) || len(prop.TSDecorators) > 0) {
+			(!prop.IsMethod && p.Target < config.ESNext) || len(prop.TSDecorators) > 0) {
 			needsKey := true
 			if len(prop.TSDecorators) == 0 && (prop.IsMethod || shouldOmitFieldInitializer) {
 				needsKey = false
@@ -1451,7 +1452,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		// TypeScript feature. Move their initializers from the class body to
 		// either the constructor (instance fields) or after the class (static
 		// fields).
-		if (p.Target < ESNext || (p.TS.Parse && !p.Strict.ClassFields && (!prop.IsStatic || privateName == nil))) && !prop.IsMethod {
+		if (p.Target < config.ESNext || (p.TS.Parse && !p.Strict.ClassFields && (!prop.IsStatic || privateName == nil))) && !prop.IsMethod {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.

@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
@@ -135,40 +136,40 @@ func parseFile(args parseArgs) {
 	}
 
 	switch loader {
-	case LoaderJS:
+	case config.LoaderJS:
 		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
 
-	case LoaderJSX:
+	case config.LoaderJSX:
 		args.parseOptions.JSX.Parse = true
 		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
 
-	case LoaderTS:
+	case config.LoaderTS:
 		args.parseOptions.TS.Parse = true
 		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
 
-	case LoaderTSX:
+	case config.LoaderTSX:
 		args.parseOptions.TS.Parse = true
 		args.parseOptions.JSX.Parse = true
 		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
 
-	case LoaderJSON:
+	case config.LoaderJSON:
 		var expr ast.Expr
 		expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 		result.file.ignoreIfUnused = true
 
-	case LoaderText:
+	case config.LoaderText:
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(source.Contents)}}
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 		result.file.ignoreIfUnused = true
 
-	case LoaderBase64:
+	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 		result.file.ignoreIfUnused = true
 
-	case LoaderDataURL:
+	case config.LoaderDataURL:
 		mimeType := mime.TypeByExtension(extension)
 		if mimeType == "" {
 			mimeType = http.DetectContentType([]byte(source.Contents))
@@ -179,7 +180,7 @@ func parseFile(args parseArgs) {
 		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
 		result.file.ignoreIfUnused = true
 
-	case LoaderFile:
+	case config.LoaderFile:
 		// Add a hash to the file name to prevent multiple files with the same base
 		// name from colliding. Avoid using the absolute path to prevent build
 		// output from being different on different machines.
@@ -418,45 +419,21 @@ func ScanBundle(
 	return Bundle{fs, res, sources, files, entryPoints}
 }
 
-type Loader int
-
-const (
-	LoaderNone Loader = iota
-	LoaderJS
-	LoaderJSX
-	LoaderTS
-	LoaderTSX
-	LoaderJSON
-	LoaderText
-	LoaderBase64
-	LoaderDataURL
-	LoaderFile
-)
-
-func DefaultExtensionToLoaderMap() map[string]Loader {
-	return map[string]Loader{
-		".js":   LoaderJS,
-		".mjs":  LoaderJS,
-		".cjs":  LoaderJS,
-		".jsx":  LoaderJSX,
-		".ts":   LoaderTS,
-		".tsx":  LoaderTSX,
-		".json": LoaderJSON,
-		".txt":  LoaderText,
+func DefaultExtensionToLoaderMap() map[string]config.Loader {
+	return map[string]config.Loader{
+		".js":   config.LoaderJS,
+		".mjs":  config.LoaderJS,
+		".cjs":  config.LoaderJS,
+		".jsx":  config.LoaderJSX,
+		".ts":   config.LoaderTS,
+		".tsx":  config.LoaderTSX,
+		".json": config.LoaderJSON,
+		".txt":  config.LoaderText,
 	}
 }
 
-type SourceMap uint8
-
-const (
-	SourceMapNone SourceMap = iota
-	SourceMapInline
-	SourceMapLinkedWithComment
-	SourceMapExternalWithoutComment
-)
-
 type StdinInfo struct {
-	Loader     Loader
+	Loader     config.Loader
 	Contents   string
 	SourceFile string
 }
@@ -473,13 +450,13 @@ type BundleOptions struct {
 	MangleSyntax      bool
 	CodeSplitting     bool
 	ModuleName        string
-	ExtensionToLoader map[string]Loader
-	OutputFormat      printer.Format
+	ExtensionToLoader map[string]config.Loader
+	OutputFormat      config.Format
 
 	// If present, metadata about the bundle is written as JSON here
 	AbsMetadataFile string
 
-	SourceMap SourceMap
+	SourceMap config.SourceMap
 	Stdin     *StdinInfo
 
 	// If true, make sure to generate a single file that can be written to stdout
@@ -529,8 +506,8 @@ func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
 	}
 
 	// The format can't be "preserve" while bundling
-	if options.IsBundling && options.OutputFormat == printer.FormatPreserve {
-		options.OutputFormat = printer.FormatESModule
+	if options.IsBundling && options.OutputFormat == config.FormatPreserve {
+		options.OutputFormat = config.FormatESModule
 	}
 
 	type linkGroup struct {

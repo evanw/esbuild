@@ -7,6 +7,7 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/parser"
 )
 
@@ -22,7 +23,7 @@ func TestLowerOptionalCatchNameCollisionNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2018,
+			Target:     config.ES2018,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -62,7 +63,7 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.jsx"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2017,
+			Target:     config.ES2017,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -145,7 +146,7 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2015,
+			Target:     config.ES2015,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -219,7 +220,7 @@ func TestLowerPrivateFieldAssignments2015NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2015,
+			Target:     config.ES2015,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -300,7 +301,7 @@ func TestLowerPrivateFieldAssignments2019NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2019,
+			Target:     config.ES2019,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -381,7 +382,7 @@ func TestLowerPrivateFieldAssignments2020NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -516,7 +517,7 @@ func TestLowerPrivateFieldOptionalChain2019NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2019,
+			Target:     config.ES2019,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -558,7 +559,7 @@ func TestLowerPrivateFieldOptionalChain2020NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -635,7 +636,7 @@ func TestTSLowerPrivateFieldOptionalChain2015NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2015,
+			Target:     config.ES2015,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -680,7 +681,7 @@ func TestTSLowerPrivateStaticMembers2015NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2015,
+			Target:     config.ES2015,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -727,7 +728,7 @@ func TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2015,
+			Target:     config.ES2015,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -801,7 +802,7 @@ func TestLowerPrivateGetterSetter2015(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2015,
+			Target:     config.ES2015,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -914,7 +915,7 @@ func TestLowerPrivateGetterSetter2019(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2019,
+			Target:     config.ES2019,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -1027,7 +1028,7 @@ func TestLowerPrivateGetterSetter2020(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -1232,7 +1233,7 @@ func TestLowerPrivateMethod2019(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2019,
+			Target:     config.ES2019,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -1318,7 +1319,7 @@ func TestLowerPrivateMethod2020(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -1462,7 +1463,7 @@ func TestLowerPrivateClassExpr2020NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -1505,7 +1506,7 @@ func TestLowerPrivateMethodWithModifiers2020(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -1575,7 +1576,7 @@ func TestLowerAsync2016NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2016,
+			Target:     config.ES2016,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -1653,7 +1654,7 @@ func TestLowerAsync2017NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2017,
+			Target:     config.ES2017,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -1703,7 +1704,7 @@ func TestLowerAsyncThis2016CommonJS(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2016,
+			Target:     config.ES2016,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -1732,7 +1733,7 @@ func TestLowerAsyncThis2016ES6(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2016,
+			Target:     config.ES2016,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -1770,8 +1771,8 @@ func TestLowerClassFieldStrict2020NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2020,
-			Strict: parser.StrictOptions{
+			Target:     config.ES2020,
+			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
 		},
@@ -1821,7 +1822,7 @@ func TestLowerClassField2020NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -1869,8 +1870,8 @@ func TestLowerClassFieldStrictNextNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ESNext,
-			Strict: parser.StrictOptions{
+			Target:     config.ESNext,
+			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
 		},
@@ -1913,7 +1914,7 @@ func TestLowerClassFieldNextNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ESNext,
+			Target:     config.ESNext,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -1954,8 +1955,8 @@ func TestTSLowerClassFieldStrict2020NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2020,
-			Strict: parser.StrictOptions{
+			Target:     config.ES2020,
+			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
 		},
@@ -2005,7 +2006,7 @@ func TestTSLowerClassField2020NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -2051,8 +2052,8 @@ func TestTSLowerClassPrivateFieldStrictNextNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ESNext,
-			Strict: parser.StrictOptions{
+			Target:     config.ESNext,
+			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
 		},
@@ -2095,7 +2096,7 @@ func TestTSLowerClassPrivateFieldNextNoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ESNext,
+			Target:     config.ESNext,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -2154,7 +2155,7 @@ func TestLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			Target:     parser.ES2020,
+			Target:     config.ES2020,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
@@ -2218,7 +2219,7 @@ func TestTSLowerObjectRest2017NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2017,
+			Target:     config.ES2017,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,
@@ -2338,7 +2339,7 @@ func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: false,
-			Target:     parser.ES2018,
+			Target:     config.ES2018,
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    false,

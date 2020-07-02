@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/parser"
-	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/kylelemons/godebug/diff"
 )
@@ -394,7 +394,7 @@ func TestExportFormsES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -456,7 +456,7 @@ func TestExportFormsIIFE(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatIIFE,
+			OutputFormat:  config.FormatIIFE,
 			ModuleName:    "moduleName",
 			AbsOutputFile: "/out.js",
 		},
@@ -956,7 +956,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 		entryPaths: []string{"/entry.jsx"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			JSX: parser.JSXOptions{
+			JSX: config.JSXOptions{
 				Factory:  []string{"elem"},
 				Fragment: []string{"frag"},
 			},
@@ -994,7 +994,7 @@ func TestJSXImportsES6(t *testing.T) {
 		entryPaths: []string{"/entry.jsx"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			JSX: parser.JSXOptions{
+			JSX: config.JSXOptions{
 				Factory:  []string{"elem"},
 				Fragment: []string{"frag"},
 			},
@@ -1051,8 +1051,8 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js": LoaderJSX,
+			ExtensionToLoader: map[string]config.Loader{
+				".js": config.LoaderJSX,
 			},
 		},
 		expected: map[string]string{
@@ -2627,7 +2627,7 @@ func TestDynamicImportWithTemplateIIFE(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatIIFE,
+			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2791,9 +2791,9 @@ func TestRequireCustomExtensionString(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":     LoaderJS,
-				".custom": LoaderText,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":     config.LoaderJS,
+				".custom": config.LoaderText,
 			},
 		},
 		expected: map[string]string{
@@ -2824,9 +2824,9 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":     LoaderJS,
-				".custom": LoaderBase64,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":     config.LoaderJS,
+				".custom": config.LoaderBase64,
 			},
 		},
 		expected: map[string]string{
@@ -2857,9 +2857,9 @@ func TestRequireCustomExtensionDataURL(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":     LoaderJS,
-				".custom": LoaderDataURL,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":     config.LoaderJS,
+				".custom": config.LoaderDataURL,
 			},
 		},
 		expected: map[string]string{
@@ -2890,9 +2890,9 @@ func testAutoDetectMimeTypeFromExtension(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":  LoaderJS,
-				".svg": LoaderDataURL,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".svg": config.LoaderDataURL,
 			},
 		},
 		expected: map[string]string{
@@ -2930,9 +2930,9 @@ func TestLoaderFile(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:   true,
 			AbsOutputDir: "/out/",
-			ExtensionToLoader: map[string]Loader{
-				".js":  LoaderJS,
-				".svg": LoaderFile,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".svg": config.LoaderFile,
 			},
 		},
 		expected: map[string]string{
@@ -2970,9 +2970,9 @@ func TestLoaderFileMultipleNoCollision(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
 			AbsOutputFile: "/dist/out.js",
-			ExtensionToLoader: map[string]Loader{
-				".js":  LoaderJS,
-				".txt": LoaderFile,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".txt": config.LoaderFile,
 			},
 		},
 		expected: map[string]string{
@@ -3151,7 +3151,7 @@ func TestSourceMap(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			SourceMap:     SourceMapLinkedWithComment,
+			SourceMap:     config.SourceMapLinkedWithComment,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
@@ -3411,7 +3411,7 @@ func TestRequireFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformBrowser,
+			Platform: config.PlatformBrowser,
 		},
 		expectedScanLog: "/entry.js: error: Could not resolve \"fs\"\n",
 	})
@@ -3430,11 +3430,11 @@ func TestRequireFSNode(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3458,11 +3458,11 @@ func TestRequireFSNodeMinify(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:       true,
 			RemoveWhitespace: true,
-			OutputFormat:     printer.FormatCommonJS,
+			OutputFormat:     config.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `return require("fs");
@@ -3491,7 +3491,7 @@ func TestImportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformBrowser,
+			Platform: config.PlatformBrowser,
 		},
 		expectedScanLog: `/entry.js: error: Could not resolve "fs"
 /entry.js: error: Could not resolve "fs"
@@ -3518,11 +3518,11 @@ func TestImportFSNodeCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3553,11 +3553,11 @@ func TestImportFSNodeES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3588,7 +3588,7 @@ func TestExportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformBrowser,
+			Platform: config.PlatformBrowser,
 		},
 		expectedScanLog: `/entry.js: error: Could not resolve "fs"
 /entry.js: error: Could not resolve "fs"
@@ -3613,7 +3613,7 @@ func TestExportFSNode(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3649,7 +3649,7 @@ func TestReExportFSNode(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
@@ -3686,7 +3686,7 @@ func TestExportFSNodeInCommonJSModule(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3718,11 +3718,11 @@ func TestExportWildcardFSNodeES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3749,11 +3749,11 @@ func TestExportWildcardFSNodeCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3843,7 +3843,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:       true,
 			RemoveWhitespace: true,
-			OutputFormat:     printer.FormatIIFE,
+			OutputFormat:     config.FormatIIFE,
 			AbsOutputFile:    "/out.js",
 		},
 		expected: map[string]string{
@@ -4740,7 +4740,7 @@ func TestImportReExportES6Issue149(t *testing.T) {
 		entryPaths: []string{"/app.jsx"},
 		parseOptions: parser.ParseOptions{
 			IsBundling: true,
-			JSX: parser.JSXOptions{
+			JSX: config.JSXOptions{
 				Factory: []string{"h"},
 			},
 		},
@@ -5068,11 +5068,11 @@ func TestExportsAndModuleFormatCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 
 		// The "test_exports" names must be different
@@ -5120,11 +5120,11 @@ func TestMinifiedExportsAndModuleFormatCommonJS(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:        true,
 			MinifyIdentifiers: true,
-			OutputFormat:      printer.FormatCommonJS,
+			OutputFormat:      config.FormatCommonJS,
 			AbsOutputFile:     "/out.js",
 		},
 		resolveOptions: resolver.ResolveOptions{
-			Platform: parser.PlatformNode,
+			Platform: config.PlatformNode,
 		},
 
 		// The "test_exports" names must be minified, and the "exports" and

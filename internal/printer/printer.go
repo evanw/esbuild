@@ -9,51 +9,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 )
-
-type Format uint8
-
-const (
-	// This is used when not bundling. It means to preserve whatever form the
-	// import or export was originally in. ES6 syntax stays ES6 syntax and
-	// CommonJS syntax stays CommonJS syntax.
-	FormatPreserve Format = iota
-
-	// IIFE stands for immediately-invoked function expression. That looks like
-	// this:
-	//
-	//   (() => {
-	//     ... bundled code ...
-	//   })();
-	//
-	// If the optional ModuleName is configured, then we'll write out this:
-	//
-	//   let moduleName = (() => {
-	//     ... bundled code ...
-	//     return exports;
-	//   })();
-	//
-	FormatIIFE
-
-	// The CommonJS format looks like this:
-	//
-	//   ... bundled code ...
-	//   module.exports = exports;
-	//
-	FormatCommonJS
-
-	// The ES module format looks like this:
-	//
-	//   ... bundled code ...
-	//   export {...};
-	//
-	FormatESModule
-)
-
-func (f Format) KeepES6ImportExportSyntax() bool {
-	return f == FormatPreserve || f == FormatESModule
-}
 
 var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 var positiveInfinity = math.Inf(1)
@@ -2652,7 +2610,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 }
 
 type PrintOptions struct {
-	OutputFormat      Format
+	OutputFormat      config.Format
 	RemoveWhitespace  bool
 	SourceMapContents *string
 	Indent            int

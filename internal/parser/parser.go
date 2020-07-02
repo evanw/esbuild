@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 )
@@ -46,7 +47,7 @@ type parser struct {
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
 	importMetaRef            ast.Ref
-	findSymbolHelper         FindSymbol
+	findSymbolHelper         config.FindSymbol
 	symbolUses               map[ast.Ref]ast.SymbolUse
 	declaredSymbols          []ast.DeclaredSymbol
 	runtimeImports           map[string]ast.Ref
@@ -4952,7 +4953,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 			// The catch binding is optional, and can be omitted
 			if p.lexer.Token == lexer.TOpenBrace {
-				if p.Target < ES2019 {
+				if p.Target < config.ES2019 {
 					// Generate a new symbol for the catch binding for older browsers
 					ref := p.newSymbol(ast.SymbolOther, "e")
 					p.currentScope.Generated = append(p.currentScope.Generated, ref)
@@ -7778,7 +7779,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 			// Lower the exponentiation operator for browsers that don't support it
-			if p.Target < ES2016 {
+			if p.Target < config.ES2016 {
 				return p.callRuntime(expr.Loc, "__pow", []ast.Expr{e.Left, e.Right}), exprOut{}
 			}
 
@@ -7869,7 +7870,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		case ast.BinOpPowAssign:
 			// Lower the exponentiation operator for browsers that don't support it
-			if p.Target < ES2016 {
+			if p.Target < config.ES2016 {
 				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
 			}
 
@@ -7908,17 +7909,17 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 		case ast.BinOpNullishCoalescingAssign:
-			if p.Target < ESNext {
+			if p.Target < config.ESNext {
 				return p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e), exprOut{}
 			}
 
 		case ast.BinOpLogicalAndAssign:
-			if p.Target < ESNext {
+			if p.Target < config.ESNext {
 				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalAnd), exprOut{}
 			}
 
 		case ast.BinOpLogicalOrAssign:
-			if p.Target < ESNext {
+			if p.Target < config.ESNext {
 				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalOr), exprOut{}
 			}
 		}
@@ -8375,7 +8376,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	return expr, exprOut{}
 }
 
-func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defineFunc DefineFunc) ast.Expr {
+func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defineFunc config.DefineFunc) ast.Expr {
 	expr := ast.Expr{Loc: loc, Data: defineFunc(p.findSymbolHelper)}
 	if id, ok := expr.Data.(*ast.EIdentifier); ok {
 		return p.handleIdentifier(loc, assignTarget, id)
@@ -8430,7 +8431,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 		// "typeof require == 'function' && require"
 		if e == p.typeofRequireEqualsFnTarget {
 			// Become "false" in the browser and "require" in node
-			if p.Platform == PlatformBrowser {
+			if p.Platform == config.PlatformBrowser {
 				return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: false}}
 			}
 		} else {
@@ -8893,66 +8894,14 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 	return false
 }
 
-type LanguageTarget int8
-
-const (
-	// These are arranged such that ESNext is the default zero value and such
-	// that earlier releases are less than later releases
-	ES2015 = -6
-	ES2016 = -5
-	ES2017 = -4
-	ES2018 = -3
-	ES2019 = -2
-	ES2020 = -1
-	ESNext = 0
-)
-
-var targetTable = map[LanguageTarget]string{
-	ES2015: "ES2015",
-	ES2016: "ES2016",
-	ES2017: "ES2017",
-	ES2018: "ES2018",
-	ES2019: "ES2019",
-	ES2020: "ES2020",
-	ESNext: "ESNext",
-}
-
-type JSXOptions struct {
-	Parse    bool
-	Factory  []string
-	Fragment []string
-}
-
-type TypeScriptOptions struct {
-	Parse bool
-}
-
-type Platform uint8
-
-const (
-	PlatformBrowser Platform = iota
-	PlatformNode
-)
-
-type StrictOptions struct {
-	// Loose:  "a ?? b" => "a != null ? a : b"
-	// Strict: "a ?? b" => "a !== null && a !== void 0 ? a : b"
-	//
-	// The disadvantage of strictness here is code bloat. The only observable
-	// difference between the two is when the left operand is the bizarre legacy
-	// value "document.all". This value is special-cased in the standard for
-	// legacy reasons such that "document.all != null" is false even though it's
-	// not "null" or "undefined".
-	NullishCoalescing bool
-
-	// Loose:  "class Foo { foo = 1 }" => "class Foo { constructor() { this.foo = 1; } }"
-	// Strict: "class Foo { foo = 1 }" => "class Foo { constructor() { __publicField(this, 'foo', 1); } }"
-	//
-	// The disadvantage of strictness here is code bloat and performance. The
-	// advantage is following the class field specification accurately. For
-	// example, loose mode will incorrectly trigger setter methods while strict
-	// mode won't.
-	ClassFields bool
+var targetTable = map[config.LanguageTarget]string{
+	config.ES2015: "ES2015",
+	config.ES2016: "ES2016",
+	config.ES2017: "ES2017",
+	config.ES2018: "ES2018",
+	config.ES2019: "ES2019",
+	config.ES2020: "ES2020",
+	config.ESNext: "ESNext",
 }
 
 type ParseOptions struct {
@@ -8961,17 +8910,17 @@ type ParseOptions struct {
 	IsBundling bool
 
 	MangleSyntax bool
-	Strict       StrictOptions
-	Defines      *ProcessedDefines
-	TS           TypeScriptOptions
-	JSX          JSXOptions
-	Target       LanguageTarget
-	Platform     Platform
+	Strict       config.StrictOptions
+	Defines      *config.ProcessedDefines
+	TS           config.TSOptions
+	JSX          config.JSXOptions
+	Target       config.LanguageTarget
+	Platform     config.Platform
 }
 
 func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options ParseOptions) *parser {
 	if options.Defines == nil {
-		defaultDefines := ProcessDefines(nil)
+		defaultDefines := config.ProcessDefines(nil)
 		options.Defines = &defaultDefines
 	}
 

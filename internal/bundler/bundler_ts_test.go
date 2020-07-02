@@ -3,6 +3,7 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/parser"
 )
 
@@ -548,7 +549,7 @@ func TestTSMinifyDerivedClass(t *testing.T) {
 		entryPaths: []string{"/entry.ts"},
 		parseOptions: parser.ParseOptions{
 			MangleSyntax: true,
-			Target:       parser.ES2015,
+			Target:       config.ES2015,
 		},
 		bundleOptions: BundleOptions{
 			AbsOutputFile: "/out.js",

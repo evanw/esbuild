@@ -3,8 +3,8 @@ package bundler
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/parser"
-	"github.com/evanw/esbuild/internal/printer"
 )
 
 func TestImportStarUnused(t *testing.T) {
@@ -992,7 +992,7 @@ func TestExportSelfIIFE(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatIIFE,
+			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1025,7 +1025,7 @@ func TestExportSelfES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1053,7 +1053,7 @@ func TestExportSelfCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1085,7 +1085,7 @@ func TestExportSelfCommonJSMinified(t *testing.T) {
 		bundleOptions: BundleOptions{
 			IsBundling:        true,
 			MinifyIdentifiers: true,
-			OutputFormat:      printer.FormatCommonJS,
+			OutputFormat:      config.FormatCommonJS,
 			AbsOutputFile:     "/out.js",
 		},
 		expected: map[string]string{
@@ -1115,7 +1115,7 @@ func TestImportSelfCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1145,7 +1145,7 @@ func TestExportSelfAsNamespaceES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1180,7 +1180,7 @@ func TestImportExportSelfAsNamespaceES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1217,7 +1217,7 @@ func TestReExportOtherFileExportSelfAsNamespaceES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1257,7 +1257,7 @@ func TestReExportOtherFileImportExportSelfAsNamespaceES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1296,7 +1296,7 @@ func TestOtherFileExportSelfAsNamespaceUnusedES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1330,7 +1330,7 @@ func TestOtherFileImportExportSelfAsNamespaceUnusedES6(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatESModule,
+			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1360,7 +1360,7 @@ func TestExportSelfAsNamespaceCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1393,7 +1393,7 @@ func TestExportSelfAndRequireSelfCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1426,7 +1426,7 @@ func TestExportSelfAndImportSelfCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1461,7 +1461,7 @@ func TestExportOtherAsNamespaceCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1497,7 +1497,7 @@ func TestImportExportOtherAsNamespaceCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1566,7 +1566,7 @@ func TestExportOtherCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1604,7 +1604,7 @@ func TestExportOtherNestedCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1944,7 +1944,7 @@ func TestExportStarDefaultExportCommonJS(t *testing.T) {
 		},
 		bundleOptions: BundleOptions{
 			IsBundling:    true,
-			OutputFormat:  printer.FormatCommonJS,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{

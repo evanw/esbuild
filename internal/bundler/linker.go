@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
@@ -550,7 +551,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 
 		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, importsFromOtherChunks) {
 			switch c.options.OutputFormat {
-			case printer.FormatESModule:
+			case config.FormatESModule:
 				var items []ast.ClauseItem
 				for _, alias := range crossChunkImport.sortedImportAliases {
 					items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
@@ -578,7 +579,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 	// Generate cross-chunk exports
 	for chunkIndex := range chunks {
 		switch c.options.OutputFormat {
-		case printer.FormatESModule:
+		case config.FormatESModule:
 			var items []ast.ClauseItem
 			for _, alias := range c.sortedCrossChunkExportRefs(chunkMetas[chunkIndex].exports) {
 				items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
@@ -824,8 +825,8 @@ func (c *linkerContext) scanImportsAndExports() {
 		// that uses CommonJS features will need to be wrapped, even though the
 		// resulting wrapper won't be invoked by other files.
 		if !fileMeta.cjsWrap && fileMeta.cjsStyleExports &&
-			(c.options.OutputFormat == printer.FormatIIFE ||
-				c.options.OutputFormat == printer.FormatESModule) {
+			(c.options.OutputFormat == config.FormatIIFE ||
+				c.options.OutputFormat == config.FormatESModule) {
 			fileMeta.cjsWrap = true
 		}
 
@@ -833,7 +834,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// then we'll be using the actual CommonJS "exports" and/or "module"
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
-		if c.options.OutputFormat == printer.FormatCommonJS && !fileMeta.cjsWrap &&
+		if c.options.OutputFormat == config.FormatCommonJS && !fileMeta.cjsWrap &&
 			fileMeta.entryPointStatus == entryPointUserSpecified {
 			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
 			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
@@ -921,7 +922,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
 	needsEntryPointES6ExportPart := isEntryPoint && !fileMeta.cjsWrap &&
-		c.options.OutputFormat == printer.FormatESModule && len(fileMeta.sortedAndFilteredExportAliases) > 0
+		c.options.OutputFormat == config.FormatESModule && len(fileMeta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
 	properties := []ast.Property{}
@@ -1154,13 +1155,13 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	var cjsWrapStmt ast.Stmt
 	if isEntryPoint && fileMeta.cjsWrap {
 		switch c.options.OutputFormat {
-		case printer.FormatPreserve:
+		case config.FormatPreserve:
 			// "require_foo();"
 			cjsWrapStmt = ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
 				Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
 			}}}}
 
-		case printer.FormatIIFE:
+		case config.FormatIIFE:
 			if c.options.ModuleName != "" {
 				// "return require_foo();"
 				cjsWrapStmt = ast.Stmt{Data: &ast.SReturn{Value: &ast.Expr{Data: &ast.ECall{
@@ -1173,7 +1174,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				}}}}
 			}
 
-		case printer.FormatCommonJS:
+		case config.FormatCommonJS:
 			// "module.exports = require_foo();"
 			cjsWrapStmt = ast.AssignStmt(
 				ast.Expr{Data: &ast.EDot{
@@ -1185,7 +1186,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				}},
 			)
 
-		case printer.FormatESModule:
+		case config.FormatESModule:
 			// "export default require_foo();"
 			cjsWrapStmt = ast.Stmt{Data: &ast.SExportDefault{Value: ast.ExprOrStmt{Expr: &ast.Expr{Data: &ast.ECall{
 				Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.WrapperRef}},
@@ -2432,13 +2433,13 @@ func (c *linkerContext) generateCodeForFileInChunk(
 
 	// Only generate a source map if needed
 	sourceMapContents := &c.sources[sourceIndex].Contents
-	if c.options.SourceMap == SourceMapNone {
+	if c.options.SourceMap == config.SourceMapNone {
 		sourceMapContents = nil
 	}
 
 	// Indent the file if everything is wrapped in an IIFE
 	indent := 0
-	if c.options.OutputFormat == printer.FormatIIFE {
+	if c.options.OutputFormat == config.FormatIIFE {
 		indent++
 	}
 
@@ -2468,7 +2469,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	}
 
 	// Also quote the source for the source map while we're running in parallel
-	if c.options.SourceMap != SourceMapNone {
+	if c.options.SourceMap != config.SourceMapNone {
 		result.quotedSource = printer.QuoteForJSON(c.sources[sourceIndex].Contents)
 	}
 
@@ -2516,7 +2517,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	{
 		// Indent the file if everything is wrapped in an IIFE
 		indent := 0
-		if c.options.OutputFormat == printer.FormatIIFE {
+		if c.options.OutputFormat == config.FormatIIFE {
 			indent++
 		}
 		printOptions := printer.PrintOptions{
@@ -2566,7 +2567,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	}
 
 	// Optionally wrap with an IIFE
-	if c.options.OutputFormat == printer.FormatIIFE {
+	if c.options.OutputFormat == config.FormatIIFE {
 		indent = "  "
 		text := "(()" + space + "=>" + space + "{" + newline
 		if c.options.ModuleName != "" {
@@ -2630,7 +2631,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 			prevOffset = lineColumnOffset{}
 
 			// Include this file in the source map
-			if c.options.SourceMap != SourceMapNone {
+			if c.options.SourceMap != config.SourceMapNone {
 				compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
 			}
 
@@ -2665,7 +2666,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	}
 
 	// Optionally wrap with an IIFE
-	if c.options.OutputFormat == printer.FormatIIFE {
+	if c.options.OutputFormat == config.FormatIIFE {
 		j.AddString("})();" + newline)
 	}
 
@@ -2676,17 +2677,17 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 	jsAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.name)
 
-	if c.options.SourceMap != SourceMapNone {
+	if c.options.SourceMap != config.SourceMapNone {
 		sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
 
 		// Store the generated source map
 		switch c.options.SourceMap {
-		case SourceMapInline:
+		case config.SourceMapInline:
 			j.AddString("//# sourceMappingURL=data:application/json;base64,")
 			j.AddString(base64.StdEncoding.EncodeToString(sourceMap))
 			j.AddString("\n")
 
-		case SourceMapLinkedWithComment, SourceMapExternalWithoutComment:
+		case config.SourceMapLinkedWithComment, config.SourceMapExternalWithoutComment:
 			// Optionally add metadata about the file
 			var jsonMetadataChunk []byte
 			if c.options.AbsMetadataFile != "" {
@@ -2701,7 +2702,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 			})
 
 			// Add a comment linking the source to its map
-			if c.options.SourceMap == SourceMapLinkedWithComment {
+			if c.options.SourceMap == config.SourceMapLinkedWithComment {
 				j.AddString("//# sourceMappingURL=")
 				j.AddString(c.fs.Base(jsAbsPath + ".map"))
 				j.AddString("\n")

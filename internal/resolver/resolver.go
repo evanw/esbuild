@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
@@ -46,7 +47,7 @@ type Resolver interface {
 
 type ResolveOptions struct {
 	ExtensionOrder  []string
-	Platform        parser.Platform
+	Platform        config.Platform
 	ExternalModules map[string]bool
 }
 
@@ -63,7 +64,7 @@ type resolver struct {
 
 func NewResolver(fs fs.FS, log logging.Log, options ResolveOptions) Resolver {
 	// Bundling for node implies allowing node's builtin modules
-	if options.Platform == parser.PlatformNode {
+	if options.Platform == config.PlatformNode {
 		externalModules := make(map[string]bool)
 		if options.ExternalModules != nil {
 			for name := range options.ExternalModules {
@@ -593,7 +594,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	}
 
 	// Read the "browser" property, but only when targeting the browser
-	if browserJson, _, ok := getProperty(json, "browser"); ok && r.options.Platform == parser.PlatformBrowser {
+	if browserJson, _, ok := getProperty(json, "browser"); ok && r.options.Platform == config.PlatformBrowser {
 		if browser, ok := getString(browserJson); ok {
 			// If the value is a string, then we should just replace the main path.
 			//

@@ -3,6 +3,7 @@ package parser
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
 )
@@ -16,7 +17,7 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseOptions{
-			TS: TypeScriptOptions{
+			TS: config.TSOptions{
 				Parse: true,
 			},
 		})
@@ -38,7 +39,7 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseOptions{
-			TS: TypeScriptOptions{
+			TS: config.TSOptions{
 				Parse: true,
 			},
 		})
@@ -65,10 +66,10 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseOptions{
-			TS: TypeScriptOptions{
+			TS: config.TSOptions{
 				Parse: true,
 			},
-			JSX: JSXOptions{
+			JSX: config.JSXOptions{
 				Parse: true,
 			},
 		})
@@ -90,10 +91,10 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, ParseOptions{
-			TS: TypeScriptOptions{
+			TS: config.TSOptions{
 				Parse: true,
 			},
-			JSX: JSXOptions{
+			JSX: config.JSXOptions{
 				Parse: true,
 			},
 		})
