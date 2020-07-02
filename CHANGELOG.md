@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.19
 
 * Fix bug with TypeScript `typeof` operator ([#213](https://github.com/evanw/esbuild/issues/213))
 
