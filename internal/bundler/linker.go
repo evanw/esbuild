@@ -48,7 +48,7 @@ func (bs *bitSet) bitwiseOrWith(other bitSet) {
 }
 
 type linkerContext struct {
-	options     *BundleOptions
+	options     *config.Options
 	log         logging.Log
 	fs          fs.FS
 	symbols     ast.SymbolMap
@@ -243,7 +243,7 @@ type chunkMeta struct {
 	crossChunkSuffixStmts   []ast.Stmt
 }
 
-func newLinkerContext(options *BundleOptions, log logging.Log, fs fs.FS, sources []logging.Source, files []file, entryPoints []uint32) linkerContext {
+func newLinkerContext(options *config.Options, log logging.Log, fs fs.FS, sources []logging.Source, files []file, entryPoints []uint32) linkerContext {
 	// Clone information about symbols and files so we don't mutate the input data
 	c := linkerContext{
 		options:        options,
@@ -2487,7 +2487,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range filesInChunkInOrder {
 		// Skip the runtime in test output
-		if sourceIndex == ast.RuntimeSourceIndex && c.options.omitRuntimeForTests {
+		if sourceIndex == ast.RuntimeSourceIndex && c.options.OmitRuntimeForTests {
 			continue
 		}
 

@@ -28,7 +28,7 @@ import (
 // to have at least two separate passes to handle variable hoisting. See the
 // comment about scopesInOrder below for more information.
 type parser struct {
-	ParseOptions
+	config.Options
 	log                      logging.Log
 	source                   logging.Source
 	lexer                    lexer.Lexer
@@ -8904,21 +8904,7 @@ var targetTable = map[config.LanguageTarget]string{
 	config.ESNext: "ESNext",
 }
 
-type ParseOptions struct {
-	// true: imports are scanned and bundled along with the file
-	// false: imports are left alone and the file is passed through as-is
-	IsBundling bool
-
-	MangleSyntax bool
-	Strict       config.StrictOptions
-	Defines      *config.ProcessedDefines
-	TS           config.TSOptions
-	JSX          config.JSXOptions
-	Target       config.LanguageTarget
-	Platform     config.Platform
-}
-
-func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options ParseOptions) *parser {
+func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options *config.Options) *parser {
 	if options.Defines == nil {
 		defaultDefines := config.ProcessDefines(nil)
 		options.Defines = &defaultDefines
@@ -8929,7 +8915,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		source:         source,
 		lexer:          lexer,
 		allowIn:        true,
-		ParseOptions:   options,
+		Options:        *options,
 		currentFnOpts:  fnOpts{isOutsideFn: true},
 		runtimeImports: make(map[string]ast.Ref),
 
@@ -8957,7 +8943,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 	return p
 }
 
-func Parse(log logging.Log, source logging.Source, options ParseOptions) (result ast.AST, ok bool) {
+func Parse(log logging.Log, source logging.Source, options config.Options) (result ast.AST, ok bool) {
 	ok = true
 	defer func() {
 		r := recover()
@@ -8976,7 +8962,7 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 		options.JSX.Fragment = []string{"React", "Fragment"}
 	}
 
-	p := newParser(log, source, lexer.NewLexer(log, source), options)
+	p := newParser(log, source, lexer.NewLexer(log, source), &options)
 
 	// Consume a leading hashbang comment
 	hashbang := ""
@@ -9142,11 +9128,11 @@ func Parse(log logging.Log, source logging.Source, options ParseOptions) (result
 	return
 }
 
-func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptions, expr ast.Expr) ast.AST {
+func ModuleExportsAST(log logging.Log, source logging.Source, options config.Options, expr ast.Expr) ast.AST {
 	// Don't create a new lexer using lexer.NewLexer() here since that will
 	// actually attempt to parse the first token, which might cause a syntax
 	// error.
-	p := newParser(log, source, lexer.Lexer{}, options)
+	p := newParser(log, source, lexer.Lexer{}, &options)
 	p.prepareForVisitPass(&options)
 
 	// Make a symbol map that contains our file's symbols
@@ -9169,7 +9155,7 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options ParseOptio
 	return p.toAST(source, []ast.Part{{Stmts: []ast.Stmt{stmt}}}, "", "")
 }
 
-func (p *parser) prepareForVisitPass(options *ParseOptions) {
+func (p *parser) prepareForVisitPass(options *config.Options) {
 	p.pushScopeForVisitPass(ast.ScopeEntry, ast.Loc{Start: locModuleScope})
 	p.moduleScope = p.currentScope
 

@@ -118,3 +118,47 @@ const (
 func (f Format) KeepES6ImportExportSyntax() bool {
 	return f == FormatPreserve || f == FormatESModule
 }
+
+type StdinInfo struct {
+	Loader     Loader
+	Contents   string
+	SourceFile string
+}
+
+type Options struct {
+	// true: imports are scanned and bundled along with the file
+	// false: imports are left alone and the file is passed through as-is
+	IsBundling bool
+
+	RemoveWhitespace  bool
+	MinifyIdentifiers bool
+	MangleSyntax      bool
+	CodeSplitting     bool
+
+	// If true, make sure to generate a single file that can be written to stdout
+	WriteToStdout bool
+
+	OmitRuntimeForTests bool
+
+	Strict   StrictOptions
+	Defines  *ProcessedDefines
+	TS       TSOptions
+	JSX      JSXOptions
+	Target   LanguageTarget
+	Platform Platform
+
+	ExtensionOrder  []string
+	ExternalModules map[string]bool
+
+	AbsOutputFile     string
+	AbsOutputDir      string
+	ModuleName        string
+	ExtensionToLoader map[string]Loader
+	OutputFormat      Format
+
+	// If present, metadata about the bundle is written as JSON here
+	AbsMetadataFile string
+
+	SourceMap SourceMap
+	Stdin     *StdinInfo
+}

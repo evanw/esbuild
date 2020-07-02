@@ -45,16 +45,10 @@ type Resolver interface {
 	PrettyPath(path string) string
 }
 
-type ResolveOptions struct {
-	ExtensionOrder  []string
-	Platform        config.Platform
-	ExternalModules map[string]bool
-}
-
 type resolver struct {
 	fs      fs.FS
 	log     logging.Log
-	options ResolveOptions
+	options config.Options
 
 	// This cache maps a directory path to information about that directory and
 	// all parent directories
@@ -62,7 +56,7 @@ type resolver struct {
 	dirCache      map[string]*dirInfo
 }
 
-func NewResolver(fs fs.FS, log logging.Log, options ResolveOptions) Resolver {
+func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
 	// Bundling for node implies allowing node's builtin modules
 	if options.Platform == config.PlatformNode {
 		externalModules := make(map[string]bool)

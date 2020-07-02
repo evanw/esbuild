@@ -297,77 +297,70 @@ func messagesOfKind(kind logging.MsgKind, msgs []logging.Msg) []Message {
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
-func buildImpl(options BuildOptions) BuildResult {
+func buildImpl(buildOpts BuildOptions) BuildResult {
 	var log logging.Log
-	if options.LogLevel == LogLevelSilent {
+	if buildOpts.LogLevel == LogLevelSilent {
 		log = logging.NewDeferLog()
 	} else {
 		log = logging.NewStderrLog(logging.StderrOptions{
 			IncludeSource: true,
-			ErrorLimit:    options.ErrorLimit,
-			Color:         validateColor(options.Color),
-			LogLevel:      validateLogLevel(options.LogLevel),
+			ErrorLimit:    buildOpts.ErrorLimit,
+			Color:         validateColor(buildOpts.Color),
+			LogLevel:      validateLogLevel(buildOpts.LogLevel),
 		})
 	}
 
-	// Convert and validate the options
+	// Convert and validate the buildOpts
 	realFS := fs.RealFS()
-	parseOptions := parser.ParseOptions{
-		Target:       validateTarget(options.Target),
-		Strict:       validateStrict(options.Strict),
-		MangleSyntax: options.MinifySyntax,
+	options := config.Options{
+		Target: validateTarget(buildOpts.Target),
+		Strict: validateStrict(buildOpts.Strict),
 		JSX: config.JSXOptions{
-			Factory:  validateJSX(log, options.JSXFactory, "factory"),
-			Fragment: validateJSX(log, options.JSXFragment, "fragment"),
+			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
+			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
 		},
-		Defines:    validateDefines(log, options.Defines),
-		Platform:   validatePlatform(options.Platform),
-		IsBundling: options.Bundle,
+		Defines:           validateDefines(log, buildOpts.Defines),
+		Platform:          validatePlatform(buildOpts.Platform),
+		SourceMap:         validateSourceMap(buildOpts.Sourcemap),
+		MangleSyntax:      buildOpts.MinifySyntax,
+		RemoveWhitespace:  buildOpts.MinifyWhitespace,
+		MinifyIdentifiers: buildOpts.MinifyIdentifiers,
+		ModuleName:        buildOpts.GlobalName,
+		IsBundling:        buildOpts.Bundle,
+		CodeSplitting:     buildOpts.Splitting,
+		OutputFormat:      validateFormat(buildOpts.Format),
+		AbsOutputFile:     validatePath(log, realFS, buildOpts.Outfile),
+		AbsOutputDir:      validatePath(log, realFS, buildOpts.Outdir),
+		AbsMetadataFile:   validatePath(log, realFS, buildOpts.Metafile),
+		ExtensionToLoader: validateLoaders(log, buildOpts.Loaders),
+		ExtensionOrder:    validateResolveExtensions(log, buildOpts.ResolveExtensions),
+		ExternalModules:   validateExternals(log, buildOpts.Externals),
 	}
-	bundleOptions := bundler.BundleOptions{
-		SourceMap:         validateSourceMap(options.Sourcemap),
-		MangleSyntax:      options.MinifySyntax,
-		RemoveWhitespace:  options.MinifyWhitespace,
-		MinifyIdentifiers: options.MinifyIdentifiers,
-		ModuleName:        options.GlobalName,
-		IsBundling:        options.Bundle,
-		CodeSplitting:     options.Splitting,
-		OutputFormat:      validateFormat(options.Format),
-		AbsOutputFile:     validatePath(log, realFS, options.Outfile),
-		AbsOutputDir:      validatePath(log, realFS, options.Outdir),
-		AbsMetadataFile:   validatePath(log, realFS, options.Metafile),
-		ExtensionToLoader: validateLoaders(log, options.Loaders),
-	}
-	resolveOptions := resolver.ResolveOptions{
-		Platform:        validatePlatform(options.Platform),
-		ExtensionOrder:  validateResolveExtensions(log, options.ResolveExtensions),
-		ExternalModules: validateExternals(log, options.Externals),
-	}
-	entryPaths := make([]string, len(options.EntryPoints))
-	for i, entryPoint := range options.EntryPoints {
+	entryPaths := make([]string, len(buildOpts.EntryPoints))
+	for i, entryPoint := range buildOpts.EntryPoints {
 		entryPaths[i] = validatePath(log, realFS, entryPoint)
 	}
 
-	if bundleOptions.AbsOutputDir == "" && len(entryPaths) > 1 {
+	if options.AbsOutputDir == "" && len(entryPaths) > 1 {
 		log.AddError(nil, ast.Loc{},
 			"Must use \"outdir\" when there are multiple input files")
-	} else if bundleOptions.AbsOutputDir == "" && bundleOptions.CodeSplitting {
+	} else if options.AbsOutputDir == "" && options.CodeSplitting {
 		log.AddError(nil, ast.Loc{},
 			"Must use \"outdir\" when code splitting is enabled")
-	} else if bundleOptions.AbsOutputFile != "" && bundleOptions.AbsOutputDir != "" {
+	} else if options.AbsOutputFile != "" && options.AbsOutputDir != "" {
 		log.AddError(nil, ast.Loc{}, "Cannot use both \"outfile\" and \"outdir\"")
-	} else if bundleOptions.AbsOutputFile != "" {
+	} else if options.AbsOutputFile != "" {
 		// If the output file is specified, use it to derive the output directory
-		bundleOptions.AbsOutputDir = realFS.Dir(bundleOptions.AbsOutputFile)
-	} else if bundleOptions.AbsOutputDir == "" {
+		options.AbsOutputDir = realFS.Dir(options.AbsOutputFile)
+	} else if options.AbsOutputDir == "" {
 		// Forbid certain features when writing to stdout
-		if bundleOptions.SourceMap != config.SourceMapNone && bundleOptions.SourceMap != config.SourceMapInline {
+		if options.SourceMap != config.SourceMapNone && options.SourceMap != config.SourceMapInline {
 			log.AddError(nil, ast.Loc{}, "Cannot use an external source map without an output path")
 		}
-		if bundleOptions.AbsMetadataFile != "" {
+		if options.AbsMetadataFile != "" {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"metafile\" without an output path")
 		}
-		for _, loader := range bundleOptions.ExtensionToLoader {
+		for _, loader := range options.ExtensionToLoader {
 			if loader == config.LoaderFile {
 				log.AddError(nil, ast.Loc{}, "Cannot use the \"file\" loader without an output path")
 				break
@@ -375,26 +368,26 @@ func buildImpl(options BuildOptions) BuildResult {
 		}
 	}
 
-	if !bundleOptions.IsBundling {
+	if !options.IsBundling {
 		// Disallow bundle-only options when not bundling
-		if bundleOptions.OutputFormat != config.FormatPreserve {
+		if options.OutputFormat != config.FormatPreserve {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"format\" without \"bundle\"")
 		}
-		if len(resolveOptions.ExternalModules) > 0 {
+		if len(options.ExternalModules) > 0 {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"external\" without \"bundle\"")
 		}
-	} else if bundleOptions.OutputFormat == config.FormatPreserve {
+	} else if options.OutputFormat == config.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
-		switch resolveOptions.Platform {
+		switch options.Platform {
 		case config.PlatformBrowser:
-			bundleOptions.OutputFormat = config.FormatIIFE
+			options.OutputFormat = config.FormatIIFE
 		case config.PlatformNode:
-			bundleOptions.OutputFormat = config.FormatCommonJS
+			options.OutputFormat = config.FormatCommonJS
 		}
 	}
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
-	if bundleOptions.CodeSplitting && bundleOptions.OutputFormat != config.FormatESModule {
+	if options.CodeSplitting && options.OutputFormat != config.FormatESModule {
 		log.AddError(nil, ast.Loc{}, "Spltting currently only works with the \"esm\" format")
 	}
 
@@ -403,13 +396,13 @@ func buildImpl(options BuildOptions) BuildResult {
 	// Stop now if there were errors
 	if !log.HasErrors() {
 		// Scan over the bundle
-		resolver := resolver.NewResolver(realFS, log, resolveOptions)
-		bundle := bundler.ScanBundle(log, realFS, resolver, entryPaths, parseOptions, bundleOptions)
+		resolver := resolver.NewResolver(realFS, log, options)
+		bundle := bundler.ScanBundle(log, realFS, resolver, entryPaths, options)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results := bundle.Compile(log, bundleOptions)
+			results := bundle.Compile(log, options)
 
 			// Return the results
 			outputFiles = make([]OutputFile, len(results))
@@ -433,47 +426,44 @@ func buildImpl(options BuildOptions) BuildResult {
 ////////////////////////////////////////////////////////////////////////////////
 // Transform API
 
-func transformImpl(input string, options TransformOptions) TransformResult {
+func transformImpl(input string, transformOpts TransformOptions) TransformResult {
 	var log logging.Log
-	if options.LogLevel == LogLevelSilent {
+	if transformOpts.LogLevel == LogLevelSilent {
 		log = logging.NewDeferLog()
 	} else {
 		log = logging.NewStderrLog(logging.StderrOptions{
 			IncludeSource: true,
-			ErrorLimit:    options.ErrorLimit,
-			Color:         validateColor(options.Color),
-			LogLevel:      validateLogLevel(options.LogLevel),
+			ErrorLimit:    transformOpts.ErrorLimit,
+			Color:         validateColor(transformOpts.Color),
+			LogLevel:      validateLogLevel(transformOpts.LogLevel),
 		})
 	}
 
-	// Convert and validate the options
-	parseOptions := parser.ParseOptions{
-		Target:       validateTarget(options.Target),
-		Strict:       validateStrict(options.Strict),
-		MangleSyntax: options.MinifySyntax,
+	// Convert and validate the transformOpts
+	options := config.Options{
+		Target: validateTarget(transformOpts.Target),
+		Strict: validateStrict(transformOpts.Strict),
 		JSX: config.JSXOptions{
-			Factory:  validateJSX(log, options.JSXFactory, "factory"),
-			Fragment: validateJSX(log, options.JSXFragment, "fragment"),
+			Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
+			Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
 		},
-		Defines: validateDefines(log, options.Defines),
-	}
-	bundleOptions := bundler.BundleOptions{
-		SourceMap:         validateSourceMap(options.Sourcemap),
-		MangleSyntax:      options.MinifySyntax,
-		RemoveWhitespace:  options.MinifyWhitespace,
-		MinifyIdentifiers: options.MinifyIdentifiers,
-		AbsOutputFile:     options.Sourcefile + "-out",
-		Stdin: &bundler.StdinInfo{
-			Loader:     validateLoader(options.Loader),
+		Defines:           validateDefines(log, transformOpts.Defines),
+		SourceMap:         validateSourceMap(transformOpts.Sourcemap),
+		MangleSyntax:      transformOpts.MinifySyntax,
+		RemoveWhitespace:  transformOpts.MinifyWhitespace,
+		MinifyIdentifiers: transformOpts.MinifyIdentifiers,
+		AbsOutputFile:     transformOpts.Sourcefile + "-out",
+		Stdin: &config.StdinInfo{
+			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,
-			SourceFile: options.Sourcefile,
+			SourceFile: transformOpts.Sourcefile,
 		},
 	}
-	if bundleOptions.SourceMap == config.SourceMapLinkedWithComment {
+	if options.SourceMap == config.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name
 		log.AddError(nil, ast.Loc{}, "Cannot transform with linked source maps")
 	}
-	if bundleOptions.SourceMap != config.SourceMapNone && bundleOptions.Stdin.SourceFile == "" {
+	if options.SourceMap != config.SourceMapNone && options.Stdin.SourceFile == "" {
 		log.AddError(nil, ast.Loc{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
 	}
@@ -483,14 +473,14 @@ func transformImpl(input string, options TransformOptions) TransformResult {
 	// Stop now if there were errors
 	if !log.HasErrors() {
 		// Scan over the bundle
-		mockFS := fs.MockFS(map[string]string{options.Sourcefile: input})
-		resolver := resolver.NewResolver(mockFS, log, resolver.ResolveOptions{})
-		bundle := bundler.ScanBundle(log, mockFS, resolver, []string{options.Sourcefile}, parseOptions, bundleOptions)
+		mockFS := fs.MockFS(map[string]string{transformOpts.Sourcefile: input})
+		resolver := resolver.NewResolver(mockFS, log, options)
+		bundle := bundler.ScanBundle(log, mockFS, resolver, []string{transformOpts.Sourcefile}, options)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results = bundle.Compile(log, bundleOptions)
+			results = bundle.Compile(log, options)
 		}
 	}
 

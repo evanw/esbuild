@@ -3,6 +3,7 @@ package printer
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/parser"
 )
@@ -21,7 +22,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, parser.ParseOptions{})
+		}, config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {

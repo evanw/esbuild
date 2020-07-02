@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/parser"
 )
 
 func TestSplittingSharedES6IntoES6(t *testing.T) {
@@ -21,10 +20,7 @@ func TestSplittingSharedES6IntoES6(t *testing.T) {
 			"/shared.js": `export let foo = 123`,
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
@@ -70,10 +66,7 @@ func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
 			"/shared.js": `exports.foo = 123`,
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
@@ -120,10 +113,7 @@ func TestSplittingDynamicES6IntoES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
@@ -154,10 +144,7 @@ func TestSplittingDynamicCommonJSIntoES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
@@ -189,10 +176,7 @@ func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
@@ -238,10 +222,7 @@ func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
@@ -296,10 +277,7 @@ func TestSplittingAssignToLocal(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,

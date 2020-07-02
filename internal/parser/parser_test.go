@@ -24,7 +24,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{})
+		}, config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -42,7 +42,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{})
+		}, config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -67,7 +67,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			MangleSyntax: true,
 		})
 		msgs := log.Done()
@@ -92,7 +92,7 @@ func expectPrintedTarget(t *testing.T, target config.LanguageTarget, contents st
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			Target: target,
 		})
 		msgs := log.Done()
@@ -119,7 +119,7 @@ func expectPrintedTargetStrict(t *testing.T, target config.LanguageTarget, conte
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			Target: target,
 			Strict: config.StrictOptions{
 				NullishCoalescing: true,
@@ -150,7 +150,7 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
 			},
@@ -172,7 +172,7 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
 			},

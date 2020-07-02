@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/parser"
 )
 
 func TestTSDeclareConst(t *testing.T) {
@@ -20,10 +19,7 @@ func TestTSDeclareConst(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -48,10 +44,7 @@ func TestTSDeclareLet(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -76,10 +69,7 @@ func TestTSDeclareVar(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -104,10 +94,7 @@ func TestTSDeclareClass(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -132,10 +119,7 @@ func TestTSDeclareFunction(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -160,10 +144,7 @@ func TestTSDeclareNamespace(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -188,10 +169,7 @@ func TestTSDeclareEnum(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -216,10 +194,7 @@ func TestTSDeclareConstEnum(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -244,10 +219,7 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -273,10 +245,7 @@ func TestTSImportMissingES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -297,10 +266,7 @@ func TestTSImportMissingUnusedES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -325,10 +291,7 @@ func TestTSExportMissingES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -355,10 +318,7 @@ func TestTSImportMissingFile(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -377,10 +337,7 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -405,10 +362,7 @@ func TestTSExportEquals(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/a.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -446,10 +400,7 @@ func TestTSExportNamespace(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/a.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -482,10 +433,8 @@ func TestTSMinifyEnum(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/a.ts", "/b.ts"},
-		parseOptions: parser.ParseOptions{
-			MangleSyntax: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
+			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputDir:      "/",
@@ -516,10 +465,8 @@ func TestTSMinifyNamespace(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/a.ts", "/b.ts"},
-		parseOptions: parser.ParseOptions{
-			MangleSyntax: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
+			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputDir:      "/",
@@ -547,11 +494,9 @@ func TestTSMinifyDerivedClass(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			MangleSyntax: true,
-			Target:       config.ES2015,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
+			MangleSyntax:  true,
+			Target:        config.ES2015,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -584,10 +529,7 @@ func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -623,10 +565,7 @@ func TestTSImportVsLocalCollisionMixed(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -662,12 +601,9 @@ func TestTSMinifiedBundleES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling:   true,
-			MangleSyntax: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        true,
+			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -696,12 +632,9 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling:   true,
-			MangleSyntax: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        true,
+			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -835,10 +768,7 @@ func TestTypeScriptDecorators(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},

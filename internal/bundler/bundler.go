@@ -57,18 +57,17 @@ type parseFlags struct {
 }
 
 type parseArgs struct {
-	fs            fs.FS
-	log           logging.Log
-	res           resolver.Resolver
-	absPath       string
-	prettyPath    string
-	sourceIndex   uint32
-	importSource  *logging.Source
-	flags         parseFlags
-	pathRange     ast.Range
-	parseOptions  parser.ParseOptions
-	bundleOptions BundleOptions
-	results       chan parseResult
+	fs           fs.FS
+	log          logging.Log
+	res          resolver.Resolver
+	absPath      string
+	prettyPath   string
+	sourceIndex  uint32
+	importSource *logging.Source
+	flags        parseFlags
+	pathRange    ast.Range
+	options      config.Options
+	results      chan parseResult
 }
 
 type parseResult struct {
@@ -85,7 +84,7 @@ func parseFile(args parseArgs) {
 	}
 
 	// Disabled files are left empty
-	stdin := args.bundleOptions.Stdin
+	stdin := args.options.Stdin
 	if !args.flags.isDisabled {
 		if stdin != nil {
 			source.Contents = stdin.Contents
@@ -107,20 +106,20 @@ func parseFile(args parseArgs) {
 
 	// Allow certain properties to be overridden
 	if len(args.flags.jsxFactory) > 0 {
-		args.parseOptions.JSX.Factory = args.flags.jsxFactory
+		args.options.JSX.Factory = args.flags.jsxFactory
 	}
 	if len(args.flags.jsxFragment) > 0 {
-		args.parseOptions.JSX.Fragment = args.flags.jsxFragment
+		args.options.JSX.Fragment = args.flags.jsxFragment
 	}
 	if args.flags.strictClassFields {
-		args.parseOptions.Strict.ClassFields = true
+		args.options.Strict.ClassFields = true
 	}
 
 	// Get the file extension
 	extension := args.fs.Ext(args.absPath)
 
 	// Pick the loader based on the file extension
-	loader := args.bundleOptions.ExtensionToLoader[extension]
+	loader := args.options.ExtensionToLoader[extension]
 
 	// Special-case reading from stdin
 	if stdin != nil {
@@ -137,36 +136,36 @@ func parseFile(args parseArgs) {
 
 	switch loader {
 	case config.LoaderJS:
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
 
 	case config.LoaderJSX:
-		args.parseOptions.JSX.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+		args.options.JSX.Parse = true
+		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
 
 	case config.LoaderTS:
-		args.parseOptions.TS.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+		args.options.TS.Parse = true
+		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
 
 	case config.LoaderTSX:
-		args.parseOptions.TS.Parse = true
-		args.parseOptions.JSX.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.parseOptions)
+		args.options.TS.Parse = true
+		args.options.JSX.Parse = true
+		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
 
 	case config.LoaderJSON:
 		var expr ast.Expr
 		expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderText:
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(source.Contents)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderDataURL:
@@ -177,7 +176,7 @@ func parseFile(args parseArgs) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(url)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderFile:
@@ -187,19 +186,19 @@ func parseFile(args parseArgs) {
 		baseName := baseNameForAvoidingCollisions(args.fs, args.absPath)
 
 		// Determine the destination folder
-		targetFolder := args.bundleOptions.AbsOutputDir
+		targetFolder := args.options.AbsOutputDir
 		if targetFolder == "" {
-			targetFolder = args.fs.Dir(args.bundleOptions.AbsOutputFile)
+			targetFolder = args.fs.Dir(args.options.AbsOutputFile)
 		}
 
 		// Export the resulting relative path as a string
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(baseName)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.parseOptions, expr)
+		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 		// Optionally add metadata about the file
 		var jsonMetadataChunk []byte
-		if args.bundleOptions.AbsMetadataFile != "" {
+		if args.options.AbsMetadataFile != "" {
 			jsonMetadataChunk = []byte(fmt.Sprintf(
 				"{\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(source.Contents)))
 		}
@@ -252,18 +251,15 @@ func baseNameForAvoidingCollisions(fs fs.FS, absPath string) string {
 	return base[:len(base)-len(ext)] + "." + hash + ext
 }
 
-func ScanBundle(
-	log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []string,
-	parseOptions parser.ParseOptions, bundleOptions BundleOptions,
-) Bundle {
+func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
 	sources := []logging.Source{}
 	files := []file{}
 	visited := make(map[string]uint32)
 	results := make(chan parseResult)
 	remaining := 0
 
-	if bundleOptions.ExtensionToLoader == nil {
-		bundleOptions.ExtensionToLoader = DefaultExtensionToLoaderMap()
+	if options.ExtensionToLoader == nil {
+		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
 
 	// Always start by parsing the runtime file
@@ -278,7 +274,7 @@ func ScanBundle(
 		files = append(files, file{})
 		remaining++
 		go func() {
-			runtimeParseOptions := parseOptions
+			runtimeParseOptions := options
 
 			// Always do tree shaking for the runtime because we never want to
 			// include unnecessary runtime code
@@ -313,18 +309,17 @@ func ScanBundle(
 			}
 			remaining++
 			go parseFile(parseArgs{
-				fs:            fs,
-				log:           log,
-				res:           res,
-				absPath:       resolveResult.AbsolutePath,
-				prettyPath:    prettyPath,
-				sourceIndex:   sourceIndex,
-				importSource:  importSource,
-				flags:         flags,
-				pathRange:     pathRange,
-				parseOptions:  parseOptions,
-				bundleOptions: bundleOptions,
-				results:       results,
+				fs:           fs,
+				log:          log,
+				res:          res,
+				absPath:      resolveResult.AbsolutePath,
+				prettyPath:   prettyPath,
+				sourceIndex:  sourceIndex,
+				importSource: importSource,
+				flags:        flags,
+				pathRange:    pathRange,
+				options:      options,
+				results:      results,
 			})
 		}
 		return sourceIndex
@@ -357,13 +352,13 @@ func ScanBundle(
 		isFirstImport := true
 
 		// Begin the metadata chunk
-		if bundleOptions.AbsMetadataFile != "" {
+		if options.AbsMetadataFile != "" {
 			j.AddString(printer.QuoteForJSON(source.PrettyPath))
 			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(source.Contents)))
 		}
 
 		// Don't try to resolve paths if we're not bundling
-		if bundleOptions.IsBundling {
+		if options.IsBundling {
 			for _, part := range result.file.ast.Parts {
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &result.file.ast.ImportRecords[importRecordIndex]
@@ -385,7 +380,7 @@ func ScanBundle(
 						record.SourceIndex = &sourceIndex
 
 						// Generate metadata about each import
-						if bundleOptions.AbsMetadataFile != "" {
+						if options.AbsMetadataFile != "" {
 							if isFirstImport {
 								isFirstImport = false
 								j.AddString("\n        ")
@@ -404,7 +399,7 @@ func ScanBundle(
 		}
 
 		// End the metadata chunk
-		if bundleOptions.AbsMetadataFile != "" {
+		if options.AbsMetadataFile != "" {
 			if !isFirstImport {
 				j.AddString("\n      ")
 			}
@@ -430,39 +425,6 @@ func DefaultExtensionToLoaderMap() map[string]config.Loader {
 		".json": config.LoaderJSON,
 		".txt":  config.LoaderText,
 	}
-}
-
-type StdinInfo struct {
-	Loader     config.Loader
-	Contents   string
-	SourceFile string
-}
-
-type BundleOptions struct {
-	// true: imports are scanned and bundled along with the file
-	// false: imports are left alone and the file is passed through as-is
-	IsBundling bool
-
-	AbsOutputFile     string
-	AbsOutputDir      string
-	RemoveWhitespace  bool
-	MinifyIdentifiers bool
-	MangleSyntax      bool
-	CodeSplitting     bool
-	ModuleName        string
-	ExtensionToLoader map[string]config.Loader
-	OutputFormat      config.Format
-
-	// If present, metadata about the bundle is written as JSON here
-	AbsMetadataFile string
-
-	SourceMap config.SourceMap
-	Stdin     *StdinInfo
-
-	// If true, make sure to generate a single file that can be written to stdout
-	WriteToStdout bool
-
-	omitRuntimeForTests bool
 }
 
 type OutputFile struct {
@@ -500,7 +462,7 @@ type compileResult struct {
 	quotedSource string
 }
 
-func (b *Bundle) Compile(log logging.Log, options BundleOptions) []OutputFile {
+func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}

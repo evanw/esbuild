@@ -9,7 +9,6 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/logging"
-	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/kylelemons/godebug/diff"
 )
@@ -49,18 +48,16 @@ type bundled struct {
 	expected           map[string]string
 	expectedScanLog    string
 	expectedCompileLog string
-	parseOptions       parser.ParseOptions
-	bundleOptions      BundleOptions
-	resolveOptions     resolver.ResolveOptions
+	options            config.Options
 }
 
 func expectBundled(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
 		fs := fs.MockFS(args.files)
-		args.resolveOptions.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".json"}
+		args.options.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".json"}
 		log := logging.NewDeferLog()
-		resolver := resolver.NewResolver(fs, log, args.resolveOptions)
-		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.parseOptions, args.bundleOptions)
+		resolver := resolver.NewResolver(fs, log, args.options)
+		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.options)
 		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 
@@ -70,11 +67,11 @@ func expectBundled(t *testing.T, args bundled) {
 		}
 
 		log = logging.NewDeferLog()
-		args.bundleOptions.omitRuntimeForTests = true
-		if args.bundleOptions.AbsOutputFile != "" {
-			args.bundleOptions.AbsOutputDir = path.Dir(args.bundleOptions.AbsOutputFile)
+		args.options.OmitRuntimeForTests = true
+		if args.options.AbsOutputFile != "" {
+			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
 		}
-		results := bundle.Compile(log, args.bundleOptions)
+		results := bundle.Compile(log, args.options)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 
@@ -116,10 +113,7 @@ func TestSimpleES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -150,10 +144,7 @@ func TestSimpleCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -193,10 +184,7 @@ func TestNestedCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -239,10 +227,7 @@ func TestCommonJSFromES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -296,10 +281,7 @@ func TestES6FromCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -346,10 +328,7 @@ func TestNestedES6FromCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -389,10 +368,7 @@ func TestExportFormsES6(t *testing.T) {
 			"/b.js": "export const xyz = null",
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
@@ -451,10 +427,7 @@ func TestExportFormsIIFE(t *testing.T) {
 			"/b.js": "export const xyz = null",
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatIIFE,
 			ModuleName:    "moduleName",
@@ -529,10 +502,7 @@ func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 			"/d.js",
 			"/e.js",
 		},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputDir:      "/out",
@@ -589,10 +559,7 @@ func TestImportFormsWithNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
@@ -635,10 +602,7 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -696,10 +660,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 			"/h.js": "export default async function foo() {} foo.prop = 123",
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -824,10 +785,7 @@ func TestReExportDefaultCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -866,10 +824,7 @@ func TestExportChain(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -899,10 +854,7 @@ func TestExportInfiniteCycle1(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -927,10 +879,7 @@ func TestExportInfiniteCycle2(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -954,15 +903,12 @@ func TestJSXImportsCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.jsx"},
-		parseOptions: parser.ParseOptions{
+		options: config.Options{
 			IsBundling: true,
 			JSX: config.JSXOptions{
 				Factory:  []string{"elem"},
 				Fragment: []string{"frag"},
 			},
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -992,15 +938,12 @@ func TestJSXImportsES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.jsx"},
-		parseOptions: parser.ParseOptions{
+		options: config.Options{
 			IsBundling: true,
 			JSX: config.JSXOptions{
 				Factory:  []string{"elem"},
 				Fragment: []string{"frag"},
 			},
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1025,10 +968,7 @@ func TestJSXSyntaxInJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -1045,10 +985,7 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
@@ -1077,10 +1014,7 @@ func TestNodeModules(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1119,10 +1053,7 @@ func TestPackageJsonMain(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1162,10 +1093,7 @@ func TestPackageJsonSyntaxErrorComment(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1193,10 +1121,7 @@ func TestPackageJsonSyntaxErrorTrailingComma(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1225,10 +1150,7 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1269,10 +1191,7 @@ func TestJsconfigJsonBaseUrl(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1314,10 +1233,7 @@ func TestTsconfigJsonCommentAllowed(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1358,10 +1274,7 @@ func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1406,10 +1319,7 @@ func TestPackageJsonModule(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1538,10 +1448,7 @@ func TestTsConfigPaths(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1625,10 +1532,7 @@ func TestTsConfigJSX(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/entry.tsx"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1682,10 +1586,7 @@ func TestTsConfigNestedJSX(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1725,10 +1626,7 @@ func TestPackageJsonBrowserString(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1784,10 +1682,7 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1842,10 +1737,7 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1897,10 +1789,7 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1957,10 +1846,7 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -2020,10 +1906,7 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -2078,10 +1961,7 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -2133,10 +2013,7 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -2192,10 +2069,7 @@ func TestPackageJsonBrowserOverModule(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -2254,10 +2128,7 @@ func TestPackageJsonBrowserWithModule(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -2285,10 +2156,7 @@ func TestRequireChildDirCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2317,10 +2185,7 @@ func TestRequireChildDirES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2346,10 +2211,7 @@ func TestRequireParentDirCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/dir/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2378,10 +2240,7 @@ func TestRequireParentDirES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/dir/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2408,10 +2267,7 @@ func TestImportMissingES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2432,10 +2288,7 @@ func TestImportMissingUnusedES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2457,10 +2310,7 @@ func TestImportMissingCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2491,10 +2341,7 @@ func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2532,10 +2379,7 @@ func TestExportMissingES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2556,10 +2400,7 @@ func TestDotImport(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2589,10 +2430,7 @@ func TestRequireWithTemplate(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/a.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2622,10 +2460,7 @@ func TestDynamicImportWithTemplateIIFE(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/a.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
@@ -2657,10 +2492,7 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2689,10 +2521,7 @@ func TestRequireBadArgumentCount(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2723,10 +2552,7 @@ func TestRequireJson(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2756,10 +2582,7 @@ func TestRequireTxt(t *testing.T) {
 			"/test.txt": `This is a test.`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -2785,10 +2608,7 @@ func TestRequireCustomExtensionString(t *testing.T) {
 			"/test.custom": `#include <stdio.h>`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
@@ -2818,10 +2638,7 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 			"/test.custom": "a\x00b\x80c\xFFd",
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
@@ -2851,10 +2668,7 @@ func TestRequireCustomExtensionDataURL(t *testing.T) {
 			"/test.custom": "a\x00b\x80c\xFFd",
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
@@ -2884,10 +2698,7 @@ func testAutoDetectMimeTypeFromExtension(t *testing.T) {
 			"/test.svg": "a\x00b\x80c\xFFd",
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
@@ -2924,10 +2735,7 @@ func TestLoaderFile(t *testing.T) {
 			"/test3.svg": "<svg></svg>",
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:   true,
 			AbsOutputDir: "/out/",
 			ExtensionToLoader: map[string]config.Loader{
@@ -2964,10 +2772,7 @@ func TestLoaderFileMultipleNoCollision(t *testing.T) {
 			"/b/test.txt": "test",
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/dist/out.js",
 			ExtensionToLoader: map[string]config.Loader{
@@ -3004,10 +2809,7 @@ func TestRequireBadExtension(t *testing.T) {
 			"/test": `This is a test.`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3025,10 +2827,7 @@ func TestFalseRequire(t *testing.T) {
 			"/test.txt": `This is a test.`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3049,10 +2848,7 @@ func TestRequireWithoutCall(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3078,10 +2874,7 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3112,10 +2905,7 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3146,10 +2936,7 @@ func TestSourceMap(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			SourceMap:     config.SourceMapLinkedWithComment,
 			AbsOutputFile: "/Users/user/project/out.js",
@@ -3192,10 +2979,7 @@ func TestNestedScopeBug(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3228,10 +3012,7 @@ func TestHashbangBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3256,10 +3037,7 @@ func TestHashbangNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
@@ -3285,10 +3063,7 @@ func TestTypeofRequireBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3320,10 +3095,7 @@ func TestTypeofRequireNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
@@ -3360,10 +3132,7 @@ func TestTypeofRequireBadPatterns(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3403,15 +3172,10 @@ func TestRequireFSBrowser(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformBrowser,
+			Platform:      config.PlatformBrowser,
 		},
 		expectedScanLog: "/entry.js: error: Could not resolve \"fs\"\n",
 	})
@@ -3425,16 +3189,11 @@ func TestRequireFSNode(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3452,17 +3211,12 @@ func TestRequireFSNodeMinify(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:       true,
 			RemoveWhitespace: true,
 			OutputFormat:     config.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:         config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `return require("fs");
@@ -3483,15 +3237,10 @@ func TestImportFSBrowser(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformBrowser,
+			Platform:      config.PlatformBrowser,
 		},
 		expectedScanLog: `/entry.js: error: Could not resolve "fs"
 /entry.js: error: Could not resolve "fs"
@@ -3513,16 +3262,11 @@ func TestImportFSNodeCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3548,16 +3292,11 @@ func TestImportFSNodeES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3580,15 +3319,10 @@ func TestExportFSBrowser(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformBrowser,
+			Platform:      config.PlatformBrowser,
 		},
 		expectedScanLog: `/entry.js: error: Could not resolve "fs"
 /entry.js: error: Could not resolve "fs"
@@ -3605,15 +3339,10 @@ func TestExportFSNode(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3641,15 +3370,10 @@ func TestReExportFSNode(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
@@ -3678,15 +3402,10 @@ func TestExportFSNodeInCommonJSModule(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3713,16 +3432,11 @@ func TestExportWildcardFSNodeES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3744,16 +3458,11 @@ func TestExportWildcardFSNodeCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
@@ -3778,12 +3487,9 @@ func TestMinifiedBundleES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling:   true,
-			MangleSyntax: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        true,
+			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -3812,12 +3518,9 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling:   true,
-			MangleSyntax: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        true,
+			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -3837,10 +3540,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:       true,
 			RemoveWhitespace: true,
 			OutputFormat:     config.FormatIIFE,
@@ -3862,10 +3562,7 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
@@ -3894,10 +3591,7 @@ func TestTopLevelReturn(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3932,10 +3626,7 @@ func TestThisOutsideFunction(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -3972,10 +3663,7 @@ func TestThisInsideFunction(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -4087,10 +3775,7 @@ func TestThisWithES6Syntax(t *testing.T) {
 		entryPaths: []string{
 			"/entry.js",
 		},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -4313,10 +3998,7 @@ func TestArrowFnScope(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -4347,10 +4029,7 @@ func TestSwitchScopeNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -4384,10 +4063,7 @@ func TestArgumentDefaultValueScopeNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -4474,10 +4150,7 @@ func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -4600,10 +4273,7 @@ func TestWithStatementTaintingNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -4673,10 +4343,7 @@ func TestDirectEvalTaintingNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -4738,17 +4405,12 @@ func TestImportReExportES6Issue149(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/app.jsx"},
-		parseOptions: parser.ParseOptions{
+		options: config.Options{
 			IsBundling: true,
 			JSX: config.JSXOptions{
 				Factory: []string{"h"},
 			},
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
 			ExternalModules: map[string]bool{
 				"preact": true,
 			},
@@ -4780,14 +4442,9 @@ func TestExternalModuleExclusion(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/index.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
 			ExternalModules: map[string]bool{
 				"aws-sdk": true,
 			},
@@ -4863,10 +4520,7 @@ func TestManyEntryPoints(t *testing.T) {
 			"/e20.js", "/e21.js", "/e22.js", "/e23.js", "/e24.js", "/e25.js", "/e26.js", "/e27.js", "/e28.js", "/e29.js",
 			"/e30.js", "/e31.js", "/e32.js", "/e33.js", "/e34.js", "/e35.js", "/e36.js", "/e37.js", "/e38.js", "/e39.js",
 		},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:   true,
 			AbsOutputDir: "/out",
 		},
@@ -4945,10 +4599,7 @@ func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
@@ -5009,10 +4660,7 @@ func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -5063,16 +4711,11 @@ func TestExportsAndModuleFormatCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:      config.PlatformNode,
 		},
 
 		// The "test_exports" names must be different
@@ -5114,17 +4757,12 @@ func TestMinifiedExportsAndModuleFormatCommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:        true,
 			MinifyIdentifiers: true,
 			OutputFormat:      config.FormatCommonJS,
 			AbsOutputFile:     "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
-			Platform: config.PlatformNode,
+			Platform:          config.PlatformNode,
 		},
 
 		// The "test_exports" names must be minified, and the "exports" and
@@ -5163,11 +4801,7 @@ func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling:   false,
-			MangleSyntax: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:       false,
 			MangleSyntax:     true,
 			RemoveWhitespace: true,
@@ -5188,10 +4822,7 @@ func TestNoOverwriteInputFileError(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:   true,
 			AbsOutputDir: "/",
 		},
@@ -5207,10 +4838,7 @@ func TestDuplicateEntryPointError(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js", "/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:   true,
 			AbsOutputDir: "/out.js",
 		},
@@ -5226,10 +4854,7 @@ func TestMultipleEntryPointsSameNameCollision(t *testing.T) {
 			"/common.js":  `export let foo = 123`,
 		},
 		entryPaths: []string{"/a/entry.js", "/b/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:   true,
 			AbsOutputDir: "/out/",
 		},
@@ -5248,10 +4873,7 @@ func TestReExportCommonJSAsES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -5287,10 +4909,7 @@ func TestReExportDefaultInternal(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -5323,14 +4942,9 @@ func TestReExportDefaultExternal(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		resolveOptions: resolver.ResolveOptions{
 			ExternalModules: map[string]bool{
 				"foo": true,
 				"bar": true,
@@ -5360,10 +4974,7 @@ func TestReExportDefaultNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
@@ -5383,10 +4994,7 @@ func TestImportMeta(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -5407,10 +5015,7 @@ func TestImportMetaNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},

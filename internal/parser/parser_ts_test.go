@@ -16,7 +16,7 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
@@ -38,7 +38,7 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
@@ -65,7 +65,7 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
@@ -90,7 +90,7 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
-		}, ParseOptions{
+		}, config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},

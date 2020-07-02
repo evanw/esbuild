@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/parser"
 )
 
 func TestLowerOptionalCatchNameCollisionNoBundle(t *testing.T) {
@@ -21,12 +20,9 @@ func TestLowerOptionalCatchNameCollisionNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2018,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2018,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -61,12 +57,9 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.jsx"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2017,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2017,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -144,12 +137,9 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2015,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2015,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: "/entry.js: error: Big integer literals are from ES2020 and transforming them to ES2015 is not supported\n",
@@ -218,12 +208,9 @@ func TestLowerPrivateFieldAssignments2015NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2015,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2015,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -299,12 +286,9 @@ func TestLowerPrivateFieldAssignments2019NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2019,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2019,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -380,12 +364,9 @@ func TestLowerPrivateFieldAssignments2020NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -460,10 +441,7 @@ func TestLowerPrivateFieldAssignmentsNextNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
@@ -515,12 +493,9 @@ func TestLowerPrivateFieldOptionalChain2019NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2019,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2019,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -557,12 +532,9 @@ func TestLowerPrivateFieldOptionalChain2020NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -598,10 +570,7 @@ func TestLowerPrivateFieldOptionalChainNextNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
@@ -634,12 +603,9 @@ func TestTSLowerPrivateFieldOptionalChain2015NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2015,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2015,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -679,12 +645,9 @@ func TestTSLowerPrivateStaticMembers2015NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2015,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2015,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -726,12 +689,9 @@ func TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2015,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2015,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -800,12 +760,9 @@ func TestLowerPrivateGetterSetter2015(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2015,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2015,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -913,12 +870,9 @@ func TestLowerPrivateGetterSetter2019(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2019,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2019,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1026,12 +980,9 @@ func TestLowerPrivateGetterSetter2020(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1139,10 +1090,7 @@ func TestLowerPrivateGetterSetterNext(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -1231,12 +1179,9 @@ func TestLowerPrivateMethod2019(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2019,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2019,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1317,12 +1262,9 @@ func TestLowerPrivateMethod2020(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1402,10 +1344,7 @@ func TestLowerPrivateMethodNext(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
@@ -1461,12 +1400,9 @@ func TestLowerPrivateClassExpr2020NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1504,12 +1440,9 @@ func TestLowerPrivateMethodWithModifiers2020(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1574,12 +1507,9 @@ func TestLowerAsync2016NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2016,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2016,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1652,12 +1582,9 @@ func TestLowerAsync2017NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2017,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2017,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1702,12 +1629,9 @@ func TestLowerAsyncThis2016CommonJS(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2016,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2016,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1731,12 +1655,9 @@ func TestLowerAsyncThis2016ES6(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2016,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2016,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1769,15 +1690,12 @@ func TestLowerClassFieldStrict2020NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
+		options: config.Options{
 			IsBundling: false,
 			Target:     config.ES2020,
 			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1820,12 +1738,9 @@ func TestLowerClassField2020NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1868,15 +1783,12 @@ func TestLowerClassFieldStrictNextNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
+		options: config.Options{
 			IsBundling: false,
 			Target:     config.ESNext,
 			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1912,12 +1824,9 @@ func TestLowerClassFieldNextNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ESNext,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ESNext,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -1953,15 +1862,12 @@ func TestTSLowerClassFieldStrict2020NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
+		options: config.Options{
 			IsBundling: false,
 			Target:     config.ES2020,
 			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2004,12 +1910,9 @@ func TestTSLowerClassField2020NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2050,15 +1953,12 @@ func TestTSLowerClassPrivateFieldStrictNextNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
+		options: config.Options{
 			IsBundling: false,
 			Target:     config.ESNext,
 			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
-		},
-		bundleOptions: BundleOptions{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2094,12 +1994,9 @@ func TestTSLowerClassPrivateFieldNextNoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ESNext,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ESNext,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2153,12 +2050,9 @@ func TestLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: true,
-			Target:     config.ES2020,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    true,
+			Target:        config.ES2020,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2217,12 +2111,9 @@ func TestTSLowerObjectRest2017NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2017,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2017,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
@@ -2337,12 +2228,9 @@ func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
-		parseOptions: parser.ParseOptions{
-			IsBundling: false,
-			Target:     config.ES2018,
-		},
-		bundleOptions: BundleOptions{
+		options: config.Options{
 			IsBundling:    false,
+			Target:        config.ES2018,
 			AbsOutputFile: "/out.js",
 		},
 		expected: map[string]string{
