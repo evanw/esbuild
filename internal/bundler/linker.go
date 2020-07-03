@@ -435,12 +435,24 @@ func (c *linkerContext) link() []OutputFile {
 	chunks := c.computeChunks()
 	c.computeCrossChunkDependencies(chunks)
 
-	results := make([]OutputFile, 0, len(chunks))
-	for _, chunk := range chunks {
-		results = append(results, c.generateChunk(chunk)...)
+	// Generate chunks in parallel
+	results := make([][]OutputFile, len(chunks))
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(chunks))
+	for i, chunk := range chunks {
+		go func(i int, chunk chunkMeta) {
+			results[i] = c.generateChunk(chunk)
+			waitGroup.Done()
+		}(i, chunk)
 	}
+	waitGroup.Wait()
 
-	return results
+	// Join the results in chunk order for determinism
+	var outputFiles []OutputFile
+	for _, group := range results {
+		outputFiles = append(outputFiles, group...)
+	}
+	return outputFiles
 }
 
 func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
