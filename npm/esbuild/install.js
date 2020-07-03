@@ -70,6 +70,8 @@ child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' }
 // Pick a package to install
 const knownUnixlikePackages = [
   { platform: 'darwin', arch: 'x64', name: 'esbuild-darwin-64' },
+  { platform: 'freebsd', arch: 'x64', name: 'esbuild-freebsd-64' },
+  { platform: 'freebsd', arch: 'arm64', name: 'esbuild-freebsd-arm64' },
   { platform: 'linux', arch: 'x64', name: 'esbuild-linux-64' },
   { platform: 'linux', arch: 'arm64', name: 'esbuild-linux-arm64' },
   { platform: 'linux', arch: 'ppc64', endianness: 'LE', name: 'esbuild-linux-ppc64le' },

@@ -2,6 +2,8 @@ ESBUILD_VERSION = $(shell cat version.txt)
 
 # Supported UNIX-like platforms. notation: GOOS/GOARCH
 PLATFORMS_UNIXLIKE += darwin/amd64
+PLATFORMS_UNIXLIKE += freebsd/amd64
+PLATFORMS_UNIXLIKE += freebsd/arm64
 PLATFORMS_UNIXLIKE += linux/amd64
 PLATFORMS_UNIXLIKE += linux/arm64
 PLATFORMS_UNIXLIKE += linux/ppc64le
