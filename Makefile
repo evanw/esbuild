@@ -1,5 +1,11 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
+# Supported UNIX-like platforms. notation: GOOS/GOARCH
+PLATFORMS_UNIXLIKE += darwin/amd64
+PLATFORMS_UNIXLIKE += linux/amd64
+PLATFORMS_UNIXLIKE += linux/arm64
+PLATFORMS_UNIXLIKE += linux/ppc64le
+
 esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
 	go build ./cmd/esbuild
 
@@ -32,32 +38,23 @@ js-api-tests: | scripts/node_modules
 update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
 
+
+platform-name-for = $(subst /,-,$(subst amd64,64,$1))
+npm-dirname-for = npm/esbuild-$(call platform-name-for,$1)
+
+define define-params-for
+platform-$(call platform-name-for,$1): $(call npm-dirname-for,$1)/package.json
+platform-$(call platform-name-for,$1): DIR := $(call npm-dirname-for,$1)
+platform-$(call platform-name-for,$1): GOOS := $(firstword $(subst /, ,$1))
+platform-$(call platform-name-for,$1): GOARCH := $(lastword $(subst /, ,$1))
+endef
+
 platform-all: update-version-go test-all
-	make -j7 platform-windows platform-darwin platform-linux platform-linux-arm64 platform-linux-ppc64le platform-wasm platform-neutral
+	make -j4 platform-windows platform-unixlike platform-wasm platform-neutral
 
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=windows GOARCH=amd64 go build -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
-
-platform-darwin:
-	mkdir -p npm/esbuild-darwin-64/bin
-	cd npm/esbuild-darwin-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=darwin GOARCH=amd64 go build -o npm/esbuild-darwin-64/bin/esbuild ./cmd/esbuild
-
-platform-linux:
-	mkdir -p npm/esbuild-linux-64/bin
-	cd npm/esbuild-linux-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=linux GOARCH=amd64 go build -o npm/esbuild-linux-64/bin/esbuild ./cmd/esbuild
-
-platform-linux-arm64:
-	mkdir -p npm/esbuild-linux-arm64/bin
-	cd npm/esbuild-linux-arm64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=linux GOARCH=arm64 go build -o npm/esbuild-linux-arm64/bin/esbuild ./cmd/esbuild
-
-platform-linux-ppc64le:
-	mkdir -p npm/esbuild-linux-ppc64le/bin
-	cd npm/esbuild-linux-ppc64le && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=linux GOARCH=ppc64le go build -o npm/esbuild-linux-ppc64le/bin/esbuild ./cmd/esbuild
 
 platform-wasm: | esbuild
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
@@ -70,8 +67,21 @@ platform-neutral: | esbuild
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild
 
+platform-unixlike:
+	make -j$(words $(PLATFORMS_UNIXLIKE)) $(foreach p,$(PLATFORMS_UNIXLIKE),platform-$(call platform-name-for,$p))
+
+# platform-X: DIR := ...
+$(foreach p,$(PLATFORMS_UNIXLIKE),$(eval $(call define-params-for,$p)))
+
+# platform-X platform-Y ... :
+$(foreach p,$(PLATFORMS_UNIXLIKE),platform-$(call platform-name-for,$p)):
+	mkdir -p $(DIR)/bin
+	cd $(DIR) && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o $(DIR)/bin/esbuild ./cmd/esbuild
+
+
 publish-all: update-version-go test-all
-	make -j6 publish-windows publish-darwin publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm
+	make -j3 publish-windows publish-unixlike publish-wasm
 	make publish-neutral # Do this after to avoid race conditions
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
@@ -80,31 +90,26 @@ publish-all: update-version-go test-all
 publish-windows: platform-windows
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-windows-64 && npm publish --otp="$(OTP)"
 
-publish-darwin: platform-darwin
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
-
-publish-linux: platform-linux
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-64 && npm publish --otp="$(OTP)"
-
-publish-linux-arm64: platform-linux-arm64
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
-
-publish-linux-ppc64le: platform-linux-ppc64le
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-ppc64le && npm publish --otp="$(OTP)"
-
 publish-wasm: platform-wasm
 	[ ! -z "$(OTP)" ] && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
 
 publish-neutral: platform-neutral
 	cd npm/esbuild && npm publish
 
+publish-unixlike:
+	make -j$(words $(PLATFORMS_UNIXLIKE)) $(foreach p,$(PLATFORMS_UNIXLIKE),publish-$(call platform-name-for,$p))
+
+# publish-X: platform-X
+$(foreach p,$(PLATFORMS_UNIXLIKE),$(eval publish-$(call platform-name-for,$p): platform-$(call platform-name-for,$p)))
+
+# publish-X publish-Y ... :
+$(foreach p,$(PLATFORMS_UNIXLIKE),publish-$(call platform-name-for,$p)):
+	[ ! -z "$(OTP)" ] && cd $(call npm-dirname-for,$(subst publish-,,$@)) && npm publish --otp="$(OTP)"
+
 clean:
 	rm -f esbuild
 	rm -f npm/esbuild-windows-64/esbuild.exe
-	rm -rf npm/esbuild-darwin-64/bin
-	rm -rf npm/esbuild-linux-64/bin
-	rm -rf npm/esbuild-linux-arm64/bin
-	rm -rf npm/esbuild-linux-ppc64le/bin
+	rm -rf $(foreach p,$(PLATFORMS_UNIXLIKE),$(call npm-dirname-for,$p)/bin)
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
 	rm -rf npm/esbuild/lib
 	rm -rf npm/esbuild-wasm/lib
