@@ -340,6 +340,7 @@ Options:
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife, cjs, esm)
+  --splitting           Enable code splitting (currently only for esm)
   --color=...           Force use of color terminal escapes (true or false)
   --global-name=...     The name of the global for the IIFE format
 
