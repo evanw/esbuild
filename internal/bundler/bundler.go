@@ -265,7 +265,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 	// Always start by parsing the runtime file
 	{
 		source := logging.Source{
-			Index:        ast.RuntimeSourceIndex,
+			Index:        runtime.SourceIndex,
 			AbsolutePath: "<runtime>",
 			PrettyPath:   "<runtime>",
 			Contents:     runtime.Code,
@@ -555,7 +555,7 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 	// Sort files by absolute path for determinism
 	sorted := make(indexAndPathArray, 0, len(b.sources))
 	for sourceIndex, source := range b.sources {
-		if uint32(sourceIndex) != ast.RuntimeSourceIndex {
+		if uint32(sourceIndex) != runtime.SourceIndex {
 			sorted = append(sorted, indexAndPath{uint32(sourceIndex), source.PrettyPath})
 		}
 	}

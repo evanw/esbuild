@@ -12,6 +12,7 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/runtime"
 )
 
 // This parser does two passes:
@@ -8150,7 +8151,7 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 		declaredSymbols := make([]ast.DeclaredSymbol, len(keys))
 		clauseItems := make([]ast.ClauseItem, len(keys))
 		importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.Path{})
-		sourceIndex := ast.RuntimeSourceIndex
+		sourceIndex := runtime.SourceIndex
 		p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
 
 		// Create per-import information

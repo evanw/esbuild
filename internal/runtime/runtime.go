@@ -1,5 +1,10 @@
 package runtime
 
+// The runtime source is always at a special index. The index is always zero
+// but this constant is always used instead to improve readability and ensure
+// all code that references this index can be discovered easily.
+const SourceIndex = uint32(0)
+
 const Code = `
 	let __defineProperty = Object.defineProperty
 	let __hasOwnProperty = Object.prototype.hasOwnProperty

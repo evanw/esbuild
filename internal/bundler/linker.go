@@ -15,6 +15,7 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/runtime"
 )
 
 type bitSet struct {
@@ -339,8 +340,8 @@ func newLinkerContext(options *config.Options, log logging.Log, fs fs.FS, source
 
 	// Allocate a new unbound symbol called "module" in case we need it later
 	{
-		runtimeSymbols := &c.symbols.Outer[ast.RuntimeSourceIndex]
-		c.unboundModuleRef = ast.Ref{OuterIndex: ast.RuntimeSourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
+		runtimeSymbols := &c.symbols.Outer[runtime.SourceIndex]
+		c.unboundModuleRef = ast.Ref{OuterIndex: runtime.SourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
 		*runtimeSymbols = append(*runtimeSymbols, ast.Symbol{
 			Kind: ast.SymbolUnbound,
 			Name: "module",
@@ -386,7 +387,7 @@ func findReachableFiles(sources []logging.Source, files []file, entryPoints []ui
 	}
 
 	// The runtime is always included in case it's needed
-	visit(ast.RuntimeSourceIndex)
+	visit(runtime.SourceIndex)
 
 	// Include all files reachable from any entry point
 	for _, entryPoint := range entryPoints {
@@ -1118,7 +1119,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// "__export(exports, { foo: () => foo })"
 	exportRef := ast.InvalidRef
 	if len(properties) > 0 {
-		runtimeFile := &c.files[ast.RuntimeSourceIndex]
+		runtimeFile := &c.files[runtime.SourceIndex]
 		exportRef = runtimeFile.ast.ModuleScope.Members["__export"]
 		nsExportStmts = append(nsExportStmts, ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
 			Target: ast.Expr{Data: &ast.EIdentifier{Ref: exportRef}},
@@ -1132,7 +1133,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Make sure this file depends on the "__export" symbol
 		for _, partIndex := range runtimeFile.ast.TopLevelSymbolToParts[exportRef] {
-			dep := partRef{sourceIndex: ast.RuntimeSourceIndex, partIndex: partIndex}
+			dep := partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
 			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
 		}
 
@@ -1165,7 +1166,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Pull in the "__export" symbol if it was used
 		if exportRef != ast.InvalidRef {
-			c.generateUseOfSymbolForInclude(exportPart, fileMeta, 1, exportRef, ast.RuntimeSourceIndex)
+			c.generateUseOfSymbolForInclude(exportPart, fileMeta, 1, exportRef, runtime.SourceIndex)
 		}
 	}
 
@@ -1560,7 +1561,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 		// of it.
 		if fileMeta.cjsWrap {
 			file := &c.files[sourceIndex]
-			runtimeFile := &c.files[ast.RuntimeSourceIndex]
+			runtimeFile := &c.files[runtime.SourceIndex]
 			commonJSRef := runtimeFile.ast.NamedExports["__commonJS"]
 			commonJSParts := runtimeFile.ast.TopLevelSymbolToParts[commonJSRef]
 
@@ -1582,7 +1583,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 			})
 			nonLocalDependencies := make([]partRef, len(commonJSParts))
 			for i, partIndex := range commonJSParts {
-				nonLocalDependencies[i] = partRef{sourceIndex: ast.RuntimeSourceIndex, partIndex: partIndex}
+				nonLocalDependencies[i] = partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
 			}
 			fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
 				entryBits:            newBitSet(uint(len(c.entryPoints))),
@@ -1590,7 +1591,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 			})
 			fileMeta.importsToBind[commonJSRef] = importToBind{
 				ref:         commonJSRef,
-				sourceIndex: ast.RuntimeSourceIndex,
+				sourceIndex: runtime.SourceIndex,
 			}
 		}
 	}
@@ -1734,7 +1735,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 		// Include all parts in this file with side effects, or just include
 		// everything if tree-shaking is disabled. Note that we still want to
 		// perform tree-shaking on the runtime even if tree-shaking is disabled.
-		if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.IsBundling && sourceIndex != ast.RuntimeSourceIndex) {
+		if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.IsBundling && sourceIndex != runtime.SourceIndex) {
 			c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
 		}
 	}
@@ -1765,16 +1766,16 @@ func (c *linkerContext) includePartsForRuntimeSymbol(
 	name string, entryPointBit uint, distanceFromEntryPoint uint32,
 ) {
 	if useCount > 0 {
-		file := &c.files[ast.RuntimeSourceIndex]
+		file := &c.files[runtime.SourceIndex]
 		ref := file.ast.NamedExports[name]
 
 		// Depend on the symbol from the runtime
-		c.generateUseOfSymbolForInclude(part, fileMeta, useCount, ref, ast.RuntimeSourceIndex)
+		c.generateUseOfSymbolForInclude(part, fileMeta, useCount, ref, runtime.SourceIndex)
 
 		// Since this part was included, also include the parts from the runtime
 		// that declare this symbol
 		for _, partIndex := range file.ast.TopLevelSymbolToParts[ref] {
-			c.includePart(ast.RuntimeSourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
+			c.includePart(runtime.SourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
 		}
 	}
 }
@@ -2056,7 +2057,7 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 		// don't have side effects so an easy fix is to just declare them all
 		// before starting to evaluate them.
 		if isFileInThisChunk {
-			if sourceIndex == ast.RuntimeSourceIndex || fileMeta.cjsWrap {
+			if sourceIndex == runtime.SourceIndex || fileMeta.cjsWrap {
 				prefixOrder = append(prefixOrder, sourceIndex)
 			} else {
 				suffixOrder = append(suffixOrder, sourceIndex)
@@ -2065,7 +2066,7 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 	}
 
 	// Always put the runtime code first before anything else
-	visit(ast.RuntimeSourceIndex)
+	visit(runtime.SourceIndex)
 	for _, data := range sorted {
 		visit(data.sourceIndex)
 	}
@@ -2112,7 +2113,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 }
 
 func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtList, partStmts []ast.Stmt) {
-	shouldStripExports := c.options.IsBundling || sourceIndex == ast.RuntimeSourceIndex
+	shouldStripExports := c.options.IsBundling || sourceIndex == runtime.SourceIndex
 	shouldExtractES6StmtsForCJSWrap := c.fileMeta[sourceIndex].cjsWrap
 
 	for _, stmt := range partStmts {
@@ -2146,7 +2147,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						}
 
 						// Prefix this module with "__exportStar(exports, ns)"
-						exportStarRef := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members["__exportStar"]
+						exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"]
 						stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
 							Loc: stmt.Loc,
 							Data: &ast.SExpr{Value: ast.Expr{Loc: stmt.Loc, Data: &ast.ECall{
@@ -2166,7 +2167,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					} else {
 						if record.IsExportStarRunTimeEval {
 							// Prefix this module with "__exportStar(exports, require(path))"
-							exportStarRef := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members["__exportStar"]
+							exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"]
 							stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
 								Loc: stmt.Loc,
 								Data: &ast.SExpr{Value: ast.Expr{Loc: stmt.Loc, Data: &ast.ECall{
@@ -2504,7 +2505,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResult, 0, len(filesInChunkInOrder))
-	runtimeMembers := c.files[ast.RuntimeSourceIndex].ast.ModuleScope.Members
+	runtimeMembers := c.files[runtime.SourceIndex].ast.ModuleScope.Members
 	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
 	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
 
@@ -2512,7 +2513,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range filesInChunkInOrder {
 		// Skip the runtime in test output
-		if sourceIndex == ast.RuntimeSourceIndex && c.options.OmitRuntimeForTests {
+		if sourceIndex == runtime.SourceIndex && c.options.OmitRuntimeForTests {
 			continue
 		}
 
@@ -2624,7 +2625,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	var compileResultsForSourceMap []compileResult
 	var entryPointTail *printer.PrintResult
 	for _, compileResult := range compileResults {
-		isRuntime := compileResult.sourceIndex == ast.RuntimeSourceIndex
+		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
 
 		// If this is the entry point, it may have some extra code to stick at the
 		// end of the chunk after all modules have evaluated
@@ -2808,7 +2809,7 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 				// shouldn't consider the file a module if the only ES6 import or
 				// export is the automatically generated one.
 				record := &file.ast.ImportRecords[s.ImportRecordIndex]
-				if record.SourceIndex != nil && *record.SourceIndex == ast.RuntimeSourceIndex {
+				if record.SourceIndex != nil && *record.SourceIndex == runtime.SourceIndex {
 					continue
 				}
 
