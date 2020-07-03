@@ -14,6 +14,8 @@
     * [Scope hoisting](#scope-hoisting)
     * [Converting ES6 imports to CommonJS imports](#converting-es6-imports-to-commonjs-imports)
     * [The runtime library](#the-runtime-library)
+    * [Tree shaking](#tree-shaking)
+    * [Code splitting](#code-splitting)
 * [Notes about printing](#notes-about-printing)
 
 # Architecture Documentation
@@ -48,15 +50,11 @@ Note that there are some design decisions that have been made differently than o
 
     Incremental builds mean only rebuilding changed files to the greatest extent possible. This means not re-running any of the full-AST passes on unchanged files. Data structures that live across builds must be immutable to allow sharing. Unfortunately the Go type system can't enforce this, so care must be taken to uphold this as the code evolves.
 
-* **Each file is processed once despite being used by multiple entry points**
-
-    Some projects have many entry points that share a lot of code. Builds go faster when the effort for each shared module is done once and reused across entry points. To accomplish this, esbuild moves ES6 imports and exports outside the AST so they are external to the full-AST passes, which can then be shared.
-
 ## Overview
 
-![Diagram of build pipeline](../images/build-pipeline.png)
+<p align="center"><img src="../images/build-pipeline.png" alt="Diagram of build pipeline" width="752"></p>
 
-The build pipeline has two main phases: scan and compile. These both reside in the `bundler` package and are invoked from the `main` package.
+The build pipeline has two main phases: scan and compile. These both reside in [bundler.go](../internal/bundler/bundler.go).
 
 ### Scan phase
 
@@ -112,9 +110,13 @@ One TypeScript subtlety is that unused imports in TypeScript code must be remove
 
 ## Notes about linking
 
-*Note: This section is outdated. It describes how esbuild v0.3 works. Tree shaking was added in v0.4 and linking now works differently.*
+The main goal of linking is to merge multiple modules into a single file so that imports from one module can reference exports from another module. This is accomplished in several different ways depending on the import and export features used.
 
-The goal of linking is to merge multiple modules into a single bundle so that imports from one module can reference exports from another module. This is accomplished in several different ways depending on the import and export features used.
+Linking performs an optimization called "tree shaking". This is also known as "dead code elimination" and removes unreferenced code from the bundle to reduce bundle size. Tree shaking is always active and cannot be disabled.
+
+Finally, linking may also involve dividing the input code among multiple chunks. This is known as "code splitting" and both allows lazy loading of code and sharing code between multiple entry points. It's disabled by default in esbuild but can be enabled with the `--splitting` flag.
+
+This will all be described in more detail below.
 
 ### CommonJS linking
 
@@ -140,27 +142,22 @@ console.log(foo.fn())
 </td><td>
 
 ```js
-(modules => {
-  let map = {}
-  function require(id) {
-    if (!(id in map)) {
-      map[id] = {}
-      modules[id](require, map[id])
-    }
-    return map[id]
+let __commonJS = (callback, module) => () => {
+  if (!module) {
+    module = {exports: {}};
+    callback(module.exports, module);
   }
-  require(0)
-})({
-  0(require, exports) {
-    // bar.js
-    const foo = require(1)
-    console.log(foo.fn())
-  },
-  1(require, exports) {
-    // foo.js
-    exports.fn = () => 123
-  }
-})
+  return module.exports;
+};
+
+// foo.js
+var require_foo = __commonJS((exports) => {
+  exports.fn = () => 123;
+});
+
+// bar.js
+const foo = require_foo();
+console.log(foo.fn());
 ```
 
 </td></tr>
@@ -192,25 +189,11 @@ console.log(fn())
 </td><td>
 
 ```js
-(modules => {
-  let map = {}
-  function require(id) {
-    if (!(id in map)) {
-      map[id] = {}
-      modules[id](require, map[id])
-    }
-    return map[id]
-  }
-  require(0)
-})({
-  0(require, exports) {
-    // foo.js
-    const fn = () => 123
+// foo.js
+const fn = () => 123;
 
-    // bar.js
-    console.log(fn())
-  }
-})
+// bar.js
+console.log(fn());
 ```
 
 </td></tr>
@@ -218,11 +201,11 @@ console.log(fn())
 
 The benefit of distinguishing between CommonJS and ES6 modules is that bundling ES6 modules is more efficient, both because the generated code is smaller and because symbols are statically bound instead of dynamically bound, which has less overhead at run time.
 
+ES6 modules also allow for "tree shaking" optimizations which remove unreferenced code from the bundle. For example, if the call to `fn()` is commented out in the above example, the variable `fn` will be omitted from the bundle since it's not used and its definition doesn't have any side effects. This is possible with ES6 modules but not with CommonJS because ES6 imports are bound at compile time while CommonJS imports are bound at run time.
+
 ### Hybrid CommonJS and ES6 modules
 
-These two syntaxes are supported side-by-side as transparently as possible. This means you can use both CommonJS syntax (`exports` and `module` assignments and `require()` calls) and ES6 syntax (`import` and `export` statements and `import()` expressions) in the same module. The ES6 imports will be converted to `require()` calls and the ES6 exports will be converted to getters on that module's `exports` object. Note that there's a restriction that the path passed to `require()` is a plain string, not an arbitrary expression. This is necessary to ensure that the entire dependency graph can be found at bundle time.
-
-The bundling algorithm allows CommonJS and ES6 modules to coexist while still taking advantage of more efficient ES6 entry points by categorizing all modules into "module groups". A group of ES6 files that only import other ES6 files will all be considered one module group and will become a single closure in the bundle. All other modules will be classified as CommonJS modules and will get their own closure. This algorithm is pretty simple at the moment, but it could be improved in the future to also bundle ES6 libraries more efficiently when they are imported from CommonJS code.
+These two syntaxes are supported side-by-side as transparently as possible. This means you can use both CommonJS syntax (`exports` and `module` assignments and `require()` calls) and ES6 syntax (`import` and `export` statements and `import()` expressions) in the same module. The ES6 imports will be converted to `require()` calls and the ES6 exports will be converted to getters on that module's `exports` object.
 
 ### Scope hoisting
 
@@ -232,13 +215,262 @@ During bundling, the symbol maps from all files are merged into a single giant s
 
 ### Converting ES6 imports to CommonJS imports
 
-One complexity around scope hoisting is that references to ES6 imports may either be a bare identifier (i.e. statically bound) or a property access off of a `require()` call (i.e. dynamically bound) depending on whether both this module and the imported module are in the same module group or not. This information isn't known yet when we're still parsing the file.
+One complexity around scope hoisting is that references to ES6 imports may either be a bare identifier (i.e. statically bound) or a property access off of a `require()` call (i.e. dynamically bound) depending on whether the imported module is a CommonJS-style module or not. This information isn't known yet when we're still parsing the file so we are unable to determine whether to create `EIdentifier` or `EDot` AST nodes for these imports.
 
-To handle this, references to ES6 imports use the special `EImportIdentifier` expression instead of a normal `EIdentifier` expression. Later during linking we can decide if these references to a symbol need to be turned into a property access and, if so, fill in the `NamespaceAlias` field on the symbol. The printer checks that field for `EImportIdentifier` expressions and, if present, prints a property access instead of an identifier. This avoids having to do another full-AST traversal just to replace identifiers with property accesses before printing.
+To handle this, references to ES6 imports use the special `EImportIdentifier` AST node. Later during linking we can decide if these references to a symbol need to be turned into a property access and, if so, fill in the `NamespaceAlias` field on the symbol. The printer checks that field for `EImportIdentifier` expressions and, if present, prints a property access instead of an identifier. This avoids having to do another full-AST traversal just to replace identifiers with property accesses before printing.
 
 ### The runtime library
 
-This library contains utility code that may be needed to implement bundling. For example, it contains the implementation of `require()` as well as the code that converts ES6 exports to CommonJS. This code is prepended to the bundle and is ideally stripped of all code that isn't used. Any support code used to implement syntax lowering to older versions of JavaScript should also be added to the runtime library, and stripped if it's not needed.
+This library contains support code that is needed to implement various aspects of JavaScript transformation and bundling. For example, it contains the `__commonJS()` helper function for wrapping CommonJS modules and the `__decorate()` helper function for implementing TypeScript decorators. The code lives in a single string in [runtime.go](../internal/runtime/runtime.go). It's automatically included in every build and esbuild's tree shaking feature automatically strips out unused code. If you need to add a helper function for esbuild to call, it should be added to this library.
+
+### Tree shaking
+
+The goal of tree shaking is to remove code that will never be used from the final bundle, which reduces download and parse time. Tree shaking treats the input files as a graph. Each node in the graph is a top-level statement, which is called a "part" in the code. Tree shaking is a graph traversal that starts from the entry point and marks all traversed parts for inclusion.
+
+Each part may declare symbols, reference symbols, and depend on other files. Parts are also marked as either having side effects or not. For example, the statement `let foo = 123` does not have side effects because, if nothing needs `foo`, the statement can be removed without any observable difference. But the statement `let foo = bar()` does have side effects because even if nothing needs `foo`, the call to `bar()` cannot be removed without changing the meaning of the code.
+
+If part A references a symbol declared in part B, the graph has an edge from A to B. References can span across files due to ES6 imports and exports. And if part A depends on file C, the graph has an edge from A to every part in C with side effects. A part depends on a file if it contains an ES6 `import` statement, a CommonJS `require()` call, or an ES6 `import()` expression.
+
+Tree shaking begins by visiting all parts in the entry point file with side effects, and continues traversing along graph edges until no more new parts are reached. Once the traversal has finished, only parts that were reached during the traversal are included in the bundle. All other parts are excluded.
+
+Here's an example to make this easier to visualize:
+
+<p align="center"><img src="../images/tree-shaking.png" alt="Diagram of tree shaking" width="793"></p>
+
+There are three input files: `index.js`, `config.js`, and `net.js`. Tree shaking traverses along all graph edges from `index.js` (the entry point). The two types of edges are shown with different arrows. Solid arrows are edges due to parts with side effects. These parts must be included regardless of whether the symbols they declare are used or not. Dashed arrows are edges from symbol references to the parts that declare those symbols. These parts don't have side effects and are only included if symbol they declare is referenced.
+
+The final bundle only includes the code visited during the tree shaking traversal. That looks like this:
+
+```js
+// net.js
+function get(url) {
+  return fetch(url).then((r) => r.text());
+}
+
+// config.js
+let session = Math.random();
+let api = "/api?session=";
+function load() {
+  return get(api + session);
+}
+
+// index.js
+let el = document.getElementById("el");
+load().then((x) => el.textContent = x);
+```
+
+### Code splitting
+
+Code splitting analyzes bundles with multiple entry points and divides code into chunks such that a) a given piece of code is only ever in one chunk and b) each entry point doesn't download code that it will never use. Note that the target of each dynamic `import()` expression is considered an additional entry point.
+
+Splitting shared code into separate chunks means that downloading the code for two entry points only downloads the shared code once. It also allows code that's only needed for an asynchronous `import()` dependency to be lazily loaded.
+
+Code splitting is implemented as an advanced form of tree shaking. The tree shaking traversal described above is run once for each entry point. Every part (i.e. node in the graph) stores all of the entry points that reached it during the traversal for that entry point. Then the combination of entry points for a given part determines what chunk that part ends up in.
+
+To continue the tree shaking example above, let's add a second entry point called `settings.js` that uses a different but overlapping set of parts. Tree shaking is run again starting from this new entry point:
+
+<p align="center"><img src="../images/code-splitting-1.png" alt="Diagram of code splitting" width="793"></p>
+
+These two tree shaking passes result in three chunks: all parts only reachable from `index.js`, all parts only reachable from `settings.js`, and all parts reachable from both `index.js` and `settings.js`. Parts belonging to the three chunks are colored red, blue, and purple in the visualization below:
+
+<p align="center"><img src="../images/code-splitting-2.png" alt="Diagram of code splitting" width="793"></p>
+
+After all chunks are identified, the chunks are linked together by automatically generating import and export statements for references to symbols that are declared in another chunk. Import statements must also be inserted for chunks that don't have any exported symbols. This represents shared code with side effects, and code with side effects must be retained.
+
+Here are the final code splitting chunks for this example after linking:
+
+<table>
+<tr><th>Chunk for index.js</th><th>Chunk for settings.js</th><th>Chunk for shared code</th></tr>
+<tr><td>
+
+```js
+import {
+  api,
+  session
+} from "./chunk.js";
+
+// net.js
+function get(url) {
+  return fetch(url).then((r) => r.text());
+}
+
+// config.js
+function load() {
+  return get(api + session);
+}
+
+// index.js
+let el = document.getElementById("el");
+load().then((x) => el.textContent = x);
+```
+
+</td><td>
+
+```js
+import {
+  api,
+  session
+} from "./chunk.js";
+
+// net.js
+function put(url, body) {
+  fetch(url, {method: "PUT", body});
+}
+
+// config.js
+function save(value) {
+  return put(api + session, value);
+}
+
+// settings.js
+let it = document.getElementById("it");
+it.oninput = () => save(it.value);
+```
+
+</td><td>
+
+```js
+// config.js
+let session = Math.random();
+let api = "/api?session=";
+
+export {
+  api,
+  session
+};
+```
+
+</td></tr>
+</table>
+
+There is one additional complexity to code splitting due to how ES6 module boundaries work. Code splitting must not be allowed to move an assignment to a module-local variable into a separate chunk from the declaration of that variable. ES6 imports are read-only and cannot be assigned to, so doing this will cause the assignment to crash at run time.
+
+To illustrate the problem, consider these three files:
+
+<table>
+<tr><th>entry1.js</th><th>entry2.js</th><th>data.js</th></tr>
+<tr><td>
+
+```js
+import {data} from './data'
+console.log(data)
+```
+
+</td><td>
+
+```js
+import {setData} from './data'
+setData(123)
+```
+
+</td><td>
+
+```js
+export let data
+export function setData(value) {
+  data = value
+}
+```
+
+</td></tr>
+</table>
+
+If the two entry points `entry1.js` and `entry2.js` are bundled with the code splitting algorithm described above, the result will be this invalid code:
+
+<table>
+<tr><th>Chunk for entry1.js</th><th>Chunk for entry2.js</th><th>Chunk for shared code</th></tr>
+<tr><td>
+
+```js
+import {
+  data
+} from "./chunk.js";
+
+// entry1.js
+console.log(data);
+```
+
+</td><td>
+
+```js
+import {
+  data
+} from "./chunk.js";
+
+// data.js
+function setData(value) {
+  data = value;
+}
+
+// entry2.js
+setData(123);
+```
+
+</td><td>
+
+```js
+// data.js
+let data;
+
+export {
+  data
+};
+```
+
+</td></tr>
+</table>
+
+The assignment `data = value` will crash at run time with `TypeError: Assignment to constant variable`. To fix this, we must make sure that assignment ends up in the same chunk as the declaration `let data`.
+
+This is done by unioning the entry point sets of the parts with the assignments and the parts with the symbol declarations together. That way all of those parts are marked as reachable from all entry points that can reach any of those parts. This is only relevant for locally-declared symbols so each module can be processed independently.
+
+The grouping of parts can be non-trivial because there may be many parts involved and many assignments to different variables. Grouping is done by finding connected components on the graph where nodes are parts and edges are cross-part assignments.
+
+With this algorithm, the function `setData` in our example moves into the chunk of shared code after being bundled with code splitting:
+
+<table>
+<tr><th>Chunk for entry1.js</th><th>Chunk for entry2.js</th><th>Chunk for shared code</th></tr>
+<tr><td>
+
+```js
+import {
+  data
+} from "./chunk.js";
+
+// entry1.js
+console.log(data);
+```
+
+</td><td>
+
+```js
+import {
+  setData
+} from "./chunk.js";
+
+// entry2.js
+setData(123);
+```
+
+</td><td>
+
+```js
+// data.js
+let data;
+function setData(value) {
+  data = value;
+}
+
+export {
+  data,
+  setData
+};
+```
+
+</td></tr>
+</table>
+
+This code no longer contains assignments to cross-chunk variables.
 
 ## Notes about printing
 
