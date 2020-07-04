@@ -157,11 +157,25 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 		// Check for external modules first
 		if r.options.ExternalModules != nil {
 			importPathRoot := importPath
+			scope := ""
+
+			// If the module is scoped, we treat the first slash as scope separator
+			if importPathRoot[0] == '@' {
+				if slash := strings.IndexByte(importPathRoot, '/'); slash != -1 {
+					scope = importPathRoot[:slash+1]
+					importPathRoot = importPathRoot[slash+1:]
+				}
+			}
 
 			// If the module "foo" has been marked as external, we also want to treat
 			// paths into that module such as "foo/bar" as external too.
 			if slash := strings.IndexByte(importPathRoot, '/'); slash != -1 {
 				importPathRoot = importPathRoot[:slash]
+			}
+
+			// Prepend scope back
+			if scope != "" {
+				importPathRoot = scope + importPathRoot
 			}
 
 			if r.options.ExternalModules[importPathRoot] {

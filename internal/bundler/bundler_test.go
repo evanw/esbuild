@@ -4501,6 +4501,39 @@ export {
 	})
 }
 
+func TestScopedExternalModuleExclusion(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/index.js": `
+				import { Foo } from '@scope/foo';
+				import { Bar } from '@scope/foo/bar';
+				export const foo = new Foo();
+				export const bar = new Bar();
+			`,
+		},
+		entryPaths: []string{"/index.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExternalModules: map[string]bool{
+				"@scope/foo": true,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /index.js
+import {Foo} from "@scope/foo";
+import {Bar} from "@scope/foo/bar";
+const foo2 = new Foo();
+const bar2 = new Bar();
+export {
+  bar2 as bar,
+  foo2 as foo
+};
+`,
+		},
+	})
+}
+
 // This test case makes sure many entry points don't cause a crash
 func TestManyEntryPoints(t *testing.T) {
 	expectBundled(t, bundled{
