@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.20
 
 * Allow multiple `.` characters in loader extensions ([#215](https://github.com/evanw/esbuild/issues/215))
 
