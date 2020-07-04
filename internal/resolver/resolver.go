@@ -171,30 +171,19 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 	} else {
 		// Check for external packages first
 		if r.options.ExternalModules.NodeModules != nil {
-			importPathRoot := importPath
-			scope := ""
-
-			// If the module is scoped, we treat the first slash as scope separator
-			if strings.HasPrefix(importPathRoot, "@") {
-				if slash := strings.IndexByte(importPathRoot, '/'); slash != -1 {
-					scope = importPathRoot[:slash+1]
-					importPathRoot = importPathRoot[slash+1:]
+			query := importPath
+			for {
+				if r.options.ExternalModules.NodeModules[query] {
+					return "", ResolveExternalVerbatim
 				}
-			}
 
-			// If the module "foo" has been marked as external, we also want to treat
-			// paths into that module such as "foo/bar" as external too.
-			if slash := strings.IndexByte(importPathRoot, '/'); slash != -1 {
-				importPathRoot = importPathRoot[:slash]
-			}
-
-			// Prepend scope back
-			if scope != "" {
-				importPathRoot = scope + importPathRoot
-			}
-
-			if r.options.ExternalModules.NodeModules[importPathRoot] {
-				return "", ResolveExternalVerbatim
+				// If the module "foo" has been marked as external, we also want to treat
+				// paths into that module such as "foo/bar" as external too.
+				slash := strings.LastIndexByte(query, '/')
+				if slash == -1 {
+					break
+				}
+				query = query[:slash]
 			}
 		}
 

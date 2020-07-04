@@ -4505,6 +4505,48 @@ export {
 	})
 }
 
+func TestExternalModuleExclusionScopedPackage(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/index.js": `
+				import '@a1'
+				import '@a1/a2'
+				import '@a1-a2'
+
+				import '@b1'
+				import '@b1/b2'
+				import '@b1/b2/b3'
+				import '@b1/b2-b3'
+
+				import '@c1'
+				import '@c1/c2'
+				import '@c1/c2/c3'
+				import '@c1/c2/c3/c4'
+				import '@c1/c2/c3-c4'
+			`,
+		},
+		entryPaths: []string{"/index.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"@a1":       true,
+					"@b1/b2":    true,
+					"@c1/c2/c3": true,
+				},
+			},
+		},
+		expectedScanLog: `/index.js: error: Could not resolve "@a1-a2"
+/index.js: error: Could not resolve "@b1"
+/index.js: error: Could not resolve "@b1/b2-b3"
+/index.js: error: Could not resolve "@c1"
+/index.js: error: Could not resolve "@c1/c2"
+/index.js: error: Could not resolve "@c1/c2/c3-c4"
+`,
+	})
+}
+
 func TestScopedExternalModuleExclusion(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
