@@ -165,10 +165,36 @@ type realFS struct {
 	cwd string
 }
 
+func realpath(path string) string {
+	dir := filepath.Dir(path)
+	if dir == path {
+		return path
+	}
+	dir = realpath(dir)
+	path = filepath.Join(dir, filepath.Base(path))
+	if link, err := os.Readlink(path); err == nil {
+		if filepath.IsAbs(link) {
+			return link
+		}
+		return filepath.Join(dir, link)
+	}
+	return path
+}
+
 func RealFS() FS {
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = ""
+	} else {
+		// Resolve symlinks in the current working directory. Symlinks are resolved
+		// when input file paths are converted to absolute paths because we need to
+		// recognize an input file as unique even if it has multiple symlinks
+		// pointing to it. The build will generate relative paths from the current
+		// working directory to the absolute input file paths for error messages,
+		// so the current working directory should be processed the same way. Not
+		// doing this causes test failures with esbuild when run from inside a
+		// symlinked directory.
+		cwd = realpath(cwd)
 	}
 	return &realFS{
 		entries: make(map[string]map[string]Entry),
