@@ -6,6 +6,10 @@
 
     You are now able to configure two loaders such that one is the suffix of the other. For example, you can now configure both `--loader:.txt=text` and `--loader:.base64.txt=base64`. The loader with the longer matching suffix will be used.
 
+* Add support for scoped external packages ([#214](https://github.com/evanw/esbuild/issues/214))
+
+    You can now mark scoped packages as external. For example, `--external:@babel/core` marks the package `@babel/core` as external. This was contributed by [@floydspace](https://github.com/floydspace).
+
 ## 0.5.19
 
 * Fix bug with TypeScript `typeof` operator ([#213](https://github.com/evanw/esbuild/issues/213))

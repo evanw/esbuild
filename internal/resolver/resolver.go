@@ -160,7 +160,7 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 			scope := ""
 
 			// If the module is scoped, we treat the first slash as scope separator
-			if importPathRoot[0] == '@' {
+			if strings.HasPrefix(importPathRoot, "@") {
 				if slash := strings.IndexByte(importPathRoot, '/'); slash != -1 {
 					scope = importPathRoot[:slash+1]
 					importPathRoot = importPathRoot[slash+1:]
