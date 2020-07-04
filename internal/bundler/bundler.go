@@ -115,11 +115,8 @@ func parseFile(args parseArgs) {
 		args.options.Strict.ClassFields = true
 	}
 
-	// Get the file extension
-	extension := args.fs.Ext(args.absPath)
-
 	// Pick the loader based on the file extension
-	loader := args.options.ExtensionToLoader[extension]
+	loader := loaderFromFileExtension(args.options.ExtensionToLoader, args.fs.Base(args.absPath))
 
 	// Special-case reading from stdin
 	if stdin != nil {
@@ -169,7 +166,7 @@ func parseFile(args parseArgs) {
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderDataURL:
-		mimeType := mime.TypeByExtension(extension)
+		mimeType := mime.TypeByExtension(args.fs.Ext(args.absPath))
 		if mimeType == "" {
 			mimeType = http.DetectContentType([]byte(source.Contents))
 		}
@@ -218,6 +215,23 @@ func parseFile(args parseArgs) {
 	}
 
 	args.results <- result
+}
+
+func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base string) config.Loader {
+	// Pick the loader with the longest matching extension. So if there's an
+	// extension for ".css" and for ".module.css", we want to match the one for
+	// ".module.css" before the one for ".css".
+	for {
+		i := strings.IndexByte(base, '.')
+		if i == -1 {
+			break
+		}
+		if loader, ok := extensionToLoader[base[i:]]; ok {
+			return loader
+		}
+		base = base[i+1:]
+	}
+	return config.LoaderNone
 }
 
 // Identify the path by its lowercase absolute path name. This should

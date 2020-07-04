@@ -2689,6 +2689,43 @@ console.log(require_test());
 	})
 }
 
+func TestRequireCustomExtensionPreferLongest(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require('./test.txt'), require('./test.base64.txt'))
+			`,
+			"/test.txt":        `test.txt`,
+			"/test.base64.txt": `test.base64.txt`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":         config.LoaderJS,
+				".txt":        config.LoaderText,
+				".base64.txt": config.LoaderBase64,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /test.txt
+var require_test = __commonJS((exports, module) => {
+  module.exports = "test.txt";
+});
+
+// /test.base64.txt
+var require_test_base64 = __commonJS((exports, module) => {
+  module.exports = "dGVzdC5iYXNlNjQudHh0";
+});
+
+// /entry.js
+console.log(require_test(), require_test_base64());
+`,
+		},
+	})
+}
+
 func testAutoDetectMimeTypeFromExtension(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

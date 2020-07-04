@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Allow multiple `.` characters in loader extensions ([#215](https://github.com/evanw/esbuild/issues/215))
+
+    You are now able to configure two loaders such that one is the suffix of the other. For example, you can now configure both `--loader:.txt=text` and `--loader:.base64.txt=base64`. The loader with the longer matching suffix will be used.
+
 ## 0.5.19
 
 * Fix bug with TypeScript `typeof` operator ([#213](https://github.com/evanw/esbuild/issues/213))
