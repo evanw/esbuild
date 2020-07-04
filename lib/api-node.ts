@@ -13,22 +13,15 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
   let platform = process.platform;
   let arch = os.arch();
 
-  if (
-    (platform === 'darwin' && arch === 'x64') ||
-    (platform === 'linux' && (arch === 'x64' || arch === 'arm64' || (arch === 'ppc64' && os.endianness() === 'LE')))
-  ) {
-    return [path.join(__dirname, '..', 'bin', 'esbuild'), []];
+  if (WASM) {
+    return ['node', [path.join(__dirname, '..', 'bin', 'esbuild')]];
   }
 
   if (platform === 'win32' && arch === 'x64') {
-    if (WASM) {
-      return ['node', [path.join(__dirname, '..', 'bin', 'esbuild')]];
-    } else {
-      return [path.join(__dirname, '..', 'esbuild.exe'), []];
-    }
+    return [path.join(__dirname, '..', 'esbuild.exe'), []];
   }
 
-  throw new Error(`Unsupported platform: ${platform} ${arch}`);
+  return [path.join(__dirname, '..', 'bin', 'esbuild'), []];
 };
 
 // Return true if stderr is a TTY
