@@ -19,7 +19,8 @@ const (
 	ResolveMissing ResolveStatus = iota
 	ResolveEnabled
 	ResolveDisabled
-	ResolveExternal
+	ResolveExternalVerbatim
+	ResolveExternalRelative
 )
 
 type ResolveResult struct {
@@ -59,16 +60,16 @@ type resolver struct {
 func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
 	// Bundling for node implies allowing node's builtin modules
 	if options.Platform == config.PlatformNode {
-		externalModules := make(map[string]bool)
-		if options.ExternalModules != nil {
-			for name := range options.ExternalModules {
-				externalModules[name] = true
+		externalNodeModules := make(map[string]bool)
+		if options.ExternalModules.NodeModules != nil {
+			for name := range options.ExternalModules.NodeModules {
+				externalNodeModules[name] = true
 			}
 		}
 		for _, name := range externalModulesForNode {
-			externalModules[name] = true
+			externalNodeModules[name] = true
 		}
-		options.ExternalModules = externalModules
+		options.ExternalModules.NodeModules = externalNodeModules
 	}
 
 	return &resolver{
@@ -148,14 +149,28 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 	sourceDir := r.fs.Dir(sourcePath)
 
 	if !IsPackagePath(importPath) {
-		if absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath)); ok {
+		absImportPath := importPath
+		external := ResolveExternalVerbatim
+
+		// Join relative paths with the directory containing the source file
+		if !strings.HasPrefix(importPath, "/") {
+			absImportPath = r.fs.Join(sourceDir, importPath)
+			external = ResolveExternalRelative
+		}
+
+		// Check for external packages first
+		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[absImportPath] {
+			return absImportPath, external
+		}
+
+		if absolute, ok := r.loadAsFileOrDirectory(absImportPath); ok {
 			result = absolute
 		} else {
 			return "", ResolveMissing
 		}
 	} else {
 		// Check for external packages first
-		if r.options.ExternalModules != nil {
+		if r.options.ExternalModules.NodeModules != nil {
 			importPathRoot := importPath
 			scope := ""
 
@@ -178,8 +193,8 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 				importPathRoot = scope + importPathRoot
 			}
 
-			if r.options.ExternalModules[importPathRoot] {
-				return "", ResolveExternal
+			if r.options.ExternalModules.NodeModules[importPathRoot] {
+				return "", ResolveExternalVerbatim
 			}
 		}
 
@@ -256,7 +271,7 @@ func (r *resolver) Read(path string) (string, bool) {
 }
 
 func (r *resolver) PrettyPath(path string) string {
-	if rel, ok := r.fs.RelativeToCwd(path); ok {
+	if rel, ok := r.fs.Rel(r.fs.Cwd(), path); ok {
 		path = rel
 	}
 

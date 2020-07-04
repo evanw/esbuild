@@ -134,13 +134,17 @@ func validateLoader(value Loader) config.Loader {
 	}
 }
 
-func validateExternals(log logging.Log, paths []string) map[string]bool {
-	result := make(map[string]bool)
+func validateExternals(log logging.Log, fs fs.FS, paths []string) config.ExternalModules {
+	result := config.ExternalModules{
+		NodeModules: make(map[string]bool),
+		AbsPaths:    make(map[string]bool),
+	}
 	for _, path := range paths {
-		if !resolver.IsPackagePath(path) {
-			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid package name: %q", path))
+		if resolver.IsPackagePath(path) {
+			result.NodeModules[path] = true
+		} else if absPath := validatePath(log, fs, path); absPath != "" {
+			result.AbsPaths[absPath] = true
 		}
-		result[path] = true
 	}
 	return result
 }
@@ -334,7 +338,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		AbsMetadataFile:   validatePath(log, realFS, buildOpts.Metafile),
 		ExtensionToLoader: validateLoaders(log, buildOpts.Loaders),
 		ExtensionOrder:    validateResolveExtensions(log, buildOpts.ResolveExtensions),
-		ExternalModules:   validateExternals(log, buildOpts.Externals),
+		ExternalModules:   validateExternals(log, realFS, buildOpts.Externals),
 	}
 	entryPaths := make([]string, len(buildOpts.EntryPoints))
 	for i, entryPoint := range buildOpts.EntryPoints {
@@ -353,6 +357,8 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		// If the output file is specified, use it to derive the output directory
 		options.AbsOutputDir = realFS.Dir(options.AbsOutputFile)
 	} else if options.AbsOutputDir == "" {
+		options.WriteToStdout = true
+
 		// Forbid certain features when writing to stdout
 		if options.SourceMap != config.SourceMapNone && options.SourceMap != config.SourceMapInline {
 			log.AddError(nil, ast.Loc{}, "Cannot use an external source map without an output path")
@@ -366,6 +372,10 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 				break
 			}
 		}
+
+		// Use the current directory as the output directory instead of an empty
+		// string because external modules with relative paths need a base directory.
+		options.AbsOutputDir = realFS.Cwd()
 	}
 
 	if !options.IsBundling {
@@ -373,7 +383,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		if options.OutputFormat != config.FormatPreserve {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"format\" without \"bundle\"")
 		}
-		if len(options.ExternalModules) > 0 {
+		if len(options.ExternalModules.NodeModules) > 0 || len(options.ExternalModules.AbsPaths) > 0 {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"external\" without \"bundle\"")
 		}
 	} else if options.OutputFormat == config.FormatPreserve {

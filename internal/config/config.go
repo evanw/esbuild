@@ -125,6 +125,11 @@ type StdinInfo struct {
 	SourceFile string
 }
 
+type ExternalModules struct {
+	NodeModules map[string]bool
+	AbsPaths    map[string]bool
+}
+
 type Options struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
@@ -148,7 +153,7 @@ type Options struct {
 	Platform Platform
 
 	ExtensionOrder  []string
-	ExternalModules map[string]bool
+	ExternalModules ExternalModules
 
 	AbsOutputFile     string
 	AbsOutputDir      string

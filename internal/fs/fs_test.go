@@ -1,6 +1,9 @@
 package fs
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestBasic(t *testing.T) {
 	fs := MockFS(map[string]string{
@@ -57,4 +60,30 @@ func TestBasic(t *testing.T) {
 	if len(slash) != 3 || slash["src"].Kind != DirEntry || slash["README.md"].Kind != FileEntry || slash["package.json"].Kind != FileEntry {
 		t.Fatalf("Incorrect contents for /: %v", slash)
 	}
+}
+
+func TestRel(t *testing.T) {
+	fs := MockFS(map[string]string{})
+
+	expect := func(a string, b string, c string) {
+		t.Run(fmt.Sprintf("Rel(%q, %q) == %q", a, b, c), func(t *testing.T) {
+			rel, ok := fs.Rel(a, b)
+			if !ok {
+				t.Fatalf("!ok")
+			}
+			if rel != c {
+				t.Fatalf("Expected %q, got %q", c, rel)
+			}
+		})
+	}
+
+	expect("/a/b", "/a/b", ".")
+	expect("/a/b", "/a/b/c", "c")
+	expect("/a/b", "/a/b/c/d", "c/d")
+	expect("/a/b/c", "/a/b", "..")
+	expect("/a/b/c/d", "/a/b", "../..")
+	expect("/a/b/c", "/a/b/x", "../x")
+	expect("/a/b/c/d", "/a/b/x", "../../x")
+	expect("/a/b/c", "/a/b/x/y", "../x/y")
+	expect("/a/b/c/d", "/a/b/x/y", "../../x/y")
 }

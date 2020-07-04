@@ -55,6 +55,9 @@ func expectBundled(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
 		fs := fs.MockFS(args.files)
 		args.options.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".json"}
+		if args.options.AbsOutputFile != "" {
+			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
+		}
 		log := logging.NewDeferLog()
 		resolver := resolver.NewResolver(fs, log, args.options)
 		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.options)
@@ -68,9 +71,6 @@ func expectBundled(t *testing.T, args bundled) {
 
 		log = logging.NewDeferLog()
 		args.options.OmitRuntimeForTests = true
-		if args.options.AbsOutputFile != "" {
-			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
-		}
 		results := bundle.Compile(log, args.options)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
@@ -4448,8 +4448,10 @@ func TestImportReExportES6Issue149(t *testing.T) {
 				Factory: []string{"h"},
 			},
 			AbsOutputFile: "/out.js",
-			ExternalModules: map[string]bool{
-				"preact": true,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"preact": true,
+				},
 			},
 		},
 		expected: map[string]string{
@@ -4468,7 +4470,7 @@ render(h(App, null), document.getElementById("app"));
 	})
 }
 
-func TestExternalModuleExclusion(t *testing.T) {
+func TestExternalModuleExclusionPackage(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/index.js": `
@@ -4482,8 +4484,10 @@ func TestExternalModuleExclusion(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExternalModules: map[string]bool{
-				"aws-sdk": true,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"aws-sdk": true,
+				},
 			},
 		},
 		expected: map[string]string{
@@ -4515,8 +4519,10 @@ func TestScopedExternalModuleExclusion(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExternalModules: map[string]bool{
-				"@scope/foo": true,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"@scope/foo": true,
+				},
 			},
 		},
 		expected: map[string]string{
@@ -4529,6 +4535,44 @@ export {
   bar2 as bar,
   foo2 as foo
 };
+`,
+		},
+	})
+}
+
+func TestExternalModuleExclusionRelativePath(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				import './nested/folder/test'
+			`,
+			"/Users/user/project/src/nested/folder/test.js": `
+				import foo from './foo.js'
+				import sha256 from '../../sha256.min.js'
+				import config from '/api/config?a=1&b=2'
+				console.log(foo, sha256, config)
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			IsBundling:   true,
+			AbsOutputDir: "/Users/user/project/out",
+			ExternalModules: config.ExternalModules{
+				AbsPaths: map[string]bool{
+					"/Users/user/project/src/nested/folder/foo.js": true,
+					"/Users/user/project/src/sha256.min.js":        true,
+					"/api/config?a=1&b=2":                          true,
+				},
+			},
+		},
+		expected: map[string]string{
+			"/Users/user/project/out/index.js": `// /Users/user/project/src/nested/folder/test.js
+import foo2 from "../src/nested/folder/foo.js";
+import sha256 from "../src/sha256.min.js";
+import config from "/api/config?a=1&b=2";
+console.log(foo2, sha256, config);
+
+// /Users/user/project/src/index.js
 `,
 		},
 	})
@@ -5015,9 +5059,11 @@ func TestReExportDefaultExternal(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-			ExternalModules: map[string]bool{
-				"foo": true,
-				"bar": true,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"foo": true,
+					"bar": true,
+				},
 			},
 		},
 		expected: map[string]string{

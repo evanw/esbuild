@@ -184,9 +184,6 @@ func parseFile(args parseArgs) {
 
 		// Determine the destination folder
 		targetFolder := args.options.AbsOutputDir
-		if targetFolder == "" {
-			targetFolder = args.fs.Dir(args.options.AbsOutputFile)
-		}
 
 		// Export the resulting relative path as a string
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(baseName)}}
@@ -243,7 +240,7 @@ func lowerCaseAbsPathForWindows(absPath string) string {
 
 func baseNameForAvoidingCollisions(fs fs.FS, absPath string) string {
 	var toHash []byte
-	if relPath, ok := fs.RelativeToCwd(absPath); ok {
+	if relPath, ok := fs.Rel(fs.Cwd(), absPath); ok {
 		// Attempt to generate the same base name regardless of what machine or
 		// operating system we're on. We want to avoid absolute paths because they
 		// will have different home directories. We also want to avoid path
@@ -382,10 +379,9 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 						continue
 					}
 
-					sourcePath := source.AbsolutePath
 					pathText := record.Path.Text
 					pathRange := source.RangeOfString(record.Path.Loc)
-					resolveResult := res.Resolve(sourcePath, pathText)
+					resolveResult := res.Resolve(source.AbsolutePath, pathText)
 
 					switch resolveResult.Status {
 					case resolver.ResolveEnabled, resolver.ResolveDisabled:
@@ -407,6 +403,14 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 					case resolver.ResolveMissing:
 						log.AddRangeError(&source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
+
+					case resolver.ResolveExternalRelative:
+						// If the path to the external module is relative to the source
+						// file, rewrite the path to be relative to the working directory
+						if relPath, ok := fs.Rel(options.AbsOutputDir, resolveResult.AbsolutePath); ok {
+							// Prevent issues with path separators being different on Windows
+							record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
+						}
 					}
 				}
 			}
@@ -531,34 +535,36 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 		})
 	}
 
-	// Make sure an output file never overwrites an input file
-	sourceAbsPaths := make(map[string]uint32)
-	for _, group := range resultGroups {
-		for _, sourceIndex := range group.reachableFiles {
-			lowerAbsPath := lowerCaseAbsPathForWindows(b.sources[sourceIndex].AbsolutePath)
-			sourceAbsPaths[lowerAbsPath] = sourceIndex
-		}
-	}
-	for _, outputFile := range outputFiles {
-		lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
-		if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
-			log.AddError(nil, ast.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
-		}
-	}
-
-	// Make sure an output file never overwrites another output file. This
-	// is almost certainly unintentional and would otherwise happen silently.
-	outputFileMap := make(map[string]bool)
-	for _, outputFile := range outputFiles {
-		lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
-		if outputFileMap[lowerAbsPath] {
-			outputPath := outputFile.AbsPath
-			if relPath, ok := b.fs.RelativeToCwd(outputPath); ok {
-				outputPath = relPath
+	if !options.WriteToStdout {
+		// Make sure an output file never overwrites an input file
+		sourceAbsPaths := make(map[string]uint32)
+		for _, group := range resultGroups {
+			for _, sourceIndex := range group.reachableFiles {
+				lowerAbsPath := lowerCaseAbsPathForWindows(b.sources[sourceIndex].AbsolutePath)
+				sourceAbsPaths[lowerAbsPath] = sourceIndex
 			}
-			log.AddError(nil, ast.Loc{}, "Two output files share the same path: "+outputPath)
-		} else {
-			outputFileMap[lowerAbsPath] = true
+		}
+		for _, outputFile := range outputFiles {
+			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
+			if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
+				log.AddError(nil, ast.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
+			}
+		}
+
+		// Make sure an output file never overwrites another output file. This
+		// is almost certainly unintentional and would otherwise happen silently.
+		outputFileMap := make(map[string]bool)
+		for _, outputFile := range outputFiles {
+			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
+			if outputFileMap[lowerAbsPath] {
+				outputPath := outputFile.AbsPath
+				if relPath, ok := b.fs.Rel(b.fs.Cwd(), outputPath); ok {
+					outputPath = relPath
+				}
+				log.AddError(nil, ast.Loc{}, "Two output files share the same path: "+outputPath)
+			} else {
+				outputFileMap[lowerAbsPath] = true
+			}
 		}
 	}
 

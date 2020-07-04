@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -34,7 +35,8 @@ type FS interface {
 	Base(path string) string
 	Ext(path string) string
 	Join(parts ...string) string
-	RelativeToCwd(path string) (string, bool)
+	Cwd() string
+	Rel(base string, target string) (string, bool)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,8 +106,52 @@ func (*mockFS) Join(parts ...string) string {
 	return path.Clean(path.Join(parts...))
 }
 
-func (*mockFS) RelativeToCwd(path string) (string, bool) {
-	return "", false
+func (*mockFS) Cwd() string {
+	return ""
+}
+
+func splitOnSlash(path string) (string, string) {
+	if slash := strings.IndexByte(path, '/'); slash != -1 {
+		return path[:slash], path[slash+1:]
+	}
+	return path, ""
+}
+
+func (*mockFS) Rel(base string, target string) (string, bool) {
+	// Base cases
+	if base == "" {
+		return target, true
+	}
+	if base == target {
+		return ".", true
+	}
+
+	// Find the common parent directory
+	for {
+		bHead, bTail := splitOnSlash(base)
+		tHead, tTail := splitOnSlash(target)
+		if bHead != tHead {
+			break
+		}
+		base = bTail
+		target = tTail
+	}
+
+	// Stop now if base is a subpath of target
+	if base == "" {
+		return target, true
+	}
+
+	// Traverse up to the common parent
+	commonParent := strings.Repeat("../", strings.Count(base, "/")+1)
+
+	// Stop now if target is a subpath of base
+	if target == "" {
+		return commonParent[:len(commonParent)-1], true
+	}
+
+	// Otherwise, down to the parent
+	return commonParent + target, true
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,16 +162,17 @@ type realFS struct {
 	entries      map[string]map[string]Entry
 
 	// For the current working directory
-	cwd   string
-	cwdOk bool
+	cwd string
 }
 
 func RealFS() FS {
-	cwd, cwdErr := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
+	}
 	return &realFS{
 		entries: make(map[string]map[string]Entry),
 		cwd:     cwd,
-		cwdOk:   cwdErr == nil,
 	}
 }
 
@@ -222,11 +269,13 @@ func (*realFS) Join(parts ...string) string {
 	return filepath.Clean(filepath.Join(parts...))
 }
 
-func (fs *realFS) RelativeToCwd(path string) (string, bool) {
-	if fs.cwdOk {
-		if rel, err := filepath.Rel(fs.cwd, path); err == nil {
-			return rel, true
-		}
+func (fs *realFS) Cwd() string {
+	return fs.cwd
+}
+
+func (*realFS) Rel(base string, target string) (string, bool) {
+	if rel, err := filepath.Rel(base, target); err == nil {
+		return rel, true
 	}
 	return "", false
 }
