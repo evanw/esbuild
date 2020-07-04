@@ -6,84 +6,17 @@ export interface BrowserOptions {
   worker?: boolean
 }
 
-declare let Go: any
-declare let postMessage: any
-declare let WASM_EXEC_JS: string
-
-// This function is never called directly. Instead we call toString() on it
-// and use it to construct the source code for the worker.
-let workerThread = () => {
-  onmessage = ({ data: wasm }) => {
-    let decoder = new TextDecoder()
-    let fs = (global as any).fs
-
-    let stderr = ''
-    fs.writeSync = (fd: number, buffer: Uint8Array) => {
-      if (fd === 1) {
-        postMessage(buffer)
-      } else if (fd === 2) {
-        stderr += decoder.decode(buffer)
-        let parts = stderr.split('\n')
-        if (parts.length > 1) console.log(parts.slice(0, -1).join('\n'))
-        stderr = parts[parts.length - 1]
-      } else {
-        throw new Error('Bad write')
-      }
-      return buffer.length
-    }
-
-    let stdin: Uint8Array[] = []
-    let resumeStdin: () => void
-    let stdinPos = 0
-
-    onmessage = ({ data }) => {
-      if (data.length > 0) {
-        stdin.push(data)
-        if (resumeStdin) resumeStdin()
-      }
-    }
-
-    fs.read = (
-      fd: number, buffer: Uint8Array, offset: number, length: number,
-      position: null, callback: (err: Error | null, count?: number) => void,
-    ) => {
-      if (fd !== 0 || offset !== 0 || length !== buffer.length || position !== null) {
-        throw new Error('Bad read')
-      }
-
-      if (stdin.length === 0) {
-        resumeStdin = () => fs.read(fd, buffer, offset, length, position, callback)
-        return
-      }
-
-      let first = stdin[0]
-      let count = Math.max(0, Math.min(length, first.length - stdinPos))
-      buffer.set(first.subarray(stdinPos, stdinPos + count), offset)
-      stdinPos += count
-      if (stdinPos === first.length) {
-        stdin.shift()
-        stdinPos = 0
-      }
-      callback(null, count)
-    }
-
-    let go = new (global as any).Go()
-    go.argv = ['', '--service']
-
-    WebAssembly.instantiate(wasm, go.importObject)
-      .then(({ instance }) => go.run(instance))
-  }
-}
+declare let WEB_WORKER_SOURCE_CODE: string
 
 export let startService = (options: BrowserOptions): Promise<types.Service> => {
   return fetch(options.wasmURL).then(r => r.arrayBuffer()).then(wasm => {
-    let cloneGlobal = () => {
-      // Clone the global object to prevent the Go wrapper from polluting the actual global object
-      for (let obj: any = self; obj; obj = Object.getPrototypeOf(obj))
-        for (let key of Object.getOwnPropertyNames(obj))
-          (global as any)[key] = (self as any)[key]
-    };
-    let code = `{let global={};(${cloneGlobal})();${WASM_EXEC_JS};(${workerThread})();}`
+    let code = `{` +
+      `let global={};` +
+      `for(let o=self;o;o=Object.getPrototypeOf(o))` +
+      `for(let k of Object.getOwnPropertyNames(o))` +
+      `global[k]=self[k];` +
+      WEB_WORKER_SOURCE_CODE +
+      `}`
     let worker: {
       onmessage: ((event: any) => void) | null
       postMessage: (data: Uint8Array | ArrayBuffer) => void

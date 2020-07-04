@@ -56,7 +56,13 @@ function buildWasmLib(esbuildPath) {
   ], { cwd: repoDir }).toString()
   const commentLines = fs.readFileSync(wasm_exec_js, 'utf8').split('\n')
   const firstNonComment = commentLines.findIndex(line => !line.startsWith('//'))
-  const WASM_EXEC_JS = commentLines.slice(0, firstNonComment).concat(wasmExecMin).join('\n')
+  const wasmExecMinCode = '\n' + commentLines.slice(0, firstNonComment).concat(wasmExecMin).join('\n')
+
+  // Minify "lib/api-worker.ts"
+  const workerMinCode = childProcess.execFileSync(esbuildPath, [
+    path.join(repoDir, 'lib', 'api-worker.ts'),
+    '--minify',
+  ], { cwd: repoDir }).toString().trim()
 
   // Generate "npm/esbuild-wasm/browser.js"
   const umdPrefix = `(exports=>{`
@@ -66,7 +72,7 @@ function buildWasmLib(esbuildPath) {
     '--bundle',
     '--minify',
     '--format=cjs',
-    '--define:WASM_EXEC_JS=' + JSON.stringify(WASM_EXEC_JS),
+    '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmExecMinCode + workerMinCode),
   ], { cwd: repoDir }).toString()
   fs.writeFileSync(path.join(libDir, 'browser.js'), umdPrefix + browserJs.trim() + umdSuffix)
 }
