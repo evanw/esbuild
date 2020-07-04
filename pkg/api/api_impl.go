@@ -137,8 +137,8 @@ func validateLoader(value Loader) config.Loader {
 func validateExternals(log logging.Log, paths []string) map[string]bool {
 	result := make(map[string]bool)
 	for _, path := range paths {
-		if resolver.IsNonModulePath(path) {
-			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid module name: %q", path))
+		if !resolver.IsPackagePath(path) {
+			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid package name: %q", path))
 		}
 		result[path] = true
 	}

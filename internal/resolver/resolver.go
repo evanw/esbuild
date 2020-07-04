@@ -147,14 +147,14 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 	// Get the cached information for this directory and all parent directories
 	sourceDir := r.fs.Dir(sourcePath)
 
-	if IsNonModulePath(importPath) {
+	if !IsPackagePath(importPath) {
 		if absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(sourceDir, importPath)); ok {
 			result = absolute
 		} else {
 			return "", ResolveMissing
 		}
 	} else {
-		// Check for external modules first
+		// Check for external packages first
 		if r.options.ExternalModules != nil {
 			importPathRoot := importPath
 			scope := ""
@@ -189,11 +189,11 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 			return "", ResolveMissing
 		}
 
-		// Support remapping one module path to another via the "browser" field
+		// Support remapping one package path to another via the "browser" field
 		if sourceDirInfo.enclosingBrowserScope != nil {
 			packageJson := sourceDirInfo.enclosingBrowserScope.packageJson
-			if packageJson.browserModuleMap != nil {
-				if remapped, ok := packageJson.browserModuleMap[importPath]; ok {
+			if packageJson.browserPackageMap != nil {
+				if remapped, ok := packageJson.browserPackageMap[importPath]; ok {
 					if remapped == nil {
 						// "browser": {"module": false}
 						if absolute, ok := r.loadNodeModules(importPath, sourceDirInfo); ok {
@@ -226,8 +226,8 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 	// Support remapping one non-module path to another via the "browser" field
 	if resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
 		packageJson := resultDirInfo.enclosingBrowserScope.packageJson
-		if packageJson.browserNonModuleMap != nil {
-			if remapped, ok := packageJson.browserNonModuleMap[result]; ok {
+		if packageJson.browserNonPackageMap != nil {
+			if remapped, ok := packageJson.browserNonPackageMap[result]; ok {
 				if remapped == nil {
 					return result, ResolveDisabled
 				}
@@ -243,10 +243,10 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 }
 
 func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string) (string, bool) {
-	if IsNonModulePath(importPath) {
-		return r.loadAsFileOrDirectory(r.fs.Join(sourceDirInfo.absPath, importPath))
-	} else {
+	if IsPackagePath(importPath) {
 		return r.loadNodeModules(importPath, sourceDirInfo)
+	} else {
+		return r.loadAsFileOrDirectory(r.fs.Join(sourceDirInfo.absPath, importPath))
 	}
 }
 
@@ -300,8 +300,8 @@ type packageJson struct {
 	// tell, the official spec is a GitHub repo hosted by a user account:
 	// https://github.com/defunctzombie/package-browser-field-spec. The npm docs
 	// say almost nothing: https://docs.npmjs.com/files/package.json.
-	browserNonModuleMap map[string]*string
-	browserModuleMap    map[string]*string
+	browserNonPackageMap map[string]*string
+	browserPackageMap    map[string]*string
 
 	// If this is non-nil, each entry in this map is the absolute path of a file
 	// with side effects. Any entry not in this map should be considered to have
@@ -555,7 +555,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		info.packageJson = r.parsePackageJSON(path)
 
 		// Propagate this browser scope into child directories
-		if info.packageJson != nil && (info.packageJson.browserModuleMap != nil || info.packageJson.browserNonModuleMap != nil) {
+		if info.packageJson != nil && (info.packageJson.browserPackageMap != nil || info.packageJson.browserNonPackageMap != nil) {
 			info.enclosingBrowserScope = info
 		}
 	}
@@ -628,39 +628,39 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 			mainPath = r.fs.Join(path, browser)
 		} else if browser, ok := browserJson.Data.(*ast.EObject); ok {
 			// The value is an object
-			browserModuleMap := make(map[string]*string)
-			browserNonModuleMap := make(map[string]*string)
+			browserPackageMap := make(map[string]*string)
+			browserNonPackageMap := make(map[string]*string)
 
 			// Remap all files in the browser field
 			for _, prop := range browser.Properties {
 				if key, ok := getString(prop.Key); ok && prop.Value != nil {
-					isNonModulePath := IsNonModulePath(key)
+					isPackagePath := IsPackagePath(key)
 
-					// Make this an absolute path if it's not a module
-					if isNonModulePath {
+					// Make this an absolute path if it's not a package
+					if !isPackagePath {
 						key = r.fs.Join(path, key)
 					}
 
 					if value, ok := getString(*prop.Value); ok {
-						// If this is a string, it's a replacement module
-						if isNonModulePath {
-							browserNonModuleMap[key] = &value
+						// If this is a string, it's a replacement package
+						if isPackagePath {
+							browserPackageMap[key] = &value
 						} else {
-							browserModuleMap[key] = &value
+							browserNonPackageMap[key] = &value
 						}
 					} else if value, ok := getBool(*prop.Value); ok && !value {
-						// If this is false, it means the module is disabled
-						if isNonModulePath {
-							browserNonModuleMap[key] = nil
+						// If this is false, it means the package is disabled
+						if isPackagePath {
+							browserPackageMap[key] = nil
 						} else {
-							browserModuleMap[key] = nil
+							browserNonPackageMap[key] = nil
 						}
 					}
 				}
 			}
 
-			packageJson.browserModuleMap = browserModuleMap
-			packageJson.browserNonModuleMap = browserNonModuleMap
+			packageJson.browserPackageMap = browserPackageMap
+			packageJson.browserNonPackageMap = browserNonPackageMap
 		}
 	}
 
@@ -920,9 +920,11 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 	return "", false
 }
 
-func IsNonModulePath(path string) bool {
-	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") ||
-		strings.HasPrefix(path, "../") || path == "." || path == ".."
+// Package paths are loaded from a "node_modules" directory. Non-package paths
+// are relative or absolute paths.
+func IsPackagePath(path string) bool {
+	return !strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "./") &&
+		!strings.HasPrefix(path, "../") && path != "." && path != ".."
 }
 
 var externalModulesForNode = []string{
