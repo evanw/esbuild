@@ -5,8 +5,17 @@ const child_process = require('child_process');
 const version = require('./package.json').version;
 const installDir = path.join(__dirname, '.install');
 const binPath = path.join(__dirname, 'bin', 'esbuild');
+const stampPath = path.join(__dirname, 'stamp.txt');
 
-function installPackage(package) {
+function installBinaryFromPackage(package, fromPath, toPath) {
+  // It turns out that some package managers (e.g. yarn) sometimes re-run the
+  // postinstall script for this package after we have already been installed.
+  // That means this script must be idempotent. Let's skip the install if it's
+  // already happened.
+  if (fs.existsSync(stampPath)) {
+    return;
+  }
+
   // Clone the environment without "npm_" environment variables. If we don't do
   // this, invoking this script via "npm install -g esbuild" will hang because
   // our call to "npm install" below will magically be transformed into
@@ -18,28 +27,49 @@ function installPackage(package) {
     }
   }
 
-  // It turns out that some package managers (e.g. yarn) sometimes re-run the
-  // postinstall script for this package after we have already been installed.
-  // That means this script must be idempotent. Let's skip the install if it's
-  // already happened.
-  if (fs.existsSync(installDir)) {
-    return false;
-  }
-
   // Run "npm install" recursively to install this specific package
   fs.mkdirSync(installDir);
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
   child_process.execSync(`npm install --silent --prefer-offline --no-audit --progress=false ${package}@${version}`,
     { cwd: installDir, stdio: 'inherit', env });
-  return true;
+
+  // Move the binary from the nested package into our package
+  fs.renameSync(fromPath, toPath);
+
+  // Remove the install directory afterwards to avoid tripping up tools that scan
+  // for nested directories named "node_modules" and make assumptions. See this
+  // issue for an example: https://github.com/ds300/patch-package/issues/243
+  removeRecursive(installDir);
+
+  // Mark the operation as successful so this script is idempotent
+  fs.writeFileSync(stampPath, '');
+}
+
+function removeRecursive(dir) {
+  for (const entry of fs.readdirSync(dir)) {
+    const entryPath = path.join(dir, entry);
+    let stats;
+    try {
+      stats = fs.lstatSync(entryPath);
+    } catch (e) {
+      continue; // Guard against https://github.com/nodejs/node/issues/4760
+    }
+    if (stats.isDirectory()) {
+      removeRecursive(entryPath);
+    } else {
+      fs.unlinkSync(entryPath);
+    }
+  }
+  fs.rmdirSync(dir);
 }
 
 function installOnUnix(package) {
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.unlinkSync(binPath);
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
-  } else if (installPackage(package)) {
-    fs.renameSync(
+  } else {
+    installBinaryFromPackage(
+      package,
       path.join(installDir, 'node_modules', package, 'bin', 'esbuild'),
       binPath
     );
@@ -50,8 +80,9 @@ function installOnWindows() {
   const exePath = path.join(__dirname, 'esbuild.exe');
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
-  } else if (installPackage('esbuild-windows-64')) {
-    fs.renameSync(
+  } else {
+    installBinaryFromPackage(
+      'esbuild-windows-64',
       path.join(installDir, 'node_modules', 'esbuild-windows-64', 'esbuild.exe'),
       exePath
     );
