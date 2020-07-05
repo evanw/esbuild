@@ -1348,6 +1348,32 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
 }
 
+func TestMangleUnused(t *testing.T) {
+	expectPrintedMangle(t, "null", "")
+	expectPrintedMangle(t, "void 0", "")
+	expectPrintedMangle(t, "void 0", "")
+	expectPrintedMangle(t, "false", "")
+	expectPrintedMangle(t, "true", "")
+	expectPrintedMangle(t, "123", "")
+	expectPrintedMangle(t, "123n", "")
+	expectPrintedMangle(t, "'abc'", "")
+	expectPrintedMangle(t, "this", "")
+	expectPrintedMangle(t, "/regex/", "")
+	expectPrintedMangle(t, "(function() {})", "")
+	expectPrintedMangle(t, "(() => {})", "")
+	expectPrintedMangle(t, "import.meta", "")
+
+	expectPrintedMangle(t, "var bound; unbound", "var bound;\nunbound;\n")
+	expectPrintedMangle(t, "var bound; bound", "var bound;\n")
+	expectPrintedMangle(t, "foo, 123, bar", "foo, bar;\n")
+
+	expectPrintedMangle(t, "console.log(1, foo(), bar())", "console.log(1, foo(), bar());\n")
+	expectPrintedMangle(t, "/* @__PURE__ */ console.log(1, foo(), bar())", "foo(), bar();\n")
+
+	expectPrintedMangle(t, "new TestCase(1, foo(), bar())", "new TestCase(1, foo(), bar());\n")
+	expectPrintedMangle(t, "/* @__PURE__ */ new TestCase(1, foo(), bar())", "foo(), bar();\n")
+}
+
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { ; }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { b() }", "a();\n")

@@ -5722,8 +5722,11 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		s.Value = p.visitExpr(s.Value)
 
 		// Trim expressions without side effects
-		if p.MangleSyntax && p.exprCanBeRemovedIfUnused(s.Value) {
-			stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SEmpty{}}
+		if p.MangleSyntax {
+			s.Value = p.simplifyUnusedExpr(s.Value)
+			if s.Value.Data == nil {
+				stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SEmpty{}}
+			}
 		}
 
 	case *ast.SThrow:
@@ -8029,6 +8032,60 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 
 	// Assume all other expression types have side effects and cannot be removed
 	return false
+}
+
+// This will return a nil expression if the expression can be totally removed
+func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
+	switch e := expr.Data.(type) {
+	case *ast.ENull, *ast.EUndefined, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
+		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow, *ast.EImportMeta:
+		return ast.Expr{}
+
+	case *ast.EDot:
+		if e.CanBeRemovedIfUnused {
+			return ast.Expr{}
+		}
+
+	case *ast.EIdentifier:
+		symbol := p.symbols[e.Ref.InnerIndex]
+		if symbol.Kind != ast.SymbolUnbound {
+			return ast.Expr{}
+		}
+
+	case *ast.EBinary:
+		if e.Op == ast.BinOpComma {
+			e.Left = p.simplifyUnusedExpr(e.Left)
+			e.Right = p.simplifyUnusedExpr(e.Right)
+			if e.Left.Data == nil {
+				return e.Right
+			}
+			if e.Right.Data == nil {
+				return e.Left
+			}
+		}
+
+	case *ast.ECall:
+		// A call that has been marked "__PURE__" can be removed if all arguments
+		// can be removed. The annotation causes us to ignore the target.
+		if e.HasPureComment {
+			expr = ast.Expr{}
+			for _, arg := range e.Args {
+				expr = maybeJoinWithComma(expr, p.simplifyUnusedExpr(arg))
+			}
+		}
+
+	case *ast.ENew:
+		// A constructor call that has been marked "__PURE__" can be removed if all
+		// arguments can be removed. The annotation causes us to ignore the target.
+		if e.HasPureComment {
+			expr = ast.Expr{}
+			for _, arg := range e.Args {
+				expr = maybeJoinWithComma(expr, p.simplifyUnusedExpr(arg))
+			}
+		}
+	}
+
+	return expr
 }
 
 var targetTable = map[config.LanguageTarget]string{
