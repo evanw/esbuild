@@ -39,6 +39,10 @@
       overflow-y: auto;
     }
 
+    .minified {
+      word-break: break-all;
+    }
+
     textarea:focus {
       outline: none;
       border: 1px solid #999;
@@ -228,7 +232,9 @@
           strict: strict.checked,
         }).then(({ js, warnings }) => {
           let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
-          output.innerHTML = (html && html + '<hr>') + textToHTML(js);
+          js = textToHTML(js);
+          if (minify.checked) js = `<span class="minified">${js}</span>`;
+          output.innerHTML = (html && html + '<hr>') + js;
         }, error => {
           let { errors, warnings } = error
           if (errors && warnings) output.innerHTML = messagesToHTML(
