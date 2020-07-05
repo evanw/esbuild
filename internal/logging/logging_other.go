@@ -1,5 +1,6 @@
 // +build !darwin
 // +build !linux
+// +build !windows
 
 package logging
 

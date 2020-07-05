@@ -21,7 +21,7 @@ type winsize struct {
 func GetTerminalInfo(file *os.File) (info TerminalInfo) {
 	fd := file.Fd()
 
-	// Is stderr a terminal?
+	// Is this file descriptor a terminal?
 	if _, err := unix.IoctlGetTermios(int(fd), unix.TIOCGETA); err == nil {
 		info.IsTTY = true
 		info.UseColorEscapes = true
