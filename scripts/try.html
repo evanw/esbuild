@@ -88,7 +88,6 @@
     }
 
     label {
-      margin-right: 20px;
       white-space: nowrap;
     }
 
@@ -166,6 +165,7 @@
           <option selected>ESNext</option>
         </select>
       </label>
+      &nbsp; &nbsp;
       <label for="loader">
         Loader: <select id="loader">
           <option selected>JS</option>
@@ -174,14 +174,16 @@
           <option>TSX</option>
         </select>
       </label>
-      <label for="minify">
-        <input id="minify" type="checkbox">
-        Minify
-      </label>
+      &nbsp; &nbsp;
       <label for="strict">
         <input id="strict" type="checkbox">
         Strict
       </label>
+      &nbsp; &nbsp;
+      Minify:
+      <label for="minify-syntax"><input id="minify-syntax" type="checkbox"> Syntax</label>
+      <label for="minify-idents"><input id="minify-idents" type="checkbox"> Identifiers</label>
+      <label for="minify-spaces"><input id="minify-spaces" type="checkbox"> Whitespace</label>
     </p>
     <div class="outer"><textarea autofocus spellcheck="false"></textarea></div>
   </section>
@@ -198,7 +200,9 @@
       const output = document.querySelector('#output .outer')
       const target = document.querySelector('#target')
       const loader = document.querySelector('#loader')
-      const minify = document.querySelector('#minify')
+      const minifySyntax = document.querySelector('#minify-syntax')
+      const minifyIdents = document.querySelector('#minify-idents')
+      const minifySpaces = document.querySelector('#minify-spaces')
       const strict = document.querySelector('#strict')
       let debounceTimeout = 0
       let isRunning = false
@@ -206,7 +210,9 @@
 
       target.onchange = runIfIdle
       loader.onchange = runIfIdle
-      minify.onchange = runIfIdle
+      minifySyntax.onchange = runIfIdle
+      minifyIdents.onchange = runIfIdle
+      minifySpaces.onchange = runIfIdle
       strict.onchange = runIfIdle
 
       input.oninput = () => {
@@ -228,12 +234,14 @@
         service.transform(input.value, {
           target: target.value.toLowerCase(),
           loader: loader.value.toLowerCase(),
-          minify: minify.checked,
+          minifySyntax: minifySyntax.checked,
+          minifyIdentifiers: minifyIdents.checked,
+          minifyWhitespace: minifySpaces.checked,
           strict: strict.checked,
         }).then(({ js, warnings }) => {
           let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
           js = textToHTML(js);
-          if (minify.checked) js = `<span class="minified">${js}</span>`;
+          if (minifySpaces.checked) js = `<span class="minified">${js}</span>`;
           output.innerHTML = (html && html + '<hr>') + js;
         }, error => {
           let { errors, warnings } = error
