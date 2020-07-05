@@ -37,6 +37,7 @@ export interface BuildOptions extends CommonOptions {
   external?: string[];
   loader?: { [ext: string]: Loader };
   resolveExtensions?: string[];
+  write?: boolean;
 
   entryPoints: string[];
 }
@@ -52,8 +53,14 @@ export interface Message {
   };
 }
 
+export interface OutputFile {
+  path: string;
+  contents: Uint8Array;
+}
+
 export interface BuildResult {
   warnings: Message[];
+  outputFiles?: OutputFile[]; // Only when "write: false"
 }
 
 export interface BuildFailure extends Error {

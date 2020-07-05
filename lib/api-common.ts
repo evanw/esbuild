@@ -36,6 +36,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): stri
   if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
   if (options.external) for (let name of options.external) flags.push(`--external:${name}`);
   if (options.loader) for (let ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
+  if (options.write === false) flags.push(`--write=false`);
 
   for (let entryPoint of options.entryPoints) {
     if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
@@ -57,7 +58,7 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
 }
 
 type Request = string[];
-type Response = { [key: string]: string };
+type Response = { [key: string]: Uint8Array };
 type ResponseCallback = (err: string | null, res: Response) => void;
 
 export interface StreamIn {
@@ -198,8 +199,8 @@ export function createChannel(options: StreamIn): StreamOut {
       let keyLength = readUInt32LE(bytes, eat(4));
       let key = codec.decode(bytes.slice(offset, eat(keyLength) + keyLength));
       let valueLength = readUInt32LE(bytes, eat(4));
-      let value = codec.decode(bytes.slice(offset, eat(valueLength) + valueLength));
-      if (key === 'id') id = value;
+      let value = bytes.slice(offset, eat(valueLength) + valueLength);
+      if (key === 'id') id = codec.decode(value);
       else response[key] = value;
     }
 
@@ -207,7 +208,7 @@ export function createChannel(options: StreamIn): StreamOut {
     if (!id) throw new Error('Invalid message');
     let callback = requests.get(id)!;
     requests.delete(id);
-    if (response.error) callback(response.error, {});
+    if (response.error) callback(codec.decode(response.error), {});
     else callback(null, response);
   };
 
@@ -220,10 +221,12 @@ export function createChannel(options: StreamIn): StreamOut {
         let flags = flagsForBuildOptions(options, isTTY);
         sendRequest(['build'].concat(flags), (error, response) => {
           if (error) return callback(new Error(error), null);
-          let errors = jsonToMessages(response.errors);
-          let warnings = jsonToMessages(response.warnings);
+          let errors = jsonToMessages(codec.decode(response.errors));
+          let warnings = jsonToMessages(codec.decode(response.warnings));
           if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
-          callback(null, { warnings });
+          let result: types.BuildResult = { warnings };
+          if (options.write === false) result.outputFiles = decodeOutputFiles(codec, response.outputFiles);
+          callback(null, result);
         });
       },
 
@@ -231,10 +234,10 @@ export function createChannel(options: StreamIn): StreamOut {
         let flags = flagsForTransformOptions(options, isTTY);
         sendRequest(['transform', input].concat(flags), (error, response) => {
           if (error) return callback(new Error(error), null);
-          let errors = jsonToMessages(response.errors);
-          let warnings = jsonToMessages(response.warnings);
+          let errors = jsonToMessages(codec.decode(response.errors));
+          let warnings = jsonToMessages(codec.decode(response.warnings));
           if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
-          callback(null, { warnings, js: response.js, jsSourceMap: response.jsSourceMap });
+          callback(null, { warnings, js: codec.decode(response.js), jsSourceMap: codec.decode(response.jsSourceMap) });
         });
       },
     },
@@ -286,4 +289,21 @@ function failureErrorWithLog(text: string, errors: types.Message[], warnings: ty
   error.errors = errors;
   error.warnings = warnings;
   return error;
+}
+
+function decodeOutputFiles(codec: TextCodec, bytes: Uint8Array): types.OutputFile[] {
+  let outputFiles: types.OutputFile[] = [];
+  let offset = 0;
+  let count = readUInt32LE(bytes, offset);
+  offset += 4;
+  for (let i = 0; i < count; i++) {
+    let pathLength = readUInt32LE(bytes, offset);
+    let path = codec.decode(bytes.slice(offset + 4, offset + 4 + pathLength));
+    offset += 4 + pathLength;
+    let contentsLength = readUInt32LE(bytes, offset);
+    let contents = new Uint8Array(bytes.slice(offset + 4, offset + 4 + contentsLength));
+    offset += 4 + contentsLength;
+    outputFiles.push({ path, contents });
+  }
+  return outputFiles;
 }

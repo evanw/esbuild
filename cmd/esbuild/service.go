@@ -183,6 +183,17 @@ func handlePingRequest(responses chan responseType, id string, rawArgs []string)
 }
 
 func handleBuildRequest(responses chan responseType, id string, rawArgs []string) {
+	// Special-case the service-only write flag
+	write := true
+	for i, arg := range rawArgs {
+		if arg == "--write=false" {
+			write = false
+			copy(rawArgs[i:], rawArgs[i+1:])
+			rawArgs = rawArgs[:len(rawArgs)-1]
+			break
+		}
+	}
+
 	options, err := cli.ParseBuildOptions(rawArgs)
 	if err != nil {
 		responses <- responseType{
@@ -193,21 +204,41 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 	}
 
 	result := api.Build(options)
-	for _, outputFile := range result.OutputFiles {
-		if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
-			result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
-				"Failed to create output directory: %s", err.Error())})
-		} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
-			result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
-				"Failed to write to output file: %s", err.Error())})
-		}
-	}
-
-	responses <- responseType{
+	response := responseType{
 		"id":       []byte(id),
 		"errors":   messagesToJSON(result.Errors),
 		"warnings": messagesToJSON(result.Warnings),
 	}
+
+	if write {
+		// Write the output files to disk
+		for _, outputFile := range result.OutputFiles {
+			if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
+				result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
+					"Failed to create output directory: %s", err.Error())})
+			} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
+				result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
+					"Failed to write to output file: %s", err.Error())})
+			}
+		}
+	} else {
+		// Pass the output files back to the caller
+		length := 4
+		for _, outputFile := range result.OutputFiles {
+			length += 4 + len(outputFile.Path) + 4 + len(outputFile.Contents)
+		}
+		bytes := make([]byte, 0, length)
+		bytes = writeUint32(bytes, uint32(len(result.OutputFiles)))
+		for _, outputFile := range result.OutputFiles {
+			bytes = writeUint32(bytes, uint32(len(outputFile.Path)))
+			bytes = append(bytes, outputFile.Path...)
+			bytes = writeUint32(bytes, uint32(len(outputFile.Contents)))
+			bytes = append(bytes, outputFile.Contents...)
+		}
+		response["outputFiles"] = bytes
+	}
+
+	responses <- response
 }
 
 func handleTransformRequest(responses chan responseType, id string, rawArgs []string) {

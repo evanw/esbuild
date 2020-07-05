@@ -14,7 +14,8 @@ let buildTests = {
     const input = path.join(testDir, 'es6_to_cjs-in.js')
     const output = path.join(testDir, 'es6_to_cjs-out.js')
     await util.promisify(fs.writeFile)(input, 'export default 123')
-    await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    assert.strictEqual(value.outputFiles, void 0)
     const result = require(output)
     assert.strictEqual(result.default, 123)
     assert.strictEqual(result.__esModule, true)
@@ -142,6 +143,32 @@ let buildTests = {
     assert.strictEqual(typeof outputInputs[makePath(entry)].bytesInOutput, 'number')
     assert.strictEqual(typeof outputInputs[makePath(imported)].bytesInOutput, 'number')
     assert.strictEqual(typeof outputInputs[makePath(text)].bytesInOutput, 'number')
+  },
+
+  // Test in-memory output files
+  async writeFalse({ esbuild }) {
+    const input = path.join(testDir, 'writeFalse.js')
+    const output = path.join(testDir, 'writeFalse-out.js')
+    await util.promisify(fs.writeFile)(input, 'console.log()')
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      sourcemap: true,
+      format: 'esm',
+      write: false,
+    })
+    assert.strictEqual(await fs.existsSync(output), false)
+    assert.notStrictEqual(value.outputFiles, void 0)
+    assert.strictEqual(value.outputFiles.length, 2)
+    assert.strictEqual(value.outputFiles[0].path, output + '.map')
+    assert.strictEqual(value.outputFiles[0].contents.constructor, Uint8Array)
+    assert.strictEqual(value.outputFiles[1].path, output)
+    assert.strictEqual(value.outputFiles[1].contents.constructor, Uint8Array)
+    const sourceMap = JSON.parse(Buffer.from(value.outputFiles[0].contents).toString())
+    const js = Buffer.from(value.outputFiles[1].contents).toString()
+    assert.strictEqual(sourceMap.version, 3)
+    assert.strictEqual(js, `// scripts/.js-api-tests/writeFalse.js\nconsole.log();\n//# sourceMappingURL=writeFalse-out.js.map\n`)
   },
 }
 

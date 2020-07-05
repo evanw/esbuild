@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* JavaScript build API can now avoid writing to the file system ([#139](https://github.com/evanw/esbuild/issues/139) and [#220](https://github.com/evanw/esbuild/issues/220))
+
+    You can now pass `write: false` to the JavaScript build API to avoid writing to the file system. Instead, the returned object will have the `outputFiles` property with an array of output files, each of which has a string `path` property and a Uint8Array `contents` property. This brings the JavaScript API to parity with the Go API, which already had this feature.
+
 ## 0.5.21
 
 * Binaries for FreeBSD ([#217](https://github.com/evanw/esbuild/pull/217))
