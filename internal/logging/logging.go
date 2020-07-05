@@ -380,19 +380,23 @@ loop:
 	}
 
 	// Trim the line to fit the terminal width
-	if terminalInfo.Width > 0 && len(lineText) > terminalInfo.Width {
+	width := terminalInfo.Width
+	if width < 1 {
+		width = 80
+	}
+	if len(lineText) > width {
 		// Try to center the error
-		sliceStart := (markerStart + markerEnd - terminalInfo.Width) / 2
-		if sliceStart > markerStart-terminalInfo.Width/5 {
-			sliceStart = markerStart - terminalInfo.Width/5
+		sliceStart := (markerStart + markerEnd - width) / 2
+		if sliceStart > markerStart-width/5 {
+			sliceStart = markerStart - width/5
 		}
 		if sliceStart < 0 {
 			sliceStart = 0
 		}
-		if sliceStart > len(lineText)-terminalInfo.Width {
-			sliceStart = len(lineText) - terminalInfo.Width
+		if sliceStart > len(lineText)-width {
+			sliceStart = len(lineText) - width
 		}
-		sliceEnd := sliceStart + terminalInfo.Width
+		sliceEnd := sliceStart + width
 
 		// Slice the line
 		slicedLine := lineText[sliceStart:sliceEnd]
