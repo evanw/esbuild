@@ -67,29 +67,25 @@ child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' }
   );
 }
 
-// Pick a package to install
-const knownUnixlikePackages = [
-  { platform: 'darwin', arch: 'x64', name: 'esbuild-darwin-64' },
-  { platform: 'freebsd', arch: 'x64', name: 'esbuild-freebsd-64' },
-  { platform: 'freebsd', arch: 'arm64', name: 'esbuild-freebsd-arm64' },
-  { platform: 'linux', arch: 'x64', name: 'esbuild-linux-64' },
-  { platform: 'linux', arch: 'arm64', name: 'esbuild-linux-arm64' },
-  { platform: 'linux', arch: 'ppc64', endianness: 'LE', name: 'esbuild-linux-ppc64le' },
-];
+const knownUnixlikePackages = {
+  'darwin x64 LE': 'esbuild-darwin-64',
+  'freebsd x64 LE': 'esbuild-freebsd-64',
+  'freebsd arm64 LE': 'esbuild-freebsd-arm64',
+  'linux x64 LE': 'esbuild-linux-64',
+  'linux arm64 LE': 'esbuild-linux-arm64',
+  'linux ppc64 LE': 'esbuild-linux-ppc64le',
+};
 
+// Pick a package to install
 if (process.platform === 'win32' && os.arch() === 'x64') {
   installOnWindows();
 } else {
-  const found = knownUnixlikePackages.some(function (pkg) {
-    if (process.platform === pkg.platform && os.arch() === pkg.arch && (!pkg.endianness || pkg.endianness === os.endianness())) {
-      installOnUnix(pkg.name);
-      return true;
-    }
-    return false;
-  });
-
-  if (!found) {
-    console.error(`error: Unsupported platform: ${process.platform} ${os.arch()}`);
+  const key = `${process.platform} ${os.arch()} ${os.endianness()}`;
+  const package = knownUnixlikePackages[key];
+  if (package) {
+    installOnUnix(package);
+  } else {
+    console.error(`error: Unsupported platform: ${key}`);
     process.exit(1);
   }
 }

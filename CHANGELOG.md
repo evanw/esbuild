@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Binaries for FreeBSD ([#217](https://github.com/evanw/esbuild/pull/217))
+
+    There are now esbuild binaries for FreeBSD, both for AMD64 and ARM64. This was contributed by [@kikuchan](https://github.com/kikuchan).
+
 ## 0.5.20
 
 * Allow multiple `.` characters in loader extensions ([#215](https://github.com/evanw/esbuild/issues/215))

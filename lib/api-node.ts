@@ -10,14 +10,11 @@ import { isatty } from "tty";
 declare let WASM: boolean;
 
 let esbuildCommandAndArgs = (): [string, string[]] => {
-  let platform = process.platform;
-  let arch = os.arch();
-
   if (WASM) {
     return ['node', [path.join(__dirname, '..', 'bin', 'esbuild')]];
   }
 
-  if (platform === 'win32' && arch === 'x64') {
+  if (process.platform === 'win32') {
     return [path.join(__dirname, '..', 'esbuild.exe'), []];
   }
 

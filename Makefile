@@ -5,11 +5,11 @@ esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
 
 # These tests are for development
 test:
-	$(MAKE) -j4 test-go verify-source-map end-to-end-tests js-api-tests
+	make -j4 test-go verify-source-map end-to-end-tests js-api-tests
 
 # These tests are for release ("test-wasm" is not included in "test" because it's pretty slow)
 test-all:
-	$(MAKE) -j5 test-go verify-source-map end-to-end-tests js-api-tests test-wasm
+	make -j5 test-go verify-source-map end-to-end-tests js-api-tests test-wasm
 
 # This includes tests of some 3rd-party libraries, which can be very slow
 test-extra: test-all test-sucrase test-esprima test-rollup
@@ -30,37 +30,47 @@ js-api-tests: | scripts/node_modules
 	node scripts/js-api-tests.js
 
 update-version-go:
-	printf "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"\n" > cmd/esbuild/version.go
+	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
 
 platform-all: update-version-go test-all
-	$(MAKE) -j9 platform-windows platform-darwin platform-freebsd platform-freebsd-arm64 platform-linux platform-linux-arm64 platform-linux-ppc64le platform-wasm platform-neutral
+	make -j9 \
+		platform-windows \
+		platform-darwin \
+		platform-freebsd \
+		platform-freebsd-arm64 \
+		platform-linux \
+		platform-linux-arm64 \
+		platform-linux-ppc64le \
+		platform-wasm \
+		platform-neutral
 
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=windows GOARCH=amd64 go build -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
 platform-unixlike:
-	[ ! -z "$(NPMDIR)" ] && mkdir -p $(NPMDIR)/bin
-	cd $(NPMDIR) && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o $(NPMDIR)/bin/esbuild ./cmd/esbuild
+	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"
+	mkdir -p "$(NPMDIR)/bin"
+	cd "$(NPMDIR)" && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
 
 platform-darwin:
-	$(MAKE) GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
+	make GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
 
 platform-freebsd:
-	$(MAKE) GOOS=freebsd GOARCH=amd64 NPMDIR=npm/esbuild-freebsd-64 platform-unixlike
+	make GOOS=freebsd GOARCH=amd64 NPMDIR=npm/esbuild-freebsd-64 platform-unixlike
 
 platform-freebsd-arm64:
-	$(MAKE) GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
+	make GOOS=freebsd GOARCH=arm64 NPMDIR=npm/esbuild-freebsd-arm64 platform-unixlike
 
 platform-linux:
-	$(MAKE) GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
+	make GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
 
 platform-linux-arm64:
-	$(MAKE) GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
+	make GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
 
 platform-linux-ppc64le:
-	$(MAKE) GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
+	make GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
 
 platform-wasm: | esbuild
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
@@ -74,35 +84,43 @@ platform-neutral: | esbuild
 	node scripts/esbuild.js ./esbuild
 
 publish-all: update-version-go test-all
-	$(MAKE) -j8 publish-windows publish-darwin publish-freebsd publish-freebsd-arm64 publish-linux publish-linux-arm64 publish-linux-ppc64le publish-wasm
-	$(MAKE) publish-neutral # Do this after to avoid race conditions
+	make -j8 \
+		publish-windows \
+		publish-darwin \
+		publish-freebsd \
+		publish-freebsd-arm64 \
+		publish-linux \
+		publish-linux-arm64 \
+		publish-linux-ppc64le \
+		publish-wasm
+	make publish-neutral # Do this after to avoid race conditions
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
 	git push origin master "v$(ESBUILD_VERSION)"
 
 publish-windows: platform-windows
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-windows-64 && npm publish --otp="$(OTP)"
+	test -n "$(OTP)" && cd npm/esbuild-windows-64 && npm publish --otp="$(OTP)"
 
 publish-darwin: platform-darwin
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
+	test -n "$(OTP)" && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
 
 publish-freebsd: platform-freebsd
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-freebsd-64 && npm publish --otp="$(OTP)"
+	test -n "$(OTP)" && cd npm/esbuild-freebsd-64 && npm publish --otp="$(OTP)"
 
 publish-freebsd-arm64: platform-freebsd-arm64
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-freebsd-arm64 && npm publish --otp="$(OTP)"
+	test -n "$(OTP)" && cd npm/esbuild-freebsd-arm64 && npm publish --otp="$(OTP)"
 
 publish-linux: platform-linux
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-64 && npm publish --otp="$(OTP)"
+	test -n "$(OTP)" && cd npm/esbuild-linux-64 && npm publish --otp="$(OTP)"
 
 publish-linux-arm64: platform-linux-arm64
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
+	test -n "$(OTP)" && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
 
 publish-linux-ppc64le: platform-linux-ppc64le
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-linux-ppc64le && npm publish --otp="$(OTP)"
+	test -n "$(OTP)" && cd npm/esbuild-linux-ppc64le && npm publish --otp="$(OTP)"
 
 publish-wasm: platform-wasm
-	[ ! -z "$(OTP)" ] && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
+	test -n "$(OTP)" && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
 
 publish-neutral: platform-neutral
 	cd npm/esbuild && npm publish
