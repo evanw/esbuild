@@ -221,19 +221,6 @@ func isJumpStatement(data ast.S) bool {
 	return false
 }
 
-func hasNoSideEffects(data ast.E) bool {
-	switch e := data.(type) {
-	case *ast.ENull, *ast.EUndefined, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
-		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow:
-		return true
-
-	case *ast.EDot:
-		return e.CanBeRemovedIfUnused
-	}
-
-	return false
-}
-
 func toBooleanWithoutSideEffects(data ast.E) (bool, bool) {
 	switch e := data.(type) {
 	case *ast.ENull, *ast.EUndefined:
@@ -5434,7 +5421,7 @@ func statementCaresAboutScope(stmt ast.Stmt) bool {
 	}
 }
 
-func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanValue bool) ast.Stmt {
+func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanValue bool) ast.Stmt {
 	// Constant folding using the test expression
 	if isTestBooleanConstant {
 		if testBooleanValue {
@@ -5505,7 +5492,7 @@ func mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanVa
 		// "yes" is missing
 		if s.No == nil {
 			// "yes" and "no" are both missing
-			if hasNoSideEffects(s.Test.Data) {
+			if p.exprCanBeRemovedIfUnused(s.Test) {
 				// "if (1) {}" => ";"
 				return ast.Stmt{Loc: loc, Data: &ast.SEmpty{}}
 			} else {
@@ -5735,7 +5722,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		s.Value = p.visitExpr(s.Value)
 
 		// Trim expressions without side effects
-		if p.MangleSyntax && hasNoSideEffects(s.Value.Data) {
+		if p.MangleSyntax && p.exprCanBeRemovedIfUnused(s.Value) {
 			stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SEmpty{}}
 		}
 
@@ -5829,7 +5816,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 		if p.MangleSyntax {
-			stmt = mangleIf(stmt.Loc, s, ok, boolean)
+			stmt = p.mangleIf(stmt.Loc, s, ok, boolean)
 		}
 
 	case *ast.SFor:
@@ -7163,7 +7150,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 		case ast.UnOpVoid:
-			if hasNoSideEffects(e.Value.Data) {
+			if p.exprCanBeRemovedIfUnused(e.Value) {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EUndefined{}}, exprOut{}
 			}
 
