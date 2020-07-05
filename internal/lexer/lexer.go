@@ -237,6 +237,7 @@ type Lexer struct {
 	end                             int
 	Token                           T
 	HasNewlineBefore                bool
+	HasPureCommentBefore            bool
 	codePoint                       rune
 	StringLiteral                   []uint16
 	Identifier                      string
@@ -855,6 +856,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 
 func (lexer *Lexer) Next() {
 	lexer.HasNewlineBefore = lexer.end == 0
+	lexer.HasPureCommentBefore = false
 
 	for {
 		lexer.start = lexer.end
@@ -1142,6 +1144,9 @@ func (lexer *Lexer) Next() {
 				if lexer.json.parse && !lexer.json.allowComments {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
 				}
+				if isPureComment(lexer.source.Contents[lexer.start:lexer.end]) {
+					lexer.HasPureCommentBefore = true
+				}
 				continue
 
 			case '*':
@@ -1172,6 +1177,9 @@ func (lexer *Lexer) Next() {
 				}
 				if lexer.json.parse && !lexer.json.allowComments {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
+				}
+				if isPureComment(lexer.source.Contents[lexer.start:lexer.end]) {
+					lexer.HasPureCommentBefore = true
 				}
 				continue
 
@@ -2205,6 +2213,24 @@ func (lexer *Lexer) addRangeError(r ast.Range, text string) {
 	if !lexer.IsLogDisabled {
 		lexer.log.AddRangeError(&lexer.source, r, text)
 	}
+}
+
+func isPureComment(text string) bool {
+	// Scan for "@__PURE__" or "#__PURE__"
+	for {
+		index := strings.Index(text, "__PURE__")
+		if index == -1 {
+			break
+		}
+		if index > 0 {
+			c := text[index-1]
+			if c == '@' || c == '#' {
+				return true
+			}
+		}
+		text = text[index+8:]
+	}
+	return false
 }
 
 func StringToUTF16(text string) []uint16 {

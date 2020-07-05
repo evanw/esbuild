@@ -397,6 +397,10 @@ type EThis struct{}
 type ENew struct {
 	Target Expr
 	Args   []Expr
+
+	// True if there is a comment containing "@__PURE__" or "#__PURE__" preceding
+	// this call expression. See the comment inside ECall for more details.
+	HasPureComment bool
 }
 
 type ENewTarget struct{}
@@ -422,6 +426,16 @@ type ECall struct {
 	Args          []Expr
 	OptionalChain OptionalChain
 	IsDirectEval  bool
+
+	// True if there is a comment containing "@__PURE__" or "#__PURE__" preceding
+	// this call expression. This is an annotation used for tree shaking, and
+	// means that the call can be removed if it's unused. It does not mean the
+	// call is pure (e.g. it may still return something different if called twice).
+	//
+	// Note that the arguments are not considered to be part of the call. If the
+	// call itself is removed due to this annotation, the arguments must remain
+	// if they have side effects.
+	HasPureComment bool
 }
 
 type EDot struct {

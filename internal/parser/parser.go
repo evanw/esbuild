@@ -2193,15 +2193,36 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 }
 
 func (p *parser) parseExprOrBindings(level ast.L, errors *deferredErrors) ast.Expr {
-	return p.parseSuffix(p.parsePrefix(level, errors, 0), level, errors, 0)
+	return p.parseExprCommon(level, errors, 0)
 }
 
 func (p *parser) parseExpr(level ast.L) ast.Expr {
-	return p.parseSuffix(p.parsePrefix(level, nil, 0), level, nil, 0)
+	return p.parseExprCommon(level, nil, 0)
 }
 
 func (p *parser) parseExprWithFlags(level ast.L, flags exprFlag) ast.Expr {
-	return p.parseSuffix(p.parsePrefix(level, nil, flags), level, nil, flags)
+	return p.parseExprCommon(level, nil, flags)
+}
+
+func (p *parser) parseExprCommon(level ast.L, errors *deferredErrors, flags exprFlag) ast.Expr {
+	hadPureCommentBefore := p.lexer.HasPureCommentBefore
+	expr := p.parsePrefix(level, errors, flags)
+
+	// There is no formal spec for "__PURE__" comments but from reverse-
+	// engineering, it looks like they apply to the next CallExpression or
+	// NewExpression. So in "/* @__PURE__ */ a().b() + c()" the comment applies
+	// to the expression "a().b()".
+	if hadPureCommentBefore && level < ast.LCall {
+		expr = p.parseSuffix(expr, ast.LCall-1, errors, flags)
+		switch e := expr.Data.(type) {
+		case *ast.ECall:
+			e.HasPureComment = true
+		case *ast.ENew:
+			e.HasPureComment = true
+		}
+	}
+
+	return p.parseSuffix(expr, level, errors, flags)
 }
 
 func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors, flags exprFlag) ast.Expr {
@@ -7376,7 +7397,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 						Name:    "call",
 						NameLoc: target.Loc,
 					}},
-					Args: append([]ast.Expr{targetFunc()}, e.Args...),
+					Args:           append([]ast.Expr{targetFunc()}, e.Args...),
+					HasPureComment: e.HasPureComment,
 				}}), exprOut{}
 			}
 		}
