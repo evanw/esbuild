@@ -8014,6 +8014,30 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 			}
 		}
 		return true
+
+	case *ast.ECall:
+		// A call that has been marked "__PURE__" can be removed if all arguments
+		// can be removed. The annotation causes us to ignore the target.
+		if e.HasPureComment {
+			for _, arg := range e.Args {
+				if !p.exprCanBeRemovedIfUnused(arg) {
+					return false
+				}
+			}
+			return true
+		}
+
+	case *ast.ENew:
+		// A constructor call that has been marked "__PURE__" can be removed if all
+		// arguments can be removed. The annotation causes us to ignore the target.
+		if e.HasPureComment {
+			for _, arg := range e.Args {
+				if !p.exprCanBeRemovedIfUnused(arg) {
+					return false
+				}
+			}
+			return true
+		}
 	}
 
 	// Assume all other expression types have side effects and cannot be removed
