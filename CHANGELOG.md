@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.5.21
 
 * Binaries for FreeBSD ([#217](https://github.com/evanw/esbuild/pull/217))
 
     There are now esbuild binaries for FreeBSD, both for AMD64 and ARM64. This was contributed by [@kikuchan](https://github.com/kikuchan).
+
+* Remove nested `node_modules` directory
+
+    The install script for the `esbuild` npm package invokes `npm` recursively to install the binary for the current platform. However, the left over nested `node_modules` directory could potentially cause problems with tools that scan for nested `node_modules` directories. Now the install script no longer leaves a nested `node_modules` directory around after finishing.
 
 ## 0.5.20
 
