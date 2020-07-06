@@ -638,7 +638,7 @@ func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts p
 		name := p.loadNameFromRef(b.Ref)
 		if !opts.isTypeScriptDeclare {
 			b.Ref = p.declareSymbol(kind, binding.Loc, name)
-			if opts.isExport && p.enclosingNamespaceRef == nil {
+			if opts.isExport {
 				p.recordExport(binding.Loc, name, b.Ref)
 			}
 		}
@@ -654,7 +654,7 @@ func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts p
 		}
 
 	default:
-		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+		panic("Internal error")
 	}
 }
 
@@ -1602,7 +1602,7 @@ func (p *parser) convertBindingToExpr(binding ast.Binding, wrapIdentifier func(a
 		}}
 
 	default:
-		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+		panic("Internal error")
 	}
 }
 
@@ -4974,13 +4974,13 @@ func findIdentifiers(binding ast.Binding, identifiers []ast.Decl) []ast.Decl {
 		identifiers = append(identifiers, ast.Decl{Binding: binding})
 
 	case *ast.BArray:
-		for _, i := range b.Items {
-			identifiers = findIdentifiers(i.Binding, identifiers)
+		for _, item := range b.Items {
+			identifiers = findIdentifiers(item.Binding, identifiers)
 		}
 
 	case *ast.BObject:
-		for _, i := range b.Properties {
-			identifiers = findIdentifiers(i.Value, identifiers)
+		for _, property := range b.Properties {
+			identifiers = findIdentifiers(property.Value, identifiers)
 		}
 	}
 
@@ -5381,10 +5381,10 @@ func (p *parser) visitBinding(binding ast.Binding) {
 		p.recordDeclaredSymbol(b.Ref)
 
 	case *ast.BArray:
-		for _, i := range b.Items {
-			p.visitBinding(i.Binding)
-			if i.DefaultValue != nil {
-				*i.DefaultValue = p.visitExpr(*i.DefaultValue)
+		for _, item := range b.Items {
+			p.visitBinding(item.Binding)
+			if item.DefaultValue != nil {
+				*item.DefaultValue = p.visitExpr(*item.DefaultValue)
 			}
 		}
 
@@ -5401,7 +5401,7 @@ func (p *parser) visitBinding(binding ast.Binding) {
 		}
 
 	default:
-		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+		panic("Internal error")
 	}
 }
 
@@ -6124,7 +6124,7 @@ func (p *parser) markExportedBindingInsideNamespace(nsRef ast.Ref, binding ast.B
 		}
 
 	default:
-		panic(fmt.Sprintf("Unexpected binding of type %T", binding.Data))
+		panic("Internal error")
 	}
 }
 
