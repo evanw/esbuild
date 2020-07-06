@@ -292,7 +292,7 @@ func quoteImpl(text string, forJSON bool) string {
 			i++
 
 		default:
-			r, width := lexer.DecodeUTF8Rune(text[i:])
+			r, width := lexer.DecodeWTF8Rune(text[i:])
 			i += width
 			if r <= 0xFF && !forJSON {
 				b.WriteString("\\x")

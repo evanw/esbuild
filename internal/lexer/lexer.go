@@ -2343,9 +2343,9 @@ func encodeWTF8Rune(p []byte, r rune) int {
 }
 
 // This is a clone of "utf8.DecodeRuneInString" that has been modified to
-// encode using WTF-8 instead. See https://simonsapin.github.io/wtf-8/ for
+// decode using WTF-8 instead. See https://simonsapin.github.io/wtf-8/ for
 // more info.
-func DecodeUTF8Rune(s string) (rune, int) {
+func DecodeWTF8Rune(s string) (rune, int) {
 	n := len(s)
 	if n < 1 {
 		return utf8.RuneError, 0

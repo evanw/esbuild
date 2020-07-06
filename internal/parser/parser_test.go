@@ -6,6 +6,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
 )
@@ -1463,6 +1464,32 @@ func TestUnicodeWhitespace(t *testing.T) {
 	expectPrintedJSX(t, "<x>\n\u0008&quot;\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, '\\b\"');\n")
 	for _, s := range whitespace {
 		expectPrintedJSX(t, "<x>\n"+s+"&quot;\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, '\"');\n")
+	}
+
+	invalidWhitespaceInJS := []string{
+		"\u0085", // next line (nel)
+	}
+
+	// Test "lexer.Next()"
+	for _, s := range invalidWhitespaceInJS {
+		r, _ := lexer.DecodeWTF8Rune(s)
+		expectParseError(t, "var"+s+"x", fmt.Sprintf("<stdin>: error: Expected identifier but found \"\\u%04x\"\n", r))
+	}
+
+	// Test "lexer.NextInsideJSXElement()"
+	for _, s := range invalidWhitespaceInJS {
+		r, _ := lexer.DecodeWTF8Rune(s)
+		expectParseErrorJSX(t, "<x"+s+"y/>", fmt.Sprintf("<stdin>: error: Expected \">\" but found \"\\u%04x\"\n", r))
+	}
+
+	// Test "lexer.NextJSXElementChild()"
+	for _, s := range invalidWhitespaceInJS {
+		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \""+s+"\");\n")
+	}
+
+	// Test "fixWhitespaceAndDecodeJSXEntities()"
+	for _, s := range invalidWhitespaceInJS {
+		expectPrintedJSX(t, "<x>\n"+s+"&quot;\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, '"+s+"\"');\n")
 	}
 }
 
