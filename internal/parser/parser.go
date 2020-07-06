@@ -8017,7 +8017,7 @@ func (p *parser) bindingCanBeRemovedIfUnused(binding ast.Binding) bool {
 
 func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 	switch e := expr.Data.(type) {
-	case *ast.ENull, *ast.EUndefined, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
+	case *ast.ENull, *ast.EUndefined, *ast.EMissing, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
 		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow, *ast.EImportMeta:
 		return true
 
@@ -8086,7 +8086,7 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 // This will return a nil expression if the expression can be totally removed
 func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 	switch e := expr.Data.(type) {
-	case *ast.ENull, *ast.EUndefined, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
+	case *ast.ENull, *ast.EUndefined, *ast.EMissing, *ast.EBoolean, *ast.ENumber, *ast.EBigInt,
 		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow, *ast.EImportMeta:
 		return ast.Expr{}
 
@@ -8099,6 +8099,33 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 		if e.CanBeRemovedIfUnused || p.symbols[e.Ref.InnerIndex].Kind != ast.SymbolUnbound {
 			return ast.Expr{}
 		}
+
+	case *ast.EArray:
+		// Arrays with "..." spread expressions can't be unwrapped because the
+		// "..." triggers code evaluation via iterators. In that case, just trim
+		// the other items instead and leave the array expression there.
+		for _, spread := range e.Items {
+			if _, ok := spread.Data.(*ast.ESpread); ok {
+				end := 0
+				for _, item := range e.Items {
+					item = p.simplifyUnusedExpr(item)
+					if item.Data != nil {
+						e.Items[end] = item
+						end++
+					}
+				}
+				e.Items = e.Items[:end]
+				return expr
+			}
+		}
+
+		// Otherwise, the array can be completely removed. We only need to keep any
+		// array items with side effects. Apply this simplification recursively.
+		var result ast.Expr
+		for _, item := range e.Items {
+			result = maybeJoinWithComma(result, p.simplifyUnusedExpr(item))
+		}
+		return result
 
 	case *ast.EBinary:
 		if e.Op == ast.BinOpComma {
