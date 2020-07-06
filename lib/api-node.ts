@@ -101,6 +101,12 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
     cwd: process.cwd(),
     windowsHide: true,
     input: stdin,
+
+    // We don't know how large the output could be. If it's too large, the
+    // command will fail with ENOBUFS. Reserve 16mb for now since that feels
+    // like it should be enough. Also allow overriding this with an environment
+    // variable.
+    maxBuffer: +process.env.ESBUILD_MAX_BUFFER! || 16 * 1024 * 1024,
   });
   readFromStdout(stdout);
   afterClose();

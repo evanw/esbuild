@@ -8,7 +8,7 @@
 
     ```ts
     namespace ns {
-      export declare let foo: string
+      export declare let foo: number
       foo = 123
     }
     ```
@@ -18,6 +18,10 @@
 * Preserve certain statement-level comments ([#221](https://github.com/evanw/esbuild/issues/221))
 
     Statement-level comments starting with `//!` or `/*!` or containing `@preserve` or `@license` are now preserved in the output. This matches the behavior of other JavaScript tools such as [Terser](https://github.com/terser/terser).
+
+* Higher memory limit for synchronous JavaScript APIs ([#228](https://github.com/evanw/esbuild/issues/228))
+
+    Apparently the synchronous APIs in node's child process module that esbuild relies on will fail with `ENOBUFS` if the output is larger than a certain size. This caused issues with the `write: false` feature from the previous release. The memory limit has been raised to 16mb which should hopefully avoid these crashes. If that limit is still too low, it can be overridden with the `ESBUILD_MAX_BUFFER` environment variable.
 
 ## 0.5.22
 
