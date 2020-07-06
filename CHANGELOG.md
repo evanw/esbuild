@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.22
 
 * JavaScript build API can now avoid writing to the file system ([#139](https://github.com/evanw/esbuild/issues/139) and [#220](https://github.com/evanw/esbuild/issues/220))
 

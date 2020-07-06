@@ -1366,6 +1366,7 @@ func TestMangleUnused(t *testing.T) {
 
 	// Known globals can be removed
 	expectPrintedMangle(t, "Object", "")
+	expectPrintedMangle(t, "Object()", "Object();\n")
 	expectPrintedMangle(t, "NonObject", "NonObject;\n")
 
 	expectPrintedMangle(t, "var bound; unbound", "var bound;\nunbound;\n")
