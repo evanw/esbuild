@@ -497,7 +497,7 @@ func TestTSNamespaceExports(t *testing.T) {
 				class Class {}
 			}
 		}
-`, `var A;
+	`, `var A;
 (function(A) {
   let B;
   (function(B) {
@@ -531,7 +531,7 @@ func TestTSNamespaceExports(t *testing.T) {
 				enum Enum {}
 			}
 		}
-`, `var A;
+	`, `var A;
 (function(A) {
   let B;
   (function(B) {
@@ -569,7 +569,7 @@ func TestTSNamespaceExports(t *testing.T) {
 				foo += foo
 			}
 		}
-`, `var A;
+	`, `var A;
 (function(A) {
   let B;
   (function(B) {
@@ -604,7 +604,7 @@ func TestTSNamespaceExports(t *testing.T) {
 				foo += foo
 			}
 		}
-`, `var A;
+	`, `var A;
 (function(A) {
   let B;
   (function(B) {
@@ -639,7 +639,7 @@ func TestTSNamespaceExports(t *testing.T) {
 				foo += foo
 			}
 		}
-`, `var A;
+	`, `var A;
 (function(A) {
   let B;
   (function(B) {
@@ -659,6 +659,40 @@ func TestTSNamespaceExports(t *testing.T) {
 })(A || (A = {}));
 `)
 
+	expectPrintedTS(t, `
+		namespace ns {
+			export declare const L1
+			console.log(L1)
+
+			export declare let [[L2 = x, { [y]: L3 }]]
+			console.log(L2, L3)
+
+			export declare function F()
+			console.log(F)
+
+			export declare function F2() { }
+			console.log(F2)
+
+			export declare class C { }
+			console.log(C)
+
+			export declare enum E { }
+			console.log(E)
+
+			export declare namespace N { }
+			console.log(N)
+		}
+	`, `var ns;
+(function(ns) {
+  console.log(ns.L1);
+  console.log(ns.L2, ns.L3);
+  console.log(F);
+  console.log(F2);
+  console.log(C);
+  console.log(E);
+  console.log(N);
+})(ns || (ns = {}));
+`)
 }
 
 func TestTSNamespaceDestructuring(t *testing.T) {

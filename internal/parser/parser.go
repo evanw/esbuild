@@ -636,7 +636,7 @@ func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts p
 
 	case *ast.BIdentifier:
 		name := p.loadNameFromRef(b.Ref)
-		if !opts.isTypeScriptDeclare {
+		if !opts.isTypeScriptDeclare || (opts.isNamespaceScope && opts.isExport) {
 			b.Ref = p.declareSymbol(kind, binding.Loc, name)
 			if opts.isExport {
 				p.recordExport(binding.Loc, name, b.Ref)
@@ -4777,10 +4777,47 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						}
 
 						// "declare const x: any"
-						p.parseStmt(opts)
+						stmt := p.parseStmt(opts)
 						if opts.tsDecorators != nil {
 							p.discardScopesUpTo(opts.tsDecorators.scopeIndex)
 						}
+
+						// Unlike almost all uses of "declare", statements that use
+						// "export declare" with "var/let/const" inside a namespace affect
+						// code generation. They cause any declared bindings to be
+						// considered exports of the namespace. Identifier references to
+						// those names must be converted into property accesses off the
+						// namespace object:
+						//
+						//   namespace ns {
+						//     export declare const x
+						//     export function y() { return x }
+						//   }
+						//
+						//   (ns as any).x = 1
+						//   console.log(ns.y())
+						//
+						// In this example, "return x" must be replaced with "return ns.x".
+						// This is handled by replacing each "export declare" statement
+						// inside a namespace with an "export var" statement containing all
+						// of the declared bindings. That "export var" statement will later
+						// cause identifiers to be transformed into property accesses.
+						if opts.isNamespaceScope && opts.isExport {
+							var decls []ast.Decl
+							if s, ok := stmt.Data.(*ast.SLocal); ok {
+								for _, decl := range s.Decls {
+									decls = extractDeclsForBinding(decl.Binding, decls)
+								}
+							}
+							if len(decls) > 0 {
+								return ast.Stmt{Loc: loc, Data: &ast.SLocal{
+									Kind:     ast.LocalVar,
+									IsExport: true,
+									Decls:    decls,
+								}}
+							}
+						}
+
 						return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 					}
 				}
@@ -4796,6 +4833,30 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: expr}}
 	}
+}
+
+func extractDeclsForBinding(binding ast.Binding, decls []ast.Decl) []ast.Decl {
+	switch b := binding.Data.(type) {
+	case *ast.BMissing:
+
+	case *ast.BIdentifier:
+		decls = append(decls, ast.Decl{Binding: binding})
+
+	case *ast.BArray:
+		for _, item := range b.Items {
+			decls = extractDeclsForBinding(item.Binding, decls)
+		}
+
+	case *ast.BObject:
+		for _, property := range b.Properties {
+			decls = extractDeclsForBinding(property.Value, decls)
+		}
+
+	default:
+		panic("Internal error")
+	}
+
+	return decls
 }
 
 func (p *parser) addImportRecord(kind ast.ImportKind, path ast.Path) uint32 {

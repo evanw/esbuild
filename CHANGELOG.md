@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+* Fix `export declare` inside `namespace` in TypeScript ([#227](https://github.com/evanw/esbuild/issues/227))
+
+    The TypeScript parser assumed that ambient declarations (the `declare` keyword) just declared types and did not affect the output. This was an incorrect assumption for exported declarations of local variables inside namespaces. The assignment to `foo` in the example below must be rewritten to an assignment to `ns.foo`:
+
+    ```ts
+    namespace ns {
+      export declare let foo: string
+      foo = 123
+    }
+    ```
+
+    This should now work correctly.
+
 ## 0.5.22
 
 * JavaScript build API can now avoid writing to the file system ([#139](https://github.com/evanw/esbuild/issues/139) and [#220](https://github.com/evanw/esbuild/issues/220))
