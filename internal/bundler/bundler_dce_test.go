@@ -816,24 +816,24 @@ func TestRemoveUnusedPureCommentCalls(t *testing.T) {
 function bar() {
 }
 let bare = foo(bar);
-let at_no = foo(bar());
-let new_at_no = new foo(bar());
-let num_no = foo(bar());
-let new_num_no = new foo(bar());
-let dot_no = foo(sideEffect()).dot(bar());
-let new_dot_no = new foo(sideEffect()).dot(bar());
-let nested_no = [1, foo(bar()), 2];
-let new_nested_no = [1, new foo(bar()), 2];
-let single_at_no = foo(bar());
-let new_single_at_no = new foo(bar());
-let single_num_no = foo(bar());
-let new_single_num_no = new foo(bar());
+let at_no = /* @__PURE__ */ foo(bar());
+let new_at_no = /* @__PURE__ */ new foo(bar());
+let num_no = /* @__PURE__ */ foo(bar());
+let new_num_no = /* @__PURE__ */ new foo(bar());
+let dot_no = /* @__PURE__ */ foo(sideEffect()).dot(bar());
+let new_dot_no = /* @__PURE__ */ new foo(sideEffect()).dot(bar());
+let nested_no = [1, /* @__PURE__ */ foo(bar()), 2];
+let new_nested_no = [1, /* @__PURE__ */ new foo(bar()), 2];
+let single_at_no = /* @__PURE__ */ foo(bar());
+let new_single_at_no = /* @__PURE__ */ new foo(bar());
+let single_num_no = /* @__PURE__ */ foo(bar());
+let new_single_num_no = /* @__PURE__ */ new foo(bar());
 let bad_no = foo(bar);
 let new_bad_no = new foo(bar);
 let parens_no = foo(bar);
 let new_parens_no = new foo(bar);
-let exp_no = foo() ** foo();
-let new_exp_no = new foo() ** foo();
+let exp_no = /* @__PURE__ */ foo() ** foo();
+let new_exp_no = /* @__PURE__ */ new foo() ** foo();
 `,
 		},
 	})

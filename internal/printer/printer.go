@@ -1140,9 +1140,20 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.ENew:
 		wrap := level >= ast.LCall
+
+		hasPureComment := !p.options.RemoveWhitespace && e.CanBeUnwrappedIfUnused
+		if hasPureComment && level >= ast.LPostfix {
+			wrap = true
+		}
+
 		if wrap {
 			p.print("(")
 		}
+
+		if hasPureComment {
+			p.print("/* @__PURE__ */ ")
+		}
+
 		p.printSpaceBeforeIdentifier()
 		p.print("new")
 		p.printSpace()
@@ -1171,8 +1182,18 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		} else if (flags & hasNonOptionalChainParent) != 0 {
 			wrap = true
 		}
+
+		hasPureComment := !p.options.RemoveWhitespace && e.CanBeUnwrappedIfUnused
+		if hasPureComment && level >= ast.LPostfix {
+			wrap = true
+		}
+
 		if wrap {
 			p.print("(")
+		}
+
+		if hasPureComment {
+			p.print("/* @__PURE__ */ ")
 		}
 
 		// We don't ever want to accidentally generate a direct eval expression here
