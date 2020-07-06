@@ -1376,6 +1376,10 @@ func TestMangleUnused(t *testing.T) {
 
 	expectPrintedMangle(t, "new TestCase(1, foo(), bar())", "new TestCase(1, foo(), bar());\n")
 	expectPrintedMangle(t, "/* @__PURE__ */ new TestCase(1, foo(), bar())", "foo(), bar();\n")
+
+	expectPrintedMangle(t, "let x = (1, 2)", "let x = 2;\n")
+	expectPrintedMangle(t, "let x = (y, 2)", "let x = (y, 2);\n")
+	expectPrintedMangle(t, "let x = (/* @__PURE__ */ foo(bar), 2)", "let x = (bar, 2);\n")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {

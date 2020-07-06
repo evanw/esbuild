@@ -6779,6 +6779,16 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		// Post-process the binary expression
 		switch e.Op {
+		case ast.BinOpComma:
+			// "(1, 2)" => "2"
+			// "(sideEffects(), 2)" => "(sideEffects(), 2)"
+			if p.Options.MangleSyntax {
+				e.Left = p.simplifyUnusedExpr(e.Left)
+				if e.Left.Data == nil {
+					return e.Right, exprOut{}
+				}
+			}
+
 		case ast.BinOpLooseEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				data := &ast.EBoolean{Value: result}
