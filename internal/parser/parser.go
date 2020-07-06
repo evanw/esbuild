@@ -3509,6 +3509,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 
 	// "function foo(): any;"
 	if opts.allowMissingBodyForTypeScript && p.lexer.Token != lexer.TOpenBrace {
+		p.lexer.ExpectOrInsertSemicolon()
 		return
 	}
 
@@ -3706,9 +3707,8 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 	})
 
 	// Don't output anything if it's just a forward declaration of a function
-	if !hadBody {
+	if opts.isTypeScriptDeclare || !hadBody {
 		p.popAndDiscardScope(scopeIndex)
-		p.lexer.ExpectOrInsertSemicolon()
 		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 	}
 
@@ -3720,7 +3720,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 	//     function foo(): void;
 	//     function foo(): void {}
 	//
-	if !opts.isTypeScriptDeclare && name != nil {
+	if name != nil {
 		name.Ref = p.declareSymbol(ast.SymbolHoistedFunction, name.Loc, nameText)
 		if opts.isExport {
 			p.recordExport(name.Loc, nameText, name.Ref)
