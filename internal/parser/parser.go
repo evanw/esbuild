@@ -7213,10 +7213,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 						return p.valueForDefine(expr.Loc, in.assignTarget, define.Data.DefineFunc), exprOut{}
 					}
 
-					// Apply the side-effect free flag if relevant
-					if define.CanBeRemovedIfUnused {
-						e.CanBeRemovedIfUnused = true
-					}
+					// All dot defines that don't have user-specified replacements are
+					// known to be side-effect free. Mark them as such if we get here.
+					e.CanBeRemovedIfUnused = true
 					break
 				}
 			}

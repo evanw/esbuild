@@ -112,12 +112,6 @@ func mergeDefineData(old DefineData, new DefineData) DefineData {
 type DotDefine struct {
 	Parts []string
 	Data  DefineData
-
-	// True if the property access is known to not have any side effects. For
-	// example, a bare "Object.create" can be removed because "create" is not a
-	// getter with side effects. We assume that overrides of builtins don't
-	// change behavior.
-	CanBeRemovedIfUnused bool
 }
 
 type ProcessedDefines struct {
@@ -149,10 +143,7 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	// exception if "a.b" is undefined.
 	for _, parts := range knownGlobals {
 		tail := parts[len(parts)-1]
-		result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{
-			Parts:                parts,
-			CanBeRemovedIfUnused: true,
-		})
+		result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts})
 	}
 
 	// Swap in certain literal values because those can be constant folded
