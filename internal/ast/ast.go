@@ -656,6 +656,10 @@ type SEmpty struct{}
 // This is a stand-in for a TypeScript type declaration
 type STypeScript struct{}
 
+type SComment struct {
+	Text string
+}
+
 type SDebugger struct{}
 
 type SDirective struct {
@@ -866,6 +870,7 @@ type SContinue struct {
 }
 
 func (*SBlock) isStmt()         {}
+func (*SComment) isStmt()       {}
 func (*SDebugger) isStmt()      {}
 func (*SDirective) isStmt()     {}
 func (*SEmpty) isStmt()         {}

@@ -229,6 +229,11 @@ type json struct {
 	allowComments bool
 }
 
+type Comment struct {
+	Loc  ast.Loc
+	Text string
+}
+
 type Lexer struct {
 	log                             logging.Log
 	source                          logging.Source
@@ -238,6 +243,7 @@ type Lexer struct {
 	Token                           T
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
+	CommentsToPreserveBefore        []Comment
 	codePoint                       rune
 	StringLiteral                   []uint16
 	Identifier                      string
@@ -857,6 +863,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 func (lexer *Lexer) Next() {
 	lexer.HasNewlineBefore = lexer.end == 0
 	lexer.HasPureCommentBefore = false
+	lexer.CommentsToPreserveBefore = nil
 
 	for {
 		lexer.start = lexer.end
@@ -1144,9 +1151,7 @@ func (lexer *Lexer) Next() {
 				if lexer.json.parse && !lexer.json.allowComments {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
 				}
-				if isPureComment(lexer.source.Contents[lexer.start:lexer.end]) {
-					lexer.HasPureCommentBefore = true
-				}
+				lexer.scanCommentText()
 				continue
 
 			case '*':
@@ -1178,9 +1183,7 @@ func (lexer *Lexer) Next() {
 				if lexer.json.parse && !lexer.json.allowComments {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
 				}
-				if isPureComment(lexer.source.Contents[lexer.start:lexer.end]) {
-					lexer.HasPureCommentBefore = true
-				}
+				lexer.scanCommentText()
 				continue
 
 			default:
@@ -2215,22 +2218,100 @@ func (lexer *Lexer) addRangeError(r ast.Range, text string) {
 	}
 }
 
-func isPureComment(text string) bool {
-	// Scan for "@__PURE__" or "#__PURE__"
-	for {
-		index := strings.Index(text, "__PURE__")
-		if index == -1 {
-			break
-		}
-		if index > 0 {
-			c := text[index-1]
-			if c == '@' || c == '#' {
-				return true
+func (lexer *Lexer) scanCommentText() {
+	text := lexer.source.Contents[lexer.start:lexer.end]
+	hasPreserveAnnotation := len(text) > 2 && text[2] == '!'
+
+	for i, n := 0, len(text); i < n; i++ {
+		switch text[i] {
+		case '#':
+			rest := text[i+1:]
+			if strings.HasPrefix(rest, "__PURE__") {
+				lexer.HasPureCommentBefore = true
+			}
+
+		case '@':
+			rest := text[i+1:]
+			if strings.HasPrefix(rest, "__PURE__") {
+				lexer.HasPureCommentBefore = true
+			} else if strings.HasPrefix(rest, "preserve") || strings.HasPrefix(rest, "license") {
+				hasPreserveAnnotation = true
 			}
 		}
-		text = text[index+8:]
 	}
-	return false
+
+	if hasPreserveAnnotation {
+		if text[1] == '*' {
+			text = removeMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
+		}
+
+		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, Comment{
+			Loc:  ast.Loc{Start: int32(lexer.start)},
+			Text: text,
+		})
+	}
+}
+
+func removeMultiLineCommentIndent(prefix string, text string) string {
+	// Figure out the initial indent
+	indent := 0
+seekBackwardToNewline:
+	for len(prefix) > 0 {
+		c, size := utf8.DecodeLastRuneInString(prefix)
+		switch c {
+		case '\r', '\n', '\u2028', '\u2029':
+			break seekBackwardToNewline
+		}
+		prefix = prefix[:len(prefix)-size]
+		indent++
+	}
+
+	// Split the comment into lines
+	var lines []string
+	start := 0
+	for i, c := range text {
+		switch c {
+		case '\r', '\n':
+			// Don't double-append for Windows style "\r\n" newlines
+			if start <= i {
+				lines = append(lines, text[start:i])
+			}
+
+			start = i + 1
+
+			// Ignore the second part of Windows style "\r\n" newlines
+			if c == '\r' && start < len(text) && text[start] == '\n' {
+				start++
+			}
+
+		case '\u2028', '\u2029':
+			lines = append(lines, text[start:i])
+			start = i + 3
+		}
+	}
+	lines = append(lines, text[start:])
+
+	// Find the minimum indent over all lines after the first line
+	for _, line := range lines[1:] {
+		lineIndent := 0
+		for _, c := range line {
+			if !IsWhitespace(c) {
+				break
+			}
+			lineIndent++
+		}
+		if indent > lineIndent {
+			indent = lineIndent
+		}
+	}
+
+	// Trim the indent off of all lines after the first line
+	for i, line := range lines {
+		if i > 0 {
+			lines[i] = line[indent:]
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func StringToUTF16(text string) []uint16 {

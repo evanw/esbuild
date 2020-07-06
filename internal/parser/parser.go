@@ -4897,7 +4897,22 @@ func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 	returnWithoutSemicolonStart := int32(-1)
 	opts.allowLexicalDecl = true
 
-	for p.lexer.Token != end {
+	for {
+		// Preserve some statement-level comments
+		comments := p.lexer.CommentsToPreserveBefore
+		if len(comments) > 0 {
+			for _, comment := range comments {
+				stmts = append(stmts, ast.Stmt{
+					Loc:  comment.Loc,
+					Data: &ast.SComment{Text: comment.Text},
+				})
+			}
+		}
+
+		if p.lexer.Token == end {
+			break
+		}
+
 		stmt := p.parseStmt(opts)
 
 		// Skip TypeScript types entirely
@@ -5607,7 +5622,7 @@ func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, t
 
 func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt {
 	switch s := stmt.Data.(type) {
-	case *ast.SDebugger, *ast.SEmpty, *ast.SDirective:
+	case *ast.SDebugger, *ast.SEmpty, *ast.SDirective, *ast.SComment:
 		// These don't contain anything to traverse
 
 	case *ast.STypeScript:

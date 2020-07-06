@@ -579,4 +579,8 @@ func TestMinify(t *testing.T) {
 	expectPrintedMinify(t, "exports", "exports;")
 	expectPrintedMinify(t, "require", "require;")
 	expectPrintedMinify(t, "module", "module;")
+
+	// Comment statements must not affect their surroundings when minified
+	expectPrintedMinify(t, "//!single\nthrow 1 + 2", "//!single\nthrow 1+2;")
+	expectPrintedMinify(t, "/*!multi-\nline*/\nthrow 1 + 2", "/*!multi-\nline*/throw 1+2;")
 }

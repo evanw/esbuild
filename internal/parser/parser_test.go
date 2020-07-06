@@ -1439,6 +1439,46 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) { a(); b() } else { var a; var b; }", "if (1)\n  a(), b();\nelse\n  var a, b;\n")
 }
 
+func TestPreservedComments(t *testing.T) {
+	expectPrinted(t, "//", "")
+	expectPrinted(t, "//preserve", "")
+	expectPrinted(t, "//@__PURE__", "")
+	expectPrinted(t, "//!", "//!\n")
+	expectPrinted(t, "//@license", "//@license\n")
+	expectPrinted(t, "//@preserve", "//@preserve\n")
+
+	expectPrinted(t, "/**/", "")
+	expectPrinted(t, "/*preserve*/", "")
+	expectPrinted(t, "/*@__PURE__*/", "")
+	expectPrinted(t, "/*!*/", "/*!*/\n")
+	expectPrinted(t, "/*@license*/", "/*@license*/\n")
+	expectPrinted(t, "/*@preserve*/", "/*@preserve*/\n")
+
+	expectPrinted(t, "foo() //! test", "foo();\n//! test\n")
+	expectPrinted(t, "//! test\nfoo()", "//! test\nfoo();\n")
+	expectPrinted(t, "if (1) //! test\nfoo()", "if (1)\n  foo();\n")
+	expectPrinted(t, "if (1) {//! test\nfoo()}", "if (1) {\n  //! test\n  foo();\n}\n")
+	expectPrinted(t, "if (1) {foo() //! test\n}", "if (1) {\n  foo();\n  //! test\n}\n")
+
+	expectPrinted(t, "    /*!\r     * Re-indent test\r     */", "/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "    /*!\n     * Re-indent test\n     */", "/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "    /*!\r\n     * Re-indent test\r\n     */", "/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "    /*!\u2028     * Re-indent test\u2028     */", "/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "    /*!\u2029     * Re-indent test\u2029     */", "/*!\n * Re-indent test\n */\n")
+
+	expectPrinted(t, "\t\t/*!\r\t\t * Re-indent test\r\t\t */", "/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "\t\t/*!\n\t\t * Re-indent test\n\t\t */", "/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "\t\t/*!\r\n\t\t * Re-indent test\r\n\t\t */", "/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "\t\t/*!\u2028\t\t * Re-indent test\u2028\t\t */", "/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "\t\t/*!\u2029\t\t * Re-indent test\u2029\t\t */", "/*!\n * Re-indent test\n */\n")
+
+	expectPrinted(t, "x\r    /*!\r     * Re-indent test\r     */", "x;\n/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "x\n    /*!\n     * Re-indent test\n     */", "x;\n/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "x\r\n    /*!\r\n     * Re-indent test\r\n     */", "x;\n/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "x\u2028    /*!\u2028     * Re-indent test\u2028     */", "x;\n/*!\n * Re-indent test\n */\n")
+	expectPrinted(t, "x\u2029    /*!\u2029     * Re-indent test\u2029     */", "x;\n/*!\n * Re-indent test\n */\n")
+}
+
 func TestUnicodeWhitespace(t *testing.T) {
 	whitespace := []string{
 		"\u0009", // character tabulation

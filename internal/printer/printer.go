@@ -2106,6 +2106,29 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 	p.addSourceMapping(stmt.Loc)
 
 	switch s := stmt.Data.(type) {
+	case *ast.SComment:
+		text := s.Text
+		if strings.HasPrefix(text, "/*") {
+			// Re-indent multi-line comments
+			for {
+				newline := strings.IndexByte(text, '\n')
+				if newline == -1 {
+					break
+				}
+				p.printIndent()
+				p.print(text[:newline+1])
+				text = text[newline+1:]
+			}
+			p.printIndent()
+			p.print(text)
+			p.printNewline()
+		} else {
+			// Print a mandatory newline after single-line comments
+			p.printIndent()
+			p.print(text)
+			p.print("\n")
+		}
+
 	case *ast.SFunction:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()

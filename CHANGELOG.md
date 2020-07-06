@@ -15,6 +15,10 @@
 
     This should now work correctly.
 
+* Preserve certain statement-level comments ([#221](https://github.com/evanw/esbuild/issues/221))
+
+    Statement-level comments starting with `//!` or `/*!` or containing `@preserve` or `@license` are now preserved in the output. This matches the behavior of other JavaScript tools such as [Terser](https://github.com/terser/terser).
+
 ## 0.5.22
 
 * JavaScript build API can now avoid writing to the file system ([#139](https://github.com/evanw/esbuild/issues/139) and [#220](https://github.com/evanw/esbuild/issues/220))
