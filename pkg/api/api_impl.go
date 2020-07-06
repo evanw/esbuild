@@ -193,7 +193,7 @@ func validateDefines(log logging.Log, defines map[string]string) *config.Process
 		return nil
 	}
 
-	rawDefines := make(map[string]config.DefineFunc)
+	rawDefines := make(map[string]config.DefineData)
 
 	for key, value := range defines {
 		// The key must be a dot-separated identifier list
@@ -208,8 +208,10 @@ func validateDefines(log logging.Log, defines map[string]string) *config.Process
 		if lexer.IsIdentifier(value) {
 			if _, ok := lexer.Keywords()[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
-				rawDefines[key] = func(findSymbol config.FindSymbol) ast.E {
-					return &ast.EIdentifier{Ref: findSymbol(name)}
+				rawDefines[key] = config.DefineData{
+					DefineFunc: func(findSymbol config.FindSymbol) ast.E {
+						return &ast.EIdentifier{Ref: findSymbol(name)}
+					},
 				}
 				continue
 			}
@@ -239,7 +241,7 @@ func validateDefines(log logging.Log, defines map[string]string) *config.Process
 			continue
 		}
 
-		rawDefines[key] = fn
+		rawDefines[key] = config.DefineData{DefineFunc: fn}
 	}
 
 	// Processing defines is expensive. Process them once here so the same object

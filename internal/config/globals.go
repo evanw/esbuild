@@ -101,17 +101,27 @@ var knownGlobals = [][]string{
 type FindSymbol func(name string) ast.Ref
 type DefineFunc func(FindSymbol) ast.E
 
-type DotDefine struct {
-	Parts      []string
+type DefineData struct {
 	DefineFunc DefineFunc
+}
 
-	// This is used to whitelist certain functions that are known to be safe to
-	// remove if their result is unused
+func mergeDefineData(old DefineData, new DefineData) DefineData {
+	return new
+}
+
+type DotDefine struct {
+	Parts []string
+	Data  DefineData
+
+	// True if the property access is known to not have any side effects. For
+	// example, a bare "Object.create" can be removed because "create" is not a
+	// getter with side effects. We assume that overrides of builtins don't
+	// change behavior.
 	CanBeRemovedIfUnused bool
 }
 
 type ProcessedDefines struct {
-	IdentifierDefines map[string]DefineFunc
+	IdentifierDefines map[string]DefineData
 	DotDefines        map[string][]DotDefine
 }
 
@@ -120,7 +130,7 @@ type ProcessedDefines struct {
 // doesn't have an efficient way to copy a map and the overhead of copying
 // all of the properties into a new map once for every new parser noticeably
 // slows down our benchmarks.
-func ProcessDefines(userDefines map[string]DefineFunc) ProcessedDefines {
+func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	// Optimization: reuse known globals if there are no user-specified defines
 	hasUserDefines := userDefines == nil || len(userDefines) == 0
 	if !hasUserDefines && processedGlobals != nil {
@@ -128,7 +138,7 @@ func ProcessDefines(userDefines map[string]DefineFunc) ProcessedDefines {
 	}
 
 	result := ProcessedDefines{
-		IdentifierDefines: make(map[string]DefineFunc),
+		IdentifierDefines: make(map[string]DefineData),
 		DotDefines:        make(map[string][]DotDefine),
 	}
 
@@ -146,23 +156,45 @@ func ProcessDefines(userDefines map[string]DefineFunc) ProcessedDefines {
 	}
 
 	// Swap in certain literal values because those can be constant folded
-	result.IdentifierDefines["undefined"] = func(FindSymbol) ast.E { return &ast.EUndefined{} }
-	result.IdentifierDefines["NaN"] = func(FindSymbol) ast.E { return &ast.ENumber{Value: math.NaN()} }
-	result.IdentifierDefines["Infinity"] = func(FindSymbol) ast.E { return &ast.ENumber{Value: math.Inf(1)} }
+	result.IdentifierDefines["undefined"] = DefineData{
+		DefineFunc: func(FindSymbol) ast.E { return &ast.EUndefined{} },
+	}
+	result.IdentifierDefines["NaN"] = DefineData{
+		DefineFunc: func(FindSymbol) ast.E { return &ast.ENumber{Value: math.NaN()} },
+	}
+	result.IdentifierDefines["Infinity"] = DefineData{
+		DefineFunc: func(FindSymbol) ast.E { return &ast.ENumber{Value: math.Inf(1)} },
+	}
 
 	// Then copy the user-specified defines in afterwards, which will overwrite
 	// any known globals above.
 	for k, v := range userDefines {
 		parts := strings.Split(k, ".")
+
+		// Identifier defines are special-cased
 		if len(parts) == 1 {
-			result.IdentifierDefines[k] = v
-		} else {
-			tail := parts[len(parts)-1]
-			result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{
-				Parts:      parts,
-				DefineFunc: v,
-			})
+			result.IdentifierDefines[k] = mergeDefineData(result.IdentifierDefines[k], v)
+			continue
 		}
+
+		tail := parts[len(parts)-1]
+		dotDefines := result.DotDefines[tail]
+		found := false
+
+		// Try to merge with existing dot defines first
+		for i, define := range dotDefines {
+			if arePartsEqual(parts, define.Parts) {
+				define := &dotDefines[i]
+				define.Data = mergeDefineData(define.Data, v)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			dotDefines = append(dotDefines, DotDefine{Parts: parts, Data: v})
+		}
+		result.DotDefines[tail] = dotDefines
 	}
 
 	// Potentially cache the result for next time
@@ -170,4 +202,16 @@ func ProcessDefines(userDefines map[string]DefineFunc) ProcessedDefines {
 		processedGlobals = &result
 	}
 	return result
+}
+
+func arePartsEqual(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

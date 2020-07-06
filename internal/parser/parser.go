@@ -6667,8 +6667,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound && !result.isInsideWithScope {
-			if defineFunc, ok := p.Defines.IdentifierDefines[name]; ok {
-				new := p.valueForDefine(expr.Loc, in.assignTarget, defineFunc)
+			if data, ok := p.Defines.IdentifierDefines[name]; ok && data.DefineFunc != nil {
+				new := p.valueForDefine(expr.Loc, in.assignTarget, data.DefineFunc)
 
 				// Don't substitute an identifier for a non-identifier if this is an
 				// assignment target, since it'll cause a syntax error
@@ -7208,14 +7208,16 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		if defines, ok := p.Defines.DotDefines[e.Name]; ok {
 			for _, define := range defines {
 				if p.isDotDefineMatch(expr, define.Parts) {
-					if define.CanBeRemovedIfUnused {
-						// This expression matches our whitelist of side-effect-free properties
-						e.CanBeRemovedIfUnused = true
-						break
+					// Substitute user-specified defines
+					if define.Data.DefineFunc != nil {
+						return p.valueForDefine(expr.Loc, in.assignTarget, define.Data.DefineFunc), exprOut{}
 					}
 
-					// Substitute user-specified defines
-					return p.valueForDefine(expr.Loc, in.assignTarget, define.DefineFunc), exprOut{}
+					// Apply the side-effect free flag if relevant
+					if define.CanBeRemovedIfUnused {
+						e.CanBeRemovedIfUnused = true
+					}
+					break
 				}
 			}
 		}
