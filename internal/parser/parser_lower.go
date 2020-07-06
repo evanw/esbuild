@@ -354,8 +354,8 @@ flatten:
 						Name:    "call",
 						NameLoc: loc,
 					}},
-					Args:           append([]ast.Expr{thisArg}, e.Args...),
-					HasPureComment: e.HasPureComment,
+					Args:                   append([]ast.Expr{thisArg}, e.Args...),
+					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 				}}
 				break
 			}
@@ -371,18 +371,18 @@ flatten:
 						Name:    "call",
 						NameLoc: loc,
 					}},
-					Args:           append([]ast.Expr{privateThisFunc()}, e.Args...),
-					HasPureComment: e.HasPureComment,
+					Args:                   append([]ast.Expr{privateThisFunc()}, e.Args...),
+					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 				}})
 				privateThisFunc = nil
 				break
 			}
 
 			result = ast.Expr{Loc: loc, Data: &ast.ECall{
-				Target:         result,
-				Args:           e.Args,
-				IsDirectEval:   e.IsDirectEval,
-				HasPureComment: e.HasPureComment,
+				Target:                 result,
+				Args:                   e.Args,
+				IsDirectEval:           e.IsDirectEval,
+				CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 			}}
 
 		case *ast.EUnary:

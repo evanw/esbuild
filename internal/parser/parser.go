@@ -2203,9 +2203,9 @@ func (p *parser) parseExprCommon(level ast.L, errors *deferredErrors, flags expr
 		expr = p.parseSuffix(expr, ast.LCall-1, errors, flags)
 		switch e := expr.Data.(type) {
 		case *ast.ECall:
-			e.HasPureComment = true
+			e.CanBeUnwrappedIfUnused = true
 		case *ast.ENew:
-			e.HasPureComment = true
+			e.CanBeUnwrappedIfUnused = true
 		}
 	}
 
@@ -7394,8 +7394,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 						Name:    "call",
 						NameLoc: target.Loc,
 					}},
-					Args:           append([]ast.Expr{targetFunc()}, e.Args...),
-					HasPureComment: e.HasPureComment,
+					Args:                   append([]ast.Expr{targetFunc()}, e.Args...),
+					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 				}}), exprOut{}
 			}
 		}
@@ -8014,7 +8014,7 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 	case *ast.ECall:
 		// A call that has been marked "__PURE__" can be removed if all arguments
 		// can be removed. The annotation causes us to ignore the target.
-		if e.HasPureComment {
+		if e.CanBeUnwrappedIfUnused {
 			for _, arg := range e.Args {
 				if !p.exprCanBeRemovedIfUnused(arg) {
 					return false
@@ -8026,7 +8026,7 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 	case *ast.ENew:
 		// A constructor call that has been marked "__PURE__" can be removed if all
 		// arguments can be removed. The annotation causes us to ignore the target.
-		if e.HasPureComment {
+		if e.CanBeUnwrappedIfUnused {
 			for _, arg := range e.Args {
 				if !p.exprCanBeRemovedIfUnused(arg) {
 					return false
@@ -8072,7 +8072,7 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 	case *ast.ECall:
 		// A call that has been marked "__PURE__" can be removed if all arguments
 		// can be removed. The annotation causes us to ignore the target.
-		if e.HasPureComment {
+		if e.CanBeUnwrappedIfUnused {
 			expr = ast.Expr{}
 			for _, arg := range e.Args {
 				expr = maybeJoinWithComma(expr, p.simplifyUnusedExpr(arg))
@@ -8082,7 +8082,7 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 	case *ast.ENew:
 		// A constructor call that has been marked "__PURE__" can be removed if all
 		// arguments can be removed. The annotation causes us to ignore the target.
-		if e.HasPureComment {
+		if e.CanBeUnwrappedIfUnused {
 			expr = ast.Expr{}
 			for _, arg := range e.Args {
 				expr = maybeJoinWithComma(expr, p.simplifyUnusedExpr(arg))

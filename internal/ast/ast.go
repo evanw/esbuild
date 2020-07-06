@@ -400,7 +400,7 @@ type ENew struct {
 
 	// True if there is a comment containing "@__PURE__" or "#__PURE__" preceding
 	// this call expression. See the comment inside ECall for more details.
-	HasPureComment bool
+	CanBeUnwrappedIfUnused bool
 }
 
 type ENewTarget struct{}
@@ -435,7 +435,7 @@ type ECall struct {
 	// Note that the arguments are not considered to be part of the call. If the
 	// call itself is removed due to this annotation, the arguments must remain
 	// if they have side effects.
-	HasPureComment bool
+	CanBeUnwrappedIfUnused bool
 }
 
 type EDot struct {
