@@ -206,7 +206,7 @@ let transformTests = {
 
   async jsx({ service }) {
     const { js } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
-    assert.strictEqual(js, `console.log(React.createElement("div", null));\n`)
+    assert.strictEqual(js, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
   },
 
   async ts({ service }) {
@@ -216,7 +216,7 @@ let transformTests = {
 
   async tsx({ service }) {
     const { js } = await service.transform(`console.log(<Foo<T>/>)`, { loader: 'tsx' })
-    assert.strictEqual(js, `console.log(React.createElement(Foo, null));\n`)
+    assert.strictEqual(js, `console.log(/* @__PURE__ */ React.createElement(Foo, null));\n`)
   },
 
   async minify({ service }) {
@@ -299,6 +299,14 @@ let transformTests = {
   async nullishCoalescingStrictExplicit({ service }) {
     const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: ['nullish-coalescing'] })
     assert.strictEqual(js, `a !== null && a !== void 0 ? a : b;\n`)
+  },
+
+  async pureCallPrint({ service }) {
+    const { js: js1 } = await service.transform(`print(123, foo)`, { minifySyntax: true, pure: [] })
+    assert.strictEqual(js1, `print(123, foo);\n`)
+
+    const { js: js2 } = await service.transform(`print(123, foo)`, { minifySyntax: true, pure: ['print'] })
+    assert.strictEqual(js2, `foo;\n`)
   },
 
   async pureCallConsoleLog({ service }) {

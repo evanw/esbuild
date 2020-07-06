@@ -71,21 +71,21 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
   __assign(__assign(__assign(__assign(__assign(__assign({a, b}, c), d), {e, f}), g), h), {i, j})
 ];
 let jsx = [
-  React.createElement("div", __assign(__assign({}, a), b)),
-  React.createElement("div", __assign({
+  /* @__PURE__ */ React.createElement("div", __assign(__assign({}, a), b)),
+  /* @__PURE__ */ React.createElement("div", __assign({
     a: true,
     b: true
   }, c)),
-  React.createElement("div", __assign(__assign({}, a), {
+  /* @__PURE__ */ React.createElement("div", __assign(__assign({}, a), {
     b: true,
     c: true
   })),
-  React.createElement("div", __assign(__assign({
+  /* @__PURE__ */ React.createElement("div", __assign(__assign({
     a: true
   }, b), {
     c: true
   })),
-  React.createElement("div", __assign(__assign(__assign(__assign(__assign(__assign({
+  /* @__PURE__ */ React.createElement("div", __assign(__assign(__assign(__assign(__assign(__assign({
     a: true,
     b: true
   }, c), d), {

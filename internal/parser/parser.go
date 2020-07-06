@@ -6341,14 +6341,19 @@ func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 	return p.symbols[result.ref.InnerIndex].Kind == ast.SymbolUnbound
 }
 
-func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string, assignTarget ast.AssignTarget) ast.Expr {
+func (p *parser) jsxStringsToMemberExpression(loc ast.Loc, parts []string, assignTarget ast.AssignTarget) ast.Expr {
 	// Generate an identifier for the first part
 	ref := p.findSymbol(parts[0]).ref
 	targetIfLast := ast.AssignTargetNone
 	if len(parts) == 1 {
 		targetIfLast = assignTarget
 	}
-	value := p.handleIdentifier(loc, targetIfLast, &ast.EIdentifier{Ref: ref})
+	value := p.handleIdentifier(loc, targetIfLast, &ast.EIdentifier{
+		Ref: ref,
+
+		// Enable tree shaking
+		CanBeRemovedIfUnused: true,
+	})
 
 	// Build up a chain of property access expressions for subsequent parts
 	for i := 1; i < len(parts); i++ {
@@ -6360,6 +6365,9 @@ func (p *parser) stringsToMemberExpression(loc ast.Loc, parts []string, assignTa
 			Target:  value,
 			Name:    parts[i],
 			NameLoc: loc,
+
+			// Enable tree shaking
+			CanBeRemovedIfUnused: true,
 		})
 	}
 
@@ -6699,7 +6707,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// A missing tag is a fragment
 		tag := e.Tag
 		if tag == nil {
-			value := p.stringsToMemberExpression(expr.Loc, p.JSX.Fragment, in.assignTarget)
+			value := p.jsxStringsToMemberExpression(expr.Loc, p.JSX.Fragment, in.assignTarget)
 			tag = &value
 		} else {
 			*tag = p.visitExpr(*tag)
@@ -6736,8 +6744,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		// Call createElement()
 		return ast.Expr{Loc: expr.Loc, Data: &ast.ECall{
-			Target: p.stringsToMemberExpression(expr.Loc, p.JSX.Factory, in.assignTarget),
+			Target: p.jsxStringsToMemberExpression(expr.Loc, p.JSX.Factory, in.assignTarget),
 			Args:   args,
+
+			// Enable tree shaking
+			CanBeUnwrappedIfUnused: true,
 		}}, exprOut{}
 
 	case *ast.ETemplate:

@@ -838,3 +838,37 @@ let new_exp_no = /* @__PURE__ */ new foo() ** foo();
 		},
 	})
 }
+
+func TestTreeShakingReactElements(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				function Foo() {}
+
+				let a = <div/>
+				let b = <Foo>{a}</Foo>
+				let c = <>{b}</>
+
+				let d = <div/>
+				let e = <Foo>{d}</Foo>
+				let f = <>{e}</>
+				console.log(f)
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.jsx
+function Foo() {
+}
+let d = /* @__PURE__ */ React.createElement("div", null);
+let e = /* @__PURE__ */ React.createElement(Foo, null, d);
+let f = /* @__PURE__ */ React.createElement(React.Fragment, null, e);
+console.log(f);
+`,
+		},
+	})
+}

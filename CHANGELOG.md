@@ -26,6 +26,14 @@
 
     This flag makes calls to the named function behave as if that call was prefixed by `/* @__PURE__ */`. For example, `--pure:console.log` means calls to `console.log()` will behave as if they were calls to `/* @__PURE__ */ console.log()` instead. This means when `--minify` is active, the calls will be removed as long as the return value is unused (any function arguments with side effects will be kept, however).
 
+* Add basic tree shaking of JSX elements
+
+    Automatically-generated calls to the JSX factory function (usually `React.createElement`) are now marked as `/* @__PURE__ */`. This means the construction of a JSX element is now not considered to have side effects. For example, the code below will be completely removed during bundling if the `element` variable is never used:
+
+    ```jsx
+    let element = <div>an unused element</div>
+    ```
+
 ## 0.5.21
 
 * Binaries for FreeBSD ([#217](https://github.com/evanw/esbuild/pull/217))

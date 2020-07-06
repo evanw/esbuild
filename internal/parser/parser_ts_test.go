@@ -167,10 +167,10 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: A.B<X.Y<Z<T>>>=2", "let x = 2;\n")
 
 	expectPrintedTS(t, "let foo: any\n<x>y", "let foo;\ny;\n")
-	expectPrintedTSX(t, "let foo: any\n<x>y</x>", "let foo;\nReact.createElement(\"x\", null, \"y\");\n")
+	expectPrintedTSX(t, "let foo: any\n<x>y</x>", "let foo;\n/* @__PURE__ */ React.createElement(\"x\", null, \"y\");\n")
 
 	expectPrintedTS(t, "type Foo = Array<<T>(x: T) => T>\n x", "x;\n")
-	expectPrintedTSX(t, "<Foo<<T>(x: T) => T>/>", "React.createElement(Foo, null);\n")
+	expectPrintedTSX(t, "<Foo<<T>(x: T) => T>/>", "/* @__PURE__ */ React.createElement(Foo, null);\n")
 }
 
 func TestTSClass(t *testing.T) {
@@ -1174,15 +1174,15 @@ func TestTSOptionalChain(t *testing.T) {
 
 func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <number>1", "const x = 1;\n")
-	expectPrintedTSX(t, "const x = <number>1</number>", "const x = React.createElement(\"number\", null, \"1\");\n")
+	expectPrintedTSX(t, "const x = <number>1</number>", "const x = /* @__PURE__ */ React.createElement(\"number\", null, \"1\");\n")
 	expectParseErrorTSX(t, "const x = <number>1", "<stdin>: error: Unexpected end of file\n")
 
-	expectPrintedTSX(t, "<x>a{}c</x>", "React.createElement(\"x\", null, \"a\", \"c\");\n")
-	expectPrintedTSX(t, "<x>a{b}c</x>", "React.createElement(\"x\", null, \"a\", b, \"c\");\n")
-	expectPrintedTSX(t, "<x>a{...b}c</x>", "React.createElement(\"x\", null, \"a\", b, \"c\");\n")
+	expectPrintedTSX(t, "<x>a{}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", \"c\");\n")
+	expectPrintedTSX(t, "<x>a{b}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", b, \"c\");\n")
+	expectPrintedTSX(t, "<x>a{...b}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", b, \"c\");\n")
 
-	expectPrintedTSX(t, "const x = <Foo<T>></Foo>", "const x = React.createElement(Foo, null);\n")
-	expectPrintedTSX(t, "const x = <Foo<T> data-foo></Foo>", "const x = React.createElement(Foo, {\n  \"data-foo\": true\n});\n")
+	expectPrintedTSX(t, "const x = <Foo<T>></Foo>", "const x = /* @__PURE__ */ React.createElement(Foo, null);\n")
+	expectPrintedTSX(t, "const x = <Foo<T> data-foo></Foo>", "const x = /* @__PURE__ */ React.createElement(Foo, {\n  \"data-foo\": true\n});\n")
 	expectParseErrorTSX(t, "const x = <Foo<T>=>", "<stdin>: error: Expected \">\" but found \"=\"\n")
 
 	expectPrintedTS(t, "const x = <T>() => {}", "const x = () => {\n};\n")
@@ -1220,9 +1220,9 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <[]>(y, z)", "const x = (y, z);\n")
 	expectPrintedTS(t, "const x = <[]>(y, z) => {}", "const x = (y, z) => {\n};\n")
 
-	expectPrintedTSX(t, "(<T>(y) => {}</T>)", "React.createElement(T, null, \"(y) => \");\n")
-	expectPrintedTSX(t, "(<T extends>(y) => {}</T>)", "React.createElement(T, {\n  extends: true\n}, \"(y) => \");\n")
-	expectPrintedTSX(t, "(<T extends={false}>(y) => {}</T>)", "React.createElement(T, {\n  extends: false\n}, \"(y) => \");\n")
+	expectPrintedTSX(t, "(<T>(y) => {}</T>)", "/* @__PURE__ */ React.createElement(T, null, \"(y) => \");\n")
+	expectPrintedTSX(t, "(<T extends>(y) => {}</T>)", "/* @__PURE__ */ React.createElement(T, {\n  extends: true\n}, \"(y) => \");\n")
+	expectPrintedTSX(t, "(<T extends={false}>(y) => {}</T>)", "/* @__PURE__ */ React.createElement(T, {\n  extends: false\n}, \"(y) => \");\n")
 	expectPrintedTSX(t, "(<T extends X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T extends X = Y>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T, X>(y) => {})", "(y) => {\n};\n")

@@ -919,7 +919,7 @@ var require_custom_react = __commonJS((exports, module) => {
 
 // /entry.jsx
 const custom_react = __toModule(require_custom_react());
-console.log(custom_react.elem("div", null), custom_react.elem(custom_react.frag, null, "fragment"));
+console.log(/* @__PURE__ */ custom_react.elem("div", null), /* @__PURE__ */ custom_react.elem(custom_react.frag, null, "fragment"));
 `,
 		},
 	})
@@ -954,7 +954,7 @@ function frag() {
 }
 
 // /entry.jsx
-console.log(elem("div", null), elem(frag, null, "fragment"));
+console.log(/* @__PURE__ */ elem("div", null), /* @__PURE__ */ elem(frag, null, "fragment"));
 `,
 		},
 	})
@@ -994,7 +994,7 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /entry.js
-console.log(React.createElement("div", null));
+console.log(/* @__PURE__ */ React.createElement("div", null));
 `,
 		},
 	})
@@ -1538,7 +1538,7 @@ func TestTsConfigJSX(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/entry.tsx
-console.log(R.c(R.F, null, R.c("div", null), R.c("div", null)));
+console.log(/* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null)));
 `,
 		},
 	})
@@ -1592,13 +1592,13 @@ func TestTsConfigNestedJSX(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/factory/index.tsx
-const factory_default = h(React.Fragment, null, h("div", null), h("div", null));
+const factory_default = /* @__PURE__ */ h(React.Fragment, null, /* @__PURE__ */ h("div", null), /* @__PURE__ */ h("div", null));
 
 // /Users/user/project/fragment/index.tsx
-const fragment_default = React.createElement(a.b, null, React.createElement("div", null), React.createElement("div", null));
+const fragment_default = /* @__PURE__ */ React.createElement(a.b, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null));
 
 // /Users/user/project/both/index.tsx
-const both_default = R.c(R.F, null, R.c("div", null), R.c("div", null));
+const both_default = /* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null));
 
 // /Users/user/project/entry.ts
 console.log(factory_default, fragment_default, both_default);
@@ -4460,11 +4460,11 @@ import {h, render} from "preact";
 const p = "p";
 
 // /in2.jsx
-const Internal = () => h(p, null, " Test 2 ");
+const Internal = () => /* @__PURE__ */ h(p, null, " Test 2 ");
 
 // /app.jsx
-const App = () => h(p, null, " ", h(Internal, null), " T ");
-render(h(App, null), document.getElementById("app"));
+const App = () => /* @__PURE__ */ h(p, null, " ", /* @__PURE__ */ h(Internal, null), " T ");
+render(/* @__PURE__ */ h(App, null), document.getElementById("app"));
 `,
 		},
 	})
