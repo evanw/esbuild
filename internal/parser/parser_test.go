@@ -1369,11 +1369,16 @@ func TestMangleUnused(t *testing.T) {
 
 	expectPrintedMangle(t, "var bound; unbound", "var bound;\nunbound;\n")
 	expectPrintedMangle(t, "var bound; bound", "var bound;\n")
-
 	expectPrintedMangle(t, "foo, 123, bar", "foo, bar;\n")
+
 	expectPrintedMangle(t, "[[foo,, 123,, bar]]", "foo, bar;\n")
 	expectPrintedMangle(t, "var bound; [123, unbound, ...unbound, 234]", "var bound;\n[unbound, ...unbound];\n")
 	expectPrintedMangle(t, "var bound; [123, bound, ...bound, 234]", "var bound;\n[...bound];\n")
+
+	expectPrintedMangle(t, "({foo, x: 123, [y]: 123, z: z, bar})", "foo, y + \"\", z, bar;\n")
+	expectPrintedMangle(t, "var bound; ({x: 123, unbound, ...unbound, [unbound]: null, y: 234})", "var bound;\n({unbound, ...unbound, [unbound]: 0});\n")
+	expectPrintedMangle(t, "var bound; ({x: 123, bound, ...bound, [bound]: null, y: 234})", "var bound;\n({...bound, [bound]: 0});\n")
+	expectPrintedMangle(t, "var bound; ({x: 123, bound, ...bound, [bound]: foo(), y: 234})", "var bound;\n({...bound, [bound]: foo()});\n")
 
 	expectPrintedMangle(t, "console.log(1, foo(), bar())", "console.log(1, foo(), bar());\n")
 	expectPrintedMangle(t, "/* @__PURE__ */ console.log(1, foo(), bar())", "foo(), bar();\n")

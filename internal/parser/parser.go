@@ -8045,7 +8045,8 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 
 	case *ast.EObject:
 		for _, property := range e.Properties {
-			if property.Kind != ast.PropertySpread && !p.exprCanBeRemovedIfUnused(property.Key) {
+			// The key must still be evaluated if it's computed or a spread
+			if property.Kind == ast.PropertySpread || property.IsComputed {
 				return false
 			}
 			if property.Value != nil && !p.exprCanBeRemovedIfUnused(*property.Value) {
@@ -8124,6 +8125,52 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 		var result ast.Expr
 		for _, item := range e.Items {
 			result = maybeJoinWithComma(result, p.simplifyUnusedExpr(item))
+		}
+		return result
+
+	case *ast.EObject:
+		// Objects with "..." spread expressions can't be unwrapped because the
+		// "..." triggers code evaluation via getters. In that case, just trim
+		// the other items instead and leave the object expression there.
+		for _, spread := range e.Properties {
+			if spread.Kind == ast.PropertySpread {
+				end := 0
+				for _, property := range e.Properties {
+					// Spread properties must always be evaluated
+					if property.Kind != ast.PropertySpread {
+						value := p.simplifyUnusedExpr(*property.Value)
+						if value.Data != nil {
+							// Keep the value
+							*property.Value = value
+						} else if !property.IsComputed {
+							// Skip this property if the key doesn't need to be computed
+							continue
+						} else {
+							// Replace values without side effects with "0" because it's short
+							property.Value.Data = &ast.ENumber{}
+						}
+					}
+					e.Properties[end] = property
+					end++
+				}
+				e.Properties = e.Properties[:end]
+				return expr
+			}
+		}
+
+		// Otherwise, the object can be completely removed. We only need to keep any
+		// object properties with side effects. Apply this simplification recursively.
+		var result ast.Expr
+		for _, property := range e.Properties {
+			if property.IsComputed {
+				// Make sure "ToString" is still evaluated on the key
+				result = maybeJoinWithComma(result, ast.Expr{Loc: property.Key.Loc, Data: &ast.EBinary{
+					Op:    ast.BinOpAdd,
+					Left:  property.Key,
+					Right: ast.Expr{Loc: property.Key.Loc, Data: &ast.EString{}},
+				}})
+			}
+			result = maybeJoinWithComma(result, p.simplifyUnusedExpr(*property.Value))
 		}
 		return result
 
