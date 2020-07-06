@@ -1405,6 +1405,12 @@ func TestMangleUnused(t *testing.T) {
 
 	expectPrintedMangle(t, "tag`a${b}c${d}e`", "tag`a${b}c${d}e`;\n")
 	expectPrintedMangle(t, "`a${b}c${d}e`", "\"\" + b + d;\n")
+
+	expectPrintedMangle(t, "'a' + b + 'c' + d", "\"\" + b + d;\n")
+	expectPrintedMangle(t, "a + 'b' + c + 'd'", "a + \"\" + c;\n")
+	expectPrintedMangle(t, "a + b + 'c' + 'd'", "a + b + \"\";\n")
+	expectPrintedMangle(t, "'a' + 'b' + c + d", "\"\" + c + d;\n")
+	expectPrintedMangle(t, "(a + '') + (b + '')", "a + \"\" + (b + \"\");\n")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {

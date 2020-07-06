@@ -8235,6 +8235,11 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 			if e.Right.Data == nil {
 				return p.simplifyUnusedExpr(e.Left)
 			}
+
+		case ast.BinOpAdd:
+			if result, isStringAddition := simplifyUnusedStringAdditionChain(expr); isStringAddition {
+				return result
+			}
 		}
 
 	case *ast.ECall:
@@ -8259,6 +8264,37 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 	}
 
 	return expr
+}
+
+func simplifyUnusedStringAdditionChain(expr ast.Expr) (ast.Expr, bool) {
+	switch e := expr.Data.(type) {
+	case *ast.EString:
+		// "'x' + y" => "'' + y"
+		return ast.Expr{Loc: expr.Loc, Data: &ast.EString{}}, true
+
+	case *ast.EBinary:
+		if e.Op == ast.BinOpAdd {
+			left, leftIsStringAddition := simplifyUnusedStringAdditionChain(e.Left)
+			e.Left = left
+
+			if _, rightIsString := e.Right.Data.(*ast.EString); rightIsString {
+				// "('' + x) + 'y'" => "'' + x"
+				if leftIsStringAddition {
+					return left, true
+				}
+
+				// "x + 'y'" => "x + ''"
+				if !leftIsStringAddition {
+					e.Right.Data = &ast.EString{}
+					return expr, true
+				}
+			}
+
+			return expr, leftIsStringAddition
+		}
+	}
+
+	return expr, false
 }
 
 var targetTable = map[config.LanguageTarget]string{
