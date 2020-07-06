@@ -8101,6 +8101,23 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 			return ast.Expr{}
 		}
 
+	case *ast.ETemplate:
+		if e.Tag == nil {
+			var result ast.Expr
+			for _, part := range e.Parts {
+				// Make sure "ToString" is still evaluated on the value
+				if result.Data == nil {
+					result = ast.Expr{Loc: part.Value.Loc, Data: &ast.EString{}}
+				}
+				result = ast.Expr{Loc: part.Value.Loc, Data: &ast.EBinary{
+					Op:    ast.BinOpAdd,
+					Left:  result,
+					Right: part.Value,
+				}}
+			}
+			return result
+		}
+
 	case *ast.EArray:
 		// Arrays with "..." spread expressions can't be unwrapped because the
 		// "..." triggers code evaluation via iterators. In that case, just trim

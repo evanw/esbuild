@@ -1338,10 +1338,10 @@ func TestMangleArrow(t *testing.T) {
 }
 
 func TestMangleTemplate(t *testing.T) {
-	expectPrintedMangle(t, "`a${x}b${y}c`", "`a${x}b${y}c`;\n")
-	expectPrintedMangle(t, "`a${x}b${'y'}c`", "`a${x}byc`;\n")
-	expectPrintedMangle(t, "`a${'x'}b${y}c`", "`axb${y}c`;\n")
-	expectPrintedMangle(t, "`a${'x'}b${'y'}c`", "`axbyc`;\n")
+	expectPrintedMangle(t, "_ = `a${x}b${y}c`", "_ = `a${x}b${y}c`;\n")
+	expectPrintedMangle(t, "_ = `a${x}b${'y'}c`", "_ = `a${x}byc`;\n")
+	expectPrintedMangle(t, "_ = `a${'x'}b${y}c`", "_ = `axb${y}c`;\n")
+	expectPrintedMangle(t, "_ = `a${'x'}b${'y'}c`", "_ = `axbyc`;\n")
 
 	expectPrintedMangle(t, "tag`a${x}b${y}c`", "tag`a${x}b${y}c`;\n")
 	expectPrintedMangle(t, "tag`a${x}b${'y'}c`", "tag`a${x}b${\"y\"}c`;\n")
@@ -1402,6 +1402,9 @@ func TestMangleUnused(t *testing.T) {
 		expectPrintedMangle(t, "var bar; foo "+op+" bar", "var bar;\nfoo;\n")
 		expectPrintedMangle(t, "var foo, bar; foo "+op+" bar", "var foo, bar;\n")
 	}
+
+	expectPrintedMangle(t, "tag`a${b}c${d}e`", "tag`a${b}c${d}e`;\n")
+	expectPrintedMangle(t, "`a${b}c${d}e`", "\"\" + b + d;\n")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
