@@ -699,6 +699,12 @@ type SExportEquals struct {
 	Value Expr
 }
 
+// The decision of whether to export an expression using "module.exports" or
+// "export default" is deferred until linking using this statement kind
+type SLazyExport struct {
+	Value Expr
+}
+
 type SExpr struct {
 	Value Expr
 }
@@ -880,6 +886,7 @@ func (*SExportFrom) isStmt()    {}
 func (*SExportDefault) isStmt() {}
 func (*SExportStar) isStmt()    {}
 func (*SExportEquals) isStmt()  {}
+func (*SLazyExport) isStmt()    {}
 func (*SExpr) isStmt()          {}
 func (*SEnum) isStmt()          {}
 func (*SNamespace) isStmt()     {}
@@ -1188,6 +1195,7 @@ type ImportRecord struct {
 
 type AST struct {
 	WasTypeScript bool
+	HasLazyExport bool
 
 	// This is a list of CommonJS features. When a file uses CommonJS features,
 	// it's not a candidate for "flat bundling" and must be wrapped in its own

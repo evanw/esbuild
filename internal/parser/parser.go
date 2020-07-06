@@ -8607,7 +8607,7 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 	return
 }
 
-func ModuleExportsAST(log logging.Log, source logging.Source, options config.Options, expr ast.Expr) ast.AST {
+func LazyExportAST(log logging.Log, source logging.Source, options config.Options, expr ast.Expr) ast.AST {
 	// Don't create a new lexer using lexer.NewLexer() here since that will
 	// actually attempt to parse the first token, which might cause a syntax
 	// error.
@@ -8618,20 +8618,12 @@ func ModuleExportsAST(log logging.Log, source logging.Source, options config.Opt
 	symbols := ast.SymbolMap{Outer: make([][]ast.Symbol, source.Index+1)}
 	symbols.Outer[source.Index] = p.symbols
 
-	// "module.exports = [expr]"
-	stmt := ast.AssignStmt(
-		ast.Expr{Loc: expr.Loc, Data: &ast.EDot{
-			Target:  ast.Expr{Loc: expr.Loc, Data: &ast.EIdentifier{Ref: p.moduleRef}},
-			Name:    "exports",
-			NameLoc: expr.Loc,
-		}},
-		expr,
-	)
+	// Defer the actual code generation until linking
+	stmt := ast.Stmt{Loc: expr.Loc, Data: &ast.SLazyExport{Value: expr}}
 
-	// Mark that we used the "module" variable
-	p.symbols[p.moduleRef.InnerIndex].UseCountEstimate++
-
-	return p.toAST(source, []ast.Part{{Stmts: []ast.Stmt{stmt}}}, "", "")
+	ast := p.toAST(source, []ast.Part{{Stmts: []ast.Stmt{stmt}}}, "", "")
+	ast.HasLazyExport = true
+	return ast
 }
 
 func (p *parser) prepareForVisitPass(options *config.Options) {

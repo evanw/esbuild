@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+* Smaller code for loaders that generate expressions
+
+    Loaders that generate expressions (`json`, `text`, `base64`, `file`, and `dataurl`) export them using an assignment to `module.exports`. However, that forces the creation of a CommonJS module which adds unnecessary extra code. Now if the file for that loader is only imported using ES6 import statements instead of `require()`, the expression is exported using an `export default` statement instead. This generates smaller code.
+
+    Example input file:
+
+    ```js
+    import txt from './example.txt'
+    console.log(txt)
+    ```
+
+    Old bundling behavior:
+
+    ```js
+    // ...code for __commonJS() and __toModule() omitted...
+
+    // example.txt
+    var require_example = __commonJS((exports, module) => {
+      module.exports = "This is a text file.";
+    });
+
+    // example.ts
+    const example = __toModule(require_example());
+    console.log(example.default);
+    ```
+
+    New bundling behavior:
+
+    ```js
+    // example.txt
+    const example_default = "This is a text file.";
+
+    // example.ts
+    console.log(example_default);
+    ```
+
+    The bundler still falls back to the old `module.exports` behavior if the file is imported using `require()` instead of an ES6 import statement.
+
 ## 0.5.23
 
 * Fix `export declare` inside `namespace` in TypeScript ([#227](https://github.com/evanw/esbuild/issues/227))

@@ -5,17 +5,20 @@ esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
 
 # These tests are for development
 test:
-	make -j4 test-go verify-source-map end-to-end-tests js-api-tests
+	make -j5 test-go vet-go verify-source-map end-to-end-tests js-api-tests
 
 # These tests are for release ("test-wasm" is not included in "test" because it's pretty slow)
 test-all:
-	make -j5 test-go verify-source-map end-to-end-tests js-api-tests test-wasm
+	make -j6 test-go vet-go verify-source-map end-to-end-tests js-api-tests test-wasm
 
 # This includes tests of some 3rd-party libraries, which can be very slow
 test-extra: test-all test-sucrase test-esprima test-rollup
 
 test-go:
 	go test ./internal/...
+
+vet-go:
+	go vet ./cmd/... ./internal/... ./pkg/...
 
 test-wasm:
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...

@@ -151,18 +151,18 @@ func parseFile(args parseArgs) {
 	case config.LoaderJSON:
 		var expr ast.Expr
 		expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderText:
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(source.Contents)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderDataURL:
@@ -173,7 +173,7 @@ func parseFile(args parseArgs) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(url)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderFile:
@@ -187,7 +187,7 @@ func parseFile(args parseArgs) {
 
 		// Export the resulting relative path as a string
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(baseName)}}
-		result.file.ast = parser.ModuleExportsAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
 		result.file.ignoreIfUnused = true
 
 		// Optionally add metadata about the file

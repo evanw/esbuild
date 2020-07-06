@@ -318,7 +318,7 @@ func newLinkerContext(options *config.Options, log logging.Log, fs fs.FS, source
 		// Also associate some default metadata with the file
 		c.fileMeta[sourceIndex] = fileMeta{
 			distanceFromEntryPoint:   ^uint32(0),
-			cjsStyleExports:          file.ast.HasCommonJSFeatures(),
+			cjsStyleExports:          file.ast.HasCommonJSFeatures() || (file.ast.HasLazyExport && !c.options.IsBundling),
 			partMeta:                 make([]partMeta, len(file.ast.Parts)),
 			resolvedExports:          resolvedExports,
 			isProbablyTypeScriptType: make(map[ast.Ref]bool),
@@ -752,7 +752,8 @@ func (c *linkerContext) scanImportsAndExports() {
 					//
 					if !record.DoesNotUseExports && record.SourceIndex != nil {
 						otherSourceIndex := *record.SourceIndex
-						if !c.files[otherSourceIndex].ast.HasES6Syntax() {
+						otherFile := &c.files[otherSourceIndex]
+						if !otherFile.ast.HasES6Syntax() && !otherFile.ast.HasLazyExport {
 							c.fileMeta[otherSourceIndex].cjsStyleExports = true
 						}
 					}
@@ -802,6 +803,13 @@ func (c *linkerContext) scanImportsAndExports() {
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
+
+		// Expression-style loaders defer code generation until linking. Code
+		// generation is done here because at this point we know that the
+		// "cjsStyleExports" flag has its final value and will not be changed.
+		if file.ast.HasLazyExport {
+			c.generateCodeForLazyExport(sourceIndex, file, fileMeta)
+		}
 
 		// Even if the output file is CommonJS-like, we may still need to wrap
 		// CommonJS-style files. Any file that imports a CommonJS-style file will
@@ -943,6 +951,84 @@ func (c *linkerContext) scanImportsAndExports() {
 			ast.MergeSymbols(c.symbols, importRef, importToBind.ref)
 		}
 	}
+}
+
+func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file, fileMeta *fileMeta) {
+	// Grab the lazy expression
+	if len(file.ast.Parts) != 1 {
+		return
+	}
+	part := &file.ast.Parts[0]
+	if len(part.Stmts) != 1 {
+		return
+	}
+	lazy, ok := part.Stmts[0].Data.(*ast.SLazyExport)
+	if !ok {
+		return
+	}
+
+	// Use "module.exports = value" for CommonJS-style modules
+	if fileMeta.cjsStyleExports {
+		part.Stmts[0] = ast.AssignStmt(
+			ast.Expr{Loc: lazy.Value.Loc, Data: &ast.EDot{
+				Target:  ast.Expr{Loc: lazy.Value.Loc, Data: &ast.EIdentifier{Ref: file.ast.ModuleRef}},
+				Name:    "exports",
+				NameLoc: lazy.Value.Loc,
+			}},
+			lazy.Value,
+		)
+		part.SymbolUses[file.ast.ModuleRef] = ast.SymbolUse{CountEstimate: 1}
+		file.ast.UsesModuleRef = true
+		return
+	}
+
+	// Otherwise, generate ES6 export statements. These are added as additional
+	// parts so they can be tree shaken individually.
+	part.Stmts = nil
+
+	generateExport := func(name string, alias string, value ast.Expr) {
+		// Generate a new symbol
+		inner := &c.symbols.Outer[sourceIndex]
+		ref := ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
+		*inner = append(*inner, ast.Symbol{Kind: ast.SymbolOther, Name: name, Link: ast.InvalidRef})
+		// p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
+
+		// Generate an ES6 export
+		var stmt ast.Stmt
+		if alias == "default" {
+			stmt = ast.Stmt{Loc: value.Loc, Data: &ast.SExportDefault{
+				DefaultName: ast.LocRef{Loc: value.Loc, Ref: ref},
+				Value:       ast.ExprOrStmt{Expr: &value},
+			}}
+		} else {
+			stmt = ast.Stmt{Loc: value.Loc, Data: &ast.SLocal{
+				IsExport: true,
+				Decls: []ast.Decl{{
+					Binding: ast.Binding{Loc: value.Loc, Data: &ast.BIdentifier{Ref: ref}},
+					Value:   &value,
+				}},
+			}}
+		}
+
+		// Link the export into the graph for tree shaking
+		partIndex := uint32(len(file.ast.Parts))
+		file.ast.Parts = append(file.ast.Parts, ast.Part{
+			Stmts:             []ast.Stmt{stmt},
+			LocalDependencies: make(map[uint32]bool),
+			SymbolUses:        map[ast.Ref]ast.SymbolUse{file.ast.ModuleRef: ast.SymbolUse{CountEstimate: 1}},
+			DeclaredSymbols:   []ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
+		})
+		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
+			entryBits: newBitSet(uint(len(c.entryPoints))),
+		})
+		file.ast.TopLevelSymbolToParts[ref] = []uint32{partIndex}
+		file.ast.NamedExports[alias] = ref
+		fileMeta.resolvedExports[alias] = exportData{ref: ref, sourceIndex: sourceIndex}
+	}
+
+	// Generate the default export
+	defaultName := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath) + "_default"
+	generateExport(defaultName, "default", lazy.Value)
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {

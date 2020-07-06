@@ -262,3 +262,182 @@ console.log(require_test());
 		},
 	})
 }
+
+func TestLoaderJSONCommonJSAndES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const x_json = require('./x.json')
+				import y_json from './y.json'
+				console.log(x_json, y_json)
+			`,
+			"/x.json": "{\"x\": true}",
+			"/y.json": "{\"y\": true}",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /x.json
+var require_x = __commonJS((exports, module) => {
+  module.exports = {x: true};
+});
+
+// /y.json
+const y_default = {y: true};
+
+// /entry.js
+const x_json = require_x();
+console.log(x_json, y_default);
+`,
+		},
+	})
+}
+
+func TestLoaderTextCommonJSAndES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const x_txt = require('./x.txt')
+				import y_txt from './y.txt'
+				console.log(x_txt, y_txt)
+			`,
+			"/x.txt": "x",
+			"/y.txt": "y",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /x.txt
+var require_x = __commonJS((exports, module) => {
+  module.exports = "x";
+});
+
+// /y.txt
+const y_default = "y";
+
+// /entry.js
+const x_txt = require_x();
+console.log(x_txt, y_default);
+`,
+		},
+	})
+}
+
+func TestLoaderBase64CommonJSAndES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const x_b64 = require('./x.b64')
+				import y_b64 from './y.b64'
+				console.log(x_b64, y_b64)
+			`,
+			"/x.b64": "x",
+			"/y.b64": "y",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".b64": config.LoaderBase64,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /x.b64
+var require_x = __commonJS((exports, module) => {
+  module.exports = "eA==";
+});
+
+// /y.b64
+const y_default = "eQ==";
+
+// /entry.js
+const x_b64 = require_x();
+console.log(x_b64, y_default);
+`,
+		},
+	})
+}
+
+func TestLoaderDataURLCommonJSAndES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const x_url = require('./x.txt')
+				import y_url from './y.txt'
+				console.log(x_url, y_url)
+			`,
+			"/x.txt": "x",
+			"/y.txt": "y",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".txt": config.LoaderDataURL,
+			},
+		},
+		expected: map[string]string{
+			"/out.js": `// /x.txt
+var require_x = __commonJS((exports, module) => {
+  module.exports = "data:text/plain; charset=utf-8;base64,eA==";
+});
+
+// /y.txt
+const y_default = "data:text/plain; charset=utf-8;base64,eQ==";
+
+// /entry.js
+const x_url = require_x();
+console.log(x_url, y_default);
+`,
+		},
+	})
+}
+
+func TestLoaderFileCommonJSAndES6(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const x_url = require('./x.txt')
+				import y_url from './y.txt'
+				console.log(x_url, y_url)
+			`,
+			"/x.txt": "x",
+			"/y.txt": "y",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".txt": config.LoaderFile,
+			},
+		},
+		expected: map[string]string{
+			"/x.ZzUefEyG.txt": `x`,
+			"/y.KRCjcBKx.txt": `y`,
+			"/out.js": `// /x.txt
+var require_x = __commonJS((exports, module) => {
+  module.exports = "x.ZzUefEyG.txt";
+});
+
+// /y.txt
+const y_default = "y.KRCjcBKx.txt";
+
+// /entry.js
+const x_url = require_x();
+console.log(x_url, y_default);
+`,
+		},
+	})
+}
