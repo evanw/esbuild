@@ -188,8 +188,8 @@ func validateJSX(log logging.Log, text string, name string) []string {
 	return parts
 }
 
-func validateDefines(log logging.Log, defines map[string]string) *config.ProcessedDefines {
-	if len(defines) == 0 {
+func validateDefines(log logging.Log, defines map[string]string, pureFns []string) *config.ProcessedDefines {
+	if len(defines) == 0 && len(pureFns) == 0 {
 		return nil
 	}
 
@@ -242,6 +242,21 @@ func validateDefines(log logging.Log, defines map[string]string) *config.Process
 		}
 
 		rawDefines[key] = config.DefineData{DefineFunc: fn}
+	}
+
+	for _, key := range pureFns {
+		// The key must be a dot-separated identifier list
+		for _, part := range strings.Split(key, ".") {
+			if !lexer.IsIdentifier(part) {
+				log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid pure function: %q", key))
+				continue
+			}
+		}
+
+		// Merge with any previously-specified defines
+		define := rawDefines[key]
+		define.CallCanBeUnwrappedIfUnused = true
+		rawDefines[key] = define
 	}
 
 	// Processing defines is expensive. Process them once here so the same object
@@ -325,7 +340,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
 		},
-		Defines:           validateDefines(log, buildOpts.Defines),
+		Defines:           validateDefines(log, buildOpts.Defines, buildOpts.PureFunctions),
 		Platform:          validatePlatform(buildOpts.Platform),
 		SourceMap:         validateSourceMap(buildOpts.Sourcemap),
 		MangleSyntax:      buildOpts.MinifySyntax,
@@ -459,7 +474,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
 		},
-		Defines:           validateDefines(log, transformOpts.Defines),
+		Defines:           validateDefines(log, transformOpts.Defines, transformOpts.PureFunctions),
 		SourceMap:         validateSourceMap(transformOpts.Sourcemap),
 		MangleSyntax:      transformOpts.MinifySyntax,
 		RemoveWhitespace:  transformOpts.MinifyWhitespace,

@@ -8,7 +8,7 @@
 
 * Support `@__PURE__` annotations for tree shaking
 
-    You can now annotate call expressions and new expressions with a `/* @__PURE__ */ comment, which tells esbuild that the function call is allowed to be removed if the result is not used. This is a convention from other tools (e.g. UglifyJS and Rollup).
+    You can now annotate call expressions and new expressions with a `/* @__PURE__ */` comment, which tells esbuild that the function call is allowed to be removed if the result is not used. This is a convention from other tools (e.g. UglifyJS and Rollup).
 
     For example, the code below will now be completely removed during bundling if the `fib` variable is never used. The initializer is a function call and esbuild cannot determine that it has no side effects, but the annotation forces esbuild to consider it removable anyway:
 
@@ -21,6 +21,10 @@
       }
     })()
     ```
+
+* Add `--pure:name` to annotate calls to globals ([#28](https://github.com/evanw/esbuild/issues/28))
+
+    This flag makes calls to the named function behave as if that call was prefixed by `/* @__PURE__ */`. For example, `--pure:console.log` means calls to `console.log()` will behave as if they were calls to `/* @__PURE__ */ console.log()` instead. This means when `--minify` is active, the calls will be removed as long as the return value is unused (any function arguments with side effects will be kept, however).
 
 ## 0.5.21
 

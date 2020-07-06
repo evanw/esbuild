@@ -13,6 +13,7 @@ function pushCommonFlags(flags: string[], options: types.CommonOptions, isTTY: b
   if (options.jsxFactory) flags.push(`--jsx-factory=${options.jsxFactory}`);
   if (options.jsxFragment) flags.push(`--jsx-fragment=${options.jsxFragment}`);
   if (options.define) for (let key in options.define) flags.push(`--define:${key}=${options.define[key]}`);
+  if (options.pure) for (let fn of options.pure) flags.push(`--pure:${fn}`);
 
   if (options.color) flags.push(`--color=${options.color}`);
   else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr

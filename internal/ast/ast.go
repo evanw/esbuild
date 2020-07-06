@@ -447,6 +447,11 @@ type EDot struct {
 	// If true, this property access is known to be free of side-effects. That
 	// means it can be removed if the resulting value isn't used.
 	CanBeRemovedIfUnused bool
+
+	// If true, this property access is a function that, when called, can be
+	// unwrapped if the resulting value is unused. Unwrapping means discarding
+	// the call target but keeping any arguments with side effects.
+	CallCanBeUnwrappedIfUnused bool
 }
 
 type EIndex struct {
@@ -476,6 +481,11 @@ type EIdentifier struct {
 	// not have side effects when referenced. This is used to allow the removal
 	// of known globals such as "Object" if they aren't used.
 	CanBeRemovedIfUnused bool
+
+	// If true, this identifier represents a function that, when called, can be
+	// unwrapped if the resulting value is unused. Unwrapping means discarding
+	// the call target but keeping any arguments with side effects.
+	CallCanBeUnwrappedIfUnused bool
 }
 
 // This is similar to an EIdentifier but it represents a reference to an ES6

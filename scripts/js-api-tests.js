@@ -301,6 +301,14 @@ let transformTests = {
     assert.strictEqual(js, `a !== null && a !== void 0 ? a : b;\n`)
   },
 
+  async pureCallConsoleLog({ service }) {
+    const { js: js1 } = await service.transform(`console.log(123, foo)`, { minifySyntax: true, pure: [] })
+    assert.strictEqual(js1, `console.log(123, foo);\n`)
+
+    const { js: js2 } = await service.transform(`console.log(123, foo)`, { minifySyntax: true, pure: ['console.log'] })
+    assert.strictEqual(js2, `foo;\n`)
+  },
+
   // Future syntax
   forAwait: ({ service }) => futureSyntax(service, 'async function foo() { for await (let x of y) {} }', 'es2017', 'es2018'),
   bigInt: ({ service }) => futureSyntax(service, '123n', 'es2019', 'es2020'),

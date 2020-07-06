@@ -365,6 +365,7 @@ Advanced options:
   --resolve-extensions=...  A comma-separated list of implicit extensions
   --metafile=...            Write metadata about the build to a JSON file
   --strict                  Transforms handle edge cases but have more overhead
+  --pure=N                  Mark the name N as a pure function for tree shaking
 
   --trace=...           Write a CPU trace to this file
   --cpuprofile=...      Write a CPU profile to this file

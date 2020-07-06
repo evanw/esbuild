@@ -123,6 +123,14 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.Defines[value[:equals]] = value[equals+1:]
 			}
 
+		case strings.HasPrefix(arg, "--pure:"):
+			value := arg[len("--pure:"):]
+			if buildOpts != nil {
+				buildOpts.PureFunctions = append(buildOpts.PureFunctions, value)
+			} else {
+				transformOpts.PureFunctions = append(transformOpts.PureFunctions, value)
+			}
+
 		case strings.HasPrefix(arg, "--loader:") && buildOpts != nil:
 			value := arg[len("--loader:"):]
 			equals := strings.IndexByte(value, '=')

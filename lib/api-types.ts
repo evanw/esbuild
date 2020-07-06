@@ -18,6 +18,7 @@ export interface CommonOptions {
   jsxFactory?: string;
   jsxFragment?: string;
   define?: { [key: string]: string };
+  pure?: string[];
 
   color?: boolean;
   logLevel?: LogLevel;

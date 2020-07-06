@@ -6678,6 +6678,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					}
 				}
 
+				// Copy the call side effect flag over in case this expression is called
+				if data.CallCanBeUnwrappedIfUnused {
+					e.CallCanBeUnwrappedIfUnused = true
+				}
+
 				// All identifier defines that don't have user-specified replacements
 				// are known to be side-effect free. Mark them as such if we get here.
 				e.CanBeRemovedIfUnused = true
@@ -7219,6 +7224,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 						return p.valueForDefine(expr.Loc, in.assignTarget, define.Data.DefineFunc), exprOut{}
 					}
 
+					// Copy the call side effect flag over in case this expression is called
+					if define.Data.CallCanBeUnwrappedIfUnused {
+						e.CallCanBeUnwrappedIfUnused = true
+					}
+
 					// All dot defines that don't have user-specified replacements are
 					// known to be side-effect free. Mark them as such if we get here.
 					e.CanBeRemovedIfUnused = true
@@ -7369,6 +7379,18 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 						s.ContainsDirectEval = true
 					}
 				}
+			}
+		}
+
+		// Copy the call side effect flag over if this is a known target
+		switch t := target.Data.(type) {
+		case *ast.EIdentifier:
+			if t.CallCanBeUnwrappedIfUnused {
+				e.CanBeUnwrappedIfUnused = true
+			}
+		case *ast.EDot:
+			if t.CallCanBeUnwrappedIfUnused {
+				e.CanBeUnwrappedIfUnused = true
 			}
 		}
 

@@ -3,11 +3,14 @@ package config
 import (
 	"math"
 	"strings"
+	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
 )
 
+var processedGlobalsMutex sync.Mutex
 var processedGlobals *ProcessedDefines
+
 var knownGlobals = [][]string{
 	// These global identifiers should exist in all JavaScript environments
 	{"Array"},
@@ -113,9 +116,17 @@ type DefineFunc func(FindSymbol) ast.E
 
 type DefineData struct {
 	DefineFunc DefineFunc
+
+	// True if a call to this value is known to not have any side effects. For
+	// example, a bare call to "Object()" can be removed because it does not
+	// have any observable side effects.
+	CallCanBeUnwrappedIfUnused bool
 }
 
 func mergeDefineData(old DefineData, new DefineData) DefineData {
+	if old.CallCanBeUnwrappedIfUnused {
+		new.CallCanBeUnwrappedIfUnused = true
+	}
 	return new
 }
 
@@ -136,9 +147,14 @@ type ProcessedDefines struct {
 // slows down our benchmarks.
 func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	// Optimization: reuse known globals if there are no user-specified defines
-	hasUserDefines := userDefines == nil || len(userDefines) == 0
-	if !hasUserDefines && processedGlobals != nil {
-		return *processedGlobals
+	hasUserDefines := len(userDefines) != 0
+	if !hasUserDefines {
+		processedGlobalsMutex.Lock()
+		if processedGlobals != nil {
+			defer processedGlobalsMutex.Unlock()
+			return *processedGlobals
+		}
+		processedGlobalsMutex.Unlock()
 	}
 
 	result := ProcessedDefines{
@@ -173,12 +189,12 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 
 	// Then copy the user-specified defines in afterwards, which will overwrite
 	// any known globals above.
-	for k, v := range userDefines {
-		parts := strings.Split(k, ".")
+	for key, data := range userDefines {
+		parts := strings.Split(key, ".")
 
 		// Identifier defines are special-cased
 		if len(parts) == 1 {
-			result.IdentifierDefines[k] = mergeDefineData(result.IdentifierDefines[k], v)
+			result.IdentifierDefines[key] = mergeDefineData(result.IdentifierDefines[key], data)
 			continue
 		}
 
@@ -190,21 +206,25 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 		for i, define := range dotDefines {
 			if arePartsEqual(parts, define.Parts) {
 				define := &dotDefines[i]
-				define.Data = mergeDefineData(define.Data, v)
+				define.Data = mergeDefineData(define.Data, data)
 				found = true
 				break
 			}
 		}
 
 		if !found {
-			dotDefines = append(dotDefines, DotDefine{Parts: parts, Data: v})
+			dotDefines = append(dotDefines, DotDefine{Parts: parts, Data: data})
 		}
 		result.DotDefines[tail] = dotDefines
 	}
 
 	// Potentially cache the result for next time
 	if !hasUserDefines {
-		processedGlobals = &result
+		processedGlobalsMutex.Lock()
+		defer processedGlobalsMutex.Unlock()
+		if processedGlobals == nil {
+			processedGlobals = &result
+		}
 	}
 	return result
 }

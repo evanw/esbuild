@@ -183,7 +183,9 @@ type BuildOptions struct {
 
 	JSXFactory  string
 	JSXFragment string
-	Defines     map[string]string
+
+	Defines       map[string]string
+	PureFunctions []string
 
 	GlobalName        string
 	Bundle            bool
@@ -234,7 +236,9 @@ type TransformOptions struct {
 
 	JSXFactory  string
 	JSXFragment string
-	Defines     map[string]string
+
+	Defines       map[string]string
+	PureFunctions []string
 
 	Sourcefile string
 	Loader     Loader
