@@ -79,6 +79,8 @@
 //
 package api
 
+import "github.com/evanw/esbuild/internal/fs"
+
 type SourceMap uint8
 
 const (
@@ -200,6 +202,9 @@ type BuildOptions struct {
 	ResolveExtensions []string
 
 	EntryPoints []string
+
+	// Filesystem used to resolve files
+	FS fs.FS
 }
 
 type BuildResult struct {

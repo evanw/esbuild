@@ -332,7 +332,10 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	}
 
 	// Convert and validate the buildOpts
-	realFS := fs.RealFS()
+	realFS := buildOpts.FS
+	if realFS == nil {
+		realFS = fs.RealFS()
+	}
 	options := config.Options{
 		Target: validateTarget(buildOpts.Target),
 		Strict: validateStrict(buildOpts.Strict),
