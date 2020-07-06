@@ -9,6 +9,16 @@ import (
 
 var processedGlobals *ProcessedDefines
 var knownGlobals = [][]string{
+	// These global identifiers should exist in all JavaScript environments
+	{"Array"},
+	{"Boolean"},
+	{"Function"},
+	{"Math"},
+	{"Number"},
+	{"Object"},
+	{"RegExp"},
+	{"String"},
+
 	// Object: Static methods
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#Static_methods
 	{"Object", "assign"},
@@ -143,7 +153,11 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	// exception if "a.b" is undefined.
 	for _, parts := range knownGlobals {
 		tail := parts[len(parts)-1]
-		result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts})
+		if len(parts) == 1 {
+			result.IdentifierDefines[tail] = DefineData{}
+		} else {
+			result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts})
+		}
 	}
 
 	// Swap in certain literal values because those can be constant folded

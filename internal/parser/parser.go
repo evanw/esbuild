@@ -6667,14 +6667,20 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound && !result.isInsideWithScope {
-			if data, ok := p.Defines.IdentifierDefines[name]; ok && data.DefineFunc != nil {
-				new := p.valueForDefine(expr.Loc, in.assignTarget, data.DefineFunc)
+			if data, ok := p.Defines.IdentifierDefines[name]; ok {
+				if data.DefineFunc != nil {
+					new := p.valueForDefine(expr.Loc, in.assignTarget, data.DefineFunc)
 
-				// Don't substitute an identifier for a non-identifier if this is an
-				// assignment target, since it'll cause a syntax error
-				if _, ok := new.Data.(*ast.EIdentifier); in.assignTarget == ast.AssignTargetNone || ok {
-					return new, exprOut{}
+					// Don't substitute an identifier for a non-identifier if this is an
+					// assignment target, since it'll cause a syntax error
+					if _, ok := new.Data.(*ast.EIdentifier); in.assignTarget == ast.AssignTargetNone || ok {
+						return new, exprOut{}
+					}
 				}
+
+				// All identifier defines that don't have user-specified replacements
+				// are known to be side-effect free. Mark them as such if we get here.
+				e.CanBeRemovedIfUnused = true
 			}
 		}
 
@@ -7979,8 +7985,7 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 		return p.classCanBeRemovedIfUnused(e.Class)
 
 	case *ast.EIdentifier:
-		symbol := p.symbols[e.Ref.InnerIndex]
-		if symbol.Kind != ast.SymbolUnbound {
+		if e.CanBeRemovedIfUnused || p.symbols[e.Ref.InnerIndex].Kind != ast.SymbolUnbound {
 			return true
 		}
 
@@ -8048,8 +8053,7 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 		}
 
 	case *ast.EIdentifier:
-		symbol := p.symbols[e.Ref.InnerIndex]
-		if symbol.Kind != ast.SymbolUnbound {
+		if e.CanBeRemovedIfUnused || p.symbols[e.Ref.InnerIndex].Kind != ast.SymbolUnbound {
 			return ast.Expr{}
 		}
 

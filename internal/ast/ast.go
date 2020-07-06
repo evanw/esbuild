@@ -444,7 +444,8 @@ type EDot struct {
 	NameLoc       Loc
 	OptionalChain OptionalChain
 
-	// If true, this property access is known to be free of side-effects
+	// If true, this property access is known to be free of side-effects. That
+	// means it can be removed if the resulting value isn't used.
 	CanBeRemovedIfUnused bool
 }
 
@@ -467,7 +468,15 @@ type EFunction struct{ Fn Fn }
 
 type EClass struct{ Class Class }
 
-type EIdentifier struct{ Ref Ref }
+type EIdentifier struct {
+	Ref Ref
+
+	// If true, this identifier is known to not have a side effect (i.e. to not
+	// throw an exception) when referenced. If false, this identifier may or may
+	// not have side effects when referenced. This is used to allow the removal
+	// of known globals such as "Object" if they aren't used.
+	CanBeRemovedIfUnused bool
+}
 
 // This is similar to an EIdentifier but it represents a reference to an ES6
 // import item.
