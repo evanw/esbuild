@@ -1390,6 +1390,18 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "let x = (1, 2)", "let x = 2;\n")
 	expectPrintedMangle(t, "let x = (y, 2)", "let x = (y, 2);\n")
 	expectPrintedMangle(t, "let x = (/* @__PURE__ */ foo(bar), 2)", "let x = (bar, 2);\n")
+
+	expectPrintedMangle(t, "foo ? 1 : 2", "foo;\n")
+	expectPrintedMangle(t, "foo ? 1 : bar", "foo || bar;\n")
+	expectPrintedMangle(t, "foo ? bar : 2", "foo && bar;\n")
+	expectPrintedMangle(t, "foo ? bar : baz", "foo ? bar : baz;\n")
+
+	for _, op := range []string{"&&", "||", "??"} {
+		expectPrintedMangle(t, "foo "+op+" bar", "foo "+op+" bar;\n")
+		expectPrintedMangle(t, "var foo; foo "+op+" bar", "var foo;\nfoo "+op+" bar;\n")
+		expectPrintedMangle(t, "var bar; foo "+op+" bar", "var bar;\nfoo;\n")
+		expectPrintedMangle(t, "var foo, bar; foo "+op+" bar", "var foo, bar;\n")
+	}
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {

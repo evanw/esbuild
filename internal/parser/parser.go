@@ -8174,8 +8174,36 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 		}
 		return result
 
+	case *ast.EIf:
+		e.Yes = p.simplifyUnusedExpr(e.Yes)
+		e.No = p.simplifyUnusedExpr(e.No)
+
+		// "foo() ? 1 : 2" => "foo()"
+		if e.Yes.Data == nil && e.No.Data == nil {
+			return p.simplifyUnusedExpr(e.Test)
+		}
+
+		// "foo() ? 1 : bar()" => "foo() || bar()"
+		if e.Yes.Data == nil {
+			return ast.Expr{Loc: expr.Loc, Data: &ast.EBinary{
+				Op:    ast.BinOpLogicalOr,
+				Left:  e.Test,
+				Right: e.No,
+			}}
+		}
+
+		// "foo() ? bar() : 2" => "foo() && bar()"
+		if e.No.Data == nil {
+			return ast.Expr{Loc: expr.Loc, Data: &ast.EBinary{
+				Op:    ast.BinOpLogicalAnd,
+				Left:  e.Test,
+				Right: e.Yes,
+			}}
+		}
+
 	case *ast.EBinary:
-		if e.Op == ast.BinOpComma {
+		switch e.Op {
+		case ast.BinOpComma:
 			e.Left = p.simplifyUnusedExpr(e.Left)
 			e.Right = p.simplifyUnusedExpr(e.Right)
 			if e.Left.Data == nil {
@@ -8183,6 +8211,12 @@ func (p *parser) simplifyUnusedExpr(expr ast.Expr) ast.Expr {
 			}
 			if e.Right.Data == nil {
 				return e.Left
+			}
+
+		case ast.BinOpLogicalAnd, ast.BinOpLogicalOr, ast.BinOpNullishCoalescing:
+			e.Right = p.simplifyUnusedExpr(e.Right)
+			if e.Right.Data == nil {
+				return p.simplifyUnusedExpr(e.Left)
 			}
 		}
 
