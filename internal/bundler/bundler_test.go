@@ -5205,3 +5205,30 @@ func TestImportMetaNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestDeduplicateCommentsInBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+			`,
+			"/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/c.js": `console.log('in c') //! Copyright notice 2`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:       true,
+			RemoveWhitespace: true,
+			AbsOutputFile:    "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `console.log("in a");console.log("in b");console.log("in c");
+//! Copyright notice 1
+//! Copyright notice 2
+`,
+		},
+	})
+}

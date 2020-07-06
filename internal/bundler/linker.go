@@ -2488,6 +2488,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		RemoveWhitespace:  c.options.RemoveWhitespace,
 		ToModuleRef:       toModuleRef,
 		SourceMapContents: sourceMapContents,
+		ExtractComments:   c.options.IsBundling && c.options.RemoveWhitespace,
 	}
 	tree := file.ast
 	tree.Parts = []ast.Part{{Stmts: stmts}}
@@ -2636,8 +2637,16 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	// Concatenate the generated JavaScript chunks together
 	var compileResultsForSourceMap []compileResult
 	var entryPointTail *printer.PrintResult
+	var commentList []string
+	commentSet := make(map[string]bool)
 	for _, compileResult := range compileResults {
 		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
+		for text := range compileResult.ExtractedComments {
+			if !commentSet[text] {
+				commentSet[text] = true
+				commentList = append(commentList, text)
+			}
+		}
 
 		// If this is the entry point, it may have some extra code to stick at the
 		// end of the chunk after all modules have evaluated
@@ -2714,6 +2723,16 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 	// Make sure the file ends with a newline
 	if j.Length() > 0 && j.LastByte() != '\n' {
+		j.AddString("\n")
+	}
+
+	// Add all unique license comments to the end of the file. These are
+	// deduplicated because some projects have thousands of files with the same
+	// comment. The comment must be preserved in the output for legal reasons but
+	// at the same time we want to generate a small bundle when minifying.
+	sort.Strings(commentList)
+	for _, text := range commentList {
+		j.AddString(text)
 		j.AddString("\n")
 	}
 

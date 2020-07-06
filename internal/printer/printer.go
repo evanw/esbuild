@@ -450,6 +450,7 @@ type printer struct {
 	symbols            ast.SymbolMap
 	importRecords      []ast.ImportRecord
 	options            PrintOptions
+	extractedComments  map[string]bool
 	needsSemicolon     bool
 	js                 []byte
 	stmtStart          int
@@ -2108,6 +2109,13 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 	switch s := stmt.Data.(type) {
 	case *ast.SComment:
 		text := s.Text
+		if p.options.ExtractComments {
+			if p.extractedComments == nil {
+				p.extractedComments = make(map[string]bool)
+			}
+			p.extractedComments[text] = true
+			break
+		}
 		if strings.HasPrefix(text, "/*") {
 			// Re-indent multi-line comments
 			for {
@@ -2656,6 +2664,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 type PrintOptions struct {
 	OutputFormat      config.Format
 	RemoveWhitespace  bool
+	ExtractComments   bool
 	SourceMapContents *string
 	Indent            int
 	ToModuleRef       ast.Ref
@@ -2723,6 +2732,8 @@ type PrintResult struct {
 	// field above. It's not a full source map. The bundler will be joining many
 	// source map chunks together to form the final source map.
 	SourceMapChunk SourceMapChunk
+
+	ExtractedComments map[string]bool
 }
 
 func Print(tree ast.AST, options PrintOptions) PrintResult {
@@ -2739,8 +2750,9 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 	}
 
 	return PrintResult{
-		JS:             p.js,
-		SourceMapChunk: SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+		JS:                p.js,
+		ExtractedComments: p.extractedComments,
+		SourceMapChunk:    SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
 	}
 }
 
@@ -2752,7 +2764,8 @@ func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) Print
 
 	p.printExpr(expr, ast.LLowest, 0)
 	return PrintResult{
-		JS:             p.js,
-		SourceMapChunk: SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+		JS:                p.js,
+		ExtractedComments: p.extractedComments,
+		SourceMapChunk:    SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
 	}
 }
