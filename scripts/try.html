@@ -193,34 +193,72 @@
   </section>
   <script src="../npm/esbuild-wasm/lib/browser.js"></script>
   <script>
+    const input = document.querySelector('#input textarea')
+    const target = document.querySelector('#target')
+    const loader = document.querySelector('#loader')
+    const minifySyntax = document.querySelector('#minify-syntax')
+    const minifyIdents = document.querySelector('#minify-idents')
+    const minifySpaces = document.querySelector('#minify-spaces')
+    const strict = document.querySelector('#strict')
+    let runIfIdle
+
+    function persistValue(el, key) {
+      el.onchange = () => {
+        runIfIdle()
+        try {
+          sessionStorage.setItem(key, el.value)
+        } catch (e) {
+        }
+      }
+      try {
+        const old = sessionStorage.getItem(key)
+        if (old !== null) el.value = old
+      } catch (e) {
+      }
+    }
+
+    function persistChecked(el, key) {
+      el.onchange = () => {
+        runIfIdle()
+        try {
+          sessionStorage.setItem(key, el.checked)
+        } catch (e) {
+        }
+      }
+      try {
+        const old = sessionStorage.getItem(key)
+        if (old !== null) el.checked = old === 'true'
+      } catch (e) {
+      }
+    }
+
+    persistValue(target, 'target')
+    persistValue(loader, 'loader')
+    persistChecked(minifySyntax, 'minifySyntax')
+    persistChecked(minifyIdents, 'minifyIdents')
+    persistChecked(minifySpaces, 'minifySpaces')
+    persistChecked(strict, 'strict')
+
+    try {
+      const old = sessionStorage.getItem('input')
+      if (old !== null) input.value = old
+    } catch (e) {
+    }
+
     esbuild.startService({
       wasmURL: '../npm/esbuild-wasm/esbuild.wasm',
     }).then(service => {
-      const input = document.querySelector('#input textarea')
       const output = document.querySelector('#output .outer')
-      const target = document.querySelector('#target')
-      const loader = document.querySelector('#loader')
-      const minifySyntax = document.querySelector('#minify-syntax')
-      const minifyIdents = document.querySelector('#minify-idents')
-      const minifySpaces = document.querySelector('#minify-spaces')
-      const strict = document.querySelector('#strict')
       let debounceTimeout = 0
       let isRunning = false
       let needsRun = false
-
-      target.onchange = runIfIdle
-      loader.onchange = runIfIdle
-      minifySyntax.onchange = runIfIdle
-      minifyIdents.onchange = runIfIdle
-      minifySpaces.onchange = runIfIdle
-      strict.onchange = runIfIdle
 
       input.oninput = () => {
         clearTimeout(debounceTimeout)
         debounceTimeout = setTimeout(runIfIdle, 50)
       }
 
-      function runIfIdle() {
+      runIfIdle = () => {
         clearTimeout(debounceTimeout)
 
         if (isRunning) {
@@ -252,6 +290,11 @@
           isRunning = false
           if (needsRun) runIfIdle()
         })
+
+        try {
+          sessionStorage.setItem('input', input.value)
+        } catch (e) {
+        }
       }
 
       function textToHTML(text) {
@@ -294,6 +337,8 @@
           return html
         }).join('');
       }
+
+      runIfIdle()
     })
   </script>
 </body>
