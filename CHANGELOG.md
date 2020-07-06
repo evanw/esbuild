@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.23
 
 * Fix `export declare` inside `namespace` in TypeScript ([#227](https://github.com/evanw/esbuild/issues/227))
 
