@@ -1963,6 +1963,53 @@ console.log(demo_pkg.default());
 	})
 }
 
+func TestPackageJsonBrowserMapNativeModuleDisabled(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"browser": {
+						"fs": false
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				const fs = require('fs')
+				module.exports = function() {
+					return fs.readFile()
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg/index.js
+var require_fs = __commonJS(() => {
+});
+
+// /Users/user/project/node_modules/demo-pkg/index.js
+var require_demo_pkg = __commonJS((exports, module) => {
+  const fn2 = require_fs();
+  module.exports = function() {
+    return fn2.readFile();
+  };
+});
+
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_demo_pkg());
+console.log(demo_pkg.default());
+`,
+		},
+	})
+}
+
 func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
