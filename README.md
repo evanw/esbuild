@@ -84,17 +84,31 @@ Several reasons:
 
 #### Currently supported:
 
-* JavaScript and TypeScript syntax
-* CommonJS and ES6 modules
-* JSX-to-JavaScript conversion
-* Transpiling modern JS syntax down to ES6 with `--target=es6`
-* Bundling using `--bundle` with scope hoisting ES6 modules
-* Full minification with `--minify` (whitespace, identifiers, and mangling)
-* Full source map support when `--sourcemap` is enabled
-* Compile-time identifier substitutions via `--define`
-* Tree shaking of ES6 modules supporting `sideEffects` in `package.json`
-* Path substitution using the `browser` field in `package.json`
-* Automatic detection of `baseUrl` and `paths` in `tsconfig.json`
+Here are some of the main features that esbuild offers (a non-exhaustive list):
+
+* Loaders:
+    * JavaScript/JSX ([more details](#javascript-syntax-support))
+    * TypeScript/TSX ([more details](#typescript-syntax-support))
+    * JSON
+    * Data (text, base64, binary, data URL, file)
+* Minification
+    * Remove whitespace
+    * Shorten identifiers
+    * Compress syntax
+* Bundling
+    * Scope hoisting for ES6 modules
+    * Respects `browser` overrides in `package.json`
+* Tree shaking
+    * Respects `sideEffects` in `package.json`
+    * Respects `/* @__PURE__ */` annotations
+* Output formats
+    * CommonJS
+    * [IIFE](https://en.wikipedia.org/wiki/Immediately_invoked_function_expression)
+    * ES6 module (supports code splitting)
+* Source map generation
+* Transpilation of JSX and newer JS syntax down to ES6
+* Compile-time name substitution with `--define`
+* Bundle metadata in JSON format for analysis
 
 #### JavaScript syntax support:
 
