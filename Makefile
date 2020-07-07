@@ -178,6 +178,16 @@ scripts/node_modules:
 	cd scripts && npm ci
 
 ################################################################################
+# This downloads the kangax compat-table and generates browser support mappings
+
+github/compat-table:
+	mkdir -p github/compat-table
+	git clone --depth 1 https://github.com/kangax/compat-table.git github/compat-table
+
+compat-table: | github/compat-table
+	node scripts/compat-table.js
+
+################################################################################
 # This runs the test262 official JavaScript test suite through esbuild
 
 github/test262:
