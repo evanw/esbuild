@@ -994,7 +994,12 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 	// parts so they can be tree shaken individually.
 	part.Stmts = nil
 
-	generateExport := func(name string, alias string, value ast.Expr) {
+	type prevExport struct {
+		ref       ast.Ref
+		partIndex uint32
+	}
+
+	generateExport := func(name string, alias string, value ast.Expr, prevExports []prevExport) prevExport {
 		// Generate a new symbol
 		inner := &c.symbols.Outer[sourceIndex]
 		ref := ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
@@ -1021,10 +1026,11 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 		// Link the export into the graph for tree shaking
 		partIndex := uint32(len(file.ast.Parts))
 		file.ast.Parts = append(file.ast.Parts, ast.Part{
-			Stmts:             []ast.Stmt{stmt},
-			LocalDependencies: make(map[uint32]bool),
-			SymbolUses:        map[ast.Ref]ast.SymbolUse{file.ast.ModuleRef: ast.SymbolUse{CountEstimate: 1}},
-			DeclaredSymbols:   []ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
+			Stmts:                []ast.Stmt{stmt},
+			LocalDependencies:    make(map[uint32]bool),
+			SymbolUses:           map[ast.Ref]ast.SymbolUse{file.ast.ModuleRef: ast.SymbolUse{CountEstimate: 1}},
+			DeclaredSymbols:      []ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
+			CanBeRemovedIfUnused: true,
 		})
 		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
 			entryBits: newBitSet(uint(len(c.entryPoints))),
@@ -1032,11 +1038,30 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 		file.ast.TopLevelSymbolToParts[ref] = []uint32{partIndex}
 		file.ast.NamedExports[alias] = ref
 		fileMeta.resolvedExports[alias] = exportData{ref: ref, sourceIndex: sourceIndex}
+		part := &file.ast.Parts[partIndex]
+		for _, export := range prevExports {
+			part.SymbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
+			part.LocalDependencies[export.partIndex] = true
+		}
+		return prevExport{ref: ref, partIndex: partIndex}
+	}
+
+	// Unwrap JSON objects into separate top-level variables
+	var prevExports []prevExport
+	if object, ok := lazy.Value.Data.(*ast.EObject); ok {
+		for i, property := range object.Properties {
+			if str, ok := property.Key.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(str.Value) {
+				name := lexer.UTF16ToString(str.Value)
+				export := generateExport(name, name, *property.Value, nil)
+				prevExports = append(prevExports, export)
+				object.Properties[i].Value = &ast.Expr{Loc: property.Key.Loc, Data: &ast.EIdentifier{Ref: export.ref}}
+			}
+		}
 	}
 
 	// Generate the default export
 	defaultName := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath) + "_default"
-	generateExport(defaultName, "default", lazy.Value)
+	generateExport(defaultName, "default", lazy.Value, prevExports)
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {

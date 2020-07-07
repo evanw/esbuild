@@ -4,7 +4,7 @@
 
 * Smaller code for loaders that generate expressions
 
-    Loaders that generate expressions (`json`, `text`, `base64`, `file`, and `dataurl`) export them using an assignment to `module.exports`. However, that forces the creation of a CommonJS module which adds unnecessary extra code. Now if the file for that loader is only imported using ES6 import statements instead of `require()`, the expression is exported using an `export default` statement instead. This generates smaller code.
+    Loaders that generate expressions (`json`, `text`, `base64`, `file`, and `dataurl`) export them using an assignment to `module.exports`. However, that forces the creation of a CommonJS module which adds unnecessary extra code. Now if the file for that loader is only imported using ES6 import statements instead of `require()`, the expression is exported using an `export default` statement instead. This generates smaller code. The bundler still falls back to the old `module.exports` behavior if the file is imported using `require()` instead of an ES6 import statement.
 
     Example input file:
 
@@ -38,7 +38,19 @@
     console.log(example_default);
     ```
 
-    The bundler still falls back to the old `module.exports` behavior if the file is imported using `require()` instead of an ES6 import statement.
+    In addition, top-level properties of imported JSON files are now converted into individual ES6 exports for better tree shaking. For example, that means you can now import the `version` property from your `package.json` file and the entire JSON file will be removed from the bundle:
+
+    ```js
+    import {version} from './package.json'
+    console.log(version)
+    ```
+
+    The example above will now generate code that looks like this:
+
+    ```js
+    var version = "1.0.0";
+    console.log(version);
+    ```
 
 ## 0.5.23
 

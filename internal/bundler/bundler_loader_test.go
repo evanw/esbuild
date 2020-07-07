@@ -269,10 +269,16 @@ func TestLoaderJSONCommonJSAndES6(t *testing.T) {
 			"/entry.js": `
 				const x_json = require('./x.json')
 				import y_json from './y.json'
-				console.log(x_json, y_json)
+				import {small, if as fi} from './z.json'
+				console.log(x_json, y_json, small, fi)
 			`,
-			"/x.json": "{\"x\": true}",
-			"/y.json": "{\"y\": true}",
+			"/x.json": `{"x": true}`,
+			"/y.json": `{"y1": true, "y2": false}`,
+			"/z.json": `{
+				"big": "this is a big long line of text that should be discarded",
+				"small": "some small text",
+				"if": "test keyword imports"
+			}`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
@@ -286,11 +292,17 @@ var require_x = __commonJS((exports, module) => {
 });
 
 // /y.json
-var y_default = {y: true};
+var y1 = true;
+var y2 = false;
+var y_default = {y1, y2};
+
+// /z.json
+var small = "some small text";
+var if2 = "test keyword imports";
 
 // /entry.js
 const x_json = require_x();
-console.log(x_json, y_default);
+console.log(x_json, y_default, small, if2);
 `,
 		},
 	})
