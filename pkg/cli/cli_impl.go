@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -156,31 +157,16 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			transformOpts.Loader = loader
 
 		case strings.HasPrefix(arg, "--target="):
-			value := arg[len("--target="):]
-			var target api.Target
-			switch value {
-			case "esnext":
-				target = api.ESNext
-			case "es6", "es2015":
-				target = api.ES2015
-			case "es2016":
-				target = api.ES2016
-			case "es2017":
-				target = api.ES2017
-			case "es2018":
-				target = api.ES2018
-			case "es2019":
-				target = api.ES2019
-			case "es2020":
-				target = api.ES2020
-			default:
-				return fmt.Errorf("Invalid target: %q (valid: "+
-					"esnext, es6, es2015, es2016, es2017, es2018, es2019, es2020)", value)
+			target, engines, err := parseTargets(strings.Split(arg[len("--target="):], ","))
+			if err != nil {
+				return err
 			}
 			if buildOpts != nil {
 				buildOpts.Target = target
+				buildOpts.Engines = engines
 			} else {
 				transformOpts.Target = target
+				transformOpts.Engines = engines
 			}
 
 		case arg == "--strict":
@@ -328,6 +314,56 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 	return nil
 }
 
+func parseTargets(targets []string) (target api.Target, engines []api.Engine, err error) {
+	validTargets := map[string]api.Target{
+		"esnext": api.ESNext,
+		"es6":    api.ES2015,
+		"es2015": api.ES2015,
+		"es2016": api.ES2016,
+		"es2017": api.ES2017,
+		"es2018": api.ES2018,
+		"es2019": api.ES2019,
+		"es2020": api.ES2020,
+	}
+
+	validEngines := map[string]api.EngineName{
+		"chrome":  api.EngineChrome,
+		"firefox": api.EngineFirefox,
+		"safari":  api.EngineSafari,
+		"edge":    api.EngineEdge,
+		"node":    api.EngineNode,
+		"ios":     api.EngineIOS,
+	}
+
+outer:
+	for _, value := range targets {
+		if valid, ok := validTargets[value]; ok {
+			target = valid
+			continue
+		}
+
+		for engine, name := range validEngines {
+			if strings.HasPrefix(value, engine) {
+				version := value[len(engine):]
+				if version == "" {
+					return 0, nil, fmt.Errorf("Target missing version number: %q", value)
+				}
+				engines = append(engines, api.Engine{Name: name, Version: version})
+				continue outer
+			}
+		}
+
+		var engines []string
+		for key := range validEngines {
+			engines = append(engines, key+"N")
+		}
+		sort.Strings(engines)
+		return 0, nil, fmt.Errorf(
+			"Invalid target: %q (valid: esN, "+strings.Join(engines, ", ")+")", value)
+	}
+	return
+}
+
 func parseLoader(text string) (api.Loader, error) {
 	switch text {
 	case "js":
@@ -351,7 +387,7 @@ func parseLoader(text string) (api.Loader, error) {
 	case "binary":
 		return api.LoaderBinary, nil
 	default:
-		return ^api.Loader(0), fmt.Errorf("Invalid loader: %q (valid: "+
+		return 0, fmt.Errorf("Invalid loader: %q (valid: "+
 			"js, jsx, ts, tsx, json, text, base64, dataurl, file, binary)", text)
 	}
 }

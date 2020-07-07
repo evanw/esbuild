@@ -10,6 +10,10 @@
 
     You can now assign the `binary` loader to a file extension to load all files of that type into a Uint8Array. The data is encoded as a base64 string and decoded into a Uint8Array at run time. The decoder defaults to a custom platform-independent implementation (faster than `atob`) but it switches to using the `Buffer` API with `--platform=node`.
 
+* Add fine-grained `--target` environments ([#231](https://github.com/evanw/esbuild/issues/231))
+
+    You can now configure individual JavaScript environments as targets. The `--target` flag now takes a comma-separated list of values like this: `--target=chrome58,firefox57,safari11,edge16`. Compatibility data was mainly sourced from [this widely-used compatibility table](https://kangax.github.io/compat-table/es2016plus/).
+
 ## 0.5.24
 
 * Smaller code for loaders that generate expressions

@@ -22,7 +22,7 @@ Options:
   --outfile=...         The output file (for one entry point)
   --outdir=...          The output directory (for multiple entry points)
   --sourcemap           Emit a source map
-  --target=...          Language target (default esnext)
+  --target=...          Environment target (e.g. es2017, chrome80)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife, cjs, esm)

@@ -103,7 +103,7 @@ Here are some of the main features that esbuild offers (a non-exhaustive list):
     * Respects `/* @__PURE__ */` annotations
 * Output formats
     * CommonJS
-    * [IIFE](https://en.wikipedia.org/wiki/Immediately_invoked_function_expression)
+    * <abbr title="Immediately Invoked Function Expression">IIFE</abbr>
     * ES6 module (supports code splitting)
 * Source map generation
 * Transpilation of JSX and newer JS syntax down to ES6
@@ -112,7 +112,7 @@ Here are some of the main features that esbuild offers (a non-exhaustive list):
 
 #### JavaScript syntax support:
 
-Syntax transforms convert newer JavaScript syntax to older JavaScript syntax for use with older browsers. You can set the language target with the `--target` flag, which goes back as far as ES6. Note that if you use a syntax feature that esbuild doesn't yet have support for transforming to your current language target, esbuild will still build successfully but will generate a warning where the unsupported syntax is used and will pass the syntax through un-transformed.
+Syntax transforms convert newer JavaScript syntax to older JavaScript syntax for use with older browsers. You can set the language target with the `--target` flag, which goes back as far as ES6. You can also set `--target` to a comma-separated list of browsers and versions (e.g. `--target=chrome58,firefox57,safari11,edge16`). Note that if you use a syntax feature that esbuild doesn't yet have support for transforming to your current language target, esbuild will generate an error where the unsupported syntax is used.
 
 These syntax features are always transformed for older browsers:
 
@@ -350,7 +350,7 @@ Options:
   --outfile=...         The output file (for one entry point)
   --outdir=...          The output directory (for multiple entry points)
   --sourcemap           Emit a source map
-  --target=...          Language target (default esnext)
+  --target=...          Environment target (e.g. es2017, chrome80)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife, cjs, esm)

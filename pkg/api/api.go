@@ -131,6 +131,22 @@ const (
 	FormatESModule
 )
 
+type EngineName uint8
+
+const (
+	EngineChrome EngineName = iota
+	EngineEdge
+	EngineFirefox
+	EngineIOS
+	EngineNode
+	EngineSafari
+)
+
+type Engine struct {
+	Name    EngineName
+	Version string
+}
+
 type Location struct {
 	File     string
 	Line     int // 1-based
@@ -176,6 +192,7 @@ type BuildOptions struct {
 
 	Sourcemap SourceMap
 	Target    Target
+	Engines   []Engine
 	Strict    StrictOptions
 
 	MinifyWhitespace  bool
@@ -229,6 +246,7 @@ type TransformOptions struct {
 
 	Sourcemap SourceMap
 	Target    Target
+	Engines   []Engine
 	Strict    StrictOptions
 
 	MinifyWhitespace  bool

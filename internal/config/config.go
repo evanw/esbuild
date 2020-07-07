@@ -1,18 +1,10 @@
 package config
 
-type LanguageTarget int8
-
-const (
-	// These are arranged such that ESNext is the default zero value and such
-	// that earlier releases are less than later releases
-	ES2015 = -6
-	ES2016 = -5
-	ES2017 = -4
-	ES2018 = -3
-	ES2019 = -2
-	ES2020 = -1
-	ESNext = 0
+import (
+	"github.com/evanw/esbuild/internal/compat"
 )
+
+type LanguageTarget int8
 
 type JSXOptions struct {
 	Parse    bool
@@ -150,8 +142,9 @@ type Options struct {
 	Defines  *ProcessedDefines
 	TS       TSOptions
 	JSX      JSXOptions
-	Target   LanguageTarget
 	Platform Platform
+
+	UnsupportedFeatures compat.Feature
 
 	ExtensionOrder  []string
 	ExternalModules ExternalModules

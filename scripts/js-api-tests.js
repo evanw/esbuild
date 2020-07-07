@@ -317,6 +317,22 @@ let transformTests = {
     assert.strictEqual(js2, `foo;\n`)
   },
 
+  async multipleEngineTargets({ service }) {
+    const check = async (target, expected) =>
+      assert.strictEqual((await service.transform(`foo(a ?? b)`, { target })).js, expected)
+    await Promise.all([
+      check('es2020', `foo(a ?? b);\n`),
+      check('es2019', `foo(a != null ? a : b);\n`),
+
+      check('chrome80', `foo(a ?? b);\n`),
+      check('chrome79', `foo(a != null ? a : b);\n`),
+
+      check(['es2020', 'chrome80'], `foo(a ?? b);\n`),
+      check(['es2020', 'chrome79'], `foo(a != null ? a : b);\n`),
+      check(['es2019', 'chrome80'], `foo(a != null ? a : b);\n`),
+    ])
+  },
+
   // Future syntax
   forAwait: ({ service }) => futureSyntax(service, 'async function foo() { for await (let x of y) {} }', 'es2017', 'es2018'),
   bigInt: ({ service }) => futureSyntax(service, '123n', 'es2019', 'es2020'),

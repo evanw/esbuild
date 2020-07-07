@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
@@ -482,6 +483,7 @@ const (
 	mergeReplaceWithNew
 	mergeKeepExisting
 	mergeBecomePrivateGetSetPair
+	mergeBecomePrivateStaticGetSetPair
 )
 
 func (p *parser) canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) mergeResult {
@@ -525,6 +527,10 @@ func (p *parser) canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) me
 	if (existing == ast.SymbolPrivateGet && new == ast.SymbolPrivateSet) ||
 		(existing == ast.SymbolPrivateSet && new == ast.SymbolPrivateGet) {
 		return mergeBecomePrivateGetSetPair
+	}
+	if (existing == ast.SymbolPrivateStaticGet && new == ast.SymbolPrivateStaticSet) ||
+		(existing == ast.SymbolPrivateStaticSet && new == ast.SymbolPrivateStaticGet) {
+		return mergeBecomePrivateStaticGetSetPair
 	}
 
 	return mergeForbidden
@@ -577,6 +583,10 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 		case mergeBecomePrivateGetSetPair:
 			ref = existing
 			symbol.Kind = ast.SymbolPrivateGetSetPair
+
+		case mergeBecomePrivateStaticGetSetPair:
+			ref = existing
+			symbol.Kind = ast.SymbolPrivateStaticGetSetPair
 		}
 	}
 
@@ -1001,7 +1011,13 @@ func (p *parser) parseProperty(
 			if name == "#constructor" {
 				p.log.AddRangeError(&p.source, keyRange, fmt.Sprintf("Invalid field name %q", name))
 			}
-			private.Ref = p.declareSymbol(ast.SymbolPrivateField, key.Loc, name)
+			var declare ast.SymbolKind
+			if opts.isStatic {
+				declare = ast.SymbolPrivateStaticField
+			} else {
+				declare = ast.SymbolPrivateField
+			}
+			private.Ref = p.declareSymbol(declare, key.Loc, name)
 		}
 
 		p.lexer.ExpectOrInsertSemicolon()
@@ -1071,13 +1087,25 @@ func (p *parser) parseProperty(
 			var suffix string
 			switch kind {
 			case ast.PropertyGet:
-				declare = ast.SymbolPrivateGet
+				if opts.isStatic {
+					declare = ast.SymbolPrivateStaticGet
+				} else {
+					declare = ast.SymbolPrivateGet
+				}
 				suffix = "_get"
 			case ast.PropertySet:
-				declare = ast.SymbolPrivateSet
+				if opts.isStatic {
+					declare = ast.SymbolPrivateStaticSet
+				} else {
+					declare = ast.SymbolPrivateSet
+				}
 				suffix = "_set"
 			default:
-				declare = ast.SymbolPrivateMethod
+				if opts.isStatic {
+					declare = ast.SymbolPrivateStaticMethod
+				} else {
+					declare = ast.SymbolPrivateMethod
+				}
 				suffix = "_fn"
 			}
 			name := p.loadNameFromRef(private.Ref)
@@ -1085,7 +1113,7 @@ func (p *parser) parseProperty(
 				p.log.AddRangeError(&p.source, keyRange, fmt.Sprintf("Invalid method name %q", name))
 			}
 			private.Ref = p.declareSymbol(declare, key.Loc, name)
-			if p.Target < privateNameTarget {
+			if p.UnsupportedFeatures.Has(declare.Feature()) {
 				methodRef := p.newSymbol(ast.SymbolOther, name[1:]+suffix)
 				if kind == ast.PropertySet {
 					p.privateSetters[private.Ref] = methodRef
@@ -1754,7 +1782,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 
 	case lexer.TBigIntegerLiteral:
 		value := p.lexer.Identifier
-		p.markFutureSyntax(futureSyntaxBigInteger, p.lexer.Range())
+		p.markFutureFeature(compat.BigInt, p.lexer.Range())
 		p.lexer.Next()
 		return ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EBigInt{Value: value}}
 
@@ -2156,10 +2184,9 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 			r := p.lexer.Range()
 			p.lexer.Next()
 			p.hasImportMeta = true
-			if p.Target < importMetaTarget {
+			if p.UnsupportedFeatures.Has(compat.ImportMeta) {
 				r = ast.Range{Loc: loc, Len: r.End() - loc.Start}
-				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
-					"\"import.meta\" is from ES2020 and will be empty when targeting %s", targetTable[p.Target]))
+				p.markFutureFeature(compat.ImportMeta, r)
 			}
 			return ast.Expr{Loc: loc, Data: &ast.EImportMeta{}}
 		} else {
@@ -3292,7 +3319,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 					// This was a bug in the ES2015 spec that was fixed in ES2016
 					if p.lexer.Token != lexer.TIdentifier {
-						p.markFutureSyntax(futureSyntaxNonIdentifierArrayRest, p.lexer.Range())
+						p.markFutureFeature(compat.NestedRestBinding, p.lexer.Range())
 					}
 				}
 
@@ -3387,7 +3414,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool) {
 	if opts.allowAwait && opts.allowYield {
-		p.markFutureSyntax(futureSyntaxAsyncGenerator, opts.asyncRange)
+		p.markFutureFeature(compat.AsyncGenerator, opts.asyncRange)
 	}
 
 	fn.Name = name
@@ -4297,7 +4324,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 			// The catch binding is optional, and can be omitted
 			if p.lexer.Token == lexer.TOpenBrace {
-				if p.Target < config.ES2019 {
+				if p.UnsupportedFeatures.Has(compat.OptionalCatchBinding) {
 					// Generate a new symbol for the catch binding for older browsers
 					ref := p.newSymbol(ast.SymbolOther, "e")
 					p.currentScope.Generated = append(p.currentScope.Generated, ref)
@@ -4350,7 +4377,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"await\" outside an async function")
 				isForAwait = false
 			} else {
-				p.markFutureSyntax(futureSyntaxForAwait, p.lexer.Range())
+				p.markFutureFeature(compat.ForAwait, p.lexer.Range())
 			}
 			p.lexer.Next()
 		}
@@ -6924,7 +6951,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return e.Right, exprOut{}
 
 			default:
-				if p.Target < nullishCoalescingTarget {
+				if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
 					return p.lowerNullishCoalescing(expr.Loc, e.Left, e.Right), exprOut{}
 				}
 			}
@@ -7002,7 +7029,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 			// Lower the exponentiation operator for browsers that don't support it
-			if p.Target < config.ES2016 {
+			if p.UnsupportedFeatures.Has(compat.ExponentOperator) {
 				return p.callRuntime(expr.Loc, "__pow", []ast.Expr{e.Left, e.Right}), exprOut{}
 			}
 
@@ -7093,7 +7120,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		case ast.BinOpPowAssign:
 			// Lower the exponentiation operator for browsers that don't support it
-			if p.Target < config.ES2016 {
+			if p.UnsupportedFeatures.Has(compat.ExponentOperator) {
 				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
 			}
 
@@ -7132,17 +7159,17 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 		case ast.BinOpNullishCoalescingAssign:
-			if p.Target < config.ESNext {
+			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
 				return p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e), exprOut{}
 			}
 
 		case ast.BinOpLogicalAndAssign:
-			if p.Target < config.ESNext {
+			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
 				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalAnd), exprOut{}
 			}
 
 		case ast.BinOpLogicalOrAssign:
-			if p.Target < config.ESNext {
+			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
 				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalOr), exprOut{}
 			}
 		}
@@ -7177,10 +7204,10 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if !kind.IsPrivate() {
 				r := ast.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
-			} else if in.assignTarget != ast.AssignTargetNone && kind == ast.SymbolPrivateGet {
+			} else if in.assignTarget != ast.AssignTargetNone && (kind == ast.SymbolPrivateGet || kind == ast.SymbolPrivateStaticGet) {
 				r := ast.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to getter-only property %q will throw", name))
-			} else if in.assignTarget != ast.AssignTargetReplace && kind == ast.SymbolPrivateSet {
+			} else if in.assignTarget != ast.AssignTargetReplace && (kind == ast.SymbolPrivateSet || kind == ast.SymbolPrivateStaticSet) {
 				r := ast.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Reading from setter-only property %q will throw", name))
 			}
@@ -7188,7 +7215,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			// Lower private member access only if we're sure the target isn't needed
 			// for the value of "this" for a call expression. All other cases will be
 			// taken care of by the enclosing call expression.
-			if p.Target < privateNameTarget && e.OptionalChain == ast.OptionalChainNone &&
+			if p.UnsupportedFeatures.Has(kind.Feature()) && e.OptionalChain == ast.OptionalChainNone &&
 				in.assignTarget == ast.AssignTargetNone && !isCallTarget {
 				// "foo.#bar" => "__privateGet(foo, #bar)"
 				return p.lowerPrivateGet(e.Target, e.Index.Loc, private), exprOut{}
@@ -7375,7 +7402,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		e.Value = p.visitExpr(e.Value)
 
 		// "await" expressions turn into "yield" expressions when lowering
-		if p.Target < asyncAwaitTarget {
+		if p.UnsupportedFeatures.Has(compat.AsyncAwait) {
 			return ast.Expr{Loc: expr.Loc, Data: &ast.EYield{Value: &e.Value}}, exprOut{}
 		}
 
@@ -8373,16 +8400,6 @@ func simplifyUnusedStringAdditionChain(expr ast.Expr) (ast.Expr, bool) {
 	return expr, false
 }
 
-var targetTable = map[config.LanguageTarget]string{
-	config.ES2015: "ES2015",
-	config.ES2016: "ES2016",
-	config.ES2017: "ES2017",
-	config.ES2018: "ES2018",
-	config.ES2019: "ES2019",
-	config.ES2020: "ES2020",
-	config.ESNext: "ESNext",
-}
-
 func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, options *config.Options) *parser {
 	if options.Defines == nil {
 		defaultDefines := config.ProcessDefines(nil)
@@ -8561,7 +8578,7 @@ func (p *parser) prepareForVisitPass(options *config.Options) {
 	}
 
 	// Convert "import.meta" to a variable if it's not supported in the output format
-	if p.hasImportMeta && (p.Target < importMetaTarget || (options.IsBundling && !p.OutputFormat.KeepES6ImportExportSyntax())) {
+	if p.hasImportMeta && (p.UnsupportedFeatures.Has(compat.ImportMeta) || (options.IsBundling && !p.OutputFormat.KeepES6ImportExportSyntax())) {
 		p.importMetaRef = p.newSymbol(ast.SymbolOther, "import_meta")
 		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
 	} else {

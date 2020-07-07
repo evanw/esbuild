@@ -1,4 +1,3 @@
-export declare type Target = 'esnext' | 'es6' | 'es2015' | 'es2016' | 'es2017' | 'es2018' | 'es2019' | 'es2020';
 export declare type Platform = 'browser' | 'node';
 export declare type Format = 'iife' | 'cjs' | 'esm';
 export declare type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary';
@@ -7,7 +6,7 @@ export declare type Strict = 'nullish-coalescing' | 'class-fields';
 
 export interface CommonOptions {
   sourcemap?: boolean | 'inline' | 'external';
-  target?: Target;
+  target?: string | string[];
   strict?: boolean | Strict[];
 
   minify?: boolean;

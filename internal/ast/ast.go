@@ -2,6 +2,8 @@ package ast
 
 import (
 	"strings"
+
+	"github.com/evanw/esbuild/internal/compat"
 )
 
 // Every module (i.e. file) is parsed into a separate AST data structure. For
@@ -984,6 +986,11 @@ const (
 	SymbolPrivateGet
 	SymbolPrivateSet
 	SymbolPrivateGetSetPair
+	SymbolPrivateStaticField
+	SymbolPrivateStaticMethod
+	SymbolPrivateStaticGet
+	SymbolPrivateStaticSet
+	SymbolPrivateStaticGetSetPair
 
 	// TypeScript enums can merge with TypeScript namespaces and other TypeScript
 	// enums.
@@ -1002,7 +1009,26 @@ const (
 )
 
 func (kind SymbolKind) IsPrivate() bool {
-	return kind >= SymbolPrivateField && kind <= SymbolPrivateGetSetPair
+	return kind >= SymbolPrivateField && kind <= SymbolPrivateStaticGetSetPair
+}
+
+func (kind SymbolKind) Feature() compat.Feature {
+	switch kind {
+	case SymbolPrivateField:
+		return compat.ClassPrivateField
+	case SymbolPrivateMethod:
+		return compat.ClassPrivateMethod
+	case SymbolPrivateGet, SymbolPrivateSet, SymbolPrivateGetSetPair:
+		return compat.ClassPrivateAccessor
+	case SymbolPrivateStaticField:
+		return compat.ClassPrivateStaticField
+	case SymbolPrivateStaticMethod:
+		return compat.ClassPrivateStaticMethod
+	case SymbolPrivateStaticGet, SymbolPrivateStaticSet, SymbolPrivateStaticGetSetPair:
+		return compat.ClassPrivateStaticAccessor
+	default:
+		return 0
+	}
 }
 
 func (kind SymbolKind) IsHoisted() bool {

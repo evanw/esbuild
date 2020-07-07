@@ -2,10 +2,13 @@ package api
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/bundler"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
@@ -81,27 +84,6 @@ func validateLogLevel(value LogLevel) logging.LogLevel {
 	}
 }
 
-func validateTarget(value Target) config.LanguageTarget {
-	switch value {
-	case ESNext:
-		return config.ESNext
-	case ES2015:
-		return config.ES2015
-	case ES2016:
-		return config.ES2016
-	case ES2017:
-		return config.ES2017
-	case ES2018:
-		return config.ES2018
-	case ES2019:
-		return config.ES2019
-	case ES2020:
-		return config.ES2020
-	default:
-		panic("Invalid target")
-	}
-}
-
 func validateStrict(value StrictOptions) config.StrictOptions {
 	return config.StrictOptions{
 		NullishCoalescing: value.NullishCoalescing,
@@ -134,6 +116,84 @@ func validateLoader(value Loader) config.Loader {
 	default:
 		panic("Invalid loader")
 	}
+}
+
+func validateEngine(value EngineName) compat.Engine {
+	switch value {
+	case EngineChrome:
+		return compat.Chrome
+	case EngineEdge:
+		return compat.Edge
+	case EngineFirefox:
+		return compat.Firefox
+	case EngineIOS:
+		return compat.IOS
+	case EngineNode:
+		return compat.Node
+	case EngineSafari:
+		return compat.Safari
+	default:
+		panic("Invalid loader")
+	}
+}
+
+var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
+
+func validateFeatures(log logging.Log, target Target, engines []Engine) compat.Feature {
+	constraints := make(map[compat.Engine][]int)
+
+	switch target {
+	case ES2015:
+		constraints[compat.ES] = []int{2015}
+	case ES2016:
+		constraints[compat.ES] = []int{2016}
+	case ES2017:
+		constraints[compat.ES] = []int{2017}
+	case ES2018:
+		constraints[compat.ES] = []int{2018}
+	case ES2019:
+		constraints[compat.ES] = []int{2019}
+	case ES2020:
+		constraints[compat.ES] = []int{2020}
+	case ESNext:
+	default:
+		panic("Invalid target")
+	}
+
+	for _, engine := range engines {
+		if match := versionRegex.FindStringSubmatch(engine.Version); match != nil {
+			if major, err := strconv.Atoi(match[1]); err == nil {
+				version := []int{major}
+				if minor, err := strconv.Atoi(match[2]); err == nil {
+					version = append(version, minor)
+				}
+				if patch, err := strconv.Atoi(match[3]); err == nil {
+					version = append(version, patch)
+				}
+				switch engine.Name {
+				case EngineChrome:
+					constraints[compat.Chrome] = version
+				case EngineEdge:
+					constraints[compat.Edge] = version
+				case EngineFirefox:
+					constraints[compat.Firefox] = version
+				case EngineIOS:
+					constraints[compat.IOS] = version
+				case EngineNode:
+					constraints[compat.Node] = version
+				case EngineSafari:
+					constraints[compat.Safari] = version
+				default:
+					panic("Invalid engine name")
+				}
+				continue
+			}
+		}
+
+		log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid version: %q", engine.Version))
+	}
+
+	return compat.UnsupportedFeatures(constraints)
 }
 
 func validateExternals(log logging.Log, fs fs.FS, paths []string) config.ExternalModules {
@@ -336,8 +396,8 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	// Convert and validate the buildOpts
 	realFS := fs.RealFS()
 	options := config.Options{
-		Target: validateTarget(buildOpts.Target),
-		Strict: validateStrict(buildOpts.Strict),
+		UnsupportedFeatures: validateFeatures(log, buildOpts.Target, buildOpts.Engines),
+		Strict:              validateStrict(buildOpts.Strict),
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
@@ -470,8 +530,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Convert and validate the transformOpts
 	options := config.Options{
-		Target: validateTarget(transformOpts.Target),
-		Strict: validateStrict(transformOpts.Strict),
+		UnsupportedFeatures: validateFeatures(log, transformOpts.Target, transformOpts.Engines),
+		Strict:              validateStrict(transformOpts.Strict),
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),

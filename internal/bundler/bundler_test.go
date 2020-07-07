@@ -6,12 +6,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/kylelemons/godebug/diff"
 )
+
+func es(version int) compat.Feature {
+	return compat.UnsupportedFeatures(map[compat.Engine]float32{
+		compat.ES: float32(version),
+	})
+}
 
 func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	if a != b {

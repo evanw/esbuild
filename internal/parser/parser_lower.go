@@ -5,62 +5,43 @@
 package parser
 
 import (
-	"fmt"
-
 	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
-const asyncAwaitTarget = config.ES2017
-const objectPropertyBindingTarget = config.ES2018
-const nullishCoalescingTarget = config.ES2020
-const privateNameTarget = config.ESNext
-const importMetaTarget = config.ES2020
+func (p *parser) markFutureFeature(feature compat.Feature, r ast.Range) {
+	if p.UnsupportedFeatures.Has(feature) {
+		where := "the configured target environment"
 
-type futureSyntax uint8
+		switch feature {
+		case compat.AsyncGenerator:
+			p.log.AddRangeError(&p.source, r,
+				"Transforming async generator functions to "+where+" is not supported yet")
 
-const (
-	futureSyntaxAsyncGenerator futureSyntax = iota
-	futureSyntaxForAwait
-	futureSyntaxBigInteger
-	futureSyntaxNonIdentifierArrayRest
-)
+		case compat.ForAwait:
+			p.log.AddRangeError(&p.source, r,
+				"Transforming for-await loops to "+where+" is not supported yet")
 
-func (p *parser) markFutureSyntax(syntax futureSyntax, r ast.Range) {
-	var target config.LanguageTarget
+		case compat.NestedRestBinding:
+			p.log.AddRangeError(&p.source, r,
+				"Transforming non-identifier array rest patterns to "+where+" is not supported yet")
 
-	switch syntax {
-	case futureSyntaxAsyncGenerator:
-		target = config.ES2018
-	case futureSyntaxForAwait:
-		target = config.ES2018
-	case futureSyntaxBigInteger:
-		target = config.ES2020
-	case futureSyntaxNonIdentifierArrayRest:
-		target = config.ES2016
-	}
+		case compat.BigInt:
+			// Transforming these will never be supported
+			p.log.AddRangeError(&p.source, r,
+				"Big integer literals are not available in "+where)
 
-	if p.Target < target {
-		var name string
-		yet := " yet"
-
-		switch syntax {
-		case futureSyntaxAsyncGenerator:
-			name = "Async generator functions"
-		case futureSyntaxForAwait:
-			name = "For-await loops"
-		case futureSyntaxBigInteger:
-			name = "Big integer literals"
-			yet = "" // This will never be supported
-		case futureSyntaxNonIdentifierArrayRest:
-			name = "Non-identifier array rest patterns"
+		case compat.ImportMeta:
+			// This can't be polyfilled
+			p.log.AddRangeWarning(&p.source, r,
+				"\"import.meta\" is not available in "+where+" and will be empty")
 		}
-
-		p.log.AddRangeError(&p.source, r,
-			fmt.Sprintf("%s are from %s and transforming them to %s is not supported%s",
-				name, targetTable[target], targetTable[p.Target], yet))
 	}
+}
+
+func (p *parser) isPrivateUnsupported(private *ast.EPrivateIdentifier) bool {
+	return p.UnsupportedFeatures.Has(p.symbols[private.Ref.InnerIndex].Kind.Feature())
 }
 
 func (p *parser) lowerFunction(
@@ -71,7 +52,7 @@ func (p *parser) lowerFunction(
 	preferExpr *bool,
 ) {
 	// Lower object rest binding patterns in function arguments
-	if p.Target < objectPropertyBindingTarget {
+	if p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
 		var prefixStmts []ast.Stmt
 
 		// Lower each argument individually instead of lowering all arguments
@@ -127,7 +108,7 @@ func (p *parser) lowerFunction(
 	}
 
 	// Lower async functions
-	if p.Target < asyncAwaitTarget && *isAsync {
+	if p.UnsupportedFeatures.Has(compat.AsyncAwait) && *isAsync {
 		// Use the shortened form if we're an arrow function
 		if preferExpr != nil {
 			*preferExpr = true
@@ -196,10 +177,8 @@ flatten:
 			// itself will have to be lowered even if the language target supports
 			// optional chaining. This is because there's no way to use our shim
 			// function for private names with optional chaining syntax.
-			if p.Target < privateNameTarget {
-				if _, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok {
-					containsPrivateName = true
-				}
+			if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+				containsPrivateName = true
 			}
 
 			if e.OptionalChain == ast.OptionalChainStart {
@@ -231,16 +210,14 @@ flatten:
 
 	// We need to lower this if this is an optional call off of a private name
 	// such as "foo.#bar?.()" because the value of "this" must be captured.
-	if p.Target < privateNameTarget {
-		if _, _, private := p.extractPrivateIndex(expr); private != nil {
-			containsPrivateName = true
-		}
+	if _, _, private := p.extractPrivateIndex(expr); private != nil {
+		containsPrivateName = true
 	}
 
 	// Don't lower this if we don't need to. This check must be done here instead
 	// of earlier so we can do the dead code elimination above when the target is
 	// null or undefined.
-	if p.Target >= config.ES2020 && !containsPrivateName {
+	if !p.UnsupportedFeatures.Has(compat.OptionalChain) && !containsPrivateName {
 		return originalExpr, exprOut{}
 	}
 
@@ -276,13 +253,11 @@ flatten:
 
 				// Capture the value of "this" if the target of the starting call
 				// expression is a private property access
-				if p.Target < privateNameTarget {
-					if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok {
-						// "foo().#bar?.()" must capture "foo()" for "this"
-						expr = p.lowerPrivateGet(targetFunc(), e.Index.Loc, private)
-						thisArg = targetFunc()
-						break
-					}
+				if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+					// "foo().#bar?.()" must capture "foo()" for "this"
+					expr = p.lowerPrivateGet(targetFunc(), e.Index.Loc, private)
+					thisArg = targetFunc()
+					break
 				}
 
 				expr = ast.Expr{Loc: loc, Data: &ast.EIndex{
@@ -322,7 +297,7 @@ flatten:
 			}}
 
 		case *ast.EIndex:
-			if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok && p.Target < privateNameTarget {
+			if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
 				// If this is private name property access inside a call expression and
 				// the call expression is part of this chain, then the call expression
 				// is going to need a copy of the property access target as the value
@@ -484,7 +459,7 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 
 func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
-		if p.Target < nullishCoalescingTarget {
+		if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
 			// "a.#b ??= c" => "(_a = __privateGet(a, #b)) != null ? _a : __privateSet(a, #b, c)"
 			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
 			left := p.lowerPrivateGet(targetFunc(), privateLoc, private)
@@ -502,7 +477,7 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EB
 	}
 
 	return p.lowerAssignmentOperator(e.Left, func(a ast.Expr, b ast.Expr) ast.Expr {
-		if p.Target < nullishCoalescingTarget {
+		if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
 			// "a ??= b" => "(_a = a) != null ? _a : a = b"
 			return p.lowerNullishCoalescing(loc, a, ast.Assign(b, e.Right))
 		}
@@ -604,7 +579,7 @@ func (p *parser) lowerNullishCoalescing(loc ast.Loc, left ast.Expr, right ast.Ex
 func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 	needsLowering := false
 
-	if p.Target < config.ES2018 {
+	if p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
 		for _, property := range e.Properties {
 			if property.Kind == ast.PropertySpread {
 				needsLowering = true
@@ -661,7 +636,7 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 
 func (p *parser) lowerPrivateGet(target ast.Expr, loc ast.Loc, private *ast.EPrivateIdentifier) ast.Expr {
 	switch p.symbols[private.Ref.InnerIndex].Kind {
-	case ast.SymbolPrivateMethod:
+	case ast.SymbolPrivateMethod, ast.SymbolPrivateStaticMethod:
 		// "this.#method" => "__privateMethod(this, #method, method_fn)"
 		return p.callRuntime(target.Loc, "__privateMethod", []ast.Expr{
 			target,
@@ -669,7 +644,8 @@ func (p *parser) lowerPrivateGet(target ast.Expr, loc ast.Loc, private *ast.EPri
 			{Loc: loc, Data: &ast.EIdentifier{Ref: p.privateGetters[private.Ref]}},
 		})
 
-	case ast.SymbolPrivateGet, ast.SymbolPrivateGetSetPair:
+	case ast.SymbolPrivateGet, ast.SymbolPrivateStaticGet,
+		ast.SymbolPrivateGetSetPair, ast.SymbolPrivateStaticGetSetPair:
 		// "this.#getter" => "__privateGet(this, #getter, getter_get)"
 		return p.callRuntime(target.Loc, "__privateGet", []ast.Expr{
 			target,
@@ -693,7 +669,8 @@ func (p *parser) lowerPrivateSet(
 	value ast.Expr,
 ) ast.Expr {
 	switch p.symbols[private.Ref.InnerIndex].Kind {
-	case ast.SymbolPrivateSet, ast.SymbolPrivateGetSetPair:
+	case ast.SymbolPrivateSet, ast.SymbolPrivateStaticSet,
+		ast.SymbolPrivateGetSetPair, ast.SymbolPrivateStaticGetSetPair:
 		// "this.#setter = 123" => "__privateSet(this, #setter, 123, setter_set)"
 		return p.callRuntime(target.Loc, "__privateSet", []ast.Expr{
 			target,
@@ -756,11 +733,9 @@ func (p *parser) lowerPrivateSetBinOp(target ast.Expr, loc ast.Loc, private *ast
 // Returns valid data if target is an expression of the form "foo.#bar" and if
 // the language target is such that private members must be lowered
 func (p *parser) extractPrivateIndex(target ast.Expr) (ast.Expr, ast.Loc, *ast.EPrivateIdentifier) {
-	if p.Target < privateNameTarget {
-		if index, ok := target.Data.(*ast.EIndex); ok {
-			if private, ok := index.Index.Data.(*ast.EPrivateIdentifier); ok {
-				return index.Target, index.Index.Loc, private
-			}
+	if index, ok := target.Data.(*ast.EIndex); ok {
+		if private, ok := index.Index.Data.(*ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+			return index.Target, index.Index.Loc, private
 		}
 	}
 	return ast.Expr{}, ast.Loc{}, nil
@@ -807,7 +782,7 @@ func exprHasObjectRest(expr ast.Expr) bool {
 }
 
 func (p *parser) lowerObjectRestInDecls(decls []ast.Decl) []ast.Decl {
-	if p.Target >= objectPropertyBindingTarget {
+	if !p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
 		return decls
 	}
 
@@ -835,7 +810,7 @@ func (p *parser) lowerObjectRestInDecls(decls []ast.Decl) []ast.Decl {
 }
 
 func (p *parser) lowerObjectRestInForLoopInit(init ast.Stmt, body *ast.Stmt) {
-	if p.Target >= objectPropertyBindingTarget {
+	if !p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
 		return
 	}
 
@@ -878,7 +853,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init ast.Stmt, body *ast.Stmt) {
 }
 
 func (p *parser) lowerObjectRestInCatchBinding(catch *ast.Catch) {
-	if p.Target >= objectPropertyBindingTarget {
+	if !p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
 		return
 	}
 
@@ -929,7 +904,7 @@ func (p *parser) lowerObjectRestHelper(
 	assign func(ast.Expr, ast.Expr),
 	declare generateTempRefArg,
 ) bool {
-	if p.Target >= objectPropertyBindingTarget {
+	if !p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
 		return false
 	}
 
@@ -1269,7 +1244,11 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	// We always lower class fields when parsing TypeScript since class fields in
 	// TypeScript don't follow the JavaScript spec. We also need to always lower
 	// TypeScript-style decorators since they don't have a JavaScript equivalent.
-	if !p.TS.Parse && p.Target >= config.ESNext {
+	classFeatures := compat.ClassField | compat.ClassStaticField |
+		compat.ClassPrivateField | compat.ClassPrivateStaticField |
+		compat.ClassPrivateMethod | compat.ClassPrivateStaticMethod |
+		compat.ClassPrivateAccessor | compat.ClassPrivateStaticAccessor
+	if !p.TS.Parse && !p.UnsupportedFeatures.Has(classFeatures) {
 		if kind == classKindExpr {
 			return nil, expr
 		} else {
@@ -1372,15 +1351,20 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		// its side effects and we don't need a temporary reference for the key.
 		// However, the TypeScript compiler doesn't remove the field when doing
 		// strict class field initialization, so we shouldn't either.
-		privateName, _ := prop.Key.Data.(*ast.EPrivateIdentifier)
+		private, _ := prop.Key.Data.(*ast.EPrivateIdentifier)
+		mustLowerPrivate := private != nil && p.isPrivateUnsupported(private)
 		shouldOmitFieldInitializer := p.TS.Parse && !prop.IsMethod && prop.Initializer == nil &&
-			!p.Strict.ClassFields && (privateName == nil || p.Target >= privateNameTarget)
+			!p.Strict.ClassFields && !mustLowerPrivate
+
+		// Class fields must be lowered if the environment doesn't support them
+		mustLowerField := !prop.IsMethod && (!prop.IsStatic && p.UnsupportedFeatures.Has(compat.ClassField) ||
+			(prop.IsStatic && p.UnsupportedFeatures.Has(compat.ClassStaticField)))
 
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
-		if prop.IsComputed && (p.TS.Parse || computedPropertyCache.Data != nil ||
-			(!prop.IsMethod && p.Target < config.ESNext) || len(prop.TSDecorators) > 0) {
+		if prop.IsComputed && (p.TS.Parse || len(prop.TSDecorators) > 0 ||
+			mustLowerField || computedPropertyCache.Data != nil) {
 			needsKey := true
 			if len(prop.TSDecorators) == 0 && (prop.IsMethod || shouldOmitFieldInitializer) {
 				needsKey = false
@@ -1456,7 +1440,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		// TypeScript feature. Move their initializers from the class body to
 		// either the constructor (instance fields) or after the class (static
 		// fields).
-		if (p.Target < config.ESNext || (p.TS.Parse && !p.Strict.ClassFields && (!prop.IsStatic || privateName == nil))) && !prop.IsMethod {
+		if !prop.IsMethod && (mustLowerField || (p.TS.Parse && !p.Strict.ClassFields && (!prop.IsStatic || private == nil))) {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
@@ -1481,10 +1465,10 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 
 				// Generate the assignment target
 				var expr ast.Expr
-				if privateName != nil && p.Target < privateNameTarget {
+				if mustLowerPrivate {
 					// Generate a new symbol for this private field
-					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[privateName.Ref.InnerIndex].Name[1:])
-					p.symbols[privateName.Ref.InnerIndex].Link = ref
+					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].Name[1:])
+					p.symbols[private.Ref.InnerIndex].Link = ref
 
 					// Initialize the private field to a new WeakMap
 					if p.weakMapRef == ast.InvalidRef {
@@ -1508,7 +1492,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 							init,
 						},
 					}}
-				} else if privateName == nil && p.Strict.ClassFields {
+				} else if private == nil && p.Strict.ClassFields {
 					expr = p.callRuntime(loc, "__publicField", []ast.Expr{
 						target,
 						prop.Key,
@@ -1540,7 +1524,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				}
 			}
 
-			if privateName == nil || p.Target < privateNameTarget {
+			if private == nil || mustLowerPrivate {
 				// Remove the field from the class body
 				continue
 			}
@@ -1551,14 +1535,14 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 
 		// Remember where the constructor is for later
 		if prop.IsMethod {
-			if privateName != nil && p.Target < privateNameTarget {
+			if mustLowerPrivate {
 				loc := prop.Key.Loc
 
 				// Don't generate a symbol for a getter/setter pair twice
-				if p.symbols[privateName.Ref.InnerIndex].Link == ast.InvalidRef {
+				if p.symbols[private.Ref.InnerIndex].Link == ast.InvalidRef {
 					// Generate a new symbol for this private method
-					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[privateName.Ref.InnerIndex].Name[1:])
-					p.symbols[privateName.Ref.InnerIndex].Link = ref
+					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].Name[1:])
+					p.symbols[private.Ref.InnerIndex].Link = ref
 
 					// Initialize the private method to a new WeakSet
 					if p.weakSetRef == ast.InvalidRef {
@@ -1602,9 +1586,9 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				// Move the method definition outside the class body
 				methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
 				if prop.Kind == ast.PropertySet {
-					p.symbols[methodRef.InnerIndex].Link = p.privateSetters[privateName.Ref]
+					p.symbols[methodRef.InnerIndex].Link = p.privateSetters[private.Ref]
 				} else {
-					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[privateName.Ref]
+					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[private.Ref]
 				}
 				privateMembers = append(privateMembers, ast.Assign(
 					ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: methodRef}},

@@ -5,8 +5,7 @@ package compat
 type Engine uint8
 
 const (
-	Android Engine = iota
-	Chrome
+	Chrome Engine = iota
 	Edge
 	ES
 	Firefox
@@ -18,17 +17,21 @@ const (
 type Feature uint32
 
 const (
-	Async Feature = 1 << iota
-	AsyncIter
+	AsyncAwait Feature = 1 << iota
+	AsyncGenerator
 	BigInt
 	ClassField
+	ClassPrivateAccessor
 	ClassPrivateField
 	ClassPrivateMethod
+	ClassPrivateStaticAccessor
 	ClassPrivateStaticField
 	ClassPrivateStaticMethod
 	ClassStaticField
 	ExponentOperator
+	ForAwait
 	Hashbang
+	ImportMeta
 	LogicalAssignment
 	NestedRestBinding
 	NullishCoalescing
@@ -37,127 +40,178 @@ const (
 	OptionalChain
 )
 
-var Table = map[Feature]map[Engine]float32{
-	Async: map[Engine]float32{
-		Chrome:  55,
-		Edge:    15,
-		ES:      2017,
-		Firefox: 52,
-		IOS:     10.3,
-		Node:    7.6,
-		Safari:  10.1,
+func (features Feature) Has(feature Feature) bool {
+	return (features & feature) != 0
+}
+
+var Table = map[Feature]map[Engine][]int{
+	AsyncAwait: {
+		Chrome:  {55},
+		Edge:    {15},
+		ES:      {2017},
+		Firefox: {52},
+		IOS:     {10, 3},
+		Node:    {7, 6},
+		Safari:  {10, 1},
 	},
-	AsyncIter: map[Engine]float32{
-		Chrome:  63,
-		Edge:    79,
-		ES:      2018,
-		Firefox: 57,
-		IOS:     12,
-		Node:    10,
-		Safari:  12,
+	AsyncGenerator: {
+		Chrome:  {63},
+		Edge:    {79},
+		ES:      {2018},
+		Firefox: {57},
+		IOS:     {12},
+		Node:    {10, 0},
+		Safari:  {12},
 	},
-	BigInt: map[Engine]float32{
-		Chrome:  67,
-		Edge:    79,
-		ES:      2020,
-		Firefox: 68,
-		Node:    10.4,
-		Safari:  14,
+	BigInt: {
+		Chrome:  {67},
+		Edge:    {79},
+		ES:      {2020},
+		Firefox: {68},
+		Node:    {10, 4},
+		Safari:  {14},
 	},
-	ClassField: map[Engine]float32{
-		Chrome:  72,
-		Edge:    79,
-		Firefox: 69,
-		Node:    12,
-		Safari:  14,
+	ClassField: {
+		Chrome:  {72},
+		Edge:    {79},
+		Firefox: {69},
+		Node:    {12, 0},
+		Safari:  {14},
 	},
-	ClassPrivateField: map[Engine]float32{
-		Chrome: 74,
-		Edge:   79,
-		Node:   12,
+	ClassPrivateAccessor: {
+		Chrome: {84},
 	},
-	ClassPrivateMethod: map[Engine]float32{
-		Chrome: 84,
+	ClassPrivateField: {
+		Chrome: {74},
+		Edge:   {79},
+		Node:   {12, 0},
 	},
-	ClassPrivateStaticField: map[Engine]float32{
-		Chrome: 74,
-		Edge:   79,
-		Node:   12,
+	ClassPrivateMethod: {
+		Chrome: {84},
 	},
-	ClassPrivateStaticMethod: map[Engine]float32{
-		Chrome: 84,
+	ClassPrivateStaticAccessor: {
+		Chrome: {84},
 	},
-	ClassStaticField: map[Engine]float32{
-		Chrome:  72,
-		Edge:    79,
-		Firefox: 75,
-		Node:    12,
+	ClassPrivateStaticField: {
+		Chrome: {74},
+		Edge:   {79},
+		Node:   {12, 0},
 	},
-	ExponentOperator: map[Engine]float32{
-		Chrome:  52,
-		Edge:    14,
-		ES:      2016,
-		Firefox: 52,
-		IOS:     10.3,
-		Node:    7,
-		Safari:  10.1,
+	ClassPrivateStaticMethod: {
+		Chrome: {84},
 	},
-	Hashbang: map[Engine]float32{
-		Chrome:  74,
-		Edge:    79,
-		Firefox: 67,
-		IOS:     13.4,
-		Node:    12,
-		Safari:  13.1,
+	ClassStaticField: {
+		Chrome:  {72},
+		Edge:    {79},
+		Firefox: {75},
+		Node:    {12, 0},
 	},
-	LogicalAssignment: map[Engine]float32{
-		Chrome:  85,
-		Firefox: 79,
-		Safari:  14,
+	ExponentOperator: {
+		Chrome:  {52},
+		Edge:    {14},
+		ES:      {2016},
+		Firefox: {52},
+		IOS:     {10, 3},
+		Node:    {7},
+		Safari:  {10, 1},
 	},
-	NestedRestBinding: map[Engine]float32{
-		Chrome:  49,
-		Edge:    14,
-		ES:      2016,
-		Firefox: 47,
-		IOS:     10.3,
-		Node:    6,
-		Safari:  10.1,
+	ForAwait: {
+		Chrome:  {63},
+		Edge:    {79},
+		ES:      {2018},
+		Firefox: {57},
+		IOS:     {12},
+		Node:    {10, 0},
+		Safari:  {12},
 	},
-	NullishCoalescing: map[Engine]float32{
-		Chrome:  80,
-		Edge:    80,
-		ES:      2020,
-		Firefox: 72,
-		IOS:     13.4,
-		Node:    14,
-		Safari:  13.1,
+	Hashbang: {
+		Chrome:  {74},
+		Edge:    {79},
+		Firefox: {67},
+		IOS:     {13, 4},
+		Node:    {12, 0},
+		Safari:  {13, 1},
 	},
-	ObjectRestSpread: map[Engine]float32{
-		Chrome:  60,
-		Edge:    79,
-		ES:      2018,
-		Firefox: 55,
-		IOS:     11.3,
-		Node:    8.1,
-		Safari:  11.1,
+	ImportMeta: {
+		Chrome:  {64},
+		Edge:    {79},
+		ES:      {2020},
+		Firefox: {62},
+		IOS:     {12},
+		Safari:  {11, 1},
 	},
-	OptionalCatchBinding: map[Engine]float32{
-		Chrome:  66,
-		Edge:    79,
-		ES:      2019,
-		Firefox: 58,
-		IOS:     11.3,
-		Node:    10,
-		Safari:  11.1,
+	LogicalAssignment: {
+		Chrome:  {85},
+		Firefox: {79},
+		Safari:  {14},
 	},
-	OptionalChain: map[Engine]float32{
-		Chrome:  80,
-		Edge:    80,
-		ES:      2020,
-		Firefox: 74,
-		IOS:     13.4,
-		Node:    14,
-		Safari:  13.1,
+	NestedRestBinding: {
+		Chrome:  {49},
+		Edge:    {14},
+		ES:      {2016},
+		Firefox: {47},
+		IOS:     {10, 3},
+		Node:    {6},
+		Safari:  {10, 1},
 	},
+	NullishCoalescing: {
+		Chrome:  {80},
+		Edge:    {80},
+		ES:      {2020},
+		Firefox: {72},
+		IOS:     {13, 4},
+		Node:    {14, 0},
+		Safari:  {13, 1},
+	},
+	ObjectRestSpread: {
+		Chrome:  {60},
+		Edge:    {79},
+		ES:      {2018},
+		Firefox: {55},
+		IOS:     {11, 3},
+		Node:    {8, 3},
+		Safari:  {11, 1},
+	},
+	OptionalCatchBinding: {
+		Chrome:  {66},
+		Edge:    {79},
+		ES:      {2019},
+		Firefox: {58},
+		IOS:     {11, 3},
+		Node:    {10, 0},
+		Safari:  {11, 1},
+	},
+	OptionalChain: {
+		Chrome:  {80},
+		Edge:    {80},
+		ES:      {2020},
+		Firefox: {74},
+		IOS:     {13, 4},
+		Node:    {14, 0},
+		Safari:  {13, 1},
+	},
+}
+
+func isVersionLessThan(a []int, b []int) bool {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] > b[i] {
+			return false
+		}
+		if a[i] < b[i] {
+			return true
+		}
+	}
+	return len(a) < len(b)
+}
+
+// Return all features that are not available in at least one environment
+func UnsupportedFeatures(constraints map[Engine][]int) (unsupported Feature) {
+	for feature, engines := range Table {
+		for engine, version := range constraints {
+			if minVersion, ok := engines[engine]; !ok || isVersionLessThan(version, minVersion) {
+				unsupported |= feature
+			}
+		}
+	}
+	return
 }
