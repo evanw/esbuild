@@ -112,6 +112,10 @@
     let element = <div>an unused element</div>
     ```
 
+* Fixed a concurrency issue with the JavaScript API
+
+    Before this release, multiple concurrent JavaScript API calls that used different values for the `define` option could end up using the value from another API call. This bug was due to inverted boolean logic in code that was intended to cache the define map only when there were no user-specified defines. The issue has been fixed.
+
 ## 0.5.21
 
 * Binaries for FreeBSD ([#217](https://github.com/evanw/esbuild/pull/217))
