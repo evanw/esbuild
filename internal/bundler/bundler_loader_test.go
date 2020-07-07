@@ -286,7 +286,7 @@ var require_x = __commonJS((exports, module) => {
 });
 
 // /y.json
-const y_default = {y: true};
+var y_default = {y: true};
 
 // /entry.js
 const x_json = require_x();
@@ -319,7 +319,7 @@ var require_x = __commonJS((exports, module) => {
 });
 
 // /y.txt
-const y_default = "y";
+var y_default = "y";
 
 // /entry.js
 const x_txt = require_x();
@@ -356,7 +356,7 @@ var require_x = __commonJS((exports, module) => {
 });
 
 // /y.b64
-const y_default = "eQ==";
+var y_default = "eQ==";
 
 // /entry.js
 const x_b64 = require_x();
@@ -393,7 +393,7 @@ var require_x = __commonJS((exports, module) => {
 });
 
 // /y.txt
-const y_default = "data:text/plain; charset=utf-8;base64,eQ==";
+var y_default = "data:text/plain; charset=utf-8;base64,eQ==";
 
 // /entry.js
 const x_url = require_x();
@@ -432,7 +432,7 @@ var require_x = __commonJS((exports, module) => {
 });
 
 // /y.txt
-const y_default = "y.KRCjcBKx.txt";
+var y_default = "y.KRCjcBKx.txt";
 
 // /entry.js
 const x_url = require_x();

@@ -2372,8 +2372,8 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			// If we're bundling, convert "export default" into a normal declaration
 			if shouldStripExports {
 				if s.Value.Expr != nil {
-					// "export default foo;" => "const default = foo;"
-					stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{
+					// "export default foo;" => "var default = foo;"
+					stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SLocal{Decls: []ast.Decl{
 						{Binding: ast.Binding{Loc: s.DefaultName.Loc, Data: &ast.BIdentifier{Ref: s.DefaultName.Ref}}, Value: s.Value.Expr},
 					}}}
 				} else {

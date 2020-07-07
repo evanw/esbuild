@@ -385,7 +385,7 @@ __export(b_exports, {
 const xyz = null;
 
 // /entry.js
-const entry_default = 123;
+var entry_default = 123;
 var v = 234;
 let l = 234;
 const c = 234;
@@ -448,7 +448,7 @@ func TestExportFormsIIFE(t *testing.T) {
       l: () => l,
       v: () => v
     });
-    const entry_default = 123;
+    var entry_default = 123;
     var v = 234;
     let l = 234;
     const c = 234;
@@ -678,7 +678,7 @@ var require_commonjs = __commonJS((exports) => {
     l: () => l,
     v: () => v
   });
-  const commonjs_default = 123;
+  var commonjs_default = 123;
   var v = 234;
   let l = 234;
   const c = 234;
@@ -1431,25 +1431,25 @@ func TestTsConfigPaths(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/baseurl_dot/test0-success.ts
-const test0_success_default = "test0-success";
+var test0_success_default = "test0-success";
 
 // /Users/user/project/baseurl_dot/test1-success.ts
-const test1_success_default = "test1-success";
+var test1_success_default = "test1-success";
 
 // /Users/user/project/baseurl_dot/test2-success/foo.ts
-const foo_default = "test2-success";
+var foo_default = "test2-success";
 
 // /Users/user/project/baseurl_dot/test3-success.ts
-const test3_success_default = "test3-success";
+var test3_success_default = "test3-success";
 
 // /Users/user/project/baseurl_dot/test4-first/foo.ts
-const foo_default2 = "test4-success";
+var foo_default2 = "test4-success";
 
 // /Users/user/project/baseurl_dot/test5-second/foo.ts
-const foo_default3 = "test5-success";
+var foo_default3 = "test5-success";
 
 // /Users/user/project/baseurl_dot/index.ts
-const baseurl_dot_default = {
+var baseurl_dot_default = {
   test0: test0_success_default,
   test1: test1_success_default,
   test2: foo_default,
@@ -1459,25 +1459,25 @@ const baseurl_dot_default = {
 };
 
 // /Users/user/project/baseurl_nested/nested/test0-success.ts
-const test0_success_default2 = "test0-success";
+var test0_success_default2 = "test0-success";
 
 // /Users/user/project/baseurl_nested/nested/test1-success.ts
-const test1_success_default2 = "test1-success";
+var test1_success_default2 = "test1-success";
 
 // /Users/user/project/baseurl_nested/nested/test2-success/foo.ts
-const foo_default4 = "test2-success";
+var foo_default4 = "test2-success";
 
 // /Users/user/project/baseurl_nested/nested/test3-success.ts
-const test3_success_default2 = "test3-success";
+var test3_success_default2 = "test3-success";
 
 // /Users/user/project/baseurl_nested/nested/test4-first/foo.ts
-const foo_default5 = "test4-success";
+var foo_default5 = "test4-success";
 
 // /Users/user/project/baseurl_nested/nested/test5-second/foo.ts
-const foo_default6 = "test5-success";
+var foo_default6 = "test5-success";
 
 // /Users/user/project/baseurl_nested/index.ts
-const baseurl_nested_default = {
+var baseurl_nested_default = {
   test0: test0_success_default2,
   test1: test1_success_default2,
   test2: foo_default4,
@@ -1569,13 +1569,13 @@ func TestTsConfigNestedJSX(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/Users/user/project/out.js": `// /Users/user/project/factory/index.tsx
-const factory_default = /* @__PURE__ */ h(React.Fragment, null, /* @__PURE__ */ h("div", null), /* @__PURE__ */ h("div", null));
+var factory_default = /* @__PURE__ */ h(React.Fragment, null, /* @__PURE__ */ h("div", null), /* @__PURE__ */ h("div", null));
 
 // /Users/user/project/fragment/index.tsx
-const fragment_default = /* @__PURE__ */ React.createElement(a.b, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null));
+var fragment_default = /* @__PURE__ */ React.createElement(a.b, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null));
 
 // /Users/user/project/both/index.tsx
-const both_default = /* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null));
+var both_default = /* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null));
 
 // /Users/user/project/entry.ts
 console.log(factory_default, fragment_default, both_default);
@@ -2168,7 +2168,7 @@ func TestRequireChildDirES6(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/src/dir/index.js
-const dir_default = 123;
+var dir_default = 123;
 
 // /Users/user/project/src/entry.js
 console.log(dir_default);
@@ -2223,7 +2223,7 @@ func TestRequireParentDirES6(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/src/index.js
-const src_default = 123;
+var src_default = 123;
 
 // /Users/user/project/src/dir/entry.js
 console.log(src_default);
@@ -4420,49 +4420,49 @@ func TestManyEntryPoints(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expected: map[string]string{
-			"/out/e00.js": "// /shared.js\nconst shared_default = 123;\n\n// /e00.js\nconsole.log(shared_default);\n",
-			"/out/e01.js": "// /shared.js\nconst shared_default = 123;\n\n// /e01.js\nconsole.log(shared_default);\n",
-			"/out/e02.js": "// /shared.js\nconst shared_default = 123;\n\n// /e02.js\nconsole.log(shared_default);\n",
-			"/out/e03.js": "// /shared.js\nconst shared_default = 123;\n\n// /e03.js\nconsole.log(shared_default);\n",
-			"/out/e04.js": "// /shared.js\nconst shared_default = 123;\n\n// /e04.js\nconsole.log(shared_default);\n",
-			"/out/e05.js": "// /shared.js\nconst shared_default = 123;\n\n// /e05.js\nconsole.log(shared_default);\n",
-			"/out/e06.js": "// /shared.js\nconst shared_default = 123;\n\n// /e06.js\nconsole.log(shared_default);\n",
-			"/out/e07.js": "// /shared.js\nconst shared_default = 123;\n\n// /e07.js\nconsole.log(shared_default);\n",
-			"/out/e08.js": "// /shared.js\nconst shared_default = 123;\n\n// /e08.js\nconsole.log(shared_default);\n",
-			"/out/e09.js": "// /shared.js\nconst shared_default = 123;\n\n// /e09.js\nconsole.log(shared_default);\n",
+			"/out/e00.js": "// /shared.js\nvar shared_default = 123;\n\n// /e00.js\nconsole.log(shared_default);\n",
+			"/out/e01.js": "// /shared.js\nvar shared_default = 123;\n\n// /e01.js\nconsole.log(shared_default);\n",
+			"/out/e02.js": "// /shared.js\nvar shared_default = 123;\n\n// /e02.js\nconsole.log(shared_default);\n",
+			"/out/e03.js": "// /shared.js\nvar shared_default = 123;\n\n// /e03.js\nconsole.log(shared_default);\n",
+			"/out/e04.js": "// /shared.js\nvar shared_default = 123;\n\n// /e04.js\nconsole.log(shared_default);\n",
+			"/out/e05.js": "// /shared.js\nvar shared_default = 123;\n\n// /e05.js\nconsole.log(shared_default);\n",
+			"/out/e06.js": "// /shared.js\nvar shared_default = 123;\n\n// /e06.js\nconsole.log(shared_default);\n",
+			"/out/e07.js": "// /shared.js\nvar shared_default = 123;\n\n// /e07.js\nconsole.log(shared_default);\n",
+			"/out/e08.js": "// /shared.js\nvar shared_default = 123;\n\n// /e08.js\nconsole.log(shared_default);\n",
+			"/out/e09.js": "// /shared.js\nvar shared_default = 123;\n\n// /e09.js\nconsole.log(shared_default);\n",
 
-			"/out/e10.js": "// /shared.js\nconst shared_default = 123;\n\n// /e10.js\nconsole.log(shared_default);\n",
-			"/out/e11.js": "// /shared.js\nconst shared_default = 123;\n\n// /e11.js\nconsole.log(shared_default);\n",
-			"/out/e12.js": "// /shared.js\nconst shared_default = 123;\n\n// /e12.js\nconsole.log(shared_default);\n",
-			"/out/e13.js": "// /shared.js\nconst shared_default = 123;\n\n// /e13.js\nconsole.log(shared_default);\n",
-			"/out/e14.js": "// /shared.js\nconst shared_default = 123;\n\n// /e14.js\nconsole.log(shared_default);\n",
-			"/out/e15.js": "// /shared.js\nconst shared_default = 123;\n\n// /e15.js\nconsole.log(shared_default);\n",
-			"/out/e16.js": "// /shared.js\nconst shared_default = 123;\n\n// /e16.js\nconsole.log(shared_default);\n",
-			"/out/e17.js": "// /shared.js\nconst shared_default = 123;\n\n// /e17.js\nconsole.log(shared_default);\n",
-			"/out/e18.js": "// /shared.js\nconst shared_default = 123;\n\n// /e18.js\nconsole.log(shared_default);\n",
-			"/out/e19.js": "// /shared.js\nconst shared_default = 123;\n\n// /e19.js\nconsole.log(shared_default);\n",
+			"/out/e10.js": "// /shared.js\nvar shared_default = 123;\n\n// /e10.js\nconsole.log(shared_default);\n",
+			"/out/e11.js": "// /shared.js\nvar shared_default = 123;\n\n// /e11.js\nconsole.log(shared_default);\n",
+			"/out/e12.js": "// /shared.js\nvar shared_default = 123;\n\n// /e12.js\nconsole.log(shared_default);\n",
+			"/out/e13.js": "// /shared.js\nvar shared_default = 123;\n\n// /e13.js\nconsole.log(shared_default);\n",
+			"/out/e14.js": "// /shared.js\nvar shared_default = 123;\n\n// /e14.js\nconsole.log(shared_default);\n",
+			"/out/e15.js": "// /shared.js\nvar shared_default = 123;\n\n// /e15.js\nconsole.log(shared_default);\n",
+			"/out/e16.js": "// /shared.js\nvar shared_default = 123;\n\n// /e16.js\nconsole.log(shared_default);\n",
+			"/out/e17.js": "// /shared.js\nvar shared_default = 123;\n\n// /e17.js\nconsole.log(shared_default);\n",
+			"/out/e18.js": "// /shared.js\nvar shared_default = 123;\n\n// /e18.js\nconsole.log(shared_default);\n",
+			"/out/e19.js": "// /shared.js\nvar shared_default = 123;\n\n// /e19.js\nconsole.log(shared_default);\n",
 
-			"/out/e20.js": "// /shared.js\nconst shared_default = 123;\n\n// /e20.js\nconsole.log(shared_default);\n",
-			"/out/e21.js": "// /shared.js\nconst shared_default = 123;\n\n// /e21.js\nconsole.log(shared_default);\n",
-			"/out/e22.js": "// /shared.js\nconst shared_default = 123;\n\n// /e22.js\nconsole.log(shared_default);\n",
-			"/out/e23.js": "// /shared.js\nconst shared_default = 123;\n\n// /e23.js\nconsole.log(shared_default);\n",
-			"/out/e24.js": "// /shared.js\nconst shared_default = 123;\n\n// /e24.js\nconsole.log(shared_default);\n",
-			"/out/e25.js": "// /shared.js\nconst shared_default = 123;\n\n// /e25.js\nconsole.log(shared_default);\n",
-			"/out/e26.js": "// /shared.js\nconst shared_default = 123;\n\n// /e26.js\nconsole.log(shared_default);\n",
-			"/out/e27.js": "// /shared.js\nconst shared_default = 123;\n\n// /e27.js\nconsole.log(shared_default);\n",
-			"/out/e28.js": "// /shared.js\nconst shared_default = 123;\n\n// /e28.js\nconsole.log(shared_default);\n",
-			"/out/e29.js": "// /shared.js\nconst shared_default = 123;\n\n// /e29.js\nconsole.log(shared_default);\n",
+			"/out/e20.js": "// /shared.js\nvar shared_default = 123;\n\n// /e20.js\nconsole.log(shared_default);\n",
+			"/out/e21.js": "// /shared.js\nvar shared_default = 123;\n\n// /e21.js\nconsole.log(shared_default);\n",
+			"/out/e22.js": "// /shared.js\nvar shared_default = 123;\n\n// /e22.js\nconsole.log(shared_default);\n",
+			"/out/e23.js": "// /shared.js\nvar shared_default = 123;\n\n// /e23.js\nconsole.log(shared_default);\n",
+			"/out/e24.js": "// /shared.js\nvar shared_default = 123;\n\n// /e24.js\nconsole.log(shared_default);\n",
+			"/out/e25.js": "// /shared.js\nvar shared_default = 123;\n\n// /e25.js\nconsole.log(shared_default);\n",
+			"/out/e26.js": "// /shared.js\nvar shared_default = 123;\n\n// /e26.js\nconsole.log(shared_default);\n",
+			"/out/e27.js": "// /shared.js\nvar shared_default = 123;\n\n// /e27.js\nconsole.log(shared_default);\n",
+			"/out/e28.js": "// /shared.js\nvar shared_default = 123;\n\n// /e28.js\nconsole.log(shared_default);\n",
+			"/out/e29.js": "// /shared.js\nvar shared_default = 123;\n\n// /e29.js\nconsole.log(shared_default);\n",
 
-			"/out/e30.js": "// /shared.js\nconst shared_default = 123;\n\n// /e30.js\nconsole.log(shared_default);\n",
-			"/out/e31.js": "// /shared.js\nconst shared_default = 123;\n\n// /e31.js\nconsole.log(shared_default);\n",
-			"/out/e32.js": "// /shared.js\nconst shared_default = 123;\n\n// /e32.js\nconsole.log(shared_default);\n",
-			"/out/e33.js": "// /shared.js\nconst shared_default = 123;\n\n// /e33.js\nconsole.log(shared_default);\n",
-			"/out/e34.js": "// /shared.js\nconst shared_default = 123;\n\n// /e34.js\nconsole.log(shared_default);\n",
-			"/out/e35.js": "// /shared.js\nconst shared_default = 123;\n\n// /e35.js\nconsole.log(shared_default);\n",
-			"/out/e36.js": "// /shared.js\nconst shared_default = 123;\n\n// /e36.js\nconsole.log(shared_default);\n",
-			"/out/e37.js": "// /shared.js\nconst shared_default = 123;\n\n// /e37.js\nconsole.log(shared_default);\n",
-			"/out/e38.js": "// /shared.js\nconst shared_default = 123;\n\n// /e38.js\nconsole.log(shared_default);\n",
-			"/out/e39.js": "// /shared.js\nconst shared_default = 123;\n\n// /e39.js\nconsole.log(shared_default);\n",
+			"/out/e30.js": "// /shared.js\nvar shared_default = 123;\n\n// /e30.js\nconsole.log(shared_default);\n",
+			"/out/e31.js": "// /shared.js\nvar shared_default = 123;\n\n// /e31.js\nconsole.log(shared_default);\n",
+			"/out/e32.js": "// /shared.js\nvar shared_default = 123;\n\n// /e32.js\nconsole.log(shared_default);\n",
+			"/out/e33.js": "// /shared.js\nvar shared_default = 123;\n\n// /e33.js\nconsole.log(shared_default);\n",
+			"/out/e34.js": "// /shared.js\nvar shared_default = 123;\n\n// /e34.js\nconsole.log(shared_default);\n",
+			"/out/e35.js": "// /shared.js\nvar shared_default = 123;\n\n// /e35.js\nconsole.log(shared_default);\n",
+			"/out/e36.js": "// /shared.js\nvar shared_default = 123;\n\n// /e36.js\nconsole.log(shared_default);\n",
+			"/out/e37.js": "// /shared.js\nvar shared_default = 123;\n\n// /e37.js\nconsole.log(shared_default);\n",
+			"/out/e38.js": "// /shared.js\nvar shared_default = 123;\n\n// /e38.js\nconsole.log(shared_default);\n",
+			"/out/e39.js": "// /shared.js\nvar shared_default = 123;\n\n// /e39.js\nconsole.log(shared_default);\n",
 		},
 	})
 }
@@ -4810,10 +4810,10 @@ func TestReExportDefaultInternal(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /foo.js
-const foo_default = "foo";
+var foo_default = "foo";
 
 // /bar.js
-const bar_default = "bar";
+var bar_default = "bar";
 
 // /entry.js
 export {

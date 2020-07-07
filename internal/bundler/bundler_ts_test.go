@@ -822,7 +822,7 @@ Foo = __decorate([
   x.y(),
   new y.x()
 ], Foo);
-const all_default = Foo;
+var all_default = Foo;
 
 // /all_computed.ts
 var _a, _b, _c, _d, _e, _f, _g, _h;
@@ -876,7 +876,7 @@ Foo2 = __decorate([
   x?.[_ + "y"](),
   new y?.[_ + "x"]()
 ], Foo2);
-const all_computed_default = Foo2;
+var all_computed_default = Foo2;
 
 // /a.ts
 let a_class = class {
@@ -935,7 +935,7 @@ e_default = __decorate([
   x(() => 0),
   y(() => 1)
 ], e_default);
-const e_default2 = e_default;
+var e_default2 = e_default;
 
 // /f.ts
 let f2 = class {
@@ -948,7 +948,7 @@ f2 = __decorate([
   x(() => 0),
   y(() => 1)
 ], f2);
-const f_default = f2;
+var f_default = f2;
 
 // /g.ts
 let g_default2 = class {
@@ -957,7 +957,7 @@ g_default2 = __decorate([
   x(() => 0),
   y(() => 1)
 ], g_default2);
-const g_default = g_default2;
+var g_default = g_default2;
 
 // /h.ts
 let h2 = class {
@@ -970,7 +970,7 @@ h2 = __decorate([
   x(() => 0),
   y(() => 1)
 ], h2);
-const h_default = h2;
+var h_default = h2;
 
 // /i.ts
 class i_class {

@@ -597,7 +597,7 @@ func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-const demo_pkg_default = exprWithSideEffects();
+var demo_pkg_default = exprWithSideEffects();
 
 // /Users/user/project/src/entry.js
 console.log(demo_pkg_default);

@@ -32,7 +32,7 @@
 
     ```js
     // example.txt
-    const example_default = "This is a text file.";
+    var example_default = "This is a text file.";
 
     // example.ts
     console.log(example_default);
