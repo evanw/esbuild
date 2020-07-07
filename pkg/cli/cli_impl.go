@@ -317,6 +317,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 func parseTargets(targets []string) (target api.Target, engines []api.Engine, err error) {
 	validTargets := map[string]api.Target{
 		"esnext": api.ESNext,
+		"es5":    api.ES5,
 		"es6":    api.ES2015,
 		"es2015": api.ES2015,
 		"es2016": api.ES2016,

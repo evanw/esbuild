@@ -143,6 +143,8 @@ func validateFeatures(log logging.Log, target Target, engines []Engine) compat.F
 	constraints := make(map[compat.Engine][]int)
 
 	switch target {
+	case ES5:
+		constraints[compat.ES] = []int{5}
 	case ES2015:
 		constraints[compat.ES] = []int{2015}
 	case ES2016:

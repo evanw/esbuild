@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 )
@@ -930,7 +931,7 @@ func (p *printer) printProperty(item ast.Property) {
 			p.printUTF16(key.Value)
 
 			// Use a shorthand property if the names are the same
-			if item.Value != nil {
+			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.Value != nil {
 				switch e := item.Value.Data.(type) {
 				case *ast.EIdentifier:
 					if lexer.UTF16EqualsString(key.Value, p.symbolName(e.Ref)) {
@@ -997,6 +998,10 @@ func (p *printer) printProperty(item ast.Property) {
 }
 
 func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) string {
+	if p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
+		allowBacktick = false
+	}
+
 	singleCost := 0
 	doubleCost := 0
 	backtickCost := 0
@@ -2662,12 +2667,13 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 }
 
 type PrintOptions struct {
-	OutputFormat      config.Format
-	RemoveWhitespace  bool
-	ExtractComments   bool
-	SourceMapContents *string
-	Indent            int
-	ToModuleRef       ast.Ref
+	OutputFormat        config.Format
+	RemoveWhitespace    bool
+	ExtractComments     bool
+	SourceMapContents   *string
+	Indent              int
+	ToModuleRef         ast.Ref
+	UnsupportedFeatures compat.Feature
 }
 
 type SourceMapChunk struct {

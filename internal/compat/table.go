@@ -14,12 +14,15 @@ const (
 	Safari
 )
 
-type Feature uint32
+type Feature uint64
 
 const (
-	AsyncAwait Feature = 1 << iota
+	ArraySpread Feature = 1 << iota
+	Arrow
+	AsyncAwait
 	AsyncGenerator
 	BigInt
+	Class
 	ClassField
 	ClassPrivateAccessor
 	ClassPrivateField
@@ -28,16 +31,26 @@ const (
 	ClassPrivateStaticField
 	ClassPrivateStaticMethod
 	ClassStaticField
+	Const
+	DefaultArgument
+	Destructuring
 	ExponentOperator
 	ForAwait
+	ForOf
+	Generator
 	Hashbang
 	ImportMeta
+	Let
 	LogicalAssignment
 	NestedRestBinding
+	NewTarget
 	NullishCoalescing
+	ObjectExtensions
 	ObjectRestSpread
 	OptionalCatchBinding
 	OptionalChain
+	RestArgument
+	TemplateLiteral
 )
 
 func (features Feature) Has(feature Feature) bool {
@@ -45,6 +58,24 @@ func (features Feature) Has(feature Feature) bool {
 }
 
 var Table = map[Feature]map[Engine][]int{
+	ArraySpread: {
+		Chrome:  {46},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {27},
+		IOS:     {8},
+		Node:    {5},
+		Safari:  {7, 1},
+	},
+	Arrow: {
+		Chrome:  {45},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {22},
+		IOS:     {10},
+		Node:    {4},
+		Safari:  {10},
+	},
 	AsyncAwait: {
 		Chrome:  {55},
 		Edge:    {15},
@@ -70,6 +101,15 @@ var Table = map[Feature]map[Engine][]int{
 		Firefox: {68},
 		Node:    {10, 4},
 		Safari:  {14},
+	},
+	Class: {
+		Chrome:  {49},
+		Edge:    {13},
+		ES:      {2015},
+		Firefox: {45},
+		IOS:     {9},
+		Node:    {6},
+		Safari:  {9},
 	},
 	ClassField: {
 		Chrome:  {72},
@@ -106,6 +146,33 @@ var Table = map[Feature]map[Engine][]int{
 		Firefox: {75},
 		Node:    {12, 0},
 	},
+	Const: {
+		Chrome:  {5},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {3},
+		IOS:     {6},
+		Node:    {0, 12},
+		Safari:  {3, 1},
+	},
+	DefaultArgument: {
+		Chrome:  {49},
+		Edge:    {14},
+		ES:      {2015},
+		Firefox: {15},
+		IOS:     {10},
+		Node:    {6},
+		Safari:  {10},
+	},
+	Destructuring: {
+		Chrome:  {49},
+		Edge:    {14},
+		ES:      {2015},
+		Firefox: {2},
+		IOS:     {8},
+		Node:    {6},
+		Safari:  {7, 1},
+	},
 	ExponentOperator: {
 		Chrome:  {52},
 		Edge:    {14},
@@ -124,6 +191,24 @@ var Table = map[Feature]map[Engine][]int{
 		Node:    {10, 0},
 		Safari:  {12},
 	},
+	ForOf: {
+		Chrome:  {38},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {13},
+		IOS:     {8},
+		Node:    {0, 12},
+		Safari:  {7, 1},
+	},
+	Generator: {
+		Chrome:  {39},
+		Edge:    {13},
+		ES:      {2015},
+		Firefox: {27},
+		IOS:     {10},
+		Node:    {4},
+		Safari:  {10},
+	},
 	Hashbang: {
 		Chrome:  {74},
 		Edge:    {79},
@@ -140,6 +225,15 @@ var Table = map[Feature]map[Engine][]int{
 		IOS:     {12},
 		Safari:  {11, 1},
 	},
+	Let: {
+		Chrome:  {49},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {44},
+		IOS:     {10},
+		Node:    {6},
+		Safari:  {10},
+	},
 	LogicalAssignment: {
 		Chrome:  {85},
 		Firefox: {79},
@@ -154,6 +248,15 @@ var Table = map[Feature]map[Engine][]int{
 		Node:    {6},
 		Safari:  {10, 1},
 	},
+	NewTarget: {
+		Chrome:  {46},
+		Edge:    {13},
+		ES:      {2015},
+		Firefox: {41},
+		IOS:     {10},
+		Node:    {5},
+		Safari:  {10},
+	},
 	NullishCoalescing: {
 		Chrome:  {80},
 		Edge:    {80},
@@ -162,6 +265,15 @@ var Table = map[Feature]map[Engine][]int{
 		IOS:     {13, 4},
 		Node:    {14, 0},
 		Safari:  {13, 1},
+	},
+	ObjectExtensions: {
+		Chrome:  {44},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {34},
+		IOS:     {8},
+		Node:    {4},
+		Safari:  {7, 1},
 	},
 	ObjectRestSpread: {
 		Chrome:  {60},
@@ -189,6 +301,24 @@ var Table = map[Feature]map[Engine][]int{
 		IOS:     {13, 4},
 		Node:    {14, 0},
 		Safari:  {13, 1},
+	},
+	RestArgument: {
+		Chrome:  {47},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {15},
+		IOS:     {10},
+		Node:    {6},
+		Safari:  {10},
+	},
+	TemplateLiteral: {
+		Chrome:  {41},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {34},
+		IOS:     {9},
+		Node:    {4},
+		Safari:  {9},
 	},
 }
 

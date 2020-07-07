@@ -5,39 +5,90 @@
 package parser
 
 import (
+	"fmt"
+
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
-func (p *parser) markFutureFeature(feature compat.Feature, r ast.Range) {
-	if p.UnsupportedFeatures.Has(feature) {
-		where := "the configured target environment"
-
-		switch feature {
-		case compat.AsyncGenerator:
-			p.log.AddRangeError(&p.source, r,
-				"Transforming async generator functions to "+where+" is not supported yet")
-
-		case compat.ForAwait:
-			p.log.AddRangeError(&p.source, r,
-				"Transforming for-await loops to "+where+" is not supported yet")
-
-		case compat.NestedRestBinding:
-			p.log.AddRangeError(&p.source, r,
-				"Transforming non-identifier array rest patterns to "+where+" is not supported yet")
-
-		case compat.BigInt:
-			// Transforming these will never be supported
-			p.log.AddRangeError(&p.source, r,
-				"Big integer literals are not available in "+where)
-
-		case compat.ImportMeta:
-			// This can't be polyfilled
-			p.log.AddRangeWarning(&p.source, r,
-				"\"import.meta\" is not available in "+where+" and will be empty")
-		}
+func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) {
+	if !p.UnsupportedFeatures.Has(feature) {
+		return
 	}
+
+	var name string
+	where := "the configured target environment"
+
+	switch feature {
+	case compat.DefaultArgument:
+		name = "default arguments"
+
+	case compat.RestArgument:
+		name = "rest arguments"
+
+	case compat.ArraySpread:
+		name = "array spread"
+
+	case compat.ForOf:
+		name = "for-of loops"
+
+	case compat.ObjectExtensions:
+		name = "object literal extensions"
+
+	case compat.TemplateLiteral:
+		name = "template literals"
+
+	case compat.Destructuring:
+		name = "destructuring"
+
+	case compat.NewTarget:
+		name = "new.target"
+
+	case compat.Const:
+		name = "const"
+
+	case compat.Let:
+		name = "let"
+
+	case compat.Arrow:
+		name = "arrow functions"
+
+	case compat.Class:
+		name = "class syntax"
+
+	case compat.Generator:
+		name = "generator functions"
+
+	case compat.AsyncGenerator:
+		name = "async generator functions"
+
+	case compat.ForAwait:
+		name = "for-await loops"
+
+	case compat.NestedRestBinding:
+		name = "non-identifier array rest patterns"
+
+	case compat.BigInt:
+		// Transforming these will never be supported
+		p.log.AddRangeError(&p.source, r,
+			fmt.Sprintf("Big integer literals are not available in %s", where))
+		return
+
+	case compat.ImportMeta:
+		// This can't be polyfilled
+		p.log.AddRangeWarning(&p.source, r,
+			fmt.Sprintf("\"import.meta\" is not available in %s and will be empty", where))
+		return
+
+	default:
+		p.log.AddRangeError(&p.source, r,
+			fmt.Sprintf("This feature is not available in %s", where))
+		return
+	}
+
+	p.log.AddRangeError(&p.source, r,
+		fmt.Sprintf("Transforming %s to %s is not supported yet", name, where))
 }
 
 func (p *parser) isPrivateUnsupported(private *ast.EPrivateIdentifier) bool {

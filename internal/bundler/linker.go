@@ -2596,12 +2596,13 @@ func (c *linkerContext) generateCodeForFileInChunk(
 
 	// Convert the AST to JavaScript code
 	printOptions := printer.PrintOptions{
-		Indent:            indent,
-		OutputFormat:      c.options.OutputFormat,
-		RemoveWhitespace:  c.options.RemoveWhitespace,
-		ToModuleRef:       toModuleRef,
-		SourceMapContents: sourceMapContents,
-		ExtractComments:   c.options.IsBundling && c.options.RemoveWhitespace,
+		Indent:              indent,
+		OutputFormat:        c.options.OutputFormat,
+		RemoveWhitespace:    c.options.RemoveWhitespace,
+		ToModuleRef:         toModuleRef,
+		SourceMapContents:   sourceMapContents,
+		ExtractComments:     c.options.IsBundling && c.options.RemoveWhitespace,
+		UnsupportedFeatures: c.options.UnsupportedFeatures,
 	}
 	tree := file.ast
 	tree.Parts = []ast.Part{{Stmts: stmts}}

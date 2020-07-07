@@ -856,6 +856,7 @@ func (p *parser) parseProperty(
 
 	case lexer.TOpenBracket:
 		isComputed = true
+		p.markSyntaxFeature(compat.ObjectExtensions, p.lexer.Range())
 		p.lexer.Next()
 		wasIdentifier := p.lexer.Token == lexer.TIdentifier
 		expr := p.parseExpr(ast.LComma)
@@ -1034,6 +1035,9 @@ func (p *parser) parseProperty(
 	// Parse a method expression
 	if p.lexer.Token == lexer.TOpenParen || kind != ast.PropertyNormal ||
 		opts.isClass || opts.isAsync || opts.isGenerator {
+		if p.lexer.Token == lexer.TOpenParen {
+			p.markSyntaxFeature(compat.ObjectExtensions, p.lexer.Range())
+		}
 		loc := p.lexer.Loc()
 		scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 		isConstructor := false
@@ -1219,7 +1223,6 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 	}
 }
 
-// This assumes that the "=>" token has already been parsed by the caller
 func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 	arrowLoc := p.lexer.Loc()
 
@@ -1229,7 +1232,12 @@ func (p *parser) parseArrowBody(args []ast.Arg, opts fnOpts) *ast.EArrow {
 		panic(lexer.LexerPanic{})
 	}
 
-	p.lexer.Expect(lexer.TEqualsGreaterThan)
+	if p.lexer.Token == lexer.TEqualsGreaterThan {
+		p.markSyntaxFeature(compat.Arrow, p.lexer.Range())
+		p.lexer.Next()
+	} else {
+		p.lexer.Expected(lexer.TEqualsGreaterThan)
+	}
 
 	for _, arg := range args {
 		p.declareBinding(ast.SymbolHoisted, arg.Binding, parseStmtOpts{})
@@ -1321,6 +1329,7 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) as
 	p.lexer.Next()
 	isGenerator := p.lexer.Token == lexer.TAsterisk
 	if isGenerator {
+		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
 		p.lexer.Next()
 	}
 	var name *ast.LocRef
@@ -1766,11 +1775,13 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		return ast.Expr{Loc: loc, Data: &ast.EString{Value: value}}
 
 	case lexer.TNoSubstitutionTemplateLiteral:
+		p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 		head := p.lexer.StringLiteral
 		p.lexer.Next()
 		return ast.Expr{Loc: loc, Data: &ast.ETemplate{Head: head}}
 
 	case lexer.TTemplateHead:
+		p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 		head := p.lexer.StringLiteral
 		parts := p.parseTemplateParts(false /* includeRaw */)
 		return ast.Expr{Loc: loc, Data: &ast.ETemplate{Head: head, Parts: parts}}
@@ -1782,7 +1793,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 
 	case lexer.TBigIntegerLiteral:
 		value := p.lexer.Identifier
-		p.markFutureFeature(compat.BigInt, p.lexer.Range())
+		p.markSyntaxFeature(compat.BigInt, p.lexer.Range())
 		p.lexer.Next()
 		return ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EBigInt{Value: value}}
 
@@ -1867,6 +1878,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		return p.parseFnExpr(loc, false /* isAsync */, ast.Range{})
 
 	case lexer.TClass:
+		p.markSyntaxFeature(compat.Class, p.lexer.Range())
 		p.lexer.Next()
 		var name *ast.LocRef
 
@@ -1899,6 +1911,8 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			if p.lexer.Token != lexer.TIdentifier || p.lexer.Identifier != "target" {
 				p.lexer.Unexpected()
 			}
+			r := ast.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
+			p.markSyntaxFeature(compat.NewTarget, r)
 			p.lexer.Next()
 			return ast.Expr{Loc: loc, Data: &ast.ENewTarget{}}
 		}
@@ -1940,6 +1954,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 				items = append(items, ast.Expr{Loc: loc, Data: &ast.EMissing{}})
 
 			case lexer.TDotDotDot:
+				p.markSyntaxFeature(compat.ArraySpread, p.lexer.Range())
 				dotsLoc := p.lexer.Loc()
 				p.lexer.Next()
 				item := p.parseExprOrBindings(ast.LComma, &selfErrors)
@@ -2186,7 +2201,7 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 			p.hasImportMeta = true
 			if p.UnsupportedFeatures.Has(compat.ImportMeta) {
 				r = ast.Range{Loc: loc, Len: r.End() - loc.Start}
-				p.markFutureFeature(compat.ImportMeta, r)
+				p.markSyntaxFeature(compat.ImportMeta, r)
 			}
 			return ast.Expr{Loc: loc, Data: &ast.EImportMeta{}}
 		} else {
@@ -2417,6 +2432,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			if level >= ast.LPrefix {
 				return left
 			}
+			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
 			parts := p.parseTemplateParts(true /* includeRaw */)
@@ -2865,6 +2881,7 @@ func (p *parser) parseCallArgs() []ast.Expr {
 		loc := p.lexer.Loc()
 		isSpread := p.lexer.Token == lexer.TDotDotDot
 		if isSpread {
+			p.markSyntaxFeature(compat.RestArgument, p.lexer.Range())
 			p.lexer.Next()
 		}
 		arg := p.parseExpr(ast.LComma)
@@ -3299,6 +3316,7 @@ func (p *parser) parseBinding() ast.Binding {
 		return ast.Binding{Loc: loc, Data: &ast.BIdentifier{Ref: ref}}
 
 	case lexer.TOpenBracket:
+		p.markSyntaxFeature(compat.Destructuring, p.lexer.Range())
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
 		items := []ast.ArrayBinding{}
@@ -3319,7 +3337,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 					// This was a bug in the ES2015 spec that was fixed in ES2016
 					if p.lexer.Token != lexer.TIdentifier {
-						p.markFutureFeature(compat.NestedRestBinding, p.lexer.Range())
+						p.markSyntaxFeature(compat.NestedRestBinding, p.lexer.Range())
 					}
 				}
 
@@ -3366,6 +3384,7 @@ func (p *parser) parseBinding() ast.Binding {
 		}}
 
 	case lexer.TOpenBrace:
+		p.markSyntaxFeature(compat.Destructuring, p.lexer.Range())
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
 		properties := []ast.PropertyBinding{}
@@ -3414,7 +3433,7 @@ func (p *parser) parseBinding() ast.Binding {
 
 func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool) {
 	if opts.allowAwait && opts.allowYield {
-		p.markFutureFeature(compat.AsyncGenerator, opts.asyncRange)
+		p.markSyntaxFeature(compat.AsyncGenerator, opts.asyncRange)
 	}
 
 	fn.Name = name
@@ -3449,6 +3468,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 		}
 
 		if !fn.HasRestArg && p.lexer.Token == lexer.TDotDotDot {
+			p.markSyntaxFeature(compat.RestArgument, p.lexer.Range())
 			p.lexer.Next()
 			fn.HasRestArg = true
 		}
@@ -3503,6 +3523,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 
 		var defaultValue *ast.Expr
 		if !fn.HasRestArg && p.lexer.Token == lexer.TEquals {
+			p.markSyntaxFeature(compat.DefaultArgument, p.lexer.Range())
 			p.lexer.Next()
 			value := p.parseExpr(ast.LComma)
 			defaultValue = &value
@@ -3547,7 +3568,12 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 
 func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 	var name *ast.LocRef
-	p.lexer.Expect(lexer.TClass)
+	if p.lexer.Token == lexer.TClass {
+		p.markSyntaxFeature(compat.Class, p.lexer.Range())
+		p.lexer.Next()
+	} else {
+		p.lexer.Expected(lexer.TClass)
+	}
 
 	if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
 		nameLoc := p.lexer.Loc()
@@ -3703,6 +3729,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 		p.forbidLexicalDecl(loc)
 	}
 	if isGenerator {
+		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
 		p.lexer.Next()
 	}
 
@@ -4168,6 +4195,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if !opts.allowLexicalDecl {
 			p.forbidLexicalDecl(loc)
 		}
+		p.markSyntaxFeature(compat.Let, p.lexer.Range())
 		p.lexer.Next()
 		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts)
 		p.lexer.ExpectOrInsertSemicolon()
@@ -4181,6 +4209,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if !opts.allowLexicalDecl {
 			p.forbidLexicalDecl(loc)
 		}
+		p.markSyntaxFeature(compat.Const, p.lexer.Range())
 		p.lexer.Next()
 
 		if p.TS.Parse && p.lexer.Token == lexer.TEnum {
@@ -4377,7 +4406,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"await\" outside an async function")
 				isForAwait = false
 			} else {
-				p.markFutureFeature(compat.ForAwait, p.lexer.Range())
+				p.markSyntaxFeature(compat.ForAwait, p.lexer.Range())
 			}
 			p.lexer.Next()
 		}
@@ -4402,11 +4431,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			init = &ast.Stmt{Loc: initLoc, Data: &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
 
 		case lexer.TLet:
+			p.markSyntaxFeature(compat.Let, p.lexer.Range())
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(ast.SymbolOther, parseStmtOpts{})
 			init = &ast.Stmt{Loc: initLoc, Data: &ast.SLocal{Kind: ast.LocalLet, Decls: decls}}
 
 		case lexer.TConst:
+			p.markSyntaxFeature(compat.Const, p.lexer.Range())
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(ast.SymbolOther, parseStmtOpts{})
 			init = &ast.Stmt{Loc: initLoc, Data: &ast.SLocal{Kind: ast.LocalConst, Decls: decls}}
@@ -4430,6 +4461,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				}
 			}
 			p.forbidInitializers(decls, "of", false)
+			p.markSyntaxFeature(compat.ForOf, p.lexer.Range())
 			p.lexer.Next()
 			value := p.parseExpr(ast.LLowest)
 			p.lexer.Expect(lexer.TCloseParen)
@@ -7412,11 +7444,17 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EArray:
+		if in.assignTarget != ast.AssignTargetNone {
+			p.markSyntaxFeature(compat.Destructuring, ast.Range{Loc: expr.Loc, Len: 1})
+		}
 		for i, item := range e.Items {
 			e.Items[i], _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
 		}
 
 	case *ast.EObject:
+		if in.assignTarget != ast.AssignTargetNone {
+			p.markSyntaxFeature(compat.Destructuring, ast.Range{Loc: expr.Loc, Len: 1})
+		}
 		for i, property := range e.Properties {
 			if property.Kind != ast.PropertySpread {
 				e.Properties[i].Key = p.visitExpr(property.Key)

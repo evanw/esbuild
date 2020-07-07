@@ -1,6 +1,7 @@
 // Run this using "make compat-table"
 const fs = require('fs')
 const path = require('path')
+const es6 = require('../github/compat-table/data-es6')
 const stage1to3 = require('../github/compat-table/data-esnext')
 const stage4 = require('../github/compat-table/data-es2016plus')
 const environments = require('../github/compat-table/environments.json')
@@ -8,10 +9,29 @@ const compareVersions = require('../github/compat-table/build-utils/compare-vers
 const parseEnvsVersions = require('../github/compat-table/build-utils/parse-envs-versions')
 const interpolateAllResults = require('../github/compat-table/build-utils/interpolate-all-results')
 
+interpolateAllResults(es6.tests, environments)
 interpolateAllResults(stage1to3.tests, environments)
 interpolateAllResults(stage4.tests, environments)
 
 const features = {
+  // ES6 features
+  'default function parameters': { target: 'DefaultArgument' },
+  'rest parameters': { target: 'RestArgument' },
+  'spread syntax for iterable objects': { target: 'ArraySpread' },
+  'object literal extensions': { target: 'ObjectExtensions' },
+  'for..of loops': { target: 'ForOf' },
+  'template literals': { target: 'TemplateLiteral' },
+  'destructuring, declarations': { target: 'Destructuring' },
+  'destructuring, assignment': { target: 'Destructuring' },
+  'destructuring, parameters': { target: 'Destructuring' },
+  'new.target': { target: 'NewTarget' },
+  'const': { target: 'Const' },
+  'let': { target: 'Let' },
+  'arrow functions': { target: 'Arrow' },
+  'class': { target: 'Class' },
+  'generators': { target: 'Generator' },
+
+  // >ES6 features
   'exponentiation (**) operator': { target: 'ExponentOperator' },
   'nested rest destructuring, declarations': { target: 'NestedRestBinding' },
   'nested rest destructuring, parameters': { target: 'NestedRestBinding' },
@@ -61,17 +81,36 @@ function mergeVersions(target, res) {
   const map = versions[target] || (versions[target] = {})
   for (const key in res) {
     if (res[key] === true) {
-      const engine = /^[a-z]*/.exec(key)[0]
-      if (engines.indexOf(engine) >= 0) {
-        const version = parseEnvsVersions({ [key]: true })[engine][0].version
-        if (!map[engine] || compareVersions(version, map[engine]) < 0) {
-          map[engine] = version
+      const match = /^([a-z_]+)[0-9_]+$/.exec(key)
+      if (match) {
+        const engine = match[1]
+        if (engines.indexOf(engine) >= 0) {
+          const version = parseEnvsVersions({ [key]: true })[engine][0].version
+          if (!map[engine] || compareVersions(version, map[engine]) < 0) {
+            map[engine] = version
+          }
         }
       }
     }
   }
 }
 
+// ES6 features
+mergeVersions('ArraySpread', { es2015: true })
+mergeVersions('Arrow', { es2015: true })
+mergeVersions('Class', { es2015: true })
+mergeVersions('Const', { es2015: true })
+mergeVersions('DefaultArgument', { es2015: true })
+mergeVersions('Destructuring', { es2015: true })
+mergeVersions('ForOf', { es2015: true })
+mergeVersions('Generator', { es2015: true })
+mergeVersions('Let', { es2015: true })
+mergeVersions('NewTarget', { es2015: true })
+mergeVersions('ObjectExtensions', { es2015: true })
+mergeVersions('RestArgument', { es2015: true })
+mergeVersions('TemplateLiteral', { es2015: true })
+
+// >ES6 features
 mergeVersions('ExponentOperator', { es2016: true })
 mergeVersions('NestedRestBinding', { es2016: true })
 mergeVersions('AsyncAwait', { es2017: true })
@@ -95,7 +134,7 @@ mergeVersions('ImportMeta', {
   safari11_1: true,
 })
 
-for (const test of stage4.tests.concat(stage1to3.tests)) {
+for (const test of [...es6.tests, ...stage4.tests, ...stage1to3.tests]) {
   const feature = features[test.name]
   if (feature) {
     feature.found = true
@@ -145,7 +184,7 @@ const (
 ${engines.map((x, i) => `\t${upper(x)}${i ? '' : ' Engine = iota'}`).join('\n')}
 )
 
-type Feature uint32
+type Feature uint64
 
 const (
 ${Object.keys(versions).sort().map((x, i) => `\t${x}${i ? '' : ' Feature = 1 << iota'}`).join('\n')}

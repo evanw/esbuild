@@ -3,6 +3,7 @@ package printer
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/parser"
@@ -43,6 +44,23 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 
 func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
+		RemoveWhitespace: true,
+	})
+}
+
+func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
+	expectPrintedCommon(t, contents, contents, expected, PrintOptions{
+		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+	})
+}
+
+func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, expected string) {
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
+		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
 		RemoveWhitespace: true,
 	})
 }
@@ -583,4 +601,12 @@ func TestMinify(t *testing.T) {
 	// Comment statements must not affect their surroundings when minified
 	expectPrintedMinify(t, "//!single\nthrow 1 + 2", "//!single\nthrow 1+2;")
 	expectPrintedMinify(t, "/*!multi-\nline*/\nthrow 1 + 2", "/*!multi-\nline*/throw 1+2;")
+}
+
+func TestES5Optimizations(t *testing.T) {
+	expectPrintedTargetMinify(t, 5, "foo('a\\n\\n\\nb')", "foo(\"a\\n\\n\\nb\");")
+	expectPrintedTargetMinify(t, 2015, "foo('a\\n\\n\\nb')", "foo(`a\n\n\nb`);")
+
+	expectPrintedTarget(t, 5, "foo({a, b})", "foo({a: a, b: b});\n")
+	expectPrintedTarget(t, 2015, "foo({a, b})", "foo({a, b});\n")
 }

@@ -89,15 +89,16 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
+		unsupportedFeatures := compat.UnsupportedFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		})
 		ast, ok := Parse(log, logging.Source{
 			Index:        0,
 			AbsolutePath: "<stdin>",
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, config.Options{
-			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine]float32{
-				compat.ES: float32(esVersion),
-			}),
+			UnsupportedFeatures: unsupportedFeatures,
 		})
 		msgs := log.Done()
 		text := ""
@@ -110,7 +111,9 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.Print(ast, printer.PrintOptions{}).JS
+		js := printer.Print(ast, printer.PrintOptions{
+			UnsupportedFeatures: unsupportedFeatures,
+		}).JS
 		assertEqual(t, string(js), expected)
 	})
 }
@@ -124,8 +127,8 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 			PrettyPath:   "<stdin>",
 			Contents:     contents,
 		}, config.Options{
-			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine]float32{
-				compat.ES: float32(esVersion),
+			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+				compat.ES: {esVersion},
 			}),
 			Strict: config.StrictOptions{
 				NullishCoalescing: true,

@@ -15,8 +15,8 @@ import (
 )
 
 func es(version int) compat.Feature {
-	return compat.UnsupportedFeatures(map[compat.Engine]float32{
-		compat.ES: float32(version),
+	return compat.UnsupportedFeatures(map[compat.Engine][]int{
+		compat.ES: {version},
 	})
 }
 
