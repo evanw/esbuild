@@ -48,6 +48,7 @@ const engines = [
   'android',
   'chrome',
   'edge',
+  'es',
   'firefox',
   'ios',
   'node',
@@ -66,6 +67,16 @@ function mergeVersions(target, res) {
     }
   }
 }
+
+mergeVersions('Async', { es2017: true })
+mergeVersions('AsyncIter', { es2018: true })
+mergeVersions('BigInt', { es2020: true })
+mergeVersions('ExponentOperator', { es2016: true })
+mergeVersions('NestedRestBinding', { es2016: true })
+mergeVersions('NullishCoalescing', { es2020: true })
+mergeVersions('ObjectRestSpread', { es2018: true })
+mergeVersions('OptionalCatchBinding', { es2019: true })
+mergeVersions('OptionalChain', { es2020: true })
 
 for (const test of stage4.tests.concat(stage1to3.tests)) {
   const feature = features[test.name]
@@ -95,14 +106,15 @@ for (const feature in features) {
   }
 }
 
-function upperFirstLetter(text) {
+function upper(text) {
+  if (text === 'es' || text === 'ios') return text.toUpperCase()
   return text[0].toUpperCase() + text.slice(1)
 }
 
 function writeInnerMap(obj) {
   const keys = Object.keys(obj).sort()
   const maxLength = keys.reduce((a, b) => Math.max(a, b.length + 1), 0)
-  return keys.map(x => `\t\t${(upperFirstLetter(x) + ':').padEnd(maxLength)} ${obj[x]},`).join('\n')
+  return keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} ${obj[x]},`).join('\n')
 }
 
 fs.writeFileSync(__dirname + '/../internal/compat/table.go',
@@ -113,13 +125,13 @@ package compat
 type Engine uint8
 
 const (
-${engines.map((x, i) => `\t${upperFirstLetter(x)}${i ? '' : ' Engine = iota'}`).join('\n')}
+${engines.map((x, i) => `\t${upper(x)}${i ? '' : ' Engine = iota'}`).join('\n')}
 )
 
-type Feature uint8
+type Feature uint32
 
 const (
-${Object.keys(versions).sort().map((x, i) => `\t${x}${i ? '' : ' Feature = iota'}`).join('\n')}
+${Object.keys(versions).sort().map((x, i) => `\t${x}${i ? '' : ' Feature = 1 << iota'}`).join('\n')}
 )
 
 var Table = map[Feature]map[Engine]float32{

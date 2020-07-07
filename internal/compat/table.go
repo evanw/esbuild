@@ -8,16 +8,17 @@ const (
 	Android Engine = iota
 	Chrome
 	Edge
+	ES
 	Firefox
-	Ios
+	IOS
 	Node
 	Safari
 )
 
-type Feature uint8
+type Feature uint32
 
 const (
-	Async Feature = iota
+	Async Feature = 1 << iota
 	AsyncIter
 	BigInt
 	ClassField
@@ -40,22 +41,25 @@ var Table = map[Feature]map[Engine]float32{
 	Async: map[Engine]float32{
 		Chrome:  55,
 		Edge:    15,
+		ES:      2017,
 		Firefox: 52,
-		Ios:     10.3,
+		IOS:     10.3,
 		Node:    7.6,
 		Safari:  10.1,
 	},
 	AsyncIter: map[Engine]float32{
 		Chrome:  63,
 		Edge:    79,
+		ES:      2018,
 		Firefox: 57,
-		Ios:     12,
+		IOS:     12,
 		Node:    10,
 		Safari:  12,
 	},
 	BigInt: map[Engine]float32{
 		Chrome:  67,
 		Edge:    79,
+		ES:      2020,
 		Firefox: 68,
 		Node:    10.4,
 		Safari:  14,
@@ -92,8 +96,9 @@ var Table = map[Feature]map[Engine]float32{
 	ExponentOperator: map[Engine]float32{
 		Chrome:  52,
 		Edge:    14,
+		ES:      2016,
 		Firefox: 52,
-		Ios:     10.3,
+		IOS:     10.3,
 		Node:    7,
 		Safari:  10.1,
 	},
@@ -101,7 +106,7 @@ var Table = map[Feature]map[Engine]float32{
 		Chrome:  74,
 		Edge:    79,
 		Firefox: 67,
-		Ios:     13.4,
+		IOS:     13.4,
 		Node:    12,
 		Safari:  13.1,
 	},
@@ -113,40 +118,45 @@ var Table = map[Feature]map[Engine]float32{
 	NestedRestBinding: map[Engine]float32{
 		Chrome:  49,
 		Edge:    14,
+		ES:      2016,
 		Firefox: 47,
-		Ios:     10.3,
+		IOS:     10.3,
 		Node:    6,
 		Safari:  10.1,
 	},
 	NullishCoalescing: map[Engine]float32{
 		Chrome:  80,
 		Edge:    80,
+		ES:      2020,
 		Firefox: 72,
-		Ios:     13.4,
+		IOS:     13.4,
 		Node:    14,
 		Safari:  13.1,
 	},
 	ObjectRestSpread: map[Engine]float32{
 		Chrome:  60,
 		Edge:    79,
+		ES:      2018,
 		Firefox: 55,
-		Ios:     11.3,
+		IOS:     11.3,
 		Node:    8.1,
 		Safari:  11.1,
 	},
 	OptionalCatchBinding: map[Engine]float32{
 		Chrome:  66,
 		Edge:    79,
+		ES:      2019,
 		Firefox: 58,
-		Ios:     11.3,
+		IOS:     11.3,
 		Node:    10,
 		Safari:  11.1,
 	},
 	OptionalChain: map[Engine]float32{
 		Chrome:  80,
 		Edge:    80,
+		ES:      2020,
 		Firefox: 74,
-		Ios:     13.4,
+		IOS:     13.4,
 		Node:    14,
 		Safari:  13.1,
 	},
