@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.24
 
 * Smaller code for loaders that generate expressions
 
@@ -48,7 +48,10 @@
     The example above will now generate code that looks like this:
 
     ```js
+    // package.json
     var version = "1.0.0";
+
+    // example.ts
     console.log(version);
     ```
 
