@@ -312,6 +312,14 @@ func newLinkerContext(options *config.Options, log logging.Log, fs fs.FS, source
 		}
 		file.ast.TopLevelSymbolToParts = topLevelSymbolToParts
 
+		// Clone the top-level scope so we can generate more variables
+		{
+			new := &ast.Scope{}
+			*new = *file.ast.ModuleScope
+			new.Generated = append([]ast.Ref{}, new.Generated...)
+			file.ast.ModuleScope = new
+		}
+
 		// Update the file in our copy of the file array
 		c.files[sourceIndex] = file
 
@@ -991,7 +999,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 		inner := &c.symbols.Outer[sourceIndex]
 		ref := ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
 		*inner = append(*inner, ast.Symbol{Kind: ast.SymbolOther, Name: name, Link: ast.InvalidRef})
-		// p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
+		file.ast.ModuleScope.Generated = append(file.ast.ModuleScope.Generated, ref)
 
 		// Generate an ES6 export
 		var stmt ast.Stmt
@@ -1036,7 +1044,6 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	var entryPointExportStmts []ast.Stmt
 	fileMeta := &c.fileMeta[sourceIndex]
 	file := &c.files[sourceIndex]
-	didCloneModuleScopeGenerated := false
 	isEntryPoint := fileMeta.entryPointStatus != entryPointNone
 
 	// If the output format is ES6 modules and we're an entry point, generate an
@@ -1085,13 +1092,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 					Link: ast.InvalidRef,
 				})
 
-				// Stick it on the module scope so it gets renamed and minified. Clone
-				// the array first though so we don't mutate the input file.
+				// Stick it on the module scope so it gets renamed and minified
 				generated := &file.ast.ModuleScope.Generated
-				if !didCloneModuleScopeGenerated {
-					*generated = append([]ast.Ref{}, *generated...)
-					didCloneModuleScopeGenerated = true
-				}
 				*generated = append(*generated, tempRef)
 
 				// Create both a local variable and an export clause for that variable.
