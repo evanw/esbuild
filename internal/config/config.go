@@ -74,6 +74,7 @@ const (
 	LoaderBase64
 	LoaderDataURL
 	LoaderFile
+	LoaderBinary
 )
 
 type Format uint8

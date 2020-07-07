@@ -151,18 +151,24 @@ func parseFile(args parseArgs) {
 	case config.LoaderJSON:
 		var expr ast.Expr
 		expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderText:
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(source.Contents)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		result.file.ignoreIfUnused = true
+
+	case config.LoaderBinary:
+		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
+		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderDataURL:
@@ -173,7 +179,7 @@ func parseFile(args parseArgs) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(url)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderFile:
@@ -187,7 +193,7 @@ func parseFile(args parseArgs) {
 
 		// Export the resulting relative path as a string
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(baseName)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr)
+		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 		// Optionally add metadata about the file
@@ -606,11 +612,15 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 
 type runtimeCacheKey struct {
 	MangleSyntax bool
+	Platform     config.Platform
 }
 
 type runtimeCache struct {
-	mutex    sync.Mutex
-	keyToAST map[runtimeCacheKey]ast.AST
+	astMutex sync.Mutex
+	astMap   map[runtimeCacheKey]ast.AST
+
+	definesMutex sync.Mutex
+	definesMap   map[config.Platform]*config.ProcessedDefines
 }
 
 var globalRuntimeCache runtimeCache
@@ -619,14 +629,15 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (runtimeAST ast
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
 		MangleSyntax: options.MangleSyntax,
+		Platform:     options.Platform,
 	}
 
 	// Cache hit?
 	(func() {
-		cache.mutex.Lock()
-		defer cache.mutex.Unlock()
-		if cache.keyToAST != nil {
-			runtimeAST, ok = cache.keyToAST[key]
+		cache.astMutex.Lock()
+		defer cache.astMutex.Unlock()
+		if cache.astMap != nil {
+			runtimeAST, ok = cache.astMap[key]
 		}
 	})()
 	if ok {
@@ -638,6 +649,8 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (runtimeAST ast
 	runtimeAST, ok = parser.Parse(log, runtime.Source, config.Options{
 		// These configuration options must only depend on the key
 		MangleSyntax: key.MangleSyntax,
+		Platform:     key.Platform,
+		Defines:      cache.processedDefines(key.Platform),
 
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code
@@ -649,13 +662,54 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (runtimeAST ast
 
 	// Cache for next time
 	if ok {
-		cache.mutex.Lock()
-		defer cache.mutex.Unlock()
-		if cache.keyToAST == nil {
-			cache.keyToAST = make(map[runtimeCacheKey]ast.AST)
+		cache.astMutex.Lock()
+		defer cache.astMutex.Unlock()
+		if cache.astMap == nil {
+			cache.astMap = make(map[runtimeCacheKey]ast.AST)
 		}
-		cache.keyToAST[key] = runtimeAST
+		cache.astMap[key] = runtimeAST
+	}
+	return
+}
+
+func (cache *runtimeCache) processedDefines(key config.Platform) (defines *config.ProcessedDefines) {
+	ok := false
+
+	// Cache hit?
+	(func() {
+		cache.definesMutex.Lock()
+		defer cache.definesMutex.Unlock()
+		if cache.definesMap != nil {
+			defines, ok = cache.definesMap[key]
+		}
+	})()
+	if ok {
+		return
 	}
 
+	// Cache miss
+	var platform string
+	switch key {
+	case config.PlatformBrowser:
+		platform = "browser"
+	case config.PlatformNode:
+		platform = "node"
+	}
+	result := config.ProcessDefines(map[string]config.DefineData{
+		"__platform": config.DefineData{
+			DefineFunc: func(config.FindSymbol) ast.E {
+				return &ast.EString{Value: lexer.StringToUTF16(platform)}
+			},
+		},
+	})
+	defines = &result
+
+	// Cache for next time
+	cache.definesMutex.Lock()
+	defer cache.definesMutex.Unlock()
+	if cache.definesMap == nil {
+		cache.definesMap = make(map[config.Platform]*config.ProcessedDefines)
+	}
+	cache.definesMap[key] = defines
 	return
 }

@@ -129,6 +129,8 @@ func validateLoader(value Loader) config.Loader {
 		return config.LoaderDataURL
 	case LoaderFile:
 		return config.LoaderFile
+	case LoaderBinary:
+		return config.LoaderBinary
 	default:
 		panic("Invalid loader")
 	}

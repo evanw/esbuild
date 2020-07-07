@@ -698,6 +698,28 @@
     }, { async: true }),
   )
 
+  // Test the binary loader
+  for (const length of [0, 1, 2, 3, 4, 5, 6, 7, 8, 256]) {
+    const code = `
+      import bytes from './data.bin'
+      if (!(bytes instanceof Uint8Array)) throw 'not Uint8Array'
+      if (bytes.length !== ${length}) throw 'Uint8Array.length !== ${length}'
+      if (bytes.buffer.byteLength !== ${length}) throw 'ArrayBuffer.byteLength !== ${length}'
+      for (let i = 0; i < ${length}; i++) if (bytes[i] !== (i ^ 0x55)) throw 'bad element ' + i
+    `
+    const data = Buffer.from([...' '.repeat(length)].map((_, i) => i ^ 0x55))
+    tests.push(
+      test(['entry.js', '--bundle', '--outfile=node.js', '--loader:.bin=binary', '--platform=browser'], {
+        'entry.js': code,
+        'data.bin': data,
+      }),
+      test(['entry.js', '--bundle', '--outfile=node.js', '--loader:.bin=binary', '--platform=node'], {
+        'entry.js': code,
+        'data.bin': data,
+      }),
+    )
+  }
+
   // Test writing to stdout
   tests.push(
     // These should succeed

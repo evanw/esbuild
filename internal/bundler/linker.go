@@ -963,16 +963,16 @@ func (c *linkerContext) scanImportsAndExports() {
 
 func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file, fileMeta *fileMeta) {
 	// Grab the lazy expression
-	if len(file.ast.Parts) != 1 {
-		return
+	if len(file.ast.Parts) < 1 {
+		panic("Internal error")
 	}
 	part := &file.ast.Parts[0]
 	if len(part.Stmts) != 1 {
-		return
+		panic("Internal error")
 	}
 	lazy, ok := part.Stmts[0].Data.(*ast.SLazyExport)
 	if !ok {
-		return
+		panic("Internal error")
 	}
 
 	// Use "module.exports = value" for CommonJS-style modules

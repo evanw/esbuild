@@ -8512,102 +8512,12 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 		parts = append(parts, after...)
 	}
 
-	// Insert an import statement for any runtime imports we generated
-	if len(p.runtimeImports) > 0 {
-		// Sort the imports for determinism
-		keys := make([]string, 0, len(p.runtimeImports))
-		for key := range p.runtimeImports {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-
-		namespaceRef := p.newSymbol(ast.SymbolOther, "runtime")
-		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
-		declaredSymbols := make([]ast.DeclaredSymbol, len(keys))
-		clauseItems := make([]ast.ClauseItem, len(keys))
-		importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.Path{})
-		sourceIndex := runtime.SourceIndex
-		p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
-
-		// Create per-import information
-		for i, key := range keys {
-			ref := p.runtimeImports[key]
-			declaredSymbols[i] = ast.DeclaredSymbol{Ref: ref, IsTopLevel: true}
-			clauseItems[i] = ast.ClauseItem{Alias: key, Name: ast.LocRef{Ref: ref}}
-			p.namedImports[ref] = ast.NamedImport{
-				Alias:             key,
-				NamespaceRef:      namespaceRef,
-				ImportRecordIndex: importRecordIndex,
-			}
-		}
-
-		// Append a single import to the end of the file (ES6 imports are hoisted
-		// so we don't need to worry about where the import statement goes)
-		parts = append(parts, ast.Part{
-			DeclaredSymbols:     declaredSymbols,
-			ImportRecordIndices: []uint32{importRecordIndex},
-			Stmts: []ast.Stmt{{Data: &ast.SImport{
-				NamespaceRef:      namespaceRef,
-				Items:             &clauseItems,
-				ImportRecordIndex: importRecordIndex,
-			}}},
-		})
-	}
-
-	// Handle import paths after the whole file has been visited because we need
-	// symbol usage counts to be able to remove unused type-only imports in
-	// TypeScript code.
-	partsEnd := 0
-	for _, part := range parts {
-		p.importRecordsForCurrentPart = nil
-		p.declaredSymbols = nil
-		part.Stmts = p.scanForImportsAndExports(part.Stmts, options.IsBundling)
-		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
-		part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
-		if len(part.Stmts) > 0 {
-			parts[partsEnd] = part
-			partsEnd++
-		}
-	}
-	parts = parts[:partsEnd]
-
-	// Analyze cross-part dependencies for tree shaking and code splitting
-	{
-		// Map locals to parts
-		p.topLevelSymbolToParts = make(map[ast.Ref][]uint32)
-		for partIndex, part := range parts {
-			for _, declared := range part.DeclaredSymbols {
-				if declared.IsTopLevel {
-					p.topLevelSymbolToParts[declared.Ref] = append(
-						p.topLevelSymbolToParts[declared.Ref], uint32(partIndex))
-				}
-			}
-		}
-
-		// Each part tracks the other parts it depends on within this file
-		for partIndex, part := range parts {
-			localDependencies := make(map[uint32]bool)
-			for ref := range part.SymbolUses {
-				for _, otherPart := range p.topLevelSymbolToParts[ref] {
-					localDependencies[otherPart] = true
-				}
-
-				// Also map from imports to parts that use them
-				if namedImport, ok := p.namedImports[ref]; ok {
-					namedImport.LocalPartsWithUses = append(namedImport.LocalPartsWithUses, uint32(partIndex))
-					p.namedImports[ref] = namedImport
-				}
-			}
-			parts[partIndex].LocalDependencies = localDependencies
-		}
-	}
-
 	result = p.toAST(source, parts, hashbang, directive)
 	result.WasTypeScript = options.TS.Parse
 	return
 }
 
-func LazyExportAST(log logging.Log, source logging.Source, options config.Options, expr ast.Expr) ast.AST {
+func LazyExportAST(log logging.Log, source logging.Source, options config.Options, expr ast.Expr, apiCall string) ast.AST {
 	// Don't create a new lexer using lexer.NewLexer() here since that will
 	// actually attempt to parse the first token, which might cause a syntax
 	// error.
@@ -8618,10 +8528,20 @@ func LazyExportAST(log logging.Log, source logging.Source, options config.Option
 	symbols := ast.SymbolMap{Outer: make([][]ast.Symbol, source.Index+1)}
 	symbols.Outer[source.Index] = p.symbols
 
-	// Defer the actual code generation until linking
-	stmt := ast.Stmt{Loc: expr.Loc, Data: &ast.SLazyExport{Value: expr}}
+	// Optionally call a runtime API function to transform the expression
+	if apiCall != "" {
+		p.symbolUses = make(map[ast.Ref]ast.SymbolUse)
+		expr = p.callRuntime(expr.Loc, apiCall, []ast.Expr{expr})
+	}
 
-	ast := p.toAST(source, []ast.Part{{Stmts: []ast.Stmt{stmt}}}, "", "")
+	// Defer the actual code generation until linking
+	part := ast.Part{
+		Stmts:      []ast.Stmt{ast.Stmt{Loc: expr.Loc, Data: &ast.SLazyExport{Value: expr}}},
+		SymbolUses: p.symbolUses,
+	}
+	p.symbolUses = nil
+
+	ast := p.toAST(source, []ast.Part{part}, "", "")
 	ast.HasLazyExport = true
 	return ast
 }
@@ -8695,6 +8615,96 @@ func (p *parser) declareCommonJSSymbol(kind ast.SymbolKind, name string) ast.Ref
 }
 
 func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string, directive string) ast.AST {
+	// Insert an import statement for any runtime imports we generated
+	if len(p.runtimeImports) > 0 {
+		// Sort the imports for determinism
+		keys := make([]string, 0, len(p.runtimeImports))
+		for key := range p.runtimeImports {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		namespaceRef := p.newSymbol(ast.SymbolOther, "runtime")
+		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
+		declaredSymbols := make([]ast.DeclaredSymbol, len(keys))
+		clauseItems := make([]ast.ClauseItem, len(keys))
+		importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.Path{})
+		sourceIndex := runtime.SourceIndex
+		p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
+
+		// Create per-import information
+		for i, key := range keys {
+			ref := p.runtimeImports[key]
+			declaredSymbols[i] = ast.DeclaredSymbol{Ref: ref, IsTopLevel: true}
+			clauseItems[i] = ast.ClauseItem{Alias: key, Name: ast.LocRef{Ref: ref}}
+			p.namedImports[ref] = ast.NamedImport{
+				Alias:             key,
+				NamespaceRef:      namespaceRef,
+				ImportRecordIndex: importRecordIndex,
+			}
+		}
+
+		// Append a single import to the end of the file (ES6 imports are hoisted
+		// so we don't need to worry about where the import statement goes)
+		parts = append(parts, ast.Part{
+			DeclaredSymbols:     declaredSymbols,
+			ImportRecordIndices: []uint32{importRecordIndex},
+			Stmts: []ast.Stmt{{Data: &ast.SImport{
+				NamespaceRef:      namespaceRef,
+				Items:             &clauseItems,
+				ImportRecordIndex: importRecordIndex,
+			}}},
+		})
+	}
+
+	// Handle import paths after the whole file has been visited because we need
+	// symbol usage counts to be able to remove unused type-only imports in
+	// TypeScript code.
+	partsEnd := 0
+	for _, part := range parts {
+		p.importRecordsForCurrentPart = nil
+		p.declaredSymbols = nil
+		part.Stmts = p.scanForImportsAndExports(part.Stmts, p.IsBundling)
+		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
+		part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
+		if len(part.Stmts) > 0 {
+			parts[partsEnd] = part
+			partsEnd++
+		}
+	}
+	parts = parts[:partsEnd]
+
+	// Analyze cross-part dependencies for tree shaking and code splitting
+	{
+		// Map locals to parts
+		p.topLevelSymbolToParts = make(map[ast.Ref][]uint32)
+		for partIndex, part := range parts {
+			for _, declared := range part.DeclaredSymbols {
+				if declared.IsTopLevel {
+					p.topLevelSymbolToParts[declared.Ref] = append(
+						p.topLevelSymbolToParts[declared.Ref], uint32(partIndex))
+				}
+			}
+		}
+
+		// Each part tracks the other parts it depends on within this file
+		for partIndex, part := range parts {
+			localDependencies := make(map[uint32]bool)
+			for ref := range part.SymbolUses {
+				for _, otherPart := range p.topLevelSymbolToParts[ref] {
+					localDependencies[otherPart] = true
+				}
+
+				// Also map from imports to parts that use them
+				if namedImport, ok := p.namedImports[ref]; ok {
+					namedImport.LocalPartsWithUses = append(namedImport.LocalPartsWithUses, uint32(partIndex))
+					p.namedImports[ref] = namedImport
+				}
+			}
+			parts[partIndex].LocalDependencies = localDependencies
+		}
+	}
+
 	// Make a wrapper symbol in case we need to be wrapped in a closure
 	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+
 		ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath))

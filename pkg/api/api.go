@@ -112,6 +112,7 @@ const (
 	LoaderBase64
 	LoaderDataURL
 	LoaderFile
+	LoaderBinary
 )
 
 type Platform uint8
