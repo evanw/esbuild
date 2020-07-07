@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Performance improvment for repeated API calls
+
+    Previously every build or transform API call required parsing a new copy of the [esbuild JavaScript runtime code](internal/runtime/runtime.go). This added a constant overhead for every operation. Now the parsing of the runtime code is cached across API calls. The effect on performance depends on the size of the files you're transforming. Transform API calls appear to be >2x faster for small files, around ~10% faster for normal-sized files, and insignificant for large files.
+
 ## 0.5.24
 
 * Smaller code for loaders that generate expressions

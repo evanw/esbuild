@@ -1,11 +1,18 @@
+// This is esbuild's runtime code. It contains helper functions that are
+// automatically injected into output files to implement certain features. For
+// example, the "**" operator is replaced with a call to "__pow" when targeting
+// ES2015. Tree shaking automatically removes unused code from the runtime.
+
 package runtime
+
+import "github.com/evanw/esbuild/internal/logging"
 
 // The runtime source is always at a special index. The index is always zero
 // but this constant is always used instead to improve readability and ensure
 // all code that references this index can be discovered easily.
 const SourceIndex = uint32(0)
 
-const Code = `
+const code = `
 	let __defineProperty = Object.defineProperty
 	let __hasOwnProperty = Object.prototype.hasOwnProperty
 	let __getOwnPropertySymbols = Object.getOwnPropertySymbols
@@ -126,6 +133,13 @@ const Code = `
 		})
 	}
 `
+
+var Source = logging.Source{
+	Index:        SourceIndex,
+	AbsolutePath: "<runtime>",
+	PrettyPath:   "<runtime>",
+	Contents:     code,
+}
 
 // The TypeScript decorator transform behaves similar to the official
 // TypeScript compiler.

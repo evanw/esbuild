@@ -6869,7 +6869,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.BinOpComma:
 			// "(1, 2)" => "2"
 			// "(sideEffects(), 2)" => "(sideEffects(), 2)"
-			if p.Options.MangleSyntax {
+			if p.MangleSyntax {
 				e.Left = p.simplifyUnusedExpr(e.Left)
 				if e.Left.Data == nil {
 					return e.Right, exprOut{}

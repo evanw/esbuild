@@ -275,23 +275,12 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 	// Always start by parsing the runtime file
 	{
-		source := logging.Source{
-			Index:        runtime.SourceIndex,
-			AbsolutePath: "<runtime>",
-			PrettyPath:   "<runtime>",
-			Contents:     runtime.Code,
-		}
+		source := runtime.Source
 		sources = append(sources, source)
 		files = append(files, file{})
 		remaining++
 		go func() {
-			runtimeParseOptions := options
-
-			// Always do tree shaking for the runtime because we never want to
-			// include unnecessary runtime code
-			runtimeParseOptions.IsBundling = true
-
-			ast, ok := parser.Parse(log, source, runtimeParseOptions)
+			ast, ok := globalRuntimeCache.parseRuntime(&options)
 			results <- parseResult{source: source, file: file{ast: ast}, ok: ok}
 		}()
 	}
@@ -613,4 +602,60 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 
 	j.AddString("\n  }\n}\n")
 	return j.Done()
+}
+
+type runtimeCacheKey struct {
+	MangleSyntax bool
+}
+
+type runtimeCache struct {
+	mutex    sync.Mutex
+	keyToAST map[runtimeCacheKey]ast.AST
+}
+
+var globalRuntimeCache runtimeCache
+
+func (cache *runtimeCache) parseRuntime(options *config.Options) (runtimeAST ast.AST, ok bool) {
+	key := runtimeCacheKey{
+		// All configuration options that the runtime code depends on must go here
+		MangleSyntax: options.MangleSyntax,
+	}
+
+	// Cache hit?
+	(func() {
+		cache.mutex.Lock()
+		defer cache.mutex.Unlock()
+		if cache.keyToAST != nil {
+			runtimeAST, ok = cache.keyToAST[key]
+		}
+	})()
+	if ok {
+		return
+	}
+
+	// Cache miss
+	log := logging.NewDeferLog()
+	runtimeAST, ok = parser.Parse(log, runtime.Source, config.Options{
+		// These configuration options must only depend on the key
+		MangleSyntax: key.MangleSyntax,
+
+		// Always do tree shaking for the runtime because we never want to
+		// include unnecessary runtime code
+		IsBundling: true,
+	})
+	if log.HasErrors() {
+		panic("Internal error: failed to parse runtime")
+	}
+
+	// Cache for next time
+	if ok {
+		cache.mutex.Lock()
+		defer cache.mutex.Unlock()
+		if cache.keyToAST == nil {
+			cache.keyToAST = make(map[runtimeCacheKey]ast.AST)
+		}
+		cache.keyToAST[key] = runtimeAST
+	}
+
+	return
 }
