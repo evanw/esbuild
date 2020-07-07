@@ -82,8 +82,6 @@ Example usage:
 
 Install: `npm install esbuild-wasm`
 
-*Note: The esbuild browser API is experimental and is subject to change.*
-
 This API provides a way to run the `transform()` function from the [node API](#node-api) in the browser. This runs the `esbuild` binary in a web worker using WebAssembly. It's mostly the same as the node API except that you are required to start a service and the `build()` API call is not available. You also need to provide the URL of the WebAssembly file when creating the service.
 
 Example usage:
