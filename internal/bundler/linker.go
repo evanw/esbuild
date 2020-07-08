@@ -2027,8 +2027,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		if c.options.AbsOutputFile != "" && c.fileMeta[entryPoint].entryPointStatus == entryPointUserSpecified {
 			entryPointName = c.fs.Base(c.options.AbsOutputFile)
 		} else {
-			name := c.fs.Base(c.sources[entryPoint].KeyPath.Text)
-			entryPointName = c.stripKnownFileExtension(name) + ".js"
+			entryPointName = c.stripKnownFileExtension(c.sources[entryPoint].BaseName) + ".js"
 		}
 		c.fileMeta[entryPoint].entryPointName = entryPointName
 

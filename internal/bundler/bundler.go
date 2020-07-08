@@ -60,8 +60,9 @@ type parseArgs struct {
 	fs           fs.FS
 	log          logging.Log
 	res          resolver.Resolver
-	absPath      string
+	keyPath      ast.Path
 	prettyPath   string
+	baseName     string
 	sourceIndex  uint32
 	importSource *logging.Source
 	flags        parseFlags
@@ -78,10 +79,19 @@ type parseResult struct {
 
 func parseFile(args parseArgs) {
 	source := logging.Source{
-		Index:          args.sourceIndex,
-		KeyPath:        ast.Path{Text: args.absPath},
-		PrettyPath:     args.prettyPath,
-		IdentifierName: ast.GenerateNonUniqueNameFromPath(args.absPath),
+		Index:      args.sourceIndex,
+		KeyPath:    args.keyPath,
+		PrettyPath: args.prettyPath,
+		BaseName:   args.baseName,
+	}
+
+	// Try to determine the identifier name by the absolute path, since it may
+	// need to look at the parent directory. But make sure to not treat the key
+	// as a file system path if it's not marked as one.
+	if args.keyPath.IsAbsolute {
+		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.keyPath.Text)
+	} else {
+		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.baseName)
 	}
 
 	// Disabled files are left empty
@@ -93,12 +103,12 @@ func parseFile(args parseArgs) {
 			if stdin.SourceFile != "" {
 				source.PrettyPath = stdin.SourceFile
 			}
-		} else {
+		} else if args.keyPath.IsAbsolute {
 			var ok bool
-			source.Contents, ok = args.res.Read(args.absPath)
+			source.Contents, ok = args.res.Read(args.keyPath.Text)
 			if !ok {
 				args.log.AddRangeError(args.importSource, args.pathRange,
-					fmt.Sprintf("Could not read from file: %s", args.absPath))
+					fmt.Sprintf("Could not read from file: %s", args.keyPath.Text))
 				args.results <- parseResult{}
 				return
 			}
@@ -117,7 +127,7 @@ func parseFile(args parseArgs) {
 	}
 
 	// Pick the loader based on the file extension
-	loader := loaderFromFileExtension(args.options.ExtensionToLoader, args.fs.Base(args.absPath))
+	loader := loaderFromFileExtension(args.options.ExtensionToLoader, args.baseName)
 
 	// Special-case reading from stdin
 	if stdin != nil {
@@ -173,7 +183,7 @@ func parseFile(args parseArgs) {
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderDataURL:
-		mimeType := mime.TypeByExtension(args.fs.Ext(args.absPath))
+		mimeType := mime.TypeByExtension(args.fs.Ext(args.baseName))
 		if mimeType == "" {
 			mimeType = http.DetectContentType([]byte(source.Contents))
 		}
@@ -187,7 +197,7 @@ func parseFile(args parseArgs) {
 		// Add a hash to the file name to prevent multiple files with the same base
 		// name from colliding. Avoid using the absolute path to prevent build
 		// output from being different on different machines.
-		baseName := baseNameForAvoidingCollisions(args.fs, args.absPath)
+		baseName := baseNameForAvoidingCollisions(args.fs, args.keyPath, args.baseName)
 
 		// Determine the destination folder
 		targetFolder := args.options.AbsOutputDir
@@ -245,18 +255,21 @@ func lowerCaseAbsPathForWindows(absPath string) string {
 	return strings.ToLower(absPath)
 }
 
-func baseNameForAvoidingCollisions(fs fs.FS, absPath string) string {
+func baseNameForAvoidingCollisions(fs fs.FS, keyPath ast.Path, base string) string {
 	var toHash []byte
-	if relPath, ok := fs.Rel(fs.Cwd(), absPath); ok {
-		// Attempt to generate the same base name regardless of what machine or
-		// operating system we're on. We want to avoid absolute paths because they
-		// will have different home directories. We also want to avoid path
-		// separators because they are different on Windows.
-		toHash = []byte(strings.ReplaceAll(relPath, "\\", "/"))
-	} else {
+	if keyPath.IsAbsolute {
+		if relPath, ok := fs.Rel(fs.Cwd(), keyPath.Text); ok {
+			// Attempt to generate the same base name regardless of what machine or
+			// operating system we're on. We want to avoid absolute paths because they
+			// will have different home directories. We also want to avoid path
+			// separators because they are different on Windows.
+			toHash = []byte(strings.ReplaceAll(relPath, "\\", "/"))
+		}
+	}
+	if toHash == nil {
 		// Just use the absolute path if this environment doesn't have a current
 		// directory. This is the case when running tests, for example.
-		toHash = []byte(absPath)
+		toHash = []byte(keyPath.Text)
 	}
 
 	// Use "URLEncoding" instead of "StdEncoding" to avoid introducing "/"
@@ -264,8 +277,7 @@ func baseNameForAvoidingCollisions(fs fs.FS, absPath string) string {
 	hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
 
 	// Insert the hash before the extension
-	base := fs.Base(absPath)
-	ext := fs.Ext(absPath)
+	ext := fs.Ext(base)
 	return base[:len(base)-len(ext)] + "." + hash + ext
 }
 
@@ -318,8 +330,9 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 				fs:           fs,
 				log:          log,
 				res:          res,
-				absPath:      resolveResult.AbsolutePath,
+				keyPath:      ast.Path{Text: resolveResult.AbsolutePath, IsAbsolute: true},
 				prettyPath:   prettyPath,
+				baseName:     fs.Base(resolveResult.AbsolutePath),
 				sourceIndex:  sourceIndex,
 				importSource: importSource,
 				flags:        flags,
@@ -535,8 +548,11 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 		sourceAbsPaths := make(map[string]uint32)
 		for _, group := range resultGroups {
 			for _, sourceIndex := range group.reachableFiles {
-				lowerAbsPath := lowerCaseAbsPathForWindows(b.sources[sourceIndex].KeyPath.Text)
-				sourceAbsPaths[lowerAbsPath] = sourceIndex
+				keyPath := b.sources[sourceIndex].KeyPath
+				if keyPath.IsAbsolute {
+					lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
+					sourceAbsPaths[lowerAbsPath] = sourceIndex
+				}
 			}
 		}
 		for _, outputFile := range outputFiles {

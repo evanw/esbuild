@@ -60,6 +60,11 @@ type Source struct {
 	// are case-insensitive vs. case-sensitive.
 	PrettyPath string
 
+	// The name of this file without any parent directory information. It's
+	// useful to separate this out from other information because the other
+	// information may be arbitrary in the case of auto-generated modules.
+	BaseName string
+
 	// An identifier that is mixed in to automatically-generated symbol names to
 	// improve readability. For example, if the identifier is "util" then the
 	// symbol for an "export default" statement will be called "util_default".
