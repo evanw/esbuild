@@ -3709,17 +3709,15 @@ func (p *parser) parseLabelName() *ast.LocRef {
 	return &name
 }
 
-func (p *parser) parsePath() ast.Path {
-	path := ast.Path{
-		Loc:  p.lexer.Loc(),
-		Text: lexer.UTF16ToString(p.lexer.StringLiteral),
-	}
+func (p *parser) parsePath() (ast.Loc, string) {
+	pathLoc := p.lexer.Loc()
+	pathText := lexer.UTF16ToString(p.lexer.StringLiteral)
 	if p.lexer.Token == lexer.TNoSubstitutionTemplateLiteral {
 		p.lexer.Next()
 	} else {
 		p.lexer.Expect(lexer.TStringLiteral)
 	}
-	return path
+	return pathLoc, pathText
 }
 
 // This assumes the "function" token has already been parsed
@@ -4023,7 +4021,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.Next()
 			var namespaceRef ast.Ref
 			var alias *ast.ExportStarAlias
-			var path ast.Path
+			var pathLoc ast.Loc
+			var pathText string
 
 			if p.lexer.IsContextualKeyword("as") {
 				// "export * as ns from 'path'"
@@ -4033,15 +4032,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				alias = &ast.ExportStarAlias{Loc: p.lexer.Loc(), Name: name}
 				p.lexer.Expect(lexer.TIdentifier)
 				p.lexer.ExpectContextualKeyword("from")
-				path = p.parsePath()
+				pathLoc, pathText = p.parsePath()
 			} else {
 				// "export * from 'path'"
 				p.lexer.ExpectContextualKeyword("from")
-				path = p.parsePath()
-				name := ast.GenerateNonUniqueNameFromPath(path.Text) + "_star"
+				pathLoc, pathText = p.parsePath()
+				name := ast.GenerateNonUniqueNameFromPath(pathText) + "_star"
 				namespaceRef = p.storeNameInRef(name)
 			}
-			importRecordIndex := p.addImportRecord(ast.ImportStmt, path)
+			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
 
 			p.lexer.ExpectOrInsertSemicolon()
 			return ast.Stmt{Loc: loc, Data: &ast.SExportStar{
@@ -4058,9 +4057,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			items, isSingleLine := p.parseExportClause()
 			if p.lexer.IsContextualKeyword("from") {
 				p.lexer.Next()
-				path := p.parsePath()
-				importRecordIndex := p.addImportRecord(ast.ImportStmt, path)
-				name := ast.GenerateNonUniqueNameFromPath(path.Text)
+				pathLoc, pathText := p.parsePath()
+				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
+				name := ast.GenerateNonUniqueNameFromPath(pathText)
 				namespaceRef := p.storeNameInRef(name)
 				p.lexer.ExpectOrInsertSemicolon()
 				return ast.Stmt{Loc: loc, Data: &ast.SExportFrom{
@@ -4667,8 +4666,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			return ast.Stmt{}
 		}
 
-		path := p.parsePath()
-		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, path)
+		pathLoc, pathText := p.parsePath()
+		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
 		p.lexer.ExpectOrInsertSemicolon()
 
 		if stmt.StarNameLoc != nil {
@@ -4676,7 +4675,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmt.NamespaceRef = p.declareSymbol(ast.SymbolImport, *stmt.StarNameLoc, name)
 		} else {
 			// Generate a symbol for the namespace
-			name := ast.GenerateNonUniqueNameFromPath(path.Text)
+			name := ast.GenerateNonUniqueNameFromPath(pathText)
 			stmt.NamespaceRef = p.newSymbol(ast.SymbolOther, name)
 			p.currentScope.Generated = append(p.currentScope.Generated, stmt.NamespaceRef)
 		}
@@ -4917,11 +4916,12 @@ func extractDeclsForBinding(binding ast.Binding, decls []ast.Decl) []ast.Decl {
 	return decls
 }
 
-func (p *parser) addImportRecord(kind ast.ImportKind, path ast.Path) uint32 {
+func (p *parser) addImportRecord(kind ast.ImportKind, loc ast.Loc, text string) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
 		Kind:       kind,
-		Path:       path,
+		Loc:        loc,
+		Path:       ast.Path{Text: text},
 		WrapperRef: ast.InvalidRef,
 	})
 	return index
@@ -7489,10 +7489,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.ENull{}}, exprOut{}
 			}
 
-			importRecordIndex := p.addImportRecord(ast.ImportDynamic, ast.Path{
-				Loc:  e.Expr.Loc,
-				Text: lexer.UTF16ToString(str.Value),
-			})
+			importRecordIndex := p.addImportRecord(ast.ImportDynamic, e.Expr.Loc, lexer.UTF16ToString(str.Value))
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 			e.ImportRecordIndex = &importRecordIndex
@@ -7607,10 +7604,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 						return ast.Expr{Loc: expr.Loc, Data: &ast.ENull{}}, exprOut{}
 					}
 
-					importRecordIndex := p.addImportRecord(ast.ImportRequire, ast.Path{
-						Loc:  arg.Loc,
-						Text: lexer.UTF16ToString(str.Value),
-					})
+					importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, lexer.UTF16ToString(str.Value))
 					p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 					// Create a new expression to represent the operation
@@ -8682,7 +8676,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 		declaredSymbols := make([]ast.DeclaredSymbol, len(keys))
 		clauseItems := make([]ast.ClauseItem, len(keys))
-		importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.Path{})
+		importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.Loc{}, "<runtime>")
 		sourceIndex := runtime.SourceIndex
 		p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
 

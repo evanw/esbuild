@@ -1540,7 +1540,7 @@ func (c *linkerContext) addExportsForExportStar(
 
 		// We need a location for error messages, but it must be in the top-level
 		// file, not in any nested file. This will be passed to nested files.
-		pathLoc := record.Path.Loc
+		pathLoc := record.Loc
 		if topLevelPathLoc != nil {
 			pathLoc = *topLevelPathLoc
 		}
@@ -2230,7 +2230,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 		Loc: loc,
 		Data: &ast.SLocal{Kind: ast.LocalConst, Decls: []ast.Decl{{
 			Binding: ast.Binding{Loc: loc, Data: &ast.BIdentifier{Ref: namespaceRef}},
-			Value:   &ast.Expr{Loc: record.Path.Loc, Data: &ast.ERequire{ImportRecordIndex: importRecordIndex}},
+			Value:   &ast.Expr{Loc: record.Loc, Data: &ast.ERequire{ImportRecordIndex: importRecordIndex}},
 		}}},
 	})
 	return true
@@ -2298,7 +2298,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 									Target: ast.Expr{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: exportStarRef}},
 									Args: []ast.Expr{
 										{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: c.files[sourceIndex].ast.ExportsRef}},
-										{Loc: record.Path.Loc, Data: &ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}},
+										{Loc: record.Loc, Data: &ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}},
 									},
 								}}},
 							})

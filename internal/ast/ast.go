@@ -249,7 +249,6 @@ type LocRef struct {
 }
 
 type Path struct {
-	Loc  Loc
 	Text string
 }
 
@@ -1194,6 +1193,7 @@ const (
 )
 
 type ImportRecord struct {
+	Loc  Loc
 	Path Path
 
 	// If this is an internal CommonJS import, this is the symbol of a function

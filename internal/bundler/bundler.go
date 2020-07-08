@@ -375,7 +375,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 					}
 
 					pathText := record.Path.Text
-					pathRange := source.RangeOfString(record.Path.Loc)
+					pathRange := source.RangeOfString(record.Loc)
 					resolveResult := res.Resolve(source.AbsolutePath, pathText)
 
 					switch resolveResult.Status {
