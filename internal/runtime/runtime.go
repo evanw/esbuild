@@ -187,14 +187,14 @@ var ES6Source = logging.Source{
 	Index:        SourceIndex,
 	AbsolutePath: "<runtime>",
 	PrettyPath:   "<runtime>",
-	Contents:     code(true),
+	Contents:     code(true /* isES6 */),
 }
 
 var ES5Source = logging.Source{
 	Index:        SourceIndex,
 	AbsolutePath: "<runtime>",
 	PrettyPath:   "<runtime>",
-	Contents:     code(false),
+	Contents:     code(false /* isES6 */),
 }
 
 // The TypeScript decorator transform behaves similar to the official

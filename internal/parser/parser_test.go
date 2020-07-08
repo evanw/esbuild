@@ -36,6 +36,28 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expected string) {
+	t.Run(contents, func(t *testing.T) {
+		log := logging.NewDeferLog()
+		Parse(log, logging.Source{
+			Index:        0,
+			AbsolutePath: "<stdin>",
+			PrettyPath:   "<stdin>",
+			Contents:     contents,
+		}, config.Options{
+			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+				compat.ES: {esVersion},
+			}),
+		})
+		msgs := log.Done()
+		text := ""
+		for _, msg := range msgs {
+			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+		}
+		assertEqual(t, text, expected)
+	})
+}
+
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
@@ -2230,4 +2252,76 @@ func TestPrivateIdentifiers(t *testing.T) {
   }
 }
 `)
+}
+
+func TestES5(t *testing.T) {
+	expectParseErrorTarget(t, 5, "function foo(x = 0) {}",
+		"<stdin>: error: Transforming default arguments to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(function(x = 0) {})",
+		"<stdin>: error: Transforming default arguments to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "function foo(...x) {}",
+		"<stdin>: error: Transforming rest arguments to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(function(...x) {})",
+		"<stdin>: error: Transforming rest arguments to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "foo(...x)",
+		"<stdin>: error: Transforming rest arguments to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "[...x]",
+		"<stdin>: error: Transforming array spread to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "for (var x of y) ;",
+		"<stdin>: error: Transforming for-of loops to the configured target environment is not supported yet\n")
+	expectPrintedTarget(t, 5, "({ x })", "({x: x});\n")
+	expectParseErrorTarget(t, 5, "({ [x]: y })",
+		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "({ x() {} });",
+		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "({ get x() {} });",
+		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "({ set x() {} });",
+		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "function foo([]) {}",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "function foo({}) {}",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "var [] = [];",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "var {} = {};",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "([] = []);",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "({} = {});",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "for ([] in []);",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "for ({} in []);",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "`abc`;",
+		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "`a${b}c`;",
+		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "tag`a${b}c`;",
+		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "class Foo { constructor() { new.target } }",
+		"<stdin>: error: Transforming class syntax to the configured target environment is not supported yet\n"+
+			"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n"+
+			"<stdin>: error: Transforming new.target to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "const x = 1;",
+		"<stdin>: error: Transforming const to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "let x = 2;",
+		"<stdin>: error: Transforming let to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "async => foo;",
+		"<stdin>: error: Transforming arrow functions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "async () => foo;",
+		"<stdin>: error: Transforming arrow functions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "() => foo;",
+		"<stdin>: error: Transforming arrow functions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "x => x;",
+		"<stdin>: error: Transforming arrow functions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "class Foo {}",
+		"<stdin>: error: Transforming class syntax to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(class {});",
+		"<stdin>: error: Transforming class syntax to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "function* gen() {}",
+		"<stdin>: error: Transforming generator functions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(function* () {});",
+		"<stdin>: error: Transforming generator functions to the configured target environment is not supported yet\n")
 }
