@@ -51,7 +51,6 @@ type parseFlags struct {
 	jsxFactory        []string
 	jsxFragment       []string
 	isEntryPoint      bool
-	isDisabled        bool
 	ignoreIfUnused    bool
 	strictClassFields bool
 }
@@ -82,7 +81,6 @@ func parseFile(args parseArgs) {
 		Index:      args.sourceIndex,
 		KeyPath:    args.keyPath,
 		PrettyPath: args.prettyPath,
-		BaseName:   args.baseName,
 	}
 
 	// Try to determine the identifier name by the absolute path, since it may
@@ -94,25 +92,34 @@ func parseFile(args parseArgs) {
 		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.baseName)
 	}
 
-	// Disabled files are left empty
+	var loader config.Loader
 	stdin := args.options.Stdin
-	if !args.flags.isDisabled {
-		if stdin != nil {
-			source.Contents = stdin.Contents
-			source.PrettyPath = "<stdin>"
-			if stdin.SourceFile != "" {
-				source.PrettyPath = stdin.SourceFile
-			}
-		} else if args.keyPath.IsAbsolute {
-			var ok bool
-			source.Contents, ok = args.res.Read(args.keyPath.Text)
-			if !ok {
-				args.log.AddRangeError(args.importSource, args.pathRange,
-					fmt.Sprintf("Could not read from file: %s", args.keyPath.Text))
-				args.results <- parseResult{}
-				return
-			}
+
+	if stdin != nil {
+		// Special-case stdin
+		source.Contents = stdin.Contents
+		source.PrettyPath = "<stdin>"
+		if stdin.SourceFile != "" {
+			source.PrettyPath = stdin.SourceFile
 		}
+		loader = stdin.Loader
+	} else if args.keyPath.IsAbsolute {
+		// Read normal modules from disk
+		var ok bool
+		source.Contents, ok = args.res.Read(args.keyPath.Text)
+		if !ok {
+			args.log.AddRangeError(args.importSource, args.pathRange,
+				fmt.Sprintf("Could not read from file: %s", args.keyPath.Text))
+			args.results <- parseResult{}
+			return
+		}
+		loader = loaderFromFileExtension(args.options.ExtensionToLoader, args.baseName)
+	} else {
+		// Right now the only non-absolute modules are disabled ones
+		if !strings.HasPrefix(args.keyPath.Text, "disabled:") {
+			panic("Internal error")
+		}
+		loader = config.LoaderJS
 	}
 
 	// Allow certain properties to be overridden
@@ -124,14 +131,6 @@ func parseFile(args parseArgs) {
 	}
 	if args.flags.strictClassFields {
 		args.options.Strict.ClassFields = true
-	}
-
-	// Pick the loader based on the file extension
-	loader := loaderFromFileExtension(args.options.ExtensionToLoader, args.baseName)
-
-	// Special-case reading from stdin
-	if stdin != nil {
-		loader = stdin.Loader
 	}
 
 	result := parseResult{
@@ -310,16 +309,18 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		pathRange ast.Range,
 		isEntryPoint bool,
 	) uint32 {
-		lowerAbsPath := lowerCaseAbsPathForWindows(resolveResult.AbsolutePath)
-		sourceIndex, ok := visited[lowerAbsPath]
+		visitedKey := resolveResult.Path.Text
+		if resolveResult.Path.IsAbsolute {
+			visitedKey = lowerCaseAbsPathForWindows(visitedKey)
+		}
+		sourceIndex, ok := visited[visitedKey]
 		if !ok {
 			sourceIndex = uint32(len(sources))
-			visited[lowerAbsPath] = sourceIndex
+			visited[visitedKey] = sourceIndex
 			sources = append(sources, logging.Source{})
 			files = append(files, file{})
 			flags := parseFlags{
 				isEntryPoint:      isEntryPoint,
-				isDisabled:        resolveResult.Status == resolver.ResolveDisabled,
 				ignoreIfUnused:    resolveResult.IgnoreIfUnused,
 				jsxFactory:        resolveResult.JSXFactory,
 				jsxFragment:       resolveResult.JSXFragment,
@@ -330,9 +331,9 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 				fs:           fs,
 				log:          log,
 				res:          res,
-				keyPath:      ast.Path{Text: resolveResult.AbsolutePath, IsAbsolute: true},
+				keyPath:      resolveResult.Path,
 				prettyPath:   prettyPath,
-				baseName:     fs.Base(resolveResult.AbsolutePath),
+				baseName:     fs.Base(resolveResult.Path.Text),
 				sourceIndex:  sourceIndex,
 				importSource: importSource,
 				flags:        flags,
@@ -346,16 +347,25 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 	entryPoints := []uint32{}
 	duplicateEntryPoints := make(map[string]bool)
+
 	for _, absPath := range entryPaths {
 		prettyPath := res.PrettyPath(absPath)
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
+
 		if duplicateEntryPoints[lowerAbsPath] {
 			log.AddError(nil, ast.Loc{}, "Duplicate entry point: "+prettyPath)
 			continue
 		}
+
 		duplicateEntryPoints[lowerAbsPath] = true
 		resolveResult := res.ResolveAbs(absPath)
-		sourceIndex := maybeParseFile(resolveResult, prettyPath, nil, ast.Range{}, true /*isEntryPoint*/)
+
+		if resolveResult == nil {
+			log.AddError(nil, ast.Loc{}, "Could not resolve: "+prettyPath)
+			continue
+		}
+
+		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, ast.Range{}, true /*isEntryPoint*/)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -389,12 +399,19 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 					pathText := record.Path.Text
 					pathRange := source.RangeOfString(record.Loc)
-					resolveResult := res.Resolve(source.KeyPath, pathText)
+					resolveResult, isExternal := res.Resolve(source.KeyPath, pathText)
 
-					switch resolveResult.Status {
-					case resolver.ResolveEnabled, resolver.ResolveDisabled:
-						prettyPath := res.PrettyPath(resolveResult.AbsolutePath)
-						sourceIndex := maybeParseFile(resolveResult, prettyPath, &source, pathRange, false /*isEntryPoint*/)
+					if resolveResult == nil {
+						log.AddRangeError(&source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
+						continue
+					}
+
+					if !isExternal {
+						prettyPath := resolveResult.Path.Text
+						if resolveResult.Path.IsAbsolute {
+							prettyPath = res.PrettyPath(prettyPath)
+						}
+						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &source, pathRange, false /*isEntryPoint*/)
 						record.SourceIndex = &sourceIndex
 
 						// Generate metadata about each import
@@ -408,16 +425,14 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 							j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
 								printer.QuoteForJSON(prettyPath)))
 						}
-
-					case resolver.ResolveMissing:
-						log.AddRangeError(&source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
-
-					case resolver.ResolveExternalRelative:
+					} else {
 						// If the path to the external module is relative to the source
 						// file, rewrite the path to be relative to the working directory
-						if relPath, ok := fs.Rel(options.AbsOutputDir, resolveResult.AbsolutePath); ok {
-							// Prevent issues with path separators being different on Windows
-							record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
+						if resolveResult.Path.IsAbsolute {
+							if relPath, ok := fs.Rel(options.AbsOutputDir, resolveResult.Path.Text); ok {
+								// Prevent issues with path separators being different on Windows
+								record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
+							}
 						}
 					}
 				}

@@ -13,19 +13,8 @@ import (
 	"github.com/evanw/esbuild/internal/parser"
 )
 
-type ResolveStatus uint8
-
-const (
-	ResolveMissing ResolveStatus = iota
-	ResolveEnabled
-	ResolveDisabled
-	ResolveExternalVerbatim
-	ResolveExternalRelative
-)
-
 type ResolveResult struct {
-	AbsolutePath string
-	Status       ResolveStatus
+	Path ast.Path
 
 	// If not empty, these should override the default values
 	JSXFactory  []string // Default if empty: "React.createElement"
@@ -40,8 +29,8 @@ type ResolveResult struct {
 }
 
 type Resolver interface {
-	Resolve(sourcePath ast.Path, importPath string) ResolveResult
-	ResolveAbs(absPath string) ResolveResult
+	Resolve(sourcePath ast.Path, importPath string) (result *ResolveResult, isExternal bool)
+	ResolveAbs(absPath string) *ResolveResult
 	Read(path string) (string, bool)
 	PrettyPath(path string) string
 }
@@ -80,67 +69,67 @@ func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourcePath ast.Path, importPath string) ResolveResult {
-	absPath, status := r.resolveWithoutSymlinks(sourcePath.Text, importPath)
+func (r *resolver) Resolve(sourcePath ast.Path, importPath string) (result *ResolveResult, isExternal bool) {
+	if !sourcePath.IsAbsolute {
+		return nil, false
+	}
+
+	path, isExternal := r.resolveWithoutSymlinks(sourcePath.Text, importPath)
+	if path == nil {
+		return nil, false
+	}
 
 	// If successful, resolve symlinks using the directory info cache
-	if status == ResolveEnabled || status == ResolveDisabled {
-		return r.finalizeResolve(absPath, status)
-	}
-
-	return ResolveResult{AbsolutePath: absPath, Status: status}
+	return r.finalizeResolve(*path), isExternal
 }
 
-func (r *resolver) ResolveAbs(absPath string) ResolveResult {
+func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 	// Just decorate the absolute path with information from parent directories
-	return r.finalizeResolve(absPath, ResolveEnabled)
+	return r.finalizeResolve(ast.Path{Text: absPath, IsAbsolute: true})
 }
 
-func (r *resolver) finalizeResolve(absPath string, status ResolveStatus) (result ResolveResult) {
-	result.AbsolutePath = absPath
-	result.Status = status
+func (r *resolver) finalizeResolve(path ast.Path) *ResolveResult {
+	result := ResolveResult{Path: path}
 
-	if dirInfo := r.dirInfoCached(r.fs.Dir(result.AbsolutePath)); dirInfo != nil {
-		base := r.fs.Base(result.AbsolutePath)
+	if result.Path.IsAbsolute {
+		if dirInfo := r.dirInfoCached(r.fs.Dir(result.Path.Text)); dirInfo != nil {
+			base := r.fs.Base(result.Path.Text)
 
-		// Look up this file in the "sideEffects" map in the nearest enclosing
-		// directory with a "package.json" file
-		for info := dirInfo; info != nil; info = info.parent {
-			if info.packageJson != nil {
-				if info.packageJson.sideEffectsMap != nil {
-					result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[result.AbsolutePath]
+			// Look up this file in the "sideEffects" map in the nearest enclosing
+			// directory with a "package.json" file
+			for info := dirInfo; info != nil; info = info.parent {
+				if info.packageJson != nil {
+					if info.packageJson.sideEffectsMap != nil {
+						result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[result.Path.Text]
+					}
+					break
 				}
-				break
 			}
-		}
 
-		// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-		for info := dirInfo; info != nil; info = info.parent {
-			if info.tsConfigJson != nil {
-				result.JSXFactory = info.tsConfigJson.jsxFactory
-				result.JSXFragment = info.tsConfigJson.jsxFragmentFactory
-				result.StrictClassFields = info.tsConfigJson.useDefineForClassFields
-				break
+			// Copy various fields from the nearest enclosing "tsconfig.json" file if present
+			for info := dirInfo; info != nil; info = info.parent {
+				if info.tsConfigJson != nil {
+					result.JSXFactory = info.tsConfigJson.jsxFactory
+					result.JSXFragment = info.tsConfigJson.jsxFragmentFactory
+					result.StrictClassFields = info.tsConfigJson.useDefineForClassFields
+					break
+				}
 			}
-		}
 
-		// Is this entry itself a symlink?
-		if entry := dirInfo.entries[base]; entry.Symlink != "" {
-			result.AbsolutePath = entry.Symlink
-			return
-		}
-
-		// Is there at least one parent directory with a symlink?
-		if dirInfo.absRealPath != "" {
-			result.AbsolutePath = r.fs.Join(dirInfo.absRealPath, base)
-			return
+			if entry := dirInfo.entries[base]; entry.Symlink != "" {
+				// Is this entry itself a symlink?
+				result.Path.Text = entry.Symlink
+			} else if dirInfo.absRealPath != "" {
+				// Is there at least one parent directory with a symlink?
+				result.Path.Text = r.fs.Join(dirInfo.absRealPath, base)
+			}
 		}
 	}
 
-	return
+	return &result
 }
 
-func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) (string, ResolveStatus) {
+func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) (path *ast.Path, isExternal bool) {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	result := ""
@@ -149,24 +138,29 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 	sourceDir := r.fs.Dir(sourcePath)
 
 	if !IsPackagePath(importPath) {
-		absImportPath := importPath
-		external := ResolveExternalVerbatim
+		pathText := importPath
+		isAbsolute := false
 
-		// Join relative paths with the directory containing the source file
+		// Join relative paths with the directory containing the source file. These
+		// paths are then considered absolute paths, which will cause the output
+		// file to contain a relative path to this external file.
+		//
+		// Paths starting with a slash are treated as opaque strings instead of
+		// absolute paths. They are probably URLs and should be left alone.
 		if !strings.HasPrefix(importPath, "/") {
-			absImportPath = r.fs.Join(sourceDir, importPath)
-			external = ResolveExternalRelative
+			pathText = r.fs.Join(sourceDir, importPath)
+			isAbsolute = true
 		}
 
 		// Check for external packages first
-		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[absImportPath] {
-			return absImportPath, external
+		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[pathText] {
+			return &ast.Path{Text: pathText, IsAbsolute: isAbsolute}, true
 		}
 
-		if absolute, ok := r.loadAsFileOrDirectory(absImportPath); ok {
+		if absolute, ok := r.loadAsFileOrDirectory(pathText); ok {
 			result = absolute
 		} else {
-			return "", ResolveMissing
+			return nil, false
 		}
 	} else {
 		// Check for external packages first
@@ -174,7 +168,7 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 			query := importPath
 			for {
 				if r.options.ExternalModules.NodeModules[query] {
-					return "", ResolveExternalVerbatim
+					return &ast.Path{Text: importPath}, true
 				}
 
 				// If the module "foo" has been marked as external, we also want to treat
@@ -190,7 +184,7 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 		sourceDirInfo := r.dirInfoCached(sourceDir)
 		if sourceDirInfo == nil {
 			// Bail if the directory is missing for some reason
-			return "", ResolveMissing
+			return nil, false
 		}
 
 		// Support remapping one package path to another via the "browser" field
@@ -201,9 +195,9 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 					if remapped == nil {
 						// "browser": {"module": false}
 						if absolute, ok := r.loadNodeModules(importPath, sourceDirInfo); ok {
-							return absolute, ResolveDisabled
+							return &ast.Path{Text: "disabled:" + absolute}, false
 						} else {
-							return "", ResolveMissing
+							return &ast.Path{Text: "disabled:" + importPath}, false
 						}
 					} else {
 						// "browser": {"module": "./some-file"}
@@ -219,7 +213,7 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 			result = absolute
 		} else {
 			// Note: node's "self references" are not currently supported
-			return "", ResolveMissing
+			return nil, false
 		}
 	}
 
@@ -233,17 +227,17 @@ func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) 
 		if packageJson.browserNonPackageMap != nil {
 			if remapped, ok := packageJson.browserNonPackageMap[result]; ok {
 				if remapped == nil {
-					return result, ResolveDisabled
+					return &ast.Path{Text: "disabled:" + result}, false
 				}
 				result, ok = r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped)
 				if !ok {
-					return "", ResolveMissing
+					return nil, false
 				}
 			}
 		}
 	}
 
-	return result, ResolveEnabled
+	return &ast.Path{Text: result, IsAbsolute: true}, false
 }
 
 func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string) (string, bool) {

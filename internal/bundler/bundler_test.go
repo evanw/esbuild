@@ -1778,7 +1778,7 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/node_modules/demo-pkg/util-node.js
+			"/Users/user/project/out.js": `// disabled:/Users/user/project/node_modules/demo-pkg/util-node.js
 var require_util_node = __commonJS(() => {
 });
 
@@ -1950,13 +1950,13 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/node_modules/node-pkg/index.js
-var require_node_pkg = __commonJS(() => {
+			"/Users/user/project/out.js": `// disabled:/Users/user/project/node_modules/node-pkg/index.js
+var require_index = __commonJS(() => {
 });
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fn2 = require_node_pkg();
+  const fn2 = require_index();
   module.exports = function() {
     return fn2();
   };

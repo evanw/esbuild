@@ -47,23 +47,27 @@ type Msg struct {
 type Source struct {
 	Index uint32
 
-	// This is a platform-dependent path that includes environment-specific things
-	// such as Windows backslash path separators and potentially the user's home
-	// directory. Only use this for passing to syscalls for reading and writing to
-	// the file system. Do not include this in any output data.
+	// This is used as a unique key to identify this source file. It should never
+	// be shown to the user (e.g. never print this to the terminal).
+	//
+	// If it's marked as an absolute path, it's a platform-dependent path that
+	// includes environment-specific things such as Windows backslash path
+	// separators and potentially the user's home directory. Only use this for
+	// passing to syscalls for reading and writing to the file system. Do not
+	// include this in any output data.
+	//
+	// If it's marked as not an absolute path, it's an opaque string that is used
+	// to refer to an automatically-generated module.
 	KeyPath ast.Path
 
+	// This is used for error messages and the metadata JSON file.
+	//
 	// This is a mostly platform-independent path. It's relative to the current
 	// working directory and always uses standard path separators. Use this for
 	// referencing a file in all output data. These paths still use the original
 	// case of the path so they may still work differently on file systems that
 	// are case-insensitive vs. case-sensitive.
 	PrettyPath string
-
-	// The name of this file without any parent directory information. It's
-	// useful to separate this out from other information because the other
-	// information may be arbitrary in the case of auto-generated modules.
-	BaseName string
 
 	// An identifier that is mixed in to automatically-generated symbol names to
 	// improve readability. For example, if the identifier is "util" then the
