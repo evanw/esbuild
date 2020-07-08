@@ -977,14 +977,14 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 
 	// Use "module.exports = value" for CommonJS-style modules
 	if fileMeta.cjsStyleExports {
-		part.Stmts[0] = ast.AssignStmt(
+		part.Stmts = []ast.Stmt{ast.AssignStmt(
 			ast.Expr{Loc: lazy.Value.Loc, Data: &ast.EDot{
 				Target:  ast.Expr{Loc: lazy.Value.Loc, Data: &ast.EIdentifier{Ref: file.ast.ModuleRef}},
 				Name:    "exports",
 				NameLoc: lazy.Value.Loc,
 			}},
 			lazy.Value,
-		)
+		)}
 		part.SymbolUses[file.ast.ModuleRef] = ast.SymbolUse{CountEstimate: 1}
 		file.ast.UsesModuleRef = true
 		return
