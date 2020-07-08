@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.25
 
 * Performance improvment for repeated API calls
 
