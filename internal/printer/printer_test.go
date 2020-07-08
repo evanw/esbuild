@@ -603,10 +603,13 @@ func TestMinify(t *testing.T) {
 	expectPrintedMinify(t, "/*!multi-\nline*/\nthrow 1 + 2", "/*!multi-\nline*/throw 1+2;")
 }
 
-func TestES5Optimizations(t *testing.T) {
+func TestES5(t *testing.T) {
 	expectPrintedTargetMinify(t, 5, "foo('a\\n\\n\\nb')", "foo(\"a\\n\\n\\nb\");")
 	expectPrintedTargetMinify(t, 2015, "foo('a\\n\\n\\nb')", "foo(`a\n\n\nb`);")
 
 	expectPrintedTarget(t, 5, "foo({a, b})", "foo({a: a, b: b});\n")
 	expectPrintedTarget(t, 2015, "foo({a, b})", "foo({a, b});\n")
+
+	expectPrintedTarget(t, 5, "x => x", "(function(x) {\n  return x;\n});\n")
+	expectPrintedTarget(t, 2015, "x => x", "(x) => x;\n")
 }

@@ -1333,7 +1333,10 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EArrow:
-		wrap := level >= ast.LAssign
+		n := len(p.js)
+		useFunction := p.options.UnsupportedFeatures.Has(compat.Arrow)
+		wrap := level >= ast.LAssign || (useFunction && (p.stmtStart == n || p.exportDefaultStart == n))
+
 		if wrap {
 			p.print("(")
 		}
@@ -1342,12 +1345,22 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print("async")
 			p.printSpace()
 		}
+
+		if useFunction {
+			p.printSpaceBeforeIdentifier()
+			p.print("function")
+		}
+
 		p.printFnArgs(e.Args, e.HasRestArg, true)
 		p.printSpace()
-		p.print("=>")
-		p.printSpace()
+
+		if !useFunction {
+			p.print("=>")
+			p.printSpace()
+		}
+
 		wasPrinted := false
-		if len(e.Body.Stmts) == 1 && e.PreferExpr {
+		if len(e.Body.Stmts) == 1 && e.PreferExpr && !useFunction {
 			if s, ok := e.Body.Stmts[0].Data.(*ast.SReturn); ok && s.Value != nil {
 				p.arrowExprStart = len(p.js)
 				p.printExpr(*s.Value, ast.LComma, 0)

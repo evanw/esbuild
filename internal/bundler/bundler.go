@@ -281,12 +281,11 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 	// Always start by parsing the runtime file
 	{
-		source := runtime.Source
-		sources = append(sources, source)
+		sources = append(sources, logging.Source{})
 		files = append(files, file{})
 		remaining++
 		go func() {
-			ast, ok := globalRuntimeCache.parseRuntime(&options)
+			source, ast, ok := globalRuntimeCache.parseRuntime(&options)
 			results <- parseResult{source: source, file: file{ast: ast}, ok: ok}
 		}()
 	}
@@ -612,6 +611,7 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 
 type runtimeCacheKey struct {
 	MangleSyntax bool
+	ES6          bool
 	Platform     config.Platform
 }
 
@@ -625,11 +625,19 @@ type runtimeCache struct {
 
 var globalRuntimeCache runtimeCache
 
-func (cache *runtimeCache) parseRuntime(options *config.Options) (runtimeAST ast.AST, ok bool) {
+func (cache *runtimeCache) parseRuntime(options *config.Options) (source logging.Source, runtimeAST ast.AST, ok bool) {
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
 		MangleSyntax: options.MangleSyntax,
 		Platform:     options.Platform,
+		ES6:          runtime.CanUseES6(options.UnsupportedFeatures),
+	}
+
+	// Determine which source to use
+	if key.ES6 {
+		source = runtime.ES6Source
+	} else {
+		source = runtime.ES5Source
 	}
 
 	// Cache hit?
@@ -646,7 +654,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (runtimeAST ast
 
 	// Cache miss
 	log := logging.NewDeferLog()
-	runtimeAST, ok = parser.Parse(log, runtime.Source, config.Options{
+	runtimeAST, ok = parser.Parse(log, source, config.Options{
 		// These configuration options must only depend on the key
 		MangleSyntax: key.MangleSyntax,
 		Platform:     key.Platform,
