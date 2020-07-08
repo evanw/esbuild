@@ -3,6 +3,7 @@ package test
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/logging"
 )
 
@@ -15,7 +16,7 @@ func AssertEqual(t *testing.T, a interface{}, b interface{}) {
 func SourceForTest(contents string) logging.Source {
 	return logging.Source{
 		Index:          0,
-		AbsolutePath:   "<stdin>",
+		KeyPath:        ast.Path{Text: "<stdin>"},
 		PrettyPath:     "<stdin>",
 		Contents:       contents,
 		IdentifierName: "stdin",

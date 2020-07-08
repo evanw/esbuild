@@ -40,7 +40,7 @@ type ResolveResult struct {
 }
 
 type Resolver interface {
-	Resolve(sourcePath string, importPath string) ResolveResult
+	Resolve(sourcePath ast.Path, importPath string) ResolveResult
 	ResolveAbs(absPath string) ResolveResult
 	Read(path string) (string, bool)
 	PrettyPath(path string) string
@@ -80,8 +80,8 @@ func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourcePath string, importPath string) ResolveResult {
-	absPath, status := r.resolveWithoutSymlinks(sourcePath, importPath)
+func (r *resolver) Resolve(sourcePath ast.Path, importPath string) ResolveResult {
+	absPath, status := r.resolveWithoutSymlinks(sourcePath.Text, importPath)
 
 	// If successful, resolve symlinks using the directory info cache
 	if status == ResolveEnabled || status == ResolveDisabled {
@@ -758,9 +758,9 @@ func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string
 func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logging.Source, bool) {
 	if contents, ok := r.fs.ReadFile(path); ok {
 		source := logging.Source{
-			AbsolutePath: path,
-			PrettyPath:   r.PrettyPath(path),
-			Contents:     contents,
+			KeyPath:    ast.Path{Text: path},
+			PrettyPath: r.PrettyPath(path),
+			Contents:   contents,
 		}
 		result, ok := parser.ParseJSON(r.log, source, options)
 		return result, source, ok

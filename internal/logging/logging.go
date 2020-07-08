@@ -51,7 +51,7 @@ type Source struct {
 	// such as Windows backslash path separators and potentially the user's home
 	// directory. Only use this for passing to syscalls for reading and writing to
 	// the file system. Do not include this in any output data.
-	AbsolutePath string
+	KeyPath ast.Path
 
 	// This is a mostly platform-independent path. It's relative to the current
 	// working directory and always uses standard path separators. Use this for

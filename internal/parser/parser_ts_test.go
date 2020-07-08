@@ -12,12 +12,7 @@ import (
 func expectParseErrorTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
@@ -34,12 +29,7 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 func expectPrintedTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
@@ -61,12 +51,7 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
@@ -86,12 +71,7 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 func expectPrintedTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},

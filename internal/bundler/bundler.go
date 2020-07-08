@@ -79,7 +79,7 @@ type parseResult struct {
 func parseFile(args parseArgs) {
 	source := logging.Source{
 		Index:          args.sourceIndex,
-		AbsolutePath:   args.absPath,
+		KeyPath:        ast.Path{Text: args.absPath},
 		PrettyPath:     args.prettyPath,
 		IdentifierName: ast.GenerateNonUniqueNameFromPath(args.absPath),
 	}
@@ -376,7 +376,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 					pathText := record.Path.Text
 					pathRange := source.RangeOfString(record.Loc)
-					resolveResult := res.Resolve(source.AbsolutePath, pathText)
+					resolveResult := res.Resolve(source.KeyPath, pathText)
 
 					switch resolveResult.Status {
 					case resolver.ResolveEnabled, resolver.ResolveDisabled:
@@ -535,7 +535,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 		sourceAbsPaths := make(map[string]uint32)
 		for _, group := range resultGroups {
 			for _, sourceIndex := range group.reachableFiles {
-				lowerAbsPath := lowerCaseAbsPathForWindows(b.sources[sourceIndex].AbsolutePath)
+				lowerAbsPath := lowerCaseAbsPathForWindows(b.sources[sourceIndex].KeyPath.Text)
 				sourceAbsPaths[lowerAbsPath] = sourceIndex
 			}
 		}
@@ -567,11 +567,11 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 }
 
 func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
-	// Sort files by absolute path for determinism
+	// Sort files by key path for determinism
 	sorted := make(indexAndPathArray, 0, len(b.sources))
 	for sourceIndex, source := range b.sources {
 		if uint32(sourceIndex) != runtime.SourceIndex {
-			sorted = append(sorted, indexAndPath{uint32(sourceIndex), source.PrettyPath})
+			sorted = append(sorted, indexAndPath{uint32(sourceIndex), source.KeyPath})
 		}
 	}
 	sort.Sort(sorted)

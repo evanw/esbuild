@@ -6,6 +6,7 @@
 package runtime
 
 import (
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/logging"
 )
@@ -184,17 +185,19 @@ func code(isES6 bool) string {
 }
 
 var ES6Source = logging.Source{
-	Index:        SourceIndex,
-	AbsolutePath: "<runtime>",
-	PrettyPath:   "<runtime>",
-	Contents:     code(true /* isES6 */),
+	Index:          SourceIndex,
+	KeyPath:        ast.Path{Text: "<runtime>"},
+	PrettyPath:     "<runtime>",
+	IdentifierName: "runtime",
+	Contents:       code(true /* isES6 */),
 }
 
 var ES5Source = logging.Source{
-	Index:        SourceIndex,
-	AbsolutePath: "<runtime>",
-	PrettyPath:   "<runtime>",
-	Contents:     code(false /* isES6 */),
+	Index:          SourceIndex,
+	KeyPath:        ast.Path{Text: "<runtime>"},
+	PrettyPath:     "<runtime>",
+	IdentifierName: "runtime",
+	Contents:       code(false /* isES6 */),
 }
 
 // The TypeScript decorator transform behaves similar to the official

@@ -252,6 +252,10 @@ type Path struct {
 	Text string
 }
 
+func (a Path) ComesBeforeInSortedOrder(b Path) bool {
+	return a.Text < b.Text
+}
+
 type PropertyKind int
 
 const (

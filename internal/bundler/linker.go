@@ -362,15 +362,18 @@ func newLinkerContext(options *config.Options, log logging.Log, fs fs.FS, source
 
 type indexAndPath struct {
 	sourceIndex uint32
-	path        string
+	path        ast.Path
 }
 
 // This type is just so we can use Go's native sort function
 type indexAndPathArray []indexAndPath
 
-func (a indexAndPathArray) Len() int               { return len(a) }
-func (a indexAndPathArray) Swap(i int, j int)      { a[i], a[j] = a[j], a[i] }
-func (a indexAndPathArray) Less(i int, j int) bool { return a[i].path < a[j].path }
+func (a indexAndPathArray) Len() int          { return len(a) }
+func (a indexAndPathArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a indexAndPathArray) Less(i int, j int) bool {
+	return a[i].path.ComesBeforeInSortedOrder(a[j].path)
+}
 
 // Find all files reachable from all entry points
 func findReachableFiles(sources []logging.Source, files []file, entryPoints []uint32) []uint32 {
@@ -390,7 +393,7 @@ func findReachableFiles(sources []logging.Source, files []file, entryPoints []ui
 					}
 				}
 			}
-			sorted = append(sorted, indexAndPath{sourceIndex, sources[sourceIndex].AbsolutePath})
+			sorted = append(sorted, indexAndPath{sourceIndex, sources[sourceIndex].KeyPath})
 		}
 	}
 
@@ -2024,7 +2027,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		if c.options.AbsOutputFile != "" && c.fileMeta[entryPoint].entryPointStatus == entryPointUserSpecified {
 			entryPointName = c.fs.Base(c.options.AbsOutputFile)
 		} else {
-			name := c.fs.Base(c.sources[entryPoint].AbsolutePath)
+			name := c.fs.Base(c.sources[entryPoint].KeyPath.Text)
 			entryPointName = c.stripKnownFileExtension(name) + ".js"
 		}
 		c.fileMeta[entryPoint].entryPointName = entryPointName
@@ -2108,7 +2111,7 @@ func (c *linkerContext) stripKnownFileExtension(name string) string {
 type chunkOrder struct {
 	sourceIndex uint32
 	distance    uint32
-	path        string
+	path        ast.Path
 }
 
 // This type is just so we can use Go's native sort function
@@ -2118,7 +2121,7 @@ func (a chunkOrderArray) Len() int          { return len(a) }
 func (a chunkOrderArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 
 func (a chunkOrderArray) Less(i int, j int) bool {
-	return a[i].distance < a[j].distance || (a[i].distance == a[j].distance && a[i].path < a[j].path)
+	return a[i].distance < a[j].distance || (a[i].distance == a[j].distance && a[i].path.ComesBeforeInSortedOrder(a[j].path))
 }
 
 func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
@@ -2129,7 +2132,7 @@ func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
 		sorted = append(sorted, chunkOrder{
 			sourceIndex: sourceIndex,
 			distance:    c.fileMeta[sourceIndex].distanceFromEntryPoint,
-			path:        c.sources[sourceIndex].AbsolutePath,
+			path:        c.sources[sourceIndex].KeyPath,
 		})
 	}
 
