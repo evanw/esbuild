@@ -10,41 +10,26 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/test"
 )
-
-func assertEqual(t *testing.T, a interface{}, b interface{}) {
-	if a != b {
-		t.Fatalf("%s != %s", a, b)
-	}
-}
 
 func expectParseError(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{})
+		Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 		}
-		assertEqual(t, text, expected)
+		test.AssertEqual(t, text, expected)
 	})
 }
 
 func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		Parse(log, test.SourceForTest(contents), config.Options{
 			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
 			}),
@@ -54,19 +39,14 @@ func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expect
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 		}
-		assertEqual(t, text, expected)
+		test.AssertEqual(t, text, expected)
 	})
 }
 
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{})
+		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -74,24 +54,19 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 			}
 		}
-		assertEqual(t, text, "")
+		test.AssertEqual(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
 		js := printer.Print(ast, printer.PrintOptions{}).JS
-		assertEqual(t, string(js), expected)
+		test.AssertEqual(t, string(js), expected)
 	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			MangleSyntax: true,
 		})
 		msgs := log.Done()
@@ -99,12 +74,12 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 		}
-		assertEqual(t, text, "")
+		test.AssertEqual(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
 		js := printer.Print(ast, printer.PrintOptions{}).JS
-		assertEqual(t, string(js), expected)
+		test.AssertEqual(t, string(js), expected)
 	})
 }
 
@@ -114,12 +89,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		unsupportedFeatures := compat.UnsupportedFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		})
-		ast, ok := Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			UnsupportedFeatures: unsupportedFeatures,
 		})
 		msgs := log.Done()
@@ -129,26 +99,21 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 			}
 		}
-		assertEqual(t, text, "")
+		test.AssertEqual(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
 		js := printer.Print(ast, printer.PrintOptions{
 			UnsupportedFeatures: unsupportedFeatures,
 		}).JS
-		assertEqual(t, string(js), expected)
+		test.AssertEqual(t, string(js), expected)
 	})
 }
 
 func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
 			}),
@@ -164,24 +129,19 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 			}
 		}
-		assertEqual(t, text, "")
+		test.AssertEqual(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
 		js := printer.Print(ast, printer.PrintOptions{}).JS
-		assertEqual(t, string(js), expected)
+		test.AssertEqual(t, string(js), expected)
 	})
 }
 
 func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		Parse(log, test.SourceForTest(contents), config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
 			},
@@ -191,19 +151,14 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 		}
-		assertEqual(t, text, expected)
+		test.AssertEqual(t, text, expected)
 	})
 }
 
 func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, config.Options{
+		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
 			},
@@ -213,12 +168,12 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 		}
-		assertEqual(t, text, "")
+		test.AssertEqual(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
 		js := printer.Print(ast, printer.PrintOptions{}).JS
-		assertEqual(t, string(js), expected)
+		test.AssertEqual(t, string(js), expected)
 	})
 }
 

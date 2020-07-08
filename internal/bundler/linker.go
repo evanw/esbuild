@@ -1060,8 +1060,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 	}
 
 	// Generate the default export
-	defaultName := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath) + "_default"
-	generateExport(defaultName, "default", lazy.Value, prevExports)
+	generateExport(c.sources[sourceIndex].IdentifierName+"_default", "default", lazy.Value, prevExports)
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
@@ -3050,7 +3049,7 @@ func (c *linkerContext) renameOrMinifyAllSymbols() {
 			// actual CommonJS files from being renamed. This is purely about
 			// aesthetics and is not about correctness.
 			if !fileMeta.cjsStyleExports {
-				name := ast.GenerateNonUniqueNameFromPath(c.sources[sourceIndex].AbsolutePath)
+				name := c.sources[sourceIndex].IdentifierName
 				c.symbols.Get(file.ast.ExportsRef).Name = name + "_exports"
 				c.symbols.Get(file.ast.ModuleRef).Name = name + "_module"
 			}

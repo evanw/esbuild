@@ -1819,8 +1819,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			// by the class. If this SExportDefault turns into a variable declaration,
 			// we don't want it to accidentally use the same variable as the class and
 			// cause a name collision.
-			nameFromPath := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
-			defaultRef := p.generateTempRef(tempRefNoDeclare, nameFromPath)
+			defaultRef := p.generateTempRef(tempRefNoDeclare, p.source.IdentifierName+"_default")
 			p.namedExports["default"] = defaultRef
 			p.recordDeclaredSymbol(defaultRef)
 

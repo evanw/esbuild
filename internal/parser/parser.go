@@ -3907,8 +3907,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 			// The default name is lazily generated only if no other name is present
 			createDefaultName := func() ast.LocRef {
-				name := ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath) + "_default"
-				defaultName := ast.LocRef{Loc: defaultLoc, Ref: p.newSymbol(ast.SymbolOther, name)}
+				defaultName := ast.LocRef{Loc: defaultLoc, Ref: p.newSymbol(ast.SymbolOther, p.source.IdentifierName+"_default")}
 				p.currentScope.Generated = append(p.currentScope.Generated, defaultName.Ref)
 				return defaultName
 			}
@@ -8761,8 +8760,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 	}
 
 	// Make a wrapper symbol in case we need to be wrapped in a closure
-	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+
-		ast.GenerateNonUniqueNameFromPath(p.source.AbsolutePath))
+	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+p.source.IdentifierName)
 
 	// Make a symbol map that contains our file's symbols
 	symbols := ast.NewSymbolMap(int(source.Index) + 1)

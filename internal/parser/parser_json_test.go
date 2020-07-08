@@ -7,23 +7,19 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/test"
 )
 
 func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ParseJSON(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, ParseJSONOptions{})
+		ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 		}
-		assertEqual(t, text, expected)
+		test.AssertEqual(t, text, expected)
 	})
 }
 
@@ -33,50 +29,40 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 func expectPrintedJSON(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		expr, ok := ParseJSON(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, ParseJSONOptions{})
+		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 		}
-		assertEqual(t, text, "")
+		test.AssertEqual(t, text, "")
 		if !ok {
 			t.Fatal("Parse error")
 		}
 		js := printer.PrintExpr(expr, ast.SymbolMap{}, printer.PrintOptions{
 			RemoveWhitespace: true,
 		}).JS
-		assertEqual(t, string(js), expected)
+		test.AssertEqual(t, string(js), expected)
 	})
 }
 
 func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		expr, ok := ParseJSON(log, logging.Source{
-			Index:        0,
-			AbsolutePath: "<stdin>",
-			PrettyPath:   "<stdin>",
-			Contents:     contents,
-		}, ParseJSONOptions{})
+		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
 			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
 		}
-		assertEqual(t, text, warning)
+		test.AssertEqual(t, text, warning)
 		if !ok {
 			t.Fatal("Parse error")
 		}
 		js := printer.PrintExpr(expr, ast.SymbolMap{}, printer.PrintOptions{
 			RemoveWhitespace: true,
 		}).JS
-		assertEqual(t, string(js), expected)
+		test.AssertEqual(t, string(js), expected)
 	})
 }
 

@@ -78,9 +78,10 @@ type parseResult struct {
 
 func parseFile(args parseArgs) {
 	source := logging.Source{
-		Index:        args.sourceIndex,
-		AbsolutePath: args.absPath,
-		PrettyPath:   args.prettyPath,
+		Index:          args.sourceIndex,
+		AbsolutePath:   args.absPath,
+		PrettyPath:     args.prettyPath,
+		IdentifierName: ast.GenerateNonUniqueNameFromPath(args.absPath),
 	}
 
 	// Disabled files are left empty

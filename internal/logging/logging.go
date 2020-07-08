@@ -60,6 +60,11 @@ type Source struct {
 	// are case-insensitive vs. case-sensitive.
 	PrettyPath string
 
+	// An identifier that is mixed in to automatically-generated symbol names to
+	// improve readability. For example, if the identifier is "util" then the
+	// symbol for an "export default" statement will be called "util_default".
+	IdentifierName string
+
 	Contents string
 }
 
