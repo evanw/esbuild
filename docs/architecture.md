@@ -32,7 +32,7 @@ Note that there are some design decisions that have been made differently than o
 
 * **Avoid doing unnecessary work**
 
-    For example, many bundlers have intermediate stages where they write out JavaScript code and read it back in using another tool. This is work is unnecessary because if the tools used the same data structures, no conversion would be needed.
+    For example, many bundlers have intermediate stages where they write out JavaScript code and read it back in using another tool. This work is unnecessary because if the tools used the same data structures, no conversion would be needed.
 
 * **Transparently support both ES6 and CommonJS module syntax**
 
