@@ -20,6 +20,7 @@ import (
 	"github.com/evanw/esbuild/pkg/cli"
 )
 
+type requestType = []string
 type responseType = map[string][]byte
 
 func readUint32(bytes []byte) (value uint32, leftOver []byte, ok bool) {
@@ -98,7 +99,7 @@ func writeUint32(bytes []byte, value uint32) []byte {
 	return bytes
 }
 
-func writeResponse(outgoingMessages chan []byte, id uint32, response responseType) {
+func sendResponse(outgoingMessages chan []byte, id uint32, response responseType) {
 	// Each response is length-prefixed
 	length := 12
 	for k, v := range response {
@@ -106,7 +107,7 @@ func writeResponse(outgoingMessages chan []byte, id uint32, response responseTyp
 	}
 	bytes := make([]byte, 0, length)
 	bytes = writeUint32(bytes, uint32(length-4))
-	bytes = writeUint32(bytes, id)
+	bytes = writeUint32(bytes, (id<<1)|1)
 	bytes = writeUint32(bytes, uint32(len(response)))
 
 	// Each response is formatted as a series of key/value pairs
@@ -124,86 +125,110 @@ func handleIncomingMessage(bytes []byte, outgoingMessages chan []byte, waitGroup
 	// Read the id
 	id, bytes, ok := readUint32(bytes)
 	if !ok {
-		// Invalid request
+		// Invalid message
 		waitGroup.Done()
 		return
 	}
+	isRequest := (id & 1) == 0
+	id >>= 1
 
 	// Read the argument count
 	argCount, bytes, ok := readUint32(bytes)
 	if !ok {
-		// Invalid request
+		// Invalid message
 		waitGroup.Done()
 		return
 	}
 
-	// Read the arguments
-	rawArgs := []string{}
-	for i := uint32(0); i < argCount; i++ {
-		slice, afterSlice, ok := readLengthPrefixedSlice(bytes)
-		if !ok {
+	if isRequest {
+		// Read the request
+		request := requestType{}
+		for i := uint32(0); i < argCount; i++ {
+			value, afterValue, ok := readLengthPrefixedSlice(bytes)
+			if !ok {
+				// Invalid request
+				waitGroup.Done()
+				return
+			}
+			bytes = afterValue
+			request = append(request, string(value))
+		}
+		if len(request) < 1 || len(bytes) != 0 {
 			// Invalid request
 			waitGroup.Done()
 			return
 		}
-		rawArgs = append(rawArgs, string(slice))
-		bytes = afterSlice
-	}
-	if len(rawArgs) < 1 || len(bytes) != 0 {
-		// Invalid request
-		waitGroup.Done()
-		return
-	}
+		command, request := request[0], request[1:]
 
-	// Requests have the format "command [args...]"
-	command, rawArgs := rawArgs[0], rawArgs[1:]
+		// Catch panics in the code below so they get passed to the caller
+		defer func() {
+			if r := recover(); r != nil {
+				sendResponse(outgoingMessages, id, responseType{
+					"error": []byte(fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack())),
+				})
+			}
+		}()
 
-	// Catch panics in the code below so they get passed to the caller
-	defer func() {
-		if r := recover(); r != nil {
-			writeResponse(outgoingMessages, id, responseType{
-				"error": []byte(fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack())),
-			})
+		handleRequest(outgoingMessages, id, command, request)
+	} else {
+		// Read the response
+		response := responseType{}
+		for i := uint32(0); i < argCount; i++ {
+			key, afterKey, ok := readLengthPrefixedSlice(bytes)
+			if !ok {
+				// Invalid response
+				waitGroup.Done()
+				return
+			}
+			value, afterValue, ok := readLengthPrefixedSlice(afterKey)
+			if !ok {
+				// Invalid response
+				waitGroup.Done()
+				return
+			}
+			bytes = afterValue
+			response[string(key)] = value
 		}
-	}()
+		if len(bytes) != 0 {
+			// Invalid response
+			waitGroup.Done()
+			return
+		}
 
-	// Dispatch the command
+		panic("Unexpected response")
+	}
+}
+
+func handleRequest(outgoingMessages chan []byte, id uint32, command string, request requestType) {
 	switch command {
-	case "ping":
-		handlePingRequest(outgoingMessages, id, rawArgs)
-
 	case "build":
-		handleBuildRequest(outgoingMessages, id, rawArgs)
+		handleBuildRequest(outgoingMessages, id, request)
 
 	case "transform":
-		handleTransformRequest(outgoingMessages, id, rawArgs)
+		handleTransformRequest(outgoingMessages, id, request)
 
 	default:
-		writeResponse(outgoingMessages, id, responseType{
+		sendResponse(outgoingMessages, id, responseType{
 			"error": []byte(fmt.Sprintf("Invalid command: %s", command)),
 		})
 	}
 }
 
-func handlePingRequest(outgoingMessages chan []byte, id uint32, rawArgs []string) {
-	writeResponse(outgoingMessages, id, responseType{})
-}
-
-func handleBuildRequest(outgoingMessages chan []byte, id uint32, rawArgs []string) {
+func handleBuildRequest(outgoingMessages chan []byte, id uint32, request requestType) {
 	// Special-case the service-only write flag
 	write := true
-	for i, arg := range rawArgs {
+	for i, arg := range request {
 		if arg == "--write=false" {
 			write = false
-			copy(rawArgs[i:], rawArgs[i+1:])
-			rawArgs = rawArgs[:len(rawArgs)-1]
+			copy(request[i:], request[i+1:])
+			request = request[:len(request)-1]
 			break
 		}
 	}
 
-	options, err := cli.ParseBuildOptions(rawArgs)
+	options, err := cli.ParseBuildOptions(request)
 	if err != nil {
-		writeResponse(outgoingMessages, id, responseType{
+		sendResponse(outgoingMessages, id, responseType{
 			"error": []byte(err.Error()),
 		})
 		return
@@ -243,27 +268,27 @@ func handleBuildRequest(outgoingMessages chan []byte, id uint32, rawArgs []strin
 		response["outputFiles"] = bytes
 	}
 
-	writeResponse(outgoingMessages, id, response)
+	sendResponse(outgoingMessages, id, response)
 }
 
-func handleTransformRequest(outgoingMessages chan []byte, id uint32, rawArgs []string) {
-	if len(rawArgs) == 0 {
-		writeResponse(outgoingMessages, id, responseType{
+func handleTransformRequest(outgoingMessages chan []byte, id uint32, request requestType) {
+	if len(request) == 0 {
+		sendResponse(outgoingMessages, id, responseType{
 			"error": []byte("Invalid transform request"),
 		})
 		return
 	}
 
-	options, err := cli.ParseTransformOptions(rawArgs[1:])
+	options, err := cli.ParseTransformOptions(request[1:])
 	if err != nil {
-		writeResponse(outgoingMessages, id, responseType{
+		sendResponse(outgoingMessages, id, responseType{
 			"error": []byte(err.Error()),
 		})
 		return
 	}
 
-	result := api.Transform(rawArgs[0], options)
-	writeResponse(outgoingMessages, id, responseType{
+	result := api.Transform(request[0], options)
+	sendResponse(outgoingMessages, id, responseType{
 		"errors":      messagesToJSON(result.Errors),
 		"warnings":    messagesToJSON(result.Warnings),
 		"js":          result.JS,

@@ -177,7 +177,7 @@ export function createChannel(options: StreamIn): StreamOut {
       offset += 4;
     };
     writeUint32(length - 4);
-    writeUint32(id);
+    writeUint32(id << 1);
     writeUint32(argBuffers.length);
     for (let argBuffer of argBuffers) {
       writeUint32(argBuffer.length);
@@ -185,6 +185,58 @@ export function createChannel(options: StreamIn): StreamOut {
       offset += argBuffer.length;
     }
     options.writeToStdin(bytes);
+  };
+
+  let sendResponse = (id: number, response: Response): void => {
+    if (isClosed) throw new Error('The service is no longer running');
+
+    // Figure out how long the response will be
+    let keyBuffers: { [key: string]: Uint8Array } = {};
+    let length = 12;
+    let count = 0;
+    for (let key in response) {
+      let keyBuffer = encodeUTF8(key);
+      let value = response[key];
+      keyBuffers[key] = keyBuffer;
+      length += 4 + keyBuffer.length + 4 + value.length;
+      count++;
+    }
+
+    // Write out the request message
+    let bytes = new Uint8Array(length);
+    let offset = 0;
+    let writeUint32 = (value: number) => {
+      writeUInt32LE(bytes, value, offset);
+      offset += 4;
+    };
+    writeUint32(length - 4);
+    writeUint32((id << 1) | 1);
+    writeUint32(count);
+    for (let key in response) {
+      let keyBuffer = keyBuffers[key];
+      let value = response[key];
+      writeUint32(keyBuffer.length);
+      bytes.set(keyBuffer, offset);
+      offset += keyBuffer.length;
+      writeUint32(value.length);
+      bytes.set(value, offset);
+      offset += value.length;
+    }
+    options.writeToStdin(bytes);
+  };
+
+  let handleRequest = (id: number, command: string, request: Request) => {
+    // Catch exceptions in the code below so they get passed to the caller
+    try {
+      switch (command) {
+        default:
+          throw new Error(`Invalid command: ` + command);
+      }
+    } catch (e) {
+      sendResponse(id, {
+        error: encodeUTF8(e + ''),
+      });
+    }
   };
 
   let handleIncomingMessage = (bytes: Uint8Array): void => {
@@ -196,23 +248,41 @@ export function createChannel(options: StreamIn): StreamOut {
     };
     let id = readUInt32LE(bytes, eat(4));
     let count = readUInt32LE(bytes, eat(4));
-    let response: Response = {};
+    let isRequest = !(id & 1);
+    id >>>= 1;
 
-    // Parse the response into a map
-    for (let i = 0; i < count; i++) {
-      let keyLength = readUInt32LE(bytes, eat(4));
-      let key = decodeUTF8(bytes.slice(offset, eat(keyLength) + keyLength));
-      let valueLength = readUInt32LE(bytes, eat(4));
-      let value = bytes.slice(offset, eat(valueLength) + valueLength);
-      response[key] = value;
+    if (isRequest) {
+      let request: Request = [];
+
+      // Parse the request into an array
+      for (let i = 0; i < count; i++) {
+        let valueLength = readUInt32LE(bytes, eat(4));
+        let value = bytes.slice(offset, eat(valueLength) + valueLength);
+        request.push(decodeUTF8(value));
+      }
+
+      // Dispatch the request
+      if (request.length < 1 || offset !== bytes.length) throw new Error('Invalid message');
+      handleRequest(id, request[0], request.slice(1));
+    } else {
+      let response: Response = {};
+
+      // Parse the response into a map
+      for (let i = 0; i < count; i++) {
+        let keyLength = readUInt32LE(bytes, eat(4));
+        let key = decodeUTF8(bytes.slice(offset, eat(keyLength) + keyLength));
+        let valueLength = readUInt32LE(bytes, eat(4));
+        let value = bytes.slice(offset, eat(valueLength) + valueLength);
+        response[key] = value;
+      }
+
+      // Dispatch the response
+      if (offset !== bytes.length) throw new Error('Invalid message');
+      let callback = requests.get(id)!;
+      requests.delete(id);
+      if (response.error) callback(decodeUTF8(response.error), {});
+      else callback(null, response);
     }
-
-    // Dispatch the response
-    if (offset !== bytes.length) throw new Error('Invalid message');
-    let callback = requests.get(id)!;
-    requests.delete(id);
-    if (response.error) callback(decodeUTF8(response.error), {});
-    else callback(null, response);
   };
 
   return {
