@@ -109,7 +109,7 @@ else {
 
 // This can't use any promises because it must work for both sync and async code
 export function createChannel(options: StreamIn): StreamOut {
-  let requests = new Map<string, ResponseCallback>();
+  let requests = new Map<number, ResponseCallback>();
   let isClosed = false;
   let nextID = 0;
 
@@ -127,7 +127,7 @@ export function createChannel(options: StreamIn): StreamOut {
     stdout.set(chunk, stdoutUsed);
     stdoutUsed += chunk.length;
 
-    // Process all complete (i.e. not partial) responses
+    // Process all complete (i.e. not partial) messages
     let offset = 0;
     while (offset + 4 <= stdoutUsed) {
       let length = readUInt32LE(stdout, offset);
@@ -135,7 +135,7 @@ export function createChannel(options: StreamIn): StreamOut {
         break;
       }
       offset += 4;
-      handleResponse(stdout.slice(offset, offset + length));
+      handleIncomingMessage(stdout.slice(offset, offset + length));
       offset += length;
     }
     if (offset > 0) {
@@ -157,12 +157,12 @@ export function createChannel(options: StreamIn): StreamOut {
     if (isClosed) return callback('The service is no longer running', {});
 
     // Allocate an id for this request
-    let id = (nextID++).toString();
+    let id = nextID++;
     requests.set(id, callback);
 
     // Figure out how long the request will be
-    let argBuffers = [encodeUTF8(id)];
-    let length = 4 + 4 + 4 + argBuffers[0].length;
+    let argBuffers: Uint8Array[] = [];
+    let length = 12;
     for (let arg of request) {
       let argBuffer = encodeUTF8(arg);
       argBuffers.push(argBuffer);
@@ -177,6 +177,7 @@ export function createChannel(options: StreamIn): StreamOut {
       offset += 4;
     };
     writeUint32(length - 4);
+    writeUint32(id);
     writeUint32(argBuffers.length);
     for (let argBuffer of argBuffers) {
       writeUint32(argBuffer.length);
@@ -186,16 +187,16 @@ export function createChannel(options: StreamIn): StreamOut {
     options.writeToStdin(bytes);
   };
 
-  let handleResponse = (bytes: Uint8Array): void => {
+  let handleIncomingMessage = (bytes: Uint8Array): void => {
     let offset = 0;
     let eat = (n: number) => {
       offset += n;
       if (offset > bytes.length) throw new Error('Invalid message');
       return offset - n;
     };
+    let id = readUInt32LE(bytes, eat(4));
     let count = readUInt32LE(bytes, eat(4));
     let response: Response = {};
-    let id;
 
     // Parse the response into a map
     for (let i = 0; i < count; i++) {
@@ -203,12 +204,11 @@ export function createChannel(options: StreamIn): StreamOut {
       let key = decodeUTF8(bytes.slice(offset, eat(keyLength) + keyLength));
       let valueLength = readUInt32LE(bytes, eat(4));
       let value = bytes.slice(offset, eat(valueLength) + valueLength);
-      if (key === 'id') id = decodeUTF8(value);
-      else response[key] = value;
+      response[key] = value;
     }
 
     // Dispatch the response
-    if (!id) throw new Error('Invalid message');
+    if (offset !== bytes.length) throw new Error('Invalid message');
     let callback = requests.get(id)!;
     requests.delete(id);
     if (response.error) callback(decodeUTF8(response.error), {});

@@ -42,10 +42,21 @@ func runService() {
 	buffer := make([]byte, 4096)
 	stream := []byte{}
 
-	// Write responses on a single goroutine so they aren't interleaved
+	// Write messages on a single goroutine so they aren't interleaved
 	waitGroup := &sync.WaitGroup{}
-	responses := make(chan responseType)
-	go writeResponses(responses, waitGroup)
+	outgoingMessages := make(chan []byte)
+	go func() {
+		for {
+			message, ok := <-outgoingMessages
+			if !ok {
+				break // No more messages
+			}
+			os.Stdout.Write(message)
+
+			// Only signal that this request is done when it has actually been written
+			waitGroup.Done()
+		}
+	}()
 
 	for {
 		// Read more data from stdin
@@ -58,22 +69,22 @@ func runService() {
 		}
 		stream = append(stream, buffer[:n]...)
 
-		// Process all complete (i.e. not partial) requests
+		// Process all complete (i.e. not partial) messages
 		bytes := stream
 		for {
-			request, afterRequest, ok := readLengthPrefixedSlice(bytes)
+			message, afterMessage, ok := readLengthPrefixedSlice(bytes)
 			if !ok {
 				break
 			}
-			bytes = afterRequest
+			bytes = afterMessage
 
 			// Clone the input and run it on another goroutine
 			waitGroup.Add(1)
-			clone := append([]byte{}, request...)
-			go handleRequest(clone, responses, waitGroup)
+			clone := append([]byte{}, message...)
+			go handleIncomingMessage(clone, outgoingMessages, waitGroup)
 		}
 
-		// Move the remaining partial request to the end to avoid reallocating
+		// Move the remaining partial message to the end to avoid reallocating
 		stream = append(stream[:0], bytes...)
 	}
 
@@ -87,37 +98,37 @@ func writeUint32(bytes []byte, value uint32) []byte {
 	return bytes
 }
 
-func writeResponses(responses chan responseType, waitGroup *sync.WaitGroup) {
-	for {
-		response, ok := <-responses
-		if !ok {
-			break // No more responses
-		}
-
-		// Each response is length-prefixed
-		length := 4
-		for k, v := range response {
-			length += 4 + len(k) + 4 + len(v)
-		}
-		bytes := make([]byte, 0, 4+length)
-		bytes = writeUint32(bytes, uint32(length))
-
-		// Each response is formatted as a series of key/value pairs
-		bytes = writeUint32(bytes, uint32(len(response)))
-		for k, v := range response {
-			bytes = writeUint32(bytes, uint32(len(k)))
-			bytes = append(bytes, k...)
-			bytes = writeUint32(bytes, uint32(len(v)))
-			bytes = append(bytes, v...)
-		}
-		os.Stdout.Write(bytes)
-
-		// Only signal that this request is done when it has actually been written
-		waitGroup.Done()
+func writeResponse(outgoingMessages chan []byte, id uint32, response responseType) {
+	// Each response is length-prefixed
+	length := 12
+	for k, v := range response {
+		length += 4 + len(k) + 4 + len(v)
 	}
+	bytes := make([]byte, 0, length)
+	bytes = writeUint32(bytes, uint32(length-4))
+	bytes = writeUint32(bytes, id)
+	bytes = writeUint32(bytes, uint32(len(response)))
+
+	// Each response is formatted as a series of key/value pairs
+	for k, v := range response {
+		bytes = writeUint32(bytes, uint32(len(k)))
+		bytes = append(bytes, k...)
+		bytes = writeUint32(bytes, uint32(len(v)))
+		bytes = append(bytes, v...)
+	}
+
+	outgoingMessages <- bytes
 }
 
-func handleRequest(bytes []byte, responses chan responseType, waitGroup *sync.WaitGroup) {
+func handleIncomingMessage(bytes []byte, outgoingMessages chan []byte, waitGroup *sync.WaitGroup) {
+	// Read the id
+	id, bytes, ok := readUint32(bytes)
+	if !ok {
+		// Invalid request
+		waitGroup.Done()
+		return
+	}
+
 	// Read the argument count
 	argCount, bytes, ok := readUint32(bytes)
 	if !ok {
@@ -138,51 +149,47 @@ func handleRequest(bytes []byte, responses chan responseType, waitGroup *sync.Wa
 		rawArgs = append(rawArgs, string(slice))
 		bytes = afterSlice
 	}
-	if len(rawArgs) < 2 {
+	if len(rawArgs) < 1 || len(bytes) != 0 {
 		// Invalid request
 		waitGroup.Done()
 		return
 	}
 
-	// Requests have the format "id command [args...]"
-	id, command, rawArgs := rawArgs[0], rawArgs[1], rawArgs[2:]
+	// Requests have the format "command [args...]"
+	command, rawArgs := rawArgs[0], rawArgs[1:]
 
 	// Catch panics in the code below so they get passed to the caller
 	defer func() {
 		if r := recover(); r != nil {
-			responses <- responseType{
-				"id":    []byte(id),
+			writeResponse(outgoingMessages, id, responseType{
 				"error": []byte(fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack())),
-			}
+			})
 		}
 	}()
 
 	// Dispatch the command
 	switch command {
 	case "ping":
-		handlePingRequest(responses, id, rawArgs)
+		handlePingRequest(outgoingMessages, id, rawArgs)
 
 	case "build":
-		handleBuildRequest(responses, id, rawArgs)
+		handleBuildRequest(outgoingMessages, id, rawArgs)
 
 	case "transform":
-		handleTransformRequest(responses, id, rawArgs)
+		handleTransformRequest(outgoingMessages, id, rawArgs)
 
 	default:
-		responses <- responseType{
-			"id":    []byte(id),
+		writeResponse(outgoingMessages, id, responseType{
 			"error": []byte(fmt.Sprintf("Invalid command: %s", command)),
-		}
+		})
 	}
 }
 
-func handlePingRequest(responses chan responseType, id string, rawArgs []string) {
-	responses <- responseType{
-		"id": []byte(id),
-	}
+func handlePingRequest(outgoingMessages chan []byte, id uint32, rawArgs []string) {
+	writeResponse(outgoingMessages, id, responseType{})
 }
 
-func handleBuildRequest(responses chan responseType, id string, rawArgs []string) {
+func handleBuildRequest(outgoingMessages chan []byte, id uint32, rawArgs []string) {
 	// Special-case the service-only write flag
 	write := true
 	for i, arg := range rawArgs {
@@ -196,16 +203,14 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 
 	options, err := cli.ParseBuildOptions(rawArgs)
 	if err != nil {
-		responses <- responseType{
-			"id":    []byte(id),
+		writeResponse(outgoingMessages, id, responseType{
 			"error": []byte(err.Error()),
-		}
+		})
 		return
 	}
 
 	result := api.Build(options)
 	response := responseType{
-		"id":       []byte(id),
 		"errors":   messagesToJSON(result.Errors),
 		"warnings": messagesToJSON(result.Warnings),
 	}
@@ -238,35 +243,32 @@ func handleBuildRequest(responses chan responseType, id string, rawArgs []string
 		response["outputFiles"] = bytes
 	}
 
-	responses <- response
+	writeResponse(outgoingMessages, id, response)
 }
 
-func handleTransformRequest(responses chan responseType, id string, rawArgs []string) {
+func handleTransformRequest(outgoingMessages chan []byte, id uint32, rawArgs []string) {
 	if len(rawArgs) == 0 {
-		responses <- responseType{
-			"id":    []byte(id),
+		writeResponse(outgoingMessages, id, responseType{
 			"error": []byte("Invalid transform request"),
-		}
+		})
 		return
 	}
 
 	options, err := cli.ParseTransformOptions(rawArgs[1:])
 	if err != nil {
-		responses <- responseType{
-			"id":    []byte(id),
+		writeResponse(outgoingMessages, id, responseType{
 			"error": []byte(err.Error()),
-		}
+		})
 		return
 	}
 
 	result := api.Transform(rawArgs[0], options)
-	responses <- responseType{
-		"id":          []byte(id),
+	writeResponse(outgoingMessages, id, responseType{
 		"errors":      messagesToJSON(result.Errors),
 		"warnings":    messagesToJSON(result.Warnings),
 		"js":          result.JS,
 		"jsSourceMap": result.JSSourceMap,
-	}
+	})
 }
 
 func messagesToJSON(msgs []api.Message) []byte {
