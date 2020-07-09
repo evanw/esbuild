@@ -74,6 +74,8 @@ type parseResult struct {
 	source logging.Source
 	file   file
 	ok     bool
+
+	resolveResults []*resolver.ResolveResult
 }
 
 func parseFile(args parseArgs) {
@@ -225,6 +227,32 @@ func parseFile(args parseArgs) {
 		result.ok = false
 		args.log.AddRangeError(args.importSource, args.pathRange,
 			fmt.Sprintf("File extension not supported: %s", args.prettyPath))
+	}
+
+	// Run the resolver on the parse thread so it's not run on the main thread.
+	// That way the main thread isn't blocked if the resolver takes a while.
+	if result.ok && args.options.IsBundling {
+		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
+
+		for _, part := range result.file.ast.Parts {
+			for _, importRecordIndex := range part.ImportRecordIndices {
+				// Don't try to resolve imports that are already resolved
+				record := &result.file.ast.ImportRecords[importRecordIndex]
+				if record.SourceIndex != nil {
+					continue
+				}
+
+				// Run the resolver and log an error if the path couldn't be resolved
+				resolveResult := args.res.Resolve(source.KeyPath, record.Path.Text)
+				if resolveResult == nil {
+					r := source.RangeOfString(record.Loc)
+					args.log.AddRangeError(&source, r, fmt.Sprintf("Could not resolve %q", record.Path.Text))
+					continue
+				}
+
+				result.resolveResults[importRecordIndex] = resolveResult
+			}
+		}
 	}
 
 	args.results <- result
@@ -392,25 +420,19 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &result.file.ast.ImportRecords[importRecordIndex]
 
-					// Don't try to resolve imports that are already resolved
-					if record.SourceIndex != nil {
-						continue
-					}
-
-					pathText := record.Path.Text
-					pathRange := source.RangeOfString(record.Loc)
-					resolveResult, isExternal := res.Resolve(source.KeyPath, pathText)
-
+					// Skip this import record if the previous resolver call failed
+					resolveResult := result.resolveResults[importRecordIndex]
 					if resolveResult == nil {
-						log.AddRangeError(&source, pathRange, fmt.Sprintf("Could not resolve %q", pathText))
 						continue
 					}
 
-					if !isExternal {
+					if !resolveResult.IsExternal {
+						// Handle a path within the bundle
 						prettyPath := resolveResult.Path.Text
 						if resolveResult.Path.IsAbsolute {
 							prettyPath = res.PrettyPath(prettyPath)
 						}
+						pathRange := source.RangeOfString(record.Loc)
 						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &source, pathRange, false /*isEntryPoint*/)
 						record.SourceIndex = &sourceIndex
 

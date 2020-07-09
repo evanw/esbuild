@@ -14,7 +14,8 @@ import (
 )
 
 type ResolveResult struct {
-	Path ast.Path
+	Path       ast.Path
+	IsExternal bool
 
 	// If not empty, these should override the default values
 	JSXFactory  []string // Default if empty: "React.createElement"
@@ -29,7 +30,7 @@ type ResolveResult struct {
 }
 
 type Resolver interface {
-	Resolve(sourcePath ast.Path, importPath string) (result *ResolveResult, isExternal bool)
+	Resolve(sourcePath ast.Path, importPath string) *ResolveResult
 	ResolveAbs(absPath string) *ResolveResult
 	Read(path string) (string, bool)
 	PrettyPath(path string) string
@@ -69,27 +70,27 @@ func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourcePath ast.Path, importPath string) (result *ResolveResult, isExternal bool) {
+func (r *resolver) Resolve(sourcePath ast.Path, importPath string) *ResolveResult {
 	if !sourcePath.IsAbsolute {
-		return nil, false
+		return nil
 	}
 
 	path, isExternal := r.resolveWithoutSymlinks(sourcePath.Text, importPath)
 	if path == nil {
-		return nil, false
+		return nil
 	}
 
 	// If successful, resolve symlinks using the directory info cache
-	return r.finalizeResolve(*path), isExternal
+	return r.finalizeResolve(*path, isExternal)
 }
 
 func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 	// Just decorate the absolute path with information from parent directories
-	return r.finalizeResolve(ast.Path{Text: absPath, IsAbsolute: true})
+	return r.finalizeResolve(ast.Path{Text: absPath, IsAbsolute: true}, false)
 }
 
-func (r *resolver) finalizeResolve(path ast.Path) *ResolveResult {
-	result := ResolveResult{Path: path}
+func (r *resolver) finalizeResolve(path ast.Path, isExternal bool) *ResolveResult {
+	result := ResolveResult{Path: path, IsExternal: isExternal}
 
 	if result.Path.IsAbsolute {
 		if dirInfo := r.dirInfoCached(r.fs.Dir(result.Path.Text)); dirInfo != nil {
