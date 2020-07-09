@@ -6,7 +6,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,13 +14,10 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
 )
 
-type requestType = []string
-type responseType = map[string][]byte
 type responseCallback = func(responseType)
 
 type serviceType struct {
@@ -34,22 +30,6 @@ type serviceType struct {
 type outgoingMessage struct {
 	bytes   []byte
 	isFinal bool
-}
-
-func readUint32(bytes []byte) (value uint32, leftOver []byte, ok bool) {
-	if len(bytes) >= 4 {
-		return binary.LittleEndian.Uint32(bytes), bytes[4:], true
-	}
-
-	return 0, bytes, false
-}
-
-func readLengthPrefixedSlice(bytes []byte) (slice []byte, leftOver []byte, ok bool) {
-	if length, afterLength, ok := readUint32(bytes); ok && uint(len(afterLength)) >= uint(length) {
-		return afterLength[:length], afterLength[length:], true
-	}
-
-	return []byte{}, bytes, false
 }
 
 func runService() {
@@ -117,54 +97,6 @@ func runService() {
 	waitGroup.Wait()
 }
 
-func writeUint32(bytes []byte, value uint32) []byte {
-	bytes = append(bytes, 0, 0, 0, 0)
-	binary.LittleEndian.PutUint32(bytes[len(bytes)-4:], value)
-	return bytes
-}
-
-func buildResponse(id uint32, response responseType) []byte {
-	// Each response is length-prefixed
-	length := 12
-	for k, v := range response {
-		length += 4 + len(k) + 4 + len(v)
-	}
-	bytes := make([]byte, 0, length)
-	bytes = writeUint32(bytes, uint32(length-4))
-	bytes = writeUint32(bytes, (id<<1)|1)
-	bytes = writeUint32(bytes, uint32(len(response)))
-
-	// Each response is formatted as a series of key/value pairs
-	for k, v := range response {
-		bytes = writeUint32(bytes, uint32(len(k)))
-		bytes = append(bytes, k...)
-		bytes = writeUint32(bytes, uint32(len(v)))
-		bytes = append(bytes, v...)
-	}
-
-	return bytes
-}
-
-func buildRequest(id uint32, request requestType) []byte {
-	// Each request is length-prefixed
-	length := 12
-	for _, v := range request {
-		length += 4 + len(v)
-	}
-	bytes := make([]byte, 0, length)
-	bytes = writeUint32(bytes, uint32(length-4))
-	bytes = writeUint32(bytes, id<<1)
-	bytes = writeUint32(bytes, uint32(len(request)))
-
-	// Each request is formatted as a series of values
-	for _, v := range request {
-		bytes = writeUint32(bytes, uint32(len(v)))
-		bytes = append(bytes, v...)
-	}
-
-	return bytes
-}
-
 func (service *serviceType) sendRequest(request requestType) responseType {
 	result := make(chan responseType)
 	var id uint32
@@ -180,83 +112,39 @@ func (service *serviceType) sendRequest(request requestType) responseType {
 		service.callbacks[id] = callback
 		return id
 	}()
-	service.outgoingMessages <- outgoingMessage{bytes: buildRequest(id, request)}
+	service.outgoingMessages <- outgoingMessage{bytes: encodeRequest(id, request)}
 	return <-result
 }
 
 func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) {
-	// Read the id
-	id, bytes, ok := readUint32(bytes)
-	if !ok {
-		panic("Invalid message")
-	}
-	isRequest := (id & 1) == 0
-	id >>= 1
+	id, request, response := decodeRequestOrResponse(bytes)
 
-	// Read the argument count
-	argCount, bytes, ok := readUint32(bytes)
-	if !ok {
-		panic("Invalid message")
-	}
-
-	if isRequest {
-		// Read the request
-		request := requestType{}
-		for i := uint32(0); i < argCount; i++ {
-			value, afterValue, ok := readLengthPrefixedSlice(bytes)
-			if !ok {
-				panic("Invalid request")
-			}
-			bytes = afterValue
-			request = append(request, string(value))
-		}
-		if len(request) < 1 || len(bytes) != 0 {
-			panic("Invalid request")
-		}
-		command, request := request[0], request[1:]
-
+	if request != nil {
 		// Catch panics in the code below so they get passed to the caller
 		defer func() {
 			if r := recover(); r != nil {
-				result = buildResponse(id, responseType{
+				result = encodeResponse(id, responseType{
 					"error": []byte(fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack())),
 				})
 			}
 		}()
 
 		// Handle the request
-		switch command {
+		switch request[0] {
 		case "build":
-			return service.handleBuildRequest(id, request)
+			return service.handleBuildRequest(id, request[1:])
 
 		case "transform":
-			return service.handleTransformRequest(id, request)
+			return service.handleTransformRequest(id, request[1:])
 
 		default:
-			return buildResponse(id, responseType{
-				"error": []byte(fmt.Sprintf("Invalid command: %s", command)),
+			return encodeResponse(id, responseType{
+				"error": []byte(fmt.Sprintf("Invalid command: %s", request[0])),
 			})
 		}
-	} else {
-		// Read the response
-		response := responseType{}
-		for i := uint32(0); i < argCount; i++ {
-			key, afterKey, ok := readLengthPrefixedSlice(bytes)
-			if !ok {
-				panic("Invalid response")
-			}
-			value, afterValue, ok := readLengthPrefixedSlice(afterKey)
-			if !ok {
-				panic("Invalid response")
-			}
-			bytes = afterValue
-			response[string(key)] = value
-		}
-		if len(bytes) != 0 {
-			panic("Invalid response")
-		}
+	}
 
-		// Handle the response
+	if response != nil {
 		callback := func() responseCallback {
 			service.mutex.Lock()
 			defer service.mutex.Unlock()
@@ -264,9 +152,12 @@ func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) 
 			delete(service.callbacks, id)
 			return callback
 		}()
+
 		callback(response)
 		return nil
 	}
+
+	return nil
 }
 
 func (service *serviceType) handleBuildRequest(id uint32, request requestType) []byte {
@@ -283,7 +174,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request requestType) [
 
 	options, err := cli.ParseBuildOptions(request)
 	if err != nil {
-		return buildResponse(id, responseType{
+		return encodeResponse(id, responseType{
 			"error": []byte(err.Error()),
 		})
 	}
@@ -307,74 +198,31 @@ func (service *serviceType) handleBuildRequest(id uint32, request requestType) [
 		}
 	} else {
 		// Pass the output files back to the caller
-		length := 4
-		for _, outputFile := range result.OutputFiles {
-			length += 4 + len(outputFile.Path) + 4 + len(outputFile.Contents)
-		}
-		bytes := make([]byte, 0, length)
-		bytes = writeUint32(bytes, uint32(len(result.OutputFiles)))
-		for _, outputFile := range result.OutputFiles {
-			bytes = writeUint32(bytes, uint32(len(outputFile.Path)))
-			bytes = append(bytes, outputFile.Path...)
-			bytes = writeUint32(bytes, uint32(len(outputFile.Contents)))
-			bytes = append(bytes, outputFile.Contents...)
-		}
-		response["outputFiles"] = bytes
+		response["outputFiles"] = encodeOutputFiles(result.OutputFiles)
 	}
 
-	return buildResponse(id, response)
+	return encodeResponse(id, response)
 }
 
 func (service *serviceType) handleTransformRequest(id uint32, request requestType) []byte {
 	if len(request) == 0 {
-		return buildResponse(id, responseType{
+		return encodeResponse(id, responseType{
 			"error": []byte("Invalid transform request"),
 		})
 	}
 
 	options, err := cli.ParseTransformOptions(request[1:])
 	if err != nil {
-		return buildResponse(id, responseType{
+		return encodeResponse(id, responseType{
 			"error": []byte(err.Error()),
 		})
 	}
 
 	result := api.Transform(request[0], options)
-	return buildResponse(id, responseType{
+	return encodeResponse(id, responseType{
 		"errors":      messagesToJSON(result.Errors),
 		"warnings":    messagesToJSON(result.Warnings),
 		"js":          result.JS,
 		"jsSourceMap": result.JSSourceMap,
 	})
-}
-
-func messagesToJSON(msgs []api.Message) []byte {
-	j := printer.Joiner{}
-	j.AddString("[")
-
-	for _, msg := range msgs {
-		if j.Length() > 1 {
-			j.AddString(",")
-		}
-
-		// Some messages won't have a location
-		var location api.Location
-		if msg.Location != nil {
-			location = *msg.Location
-		} else {
-			location.Length = -1 // Signal that there's no location
-		}
-
-		j.AddString(fmt.Sprintf("%s,%d,%s,%d,%d,%s",
-			printer.QuoteForJSON(msg.Text),
-			location.Length,
-			printer.QuoteForJSON(location.File),
-			location.Line,
-			location.Column,
-			printer.QuoteForJSON(location.LineText),
-		))
-	}
-
-	j.AddString("]")
-	return j.Done()
 }

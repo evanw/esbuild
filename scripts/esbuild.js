@@ -15,7 +15,7 @@ function buildNativeLib(esbuildPath) {
 
   // Generate "npm/esbuild/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'api-node.ts'),
+    path.join(repoDir, 'lib', 'node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
     '--format=cjs',
@@ -24,7 +24,7 @@ function buildNativeLib(esbuildPath) {
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild/lib/main.d.ts"
-  fs.copyFileSync(path.join(repoDir, 'lib', 'api-types.ts'), path.join(libDir, 'main.d.ts'))
+  fs.copyFileSync(path.join(repoDir, 'lib', 'types.ts'), path.join(libDir, 'main.d.ts'))
 }
 
 function buildWasmLib(esbuildPath) {
@@ -37,7 +37,7 @@ function buildWasmLib(esbuildPath) {
 
   // Generate "npm/esbuild-wasm/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'api-node.ts'),
+    path.join(repoDir, 'lib', 'node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
     '--format=cjs',
@@ -46,7 +46,7 @@ function buildWasmLib(esbuildPath) {
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild-wasm/lib/main.d.ts"
-  fs.copyFileSync(path.join(repoDir, 'lib', 'api-types.ts'), path.join(libDir, 'main.d.ts'))
+  fs.copyFileSync(path.join(repoDir, 'lib', 'types.ts'), path.join(libDir, 'main.d.ts'))
 
   // Minify "npm/esbuild-wasm/wasm_exec.js"
   const wasm_exec_js = path.join(npmWasmDir, 'wasm_exec.js')
@@ -58,9 +58,9 @@ function buildWasmLib(esbuildPath) {
   const firstNonComment = commentLines.findIndex(line => !line.startsWith('//'))
   const wasmExecMinCode = '\n' + commentLines.slice(0, firstNonComment).concat(wasmExecMin).join('\n')
 
-  // Minify "lib/api-worker.ts"
+  // Minify "lib/worker.ts"
   const workerMinCode = childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'api-worker.ts'),
+    path.join(repoDir, 'lib', 'worker.ts'),
     '--minify',
   ], { cwd: repoDir }).toString().trim()
 
@@ -68,7 +68,7 @@ function buildWasmLib(esbuildPath) {
   const umdPrefix = `(exports=>{`
   const umdSuffix = `})(typeof exports==="object"?exports:(typeof self!=="undefined"?self:this).esbuild={});\n`
   const browserJs = childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'api-browser.ts'),
+    path.join(repoDir, 'lib', 'browser.ts'),
     '--bundle',
     '--minify',
     '--format=cjs',

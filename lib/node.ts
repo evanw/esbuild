@@ -1,8 +1,7 @@
-import * as types from "./api-types";
-import * as common from "./api-common";
+import * as types from "./types";
+import * as common from "./common";
 import * as child_process from "child_process";
 import * as path from "path";
-import * as os from "os";
 import { isatty } from "tty";
 
 // This file is used for both the "esbuild" package and the "esbuild-wasm"

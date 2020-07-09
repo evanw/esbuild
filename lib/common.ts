@@ -1,4 +1,5 @@
-import * as types from "./api-types";
+import * as types from "./types";
+import * as protocol from "./stdio_protocol";
 
 function validateTarget(target: string): string {
   target += ''
@@ -67,9 +68,7 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
   return flags;
 }
 
-type Request = string[];
-type Response = { [key: string]: Uint8Array };
-type ResponseCallback = (err: string | null, res: Response) => void;
+type ResponseCallback = (err: string | null, res: protocol.Response) => void;
 
 export interface StreamIn {
   writeToStdin: (data: Uint8Array) => void,
@@ -84,27 +83,6 @@ export interface StreamOut {
 export interface StreamService {
   build(options: types.BuildOptions, isTTY: boolean, callback: (err: Error | null, res: types.BuildResult | null) => void): void;
   transform(input: string, options: types.TransformOptions, isTTY: boolean, callback: (err: Error | null, res: types.TransformResult | null) => void): void;
-}
-
-let encodeUTF8: (text: string) => Uint8Array
-let decodeUTF8: (bytes: Uint8Array) => string
-
-// For the browser and node 12.x
-if (typeof TextEncoder !== 'undefined' && typeof TextDecoder !== 'undefined') {
-  let encoder = new TextEncoder();
-  let decoder = new TextDecoder();
-  encodeUTF8 = text => encoder.encode(text);
-  decodeUTF8 = bytes => decoder.decode(bytes);
-}
-
-// For node 10.x
-else if (typeof Buffer !== 'undefined') {
-  encodeUTF8 = text => Buffer.from(text);
-  decodeUTF8 = bytes => Buffer.from(bytes).toString();
-}
-
-else {
-  throw new Error('No UTF-8 codec found');
 }
 
 // This can't use any promises because it must work for both sync and async code
@@ -130,7 +108,7 @@ export function createChannel(options: StreamIn): StreamOut {
     // Process all complete (i.e. not partial) messages
     let offset = 0;
     while (offset + 4 <= stdoutUsed) {
-      let length = readUInt32LE(stdout, offset);
+      let length = protocol.readUInt32LE(stdout, offset);
       if (offset + 4 + length > stdoutUsed) {
         break;
       }
@@ -153,79 +131,19 @@ export function createChannel(options: StreamIn): StreamOut {
     callbacks.clear();
   };
 
-  let sendRequest = (request: Request, callback: ResponseCallback): void => {
+  let sendRequest = (request: protocol.Request, callback: ResponseCallback): void => {
     if (isClosed) return callback('The service is no longer running', {});
-
-    // Allocate an id for this request
     let id = nextID++;
     callbacks.set(id, callback);
-
-    // Figure out how long the request will be
-    let argBuffers: Uint8Array[] = [];
-    let length = 12;
-    for (let arg of request) {
-      let argBuffer = encodeUTF8(arg);
-      argBuffers.push(argBuffer);
-      length += 4 + argBuffer.length;
-    }
-
-    // Write out the request message
-    let bytes = new Uint8Array(length);
-    let offset = 0;
-    let writeUint32 = (value: number) => {
-      writeUInt32LE(bytes, value, offset);
-      offset += 4;
-    };
-    writeUint32(length - 4);
-    writeUint32(id << 1);
-    writeUint32(argBuffers.length);
-    for (let argBuffer of argBuffers) {
-      writeUint32(argBuffer.length);
-      bytes.set(argBuffer, offset);
-      offset += argBuffer.length;
-    }
-    options.writeToStdin(bytes);
+    options.writeToStdin(protocol.encodeRequest(id, request));
   };
 
-  let sendResponse = (id: number, response: Response): void => {
+  let sendResponse = (id: number, response: protocol.Response): void => {
     if (isClosed) throw new Error('The service is no longer running');
-
-    // Figure out how long the response will be
-    let keyBuffers: { [key: string]: Uint8Array } = {};
-    let length = 12;
-    let count = 0;
-    for (let key in response) {
-      let keyBuffer = encodeUTF8(key);
-      let value = response[key];
-      keyBuffers[key] = keyBuffer;
-      length += 4 + keyBuffer.length + 4 + value.length;
-      count++;
-    }
-
-    // Write out the request message
-    let bytes = new Uint8Array(length);
-    let offset = 0;
-    let writeUint32 = (value: number) => {
-      writeUInt32LE(bytes, value, offset);
-      offset += 4;
-    };
-    writeUint32(length - 4);
-    writeUint32((id << 1) | 1);
-    writeUint32(count);
-    for (let key in response) {
-      let keyBuffer = keyBuffers[key];
-      let value = response[key];
-      writeUint32(keyBuffer.length);
-      bytes.set(keyBuffer, offset);
-      offset += keyBuffer.length;
-      writeUint32(value.length);
-      bytes.set(value, offset);
-      offset += value.length;
-    }
-    options.writeToStdin(bytes);
+    options.writeToStdin(protocol.encodeResponse(id, response));
   };
 
-  let handleRequest = (id: number, command: string, request: Request) => {
+  let handleRequest = (id: number, command: string, request: protocol.Request) => {
     // Catch exceptions in the code below so they get passed to the caller
     try {
       switch (command) {
@@ -234,53 +152,23 @@ export function createChannel(options: StreamIn): StreamOut {
       }
     } catch (e) {
       sendResponse(id, {
-        error: encodeUTF8(e + ''),
+        error: protocol.encodeUTF8(e + ''),
       });
     }
   };
 
   let handleIncomingMessage = (bytes: Uint8Array): void => {
-    let offset = 0;
-    let eat = (n: number) => {
-      offset += n;
-      if (offset > bytes.length) throw new Error('Invalid message');
-      return offset - n;
-    };
-    let id = readUInt32LE(bytes, eat(4));
-    let count = readUInt32LE(bytes, eat(4));
-    let isRequest = !(id & 1);
-    id >>>= 1;
+    let [id, request, response] = protocol.decodeRequestOrResponse(bytes);
 
-    if (isRequest) {
-      let request: Request = [];
-
-      // Parse the request into an array
-      for (let i = 0; i < count; i++) {
-        let valueLength = readUInt32LE(bytes, eat(4));
-        let value = bytes.slice(offset, eat(valueLength) + valueLength);
-        request.push(decodeUTF8(value));
-      }
-
-      // Dispatch the request
-      if (request.length < 1 || offset !== bytes.length) throw new Error('Invalid request');
+    if (request !== null) {
+      if (request.length < 1) throw new Error('Invalid request');
       handleRequest(id, request[0], request.slice(1));
-    } else {
-      let response: Response = {};
+    }
 
-      // Parse the response into a map
-      for (let i = 0; i < count; i++) {
-        let keyLength = readUInt32LE(bytes, eat(4));
-        let key = decodeUTF8(bytes.slice(offset, eat(keyLength) + keyLength));
-        let valueLength = readUInt32LE(bytes, eat(4));
-        let value = bytes.slice(offset, eat(valueLength) + valueLength);
-        response[key] = value;
-      }
-
-      // Dispatch the response
-      if (offset !== bytes.length) throw new Error('Invalid response');
+    else if (response !== null) {
       let callback = callbacks.get(id)!;
       callbacks.delete(id);
-      if (response.error) callback(decodeUTF8(response.error), {});
+      if (response.error) callback(protocol.decodeUTF8(response.error), {});
       else callback(null, response);
     }
   };
@@ -294,11 +182,11 @@ export function createChannel(options: StreamIn): StreamOut {
         let flags = flagsForBuildOptions(options, isTTY);
         sendRequest(['build'].concat(flags), (error, response) => {
           if (error) return callback(new Error(error), null);
-          let errors = jsonToMessages(decodeUTF8(response.errors));
-          let warnings = jsonToMessages(decodeUTF8(response.warnings));
+          let errors = protocol.jsonToMessages(response.errors);
+          let warnings = protocol.jsonToMessages(response.warnings);
           if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
           let result: types.BuildResult = { warnings };
-          if (options.write === false) result.outputFiles = decodeOutputFiles(response.outputFiles);
+          if (options.write === false) result.outputFiles = protocol.decodeOutputFiles(response.outputFiles);
           callback(null, result);
         });
       },
@@ -307,46 +195,14 @@ export function createChannel(options: StreamIn): StreamOut {
         let flags = flagsForTransformOptions(options, isTTY);
         sendRequest(['transform', input].concat(flags), (error, response) => {
           if (error) return callback(new Error(error), null);
-          let errors = jsonToMessages(decodeUTF8(response.errors));
-          let warnings = jsonToMessages(decodeUTF8(response.warnings));
+          let errors = protocol.jsonToMessages(response.errors);
+          let warnings = protocol.jsonToMessages(response.warnings);
           if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
-          callback(null, { warnings, js: decodeUTF8(response.js), jsSourceMap: decodeUTF8(response.jsSourceMap) });
+          callback(null, { warnings, js: protocol.decodeUTF8(response.js), jsSourceMap: protocol.decodeUTF8(response.jsSourceMap) });
         });
       },
     },
   };
-}
-
-function readUInt32LE(buffer: Uint8Array, offset: number): number {
-  return buffer[offset++] |
-    (buffer[offset++] << 8) |
-    (buffer[offset++] << 16) |
-    (buffer[offset++] << 24);
-}
-
-function writeUInt32LE(buffer: Uint8Array, value: number, offset: number): void {
-  buffer[offset++] = value;
-  buffer[offset++] = value >> 8;
-  buffer[offset++] = value >> 16;
-  buffer[offset++] = value >> 24;
-}
-
-function jsonToMessages(json: string): types.Message[] {
-  let parts = JSON.parse(json);
-  let messages: types.Message[] = [];
-  for (let i = 0; i < parts.length; i += 6) {
-    messages.push({
-      text: parts[i],
-      location: parts[i + 1] < 0 ? null : {
-        length: parts[i + 1],
-        file: parts[i + 2],
-        line: parts[i + 3],
-        column: parts[i + 4],
-        lineText: parts[i + 5],
-      },
-    });
-  }
-  return messages;
 }
 
 function failureErrorWithLog(text: string, errors: types.Message[], warnings: types.Message[]): Error {
@@ -362,21 +218,4 @@ function failureErrorWithLog(text: string, errors: types.Message[], warnings: ty
   error.errors = errors;
   error.warnings = warnings;
   return error;
-}
-
-function decodeOutputFiles(bytes: Uint8Array): types.OutputFile[] {
-  let outputFiles: types.OutputFile[] = [];
-  let offset = 0;
-  let count = readUInt32LE(bytes, offset);
-  offset += 4;
-  for (let i = 0; i < count; i++) {
-    let pathLength = readUInt32LE(bytes, offset);
-    let path = decodeUTF8(bytes.slice(offset + 4, offset + 4 + pathLength));
-    offset += 4 + pathLength;
-    let contentsLength = readUInt32LE(bytes, offset);
-    let contents = new Uint8Array(bytes.slice(offset + 4, offset + 4 + contentsLength));
-    offset += 4 + contentsLength;
-    outputFiles.push({ path, contents });
-  }
-  return outputFiles;
 }

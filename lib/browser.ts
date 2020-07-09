@@ -1,5 +1,5 @@
-import * as types from "./api-types"
-import * as common from "./api-common"
+import * as types from "./types"
+import * as common from "./common"
 
 export interface BrowserOptions {
   wasmURL: string
