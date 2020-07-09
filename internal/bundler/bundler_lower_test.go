@@ -2285,3 +2285,48 @@ for ({...x} = {}; x; x = null) {
 		},
 	})
 }
+
+func TestClassSuperThisIssue242NoBundle(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				export class A {}
+
+				export class B extends A {
+					#e: string
+					constructor(c: { d: any }) {
+						super()
+						this.#e = c.d ?? 'test'
+					}
+					f() {
+						return this.#e
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			IsBundling:          false,
+			UnsupportedFeatures: es(2019),
+			AbsOutputFile:       "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `var _e;
+export class A {
+}
+export class B extends A {
+  constructor(c) {
+    super();
+    _e.set(this, void 0);
+    var _a;
+    __privateSet(this, _e, (_a = c.d) != null ? _a : "test");
+  }
+  f() {
+    return __privateGet(this, _e);
+  }
+}
+_e = new WeakMap();
+`,
+		},
+	})
+}

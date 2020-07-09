@@ -5173,7 +5173,14 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []ast.Stmt) []ast.Stmt {
 		for _, ref := range p.tempRefsToDeclare {
 			decls = append(decls, ast.Decl{Binding: ast.Binding{Data: &ast.BIdentifier{Ref: ref}}})
 		}
-		stmts = append([]ast.Stmt{{Data: &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}}, stmts...)
+
+		// If the first statement is a super() call, make sure it stays that way
+		stmt := ast.Stmt{Data: &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
+		if len(stmts) > 0 && ast.IsSuperCall(stmts[0]) {
+			stmts = append([]ast.Stmt{stmts[0], stmt}, stmts[1:]...)
+		} else {
+			stmts = append([]ast.Stmt{stmt}, stmts...)
+		}
 	}
 
 	p.tempRefsToDeclare = oldTempRefs
