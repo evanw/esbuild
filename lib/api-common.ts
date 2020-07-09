@@ -86,37 +86,30 @@ export interface StreamService {
   transform(input: string, options: types.TransformOptions, isTTY: boolean, callback: (err: Error | null, res: types.TransformResult | null) => void): void;
 }
 
-interface TextCodec {
-  encode(text: string): Uint8Array
-  decode(bytes: Uint8Array): string
+let encodeUTF8: (text: string) => Uint8Array
+let decodeUTF8: (bytes: Uint8Array) => string
+
+// For the browser and node 12.x
+if (typeof TextEncoder !== 'undefined' && typeof TextDecoder !== 'undefined') {
+  let encoder = new TextEncoder();
+  let decoder = new TextDecoder();
+  encodeUTF8 = text => encoder.encode(text);
+  decodeUTF8 = bytes => decoder.decode(bytes);
 }
 
-function textCodec(): TextCodec {
-  // For the browser and node 12.x
-  if (typeof TextEncoder !== 'undefined' && typeof TextDecoder !== 'undefined') {
-    let encoder = new TextEncoder();
-    let decoder = new TextDecoder();
-    return {
-      encode: text => encoder.encode(text),
-      decode: bytes => decoder.decode(bytes),
-    }
-  }
+// For node 10.x
+else if (typeof Buffer !== 'undefined') {
+  encodeUTF8 = text => Buffer.from(text);
+  decodeUTF8 = bytes => Buffer.from(bytes).toString();
+}
 
-  // For node 10.x
-  if (typeof Buffer !== 'undefined') {
-    return {
-      encode: text => Buffer.from(text),
-      decode: bytes => Buffer.from(bytes).toString(),
-    }
-  }
-
+else {
   throw new Error('No UTF-8 codec found');
 }
 
 // This can't use any promises because it must work for both sync and async code
 export function createChannel(options: StreamIn): StreamOut {
   let requests = new Map<string, ResponseCallback>();
-  let codec = textCodec();
   let isClosed = false;
   let nextID = 0;
 
@@ -168,10 +161,10 @@ export function createChannel(options: StreamIn): StreamOut {
     requests.set(id, callback);
 
     // Figure out how long the request will be
-    let argBuffers = [codec.encode(id)];
+    let argBuffers = [encodeUTF8(id)];
     let length = 4 + 4 + 4 + argBuffers[0].length;
     for (let arg of request) {
-      let argBuffer = codec.encode(arg);
+      let argBuffer = encodeUTF8(arg);
       argBuffers.push(argBuffer);
       length += 4 + argBuffer.length;
     }
@@ -207,10 +200,10 @@ export function createChannel(options: StreamIn): StreamOut {
     // Parse the response into a map
     for (let i = 0; i < count; i++) {
       let keyLength = readUInt32LE(bytes, eat(4));
-      let key = codec.decode(bytes.slice(offset, eat(keyLength) + keyLength));
+      let key = decodeUTF8(bytes.slice(offset, eat(keyLength) + keyLength));
       let valueLength = readUInt32LE(bytes, eat(4));
       let value = bytes.slice(offset, eat(valueLength) + valueLength);
-      if (key === 'id') id = codec.decode(value);
+      if (key === 'id') id = decodeUTF8(value);
       else response[key] = value;
     }
 
@@ -218,7 +211,7 @@ export function createChannel(options: StreamIn): StreamOut {
     if (!id) throw new Error('Invalid message');
     let callback = requests.get(id)!;
     requests.delete(id);
-    if (response.error) callback(codec.decode(response.error), {});
+    if (response.error) callback(decodeUTF8(response.error), {});
     else callback(null, response);
   };
 
@@ -231,11 +224,11 @@ export function createChannel(options: StreamIn): StreamOut {
         let flags = flagsForBuildOptions(options, isTTY);
         sendRequest(['build'].concat(flags), (error, response) => {
           if (error) return callback(new Error(error), null);
-          let errors = jsonToMessages(codec.decode(response.errors));
-          let warnings = jsonToMessages(codec.decode(response.warnings));
+          let errors = jsonToMessages(decodeUTF8(response.errors));
+          let warnings = jsonToMessages(decodeUTF8(response.warnings));
           if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
           let result: types.BuildResult = { warnings };
-          if (options.write === false) result.outputFiles = decodeOutputFiles(codec, response.outputFiles);
+          if (options.write === false) result.outputFiles = decodeOutputFiles(response.outputFiles);
           callback(null, result);
         });
       },
@@ -244,10 +237,10 @@ export function createChannel(options: StreamIn): StreamOut {
         let flags = flagsForTransformOptions(options, isTTY);
         sendRequest(['transform', input].concat(flags), (error, response) => {
           if (error) return callback(new Error(error), null);
-          let errors = jsonToMessages(codec.decode(response.errors));
-          let warnings = jsonToMessages(codec.decode(response.warnings));
+          let errors = jsonToMessages(decodeUTF8(response.errors));
+          let warnings = jsonToMessages(decodeUTF8(response.warnings));
           if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
-          callback(null, { warnings, js: codec.decode(response.js), jsSourceMap: codec.decode(response.jsSourceMap) });
+          callback(null, { warnings, js: decodeUTF8(response.js), jsSourceMap: decodeUTF8(response.jsSourceMap) });
         });
       },
     },
@@ -301,14 +294,14 @@ function failureErrorWithLog(text: string, errors: types.Message[], warnings: ty
   return error;
 }
 
-function decodeOutputFiles(codec: TextCodec, bytes: Uint8Array): types.OutputFile[] {
+function decodeOutputFiles(bytes: Uint8Array): types.OutputFile[] {
   let outputFiles: types.OutputFile[] = [];
   let offset = 0;
   let count = readUInt32LE(bytes, offset);
   offset += 4;
   for (let i = 0; i < count; i++) {
     let pathLength = readUInt32LE(bytes, offset);
-    let path = codec.decode(bytes.slice(offset + 4, offset + 4 + pathLength));
+    let path = decodeUTF8(bytes.slice(offset + 4, offset + 4 + pathLength));
     offset += 4 + pathLength;
     let contentsLength = readUInt32LE(bytes, offset);
     let contents = new Uint8Array(bytes.slice(offset + 4, offset + 4 + contentsLength));
