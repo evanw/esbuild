@@ -109,7 +109,7 @@ else {
 
 // This can't use any promises because it must work for both sync and async code
 export function createChannel(options: StreamIn): StreamOut {
-  let requests = new Map<number, ResponseCallback>();
+  let callbacks = new Map<number, ResponseCallback>();
   let isClosed = false;
   let nextID = 0;
 
@@ -147,10 +147,10 @@ export function createChannel(options: StreamIn): StreamOut {
   let afterClose = () => {
     // When the process is closed, fail all pending requests
     isClosed = true;
-    for (let callback of requests.values()) {
+    for (let callback of callbacks.values()) {
       callback('The service was stopped', {});
     }
-    requests.clear();
+    callbacks.clear();
   };
 
   let sendRequest = (request: Request, callback: ResponseCallback): void => {
@@ -158,7 +158,7 @@ export function createChannel(options: StreamIn): StreamOut {
 
     // Allocate an id for this request
     let id = nextID++;
-    requests.set(id, callback);
+    callbacks.set(id, callback);
 
     // Figure out how long the request will be
     let argBuffers: Uint8Array[] = [];
@@ -262,7 +262,7 @@ export function createChannel(options: StreamIn): StreamOut {
       }
 
       // Dispatch the request
-      if (request.length < 1 || offset !== bytes.length) throw new Error('Invalid message');
+      if (request.length < 1 || offset !== bytes.length) throw new Error('Invalid request');
       handleRequest(id, request[0], request.slice(1));
     } else {
       let response: Response = {};
@@ -277,9 +277,9 @@ export function createChannel(options: StreamIn): StreamOut {
       }
 
       // Dispatch the response
-      if (offset !== bytes.length) throw new Error('Invalid message');
-      let callback = requests.get(id)!;
-      requests.delete(id);
+      if (offset !== bytes.length) throw new Error('Invalid response');
+      let callback = callbacks.get(id)!;
+      callbacks.delete(id);
       if (response.error) callback(decodeUTF8(response.error), {});
       else callback(null, response);
     }

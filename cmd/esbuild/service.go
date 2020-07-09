@@ -22,6 +22,19 @@ import (
 
 type requestType = []string
 type responseType = map[string][]byte
+type responseCallback = func(responseType)
+
+type serviceType struct {
+	mutex            sync.Mutex
+	callbacks        map[uint32]responseCallback
+	nextID           uint32
+	outgoingMessages chan outgoingMessage
+}
+
+type outgoingMessage struct {
+	bytes   []byte
+	isFinal bool
+}
 
 func readUint32(bytes []byte) (value uint32, leftOver []byte, ok bool) {
 	if len(bytes) >= 4 {
@@ -40,22 +53,27 @@ func readLengthPrefixedSlice(bytes []byte) (slice []byte, leftOver []byte, ok bo
 }
 
 func runService() {
+	service := serviceType{
+		callbacks:        make(map[uint32]responseCallback),
+		outgoingMessages: make(chan outgoingMessage),
+	}
 	buffer := make([]byte, 4096)
 	stream := []byte{}
 
 	// Write messages on a single goroutine so they aren't interleaved
 	waitGroup := &sync.WaitGroup{}
-	outgoingMessages := make(chan []byte)
 	go func() {
 		for {
-			message, ok := <-outgoingMessages
+			message, ok := <-service.outgoingMessages
 			if !ok {
 				break // No more messages
 			}
-			os.Stdout.Write(message)
+			os.Stdout.Write(message.bytes)
 
 			// Only signal that this request is done when it has actually been written
-			waitGroup.Done()
+			if message.isFinal {
+				waitGroup.Done()
+			}
 		}
 	}()
 
@@ -80,9 +98,15 @@ func runService() {
 			bytes = afterMessage
 
 			// Clone the input and run it on another goroutine
-			waitGroup.Add(1)
 			clone := append([]byte{}, message...)
-			go handleIncomingMessage(clone, outgoingMessages, waitGroup)
+			waitGroup.Add(1)
+			go func() {
+				if result := service.handleIncomingMessage(clone); result != nil {
+					service.outgoingMessages <- outgoingMessage{bytes: result, isFinal: true}
+				} else {
+					waitGroup.Done()
+				}
+			}()
 		}
 
 		// Move the remaining partial message to the end to avoid reallocating
@@ -99,7 +123,7 @@ func writeUint32(bytes []byte, value uint32) []byte {
 	return bytes
 }
 
-func sendResponse(outgoingMessages chan []byte, id uint32, response responseType) {
+func buildResponse(id uint32, response responseType) []byte {
 	// Each response is length-prefixed
 	length := 12
 	for k, v := range response {
@@ -118,16 +142,53 @@ func sendResponse(outgoingMessages chan []byte, id uint32, response responseType
 		bytes = append(bytes, v...)
 	}
 
-	outgoingMessages <- bytes
+	return bytes
 }
 
-func handleIncomingMessage(bytes []byte, outgoingMessages chan []byte, waitGroup *sync.WaitGroup) {
+func buildRequest(id uint32, request requestType) []byte {
+	// Each request is length-prefixed
+	length := 12
+	for _, v := range request {
+		length += 4 + len(v)
+	}
+	bytes := make([]byte, 0, length)
+	bytes = writeUint32(bytes, uint32(length-4))
+	bytes = writeUint32(bytes, id<<1)
+	bytes = writeUint32(bytes, uint32(len(request)))
+
+	// Each request is formatted as a series of values
+	for _, v := range request {
+		bytes = writeUint32(bytes, uint32(len(v)))
+		bytes = append(bytes, v...)
+	}
+
+	return bytes
+}
+
+func (service *serviceType) sendRequest(request requestType) responseType {
+	result := make(chan responseType)
+	var id uint32
+	callback := func(response responseType) {
+		result <- response
+		close(result)
+	}
+	id = func() uint32 {
+		service.mutex.Lock()
+		defer service.mutex.Unlock()
+		id := service.nextID
+		service.nextID++
+		service.callbacks[id] = callback
+		return id
+	}()
+	service.outgoingMessages <- outgoingMessage{bytes: buildRequest(id, request)}
+	return <-result
+}
+
+func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) {
 	// Read the id
 	id, bytes, ok := readUint32(bytes)
 	if !ok {
-		// Invalid message
-		waitGroup.Done()
-		return
+		panic("Invalid message")
 	}
 	isRequest := (id & 1) == 0
 	id >>= 1
@@ -135,9 +196,7 @@ func handleIncomingMessage(bytes []byte, outgoingMessages chan []byte, waitGroup
 	// Read the argument count
 	argCount, bytes, ok := readUint32(bytes)
 	if !ok {
-		// Invalid message
-		waitGroup.Done()
-		return
+		panic("Invalid message")
 	}
 
 	if isRequest {
@@ -146,75 +205,71 @@ func handleIncomingMessage(bytes []byte, outgoingMessages chan []byte, waitGroup
 		for i := uint32(0); i < argCount; i++ {
 			value, afterValue, ok := readLengthPrefixedSlice(bytes)
 			if !ok {
-				// Invalid request
-				waitGroup.Done()
-				return
+				panic("Invalid request")
 			}
 			bytes = afterValue
 			request = append(request, string(value))
 		}
 		if len(request) < 1 || len(bytes) != 0 {
-			// Invalid request
-			waitGroup.Done()
-			return
+			panic("Invalid request")
 		}
 		command, request := request[0], request[1:]
 
 		// Catch panics in the code below so they get passed to the caller
 		defer func() {
 			if r := recover(); r != nil {
-				sendResponse(outgoingMessages, id, responseType{
+				result = buildResponse(id, responseType{
 					"error": []byte(fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack())),
 				})
 			}
 		}()
 
-		handleRequest(outgoingMessages, id, command, request)
+		// Handle the request
+		switch command {
+		case "build":
+			return service.handleBuildRequest(id, request)
+
+		case "transform":
+			return service.handleTransformRequest(id, request)
+
+		default:
+			return buildResponse(id, responseType{
+				"error": []byte(fmt.Sprintf("Invalid command: %s", command)),
+			})
+		}
 	} else {
 		// Read the response
 		response := responseType{}
 		for i := uint32(0); i < argCount; i++ {
 			key, afterKey, ok := readLengthPrefixedSlice(bytes)
 			if !ok {
-				// Invalid response
-				waitGroup.Done()
-				return
+				panic("Invalid response")
 			}
 			value, afterValue, ok := readLengthPrefixedSlice(afterKey)
 			if !ok {
-				// Invalid response
-				waitGroup.Done()
-				return
+				panic("Invalid response")
 			}
 			bytes = afterValue
 			response[string(key)] = value
 		}
 		if len(bytes) != 0 {
-			// Invalid response
-			waitGroup.Done()
-			return
+			panic("Invalid response")
 		}
 
-		panic("Unexpected response")
+		// Handle the response
+		callback := func() responseCallback {
+			service.mutex.Lock()
+			defer service.mutex.Unlock()
+			callback := service.callbacks[id]
+			delete(service.callbacks, id)
+			return callback
+		}()
+		callback(response)
+		return nil
 	}
 }
 
-func handleRequest(outgoingMessages chan []byte, id uint32, command string, request requestType) {
-	switch command {
-	case "build":
-		handleBuildRequest(outgoingMessages, id, request)
-
-	case "transform":
-		handleTransformRequest(outgoingMessages, id, request)
-
-	default:
-		sendResponse(outgoingMessages, id, responseType{
-			"error": []byte(fmt.Sprintf("Invalid command: %s", command)),
-		})
-	}
-}
-
-func handleBuildRequest(outgoingMessages chan []byte, id uint32, request requestType) {
+func (service *serviceType) handleBuildRequest(id uint32, request requestType) []byte {
 	// Special-case the service-only write flag
 	write := true
 	for i, arg := range request {
@@ -228,10 +283,9 @@ func handleBuildRequest(outgoingMessages chan []byte, id uint32, request request
 
 	options, err := cli.ParseBuildOptions(request)
 	if err != nil {
-		sendResponse(outgoingMessages, id, responseType{
+		return buildResponse(id, responseType{
 			"error": []byte(err.Error()),
 		})
-		return
 	}
 
 	result := api.Build(options)
@@ -268,27 +322,25 @@ func handleBuildRequest(outgoingMessages chan []byte, id uint32, request request
 		response["outputFiles"] = bytes
 	}
 
-	sendResponse(outgoingMessages, id, response)
+	return buildResponse(id, response)
 }
 
-func handleTransformRequest(outgoingMessages chan []byte, id uint32, request requestType) {
+func (service *serviceType) handleTransformRequest(id uint32, request requestType) []byte {
 	if len(request) == 0 {
-		sendResponse(outgoingMessages, id, responseType{
+		return buildResponse(id, responseType{
 			"error": []byte("Invalid transform request"),
 		})
-		return
 	}
 
 	options, err := cli.ParseTransformOptions(request[1:])
 	if err != nil {
-		sendResponse(outgoingMessages, id, responseType{
+		return buildResponse(id, responseType{
 			"error": []byte(err.Error()),
 		})
-		return
 	}
 
 	result := api.Transform(request[0], options)
-	sendResponse(outgoingMessages, id, responseType{
+	return buildResponse(id, responseType{
 		"errors":      messagesToJSON(result.Errors),
 		"warnings":    messagesToJSON(result.Warnings),
 		"js":          result.JS,
