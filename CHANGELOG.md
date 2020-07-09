@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.26
 
 * Allow disabling non-existent modules with the `browser` package.json field ([#238](https://github.com/evanw/esbuild/issues/238))
 
