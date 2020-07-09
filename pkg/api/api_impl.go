@@ -346,27 +346,14 @@ func messagesOfKind(kind logging.MsgKind, msgs []logging.Msg) []Message {
 		if msg.Kind == kind {
 			var location *Location
 
-			if msg.Source != nil {
-				line, column, _ := logging.ComputeLineAndColumn(msg.Source.Contents[0:msg.Start])
-				line++
-
-				// Extract the line text
-				lineText := msg.Source.Contents[int(msg.Start)-column:]
-				endOfLine := len(lineText)
-				for i, c := range lineText {
-					if c == '\n' || c == '\r' || c == '\u2028' || c == '\u2029' {
-						endOfLine = i
-						break
-					}
-				}
-				lineText = lineText[:endOfLine]
-
+			if msg.Location != nil {
+				loc := msg.Location
 				location = &Location{
-					File:     msg.Source.PrettyPath,
-					Line:     line,
-					Column:   column,
-					Length:   int(msg.Length),
-					LineText: lineText,
+					File:     loc.File,
+					Line:     loc.Line,
+					Column:   loc.Column,
+					Length:   loc.Length,
+					LineText: loc.LineText,
 				}
 			}
 

@@ -37,11 +37,17 @@ const (
 )
 
 type Msg struct {
-	Source *Source
-	Start  int32
-	Length int32
-	Text   string
-	Kind   MsgKind
+	Kind     MsgKind
+	Text     string
+	Location *MsgLocation
+}
+
+type MsgLocation struct {
+	File     string
+	Line     int // 1-based
+	Column   int // 0-based, in bytes
+	Length   int // in bytes
+	LineText string
 }
 
 type Source struct {
@@ -278,7 +284,7 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 		kindColor = colorMagenta
 	}
 
-	if msg.Source == nil {
+	if msg.Location == nil {
 		if terminalInfo.UseColorEscapes {
 			return fmt.Sprintf("%s%s%s: %s%s%s\n",
 				colorBold, kindColor, kind,
@@ -292,13 +298,13 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 	if !options.IncludeSource {
 		if terminalInfo.UseColorEscapes {
 			return fmt.Sprintf("%s%s: %s%s: %s%s%s\n",
-				colorBold, msg.Source.PrettyPath,
+				colorBold, msg.Location.File,
 				kindColor, kind,
 				colorResetBold, msg.Text,
 				colorReset)
 		}
 
-		return fmt.Sprintf("%s: %s: %s\n", msg.Source.PrettyPath, kind, msg.Text)
+		return fmt.Sprintf("%s: %s: %s\n", msg.Location.File, kind, msg.Text)
 	}
 
 	d := detailStruct(msg, terminalInfo)
@@ -336,50 +342,71 @@ type MsgDetail struct {
 	Marker string
 }
 
-func ComputeLineAndColumn(text string) (lineCount int, columnCount, lastLineStart int) {
+func computeLineAndColumn(contents string, offset int) (lineCount int, columnCount int, lineStart int, lineEnd int) {
 	var prevCodePoint rune
 
-	for i, codePoint := range text {
+	// Scan up to the offset and count lines
+	for i, codePoint := range contents[:offset] {
 		switch codePoint {
 		case '\n':
-			lastLineStart = i + 1
+			lineStart = i + 1
 			if prevCodePoint != '\r' {
 				lineCount++
 			}
 		case '\r', '\u2028', '\u2029':
-			lastLineStart = i + 1
+			lineStart = i + 1
 		}
 		prevCodePoint = codePoint
 	}
 
-	columnCount = len(text) - lastLineStart
-	return
-}
-
-func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
-	contents := msg.Source.Contents
-	lineCount, columnCount, lineStart := ComputeLineAndColumn(contents[0:msg.Start])
-	lineEnd := len(contents)
-
+	// Scan to the end of the line (or end of file if this is the last line)
+	lineEnd = len(contents)
 loop:
-	for i, codePoint := range contents[lineStart:] {
+	for i, codePoint := range contents[offset:] {
 		switch codePoint {
 		case '\r', '\n', '\u2028', '\u2029':
-			lineEnd = lineStart + i
+			lineEnd = offset + i
 			break loop
 		}
 	}
 
+	columnCount = offset - lineStart
+	return
+}
+
+func locationOrNil(source *Source, start int32, length int32) *MsgLocation {
+	if source == nil {
+		return nil
+	}
+
+	// Convert the index into a line and column number
+	lineCount, columnCount, lineStart, lineEnd := computeLineAndColumn(source.Contents, int(start))
+
+	return &MsgLocation{
+		File:     source.PrettyPath,
+		Line:     lineCount + 1, // 0-based to 1-based
+		Column:   columnCount,
+		Length:   int(length),
+		LineText: source.Contents[lineStart:lineEnd],
+	}
+}
+
+func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
 	spacesPerTab := 2
-	lineText := renderTabStops(contents[lineStart:lineEnd], spacesPerTab)
-	indent := strings.Repeat(" ", len(renderTabStops(contents[lineStart:msg.Start], spacesPerTab)))
+	loc := msg.Location
+	lineText := renderTabStops(loc.LineText, spacesPerTab)
+	indent := strings.Repeat(" ", len(renderTabStops(loc.LineText[:loc.Column], spacesPerTab)))
 	marker := "^"
 	markerStart := len(indent)
 	markerEnd := len(indent)
 
 	// Extend markers to cover the full range of the error
-	if msg.Length > 0 {
-		markerEnd = len(renderTabStops(contents[lineStart:msg.Start+msg.Length], spacesPerTab))
+	if loc.Length > 0 {
+		end := loc.Column + loc.Length
+		if end > len(loc.LineText) {
+			end = len(loc.LineText)
+		}
+		markerEnd = len(renderTabStops(loc.LineText[:end], spacesPerTab))
 	}
 
 	// Clip the marker to the bounds of the line
@@ -456,9 +483,9 @@ loop:
 	}
 
 	return MsgDetail{
-		Path:    msg.Source.PrettyPath,
-		Line:    lineCount + 1,
-		Column:  columnCount,
+		Path:    loc.File,
+		Line:    loc.Line,
+		Column:  loc.Column,
 		Kind:    kind,
 		Message: msg.Text,
 
@@ -505,17 +532,33 @@ func (log Log) Done() []Msg {
 }
 
 func (log Log) AddError(source *Source, loc ast.Loc, text string) {
-	log.addMsg(Msg{source, loc.Start, 0, text, Error})
+	log.addMsg(Msg{
+		Kind:     Error,
+		Text:     text,
+		Location: locationOrNil(source, loc.Start, 0),
+	})
 }
 
 func (log Log) AddWarning(source *Source, loc ast.Loc, text string) {
-	log.addMsg(Msg{source, loc.Start, 0, text, Warning})
+	log.addMsg(Msg{
+		Kind:     Warning,
+		Text:     text,
+		Location: locationOrNil(source, loc.Start, 0),
+	})
 }
 
 func (log Log) AddRangeError(source *Source, r ast.Range, text string) {
-	log.addMsg(Msg{source, r.Loc.Start, r.Len, text, Error})
+	log.addMsg(Msg{
+		Kind:     Error,
+		Text:     text,
+		Location: locationOrNil(source, r.Loc.Start, r.Len),
+	})
 }
 
 func (log Log) AddRangeWarning(source *Source, r ast.Range, text string) {
-	log.addMsg(Msg{source, r.Loc.Start, r.Len, text, Warning})
+	log.addMsg(Msg{
+		Kind:     Warning,
+		Text:     text,
+		Location: locationOrNil(source, r.Loc.Start, r.Len),
+	})
 }
