@@ -1,153 +1,192 @@
 // The JavaScript API communicates with the Go child process over stdin/stdout
-// using this protocol. It's a very simple binary protocol that uses length-
-// prefixed strings. Every message has a 32-bit integer id and is either a
-// request or a response. You must send a response after receiving a request
-// because the other end is blocking on the response coming back. Requests are
-// arrays of strings and responses are maps of strings to byte arrays.
+// using this protocol. It's a very simple binary protocol that uses primitives
+// and nested arrays and maps. You must send a response after receiving a
+// request because the other end is blocking on the response coming back.
 
 import * as types from "./types";
 
-export type Request = string[];
-export type Response = { [key: string]: Uint8Array };
-
-export function encodeRequest(id: number, request: Request): Uint8Array {
-  // Figure out how long the request will be
-  let argBuffers: Uint8Array[] = [];
-  let length = 12;
-  for (let arg of request) {
-    let argBuffer = encodeUTF8(arg);
-    argBuffers.push(argBuffer);
-    length += 4 + argBuffer.length;
-  }
-
-  // Write out the request message
-  let bytes = new Uint8Array(length);
-  let offset = 0;
-  let writeUint32 = (value: number) => {
-    writeUInt32LE(bytes, value, offset);
-    offset += 4;
-  };
-  writeUint32(length - 4);
-  writeUint32(id << 1);
-  writeUint32(argBuffers.length);
-  for (let argBuffer of argBuffers) {
-    writeUint32(argBuffer.length);
-    bytes.set(argBuffer, offset);
-    offset += argBuffer.length;
-  }
-  return bytes;
+export interface BuildRequest {
+  flags: string[];
+  write: boolean;
 }
 
-export function encodeResponse(id: number, response: Response): Uint8Array {
-  // Figure out how long the response will be
-  let keyBuffers: { [key: string]: Uint8Array } = {};
-  let length = 12;
-  let count = 0;
-  for (let key in response) {
-    let keyBuffer = encodeUTF8(key);
-    let value = response[key];
-    keyBuffers[key] = keyBuffer;
-    length += 4 + keyBuffer.length + 4 + value.length;
-    count++;
-  }
-
-  // Write out the request message
-  let bytes = new Uint8Array(length);
-  let offset = 0;
-  let writeUint32 = (value: number) => {
-    writeUInt32LE(bytes, value, offset);
-    offset += 4;
-  };
-  writeUint32(length - 4);
-  writeUint32((id << 1) | 1);
-  writeUint32(count);
-  for (let key in response) {
-    let keyBuffer = keyBuffers[key];
-    let value = response[key];
-    writeUint32(keyBuffer.length);
-    bytes.set(keyBuffer, offset);
-    offset += keyBuffer.length;
-    writeUint32(value.length);
-    bytes.set(value, offset);
-    offset += value.length;
-  }
-  return bytes;
+export interface BuildResponse {
+  errors: types.Message[];
+  warnings: types.Message[];
+  outputFiles: types.OutputFile[];
 }
 
-export function decodeRequestOrResponse(bytes: Uint8Array): [number, Request | null, Response | null] {
-  let offset = 0;
-  let eat = (n: number) => {
-    offset += n;
-    if (offset > bytes.length) throw new Error('Invalid message');
-    return offset - n;
+export interface TransformRequest {
+  flags: string[];
+  input: string;
+}
+
+export interface TransformResponse {
+  errors: types.Message[];
+  warnings: types.Message[];
+  js: string;
+  jsSourceMap: string;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+export interface Packet {
+  id: number;
+  isRequest: boolean;
+  value: Value;
+}
+
+export type Value =
+  | null
+  | boolean
+  | number
+  | string
+  | Uint8Array
+  | Value[]
+  | { [key: string]: Value }
+
+export function encodePacket(packet: Packet): Uint8Array {
+  let visit = (value: Value) => {
+    if (value === null) {
+      bb.write8(0);
+    } else if (typeof value === 'boolean') {
+      bb.write8(1);
+      bb.write8(+value);
+    } else if (typeof value === 'number') {
+      bb.write8(2);
+      bb.write32(value);
+    } else if (typeof value === 'string') {
+      bb.write8(3);
+      bb.write(encodeUTF8(value));
+    } else if (value instanceof Uint8Array) {
+      bb.write8(4);
+      bb.write(value);
+    } else if (value instanceof Array) {
+      bb.write8(5);
+      bb.write32(value.length);
+      for (let item of value) {
+        visit(item);
+      }
+    } else {
+      let keys = Object.keys(value);
+      bb.write8(6);
+      bb.write32(keys.length);
+      for (let key of keys) {
+        bb.write(encodeUTF8(key));
+        visit(value[key]);
+      }
+    }
   };
 
-  // Read the id
-  let id = readUInt32LE(bytes, eat(4));
-  let isRequest = !(id & 1);
+  let bb = new ByteBuffer;
+  bb.write32(0); // Reserve space for the length
+  bb.write32((packet.id << 1) | +!packet.isRequest);
+  visit(packet.value);
+  writeUInt32LE(bb.buf, bb.len - 4, 0); // Patch the length in
+  return bb.buf.subarray(0, bb.len);
+}
+
+export function decodePacket(bytes: Uint8Array): Packet {
+  let visit = (): Value => {
+    switch (bb.read8()) {
+      case 0: // null
+        return null;
+      case 1: // boolean
+        return !!bb.read8();
+      case 2: // number
+        return bb.read32();
+      case 3: // string
+        return decodeUTF8(bb.read());
+      case 4: // Uint8Array
+        return bb.read();
+      case 5: { // Value[]
+        let count = bb.read32();
+        let value: Value[] = [];
+        for (let i = 0; i < count; i++) {
+          value.push(visit());
+        }
+        return value;
+      }
+      case 6: { // { [key: string]: Value }
+        let count = bb.read32();
+        let value: { [key: string]: Value } = {};
+        for (let i = 0; i < count; i++) {
+          value[decodeUTF8(bb.read())] = visit();
+        }
+        return value;
+      }
+      default:
+        throw new Error('Invalid packet');
+    }
+  };
+
+  let bb = new ByteBuffer(bytes);
+  let id = bb.read32();
+  let isRequest = (id & 1) === 0;
   id >>>= 1;
-
-  // Read the argument count
-  let argCount = readUInt32LE(bytes, eat(4));
-
-  if (isRequest) {
-    // Read the request
-    let request: Request = [];
-    for (let i = 0; i < argCount; i++) {
-      let valueLength = readUInt32LE(bytes, eat(4));
-      let value = bytes.slice(offset, eat(valueLength) + valueLength);
-      request.push(decodeUTF8(value));
-    }
-    if (offset !== bytes.length) throw new Error('Invalid request');
-    return [id, request, null];
-  } else {
-    // Read the response
-    let response: Response = {};
-    for (let i = 0; i < argCount; i++) {
-      let keyLength = readUInt32LE(bytes, eat(4));
-      let key = decodeUTF8(bytes.slice(offset, eat(keyLength) + keyLength));
-      let valueLength = readUInt32LE(bytes, eat(4));
-      let value = bytes.slice(offset, eat(valueLength) + valueLength);
-      response[key] = value;
-    }
-    if (offset !== bytes.length) throw new Error('Invalid response');
-    return [id, null, response];
+  let value = visit();
+  if (bb.ptr !== bytes.length) {
+    throw new Error('Invalid packet');
   }
+  return { id, isRequest, value };
 }
 
-export function decodeOutputFiles(bytes: Uint8Array): types.OutputFile[] {
-  let outputFiles: types.OutputFile[] = [];
-  let offset = 0;
-  let count = readUInt32LE(bytes, offset);
-  offset += 4;
-  for (let i = 0; i < count; i++) {
-    let pathLength = readUInt32LE(bytes, offset);
-    let path = decodeUTF8(bytes.slice(offset + 4, offset + 4 + pathLength));
-    offset += 4 + pathLength;
-    let contentsLength = readUInt32LE(bytes, offset);
-    let contents = new Uint8Array(bytes.slice(offset + 4, offset + 4 + contentsLength));
-    offset += 4 + contentsLength;
-    outputFiles.push({ path, contents });
-  }
-  return outputFiles;
-}
+class ByteBuffer {
+  len = 0;
+  ptr = 0;
 
-export function jsonToMessages(json: Uint8Array): types.Message[] {
-  let parts = JSON.parse(decodeUTF8(json));
-  let messages: types.Message[] = [];
-  for (let i = 0; i < parts.length; i += 6) {
-    messages.push({
-      text: parts[i],
-      location: parts[i + 1] < 0 ? null : {
-        length: parts[i + 1],
-        file: parts[i + 2],
-        line: parts[i + 3],
-        column: parts[i + 4],
-        lineText: parts[i + 5],
-      },
-    });
+  constructor(public buf = new Uint8Array(1024)) {
   }
-  return messages;
+
+  private _write(delta: number): number {
+    if (this.len + delta > this.buf.length) {
+      let clone = new Uint8Array((this.len + delta) * 2);
+      clone.set(this.buf);
+      this.buf = clone;
+    }
+    this.len += delta;
+    return this.len - delta;
+  }
+
+  write8(value: number): void {
+    let offset = this._write(1);
+    this.buf[offset] = value;
+  }
+
+  write32(value: number): void {
+    let offset = this._write(4);
+    writeUInt32LE(this.buf, value, offset);
+  }
+
+  write(bytes: Uint8Array): void {
+    let offset = this._write(4 + bytes.length);
+    writeUInt32LE(this.buf, bytes.length, offset);
+    this.buf.set(bytes, offset + 4);
+  }
+
+  private _read(delta: number): number {
+    if (this.ptr + delta > this.buf.length) {
+      throw new Error('Invalid packet');
+    }
+    this.ptr += delta;
+    return this.ptr - delta;
+  }
+
+  read8(): number {
+    return this.buf[this._read(1)];
+  }
+
+  read32(): number {
+    return readUInt32LE(this.buf, this._read(4));
+  }
+
+  read(): Uint8Array {
+    let length = this.read32();
+    let bytes = new Uint8Array(length);
+    let ptr = this._read(bytes.length);
+    bytes.set(this.buf.subarray(ptr, ptr + length));
+    return bytes;
+  }
 }
 
 export let encodeUTF8: (text: string) => Uint8Array
@@ -178,7 +217,7 @@ export function readUInt32LE(buffer: Uint8Array, offset: number): number {
     (buffer[offset++] << 24);
 }
 
-export function writeUInt32LE(buffer: Uint8Array, value: number, offset: number): void {
+function writeUInt32LE(buffer: Uint8Array, value: number, offset: number): void {
   buffer[offset++] = value;
   buffer[offset++] = value >> 8;
   buffer[offset++] = value >> 16;

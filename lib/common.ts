@@ -47,7 +47,6 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): stri
   if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
   if (options.external) for (let name of options.external) flags.push(`--external:${name}`);
   if (options.loader) for (let ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
-  if (options.write === false) flags.push(`--write=false`);
 
   for (let entryPoint of options.entryPoints) {
     if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
@@ -68,8 +67,6 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
   return flags;
 }
 
-type ResponseCallback = (err: string | null, res: protocol.Response) => void;
-
 export interface StreamIn {
   writeToStdin: (data: Uint8Array) => void,
 }
@@ -87,7 +84,7 @@ export interface StreamService {
 
 // This can't use any promises because it must work for both sync and async code
 export function createChannel(options: StreamIn): StreamOut {
-  let callbacks = new Map<number, ResponseCallback>();
+  let callbacks = new Map<number, (error: string | null, response: protocol.Value) => void>();
   let isClosed = false;
   let nextID = 0;
 
@@ -105,7 +102,7 @@ export function createChannel(options: StreamIn): StreamOut {
     stdout.set(chunk, stdoutUsed);
     stdoutUsed += chunk.length;
 
-    // Process all complete (i.e. not partial) messages
+    // Process all complete (i.e. not partial) packets
     let offset = 0;
     while (offset + 4 <= stdoutUsed) {
       let length = protocol.readUInt32LE(stdout, offset);
@@ -113,7 +110,7 @@ export function createChannel(options: StreamIn): StreamOut {
         break;
       }
       offset += 4;
-      handleIncomingMessage(stdout.slice(offset, offset + length));
+      handleIncomingPacket(stdout.slice(offset, offset + length));
       offset += length;
     }
     if (offset > 0) {
@@ -126,24 +123,24 @@ export function createChannel(options: StreamIn): StreamOut {
     // When the process is closed, fail all pending requests
     isClosed = true;
     for (let callback of callbacks.values()) {
-      callback('The service was stopped', {});
+      callback('The service was stopped', null);
     }
     callbacks.clear();
   };
 
-  let sendRequest = (request: protocol.Request, callback: ResponseCallback): void => {
-    if (isClosed) return callback('The service is no longer running', {});
+  let sendRequest = <Req, Res>(value: [string, Req], callback: (error: string | null, response: Res | null) => void): void => {
+    if (isClosed) return callback('The service is no longer running', null);
     let id = nextID++;
-    callbacks.set(id, callback);
-    options.writeToStdin(protocol.encodeRequest(id, request));
+    callbacks.set(id, callback as any);
+    options.writeToStdin(protocol.encodePacket({ id, isRequest: true, value: value as any }));
   };
 
-  let sendResponse = (id: number, response: protocol.Response): void => {
+  let sendResponse = (id: number, value: protocol.Value): void => {
     if (isClosed) throw new Error('The service is no longer running');
-    options.writeToStdin(protocol.encodeResponse(id, response));
+    options.writeToStdin(protocol.encodePacket({ id, isRequest: false, value }));
   };
 
-  let handleRequest = (id: number, command: string, request: protocol.Request) => {
+  let handleRequest = (id: number, command: string, request: protocol.Value) => {
     // Catch exceptions in the code below so they get passed to the caller
     try {
       switch (command) {
@@ -151,25 +148,27 @@ export function createChannel(options: StreamIn): StreamOut {
           throw new Error(`Invalid command: ` + command);
       }
     } catch (e) {
-      sendResponse(id, {
-        error: protocol.encodeUTF8(e + ''),
-      });
+      let error = 'Internal error'
+      try {
+        error = e + '';
+      } catch {
+      }
+      sendResponse(id, { error });
     }
   };
 
-  let handleIncomingMessage = (bytes: Uint8Array): void => {
-    let [id, request, response] = protocol.decodeRequestOrResponse(bytes);
+  let handleIncomingPacket = (bytes: Uint8Array): void => {
+    let packet = protocol.decodePacket(bytes) as any;
 
-    if (request !== null) {
-      if (request.length < 1) throw new Error('Invalid request');
-      handleRequest(id, request[0], request.slice(1));
+    if (packet.isRequest) {
+      handleRequest(packet.id, packet.value[0], packet.value[1]);
     }
 
-    else if (response !== null) {
-      let callback = callbacks.get(id)!;
-      callbacks.delete(id);
-      if (response.error) callback(protocol.decodeUTF8(response.error), {});
-      else callback(null, response);
+    else {
+      let callback = callbacks.get(packet.id)!;
+      callbacks.delete(packet.id);
+      if (packet.value.error) callback(packet.value.error, {});
+      else callback(null, packet.value);
     }
   };
 
@@ -180,26 +179,33 @@ export function createChannel(options: StreamIn): StreamOut {
     service: {
       build(options, isTTY, callback) {
         let flags = flagsForBuildOptions(options, isTTY);
-        sendRequest(['build'].concat(flags), (error, response) => {
-          if (error) return callback(new Error(error), null);
-          let errors = protocol.jsonToMessages(response.errors);
-          let warnings = protocol.jsonToMessages(response.warnings);
-          if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
-          let result: types.BuildResult = { warnings };
-          if (options.write === false) result.outputFiles = protocol.decodeOutputFiles(response.outputFiles);
-          callback(null, result);
-        });
+        let write = options.write !== false;
+        sendRequest<protocol.BuildRequest, protocol.BuildResponse>(
+          ['build', { flags, write }],
+          (error, response) => {
+            if (error) return callback(new Error(error), null);
+            let errors = response!.errors;
+            let warnings = response!.warnings;
+            if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
+            let result: types.BuildResult = { warnings };
+            if (!write) result.outputFiles = response!.outputFiles;
+            callback(null, result);
+          },
+        );
       },
 
       transform(input, options, isTTY, callback) {
         let flags = flagsForTransformOptions(options, isTTY);
-        sendRequest(['transform', input].concat(flags), (error, response) => {
-          if (error) return callback(new Error(error), null);
-          let errors = protocol.jsonToMessages(response.errors);
-          let warnings = protocol.jsonToMessages(response.warnings);
-          if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
-          callback(null, { warnings, js: protocol.decodeUTF8(response.js), jsSourceMap: protocol.decodeUTF8(response.jsSourceMap) });
-        });
+        sendRequest<protocol.TransformRequest, protocol.TransformResponse>(
+          ['transform', { flags, input }],
+          (error, response) => {
+            if (error) return callback(new Error(error), null);
+            let errors = response!.errors;
+            let warnings = response!.warnings;
+            if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
+            callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
+          },
+        );
       },
     },
   };

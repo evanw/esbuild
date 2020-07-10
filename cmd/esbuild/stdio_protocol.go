@@ -1,22 +1,14 @@
 // The JavaScript API communicates with the Go child process over stdin/stdout
-// using this protocol. It's a very simple binary protocol that uses length-
-// prefixed strings. Every message has a 32-bit integer id and is either a
-// request or a response. You must send a response after receiving a request
-// because the other end is blocking on the response coming back. Requests are
-// arrays of strings and responses are maps of strings to byte arrays.
+// using this protocol. It's a very simple binary protocol that uses primitives
+// and nested arrays and maps. You must send a response after receiving a
+// request because the other end is blocking on the response coming back.
 
 package main
 
 import (
 	"encoding/binary"
-	"fmt"
-
-	"github.com/evanw/esbuild/internal/printer"
-	"github.com/evanw/esbuild/pkg/api"
+	"sort"
 )
-
-type requestType = []string
-type responseType = map[string][]byte
 
 func readUint32(bytes []byte) (value uint32, leftOver []byte, ok bool) {
 	if len(bytes) >= 4 {
@@ -40,143 +32,173 @@ func readLengthPrefixedSlice(bytes []byte) (slice []byte, leftOver []byte, ok bo
 	return []byte{}, bytes, false
 }
 
-func encodeRequest(id uint32, request requestType) []byte {
-	// Each request is length-prefixed
-	length := 12
-	for _, v := range request {
-		length += 4 + len(v)
-	}
-	bytes := make([]byte, 0, length)
-	bytes = writeUint32(bytes, uint32(length-4))
-	bytes = writeUint32(bytes, id<<1)
-	bytes = writeUint32(bytes, uint32(len(request)))
+type packet struct {
+	id        uint32
+	isRequest bool
+	value     interface{}
+}
 
-	// Each request is formatted as a series of values
-	for _, v := range request {
-		bytes = writeUint32(bytes, uint32(len(v)))
-		bytes = append(bytes, v...)
+func encodePacket(p packet) []byte {
+	var visit func(interface{})
+	var bytes []byte
+
+	visit = func(value interface{}) {
+		switch v := value.(type) {
+		case nil:
+			bytes = append(bytes, 0)
+
+		case bool:
+			n := uint8(0)
+			if v {
+				n = 1
+			}
+			bytes = append(bytes, 1, n)
+
+		case int:
+			bytes = append(bytes, 2)
+			bytes = writeUint32(bytes, uint32(v))
+
+		case string:
+			bytes = append(bytes, 3)
+			bytes = writeUint32(bytes, uint32(len(v)))
+			bytes = append(bytes, v...)
+
+		case []byte:
+			bytes = append(bytes, 4)
+			bytes = writeUint32(bytes, uint32(len(v)))
+			bytes = append(bytes, v...)
+
+		case []interface{}:
+			bytes = append(bytes, 5)
+			bytes = writeUint32(bytes, uint32(len(v)))
+			for _, item := range v {
+				visit(item)
+			}
+
+		case map[string]interface{}:
+			// Sort keys for determinism
+			keys := make([]string, 0, len(v))
+			for k := range v {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			bytes = append(bytes, 6)
+			bytes = writeUint32(bytes, uint32(len(keys)))
+			for _, k := range keys {
+				bytes = writeUint32(bytes, uint32(len(k)))
+				bytes = append(bytes, k...)
+				visit(v[k])
+			}
+
+		default:
+			panic("Invalid packet")
+		}
 	}
 
+	bytes = writeUint32(bytes, 0) // Reserve space for the length
+	if p.isRequest {
+		bytes = writeUint32(bytes, p.id<<1)
+	} else {
+		bytes = writeUint32(bytes, (p.id<<1)|1)
+	}
+	visit(p.value)
+	writeUint32(bytes[:0], uint32(len(bytes)-4)) // Patch the length in
 	return bytes
 }
 
-func encodeResponse(id uint32, response responseType) []byte {
-	// Each response is length-prefixed
-	length := 12
-	for k, v := range response {
-		length += 4 + len(k) + 4 + len(v)
+func decodePacket(bytes []byte) (packet, bool) {
+	var visit func() (interface{}, bool)
+
+	visit = func() (interface{}, bool) {
+		kind := bytes[0]
+		bytes = bytes[1:]
+		switch kind {
+		case 0: // nil
+			return nil, true
+
+		case 1: // bool
+			value := bytes[0]
+			bytes = bytes[1:]
+			return value != 0, true
+
+		case 2: // int
+			value, next, ok := readUint32(bytes)
+			if !ok {
+				return nil, false
+			}
+			bytes = next
+			return int(value), true
+
+		case 3: // string
+			value, next, ok := readLengthPrefixedSlice(bytes)
+			if !ok {
+				return nil, false
+			}
+			bytes = next
+			return string(value), true
+
+		case 4: // []byte
+			value, next, ok := readLengthPrefixedSlice(bytes)
+			if !ok {
+				return nil, false
+			}
+			bytes = next
+			return value, true
+
+		case 5: // []interface{}
+			count, next, ok := readUint32(bytes)
+			if !ok {
+				return nil, false
+			}
+			bytes = next
+			value := make([]interface{}, count)
+			for i := 0; i < int(count); i++ {
+				item, ok := visit()
+				if !ok {
+					return nil, false
+				}
+				value[i] = item
+			}
+			return value, true
+
+		case 6: // map[string]interface{}
+			count, next, ok := readUint32(bytes)
+			if !ok {
+				return nil, false
+			}
+			bytes = next
+			value := make(map[string]interface{}, count)
+			for i := 0; i < int(count); i++ {
+				key, next, ok := readLengthPrefixedSlice(bytes)
+				if !ok {
+					return nil, false
+				}
+				bytes = next
+				item, ok := visit()
+				if !ok {
+					return nil, false
+				}
+				value[string(key)] = item
+			}
+			return value, true
+
+		default:
+			panic("Invalid packet")
+		}
 	}
-	bytes := make([]byte, 0, length)
-	bytes = writeUint32(bytes, uint32(length-4))
-	bytes = writeUint32(bytes, (id<<1)|1)
-	bytes = writeUint32(bytes, uint32(len(response)))
 
-	// Each response is formatted as a series of key/value pairs
-	for k, v := range response {
-		bytes = writeUint32(bytes, uint32(len(k)))
-		bytes = append(bytes, k...)
-		bytes = writeUint32(bytes, uint32(len(v)))
-		bytes = append(bytes, v...)
-	}
-
-	return bytes
-}
-
-func decodeRequestOrResponse(bytes []byte) (uint32, requestType, responseType) {
-	// Read the id
 	id, bytes, ok := readUint32(bytes)
 	if !ok {
-		return 0, nil, nil
+		return packet{}, false
 	}
 	isRequest := (id & 1) == 0
 	id >>= 1
-
-	// Read the argument count
-	argCount, bytes, ok := readUint32(bytes)
+	value, ok := visit()
 	if !ok {
-		return 0, nil, nil
+		return packet{}, false
 	}
-
-	if isRequest {
-		// Read the request
-		request := requestType{}
-		for i := uint32(0); i < argCount; i++ {
-			value, afterValue, ok := readLengthPrefixedSlice(bytes)
-			if !ok {
-				return 0, nil, nil
-			}
-			bytes = afterValue
-			request = append(request, string(value))
-		}
-		if len(bytes) != 0 {
-			return 0, nil, nil
-		}
-		return id, request, nil
-	} else {
-		// Read the response
-		response := responseType{}
-		for i := uint32(0); i < argCount; i++ {
-			key, afterKey, ok := readLengthPrefixedSlice(bytes)
-			if !ok {
-				return 0, nil, nil
-			}
-			value, afterValue, ok := readLengthPrefixedSlice(afterKey)
-			if !ok {
-				return 0, nil, nil
-			}
-			bytes = afterValue
-			response[string(key)] = value
-		}
-		if len(bytes) != 0 {
-			return 0, nil, nil
-		}
-		return id, nil, response
+	if len(bytes) != 0 {
+		return packet{}, false
 	}
-}
-
-func encodeOutputFiles(outputFiles []api.OutputFile) []byte {
-	length := 4
-	for _, outputFile := range outputFiles {
-		length += 4 + len(outputFile.Path) + 4 + len(outputFile.Contents)
-	}
-	bytes := make([]byte, 0, length)
-	bytes = writeUint32(bytes, uint32(len(outputFiles)))
-	for _, outputFile := range outputFiles {
-		bytes = writeUint32(bytes, uint32(len(outputFile.Path)))
-		bytes = append(bytes, outputFile.Path...)
-		bytes = writeUint32(bytes, uint32(len(outputFile.Contents)))
-		bytes = append(bytes, outputFile.Contents...)
-	}
-	return bytes
-}
-
-func messagesToJSON(msgs []api.Message) []byte {
-	j := printer.Joiner{}
-	j.AddString("[")
-
-	for _, msg := range msgs {
-		if j.Length() > 1 {
-			j.AddString(",")
-		}
-
-		// Some messages won't have a location
-		var location api.Location
-		if msg.Location != nil {
-			location = *msg.Location
-		} else {
-			location.Length = -1 // Signal that there's no location
-		}
-
-		j.AddString(fmt.Sprintf("%s,%d,%s,%d,%d,%s",
-			printer.QuoteForJSON(msg.Text),
-			location.Length,
-			printer.QuoteForJSON(location.File),
-			location.Line,
-			location.Column,
-			printer.QuoteForJSON(location.LineText),
-		))
-	}
-
-	j.AddString("]")
-	return j.Done()
+	return packet{id: id, isRequest: isRequest, value: value}, true
 }

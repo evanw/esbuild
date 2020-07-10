@@ -18,24 +18,24 @@ import (
 	"github.com/evanw/esbuild/pkg/cli"
 )
 
-type responseCallback = func(responseType)
+type responseCallback = func(interface{})
 
 type serviceType struct {
-	mutex            sync.Mutex
-	callbacks        map[uint32]responseCallback
-	nextID           uint32
-	outgoingMessages chan outgoingMessage
+	mutex           sync.Mutex
+	callbacks       map[uint32]responseCallback
+	nextID          uint32
+	outgoingPackets chan outgoingPacket
 }
 
-type outgoingMessage struct {
+type outgoingPacket struct {
 	bytes   []byte
 	isFinal bool
 }
 
 func runService() {
 	service := serviceType{
-		callbacks:        make(map[uint32]responseCallback),
-		outgoingMessages: make(chan outgoingMessage),
+		callbacks:       make(map[uint32]responseCallback),
+		outgoingPackets: make(chan outgoingPacket),
 	}
 	buffer := make([]byte, 4096)
 	stream := []byte{}
@@ -44,7 +44,7 @@ func runService() {
 	waitGroup := &sync.WaitGroup{}
 	go func() {
 		for {
-			message, ok := <-service.outgoingMessages
+			message, ok := <-service.outgoingPackets
 			if !ok {
 				break // No more messages
 			}
@@ -82,7 +82,7 @@ func runService() {
 			waitGroup.Add(1)
 			go func() {
 				if result := service.handleIncomingMessage(clone); result != nil {
-					service.outgoingMessages <- outgoingMessage{bytes: result, isFinal: true}
+					service.outgoingPackets <- outgoingPacket{bytes: result, isFinal: true}
 				} else {
 					waitGroup.Done()
 				}
@@ -97,10 +97,10 @@ func runService() {
 	waitGroup.Wait()
 }
 
-func (service *serviceType) sendRequest(request requestType) responseType {
-	result := make(chan responseType)
+func (service *serviceType) sendRequest(request interface{}) interface{} {
+	result := make(chan interface{})
 	var id uint32
-	callback := func(response responseType) {
+	callback := func(response interface{}) {
 		result <- response
 		close(result)
 	}
@@ -112,77 +112,84 @@ func (service *serviceType) sendRequest(request requestType) responseType {
 		service.callbacks[id] = callback
 		return id
 	}()
-	service.outgoingMessages <- outgoingMessage{bytes: encodeRequest(id, request)}
+	service.outgoingPackets <- outgoingPacket{
+		bytes: encodePacket(packet{
+			id:        id,
+			isRequest: true,
+			value:     request,
+		}),
+	}
 	return <-result
 }
 
 func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) {
-	id, request, response := decodeRequestOrResponse(bytes)
+	p, ok := decodePacket(bytes)
+	if !ok {
+		return nil
+	}
 
-	if request != nil {
+	if p.isRequest {
 		// Catch panics in the code below so they get passed to the caller
 		defer func() {
 			if r := recover(); r != nil {
-				result = encodeResponse(id, responseType{
-					"error": []byte(fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack())),
+				result = encodePacket(packet{
+					id: p.id,
+					value: map[string]interface{}{
+						"error": fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack()),
+					},
 				})
 			}
 		}()
 
 		// Handle the request
-		switch request[0] {
+		data := p.value.([]interface{})
+		switch data[0] {
 		case "build":
-			return service.handleBuildRequest(id, request[1:])
+			return service.handleBuildRequest(p.id, data[1].(map[string]interface{}))
 
 		case "transform":
-			return service.handleTransformRequest(id, request[1:])
+			return service.handleTransformRequest(p.id, data[1].(map[string]interface{}))
 
 		default:
-			return encodeResponse(id, responseType{
-				"error": []byte(fmt.Sprintf("Invalid command: %s", request[0])),
+			return encodePacket(packet{
+				id: p.id,
+				value: map[string]interface{}{
+					"error": fmt.Sprintf("Invalid command: %s", p.value),
+				},
 			})
 		}
 	}
 
-	if response != nil {
-		callback := func() responseCallback {
-			service.mutex.Lock()
-			defer service.mutex.Unlock()
-			callback := service.callbacks[id]
-			delete(service.callbacks, id)
-			return callback
-		}()
+	callback := func() responseCallback {
+		service.mutex.Lock()
+		defer service.mutex.Unlock()
+		callback := service.callbacks[p.id]
+		delete(service.callbacks, p.id)
+		return callback
+	}()
 
-		callback(response)
-		return nil
-	}
-
+	callback(p.value)
 	return nil
 }
 
-func (service *serviceType) handleBuildRequest(id uint32, request requestType) []byte {
-	// Special-case the service-only write flag
-	write := true
-	for i, arg := range request {
-		if arg == "--write=false" {
-			write = false
-			copy(request[i:], request[i+1:])
-			request = request[:len(request)-1]
-			break
-		}
-	}
+func (service *serviceType) handleBuildRequest(id uint32, request map[string]interface{}) []byte {
+	write := request["write"].(bool)
+	flags := decodeStringArray(request["flags"].([]interface{}))
 
-	options, err := cli.ParseBuildOptions(request)
+	options, err := cli.ParseBuildOptions(flags)
 	if err != nil {
-		return encodeResponse(id, responseType{
-			"error": []byte(err.Error()),
+		return encodePacket(packet{
+			id: id,
+			value: map[string]interface{}{
+				"error": err.Error(),
+			},
 		})
 	}
 
 	result := api.Build(options)
-	response := responseType{
-		"errors":   messagesToJSON(result.Errors),
-		"warnings": messagesToJSON(result.Warnings),
+	response := map[string]interface{}{
+		"errors":   encodeMessages(result.Errors),
+		"warnings": encodeMessages(result.Warnings),
 	}
 
 	if write {
@@ -201,28 +208,77 @@ func (service *serviceType) handleBuildRequest(id uint32, request requestType) [
 		response["outputFiles"] = encodeOutputFiles(result.OutputFiles)
 	}
 
-	return encodeResponse(id, response)
+	return encodePacket(packet{
+		id:    id,
+		value: response,
+	})
 }
 
-func (service *serviceType) handleTransformRequest(id uint32, request requestType) []byte {
-	if len(request) == 0 {
-		return encodeResponse(id, responseType{
-			"error": []byte("Invalid transform request"),
-		})
-	}
+func (service *serviceType) handleTransformRequest(id uint32, request map[string]interface{}) []byte {
+	input := request["input"].(string)
+	flags := decodeStringArray(request["flags"].([]interface{}))
 
-	options, err := cli.ParseTransformOptions(request[1:])
+	options, err := cli.ParseTransformOptions(flags)
 	if err != nil {
-		return encodeResponse(id, responseType{
-			"error": []byte(err.Error()),
+		return encodePacket(packet{
+			id: id,
+			value: map[string]interface{}{
+				"error": err.Error(),
+			},
 		})
 	}
 
-	result := api.Transform(request[0], options)
-	return encodeResponse(id, responseType{
-		"errors":      messagesToJSON(result.Errors),
-		"warnings":    messagesToJSON(result.Warnings),
-		"js":          result.JS,
-		"jsSourceMap": result.JSSourceMap,
+	result := api.Transform(input, options)
+	return encodePacket(packet{
+		id: id,
+		value: map[string]interface{}{
+			"errors":      encodeMessages(result.Errors),
+			"warnings":    encodeMessages(result.Warnings),
+			"js":          string(result.JS),
+			"jsSourceMap": string(result.JSSourceMap),
+		},
 	})
+}
+
+func decodeStringArray(values []interface{}) []string {
+	strings := make([]string, len(values))
+	for i, value := range values {
+		strings[i] = value.(string)
+	}
+	return strings
+}
+
+func encodeOutputFiles(outputFiles []api.OutputFile) []interface{} {
+	values := make([]interface{}, len(outputFiles))
+	for i, outputFile := range outputFiles {
+		value := make(map[string]interface{})
+		values[i] = value
+		value["path"] = outputFile.Path
+		value["contents"] = outputFile.Contents
+	}
+	return values
+}
+
+func encodeMessages(msgs []api.Message) []interface{} {
+	values := make([]interface{}, len(msgs))
+	for i, msg := range msgs {
+		value := make(map[string]interface{})
+		values[i] = value
+		value["text"] = msg.Text
+
+		// Some messages won't have a location
+		loc := msg.Location
+		if loc == nil {
+			value["location"] = nil
+		} else {
+			value["location"] = map[string]interface{}{
+				"file":     loc.File,
+				"line":     loc.Line,
+				"column":   loc.Column,
+				"length":   loc.Length,
+				"lineText": loc.LineText,
+			}
+		}
+	}
+	return values
 }
