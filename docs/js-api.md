@@ -23,7 +23,7 @@ build({
 }).catch(() => process.exit(1))
 ```
 
-See [the TypeScript type definitions](../lib/api-types.ts) for the complete set of options.
+See [the TypeScript type definitions](../lib/types.ts) for the complete set of options.
 
 ### Transforming a file
 
@@ -47,7 +47,7 @@ const { js } = transformSync(jsx, { loader: 'jsx' })
 process.stdout.write(js)
 ```
 
-See [the TypeScript type definitions](../lib/api-types.ts) for the complete set of options.
+See [the TypeScript type definitions](../lib/types.ts) for the complete set of options.
 
 ### Use a service for optimal performance
 
