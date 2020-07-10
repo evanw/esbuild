@@ -6,6 +6,15 @@ const fs = require('fs')
 const repoDir = path.dirname(__dirname)
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 
+function buildTypeDefinitions(isBrowser) {
+  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'types.ts'), 'utf8')
+  const nodeAPI = /\/+\r?\n\/\/ Node API/.exec(types_ts).index
+  const browserAPI = /\/+\r?\n\/\/ Browser API/.exec(types_ts).index
+  const common = types_ts.slice(0, Math.min(browserAPI, nodeAPI));
+  if (isBrowser) return common + types_ts.slice(browserAPI, nodeAPI > browserAPI ? nodeAPI : types_ts.length);
+  else return common + types_ts.slice(nodeAPI, browserAPI > nodeAPI ? browserAPI : types_ts.length);
+}
+
 function buildNativeLib(esbuildPath) {
   const libDir = path.join(npmDir, 'lib')
   try {
@@ -24,7 +33,7 @@ function buildNativeLib(esbuildPath) {
   ], { cwd: repoDir })
 
   // Generate "npm/esbuild/lib/main.d.ts"
-  fs.copyFileSync(path.join(repoDir, 'lib', 'types.ts'), path.join(libDir, 'main.d.ts'))
+  fs.writeFileSync(path.join(libDir, 'main.d.ts'), buildTypeDefinitions(false))
 }
 
 function buildWasmLib(esbuildPath) {
@@ -45,8 +54,9 @@ function buildWasmLib(esbuildPath) {
     '--platform=node',
   ], { cwd: repoDir })
 
-  // Generate "npm/esbuild-wasm/lib/main.d.ts"
-  fs.copyFileSync(path.join(repoDir, 'lib', 'types.ts'), path.join(libDir, 'main.d.ts'))
+  // Generate "npm/esbuild-wasm/lib/main.d.ts" and "npm/esbuild-wasm/lib/browser.d.ts"
+  fs.writeFileSync(path.join(libDir, 'main.d.ts'), buildTypeDefinitions(false))
+  fs.writeFileSync(path.join(libDir, 'browser.d.ts'), buildTypeDefinitions(true))
 
   // Minify "npm/esbuild-wasm/wasm_exec.js"
   const wasm_exec_js = path.join(npmWasmDir, 'wasm_exec.js')

@@ -1,14 +1,9 @@
 import * as types from "./types"
 import * as common from "./common"
 
-export interface BrowserOptions {
-  wasmURL: string
-  worker?: boolean
-}
-
 declare let WEB_WORKER_SOURCE_CODE: string
 
-export let startService = (options: BrowserOptions): Promise<types.Service> => {
+export let startService = (options: types.BrowserServiceOptions): Promise<types.Service> => {
   return fetch(options.wasmURL).then(r => r.arrayBuffer()).then(wasm => {
     let code = `{` +
       `let global={};` +

@@ -57,7 +57,7 @@ export let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
-export let startService: typeof types.startService = () => {
+export let startService = (): Promise<types.Service> => {
   let [command, args] = esbuildCommandAndArgs();
   let child = child_process.spawn(command, args.concat('--service'), {
     cwd: process.cwd(),

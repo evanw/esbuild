@@ -1,8 +1,8 @@
-export declare type Platform = 'browser' | 'node';
-export declare type Format = 'iife' | 'cjs' | 'esm';
-export declare type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary';
-export declare type LogLevel = 'info' | 'warning' | 'error' | 'silent';
-export declare type Strict = 'nullish-coalescing' | 'class-fields';
+export type Platform = 'browser' | 'node';
+export type Format = 'iife' | 'cjs' | 'esm';
+export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary';
+export type LogLevel = 'info' | 'warning' | 'error' | 'silent';
+export type Strict = 'nullish-coalescing' | 'class-fields';
 
 export interface CommonOptions {
   sourcemap?: boolean | 'inline' | 'external';
@@ -106,6 +106,18 @@ export interface Metadata {
   }
 }
 
+export interface Service {
+  build(options: BuildOptions): Promise<BuildResult>;
+  transform(input: string, options: TransformOptions): Promise<TransformResult>;
+
+  // This stops the service, which kills the long-lived child process. Any
+  // pending requests will be aborted.
+  stop(): void;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Node API
+
 // This function invokes the "esbuild" command-line tool for you. It returns a
 // promise that either resolves with a "BuildResult" object or rejects with a
 // "BuildFailure" object.
@@ -125,11 +137,12 @@ export declare function transformSync(input: string, options: TransformOptions):
 // starting up a new child process each time.
 export declare function startService(): Promise<Service>;
 
-export interface Service {
-  build(options: BuildOptions): Promise<BuildResult>;
-  transform(input: string, options: TransformOptions): Promise<TransformResult>;
+////////////////////////////////////////////////////////////////////////////////
+// Browser API
 
-  // This stops the service, which kills the long-lived child process. Any
-  // pending requests will be aborted.
-  stop(): void;
+export interface BrowserServiceOptions {
+  wasmURL: string
+  worker?: boolean
 }
+
+export declare function startService(options: BrowserServiceOptions): Promise<Service>;
