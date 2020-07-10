@@ -102,7 +102,8 @@ const (
 type Loader uint8
 
 const (
-	LoaderJS Loader = iota
+	LoaderNone Loader = iota
+	LoaderJS
 	LoaderJSX
 	LoaderTS
 	LoaderTSX
@@ -113,6 +114,7 @@ const (
 	LoaderFile
 	LoaderBinary
 	LoaderCSS
+	LoaderDefault
 )
 
 type Platform uint8
@@ -148,11 +150,12 @@ type Engine struct {
 }
 
 type Location struct {
-	File     string
-	Line     int // 1-based
-	Column   int // 0-based, in bytes
-	Length   int // in bytes
-	LineText string
+	File      string
+	Namespace string
+	Line      int // 1-based
+	Column    int // 0-based, in bytes
+	Length    int // in bytes
+	LineText  string
 }
 
 type Message struct {
@@ -230,6 +233,7 @@ type BuildOptions struct {
 	EntryPoints []string
 	Stdin       *StdinOptions
 	Write       bool
+	Plugins     []Plugin
 }
 
 type StdinOptions struct {
@@ -296,4 +300,61 @@ type TransformResult struct {
 
 func Transform(input string, options TransformOptions) TransformResult {
 	return transformImpl(input, options)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Plugin API
+
+type Plugin struct {
+	Name  string
+	Setup func(PluginBuild)
+}
+
+type PluginBuild interface {
+	OnResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
+	OnLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+}
+
+type OnResolveOptions struct {
+	Filter    string
+	Namespace string
+}
+
+type OnResolveArgs struct {
+	Path       string
+	Importer   string
+	Namespace  string
+	ResolveDir string
+}
+
+type OnResolveResult struct {
+	PluginName string
+
+	Errors   []Message
+	Warnings []Message
+
+	Path      string
+	External  bool
+	Namespace string
+}
+
+type OnLoadOptions struct {
+	Filter    string
+	Namespace string
+}
+
+type OnLoadArgs struct {
+	Path      string
+	Namespace string
+}
+
+type OnLoadResult struct {
+	PluginName string
+
+	Errors   []Message
+	Warnings []Message
+
+	Contents   *string
+	ResolveDir string
+	Loader     Loader
 }

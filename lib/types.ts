@@ -1,6 +1,6 @@
 export type Platform = 'browser' | 'node';
 export type Format = 'iife' | 'cjs' | 'esm';
-export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary';
+export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary' | 'default';
 export type LogLevel = 'info' | 'warning' | 'error' | 'silent';
 export type Charset = 'ascii' | 'utf8';
 
@@ -47,6 +47,7 @@ export interface BuildOptions extends CommonOptions {
 
   entryPoints?: string[];
   stdin?: StdinOptions;
+  plugins: Plugin[];
 }
 
 export interface StdinOptions {
@@ -63,6 +64,7 @@ export interface Message {
 
 export interface Location {
   file: string;
+  namespace: string;
   line: number; // 1-based
   column: number; // 0-based, in bytes
   length: number; // in bytes
@@ -107,6 +109,67 @@ export interface TransformResult {
 export interface TransformFailure extends Error {
   errors: Message[];
   warnings: Message[];
+}
+
+export interface Plugin {
+  name: string;
+  setup: (build: PluginBuild) => void;
+}
+
+export interface PluginBuild {
+  onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
+    (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
+  onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
+    (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): void;
+}
+
+export interface OnResolveOptions {
+  filter: RegExp;
+  namespace?: string;
+}
+
+export interface OnResolveArgs {
+  path: string;
+  importer: string;
+  namespace: string;
+  resolveDir: string;
+}
+
+export interface OnResolveResult {
+  pluginName?: string;
+
+  errors?: PartialMessage[];
+  warnings?: PartialMessage[];
+
+  path?: string;
+  external?: boolean;
+  namespace?: string;
+}
+
+export interface OnLoadOptions {
+  filter: RegExp;
+  namespace?: string;
+}
+
+export interface OnLoadArgs {
+  path: string;
+  namespace: string;
+}
+
+export interface OnLoadResult {
+  pluginName?: string;
+
+  errors?: PartialMessage[];
+  warnings?: PartialMessage[];
+
+  contents?: string | Uint8Array;
+  resolveDir?: string;
+  loader?: Loader;
+}
+
+export interface PartialMessage {
+  text?: string;
+  location?: Partial<Location> | null;
 }
 
 // This is the type information for the "metafile" JSON format

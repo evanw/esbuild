@@ -2,6 +2,105 @@
 
 ## Unreleased
 
+* The initial version of the plugin API ([#111](https://github.com/evanw/esbuild/pull/111))
+
+    The plugin API lets you inject custom code inside esbuild's build process. You can write plugins in either JavaScript or Go. Right now you can add an "on resolve" callback to determine where import paths go and an "on load" callback to determine what the imported file contains. These two primitives are very powerful, especially in combination with each other.
+
+    Here's a simple example plugin to show off the API in action. Let's say you wanted to enable a workflow where you can import environment variables like this:
+
+    ```js
+    // app.js
+    import { NODE_ENV } from 'env'
+    console.log(`NODE_ENV is ${NODE_ENV}`)
+    ```
+
+    This is how you might do that from JavaScript:
+
+    ```js
+    let envPlugin = {
+      name: 'env-plugin',
+      setup(build) {
+        build.onResolve({ filter: /^env$/ }, args => ({
+          path: args.path,
+          namespace: 'env',
+        }))
+
+        build.onLoad({ filter: /.*/, namespace: 'env' }, () => ({
+          contents: JSON.stringify(process.env),
+          loader: 'json',
+        }))
+      },
+    }
+
+    require('esbuild').build({
+      entryPoints: ['app.js'],
+      bundle: true,
+      outfile: 'out.js',
+      plugins: [envPlugin],
+      logLevel: 'info',
+    }).catch(() => process.exit(1))
+    ```
+
+    This is how you might do that from Go:
+
+    ```go
+    package main
+
+    import (
+      "encoding/json"
+      "os"
+      "strings"
+
+      "github.com/evanw/esbuild/pkg/api"
+    )
+
+    var envPlugin = api.Plugin{
+      Name: "env-plugin",
+      Setup: func(build api.PluginBuild) {
+        build.OnResolve(api.OnResolveOptions{Filter: `^env$`},
+          func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+            return api.OnResolveResult{
+              Path: args.Path,
+              Namespace: "env",
+            }, nil
+          })
+
+        build.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "env"},
+          func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+            mappings := make(map[string]string)
+            for _, item := range os.Environ() {
+              if equals := strings.IndexByte(item, '='); equals != -1 {
+                mappings[item[:equals]] = item[equals+1:]
+              }
+            }
+            bytes, _ := json.Marshal(mappings)
+            contents := string(bytes)
+            return api.OnLoadResult{
+              Contents: &contents,
+              Loader: api.LoaderJSON,
+            }, nil
+          })
+      },
+    }
+
+    func main() {
+      result := api.Build(api.BuildOptions{
+        EntryPoints: []string{"app.js"},
+        Bundle:      true,
+        Outfile:     "out.js",
+        Plugins:     []api.Plugin{envPlugin},
+        Write:       true,
+        LogLevel:    api.LogLevelInfo,
+      })
+
+      if len(result.Errors) > 0 {
+        os.Exit(1)
+      }
+    }
+    ```
+
+    Comprehensive documentation for the plugin API is not yet available but is coming soon.
+
 * Add the `outbase` option ([#471](https://github.com/evanw/esbuild/pull/471))
 
     Currently, esbuild uses the lowest common ancestor of the entrypoints to determine where to place each entrypoint's output file. This is an excellent default, but is not ideal in some situations. Take for example an app with a folder structure similar to Next.js, with js files at `pages/a/b/c.js` and `pages/a/b/d.js`. These two files correspond to the paths `/a/b/c` and `/a/b/d`. Ideally, esbuild would emit `out/a/b/c.js` and `out/a/b/d.js`. However, esbuild identifies `pages/a/b` as the lowest common ancestor and emits `out/c.js` and `out/d.js`. This PR introduces a `--outbase` argument to the cli that allows the user to choose which path to base entrypoint output paths on. With this change, running esbuild with `--outbase=pages` results in the desired behavior. This change was contributed by [@nitsky](https://github.com/nitsky).

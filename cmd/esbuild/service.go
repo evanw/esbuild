@@ -11,10 +11,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
@@ -200,6 +203,7 @@ func encodeErrorPacket(id uint32, err error) []byte {
 }
 
 func (service *serviceType) handleBuildRequest(id uint32, request map[string]interface{}) []byte {
+	key := request["key"].(int)
 	write := request["write"].(bool)
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
@@ -231,6 +235,181 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		if resolveDir, ok := request["resolveDir"].(string); ok {
 			options.Stdin.ResolveDir = resolveDir
 		}
+	}
+
+	if plugins, ok := request["plugins"]; ok {
+		plugins := plugins.([]interface{})
+
+		type filteredCallback struct {
+			filter     *regexp.Regexp
+			pluginName string
+			namespace  string
+			id         int
+		}
+
+		var onResolveCallbacks []filteredCallback
+		var onLoadCallbacks []filteredCallback
+
+		filteredCallbacks := func(pluginName string, kind string, items []interface{}) (result []filteredCallback, err error) {
+			for _, item := range items {
+				item := item.(map[string]interface{})
+				filter, err := config.CompileFilterForPlugin(pluginName, kind, item["filter"].(string))
+				if err != nil {
+					return nil, err
+				}
+				result = append(result, filteredCallback{
+					pluginName: pluginName,
+					id:         item["id"].(int),
+					filter:     filter,
+					namespace:  item["namespace"].(string),
+				})
+			}
+			return
+		}
+
+		for _, p := range plugins {
+			p := p.(map[string]interface{})
+			pluginName := p["name"].(string)
+
+			if callbacks, err := filteredCallbacks(pluginName, "onResolve", p["onResolve"].([]interface{})); err != nil {
+				return encodeErrorPacket(id, err)
+			} else {
+				onResolveCallbacks = append(onResolveCallbacks, callbacks...)
+			}
+
+			if callbacks, err := filteredCallbacks(pluginName, "onLoad", p["onLoad"].([]interface{})); err != nil {
+				return encodeErrorPacket(id, err)
+			} else {
+				onLoadCallbacks = append(onLoadCallbacks, callbacks...)
+			}
+		}
+
+		// We want to minimize the amount of IPC traffic. Instead of adding one Go
+		// plugin for every JavaScript plugin, we just add a single Go plugin that
+		// proxies the plugin queries to the list of JavaScript plugins in the host.
+		options.Plugins = append(options.Plugins, api.Plugin{
+			Name: "JavaScript plugins",
+			Setup: func(build api.PluginBuild) {
+				build.OnResolve(api.OnResolveOptions{Filter: ".*"}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+					var ids []interface{}
+					applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
+					for _, item := range onResolveCallbacks {
+						if config.PluginAppliesToPath(applyPath, item.filter, item.namespace) {
+							ids = append(ids, item.id)
+						}
+					}
+
+					result := api.OnResolveResult{}
+					if len(ids) == 0 {
+						return result, nil
+					}
+
+					response := service.sendRequest(map[string]interface{}{
+						"command":    "resolve",
+						"key":        key,
+						"ids":        ids,
+						"path":       args.Path,
+						"importer":   args.Importer,
+						"namespace":  args.Namespace,
+						"resolveDir": args.ResolveDir,
+					}).(map[string]interface{})
+
+					if value, ok := response["id"]; ok {
+						id := value.(int)
+						for _, item := range onResolveCallbacks {
+							if item.id == id {
+								result.PluginName = item.pluginName
+								break
+							}
+						}
+					}
+					if value, ok := response["error"]; ok {
+						return result, errors.New(value.(string))
+					}
+					if value, ok := response["pluginName"]; ok {
+						result.PluginName = value.(string)
+					}
+					if value, ok := response["path"]; ok {
+						result.Path = value.(string)
+					}
+					if value, ok := response["namespace"]; ok {
+						result.Namespace = value.(string)
+					}
+					if value, ok := response["external"]; ok {
+						result.External = value.(bool)
+					}
+					if value, ok := response["errors"]; ok {
+						result.Errors = decodeMessages(value.([]interface{}))
+					}
+					if value, ok := response["warnings"]; ok {
+						result.Warnings = decodeMessages(value.([]interface{}))
+					}
+
+					return result, nil
+				})
+
+				build.OnLoad(api.OnLoadOptions{Filter: ".*"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+					var ids []interface{}
+					applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
+					for _, item := range onLoadCallbacks {
+						if config.PluginAppliesToPath(applyPath, item.filter, item.namespace) {
+							ids = append(ids, item.id)
+						}
+					}
+
+					result := api.OnLoadResult{}
+					if len(ids) == 0 {
+						return result, nil
+					}
+
+					response := service.sendRequest(map[string]interface{}{
+						"command":   "load",
+						"key":       key,
+						"ids":       ids,
+						"path":      args.Path,
+						"namespace": args.Namespace,
+					}).(map[string]interface{})
+
+					if value, ok := response["id"]; ok {
+						id := value.(int)
+						for _, item := range onLoadCallbacks {
+							if item.id == id {
+								result.PluginName = item.pluginName
+								break
+							}
+						}
+					}
+					if value, ok := response["error"]; ok {
+						return result, errors.New(value.(string))
+					}
+					if value, ok := response["pluginName"]; ok {
+						result.PluginName = value.(string)
+					}
+					if value, ok := response["contents"]; ok {
+						contents := string(value.([]byte))
+						result.Contents = &contents
+					}
+					if value, ok := response["resolveDir"]; ok {
+						result.ResolveDir = value.(string)
+					}
+					if value, ok := response["errors"]; ok {
+						result.Errors = decodeMessages(value.([]interface{}))
+					}
+					if value, ok := response["warnings"]; ok {
+						result.Warnings = decodeMessages(value.([]interface{}))
+					}
+					if value, ok := response["loader"]; ok {
+						loader, err := helpers.ParseLoader(value.(string))
+						if err != nil {
+							return api.OnLoadResult{}, err
+						}
+						result.Loader = loader
+					}
+
+					return result, nil
+				})
+			},
+		})
 	}
 
 	options.Write = write
@@ -357,6 +536,35 @@ func encodeMessages(msgs []api.Message) []interface{} {
 	return values
 }
 
+func decodeMessages(values []interface{}) []api.Message {
+	msgs := make([]api.Message, len(values))
+	for i, value := range values {
+		obj := value.(map[string]interface{})
+		msg := api.Message{Text: obj["text"].(string)}
+
+		// Some messages won't have a location
+		loc := obj["location"]
+		if loc != nil {
+			loc := loc.(map[string]interface{})
+			namespace := loc["namespace"].(string)
+			if namespace == "" {
+				namespace = "file"
+			}
+			msg.Location = &api.Location{
+				File:      loc["file"].(string),
+				Namespace: namespace,
+				Line:      loc["line"].(int),
+				Column:    loc["column"].(int),
+				Length:    loc["length"].(int),
+				LineText:  loc["lineText"].(string),
+			}
+		}
+
+		msgs[i] = msg
+	}
+	return msgs
+}
+
 func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
 	msg := logger.Msg{Text: obj["text"].(string)}
 
@@ -364,12 +572,17 @@ func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
 	loc := obj["location"]
 	if loc != nil {
 		loc := loc.(map[string]interface{})
+		namespace := loc["namespace"].(string)
+		if namespace == "" {
+			namespace = "file"
+		}
 		msg.Location = &logger.MsgLocation{
-			File:     loc["file"].(string),
-			Line:     loc["line"].(int),
-			Column:   loc["column"].(int),
-			Length:   loc["length"].(int),
-			LineText: loc["lineText"].(string),
+			File:      loc["file"].(string),
+			Namespace: namespace,
+			Line:      loc["line"].(int),
+			Column:    loc["column"].(int),
+			Length:    loc["length"].(int),
+			LineText:  loc["lineText"].(string),
 		}
 	}
 

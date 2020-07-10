@@ -15,14 +15,20 @@ let mustBeBoolean = (value: boolean | undefined): string | null =>
 let mustBeString = (value: string | undefined): string | null =>
   typeof value === 'string' ? null : 'a string';
 
+let mustBeRegExp = (value: RegExp | undefined): string | null =>
+  value instanceof RegExp ? null : 'a RegExp object';
+
 let mustBeInteger = (value: number | undefined): string | null =>
   typeof value === 'number' && value === (value | 0) ? null : 'an integer';
 
-let mustBeArray = (value: string[] | undefined): string | null =>
+let mustBeArray = <T>(value: T[] | undefined): string | null =>
   Array.isArray(value) ? null : 'an array';
 
 let mustBeObject = (value: Object | undefined): string | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'an object';
+
+let mustBeObjectOrNull = (value: Object | null | undefined): string | null =>
+  typeof value === 'object' && !Array.isArray(value) ? null : 'an object or null';
 
 let mustBeStringOrBoolean = (value: string | boolean | undefined): string | null =>
   typeof value === 'string' || typeof value === 'boolean' ? null : 'a string or a boolean';
@@ -32,6 +38,9 @@ let mustBeStringOrObject = (value: string | Object | undefined): string | null =
 
 let mustBeStringOrArray = (value: string | string[] | undefined): string | null =>
   typeof value === 'string' || Array.isArray(value) ? null : 'a string or an array';
+
+let mustBeStringOrUint8Array = (value: string | Uint8Array | undefined): string | null =>
+  typeof value === 'string' || value instanceof Uint8Array ? null : 'a string or a Uint8Array';
 
 type OptionKeys = { [key: string]: boolean };
 
@@ -105,7 +114,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (avoidTDZ) flags.push(`--avoid-tdz`);
 }
 
-function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel): [string[], boolean, string | null, string | null] {
+function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel):
+  [string[], boolean, types.Plugin[] | undefined, string | null, string | null] {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   let stdinContents: string | null = null;
@@ -131,6 +141,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) !== false; // Default to true if not specified
+  let plugins = getFlag(options, keys, 'plugins', mustBeArray);
   checkForInvalidFlags(options, keys);
 
   if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
@@ -181,7 +192,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
     stdinContents = contents ? contents + '' : '';
   }
 
-  return [flags, write, stdinContents, stdinResolveDir];
+  return [flags, write, plugins, stdinContents, stdinResolveDir];
 }
 
 function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolean, logLevelDefault: types.LogLevel): string[] {
@@ -207,6 +218,7 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
 export interface StreamIn {
   writeToStdin: (data: Uint8Array) => void;
   readFileSync?: (path: string, encoding: 'utf8') => string;
+  isSync: boolean;
 }
 
 export interface StreamOut {
@@ -236,11 +248,18 @@ export interface StreamService {
   ): void;
 }
 
-// This can't use any promises because it must work for both sync and async code
+// This can't use any promises in the main execution flow because it must work
+// for both sync and async code. There is an exception for plugin code because
+// that can't work in sync code anyway.
 export function createChannel(streamIn: StreamIn): StreamOut {
+  type PluginCallback = (request: protocol.OnResolveRequest | protocol.OnLoadRequest) =>
+    Promise<protocol.OnResolveResponse | protocol.OnLoadResponse>;
+
   let responseCallbacks = new Map<number, (error: string | null, response: protocol.Value) => void>();
+  let pluginCallbacks = new Map<number, PluginCallback>();
   let isClosed = false;
   let nextRequestID = 0;
+  let nextBuildKey = 0;
 
   // Use a long-lived buffer to store stdout data
   let stdout = new Uint8Array(16 * 1024);
@@ -294,13 +313,24 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     streamIn.writeToStdin(protocol.encodePacket({ id, isRequest: false, value }));
   };
 
-  let handleRequest = async (id: number, request: any) => {
+  let handleRequest = async (id: number, request: protocol.OnResolveRequest | protocol.OnLoadRequest) => {
     // Catch exceptions in the code below so they get passed to the caller
     try {
-      let command = request.command;
-      switch (command) {
+      switch (request.command) {
+        case 'resolve': {
+          let callback = pluginCallbacks.get(request.key);
+          sendResponse(id, await callback!(request) as any);
+          break;
+        }
+
+        case 'load': {
+          let callback = pluginCallbacks.get(request.key);
+          sendResponse(id, await callback!(request) as any);
+          break;
+        }
+
         default:
-          throw new Error(`Invalid command: ` + command);
+          throw new Error(`Invalid command: ` + (request as any)!.command);
       }
     } catch (e) {
       sendResponse(id, { errors: [await extractErrorMessageV8(e, streamIn)] } as any);
@@ -338,6 +368,148 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
+  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number) => {
+    if (streamIn.isSync) throw new Error('Cannot use plugins in synchronous API calls');
+
+    let onResolveCallbacks: {
+      [id: number]: (args: types.OnResolveArgs) =>
+        (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>)
+    } = {};
+    let onLoadCallbacks: {
+      [id: number]: (args: types.OnLoadArgs) =>
+        (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>)
+    } = {};
+    let nextCallbackID = 0;
+    let i = 0;
+
+    request.plugins = [];
+
+    for (let item of plugins) {
+      let name = item.name;
+      let setup = item.setup;
+      let plugin: protocol.BuildPlugin = {
+        name: name + '',
+        onResolve: [],
+        onLoad: [],
+      };
+      if (typeof name !== 'string' || name === '') throw new Error(`Plugin at index ${i} is missing a name`);
+      if (typeof setup !== 'function') throw new Error(`[${plugin.name}] Missing a setup function`);
+      i++;
+
+      setup({
+        onResolve(options, callback) {
+          let keys: OptionKeys = {};
+          let filter = getFlag(options, keys, 'filter', mustBeRegExp);
+          let namespace = getFlag(options, keys, 'namespace', mustBeString);
+          checkForInvalidFlags(options, keys);
+          if (filter == null) throw new Error(`[${plugin.name}] "onResolve" is missing a filter`);
+          let id = nextCallbackID++;
+          onResolveCallbacks[id] = callback;
+          plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' });
+        },
+
+        onLoad(options, callback) {
+          let keys: OptionKeys = {};
+          let filter = getFlag(options, keys, 'filter', mustBeRegExp);
+          let namespace = getFlag(options, keys, 'namespace', mustBeString);
+          checkForInvalidFlags(options, keys);
+          if (filter == null) throw new Error(`[${plugin.name}] "onLoad" is missing a filter`);
+          let id = nextCallbackID++;
+          onLoadCallbacks[id] = callback;
+          plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
+        },
+      });
+
+      request.plugins.push(plugin);
+    }
+
+    pluginCallbacks.set(buildKey, async (request) => {
+      switch (request.command) {
+        case 'resolve': {
+          let response: protocol.OnResolveResponse = {};
+          for (let id of request.ids) {
+            try {
+              let callback = onResolveCallbacks[id];
+              let result = await callback({
+                path: request.path,
+                importer: request.importer,
+                namespace: request.namespace,
+                resolveDir: request.resolveDir,
+              });
+
+              if (result != null) {
+                if (typeof result !== 'object') throw new Error('Expected resolver plugin to return an object');
+                let keys: OptionKeys = {};
+                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
+                let path = getFlag(result, keys, 'path', mustBeString);
+                let namespace = getFlag(result, keys, 'namespace', mustBeString);
+                let external = getFlag(result, keys, 'external', mustBeBoolean);
+                let errors = getFlag(result, keys, 'errors', mustBeArray);
+                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                checkForInvalidFlags(result, keys);
+
+                response.id = id;
+                if (pluginName != null) response.pluginName = pluginName;
+                if (path != null) response.path = path;
+                if (namespace != null) response.namespace = namespace;
+                if (external != null) response.external = external;
+                if (errors != null) response.errors = sanitizeMessages(errors);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings);
+                break;
+              }
+            } catch (e) {
+              return { id, errors: [await extractErrorMessageV8(e, streamIn)] };
+            }
+          }
+          return response;
+        }
+
+        case 'load': {
+          let response: protocol.OnLoadResponse = {};
+          for (let id of request.ids) {
+            try {
+              let callback = onLoadCallbacks[id];
+              let result = await callback({
+                path: request.path,
+                namespace: request.namespace,
+              });
+
+              if (result != null) {
+                if (typeof result !== 'object') throw new Error('Expected loader plugin to return an object');
+                let keys: OptionKeys = {};
+                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
+                let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
+                let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString);
+                let loader = getFlag(result, keys, 'loader', mustBeString);
+                let errors = getFlag(result, keys, 'errors', mustBeArray);
+                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+                checkForInvalidFlags(result, keys);
+
+                response.id = id;
+                if (pluginName != null) response.pluginName = pluginName;
+                if (contents instanceof Uint8Array) response.contents = contents;
+                else if (contents != null) response.contents = protocol.encodeUTF8(contents);
+                if (resolveDir != null) response.resolveDir = resolveDir;
+                if (loader != null) response.loader = loader;
+                if (errors != null) response.errors = sanitizeMessages(errors);
+                if (warnings != null) response.warnings = sanitizeMessages(warnings);
+                break;
+              }
+            } catch (e) {
+              return { id, errors: [await extractErrorMessageV8(e, streamIn)] };
+            }
+          }
+          return response;
+        }
+
+        default:
+          throw new Error(`Invalid command: ` + (request as any).command);
+      }
+    });
+
+    return () => pluginCallbacks.delete(buildKey);
+  };
+
   return {
     readFromStdout,
     afterClose,
@@ -346,9 +518,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       build(options, isTTY, callback) {
         const logLevelDefault = 'info';
         try {
-          let [flags, write, stdin, resolveDir] = flagsForBuildOptions(options, isTTY, logLevelDefault);
-          let request: protocol.BuildRequest = { command: 'build', flags, write, stdin, resolveDir };
+          let key = nextBuildKey++;
+          let [flags, write, plugins, stdin, resolveDir] = flagsForBuildOptions(options, isTTY, logLevelDefault);
+          let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir };
+          let cleanup = plugins && handlePlugins(plugins, request, key);
           sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
+            if (cleanup) cleanup();
             if (error) return callback(new Error(error), null);
             let errors = response!.errors;
             let warnings = response!.warnings;
@@ -487,6 +662,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn): types.Message {
           let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
           location = {
             file: match[1],
+            namespace: 'file',
             line: +match[2],
             column: +match[3] - 1,
             length: 0,
@@ -515,4 +691,43 @@ function failureErrorWithLog(text: string, errors: types.Message[], warnings: ty
   error.errors = errors;
   error.warnings = warnings;
   return error;
+}
+
+function sanitizeMessages(messages: types.PartialMessage[]): types.Message[] {
+  let messagesClone: types.Message[] = [];
+
+  for (const message of messages) {
+    let keys: OptionKeys = {};
+    let text = getFlag(message, keys, 'text', mustBeString);
+    let location = getFlag(message, keys, 'location', mustBeObjectOrNull);
+    checkForInvalidFlags(message, keys);
+
+    let locationClone: types.Message['location'] = null;
+    if (location != null) {
+      let keys: OptionKeys = {};
+      let file = getFlag(location, keys, 'file', mustBeString);
+      let namespace = getFlag(location, keys, 'namespace', mustBeString);
+      let line = getFlag(location, keys, 'line', mustBeInteger);
+      let column = getFlag(location, keys, 'column', mustBeInteger);
+      let length = getFlag(location, keys, 'length', mustBeInteger);
+      let lineText = getFlag(location, keys, 'lineText', mustBeString);
+      checkForInvalidFlags(location, keys);
+
+      locationClone = {
+        file: file || '',
+        namespace: namespace || '',
+        line: line || 0,
+        column: column || 0,
+        length: length || 0,
+        lineText: lineText || '',
+      };
+    }
+
+    messagesClone.push({
+      text: text || '',
+      location: locationClone,
+    });
+  }
+
+  return messagesClone;
 }
