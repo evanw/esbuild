@@ -4843,7 +4843,20 @@ func TestMultipleEntryPointsSameNameCollision(t *testing.T) {
 			IsBundling:   true,
 			AbsOutputDir: "/out/",
 		},
-		expectedCompileLog: "error: Two output files share the same path: /out/entry.js\n",
+		expected: map[string]string{
+			"/out/a/entry.js": `// /common.js
+let foo = 123;
+
+// /a/entry.js
+console.log(foo);
+`,
+			"/out/b/entry.js": `// /common.js
+let foo = 123;
+
+// /b/entry.js
+console.log(foo);
+`,
+		},
 	})
 }
 

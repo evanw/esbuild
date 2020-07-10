@@ -58,6 +58,7 @@ type linkerContext struct {
 	files       []file
 	fileMeta    []fileMeta
 	hasErrors   bool
+	lcaAbsPath  string
 
 	// We should avoid traversing all files in the bundle, because the linker
 	// should be able to run a linking operation on a large bundle where only
@@ -87,8 +88,12 @@ const (
 // the same file.
 type fileMeta struct {
 	partMeta         []partMeta
-	entryPointName   string
 	entryPointStatus entryPointStatus
+
+	// The path of this entry point relative to the lowest common ancestor
+	// directory containing all entry points. Note: this must have OS-independent
+	// path separators (i.e. '/' not '\').
+	entryPointRelPath string
 
 	// This is the index to the automatically-generated part containing code that
 	// calls "__export(exports, { ... getters ... })". This is used to generate
@@ -232,7 +237,10 @@ type partRef struct {
 }
 
 type chunkMeta struct {
-	name                  string
+	// The path of this chunk relative to the output directory. Note: this must
+	// have OS-independent path separators (i.e. '/' not '\').
+	relPath string
+
 	filesWithPartsInChunk map[uint32]bool
 	entryBits             bitSet
 
@@ -247,7 +255,15 @@ type chunkMeta struct {
 	crossChunkSuffixStmts   []ast.Stmt
 }
 
-func newLinkerContext(options *config.Options, log logging.Log, fs fs.FS, sources []logging.Source, files []file, entryPoints []uint32) linkerContext {
+func newLinkerContext(
+	options *config.Options,
+	log logging.Log,
+	fs fs.FS,
+	sources []logging.Source,
+	files []file,
+	entryPoints []uint32,
+	lcaAbsPath string,
+) linkerContext {
 	// Clone information about symbols and files so we don't mutate the input data
 	c := linkerContext{
 		options:        options,
@@ -259,6 +275,7 @@ func newLinkerContext(options *config.Options, log logging.Log, fs fs.FS, source
 		fileMeta:       make([]fileMeta, len(files)),
 		symbols:        ast.NewSymbolMap(len(files)),
 		reachableFiles: findReachableFiles(sources, files, entryPoints),
+		lcaAbsPath:     lcaAbsPath,
 	}
 
 	// Clone various things since we may mutate them later
@@ -466,6 +483,26 @@ func (c *linkerContext) link() []OutputFile {
 	return outputFiles
 }
 
+func (c *linkerContext) relativePathBetweenChunks(fromChunk *chunkMeta, toRelPath string) string {
+	relPath, ok := c.fs.Rel(c.fs.Dir(fromChunk.relPath), toRelPath)
+	if !ok {
+		c.log.AddError(nil, ast.Loc{},
+			fmt.Sprintf("Cannot traverse from chunk %q to chunk %q", fromChunk.relPath, toRelPath))
+		return ""
+	}
+
+	// Make sure to always use forward slashes, even on Windows
+	relPath = strings.ReplaceAll(relPath, "\\", "/")
+
+	// Make sure the relative path doesn't start with a name, since that could
+	// be interpreted as a package path instead of a relative path
+	if !strings.HasPrefix(relPath, "./") && !strings.HasPrefix(relPath, "../") {
+		relPath = "./" + relPath
+	}
+
+	return relPath
+}
+
 func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 	if len(chunks) < 2 {
 		// No need to compute cross-chunk dependencies if there can't be any
@@ -502,7 +539,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &file.ast.ImportRecords[importRecordIndex]
 					if record.SourceIndex != nil && c.isExternalDynamicImport(record) {
-						record.Path.Text = "./" + c.fileMeta[*record.SourceIndex].entryPointName
+						record.Path.Text = c.relativePathBetweenChunks(&chunk, c.fileMeta[*record.SourceIndex].entryPointRelPath)
 						record.SourceIndex = nil
 					}
 				}
@@ -600,7 +637,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 				importRecordIndex := uint32(len(crossChunkImportRecords))
 				crossChunkImportRecords = append(crossChunkImportRecords, ast.ImportRecord{
 					Kind: ast.ImportStmt,
-					Path: ast.Path{Text: "./" + chunks[crossChunkImport.chunkIndex].name},
+					Path: ast.Path{Text: c.relativePathBetweenChunks(chunk, chunks[crossChunkImport.chunkIndex].relPath)},
 				})
 				if len(items) > 0 {
 					// "import {a, b} from './chunk.js'"
@@ -646,7 +683,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 
 type crossChunkImport struct {
 	chunkIndex          uint32
-	chunkName           string
+	sortingKey          string
 	sortedImportAliases crossChunkAliasArray
 }
 
@@ -657,7 +694,7 @@ func (a crossChunkImportArray) Len() int          { return len(a) }
 func (a crossChunkImportArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 
 func (a crossChunkImportArray) Less(i int, j int) bool {
-	return a[i].chunkName < a[j].chunkName
+	return a[i].sortingKey < a[j].sortingKey
 }
 
 // Sort cross-chunk imports by chunk name for determinism
@@ -667,7 +704,7 @@ func (c *linkerContext) sortedCrossChunkImports(chunks []chunkMeta, importsFromO
 	for otherChunkIndex, importRefs := range importsFromOtherChunks {
 		result = append(result, crossChunkImport{
 			chunkIndex:          otherChunkIndex,
-			chunkName:           chunks[otherChunkIndex].name,
+			sortingKey:          chunks[otherChunkIndex].relPath,
 			sortedImportAliases: c.sortedCrossChunkImportRefs(importRefs),
 		})
 	}
@@ -2023,18 +2060,28 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 
 	// Compute entry point names
 	for i, entryPoint := range c.entryPoints {
-		var entryPointName string
+		var chunkRelPath string
 		if c.options.AbsOutputFile != "" && c.fileMeta[entryPoint].entryPointStatus == entryPointUserSpecified {
-			entryPointName = c.fs.Base(c.options.AbsOutputFile)
+			chunkRelPath = c.fs.Base(c.options.AbsOutputFile)
 		} else {
 			source := c.sources[entryPoint]
-			if source.KeyPath.IsAbsolute {
-				entryPointName = c.stripKnownFileExtension(c.fs.Base(source.KeyPath.Text)) + ".js"
+			if !source.KeyPath.IsAbsolute {
+				chunkRelPath = source.IdentifierName
+			} else if relPath, ok := c.fs.Rel(c.lcaAbsPath, source.KeyPath.Text); ok {
+				chunkRelPath = relPath
 			} else {
-				entryPointName = source.IdentifierName + ".js"
+				chunkRelPath = c.fs.Base(source.KeyPath.Text)
+			}
+
+			// Swap the extension for ".js"
+			ext := c.fs.Ext(chunkRelPath)
+			if ext != ".js" {
+				chunkRelPath = chunkRelPath[:len(chunkRelPath)-len(ext)] + ".js"
 			}
 		}
-		c.fileMeta[entryPoint].entryPointName = entryPointName
+
+		// Always use cross-platform path separators to avoid problems with Windows
+		c.fileMeta[entryPoint].entryPointRelPath = strings.ReplaceAll(chunkRelPath, "\\", "/")
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
@@ -2045,7 +2092,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 			isEntryPoint:          true,
 			sourceIndex:           entryPoint,
 			entryPointBit:         uint(i),
-			name:                  entryPointName,
+			relPath:               chunkRelPath,
 			filesWithPartsInChunk: make(map[uint32]bool),
 		}
 	}
@@ -2064,20 +2111,22 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 				isMultiPart := false
 				for i, entryPoint := range c.entryPoints {
 					if partMeta.entryBits.hasBit(uint(i)) {
-						if chunk.name != "" {
-							chunk.name = c.stripKnownFileExtension(chunk.name) + "_"
+						if chunk.relPath != "" {
+							chunk.relPath += "\x00"
 							isMultiPart = true
 						}
-						chunk.name += c.fileMeta[entryPoint].entryPointName
+						chunk.relPath += c.fileMeta[entryPoint].entryPointRelPath
 					}
 				}
 
 				// Avoid really long automatically-generated chunk names
 				if isMultiPart {
-					bytes := []byte(chunk.name)
+					// Always hash lowercase with forward slashes to avoid OS-specific
+					// path problems, specifically on Windows
+					bytes := []byte(lowerCaseAbsPathForWindows(chunk.relPath))
 					hashBytes := sha1.Sum(bytes)
 					hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
-					chunk.name = "chunk." + hash + ".js"
+					chunk.relPath = "chunk." + hash + ".js"
 				}
 
 				chunk.entryBits = partMeta.entryBits
@@ -2101,15 +2150,6 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		sortedChunks[i] = chunks[key]
 	}
 	return sortedChunks
-}
-
-func (c *linkerContext) stripKnownFileExtension(name string) string {
-	for ext := range c.options.ExtensionToLoader {
-		if strings.HasSuffix(name, ext) {
-			return name[:len(name)-len(ext)]
-		}
-	}
-	return name
 }
 
 type chunkOrder struct {
@@ -2856,7 +2896,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		j.AddString("\n")
 	}
 
-	jsAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.name)
+	jsAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relPath)
 
 	if c.options.SourceMap != config.SourceMapNone {
 		sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)

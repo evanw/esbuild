@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
@@ -296,7 +298,7 @@ func baseNameForAvoidingCollisions(fs fs.FS, keyPath ast.Path, base string) stri
 			// operating system we're on. We want to avoid absolute paths because they
 			// will have different home directories. We also want to avoid path
 			// separators because they are different on Windows.
-			toHash = []byte(strings.ReplaceAll(relPath, "\\", "/"))
+			toHash = []byte(lowerCaseAbsPathForWindows(strings.ReplaceAll(relPath, "\\", "/")))
 		}
 	}
 	if toHash == nil {
@@ -541,6 +543,16 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 		options.OutputFormat = config.FormatESModule
 	}
 
+	// Determine the lowest common ancestor of all entry points
+	entryPointAbsPaths := make([]string, 0, len(b.entryPoints))
+	for _, entryPoint := range b.entryPoints {
+		keyPath := b.sources[entryPoint].KeyPath
+		if keyPath.IsAbsolute {
+			entryPointAbsPaths = append(entryPointAbsPaths, keyPath.Text)
+		}
+	}
+	lcaAbsPath := lowestCommonAncestorDirectory(b.fs, entryPointAbsPaths)
+
 	type linkGroup struct {
 		outputFiles    []OutputFile
 		reachableFiles []uint32
@@ -549,7 +561,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 	var resultGroups []linkGroup
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints)
+		c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints, lcaAbsPath)
 		resultGroups = []linkGroup{{
 			outputFiles:    c.link(),
 			reachableFiles: c.reachableFiles,
@@ -561,7 +573,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint uint32) {
-				c := newLinkerContext(&options, log, b.fs, b.sources, b.files, []uint32{entryPoint})
+				c := newLinkerContext(&options, log, b.fs, b.sources, b.files, []uint32{entryPoint}, lcaAbsPath)
 				resultGroups[i] = linkGroup{
 					outputFiles:    c.link(),
 					reachableFiles: c.reachableFiles,
@@ -623,6 +635,50 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 	}
 
 	return outputFiles
+}
+
+func lowestCommonAncestorDirectory(fs fs.FS, absPaths []string) string {
+	if len(absPaths) == 0 {
+		return ""
+	}
+
+	lowestAbsDir := fs.Dir(absPaths[0])
+
+	for _, absPath := range absPaths[1:] {
+		absDir := fs.Dir(absPath)
+		lastSlash := 0
+		a := 0
+		b := 0
+
+		for {
+			runeA, widthA := utf8.DecodeRuneInString(absDir[a:])
+			runeB, widthB := utf8.DecodeRuneInString(lowestAbsDir[b:])
+			boundaryA := widthA == 0 || runeA == '/' || runeA == '\\'
+			boundaryB := widthB == 0 || runeB == '/' || runeB == '\\'
+
+			if boundaryA && boundaryB {
+				if widthA == 0 || widthB == 0 {
+					// Truncate to the smaller path if one path is a prefix of the other
+					lowestAbsDir = absDir[:a]
+					break
+				} else {
+					// Track the longest common directory so far
+					lastSlash = a
+				}
+			} else if boundaryA != boundaryB || unicode.ToLower(runeA) != unicode.ToLower(runeB) {
+				// If both paths are different at this point, stop and set the lowest so
+				// far to the common parent directory. Compare using a case-insensitive
+				// comparison to handle paths on Windows.
+				lowestAbsDir = absDir[:lastSlash]
+				break
+			}
+
+			a += widthA
+			b += widthB
+		}
+	}
+
+	return lowestAbsDir
 }
 
 func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {

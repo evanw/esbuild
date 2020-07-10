@@ -29,19 +29,19 @@ func TestSplittingSharedES6IntoES6(t *testing.T) {
 		expected: map[string]string{
 			"/out/a.js": `import {
   foo
-} from "./chunk.n2y-pUDL.js";
+} from "./chunk.xL6KqlYO.js";
 
 // /a.js
 console.log(foo);
 `,
 			"/out/b.js": `import {
   foo
-} from "./chunk.n2y-pUDL.js";
+} from "./chunk.xL6KqlYO.js";
 
 // /b.js
 console.log(foo);
 `,
-			"/out/chunk.n2y-pUDL.js": `// /shared.js
+			"/out/chunk.xL6KqlYO.js": `// /shared.js
 let foo = 123;
 
 export {
@@ -75,7 +75,7 @@ func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
 		expected: map[string]string{
 			"/out/a.js": `import {
   require_shared
-} from "./chunk.n2y-pUDL.js";
+} from "./chunk.xL6KqlYO.js";
 
 // /a.js
 const {foo} = require_shared();
@@ -83,13 +83,13 @@ console.log(foo);
 `,
 			"/out/b.js": `import {
   require_shared
-} from "./chunk.n2y-pUDL.js";
+} from "./chunk.xL6KqlYO.js";
 
 // /b.js
 const {foo: foo2} = require_shared();
 console.log(foo2);
 `,
-			"/out/chunk.n2y-pUDL.js": `// /shared.js
+			"/out/chunk.xL6KqlYO.js": `// /shared.js
 var require_shared = __commonJS((exports) => {
   exports.foo = 123;
 });
@@ -185,21 +185,21 @@ func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
 		expected: map[string]string{
 			"/out/entry.js": `import {
   bar
-} from "./chunk.t6dktdAy.js";
+} from "./chunk.-fk8OGuR.js";
 
 // /entry.js
 import("./foo.js").then(({bar: b}) => console.log(bar, b));
 `,
 			"/out/foo.js": `import {
   bar
-} from "./chunk.t6dktdAy.js";
+} from "./chunk.-fk8OGuR.js";
 
 // /foo.js
 export {
   bar
 };
 `,
-			"/out/chunk.t6dktdAy.js": `// /foo.js
+			"/out/chunk.-fk8OGuR.js": `// /foo.js
 let bar = 123;
 
 export {
@@ -231,7 +231,7 @@ func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
 		expected: map[string]string{
 			"/out/entry.js": `import {
   require_foo
-} from "./chunk.t6dktdAy.js";
+} from "./chunk.-fk8OGuR.js";
 
 // /entry.js
 const foo = __toModule(require_foo());
@@ -239,12 +239,12 @@ import("./foo.js").then(({default: {bar: b}}) => console.log(foo.bar, b));
 `,
 			"/out/foo.js": `import {
   require_foo
-} from "./chunk.t6dktdAy.js";
+} from "./chunk.-fk8OGuR.js";
 
 // /foo.js
 export default require_foo();
 `,
-			"/out/chunk.t6dktdAy.js": `// /foo.js
+			"/out/chunk.-fk8OGuR.js": `// /foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
 });
@@ -287,7 +287,7 @@ func TestSplittingAssignToLocal(t *testing.T) {
 			"/out/a.js": `import {
   foo,
   setFoo
-} from "./chunk.n2y-pUDL.js";
+} from "./chunk.xL6KqlYO.js";
 
 // /a.js
 setFoo(123);
@@ -295,12 +295,12 @@ console.log(foo);
 `,
 			"/out/b.js": `import {
   foo
-} from "./chunk.n2y-pUDL.js";
+} from "./chunk.xL6KqlYO.js";
 
 // /b.js
 console.log(foo);
 `,
-			"/out/chunk.n2y-pUDL.js": `// /shared.js
+			"/out/chunk.xL6KqlYO.js": `// /shared.js
 let foo;
 function setFoo(value) {
   foo = value;
@@ -340,7 +340,7 @@ func TestSplittingSideEffectsWithoutDependencies(t *testing.T) {
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
-			"/out/a.js": `import "./chunk.n2y-pUDL.js";
+			"/out/a.js": `import "./chunk.xL6KqlYO.js";
 
 // /shared.js
 let a = 1;
@@ -348,7 +348,7 @@ let a = 1;
 // /a.js
 console.log(a);
 `,
-			"/out/b.js": `import "./chunk.n2y-pUDL.js";
+			"/out/b.js": `import "./chunk.xL6KqlYO.js";
 
 // /shared.js
 let b = 2;
@@ -356,8 +356,59 @@ let b = 2;
 // /b.js
 console.log(b);
 `,
-			"/out/chunk.n2y-pUDL.js": `// /shared.js
+			"/out/chunk.xL6KqlYO.js": `// /shared.js
 console.log("side effect");
+`,
+		},
+	})
+}
+
+func TestSplittingNestedDirectories(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/pages/pageA/page.js": `
+				import x from "../shared.js"
+				console.log(x)
+			`,
+			"/Users/user/project/src/pages/pageB/page.js": `
+				import x from "../shared.js"
+				console.log(-x)
+			`,
+			"/Users/user/project/src/pages/shared.js": `
+				export default 123
+			`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/pages/pageA/page.js",
+			"/Users/user/project/src/pages/pageB/page.js",
+		},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/Users/user/project/out",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out/pageA/page.js": `import {
+  shared_default
+} from "../chunk.UcWke4C2.js";
+
+// /Users/user/project/src/pages/pageA/page.js
+console.log(shared_default);
+`,
+			"/Users/user/project/out/pageB/page.js": `import {
+  shared_default
+} from "../chunk.UcWke4C2.js";
+
+// /Users/user/project/src/pages/pageB/page.js
+console.log(-shared_default);
+`,
+			"/Users/user/project/out/chunk.UcWke4C2.js": `// /Users/user/project/src/pages/shared.js
+var shared_default = 123;
+
+export {
+  shared_default
+};
 `,
 		},
 	})

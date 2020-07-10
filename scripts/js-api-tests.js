@@ -170,6 +170,102 @@ let buildTests = {
     assert.strictEqual(sourceMap.version, 3)
     assert.strictEqual(js, `// scripts/.js-api-tests/writeFalse.js\nconsole.log();\n//# sourceMappingURL=writeFalse-out.js.map\n`)
   },
+
+  async splittingRelativeSameDir({ esbuild }) {
+    const inputA = path.join(testDir, 'splittingRelativeSameDir-a.js')
+    const inputB = path.join(testDir, 'splittingRelativeSameDir-b.js')
+    const inputCommon = path.join(testDir, 'splittingRelativeSameDir-common.js')
+    await util.promisify(fs.writeFile)(inputA, `
+      import x from "./${path.basename(inputCommon)}"
+      console.log('a' + x)
+    `)
+    await util.promisify(fs.writeFile)(inputB, `
+      import x from "./${path.basename(inputCommon)}"
+      console.log('b' + x)
+    `)
+    await util.promisify(fs.writeFile)(inputCommon, `
+      export default 'common'
+    `)
+    const outdir = path.join(testDir, 'splittingRelativeSameDir-out')
+    const value = await esbuild.build({ entryPoints: [inputA, inputB], bundle: true, outdir, format: 'esm', splitting: true, write: false })
+    assert.strictEqual(value.outputFiles.length, 3)
+
+    // These should all use forward slashes, even on Windows
+    assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
+  splittingRelativeSameDir_common_default
+} from "./chunk.4JtreZIq.js";
+
+// scripts/.js-api-tests/splittingRelativeSameDir-a.js
+console.log("a" + splittingRelativeSameDir_common_default);
+`)
+    assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
+  splittingRelativeSameDir_common_default
+} from "./chunk.4JtreZIq.js";
+
+// scripts/.js-api-tests/splittingRelativeSameDir-b.js
+console.log("b" + splittingRelativeSameDir_common_default);
+`)
+    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingRelativeSameDir-common.js
+var splittingRelativeSameDir_common_default = "common";
+
+export {
+  splittingRelativeSameDir_common_default
+};
+`)
+
+    assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.basename(inputA)))
+    assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.basename(inputB)))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.4JtreZIq.js'))
+  },
+
+  async splittingRelativeNestedDir({ esbuild }) {
+    const inputA = path.join(testDir, 'splittingRelativeNestedDir-a/demo.js')
+    const inputB = path.join(testDir, 'splittingRelativeNestedDir-b/demo.js')
+    const inputCommon = path.join(testDir, 'splittingRelativeNestedDir-common.js')
+    await util.promisify(fs.mkdir)(path.dirname(inputA)).catch(x => x)
+    await util.promisify(fs.mkdir)(path.dirname(inputB)).catch(x => x)
+    await util.promisify(fs.writeFile)(inputA, `
+      import x from "../${path.basename(inputCommon)}"
+      console.log('a' + x)
+    `)
+    await util.promisify(fs.writeFile)(inputB, `
+      import x from "../${path.basename(inputCommon)}"
+      console.log('b' + x)
+    `)
+    await util.promisify(fs.writeFile)(inputCommon, `
+      export default 'common'
+    `)
+    const outdir = path.join(testDir, 'splittingRelativeNestedDir-out')
+    const value = await esbuild.build({ entryPoints: [inputA, inputB], bundle: true, outdir, format: 'esm', splitting: true, write: false })
+    assert.strictEqual(value.outputFiles.length, 3)
+
+    // These should all use forward slashes, even on Windows
+    assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
+  splittingRelativeNestedDir_common_default
+} from "../chunk._R_iWKlj.js";
+
+// scripts/.js-api-tests/splittingRelativeNestedDir-a/demo.js
+console.log("a" + splittingRelativeNestedDir_common_default);
+`)
+    assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
+  splittingRelativeNestedDir_common_default
+} from "../chunk._R_iWKlj.js";
+
+// scripts/.js-api-tests/splittingRelativeNestedDir-b/demo.js
+console.log("b" + splittingRelativeNestedDir_common_default);
+`)
+    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingRelativeNestedDir-common.js
+var splittingRelativeNestedDir_common_default = "common";
+
+export {
+  splittingRelativeNestedDir_common_default
+};
+`)
+
+    assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.relative(testDir, inputA)))
+    assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk._R_iWKlj.js'))
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {

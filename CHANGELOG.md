@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+* Output directory may now contain nested directories ([#224](https://github.com/evanw/esbuild/issues/224))
+
+    Note: This is a breaking change if you use multiple entry points from different directories. Output paths may change with this upgrade.
+
+    Previously esbuild would fail to bundle multiple entry points with the same name because all output files were written to the same directory. This can happen if your entry points are in different nested directories like this:
+
+    ```
+    src/
+     ├─ a/
+     │  └─ page.js
+     └─ b/
+        └─ page.js
+    ```
+
+    With this release, esbuild will now generate nested directories in the output directory that mirror the directory structure of the original entry points. This avoids collisions because the output files will now be in separate directories. The directory structure is mirrored relative to the [lowest common ancestor](https://en.wikipedia.org/wiki/Lowest_common_ancestor) among all entry point paths. This is the same behavior as [Parcel](https://github.com/parcel-bundler/parcel) and the TypeScript compiler.
+
 * Silence errors about missing dependencies inside try/catch blocks ([#247](https://github.com/evanw/esbuild/issues/247))
 
     This release makes it easier to use esbuild with libraries such as [debug](npmjs.com/package/debug) which contain a use of `require()` inside a `try`/`catch` statement for a module that isn't listed in its dependencies. Normally you need to mark the library as `--external` to silence this error. However, calling `require()` and catching errors is a common pattern for conditionally importing an unknown module, so now esbuild automatically treats the missing module as external in these cases.
