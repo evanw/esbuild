@@ -7612,6 +7612,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					}
 
 					importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, lexer.UTF16ToString(str.Value))
+					p.importRecords[importRecordIndex].IsInsideTryBody = p.tryBodyCount != 0
 					p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 					// Create a new expression to represent the operation

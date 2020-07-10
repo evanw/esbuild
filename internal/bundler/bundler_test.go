@@ -2721,6 +2721,42 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 	})
 }
 
+// Test a workaround for the "debug" library
+func TestRequireWithCallInsideTry(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				try {
+					const supportsColor = require('supports-color');
+					if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
+						exports.colors = [];
+					}
+				} catch (error) {
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+var require_entry = __commonJS((exports) => {
+  try {
+    const supportsColor = require("supports-color");
+    if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
+      exports.colors = [];
+    }
+  } catch (error) {
+  }
+});
+export default require_entry();
+`,
+		},
+	})
+}
+
 // Test a workaround for the "moment" library
 func TestRequireWithoutCallInsideTry(t *testing.T) {
 	expectBundled(t, bundled{

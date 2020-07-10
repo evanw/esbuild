@@ -245,8 +245,14 @@ func parseFile(args parseArgs) {
 				// Run the resolver and log an error if the path couldn't be resolved
 				resolveResult := args.res.Resolve(source.KeyPath, record.Path.Text)
 				if resolveResult == nil {
-					r := source.RangeOfString(record.Loc)
-					args.log.AddRangeError(&source, r, fmt.Sprintf("Could not resolve %q", record.Path.Text))
+					// Failed imports inside a try/catch are silently turned into
+					// external imports instead of causing errors. This matches a common
+					// code pattern for conditionally importing a module with a graceful
+					// fallback.
+					if !record.IsInsideTryBody {
+						r := source.RangeOfString(record.Loc)
+						args.log.AddRangeError(&source, r, fmt.Sprintf("Could not resolve %q", record.Path.Text))
+					}
 					continue
 				}
 

@@ -1231,6 +1231,10 @@ type ImportRecord struct {
 	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
 	WrapWithToModule bool
 
+	// True for require calls like this: "try { require() } catch {}". In this
+	// case we shouldn't generate an error if the path could not be resolved.
+	IsInsideTryBody bool
+
 	Kind ImportKind
 }
 
