@@ -1,7 +1,10 @@
 package config
 
 import (
+	"regexp"
+
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 type LanguageTarget int8
@@ -58,6 +61,7 @@ const (
 	LoaderFile
 	LoaderBinary
 	LoaderCSS
+	LoaderDefault
 )
 
 func (loader Loader) IsTypeScript() bool {
@@ -143,6 +147,48 @@ const (
 	ModeBundle
 )
 
+type ResolverPlugin struct {
+	Name      string
+	Filter    *regexp.Regexp
+	Namespace string
+	Callback  func(ResolverArgs) ResolverResult
+}
+
+type ResolverArgs struct {
+	Path       string
+	Importer   logger.Path
+	ResolveDir string
+}
+
+type ResolverResult struct {
+	Path      logger.Path
+	External  bool
+	Namespace string
+
+	Msgs        []logger.Msg
+	ThrownError error
+}
+
+type LoaderPlugin struct {
+	Name      string
+	Filter    *regexp.Regexp
+	Namespace string
+	Callback  func(LoaderArgs) LoaderResult
+}
+
+type LoaderArgs struct {
+	Path logger.Path
+}
+
+type LoaderResult struct {
+	Contents      *string
+	AbsResolveDir string
+	Loader        Loader
+
+	Msgs        []logger.Msg
+	ThrownError error
+}
+
 type Options struct {
 	Mode              Mode
 	RemoveWhitespace  bool
@@ -193,6 +239,9 @@ type Options struct {
 	PublicPath        string
 	InjectAbsPaths    []string
 	InjectedFiles     []InjectedFile
+
+	ResolverPlugins []ResolverPlugin
+	LoaderPlugins   []LoaderPlugin
 
 	// If present, metadata about the bundle is written as JSON here
 	AbsMetadataFile string

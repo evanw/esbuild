@@ -1,6 +1,6 @@
 export type Platform = 'browser' | 'node';
 export type Format = 'iife' | 'cjs' | 'esm';
-export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary';
+export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary' | 'default';
 export type LogLevel = 'info' | 'warning' | 'error' | 'silent';
 export type Charset = 'ascii' | 'utf8';
 
@@ -47,6 +47,7 @@ export interface BuildOptions extends CommonOptions {
 
   entryPoints?: string[];
   stdin?: StdinOptions;
+  plugins: ((plugin: Plugin) => void)[];
 }
 
 export interface StdinOptions {
@@ -63,6 +64,7 @@ export interface Message {
 
 export interface Location {
   file: string;
+  namespace: string;
   line: number; // 1-based
   column: number; // 0-based, in bytes
   length: number; // in bytes
@@ -107,6 +109,58 @@ export interface TransformResult {
 export interface TransformFailure extends Error {
   errors: Message[];
   warnings: Message[];
+}
+
+export interface Plugin {
+  setName(name: string): void;
+  addResolver(options: ResolverOptions, callback: (args: ResolverArgs) =>
+    (ResolverResult | null | undefined | Promise<ResolverResult | null | undefined>)): void;
+  addLoader(options: LoaderOptions, callback: (args: LoaderArgs) =>
+    (LoaderResult | null | undefined | Promise<LoaderResult | null | undefined>)): void;
+}
+
+export interface ResolverOptions {
+  filter: RegExp;
+  namespace?: string;
+}
+
+export interface ResolverArgs {
+  path: string;
+  importer: string;
+  namespace: string;
+  resolveDir: string;
+}
+
+export interface ResolverResult {
+  errors?: PartialMessage[];
+  warnings?: PartialMessage[];
+
+  path?: string;
+  external?: boolean;
+  namespace?: string;
+}
+
+export interface LoaderOptions {
+  filter: RegExp;
+  namespace?: string;
+}
+
+export interface LoaderArgs {
+  path: string;
+}
+
+export interface LoaderResult {
+  errors?: PartialMessage[];
+  warnings?: PartialMessage[];
+
+  contents?: string | Uint8Array;
+  resolveDir?: string;
+  loader?: Loader;
+}
+
+export interface PartialMessage {
+  text?: string;
+  location?: Partial<Location> | null;
 }
 
 // This is the type information for the "metafile" JSON format
