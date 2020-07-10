@@ -54,9 +54,6 @@ Advanced options:
   --strict                  Transforms handle edge cases but have more overhead
   --pure=N                  Mark the name N as a pure function for tree shaking
 
-  --trace=...           Write a CPU trace to this file
-  --cpuprofile=...      Write a CPU profile to this file
-
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
   esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
