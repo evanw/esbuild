@@ -1,7 +1,7 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
 esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
-	go build ./cmd/esbuild
+	go build "-ldflags=-s -w" ./cmd/esbuild
 
 # These tests are for development
 test:
@@ -49,13 +49,13 @@ platform-all: update-version-go test-all
 
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS=windows GOARCH=amd64 go build -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
+	GOOS=windows GOARCH=amd64 go build "-ldflags=-s -w" -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
 platform-unixlike:
 	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"
 	mkdir -p "$(NPMDIR)/bin"
 	cd "$(NPMDIR)" && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+	GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build "-ldflags=-s -w" -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
 
 platform-darwin:
 	make GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
