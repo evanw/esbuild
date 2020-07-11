@@ -39,7 +39,15 @@ export interface BuildOptions extends CommonOptions {
   resolveExtensions?: string[];
   write?: boolean;
 
-  entryPoints: string[];
+  entryPoints?: string[];
+  stdin?: StdinOptions;
+}
+
+export interface StdinOptions {
+  contents: string;
+  resolveDir?: string;
+  sourcefile?: string;
+  loader?: Loader;
 }
 
 export interface Message {

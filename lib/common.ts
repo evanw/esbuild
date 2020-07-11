@@ -31,8 +31,10 @@ function pushCommonFlags(flags: string[], options: types.CommonOptions, isTTY: b
   flags.push(`--error-limit=${options.errorLimit || 0}`);
 }
 
-function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): string[] {
+function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [string[], string | null, string | null] {
   let flags: string[] = [];
+  let stdinContents: string | null = null;
+  let stdinResolveDir: string | null = null;
   pushCommonFlags(flags, options, isTTY, 'info');
 
   if (options.sourcemap) flags.push(`--sourcemap${options.sourcemap === true ? '' : `=${options.sourcemap}`}`);
@@ -48,12 +50,22 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): stri
   if (options.external) for (let name of options.external) flags.push(`--external:${name}`);
   if (options.loader) for (let ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
 
-  for (let entryPoint of options.entryPoints) {
-    if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
-    flags.push(entryPoint);
+  if (options.entryPoints) {
+    for (let entryPoint of options.entryPoints) {
+      if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
+      flags.push(entryPoint);
+    }
   }
 
-  return flags;
+  if (options.stdin) {
+    let { contents, resolveDir, sourcefile, loader } = options.stdin;
+    if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
+    if (loader) flags.push(`--loader=${loader}`);
+    if (resolveDir) stdinResolveDir = resolveDir + '';
+    stdinContents = contents ? contents + '' : '';
+  }
+
+  return [flags, stdinContents, stdinResolveDir];
 }
 
 function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolean): string[] {
@@ -178,10 +190,10 @@ export function createChannel(options: StreamIn): StreamOut {
 
     service: {
       build(options, isTTY, callback) {
-        let flags = flagsForBuildOptions(options, isTTY);
+        let [flags, stdin, resolveDir] = flagsForBuildOptions(options, isTTY);
         let write = options.write !== false;
         sendRequest<protocol.BuildRequest, protocol.BuildResponse>(
-          ['build', { flags, write }],
+          ['build', { flags, write, stdin, resolveDir }],
           (error, response) => {
             if (error) return callback(new Error(error), null);
             let errors = response!.errors;

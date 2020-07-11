@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -175,8 +176,13 @@ func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) 
 func (service *serviceType) handleBuildRequest(id uint32, request map[string]interface{}) []byte {
 	write := request["write"].(bool)
 	flags := decodeStringArray(request["flags"].([]interface{}))
+	stdin, hasStdin := request["stdin"].(string)
+	resolveDir, hasResolveDir := request["resolveDir"].(string)
 
 	options, err := cli.ParseBuildOptions(flags)
+	if err == nil && write && options.Outfile == "" && options.Outdir == "" {
+		err = errors.New("Either provide \"outfile\" or set \"write\" to false")
+	}
 	if err != nil {
 		return encodePacket(packet{
 			id: id,
@@ -184,6 +190,17 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 				"error": err.Error(),
 			},
 		})
+	}
+
+	// Optionally allow input from the stdin channel
+	if hasStdin {
+		if options.Stdin == nil {
+			options.Stdin = &api.StdinOptions{}
+		}
+		options.Stdin.Contents = stdin
+		if hasResolveDir {
+			options.Stdin.ResolveDir = resolveDir
+		}
 	}
 
 	result := api.Build(options)

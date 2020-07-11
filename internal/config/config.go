@@ -113,9 +113,10 @@ func (f Format) KeepES6ImportExportSyntax() bool {
 }
 
 type StdinInfo struct {
-	Loader     Loader
-	Contents   string
-	SourceFile string
+	Loader        Loader
+	Contents      string
+	SourceFile    string
+	AbsResolveDir string
 }
 
 type ExternalModules struct {

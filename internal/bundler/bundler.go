@@ -70,6 +70,11 @@ type parseArgs struct {
 	pathRange    ast.Range
 	options      config.Options
 	results      chan parseResult
+
+	// If non-empty, this provides a fallback directory to resolve imports
+	// against for virtual source files (i.e. those with no file system path).
+	// This is used for stdin, for example.
+	absResolveDir string
 }
 
 type parseResult struct {
@@ -236,6 +241,17 @@ func parseFile(args parseArgs) {
 	if result.ok && args.options.IsBundling {
 		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
 
+		// Resolve relative to the parent directory of the source file with the
+		// import path. Just use the current directory if the source file is virtual.
+		var sourceDir string
+		if source.KeyPath.IsAbsolute {
+			sourceDir = args.fs.Dir(source.KeyPath.Text)
+		} else if args.absResolveDir != "" {
+			sourceDir = args.absResolveDir
+		} else {
+			sourceDir = args.fs.Cwd()
+		}
+
 		for _, part := range result.file.ast.Parts {
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				// Don't try to resolve imports that are already resolved
@@ -245,7 +261,7 @@ func parseFile(args parseArgs) {
 				}
 
 				// Run the resolver and log an error if the path couldn't be resolved
-				resolveResult := args.res.Resolve(source.KeyPath, record.Path.Text)
+				resolveResult := args.res.Resolve(sourceDir, record.Path.Text)
 				if resolveResult == nil {
 					// Failed imports inside a try/catch are silently turned into
 					// external imports instead of causing errors. This matches a common
@@ -338,12 +354,21 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		}()
 	}
 
+	type inputKind uint8
+
+	const (
+		inputKindNormal inputKind = iota
+		inputKindEntryPoint
+		inputKindStdin
+	)
+
 	maybeParseFile := func(
 		resolveResult resolver.ResolveResult,
 		prettyPath string,
 		importSource *logging.Source,
 		pathRange ast.Range,
-		isEntryPoint bool,
+		absResolveDir string,
+		kind inputKind,
 	) uint32 {
 		visitedKey := resolveResult.Path.Text
 		if resolveResult.Path.IsAbsolute {
@@ -356,26 +381,31 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 			sources = append(sources, logging.Source{})
 			files = append(files, file{})
 			flags := parseFlags{
-				isEntryPoint:      isEntryPoint,
+				isEntryPoint:      kind == inputKindEntryPoint,
 				ignoreIfUnused:    resolveResult.IgnoreIfUnused,
 				jsxFactory:        resolveResult.JSXFactory,
 				jsxFragment:       resolveResult.JSXFragment,
 				strictClassFields: resolveResult.StrictClassFields,
 			}
 			remaining++
+			optionsClone := options
+			if kind != inputKindStdin {
+				optionsClone.Stdin = nil
+			}
 			go parseFile(parseArgs{
-				fs:           fs,
-				log:          log,
-				res:          res,
-				keyPath:      resolveResult.Path,
-				prettyPath:   prettyPath,
-				baseName:     fs.Base(resolveResult.Path.Text),
-				sourceIndex:  sourceIndex,
-				importSource: importSource,
-				flags:        flags,
-				pathRange:    pathRange,
-				options:      options,
-				results:      results,
+				fs:            fs,
+				log:           log,
+				res:           res,
+				keyPath:       resolveResult.Path,
+				prettyPath:    prettyPath,
+				baseName:      fs.Base(resolveResult.Path.Text),
+				sourceIndex:   sourceIndex,
+				importSource:  importSource,
+				flags:         flags,
+				pathRange:     pathRange,
+				options:       optionsClone,
+				results:       results,
+				absResolveDir: absResolveDir,
 			})
 		}
 		return sourceIndex
@@ -384,6 +414,14 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 	entryPoints := []uint32{}
 	duplicateEntryPoints := make(map[string]bool)
 
+	// Treat stdin as an extra entry point
+	if options.Stdin != nil {
+		resolveResult := resolver.ResolveResult{Path: ast.Path{Text: "<stdin>"}}
+		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, ast.Range{}, options.Stdin.AbsResolveDir, inputKindStdin)
+		entryPoints = append(entryPoints, sourceIndex)
+	}
+
+	// Add any remaining entry points
 	for _, absPath := range entryPaths {
 		prettyPath := res.PrettyPath(absPath)
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
@@ -401,7 +439,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 			continue
 		}
 
-		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, ast.Range{}, true /*isEntryPoint*/)
+		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, ast.Range{}, "", inputKindEntryPoint)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -441,7 +479,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 							prettyPath = res.PrettyPath(prettyPath)
 						}
 						pathRange := source.RangeOfString(record.Loc)
-						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &source, pathRange, false /*isEntryPoint*/)
+						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &source, pathRange, "", inputKindNormal)
 						record.SourceIndex = &sourceIndex
 
 						// Generate metadata about each import

@@ -94,8 +94,15 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 			hasBareSourceMapFlag = false
 
-		case strings.HasPrefix(arg, "--sourcefile=") && transformOpts != nil:
-			transformOpts.Sourcefile = arg[len("--sourcefile="):]
+		case strings.HasPrefix(arg, "--sourcefile="):
+			if buildOpts != nil {
+				if buildOpts.Stdin == nil {
+					buildOpts.Stdin = &api.StdinOptions{}
+				}
+				buildOpts.Stdin.Sourcefile = arg[len("--sourcefile="):]
+			} else {
+				transformOpts.Sourcefile = arg[len("--sourcefile="):]
+			}
 
 		case strings.HasPrefix(arg, "--resolve-extensions=") && buildOpts != nil:
 			buildOpts.ResolveExtensions = strings.Split(arg[len("--resolve-extensions="):], ",")
@@ -145,7 +152,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 			buildOpts.Loaders[ext] = loader
 
-		case strings.HasPrefix(arg, "--loader=") && transformOpts != nil:
+		case strings.HasPrefix(arg, "--loader="):
 			value := arg[len("--loader="):]
 			loader, err := parseLoader(value)
 			if err != nil {
@@ -154,7 +161,14 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			if loader == api.LoaderFile {
 				return fmt.Errorf("Cannot transform using the \"file\" loader")
 			}
-			transformOpts.Loader = loader
+			if buildOpts != nil {
+				if buildOpts.Stdin == nil {
+					buildOpts.Stdin = &api.StdinOptions{}
+				}
+				buildOpts.Stdin.Loader = loader
+			} else {
+				transformOpts.Loader = loader
+			}
 
 		case strings.HasPrefix(arg, "--target="):
 			target, engines, err := parseTargets(strings.Split(arg[len("--target="):], ","))
@@ -395,9 +409,9 @@ func parseLoader(text string) (api.Loader, error) {
 
 // This returns either BuildOptions, TransformOptions, or an error
 func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *api.TransformOptions, error) {
-	// If there's an entry point, then we're building
+	// If there's an entry point or we're bundling, then we're building
 	for _, arg := range osArgs {
-		if !strings.HasPrefix(arg, "-") {
+		if !strings.HasPrefix(arg, "-") || arg == "--bundle" {
 			options := newBuildOptions()
 
 			// Apply defaults appropriate for the CLI
@@ -434,6 +448,29 @@ func runImpl(osArgs []string) int {
 
 	switch {
 	case buildOptions != nil:
+		// Read from stdin when there are no entry points
+		if len(buildOptions.EntryPoints) == 0 {
+			if buildOptions.Stdin == nil {
+				buildOptions.Stdin = &api.StdinOptions{}
+			}
+			bytes, err := ioutil.ReadAll(os.Stdin)
+			if err != nil {
+				logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+					"Could not read from stdin: %s", err.Error()))
+				return 1
+			}
+			buildOptions.Stdin.Contents = string(bytes)
+		} else if buildOptions.Stdin != nil {
+			if buildOptions.Stdin.Sourcefile != "" {
+				logging.PrintErrorToStderr(osArgs,
+					"\"sourcefile\" only applies when reading from stdin")
+			} else {
+				logging.PrintErrorToStderr(osArgs,
+					"\"loader\" without extension only applies when reading from stdin")
+			}
+			return 1
+		}
+
 		// Run the build and stop if there were errors
 		result := api.Build(*buildOptions)
 		if len(result.Errors) > 0 {

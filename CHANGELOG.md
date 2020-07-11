@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+* Allow bundling with stdin as input ([#212](https://github.com/evanw/esbuild/issues/212))
+
+    You can now use `--bundle` without providing any input files and the input will come from stdin instead. Use `--sourcefile=...` to set the name of the input file for error messages and source maps. Dependencies of the input file will be resolved relative to the current working directory.
+
+    ```
+    # These two commands are now basically equivalent
+    esbuild --bundle example.js
+    esbuild --bundle < example.js --sourcefile=example.js
+    ```
+
+    This option has also been added to the JavaScript and Go APIs. If needed, you can customize the resolve directory with the `resolveDir` option:
+
+    ```js
+    const {outputFiles: [stdout]} = await build({
+      stdin: {
+        contents: `
+          import {version} from './package.json'
+          console.log(version as string)
+        `,
+        sourcefile: 'example.ts',
+        resolveDir: __dirname,
+        loader: 'ts',
+      },
+      bundle: true,
+      write: false,
+    })
+    console.log(stdout)
+    ```
+
 ## 0.6.0
 
 * Output directory may now contain nested directories ([#224](https://github.com/evanw/esbuild/issues/224))

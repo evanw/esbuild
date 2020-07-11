@@ -412,8 +412,18 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	for i, entryPoint := range buildOpts.EntryPoints {
 		entryPaths[i] = validatePath(log, realFS, entryPoint)
 	}
+	entryPathCount := len(buildOpts.EntryPoints)
+	if buildOpts.Stdin != nil {
+		entryPathCount++
+		options.Stdin = &config.StdinInfo{
+			Loader:        validateLoader(buildOpts.Stdin.Loader),
+			Contents:      buildOpts.Stdin.Contents,
+			SourceFile:    buildOpts.Stdin.Sourcefile,
+			AbsResolveDir: validatePath(log, realFS, buildOpts.Stdin.ResolveDir),
+		}
+	}
 
-	if options.AbsOutputDir == "" && len(entryPaths) > 1 {
+	if options.AbsOutputDir == "" && entryPathCount > 1 {
 		log.AddError(nil, ast.Loc{},
 			"Must use \"outdir\" when there are multiple input files")
 	} else if options.AbsOutputDir == "" && options.CodeSplitting {
@@ -485,6 +495,9 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 			// Return the results
 			outputFiles = make([]OutputFile, len(results))
 			for i, result := range results {
+				if options.WriteToStdout {
+					result.AbsPath = "<stdout>"
+				}
 				outputFiles[i] = OutputFile{
 					Path:     result.AbsPath,
 					Contents: result.Contents,
@@ -551,9 +564,9 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	// Stop now if there were errors
 	if !log.HasErrors() {
 		// Scan over the bundle
-		mockFS := fs.MockFS(map[string]string{transformOpts.Sourcefile: input})
+		mockFS := fs.MockFS(make(map[string]string))
 		resolver := resolver.NewResolver(mockFS, log, options)
-		bundle := bundler.ScanBundle(log, mockFS, resolver, []string{transformOpts.Sourcefile}, options)
+		bundle := bundler.ScanBundle(log, mockFS, resolver, nil, options)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {

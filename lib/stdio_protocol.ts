@@ -8,6 +8,8 @@ import * as types from "./types";
 export interface BuildRequest {
   flags: string[];
   write: boolean;
+  stdin: string | null;
+  resolveDir: string | null;
 }
 
 export interface BuildResponse {

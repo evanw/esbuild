@@ -219,6 +219,14 @@ type BuildOptions struct {
 	ResolveExtensions []string
 
 	EntryPoints []string
+	Stdin       *StdinOptions
+}
+
+type StdinOptions struct {
+	Contents   string
+	ResolveDir string
+	Sourcefile string
+	Loader     Loader
 }
 
 type BuildResult struct {

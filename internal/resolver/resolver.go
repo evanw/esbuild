@@ -30,7 +30,7 @@ type ResolveResult struct {
 }
 
 type Resolver interface {
-	Resolve(sourcePath ast.Path, importPath string) *ResolveResult
+	Resolve(sourceDir string, importPath string) *ResolveResult
 	ResolveAbs(absPath string) *ResolveResult
 	Read(path string) (string, bool)
 	PrettyPath(path string) string
@@ -70,12 +70,8 @@ func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourcePath ast.Path, importPath string) *ResolveResult {
-	if !sourcePath.IsAbsolute {
-		return nil
-	}
-
-	path, isExternal := r.resolveWithoutSymlinks(sourcePath.Text, importPath)
+func (r *resolver) Resolve(sourceDir string, importPath string) *ResolveResult {
+	path, isExternal := r.resolveWithoutSymlinks(sourceDir, importPath)
 	if path == nil {
 		return nil
 	}
@@ -130,13 +126,10 @@ func (r *resolver) finalizeResolve(path ast.Path, isExternal bool) *ResolveResul
 	return &result
 }
 
-func (r *resolver) resolveWithoutSymlinks(sourcePath string, importPath string) (path *ast.Path, isExternal bool) {
+func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (path *ast.Path, isExternal bool) {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	result := ""
-
-	// Get the cached information for this directory and all parent directories
-	sourceDir := r.fs.Dir(sourcePath)
 
 	if !IsPackagePath(importPath) {
 		pathText := importPath

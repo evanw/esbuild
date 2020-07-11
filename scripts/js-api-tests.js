@@ -307,6 +307,82 @@ export {
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
     assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk._R_iWKlj.js'))
   },
+
+  async stdinStdoutBundle({ esbuild }) {
+    const aux = path.join(testDir, 'stdinStdoutBundle-aux.js')
+    await writeFileAsync(aux, 'export default 123')
+    const value = await esbuild.build({
+      stdin: {
+        contents: `
+          import x from './stdinStdoutBundle-aux.js'
+          console.log(x)
+        `,
+        resolveDir: testDir,
+      },
+      bundle: true,
+      write: false,
+    })
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].path, '<stdout>')
+    assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `(() => {
+  // scripts/.js-api-tests/stdinStdoutBundle-aux.js
+  var stdinStdoutBundle_aux_default = 123;
+
+  // <stdin>
+  console.log(stdinStdoutBundle_aux_default);
+})();
+`)
+  },
+
+  async stdinOutfileBundle({ esbuild }) {
+    const aux = path.join(testDir, 'stdinOutfileBundle-aux.js')
+    const outfile = path.join(testDir, 'stdinOutfileBundle-out.js')
+    await writeFileAsync(aux, 'export default 123')
+    const value = await esbuild.build({
+      stdin: {
+        contents: `
+          import x from './stdinOutfileBundle-aux.js'
+          export {x as fromStdin}
+        `,
+        resolveDir: testDir,
+      },
+      bundle: true,
+      outfile,
+      format: 'cjs',
+    })
+    assert.strictEqual(value.outputFiles, void 0)
+    const result = require(outfile)
+    assert.strictEqual(result.fromStdin, 123)
+  },
+
+  async stdinAndEntryBundle({ esbuild }) {
+    const entry = path.join(testDir, 'stdinAndEntryBundle-entry.js')
+    const aux = path.join(testDir, 'stdinAndEntryBundle-aux.js')
+    const outdir = path.join(testDir, 'stdinAndEntryBundle-out')
+    await writeFileAsync(aux, 'export default 123')
+    await writeFileAsync(entry, `
+      import x from './stdinAndEntryBundle-aux.js'
+      export let fromEntry = x
+    `)
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      stdin: {
+        contents: `
+          import x from './${path.relative(process.cwd(), aux)}'
+          export {x as fromStdin}
+        `,
+        sourcefile: 'der',
+      },
+      bundle: true,
+      outdir,
+      format: 'cjs',
+    })
+    assert.strictEqual(value.outputFiles, void 0)
+    const entryResult = require(path.join(outdir, path.basename(entry)))
+    assert.strictEqual(entryResult.fromEntry, 123)
+    const stdinResult = require(path.join(outdir, path.basename('stdin.js')))
+    assert.strictEqual(stdinResult.fromStdin, 123)
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {
