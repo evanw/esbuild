@@ -6,6 +6,10 @@ const rimraf = require('rimraf')
 const path = require('path')
 const util = require('util')
 const fs = require('fs')
+
+const readFileAsync = util.promisify(fs.readFile)
+const writeFileAsync = util.promisify(fs.writeFile)
+
 const testDir = path.join(__dirname, '.verify-source-map')
 let tempDirCount = 0
 
@@ -101,7 +105,7 @@ async function check(kind, testCase, toSearch, flags) {
       if (name !== '<stdin>') {
         const tempPath = path.join(tempDir, name)
         mkdirp.sync(path.dirname(tempPath))
-        await util.promisify(fs.writeFile)(tempPath, testCase[name])
+        await writeFileAsync(tempPath, testCase[name])
       }
     }
 
@@ -131,9 +135,9 @@ async function check(kind, testCase, toSearch, flags) {
     }
 
     else {
-      outJs = await util.promisify(fs.readFile)(path.join(tempDir, 'out.js'), 'utf8')
+      outJs = await readFileAsync(path.join(tempDir, 'out.js'), 'utf8')
       recordCheck(outJs.includes(`//# sourceMappingURL=out.js.map\n`), `.js file links to .js.map`)
-      outJsMap = await util.promisify(fs.readFile)(path.join(tempDir, 'out.js.map'), 'utf8')
+      outJsMap = await readFileAsync(path.join(tempDir, 'out.js.map'), 'utf8')
     }
 
     const map = await new SourceMapConsumer(outJsMap)

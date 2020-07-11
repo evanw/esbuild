@@ -21,6 +21,11 @@
   const util = await import('util')
   const url = await import('url')
   const fs = await import('fs')
+
+  const symlinkAsync = util.promisify(fs.symlink)
+  const writeFileAsync = util.promisify(fs.writeFile)
+  const execFileAsync = util.promisify(childProcess.execFile)
+
   const testDir = path.join(dirname, '.end-to-end-tests')
   const esbuildPath = buildBinary()
   const tests = []
@@ -788,12 +793,12 @@
             mkdirp.sync(path.dirname(filePath))
 
             // Optionally symlink the file if the test requests it
-            if (contents.symlink) await util.promisify(fs.symlink)(contents.symlink, filePath)
-            else await util.promisify(fs.writeFile)(filePath, contents)
+            if (contents.symlink) await symlinkAsync(contents.symlink, filePath)
+            else await writeFileAsync(filePath, contents)
           }
 
           // Run esbuild
-          await util.promisify(childProcess.execFile)(esbuildPath, modifiedArgs,
+          await execFileAsync(esbuildPath, modifiedArgs,
             { cwd: thisTestDir, stdio: 'pipe' })
 
           // Run the resulting node.js file and make sure it exits cleanly. The
@@ -804,12 +809,12 @@
           let testExports
           switch (format) {
             case 'cjs':
-              await util.promisify(fs.writeFile)(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
+              await writeFileAsync(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
               testExports = (await import(url.pathToFileURL(`${nodePath}.js`))).default
               break
 
             case 'esm':
-              await util.promisify(fs.writeFile)(path.join(thisTestDir, 'package.json'), '{"type": "module"}')
+              await writeFileAsync(path.join(thisTestDir, 'package.json'), '{"type": "module"}')
               testExports = await import(url.pathToFileURL(`${nodePath}.js`))
               break
           }
@@ -847,11 +852,11 @@
       try {
         mkdirp.sync(thisTestDir)
         const inputFile = path.join(thisTestDir, 'example.js')
-        await util.promisify(fs.writeFile)(inputFile, input)
+        await writeFileAsync(inputFile, input)
 
         // Run whatever check the caller is doing
         await callback(async () => {
-          const { stdout } = await util.promisify(childProcess.execFile)(
+          const { stdout } = await execFileAsync(
             esbuildPath, [inputFile].concat(args), { cwd: thisTestDir, stdio: 'pipe' })
           return stdout
         })

@@ -6,6 +6,10 @@ const path = require('path')
 const util = require('util')
 const fs = require('fs')
 
+const readFileAsync = util.promisify(fs.readFile)
+const writeFileAsync = util.promisify(fs.writeFile)
+const mkdirAsync = util.promisify(fs.mkdir)
+
 const repoDir = path.dirname(__dirname)
 const testDir = path.join(repoDir, 'scripts', '.js-api-tests')
 
@@ -13,7 +17,7 @@ let buildTests = {
   async es6_to_cjs({ esbuild }) {
     const input = path.join(testDir, 'es6_to_cjs-in.js')
     const output = path.join(testDir, 'es6_to_cjs-out.js')
-    await util.promisify(fs.writeFile)(input, 'export default 123')
+    await writeFileAsync(input, 'export default 123')
     const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     assert.strictEqual(value.outputFiles, void 0)
     const result = require(output)
@@ -25,7 +29,7 @@ let buildTests = {
   async recursiveMkdir({ esbuild }) {
     const input = path.join(testDir, 'recursiveMkdir-in.js')
     const output = path.join(testDir, 'a/b/c/d/recursiveMkdir-out.js')
-    await util.promisify(fs.writeFile)(input, 'export default 123')
+    await writeFileAsync(input, 'export default 123')
     await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     const result = require(output)
     assert.strictEqual(result.default, 123)
@@ -35,14 +39,14 @@ let buildTests = {
   async sourceMap({ esbuild }) {
     const input = path.join(testDir, 'sourceMap-in.js')
     const output = path.join(testDir, 'sourceMap-out.js')
-    await util.promisify(fs.writeFile)(input, 'exports.foo = 123')
+    await writeFileAsync(input, 'exports.foo = 123')
     await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
-    const outputFile = await util.promisify(fs.readFile)(output, 'utf8')
+    const outputFile = await readFileAsync(output, 'utf8')
     const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
     assert.strictEqual(match[1], 'sourceMap-out.js.map')
-    const resultMap = await util.promisify(fs.readFile)(output + '.map', 'utf8')
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
     const json = JSON.parse(resultMap)
     assert.strictEqual(json.version, 3)
   },
@@ -50,14 +54,14 @@ let buildTests = {
   async sourceMapExternal({ esbuild }) {
     const input = path.join(testDir, 'sourceMapExternal-in.js')
     const output = path.join(testDir, 'sourceMapExternal-out.js')
-    await util.promisify(fs.writeFile)(input, 'exports.foo = 123')
+    await writeFileAsync(input, 'exports.foo = 123')
     await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'external' })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
-    const outputFile = await util.promisify(fs.readFile)(output, 'utf8')
+    const outputFile = await readFileAsync(output, 'utf8')
     const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
     assert.strictEqual(match, null)
-    const resultMap = await util.promisify(fs.readFile)(output + '.map', 'utf8')
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
     const json = JSON.parse(resultMap)
     assert.strictEqual(json.version, 3)
   },
@@ -65,11 +69,11 @@ let buildTests = {
   async sourceMapInline({ esbuild }) {
     const input = path.join(testDir, 'sourceMapInline-in.js')
     const output = path.join(testDir, 'sourceMapInline-out.js')
-    await util.promisify(fs.writeFile)(input, 'exports.foo = 123')
+    await writeFileAsync(input, 'exports.foo = 123')
     await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'inline' })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
-    const outputFile = await util.promisify(fs.readFile)(output, 'utf8')
+    const outputFile = await readFileAsync(output, 'utf8')
     const match = /\/\/# sourceMappingURL=data:application\/json;base64,(.*)/.exec(outputFile)
     const json = JSON.parse(Buffer.from(match[1], 'base64').toString())
     assert.strictEqual(json.version, 3)
@@ -80,9 +84,9 @@ let buildTests = {
     const inputBare = path.join(testDir, 'resolveExtensionOrder-module.js')
     const inputSomething = path.join(testDir, 'resolveExtensionOrder-module.something.js')
     const output = path.join(testDir, 'resolveExtensionOrder-out.js')
-    await util.promisify(fs.writeFile)(input, 'exports.result = require("./resolveExtensionOrder-module").foo')
-    await util.promisify(fs.writeFile)(inputBare, 'exports.foo = 321')
-    await util.promisify(fs.writeFile)(inputSomething, 'exports.foo = 123')
+    await writeFileAsync(input, 'exports.result = require("./resolveExtensionOrder-module").foo')
+    await writeFileAsync(inputBare, 'exports.foo = 321')
+    await writeFileAsync(inputSomething, 'exports.foo = 123')
     await esbuild.build({
       entryPoints: [input],
       outfile: output,
@@ -99,13 +103,13 @@ let buildTests = {
     const text = path.join(testDir, 'metafile-text.txt')
     const output = path.join(testDir, 'metafile-out.js')
     const meta = path.join(testDir, 'metafile-meta.json')
-    await util.promisify(fs.writeFile)(entry, `
+    await writeFileAsync(entry, `
       import x from "./metafile-imported"
       import y from "./metafile-text.txt"
       console.log(x, y)
     `)
-    await util.promisify(fs.writeFile)(imported, 'export default 123')
-    await util.promisify(fs.writeFile)(text, 'some text')
+    await writeFileAsync(imported, 'export default 123')
+    await writeFileAsync(text, 'some text')
     await esbuild.build({
       entryPoints: [entry],
       bundle: true,
@@ -115,7 +119,7 @@ let buildTests = {
       loader: { '.txt': 'file' },
     })
 
-    const json = JSON.parse(await util.promisify(fs.readFile)(meta))
+    const json = JSON.parse(await readFileAsync(meta))
     assert.strictEqual(Object.keys(json.inputs).length, 3)
     assert.strictEqual(Object.keys(json.outputs).length, 3)
     const cwd = process.cwd()
@@ -149,7 +153,7 @@ let buildTests = {
   async writeFalse({ esbuild }) {
     const input = path.join(testDir, 'writeFalse.js')
     const output = path.join(testDir, 'writeFalse-out.js')
-    await util.promisify(fs.writeFile)(input, 'console.log()')
+    await writeFileAsync(input, 'console.log()')
     const value = await esbuild.build({
       entryPoints: [input],
       bundle: true,
@@ -175,15 +179,15 @@ let buildTests = {
     const inputA = path.join(testDir, 'splittingRelativeSameDir-a.js')
     const inputB = path.join(testDir, 'splittingRelativeSameDir-b.js')
     const inputCommon = path.join(testDir, 'splittingRelativeSameDir-common.js')
-    await util.promisify(fs.writeFile)(inputA, `
+    await writeFileAsync(inputA, `
       import x from "./${path.basename(inputCommon)}"
       console.log('a' + x)
     `)
-    await util.promisify(fs.writeFile)(inputB, `
+    await writeFileAsync(inputB, `
       import x from "./${path.basename(inputCommon)}"
       console.log('b' + x)
     `)
-    await util.promisify(fs.writeFile)(inputCommon, `
+    await writeFileAsync(inputCommon, `
       export default 'common'
     `)
     const outdir = path.join(testDir, 'splittingRelativeSameDir-out')
@@ -222,17 +226,17 @@ export {
     const inputA = path.join(testDir, 'splittingRelativeNestedDir-a/demo.js')
     const inputB = path.join(testDir, 'splittingRelativeNestedDir-b/demo.js')
     const inputCommon = path.join(testDir, 'splittingRelativeNestedDir-common.js')
-    await util.promisify(fs.mkdir)(path.dirname(inputA)).catch(x => x)
-    await util.promisify(fs.mkdir)(path.dirname(inputB)).catch(x => x)
-    await util.promisify(fs.writeFile)(inputA, `
+    await mkdirAsync(path.dirname(inputA)).catch(x => x)
+    await mkdirAsync(path.dirname(inputB)).catch(x => x)
+    await writeFileAsync(inputA, `
       import x from "../${path.basename(inputCommon)}"
       console.log('a' + x)
     `)
-    await util.promisify(fs.writeFile)(inputB, `
+    await writeFileAsync(inputB, `
       import x from "../${path.basename(inputCommon)}"
       console.log('b' + x)
     `)
-    await util.promisify(fs.writeFile)(inputCommon, `
+    await writeFileAsync(inputCommon, `
       export default 'common'
     `)
     const outdir = path.join(testDir, 'splittingRelativeNestedDir-out')
@@ -446,7 +450,7 @@ let syncTests = {
   async buildSync({ esbuild }) {
     const input = path.join(testDir, 'buildSync-in.js')
     const output = path.join(testDir, 'buildSync-out.js')
-    await util.promisify(fs.writeFile)(input, 'export default 123')
+    await writeFileAsync(input, 'export default 123')
     esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     const result = require(output)
     assert.strictEqual(result.default, 123)
