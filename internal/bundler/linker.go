@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/resolver"
+
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
@@ -52,6 +54,7 @@ type linkerContext struct {
 	options     *config.Options
 	log         logging.Log
 	fs          fs.FS
+	res         resolver.Resolver
 	symbols     ast.SymbolMap
 	entryPoints []uint32
 	sources     []logging.Source
@@ -259,6 +262,7 @@ func newLinkerContext(
 	options *config.Options,
 	log logging.Log,
 	fs fs.FS,
+	res resolver.Resolver,
 	sources []logging.Source,
 	files []file,
 	entryPoints []uint32,
@@ -269,6 +273,7 @@ func newLinkerContext(
 		options:        options,
 		log:            log,
 		fs:             fs,
+		res:            res,
 		sources:        sources,
 		entryPoints:    append([]uint32{}, entryPoints...),
 		files:          make([]file, len(files)),
@@ -2788,10 +2793,26 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 	// Start the metadata
 	jMeta := printer.Joiner{}
-	isFirstMeta := true
 	if c.options.AbsMetadataFile != "" {
-		jMeta.AddString("{\n      \"inputs\": {")
+		isFirstMeta := true
+		jMeta.AddString("{\n      \"imports\": [")
+		for _, record := range chunk.crossChunkImportRecords {
+			if isFirstMeta {
+				isFirstMeta = false
+			} else {
+				jMeta.AddString(",")
+			}
+			chunkAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relPath)
+			importAbsPath := c.fs.Join(c.fs.Dir(chunkAbsPath), record.Path.Text)
+			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
+				printer.QuoteForJSON(c.res.PrettyPath(importAbsPath))))
+		}
+		if !isFirstMeta {
+			jMeta.AddString("\n      ")
+		}
+		jMeta.AddString("],\n      \"inputs\": {")
 	}
+	isFirstMeta := true
 
 	// Concatenate the generated JavaScript chunks together
 	var compileResultsForSourceMap []compileResult
@@ -2849,11 +2870,10 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 			if c.options.AbsMetadataFile != "" {
 				if isFirstMeta {
 					isFirstMeta = false
-					jMeta.AddString("\n")
 				} else {
-					jMeta.AddString(",\n")
+					jMeta.AddString(",")
 				}
-				jMeta.AddString(fmt.Sprintf("        %s: {\n          \"bytesInOutput\": %d\n        }",
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
 					printer.QuoteForJSON(c.sources[compileResult.sourceIndex].PrettyPath),
 					len(compileResult.JS)))
 			}
@@ -2912,7 +2932,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 			var jsonMetadataChunk []byte
 			if c.options.AbsMetadataFile != "" {
 				jsonMetadataChunk = []byte(fmt.Sprintf(
-					"{\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
+					"{\n      \"imports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
 			}
 
 			results = append(results, OutputFile{

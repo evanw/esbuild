@@ -102,6 +102,9 @@ export interface Metadata {
           bytesInOutput: number
         }
       }
+      imports: {
+        path: string
+      }[]
     }
   }
 }

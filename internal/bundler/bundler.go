@@ -561,7 +561,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 	var resultGroups []linkGroup
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.sources, b.files, b.entryPoints, lcaAbsPath)
+		c := newLinkerContext(&options, log, b.fs, b.res, b.sources, b.files, b.entryPoints, lcaAbsPath)
 		resultGroups = []linkGroup{{
 			outputFiles:    c.link(),
 			reachableFiles: c.reachableFiles,
@@ -573,7 +573,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint uint32) {
-				c := newLinkerContext(&options, log, b.fs, b.sources, b.files, []uint32{entryPoint}, lcaAbsPath)
+				c := newLinkerContext(&options, log, b.fs, b.res, b.sources, b.files, []uint32{entryPoint}, lcaAbsPath)
 				resultGroups[i] = linkGroup{
 					outputFiles:    c.link(),
 					reachableFiles: c.reachableFiles,

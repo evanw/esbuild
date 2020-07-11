@@ -149,6 +149,43 @@ let buildTests = {
     assert.strictEqual(typeof outputInputs[makePath(text)].bytesInOutput, 'number')
   },
 
+  async metafileSplitting({ esbuild }) {
+    const entry1 = path.join(testDir, 'metafileSplitting-entry1.js')
+    const entry2 = path.join(testDir, 'metafileSplitting-entry2.js')
+    const imported = path.join(testDir, 'metafileSplitting-imported.js')
+    const outdir = path.join(testDir, 'metafileSplitting-out')
+    const metafile = path.join(testDir, 'metafileSplitting-meta.json')
+    await writeFileAsync(entry1, `
+      import x from "./${path.basename(imported)}"
+      console.log(1, x)
+    `)
+    await writeFileAsync(entry2, `
+      import x from "./${path.basename(imported)}"
+      console.log(2, x)
+    `)
+    await writeFileAsync(imported, 'export default 123')
+    await esbuild.build({
+      entryPoints: [entry1, entry2],
+      bundle: true,
+      outdir,
+      metafile,
+      splitting: true,
+      format: 'esm',
+    })
+
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.strictEqual(Object.keys(json.inputs).length, 3)
+    assert.strictEqual(Object.keys(json.outputs).length, 3)
+    const cwd = process.cwd()
+    const makePath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
+
+    // Check outputs
+    const chunk = 'chunk.pFRXOXgr.js';
+    assert.deepStrictEqual(json.outputs[makePath(path.basename(entry1))].imports, [{ path: makePath(chunk) }])
+    assert.deepStrictEqual(json.outputs[makePath(path.basename(entry2))].imports, [{ path: makePath(chunk) }])
+    assert.deepStrictEqual(json.outputs[makePath(chunk)].imports, [])
+  },
+
   // Test in-memory output files
   async writeFalse({ esbuild }) {
     const input = path.join(testDir, 'writeFalse.js')
