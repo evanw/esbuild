@@ -1076,7 +1076,6 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 			entryBits: newBitSet(uint(len(c.entryPoints))),
 		})
 		file.ast.TopLevelSymbolToParts[ref] = []uint32{partIndex}
-		file.ast.NamedExports[alias] = ref
 		fileMeta.resolvedExports[alias] = exportData{ref: ref, sourceIndex: sourceIndex}
 		part := &file.ast.Parts[partIndex]
 		for _, export := range prevExports {
