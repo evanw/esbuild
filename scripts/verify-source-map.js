@@ -142,6 +142,7 @@ async function check(kind, testCase, toSearch, flags) {
 
     const map = await new SourceMapConsumer(outJsMap)
 
+    // Check the mapping of various key locations back to the original source
     for (const id of toSearch) {
       const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
       const inJs = testCase[inSource]
@@ -163,6 +164,25 @@ async function check(kind, testCase, toSearch, flags) {
       const expected = JSON.stringify({ source: inSource, line: inLine, column: inColumn })
       const observed = JSON.stringify({ source, line, column })
       recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
+    }
+
+    // Check that every generated location has an associated original position.
+    // This only works when not bundling because bundling includes runtime code.
+    if (flags.indexOf('--bundle') < 0) {
+      // The last line doesn't have a source map entry, but that should be ok.
+      const outLines = outJs.trimRight().split('\n');
+
+      for (let outLine = 0; outLine < outLines.length; outLine++) {
+        if (outLines[outLine].startsWith('#!') || outLines[outLine].startsWith('//')) {
+          // Ignore the hashbang line and the source map comment itself
+          continue;
+        }
+
+        for (let outColumn = 0; outColumn <= outLines[outLine].length; outColumn++) {
+          const { line, column } = map.originalPositionFor({ line: outLine + 1, column: outColumn })
+          recordCheck(line !== null && column !== null, `missing location for line ${outLine} and column ${outColumn}`)
+        }
+      }
     }
 
     if (!failed) rimraf.sync(tempDir, { disableGlob: true })

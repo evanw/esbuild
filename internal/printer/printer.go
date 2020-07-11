@@ -360,10 +360,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 
 				// Make sure to do with print() does for newlines
 				if p.options.SourceMapContents != nil {
-					p.prevLineStart = len(js)
-					p.prevState.GeneratedLine++
-					p.prevState.GeneratedColumn = 0
-					p.sourceMap = append(p.sourceMap, ';')
+					p.appendNewlineToSourceMap(len(js))
 				}
 			} else {
 				js = append(js, "\\n"...)
@@ -469,6 +466,16 @@ type printer struct {
 	prevLineStart int
 	prevState     SourceMapState
 	lineStarts    []int32
+
+	// This is a workaround for a bug in the popular "source-map" library:
+	// https://github.com/mozilla/source-map/issues/261. The library will
+	// sometimes return null when querying a source map unless every line
+	// starts with a mapping at column zero.
+	//
+	// The workaround is to replicate the previous mapping if a line ends
+	// up not starting with a mapping. This is done lazily because we want
+	// to avoid replicating the previous mapping if we don't need to.
+	lineStartsWithMapping bool
 }
 
 func (p *printer) print(text string) {
@@ -476,10 +483,7 @@ func (p *printer) print(text string) {
 		start := len(p.js)
 		for i, c := range text {
 			if c == '\n' {
-				p.prevLineStart = start + i + 1
-				p.prevState.GeneratedLine++
-				p.prevState.GeneratedColumn = 0
-				p.sourceMap = append(p.sourceMap, ';')
+				p.appendNewlineToSourceMap(start + i + 1)
 			}
 		}
 	}
@@ -494,10 +498,7 @@ func (p *printer) printBytes(bytes []byte) {
 		start := len(p.js)
 		for i, c := range bytes {
 			if c == '\n' {
-				p.prevLineStart = start + i + 1
-				p.prevState.GeneratedLine++
-				p.prevState.GeneratedColumn = 0
-				p.sourceMap = append(p.sourceMap, ';')
+				p.appendNewlineToSourceMap(start + i + 1)
 			}
 		}
 	}
@@ -552,21 +553,58 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 
 	generatedColumn := len(p.js) - p.prevLineStart
 
-	currentState := SourceMapState{
+	// If this line doesn't start with a mapping and we're about to add a mapping
+	// that's not at the start, insert a mapping first so the line starts with one.
+	if !p.lineStartsWithMapping && generatedColumn > 0 {
+		p.appendMapping(SourceMapState{
+			GeneratedLine:   p.prevState.GeneratedLine,
+			GeneratedColumn: 0,
+			OriginalLine:    p.prevState.OriginalLine,
+			OriginalColumn:  p.prevState.OriginalColumn,
+		})
+	}
+
+	p.appendMapping(SourceMapState{
 		GeneratedLine:   p.prevState.GeneratedLine,
 		GeneratedColumn: generatedColumn,
 		SourceIndex:     0, // Pretend the source index is 0, and later substitute the right one in AppendSourceMapChunk()
 		OriginalLine:    originalLine,
 		OriginalColumn:  originalColumn,
-	}
+	})
 
+	// This line now has a mapping on it, so don't insert another one
+	p.lineStartsWithMapping = true
+}
+
+func (p *printer) appendMapping(currentState SourceMapState) {
 	var lastByte byte
 	if len(p.sourceMap) != 0 {
 		lastByte = p.sourceMap[len(p.sourceMap)-1]
 	}
-
 	p.sourceMap = appendMapping(p.sourceMap, lastByte, p.prevState, currentState)
 	p.prevState = currentState
+}
+
+// Don't call this directly. This is called automatically by p.print("\n").
+func (p *printer) appendNewlineToSourceMap(prevLineStart int) {
+	// If we're about to move to the next line and the previous line didn't have
+	// any mappings, add a mapping at the start of the previous line.
+	if !p.lineStartsWithMapping {
+		p.appendMapping(SourceMapState{
+			GeneratedLine:   p.prevState.GeneratedLine,
+			GeneratedColumn: 0,
+			OriginalLine:    p.prevState.OriginalLine,
+			OriginalColumn:  p.prevState.OriginalColumn,
+		})
+	}
+
+	p.prevLineStart = prevLineStart
+	p.prevState.GeneratedLine++
+	p.prevState.GeneratedColumn = 0
+	p.sourceMap = append(p.sourceMap, ';')
+
+	// This new line doesn't have a mapping yet
+	p.lineStartsWithMapping = false
 }
 
 func (p *printer) printIndent() {
