@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 * Output directory may now contain nested directories ([#224](https://github.com/evanw/esbuild/issues/224))
 
