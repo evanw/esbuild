@@ -368,7 +368,7 @@ export {
       entryPoints: [entry],
       stdin: {
         contents: `
-          import x from './${path.relative(process.cwd(), aux)}'
+          import x from './${path.relative(process.cwd(), aux).replace(/\\/g, '/')}'
           export {x as fromStdin}
         `,
         sourcefile: 'der',
