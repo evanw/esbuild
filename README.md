@@ -381,6 +381,7 @@ Advanced options:
   --metafile=...            Write metadata about the build to a JSON file
   --strict                  Transforms handle edge cases but have more overhead
   --pure=N                  Mark the name N as a pure function for tree shaking
+  --tsconfig=...            Use this tsconfig.json file instead of other ones
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map

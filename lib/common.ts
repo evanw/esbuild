@@ -46,6 +46,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [str
   if (options.outdir) flags.push(`--outdir=${options.outdir}`);
   if (options.platform) flags.push(`--platform=${options.platform}`);
   if (options.format) flags.push(`--format=${options.format}`);
+  if (options.tsconfig) flags.push(`--tsconfig=${options.tsconfig}`);
   if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
   if (options.external) for (let name of options.external) flags.push(`--external:${name}`);
   if (options.loader) for (let ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);

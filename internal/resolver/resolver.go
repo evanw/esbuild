@@ -591,11 +591,16 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		}
 	}
 
-	// Record if this directory has a tsconfig.json or jsconfig.json file
-	if entries["tsconfig.json"].Kind == fs.FileEntry {
-		info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), path, make(map[string]bool))
-	} else if entries["jsconfig.json"].Kind == fs.FileEntry {
-		info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, make(map[string]bool))
+	if forceTsConfig := r.options.TsConfigOverride; forceTsConfig == "" {
+		// Record if this directory has a tsconfig.json or jsconfig.json file
+		if entries["tsconfig.json"].Kind == fs.FileEntry {
+			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), path, make(map[string]bool))
+		} else if entries["jsconfig.json"].Kind == fs.FileEntry {
+			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, make(map[string]bool))
+		}
+	} else if parentInfo == nil {
+		// If there is a tsconfig.json override, mount it at the root directory
+		info.tsConfigJson, _ = r.parseJsTsConfig(forceTsConfig, r.fs.Dir(forceTsConfig), make(map[string]bool))
 	}
 
 	// Is the "main" field from "package.json" missing?

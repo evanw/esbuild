@@ -407,6 +407,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		ExtensionToLoader: validateLoaders(log, buildOpts.Loaders),
 		ExtensionOrder:    validateResolveExtensions(log, buildOpts.ResolveExtensions),
 		ExternalModules:   validateExternals(log, realFS, buildOpts.Externals),
+		TsConfigOverride:  validatePath(log, realFS, buildOpts.Tsconfig),
 	}
 	entryPaths := make([]string, len(buildOpts.EntryPoints))
 	for i, entryPoint := range buildOpts.EntryPoints {

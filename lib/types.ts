@@ -38,6 +38,7 @@ export interface BuildOptions extends CommonOptions {
   loader?: { [ext: string]: Loader };
   resolveExtensions?: string[];
   write?: boolean;
+  tsconfig?: string;
 
   entryPoints?: string[];
   stdin?: StdinOptions;

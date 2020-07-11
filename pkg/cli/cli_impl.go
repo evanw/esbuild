@@ -119,6 +119,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case strings.HasPrefix(arg, "--outdir=") && buildOpts != nil:
 			buildOpts.Outdir = arg[len("--outdir="):]
 
+		case strings.HasPrefix(arg, "--tsconfig=") && buildOpts != nil:
+			buildOpts.Tsconfig = arg[len("--tsconfig="):]
+
 		case strings.HasPrefix(arg, "--define:"):
 			value := arg[len("--define:"):]
 			equals := strings.IndexByte(value, '=')

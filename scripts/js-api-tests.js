@@ -383,6 +383,35 @@ export {
     const stdinResult = require(path.join(outdir, path.basename('stdin.js')))
     assert.strictEqual(stdinResult.fromStdin, 123)
   },
+
+  async forceTsConfig({ esbuild, testDir }) {
+    // ./tsconfig.json
+    // ./a/forced-config.json
+    // ./a/b/test-impl.js
+    // ./a/b/c/in.js
+    const aDir = path.join(testDir, 'a')
+    const bDir = path.join(aDir, 'b')
+    const cDir = path.join(bDir, 'c')
+    await mkdirAsync(aDir).catch(x => x)
+    await mkdirAsync(bDir).catch(x => x)
+    await mkdirAsync(cDir).catch(x => x)
+    const input = path.join(cDir, 'in.js')
+    const forced = path.join(bDir, 'test-impl.js')
+    const tsconfigIgnore = path.join(testDir, 'tsconfig.json')
+    const tsconfigForced = path.join(aDir, 'forced-config.json')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'import "test"')
+    await writeFileAsync(forced, 'console.log("success")')
+    await writeFileAsync(tsconfigIgnore, '{"compilerOptions": {"baseUrl": "./a", "paths": {"test": ["./ignore.js"]}}}')
+    await writeFileAsync(tsconfigForced, '{"compilerOptions": {"baseUrl": "./b", "paths": {"test": ["./test-impl.js"]}}}')
+    await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, tsconfig: tsconfigForced, format: 'esm' })
+    const result = await readFileAsync(output, 'utf8')
+    assert.strictEqual(result, `// scripts/.js-api-tests/forceTsConfig/a/b/test-impl.js
+console.log("success");
+
+// scripts/.js-api-tests/forceTsConfig/a/b/c/in.js
+`)
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {
