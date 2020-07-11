@@ -309,12 +309,12 @@ export {
   },
 
   async stdinStdoutBundle({ esbuild, testDir }) {
-    const aux = path.join(testDir, 'aux.js')
-    await writeFileAsync(aux, 'export default 123')
+    const auxiliary = path.join(testDir, 'auxiliary.js')
+    await writeFileAsync(auxiliary, 'export default 123')
     const value = await esbuild.build({
       stdin: {
         contents: `
-          import x from './aux.js'
+          import x from './auxiliary.js'
           console.log(x)
         `,
         resolveDir: testDir,
@@ -325,23 +325,23 @@ export {
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].path, '<stdout>')
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `(() => {
-  // scripts/.js-api-tests/stdinStdoutBundle/aux.js
-  var aux_default = 123;
+  // scripts/.js-api-tests/stdinStdoutBundle/auxiliary.js
+  var auxiliary_default = 123;
 
   // <stdin>
-  console.log(aux_default);
+  console.log(auxiliary_default);
 })();
 `)
   },
 
   async stdinOutfileBundle({ esbuild, testDir }) {
-    const aux = path.join(testDir, 'aux.js')
+    const auxiliary = path.join(testDir, 'auxiliary.js')
     const outfile = path.join(testDir, 'out.js')
-    await writeFileAsync(aux, 'export default 123')
+    await writeFileAsync(auxiliary, 'export default 123')
     const value = await esbuild.build({
       stdin: {
         contents: `
-          import x from './aux.js'
+          import x from './auxiliary.js'
           export {x as fromStdin}
         `,
         resolveDir: testDir,
@@ -357,18 +357,18 @@ export {
 
   async stdinAndEntryBundle({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
-    const aux = path.join(testDir, 'aux.js')
+    const auxiliary = path.join(testDir, 'auxiliary.js')
     const outdir = path.join(testDir, 'out')
-    await writeFileAsync(aux, 'export default 123')
+    await writeFileAsync(auxiliary, 'export default 123')
     await writeFileAsync(entry, `
-      import x from './aux.js'
+      import x from './auxiliary.js'
       export let fromEntry = x
     `)
     const value = await esbuild.build({
       entryPoints: [entry],
       stdin: {
         contents: `
-          import x from './${path.relative(process.cwd(), aux).replace(/\\/g, '/')}'
+          import x from './${path.relative(process.cwd(), auxiliary).replace(/\\/g, '/')}'
           export {x as fromStdin}
         `,
         sourcefile: 'der',
