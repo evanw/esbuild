@@ -441,3 +441,111 @@ console.log(util.default());
 		},
 	})
 }
+
+func TestTsconfigJsonExtends(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				console.log(<div/>, <></>)
+			`,
+			"/tsconfig.json": `
+				{
+					"extends": "./base",
+					"compilerOptions": {
+						"jsxFragmentFactory": "derivedFragment"
+					}
+				}
+			`,
+			"/base.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "baseFactory",
+						"jsxFragmentFactory": "baseFragment"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.jsx
+console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
+`,
+		},
+	})
+}
+
+func TestTsconfigJsonExtendsThreeLevels(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				console.log(<div/>, <></>)
+			`,
+			"/tsconfig.json": `
+				{
+					"extends": "./base",
+					"compilerOptions": {
+						"jsxFragmentFactory": "derivedFragment"
+					}
+				}
+			`,
+			"/base.json": `
+				{
+					"extends": "./base2"
+				}
+			`,
+			"/base2.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "baseFactory",
+						"jsxFragmentFactory": "baseFragment"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.jsx
+console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
+`,
+		},
+	})
+}
+
+func TestTsconfigJsonExtendsLoop(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(123)
+			`,
+			"/tsconfig.json": `
+				{
+					"extends": "./base.json"
+				}
+			`,
+			"/base.json": `
+				{
+					"extends": "./tsconfig"
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: "/base.json: warning: Base config file \"./tsconfig\" forms cycle\n",
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log(123);
+`,
+		},
+	})
+}

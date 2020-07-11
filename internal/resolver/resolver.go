@@ -385,8 +385,12 @@ func (r *resolver) parseMemberExpressionForJSX(source logging.Source, loc ast.Lo
 	return parts
 }
 
-func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
-	info.tsConfigJson = &tsConfigJson{}
+func (r *resolver) parseJsTsConfig(file string, path string, visited map[string]bool) (*tsConfigJson, parseStatus) {
+	// Don't infinite loop if a series of "extends" links forms a cycle
+	if visited[file] {
+		return nil, parseImportCycle
+	}
+	visited[file] = true
 
 	// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
 	// format that appears to be defined by the implementation details of the
@@ -396,96 +400,131 @@ func (r *resolver) parseJsTsConfig(file string, path string, info *dirInfo) {
 	// these particular files. This is likely not a completely accurate
 	// emulation of what the TypeScript compiler does (e.g. string escape
 	// behavior may also be different).
-	options := parser.ParseJSONOptions{
+	json, tsConfigSource, status := r.parseJSON(file, parser.ParseJSONOptions{
 		AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
 		AllowTrailingCommas: true,
+	})
+	if status != parseSuccess {
+		return nil, status
 	}
 
-	if json, tsConfigSource, ok := r.parseJSON(file, options); ok {
-		if compilerOptionsJson, _, ok := getProperty(json, "compilerOptions"); ok {
-			// Parse the "baseUrl" field
-			if baseUrlJson, _, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
-				if baseUrl, ok := getString(baseUrlJson); ok {
-					baseUrl = r.fs.Join(path, baseUrl)
-					info.tsConfigJson.absPathBaseUrl = &baseUrl
-				}
-			}
+	var result tsConfigJson
 
-			// Parse the "jsxFactory" field
-			if jsxFactoryJson, _, ok := getProperty(compilerOptionsJson, "jsxFactory"); ok {
-				if jsxFactory, ok := getString(jsxFactoryJson); ok {
-					info.tsConfigJson.jsxFactory = r.parseMemberExpressionForJSX(tsConfigSource, jsxFactoryJson.Loc, jsxFactory)
-				}
-			}
+	// Parse "extends"
+	if extendsJson, _, ok := getProperty(json, "extends"); ok {
+		if extends, ok := getString(extendsJson); ok {
+			warnRange := tsConfigSource.RangeOfString(extendsJson.Loc)
+			extendsFile := r.fs.Join(path, extends)
+			extendsDir := r.fs.Dir(extendsFile)
+			found := false
 
-			// Parse the "jsxFragmentFactory" field
-			if jsxFragmentFactoryJson, _, ok := getProperty(compilerOptionsJson, "jsxFragmentFactory"); ok {
-				if jsxFragmentFactory, ok := getString(jsxFragmentFactoryJson); ok {
-					info.tsConfigJson.jsxFragmentFactory = r.parseMemberExpressionForJSX(tsConfigSource, jsxFragmentFactoryJson.Loc, jsxFragmentFactory)
-				}
-			}
-
-			// Parse the "useDefineForClassFields" field
-			if useDefineForClassFieldsJson, _, ok := getProperty(compilerOptionsJson, "useDefineForClassFields"); ok {
-				if useDefineForClassFields, ok := getBool(useDefineForClassFieldsJson); ok {
-					info.tsConfigJson.useDefineForClassFields = useDefineForClassFields
-				}
-			}
-
-			// Parse the "paths" field
-			if pathsJson, pathsKeyLoc, ok := getProperty(compilerOptionsJson, "paths"); ok {
-				if info.tsConfigJson.absPathBaseUrl == nil {
-					warnRange := tsConfigSource.RangeOfString(pathsKeyLoc)
+			for _, file := range []string{extendsFile, extendsFile + ".json"} {
+				base, baseStatus := r.parseJsTsConfig(file, extendsDir, visited)
+				if baseStatus == parseReadFailure {
+					continue
+				} else if baseStatus == parseImportCycle {
 					r.log.AddRangeWarning(&tsConfigSource, warnRange,
-						"Cannot use the \"paths\" property without the \"baseUrl\" property")
-				} else if paths, ok := pathsJson.Data.(*ast.EObject); ok {
-					info.tsConfigJson.paths = map[string][]string{}
-					for _, prop := range paths.Properties {
-						if key, ok := getString(prop.Key); ok {
-							if !isValidTSConfigPathPattern(key, r.log, tsConfigSource, prop.Key.Loc) {
-								continue
-							}
+						fmt.Sprintf("Base config file %q forms cycle", extends))
+				} else if baseStatus == parseSuccess {
+					result = *base
+				}
+				found = true
+				break
+			}
 
-							// The "paths" field is an object which maps a pattern to an
-							// array of remapping patterns to try, in priority order. See
-							// the documentation for examples of how this is used:
-							// https://www.typescriptlang.org/docs/handbook/module-resolution.html#path-mapping.
-							//
-							// One particular example:
-							//
-							//   {
-							//     "compilerOptions": {
-							//       "baseUrl": "projectRoot",
-							//       "paths": {
-							//         "*": [
-							//           "*",
-							//           "generated/*"
-							//         ]
-							//       }
-							//     }
-							//   }
-							//
-							// Matching "folder1/file2" should first check "projectRoot/folder1/file2"
-							// and then, if that didn't work, also check "projectRoot/generated/folder1/file2".
-							if array, ok := prop.Value.Data.(*ast.EArray); ok {
-								for _, item := range array.Items {
-									if str, ok := getString(item); ok {
-										if isValidTSConfigPathPattern(str, r.log, tsConfigSource, item.Loc) {
-											info.tsConfigJson.paths[key] = append(info.tsConfigJson.paths[key], str)
-										}
+			if !found {
+				r.log.AddRangeWarning(&tsConfigSource, warnRange,
+					fmt.Sprintf("Cannot find base config file %q", extends))
+			}
+		}
+	}
+
+	// Parse "compilerOptions"
+	if compilerOptionsJson, _, ok := getProperty(json, "compilerOptions"); ok {
+		// Parse "baseUrl"
+		if baseUrlJson, _, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
+			if baseUrl, ok := getString(baseUrlJson); ok {
+				baseUrl = r.fs.Join(path, baseUrl)
+				result.absPathBaseUrl = &baseUrl
+			}
+		}
+
+		// Parse "jsxFactory"
+		if jsxFactoryJson, _, ok := getProperty(compilerOptionsJson, "jsxFactory"); ok {
+			if jsxFactory, ok := getString(jsxFactoryJson); ok {
+				result.jsxFactory = r.parseMemberExpressionForJSX(tsConfigSource, jsxFactoryJson.Loc, jsxFactory)
+			}
+		}
+
+		// Parse "jsxFragmentFactory"
+		if jsxFragmentFactoryJson, _, ok := getProperty(compilerOptionsJson, "jsxFragmentFactory"); ok {
+			if jsxFragmentFactory, ok := getString(jsxFragmentFactoryJson); ok {
+				result.jsxFragmentFactory = r.parseMemberExpressionForJSX(tsConfigSource, jsxFragmentFactoryJson.Loc, jsxFragmentFactory)
+			}
+		}
+
+		// Parse "useDefineForClassFields"
+		if useDefineForClassFieldsJson, _, ok := getProperty(compilerOptionsJson, "useDefineForClassFields"); ok {
+			if useDefineForClassFields, ok := getBool(useDefineForClassFieldsJson); ok {
+				result.useDefineForClassFields = useDefineForClassFields
+			}
+		}
+
+		// Parse "paths"
+		if pathsJson, pathsKeyLoc, ok := getProperty(compilerOptionsJson, "paths"); ok {
+			if result.absPathBaseUrl == nil {
+				warnRange := tsConfigSource.RangeOfString(pathsKeyLoc)
+				r.log.AddRangeWarning(&tsConfigSource, warnRange,
+					"Cannot use the \"paths\" property without the \"baseUrl\" property")
+			} else if paths, ok := pathsJson.Data.(*ast.EObject); ok {
+				result.paths = make(map[string][]string)
+				for _, prop := range paths.Properties {
+					if key, ok := getString(prop.Key); ok {
+						if !isValidTSConfigPathPattern(key, r.log, tsConfigSource, prop.Key.Loc) {
+							continue
+						}
+
+						// The "paths" field is an object which maps a pattern to an
+						// array of remapping patterns to try, in priority order. See
+						// the documentation for examples of how this is used:
+						// https://www.typescriptlang.org/docs/handbook/module-resolution.html#path-mapping.
+						//
+						// One particular example:
+						//
+						//   {
+						//     "compilerOptions": {
+						//       "baseUrl": "projectRoot",
+						//       "paths": {
+						//         "*": [
+						//           "*",
+						//           "generated/*"
+						//         ]
+						//       }
+						//     }
+						//   }
+						//
+						// Matching "folder1/file2" should first check "projectRoot/folder1/file2"
+						// and then, if that didn't work, also check "projectRoot/generated/folder1/file2".
+						if array, ok := prop.Value.Data.(*ast.EArray); ok {
+							for _, item := range array.Items {
+								if str, ok := getString(item); ok {
+									if isValidTSConfigPathPattern(str, r.log, tsConfigSource, item.Loc) {
+										result.paths[key] = append(result.paths[key], str)
 									}
 								}
-							} else {
-								warnRange := tsConfigSource.RangeOfString(prop.Value.Loc)
-								r.log.AddRangeWarning(&tsConfigSource, warnRange, fmt.Sprintf(
-									"Substitutions for pattern %q should be an array", key))
 							}
+						} else {
+							warnRange := tsConfigSource.RangeOfString(prop.Value.Loc)
+							r.log.AddRangeWarning(&tsConfigSource, warnRange, fmt.Sprintf(
+								"Substitutions for pattern %q should be an array", key))
 						}
 					}
 				}
 			}
 		}
 	}
+
+	return &result, parseSuccess
 }
 
 func isValidTSConfigPathPattern(text string, log logging.Log, source logging.Source, loc ast.Loc) bool {
@@ -554,9 +593,9 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 	// Record if this directory has a tsconfig.json or jsconfig.json file
 	if entries["tsconfig.json"].Kind == fs.FileEntry {
-		r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), path, info)
+		info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), path, make(map[string]bool))
 	} else if entries["jsconfig.json"].Kind == fs.FileEntry {
-		r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, info)
+		info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, make(map[string]bool))
 	}
 
 	// Is the "main" field from "package.json" missing?
@@ -571,8 +610,8 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 }
 
 func (r *resolver) parsePackageJSON(path string) *packageJson {
-	json, jsonSource, ok := r.parseJSON(r.fs.Join(path, "package.json"), parser.ParseJSONOptions{})
-	if !ok {
+	json, jsonSource, status := r.parseJSON(r.fs.Join(path, "package.json"), parser.ParseJSONOptions{})
+	if status != parseSuccess {
 		return nil
 	}
 
@@ -743,17 +782,28 @@ func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string
 	return "", false
 }
 
-func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logging.Source, bool) {
+type parseStatus uint8
+
+const (
+	parseSuccess parseStatus = iota
+	parseReadFailure
+	parseSyntaxError
+	parseImportCycle
+)
+
+func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logging.Source, parseStatus) {
 	if contents, ok := r.fs.ReadFile(path); ok {
 		source := logging.Source{
 			KeyPath:    ast.Path{Text: path},
 			PrettyPath: r.PrettyPath(path),
 			Contents:   contents,
 		}
-		result, ok := parser.ParseJSON(r.log, source, options)
-		return result, source, ok
+		if result, ok := parser.ParseJSON(r.log, source, options); ok {
+			return result, source, parseSuccess
+		}
+		return ast.Expr{}, logging.Source{}, parseSyntaxError
 	}
-	return ast.Expr{}, logging.Source{}, false
+	return ast.Expr{}, logging.Source{}, parseReadFailure
 }
 
 func getProperty(json ast.Expr, name string) (ast.Expr, ast.Loc, bool) {

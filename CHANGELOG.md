@@ -31,6 +31,10 @@
     console.log(stdout)
     ```
 
+* Implement `extends` for `tsconfig.json` ([#233](https://github.com/evanw/esbuild/issues/233))
+
+    A `tsconfig.json` file can inherit configurations from another file using the `extends` property. Before this release, esbuild didn't support this property and any inherited settings were missing. Now esbuild should include these inherited settings.
+
 ## 0.6.0
 
 * Output directory may now contain nested directories ([#224](https://github.com/evanw/esbuild/issues/224))
