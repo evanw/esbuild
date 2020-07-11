@@ -11,12 +11,12 @@ const writeFileAsync = util.promisify(fs.writeFile)
 const mkdirAsync = util.promisify(fs.mkdir)
 
 const repoDir = path.dirname(__dirname)
-const testDir = path.join(repoDir, 'scripts', '.js-api-tests')
+const rootTestDir = path.join(repoDir, 'scripts', '.js-api-tests')
 
 let buildTests = {
-  async es6_to_cjs({ esbuild }) {
-    const input = path.join(testDir, 'es6_to_cjs-in.js')
-    const output = path.join(testDir, 'es6_to_cjs-out.js')
+  async es6_to_cjs({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, 'export default 123')
     const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     assert.strictEqual(value.outputFiles, void 0)
@@ -26,9 +26,9 @@ let buildTests = {
   },
 
   // Test recursive directory creation
-  async recursiveMkdir({ esbuild }) {
-    const input = path.join(testDir, 'recursiveMkdir-in.js')
-    const output = path.join(testDir, 'a/b/c/d/recursiveMkdir-out.js')
+  async recursiveMkdir({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'a/b/c/d/out.js')
     await writeFileAsync(input, 'export default 123')
     await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     const result = require(output)
@@ -36,24 +36,24 @@ let buildTests = {
     assert.strictEqual(result.__esModule, true)
   },
 
-  async sourceMap({ esbuild }) {
-    const input = path.join(testDir, 'sourceMap-in.js')
-    const output = path.join(testDir, 'sourceMap-out.js')
+  async sourceMap({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, 'exports.foo = 123')
     await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: true })
     const result = require(output)
     assert.strictEqual(result.foo, 123)
     const outputFile = await readFileAsync(output, 'utf8')
     const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
-    assert.strictEqual(match[1], 'sourceMap-out.js.map')
+    assert.strictEqual(match[1], 'out.js.map')
     const resultMap = await readFileAsync(output + '.map', 'utf8')
     const json = JSON.parse(resultMap)
     assert.strictEqual(json.version, 3)
   },
 
-  async sourceMapExternal({ esbuild }) {
-    const input = path.join(testDir, 'sourceMapExternal-in.js')
-    const output = path.join(testDir, 'sourceMapExternal-out.js')
+  async sourceMapExternal({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, 'exports.foo = 123')
     await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'external' })
     const result = require(output)
@@ -66,9 +66,9 @@ let buildTests = {
     assert.strictEqual(json.version, 3)
   },
 
-  async sourceMapInline({ esbuild }) {
-    const input = path.join(testDir, 'sourceMapInline-in.js')
-    const output = path.join(testDir, 'sourceMapInline-out.js')
+  async sourceMapInline({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, 'exports.foo = 123')
     await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'inline' })
     const result = require(output)
@@ -79,12 +79,12 @@ let buildTests = {
     assert.strictEqual(json.version, 3)
   },
 
-  async resolveExtensionOrder({ esbuild }) {
-    const input = path.join(testDir, 'resolveExtensionOrder-in.js');
-    const inputBare = path.join(testDir, 'resolveExtensionOrder-module.js')
-    const inputSomething = path.join(testDir, 'resolveExtensionOrder-module.something.js')
-    const output = path.join(testDir, 'resolveExtensionOrder-out.js')
-    await writeFileAsync(input, 'exports.result = require("./resolveExtensionOrder-module").foo')
+  async resolveExtensionOrder({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js');
+    const inputBare = path.join(testDir, 'module.js')
+    const inputSomething = path.join(testDir, 'module.something.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'exports.result = require("./module").foo')
     await writeFileAsync(inputBare, 'exports.foo = 321')
     await writeFileAsync(inputSomething, 'exports.foo = 123')
     await esbuild.build({
@@ -97,15 +97,15 @@ let buildTests = {
     assert.strictEqual(require(output).result, 123)
   },
 
-  async metafile({ esbuild }) {
-    const entry = path.join(testDir, 'metafile-entry.js')
-    const imported = path.join(testDir, 'metafile-imported.js')
-    const text = path.join(testDir, 'metafile-text.txt')
-    const output = path.join(testDir, 'metafile-out.js')
-    const meta = path.join(testDir, 'metafile-meta.json')
+  async metafile({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const imported = path.join(testDir, 'imported.js')
+    const text = path.join(testDir, 'text.txt')
+    const output = path.join(testDir, 'out.js')
+    const meta = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `
-      import x from "./metafile-imported"
-      import y from "./metafile-text.txt"
+      import x from "./imported"
+      import y from "./text.txt"
       console.log(x, y)
     `)
     await writeFileAsync(imported, 'export default 123')
@@ -126,7 +126,7 @@ let buildTests = {
     const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
 
     // Check inputs
-    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 113)
+    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 95)
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
       { path: makePath(imported) },
       { path: makePath(text) },
@@ -149,12 +149,12 @@ let buildTests = {
     assert.strictEqual(typeof outputInputs[makePath(text)].bytesInOutput, 'number')
   },
 
-  async metafileSplitting({ esbuild }) {
-    const entry1 = path.join(testDir, 'metafileSplitting-entry1.js')
-    const entry2 = path.join(testDir, 'metafileSplitting-entry2.js')
-    const imported = path.join(testDir, 'metafileSplitting-imported.js')
-    const outdir = path.join(testDir, 'metafileSplitting-out')
-    const metafile = path.join(testDir, 'metafileSplitting-meta.json')
+  async metafileSplitting({ esbuild, testDir }) {
+    const entry1 = path.join(testDir, 'entry1.js')
+    const entry2 = path.join(testDir, 'entry2.js')
+    const imported = path.join(testDir, 'imported.js')
+    const outdir = path.join(testDir, 'out')
+    const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry1, `
       import x from "./${path.basename(imported)}"
       console.log(1, x)
@@ -180,16 +180,16 @@ let buildTests = {
     const makePath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
 
     // Check outputs
-    const chunk = 'chunk.pFRXOXgr.js';
+    const chunk = 'chunk.3YfO7hrU.js';
     assert.deepStrictEqual(json.outputs[makePath(path.basename(entry1))].imports, [{ path: makePath(chunk) }])
     assert.deepStrictEqual(json.outputs[makePath(path.basename(entry2))].imports, [{ path: makePath(chunk) }])
     assert.deepStrictEqual(json.outputs[makePath(chunk)].imports, [])
   },
 
   // Test in-memory output files
-  async writeFalse({ esbuild }) {
-    const input = path.join(testDir, 'writeFalse.js')
-    const output = path.join(testDir, 'writeFalse-out.js')
+  async writeFalse({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, 'console.log()')
     const value = await esbuild.build({
       entryPoints: [input],
@@ -209,13 +209,13 @@ let buildTests = {
     const sourceMap = JSON.parse(Buffer.from(value.outputFiles[0].contents).toString())
     const js = Buffer.from(value.outputFiles[1].contents).toString()
     assert.strictEqual(sourceMap.version, 3)
-    assert.strictEqual(js, `// scripts/.js-api-tests/writeFalse.js\nconsole.log();\n//# sourceMappingURL=writeFalse-out.js.map\n`)
+    assert.strictEqual(js, `// scripts/.js-api-tests/writeFalse/in.js\nconsole.log();\n//# sourceMappingURL=out.js.map\n`)
   },
 
-  async splittingRelativeSameDir({ esbuild }) {
-    const inputA = path.join(testDir, 'splittingRelativeSameDir-a.js')
-    const inputB = path.join(testDir, 'splittingRelativeSameDir-b.js')
-    const inputCommon = path.join(testDir, 'splittingRelativeSameDir-common.js')
+  async splittingRelativeSameDir({ esbuild, testDir }) {
+    const inputA = path.join(testDir, 'a.js')
+    const inputB = path.join(testDir, 'b.js')
+    const inputCommon = path.join(testDir, 'common.js')
     await writeFileAsync(inputA, `
       import x from "./${path.basename(inputCommon)}"
       console.log('a' + x)
@@ -227,42 +227,42 @@ let buildTests = {
     await writeFileAsync(inputCommon, `
       export default 'common'
     `)
-    const outdir = path.join(testDir, 'splittingRelativeSameDir-out')
+    const outdir = path.join(testDir, 'out')
     const value = await esbuild.build({ entryPoints: [inputA, inputB], bundle: true, outdir, format: 'esm', splitting: true, write: false })
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
-  splittingRelativeSameDir_common_default
-} from "./chunk.4JtreZIq.js";
+  common_default
+} from "./chunk.xL6KqlYO.js";
 
-// scripts/.js-api-tests/splittingRelativeSameDir-a.js
-console.log("a" + splittingRelativeSameDir_common_default);
+// scripts/.js-api-tests/splittingRelativeSameDir/a.js
+console.log("a" + common_default);
 `)
     assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
-  splittingRelativeSameDir_common_default
-} from "./chunk.4JtreZIq.js";
+  common_default
+} from "./chunk.xL6KqlYO.js";
 
-// scripts/.js-api-tests/splittingRelativeSameDir-b.js
-console.log("b" + splittingRelativeSameDir_common_default);
+// scripts/.js-api-tests/splittingRelativeSameDir/b.js
+console.log("b" + common_default);
 `)
-    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingRelativeSameDir-common.js
-var splittingRelativeSameDir_common_default = "common";
+    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingRelativeSameDir/common.js
+var common_default = "common";
 
 export {
-  splittingRelativeSameDir_common_default
+  common_default
 };
 `)
 
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.basename(inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.basename(inputB)))
-    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.4JtreZIq.js'))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.xL6KqlYO.js'))
   },
 
-  async splittingRelativeNestedDir({ esbuild }) {
-    const inputA = path.join(testDir, 'splittingRelativeNestedDir-a/demo.js')
-    const inputB = path.join(testDir, 'splittingRelativeNestedDir-b/demo.js')
-    const inputCommon = path.join(testDir, 'splittingRelativeNestedDir-common.js')
+  async splittingRelativeNestedDir({ esbuild, testDir }) {
+    const inputA = path.join(testDir, 'a/demo.js')
+    const inputB = path.join(testDir, 'b/demo.js')
+    const inputCommon = path.join(testDir, 'common.js')
     await mkdirAsync(path.dirname(inputA)).catch(x => x)
     await mkdirAsync(path.dirname(inputB)).catch(x => x)
     await writeFileAsync(inputA, `
@@ -276,45 +276,45 @@ export {
     await writeFileAsync(inputCommon, `
       export default 'common'
     `)
-    const outdir = path.join(testDir, 'splittingRelativeNestedDir-out')
+    const outdir = path.join(testDir, 'out')
     const value = await esbuild.build({ entryPoints: [inputA, inputB], bundle: true, outdir, format: 'esm', splitting: true, write: false })
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
-  splittingRelativeNestedDir_common_default
-} from "../chunk._R_iWKlj.js";
+  common_default
+} from "../chunk.uWHCLtU_.js";
 
-// scripts/.js-api-tests/splittingRelativeNestedDir-a/demo.js
-console.log("a" + splittingRelativeNestedDir_common_default);
+// scripts/.js-api-tests/splittingRelativeNestedDir/a/demo.js
+console.log("a" + common_default);
 `)
     assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
-  splittingRelativeNestedDir_common_default
-} from "../chunk._R_iWKlj.js";
+  common_default
+} from "../chunk.uWHCLtU_.js";
 
-// scripts/.js-api-tests/splittingRelativeNestedDir-b/demo.js
-console.log("b" + splittingRelativeNestedDir_common_default);
+// scripts/.js-api-tests/splittingRelativeNestedDir/b/demo.js
+console.log("b" + common_default);
 `)
-    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingRelativeNestedDir-common.js
-var splittingRelativeNestedDir_common_default = "common";
+    assert.strictEqual(Buffer.from(value.outputFiles[2].contents).toString(), `// scripts/.js-api-tests/splittingRelativeNestedDir/common.js
+var common_default = "common";
 
 export {
-  splittingRelativeNestedDir_common_default
+  common_default
 };
 `)
 
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.relative(testDir, inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
-    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk._R_iWKlj.js'))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.uWHCLtU_.js'))
   },
 
-  async stdinStdoutBundle({ esbuild }) {
-    const aux = path.join(testDir, 'stdinStdoutBundle-aux.js')
+  async stdinStdoutBundle({ esbuild, testDir }) {
+    const aux = path.join(testDir, 'aux.js')
     await writeFileAsync(aux, 'export default 123')
     const value = await esbuild.build({
       stdin: {
         contents: `
-          import x from './stdinStdoutBundle-aux.js'
+          import x from './aux.js'
           console.log(x)
         `,
         resolveDir: testDir,
@@ -325,23 +325,23 @@ export {
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].path, '<stdout>')
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `(() => {
-  // scripts/.js-api-tests/stdinStdoutBundle-aux.js
-  var stdinStdoutBundle_aux_default = 123;
+  // scripts/.js-api-tests/stdinStdoutBundle/aux.js
+  var aux_default = 123;
 
   // <stdin>
-  console.log(stdinStdoutBundle_aux_default);
+  console.log(aux_default);
 })();
 `)
   },
 
-  async stdinOutfileBundle({ esbuild }) {
-    const aux = path.join(testDir, 'stdinOutfileBundle-aux.js')
-    const outfile = path.join(testDir, 'stdinOutfileBundle-out.js')
+  async stdinOutfileBundle({ esbuild, testDir }) {
+    const aux = path.join(testDir, 'aux.js')
+    const outfile = path.join(testDir, 'out.js')
     await writeFileAsync(aux, 'export default 123')
     const value = await esbuild.build({
       stdin: {
         contents: `
-          import x from './stdinOutfileBundle-aux.js'
+          import x from './aux.js'
           export {x as fromStdin}
         `,
         resolveDir: testDir,
@@ -355,13 +355,13 @@ export {
     assert.strictEqual(result.fromStdin, 123)
   },
 
-  async stdinAndEntryBundle({ esbuild }) {
-    const entry = path.join(testDir, 'stdinAndEntryBundle-entry.js')
-    const aux = path.join(testDir, 'stdinAndEntryBundle-aux.js')
-    const outdir = path.join(testDir, 'stdinAndEntryBundle-out')
+  async stdinAndEntryBundle({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const aux = path.join(testDir, 'aux.js')
+    const outdir = path.join(testDir, 'out')
     await writeFileAsync(aux, 'export default 123')
     await writeFileAsync(entry, `
-      import x from './stdinAndEntryBundle-aux.js'
+      import x from './aux.js'
       export let fromEntry = x
     `)
     const value = await esbuild.build({
@@ -560,7 +560,7 @@ let transformTests = {
 }
 
 let syncTests = {
-  async buildSync({ esbuild }) {
+  async buildSync({ esbuild, testDir }) {
     const input = path.join(testDir, 'buildSync-in.js')
     const output = path.join(testDir, 'buildSync-out.js')
     await writeFileAsync(input, 'export default 123')
@@ -586,16 +586,22 @@ async function assertSourceMap(jsSourceMap, source) {
 
 async function main() {
   // Start the esbuild service
-  const esbuild = installForTests(testDir)
+  const esbuild = installForTests(rootTestDir)
   const service = await esbuild.startService()
 
   // Run all tests concurrently
-  const runTest = ([name, fn]) => fn({ esbuild, service }).then(
-    () => true,
-    e => {
+  const runTest = async ([name, fn]) => {
+    let testDir = path.join(rootTestDir, name)
+    try {
+      await mkdirAsync(testDir)
+      await fn({ esbuild, service, testDir })
+      rimraf.sync(testDir, { disableGlob: true })
+      return true
+    } catch (e) {
       console.error(`❌ ${name}: ${e && e.message || e}`)
       return false
-    })
+    }
+  }
   const tests = [
     ...Object.entries(buildTests),
     ...Object.entries(transformTests),
@@ -611,7 +617,7 @@ async function main() {
     process.exit(1)
   } else {
     console.log(`✅ js api tests passed`)
-    rimraf.sync(testDir, { disableGlob: true })
+    rimraf.sync(rootTestDir, { disableGlob: true })
   }
 }
 
