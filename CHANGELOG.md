@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1
 
 * Allow bundling with stdin as input ([#212](https://github.com/evanw/esbuild/issues/212))
 
