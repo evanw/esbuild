@@ -103,7 +103,7 @@ Here are some of the main features that esbuild offers (a non-exhaustive list):
     * Respects `/* @__PURE__ */` annotations
 * Output formats
     * CommonJS
-    * <abbr title="Immediately Invoked Function Expression">IIFE</abbr>
+    * IIFE
     * ES6 module (supports code splitting)
 * Source map generation
 * Transpilation of JSX and newer JS syntax down to ES6
