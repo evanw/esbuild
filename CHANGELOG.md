@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.2
 
 * Fix code splitting bug with re-export cycles ([#251](https://github.com/evanw/esbuild/issues/251))
 
