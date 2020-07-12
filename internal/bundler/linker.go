@@ -1573,6 +1573,7 @@ func (c *linkerContext) addExportsForExportStar(
 	}
 	visited[sourceIndex] = true
 	file := &c.files[sourceIndex]
+	fileMeta := &c.fileMeta[sourceIndex]
 
 	for _, importRecordIndex := range file.ast.ExportStarImportRecords {
 		record := &file.ast.ImportRecords[importRecordIndex]
@@ -1622,6 +1623,13 @@ func (c *linkerContext) addExportsForExportStar(
 					sourceIndex:      otherSourceIndex,
 					pathLoc:          &pathLoc,
 					isFromExportStar: true,
+				}
+
+				// Make sure the symbol is marked as imported so that code splitting
+				// imports it correctly if it ends up being shared with another chunk
+				fileMeta.importsToBind[ref] = importToBind{
+					ref:         ref,
+					sourceIndex: otherSourceIndex,
 				}
 			} else if existing.sourceIndex != otherSourceIndex {
 				// Two different re-exports colliding makes it ambiguous

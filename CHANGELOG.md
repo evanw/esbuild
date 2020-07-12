@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix code splitting bug with re-export cycles ([#251](https://github.com/evanw/esbuild/issues/251))
+
+    Two files that both re-export each other could cause invalid code to be generated when code splitting is enabled. The specific failure was an `export` statement without a matching `import` statement from the shared code chunk. This bug has been fixed.
+
 ## 0.6.1
 
 * Allow bundling with stdin as input ([#212](https://github.com/evanw/esbuild/issues/212))

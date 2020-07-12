@@ -413,3 +413,60 @@ export {
 		},
 	})
 }
+
+func TestSplittingCircularReferenceIssue251(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				export * from './b.js';
+				export var p = 5;
+			`,
+			"/b.js": `
+				export * from './a.js';
+				export var q = 6;
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `import {
+  p,
+  q
+} from "./chunk.xL6KqlYO.js";
+
+// /a.js
+export {
+  p,
+  q
+};
+`,
+			"/out/b.js": `import {
+  p,
+  q
+} from "./chunk.xL6KqlYO.js";
+
+// /b.js
+export {
+  p,
+  q
+};
+`,
+			"/out/chunk.xL6KqlYO.js": `// /b.js
+var q = 6;
+
+// /a.js
+var p = 5;
+
+export {
+  p,
+  q
+};
+`,
+		},
+	})
+}
