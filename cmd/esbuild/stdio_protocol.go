@@ -1,6 +1,7 @@
 // The JavaScript API communicates with the Go child process over stdin/stdout
 // using this protocol. It's a very simple binary protocol that uses primitives
-// and nested arrays and maps. You must send a response after receiving a
+// and nested arrays and maps. It's basically JSON with UTF-8 encoding and an
+// additional byte array primitive. You must send a response after receiving a
 // request because the other end is blocking on the response coming back.
 
 package main
