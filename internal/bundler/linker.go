@@ -571,6 +571,11 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 						continue
 					}
 
+					// Ignore symbols that are going to be replaced by undefined
+					if symbol.ImportItemStatus == ast.ImportItemMissing {
+						continue
+					}
+
 					if importToBind, ok := fileMeta.importsToBind[ref]; ok {
 						// If this is imported from another file, follow the import
 						// reference and reference the symbol in that file instead

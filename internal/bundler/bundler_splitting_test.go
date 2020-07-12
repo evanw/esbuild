@@ -470,3 +470,63 @@ export {
 		},
 	})
 }
+
+func TestSplittingMissingLazyExport(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import {foo} from './common.js'
+				console.log(foo())
+			`,
+			"/b.js": `
+				import {bar} from './common.js'
+				console.log(bar())
+			`,
+			"/common.js": `
+				import * as ns from './empty.js'
+				export function foo() { return [ns, ns.missing] }
+				export function bar() { return [ns.missing] }
+			`,
+			"/empty.js": `
+				// This forces the module into ES6 mode without importing or exporting anything
+				import.meta
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `import "./chunk.xL6KqlYO.js";
+
+// /empty.js
+const empty_exports = {};
+
+// /common.js
+function foo() {
+  return [empty_exports, void 0];
+}
+
+// /a.js
+console.log(foo());
+`,
+			"/out/b.js": `import "./chunk.xL6KqlYO.js";
+
+// /common.js
+function bar() {
+  return [void 0];
+}
+
+// /b.js
+console.log(bar());
+`,
+			"/out/chunk.xL6KqlYO.js": `// /empty.js
+
+// /common.js
+`,
+		},
+	})
+}
