@@ -8602,6 +8602,20 @@ func LazyExportAST(log logging.Log, source logging.Source, options config.Option
 	return ast
 }
 
+func (p *parser) validateJSX(span lexer.Span, name string) []string {
+	if span.Text == "" {
+		return nil
+	}
+	parts := strings.Split(span.Text, ".")
+	for _, part := range parts {
+		if !lexer.IsIdentifier(part) {
+			p.log.AddRangeWarning(&p.source, span.Range, fmt.Sprintf("Invalid JSX %s: %s", name, span.Text))
+			return nil
+		}
+	}
+	return parts
+}
+
 func (p *parser) prepareForVisitPass(options *config.Options) {
 	p.pushScopeForVisitPass(ast.ScopeEntry, ast.Loc{Start: locModuleScope})
 	p.moduleScope = p.currentScope
@@ -8622,6 +8636,16 @@ func (p *parser) prepareForVisitPass(options *config.Options) {
 		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
 	} else {
 		p.importMetaRef = ast.InvalidRef
+	}
+
+	// Handle "@jsx" and "@jsxFrag" pragmas now that lexing is done
+	if p.JSX.Parse {
+		if value := p.validateJSX(p.lexer.JSXFactoryPragmaComment, "factory"); value != nil {
+			p.JSX.Factory = value
+		}
+		if value := p.validateJSX(p.lexer.JSXFragmentPragmaComment, "fragment"); value != nil {
+			p.JSX.Fragment = value
+		}
 	}
 }
 

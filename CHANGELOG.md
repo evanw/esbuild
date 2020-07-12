@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Add support for `@jsx` and `@jsxFrag` comments ([#138](https://github.com/evanw/esbuild/issues/138))
+
+    You can now override the JSX factory and fragment values on a per-file basis using comments:
+
+    ```jsx
+    // @jsx h
+    // @jsxFrag Fragment
+    import {h, Fragment} from 'preact'
+    console.log(<><a/></>)
+    ```
+
+    This now generates the following code:
+
+    ```js
+    import {h, Fragment} from "preact";
+    console.log(h(Fragment, null, h("a", null)));
+    ```
+
 ## 0.6.2
 
 * Fix code splitting bug with re-export cycles ([#251](https://github.com/evanw/esbuild/issues/251))
