@@ -2673,9 +2673,6 @@ func TestImportFSBrowser(t *testing.T) {
 			Platform:      config.PlatformBrowser,
 		},
 		expectedScanLog: `/entry.js: error: Could not resolve "fs"
-/entry.js: error: Could not resolve "fs"
-/entry.js: error: Could not resolve "fs"
-/entry.js: error: Could not resolve "fs"
 `,
 	})
 }
@@ -2755,7 +2752,6 @@ func TestExportFSBrowser(t *testing.T) {
 			Platform:      config.PlatformBrowser,
 		},
 		expectedScanLog: `/entry.js: error: Could not resolve "fs"
-/entry.js: error: Could not resolve "fs"
 `,
 	})
 }

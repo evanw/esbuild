@@ -241,40 +241,52 @@ func parseFile(args parseArgs) {
 	if result.ok && args.options.IsBundling {
 		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
 
-		// Resolve relative to the parent directory of the source file with the
-		// import path. Just use the current directory if the source file is virtual.
-		var sourceDir string
-		if source.KeyPath.IsAbsolute {
-			sourceDir = args.fs.Dir(source.KeyPath.Text)
-		} else if args.absResolveDir != "" {
-			sourceDir = args.absResolveDir
-		} else {
-			sourceDir = args.fs.Cwd()
-		}
+		if len(result.file.ast.ImportRecords) > 0 {
+			cache := make(map[string]*resolver.ResolveResult)
 
-		for _, part := range result.file.ast.Parts {
-			for _, importRecordIndex := range part.ImportRecordIndices {
-				// Don't try to resolve imports that are already resolved
-				record := &result.file.ast.ImportRecords[importRecordIndex]
-				if record.SourceIndex != nil {
-					continue
-				}
+			// Resolve relative to the parent directory of the source file with the
+			// import path. Just use the current directory if the source file is virtual.
+			var sourceDir string
+			if source.KeyPath.IsAbsolute {
+				sourceDir = args.fs.Dir(source.KeyPath.Text)
+			} else if args.absResolveDir != "" {
+				sourceDir = args.absResolveDir
+			} else {
+				sourceDir = args.fs.Cwd()
+			}
 
-				// Run the resolver and log an error if the path couldn't be resolved
-				resolveResult := args.res.Resolve(sourceDir, record.Path.Text)
-				if resolveResult == nil {
-					// Failed imports inside a try/catch are silently turned into
-					// external imports instead of causing errors. This matches a common
-					// code pattern for conditionally importing a module with a graceful
-					// fallback.
-					if !record.IsInsideTryBody {
-						r := source.RangeOfString(record.Loc)
-						args.log.AddRangeError(&source, r, fmt.Sprintf("Could not resolve %q", record.Path.Text))
+			for _, part := range result.file.ast.Parts {
+				for _, importRecordIndex := range part.ImportRecordIndices {
+					// Don't try to resolve imports that are already resolved
+					record := &result.file.ast.ImportRecords[importRecordIndex]
+					if record.SourceIndex != nil {
+						continue
 					}
-					continue
-				}
 
-				result.resolveResults[importRecordIndex] = resolveResult
+					// Cache the path in case it's imported multiple times in this file
+					if resolveResult, ok := cache[record.Path.Text]; ok {
+						result.resolveResults[importRecordIndex] = resolveResult
+						continue
+					}
+
+					// Run the resolver and log an error if the path couldn't be resolved
+					resolveResult := args.res.Resolve(sourceDir, record.Path.Text)
+					cache[record.Path.Text] = resolveResult
+
+					if resolveResult == nil {
+						// Failed imports inside a try/catch are silently turned into
+						// external imports instead of causing errors. This matches a common
+						// code pattern for conditionally importing a module with a graceful
+						// fallback.
+						if !record.IsInsideTryBody {
+							r := source.RangeOfString(record.Loc)
+							args.log.AddRangeError(&source, r, fmt.Sprintf("Could not resolve %q", record.Path.Text))
+						}
+						continue
+					}
+
+					result.resolveResults[importRecordIndex] = resolveResult
+				}
 			}
 		}
 	}
