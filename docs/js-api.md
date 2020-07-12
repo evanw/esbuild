@@ -89,7 +89,7 @@ Example usage:
 ```ts
 (async () => {
   // Start the esbuild web worker once
-  const { startService } = require('esbuild-wasm/lib/browser')
+  const { startService } = require('esbuild-wasm')
   const wasmURL = 'node_modules/esbuild-wasm/esbuild.wasm'
   const service = await startService({ wasmURL })
 

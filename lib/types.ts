@@ -127,34 +127,50 @@ export interface Service {
   stop(): void;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Node API
-
 // This function invokes the "esbuild" command-line tool for you. It returns a
 // promise that either resolves with a "BuildResult" object or rejects with a
 // "BuildFailure" object.
+//
+// Works in node: yes
+// Works in browser: no
 export declare function build(options: BuildOptions): Promise<BuildResult>;
 
 // This function transforms a single JavaScript file. It can be used to minify
 // JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript
 // to older JavaScript. It returns a promise that is either resolved with a
 // "TransformResult" object or rejected with a "TransformFailure" object.
+//
+// Works in node: yes
+// Works in browser: no
 export declare function transform(input: string, options: TransformOptions): Promise<TransformResult>;
 
+// A synchronous version of "build".
+//
+// Works in node: yes
+// Works in browser: no
 export declare function buildSync(options: BuildOptions): BuildResult;
+
+// A synchronous version of "transform".
+//
+// Works in node: yes
+// Works in browser: no
 export declare function transformSync(input: string, options: TransformOptions): TransformResult;
 
 // This starts "esbuild" as a long-lived child process that is then reused, so
 // you can call methods on the service many times without the overhead of
 // starting up a new child process each time.
-export declare function startService(): Promise<Service>;
+//
+// Works in node: yes
+// Works in browser: yes ("options" is required)
+export declare function startService(options?: ServiceOptions): Promise<Service>;
 
-////////////////////////////////////////////////////////////////////////////////
-// Browser API
+export interface ServiceOptions {
+  // The URL of the "esbuild.wasm" file. This must be provided when running
+  // esbuild in the browser.
+  wasmURL?: string
 
-export interface BrowserServiceOptions {
-  wasmURL: string
+  // By default esbuild runs the WebAssembly-based browser API in a web worker
+  // to avoid blocking the UI thread. This can be disabled by setting "worker"
+  // to false.
   worker?: boolean
 }
-
-export declare function startService(options: BrowserServiceOptions): Promise<Service>;

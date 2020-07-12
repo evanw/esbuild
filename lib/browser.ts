@@ -3,7 +3,25 @@ import * as common from "./common"
 
 declare let WEB_WORKER_SOURCE_CODE: string
 
-export let startService = (options: types.BrowserServiceOptions): Promise<types.Service> => {
+let build: typeof types.build = options => {
+  throw new Error(`The "build" API only works in node`);
+};
+
+let transform: typeof types.transform = (input, options) => {
+  throw new Error(`The "transform" API only works in node`);
+};
+
+let buildSync: typeof types.buildSync = options => {
+  throw new Error(`The "buildSync" API only works in node`);
+};
+
+let transformSync: typeof types.transformSync = (input, options) => {
+  throw new Error(`The "transformSync" API only works in node`);
+};
+
+let startService: typeof types.startService = options => {
+  if (!options) throw new Error('Must provide an options object to "startService"');
+  if (!options.wasmURL) throw new Error('Must provide the "wasmURL" option');
   return fetch(options.wasmURL).then(r => r.arrayBuffer()).then(wasm => {
     let code = `{` +
       `let global={};` +
@@ -45,7 +63,7 @@ export let startService = (options: types.BrowserServiceOptions): Promise<types.
 
     return {
       build(options) {
-        throw new Error('Not implemented yet')
+        throw new Error(`The "build" API only works in node`)
       },
       transform: (input, options) =>
         new Promise((resolve, reject) =>
@@ -58,3 +76,13 @@ export let startService = (options: types.BrowserServiceOptions): Promise<types.
     }
   })
 }
+
+let api: typeof types = {
+  build,
+  buildSync,
+  transform,
+  transformSync,
+  startService,
+};
+
+module.exports = api;

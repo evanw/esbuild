@@ -23,7 +23,7 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
 // Return true if stderr is a TTY
 let isTTY = () => isatty(2);
 
-export let build: typeof types.build = options => {
+let build: typeof types.build = options => {
   return startService().then(service => {
     let promise = service.build(options);
     promise.then(service.stop, service.stop); // Kill the service afterwards
@@ -31,7 +31,7 @@ export let build: typeof types.build = options => {
   });
 };
 
-export let transform: typeof types.transform = (input, options) => {
+let transform: typeof types.transform = (input, options) => {
   return startService().then(service => {
     let promise = service.transform(input, options);
     promise.then(service.stop, service.stop); // Kill the service afterwards
@@ -39,7 +39,7 @@ export let transform: typeof types.transform = (input, options) => {
   });
 };
 
-export let buildSync: typeof types.buildSync = options => {
+let buildSync: typeof types.buildSync = options => {
   let result: types.BuildResult;
   runServiceSync(service => service.build(options, isTTY(), (err, res) => {
     if (err) throw err;
@@ -48,7 +48,7 @@ export let buildSync: typeof types.buildSync = options => {
   return result!;
 };
 
-export let transformSync: typeof types.transformSync = (input, options) => {
+let transformSync: typeof types.transformSync = (input, options) => {
   let result: types.TransformResult;
   runServiceSync(service => service.transform(input, options, isTTY(), (err, res) => {
     if (err) throw err;
@@ -57,7 +57,11 @@ export let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
-export let startService = (): Promise<types.Service> => {
+let startService: typeof types.startService = options => {
+  if (options) {
+    if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
+    if (options.worker) throw new Error(`The "worker" option only works in the browser`)
+  }
   let [command, args] = esbuildCommandAndArgs();
   let child = child_process.spawn(command, args.concat('--service'), {
     cwd: process.cwd(),
@@ -110,3 +114,13 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
   readFromStdout(stdout);
   afterClose();
 };
+
+let api: typeof types = {
+  build,
+  buildSync,
+  transform,
+  transformSync,
+  startService,
+};
+
+module.exports = api;
