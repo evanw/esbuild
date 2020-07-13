@@ -1093,10 +1093,17 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32) {
 	p.printSpaceBeforeIdentifier()
 
 	// Preserve "import()" expressions that don't point inside the bundle
-	if record.SourceIndex == nil && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
-		p.print("import(")
-		p.print(Quote(record.Path.Text))
-		p.print(")")
+	if record.SourceIndex == nil && record.Kind == ast.ImportDynamic {
+		if p.options.OutputFormat.KeepES6ImportExportSyntax() {
+			p.print("import(")
+			p.print(Quote(record.Path.Text))
+			p.print(")")
+		}
+		if p.options.OutputFormat == config.FormatSystemJS {
+			p.print("__context.import(")
+			p.print(Quote(record.Path.Text))
+			p.print(")")
+		}
 		return
 	}
 

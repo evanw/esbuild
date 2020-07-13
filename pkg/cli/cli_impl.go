@@ -232,10 +232,12 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				buildOpts.Format = api.FormatIIFE
 			case "cjs":
 				buildOpts.Format = api.FormatCommonJS
+			case "systemjs":
+				buildOpts.Format = api.FormatSystemJS
 			case "esm":
 				buildOpts.Format = api.FormatESModule
 			default:
-				return fmt.Errorf("Invalid format: %q (valid: iife, cjs, esm)", value)
+				return fmt.Errorf("Invalid format: %q (valid: iife, cjs, systemjs, esm)", value)
 			}
 
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:

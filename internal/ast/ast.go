@@ -1253,14 +1253,15 @@ type AST struct {
 	HasES6Imports bool
 	HasES6Exports bool
 
-	Hashbang    string
-	Directive   string
-	Parts       []Part
-	Symbols     SymbolMap
-	ModuleScope *Scope
-	ExportsRef  Ref
-	ModuleRef   Ref
-	WrapperRef  Ref
+	Hashbang         string
+	Directive        string
+	Parts            []Part
+	Symbols          SymbolMap
+	ModuleScope      *Scope
+	ExportsRef       Ref
+	ModuleRef        Ref
+	WrapperRef       Ref
+	SystemExportsRef Ref
 
 	// These are stored at the AST level instead of on individual AST nodes so
 	// they can be manipulated efficiently without a full AST traversal

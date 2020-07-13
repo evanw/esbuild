@@ -129,6 +129,7 @@ const (
 	FormatDefault Format = iota
 	FormatIIFE
 	FormatCommonJS
+	FormatSystemJS
 	FormatESModule
 )
 
