@@ -640,8 +640,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 
 		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, importsFromOtherChunks) {
 			switch c.options.OutputFormat {
-			case config.FormatESModule:
-			case config.FormatSystemJS:
+			case config.FormatESModule, config.FormatSystemJS:
 				var items []ast.ClauseItem
 				for _, alias := range crossChunkImport.sortedImportAliases {
 					items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
@@ -677,8 +676,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 	// Generate cross-chunk exports
 	for chunkIndex := range chunks {
 		switch c.options.OutputFormat {
-		case config.FormatESModule:
-		case config.FormatSystemJS:
+		case config.FormatESModule, config.FormatSystemJS:
 			var items []ast.ClauseItem
 			for _, alias := range c.sortedCrossChunkExportRefs(chunkMetas[chunkIndex].exports) {
 				items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
