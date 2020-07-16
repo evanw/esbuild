@@ -369,6 +369,28 @@ func TestFunction(t *testing.T) {
 		"function foo([, ,] = [, ,]) {\n}\n")
 }
 
+func TestPureComment(t *testing.T) {
+	expectPrinted(t,
+		"(function() {})",
+		"(function() {\n});\n")
+	expectPrinted(t,
+		"(function() {})()",
+		"(function() {\n})();\n")
+	expectPrinted(t,
+		"/*@__PURE__*/(function() {})()",
+		"/* @__PURE__ */ (function() {\n})();\n")
+
+	expectPrinted(t,
+		"new (function() {})",
+		"new function() {\n}();\n")
+	expectPrinted(t,
+		"new (function() {})()",
+		"new function() {\n}();\n")
+	expectPrinted(t,
+		"/*@__PURE__*/new (function() {})()",
+		"/* @__PURE__ */ new function() {\n}();\n")
+}
+
 func TestGenerator(t *testing.T) {
 	expectPrinted(t,
 		"function* foo() {}",

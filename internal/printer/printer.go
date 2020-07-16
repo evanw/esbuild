@@ -1237,7 +1237,11 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 		if hasPureComment {
+			wasStmtStart := p.stmtStart == len(p.js)
 			p.print("/* @__PURE__ */ ")
+			if wasStmtStart {
+				p.stmtStart = len(p.js)
+			}
 		}
 
 		// We don't ever want to accidentally generate a direct eval expression here
