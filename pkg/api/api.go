@@ -28,13 +28,12 @@
 //             EntryPoints: []string{"input.js"},
 //             Outfile:     "output.js",
 //             Bundle:      true,
+//             Write:       true,
+//             LogLevel:    api.LogLevelInfo,
 //         })
 //
-//         fmt.Printf("%d errors and %d warnings\n",
-//             len(result.Errors), len(result.Warnings))
-//
-//         for _, out := range result.OutputFiles {
-//             ioutil.WriteFile(out.Path, out.Contents, 0644)
+//         if len(result.Errors) > 0 {
+//             os.Exit(1)
 //         }
 //     }
 //
@@ -221,6 +220,7 @@ type BuildOptions struct {
 
 	EntryPoints []string
 	Stdin       *StdinOptions
+	Write       bool
 }
 
 type StdinOptions struct {

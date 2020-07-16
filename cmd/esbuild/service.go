@@ -9,9 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"runtime/debug"
 	"sync"
 
@@ -203,24 +201,14 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}
 	}
 
+	options.Write = write
 	result := api.Build(options)
 	response := map[string]interface{}{
 		"errors":   encodeMessages(result.Errors),
 		"warnings": encodeMessages(result.Warnings),
 	}
 
-	if write {
-		// Write the output files to disk
-		for _, outputFile := range result.OutputFiles {
-			if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
-				result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
-					"Failed to create output directory: %s", err.Error())})
-			} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
-				result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
-					"Failed to write to output file: %s", err.Error())})
-			}
-		}
-	} else {
+	if !write {
 		// Pass the output files back to the caller
 		response["outputFiles"] = encodeOutputFiles(result.OutputFiles)
 	}

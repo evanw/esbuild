@@ -24,6 +24,10 @@
     console.log(h(Fragment, null, h("a", null)));
     ```
 
+* Add the `Write` option to the Go API
+
+    This brings the Go API to parity with the JavaScript API, and makes certain uses of the `api.Build()` call simpler. You can now specify `Write: true` to have the output files written to the file system during the build instead of having to do that yourself.
+
 ## 0.6.2
 
 * Fix code splitting bug with re-export cycles ([#251](https://github.com/evanw/esbuild/issues/251))

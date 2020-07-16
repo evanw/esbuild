@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -420,6 +419,7 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *api.TransformOptio
 			// Apply defaults appropriate for the CLI
 			options.ErrorLimit = 10
 			options.LogLevel = api.LogLevelInfo
+			options.Write = true
 
 			err := parseOptionsImpl(osArgs, &options, nil)
 			if err != nil {
@@ -478,27 +478,6 @@ func runImpl(osArgs []string) int {
 		result := api.Build(*buildOptions)
 		if len(result.Errors) > 0 {
 			return 1
-		}
-
-		// Special-case writing to stdout
-		if buildOptions.Outfile == "" && buildOptions.Outdir == "" {
-			if len(result.OutputFiles) != 1 {
-				logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
-					"Internal error: did not expect to generate %d files when writing to stdout", len(result.OutputFiles)))
-			} else if _, err := os.Stdout.Write(result.OutputFiles[0].Contents); err != nil {
-				logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
-					"Failed to write to stdout: %s", err.Error()))
-			}
-		} else {
-			for _, outputFile := range result.OutputFiles {
-				if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
-					result.Errors = append(result.Errors, api.Message{Text: fmt.Sprintf(
-						"Failed to create output directory: %s", err.Error())})
-				} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
-					logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
-						"Failed to write to output file: %s", err.Error()))
-				}
-			}
 		}
 
 	case transformOptions != nil:
