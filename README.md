@@ -82,6 +82,7 @@ Several reasons:
 * [Vite](https://github.com/vuejs/vite)
 * [Snowpack](https://github.com/pikapkg/snowpack)
 * [HUGO](https://github.com/gohugoio/hugo)
+* [Kretes](https://kretes.dev/)
 
 #### Currently supported:
 
