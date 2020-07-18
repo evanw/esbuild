@@ -39,6 +39,8 @@ func validateFormat(value Format) config.Format {
 		return config.FormatIIFE
 	case FormatCommonJS:
 		return config.FormatCommonJS
+	case FormatSystemJS:
+		return config.FormatSystemJS
 	case FormatESModule:
 		return config.FormatESModule
 	default:
@@ -479,8 +481,8 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	}
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
-	if options.CodeSplitting && options.OutputFormat != config.FormatESModule {
-		log.AddError(nil, ast.Loc{}, "Splitting currently only works with the \"esm\" format")
+	if options.CodeSplitting && options.OutputFormat != config.FormatESModule && options.OutputFormat != config.FormatSystemJS {
+		log.AddError(nil, ast.Loc{}, "Splitting currently only works with the \"esm\" and \"systemjs\" formats")
 	}
 
 	var outputFiles []OutputFile

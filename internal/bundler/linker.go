@@ -363,7 +363,8 @@ func newLinkerContext(
 
 		// Entry points must be CommonJS-style if the output format doesn't support
 		// ES6 export syntax
-		if !options.OutputFormat.KeepES6ImportExportSyntax() && c.files[sourceIndex].ast.HasES6Exports {
+		if !options.OutputFormat.KeepES6ImportExportSyntax() && options.OutputFormat != config.FormatSystemJS &&
+			c.files[sourceIndex].ast.HasES6Exports {
 			fileMeta.cjsStyleExports = true
 		}
 	}
@@ -639,15 +640,16 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 
 		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, importsFromOtherChunks) {
 			switch c.options.OutputFormat {
-			case config.FormatESModule:
+			case config.FormatESModule, config.FormatSystemJS:
 				var items []ast.ClauseItem
 				for _, alias := range crossChunkImport.sortedImportAliases {
 					items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
 				}
 				importRecordIndex := uint32(len(crossChunkImportRecords))
 				crossChunkImportRecords = append(crossChunkImportRecords, ast.ImportRecord{
-					Kind: ast.ImportStmt,
-					Path: ast.Path{Text: c.relativePathBetweenChunks(chunk, chunks[crossChunkImport.chunkIndex].relPath)},
+					DoesNotUseExports: len(items) == 0,
+					Kind:              ast.ImportStmt,
+					Path:              ast.Path{Text: c.relativePathBetweenChunks(chunk, chunks[crossChunkImport.chunkIndex].relPath)},
 				})
 				if len(items) > 0 {
 					// "import {a, b} from './chunk.js'"
@@ -674,7 +676,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 	// Generate cross-chunk exports
 	for chunkIndex := range chunks {
 		switch c.options.OutputFormat {
-		case config.FormatESModule:
+		case config.FormatESModule, config.FormatSystemJS:
 			var items []ast.ClauseItem
 			for _, alias := range c.sortedCrossChunkExportRefs(chunkMetas[chunkIndex].exports) {
 				items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
@@ -929,7 +931,8 @@ func (c *linkerContext) scanImportsAndExports() {
 		// resulting wrapper won't be invoked by other files.
 		if !fileMeta.cjsWrap && fileMeta.cjsStyleExports &&
 			(c.options.OutputFormat == config.FormatIIFE ||
-				c.options.OutputFormat == config.FormatESModule) {
+				c.options.OutputFormat == config.FormatESModule ||
+				c.options.OutputFormat == config.FormatSystemJS) {
 			fileMeta.cjsWrap = true
 		}
 
@@ -1125,7 +1128,8 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
 	needsEntryPointES6ExportPart := isEntryPoint && !fileMeta.cjsWrap &&
-		c.options.OutputFormat == config.FormatESModule && len(fileMeta.sortedAndFilteredExportAliases) > 0
+		(c.options.OutputFormat == config.FormatESModule || c.options.OutputFormat == config.FormatSystemJS) &&
+		len(fileMeta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
 	properties := []ast.Property{}
@@ -1344,8 +1348,24 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	}
 
 	if len(entryPointES6ExportItems) > 0 {
-		entryPointExportStmts = append(entryPointExportStmts,
-			ast.Stmt{Data: &ast.SExportClause{Items: entryPointES6ExportItems}})
+		if c.options.OutputFormat == config.FormatSystemJS {
+			properties := []ast.Property{}
+			for _, item := range entryPointES6ExportItems {
+				properties = append(properties, ast.Property{
+					Key:   ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(item.Alias)}},
+					Value: &ast.Expr{Data: &ast.EIdentifier{Ref: item.Name.Ref}},
+				})
+			}
+			entryPointExportStmts = append(entryPointExportStmts, ast.Stmt{Data: &ast.SExpr{
+				Value: ast.Expr{Data: &ast.ECall{
+					Target: ast.Expr{Data: &ast.EIdentifier{Ref: file.ast.SystemExportsRef}},
+					Args:   []ast.Expr{{Data: &ast.EObject{Properties: properties}}},
+				}},
+			}})
+		} else {
+			entryPointExportStmts = append(entryPointExportStmts,
+				ast.Stmt{Data: &ast.SExportClause{Items: entryPointES6ExportItems}})
+		}
 	}
 
 	// If we're an entry point, call the require function at the end of the
@@ -1458,7 +1478,8 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 			nextTracker, status := c.advanceImportTracker(tracker)
 			switch status {
 			case importCommonJS, importCommonJSWithoutExports, importExternal:
-				if status == importExternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
+				if status == importExternal &&
+					(c.options.OutputFormat.KeepES6ImportExportSyntax() || c.options.OutputFormat == config.FormatSystemJS) {
 					// Imports from external modules should not be converted to CommonJS
 					// if the output format preserves the original ES6 import statements
 					break
@@ -2013,7 +2034,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		if record.SourceIndex == nil || c.isExternalDynamicImport(record) {
 			// This is an external import, so it needs the "__toModule" wrapper as
 			// long as it's not a bare "require()"
-			if record.Kind != ast.ImportRequire && !c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			if record.Kind != ast.ImportRequire &&
+				!(c.options.OutputFormat.KeepES6ImportExportSyntax() || c.options.OutputFormat == config.FormatSystemJS) {
 				record.WrapWithToModule = true
 				toModuleUses++
 			}
@@ -2656,6 +2678,9 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	if c.options.OutputFormat == config.FormatIIFE {
 		indent++
 	}
+	if c.options.OutputFormat == config.FormatSystemJS {
+		indent += 3
+	}
 
 	// Convert the AST to JavaScript code
 	printOptions := printer.PrintOptions{
@@ -2736,20 +2761,25 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		if c.options.OutputFormat == config.FormatIIFE {
 			indent++
 		}
+		if c.options.OutputFormat == config.FormatSystemJS {
+			indent += 3
+		}
 		printOptions := printer.PrintOptions{
 			Indent:           indent,
 			OutputFormat:     c.options.OutputFormat,
 			RemoveWhitespace: c.options.RemoveWhitespace,
 		}
-		crossChunkPrefix = printer.Print(ast.AST{
-			ImportRecords: chunk.crossChunkImportRecords,
-			Parts:         []ast.Part{{Stmts: chunk.crossChunkPrefixStmts}},
-			Symbols:       c.symbols,
-		}, printOptions).JS
-		crossChunkSuffix = printer.Print(ast.AST{
-			Parts:   []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
-			Symbols: c.symbols,
-		}, printOptions).JS
+		if c.options.OutputFormat != config.FormatSystemJS {
+			crossChunkPrefix = printer.Print(ast.AST{
+				ImportRecords: chunk.crossChunkImportRecords,
+				Parts:         []ast.Part{{Stmts: chunk.crossChunkPrefixStmts}},
+				Symbols:       c.symbols,
+			}, printOptions).JS
+			crossChunkSuffix = printer.Print(ast.AST{
+				Parts:   []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
+				Symbols: c.symbols,
+			}, printOptions).JS
+		}
 	}
 	waitGroup.Wait()
 
@@ -2788,7 +2818,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 	// Optionally wrap with an IIFE
 	if c.options.OutputFormat == config.FormatIIFE {
-		indent = "  "
+		indent = space + space
 		text := "(()" + space + "=>" + space + "{" + newline
 		if c.options.ModuleName != "" {
 			text = "var " + c.options.ModuleName + space + "=" + space + text
@@ -2798,7 +2828,82 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		newlineBeforeComment = false
 	}
 
-	// Put the cross-chunk prefix inside the IIFE
+	if c.options.OutputFormat == config.FormatSystemJS {
+		indent = space + space
+		text := "System.register(["
+		isFirstItem := true
+		for _, record := range chunk.crossChunkImportRecords {
+			if !isFirstItem {
+				text += "," + space
+			}
+			text += "\"" + record.Path.Text + "\""
+			isFirstItem = false
+		}
+		text += "]," + space + "function" + space + "(__exports, __context)" + space + "{" + newline
+		text += indent
+		isFirstItem = true
+		for _, stmt := range chunk.crossChunkPrefixStmts {
+			switch s := stmt.Data.(type) {
+			case *ast.SImport:
+				if s.Items != nil {
+					for _, item := range *s.Items {
+						if isFirstItem {
+							text += "var "
+						} else {
+							text += "," + space
+						}
+						text += item.Alias
+						isFirstItem = false
+					}
+				}
+			default:
+				panic(fmt.Sprintf("Unexpected import of type %T", stmt.Data))
+			}
+		}
+		if !isFirstItem {
+			text += ";" + newline + indent
+		}
+		text += "return" + space + "{" + newline
+		indent += space + space
+		text += indent + "setters:" + space + "["
+		isFirstItem = true
+		for index, record := range chunk.crossChunkImportRecords {
+			if !isFirstItem {
+				text += "," + space
+			}
+			if record.DoesNotUseExports {
+				text += "null"
+			} else {
+				text += "function" + space + "(__m)" + space + "{" + newline + indent + space + space
+				for _, stmt := range chunk.crossChunkPrefixStmts {
+					switch s := stmt.Data.(type) {
+					case *ast.SImport:
+						if s.ImportRecordIndex == uint32(index) && s.Items != nil {
+							for _, item := range *s.Items {
+								if !isFirstItem {
+									text += "," + space
+								}
+								text += item.Alias + " = __m." + c.symbols.Get(item.Name.Ref).Name
+								isFirstItem = false
+							}
+						}
+					default:
+						panic(fmt.Sprintf("Unexpected import of type %T", stmt.Data))
+					}
+				}
+				text += ";" + newline + indent + "}"
+			}
+			isFirstItem = false
+		}
+		text += "]," + newline
+		text += indent + "execute:" + space + "function" + space + "()" + space + "{" + newline
+		indent += space + space
+		prevOffset.advance(text)
+		j.AddString(text)
+		newlineBeforeComment = false
+	}
+
+	// Put the cross-chunk prefix inside the iife
 	if len(crossChunkPrefix) > 0 {
 		newlineBeforeComment = true
 		j.AddBytes(crossChunkPrefix)
@@ -2900,7 +3005,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		j.AddBytes(entryPointTail.JS)
 	}
 
-	// Put the cross-chunk suffix inside the IIFE
+	// Put the cross-chunk suffix inside the iife
 	if len(crossChunkSuffix) > 0 {
 		if newlineBeforeComment {
 			j.AddString(newline)
@@ -2911,6 +3016,34 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	// Optionally wrap with an IIFE
 	if c.options.OutputFormat == config.FormatIIFE {
 		j.AddString("})();" + newline)
+	}
+	if c.options.OutputFormat == config.FormatSystemJS {
+		text := ""
+		isFirstItem := true
+		for _, stmt := range chunk.crossChunkSuffixStmts {
+			switch s := stmt.Data.(type) {
+			case *ast.SExportClause:
+				if isFirstItem {
+					text += indent + "__exports({"
+				}
+				for _, item := range s.Items {
+					if !isFirstItem {
+						text += ","
+					}
+					text += newline + indent + space + space + item.Alias
+					name := c.symbols.Get(item.Name.Ref).Name
+					if item.Alias != name {
+						text += ":" + space + name
+					}
+					isFirstItem = false
+				}
+			}
+		}
+		if !isFirstItem {
+			text += newline + indent + "});" + newline
+		}
+		text += space + space + space + space + "}" + newline + space + space + "};" + newline + "});"
+		j.AddString(text)
 	}
 
 	// Make sure the file ends with a newline

@@ -48,6 +48,7 @@ type parser struct {
 	exportsRef               ast.Ref
 	requireRef               ast.Ref
 	moduleRef                ast.Ref
+	systemExportsRef         ast.Ref
 	importMetaRef            ast.Ref
 	findSymbolHelper         config.FindSymbol
 	symbolUses               map[ast.Ref]ast.SymbolUse
@@ -8472,6 +8473,10 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		namedExports:            make(map[string]ast.Ref),
 	}
 
+	if options.OutputFormat == config.FormatSystemJS {
+		p.systemExportsRef = p.newSymbol(ast.SymbolOther, "__exports")
+	}
+
 	p.findSymbolHelper = func(name string) ast.Ref { return p.findSymbol(name).ref }
 	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{Start: locModuleScope})
 
@@ -8799,6 +8804,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 		ExportsRef:              p.exportsRef,
 		ModuleRef:               p.moduleRef,
 		WrapperRef:              wrapperRef,
+		SystemExportsRef:        p.systemExportsRef,
 		Hashbang:                hashbang,
 		Directive:               directive,
 		NamedImports:            p.namedImports,

@@ -100,6 +100,19 @@ const (
 	//
 	FormatCommonJS
 
+	// The SystemJS module format looks like this:
+	//
+	// System.register([], function (__export, __context) {
+	//   return {
+	//     setters: [],
+	//     execute: function () {
+	//       ... bundled code ...
+	//     }
+	//   };
+	// });
+	//
+	FormatSystemJS
+
 	// The ES module format looks like this:
 	//
 	//   ... bundled code ...
