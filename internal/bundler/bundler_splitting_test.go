@@ -608,3 +608,37 @@ export {
 		},
 	})
 }
+
+func TestSplittingDynamicImportOutsideSourceTreeIssue264(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry1.js": `
+				import('package')
+			`,
+			"/Users/user/project/src/entry2.js": `
+				import('package')
+			`,
+			"/Users/user/project/node_modules/package/index.js": `
+				console.log('imported')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry1.js", "/Users/user/project/src/entry2.js"},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/src/entry1.js": `// /Users/user/project/src/entry1.js
+import("../node_modules/package/index.js");
+`,
+			"/out/src/entry2.js": `// /Users/user/project/src/entry2.js
+import("../node_modules/package/index.js");
+`,
+			"/out/node_modules/package/index.js": `// /Users/user/project/node_modules/package/index.js
+console.log("imported");
+`,
+		},
+	})
+}

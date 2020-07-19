@@ -594,14 +594,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 	}
 
 	// Determine the lowest common ancestor of all entry points
-	entryPointAbsPaths := make([]string, 0, len(b.entryPoints))
-	for _, entryPoint := range b.entryPoints {
-		keyPath := b.sources[entryPoint].KeyPath
-		if keyPath.IsAbsolute {
-			entryPointAbsPaths = append(entryPointAbsPaths, keyPath.Text)
-		}
-	}
-	lcaAbsPath := lowestCommonAncestorDirectory(b.fs, entryPointAbsPaths)
+	lcaAbsPath := b.lowestCommonAncestorDirectory(options.CodeSplitting)
 
 	type linkGroup struct {
 		outputFiles    []OutputFile
@@ -687,15 +680,43 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 	return outputFiles
 }
 
-func lowestCommonAncestorDirectory(fs fs.FS, absPaths []string) string {
+func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
+	isEntryPoint := make(map[uint32]bool)
+	for _, entryPoint := range b.entryPoints {
+		isEntryPoint[entryPoint] = true
+	}
+
+	// If code splitting is enabled, also treat dynamic imports as entry points
+	if codeSplitting {
+		for _, sourceIndex := range findReachableFiles(b.sources, b.files, b.entryPoints) {
+			file := b.files[sourceIndex]
+			for _, part := range file.ast.Parts {
+				for _, importRecordIndex := range part.ImportRecordIndices {
+					if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
+						isEntryPoint[*record.SourceIndex] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Ignore any paths for virtual modules (that don't exist on the file system)
+	absPaths := make([]string, 0, len(isEntryPoint))
+	for entryPoint := range isEntryPoint {
+		keyPath := b.sources[entryPoint].KeyPath
+		if keyPath.IsAbsolute {
+			absPaths = append(absPaths, keyPath.Text)
+		}
+	}
+
 	if len(absPaths) == 0 {
 		return ""
 	}
 
-	lowestAbsDir := fs.Dir(absPaths[0])
+	lowestAbsDir := b.fs.Dir(absPaths[0])
 
 	for _, absPath := range absPaths[1:] {
-		absDir := fs.Dir(absPath)
+		absDir := b.fs.Dir(absPath)
 		lastSlash := 0
 		a := 0
 		b := 0
