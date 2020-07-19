@@ -576,14 +576,11 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 						continue
 					}
 
+					// If this is imported from another file, follow the import
+					// reference and reference the symbol in that file instead
 					if importToBind, ok := fileMeta.importsToBind[ref]; ok {
-						// If this is imported from another file, follow the import
-						// reference and reference the symbol in that file instead
 						ref = importToBind.ref
 						symbol = c.symbols.Get(ref)
-					} else if _, ok := file.ast.TopLevelSymbolToParts[ref]; !ok {
-						// Skip symbols that aren't imports or top-level symbols
-						continue
 					}
 
 					// If this is an ES6 import from a CommonJS file, it will become a
@@ -612,11 +609,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 		// Find all uses in this chunk of symbols from other chunks
 		importsFromOtherChunks := make(map[uint32][]ast.Ref)
 		for importRef := range chunkMetas[chunkIndex].imports {
-			otherChunkIndex, ok := topLevelDeclaredSymbolToChunk[importRef]
-			if !ok {
-				panic("Internal error")
-			}
-			if otherChunkIndex != uint32(chunkIndex) {
+			// Ignore uses that aren't top-level symbols
+			if otherChunkIndex, ok := topLevelDeclaredSymbolToChunk[importRef]; ok && otherChunkIndex != uint32(chunkIndex) {
 				importsFromOtherChunks[otherChunkIndex] = append(importsFromOtherChunks[otherChunkIndex], importRef)
 				chunkMetas[otherChunkIndex].exports[importRef] = true
 			}

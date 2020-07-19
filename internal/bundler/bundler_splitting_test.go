@@ -530,3 +530,50 @@ console.log(bar());
 		},
 	})
 }
+
+func TestSplittingReExportIssue273(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				export const a = 1
+			`,
+			"/b.js": `
+				export { a } from './a'
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `import {
+  a
+} from "./chunk.xL6KqlYO.js";
+
+// /a.js
+export {
+  a
+};
+`,
+			"/out/b.js": `import {
+  a
+} from "./chunk.xL6KqlYO.js";
+
+// /b.js
+export {
+  a
+};
+`,
+			"/out/chunk.xL6KqlYO.js": `// /a.js
+const a = 1;
+
+export {
+  a
+};
+`,
+		},
+	})
+}

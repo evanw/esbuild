@@ -10,6 +10,10 @@
 
     The install script now downloads the binary directly from npmjs.org instead of using the `npm` command to install the package. This should be more compatible with unusual node environments (e.g. having multiple old copies of npm installed).
 
+* Fix a code splitting bug with re-exported symbols ([#273](https://github.com/evanw/esbuild/issues/273))
+
+    Re-exporting a symbol in an entry point didn't correctly track the cross-chunk dependency, which caused the output file to be missing a required import. This bug has been fixed.
+
 ## 0.6.3
 
 * Fix `/* @__PURE__ */` IIFEs at start of statement ([#258](https://github.com/evanw/esbuild/issues/258))
