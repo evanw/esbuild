@@ -3,6 +3,8 @@ package ast
 import (
 	"strings"
 
+	"github.com/evanw/esbuild/internal/sourcemap"
+
 	"github.com/evanw/esbuild/internal/compat"
 )
 
@@ -246,6 +248,11 @@ func (r Range) End() int32 {
 type LocRef struct {
 	Loc Loc
 	Ref Ref
+}
+
+type Span struct {
+	Text  string
+	Range Range
 }
 
 // This is used to represent both file system paths (IsAbsolute == true) and
@@ -1273,6 +1280,9 @@ type AST struct {
 	NamedExports            map[string]Ref
 	TopLevelSymbolToParts   map[Ref][]uint32
 	ExportStarImportRecords []uint32
+
+	SourceMapComment Span
+	SourceMap        *sourcemap.SourceMap
 }
 
 func (ast *AST) HasCommonJSFeatures() bool {

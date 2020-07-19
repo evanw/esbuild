@@ -7,6 +7,7 @@ const path = require('path')
 const util = require('util')
 const fs = require('fs')
 
+const execFileAsync = util.promisify(childProcess.execFile)
 const readFileAsync = util.promisify(fs.readFile)
 const writeFileAsync = util.promisify(fs.writeFile)
 
@@ -140,31 +141,34 @@ async function check(kind, testCase, toSearch, flags) {
       outJsMap = await readFileAsync(path.join(tempDir, 'out.js.map'), 'utf8')
     }
 
-    const map = await new SourceMapConsumer(outJsMap)
-
     // Check the mapping of various key locations back to the original source
-    for (const id of toSearch) {
-      const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
-      const inJs = testCase[inSource]
-      const inIndex = inJs.indexOf(`"${id}"`)
-      const outIndex = outJs.indexOf(`"${id}"`)
+    const checkMap = (out, map) => {
+      for (const id of toSearch) {
+        const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
+        const inJs = testCase[inSource]
+        const inIndex = inJs.indexOf(`"${id}"`)
+        const outIndex = out.indexOf(`"${id}"`)
 
-      if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
-      if (outIndex < 0) throw new Error(`Failed to find "${id}" in output`)
+        if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
+        if (outIndex < 0) throw new Error(`Failed to find "${id}" in output`)
 
-      const inLines = inJs.slice(0, inIndex).split('\n')
-      const inLine = inLines.length
-      const inColumn = inLines[inLines.length - 1].length
+        const inLines = inJs.slice(0, inIndex).split('\n')
+        const inLine = inLines.length
+        const inColumn = inLines[inLines.length - 1].length
 
-      const outLines = outJs.slice(0, outIndex).split('\n')
-      const outLine = outLines.length
-      const outColumn = outLines[outLines.length - 1].length
+        const outLines = out.slice(0, outIndex).split('\n')
+        const outLine = outLines.length
+        const outColumn = outLines[outLines.length - 1].length
 
-      const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
-      const expected = JSON.stringify({ source: inSource, line: inLine, column: inColumn })
-      const observed = JSON.stringify({ source, line, column })
-      recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
+        const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
+        const expected = JSON.stringify({ source: inSource, line: inLine, column: inColumn })
+        const observed = JSON.stringify({ source, line, column })
+        recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
+      }
     }
+
+    const outMap = await new SourceMapConsumer(outJsMap)
+    checkMap(outJs, outMap)
 
     // Check that every generated location has an associated original position.
     // This only works when not bundling because bundling includes runtime code.
@@ -179,10 +183,30 @@ async function check(kind, testCase, toSearch, flags) {
         }
 
         for (let outColumn = 0; outColumn <= outLines[outLine].length; outColumn++) {
-          const { line, column } = map.originalPositionFor({ line: outLine + 1, column: outColumn })
+          const { line, column } = outMap.originalPositionFor({ line: outLine + 1, column: outColumn })
           recordCheck(line !== null && column !== null, `missing location for line ${outLine} and column ${outColumn}`)
         }
       }
+    }
+
+    // Bundle again to test nested source map chaining
+    for (let order of [0, 1, 2]) {
+      const fileToTest = isStdin ? 'stdout.js' : 'out.js'
+      const nestedEntry = path.join(tempDir, 'nested-entry.js')
+      if (isStdin) await writeFileAsync(path.join(tempDir, fileToTest), outJs)
+      await writeFileAsync(path.join(tempDir, 'extra.js'), `console.log('extra')`)
+      await writeFileAsync(nestedEntry,
+        order === 1 ? `import './${fileToTest}'; import './extra.js'` :
+          order === 2 ? `import './extra.js'; import './${fileToTest}'` :
+            `import './${fileToTest}'`)
+      await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'])
+
+      const out2Js = await readFileAsync(path.join(tempDir, 'out2.js'), 'utf8')
+      recordCheck(out2Js.includes(`//# sourceMappingURL=out2.js.map\n`), `.js file links to .js.map`)
+      const out2JsMap = await readFileAsync(path.join(tempDir, 'out2.js.map'), 'utf8')
+
+      const out2Map = await new SourceMapConsumer(out2JsMap)
+      checkMap(out2Js, out2Map)
     }
 
     if (!failed) rimraf.sync(tempDir, { disableGlob: true })

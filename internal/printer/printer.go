@@ -12,86 +12,12 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
-var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 var positiveInfinity = math.Inf(1)
 var negativeInfinity = math.Inf(-1)
-
-// A single base 64 digit can contain 6 bits of data. For the base 64 variable
-// length quantities we use in the source map spec, the first bit is the sign,
-// the next four bits are the actual value, and the 6th bit is the continuation
-// bit. The continuation bit tells us whether there are more digits in this
-// value following this digit.
-//
-//   Continuation
-//   |    Sign
-//   |    |
-//   V    V
-//   101011
-//
-func encodeVLQ(value int) []byte {
-	var vlq int
-	if value < 0 {
-		vlq = ((-value) << 1) | 1
-	} else {
-		vlq = value << 1
-	}
-
-	// Handle the common case up front without allocations
-	if (vlq >> 5) == 0 {
-		digit := vlq & 31
-		return base64[digit : digit+1]
-	}
-
-	encoded := []byte{}
-	for {
-		digit := vlq & 31
-		vlq >>= 5
-
-		// If there are still more digits in this value, we must make sure the
-		// continuation bit is marked
-		if vlq != 0 {
-			digit |= 32
-		}
-
-		encoded = append(encoded, base64[digit])
-
-		if vlq == 0 {
-			break
-		}
-	}
-
-	return encoded
-}
-
-func decodeVLQ(encoded []byte, start int) (int, int) {
-	var vlq = 0
-
-	// Scan over the input
-	for {
-		index := bytes.IndexByte(base64, encoded[start])
-		if index < 0 {
-			break
-		}
-
-		// Decode a single byte
-		vlq = (vlq << 5) | (index & 31)
-		start++
-
-		// Stop if there's no continuation bit
-		if (vlq & 32) == 0 {
-			break
-		}
-	}
-
-	// Recover the value
-	var value = vlq >> 1
-	if (vlq & 1) != 0 {
-		value = -value
-	}
-	return value, start
-}
 
 // Coordinates in source maps are stored using relative offsets for size
 // reasons. When joining together chunks of a source map that were emitted
@@ -118,26 +44,38 @@ type SourceMapState struct {
 // This rewrites the first mapping in each chunk to be relative to the end
 // state of the previous chunk.
 func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
+	// Handle line breaks in between this mapping and the previous one
+	if startState.GeneratedLine != 0 {
+		j.AddBytes(bytes.Repeat([]byte{';'}, startState.GeneratedLine))
+	}
+
+	// Skip past any leading semicolons, which indicate line breaks
+	semicolons := 0
+	for sourceMap[semicolons] == ';' {
+		semicolons++
+	}
+	if semicolons > 0 {
+		j.AddBytes(sourceMap[:semicolons])
+		sourceMap = sourceMap[semicolons:]
+		startState.GeneratedColumn = 0
+	}
+
 	// Strip off the first mapping from the buffer. The first mapping should be
 	// for the start of the original file (the printer always generates one for
 	// the start of the file).
-	generatedColumn, i := decodeVLQ(sourceMap, 0)
-	sourceIndex, i := decodeVLQ(sourceMap, i)
-	originalLine, i := decodeVLQ(sourceMap, i)
-	originalColumn, i := decodeVLQ(sourceMap, i)
+	generatedColumn, i := sourcemap.DecodeVLQ(sourceMap, 0)
+	sourceIndex, i := sourcemap.DecodeVLQ(sourceMap, i)
+	originalLine, i := sourcemap.DecodeVLQ(sourceMap, i)
+	originalColumn, i := sourcemap.DecodeVLQ(sourceMap, i)
 	sourceMap = sourceMap[i:]
-
-	// Enforce invariants. All source map chunks should be relative to a default
-	// zero state. This is because they are computed in parallel and it's not
-	// possible to know what they should be relative to when computing them.
-	if sourceIndex != 0 || originalLine != 0 || originalColumn != 0 {
-		panic("Internal error")
-	}
 
 	// Rewrite the first mapping to be relative to the end state of the previous
 	// chunk. We now know what the end state is because we're in the second pass
 	// where all chunks have already been generated.
+	startState.SourceIndex += sourceIndex
 	startState.GeneratedColumn += generatedColumn
+	startState.OriginalLine = originalLine
+	startState.OriginalColumn = originalColumn
 	j.AddBytes(appendMapping(nil, j.lastByte, prevEndState, startState))
 
 	// Then append everything after that without modification.
@@ -151,19 +89,19 @@ func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, curre
 	}
 
 	// Record the generated column (the line is recorded using ';' elsewhere)
-	buffer = append(buffer, encodeVLQ(currentState.GeneratedColumn-prevState.GeneratedColumn)...)
+	buffer = append(buffer, sourcemap.EncodeVLQ(currentState.GeneratedColumn-prevState.GeneratedColumn)...)
 	prevState.GeneratedColumn = currentState.GeneratedColumn
 
 	// Record the generated source
-	buffer = append(buffer, encodeVLQ(currentState.SourceIndex-prevState.SourceIndex)...)
+	buffer = append(buffer, sourcemap.EncodeVLQ(currentState.SourceIndex-prevState.SourceIndex)...)
 	prevState.SourceIndex = currentState.SourceIndex
 
 	// Record the original line
-	buffer = append(buffer, encodeVLQ(currentState.OriginalLine-prevState.OriginalLine)...)
+	buffer = append(buffer, sourcemap.EncodeVLQ(currentState.OriginalLine-prevState.OriginalLine)...)
 	prevState.OriginalLine = currentState.OriginalLine
 
 	// Record the original column
-	buffer = append(buffer, encodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
+	buffer = append(buffer, sourcemap.EncodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
 	prevState.OriginalColumn = currentState.OriginalColumn
 
 	return buffer
@@ -359,7 +297,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 				js = append(js, '\n')
 
 				// Make sure to do with print() does for newlines
-				if p.options.SourceMapContents != nil {
+				if p.options.SourceForSourceMap != nil {
 					p.appendNewlineToSourceMap(len(js))
 				}
 			} else {
@@ -465,6 +403,7 @@ type printer struct {
 	prevLoc       ast.Loc
 	prevLineStart int
 	prevState     SourceMapState
+	hasPrevState  bool
 	lineStarts    []int32
 
 	// This is a workaround for a bug in the popular "source-map" library:
@@ -479,7 +418,7 @@ type printer struct {
 }
 
 func (p *printer) print(text string) {
-	if p.options.SourceMapContents != nil {
+	if p.options.SourceForSourceMap != nil {
 		start := len(p.js)
 		for i, c := range text {
 			if c == '\n' {
@@ -494,7 +433,7 @@ func (p *printer) print(text string) {
 // This is the same as "print(string(bytes))" without any unnecessary temporary
 // allocations
 func (p *printer) printBytes(bytes []byte) {
-	if p.options.SourceMapContents != nil {
+	if p.options.SourceForSourceMap != nil {
 		start := len(p.js)
 		for i, c := range bytes {
 			if c == '\n' {
@@ -509,7 +448,7 @@ func (p *printer) printBytes(bytes []byte) {
 // This is the same as "print(lexer.UTF16ToString(text))" without any
 // unnecessary temporary allocations
 func (p *printer) printUTF16(text []uint16) {
-	if p.options.SourceMapContents != nil {
+	if p.options.SourceForSourceMap != nil {
 		start := len(p.js)
 		for i, c := range text {
 			if c == '\n' {
@@ -525,7 +464,7 @@ func (p *printer) printUTF16(text []uint16) {
 }
 
 func (p *printer) addSourceMapping(loc ast.Loc) {
-	if p.options.SourceMapContents == nil || loc == p.prevLoc {
+	if p.options.SourceForSourceMap == nil || loc == p.prevLoc {
 		return
 	}
 	p.prevLoc = loc
@@ -555,10 +494,11 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 
 	// If this line doesn't start with a mapping and we're about to add a mapping
 	// that's not at the start, insert a mapping first so the line starts with one.
-	if !p.lineStartsWithMapping && generatedColumn > 0 {
-		p.appendMapping(SourceMapState{
+	if !p.lineStartsWithMapping && generatedColumn > 0 && p.hasPrevState {
+		p.appendMappingWithoutRemapping(SourceMapState{
 			GeneratedLine:   p.prevState.GeneratedLine,
 			GeneratedColumn: 0,
+			SourceIndex:     p.prevState.SourceIndex,
 			OriginalLine:    p.prevState.OriginalLine,
 			OriginalColumn:  p.prevState.OriginalColumn,
 		})
@@ -567,7 +507,6 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 	p.appendMapping(SourceMapState{
 		GeneratedLine:   p.prevState.GeneratedLine,
 		GeneratedColumn: generatedColumn,
-		SourceIndex:     0, // Pretend the source index is 0, and later substitute the right one in AppendSourceMapChunk()
 		OriginalLine:    originalLine,
 		OriginalColumn:  originalColumn,
 	})
@@ -577,22 +516,45 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 }
 
 func (p *printer) appendMapping(currentState SourceMapState) {
+	// If the input file had a source map, map all the way back to the original
+	if p.options.InputSourceMap != nil {
+		mapping := p.options.InputSourceMap.Find(
+			int32(currentState.OriginalLine),
+			int32(currentState.OriginalColumn))
+
+		// Some locations won't have a mapping
+		if mapping == nil {
+			return
+		}
+
+		currentState.SourceIndex = int(mapping.SourceIndex)
+		currentState.OriginalLine = int(mapping.OriginalLine)
+		currentState.OriginalColumn = int(mapping.OriginalColumn)
+	}
+
+	p.appendMappingWithoutRemapping(currentState)
+}
+
+func (p *printer) appendMappingWithoutRemapping(currentState SourceMapState) {
 	var lastByte byte
 	if len(p.sourceMap) != 0 {
 		lastByte = p.sourceMap[len(p.sourceMap)-1]
 	}
+
 	p.sourceMap = appendMapping(p.sourceMap, lastByte, p.prevState, currentState)
 	p.prevState = currentState
+	p.hasPrevState = true
 }
 
 // Don't call this directly. This is called automatically by p.print("\n").
 func (p *printer) appendNewlineToSourceMap(prevLineStart int) {
 	// If we're about to move to the next line and the previous line didn't have
 	// any mappings, add a mapping at the start of the previous line.
-	if !p.lineStartsWithMapping {
-		p.appendMapping(SourceMapState{
+	if !p.lineStartsWithMapping && p.hasPrevState {
+		p.appendMappingWithoutRemapping(SourceMapState{
 			GeneratedLine:   p.prevState.GeneratedLine,
 			GeneratedColumn: 0,
+			SourceIndex:     p.prevState.SourceIndex,
 			OriginalLine:    p.prevState.OriginalLine,
 			OriginalColumn:  p.prevState.OriginalColumn,
 		})
@@ -2725,14 +2687,36 @@ type PrintOptions struct {
 	OutputFormat        config.Format
 	RemoveWhitespace    bool
 	ExtractComments     bool
-	SourceMapContents   *string
 	Indent              int
 	ToModuleRef         ast.Ref
 	UnsupportedFeatures compat.Feature
+
+	// This contains the contents of the input file to map back to in the source
+	// map. If it's nil that means we're not generating source maps.
+	SourceForSourceMap *logging.Source
+
+	// This will be present if the input file had a source map. In that case we
+	// want to map all the way back to the original input file(s).
+	InputSourceMap *sourcemap.SourceMap
+}
+
+type QuotedSource struct {
+	// These are quoted ahead of time instead of during source map generation so
+	// the quoting happens in parallel instead of in serial
+	QuotedPath     string
+	QuotedContents string
 }
 
 type SourceMapChunk struct {
 	Buffer []byte
+
+	// There may be more than one source for this chunk if the file being printed
+	// has an associated source map. In that case the "source index" values in
+	// the buffer are 0-based indices into this array. The source index of the
+	// first mapping will be adjusted when the chunks are joined together. Since
+	// the source indices are encoded using a delta from the previous source
+	// index, none of the other source indices need to be modified while joining.
+	QuotedSources []QuotedSource
 
 	// This end state will be used to rewrite the start of the following source
 	// map chunk so that the delta-encoded VLQ numbers are preserved.
@@ -2742,6 +2726,8 @@ type SourceMapChunk struct {
 	// there be) but if we're appending another source map chunk after this one,
 	// we'll need to know how many characters were in the last line we generated.
 	FinalGeneratedColumn int
+
+	ShouldIgnore bool
 }
 
 func createPrinter(
@@ -2764,10 +2750,10 @@ func createPrinter(
 
 	// If we're writing out a source map, prepare a table of line start indices
 	// to do binary search on to figure out what line a given AST node came from
-	if options.SourceMapContents != nil {
+	if options.SourceForSourceMap != nil {
 		lineStarts := []int32{}
 		var prevCodePoint rune
-		for i, codePoint := range *options.SourceMapContents {
+		for i, codePoint := range options.SourceForSourceMap.Contents {
 			switch codePoint {
 			case '\n':
 				if prevCodePoint == '\r' {
@@ -2800,9 +2786,6 @@ type PrintResult struct {
 func Print(tree ast.AST, options PrintOptions) PrintResult {
 	p := createPrinter(tree.Symbols, tree.ImportRecords, options)
 
-	// Always add a mapping at the beginning of the file
-	p.addSourceMapping(ast.Loc{Start: 0})
-
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
 			p.printStmt(stmt)
@@ -2813,20 +2796,58 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 	return PrintResult{
 		JS:                p.js,
 		ExtractedComments: p.extractedComments,
-		SourceMapChunk:    SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+		SourceMapChunk: SourceMapChunk{
+			Buffer:               p.sourceMap,
+			QuotedSources:        quotedSources(&tree, &options),
+			EndState:             p.prevState,
+			FinalGeneratedColumn: len(p.js) - p.prevLineStart,
+			ShouldIgnore:         len(p.sourceMap) == 0,
+		},
 	}
 }
 
 func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) PrintResult {
 	p := createPrinter(symbols, nil, options)
 
-	// Always add a mapping at the beginning of the file
-	p.addSourceMapping(ast.Loc{Start: 0})
-
 	p.printExpr(expr, ast.LLowest, 0)
+
 	return PrintResult{
 		JS:                p.js,
 		ExtractedComments: p.extractedComments,
-		SourceMapChunk:    SourceMapChunk{p.sourceMap, p.prevState, len(p.js) - p.prevLineStart},
+		SourceMapChunk: SourceMapChunk{
+			Buffer:               p.sourceMap,
+			QuotedSources:        quotedSources(nil, &options),
+			EndState:             p.prevState,
+			FinalGeneratedColumn: len(p.js) - p.prevLineStart,
+			ShouldIgnore:         len(p.sourceMap) == 0,
+		},
 	}
+}
+
+func quotedSources(tree *ast.AST, options *PrintOptions) []QuotedSource {
+	if options.SourceForSourceMap == nil {
+		return nil
+	}
+
+	if sm := options.InputSourceMap; sm != nil {
+		results := make([]QuotedSource, len(sm.Sources))
+		for i, source := range sm.Sources {
+			contents := "null"
+			if i < len(sm.SourcesContent) {
+				if value := sm.SourcesContent[i]; value != nil {
+					contents = QuoteForJSON(*value)
+				}
+			}
+			results[i] = QuotedSource{
+				QuotedPath:     QuoteForJSON(source),
+				QuotedContents: contents,
+			}
+		}
+		return results
+	}
+
+	return []QuotedSource{{
+		QuotedPath:     QuoteForJSON(options.SourceForSourceMap.PrettyPath),
+		QuotedContents: QuoteForJSON(options.SourceForSourceMap.Contents),
+	}}
 }

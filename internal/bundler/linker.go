@@ -2631,9 +2631,9 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	}
 
 	// Only generate a source map if needed
-	sourceMapContents := &c.sources[sourceIndex].Contents
+	sourceForSourceMap := &c.sources[sourceIndex]
 	if c.options.SourceMap == config.SourceMapNone {
-		sourceMapContents = nil
+		sourceForSourceMap = nil
 	}
 
 	// Indent the file if everything is wrapped in an IIFE
@@ -2648,9 +2648,10 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		OutputFormat:        c.options.OutputFormat,
 		RemoveWhitespace:    c.options.RemoveWhitespace,
 		ToModuleRef:         toModuleRef,
-		SourceMapContents:   sourceMapContents,
 		ExtractComments:     c.options.IsBundling && c.options.RemoveWhitespace,
 		UnsupportedFeatures: c.options.UnsupportedFeatures,
+		SourceForSourceMap:  sourceForSourceMap,
+		InputSourceMap:      file.ast.SourceMap,
 	}
 	tree := file.ast
 	tree.Parts = []ast.Part{{Stmts: stmts}}
@@ -2667,11 +2668,6 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		tree.Parts = []ast.Part{{Stmts: stmtList.entryPointTail}}
 		entryPointTail := printer.Print(tree, printOptions)
 		result.entryPointTail = &entryPointTail
-	}
-
-	// Also quote the source for the source map while we're running in parallel
-	if c.options.SourceMap != config.SourceMapNone {
-		result.quotedSource = printer.QuoteForJSON(c.sources[sourceIndex].Contents)
 	}
 
 	waitGroup.Done()
@@ -2757,7 +2753,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		// Start with the hashbang if there is one
 		if file.ast.Hashbang != "" {
 			hashbang := file.ast.Hashbang + "\n"
-			prevOffset.advance(hashbang)
+			prevOffset.advanceString(hashbang)
 			j.AddString(hashbang)
 			newlineBeforeComment = true
 		}
@@ -2765,7 +2761,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		// Add the top-level directive if present
 		if file.ast.Directive != "" {
 			quoted := printer.Quote(file.ast.Directive) + ";" + newline
-			prevOffset.advance(quoted)
+			prevOffset.advanceString(quoted)
 			j.AddString(quoted)
 			newlineBeforeComment = true
 		}
@@ -2783,7 +2779,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		if c.options.ModuleName != "" {
 			text = "var " + c.options.ModuleName + space + "=" + space + text
 		}
-		prevOffset.advance(text)
+		prevOffset.advanceString(text)
 		j.AddString(text)
 		newlineBeforeComment = false
 	}
@@ -2840,12 +2836,12 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 		// Don't add a file name comment for the runtime
 		if c.options.IsBundling && !c.options.RemoveWhitespace && !isRuntime {
 			if newlineBeforeComment {
-				prevOffset.advance("\n")
+				prevOffset.advanceString("\n")
 				j.AddString("\n")
 			}
 
 			text := fmt.Sprintf("%s// %s\n", indent, c.sources[compileResult.sourceIndex].PrettyPath)
-			prevOffset.advance(text)
+			prevOffset.advanceString(text)
 			j.AddString(text)
 		}
 
@@ -2856,13 +2852,19 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 		// Don't include the runtime in source maps
 		if isRuntime {
-			prevOffset.advance(string(compileResult.JS))
+			prevOffset.advanceString(string(compileResult.JS))
 			j.AddBytes(compileResult.JS)
 		} else {
 			// Save the offset to the start of the stored JavaScript
 			compileResult.generatedOffset = prevOffset
 			j.AddBytes(compileResult.JS)
-			prevOffset = lineColumnOffset{}
+
+			// Ignore empty source map chunks
+			if compileResult.SourceMapChunk.ShouldIgnore {
+				prevOffset.advanceBytes(compileResult.JS)
+			} else {
+				prevOffset = lineColumnOffset{}
+			}
 
 			// Include this file in the source map
 			if c.options.SourceMap != config.SourceMapNone {
@@ -2973,8 +2975,19 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 	return
 }
 
-func (offset *lineColumnOffset) advance(text string) {
-	for i := 0; i < len(text); i++ {
+func (offset *lineColumnOffset) advanceBytes(bytes []byte) {
+	for i, n := 0, len(bytes); i < n; i++ {
+		if bytes[i] == '\n' {
+			offset.lines++
+			offset.columns = 0
+		} else {
+			offset.columns++
+		}
+	}
+}
+
+func (offset *lineColumnOffset) advanceString(text string) {
+	for i, n := 0, len(text); i < n; i++ {
 		if text[i] == '\n' {
 			offset.lines++
 			offset.columns = 0
@@ -3146,22 +3159,31 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 
 	// Write the sources
 	j.AddString(",\n  \"sources\": [")
-	for i, result := range results {
-		sourceFile := c.sources[result.sourceIndex].PrettyPath
-		if i > 0 {
-			j.AddString(", ")
+	needComma := false
+	for _, result := range results {
+		for _, source := range result.SourceMapChunk.QuotedSources {
+			if needComma {
+				j.AddString(", ")
+			} else {
+				needComma = true
+			}
+			j.AddString(source.QuotedPath)
 		}
-		j.AddString(printer.QuoteForJSON(sourceFile))
 	}
 	j.AddString("]")
 
 	// Write the sourcesContent
 	j.AddString(",\n  \"sourcesContent\": [")
-	for i, result := range results {
-		if i > 0 {
-			j.AddString(", ")
+	needComma = false
+	for _, result := range results {
+		for _, source := range result.SourceMapChunk.QuotedSources {
+			if needComma {
+				j.AddString(", ")
+			} else {
+				needComma = true
+			}
+			j.AddString(source.QuotedContents)
 		}
-		j.AddString(result.quotedSource)
 	}
 	j.AddString("]")
 
@@ -3174,6 +3196,11 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 		chunk := result.SourceMapChunk
 		offset := result.generatedOffset
 
+		// Ignore empty source map chunks
+		if chunk.ShouldIgnore {
+			continue
+		}
+
 		// Because each file for the bundle is converted to a source map once,
 		// the source maps are shared between all entry points in the bundle.
 		// The easiest way of getting this to work is to have all source maps
@@ -3181,13 +3208,12 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 		// index per entry point by modifying the first source mapping. This
 		// is done by AppendSourceMapChunk() using the source index passed
 		// here.
-		startState := printer.SourceMapState{SourceIndex: sourceMapIndex}
-
-		// Advance the state by the line/column offset from the previous chunk
-		startState.GeneratedColumn += offset.columns
-		if offset.lines > 0 {
-			j.AddBytes(bytes.Repeat([]byte{';'}, offset.lines))
-		} else {
+		startState := printer.SourceMapState{
+			SourceIndex:     sourceMapIndex,
+			GeneratedLine:   offset.lines,
+			GeneratedColumn: offset.columns,
+		}
+		if offset.lines == 0 {
 			startState.GeneratedColumn += prevColumnOffset
 		}
 
@@ -3196,7 +3222,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
-		prevEndState.SourceIndex = sourceMapIndex
+		prevEndState.SourceIndex += sourceMapIndex
 		prevColumnOffset = chunk.FinalGeneratedColumn
 
 		// If this was all one line, include the column offset from the start
@@ -3205,7 +3231,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 			prevColumnOffset += startState.GeneratedColumn
 		}
 
-		sourceMapIndex++
+		sourceMapIndex += len(result.SourceMapChunk.QuotedSources)
 	}
 	j.AddString("\"")
 

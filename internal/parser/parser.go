@@ -8570,6 +8570,7 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 
 	result = p.toAST(source, parts, hashbang, directive)
 	result.WasTypeScript = options.TS.Parse
+	result.SourceMapComment = p.lexer.SourceMappingURL
 	return
 }
 
@@ -8602,7 +8603,7 @@ func LazyExportAST(log logging.Log, source logging.Source, options config.Option
 	return ast
 }
 
-func (p *parser) validateJSX(span lexer.Span, name string) []string {
+func (p *parser) validateJSX(span ast.Span, name string) []string {
 	if span.Text == "" {
 		return nil
 	}

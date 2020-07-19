@@ -234,11 +234,6 @@ type Comment struct {
 	Text string
 }
 
-type Span struct {
-	Text  string
-	Range ast.Range
-}
-
 type Lexer struct {
 	log                             logging.Log
 	source                          logging.Source
@@ -252,8 +247,9 @@ type Lexer struct {
 	codePoint                       rune
 	StringLiteral                   []uint16
 	Identifier                      string
-	JSXFactoryPragmaComment         Span
-	JSXFragmentPragmaComment        Span
+	JSXFactoryPragmaComment         ast.Span
+	JSXFragmentPragmaComment        ast.Span
+	SourceMappingURL                ast.Span
 	Number                          float64
 	rescanCloseBraceAsTemplateToken bool
 	json                            json
@@ -2240,23 +2236,35 @@ func hasPrefixWithWordBoundary(text string, prefix string) bool {
 	return false
 }
 
-func scanForPragmaArg(start int, text string) (Span, bool) {
+type pragmaArg uint8
+
+const (
+	pragmaNoSpaceFirst pragmaArg = iota
+	pragmaSkipSpaceFirst
+)
+
+func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (ast.Span, bool) {
+	text = text[len(pragma):]
+	start += len(pragma)
+
 	if text == "" {
-		return Span{}, false
+		return ast.Span{}, false
 	}
 
 	// One or more whitespace characters
 	c, width := utf8.DecodeRuneInString(text)
-	if !IsWhitespace(c) {
-		return Span{}, false
-	}
-	for IsWhitespace(c) {
-		text = text[width:]
-		start += width
-		if text == "" {
-			return Span{}, false
+	if kind == pragmaSkipSpaceFirst {
+		if !IsWhitespace(c) {
+			return ast.Span{}, false
 		}
-		c, width = utf8.DecodeRuneInString(text)
+		for IsWhitespace(c) {
+			text = text[width:]
+			start += width
+			if text == "" {
+				return ast.Span{}, false
+			}
+			c, width = utf8.DecodeRuneInString(text)
+		}
 	}
 
 	// One or more non-whitespace characters
@@ -2272,7 +2280,7 @@ func scanForPragmaArg(start int, text string) (Span, bool) {
 		}
 	}
 
-	return Span{
+	return ast.Span{
 		Text: text[:i],
 		Range: ast.Range{
 			Loc: ast.Loc{Start: int32(start)},
@@ -2291,6 +2299,10 @@ func (lexer *Lexer) scanCommentText() {
 			rest := text[i+1:]
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
 				lexer.HasPureCommentBefore = true
+			} else if strings.HasPrefix(rest, " sourceMappingURL=") {
+				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {
+					lexer.SourceMappingURL = arg
+				}
 			}
 
 		case '@':
@@ -2300,12 +2312,16 @@ func (lexer *Lexer) scanCommentText() {
 			} else if hasPrefixWithWordBoundary(rest, "preserve") || hasPrefixWithWordBoundary(rest, "license") {
 				hasPreserveAnnotation = true
 			} else if hasPrefixWithWordBoundary(rest, "jsx") {
-				if arg, ok := scanForPragmaArg(lexer.start+i+1+len("jsx"), rest[len("jsx"):]); ok {
+				if arg, ok := scanForPragmaArg(pragmaSkipSpaceFirst, lexer.start+i+1, "jsx", rest); ok {
 					lexer.JSXFactoryPragmaComment = arg
 				}
 			} else if hasPrefixWithWordBoundary(rest, "jsxFrag") {
-				if arg, ok := scanForPragmaArg(lexer.start+i+1+len("jsxFrag"), rest[len("jsxFrag"):]); ok {
+				if arg, ok := scanForPragmaArg(pragmaSkipSpaceFirst, lexer.start+i+1, "jsxFrag", rest); ok {
 					lexer.JSXFragmentPragmaComment = arg
+				}
+			} else if strings.HasPrefix(rest, " sourceMappingURL=") {
+				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {
+					lexer.SourceMappingURL = arg
 				}
 			}
 		}

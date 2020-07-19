@@ -236,9 +236,15 @@ func parseFile(args parseArgs) {
 			fmt.Sprintf("File extension not supported: %s", args.prettyPath))
 	}
 
+	// Stop now if parsing failed
+	if !result.ok {
+		args.results <- result
+		return
+	}
+
 	// Run the resolver on the parse thread so it's not run on the main thread.
 	// That way the main thread isn't blocked if the resolver takes a while.
-	if result.ok && args.options.IsBundling {
+	if args.options.IsBundling {
 		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
 
 		if len(result.file.ast.ImportRecords) > 0 {
@@ -291,7 +297,55 @@ func parseFile(args parseArgs) {
 		}
 	}
 
+	// Attempt to parse the source map if present
+	if args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
+		if path, contents := extractSourceMapFromComment(args.log, args.fs, &source, result.file.ast.SourceMapComment); contents != nil {
+			prettyPath := path.Text
+			if path.IsAbsolute {
+				prettyPath = args.res.PrettyPath(prettyPath)
+			}
+			result.file.ast.SourceMap = parser.ParseSourceMap(args.log, logging.Source{
+				KeyPath:    path,
+				PrettyPath: prettyPath,
+				Contents:   *contents,
+			})
+		}
+	}
+
 	args.results <- result
+}
+
+func extractSourceMapFromComment(log logging.Log, fs fs.FS, source *logging.Source, comment ast.Span) (ast.Path, *string) {
+	// Data URL
+	if strings.HasPrefix(comment.Text, "data:") {
+		if strings.HasPrefix(comment.Text, "data:application/json;base64,") {
+			n := int32(len("data:application/json;base64,"))
+			encoded := comment.Text[n:]
+			decoded, err := base64.StdEncoding.DecodeString(encoded)
+			if err != nil {
+				r := ast.Range{Loc: ast.Loc{Start: comment.Range.Loc.Start + n}, Len: comment.Range.Len - n}
+				log.AddRangeWarning(source, r, "Invalid base64 data in source map")
+				return ast.Path{}, nil
+			}
+			contents := string(decoded)
+			return ast.Path{Text: "sourceMappingURL in " + source.PrettyPath}, &contents
+		}
+	}
+
+	// Absolute path
+	if source.KeyPath.IsAbsolute {
+		absPath := fs.Join(fs.Dir(source.KeyPath.Text), comment.Text)
+		contents, ok := fs.ReadFile(absPath)
+		if !ok {
+			log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Could not find source map file: %s", absPath))
+			return ast.Path{}, nil
+		}
+		return ast.Path{IsAbsolute: true, Text: absPath}, &contents
+	}
+
+	// Anything else is unsupported
+	log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
+	return ast.Path{}, nil
 }
 
 func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base string) config.Loader {
@@ -576,11 +630,6 @@ type compileResult struct {
 	// This is the line and column offset since the previous JavaScript string
 	// or the start of the file if this is the first JavaScript string.
 	generatedOffset lineColumnOffset
-
-	// The source map contains the original source code, which is quoted in
-	// parallel for speed. This is only filled in if the SourceMap option is
-	// enabled.
-	quotedSource string
 }
 
 func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {

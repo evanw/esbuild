@@ -1,0 +1,167 @@
+package sourcemap
+
+import (
+	"bytes"
+)
+
+type Mapping struct {
+	GeneratedLine   int32 // 0-based
+	GeneratedColumn int32 // 0-based
+
+	SourceIndex    int32 // 0-based
+	OriginalLine   int32 // 0-based
+	OriginalColumn int32 // 0-based
+}
+
+type SourceMap struct {
+	Sources        []string
+	SourcesContent []*string
+	Mappings       []Mapping
+}
+
+func (sm *SourceMap) Find(line int32, column int32) *Mapping {
+	mappings := sm.Mappings
+
+	// Binary search
+	count := len(mappings)
+	index := 0
+	for count > 0 {
+		step := count / 2
+		i := index + step
+		mapping := mappings[i]
+		if mapping.GeneratedLine < line || (mapping.GeneratedLine == line && mapping.GeneratedColumn <= column) {
+			index = i + 1
+			count -= step + 1
+		} else {
+			count = step
+		}
+	}
+
+	// Handle search failure
+	if index > 0 {
+		mapping := &mappings[index-1]
+
+		// Match the behavior of the popular "source-map" library from Mozilla
+		if mapping.GeneratedLine == line {
+			return mapping
+		}
+	}
+	return nil
+}
+
+var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
+
+// A single base 64 digit can contain 6 bits of data. For the base 64 variable
+// length quantities we use in the source map spec, the first bit is the sign,
+// the next four bits are the actual value, and the 6th bit is the continuation
+// bit. The continuation bit tells us whether there are more digits in this
+// value following this digit.
+//
+//   Continuation
+//   |    Sign
+//   |    |
+//   V    V
+//   101011
+//
+func EncodeVLQ(value int) []byte {
+	var vlq int
+	if value < 0 {
+		vlq = ((-value) << 1) | 1
+	} else {
+		vlq = value << 1
+	}
+
+	// Handle the common case up front without allocations
+	if (vlq >> 5) == 0 {
+		digit := vlq & 31
+		return base64[digit : digit+1]
+	}
+
+	encoded := []byte{}
+	for {
+		digit := vlq & 31
+		vlq >>= 5
+
+		// If there are still more digits in this value, we must make sure the
+		// continuation bit is marked
+		if vlq != 0 {
+			digit |= 32
+		}
+
+		encoded = append(encoded, base64[digit])
+
+		if vlq == 0 {
+			break
+		}
+	}
+
+	return encoded
+}
+
+func DecodeVLQ(encoded []byte, start int) (int, int) {
+	shift := 0
+	vlq := 0
+
+	// Scan over the input
+	for {
+		index := bytes.IndexByte(base64, encoded[start])
+		if index < 0 {
+			break
+		}
+
+		// Decode a single byte
+		vlq |= (index & 31) << shift
+		start++
+		shift += 5
+
+		// Stop if there's no continuation bit
+		if (index & 32) == 0 {
+			break
+		}
+	}
+
+	// Recover the value
+	value := vlq >> 1
+	if (vlq & 1) != 0 {
+		value = -value
+	}
+	return value, start
+}
+
+func DecodeVLQUTF16(encoded []uint16) (int, int, bool) {
+	n := len(encoded)
+	if n == 0 {
+		return 0, 0, false
+	}
+
+	// Scan over the input
+	current := 0
+	shift := 0
+	vlq := 0
+	for {
+		if current >= n {
+			return 0, 0, false
+		}
+		index := bytes.IndexByte(base64, byte(encoded[current]))
+		if index < 0 {
+			return 0, 0, false
+		}
+
+		// Decode a single byte
+		vlq |= (index & 31) << shift
+		current++
+		shift += 5
+
+		// Stop if there's no continuation bit
+		if (index & 32) == 0 {
+			break
+		}
+	}
+
+	// Recover the value
+	var value = vlq >> 1
+	if (vlq & 1) != 0 {
+		value = -value
+	}
+	return value, current, true
+}
