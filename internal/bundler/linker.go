@@ -823,8 +823,8 @@ func (c *linkerContext) scanImportsAndExports() {
 							otherFileMeta := &c.fileMeta[*record.SourceIndex]
 							if otherFileMeta.entryPointStatus == entryPointNone {
 								c.entryPoints = append(c.entryPoints, *record.SourceIndex)
-								otherFileMeta.entryPointStatus = entryPointDynamicImport
 							}
+							otherFileMeta.entryPointStatus = entryPointDynamicImport
 						}
 					} else {
 						// If we're not splitting, then import() is just a require() that

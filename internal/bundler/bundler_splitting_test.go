@@ -577,3 +577,34 @@ export {
 		},
 	})
 }
+
+func TestSplittingDynamicImportIssue272(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import('./b')
+			`,
+			"/b.js": `
+				export default 1
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `// /a.js
+import("./b.js");
+`,
+			"/out/b.js": `// /b.js
+var b_default = 1;
+export {
+  b_default as default
+};
+`,
+		},
+	})
+}
