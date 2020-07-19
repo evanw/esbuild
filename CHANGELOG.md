@@ -6,6 +6,10 @@
 
     Previously the `extends` field in `tsconfig.json` only worked with relative paths (paths starting with `./` or `../`). Now this field can also take a package path, which will be resolved by looking for the package in the `node_modules` directory.
 
+* Install script now avoids the `npm` command ([#274](https://github.com/evanw/esbuild/issues/274))
+
+    The install script now downloads the binary directly from npmjs.org instead of using the `npm` command to install the package. This should be more compatible with unusual node environments (e.g. having multiple old copies of npm installed).
+
 ## 0.6.3
 
 * Fix `/* @__PURE__ */` IIFEs at start of statement ([#258](https://github.com/evanw/esbuild/issues/258))
