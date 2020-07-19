@@ -4634,3 +4634,28 @@ func TestDeduplicateCommentsInBundle(t *testing.T) {
 		},
 	})
 }
+
+// The IIFE should not be an arrow function when targeting ES5
+func TestIIFE_ES5(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log('test');
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:          true,
+			UnsupportedFeatures: es(5),
+			OutputFormat:        config.FormatIIFE,
+			AbsOutputFile:       "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `(function() {
+  // /entry.js
+  console.log("test");
+})();
+`,
+		},
+	})
+}

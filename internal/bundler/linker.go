@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/resolver"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -2772,8 +2773,13 @@ func (c *linkerContext) generateChunk(chunk chunkMeta) (results []OutputFile) {
 
 	// Optionally wrap with an IIFE
 	if c.options.OutputFormat == config.FormatIIFE {
+		var text string
 		indent = "  "
-		text := "(()" + space + "=>" + space + "{" + newline
+		if c.options.UnsupportedFeatures.Has(compat.Arrow) {
+			text = "(function()" + space + "{" + newline
+		} else {
+			text = "(()" + space + "=>" + space + "{" + newline
+		}
 		if c.options.ModuleName != "" {
 			text = "var " + c.options.ModuleName + space + "=" + space + text
 		}
