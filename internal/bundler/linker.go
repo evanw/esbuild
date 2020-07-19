@@ -76,22 +76,14 @@ type linkerContext struct {
 	unboundModuleRef ast.Ref
 }
 
-type entryPointStatus uint8
-
-const (
-	entryPointNone entryPointStatus = iota
-	entryPointUserSpecified
-	entryPointDynamicImport
-)
-
 // This contains linker-specific metadata corresponding to a "file" struct
 // from the initial scan phase of the bundler. It's separated out because it's
 // conceptually only used for a single linking operation and because multiple
 // linking operations may be happening in parallel with different metadata for
 // the same file.
 type fileMeta struct {
-	partMeta         []partMeta
-	entryPointStatus entryPointStatus
+	partMeta     []partMeta
+	isEntryPoint bool
 
 	// The path of this entry point relative to the lowest common ancestor
 	// directory containing all entry points. Note: this must have OS-independent
@@ -359,7 +351,7 @@ func newLinkerContext(
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, sourceIndex := range entryPoints {
 		fileMeta := &c.fileMeta[sourceIndex]
-		fileMeta.entryPointStatus = entryPointUserSpecified
+		fileMeta.isEntryPoint = true
 
 		// Entry points must be CommonJS-style if the output format doesn't support
 		// ES6 export syntax
@@ -821,10 +813,10 @@ func (c *linkerContext) scanImportsAndExports() {
 						// Files that are imported with import() must be entry points
 						if record.SourceIndex != nil {
 							otherFileMeta := &c.fileMeta[*record.SourceIndex]
-							if otherFileMeta.entryPointStatus == entryPointNone {
+							if !otherFileMeta.isEntryPoint {
 								c.entryPoints = append(c.entryPoints, *record.SourceIndex)
+								otherFileMeta.isEntryPoint = true
 							}
-							otherFileMeta.entryPointStatus = entryPointDynamicImport
 						}
 					} else {
 						// If we're not splitting, then import() is just a require() that
@@ -931,8 +923,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// then we'll be using the actual CommonJS "exports" and/or "module"
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
-		if c.options.OutputFormat == config.FormatCommonJS && !fileMeta.cjsWrap &&
-			fileMeta.entryPointStatus == entryPointUserSpecified {
+		if c.options.OutputFormat == config.FormatCommonJS && !fileMeta.cjsWrap && fileMeta.isEntryPoint {
 			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
 			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
 			c.symbols.Get(exportsRef).Kind = ast.SymbolUnbound
@@ -1111,14 +1102,13 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	var entryPointExportStmts []ast.Stmt
 	fileMeta := &c.fileMeta[sourceIndex]
 	file := &c.files[sourceIndex]
-	isEntryPoint := fileMeta.entryPointStatus != entryPointNone
 
 	// If the output format is ES6 modules and we're an entry point, generate an
 	// ES6 export statement containing all exports. Except don't do that if this
 	// entry point is a CommonJS-style module, since that would generate an ES6
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
-	needsEntryPointES6ExportPart := isEntryPoint && !fileMeta.cjsWrap &&
+	needsEntryPointES6ExportPart := fileMeta.isEntryPoint && !fileMeta.cjsWrap &&
 		c.options.OutputFormat == config.FormatESModule && len(fileMeta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
@@ -1253,7 +1243,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			}},
 		})
 		nsExportSymbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
-		if isEntryPoint {
+		if fileMeta.isEntryPoint {
 			entryPointExportSymbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
 		}
 
@@ -1263,7 +1253,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			// file if it came in through an export star
 			dep := partRef{sourceIndex: export.sourceIndex, partIndex: partIndex}
 			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
-			if isEntryPoint {
+			if fileMeta.isEntryPoint {
 				entryPointExportNonLocalDependencies = append(entryPointExportNonLocalDependencies, dep)
 			}
 		}
@@ -1345,7 +1335,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// If we're an entry point, call the require function at the end of the
 	// bundle right before bundle evaluation ends
 	var cjsWrapStmt ast.Stmt
-	if isEntryPoint && fileMeta.cjsWrap {
+	if fileMeta.isEntryPoint && fileMeta.cjsWrap {
 		switch c.options.OutputFormat {
 		case config.FormatPreserve:
 			// "require_foo();"
@@ -1916,7 +1906,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 	}
 
 	// If this is an entry point, include all exports
-	if fileMeta.entryPointStatus != entryPointNone {
+	if fileMeta.isEntryPoint {
 		for _, alias := range fileMeta.sortedAndFilteredExportAliases {
 			export := fileMeta.resolvedExports[alias]
 			targetSourceIndex := export.sourceIndex
@@ -1969,7 +1959,7 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 }
 
 func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord) bool {
-	return record.Kind == ast.ImportDynamic && c.fileMeta[*record.SourceIndex].entryPointStatus == entryPointDynamicImport
+	return record.Kind == ast.ImportDynamic && c.fileMeta[*record.SourceIndex].isEntryPoint
 }
 
 func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
@@ -2072,7 +2062,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 	// Compute entry point names
 	for i, entryPoint := range c.entryPoints {
 		var chunkRelPath string
-		if c.options.AbsOutputFile != "" && c.fileMeta[entryPoint].entryPointStatus == entryPointUserSpecified {
+		if c.options.AbsOutputFile != "" && c.fileMeta[entryPoint].isEntryPoint {
 			chunkRelPath = c.fs.Base(c.options.AbsOutputFile)
 		} else {
 			source := c.sources[entryPoint]
