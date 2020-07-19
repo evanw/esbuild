@@ -549,3 +549,35 @@ console.log(123);
 		},
 	})
 }
+
+func TestTsconfigJsonExtendsPackage(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.jsx": `
+				console.log(<div/>)
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"extends": "@package/foo/tsconfig.json"
+				}
+			`,
+			"/Users/user/project/node_modules/@package/foo/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "worked"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.jsx"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/src/app/entry.jsx
+console.log(/* @__PURE__ */ worked("div", null));
+`,
+		},
+	})
+}

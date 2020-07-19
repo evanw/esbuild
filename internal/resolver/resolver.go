@@ -385,12 +385,13 @@ func (r *resolver) parseMemberExpressionForJSX(source logging.Source, loc ast.Lo
 	return parts
 }
 
-func (r *resolver) parseJsTsConfig(file string, path string, visited map[string]bool) (*tsConfigJson, parseStatus) {
+func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsConfigJson, parseStatus) {
 	// Don't infinite loop if a series of "extends" links forms a cycle
 	if visited[file] {
 		return nil, parseImportCycle
 	}
 	visited[file] = true
+	filePath := r.fs.Dir(file)
 
 	// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
 	// format that appears to be defined by the implementation details of the
@@ -414,22 +415,57 @@ func (r *resolver) parseJsTsConfig(file string, path string, visited map[string]
 	if extendsJson, _, ok := getProperty(json, "extends"); ok {
 		if extends, ok := getString(extendsJson); ok {
 			warnRange := tsConfigSource.RangeOfString(extendsJson.Loc)
-			extendsFile := r.fs.Join(path, extends)
-			extendsDir := r.fs.Dir(extendsFile)
 			found := false
 
-			for _, file := range []string{extendsFile, extendsFile + ".json"} {
-				base, baseStatus := r.parseJsTsConfig(file, extendsDir, visited)
-				if baseStatus == parseReadFailure {
-					continue
-				} else if baseStatus == parseImportCycle {
-					r.log.AddRangeWarning(&tsConfigSource, warnRange,
-						fmt.Sprintf("Base config file %q forms cycle", extends))
-				} else if baseStatus == parseSuccess {
-					result = *base
+			if IsPackagePath(extends) {
+				// If this is a package path, try to resolve it to a "node_modules"
+				// folder. This doesn't use the normal node module resolution algorithm
+				// both because it's different (e.g. we don't want to match a directory)
+				// and because it would deadlock since we're currently in the middle of
+				// populating the directory info cache.
+				current := filePath
+				for !found {
+					// Skip "node_modules" folders
+					if r.fs.Base(current) != "node_modules" {
+						extendsFile := r.fs.Join(current, "node_modules", extends)
+						for _, fileToCheck := range []string{extendsFile, extendsFile + ".json"} {
+							base, baseStatus := r.parseJsTsConfig(fileToCheck, visited)
+							if baseStatus == parseReadFailure {
+								continue
+							} else if baseStatus == parseImportCycle {
+								r.log.AddRangeWarning(&tsConfigSource, warnRange,
+									fmt.Sprintf("Base config file %q forms cycle", extends))
+							} else if baseStatus == parseSuccess {
+								result = *base
+							}
+							found = true
+							break
+						}
+					}
+
+					// Go to the parent directory, stopping at the file system root
+					next := r.fs.Dir(current)
+					if current == next {
+						break
+					}
+					current = next
 				}
-				found = true
-				break
+			} else {
+				// If this is a regular path, search relative to the enclosing directory
+				extendsFile := r.fs.Join(filePath, extends)
+				for _, fileToCheck := range []string{extendsFile, extendsFile + ".json"} {
+					base, baseStatus := r.parseJsTsConfig(fileToCheck, visited)
+					if baseStatus == parseReadFailure {
+						continue
+					} else if baseStatus == parseImportCycle {
+						r.log.AddRangeWarning(&tsConfigSource, warnRange,
+							fmt.Sprintf("Base config file %q forms cycle", extends))
+					} else if baseStatus == parseSuccess {
+						result = *base
+					}
+					found = true
+					break
+				}
 			}
 
 			if !found {
@@ -444,7 +480,7 @@ func (r *resolver) parseJsTsConfig(file string, path string, visited map[string]
 		// Parse "baseUrl"
 		if baseUrlJson, _, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
 			if baseUrl, ok := getString(baseUrlJson); ok {
-				baseUrl = r.fs.Join(path, baseUrl)
+				baseUrl = r.fs.Join(filePath, baseUrl)
 				result.absPathBaseUrl = &baseUrl
 			}
 		}
@@ -594,13 +630,13 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	if forceTsConfig := r.options.TsConfigOverride; forceTsConfig == "" {
 		// Record if this directory has a tsconfig.json or jsconfig.json file
 		if entries["tsconfig.json"].Kind == fs.FileEntry {
-			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), path, make(map[string]bool))
+			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), make(map[string]bool))
 		} else if entries["jsconfig.json"].Kind == fs.FileEntry {
-			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), path, make(map[string]bool))
+			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), make(map[string]bool))
 		}
 	} else if parentInfo == nil {
 		// If there is a tsconfig.json override, mount it at the root directory
-		info.tsConfigJson, _ = r.parseJsTsConfig(forceTsConfig, r.fs.Dir(forceTsConfig), make(map[string]bool))
+		info.tsConfigJson, _ = r.parseJsTsConfig(forceTsConfig, make(map[string]bool))
 	}
 
 	// Is the "main" field from "package.json" missing?
