@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.5
 
 * Fix IIFE wrapper for ES5
 
