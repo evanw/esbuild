@@ -318,18 +318,25 @@ func parseFile(args parseArgs) {
 func extractSourceMapFromComment(log logging.Log, fs fs.FS, source *logging.Source, comment ast.Span) (ast.Path, *string) {
 	// Data URL
 	if strings.HasPrefix(comment.Text, "data:") {
-		if strings.HasPrefix(comment.Text, "data:application/json;base64,") {
-			n := int32(len("data:application/json;base64,"))
-			encoded := comment.Text[n:]
-			decoded, err := base64.StdEncoding.DecodeString(encoded)
-			if err != nil {
-				r := ast.Range{Loc: ast.Loc{Start: comment.Range.Loc.Start + n}, Len: comment.Range.Len - n}
-				log.AddRangeWarning(source, r, "Invalid base64 data in source map")
-				return ast.Path{}, nil
+		if strings.HasPrefix(comment.Text, "data:application/json;") {
+			// Scan for the base64 part to support URLs like "data:application/json;charset=utf-8;base64,"
+			if index := strings.Index(comment.Text, ";base64,"); index != -1 {
+				n := int32(index + len(";base64,"))
+				encoded := comment.Text[n:]
+				decoded, err := base64.StdEncoding.DecodeString(encoded)
+				if err != nil {
+					r := ast.Range{Loc: ast.Loc{Start: comment.Range.Loc.Start + n}, Len: comment.Range.Len - n}
+					log.AddRangeWarning(source, r, "Invalid base64 data in source map")
+					return ast.Path{}, nil
+				}
+				contents := string(decoded)
+				return ast.Path{Text: "sourceMappingURL in " + source.PrettyPath}, &contents
 			}
-			contents := string(decoded)
-			return ast.Path{Text: "sourceMappingURL in " + source.PrettyPath}, &contents
 		}
+
+		// Anything else is unsupported
+		log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
+		return ast.Path{}, nil
 	}
 
 	// Absolute path
