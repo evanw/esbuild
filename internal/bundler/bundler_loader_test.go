@@ -401,11 +401,11 @@ func TestLoaderDataURLCommonJSAndES6(t *testing.T) {
 		expected: map[string]string{
 			"/out.js": `// /x.txt
 var require_x = __commonJS((exports, module) => {
-  module.exports = "data:text/plain; charset=utf-8;base64,eA==";
+  module.exports = "data:text/plain;charset=utf-8;base64,eA==";
 });
 
 // /y.txt
-var y_default = "data:text/plain; charset=utf-8;base64,eQ==";
+var y_default = "data:text/plain;charset=utf-8;base64,eQ==";
 
 // /entry.js
 const x_url = require_x();

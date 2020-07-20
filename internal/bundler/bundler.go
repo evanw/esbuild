@@ -196,7 +196,7 @@ func parseFile(args parseArgs) {
 			mimeType = http.DetectContentType([]byte(source.Contents))
 		}
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		url := "data:" + mimeType + ";base64," + encoded
+		url := "data:" + strings.ReplaceAll(mimeType, "; ", ";") + ";base64," + encoded
 		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(url)}}
 		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
