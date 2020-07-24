@@ -341,6 +341,16 @@ func checkEqualityIfNoSideEffects(left ast.E, right ast.E) (bool, bool) {
 	return false, false
 }
 
+func hasValueForThisInCall(expr ast.Expr) bool {
+	switch expr.Data.(type) {
+	case *ast.EDot, *ast.EIndex:
+		return true
+
+	default:
+		return false
+	}
+}
+
 func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 	parent := p.currentScope
 	scope := &ast.Scope{
@@ -6920,6 +6930,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EBinary:
+		isCallTarget := e == p.callTarget
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 
 		// Pattern-match "typeof require == 'function' && ___" from browserify
@@ -6937,6 +6948,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if p.MangleSyntax {
 				e.Left = p.simplifyUnusedExpr(e.Left)
 				if e.Left.Data == nil {
+					// "(1, fn)()" => "fn()"
+					// "(1, this.fn)" => "this.fn"
+					// "(1, this.fn)()" => "(0, this.fn)()"
+					if isCallTarget && hasValueForThisInCall(e.Right) {
+						return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right), exprOut{}
+					}
 					return e.Right, exprOut{}
 				}
 			}
@@ -6986,6 +7003,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				return e.Left, exprOut{}
 
 			case *ast.ENull, *ast.EUndefined:
+				// "(null ?? fn)()" => "fn()"
+				// "(null ?? this.fn)" => "this.fn"
+				// "(null ?? this.fn)()" => "(0, this.fn)()"
+				if isCallTarget && hasValueForThisInCall(e.Right) {
+					return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right), exprOut{}
+				}
 				return e.Right, exprOut{}
 
 			default:
@@ -6999,6 +7022,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				if boolean {
 					return e.Left, exprOut{}
 				} else {
+					// "(0 || fn)()" => "fn()"
+					// "(0 || this.fn)" => "this.fn"
+					// "(0 || this.fn)()" => "(0, this.fn)()"
+					if isCallTarget && hasValueForThisInCall(e.Right) {
+						return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right), exprOut{}
+					}
 					return e.Right, exprOut{}
 				}
 			}
@@ -7006,6 +7035,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.BinOpLogicalAnd:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
 				if boolean {
+					// "(1 && fn)()" => "fn()"
+					// "(1 && this.fn)" => "this.fn"
+					// "(1 && this.fn)()" => "(0, this.fn)()"
+					if isCallTarget && hasValueForThisInCall(e.Right) {
+						return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right), exprOut{}
+					}
 					return e.Right, exprOut{}
 				} else {
 					return e.Left, exprOut{}
@@ -7415,6 +7450,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EIf:
+		isCallTarget := e == p.callTarget
 		e.Test = p.visitBooleanExpr(e.Test)
 		e.Yes = p.visitExpr(e.Yes)
 		e.No = p.visitExpr(e.No)
@@ -7422,8 +7458,20 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Fold constants
 		if boolean, ok := toBooleanWithoutSideEffects(e.Test.Data); ok {
 			if boolean {
+				// "(1 ? fn : 2)()" => "fn()"
+				// "(1 ? this.fn : 2)" => "this.fn"
+				// "(1 ? this.fn : 2)()" => "(0, this.fn)()"
+				if isCallTarget && hasValueForThisInCall(e.Yes) {
+					return ast.JoinWithComma(ast.Expr{Loc: e.Test.Loc, Data: &ast.ENumber{}}, e.Yes), exprOut{}
+				}
 				return e.Yes, exprOut{}
 			} else {
+				// "(0 ? 1 : fn)()" => "fn()"
+				// "(0 ? 1 : this.fn)" => "this.fn"
+				// "(0 ? 1 : this.fn)()" => "(0, this.fn)()"
+				if isCallTarget && hasValueForThisInCall(e.No) {
+					return ast.JoinWithComma(ast.Expr{Loc: e.Test.Loc, Data: &ast.ENumber{}}, e.No), exprOut{}
+				}
 				return e.No, exprOut{}
 			}
 		}

@@ -1377,6 +1377,31 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "let x = (y, 2)", "let x = (y, 2);\n")
 	expectPrintedMangle(t, "let x = (/* @__PURE__ */ foo(bar), 2)", "let x = (bar, 2);\n")
 
+	expectPrintedMangle(t, "let x = (2, y)", "let x = y;\n")
+	expectPrintedMangle(t, "let x = (2, y)()", "let x = y();\n")
+	expectPrintedMangle(t, "let x = (true && y)()", "let x = y();\n")
+	expectPrintedMangle(t, "let x = (false || y)()", "let x = y();\n")
+	expectPrintedMangle(t, "let x = (null ?? y)()", "let x = y();\n")
+	expectPrintedMangle(t, "let x = (1 ? y : 2)()", "let x = y();\n")
+	expectPrintedMangle(t, "let x = (0 ? 1 : y)()", "let x = y();\n")
+
+	// Make sure call targets with "this" values are preserved
+	expectPrintedMangle(t, "let x = (2, y.z)", "let x = y.z;\n")
+	expectPrintedMangle(t, "let x = (2, y.z)()", "let x = (0, y.z)();\n")
+	expectPrintedMangle(t, "let x = (true && y.z)()", "let x = (0, y.z)();\n")
+	expectPrintedMangle(t, "let x = (false || y.z)()", "let x = (0, y.z)();\n")
+	expectPrintedMangle(t, "let x = (null ?? y.z)()", "let x = (0, y.z)();\n")
+	expectPrintedMangle(t, "let x = (1 ? y.z : 2)()", "let x = (0, y.z)();\n")
+	expectPrintedMangle(t, "let x = (0 ? 1 : y.z)()", "let x = (0, y.z)();\n")
+
+	expectPrintedMangle(t, "let x = (2, y[z])", "let x = y[z];\n")
+	expectPrintedMangle(t, "let x = (2, y[z])()", "let x = (0, y[z])();\n")
+	expectPrintedMangle(t, "let x = (true && y[z])()", "let x = (0, y[z])();\n")
+	expectPrintedMangle(t, "let x = (false || y[z])()", "let x = (0, y[z])();\n")
+	expectPrintedMangle(t, "let x = (null ?? y[z])()", "let x = (0, y[z])();\n")
+	expectPrintedMangle(t, "let x = (1 ? y[z] : 2)()", "let x = (0, y[z])();\n")
+	expectPrintedMangle(t, "let x = (0 ? 1 : y[z])()", "let x = (0, y[z])();\n")
+
 	expectPrintedMangle(t, "foo ? 1 : 2", "foo;\n")
 	expectPrintedMangle(t, "foo ? 1 : bar", "foo || bar;\n")
 	expectPrintedMangle(t, "foo ? bar : 2", "foo && bar;\n")

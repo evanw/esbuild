@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix minification bug with `this` values for function calls ([#282](https://github.com/evanw/esbuild/issues/282))
+
+    Previously `(0, this.fn)()` was incorrectly minified to `this.fn()`, which changes the value of `this` used for the function call. Now syntax like this is preserved during minification.
+
 ## 0.6.5
 
 * Fix IIFE wrapper for ES5
