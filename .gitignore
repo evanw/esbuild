@@ -6,6 +6,7 @@
 /npm/esbuild-darwin-64/bin/esbuild
 /npm/esbuild-freebsd-64/bin/esbuild
 /npm/esbuild-freebsd-arm64/bin/esbuild
+/npm/esbuild-linux-32/bin/esbuild
 /npm/esbuild-linux-64/bin/esbuild
 /npm/esbuild-linux-arm64/bin/esbuild
 /npm/esbuild-linux-ppc64le/bin/esbuild

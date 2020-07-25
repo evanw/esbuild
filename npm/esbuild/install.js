@@ -108,6 +108,7 @@ const knownUnixlikePackages = {
   'darwin x64 LE': 'esbuild-darwin-64',
   'freebsd x64 LE': 'esbuild-freebsd-64',
   'freebsd arm64 LE': 'esbuild-freebsd-arm64',
+  'linux ia32 LE': 'esbuild-linux-32',
   'linux x64 LE': 'esbuild-linux-64',
   'linux arm64 LE': 'esbuild-linux-arm64',
   'linux ppc64 LE': 'esbuild-linux-ppc64le',

@@ -36,12 +36,13 @@ update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
 
 platform-all: update-version-go test-all
-	make -j9 \
+	make -j10 \
 		platform-windows \
 		platform-darwin \
 		platform-freebsd \
 		platform-freebsd-arm64 \
 		platform-linux \
+		platform-linux-32 \
 		platform-linux-arm64 \
 		platform-linux-ppc64le \
 		platform-wasm \
@@ -69,6 +70,9 @@ platform-freebsd-arm64:
 platform-linux:
 	make GOOS=linux GOARCH=amd64 NPMDIR=npm/esbuild-linux-64 platform-unixlike
 
+platform-linux-32:
+	make GOOS=linux GOARCH=386 NPMDIR=npm/esbuild-linux-32 platform-unixlike
+
 platform-linux-arm64:
 	make GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
 
@@ -87,12 +91,13 @@ platform-neutral: | esbuild
 	node scripts/esbuild.js ./esbuild
 
 publish-all: update-version-go test-all
-	make -j8 \
+	make -j9 \
 		publish-windows \
 		publish-darwin \
 		publish-freebsd \
 		publish-freebsd-arm64 \
 		publish-linux \
+		publish-linux-32 \
 		publish-linux-arm64 \
 		publish-linux-ppc64le \
 		publish-wasm
@@ -116,6 +121,9 @@ publish-freebsd-arm64: platform-freebsd-arm64
 publish-linux: platform-linux
 	test -n "$(OTP)" && cd npm/esbuild-linux-64 && npm publish --otp="$(OTP)"
 
+publish-linux-32: platform-linux-32
+	test -n "$(OTP)" && cd npm/esbuild-linux-32 && npm publish --otp="$(OTP)"
+
 publish-linux-arm64: platform-linux-arm64
 	test -n "$(OTP)" && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
 
@@ -134,6 +142,7 @@ clean:
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-freebsd-64/bin
 	rm -rf npm/esbuild-freebsd-amd64/bin
+	rm -rf npm/esbuild-linux-32/bin
 	rm -rf npm/esbuild-linux-64/bin
 	rm -rf npm/esbuild-linux-arm64/bin
 	rm -rf npm/esbuild-linux-ppc64le/bin

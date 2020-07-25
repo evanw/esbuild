@@ -10,6 +10,10 @@
 
     The original paths in nested source maps are now modified to be relative to the directory containing the source map. This means source maps from packages inside `node_modules` will stay inside `node_modules` in browser developer tools instead of appearing at the root of the virtual file system where they might collide with the original paths of files in other packages.
 
+* Support for 32-bit Linux systems ([#285](https://github.com/evanw/esbuild/issues/285))
+
+    You can now install the esbuild npm package on 32-bit Linux systems.
+
 ## 0.6.6
 
 * Fix minification bug with `this` values for function calls ([#282](https://github.com/evanw/esbuild/issues/282))
