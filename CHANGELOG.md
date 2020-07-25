@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.6
 
 * Fix minification bug with `this` values for function calls ([#282](https://github.com/evanw/esbuild/issues/282))
 
