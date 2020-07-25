@@ -104,13 +104,10 @@ func (r *resolver) finalizeResolve(path ast.Path, isExternal bool) *ResolveResul
 			}
 
 			// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-			for info := dirInfo; info != nil; info = info.parent {
-				if info.tsConfigJson != nil {
-					result.JSXFactory = info.tsConfigJson.jsxFactory
-					result.JSXFragment = info.tsConfigJson.jsxFragmentFactory
-					result.StrictClassFields = info.tsConfigJson.useDefineForClassFields
-					break
-				}
+			if dirInfo.tsConfigJson != nil {
+				result.JSXFactory = dirInfo.tsConfigJson.jsxFactory
+				result.JSXFragment = dirInfo.tsConfigJson.jsxFragmentFactory
+				result.StrictClassFields = dirInfo.tsConfigJson.useDefineForClassFields
 			}
 
 			if entry := dirInfo.entries[base]; entry.Symlink != "" {
@@ -341,7 +338,7 @@ type dirInfo struct {
 	hasNodeModules bool          // Is there a "node_modules" subdirectory?
 	absPathIndex   *string       // Is there an "index.js" file?
 	packageJson    *packageJson  // Is there a "package.json" file?
-	tsConfigJson   *tsConfigJson // Is there a "tsconfig.json" file?
+	tsConfigJson   *tsConfigJson // Is there a "tsconfig.json" file in this directory or a parent directory?
 	absRealPath    string        // If non-empty, this is the real absolute path resolving any symlinks
 }
 
@@ -637,6 +634,11 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	} else if parentInfo == nil {
 		// If there is a tsconfig.json override, mount it at the root directory
 		info.tsConfigJson, _ = r.parseJsTsConfig(forceTsConfig, make(map[string]bool))
+	}
+
+	// Propagate the enclosing tsconfig.json from the parent directory
+	if info.tsConfigJson == nil && parentInfo != nil {
+		info.tsConfigJson = parentInfo.tsConfigJson
 	}
 
 	// Is the "main" field from "package.json" missing?
@@ -968,24 +970,26 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string) (
 }
 
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
-	for {
-		// Handle TypeScript base URLs for TypeScript code
-		if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
-			// Try path substitutions first
-			if dirInfo.tsConfigJson.paths != nil {
-				if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJson, path); ok {
-					return absolute, true
-				}
-			}
-
-			// Try looking up the path relative to the base URL
-			basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
-			if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
+	if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
+		// Try path substitutions first
+		if dirInfo.tsConfigJson.paths != nil {
+			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJson, path); ok {
 				return absolute, true
 			}
 		}
 
-		// Skip "node_modules" folders
+		// Try looking up the path relative to the base URL
+		basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+		if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+			return absolute, true
+		}
+	}
+
+	// Then check for the package in any enclosing "node_modules" directories
+	for {
+		// Skip directories that are themselves called "node_modules", since we
+		// don't ever want to search for "node_modules/node_modules"
 		if dirInfo.hasNodeModules {
 			absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(dirInfo.absPath, "node_modules", path))
 			if ok {

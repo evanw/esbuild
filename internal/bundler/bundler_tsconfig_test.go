@@ -581,3 +581,104 @@ console.log(/* @__PURE__ */ worked("div", null));
 		},
 	})
 }
+
+func TestTsconfigJsonOverrideMissing(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.ts": `
+				import 'foo'
+			`,
+			"/Users/user/project/src/foo-bad.ts": `
+				console.log('bad')
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"foo": ["./foo-bad.ts"]
+						}
+					}
+				}
+			`,
+			"/Users/user/project/other/foo-good.ts": `
+				console.log('good')
+			`,
+			"/Users/user/project/other/config-for-ts.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"foo": ["./foo-good.ts"]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.ts"},
+		options: config.Options{
+			IsBundling:       true,
+			AbsOutputFile:    "/Users/user/project/out.js",
+			TsConfigOverride: "/Users/user/project/other/config-for-ts.json",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/other/foo-good.ts
+console.log("good");
+
+// /Users/user/project/src/app/entry.ts
+`,
+		},
+	})
+}
+
+func TestTsconfigJsonOverrideNodeModules(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.ts": `
+				import 'foo'
+			`,
+			"/Users/user/project/src/node_modules/foo/index.js": `
+				console.log('default')
+			`,
+			"/Users/user/project/src/foo-bad.ts": `
+				console.log('bad')
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"foo": ["./foo-bad.ts"]
+						}
+					}
+				}
+			`,
+			"/Users/user/project/other/foo-good.ts": `
+				console.log('good')
+			`,
+			"/Users/user/project/other/config-for-ts.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"foo": ["./foo-good.ts"]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.ts"},
+		options: config.Options{
+			IsBundling:       true,
+			AbsOutputFile:    "/Users/user/project/out.js",
+			TsConfigOverride: "/Users/user/project/other/config-for-ts.json",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/other/foo-good.ts
+console.log("good");
+
+// /Users/user/project/src/app/entry.ts
+`,
+		},
+	})
+}
