@@ -161,7 +161,7 @@ async function check(kind, testCase, toSearch, flags) {
         const outColumn = outLines[outLines.length - 1].length
 
         const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
-        const expected = JSON.stringify({ source: path.join(relativeTo, inSource), line: inLine, column: inColumn })
+        const expected = JSON.stringify({ source: path.join(relativeTo, inSource).replace(/\\/g, '/'), line: inLine, column: inColumn })
         const observed = JSON.stringify({ source, line, column })
         recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
       }
