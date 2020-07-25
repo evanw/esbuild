@@ -24,14 +24,17 @@ function installBinaryFromPackage(package, fromPath, toPath) {
   }
 
   // Download the package from npm
-  let pathname = `/${package}/-/${package}-${version}.tgz`;
   let registry = url.parse('https://registry.npmjs.org/');
   try {
     let env = url.parse(process.env.npm_config_registry || '');
-    if (env.protocol !== null && env.host !== null) registry = env;
+    if (env.protocol !== null && env.host !== null && env.pathname !== null) registry = env;
   } catch (e) {
   }
-  let packageURL = url.format({ protocol: registry.protocol, host: registry.host, pathname });
+  let packageURL = url.format({
+    protocol: registry.protocol,
+    host: registry.host,
+    pathname: path.posix.join(registry.pathname, `${package}/-/${package}-${version}.tgz`),
+  });
   downloadURL(packageURL, (err, buffer) => {
     if (err) die(`Failed to download ${JSON.stringify(packageURL)}`, err);
 

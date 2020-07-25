@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Custom registry can now have a path ([#286](https://github.com/evanw/esbuild/issues/286))
+
+    This adds support for custom registries hosted at a path other than `/`. Previously the registry had to be hosted at the domain level, like npm itself.
+
 ## 0.6.6
 
 * Fix minification bug with `this` values for function calls ([#282](https://github.com/evanw/esbuild/issues/282))
