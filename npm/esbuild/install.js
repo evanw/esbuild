@@ -1,11 +1,18 @@
 const fs = require('fs');
 const os = require('os');
+const url = require('url');
 const path = require('path');
 const zlib = require('zlib');
 const https = require('https');
 const version = require('./package.json').version;
 const binPath = path.join(__dirname, 'bin', 'esbuild');
 const stampPath = path.join(__dirname, 'stamp.txt');
+
+function die(text, err) {
+  err = err && err.message || err;
+  console.error(`error: ${text}${err ? ': ' + err : ''}`);
+  process.exit(1);
+}
 
 function installBinaryFromPackage(package, fromPath, toPath) {
   // It turns out that some package managers (e.g. yarn) sometimes re-run the
@@ -17,10 +24,19 @@ function installBinaryFromPackage(package, fromPath, toPath) {
   }
 
   // Download the package from npm
-  let url = `https://registry.npmjs.org/${package}/-/${package}-${version}.tgz`
-  downloadURL(url, buffer => {
+  let pathname = `/${package}/-/${package}-${version}.tgz`;
+  let registry = url.parse('https://registry.npmjs.org/');
+  try {
+    let env = url.parse(process.env.npm_config_registry || '');
+    if (env.protocol !== null && env.host !== null) registry = env;
+  } catch (e) {
+  }
+  let packageURL = url.format({ protocol: registry.protocol, host: registry.host, pathname });
+  downloadURL(packageURL, (err, buffer) => {
+    if (err) die(`Failed to download ${JSON.stringify(packageURL)}`, err);
+
     // Extract the binary executable from the package
-    fs.writeFileSync(toPath, extractFileFromTarGzip(buffer, fromPath));
+    fs.writeFileSync(toPath, extractFileFromTarGzip(packageURL, buffer, fromPath));
 
     // Mark the operation as successful so this script is idempotent
     fs.writeFileSync(stampPath, '');
@@ -28,15 +44,23 @@ function installBinaryFromPackage(package, fromPath, toPath) {
 }
 
 function downloadURL(url, done) {
-  https.get(url, res => {
-    let chunks = [];
-    res.on('data', chunk => chunks.push(chunk));
-    res.on('end', () => done(Buffer.concat(chunks)));
-  }).on('error', err => { throw err; });
+  try {
+    https.get(url, res => {
+      let chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => done(null, Buffer.concat(chunks)));
+    }).on('error', err => done(err));
+  } catch (err) {
+    done(err);
+  }
 }
 
-function extractFileFromTarGzip(buffer, file) {
-  buffer = zlib.unzipSync(buffer);
+function extractFileFromTarGzip(url, buffer, file) {
+  try {
+    buffer = zlib.unzipSync(buffer);
+  } catch (err) {
+    die(`Invalid gzip data in archive from ${url}`, err);
+  }
   let str = (i, n) => String.fromCharCode(...buffer.subarray(i, i + n)).replace(/\0.*$/, '');
   let offset = 0;
   while (offset < buffer.length) {
@@ -48,7 +72,7 @@ function extractFileFromTarGzip(buffer, file) {
       offset += (size + 511) & ~511;
     }
   }
-  throw new Error(`Could not find ${JSON.stringify(file)}`)
+  die(`Could not find ${JSON.stringify(file)} in archive from ${url}`);
 }
 
 function installOnUnix(package) {
@@ -95,7 +119,6 @@ if (process.platform === 'win32' && os.arch() === 'x64') {
   if (package) {
     installOnUnix(package);
   } else {
-    console.error(`error: Unsupported platform: ${key}`);
-    process.exit(1);
+    die(`Unsupported platform: ${key}`);
   }
 }

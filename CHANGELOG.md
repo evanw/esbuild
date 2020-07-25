@@ -6,6 +6,12 @@
 
     Previously `(0, this.fn)()` was incorrectly minified to `this.fn()`, which changes the value of `this` used for the function call. Now syntax like this is preserved during minification.
 
+* Install script now respects the npm registry setting ([#286](https://github.com/evanw/esbuild/issues/286))
+
+    If you have configured npm to use a custom registry using `npm config set registry <url>` or by installing esbuild using `npm install --registry=<url> ...`, this custom registry URL should now be respected by the esbuild install script.
+
+    Specifically, the install script now uses the URL from the `npm_config_registry` environment variable if present instead of the default registry URL `https://registry.npmjs.org/`. Note that the URL must have both a protocol and a host name.
+
 ## 0.6.5
 
 * Fix IIFE wrapper for ES5
