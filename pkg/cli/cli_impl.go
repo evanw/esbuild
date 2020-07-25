@@ -185,6 +185,17 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.Engines = engines
 			}
 
+		case strings.HasPrefix(arg, "--out-extension:") && buildOpts != nil:
+			value := arg[len("--out-extension:"):]
+			equals := strings.IndexByte(value, '=')
+			if equals == -1 {
+				return fmt.Errorf("Missing \"=\": %q", value)
+			}
+			if buildOpts.OutExtensions == nil {
+				buildOpts.OutExtensions = make(map[string]string)
+			}
+			buildOpts.OutExtensions[value[:equals]] = value[equals+1:]
+
 		case arg == "--strict":
 			value := api.StrictOptions{
 				NullishCoalescing: true,

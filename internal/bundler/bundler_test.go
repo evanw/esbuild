@@ -4659,3 +4659,45 @@ func TestIIFE_ES5(t *testing.T) {
 		},
 	})
 }
+
+func TestOutputExtensionRemappingFile(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log('test');
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:       true,
+			OutputExtensions: map[string]string{".js": ".notjs"},
+			AbsOutputFile:    "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /entry.js
+console.log("test");
+`,
+		},
+	})
+}
+
+func TestOutputExtensionRemappingDir(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log('test');
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:       true,
+			OutputExtensions: map[string]string{".js": ".notjs"},
+			AbsOutputDir:     "/out",
+		},
+		expected: map[string]string{
+			"/out/entry.notjs": `// /entry.js
+console.log("test");
+`,
+		},
+	})
+}

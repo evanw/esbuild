@@ -383,6 +383,7 @@ Advanced options:
   --strict                  Transforms handle edge cases but have more overhead
   --pure=N                  Mark the name N as a pure function for tree shaking
   --tsconfig=...            Use this tsconfig.json file instead of other ones
+  --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map

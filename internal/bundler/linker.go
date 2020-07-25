@@ -2077,9 +2077,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 
 			// Swap the extension for ".js"
 			ext := c.fs.Ext(chunkRelPath)
-			if ext != ".js" {
-				chunkRelPath = chunkRelPath[:len(chunkRelPath)-len(ext)] + ".js"
-			}
+			chunkRelPath = chunkRelPath[:len(chunkRelPath)-len(ext)] + c.options.OutputExtensionFor(".js")
 		}
 
 		// Always use cross-platform path separators to avoid problems with Windows
@@ -2128,7 +2126,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 					bytes := []byte(lowerCaseAbsPathForWindows(chunk.relPath))
 					hashBytes := sha1.Sum(bytes)
 					hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
-					chunk.relPath = "chunk." + hash + ".js"
+					chunk.relPath = "chunk." + hash + c.options.OutputExtensionFor(".js")
 				}
 
 				chunk.entryBits = partMeta.entryBits

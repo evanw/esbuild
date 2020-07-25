@@ -22,7 +22,12 @@ function pushCommonFlags(flags: string[], options: types.CommonOptions, isTTY: b
 
   if (options.jsxFactory) flags.push(`--jsx-factory=${options.jsxFactory}`);
   if (options.jsxFragment) flags.push(`--jsx-fragment=${options.jsxFragment}`);
-  if (options.define) for (let key in options.define) flags.push(`--define:${key}=${options.define[key]}`);
+  if (options.define) {
+    for (let key in options.define) {
+      if (key.indexOf('=') >= 0) throw new Error(`Invalid define: ${key}`);
+      flags.push(`--define:${key}=${options.define[key]}`);
+    }
+  }
   if (options.pure) for (let fn of options.pure) flags.push(`--pure:${fn}`);
 
   if (options.color) flags.push(`--color=${options.color}`);
@@ -49,7 +54,18 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [str
   if (options.tsconfig) flags.push(`--tsconfig=${options.tsconfig}`);
   if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
   if (options.external) for (let name of options.external) flags.push(`--external:${name}`);
-  if (options.loader) for (let ext in options.loader) flags.push(`--loader:${ext}=${options.loader[ext]}`);
+  if (options.loader) {
+    for (let ext in options.loader) {
+      if (ext.indexOf('=') >= 0) throw new Error(`Invalid extension: ${ext}`);
+      flags.push(`--loader:${ext}=${options.loader[ext]}`);
+    }
+  }
+  if (options.outExtension) {
+    for (let ext in options.outExtension) {
+      if (ext.indexOf('=') >= 0) throw new Error(`Invalid extension: ${ext}`);
+      flags.push(`--out-extension:${ext}=${options.outExtension[ext]}`);
+    }
+  }
 
   if (options.entryPoints) {
     for (let entryPoint of options.entryPoints) {

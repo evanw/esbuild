@@ -216,12 +216,16 @@ func validateExternals(log logging.Log, fs fs.FS, paths []string) config.Externa
 	return result
 }
 
+func isValidExtension(ext string) bool {
+	return len(ext) >= 2 && ext[0] == '.' && ext[len(ext)-1] != '.'
+}
+
 func validateResolveExtensions(log logging.Log, order []string) []string {
 	if order == nil {
 		return []string{".tsx", ".ts", ".jsx", ".mjs", ".cjs", ".js", ".json"}
 	}
 	for _, ext := range order {
-		if len(ext) < 2 || ext[0] != '.' {
+		if !isValidExtension(ext) {
 			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid file extension: %q", ext))
 		}
 	}
@@ -232,7 +236,7 @@ func validateLoaders(log logging.Log, loaders map[string]Loader) map[string]conf
 	result := bundler.DefaultExtensionToLoaderMap()
 	if loaders != nil {
 		for ext, loader := range loaders {
-			if len(ext) < 2 || ext[0] != '.' || ext[len(ext)-1] == '.' {
+			if !isValidExtension(ext) {
 				log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid file extension: %q", ext))
 			}
 			result[ext] = validateLoader(loader)
@@ -343,6 +347,20 @@ func validatePath(log logging.Log, fs fs.FS, relPath string) string {
 	return absPath
 }
 
+func validateOutputExtensions(log logging.Log, outExtensions map[string]string) map[string]string {
+	result := make(map[string]string)
+	for key, value := range outExtensions {
+		if key != ".js" {
+			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .js)", key))
+		}
+		if !isValidExtension(value) {
+			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid output extension: %q", value))
+		}
+		result[key] = value
+	}
+	return result
+}
+
 func messagesOfKind(kind logging.MsgKind, msgs []logging.Msg) []Message {
 	var filtered []Message
 	for _, msg := range msgs {
@@ -407,6 +425,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		AbsOutputFile:     validatePath(log, realFS, buildOpts.Outfile),
 		AbsOutputDir:      validatePath(log, realFS, buildOpts.Outdir),
 		AbsMetadataFile:   validatePath(log, realFS, buildOpts.Metafile),
+		OutputExtensions:  validateOutputExtensions(log, buildOpts.OutExtensions),
 		ExtensionToLoader: validateLoaders(log, buildOpts.Loaders),
 		ExtensionOrder:    validateResolveExtensions(log, buildOpts.ResolveExtensions),
 		ExternalModules:   validateExternals(log, realFS, buildOpts.Externals),

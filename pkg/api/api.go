@@ -217,6 +217,7 @@ type BuildOptions struct {
 	Loaders           map[string]Loader
 	ResolveExtensions []string
 	Tsconfig          string
+	OutExtensions     map[string]string
 
 	EntryPoints []string
 	Stdin       *StdinOptions

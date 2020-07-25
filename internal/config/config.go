@@ -152,6 +152,7 @@ type Options struct {
 
 	AbsOutputFile     string
 	AbsOutputDir      string
+	OutputExtensions  map[string]string
 	ModuleName        string
 	TsConfigOverride  string
 	ExtensionToLoader map[string]Loader
@@ -162,4 +163,11 @@ type Options struct {
 
 	SourceMap SourceMap
 	Stdin     *StdinInfo
+}
+
+func (options *Options) OutputExtensionFor(key string) string {
+	if ext, ok := options.OutputExtensions[key]; ok {
+		return ext
+	}
+	return key
 }
