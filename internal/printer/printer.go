@@ -2683,6 +2683,15 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 	}
 }
 
+func (p *printer) shouldIgnoreSourceMap() bool {
+	for _, c := range p.sourceMap {
+		if c != ';' {
+			return false
+		}
+	}
+	return true
+}
+
 type PrintOptions struct {
 	OutputFormat        config.Format
 	RemoveWhitespace    bool
@@ -2801,7 +2810,7 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 			QuotedSources:        quotedSources(&tree, &options),
 			EndState:             p.prevState,
 			FinalGeneratedColumn: len(p.js) - p.prevLineStart,
-			ShouldIgnore:         len(p.sourceMap) == 0,
+			ShouldIgnore:         p.shouldIgnoreSourceMap(),
 		},
 	}
 }
@@ -2819,7 +2828,7 @@ func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) Print
 			QuotedSources:        quotedSources(nil, &options),
 			EndState:             p.prevState,
 			FinalGeneratedColumn: len(p.js) - p.prevLineStart,
-			ShouldIgnore:         len(p.sourceMap) == 0,
+			ShouldIgnore:         p.shouldIgnoreSourceMap(),
 		},
 	}
 }

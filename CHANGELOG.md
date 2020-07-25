@@ -6,6 +6,10 @@
 
     This adds support for custom registries hosted at a path other than `/`. Previously the registry had to be hosted at the domain level, like npm itself.
 
+* Nested source maps use relative paths ([#289](https://github.com/evanw/esbuild/issues/289))
+
+    The original paths in nested source maps are now modified to be relative to the directory containing the source map. This means source maps from packages inside `node_modules` will stay inside `node_modules` in browser developer tools instead of appearing at the root of the virtual file system where they might collide with the original paths of files in other packages.
+
 ## 0.6.6
 
 * Fix minification bug with `this` values for function calls ([#282](https://github.com/evanw/esbuild/issues/282))

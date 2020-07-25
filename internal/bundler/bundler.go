@@ -330,7 +330,7 @@ func extractSourceMapFromComment(log logging.Log, fs fs.FS, source *logging.Sour
 					return ast.Path{}, nil
 				}
 				contents := string(decoded)
-				return ast.Path{Text: "sourceMappingURL in " + source.PrettyPath}, &contents
+				return ast.Path{Text: source.PrettyPath + ".sourceMappingURL"}, &contents
 			}
 		}
 

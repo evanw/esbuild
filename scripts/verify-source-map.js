@@ -142,7 +142,7 @@ async function check(kind, testCase, toSearch, flags) {
     }
 
     // Check the mapping of various key locations back to the original source
-    const checkMap = (out, map) => {
+    const checkMap = (out, map, relativeTo) => {
       for (const id of toSearch) {
         const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
         const inJs = testCase[inSource]
@@ -161,14 +161,14 @@ async function check(kind, testCase, toSearch, flags) {
         const outColumn = outLines[outLines.length - 1].length
 
         const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
-        const expected = JSON.stringify({ source: inSource, line: inLine, column: inColumn })
+        const expected = JSON.stringify({ source: path.join(relativeTo, inSource), line: inLine, column: inColumn })
         const observed = JSON.stringify({ source, line, column })
         recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
       }
     }
 
     const outMap = await new SourceMapConsumer(outJsMap)
-    checkMap(outJs, outMap)
+    checkMap(outJs, outMap, '')
 
     // Check that every generated location has an associated original position.
     // This only works when not bundling because bundling includes runtime code.
@@ -199,14 +199,14 @@ async function check(kind, testCase, toSearch, flags) {
         order === 1 ? `import './${fileToTest}'; import './extra.js'` :
           order === 2 ? `import './extra.js'; import './${fileToTest}'` :
             `import './${fileToTest}'`)
-      await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'])
+      await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'], { cwd: testDir })
 
       const out2Js = await readFileAsync(path.join(tempDir, 'out2.js'), 'utf8')
       recordCheck(out2Js.includes(`//# sourceMappingURL=out2.js.map\n`), `.js file links to .js.map`)
       const out2JsMap = await readFileAsync(path.join(tempDir, 'out2.js.map'), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2JsMap)
-      checkMap(out2Js, out2Map)
+      checkMap(out2Js, out2Map, path.relative(testDir, tempDir))
     }
 
     if (!failed) rimraf.sync(tempDir, { disableGlob: true })
