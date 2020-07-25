@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.7
 
 * Custom registry can now have a path ([#286](https://github.com/evanw/esbuild/issues/286))
 
