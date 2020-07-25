@@ -50,7 +50,7 @@ let buildSync: typeof types.buildSync = options => {
 
 let transformSync: typeof types.transformSync = (input, options) => {
   let result: types.TransformResult;
-  runServiceSync(service => service.transform(input, options, isTTY(), (err, res) => {
+  runServiceSync(service => service.transform(input, options || {}, isTTY(), (err, res) => {
     if (err) throw err;
     result = res!;
   }));
@@ -84,7 +84,7 @@ let startService: typeof types.startService = options => {
           err ? reject(err) : resolve(res!))),
     transform: (input, options) =>
       new Promise((resolve, reject) =>
-        service.transform(input, options, isTTY(), (err, res) =>
+        service.transform(input, options || {}, isTTY(), (err, res) =>
           err ? reject(err) : resolve(res!))),
     stop() { child.kill(); },
   });

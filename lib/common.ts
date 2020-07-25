@@ -226,7 +226,7 @@ export function createChannel(options: StreamIn): StreamOut {
       transform(input, options, isTTY, callback) {
         let flags = flagsForTransformOptions(options, isTTY);
         sendRequest<protocol.TransformRequest, protocol.TransformResponse>(
-          ['transform', { flags, input }],
+          ['transform', { flags, input: input + '' }],
           (error, response) => {
             if (error) return callback(new Error(error), null);
             let errors = response!.errors;

@@ -121,7 +121,7 @@ export interface Metadata {
 
 export interface Service {
   build(options: BuildOptions): Promise<BuildResult>;
-  transform(input: string, options: TransformOptions): Promise<TransformResult>;
+  transform(input: string, options?: TransformOptions): Promise<TransformResult>;
 
   // This stops the service, which kills the long-lived child process. Any
   // pending requests will be aborted.
@@ -143,7 +143,7 @@ export declare function build(options: BuildOptions): Promise<BuildResult>;
 //
 // Works in node: yes
 // Works in browser: no
-export declare function transform(input: string, options: TransformOptions): Promise<TransformResult>;
+export declare function transform(input: string, options?: TransformOptions): Promise<TransformResult>;
 
 // A synchronous version of "build".
 //
@@ -155,7 +155,7 @@ export declare function buildSync(options: BuildOptions): BuildResult;
 //
 // Works in node: yes
 // Works in browser: no
-export declare function transformSync(input: string, options: TransformOptions): TransformResult;
+export declare function transformSync(input: string, options?: TransformOptions): TransformResult;
 
 // This starts "esbuild" as a long-lived child process that is then reused, so
 // you can call methods on the service many times without the overhead of

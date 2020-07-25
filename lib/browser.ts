@@ -67,7 +67,7 @@ let startService: typeof types.startService = options => {
       },
       transform: (input, options) =>
         new Promise((resolve, reject) =>
-          service.transform(input, options, false, (err, res) =>
+          service.transform(input, options || {}, false, (err, res) =>
             err ? reject(err) : resolve(res!))),
       stop() {
         worker.terminate()
