@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "module": "CommonJS",
     "target": "es2015",
     "strict": true
   }

@@ -13,6 +13,14 @@ function buildNativeLib(esbuildPath) {
   } catch (e) {
   }
 
+  // Generate "npm/esbuild/install.js"
+  childProcess.execFileSync(esbuildPath, [
+    path.join(repoDir, 'lib', 'install.ts'),
+    '--outfile=' + path.join(npmDir, 'install.js'),
+    '--target=es2017',
+    '--platform=node',
+  ], { cwd: repoDir })
+
   // Generate "npm/esbuild/lib/main.js"
   childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'node.ts'),

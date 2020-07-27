@@ -14,7 +14,7 @@ function die(text, err) {
   process.exit(1);
 }
 
-function installBinaryFromPackage(package, fromPath, toPath) {
+function installBinaryFromPackage(name, fromPath, toPath) {
   // It turns out that some package managers (e.g. yarn) sometimes re-run the
   // postinstall script for this package after we have already been installed.
   // That means this script must be idempotent. Let's skip the install if it's
@@ -33,7 +33,7 @@ function installBinaryFromPackage(package, fromPath, toPath) {
   let packageURL = url.format({
     protocol: registry.protocol,
     host: registry.host,
-    pathname: path.posix.join(registry.pathname, `${package}/-/${package}-${version}.tgz`),
+    pathname: path.posix.join(registry.pathname, `${name}/-/${name}-${version}.tgz`),
   });
   downloadURL(packageURL, (err, buffer) => {
     if (err) die(`Failed to download ${JSON.stringify(packageURL)}`, err);
@@ -78,12 +78,12 @@ function extractFileFromTarGzip(url, buffer, file) {
   die(`Could not find ${JSON.stringify(file)} in archive from ${url}`);
 }
 
-function installOnUnix(package) {
+function installOnUnix(name) {
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.unlinkSync(binPath);
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
   } else {
-    installBinaryFromPackage(package, 'package/bin/esbuild', binPath);
+    installBinaryFromPackage(name, 'package/bin/esbuild', binPath);
   }
 }
 
@@ -119,9 +119,8 @@ if (process.platform === 'win32' && os.arch() === 'x64') {
   installOnWindows();
 } else {
   const key = `${process.platform} ${os.arch()} ${os.endianness()}`;
-  const package = knownUnixlikePackages[key];
-  if (package) {
-    installOnUnix(package);
+  if (key in knownUnixlikePackages) {
+    installOnUnix(knownUnixlikePackages[key]);
   } else {
     die(`Unsupported platform: ${key}`);
   }
