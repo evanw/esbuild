@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"runtime/debug"
 	"sync"
@@ -36,7 +37,7 @@ func runService() {
 		callbacks:       make(map[uint32]responseCallback),
 		outgoingPackets: make(chan outgoingPacket),
 	}
-	buffer := make([]byte, 4096)
+	buffer := make([]byte, 16*1024)
 	stream := []byte{}
 
 	// Write messages on a single goroutine so they aren't interleaved
@@ -171,6 +172,15 @@ func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) 
 	return nil
 }
 
+func encodeErrorPacket(id uint32, err error) []byte {
+	return encodePacket(packet{
+		id: id,
+		value: map[string]interface{}{
+			"error": err.Error(),
+		},
+	})
+}
+
 func (service *serviceType) handleBuildRequest(id uint32, request map[string]interface{}) []byte {
 	write := request["write"].(bool)
 	flags := decodeStringArray(request["flags"].([]interface{}))
@@ -182,12 +192,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		err = errors.New("Either provide \"outfile\" or set \"write\" to false")
 	}
 	if err != nil {
-		return encodePacket(packet{
-			id: id,
-			value: map[string]interface{}{
-				"error": err.Error(),
-			},
-		})
+		return encodeErrorPacket(id, err)
 	}
 
 	// Optionally allow input from the stdin channel
@@ -220,27 +225,58 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 }
 
 func (service *serviceType) handleTransformRequest(id uint32, request map[string]interface{}) []byte {
+	inputFS := request["inputFS"].(bool)
 	input := request["input"].(string)
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseTransformOptions(flags)
 	if err != nil {
-		return encodePacket(packet{
-			id: id,
-			value: map[string]interface{}{
-				"error": err.Error(),
-			},
-		})
+		return encodeErrorPacket(id, err)
 	}
 
-	result := api.Transform(input, options)
+	transformInput := input
+	if inputFS {
+		bytes, err := ioutil.ReadFile(input)
+		if err == nil {
+			err = os.Remove(input)
+		}
+		if err != nil {
+			return encodeErrorPacket(id, err)
+		}
+		transformInput = string(bytes)
+	}
+
+	result := api.Transform(transformInput, options)
+	jsFS := false
+	jsSourceMapFS := false
+
+	if inputFS && len(result.JS) > 0 {
+		file := input + ".js"
+		if err := ioutil.WriteFile(file, result.JS, 0644); err == nil {
+			result.JS = []byte(file)
+			jsFS = true
+		}
+	}
+
+	if inputFS && len(result.JSSourceMap) > 0 {
+		file := input + ".map"
+		if err := ioutil.WriteFile(file, result.JSSourceMap, 0644); err == nil {
+			result.JSSourceMap = []byte(file)
+			jsSourceMapFS = true
+		}
+	}
+
 	return encodePacket(packet{
 		id: id,
 		value: map[string]interface{}{
-			"errors":      encodeMessages(result.Errors),
-			"warnings":    encodeMessages(result.Warnings),
-			"js":          string(result.JS),
-			"jsSourceMap": string(result.JSSourceMap),
+			"errors":   encodeMessages(result.Errors),
+			"warnings": encodeMessages(result.Warnings),
+
+			"jsFS": jsFS,
+			"js":   string(result.JS),
+
+			"jsSourceMapFS": jsSourceMapFS,
+			"jsSourceMap":   string(result.JSSourceMap),
 		},
 	})
 }

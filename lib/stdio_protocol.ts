@@ -22,13 +22,18 @@ export interface BuildResponse {
 export interface TransformRequest {
   flags: string[];
   input: string;
+  inputFS: boolean;
 }
 
 export interface TransformResponse {
   errors: types.Message[];
   warnings: types.Message[];
+
   js: string;
+  jsFS: boolean;
+
   jsSourceMap: string;
+  jsSourceMapFS: boolean;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -67,8 +67,10 @@ let startService: typeof types.startService = options => {
       },
       transform: (input, options) =>
         new Promise((resolve, reject) =>
-          service.transform(input, options || {}, false, (err, res) =>
-            err ? reject(err) : resolve(res!))),
+          service.transform(input, options || {}, false, {
+            readFile(_, callback) { callback(new Error('Internal error'), null); },
+            writeFile(_, callback) { callback(null); },
+          }, (err, res) => err ? reject(err) : resolve(res!))),
       stop() {
         worker.terminate()
         afterClose()

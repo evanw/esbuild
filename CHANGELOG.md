@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Performance optimizations for large file transforms
+
+    There are two main JavaScript APIs: `build()` which operates on the file system and `transform()` which operates on in-memory data. Previously transforming large files using the JavaScript `transform()` API could be significantly slower than just writing the in-memory string to the file system, calling `build()`, and reading the result back from the file system. This is based on performance tests done on macOS 10.15.
+
+    Now esbuild will go through the file system when transforming large files (currently >1mb). This approach is only faster for large files, and can be significantly slower for small files, so small files still keep everything in memory.
+
 ## 0.6.8
 
 * Attempt to support the taobao.org registry ([#291](https://github.com/evanw/esbuild/issues/291))

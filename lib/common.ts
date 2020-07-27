@@ -106,9 +106,25 @@ export interface StreamOut {
   service: StreamService;
 }
 
+export interface StreamFS {
+  writeFile(contents: string, callback: (path: string | null) => void): void;
+  readFile(path: string, callback: (err: Error | null, contents: string | null) => void): void;
+}
+
 export interface StreamService {
-  build(options: types.BuildOptions, isTTY: boolean, callback: (err: Error | null, res: types.BuildResult | null) => void): void;
-  transform(input: string, options: types.TransformOptions, isTTY: boolean, callback: (err: Error | null, res: types.TransformResult | null) => void): void;
+  build(
+    options: types.BuildOptions,
+    isTTY: boolean,
+    callback: (err: Error | null, res: types.BuildResult | null) => void,
+  ): void;
+
+  transform(
+    input: string,
+    options: types.TransformOptions,
+    isTTY: boolean,
+    fs: StreamFS,
+    callback: (err: Error | null, res: types.TransformResult | null) => void,
+  ): void;
 }
 
 // This can't use any promises because it must work for both sync and async code
@@ -118,7 +134,7 @@ export function createChannel(options: StreamIn): StreamOut {
   let nextID = 0;
 
   // Use a long-lived buffer to store stdout data
-  let stdout = new Uint8Array(4096);
+  let stdout = new Uint8Array(16 * 1024);
   let stdoutUsed = 0;
   let readFromStdout = (chunk: Uint8Array) => {
     // Append the chunk to the stdout buffer, growing it as necessary
@@ -223,18 +239,75 @@ export function createChannel(options: StreamIn): StreamOut {
         );
       },
 
-      transform(input, options, isTTY, callback) {
+      transform(input, options, isTTY, fs, callback) {
         let flags = flagsForTransformOptions(options, isTTY);
-        sendRequest<protocol.TransformRequest, protocol.TransformResponse>(
-          ['transform', { flags, input: input + '' }],
-          (error, response) => {
-            if (error) return callback(new Error(error), null);
-            let errors = response!.errors;
-            let warnings = response!.warnings;
-            if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
-            callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
-          },
-        );
+        input += '';
+
+        // Ideally the "transform()" API would be faster than calling "build()"
+        // since it doesn't need to touch the file system. However, performance
+        // measurements with large files on macOS indicate that sending the data
+        // over the stdio pipe can be 2x slower than just using a temporary file.
+        //
+        // This appears to be an OS limitation. Both the JavaScript and Go code
+        // are using large buffers but the pipe only writes data in 8kb chunks.
+        // An investigation seems to indicate that this number is hard-coded into
+        // the OS source code. Presumably files are faster because the OS uses
+        // a larger chunk size, or maybe even reads everything in one syscall.
+        //
+        // The cross-over size where this starts to be faster is around 1mb on
+        // my machine. In that case, this code tries to use a temporary file if
+        // possible but falls back to sending the data over the stdio pipe if
+        // that doesn't work.
+        let start = (inputPath: string | null) => {
+          sendRequest<protocol.TransformRequest, protocol.TransformResponse>(
+            ['transform', {
+              flags,
+              inputFS: inputPath !== null,
+              input: inputPath !== null ? inputPath : input,
+            }],
+            (error, response) => {
+              if (error) return callback(new Error(error), null);
+              let errors = response!.errors;
+              let warnings = response!.warnings;
+              let outstanding = 1;
+              let next = () => --outstanding === 0 && callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
+              if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
+
+              // Read the JavaScript file from the file system
+              if (response!.jsFS) {
+                outstanding++;
+                fs.readFile(response!.js, (err, contents) => {
+                  if (err !== null) {
+                    callback(err, null);
+                  } else {
+                    response!.js = contents!;
+                    next();
+                  }
+                });
+              }
+
+              // Read the source map file from the file system
+              if (response!.jsSourceMapFS) {
+                outstanding++;
+                fs.readFile(response!.jsSourceMap, (err, contents) => {
+                  if (err !== null) {
+                    callback(err, null);
+                  } else {
+                    response!.jsSourceMap = contents!;
+                    next();
+                  }
+                });
+              }
+
+              next();
+            },
+          );
+        };
+        if (input.length > 1024 * 1024) {
+          let next = start;
+          start = () => fs.writeFile(input, next);
+        }
+        start(null);
       },
     },
   };

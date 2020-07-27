@@ -1,7 +1,11 @@
 import * as types from "./types";
 import * as common from "./common";
 import * as child_process from "child_process";
+import * as crypto from "crypto";
 import * as path from "path";
+import * as util from "util";
+import * as fs from "fs";
+import * as os from "os";
 import { isatty } from "tty";
 
 // This file is used for both the "esbuild" package and the "esbuild-wasm"
@@ -50,7 +54,29 @@ let buildSync: typeof types.buildSync = options => {
 
 let transformSync: typeof types.transformSync = (input, options) => {
   let result: types.TransformResult;
-  runServiceSync(service => service.transform(input, options || {}, isTTY(), (err, res) => {
+  runServiceSync(service => service.transform(input, options || {}, isTTY(), {
+    readFile(tempFile, callback) {
+      try {
+        let contents = fs.readFileSync(tempFile, 'utf8');
+        try {
+          fs.unlinkSync(tempFile);
+        } catch {
+        }
+        callback(null, contents);
+      } catch (err) {
+        callback(err, null);
+      }
+    },
+    writeFile(contents, callback) {
+      try {
+        let tempFile = randomFileName();
+        fs.writeFileSync(tempFile, contents);
+        callback(tempFile);
+      } catch {
+        callback(null);
+      }
+    },
+  }, (err, res) => {
     if (err) throw err;
     result = res!;
   }));
@@ -84,8 +110,30 @@ let startService: typeof types.startService = options => {
           err ? reject(err) : resolve(res!))),
     transform: (input, options) =>
       new Promise((resolve, reject) =>
-        service.transform(input, options || {}, isTTY(), (err, res) =>
-          err ? reject(err) : resolve(res!))),
+        service.transform(input, options || {}, isTTY(), {
+          readFile(tempFile, callback) {
+            try {
+              fs.readFile(tempFile, 'utf8', (err, contents) => {
+                try {
+                  fs.unlink(tempFile, () => callback(err, contents));
+                } catch {
+                  callback(err, contents);
+                }
+              });
+            } catch (err) {
+              callback(err, null);
+            }
+          },
+          writeFile(contents, callback) {
+            try {
+              let tempFile = randomFileName();
+              fs.writeFile(tempFile, contents, err =>
+                err !== null ? callback(null) : callback(tempFile));
+            } catch {
+              callback(null);
+            }
+          },
+        }, (err, res) => err ? reject(err) : resolve(res!))),
     stop() { child.kill(); },
   });
 };
@@ -113,6 +161,10 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
   });
   readFromStdout(stdout);
   afterClose();
+};
+
+let randomFileName = () => {
+  return path.join(os.tmpdir(), `esbuild-${crypto.randomBytes(32).toString('hex')}`);
 };
 
 let api: typeof types = {
