@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.8
 
 * Attempt to support the taobao.org registry ([#291](https://github.com/evanw/esbuild/issues/291))
 
