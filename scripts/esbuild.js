@@ -17,7 +17,7 @@ function buildNativeLib(esbuildPath) {
   childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'install.ts'),
     '--outfile=' + path.join(npmDir, 'install.js'),
-    '--target=es2017',
+    '--target=es2015',
     '--platform=node',
   ], { cwd: repoDir })
 
@@ -26,7 +26,7 @@ function buildNativeLib(esbuildPath) {
     path.join(repoDir, 'lib', 'node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
-    '--target=es2017',
+    '--target=es2015',
     '--format=cjs',
     '--define:WASM=false',
     '--platform=node',
@@ -50,7 +50,7 @@ function buildWasmLib(esbuildPath) {
     path.join(repoDir, 'lib', 'node.ts'),
     '--outfile=' + path.join(libDir, 'main.js'),
     '--bundle',
-    '--target=es2017',
+    '--target=es2015',
     '--format=cjs',
     '--define:WASM=true',
     '--platform=node',
@@ -83,7 +83,7 @@ function buildWasmLib(esbuildPath) {
   const browserJs = childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'browser.ts'),
     '--bundle',
-    '--target=es2017',
+    '--target=es2015',
     '--minify',
     '--format=cjs',
     '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmExecMinCode + workerMinCode),

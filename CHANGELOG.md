@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Attempt to support the taobao.org registry ([#291](https://github.com/evanw/esbuild/issues/291))
+
+    This release attempts to add support for the registry at https://registry.npm.taobao.org, which uses a different URL structure than the official npm registry. Also, the install script will now fall back to the official npm registry if installing with the configured custom registry fails.
+
 ## 0.6.7
 
 * Custom registry can now have a path ([#286](https://github.com/evanw/esbuild/issues/286))

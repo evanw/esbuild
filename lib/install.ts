@@ -1,20 +1,15 @@
-const fs = require('fs');
-const os = require('os');
-const url = require('url');
-const path = require('path');
-const zlib = require('zlib');
-const https = require('https');
+import fs = require('fs');
+import os = require('os');
+import url = require('url');
+import path = require('path');
+import zlib = require('zlib');
+import https = require('https');
+
 const version = require('./package.json').version;
 const binPath = path.join(__dirname, 'bin', 'esbuild');
 const stampPath = path.join(__dirname, 'stamp.txt');
 
-function die(text, err) {
-  err = err && err.message || err;
-  console.error(`error: ${text}${err ? ': ' + err : ''}`);
-  process.exit(1);
-}
-
-function installBinaryFromPackage(name, fromPath, toPath) {
+async function installBinaryFromPackage(name: string, fromPath: string, toPath: string): Promise<void> {
   // It turns out that some package managers (e.g. yarn) sometimes re-run the
   // postinstall script for this package after we have already been installed.
   // That means this script must be idempotent. Let's skip the install if it's
@@ -24,47 +19,75 @@ function installBinaryFromPackage(name, fromPath, toPath) {
   }
 
   // Download the package from npm
-  let registry = url.parse('https://registry.npmjs.org/');
+  let officialRegistry = 'registry.npmjs.org';
+  let urls = [`https://${officialRegistry}/${name}/-/${name}-${version}.tgz`];
+  let debug = false;
+
+  // Try downloading from a custom registry first if one is configured
   try {
     let env = url.parse(process.env.npm_config_registry || '');
-    if (env.protocol !== null && env.host !== null && env.pathname !== null) registry = env;
-  } catch (e) {
+    if (env.protocol && env.host && env.pathname && env.host !== officialRegistry) {
+      let query = url.format({ ...env, pathname: path.posix.join(env.pathname, `${name}/${version}`) });
+      try {
+        // Query the API for the tarball location
+        let tarball = JSON.parse((await fetch(query)).toString()).dist.tarball;
+        if (urls.indexOf(tarball) < 0) urls.unshift(tarball);
+      } catch (err) {
+        console.error(`Failed to download ${JSON.stringify(query)}: ${err && err.message || err}`);
+        debug = true;
+      }
+    }
+  } catch {
   }
-  let packageURL = url.format({
-    protocol: registry.protocol,
-    host: registry.host,
-    pathname: path.posix.join(registry.pathname, `${name}/-/${name}-${version}.tgz`),
-  });
-  downloadURL(packageURL, (err, buffer) => {
-    if (err) die(`Failed to download ${JSON.stringify(packageURL)}`, err);
 
-    // Extract the binary executable from the package
-    fs.writeFileSync(toPath, extractFileFromTarGzip(packageURL, buffer, fromPath));
+  for (let url of urls) {
+    let tryText = `Trying to download ${JSON.stringify(url)}`;
+    if (debug) console.error(tryText);
 
-    // Mark the operation as successful so this script is idempotent
-    fs.writeFileSync(stampPath, '');
-  });
+    try {
+      let buffer = extractFileFromTarGzip(await fetch(url), fromPath);
+      if (debug) console.error(`Install successful`);
+
+      // Write out the binary executable that was extracted from the package
+      fs.writeFileSync(toPath, buffer);
+
+      // Mark the operation as successful so this script is idempotent
+      fs.writeFileSync(stampPath, '');
+      return;
+    }
+
+    catch (err) {
+      if (!debug) console.error(tryText);
+      console.error(`Failed to download ${JSON.stringify(url)}: ${err && err.message || err}`);
+      debug = true;
+    }
+  }
+
+  console.error(`Install unsuccessful`);
+  process.exit(1);
 }
 
-function downloadURL(url, done) {
-  try {
+function fetch(url: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
     https.get(url, res => {
-      let chunks = [];
+      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location)
+        return fetch(res.headers.location).then(resolve, reject);
+      if (res.statusCode !== 200)
+        return reject(new Error(`Server responded with ${res.statusCode}`));
+      let chunks: Buffer[] = [];
       res.on('data', chunk => chunks.push(chunk));
-      res.on('end', () => done(null, Buffer.concat(chunks)));
-    }).on('error', err => done(err));
-  } catch (err) {
-    done(err);
-  }
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    }).on('error', reject);
+  });
 }
 
-function extractFileFromTarGzip(url, buffer, file) {
+function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
   try {
     buffer = zlib.unzipSync(buffer);
   } catch (err) {
-    die(`Invalid gzip data in archive from ${url}`, err);
+    throw new Error(`Invalid gzip data in archive: ${err && err.message || err}`);
   }
-  let str = (i, n) => String.fromCharCode(...buffer.subarray(i, i + n)).replace(/\0.*$/, '');
+  let str = (i: number, n: number) => String.fromCharCode(...buffer.subarray(i, i + n)).replace(/\0.*$/, '');
   let offset = 0;
   while (offset < buffer.length) {
     let name = str(offset, 100);
@@ -75,19 +98,20 @@ function extractFileFromTarGzip(url, buffer, file) {
       offset += (size + 511) & ~511;
     }
   }
-  die(`Could not find ${JSON.stringify(file)} in archive from ${url}`);
+  throw new Error(`Could not find ${JSON.stringify(file)} in archive`);
 }
 
-function installOnUnix(name) {
+function installOnUnix(name: string): void {
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.unlinkSync(binPath);
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
   } else {
-    installBinaryFromPackage(name, 'package/bin/esbuild', binPath);
+    installBinaryFromPackage(name, 'package/bin/esbuild', binPath)
+      .catch(e => setImmediate(() => { throw e; }));
   }
 }
 
-function installOnWindows() {
+function installOnWindows(): void {
   fs.writeFileSync(
     binPath,
     `#!/usr/bin/env node
@@ -100,11 +124,12 @@ child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' }
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
   } else {
-    installBinaryFromPackage('esbuild-windows-64', 'package/esbuild.exe', exePath);
+    installBinaryFromPackage('esbuild-windows-64', 'package/esbuild.exe', exePath)
+      .catch(e => setImmediate(() => { throw e; }));
   }
 }
 
-const knownUnixlikePackages = {
+const knownUnixlikePackages: Record<string, string> = {
   'darwin x64 LE': 'esbuild-darwin-64',
   'freebsd x64 LE': 'esbuild-freebsd-64',
   'freebsd arm64 LE': 'esbuild-freebsd-arm64',
@@ -122,6 +147,7 @@ if (process.platform === 'win32' && os.arch() === 'x64') {
   if (key in knownUnixlikePackages) {
     installOnUnix(knownUnixlikePackages[key]);
   } else {
-    die(`Unsupported platform: ${key}`);
+    console.error(`Unsupported platform: ${key}`);
+    process.exit(1);
   }
 }
