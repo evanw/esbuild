@@ -424,8 +424,9 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 				for !found {
 					// Skip "node_modules" folders
 					if r.fs.Base(current) != "node_modules" {
-						extendsFile := r.fs.Join(current, "node_modules", extends)
-						for _, fileToCheck := range []string{extendsFile, extendsFile + ".json"} {
+						join := r.fs.Join(current, "node_modules", extends)
+						filesToCheck := []string{join, join + ".json", r.fs.Join(join, "tsconfig.json")}
+						for _, fileToCheck := range filesToCheck {
 							base, baseStatus := r.parseJsTsConfig(fileToCheck, visited)
 							if baseStatus == parseReadFailure {
 								continue

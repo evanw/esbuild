@@ -682,3 +682,36 @@ console.log("good");
 		},
 	})
 }
+
+func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.tsx": `
+				console.log(<div/>)
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"extends": "foo"
+				}
+			`,
+			"/Users/user/project/src/node_modules/foo/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsx": "react",
+						"jsxFactory": "worked"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.tsx"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expected: map[string]string{
+			"/Users/user/project/out.js": `// /Users/user/project/src/app/entry.tsx
+console.log(/* @__PURE__ */ worked("div", null));
+`,
+		},
+	})
+}
