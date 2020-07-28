@@ -8,6 +8,10 @@
 
     Now esbuild will go through the file system when transforming large files (currently >1mb). This approach is only faster for large files, and can be significantly slower for small files, so small files still keep everything in memory.
 
+* Avoid stack overflow for binary operator chains
+
+    Syntax trees with millions of sequential binary operators nested inside each other can cause the parser to stack overflow because it uses a recursive visitor pattern, so each binary operator added an entry to the call stack. Now code like this no longer triggers a stack overflow because the visitor uses the heap instead of the stack in this case. This is unlikely to matter in real-world code but can show up in certain artificial test cases, especially when `--minify-syntax` is enabled.
+
 ## 0.6.8
 
 * Attempt to support the taobao.org registry ([#291](https://github.com/evanw/esbuild/issues/291))

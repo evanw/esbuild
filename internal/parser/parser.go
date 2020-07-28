@@ -6931,321 +6931,34 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EBinary:
 		isCallTarget := e == p.callTarget
-		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 
-		// Pattern-match "typeof require == 'function' && ___" from browserify
-		if e.Op == ast.BinOpLogicalAnd && e.Left.Data == p.typeofRequireEqualsFn {
-			p.typeofRequireEqualsFnTarget = e.Right.Data
+		// Special-case long chains of binary operators so we don't overflow the call stack
+		if left, ok := e.Left.Data.(*ast.EBinary); ok {
+			type item struct {
+				loc    ast.Loc
+				binary *ast.EBinary
+			}
+			stack := []item{{e.Left.Loc, left}}
+			for {
+				next, ok := left.Left.Data.(*ast.EBinary)
+				if !ok {
+					break
+				}
+				stack = append(stack, item{left.Left.Loc, next})
+				left = next
+			}
+			value, _ := p.visitExprInOut(left.Left, exprIn{assignTarget: left.Op.BinaryAssignTarget()})
+			for i := len(stack) - 1; i >= 0; i-- {
+				top := stack[i]
+				top.binary.Left = value
+				value = p.visitBinaryRight(top.loc, top.binary, exprIn{}, false)
+			}
+			e.Left = value
+		} else {
+			e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 		}
 
-		e.Right = p.visitExpr(e.Right)
-
-		// Post-process the binary expression
-		switch e.Op {
-		case ast.BinOpComma:
-			// "(1, 2)" => "2"
-			// "(sideEffects(), 2)" => "(sideEffects(), 2)"
-			if p.MangleSyntax {
-				e.Left = p.simplifyUnusedExpr(e.Left)
-				if e.Left.Data == nil {
-					// "(1, fn)()" => "fn()"
-					// "(1, this.fn)" => "this.fn"
-					// "(1, this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
-						return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right), exprOut{}
-					}
-					return e.Right, exprOut{}
-				}
-			}
-
-		case ast.BinOpLooseEq:
-			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				data := &ast.EBoolean{Value: result}
-
-				// Pattern-match "typeof require == 'function'" from browserify. Also
-				// match "'function' == typeof require" because some minifiers such as
-				// terser transpose the left and right operands to "==" to form a
-				// different but equivalent expression.
-				if result && (e.Left.Data == p.typeofRequire || e.Right.Data == p.typeofRequire) {
-					p.typeofRequireEqualsFn = data
-				}
-
-				return ast.Expr{Loc: expr.Loc, Data: data}, exprOut{}
-			} else if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
-				p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
-			}
-
-		case ast.BinOpStrictEq:
-			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: result}}, exprOut{}
-			} else if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
-				p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
-			}
-
-		case ast.BinOpLooseNe:
-			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
-			} else if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
-				p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
-			}
-
-		case ast.BinOpStrictNe:
-			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
-				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
-			} else if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
-				p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
-			}
-
-		case ast.BinOpNullishCoalescing:
-			switch e.Left.Data.(type) {
-			case *ast.EBoolean, *ast.ENumber, *ast.EString, *ast.ERegExp,
-				*ast.EObject, *ast.EArray, *ast.EFunction, *ast.EArrow, *ast.EClass:
-				return e.Left, exprOut{}
-
-			case *ast.ENull, *ast.EUndefined:
-				// "(null ?? fn)()" => "fn()"
-				// "(null ?? this.fn)" => "this.fn"
-				// "(null ?? this.fn)()" => "(0, this.fn)()"
-				if isCallTarget && hasValueForThisInCall(e.Right) {
-					return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right), exprOut{}
-				}
-				return e.Right, exprOut{}
-
-			default:
-				if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
-					return p.lowerNullishCoalescing(expr.Loc, e.Left, e.Right), exprOut{}
-				}
-			}
-
-		case ast.BinOpLogicalOr:
-			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
-				if boolean {
-					return e.Left, exprOut{}
-				} else {
-					// "(0 || fn)()" => "fn()"
-					// "(0 || this.fn)" => "this.fn"
-					// "(0 || this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
-						return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right), exprOut{}
-					}
-					return e.Right, exprOut{}
-				}
-			}
-
-		case ast.BinOpLogicalAnd:
-			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
-				if boolean {
-					// "(1 && fn)()" => "fn()"
-					// "(1 && this.fn)" => "this.fn"
-					// "(1 && this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
-						return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right), exprOut{}
-					}
-					return e.Right, exprOut{}
-				} else {
-					return e.Left, exprOut{}
-				}
-			}
-
-		case ast.BinOpAdd:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: left + right}}, exprOut{}
-				}
-			}
-
-			// "'abc' + 'xyz'" => "'abcxyz'"
-			if result := foldStringAddition(e.Left, e.Right); result != nil {
-				return *result, exprOut{}
-			}
-
-			if left, ok := e.Left.Data.(*ast.EBinary); ok && left.Op == ast.BinOpAdd {
-				// "x + 'abc' + 'xyz'" => "x + 'abcxyz'"
-				if result := foldStringAddition(left.Right, e.Right); result != nil {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.EBinary{Op: left.Op, Left: left.Left, Right: *result}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpSub:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: left - right}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpMul:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: left * right}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpDiv:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: left / right}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpRem:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: math.Mod(left, right)}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpPow:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: math.Pow(left, right)}}, exprOut{}
-				}
-			}
-
-			// Lower the exponentiation operator for browsers that don't support it
-			if p.UnsupportedFeatures.Has(compat.ExponentOperator) {
-				return p.callRuntime(expr.Loc, "__pow", []ast.Expr{e.Left, e.Right}), exprOut{}
-			}
-
-		case ast.BinOpShl:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) << (toUint32(right) & 31))}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpShr:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) >> (toUint32(right) & 31))}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpUShr:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toUint32(left) >> (toUint32(right) & 31))}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpBitwiseAnd:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) & toInt32(right))}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpBitwiseOr:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) | toInt32(right))}}, exprOut{}
-				}
-			}
-
-		case ast.BinOpBitwiseXor:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: float64(toInt32(left) ^ toInt32(right))}}, exprOut{}
-				}
-			}
-
-			////////////////////////////////////////////////////////////////////////////////
-			// All assignment operators below here
-
-		case ast.BinOpAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSet(target, loc, private, e.Right), exprOut{}
-			}
-
-			// Lower object rest patterns for browsers that don't support them. Note
-			// that assignment expressions are used to represent initializers in
-			// binding patterns, so only do this if we're not ourselves the target of
-			// an assignment. Example: "[a = b] = c"
-			if in.assignTarget == ast.AssignTargetNone {
-				if result, ok := p.lowerObjectRestInAssign(e.Left, e.Right); ok {
-					return result, exprOut{}
-				}
-			}
-
-		case ast.BinOpAddAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpAdd, e.Right), exprOut{}
-			}
-
-		case ast.BinOpSubAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpSub, e.Right), exprOut{}
-			}
-
-		case ast.BinOpMulAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpMul, e.Right), exprOut{}
-			}
-
-		case ast.BinOpDivAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpDiv, e.Right), exprOut{}
-			}
-
-		case ast.BinOpRemAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpRem, e.Right), exprOut{}
-			}
-
-		case ast.BinOpPowAssign:
-			// Lower the exponentiation operator for browsers that don't support it
-			if p.UnsupportedFeatures.Has(compat.ExponentOperator) {
-				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
-			}
-
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpPow, e.Right), exprOut{}
-			}
-
-		case ast.BinOpShlAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpShl, e.Right), exprOut{}
-			}
-
-		case ast.BinOpShrAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpShr, e.Right), exprOut{}
-			}
-
-		case ast.BinOpUShrAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpUShr, e.Right), exprOut{}
-			}
-
-		case ast.BinOpBitwiseOrAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseOr, e.Right), exprOut{}
-			}
-
-		case ast.BinOpBitwiseAndAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseAnd, e.Right), exprOut{}
-			}
-
-		case ast.BinOpBitwiseXorAssign:
-			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
-				return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseXor, e.Right), exprOut{}
-			}
-
-		case ast.BinOpNullishCoalescingAssign:
-			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
-				return p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e), exprOut{}
-			}
-
-		case ast.BinOpLogicalAndAssign:
-			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
-				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalAnd), exprOut{}
-			}
-
-		case ast.BinOpLogicalOrAssign:
-			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
-				return p.lowerLogicalAssignmentOperator(expr.Loc, e, ast.BinOpLogicalOr), exprOut{}
-			}
-		}
+		return p.visitBinaryRight(expr.Loc, e, in, isCallTarget), exprOut{}
 
 	case *ast.EIndex:
 		// "a['b']" => "a.b"
@@ -7730,6 +7443,324 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	}
 
 	return expr, exprOut{}
+}
+
+func (p *parser) visitBinaryRight(loc ast.Loc, e *ast.EBinary, in exprIn, isCallTarget bool) ast.Expr {
+	// Pattern-match "typeof require == 'function' && ___" from browserify
+	if e.Op == ast.BinOpLogicalAnd && e.Left.Data == p.typeofRequireEqualsFn {
+		p.typeofRequireEqualsFnTarget = e.Right.Data
+	}
+
+	e.Right = p.visitExpr(e.Right)
+
+	// Post-process the binary expression
+	switch e.Op {
+	case ast.BinOpComma:
+		// "(1, 2)" => "2"
+		// "(sideEffects(), 2)" => "(sideEffects(), 2)"
+		if p.MangleSyntax {
+			e.Left = p.simplifyUnusedExpr(e.Left)
+			if e.Left.Data == nil {
+				// "(1, fn)()" => "fn()"
+				// "(1, this.fn)" => "this.fn"
+				// "(1, this.fn)()" => "(0, this.fn)()"
+				if isCallTarget && hasValueForThisInCall(e.Right) {
+					return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right)
+				}
+				return e.Right
+			}
+		}
+
+	case ast.BinOpLooseEq:
+		if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			data := &ast.EBoolean{Value: result}
+
+			// Pattern-match "typeof require == 'function'" from browserify. Also
+			// match "'function' == typeof require" because some minifiers such as
+			// terser transpose the left and right operands to "==" to form a
+			// different but equivalent expression.
+			if result && (e.Left.Data == p.typeofRequire || e.Right.Data == p.typeofRequire) {
+				p.typeofRequireEqualsFn = data
+			}
+
+			return ast.Expr{Loc: loc, Data: data}
+		} else if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
+			p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
+		}
+
+	case ast.BinOpStrictEq:
+		if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: result}}
+		} else if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
+			p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
+		}
+
+	case ast.BinOpLooseNe:
+		if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: !result}}
+		} else if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
+			p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
+		}
+
+	case ast.BinOpStrictNe:
+		if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: !result}}
+		} else if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
+			p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
+		}
+
+	case ast.BinOpNullishCoalescing:
+		switch e.Left.Data.(type) {
+		case *ast.EBoolean, *ast.ENumber, *ast.EString, *ast.ERegExp,
+			*ast.EObject, *ast.EArray, *ast.EFunction, *ast.EArrow, *ast.EClass:
+			return e.Left
+
+		case *ast.ENull, *ast.EUndefined:
+			// "(null ?? fn)()" => "fn()"
+			// "(null ?? this.fn)" => "this.fn"
+			// "(null ?? this.fn)()" => "(0, this.fn)()"
+			if isCallTarget && hasValueForThisInCall(e.Right) {
+				return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right)
+			}
+			return e.Right
+
+		default:
+			if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
+				return p.lowerNullishCoalescing(loc, e.Left, e.Right)
+			}
+		}
+
+	case ast.BinOpLogicalOr:
+		if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
+			if boolean {
+				return e.Left
+			} else {
+				// "(0 || fn)()" => "fn()"
+				// "(0 || this.fn)" => "this.fn"
+				// "(0 || this.fn)()" => "(0, this.fn)()"
+				if isCallTarget && hasValueForThisInCall(e.Right) {
+					return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right)
+				}
+				return e.Right
+			}
+		}
+
+	case ast.BinOpLogicalAnd:
+		if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
+			if boolean {
+				// "(1 && fn)()" => "fn()"
+				// "(1 && this.fn)" => "this.fn"
+				// "(1 && this.fn)()" => "(0, this.fn)()"
+				if isCallTarget && hasValueForThisInCall(e.Right) {
+					return ast.JoinWithComma(ast.Expr{Loc: e.Left.Loc, Data: &ast.ENumber{}}, e.Right)
+				}
+				return e.Right
+			} else {
+				return e.Left
+			}
+		}
+
+	case ast.BinOpAdd:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: left + right}}
+			}
+		}
+
+		// "'abc' + 'xyz'" => "'abcxyz'"
+		if result := foldStringAddition(e.Left, e.Right); result != nil {
+			return *result
+		}
+
+		if left, ok := e.Left.Data.(*ast.EBinary); ok && left.Op == ast.BinOpAdd {
+			// "x + 'abc' + 'xyz'" => "x + 'abcxyz'"
+			if result := foldStringAddition(left.Right, e.Right); result != nil {
+				return ast.Expr{Loc: loc, Data: &ast.EBinary{Op: left.Op, Left: left.Left, Right: *result}}
+			}
+		}
+
+	case ast.BinOpSub:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: left - right}}
+			}
+		}
+
+	case ast.BinOpMul:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: left * right}}
+			}
+		}
+
+	case ast.BinOpDiv:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: left / right}}
+			}
+		}
+
+	case ast.BinOpRem:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: math.Mod(left, right)}}
+			}
+		}
+
+	case ast.BinOpPow:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: math.Pow(left, right)}}
+			}
+		}
+
+		// Lower the exponentiation operator for browsers that don't support it
+		if p.UnsupportedFeatures.Has(compat.ExponentOperator) {
+			return p.callRuntime(loc, "__pow", []ast.Expr{e.Left, e.Right})
+		}
+
+	case ast.BinOpShl:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: float64(toInt32(left) << (toUint32(right) & 31))}}
+			}
+		}
+
+	case ast.BinOpShr:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: float64(toInt32(left) >> (toUint32(right) & 31))}}
+			}
+		}
+
+	case ast.BinOpUShr:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: float64(toUint32(left) >> (toUint32(right) & 31))}}
+			}
+		}
+
+	case ast.BinOpBitwiseAnd:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: float64(toInt32(left) & toInt32(right))}}
+			}
+		}
+
+	case ast.BinOpBitwiseOr:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: float64(toInt32(left) | toInt32(right))}}
+			}
+		}
+
+	case ast.BinOpBitwiseXor:
+		if p.shouldFoldNumericConstants {
+			if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+				return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: float64(toInt32(left) ^ toInt32(right))}}
+			}
+		}
+
+		////////////////////////////////////////////////////////////////////////////////
+		// All assignment operators below here
+
+	case ast.BinOpAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSet(target, loc, private, e.Right)
+		}
+
+		// Lower object rest patterns for browsers that don't support them. Note
+		// that assignment expressions are used to represent initializers in
+		// binding patterns, so only do this if we're not ourselves the target of
+		// an assignment. Example: "[a = b] = c"
+		if in.assignTarget == ast.AssignTargetNone {
+			if result, ok := p.lowerObjectRestInAssign(e.Left, e.Right); ok {
+				return result
+			}
+		}
+
+	case ast.BinOpAddAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpAdd, e.Right)
+		}
+
+	case ast.BinOpSubAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpSub, e.Right)
+		}
+
+	case ast.BinOpMulAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpMul, e.Right)
+		}
+
+	case ast.BinOpDivAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpDiv, e.Right)
+		}
+
+	case ast.BinOpRemAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpRem, e.Right)
+		}
+
+	case ast.BinOpPowAssign:
+		// Lower the exponentiation operator for browsers that don't support it
+		if p.UnsupportedFeatures.Has(compat.ExponentOperator) {
+			return p.lowerExponentiationAssignmentOperator(loc, e)
+		}
+
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpPow, e.Right)
+		}
+
+	case ast.BinOpShlAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpShl, e.Right)
+		}
+
+	case ast.BinOpShrAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpShr, e.Right)
+		}
+
+	case ast.BinOpUShrAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpUShr, e.Right)
+		}
+
+	case ast.BinOpBitwiseOrAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseOr, e.Right)
+		}
+
+	case ast.BinOpBitwiseAndAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseAnd, e.Right)
+		}
+
+	case ast.BinOpBitwiseXorAssign:
+		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
+			return p.lowerPrivateSetBinOp(target, loc, private, ast.BinOpBitwiseXor, e.Right)
+		}
+
+	case ast.BinOpNullishCoalescingAssign:
+		if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
+			return p.lowerNullishCoalescingAssignmentOperator(loc, e)
+		}
+
+	case ast.BinOpLogicalAndAssign:
+		if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
+			return p.lowerLogicalAssignmentOperator(loc, e, ast.BinOpLogicalAnd)
+		}
+
+	case ast.BinOpLogicalOrAssign:
+		if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
+			return p.lowerLogicalAssignmentOperator(loc, e, ast.BinOpLogicalOr)
+		}
+	}
+
+	return ast.Expr{Loc: loc, Data: e}
 }
 
 func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defineFunc config.DefineFunc) ast.Expr {
