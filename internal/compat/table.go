@@ -120,6 +120,7 @@ var Table = map[Feature]map[Engine][]int{
 	},
 	ClassPrivateAccessor: {
 		Chrome: {84},
+		Edge:   {84},
 	},
 	ClassPrivateField: {
 		Chrome: {74},
@@ -128,9 +129,11 @@ var Table = map[Feature]map[Engine][]int{
 	},
 	ClassPrivateMethod: {
 		Chrome: {84},
+		Edge:   {84},
 	},
 	ClassPrivateStaticAccessor: {
 		Chrome: {84},
+		Edge:   {84},
 	},
 	ClassPrivateStaticField: {
 		Chrome: {74},
@@ -139,6 +142,7 @@ var Table = map[Feature]map[Engine][]int{
 	},
 	ClassPrivateStaticMethod: {
 		Chrome: {84},
+		Edge:   {84},
 	},
 	ClassStaticField: {
 		Chrome:  {72},
