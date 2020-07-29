@@ -646,7 +646,24 @@ async function main() {
     process.exit(1)
   } else {
     console.log(`✅ js api tests passed`)
-    rimraf.sync(rootTestDir, { disableGlob: true })
+
+    // This randomly fails with EPERM on Windows in CI (GitHub Actions):
+    //
+    //   Error: EPERM: operation not permitted: unlink 'esbuild\scripts\.js-api-tests\node_modules\esbuild\esbuild.exe'
+    //       at Object.unlinkSync (fs.js)
+    //       at fixWinEPERMSync (esbuild\scripts\node_modules\rimraf\rimraf.js)
+    //       at rimrafSync (esbuild\scripts\node_modules\rimraf\rimraf.js)
+    //
+    // From searching related issues on GitHub it looks like apparently this is
+    // just how Windows works? It's kind of hard to believe something as
+    // fundamental as file operations is broken on Windows. It sounds like the
+    // file system implementation on Windows has race conditions or something.
+    // Anyway, deleting this is not important for the success of the test so
+    // just ignore errors here.
+    try {
+      rimraf.sync(rootTestDir, { disableGlob: true })
+    } catch (e) {
+    }
   }
 }
 
