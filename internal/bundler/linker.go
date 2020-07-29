@@ -1783,21 +1783,26 @@ func (c *linkerContext) handleCrossChunkAssignments() {
 
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
-		partMeta := c.fileMeta[sourceIndex].partMeta
+		fileMeta := &c.fileMeta[sourceIndex]
+		partMeta := fileMeta.partMeta
 
 		// Initialize a union-find data structure to merge parts together
-		unionFind := make([]uint32, len(file.ast.Parts))
+		type unionFindItem struct {
+			entryBits bitSet
+			label     uint32
+		}
+		unionFind := make([]unionFindItem, len(file.ast.Parts))
 		for partIndex := range file.ast.Parts {
-			unionFind[partIndex] = uint32(partIndex)
+			unionFind[partIndex] = unionFindItem{label: uint32(partIndex)}
 		}
 
 		// Look up a merged label
 		var find func(uint32) uint32
 		find = func(label uint32) uint32 {
-			next := unionFind[label]
+			next := unionFind[label].label
 			if next != label {
 				next = find(next)
-				unionFind[label] = next
+				unionFind[label].label = next
 			}
 			return next
 		}
@@ -1815,21 +1820,50 @@ func (c *linkerContext) handleCrossChunkAssignments() {
 					if otherParts, ok := file.ast.TopLevelSymbolToParts[ref]; ok {
 						for _, otherPartIndex := range otherParts {
 							// Union the two labels together
-							a := find(uint32(partIndex))
-							b := find(otherPartIndex)
-							unionFind[a] = b
-							partMeta[b].entryBits.bitwiseOrWith(partMeta[a].entryBits)
+							fromIndex := find(uint32(partIndex))
+							toIndex := find(otherPartIndex)
+							from := &unionFind[fromIndex]
+							to := &unionFind[toIndex]
+							from.label = toIndex
+
+							// Lazily allocate bit sets only for parts that are relevant
+							if to.entryBits.entries == nil {
+								to.entryBits = newBitSet(uint(len(c.entryPoints)))
+								to.entryBits.copyFrom(partMeta[toIndex].entryBits)
+							}
+
+							// Union the two bit sets together as well
+							if from.entryBits.entries == nil {
+								to.entryBits.bitwiseOrWith(partMeta[fromIndex].entryBits)
+							} else {
+								to.entryBits.bitwiseOrWith(from.entryBits)
+							}
 						}
 					}
 				}
 			}
 		}
 
-		// Update the entry bits of parts that were merged
+		// Each part involved in a cross-part assignment must be treated as if it's
+		// reachable from any entry point that can reach any part involved in that
+		// cross-part assignment.
 		for partIndex := range file.ast.Parts {
+			// Check if this part was merged
 			label := find(uint32(partIndex))
-			if label != uint32(partIndex) {
-				partMeta[partIndex].entryBits.copyFrom(partMeta[label].entryBits)
+			merged := unionFind[label].entryBits
+			if merged.entries == nil {
+				continue
+			}
+
+			// We can't just set the entry bits of this part to the merged entry bits
+			// because that doesn't handle this part's dependencies. Instead we must
+			// call "includePart()" to mark all dependencies of this part as reachable
+			// by these entry points too.
+			to := &partMeta[partIndex].entryBits
+			for entryPointBit := range c.entryPoints {
+				if merged.hasBit(uint(entryPointBit)) && !to.hasBit(uint(entryPointBit)) {
+					c.includePart(sourceIndex, uint32(partIndex), uint(entryPointBit), fileMeta.distanceFromEntryPoint)
+				}
 			}
 		}
 	}

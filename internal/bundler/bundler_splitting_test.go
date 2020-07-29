@@ -642,3 +642,69 @@ console.log("imported");
 		},
 	})
 }
+
+func TestSplittingCrossChunkAssignmentDependencies(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import {setValue} from './shared'
+				setValue(123)
+			`,
+			"/b.js": `
+				import './shared'
+			`,
+			"/shared.js": `
+				var observer;
+				var value;
+				export function setObserver(cb) {
+					observer = cb;
+				}
+				export function getValue() {
+					return value;
+				}
+				export function setValue(next) {
+					value = next;
+					if (observer) observer();
+				}
+				sideEffects(getValue);
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `import {
+  setValue
+} from "./chunk.xL6KqlYO.js";
+
+// /a.js
+setValue(123);
+`,
+			"/out/b.js": `import "./chunk.xL6KqlYO.js";
+
+// /b.js
+`,
+			"/out/chunk.xL6KqlYO.js": `// /shared.js
+var observer;
+var value;
+function getValue() {
+  return value;
+}
+function setValue(next) {
+  value = next;
+  if (observer)
+    observer();
+}
+sideEffects(getValue);
+
+export {
+  setValue
+};
+`,
+		},
+	})
+}
