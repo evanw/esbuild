@@ -525,6 +525,11 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkMeta) []OutputFil
 			chunk := &chunks[i]
 			order := &chunkOrdering[i]
 
+			// Start generating the chunk without dependencies, but stop when
+			// dependencies are needed. This returns a callback that is called
+			// later to resume generating the chunk once dependencies are known.
+			resume := c.generateChunk(chunk)
+
 			// Wait for all dependencies to be resolved first
 			order.dependencies.Wait()
 
@@ -538,7 +543,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkMeta) []OutputFil
 			}
 
 			// Generate the chunk
-			results[i] = c.generateChunk(chunk, crossChunkImportRecords)
+			results[i] = resume(crossChunkImportRecords)
 
 			// Wake up any dependents now that we're done
 			for _, chunkIndex := range order.dependents {
@@ -2760,7 +2765,8 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	waitGroup.Done()
 }
 
-func (c *linkerContext) generateChunk(chunk *chunkMeta, crossChunkImportRecords []ast.ImportRecord) (results []OutputFile) {
+func (c *linkerContext) generateChunk(chunk *chunkMeta) func([]ast.ImportRecord) []OutputFile {
+	var results []OutputFile
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResult, 0, len(filesInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].ast.ModuleScope.Members
@@ -2795,286 +2801,290 @@ func (c *linkerContext) generateChunk(chunk *chunkMeta, crossChunkImportRecords 
 		)
 	}
 
-	// Also generate the cross-chunk binding code
-	var crossChunkPrefix []byte
-	var crossChunkSuffix []byte
-	{
-		// Indent the file if everything is wrapped in an IIFE
-		indent := 0
+	// Wait for cross-chunk import records before continuing
+	return func(crossChunkImportRecords []ast.ImportRecord) []OutputFile {
+		// Also generate the cross-chunk binding code
+		var crossChunkPrefix []byte
+		var crossChunkSuffix []byte
+		{
+			// Indent the file if everything is wrapped in an IIFE
+			indent := 0
+			if c.options.OutputFormat == config.FormatIIFE {
+				indent++
+			}
+			printOptions := printer.PrintOptions{
+				Indent:           indent,
+				OutputFormat:     c.options.OutputFormat,
+				RemoveWhitespace: c.options.RemoveWhitespace,
+			}
+			crossChunkPrefix = printer.Print(ast.AST{
+				ImportRecords: crossChunkImportRecords,
+				Parts:         []ast.Part{{Stmts: chunk.crossChunkPrefixStmts}},
+				Symbols:       c.symbols,
+			}, printOptions).JS
+			crossChunkSuffix = printer.Print(ast.AST{
+				Parts:   []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
+				Symbols: c.symbols,
+			}, printOptions).JS
+		}
+
+		waitGroup.Wait()
+
+		j := printer.Joiner{}
+		prevOffset := lineColumnOffset{}
+
+		// Optionally strip whitespace
+		indent := ""
+		space := " "
+		newline := "\n"
+		if c.options.RemoveWhitespace {
+			space = ""
+			newline = ""
+		}
+		newlineBeforeComment := false
+
+		if chunk.isEntryPoint {
+			file := &c.files[chunk.sourceIndex]
+
+			// Start with the hashbang if there is one
+			if file.ast.Hashbang != "" {
+				hashbang := file.ast.Hashbang + "\n"
+				prevOffset.advanceString(hashbang)
+				j.AddString(hashbang)
+				newlineBeforeComment = true
+			}
+
+			// Add the top-level directive if present
+			if file.ast.Directive != "" {
+				quoted := printer.Quote(file.ast.Directive) + ";" + newline
+				prevOffset.advanceString(quoted)
+				j.AddString(quoted)
+				newlineBeforeComment = true
+			}
+		}
+
+		// Optionally wrap with an IIFE
 		if c.options.OutputFormat == config.FormatIIFE {
-			indent++
-		}
-		printOptions := printer.PrintOptions{
-			Indent:           indent,
-			OutputFormat:     c.options.OutputFormat,
-			RemoveWhitespace: c.options.RemoveWhitespace,
-		}
-		crossChunkPrefix = printer.Print(ast.AST{
-			ImportRecords: crossChunkImportRecords,
-			Parts:         []ast.Part{{Stmts: chunk.crossChunkPrefixStmts}},
-			Symbols:       c.symbols,
-		}, printOptions).JS
-		crossChunkSuffix = printer.Print(ast.AST{
-			Parts:   []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
-			Symbols: c.symbols,
-		}, printOptions).JS
-	}
-	waitGroup.Wait()
-
-	j := printer.Joiner{}
-	prevOffset := lineColumnOffset{}
-
-	// Optionally strip whitespace
-	indent := ""
-	space := " "
-	newline := "\n"
-	if c.options.RemoveWhitespace {
-		space = ""
-		newline = ""
-	}
-	newlineBeforeComment := false
-
-	if chunk.isEntryPoint {
-		file := &c.files[chunk.sourceIndex]
-
-		// Start with the hashbang if there is one
-		if file.ast.Hashbang != "" {
-			hashbang := file.ast.Hashbang + "\n"
-			prevOffset.advanceString(hashbang)
-			j.AddString(hashbang)
-			newlineBeforeComment = true
-		}
-
-		// Add the top-level directive if present
-		if file.ast.Directive != "" {
-			quoted := printer.Quote(file.ast.Directive) + ";" + newline
-			prevOffset.advanceString(quoted)
-			j.AddString(quoted)
-			newlineBeforeComment = true
-		}
-	}
-
-	// Optionally wrap with an IIFE
-	if c.options.OutputFormat == config.FormatIIFE {
-		var text string
-		indent = "  "
-		if c.options.UnsupportedFeatures.Has(compat.Arrow) {
-			text = "(function()" + space + "{" + newline
-		} else {
-			text = "(()" + space + "=>" + space + "{" + newline
-		}
-		if c.options.ModuleName != "" {
-			text = "var " + c.options.ModuleName + space + "=" + space + text
-		}
-		prevOffset.advanceString(text)
-		j.AddString(text)
-		newlineBeforeComment = false
-	}
-
-	// Put the cross-chunk prefix inside the IIFE
-	if len(crossChunkPrefix) > 0 {
-		newlineBeforeComment = true
-		j.AddBytes(crossChunkPrefix)
-	}
-
-	// Start the metadata
-	jMeta := printer.Joiner{}
-	if c.options.AbsMetadataFile != "" {
-		isFirstMeta := true
-		jMeta.AddString("{\n      \"imports\": [")
-		for _, record := range crossChunkImportRecords {
-			if isFirstMeta {
-				isFirstMeta = false
+			var text string
+			indent = "  "
+			if c.options.UnsupportedFeatures.Has(compat.Arrow) {
+				text = "(function()" + space + "{" + newline
 			} else {
-				jMeta.AddString(",")
+				text = "(()" + space + "=>" + space + "{" + newline
 			}
-			importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
-			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-				printer.QuoteForJSON(c.res.PrettyPath(importAbsPath))))
-		}
-		if !isFirstMeta {
-			jMeta.AddString("\n      ")
-		}
-		jMeta.AddString("],\n      \"inputs\": {")
-	}
-	isFirstMeta := true
-
-	// Concatenate the generated JavaScript chunks together
-	var compileResultsForSourceMap []compileResult
-	var entryPointTail *printer.PrintResult
-	var commentList []string
-	commentSet := make(map[string]bool)
-	for _, compileResult := range compileResults {
-		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
-		for text := range compileResult.ExtractedComments {
-			if !commentSet[text] {
-				commentSet[text] = true
-				commentList = append(commentList, text)
+			if c.options.ModuleName != "" {
+				text = "var " + c.options.ModuleName + space + "=" + space + text
 			}
-		}
-
-		// If this is the entry point, it may have some extra code to stick at the
-		// end of the chunk after all modules have evaluated
-		if compileResult.entryPointTail != nil {
-			entryPointTail = compileResult.entryPointTail
-		}
-
-		// Don't add a file name comment for the runtime
-		if c.options.IsBundling && !c.options.RemoveWhitespace && !isRuntime {
-			if newlineBeforeComment {
-				prevOffset.advanceString("\n")
-				j.AddString("\n")
-			}
-
-			text := fmt.Sprintf("%s// %s\n", indent, c.sources[compileResult.sourceIndex].PrettyPath)
 			prevOffset.advanceString(text)
 			j.AddString(text)
+			newlineBeforeComment = false
 		}
 
-		// Omit the trailing semicolon when minifying the last file in IIFE mode
-		if !isRuntime || len(compileResult.JS) > 0 {
+		// Put the cross-chunk prefix inside the IIFE
+		if len(crossChunkPrefix) > 0 {
 			newlineBeforeComment = true
+			j.AddBytes(crossChunkPrefix)
 		}
 
-		// Don't include the runtime in source maps
-		if isRuntime {
-			prevOffset.advanceString(string(compileResult.JS))
-			j.AddBytes(compileResult.JS)
-		} else {
-			// Save the offset to the start of the stored JavaScript
-			compileResult.generatedOffset = prevOffset
-			j.AddBytes(compileResult.JS)
-
-			// Ignore empty source map chunks
-			if compileResult.SourceMapChunk.ShouldIgnore {
-				prevOffset.advanceBytes(compileResult.JS)
-			} else {
-				prevOffset = lineColumnOffset{}
-			}
-
-			// Include this file in the source map
-			if c.options.SourceMap != config.SourceMapNone {
-				compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
-			}
-
-			// Include this file in the metadata
-			if c.options.AbsMetadataFile != "" {
+		// Start the metadata
+		jMeta := printer.Joiner{}
+		if c.options.AbsMetadataFile != "" {
+			isFirstMeta := true
+			jMeta.AddString("{\n      \"imports\": [")
+			for _, record := range crossChunkImportRecords {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
 					jMeta.AddString(",")
 				}
-				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					printer.QuoteForJSON(c.sources[compileResult.sourceIndex].PrettyPath),
-					len(compileResult.JS)))
+				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
+				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
+					printer.QuoteForJSON(c.res.PrettyPath(importAbsPath))))
 			}
+			if !isFirstMeta {
+				jMeta.AddString("\n      ")
+			}
+			jMeta.AddString("],\n      \"inputs\": {")
 		}
-	}
+		isFirstMeta := true
 
-	// Stick the entry point tail at the end of the file. Deliberately don't
-	// include any source mapping information for this because it's automatically
-	// generated and doesn't correspond to a location in the input file.
-	if entryPointTail != nil {
-		j.AddBytes(entryPointTail.JS)
-	}
-
-	// Put the cross-chunk suffix inside the IIFE
-	if len(crossChunkSuffix) > 0 {
-		if newlineBeforeComment {
-			j.AddString(newline)
-		}
-		j.AddBytes(crossChunkSuffix)
-	}
-
-	// Optionally wrap with an IIFE
-	if c.options.OutputFormat == config.FormatIIFE {
-		j.AddString("})();" + newline)
-	}
-
-	// Make sure the file ends with a newline
-	if j.Length() > 0 && j.LastByte() != '\n' {
-		j.AddString("\n")
-	}
-
-	// Add all unique license comments to the end of the file. These are
-	// deduplicated because some projects have thousands of files with the same
-	// comment. The comment must be preserved in the output for legal reasons but
-	// at the same time we want to generate a small bundle when minifying.
-	sort.Strings(commentList)
-	for _, text := range commentList {
-		j.AddString(text)
-		j.AddString("\n")
-	}
-
-	if c.options.SourceMap != config.SourceMapNone {
-		sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
-
-		// Store the generated source map
-		switch c.options.SourceMap {
-		case config.SourceMapInline:
-			j.AddString("//# sourceMappingURL=data:application/json;base64,")
-			j.AddString(base64.StdEncoding.EncodeToString(sourceMap))
-			j.AddString("\n")
-
-		case config.SourceMapLinkedWithComment, config.SourceMapExternalWithoutComment:
-			// Optionally add metadata about the file
-			var jsonMetadataChunk []byte
-			if c.options.AbsMetadataFile != "" {
-				jsonMetadataChunk = []byte(fmt.Sprintf(
-					"{\n      \"imports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
+		// Concatenate the generated JavaScript chunks together
+		var compileResultsForSourceMap []compileResult
+		var entryPointTail *printer.PrintResult
+		var commentList []string
+		commentSet := make(map[string]bool)
+		for _, compileResult := range compileResults {
+			isRuntime := compileResult.sourceIndex == runtime.SourceIndex
+			for text := range compileResult.ExtractedComments {
+				if !commentSet[text] {
+					commentSet[text] = true
+					commentList = append(commentList, text)
+				}
 			}
 
-			// Figure out the base name for the source map which may include the content hash
-			var sourceMapBaseName string
-			if chunk.baseNameOrEmpty == "" {
-				hashBytes := sha1.Sum(sourceMap)
-				hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
-				sourceMapBaseName = "chunk." + hash + c.options.OutputExtensionFor(".js") + ".map"
+			// If this is the entry point, it may have some extra code to stick at the
+			// end of the chunk after all modules have evaluated
+			if compileResult.entryPointTail != nil {
+				entryPointTail = compileResult.entryPointTail
+			}
+
+			// Don't add a file name comment for the runtime
+			if c.options.IsBundling && !c.options.RemoveWhitespace && !isRuntime {
+				if newlineBeforeComment {
+					prevOffset.advanceString("\n")
+					j.AddString("\n")
+				}
+
+				text := fmt.Sprintf("%s// %s\n", indent, c.sources[compileResult.sourceIndex].PrettyPath)
+				prevOffset.advanceString(text)
+				j.AddString(text)
+			}
+
+			// Omit the trailing semicolon when minifying the last file in IIFE mode
+			if !isRuntime || len(compileResult.JS) > 0 {
+				newlineBeforeComment = true
+			}
+
+			// Don't include the runtime in source maps
+			if isRuntime {
+				prevOffset.advanceString(string(compileResult.JS))
+				j.AddBytes(compileResult.JS)
 			} else {
-				sourceMapBaseName = chunk.baseNameOrEmpty + ".map"
-			}
+				// Save the offset to the start of the stored JavaScript
+				compileResult.generatedOffset = prevOffset
+				j.AddBytes(compileResult.JS)
 
-			// Add a comment linking the source to its map
-			if c.options.SourceMap == config.SourceMapLinkedWithComment {
-				j.AddString("//# sourceMappingURL=")
-				j.AddString(sourceMapBaseName)
+				// Ignore empty source map chunks
+				if compileResult.SourceMapChunk.ShouldIgnore {
+					prevOffset.advanceBytes(compileResult.JS)
+				} else {
+					prevOffset = lineColumnOffset{}
+				}
+
+				// Include this file in the source map
+				if c.options.SourceMap != config.SourceMapNone {
+					compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
+				}
+
+				// Include this file in the metadata
+				if c.options.AbsMetadataFile != "" {
+					if isFirstMeta {
+						isFirstMeta = false
+					} else {
+						jMeta.AddString(",")
+					}
+					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+						printer.QuoteForJSON(c.sources[compileResult.sourceIndex].PrettyPath),
+						len(compileResult.JS)))
+				}
+			}
+		}
+
+		// Stick the entry point tail at the end of the file. Deliberately don't
+		// include any source mapping information for this because it's automatically
+		// generated and doesn't correspond to a location in the input file.
+		if entryPointTail != nil {
+			j.AddBytes(entryPointTail.JS)
+		}
+
+		// Put the cross-chunk suffix inside the IIFE
+		if len(crossChunkSuffix) > 0 {
+			if newlineBeforeComment {
+				j.AddString(newline)
+			}
+			j.AddBytes(crossChunkSuffix)
+		}
+
+		// Optionally wrap with an IIFE
+		if c.options.OutputFormat == config.FormatIIFE {
+			j.AddString("})();" + newline)
+		}
+
+		// Make sure the file ends with a newline
+		if j.Length() > 0 && j.LastByte() != '\n' {
+			j.AddString("\n")
+		}
+
+		// Add all unique license comments to the end of the file. These are
+		// deduplicated because some projects have thousands of files with the same
+		// comment. The comment must be preserved in the output for legal reasons but
+		// at the same time we want to generate a small bundle when minifying.
+		sort.Strings(commentList)
+		for _, text := range commentList {
+			j.AddString(text)
+			j.AddString("\n")
+		}
+
+		if c.options.SourceMap != config.SourceMapNone {
+			sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
+
+			// Store the generated source map
+			switch c.options.SourceMap {
+			case config.SourceMapInline:
+				j.AddString("//# sourceMappingURL=data:application/json;base64,")
+				j.AddString(base64.StdEncoding.EncodeToString(sourceMap))
 				j.AddString("\n")
+
+			case config.SourceMapLinkedWithComment, config.SourceMapExternalWithoutComment:
+				// Optionally add metadata about the file
+				var jsonMetadataChunk []byte
+				if c.options.AbsMetadataFile != "" {
+					jsonMetadataChunk = []byte(fmt.Sprintf(
+						"{\n      \"imports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
+				}
+
+				// Figure out the base name for the source map which may include the content hash
+				var sourceMapBaseName string
+				if chunk.baseNameOrEmpty == "" {
+					hashBytes := sha1.Sum(sourceMap)
+					hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+					sourceMapBaseName = "chunk." + hash + c.options.OutputExtensionFor(".js") + ".map"
+				} else {
+					sourceMapBaseName = chunk.baseNameOrEmpty + ".map"
+				}
+
+				// Add a comment linking the source to its map
+				if c.options.SourceMap == config.SourceMapLinkedWithComment {
+					j.AddString("//# sourceMappingURL=")
+					j.AddString(sourceMapBaseName)
+					j.AddString("\n")
+				}
+
+				results = append(results, OutputFile{
+					AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relDir, sourceMapBaseName),
+					Contents:          sourceMap,
+					jsonMetadataChunk: jsonMetadataChunk,
+				})
 			}
-
-			results = append(results, OutputFile{
-				AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relDir, sourceMapBaseName),
-				Contents:          sourceMap,
-				jsonMetadataChunk: jsonMetadataChunk,
-			})
 		}
-	}
 
-	// The JavaScript contents are done now that the source map comment is in
-	jsContents := j.Done()
+		// The JavaScript contents are done now that the source map comment is in
+		jsContents := j.Done()
 
-	// Figure out the base name for this chunk now that the content hash is known
-	if chunk.baseNameOrEmpty == "" {
-		hashBytes := sha1.Sum(jsContents)
-		hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
-		chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionFor(".js")
-	}
-
-	// End the metadata
-	var jsonMetadataChunk []byte
-	if c.options.AbsMetadataFile != "" {
-		if !isFirstMeta {
-			jMeta.AddString("\n      ")
+		// Figure out the base name for this chunk now that the content hash is known
+		if chunk.baseNameOrEmpty == "" {
+			hashBytes := sha1.Sum(jsContents)
+			hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionFor(".js")
 		}
-		jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", len(jsContents)))
-		jsonMetadataChunk = jMeta.Done()
-	}
 
-	results = append(results, OutputFile{
-		AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
-		Contents:          jsContents,
-		jsonMetadataChunk: jsonMetadataChunk,
-	})
-	return
+		// End the metadata
+		var jsonMetadataChunk []byte
+		if c.options.AbsMetadataFile != "" {
+			if !isFirstMeta {
+				jMeta.AddString("\n      ")
+			}
+			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", len(jsContents)))
+			jsonMetadataChunk = jMeta.Done()
+		}
+
+		results = append(results, OutputFile{
+			AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
+			Contents:          jsContents,
+			jsonMetadataChunk: jsonMetadataChunk,
+		})
+		return results
+	}
 }
 
 func (offset *lineColumnOffset) advanceBytes(bytes []byte) {
