@@ -95,8 +95,12 @@ platform-neutral: | esbuild
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild
 
-publish-all: update-version-go test-all
-	make -j10 \
+test-otp:
+	test -n "$(OTP)" && echo publish --otp="$(OTP)"
+
+publish-all: update-version-go test-all test-extra
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" make -j10 \
 		publish-windows \
 		publish-windows-32 \
 		publish-darwin \
