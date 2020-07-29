@@ -1,11 +1,13 @@
 package bundler
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"mime"
 	"net/http"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -202,10 +204,13 @@ func parseFile(args parseArgs) {
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderFile:
-		// Add a hash to the file name to prevent multiple files with the same base
-		// name from colliding. Avoid using the absolute path to prevent build
-		// output from being different on different machines.
-		baseName := baseNameForAvoidingCollisions(args.fs, args.keyPath, args.baseName)
+		// Add a hash to the file name to prevent multiple files with the same name
+		// but different contents from colliding
+		bytes := []byte(source.Contents)
+		hashBytes := sha1.Sum(bytes)
+		hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+		ext := path.Ext(args.baseName)
+		baseName := args.baseName[:len(args.baseName)-len(ext)] + "." + hash + ext
 
 		// Determine the destination folder
 		targetFolder := args.options.AbsOutputDir
@@ -377,32 +382,6 @@ func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base st
 // file system paths.
 func lowerCaseAbsPathForWindows(absPath string) string {
 	return strings.ToLower(absPath)
-}
-
-func baseNameForAvoidingCollisions(fs fs.FS, keyPath ast.Path, base string) string {
-	var toHash []byte
-	if keyPath.IsAbsolute {
-		if relPath, ok := fs.Rel(fs.Cwd(), keyPath.Text); ok {
-			// Attempt to generate the same base name regardless of what machine or
-			// operating system we're on. We want to avoid absolute paths because they
-			// will have different home directories. We also want to avoid path
-			// separators because they are different on Windows.
-			toHash = []byte(lowerCaseAbsPathForWindows(strings.ReplaceAll(relPath, "\\", "/")))
-		}
-	}
-	if toHash == nil {
-		// Just use the absolute path if this environment doesn't have a current
-		// directory. This is the case when running tests, for example.
-		toHash = []byte(keyPath.Text)
-	}
-
-	// Use "URLEncoding" instead of "StdEncoding" to avoid introducing "/"
-	hashBytes := sha1.Sum(toHash)
-	hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
-
-	// Insert the hash before the extension
-	ext := fs.Ext(base)
-	return base[:len(base)-len(ext)] + "." + hash + ext
 }
 
 func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
@@ -718,19 +697,37 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 
 		// Make sure an output file never overwrites another output file. This
 		// is almost certainly unintentional and would otherwise happen silently.
-		outputFileMap := make(map[string]bool)
+		//
+		// Make an exception for files that have identical contents. In that case
+		// the duplicate is just silently filtered out. This can happen with the
+		// "file" loader, for example.
+		outputFileMap := make(map[string][]byte)
+		end := 0
 		for _, outputFile := range outputFiles {
 			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
-			if outputFileMap[lowerAbsPath] {
-				outputPath := outputFile.AbsPath
-				if relPath, ok := b.fs.Rel(b.fs.Cwd(), outputPath); ok {
-					outputPath = relPath
-				}
-				log.AddError(nil, ast.Loc{}, "Two output files share the same path: "+outputPath)
-			} else {
-				outputFileMap[lowerAbsPath] = true
+			contents, ok := outputFileMap[lowerAbsPath]
+
+			// If this isn't a duplicate, keep the output file
+			if !ok {
+				outputFileMap[lowerAbsPath] = outputFile.Contents
+				outputFiles[end] = outputFile
+				end++
+				continue
 			}
+
+			// If the names and contents are both the same, only keep the first one
+			if bytes.Equal(contents, outputFile.Contents) {
+				continue
+			}
+
+			// Otherwise, generate an error
+			outputPath := outputFile.AbsPath
+			if relPath, ok := b.fs.Rel(b.fs.Cwd(), outputPath); ok {
+				outputPath = relPath
+			}
+			log.AddError(nil, ast.Loc{}, "Two output files share the same path but have different contents: "+outputPath)
 		}
+		outputFiles = outputFiles[:end]
 	}
 
 	return outputFiles

@@ -10,12 +10,12 @@ func TestLoaderFile(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				console.log(require('./test3.svg'))
+				console.log(require('./test.svg'))
 			`,
 
-			// "/test3.svg" generates the file name "test3.0sKdZN/F.svg" if the
+			// "<svg>$</svg>" generates the file name "test.1HOBn/hi.svg" if the
 			// standard base64 encoding is used instead of the URL base64 encoding
-			"/test3.svg": "<svg></svg>",
+			"/test.svg": "<svg>$</svg>",
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
@@ -27,14 +27,14 @@ func TestLoaderFile(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/out/test3.0sKdZN_F.svg": "<svg></svg>",
-			"/out/entry.js": `// /test3.svg
-var require_test3 = __commonJS((exports, module) => {
-  module.exports = "test3.0sKdZN_F.svg";
+			"/out/test.1HOBn_hi.svg": "<svg>$</svg>",
+			"/out/entry.js": `// /test.svg
+var require_test = __commonJS((exports, module) => {
+  module.exports = "test.1HOBn_hi.svg";
 });
 
 // /entry.js
-console.log(require_test3());
+console.log(require_test());
 `,
 		},
 	})
@@ -64,16 +64,15 @@ func TestLoaderFileMultipleNoCollision(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/dist/test.d-VvEp_S.txt": "test",
-			"/dist/test.pL3kpHJC.txt": "test",
+			"/dist/test.qUqP5cyx.txt": "test",
 			"/dist/out.js": `// /a/test.txt
 var require_test = __commonJS((exports, module) => {
-  module.exports = "test.d-VvEp_S.txt";
+  module.exports = "test.qUqP5cyx.txt";
 });
 
 // /b/test.txt
 var require_test2 = __commonJS((exports, module) => {
-  module.exports = "test.pL3kpHJC.txt";
+  module.exports = "test.qUqP5cyx.txt";
 });
 
 // /entry.js
@@ -436,15 +435,15 @@ func TestLoaderFileCommonJSAndES6(t *testing.T) {
 			},
 		},
 		expected: map[string]string{
-			"/x.ZzUefEyG.txt": `x`,
-			"/y.KRCjcBKx.txt": `y`,
+			"/x.EfatjsUq.txt": `x`,
+			"/y.lcsL_Sl3.txt": `y`,
 			"/out.js": `// /x.txt
 var require_x = __commonJS((exports, module) => {
-  module.exports = "x.ZzUefEyG.txt";
+  module.exports = "x.EfatjsUq.txt";
 });
 
 // /y.txt
-var y_default = "y.KRCjcBKx.txt";
+var y_default = "y.lcsL_Sl3.txt";
 
 // /entry.js
 const x_url = require_x();
