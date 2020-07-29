@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.10
 
 * Revert the binary operator chain change
 
