@@ -480,51 +480,76 @@ func (c *linkerContext) link() []OutputFile {
 }
 
 func (c *linkerContext) generateChunksInParallel(chunks []chunkMeta) []OutputFile {
-	// Fill in chunk names
-	for i, chunk := range chunks {
-		if chunk.baseNameOrEmpty != "" {
-			continue
+	// We want to process chunks with as much parallelism as possible. However,
+	// content hashing means chunks that import other chunks must be completed
+	// after the imported chunks are completed because the import paths contain
+	// the content hash. It's only safe to process a chunk when the dependency
+	// count reaches zero.
+	type ordering struct {
+		dependencies sync.WaitGroup
+		dependents   []uint32
+	}
+	chunkOrdering := make([]ordering, len(chunks))
+	for chunkIndex, chunk := range chunks {
+		chunkOrdering[chunkIndex].dependencies.Add(len(chunk.crossChunkImports))
+		for _, otherChunkIndex := range chunk.crossChunkImports {
+			dependents := &chunkOrdering[otherChunkIndex].dependents
+			*dependents = append(*dependents, uint32(chunkIndex))
 		}
-		dataForHash := ""
-		count := 0
-		for i, entryPoint := range c.entryPoints {
-			if chunk.entryBits.hasBit(uint(i)) {
-				if count > 0 {
-					dataForHash += "\x00"
-				}
-				dataForHash += c.fileMeta[entryPoint].entryPointRelPath
-				count++
-			}
-		}
-		if count < 2 {
-			panic("Internal error")
-		}
-		bytes := []byte(lowerCaseAbsPathForWindows(dataForHash))
-		hashBytes := sha1.Sum(bytes)
-		hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
-		chunks[i].baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionFor(".js")
 	}
 
-	// Generate chunks in parallel
+	// Check for loops in the dependency graph since they cause a deadlock
+	var check func(int, []int)
+	check = func(chunkIndex int, path []int) {
+		for _, otherChunkIndex := range path {
+			if chunkIndex == otherChunkIndex {
+				panic("Internal error: Chunk import graph contains a cycle")
+			}
+		}
+		path = append(path, chunkIndex)
+		for _, otherChunkIndex := range chunks[chunkIndex].crossChunkImports {
+			check(int(otherChunkIndex), path)
+		}
+	}
+	for i := range chunks {
+		check(i, nil)
+	}
+
 	results := make([][]OutputFile, len(chunks))
-	waitGroup := sync.WaitGroup{}
-	waitGroup.Add(len(chunks))
-	for i, chunk := range chunks {
-		go func(i int, chunk chunkMeta) {
+	resultsWaitGroup := sync.WaitGroup{}
+	resultsWaitGroup.Add(len(chunks))
+
+	// Generate each chunk on a separate goroutine
+	for i := range chunks {
+		go func(i int) {
+			chunk := &chunks[i]
+			order := &chunkOrdering[i]
+
+			// Wait for all dependencies to be resolved first
+			order.dependencies.Wait()
+
+			// Fill in the cross-chunk import records now that the paths are known
 			crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
 			for i, otherChunkIndex := range chunk.crossChunkImports {
 				crossChunkImportRecords[i] = ast.ImportRecord{
 					Kind: ast.ImportStmt,
-					Path: ast.Path{Text: c.relativePathBetweenChunks(&chunk, chunks[otherChunkIndex].relPath())},
+					Path: ast.Path{Text: c.relativePathBetweenChunks(chunk.relDir, chunks[otherChunkIndex].relPath())},
 				}
 			}
+
+			// Generate the chunk
 			results[i] = c.generateChunk(chunk, crossChunkImportRecords)
-			waitGroup.Done()
-		}(i, chunk)
+
+			// Wake up any dependents now that we're done
+			for _, chunkIndex := range order.dependents {
+				chunkOrdering[chunkIndex].dependencies.Done()
+			}
+			resultsWaitGroup.Done()
+		}(i)
 	}
-	waitGroup.Wait()
 
 	// Join the results in chunk order for determinism
+	resultsWaitGroup.Wait()
 	var outputFiles []OutputFile
 	for _, group := range results {
 		outputFiles = append(outputFiles, group...)
@@ -532,11 +557,11 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkMeta) []OutputFil
 	return outputFiles
 }
 
-func (c *linkerContext) relativePathBetweenChunks(fromChunk *chunkMeta, toRelPath string) string {
-	relPath, ok := c.fs.Rel(fromChunk.relDir, toRelPath)
+func (c *linkerContext) relativePathBetweenChunks(fromRelDir string, toRelPath string) string {
+	relPath, ok := c.fs.Rel(fromRelDir, toRelPath)
 	if !ok {
 		c.log.AddError(nil, ast.Loc{},
-			fmt.Sprintf("Cannot traverse from directory %q to chunk %q", fromChunk.relDir, toRelPath))
+			fmt.Sprintf("Cannot traverse from directory %q to chunk %q", fromRelDir, toRelPath))
 		return ""
 	}
 
@@ -588,7 +613,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &file.ast.ImportRecords[importRecordIndex]
 					if record.SourceIndex != nil && c.isExternalDynamicImport(record) {
-						record.Path.Text = c.relativePathBetweenChunks(&chunk, c.fileMeta[*record.SourceIndex].entryPointRelPath)
+						record.Path.Text = c.relativePathBetweenChunks(chunk.relDir, c.fileMeta[*record.SourceIndex].entryPointRelPath)
 						record.SourceIndex = nil
 					}
 				}
@@ -2232,7 +2257,7 @@ func (a chunkOrderArray) Less(i int, j int) bool {
 	return a[i].distance < a[j].distance || (a[i].distance == a[j].distance && a[i].path.ComesBeforeInSortedOrder(a[j].path))
 }
 
-func (c *linkerContext) chunkFileOrder(chunk chunkMeta) []uint32 {
+func (c *linkerContext) chunkFileOrder(chunk *chunkMeta) []uint32 {
 	sorted := make(chunkOrderArray, 0, len(chunk.filesWithPartsInChunk))
 
 	// Attach information to the files for use with sorting
@@ -2735,7 +2760,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	waitGroup.Done()
 }
 
-func (c *linkerContext) generateChunk(chunk chunkMeta, crossChunkImportRecords []ast.ImportRecord) (results []OutputFile) {
+func (c *linkerContext) generateChunk(chunk *chunkMeta, crossChunkImportRecords []ast.ImportRecord) (results []OutputFile) {
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResult, 0, len(filesInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].ast.ModuleScope.Members
@@ -2863,8 +2888,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta, crossChunkImportRecords [
 			} else {
 				jMeta.AddString(",")
 			}
-			chunkAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relPath())
-			importAbsPath := c.fs.Join(c.fs.Dir(chunkAbsPath), record.Path.Text)
+			importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
 				printer.QuoteForJSON(c.res.PrettyPath(importAbsPath))))
 		}
@@ -2982,8 +3006,6 @@ func (c *linkerContext) generateChunk(chunk chunkMeta, crossChunkImportRecords [
 		j.AddString("\n")
 	}
 
-	jsAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relPath())
-
 	if c.options.SourceMap != config.SourceMapNone {
 		sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
 
@@ -3002,22 +3024,40 @@ func (c *linkerContext) generateChunk(chunk chunkMeta, crossChunkImportRecords [
 					"{\n      \"imports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(sourceMap)))
 			}
 
-			results = append(results, OutputFile{
-				AbsPath:           jsAbsPath + ".map",
-				Contents:          sourceMap,
-				jsonMetadataChunk: jsonMetadataChunk,
-			})
+			// Figure out the base name for the source map which may include the content hash
+			var sourceMapBaseName string
+			if chunk.baseNameOrEmpty == "" {
+				hashBytes := sha1.Sum(sourceMap)
+				hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+				sourceMapBaseName = "chunk." + hash + c.options.OutputExtensionFor(".js") + ".map"
+			} else {
+				sourceMapBaseName = chunk.baseNameOrEmpty + ".map"
+			}
 
 			// Add a comment linking the source to its map
 			if c.options.SourceMap == config.SourceMapLinkedWithComment {
 				j.AddString("//# sourceMappingURL=")
-				j.AddString(c.fs.Base(jsAbsPath + ".map"))
+				j.AddString(sourceMapBaseName)
 				j.AddString("\n")
 			}
+
+			results = append(results, OutputFile{
+				AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relDir, sourceMapBaseName),
+				Contents:          sourceMap,
+				jsonMetadataChunk: jsonMetadataChunk,
+			})
 		}
 	}
 
+	// The JavaScript contents are done now that the source map comment is in
 	jsContents := j.Done()
+
+	// Figure out the base name for this chunk now that the content hash is known
+	if chunk.baseNameOrEmpty == "" {
+		hashBytes := sha1.Sum(jsContents)
+		hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+		chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionFor(".js")
+	}
 
 	// End the metadata
 	var jsonMetadataChunk []byte
@@ -3030,7 +3070,7 @@ func (c *linkerContext) generateChunk(chunk chunkMeta, crossChunkImportRecords [
 	}
 
 	results = append(results, OutputFile{
-		AbsPath:           jsAbsPath,
+		AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
 		Contents:          jsContents,
 		jsonMetadataChunk: jsonMetadataChunk,
 	})

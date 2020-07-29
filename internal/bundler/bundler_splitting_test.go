@@ -29,19 +29,19 @@ func TestSplittingSharedES6IntoES6(t *testing.T) {
 		expected: map[string]string{
 			"/out/a.js": `import {
   foo
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.iJkFSV6U.js";
 
 // /a.js
 console.log(foo);
 `,
 			"/out/b.js": `import {
   foo
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.iJkFSV6U.js";
 
 // /b.js
 console.log(foo);
 `,
-			"/out/chunk.xL6KqlYO.js": `// /shared.js
+			"/out/chunk.iJkFSV6U.js": `// /shared.js
 let foo = 123;
 
 export {
@@ -75,7 +75,7 @@ func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
 		expected: map[string]string{
 			"/out/a.js": `import {
   require_shared
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.W46Rb0pk.js";
 
 // /a.js
 const {foo} = require_shared();
@@ -83,13 +83,13 @@ console.log(foo);
 `,
 			"/out/b.js": `import {
   require_shared
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.W46Rb0pk.js";
 
 // /b.js
 const {foo: foo2} = require_shared();
 console.log(foo2);
 `,
-			"/out/chunk.xL6KqlYO.js": `// /shared.js
+			"/out/chunk.W46Rb0pk.js": `// /shared.js
 var require_shared = __commonJS((exports) => {
   exports.foo = 123;
 });
@@ -185,21 +185,21 @@ func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
 		expected: map[string]string{
 			"/out/entry.js": `import {
   bar
-} from "./chunk.-fk8OGuR.js";
+} from "./chunk.nvw10ONy.js";
 
 // /entry.js
 import("./foo.js").then(({bar: b}) => console.log(bar, b));
 `,
 			"/out/foo.js": `import {
   bar
-} from "./chunk.-fk8OGuR.js";
+} from "./chunk.nvw10ONy.js";
 
 // /foo.js
 export {
   bar
 };
 `,
-			"/out/chunk.-fk8OGuR.js": `// /foo.js
+			"/out/chunk.nvw10ONy.js": `// /foo.js
 let bar = 123;
 
 export {
@@ -231,7 +231,7 @@ func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
 		expected: map[string]string{
 			"/out/entry.js": `import {
   require_foo
-} from "./chunk.-fk8OGuR.js";
+} from "./chunk.K9Rnzqz2.js";
 
 // /entry.js
 const foo = __toModule(require_foo());
@@ -239,12 +239,12 @@ import("./foo.js").then(({default: {bar: b}}) => console.log(foo.bar, b));
 `,
 			"/out/foo.js": `import {
   require_foo
-} from "./chunk.-fk8OGuR.js";
+} from "./chunk.K9Rnzqz2.js";
 
 // /foo.js
 export default require_foo();
 `,
-			"/out/chunk.-fk8OGuR.js": `// /foo.js
+			"/out/chunk.K9Rnzqz2.js": `// /foo.js
 var require_foo = __commonJS((exports) => {
   exports.bar = 123;
 });
@@ -287,7 +287,7 @@ func TestSplittingAssignToLocal(t *testing.T) {
 			"/out/a.js": `import {
   foo,
   setFoo
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.8-s4RjmR.js";
 
 // /a.js
 setFoo(123);
@@ -295,12 +295,12 @@ console.log(foo);
 `,
 			"/out/b.js": `import {
   foo
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.8-s4RjmR.js";
 
 // /b.js
 console.log(foo);
 `,
-			"/out/chunk.xL6KqlYO.js": `// /shared.js
+			"/out/chunk.8-s4RjmR.js": `// /shared.js
 let foo;
 function setFoo(value) {
   foo = value;
@@ -340,7 +340,7 @@ func TestSplittingSideEffectsWithoutDependencies(t *testing.T) {
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
-			"/out/a.js": `import "./chunk.xL6KqlYO.js";
+			"/out/a.js": `import "./chunk.Wqqj8fqN.js";
 
 // /shared.js
 let a = 1;
@@ -348,7 +348,7 @@ let a = 1;
 // /a.js
 console.log(a);
 `,
-			"/out/b.js": `import "./chunk.xL6KqlYO.js";
+			"/out/b.js": `import "./chunk.Wqqj8fqN.js";
 
 // /shared.js
 let b = 2;
@@ -356,7 +356,7 @@ let b = 2;
 // /b.js
 console.log(b);
 `,
-			"/out/chunk.xL6KqlYO.js": `// /shared.js
+			"/out/chunk.Wqqj8fqN.js": `// /shared.js
 console.log("side effect");
 `,
 		},
@@ -391,19 +391,19 @@ func TestSplittingNestedDirectories(t *testing.T) {
 		expected: map[string]string{
 			"/Users/user/project/out/pageA/page.js": `import {
   shared_default
-} from "../chunk.UcWke4C2.js";
+} from "../chunk.Y98gPOMH.js";
 
 // /Users/user/project/src/pages/pageA/page.js
 console.log(shared_default);
 `,
 			"/Users/user/project/out/pageB/page.js": `import {
   shared_default
-} from "../chunk.UcWke4C2.js";
+} from "../chunk.Y98gPOMH.js";
 
 // /Users/user/project/src/pages/pageB/page.js
 console.log(-shared_default);
 `,
-			"/Users/user/project/out/chunk.UcWke4C2.js": `// /Users/user/project/src/pages/shared.js
+			"/Users/user/project/out/chunk.Y98gPOMH.js": `// /Users/user/project/src/pages/shared.js
 var shared_default = 123;
 
 export {
@@ -437,7 +437,7 @@ func TestSplittingCircularReferenceIssue251(t *testing.T) {
 			"/out/a.js": `import {
   p,
   q
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.4ySCMXof.js";
 
 // /a.js
 export {
@@ -448,7 +448,7 @@ export {
 			"/out/b.js": `import {
   p,
   q
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.4ySCMXof.js";
 
 // /b.js
 export {
@@ -456,7 +456,7 @@ export {
   q
 };
 `,
-			"/out/chunk.xL6KqlYO.js": `// /b.js
+			"/out/chunk.4ySCMXof.js": `// /b.js
 var q = 6;
 
 // /a.js
@@ -500,7 +500,7 @@ func TestSplittingMissingLazyExport(t *testing.T) {
 			AbsOutputDir:  "/out",
 		},
 		expected: map[string]string{
-			"/out/a.js": `import "./chunk.xL6KqlYO.js";
+			"/out/a.js": `import "./chunk.nsO65Sdr.js";
 
 // /empty.js
 const empty_exports = {};
@@ -513,7 +513,7 @@ function foo() {
 // /a.js
 console.log(foo());
 `,
-			"/out/b.js": `import "./chunk.xL6KqlYO.js";
+			"/out/b.js": `import "./chunk.nsO65Sdr.js";
 
 // /common.js
 function bar() {
@@ -523,7 +523,7 @@ function bar() {
 // /b.js
 console.log(bar());
 `,
-			"/out/chunk.xL6KqlYO.js": `// /empty.js
+			"/out/chunk.nsO65Sdr.js": `// /empty.js
 
 // /common.js
 `,
@@ -551,7 +551,7 @@ func TestSplittingReExportIssue273(t *testing.T) {
 		expected: map[string]string{
 			"/out/a.js": `import {
   a
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.Ldjbzhqa.js";
 
 // /a.js
 export {
@@ -560,14 +560,14 @@ export {
 `,
 			"/out/b.js": `import {
   a
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk.Ldjbzhqa.js";
 
 // /b.js
 export {
   a
 };
 `,
-			"/out/chunk.xL6KqlYO.js": `// /a.js
+			"/out/chunk.Ldjbzhqa.js": `// /a.js
 const a = 1;
 
 export {
@@ -679,16 +679,16 @@ func TestSplittingCrossChunkAssignmentDependencies(t *testing.T) {
 		expected: map[string]string{
 			"/out/a.js": `import {
   setValue
-} from "./chunk.xL6KqlYO.js";
+} from "./chunk._9Zb2gmb.js";
 
 // /a.js
 setValue(123);
 `,
-			"/out/b.js": `import "./chunk.xL6KqlYO.js";
+			"/out/b.js": `import "./chunk._9Zb2gmb.js";
 
 // /b.js
 `,
-			"/out/chunk.xL6KqlYO.js": `// /shared.js
+			"/out/chunk._9Zb2gmb.js": `// /shared.js
 var observer;
 var value;
 function getValue() {

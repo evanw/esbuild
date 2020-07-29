@@ -180,7 +180,7 @@ let buildTests = {
     const makePath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
 
     // Check outputs
-    const chunk = 'chunk.3YfO7hrU.js';
+    const chunk = 'chunk.zIqPdeGN.js';
     assert.deepStrictEqual(json.outputs[makePath(path.basename(entry1))].imports, [{ path: makePath(chunk) }])
     assert.deepStrictEqual(json.outputs[makePath(path.basename(entry2))].imports, [{ path: makePath(chunk) }])
     assert.deepStrictEqual(json.outputs[makePath(chunk)].imports, [])
@@ -232,16 +232,17 @@ let buildTests = {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
+    const chunk = 'chunk.ELHpQs8z.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
-} from "./chunk.xL6KqlYO.js";
+} from "./${chunk}";
 
 // scripts/.js-api-tests/splittingRelativeSameDir/a.js
 console.log("a" + common_default);
 `)
     assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
   common_default
-} from "./chunk.xL6KqlYO.js";
+} from "./${chunk}";
 
 // scripts/.js-api-tests/splittingRelativeSameDir/b.js
 console.log("b" + common_default);
@@ -256,7 +257,7 @@ export {
 
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.basename(inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.basename(inputB)))
-    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.xL6KqlYO.js'))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
   },
 
   async splittingRelativeNestedDir({ esbuild, testDir }) {
@@ -281,16 +282,17 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
+    const chunk = 'chunk.7QUqUGms.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
-} from "../chunk.uWHCLtU_.js";
+} from "../${chunk}";
 
 // scripts/.js-api-tests/splittingRelativeNestedDir/a/demo.js
 console.log("a" + common_default);
 `)
     assert.strictEqual(Buffer.from(value.outputFiles[1].contents).toString(), `import {
   common_default
-} from "../chunk.uWHCLtU_.js";
+} from "../${chunk}";
 
 // scripts/.js-api-tests/splittingRelativeNestedDir/b/demo.js
 console.log("b" + common_default);
@@ -305,7 +307,7 @@ export {
 
     assert.strictEqual(value.outputFiles[0].path, path.join(outdir, path.relative(testDir, inputA)))
     assert.strictEqual(value.outputFiles[1].path, path.join(outdir, path.relative(testDir, inputB)))
-    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.uWHCLtU_.js'))
+    assert.strictEqual(value.outputFiles[2].path, path.join(outdir, chunk))
   },
 
   async stdinStdoutBundle({ esbuild, testDir }) {
