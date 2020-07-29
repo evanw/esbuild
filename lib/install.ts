@@ -122,7 +122,7 @@ child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' }
 `);
   const exePath = path.join(__dirname, 'esbuild.exe');
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
-    fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
+    fs.copyFileSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
   } else {
     installBinaryFromPackage(name, 'package/esbuild.exe', exePath)
       .catch(e => setImmediate(() => { throw e; }));
