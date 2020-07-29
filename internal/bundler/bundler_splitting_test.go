@@ -708,3 +708,43 @@ export {
 		},
 	})
 }
+
+func TestSplittingDuplicateChunkCollision(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import "./ab"
+			`,
+			"/b.js": `
+				import "./ab"
+			`,
+			"/c.js": `
+				import "./cd"
+			`,
+			"/d.js": `
+				import "./cd"
+			`,
+			"/ab.js": `
+				console.log(123)
+			`,
+			"/cd.js": `
+				console.log(123)
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js", "/c.js", "/d.js"},
+		options: config.Options{
+			IsBundling:       true,
+			CodeSplitting:    true,
+			RemoveWhitespace: true,
+			OutputFormat:     config.FormatESModule,
+			AbsOutputDir:     "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js":              "import\"./chunk.sQ4Fr0TC.js\";\n",
+			"/out/b.js":              "import\"./chunk.sQ4Fr0TC.js\";\n",
+			"/out/c.js":              "import\"./chunk.sQ4Fr0TC.js\";\n",
+			"/out/d.js":              "import\"./chunk.sQ4Fr0TC.js\";\n",
+			"/out/chunk.sQ4Fr0TC.js": "console.log(123);\n",
+		},
+	})
+}
