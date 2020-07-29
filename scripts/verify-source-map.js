@@ -11,6 +11,7 @@ const execFileAsync = util.promisify(childProcess.execFile)
 const readFileAsync = util.promisify(fs.readFile)
 const writeFileAsync = util.promisify(fs.writeFile)
 
+const esbuildPath = buildBinary()
 const testDir = path.join(__dirname, '.verify-source-map')
 let tempDirCount = 0
 
@@ -110,7 +111,6 @@ async function check(kind, testCase, toSearch, flags) {
       }
     }
 
-    const esbuildPath = buildBinary()
     const files = Object.keys(testCase)
     const args = ['--sourcemap'].concat(flags)
     const isStdin = '<stdin>' in testCase
