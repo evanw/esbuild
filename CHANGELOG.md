@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.9
 
 * Performance optimizations for large file transforms
 
