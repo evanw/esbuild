@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Revert the binary operator chain change
+
+    It turns out this caused some behavior bugs in the generated code.
+
 ## 0.6.9
 
 * Performance optimizations for large file transforms

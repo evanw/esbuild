@@ -1750,26 +1750,25 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			}
 		}
 
-		// Special-case long chains of binary operators so we don't overflow the call stack
-		if left, ok := e.Left.Data.(*ast.EBinary); ok && left.Op == e.Op && e.Op.IsLeftAssociative() {
-			stack := []ast.Expr{}
-			for {
-				stack = append(stack, left.Right)
-				next, ok := left.Left.Data.(*ast.EBinary)
-				if !ok {
-					break
-				}
-				left = next
-			}
-			p.printExpr(left.Left, leftLevel, flags&forbidIn)
-			for i := len(stack) - 1; i >= 0; i-- {
-				p.printBinaryRight(entry, e.Op, stack[i], rightLevel, flags&forbidIn)
-			}
-		} else {
-			p.printExpr(e.Left, leftLevel, flags&forbidIn)
+		p.printExpr(e.Left, leftLevel, flags&forbidIn)
+
+		if e.Op != ast.BinOpComma {
+			p.printSpace()
 		}
 
-		p.printBinaryRight(entry, e.Op, e.Right, rightLevel, flags&forbidIn)
+		if entry.IsKeyword {
+			p.printSpaceBeforeIdentifier()
+			p.print(entry.Text)
+		} else {
+			p.printSpaceBeforeOperator(e.Op)
+			p.print(entry.Text)
+			p.prevOp = e.Op
+			p.prevOpEnd = len(p.js)
+		}
+
+		p.printSpace()
+
+		p.printExpr(e.Right, rightLevel, flags&forbidIn)
 
 		if wrap {
 			p.print(")")
@@ -1778,25 +1777,6 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	default:
 		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))
 	}
-}
-
-func (p *printer) printBinaryRight(entry ast.OpTableEntry, op ast.OpCode, right ast.Expr, rightLevel ast.L, flags int) {
-	if op != ast.BinOpComma {
-		p.printSpace()
-	}
-
-	if entry.IsKeyword {
-		p.printSpaceBeforeIdentifier()
-		p.print(entry.Text)
-	} else {
-		p.printSpaceBeforeOperator(op)
-		p.print(entry.Text)
-		p.prevOp = op
-		p.prevOpEnd = len(p.js)
-	}
-
-	p.printSpace()
-	p.printExpr(right, rightLevel, flags&forbidIn)
 }
 
 func (p *printer) isUnboundEvalIdentifier(value ast.Expr) bool {
