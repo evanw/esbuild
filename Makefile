@@ -36,8 +36,9 @@ update-version-go:
 	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
 
 platform-all: update-version-go test-all
-	make -j10 \
+	make -j11 \
 		platform-windows \
+		platform-windows-32 \
 		platform-darwin \
 		platform-freebsd \
 		platform-freebsd-arm64 \
@@ -51,6 +52,10 @@ platform-all: update-version-go test-all
 platform-windows:
 	cd npm/esbuild-windows-64 && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	GOOS=windows GOARCH=amd64 go build "-ldflags=-s -w" -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
+
+platform-windows-32:
+	cd npm/esbuild-windows-32 && npm version "$(ESBUILD_VERSION)" --allow-same-version
+	GOOS=windows GOARCH=386 go build "-ldflags=-s -w" -o npm/esbuild-windows-32/esbuild.exe ./cmd/esbuild
 
 platform-unixlike:
 	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"
@@ -91,8 +96,9 @@ platform-neutral: | esbuild
 	node scripts/esbuild.js ./esbuild
 
 publish-all: update-version-go test-all
-	make -j9 \
+	make -j10 \
 		publish-windows \
+		publish-windows-32 \
 		publish-darwin \
 		publish-freebsd \
 		publish-freebsd-arm64 \
@@ -108,6 +114,9 @@ publish-all: update-version-go test-all
 
 publish-windows: platform-windows
 	test -n "$(OTP)" && cd npm/esbuild-windows-64 && npm publish --otp="$(OTP)"
+
+publish-windows-32: platform-windows-32
+	test -n "$(OTP)" && cd npm/esbuild-windows-32 && npm publish --otp="$(OTP)"
 
 publish-darwin: platform-darwin
 	test -n "$(OTP)" && cd npm/esbuild-darwin-64 && npm publish --otp="$(OTP)"
@@ -138,6 +147,7 @@ publish-neutral: platform-neutral
 
 clean:
 	rm -f esbuild
+	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-freebsd-64/bin

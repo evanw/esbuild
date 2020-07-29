@@ -1,0 +1,14 @@
+#!/usr/bin/env node
+
+// Unfortunately even though npm shims "bin" commands on Windows with auto-
+// generated forwarding scripts, it doesn't strip the ".exe" from the file name
+// first. So it's possible to publish executables via npm on all platforms
+// except Windows. I consider this a npm bug.
+//
+// My workaround is to add this script as another layer of indirection. It'll
+// be slower because node has to boot up just to shell out to the actual exe,
+// but Windows is somewhat of a second-class platform to npm so it's the best
+// I can do I think.
+const esbuild_exe = require.resolve('esbuild-windows-32/esbuild.exe');
+const child_process = require('child_process');
+child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' });

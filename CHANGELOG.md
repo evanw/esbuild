@@ -16,6 +16,10 @@
 
     The official TypeScript compiler lets you specify a package path as the `extends` property of a `tsconfig.json` file. The base file is then searched for in the relevant `node_modules` directory. Previously the package path had to end with the name of the base file. Now you can additionally omit the name of the base file if the file name is `tsconfig.json`. This more closely matches the behavior of the official TypeScript compiler.
 
+* Support for 32-bit Windows systems ([#285](https://github.com/evanw/esbuild/issues/285))
+
+    You can now install the esbuild npm package on 32-bit Windows systems.
+
 ## 0.6.8
 
 * Attempt to support the taobao.org registry ([#291](https://github.com/evanw/esbuild/issues/291))

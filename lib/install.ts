@@ -111,7 +111,7 @@ function installOnUnix(name: string): void {
   }
 }
 
-function installOnWindows(): void {
+function installOnWindows(name: string): void {
   fs.writeFileSync(
     binPath,
     `#!/usr/bin/env node
@@ -124,30 +124,32 @@ child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' }
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
   } else {
-    installBinaryFromPackage('esbuild-windows-64', 'package/esbuild.exe', exePath)
+    installBinaryFromPackage(name, 'package/esbuild.exe', exePath)
       .catch(e => setImmediate(() => { throw e; }));
   }
 }
 
+const key = `${process.platform} ${os.arch()} ${os.endianness()}`;
+const knownWindowsPackages: Record<string, string> = {
+  'win32 ia32 LE': 'esbuild-windows-32',
+  'win32 x64 LE': 'esbuild-windows-64',
+};
 const knownUnixlikePackages: Record<string, string> = {
   'darwin x64 LE': 'esbuild-darwin-64',
-  'freebsd x64 LE': 'esbuild-freebsd-64',
   'freebsd arm64 LE': 'esbuild-freebsd-arm64',
-  'linux ia32 LE': 'esbuild-linux-32',
-  'linux x64 LE': 'esbuild-linux-64',
+  'freebsd x64 LE': 'esbuild-freebsd-64',
   'linux arm64 LE': 'esbuild-linux-arm64',
+  'linux ia32 LE': 'esbuild-linux-32',
   'linux ppc64 LE': 'esbuild-linux-ppc64le',
+  'linux x64 LE': 'esbuild-linux-64',
 };
 
 // Pick a package to install
-if (process.platform === 'win32' && os.arch() === 'x64') {
-  installOnWindows();
+if (key in knownWindowsPackages) {
+  installOnWindows(knownWindowsPackages[key]);
+} else if (key in knownUnixlikePackages) {
+  installOnUnix(knownUnixlikePackages[key]);
 } else {
-  const key = `${process.platform} ${os.arch()} ${os.endianness()}`;
-  if (key in knownUnixlikePackages) {
-    installOnUnix(knownUnixlikePackages[key]);
-  } else {
-    console.error(`Unsupported platform: ${key}`);
-    process.exit(1);
-  }
+  console.error(`Unsupported platform: ${key}`);
+  process.exit(1);
 }
