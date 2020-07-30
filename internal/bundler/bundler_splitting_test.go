@@ -709,6 +709,127 @@ export {
 	})
 }
 
+func TestSplittingCrossChunkAssignmentDependenciesRecursive(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import { setX } from './x'
+				setX()
+			`,
+			"/b.js": `
+				import { setZ } from './z'
+				setZ()
+			`,
+			"/c.js": `
+				import { setX2 } from './x'
+				import { setY2 } from './y'
+				import { setZ2 } from './z'
+				setX2();
+				setY2();
+				setZ2();
+			`,
+			"/x.js": `
+				let _x
+				export function setX(v) { _x = v }
+				export function setX2(v) { _x = v }
+			`,
+			"/y.js": `
+				import { setX } from './x'
+				let _y
+				export function setY(v) { _y = v }
+				export function setY2(v) { setX(v); _y = v }
+			`,
+			"/z.js": `
+				import { setY } from './y'
+				let _z
+				export function setZ(v) { _z = v }
+				export function setZ2(v) { setY(v); _z = v }
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js", "/c.js"},
+		options: config.Options{
+			IsBundling:    true,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+		expected: map[string]string{
+			"/out/a.js": `import {
+  setX
+} from "./chunk.lf8PB6N3.js";
+
+// /a.js
+setX();
+`,
+			"/out/b.js": `import {
+  setZ
+} from "./chunk.2loht7HC.js";
+import "./chunk.lf8PB6N3.js";
+
+// /b.js
+setZ();
+`,
+			"/out/c.js": `import {
+  setY2,
+  setZ2
+} from "./chunk.2loht7HC.js";
+import {
+  setX2
+} from "./chunk.lf8PB6N3.js";
+
+// /c.js
+setX2();
+setY2();
+setZ2();
+`,
+			"/out/chunk.2loht7HC.js": `import {
+  setX
+} from "./chunk.lf8PB6N3.js";
+
+// /y.js
+let _y;
+function setY(v) {
+  _y = v;
+}
+function setY2(v) {
+  setX(v);
+  _y = v;
+}
+
+// /z.js
+let _z;
+function setZ(v) {
+  _z = v;
+}
+function setZ2(v) {
+  setY(v);
+  _z = v;
+}
+
+export {
+  setZ,
+  setY2,
+  setZ2
+};
+`,
+			"/out/chunk.lf8PB6N3.js": `// /x.js
+let _x;
+function setX(v) {
+  _x = v;
+}
+function setX2(v) {
+  _x = v;
+}
+
+export {
+  setX,
+  setX2
+};
+`,
+		},
+	})
+}
+
 func TestSplittingDuplicateChunkCollision(t *testing.T) {
 	expectBundled(t, bundled{
 		files: map[string]string{

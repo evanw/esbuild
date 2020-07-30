@@ -56,3 +56,7 @@ jobs:
     - name: Esprima Tests
       if: matrix.os == 'ubuntu-latest'
       run: make test-esprima
+
+    - name: Preact Splitting Tests
+      if: matrix.os == 'ubuntu-latest'
+      run: make test-preact-splitting

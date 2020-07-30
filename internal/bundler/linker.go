@@ -224,6 +224,15 @@ type partMeta struct {
 	// assign this part to a chunk.
 	entryBits bitSet
 
+	// If present, this is a circular doubly-linked list of all other parts in
+	// this file that need to be in the same chunk as this part to avoid cross-
+	// chunk assignments, which are not allowed in ES6 modules.
+	//
+	// This used to be an array but that was generating lots of allocations.
+	// Changing this to a circular doubly-linked list was a substantial speedup.
+	prevSibling uint32
+	nextSibling uint32
+
 	// These are dependencies that come from other files via import statements.
 	nonLocalDependencies []partRef
 }
@@ -467,6 +476,8 @@ func (c *linkerContext) addPartToFile(sourceIndex uint32, part ast.Part, partMet
 		partMeta.entryBits = newBitSet(uint(len(c.entryPoints)))
 	}
 	partIndex := uint32(len(file.ast.Parts))
+	partMeta.prevSibling = partIndex
+	partMeta.nextSibling = partIndex
 	file.ast.Parts = append(file.ast.Parts, part)
 	fileMeta.partMeta = append(fileMeta.partMeta, partMeta)
 	return partIndex
@@ -1838,7 +1849,10 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 		fileMeta := &c.fileMeta[sourceIndex]
 		fileMeta.entryBits = newBitSet(bitCount)
 		for partIndex := range fileMeta.partMeta {
-			fileMeta.partMeta[partIndex].entryBits = newBitSet(bitCount)
+			partMeta := &fileMeta.partMeta[partIndex]
+			partMeta.entryBits = newBitSet(bitCount)
+			partMeta.prevSibling = uint32(partIndex)
+			partMeta.nextSibling = uint32(partIndex)
 		}
 
 		// If this is a CommonJS file, we're going to need to generate a wrapper
@@ -1910,32 +1924,10 @@ func (c *linkerContext) handleCrossChunkAssignments() {
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
-		partMeta := fileMeta.partMeta
-
-		// Initialize a union-find data structure to merge parts together
-		type unionFindItem struct {
-			entryBits bitSet
-			label     uint32
-		}
-		unionFind := make([]unionFindItem, len(file.ast.Parts))
-		for partIndex := range file.ast.Parts {
-			unionFind[partIndex] = unionFindItem{label: uint32(partIndex)}
-		}
-
-		// Look up a merged label
-		var find func(uint32) uint32
-		find = func(label uint32) uint32 {
-			next := unionFind[label].label
-			if next != label {
-				next = find(next)
-				unionFind[label].label = next
-			}
-			return next
-		}
 
 		for partIndex, part := range file.ast.Parts {
 			// Ignore this part if it's dead code
-			if partMeta[partIndex].entryBits.equals(neverReachedEntryBits) {
+			if fileMeta.partMeta[partIndex].entryBits.equals(neverReachedEntryBits) {
 				continue
 			}
 
@@ -1945,50 +1937,27 @@ func (c *linkerContext) handleCrossChunkAssignments() {
 				if use.IsAssigned {
 					if otherParts, ok := file.ast.TopLevelSymbolToParts[ref]; ok {
 						for _, otherPartIndex := range otherParts {
-							// Union the two labels together
-							fromIndex := find(uint32(partIndex))
-							toIndex := find(otherPartIndex)
-							from := &unionFind[fromIndex]
-							to := &unionFind[toIndex]
-							from.label = toIndex
+							partMetaA := &fileMeta.partMeta[partIndex]
+							partMetaB := &fileMeta.partMeta[otherPartIndex]
 
-							// Lazily allocate bit sets only for parts that are relevant
-							if to.entryBits.entries == nil {
-								to.entryBits = newBitSet(uint(len(c.entryPoints)))
-								to.entryBits.copyFrom(partMeta[toIndex].entryBits)
+							// Make sure both sibling subsets have the same entry points
+							for entryPointBit := range c.entryPoints {
+								hasA := partMetaA.entryBits.hasBit(uint(entryPointBit))
+								hasB := partMetaB.entryBits.hasBit(uint(entryPointBit))
+								if hasA && !hasB {
+									c.includePart(sourceIndex, otherPartIndex, uint(entryPointBit), fileMeta.distanceFromEntryPoint)
+								} else if hasB && !hasA {
+									c.includePart(sourceIndex, uint32(partIndex), uint(entryPointBit), fileMeta.distanceFromEntryPoint)
+								}
 							}
 
-							// Union the two bit sets together as well
-							if from.entryBits.entries == nil {
-								to.entryBits.bitwiseOrWith(partMeta[fromIndex].entryBits)
-							} else {
-								to.entryBits.bitwiseOrWith(from.entryBits)
-							}
+							// Perform the merge
+							fileMeta.partMeta[partMetaA.nextSibling].prevSibling = partMetaB.prevSibling
+							fileMeta.partMeta[partMetaB.prevSibling].nextSibling = partMetaA.nextSibling
+							partMetaA.nextSibling = otherPartIndex
+							partMetaB.prevSibling = uint32(partIndex)
 						}
 					}
-				}
-			}
-		}
-
-		// Each part involved in a cross-part assignment must be treated as if it's
-		// reachable from any entry point that can reach any part involved in that
-		// cross-part assignment.
-		for partIndex := range file.ast.Parts {
-			// Check if this part was merged
-			label := find(uint32(partIndex))
-			merged := unionFind[label].entryBits
-			if merged.entries == nil {
-				continue
-			}
-
-			// We can't just set the entry bits of this part to the merged entry bits
-			// because that doesn't handle this part's dependencies. Instead we must
-			// call "includePart()" to mark all dependencies of this part as reachable
-			// by these entry points too.
-			to := &partMeta[partIndex].entryBits
-			for entryPointBit := range c.entryPoints {
-				if merged.hasBit(uint(entryPointBit)) && !to.hasBit(uint(entryPointBit)) {
-					c.includePart(sourceIndex, uint32(partIndex), uint(entryPointBit), fileMeta.distanceFromEntryPoint)
 				}
 			}
 		}
@@ -2124,7 +2093,8 @@ func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord) bool {
 }
 
 func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
-	partMeta := &c.fileMeta[sourceIndex].partMeta[partIndex]
+	fileMeta := &c.fileMeta[sourceIndex]
+	partMeta := &fileMeta.partMeta[partIndex]
 
 	// Don't mark this part more than once
 	if partMeta.entryBits.hasBit(entryPointBit) {
@@ -2134,7 +2104,6 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 	file := &c.files[sourceIndex]
 	part := &file.ast.Parts[partIndex]
-	fileMeta := &c.fileMeta[sourceIndex]
 
 	// Include the file containing this part
 	c.includeFile(sourceIndex, entryPointBit, distanceFromEntryPoint)
@@ -2147,6 +2116,11 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	// Also include any non-local dependencies
 	for _, nonLocalDependency := range partMeta.nonLocalDependencies {
 		c.includePart(nonLocalDependency.sourceIndex, nonLocalDependency.partIndex, entryPointBit, distanceFromEntryPoint)
+	}
+
+	// Also include any cross-chunk assignment siblings
+	for i := partMeta.nextSibling; i != partIndex; i = fileMeta.partMeta[i].nextSibling {
+		c.includePart(sourceIndex, i, entryPointBit, distanceFromEntryPoint)
 	}
 
 	// Also include any require() imports

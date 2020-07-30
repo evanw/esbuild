@@ -12,7 +12,7 @@ test-all:
 	make -j6 test-go vet-go verify-source-map end-to-end-tests js-api-tests test-wasm
 
 # This includes tests of some 3rd-party libraries, which can be very slow
-test-extra: test-all test-sucrase test-esprima test-rollup
+test-extra: test-all test-preact-splitting test-sucrase test-esprima test-rollup
 
 test-go:
 	go test ./internal/...
@@ -272,6 +272,38 @@ demo/rollup: | github/rollup
 test-rollup: esbuild | demo/rollup
 	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) && npm run test:only
 	cd demo/rollup && ../../esbuild $(TEST_ROLLUP_FLAGS) --minify && npm run test:only
+
+################################################################################
+# This builds Sucrase using esbuild and then uses it to run Sucrase's test suite
+
+PREACT_SPLITTING += import { h } from 'preact';
+PREACT_SPLITTING += import { USE as use } from 'preact/hooks';
+PREACT_SPLITTING += import { renderToString } from 'preact-render-to-string';
+PREACT_SPLITTING += let Component = () => (use(() => {}), h('div'));
+PREACT_SPLITTING += if (renderToString(h(Component)) !== '<div></div>') throw 'fail';
+
+PREACT_HOOKS += useCallback
+PREACT_HOOKS += useContext
+PREACT_HOOKS += useDebugValue
+PREACT_HOOKS += useEffect
+PREACT_HOOKS += useErrorBoundary
+PREACT_HOOKS += useImperativeHandle
+PREACT_HOOKS += useLayoutEffect
+PREACT_HOOKS += useMemo
+PREACT_HOOKS += useReducer
+PREACT_HOOKS += useRef
+PREACT_HOOKS += useState
+
+demo/preact-splitting:
+	mkdir -p demo/preact-splitting/src
+	cd demo/preact-splitting && echo '{}' > package.json && npm i preact@10.4.6 preact-render-to-string@5.1.10
+	cd demo/preact-splitting && for h in $(PREACT_HOOKS); do echo "$(PREACT_SPLITTING)" | sed s/USE/$$h/ > src/$$h.js; done
+
+test-preact-splitting: esbuild | demo/preact-splitting
+	cd demo/preact-splitting && rm -fr out && ../../esbuild --bundle --splitting --format=esm src/*.js --outdir=out --out-extension:.js=.mjs
+	cd demo/preact-splitting && for h in $(PREACT_HOOKS); do set -e && node --experimental-modules out/$$h.mjs; done
+	cd demo/preact-splitting && rm -fr out && ../../esbuild --bundle --splitting --format=esm src/*.js --outdir=out --out-extension:.js=.mjs --minify
+	cd demo/preact-splitting && for h in $(PREACT_HOOKS); do set -e && node --experimental-modules out/$$h.mjs; done
 
 ################################################################################
 # This builds Sucrase using esbuild and then uses it to run Sucrase's test suite

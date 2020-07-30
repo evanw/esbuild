@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Fix bugs with cross-chunk assignment handling ([#302](https://github.com/evanw/esbuild/issues/302))
+
+    The code splitting process may end up moving the declaration of a file-local variable into a separate chunk from an assignment to that variable. However, it's not possible to assign to a variable in another chunk because assigning to an import is not allowed in ES6. To avoid generating invalid code, esbuild runs an additional pass after code splitting to force all code involved in cross-chunk assignments into the same chunk.
+
+    The logic to do this is quite tricky. For example, moving code between chunks may introduce more cross-chunk assignments that also need to be handled. In this case the bug was caused by not handling complex cases with three or more levels of cross-chunk assignment dependency recursion. These cases now have test coverage and should be handled correctly.
+
 ## 0.6.11
 
 * Code splitting chunks now use content hashes ([#16](https://github.com/evanw/esbuild/issues/16))

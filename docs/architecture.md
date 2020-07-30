@@ -422,7 +422,7 @@ export {
 
 The assignment `data = value` will crash at run time with `TypeError: Assignment to constant variable`. To fix this, we must make sure that assignment ends up in the same chunk as the declaration `let data`.
 
-This is done by unioning the entry point sets of the parts with the assignments and the parts with the symbol declarations together. That way all of those parts are marked as reachable from all entry points that can reach any of those parts. This is only relevant for locally-declared symbols so each module can be processed independently.
+This is done by linking the parts with the assignments and the parts with the symbol declarations together such that their entry point sets are the same. That way all of those parts are marked as reachable from all entry points that can reach any of those parts. Note that linking a group of parts together also involves marking all dependencies of all parts in that group as reachable from those entry points too, including propagathing through any part groups those dependencies are already linked with, recursively.
 
 The grouping of parts can be non-trivial because there may be many parts involved and many assignments to different variables. Grouping is done by finding connected components on the graph where nodes are parts and edges are cross-part assignments.
 
