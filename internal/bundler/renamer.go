@@ -50,6 +50,35 @@ func sortedSymbolsInScope(scope *ast.Scope) uint64Array {
 	return sorted
 }
 
+type exportRenamer struct {
+	symbols ast.SymbolMap
+	count   int
+	used    map[string]uint32
+}
+
+func (r *exportRenamer) nextRenamedName(name string) string {
+	if tries, ok := r.used[name]; ok {
+		prefix := name
+		for {
+			tries++
+			name = prefix + strconv.Itoa(int(tries))
+			if _, ok := r.used[name]; !ok {
+				break
+			}
+		}
+		r.used[name] = tries
+	} else {
+		r.used[name] = 1
+	}
+	return name
+}
+
+func (r *exportRenamer) nextMinifiedName() string {
+	name := lexer.NumberToMinifiedName(r.count)
+	r.count++
+	return name
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // renameAllSymbols() implementation
 

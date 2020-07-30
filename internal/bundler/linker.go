@@ -253,9 +253,11 @@ type chunkMeta struct {
 	entryPointBit uint   // An index into "c.entryPoints"
 
 	// For code splitting
-	crossChunkImports     []uint32
-	crossChunkPrefixStmts []ast.Stmt
-	crossChunkSuffixStmts []ast.Stmt
+	crossChunkImports      []uint32
+	crossChunkPrefixStmts  []ast.Stmt
+	crossChunkSuffixStmts  []ast.Stmt
+	exportsToOtherChunks   map[ast.Ref]string
+	importsFromOtherChunks map[uint32]crossChunkImportItemArray
 }
 
 // Returns the path of this chunk relative to the output directory. Note:
@@ -468,14 +470,15 @@ func (c *linkerContext) link() []OutputFile {
 		}
 	}
 
+	chunks := c.computeChunks()
+	c.computeCrossChunkDependencies(chunks)
+
 	// Make sure calls to "ast.FollowSymbols()" in parallel goroutines after this
 	// won't hit concurrent map mutation hazards
 	ast.FollowAllSymbols(c.symbols)
 
 	c.renameOrMinifyAllSymbols()
 
-	chunks := c.computeChunks()
-	c.computeCrossChunkDependencies(chunks)
 	return c.generateChunksInParallel(chunks)
 }
 
@@ -676,16 +679,17 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 		}
 	}
 
-	// Generate cross-chunk imports
+	// Mark imported symbols as exported in the chunk from which they are declared
 	for chunkIndex := range chunks {
 		chunk := &chunks[chunkIndex]
 
 		// Find all uses in this chunk of symbols from other chunks
-		importsFromOtherChunks := make(map[uint32][]ast.Ref)
+		chunk.importsFromOtherChunks = make(map[uint32]crossChunkImportItemArray)
 		for importRef := range chunkMetas[chunkIndex].imports {
 			// Ignore uses that aren't top-level symbols
 			if otherChunkIndex, ok := topLevelDeclaredSymbolToChunk[importRef]; ok && otherChunkIndex != uint32(chunkIndex) {
-				importsFromOtherChunks[otherChunkIndex] = append(importsFromOtherChunks[otherChunkIndex], importRef)
+				chunk.importsFromOtherChunks[otherChunkIndex] =
+					append(chunk.importsFromOtherChunks[otherChunkIndex], crossChunkImportItem{ref: importRef})
 				chunkMetas[otherChunkIndex].exports[importRef] = true
 			}
 		}
@@ -696,21 +700,62 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 		if chunk.isEntryPoint {
 			for otherChunkIndex, otherChunk := range chunks {
 				if chunkIndex != otherChunkIndex && otherChunk.entryBits.hasBit(chunk.entryPointBit) {
-					imports := importsFromOtherChunks[uint32(otherChunkIndex)]
-					importsFromOtherChunks[uint32(otherChunkIndex)] = imports
+					imports := chunk.importsFromOtherChunks[uint32(otherChunkIndex)]
+					chunk.importsFromOtherChunks[uint32(otherChunkIndex)] = imports
 				}
 			}
 		}
+	}
+
+	// Generate cross-chunk exports. These must be computed before cross-chunk
+	// imports because of export alias renaming, which must consider all export
+	// aliases simultaneously to avoid collisions.
+	for chunkIndex := range chunks {
+		chunk := &chunks[chunkIndex]
+		chunk.exportsToOtherChunks = make(map[ast.Ref]string)
+		switch c.options.OutputFormat {
+		case config.FormatESModule:
+			r := exportRenamer{
+				symbols: c.symbols,
+				used:    make(map[string]uint32),
+			}
+			var items []ast.ClauseItem
+			for _, export := range c.sortedCrossChunkExportItems(chunkMetas[chunkIndex].exports) {
+				var alias string
+				if c.options.MinifyIdentifiers {
+					alias = r.nextMinifiedName()
+				} else {
+					alias = r.nextRenamedName(c.symbols.Get(export.ref).Name)
+				}
+				items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: export.ref}, Alias: alias})
+				chunk.exportsToOtherChunks[export.ref] = alias
+			}
+			if len(items) > 0 {
+				chunk.crossChunkSuffixStmts = []ast.Stmt{{Data: &ast.SExportClause{
+					Items: items,
+				}}}
+			}
+
+		default:
+			panic("Internal error")
+		}
+	}
+
+	// Generate cross-chunk imports. These must be computed after cross-chunk
+	// exports because the export aliases must already be finalized so they can
+	// be embedded in the generated import statements.
+	for chunkIndex := range chunks {
+		chunk := &chunks[chunkIndex]
 
 		var crossChunkImports []uint32
 		var crossChunkPrefixStmts []ast.Stmt
 
-		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, importsFromOtherChunks) {
+		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, chunk.importsFromOtherChunks) {
 			switch c.options.OutputFormat {
 			case config.FormatESModule:
 				var items []ast.ClauseItem
-				for _, alias := range crossChunkImport.sortedImportAliases {
-					items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
+				for _, item := range crossChunkImport.sortedImportItems {
+					items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: item.ref}, Alias: item.exportAlias})
 				}
 				importRecordIndex := uint32(len(crossChunkImports))
 				crossChunkImports = append(crossChunkImports, crossChunkImport.chunkIndex)
@@ -735,31 +780,12 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
 		chunk.crossChunkImports = crossChunkImports
 		chunk.crossChunkPrefixStmts = crossChunkPrefixStmts
 	}
-
-	// Generate cross-chunk exports
-	for chunkIndex := range chunks {
-		switch c.options.OutputFormat {
-		case config.FormatESModule:
-			var items []ast.ClauseItem
-			for _, alias := range c.sortedCrossChunkExportRefs(chunkMetas[chunkIndex].exports) {
-				items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: alias.ref}, Alias: alias.name})
-			}
-			if len(items) > 0 {
-				chunks[chunkIndex].crossChunkSuffixStmts = []ast.Stmt{{Data: &ast.SExportClause{
-					Items: items,
-				}}}
-			}
-
-		default:
-			panic("Internal error")
-		}
-	}
 }
 
 type crossChunkImport struct {
-	chunkIndex          uint32
-	sortingKey          string
-	sortedImportAliases crossChunkAliasArray
+	chunkIndex        uint32
+	sortingKey        string
+	sortedImportItems crossChunkImportItemArray
 }
 
 // This type is just so we can use Go's native sort function
@@ -773,14 +799,20 @@ func (a crossChunkImportArray) Less(i int, j int) bool {
 }
 
 // Sort cross-chunk imports by chunk name for determinism
-func (c *linkerContext) sortedCrossChunkImports(chunks []chunkMeta, importsFromOtherChunks map[uint32][]ast.Ref) crossChunkImportArray {
+func (c *linkerContext) sortedCrossChunkImports(chunks []chunkMeta, importsFromOtherChunks map[uint32]crossChunkImportItemArray) crossChunkImportArray {
 	result := make(crossChunkImportArray, 0, len(importsFromOtherChunks))
 
-	for otherChunkIndex, importRefs := range importsFromOtherChunks {
+	for otherChunkIndex, importItems := range importsFromOtherChunks {
+		// Sort imports from a single chunk by alias for determinism
+		exportsToOtherChunks := chunks[otherChunkIndex].exportsToOtherChunks
+		for i, item := range importItems {
+			importItems[i].exportAlias = exportsToOtherChunks[item.ref]
+		}
+		sort.Sort(importItems)
 		result = append(result, crossChunkImport{
-			chunkIndex:          otherChunkIndex,
-			sortingKey:          string(chunks[otherChunkIndex].entryBits.entries),
-			sortedImportAliases: c.sortedCrossChunkImportRefs(importRefs),
+			chunkIndex:        otherChunkIndex,
+			sortingKey:        string(chunks[otherChunkIndex].entryBits.entries),
+			sortedImportItems: importItems,
 		})
 	}
 
@@ -788,36 +820,54 @@ func (c *linkerContext) sortedCrossChunkImports(chunks []chunkMeta, importsFromO
 	return result
 }
 
-type crossChunkAlias struct {
-	name string
-	ref  ast.Ref
+type crossChunkImportItem struct {
+	ref         ast.Ref
+	exportAlias string
 }
 
 // This type is just so we can use Go's native sort function
-type crossChunkAliasArray []crossChunkAlias
+type crossChunkImportItemArray []crossChunkImportItem
 
-func (a crossChunkAliasArray) Len() int          { return len(a) }
-func (a crossChunkAliasArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+func (a crossChunkImportItemArray) Len() int          { return len(a) }
+func (a crossChunkImportItemArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 
-func (a crossChunkAliasArray) Less(i int, j int) bool {
-	return a[i].name < a[j].name
+func (a crossChunkImportItemArray) Less(i int, j int) bool {
+	return a[i].exportAlias < a[j].exportAlias
 }
 
-// Sort cross-chunk imports by chunk name for determinism
-func (c *linkerContext) sortedCrossChunkImportRefs(importRefs []ast.Ref) crossChunkAliasArray {
-	result := make(crossChunkAliasArray, 0, len(importRefs))
-	for _, ref := range importRefs {
-		result = append(result, crossChunkAlias{ref: ref, name: c.symbols.Get(ref).Name})
-	}
-	sort.Sort(result)
-	return result
+type crossChunkExportItem struct {
+	ref     ast.Ref
+	keyPath ast.Path
+}
+
+// This type is just so we can use Go's native sort function
+type crossChunkExportItemArray []crossChunkExportItem
+
+func (a crossChunkExportItemArray) Len() int          { return len(a) }
+func (a crossChunkExportItemArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a crossChunkExportItemArray) Less(i int, j int) bool {
+	ai := a[i]
+	aj := a[j]
+
+	// The sort order here is arbitrary but needs to be consistent between builds.
+	// The InnerIndex should be stable because the parser for a single file is
+	// single-threaded and deterministically assigns out InnerIndex values
+	// sequentially. But the OuterIndex (i.e. source index) should be unstable
+	// because the main thread assigns out source index values sequentially to
+	// newly-discovered dependencies in a multi-threaded producer/consumer
+	// relationship. So instead we use the key path from the source at OuterIndex
+	// for stability. This compares using the InnerIndex first before the key path
+	// because it's a less expensive comparison test.
+	return ai.ref.InnerIndex < aj.ref.InnerIndex ||
+		(ai.ref.InnerIndex == aj.ref.InnerIndex && ai.keyPath.ComesBeforeInSortedOrder(aj.keyPath))
 }
 
 // Sort cross-chunk exports by chunk name for determinism
-func (c *linkerContext) sortedCrossChunkExportRefs(exportRefs map[ast.Ref]bool) crossChunkAliasArray {
-	result := make(crossChunkAliasArray, 0, len(exportRefs))
+func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[ast.Ref]bool) crossChunkExportItemArray {
+	result := make(crossChunkExportItemArray, 0, len(exportRefs))
 	for ref := range exportRefs {
-		result = append(result, crossChunkAlias{ref: ref, name: c.symbols.Get(ref).Name})
+		result = append(result, crossChunkExportItem{ref: ref, keyPath: c.sources[ref.OuterIndex].KeyPath})
 	}
 	sort.Sort(result)
 	return result
