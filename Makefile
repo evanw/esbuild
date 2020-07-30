@@ -233,7 +233,7 @@ github/uglify:
 	cd github/uglify && git fetch --depth 1 origin 7a033bb825975a6a729813b2cbe5a722a9047456 && git checkout FETCH_HEAD
 
 demo/uglify: | github/uglify
-	mkdir -p demo/uglify
+	mkdir -p demo
 	cp -r github/uglify/ demo/uglify
 	cd demo/uglify && npm i
 
@@ -261,7 +261,7 @@ github/rollup:
 	git clone --depth 1 --branch v2.15.0 https://github.com/rollup/rollup.git github/rollup
 
 demo/rollup: | github/rollup
-	mkdir -p demo/rollup
+	mkdir -p demo
 	cp -RP github/rollup/ demo/rollup
 	cd demo/rollup && npm ci
 
@@ -282,7 +282,7 @@ github/sucrase:
 	cd github/sucrase && git fetch --depth 1 origin a4a596e5cdd57362f309ae50cc32a235d7817d34 && git checkout FETCH_HEAD
 
 demo/sucrase: | github/sucrase
-	mkdir -p demo/sucrase
+	mkdir -p demo
 	cp -r github/sucrase/ demo/sucrase
 	cd demo/sucrase && npm i
 	cd demo/sucrase && find test -name '*.ts' | sed 's/\(.*\)\.ts/import ".\/\1"/g' > all-tests.ts
@@ -301,7 +301,7 @@ github/esprima:
 	cd github/esprima && git fetch --depth 1 origin fa49b2edc288452eb49441054ce6f7ff4b891eb4 && git checkout FETCH_HEAD
 
 demo/esprima: | github/esprima
-	mkdir -p demo/esprima
+	mkdir -p demo
 	cp -r github/esprima/ demo/esprima
 	cd demo/esprima && npm ci
 
@@ -318,7 +318,7 @@ github/terser:
 	cd github/terser && git fetch --depth 1 origin 056623c20dbbc42d2f5a34926c07133981519326 && git checkout FETCH_HEAD
 
 demo/terser: | github/terser
-	mkdir -p demo/terser
+	mkdir -p demo
 	cp -r github/terser/ demo/terser
 	cd demo/terser && npm ci && npm run build
 
