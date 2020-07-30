@@ -48,3 +48,11 @@ jobs:
 
     - name: JS API Tests
       run: node scripts/js-api-tests.js
+
+    - name: Sucrase Tests
+      if: matrix.os == 'ubuntu-latest'
+      run: make test-sucrase
+
+    - name: Esprima Tests
+      if: matrix.os == 'ubuntu-latest'
+      run: make test-esprima
