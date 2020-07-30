@@ -89,6 +89,35 @@ const testCaseStdin = {
   `,
 }
 
+const testCaseEmptyFile = {
+  'entry.js': `
+    import './before'
+    import {fn} from './re-export'
+    import './after'
+    fn()
+  `,
+  're-export.js': `
+    // This file will be empty in the generated code, which was causing
+    // an off-by-one error with the source index in the source map
+    export {default as fn} from './test'
+  `,
+  'test.js': `
+    export default function() {
+      console.log("test")
+    }
+  `,
+  'before.js': `
+    console.log("before")
+  `,
+  'after.js': `
+    console.log("after")
+  `,
+}
+
+const toSearchEmptyFile = [
+  'before', 'test', 'after',
+]
+
 async function check(kind, testCase, toSearch, flags) {
   let failed = 0
 
@@ -230,6 +259,7 @@ async function main() {
       check('es6' + suffix, testCaseES6, toSearchBundle, flags.concat('--outfile=out.js', '--bundle')),
       check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, flags.concat('--outfile=out.js')),
       check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, flags.concat('--sourcefile=<stdin>')),
+      check('empty' + suffix, testCaseEmptyFile, toSearchEmptyFile, flags.concat('--outfile=out.js', '--bundle')),
     )
   }
 

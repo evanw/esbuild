@@ -2959,11 +2959,11 @@ func (c *linkerContext) generateChunk(chunk *chunkMeta) func([]ast.ImportRecord)
 					prevOffset.advanceBytes(compileResult.JS)
 				} else {
 					prevOffset = lineColumnOffset{}
-				}
 
-				// Include this file in the source map
-				if c.options.SourceMap != config.SourceMapNone {
-					compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
+					// Include this file in the source map
+					if c.options.SourceMap != config.SourceMapNone {
+						compileResultsForSourceMap = append(compileResultsForSourceMap, compileResult)
+					}
 				}
 
 				// Include this file in the metadata
