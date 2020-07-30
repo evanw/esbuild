@@ -454,6 +454,24 @@ func (c *linkerContext) addRangeError(source logging.Source, r ast.Range, text s
 	c.hasErrors = true
 }
 
+func (c *linkerContext) addPartToFile(sourceIndex uint32, part ast.Part, partMeta partMeta) uint32 {
+	file := &c.files[sourceIndex]
+	fileMeta := &c.fileMeta[sourceIndex]
+	if part.LocalDependencies == nil {
+		part.LocalDependencies = make(map[uint32]bool)
+	}
+	if part.SymbolUses == nil {
+		part.SymbolUses = make(map[ast.Ref]ast.SymbolUse)
+	}
+	if partMeta.entryBits.entries == nil {
+		partMeta.entryBits = newBitSet(uint(len(c.entryPoints)))
+	}
+	partIndex := uint32(len(file.ast.Parts))
+	file.ast.Parts = append(file.ast.Parts, part)
+	fileMeta.partMeta = append(fileMeta.partMeta, partMeta)
+	return partIndex
+}
+
 func (c *linkerContext) link() []OutputFile {
 	c.scanImportsAndExports()
 
@@ -1008,16 +1026,10 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 
 		// Add an empty part for the namespace export that we can fill in later
-		fileMeta.nsExportPartIndex = uint32(len(file.ast.Parts))
-		file.ast.Parts = append(file.ast.Parts, ast.Part{
-			LocalDependencies:    make(map[uint32]bool),
-			SymbolUses:           make(map[ast.Ref]ast.SymbolUse),
+		fileMeta.nsExportPartIndex = c.addPartToFile(sourceIndex, ast.Part{
 			CanBeRemovedIfUnused: true,
 			IsNamespaceExport:    true,
-		})
-		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
-			entryBits: newBitSet(uint(len(c.entryPoints))),
-		})
+		}, partMeta{})
 
 		// Also add a special export called "*" so import stars can bind to it.
 		// This must be done in this step because it must come after CommonJS
@@ -1188,17 +1200,12 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 		}
 
 		// Link the export into the graph for tree shaking
-		partIndex := uint32(len(file.ast.Parts))
-		file.ast.Parts = append(file.ast.Parts, ast.Part{
+		partIndex := c.addPartToFile(sourceIndex, ast.Part{
 			Stmts:                []ast.Stmt{stmt},
-			LocalDependencies:    make(map[uint32]bool),
 			SymbolUses:           map[ast.Ref]ast.SymbolUse{file.ast.ModuleRef: ast.SymbolUse{CountEstimate: 1}},
 			DeclaredSymbols:      []ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
 			CanBeRemovedIfUnused: true,
-		})
-		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
-			entryBits: newBitSet(uint(len(c.entryPoints))),
-		})
+		}, partMeta{})
 		file.ast.TopLevelSymbolToParts[ref] = []uint32{partIndex}
 		fileMeta.resolvedExports[alias] = exportData{ref: ref, sourceIndex: sourceIndex}
 		part := &file.ast.Parts[partIndex]
@@ -1513,18 +1520,13 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 
 		// Add a part for this export clause
-		file := &c.files[sourceIndex]
-		partIndex := uint32(len(file.ast.Parts))
-		fileMeta.entryPointExportPartIndex = &partIndex
-		file.ast.Parts = append(file.ast.Parts, ast.Part{
-			Stmts:             entryPointExportStmts,
-			LocalDependencies: make(map[uint32]bool),
-			SymbolUses:        entryPointExportSymbolUses,
-		})
-		fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
-			entryBits:            newBitSet(uint(len(c.entryPoints))),
+		partIndex := c.addPartToFile(sourceIndex, ast.Part{
+			Stmts:      entryPointExportStmts,
+			SymbolUses: entryPointExportSymbolUses,
+		}, partMeta{
 			nonLocalDependencies: append([]partRef{}, entryPointExportNonLocalDependencies...),
 		})
+		fileMeta.entryPointExportPartIndex = &partIndex
 	}
 }
 
@@ -1860,11 +1862,11 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 			commonJSParts := runtimeFile.ast.TopLevelSymbolToParts[commonJSRef]
 
 			// Generate the dummy part
-			partIndex := uint32(len(file.ast.Parts))
-			fileMeta.cjsWrapperPartIndex = &partIndex
-			file.ast.TopLevelSymbolToParts[file.ast.WrapperRef] = []uint32{partIndex}
-			file.ast.Parts = append(file.ast.Parts, ast.Part{
-				LocalDependencies: make(map[uint32]bool),
+			nonLocalDependencies := make([]partRef, len(commonJSParts))
+			for i, partIndex := range commonJSParts {
+				nonLocalDependencies[i] = partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
+			}
+			partIndex := c.addPartToFile(sourceIndex, ast.Part{
 				SymbolUses: map[ast.Ref]ast.SymbolUse{
 					file.ast.WrapperRef: {CountEstimate: 1},
 					commonJSRef:         {CountEstimate: 1},
@@ -1874,15 +1876,11 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 					{Ref: file.ast.ModuleRef, IsTopLevel: true},
 					{Ref: file.ast.WrapperRef, IsTopLevel: true},
 				},
-			})
-			nonLocalDependencies := make([]partRef, len(commonJSParts))
-			for i, partIndex := range commonJSParts {
-				nonLocalDependencies[i] = partRef{sourceIndex: runtime.SourceIndex, partIndex: partIndex}
-			}
-			fileMeta.partMeta = append(fileMeta.partMeta, partMeta{
-				entryBits:            newBitSet(uint(len(c.entryPoints))),
+			}, partMeta{
 				nonLocalDependencies: nonLocalDependencies,
 			})
+			fileMeta.cjsWrapperPartIndex = &partIndex
+			file.ast.TopLevelSymbolToParts[file.ast.WrapperRef] = []uint32{partIndex}
 			fileMeta.importsToBind[commonJSRef] = importToBind{
 				ref:         commonJSRef,
 				sourceIndex: runtime.SourceIndex,
