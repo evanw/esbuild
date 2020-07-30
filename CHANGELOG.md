@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.11
 
 * Code splitting chunks now use content hashes ([#16](https://github.com/evanw/esbuild/issues/16))
 
