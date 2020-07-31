@@ -419,28 +419,18 @@ type printer struct {
 type lineOffsetTable struct {
 	byteOffsetToStartOfLine int32
 
-	// To get the column number, take the offset in bytes from the start of the
-	// file, subtract "byteOffsetToStartOfLine", divide by 256, and get the item
-	// in "columnOffsets" at that index.
+	// The source map specification is very loose and does not specify what
+	// column numbers actually mean. The popular "source-map" library from Mozilla
+	// appears to interpret them as counts of UTF-16 code units, so we generate
+	// those too for compatibility.
 	//
-	// Then start with "firstColumn" and add "columnDelta" at the index that is
-	// the remainder of the division by 256 above.
-	columnOffsets []columnOffsetTable
-}
-
-const columnDeltaSize = 64
-
-type columnOffsetTable struct {
-	// A flat array of storing the column number for every byte would take up a
-	// log of space. This representation attempts to store the same thing using
-	// less space.
-	//
-	// The column number should increase by at most 64 in a span of 64 bytes,
-	// so we can store the column number every 64 bytes and then store offsets
-	// from that column number for the other bytes. 64 is a tradeoff between
-	// using less space for long lines and using more space for short lines.
-	firstColumn int32
-	columnDelta [columnDeltaSize]byte
+	// We keep mapping tables around to accelerate conversion from byte offsets
+	// to UTF-16 code unit counts. However, this mapping takes up a lot of memory
+	// and generates a lot of garbage. Since most JavaScript is ASCII and the
+	// mapping for ASCII is 1:1, we avoid creating a table for ASCII-only lines
+	// as an optimization.
+	byteOffsetToFirstNonASCII int32
+	columnsForNonASCII        []int32
 }
 
 func (p *printer) print(text string) {
@@ -484,9 +474,8 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 	// Use the line to compute the column
 	line := &lineOffsetTables[originalLine]
 	originalColumn := int(loc.Start - line.byteOffsetToStartOfLine)
-	if originalColumn != 0 {
-		columnOffsets := &line.columnOffsets[originalColumn/columnDeltaSize]
-		originalColumn = int(columnOffsets.firstColumn) + int(columnOffsets.columnDelta[originalColumn&(columnDeltaSize-1)])
+	if line.columnsForNonASCII != nil && originalColumn >= int(line.byteOffsetToFirstNonASCII) {
+		originalColumn = int(line.columnsForNonASCII[originalColumn-int(line.byteOffsetToFirstNonASCII)])
 	}
 
 	p.updateGeneratedLineAndColumn()
@@ -563,25 +552,30 @@ func (p *printer) updateGeneratedLineAndColumn() {
 
 func generateLineOffsetTables(contents string) []lineOffsetTable {
 	var lineOffsetTables []lineOffsetTable
-	var columnOffsets []columnOffsetTable
+	var columnsForNonASCII []int32
+	byteOffsetToFirstNonASCII := int32(0)
 	lineByteOffset := 0
 	columnByteOffset := 0
 	column := int32(0)
 
 	for i, c := range contents {
 		// Mark the start of the next line
-		if columnByteOffset == 0 {
+		if column == 0 {
 			lineByteOffset = i
 		}
 
-		// Update the compressed per-byte column offsets
-		for lineBytesSoFar := i - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
-			deltaIndex := columnByteOffset & (columnDeltaSize - 1)
-			if deltaIndex == 0 {
-				columnOffsets = append(columnOffsets, columnOffsetTable{firstColumn: column})
+		// Start the mapping if this character is non-ASCII
+		if c > 0x7F && columnsForNonASCII == nil {
+			columnByteOffset = i - lineByteOffset
+			byteOffsetToFirstNonASCII = int32(columnByteOffset)
+			columnsForNonASCII = []int32{}
+		}
+
+		// Update the per-byte column offsets
+		if columnsForNonASCII != nil {
+			for lineBytesSoFar := i - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
+				columnsForNonASCII = append(columnsForNonASCII, column)
 			}
-			last := &columnOffsets[len(columnOffsets)-1]
-			last.columnDelta[deltaIndex] = byte(column - last.firstColumn)
 		}
 
 		switch c {
@@ -594,11 +588,13 @@ func generateLineOffsetTables(contents string) []lineOffsetTable {
 			}
 
 			lineOffsetTables = append(lineOffsetTables, lineOffsetTable{
-				byteOffsetToStartOfLine: int32(lineByteOffset),
-				columnOffsets:           columnOffsets,
+				byteOffsetToStartOfLine:   int32(lineByteOffset),
+				byteOffsetToFirstNonASCII: byteOffsetToFirstNonASCII,
+				columnsForNonASCII:        columnsForNonASCII,
 			})
 			columnByteOffset = 0
-			columnOffsets = nil
+			byteOffsetToFirstNonASCII = 0
+			columnsForNonASCII = nil
 			column = 0
 
 		default:
@@ -612,23 +608,21 @@ func generateLineOffsetTables(contents string) []lineOffsetTable {
 	}
 
 	// Mark the start of the next line
-	if columnByteOffset == 0 {
+	if column == 0 {
 		lineByteOffset = len(contents)
 	}
 
 	// Do one last update for the column at the end of the file
-	for lineBytesSoFar := len(contents) - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
-		deltaIndex := columnByteOffset & (columnDeltaSize - 1)
-		if deltaIndex == 0 {
-			columnOffsets = append(columnOffsets, columnOffsetTable{firstColumn: column})
+	if columnsForNonASCII != nil {
+		for lineBytesSoFar := len(contents) - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
+			columnsForNonASCII = append(columnsForNonASCII, column)
 		}
-		last := &columnOffsets[len(columnOffsets)-1]
-		last.columnDelta[deltaIndex] = byte(column - last.firstColumn)
 	}
 
 	lineOffsetTables = append(lineOffsetTables, lineOffsetTable{
-		byteOffsetToStartOfLine: int32(lineByteOffset),
-		columnOffsets:           columnOffsets,
+		byteOffsetToStartOfLine:   int32(lineByteOffset),
+		byteOffsetToFirstNonASCII: byteOffsetToFirstNonASCII,
+		columnsForNonASCII:        columnsForNonASCII,
 	})
 	return lineOffsetTables
 }
