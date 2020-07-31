@@ -175,6 +175,25 @@ const toSearchUnicode = [
   'a', 'b',
 ]
 
+const testCasePartialMappings = {
+  // The "mappings" value is "A,Q,I;A,Q,I;A,Q,I;AAMA,QAAQ,IAAI;" which contains
+  // partial mappings without original locations. This used to throw things off.
+  'entry.js': `console.log(1);
+console.log(2);
+console.log(3);
+console.log("entry");
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKIC` +
+    `Aic291cmNlcyI6IFsiZW50cnkuanMiXSwKICAic291cmNlc0NvbnRlbnQiOiBbImNvbnNvb` +
+    `GUubG9nKDEpXG5cbmNvbnNvbGUubG9nKDIpXG5cbmNvbnNvbGUubG9nKDMpXG5cbmNvbnNv` +
+    `bGUubG9nKFwiZW50cnlcIilcbiJdLAogICJtYXBwaW5ncyI6ICJBLFEsSTtBLFEsSTtBLFE` +
+    `sSTtBQU1BLFFBQVEsSUFBSTsiLAogICJuYW1lcyI6IFtdCn0=
+`,
+}
+
+const toSearchPartialMappings = [
+  'entry',
+]
+
 async function check(kind, testCase, toSearch, { flags, entryPoints }) {
   let failed = 0
 
@@ -230,24 +249,25 @@ async function check(kind, testCase, toSearch, { flags, entryPoints }) {
     // Check the mapping of various key locations back to the original source
     const checkMap = (out, map, relativeTo) => {
       for (const id of toSearch) {
-        const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
-        const inJs = testCase[inSource]
-        const inIndex = inJs.indexOf(`"${id}"`)
         const outIndex = out.indexOf(`"${id}"`)
-
-        if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
         if (outIndex < 0) throw new Error(`Failed to find "${id}" in output`)
+        const outLines = out.slice(0, outIndex).split('\n')
+        const outLine = outLines.length
+        const outColumn = outLines[outLines.length - 1].length
+        const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
 
+        const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
+        const expectedSource = path.join(relativeTo, inSource).replace(/\\/g, '/')
+        recordCheck(source === expectedSource, `expected: ${expectedSource} observed: ${source}`)
+
+        const inJs = map.sourceContentFor(source)
+        const inIndex = inJs.indexOf(`"${id}"`)
+        if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
         const inLines = inJs.slice(0, inIndex).split('\n')
         const inLine = inLines.length
         const inColumn = inLines[inLines.length - 1].length
 
-        const outLines = out.slice(0, outIndex).split('\n')
-        const outLine = outLines.length
-        const outColumn = outLines[outLines.length - 1].length
-
-        const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
-        const expected = JSON.stringify({ source: path.join(relativeTo, inSource).replace(/\\/g, '/'), line: inLine, column: inColumn })
+        const expected = JSON.stringify({ source, line: inLine, column: inColumn })
         const observed = JSON.stringify({ source, line, column })
         recordCheck(expected === observed, `expected: ${expected} observed: ${observed}`)
       }
@@ -341,6 +361,10 @@ async function main() {
         entryPoints: ['out.ts', 'other.ts'],
       }),
       check('unicode' + suffix, testCaseUnicode, toSearchUnicode, {
+        flags: flags.concat('--outfile=out.js', '--bundle'),
+        entryPoints: ['entry.js'],
+      }),
+      check('dummy' + suffix, testCasePartialMappings, toSearchPartialMappings, {
         flags: flags.concat('--outfile=out.js', '--bundle'),
         entryPoints: ['entry.js'],
       }),

@@ -158,9 +158,11 @@ func ParseSourceMap(log logging.Log, source logging.Source) *sourcemap.SourceMap
 		if current == mappingsLen {
 			break
 		}
-		c := mappingsRaw[current]
-		if c == ',' || c == ';' {
+		switch mappingsRaw[current] {
+		case ',':
 			current++
+			continue
+		case ';':
 			continue
 		}
 
