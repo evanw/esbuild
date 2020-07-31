@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.13
 
 * Exclude non-JavaScript files from source maps ([#304](https://github.com/evanw/esbuild/issues/304))
 
