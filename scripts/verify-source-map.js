@@ -118,6 +118,28 @@ const toSearchEmptyFile = [
   'before', 'test', 'after',
 ]
 
+const testCaseNonJavaScriptFile = {
+  'entry.js': `
+    import './before'
+    import text from './file.txt'
+    import './after'
+    console.log(text)
+  `,
+  'file.txt': `
+    This is some text.
+  `,
+  'before.js': `
+    console.log("before")
+  `,
+  'after.js': `
+    console.log("after")
+  `,
+}
+
+const toSearchNonJavaScriptFile = [
+  'before', 'after',
+]
+
 async function check(kind, testCase, toSearch, flags) {
   let failed = 0
 
@@ -147,7 +169,7 @@ async function check(kind, testCase, toSearch, flags) {
 
     await new Promise((resolve, reject) => {
       if (!isStdin) args.unshift(files[0])
-      const child = childProcess.spawn(esbuildPath, args, { cwd: tempDir, stdio: 'pipe' })
+      const child = childProcess.spawn(esbuildPath, args, { cwd: tempDir, stdio: ['pipe', 'pipe', 'inherit'] })
       if (isStdin) child.stdin.write(testCase['<stdin>'])
       child.stdin.end()
       child.stdout.on('data', chunk => stdout += chunk.toString())
@@ -260,6 +282,7 @@ async function main() {
       check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, flags.concat('--outfile=out.js')),
       check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, flags.concat('--sourcefile=<stdin>')),
       check('empty' + suffix, testCaseEmptyFile, toSearchEmptyFile, flags.concat('--outfile=out.js', '--bundle')),
+      check('non-js' + suffix, testCaseNonJavaScriptFile, toSearchNonJavaScriptFile, flags.concat('--outfile=out.js', '--bundle')),
     )
   }
 

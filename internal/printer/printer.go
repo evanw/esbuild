@@ -47,6 +47,7 @@ func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState Sou
 	// Handle line breaks in between this mapping and the previous one
 	if startState.GeneratedLine != 0 {
 		j.AddBytes(bytes.Repeat([]byte{';'}, startState.GeneratedLine))
+		prevEndState.GeneratedColumn = 0
 	}
 
 	// Skip past any leading semicolons, which indicate line breaks
@@ -57,6 +58,7 @@ func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState Sou
 	if semicolons > 0 {
 		j.AddBytes(sourceMap[:semicolons])
 		sourceMap = sourceMap[semicolons:]
+		prevEndState.GeneratedColumn = 0
 		startState.GeneratedColumn = 0
 	}
 

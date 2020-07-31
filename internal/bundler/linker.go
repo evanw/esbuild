@@ -3330,9 +3330,9 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 		chunk := result.SourceMapChunk
 		offset := result.generatedOffset
 
-		// Ignore empty source map chunks
+		// This should have already been checked earlier
 		if chunk.ShouldIgnore {
-			continue
+			panic("Internal error")
 		}
 
 		// Because each file for the bundle is converted to a source map once,
