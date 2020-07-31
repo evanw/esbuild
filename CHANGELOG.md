@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.12
 
 * Fix bugs with cross-chunk assignment handling ([#302](https://github.com/evanw/esbuild/issues/302))
 
