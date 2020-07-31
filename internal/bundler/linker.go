@@ -2905,6 +2905,7 @@ func (c *linkerContext) generateChunk(chunk *chunkMeta) func([]ast.ImportRecord)
 		// Put the cross-chunk prefix inside the IIFE
 		if len(crossChunkPrefix) > 0 {
 			newlineBeforeComment = true
+			prevOffset.advanceBytes(crossChunkPrefix)
 			j.AddBytes(crossChunkPrefix)
 		}
 

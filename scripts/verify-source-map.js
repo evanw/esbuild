@@ -140,7 +140,25 @@ const toSearchNonJavaScriptFile = [
   'before', 'after',
 ]
 
-async function check(kind, testCase, toSearch, flags) {
+const testCaseCodeSplitting = {
+  'out.ts': `
+    import value from './shared'
+    console.log("out", value)
+  `,
+  'other.ts': `
+    import value from './shared'
+    console.log("other", value)
+  `,
+  'shared.ts': `
+    export default 123
+  `,
+}
+
+const toSearchCodeSplitting = [
+  'out',
+]
+
+async function check(kind, testCase, toSearch, { flags, entryPoints }) {
   let failed = 0
 
   try {
@@ -168,7 +186,7 @@ async function check(kind, testCase, toSearch, flags) {
     let stdout = ''
 
     await new Promise((resolve, reject) => {
-      if (!isStdin) args.unshift(files[0])
+      args.unshift(...entryPoints)
       const child = childProcess.spawn(esbuildPath, args, { cwd: tempDir, stdio: ['pipe', 'pipe', 'inherit'] })
       if (isStdin) child.stdin.write(testCase['<stdin>'])
       child.stdin.end()
@@ -277,12 +295,34 @@ async function main() {
     const flags = minify ? ['--minify'] : []
     const suffix = minify ? '-min' : ''
     promises.push(
-      check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, flags.concat('--outfile=out.js', '--bundle')),
-      check('es6' + suffix, testCaseES6, toSearchBundle, flags.concat('--outfile=out.js', '--bundle')),
-      check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, flags.concat('--outfile=out.js')),
-      check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, flags.concat('--sourcefile=<stdin>')),
-      check('empty' + suffix, testCaseEmptyFile, toSearchEmptyFile, flags.concat('--outfile=out.js', '--bundle')),
-      check('non-js' + suffix, testCaseNonJavaScriptFile, toSearchNonJavaScriptFile, flags.concat('--outfile=out.js', '--bundle')),
+      check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, {
+        flags: flags.concat('--outfile=out.js', '--bundle'),
+        entryPoints: ['a.js'],
+      }),
+      check('es6' + suffix, testCaseES6, toSearchBundle, {
+        flags: flags.concat('--outfile=out.js', '--bundle'),
+        entryPoints: ['a.js'],
+      }),
+      check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, {
+        flags: flags.concat('--outfile=out.js'),
+        entryPoints: ['a.ts'],
+      }),
+      check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, {
+        flags: flags.concat('--sourcefile=<stdin>'),
+        entryPoints: [],
+      }),
+      check('empty' + suffix, testCaseEmptyFile, toSearchEmptyFile, {
+        flags: flags.concat('--outfile=out.js', '--bundle'),
+        entryPoints: ['entry.js'],
+      }),
+      check('non-js' + suffix, testCaseNonJavaScriptFile, toSearchNonJavaScriptFile, {
+        flags: flags.concat('--outfile=out.js', '--bundle'),
+        entryPoints: ['entry.js'],
+      }),
+      check('splitting' + suffix, testCaseCodeSplitting, toSearchCodeSplitting, {
+        flags: flags.concat('--outdir=.', '--bundle', '--splitting', '--format=esm'),
+        entryPoints: ['out.ts', 'other.ts'],
+      }),
     )
   }
 

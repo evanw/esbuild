@@ -6,6 +6,10 @@
 
     Previously all input files were eligible for source map generation, even binary files included using loaders such as `dataurl`. This was not intentional. Doing this doesn't serve a purpose and can massively bloat the resulting source maps. Now all files are excluded except those loaded by the `js`, `jsx`, `ts`, and `tsx` loaders.
 
+* Fix incorrect source maps with code splitting ([#303](https://github.com/evanw/esbuild/issues/303))
+
+    Source maps were completely incorrect when code splitting was enabled for chunk files that imported other chunk files. The source map offsets were not being adjusted past the automatically-generated cross-chunk import statements. This has been fixed.
+
 ## 0.6.12
 
 * Fix bugs with cross-chunk assignment handling ([#302](https://github.com/evanw/esbuild/issues/302))
