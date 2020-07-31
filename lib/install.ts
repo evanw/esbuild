@@ -20,7 +20,8 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
 
   // Download the package from npm
   let officialRegistry = 'registry.npmjs.org';
-  let urls = [`https://${officialRegistry}/${name}/-/${name}-${version}.tgz`];
+  const registryUrlFormat = process.env.npm_config_registry_format || `https://${officialRegistry}/{name}/-/{name}-{version}.tgz`;
+  let urls = [registryUrlFormat].map(registryUrl => registryUrl.replace(/\{name\}/g, name).replace(/\{version\}/g, version));
   let debug = false;
 
   // Try downloading from a custom registry first if one is configured
