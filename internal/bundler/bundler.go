@@ -26,7 +26,8 @@ import (
 )
 
 type file struct {
-	ast ast.AST
+	ast    ast.AST
+	loader config.Loader
 
 	// If this file ends up being used in the bundle, this is an additional file
 	// that must be written to the output directory. It's used by the "file"
@@ -147,6 +148,7 @@ func parseFile(args parseArgs) {
 	result := parseResult{
 		source: source,
 		file: file{
+			loader:         loader,
 			ignoreIfUnused: args.flags.ignoreIfUnused,
 		},
 		ok: true,
@@ -303,7 +305,7 @@ func parseFile(args parseArgs) {
 	}
 
 	// Attempt to parse the source map if present
-	if args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
+	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
 		if path, contents := extractSourceMapFromComment(args.log, args.fs, &source, result.file.ast.SourceMapComment); contents != nil {
 			prettyPath := path.Text
 			if path.IsAbsolute {

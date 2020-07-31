@@ -1835,7 +1835,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	}
 
 	// Missing re-exports in TypeScript files are indistinguishable from types
-	if file.ast.WasTypeScript && namedImport.IsExported {
+	if file.loader.IsTypeScript() && namedImport.IsExported {
 		return importTracker{}, importProbablyTypeScriptType
 	}
 
@@ -2746,7 +2746,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 
 	// Only generate a source map if needed
 	sourceForSourceMap := &c.sources[sourceIndex]
-	if c.options.SourceMap == config.SourceMapNone {
+	if !file.loader.CanHaveSourceMap() || c.options.SourceMap == config.SourceMapNone {
 		sourceForSourceMap = nil
 	}
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Exclude non-JavaScript files from source maps ([#304](https://github.com/evanw/esbuild/issues/304))
+
+    Previously all input files were eligible for source map generation, even binary files included using loaders such as `dataurl`. This was not intentional. Doing this doesn't serve a purpose and can massively bloat the resulting source maps. Now all files are excluded except those loaded by the `js`, `jsx`, `ts`, and `tsx` loaders.
+
 ## 0.6.12
 
 * Fix bugs with cross-chunk assignment handling ([#302](https://github.com/evanw/esbuild/issues/302))

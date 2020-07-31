@@ -8617,7 +8617,6 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 	}
 
 	result = p.toAST(source, parts, hashbang, directive)
-	result.WasTypeScript = options.TS.Parse
 	result.SourceMapComment = p.lexer.SourceMappingURL
 	return
 }

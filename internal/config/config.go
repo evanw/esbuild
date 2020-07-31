@@ -69,6 +69,14 @@ const (
 	LoaderBinary
 )
 
+func (loader Loader) IsTypeScript() bool {
+	return loader == LoaderTS || loader == LoaderTSX
+}
+
+func (loader Loader) CanHaveSourceMap() bool {
+	return loader == LoaderJS || loader == LoaderJSX || loader == LoaderTS || loader == LoaderTSX
+}
+
 type Format uint8
 
 const (

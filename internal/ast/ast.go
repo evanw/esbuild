@@ -1246,7 +1246,6 @@ type ImportRecord struct {
 }
 
 type AST struct {
-	WasTypeScript bool
 	HasLazyExport bool
 
 	// This is a list of CommonJS features. When a file uses CommonJS features,
