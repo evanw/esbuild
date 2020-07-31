@@ -412,7 +412,8 @@ type printer struct {
 	// The workaround is to replicate the previous mapping if a line ends
 	// up not starting with a mapping. This is done lazily because we want
 	// to avoid replicating the previous mapping if we don't need to.
-	lineStartsWithMapping bool
+	lineStartsWithMapping     bool
+	coverLinesWithoutMappings bool
 }
 
 type lineOffsetTable struct {
@@ -492,7 +493,7 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 
 	// If this line doesn't start with a mapping and we're about to add a mapping
 	// that's not at the start, insert a mapping first so the line starts with one.
-	if !p.lineStartsWithMapping && p.generatedColumn > 0 && p.hasPrevState {
+	if p.coverLinesWithoutMappings && !p.lineStartsWithMapping && p.generatedColumn > 0 && p.hasPrevState {
 		p.appendMappingWithoutRemapping(SourceMapState{
 			GeneratedLine:   p.prevState.GeneratedLine,
 			GeneratedColumn: 0,
@@ -529,7 +530,7 @@ func (p *printer) updateGeneratedLineAndColumn() {
 
 			// If we're about to move to the next line and the previous line didn't have
 			// any mappings, add a mapping at the start of the previous line.
-			if !p.lineStartsWithMapping && p.hasPrevState {
+			if p.coverLinesWithoutMappings && !p.lineStartsWithMapping && p.hasPrevState {
 				p.appendMappingWithoutRemapping(SourceMapState{
 					GeneratedLine:   p.prevState.GeneratedLine,
 					GeneratedColumn: 0,
@@ -2849,6 +2850,19 @@ func createPrinter(
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
 		prevLoc:            ast.Loc{Start: -1},
+
+		// We automatically repeat the previous source mapping if we ever generate
+		// a line that doesn't start with a mapping. This helps give files more
+		// complete mapping coverage without gaps.
+		//
+		// However, we probably shouldn't do this if the input file has a nested
+		// source map that we will be remapping through. We have no idea what state
+		// that source map is in and it could be pretty scrambled.
+		//
+		// I've seen cases where blindly repeating the last mapping for subsequent
+		// lines gives very strange and unhelpful results with source maps from
+		// other tools.
+		coverLinesWithoutMappings: options.InputSourceMap == nil,
 	}
 
 	// If we're writing out a source map, prepare a table of line start indices
