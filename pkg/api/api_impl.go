@@ -515,36 +515,39 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 			// Compile the bundle
 			results := bundle.Compile(log, options)
 
-			// Return the results
-			outputFiles = make([]OutputFile, len(results))
-			for i, result := range results {
-				if options.WriteToStdout {
-					result.AbsPath = "<stdout>"
-				}
-				outputFiles[i] = OutputFile{
-					Path:     result.AbsPath,
-					Contents: result.Contents,
-				}
-			}
-
-			if buildOpts.Write {
-				// Special-case writing to stdout
-				if options.WriteToStdout {
-					if len(outputFiles) != 1 {
-						log.AddError(nil, ast.Loc{}, fmt.Sprintf(
-							"Internal error: did not expect to generate %d files when writing to stdout", len(outputFiles)))
-					} else if _, err := os.Stdout.Write(outputFiles[0].Contents); err != nil {
-						log.AddError(nil, ast.Loc{}, fmt.Sprintf(
-							"Failed to write to stdout: %s", err.Error()))
+			// Stop now if there were errors
+			if !log.HasErrors() {
+				// Return the results
+				outputFiles = make([]OutputFile, len(results))
+				for i, result := range results {
+					if options.WriteToStdout {
+						result.AbsPath = "<stdout>"
 					}
-				} else {
-					for _, outputFile := range outputFiles {
-						if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
+					outputFiles[i] = OutputFile{
+						Path:     result.AbsPath,
+						Contents: result.Contents,
+					}
+				}
+
+				if buildOpts.Write {
+					// Special-case writing to stdout
+					if options.WriteToStdout {
+						if len(outputFiles) != 1 {
 							log.AddError(nil, ast.Loc{}, fmt.Sprintf(
-								"Failed to create output directory: %s", err.Error()))
-						} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
+								"Internal error: did not expect to generate %d files when writing to stdout", len(outputFiles)))
+						} else if _, err := os.Stdout.Write(outputFiles[0].Contents); err != nil {
 							log.AddError(nil, ast.Loc{}, fmt.Sprintf(
-								"Failed to write to output file: %s", err.Error()))
+								"Failed to write to stdout: %s", err.Error()))
+						}
+					} else {
+						for _, outputFile := range outputFiles {
+							if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
+								log.AddError(nil, ast.Loc{}, fmt.Sprintf(
+									"Failed to create output directory: %s", err.Error()))
+							} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
+								log.AddError(nil, ast.Loc{}, fmt.Sprintf(
+									"Failed to write to output file: %s", err.Error()))
+							}
 						}
 					}
 				}
