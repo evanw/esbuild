@@ -6,11 +6,11 @@ import (
 
 type Mapping struct {
 	GeneratedLine   int32 // 0-based
-	GeneratedColumn int32 // 0-based
+	GeneratedColumn int32 // 0-based count of UTF-16 code units
 
 	SourceIndex    int32 // 0-based
 	OriginalLine   int32 // 0-based
-	OriginalColumn int32 // 0-based
+	OriginalColumn int32 // 0-based count of UTF-16 code units
 }
 
 type SourceMap struct {

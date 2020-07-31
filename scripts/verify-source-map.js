@@ -158,6 +158,23 @@ const toSearchCodeSplitting = [
   'out',
 ]
 
+const testCaseUnicode = {
+  'entry.js': `
+    import './a'
+    import './b'
+  `,
+  'a.js': `
+    console.log('🍕🍕🍕', "a")
+  `,
+  'b.js': `
+    console.log({𐀀: "b"})
+  `,
+}
+
+const toSearchUnicode = [
+  'a', 'b',
+]
+
 async function check(kind, testCase, toSearch, { flags, entryPoints }) {
   let failed = 0
 
@@ -322,6 +339,10 @@ async function main() {
       check('splitting' + suffix, testCaseCodeSplitting, toSearchCodeSplitting, {
         flags: flags.concat('--outdir=.', '--bundle', '--splitting', '--format=esm'),
         entryPoints: ['out.ts', 'other.ts'],
+      }),
+      check('unicode' + suffix, testCaseUnicode, toSearchUnicode, {
+        flags: flags.concat('--outfile=out.js', '--bundle'),
+        entryPoints: ['entry.js'],
       }),
     )
   }

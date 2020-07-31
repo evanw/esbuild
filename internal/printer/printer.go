@@ -297,11 +297,6 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 		case '\n':
 			if quote == '`' {
 				js = append(js, '\n')
-
-				// Make sure to do with print() does for newlines
-				if p.options.SourceForSourceMap != nil {
-					p.appendNewlineToSourceMap(len(js))
-				}
 			} else {
 				js = append(js, "\\n"...)
 			}
@@ -401,12 +396,13 @@ type printer struct {
 	intToBytesBuffer   [64]byte
 
 	// For source maps
-	sourceMap     []byte
-	prevLoc       ast.Loc
-	prevLineStart int
-	prevState     SourceMapState
-	hasPrevState  bool
-	lineStarts    []int32
+	sourceMap           []byte
+	prevLoc             ast.Loc
+	prevState           SourceMapState
+	lastGeneratedUpdate int
+	generatedColumn     int
+	hasPrevState        bool
+	lineOffsetTables    []lineOffsetTable
 
 	// This is a workaround for a bug in the popular "source-map" library:
 	// https://github.com/mozilla/source-map/issues/261. The library will
@@ -419,49 +415,46 @@ type printer struct {
 	lineStartsWithMapping bool
 }
 
-func (p *printer) print(text string) {
-	if p.options.SourceForSourceMap != nil {
-		start := len(p.js)
-		for i, c := range text {
-			if c == '\n' {
-				p.appendNewlineToSourceMap(start + i + 1)
-			}
-		}
-	}
+type lineOffsetTable struct {
+	byteOffsetToStartOfLine int32
 
+	// To get the column number, take the offset in bytes from the start of the
+	// file, subtract "byteOffsetToStartOfLine", divide by 256, and get the item
+	// in "columnOffsets" at that index.
+	//
+	// Then start with "firstColumn" and add "columnDelta" at the index that is
+	// the remainder of the division by 256 above.
+	columnOffsets []columnOffsetTable
+}
+
+const columnDeltaSize = 64
+
+type columnOffsetTable struct {
+	// A flat array of storing the column number for every byte would take up a
+	// log of space. This representation attempts to store the same thing using
+	// less space.
+	//
+	// The column number should increase by at most 64 in a span of 64 bytes,
+	// so we can store the column number every 64 bytes and then store offsets
+	// from that column number for the other bytes. 64 is a tradeoff between
+	// using less space for long lines and using more space for short lines.
+	firstColumn int32
+	columnDelta [columnDeltaSize]byte
+}
+
+func (p *printer) print(text string) {
 	p.js = append(p.js, text...)
 }
 
 // This is the same as "print(string(bytes))" without any unnecessary temporary
 // allocations
 func (p *printer) printBytes(bytes []byte) {
-	if p.options.SourceForSourceMap != nil {
-		start := len(p.js)
-		for i, c := range bytes {
-			if c == '\n' {
-				p.appendNewlineToSourceMap(start + i + 1)
-			}
-		}
-	}
-
 	p.js = append(p.js, bytes...)
 }
 
 // This is the same as "print(lexer.UTF16ToString(text))" without any
 // unnecessary temporary allocations
 func (p *printer) printUTF16(text []uint16) {
-	if p.options.SourceForSourceMap != nil {
-		start := len(p.js)
-		for i, c := range text {
-			if c == '\n' {
-				p.prevLineStart = start + i + 1
-				p.prevState.GeneratedLine++
-				p.prevState.GeneratedColumn = 0
-				p.sourceMap = append(p.sourceMap, ';')
-			}
-		}
-	}
-
 	p.js = lexer.AppendUTF16ToBytes(p.js, text)
 }
 
@@ -472,31 +465,34 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 	p.prevLoc = loc
 
 	// Binary search to find the line
-	lineStarts := p.lineStarts
-	count := len(lineStarts)
+	lineOffsetTables := p.lineOffsetTables
+	count := len(lineOffsetTables)
 	originalLine := 0
 	for count > 0 {
 		step := count / 2
 		i := originalLine + step
-		if lineStarts[i] <= loc.Start {
+		if lineOffsetTables[i].byteOffsetToStartOfLine <= loc.Start {
 			originalLine = i + 1
 			count = count - step - 1
 		} else {
 			count = step
 		}
 	}
+	originalLine--
 
 	// Use the line to compute the column
-	originalColumn := int(loc.Start)
-	if originalLine > 0 {
-		originalColumn -= int(lineStarts[originalLine-1])
+	line := &lineOffsetTables[originalLine]
+	originalColumn := int(loc.Start - line.byteOffsetToStartOfLine)
+	if originalColumn != 0 {
+		columnOffsets := &line.columnOffsets[originalColumn/columnDeltaSize]
+		originalColumn = int(columnOffsets.firstColumn) + int(columnOffsets.columnDelta[originalColumn&(columnDeltaSize-1)])
 	}
 
-	generatedColumn := len(p.js) - p.prevLineStart
+	p.updateGeneratedLineAndColumn()
 
 	// If this line doesn't start with a mapping and we're about to add a mapping
 	// that's not at the start, insert a mapping first so the line starts with one.
-	if !p.lineStartsWithMapping && generatedColumn > 0 && p.hasPrevState {
+	if !p.lineStartsWithMapping && p.generatedColumn > 0 && p.hasPrevState {
 		p.appendMappingWithoutRemapping(SourceMapState{
 			GeneratedLine:   p.prevState.GeneratedLine,
 			GeneratedColumn: 0,
@@ -508,13 +504,132 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 
 	p.appendMapping(SourceMapState{
 		GeneratedLine:   p.prevState.GeneratedLine,
-		GeneratedColumn: generatedColumn,
+		GeneratedColumn: p.generatedColumn,
 		OriginalLine:    originalLine,
 		OriginalColumn:  originalColumn,
 	})
 
 	// This line now has a mapping on it, so don't insert another one
 	p.lineStartsWithMapping = true
+}
+
+// Scan over the printed text since the last source mapping and update the
+// generated line and column numbers
+func (p *printer) updateGeneratedLineAndColumn() {
+	for i, c := range string(p.js[p.lastGeneratedUpdate:]) {
+		switch c {
+		case '\r', '\n', '\u2028', '\u2029':
+			// Handle Windows-specific "\r\n" newlines
+			if c == '\r' {
+				newlineCheck := p.lastGeneratedUpdate + i + 1
+				if newlineCheck < len(p.js) && p.js[newlineCheck] == '\n' {
+					continue
+				}
+			}
+
+			// If we're about to move to the next line and the previous line didn't have
+			// any mappings, add a mapping at the start of the previous line.
+			if !p.lineStartsWithMapping && p.hasPrevState {
+				p.appendMappingWithoutRemapping(SourceMapState{
+					GeneratedLine:   p.prevState.GeneratedLine,
+					GeneratedColumn: 0,
+					SourceIndex:     p.prevState.SourceIndex,
+					OriginalLine:    p.prevState.OriginalLine,
+					OriginalColumn:  p.prevState.OriginalColumn,
+				})
+			}
+
+			p.prevState.GeneratedLine++
+			p.prevState.GeneratedColumn = 0
+			p.generatedColumn = 0
+			p.sourceMap = append(p.sourceMap, ';')
+
+			// This new line doesn't have a mapping yet
+			p.lineStartsWithMapping = false
+
+		default:
+			// Mozilla's "source-map" library counts columns using UTF-16 code units
+			if c <= 0xFFFF {
+				p.generatedColumn++
+			} else {
+				p.generatedColumn += 2
+			}
+		}
+	}
+
+	p.lastGeneratedUpdate = len(p.js)
+}
+
+func generateLineOffsetTables(contents string) []lineOffsetTable {
+	var lineOffsetTables []lineOffsetTable
+	var columnOffsets []columnOffsetTable
+	lineByteOffset := 0
+	columnByteOffset := 0
+	column := int32(0)
+
+	for i, c := range contents {
+		// Mark the start of the next line
+		if columnByteOffset == 0 {
+			lineByteOffset = i
+		}
+
+		// Update the compressed per-byte column offsets
+		for lineBytesSoFar := i - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
+			deltaIndex := columnByteOffset & (columnDeltaSize - 1)
+			if deltaIndex == 0 {
+				columnOffsets = append(columnOffsets, columnOffsetTable{firstColumn: column})
+			}
+			last := &columnOffsets[len(columnOffsets)-1]
+			last.columnDelta[deltaIndex] = byte(column - last.firstColumn)
+		}
+
+		switch c {
+		case '\r', '\n', '\u2028', '\u2029':
+			// Handle Windows-specific "\r\n" newlines
+			if c == '\r' {
+				if i+1 < len(contents) && contents[i+1] == '\n' {
+					continue
+				}
+			}
+
+			lineOffsetTables = append(lineOffsetTables, lineOffsetTable{
+				byteOffsetToStartOfLine: int32(lineByteOffset),
+				columnOffsets:           columnOffsets,
+			})
+			columnByteOffset = 0
+			columnOffsets = nil
+			column = 0
+
+		default:
+			// Mozilla's "source-map" library counts columns using UTF-16 code units
+			if c <= 0xFFFF {
+				column++
+			} else {
+				column += 2
+			}
+		}
+	}
+
+	// Mark the start of the next line
+	if columnByteOffset == 0 {
+		lineByteOffset = len(contents)
+	}
+
+	// Do one last update for the column at the end of the file
+	for lineBytesSoFar := len(contents) - lineByteOffset; columnByteOffset <= lineBytesSoFar; columnByteOffset++ {
+		deltaIndex := columnByteOffset & (columnDeltaSize - 1)
+		if deltaIndex == 0 {
+			columnOffsets = append(columnOffsets, columnOffsetTable{firstColumn: column})
+		}
+		last := &columnOffsets[len(columnOffsets)-1]
+		last.columnDelta[deltaIndex] = byte(column - last.firstColumn)
+	}
+
+	lineOffsetTables = append(lineOffsetTables, lineOffsetTable{
+		byteOffsetToStartOfLine: int32(lineByteOffset),
+		columnOffsets:           columnOffsets,
+	})
+	return lineOffsetTables
 }
 
 func (p *printer) appendMapping(currentState SourceMapState) {
@@ -546,29 +661,6 @@ func (p *printer) appendMappingWithoutRemapping(currentState SourceMapState) {
 	p.sourceMap = appendMapping(p.sourceMap, lastByte, p.prevState, currentState)
 	p.prevState = currentState
 	p.hasPrevState = true
-}
-
-// Don't call this directly. This is called automatically by p.print("\n").
-func (p *printer) appendNewlineToSourceMap(prevLineStart int) {
-	// If we're about to move to the next line and the previous line didn't have
-	// any mappings, add a mapping at the start of the previous line.
-	if !p.lineStartsWithMapping && p.hasPrevState {
-		p.appendMappingWithoutRemapping(SourceMapState{
-			GeneratedLine:   p.prevState.GeneratedLine,
-			GeneratedColumn: 0,
-			SourceIndex:     p.prevState.SourceIndex,
-			OriginalLine:    p.prevState.OriginalLine,
-			OriginalColumn:  p.prevState.OriginalColumn,
-		})
-	}
-
-	p.prevLineStart = prevLineStart
-	p.prevState.GeneratedLine++
-	p.prevState.GeneratedColumn = 0
-	p.sourceMap = append(p.sourceMap, ';')
-
-	// This new line doesn't have a mapping yet
-	p.lineStartsWithMapping = false
 }
 
 func (p *printer) printIndent() {
@@ -2762,22 +2854,7 @@ func createPrinter(
 	// If we're writing out a source map, prepare a table of line start indices
 	// to do binary search on to figure out what line a given AST node came from
 	if options.SourceForSourceMap != nil {
-		lineStarts := []int32{}
-		var prevCodePoint rune
-		for i, codePoint := range options.SourceForSourceMap.Contents {
-			switch codePoint {
-			case '\n':
-				if prevCodePoint == '\r' {
-					lineStarts[len(lineStarts)-1] = int32(i + 1)
-				} else {
-					lineStarts = append(lineStarts, int32(i+1))
-				}
-			case '\r', '\u2028', '\u2029':
-				lineStarts = append(lineStarts, int32(i+1))
-			}
-			prevCodePoint = codePoint
-		}
-		p.lineStarts = lineStarts
+		p.lineOffsetTables = generateLineOffsetTables(options.SourceForSourceMap.Contents)
 	}
 
 	return p
@@ -2804,6 +2881,8 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 		}
 	}
 
+	p.updateGeneratedLineAndColumn()
+
 	return PrintResult{
 		JS:                p.js,
 		ExtractedComments: p.extractedComments,
@@ -2811,7 +2890,7 @@ func Print(tree ast.AST, options PrintOptions) PrintResult {
 			Buffer:               p.sourceMap,
 			QuotedSources:        quotedSources(&tree, &options),
 			EndState:             p.prevState,
-			FinalGeneratedColumn: len(p.js) - p.prevLineStart,
+			FinalGeneratedColumn: p.generatedColumn,
 			ShouldIgnore:         p.shouldIgnoreSourceMap(),
 		},
 	}
@@ -2822,6 +2901,8 @@ func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) Print
 
 	p.printExpr(expr, ast.LLowest, 0)
 
+	p.updateGeneratedLineAndColumn()
+
 	return PrintResult{
 		JS:                p.js,
 		ExtractedComments: p.extractedComments,
@@ -2829,7 +2910,7 @@ func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) Print
 			Buffer:               p.sourceMap,
 			QuotedSources:        quotedSources(nil, &options),
 			EndState:             p.prevState,
-			FinalGeneratedColumn: len(p.js) - p.prevLineStart,
+			FinalGeneratedColumn: p.generatedColumn,
 			ShouldIgnore:         p.shouldIgnoreSourceMap(),
 		},
 	}

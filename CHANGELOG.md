@@ -10,6 +10,10 @@
 
     Source maps were completely incorrect when code splitting was enabled for chunk files that imported other chunk files. The source map offsets were not being adjusted past the automatically-generated cross-chunk import statements. This has been fixed.
 
+* Change source map column offsets from bytes to UTF-16 code units
+
+    The [source map specification](https://sourcemaps.info/spec.html) leaves many things unspecified including what column numbers mean. Until now esbuild has been generating byte offsets for column numbers, but Mozilla's popular [source-map](https://github.com/mozilla/source-map) library appears to use UTF-16 code unit counts for column numbers instead. With this release, esbuild now also uses UTF-16 code units for column numbers in source maps. This should help esbuild's compatibility with other tools in the ecosystem.
+
 ## 0.6.12
 
 * Fix bugs with cross-chunk assignment handling ([#302](https://github.com/evanw/esbuild/issues/302))
