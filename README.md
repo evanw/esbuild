@@ -381,7 +381,7 @@ Advanced options:
   --resolve-extensions=...  A comma-separated list of implicit extensions
   --metafile=...            Write metadata about the build to a JSON file
   --strict                  Transforms handle edge cases but have more overhead
-  --pure=N                  Mark the name N as a pure function for tree shaking
+  --pure:N                  Mark the name N as a pure function for tree shaking
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
 
