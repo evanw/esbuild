@@ -51,6 +51,7 @@ const (
 	OptionalChain
 	RestArgument
 	TemplateLiteral
+	TopLevelAwait
 )
 
 func (features Feature) Has(feature Feature) bool {
@@ -323,6 +324,8 @@ var Table = map[Feature]map[Engine][]int{
 		IOS:     {9},
 		Node:    {4},
 		Safari:  {9},
+	},
+	TopLevelAwait: {
 	},
 }
 

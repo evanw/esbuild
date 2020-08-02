@@ -12,8 +12,17 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
-func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) {
+func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) (didGenerateError bool) {
+	didGenerateError = true
+
 	if !p.UnsupportedFeatures.Has(feature) {
+		if feature == compat.TopLevelAwait && p.IsBundling {
+			p.log.AddRangeError(&p.source, r,
+				"Top-level await is currently not supported when bundling")
+			return
+		}
+
+		didGenerateError = false
 		return
 	}
 
@@ -69,6 +78,11 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) {
 	case compat.NestedRestBinding:
 		name = "non-identifier array rest patterns"
 
+	case compat.TopLevelAwait:
+		p.log.AddRangeError(&p.source, r,
+			fmt.Sprintf("Top-level await is not available in %s", where))
+		return
+
 	case compat.BigInt:
 		// Transforming these will never be supported
 		p.log.AddRangeError(&p.source, r,
@@ -89,6 +103,7 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) {
 
 	p.log.AddRangeError(&p.source, r,
 		fmt.Sprintf("Transforming %s to %s is not supported yet", name, where))
+	return
 }
 
 func (p *parser) isPrivateUnsupported(private *ast.EPrivateIdentifier) bool {

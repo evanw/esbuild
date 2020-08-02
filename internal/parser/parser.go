@@ -201,10 +201,12 @@ type scopeOrder struct {
 
 type fnOpts struct {
 	asyncRange     ast.Range
+	arrowArgErrors *deferredArrowArgErrors
 	isOutsideFn    bool
 	allowAwait     bool
 	allowYield     bool
 	allowSuperCall bool
+	isTopLevel     bool
 
 	// In TypeScript, forward declarations of functions have no bodies
 	allowMissingBodyForTypeScript bool
@@ -828,6 +830,45 @@ func (p *parser) logBindingErrors(errors *deferredErrors) {
 	}
 }
 
+// The "await" and "yield" expressions are never allowed in argument lists but
+// may or may not be allowed otherwise depending on the details of the enclosing
+// function or module. This needs to be handled when parsing an arrow function
+// argument list because we don't know if these expressions are not allowed until
+// we reach the "=>" token (or discover the absence of one).
+//
+// Specifically, for await:
+//
+//   // This is ok
+//   async function foo() { (x = await y) }
+//
+//   // This is an error
+//   async function foo() { (x = await y) => {} }
+//
+// And for yield:
+//
+//   // This is ok
+//   function* foo() { (x = yield y) }
+//
+//   // This is an error
+//   function* foo() { (x = yield y) => {} }
+//
+type deferredArrowArgErrors struct {
+	invalidExprAwait ast.Range
+	invalidExprYield ast.Range
+}
+
+func (p *parser) logArrowArgErrors(errors *deferredArrowArgErrors) {
+	if errors.invalidExprAwait.Len > 0 {
+		r := errors.invalidExprAwait
+		p.log.AddRangeError(&p.source, r, "Cannot use an \"await\" expression here")
+	}
+
+	if errors.invalidExprYield.Len > 0 {
+		r := errors.invalidExprYield
+		p.log.AddRangeError(&p.source, r, "Cannot use a \"yield\" expression here")
+	}
+}
+
 type propertyOpts struct {
 	asyncRange  ast.Range
 	isAsync     bool
@@ -1376,6 +1417,7 @@ type parenExprOpts struct {
 func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	items := []ast.Expr{}
 	errors := deferredErrors{}
+	arrowArgErrors := deferredArrowArgErrors{}
 	spreadRange := ast.Range{}
 	typeColonRange := ast.Range{}
 
@@ -1391,6 +1433,10 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	// Allow "in" inside parentheses
 	oldAllowIn := p.allowIn
 	p.allowIn = true
+
+	// Forbid "await" and "yield", but only for arrow functions
+	oldFnOpts := p.currentFnOpts
+	p.currentFnOpts.arrowArgErrors = &arrowArgErrors
 
 	// Scan over the comma-separated arguments or expressions
 	for p.lexer.Token != lexer.TCloseParen {
@@ -1446,6 +1492,9 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	// Restore "in" operator status before we parse the arrow function body
 	p.allowIn = oldAllowIn
 
+	// Also restore "await" and "yield" expression errors
+	p.currentFnOpts = oldFnOpts
+
 	// Are these arguments to an arrow function?
 	if p.lexer.Token == lexer.TEqualsGreaterThan || opts.forceArrowFn || (p.TS.Parse && p.lexer.Token == lexer.TColon) {
 		invalidLog := []ast.Loc{}
@@ -1469,6 +1518,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 		if p.lexer.Token == lexer.TEqualsGreaterThan || (len(invalidLog) == 0 &&
 			p.trySkipTypeScriptArrowReturnTypeWithBacktracking()) || opts.forceArrowFn {
 			p.logBindingErrors(&errors)
+			p.logArrowArgErrors(&arrowArgErrors)
 
 			// Now that we've decided we're an arrow function, report binding pattern
 			// conversion errors
@@ -1726,6 +1776,10 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			panic(lexer.LexerPanic{})
 		}
 
+		if p.currentFnOpts.arrowArgErrors != nil {
+			p.currentFnOpts.arrowArgErrors.invalidExprYield = p.lexer.Range()
+		}
+
 		p.lexer.Next()
 
 		// Parse a yield-from expression, which yields from an iterator
@@ -1756,12 +1810,19 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 	case lexer.TIdentifier:
 		name := p.lexer.Identifier
 		nameRange := p.lexer.Range()
+		raw := p.lexer.Raw()
 		p.lexer.Next()
 
 		// Handle async and await expressions
-		if name == "async" {
+		if raw == "async" {
 			return p.parseAsyncPrefixExpr(nameRange)
-		} else if p.currentFnOpts.allowAwait && name == "await" {
+		} else if p.currentFnOpts.allowAwait && raw == "await" {
+			if p.currentFnOpts.isTopLevel {
+				p.markSyntaxFeature(compat.TopLevelAwait, nameRange)
+			}
+			if p.currentFnOpts.arrowArgErrors != nil {
+				p.currentFnOpts.arrowArgErrors.invalidExprAwait = nameRange
+			}
 			return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LPrefix)}}
 		}
 
@@ -3452,6 +3513,11 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 	fn.IsGenerator = opts.allowYield
 	p.lexer.Expect(lexer.TOpenParen)
 
+	// Await and yield are not allowed in function arguments
+	oldFnOpts := p.currentFnOpts
+	p.currentFnOpts.allowAwait = false
+	p.currentFnOpts.allowYield = false
+
 	// Reserve the special name "arguments" in this scope. This ensures that it
 	// shadows any variable called "arguments" in any parent scopes.
 	fn.ArgumentsRef = p.declareSymbol(ast.SymbolHoisted, ast.Loc{}, "arguments")
@@ -3558,6 +3624,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 	}
 
 	p.lexer.Expect(lexer.TCloseParen)
+	p.currentFnOpts = oldFnOpts
 
 	// "function foo(): any {}"
 	if p.TS.Parse && p.lexer.Token == lexer.TColon {
@@ -4410,11 +4477,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		// "for await (let x of y) {}"
 		isForAwait := p.lexer.IsContextualKeyword("await")
 		if isForAwait {
+			awaitRange := p.lexer.Range()
 			if !p.currentFnOpts.allowAwait {
-				p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"await\" outside an async function")
+				p.log.AddRangeError(&p.source, awaitRange, "Cannot use \"await\" outside an async function")
 				isForAwait = false
 			} else {
-				p.markSyntaxFeature(compat.ForAwait, p.lexer.Range())
+				didGenerateError := p.markSyntaxFeature(compat.ForAwait, awaitRange)
+				if p.currentFnOpts.isTopLevel && !didGenerateError {
+					p.markSyntaxFeature(compat.TopLevelAwait, awaitRange)
+				}
 			}
 			p.lexer.Next()
 		}
@@ -4775,7 +4846,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 		// Parse either an async function, an async expression, or a normal expression
 		var expr ast.Expr
-		if isIdentifier && name == "async" {
+		if isIdentifier && p.lexer.Raw() == "async" {
 			asyncRange := p.lexer.Range()
 			p.lexer.Next()
 			if p.lexer.Token == lexer.TFunction {
@@ -8553,6 +8624,10 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 		hashbang = p.lexer.Identifier
 		p.lexer.Next()
 	}
+
+	// Allow top-level await
+	p.currentFnOpts.allowAwait = true
+	p.currentFnOpts.isTopLevel = true
 
 	// Parse the file in the first pass, but do not bind symbols
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{isModuleScope: true})

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add support for parsing top-level await ([#253](https://github.com/evanw/esbuild/issues/253))
+
+    It seems appropriate for esbuild to support top-level await syntax now that [node is supporting top-level await syntax by default](https://github.com/nodejs/node/issues/34551) (it's the first widely-used platform to do so). This syntax can now be parsed by esbuild and is always passed through untransformed. It's only allowed when the target is `esnext` because the proposal is still in stage 3. It also cannot be used when bundling. Adding support for top-level await to the bundler is complicated since it causes imports to be asynchronous, which has far-reaching implications. This change is mainly for people using esbuild as a library to transform TypeScript into JavaScript one file at a time.
+
 ## 0.6.13
 
 * Exclude non-JavaScript files from source maps ([#304](https://github.com/evanw/esbuild/issues/304))

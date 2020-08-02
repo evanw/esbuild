@@ -201,12 +201,9 @@ These syntax features are currently always passed through un-transformed:
 | [Async generators](https://github.com/tc39/proposal-async-iteration)                | `es2018`                             | `async function* foo() {}`  |
 | [BigInt](https://github.com/tc39/proposal-bigint)                                   | `es2020`                             | `123n`                      |
 | [Hashbang grammar](https://github.com/tc39/proposal-hashbang)                       | `esnext`                             | `#!/usr/bin/env node`       |
+| [Top-level await](https://github.com/tc39/proposal-top-level-await)                 | `esnext`                             | `await import(x)`           |
 
-These syntax features are not yet supported, and currently cannot be parsed:
-
-| Syntax transform                                                    | Language version | Example           |
-|---------------------------------------------------------------------|------------------|-------------------|
-| [Top-level await](https://github.com/tc39/proposal-top-level-await) | `esnext`         | `await import(x)` |
+Note that while transforming code containing top-level await is supported, bundling code containing top-level await is not yet supported.
 
 See also [the list of finished ECMAScript proposals](https://github.com/tc39/proposals/blob/master/finished-proposals.md) and [the list of active ECMAScript proposals](https://github.com/tc39/proposals/blob/master/README.md).
 

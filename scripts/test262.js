@@ -76,7 +76,6 @@ async function main() {
       if (yaml.features.includes('regexp-match-indices')) return
       if (yaml.features.includes('regexp-named-groups')) return
       if (yaml.features.includes('regexp-unicode-property-escapes')) return
-      if (yaml.features.includes('top-level-await')) return
     }
 
     const result = await esbuildFile(content, { minify: false });

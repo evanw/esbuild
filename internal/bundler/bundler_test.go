@@ -4701,3 +4701,22 @@ console.log("test");
 		},
 	})
 }
+
+func TestTopLevelAwait(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: Top-level await is currently not supported when bundling
+/entry.js: error: Top-level await is currently not supported when bundling
+`,
+	})
+}
