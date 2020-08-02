@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.14
 
 * Add support for parsing top-level await ([#253](https://github.com/evanw/esbuild/issues/253))
 
