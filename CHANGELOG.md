@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.16
 
 * Colors for Windows console output
 
