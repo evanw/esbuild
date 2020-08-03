@@ -194,7 +194,7 @@ const toSearchPartialMappings = [
   'entry',
 ]
 
-async function check(kind, testCase, toSearch, { flags, entryPoints }) {
+async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
   let failed = 0
 
   try {
@@ -211,8 +211,10 @@ async function check(kind, testCase, toSearch, { flags, entryPoints }) {
     for (const name in testCase) {
       if (name !== '<stdin>') {
         const tempPath = path.join(tempDir, name)
+        let code = testCase[name]
         mkdirp.sync(path.dirname(tempPath))
-        await writeFileAsync(tempPath, testCase[name])
+        if (crlf) code = code.replace(/\n/g, '\r\n')
+        await writeFileAsync(tempPath, code)
       }
     }
 
@@ -328,47 +330,58 @@ async function check(kind, testCase, toSearch, { flags, entryPoints }) {
 
 async function main() {
   const promises = []
-  for (const minify of [false, true]) {
-    const flags = minify ? ['--minify'] : []
-    const suffix = minify ? '-min' : ''
-    promises.push(
-      check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, {
-        flags: flags.concat('--outfile=out.js', '--bundle'),
-        entryPoints: ['a.js'],
-      }),
-      check('es6' + suffix, testCaseES6, toSearchBundle, {
-        flags: flags.concat('--outfile=out.js', '--bundle'),
-        entryPoints: ['a.js'],
-      }),
-      check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, {
-        flags: flags.concat('--outfile=out.js'),
-        entryPoints: ['a.ts'],
-      }),
-      check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, {
-        flags: flags.concat('--sourcefile=<stdin>'),
-        entryPoints: [],
-      }),
-      check('empty' + suffix, testCaseEmptyFile, toSearchEmptyFile, {
-        flags: flags.concat('--outfile=out.js', '--bundle'),
-        entryPoints: ['entry.js'],
-      }),
-      check('non-js' + suffix, testCaseNonJavaScriptFile, toSearchNonJavaScriptFile, {
-        flags: flags.concat('--outfile=out.js', '--bundle'),
-        entryPoints: ['entry.js'],
-      }),
-      check('splitting' + suffix, testCaseCodeSplitting, toSearchCodeSplitting, {
-        flags: flags.concat('--outdir=.', '--bundle', '--splitting', '--format=esm'),
-        entryPoints: ['out.ts', 'other.ts'],
-      }),
-      check('unicode' + suffix, testCaseUnicode, toSearchUnicode, {
-        flags: flags.concat('--outfile=out.js', '--bundle'),
-        entryPoints: ['entry.js'],
-      }),
-      check('dummy' + suffix, testCasePartialMappings, toSearchPartialMappings, {
-        flags: flags.concat('--outfile=out.js', '--bundle'),
-        entryPoints: ['entry.js'],
-      }),
-    )
+  for (const crlf of [false, true]) {
+    for (const minify of [false, true]) {
+      const flags = minify ? ['--minify'] : []
+      const suffix = (crlf ? '-crlf' : '') + (minify ? '-min' : '')
+      promises.push(
+        check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['a.js'],
+          crlf,
+        }),
+        check('es6' + suffix, testCaseES6, toSearchBundle, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['a.js'],
+          crlf,
+        }),
+        check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, {
+          flags: flags.concat('--outfile=out.js'),
+          entryPoints: ['a.ts'],
+          crlf,
+        }),
+        check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, {
+          flags: flags.concat('--sourcefile=<stdin>'),
+          entryPoints: [],
+          crlf,
+        }),
+        check('empty' + suffix, testCaseEmptyFile, toSearchEmptyFile, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('non-js' + suffix, testCaseNonJavaScriptFile, toSearchNonJavaScriptFile, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('splitting' + suffix, testCaseCodeSplitting, toSearchCodeSplitting, {
+          flags: flags.concat('--outdir=.', '--bundle', '--splitting', '--format=esm'),
+          entryPoints: ['out.ts', 'other.ts'],
+          crlf,
+        }),
+        check('unicode' + suffix, testCaseUnicode, toSearchUnicode, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('dummy' + suffix, testCasePartialMappings, toSearchPartialMappings, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+      )
+    }
   }
 
   const failed = (await Promise.all(promises)).reduce((a, b) => a + b, 0)
