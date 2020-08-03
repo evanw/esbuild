@@ -2284,12 +2284,16 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 	oldAllowIn := p.allowIn
 	p.allowIn = true
 
+	p.lexer.PreserveAllCommentsBefore = true
 	p.lexer.Expect(lexer.TOpenParen)
+	comments := p.lexer.CommentsToPreserveBefore
+	p.lexer.PreserveAllCommentsBefore = false
+
 	value := p.parseExpr(ast.LComma)
 	p.lexer.Expect(lexer.TCloseParen)
 
 	p.allowIn = oldAllowIn
-	return ast.Expr{Loc: loc, Data: &ast.EImport{Expr: value}}
+	return ast.Expr{Loc: loc, Data: &ast.EImport{Expr: value, LeadingInteriorComments: comments}}
 }
 
 func (p *parser) parseExprOrBindings(level ast.L, errors *deferredErrors) ast.Expr {

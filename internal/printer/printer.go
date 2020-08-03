@@ -1134,7 +1134,7 @@ type requireCallArgs struct {
 	mustReturnPromise bool
 }
 
-func (p *printer) printRequireOrImportExpr(importRecordIndex uint32) {
+func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []ast.Comment) {
 	space := " "
 	if p.options.RemoveWhitespace {
 		space = ""
@@ -1146,7 +1146,20 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32) {
 	// Preserve "import()" expressions that don't point inside the bundle
 	if record.SourceIndex == nil && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
 		p.print("import(")
+		if len(leadingInteriorComments) > 0 {
+			p.printNewline()
+			p.options.Indent++
+			for _, comment := range leadingInteriorComments {
+				p.printIndentedComment(comment.Text)
+			}
+			p.printIndent()
+		}
 		p.print(Quote(record.Path.Text))
+		if len(leadingInteriorComments) > 0 {
+			p.printNewline()
+			p.options.Indent--
+			p.printIndent()
+		}
 		p.print(")")
 		return
 	}
@@ -1329,7 +1342,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
-		p.printRequireOrImportExpr(e.ImportRecordIndex)
+		p.printRequireOrImportExpr(e.ImportRecordIndex, nil)
 		if wrap {
 			p.print(")")
 		}
@@ -1339,15 +1352,35 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		if wrap {
 			p.print("(")
 		}
+
+		var leadingInteriorComments []ast.Comment
+		if !p.options.RemoveWhitespace {
+			leadingInteriorComments = e.LeadingInteriorComments
+		}
+
 		if e.ImportRecordIndex != nil {
-			p.printRequireOrImportExpr(*e.ImportRecordIndex)
+			p.printRequireOrImportExpr(*e.ImportRecordIndex, leadingInteriorComments)
 		} else {
 			// Handle non-string expressions
 			p.printSpaceBeforeIdentifier()
 			p.print("import(")
+			if len(leadingInteriorComments) > 0 {
+				p.printNewline()
+				p.options.Indent++
+				for _, comment := range e.LeadingInteriorComments {
+					p.printIndentedComment(comment.Text)
+				}
+				p.printIndent()
+			}
 			p.printExpr(e.Expr, ast.LComma, 0)
+			if len(leadingInteriorComments) > 0 {
+				p.printNewline()
+				p.options.Indent--
+				p.printIndent()
+			}
 			p.print(")")
 		}
+
 		if wrap {
 			p.print(")")
 		}
@@ -2214,6 +2247,29 @@ func (p *printer) printIf(s *ast.SIf) {
 	}
 }
 
+func (p *printer) printIndentedComment(text string) {
+	if strings.HasPrefix(text, "/*") {
+		// Re-indent multi-line comments
+		for {
+			newline := strings.IndexByte(text, '\n')
+			if newline == -1 {
+				break
+			}
+			p.printIndent()
+			p.print(text[:newline+1])
+			text = text[newline+1:]
+		}
+		p.printIndent()
+		p.print(text)
+		p.printNewline()
+	} else {
+		// Print a mandatory newline after single-line comments
+		p.printIndent()
+		p.print(text)
+		p.print("\n")
+	}
+}
+
 func (p *printer) printStmt(stmt ast.Stmt) {
 	p.addSourceMapping(stmt.Loc)
 
@@ -2227,26 +2283,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.extractedComments[text] = true
 			break
 		}
-		if strings.HasPrefix(text, "/*") {
-			// Re-indent multi-line comments
-			for {
-				newline := strings.IndexByte(text, '\n')
-				if newline == -1 {
-					break
-				}
-				p.printIndent()
-				p.print(text[:newline+1])
-				text = text[newline+1:]
-			}
-			p.printIndent()
-			p.print(text)
-			p.printNewline()
-		} else {
-			// Print a mandatory newline after single-line comments
-			p.printIndent()
-			p.print(text)
-			p.print("\n")
-		}
+		p.printIndentedComment(text)
 
 	case *ast.SFunction:
 		p.printIndent()

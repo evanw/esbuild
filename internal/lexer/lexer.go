@@ -229,11 +229,6 @@ type json struct {
 	allowComments bool
 }
 
-type Comment struct {
-	Loc  ast.Loc
-	Text string
-}
-
 type Lexer struct {
 	log                             logging.Log
 	source                          logging.Source
@@ -243,7 +238,8 @@ type Lexer struct {
 	Token                           T
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
-	CommentsToPreserveBefore        []Comment
+	PreserveAllCommentsBefore       bool
+	CommentsToPreserveBefore        []ast.Comment
 	codePoint                       rune
 	StringLiteral                   []uint16
 	Identifier                      string
@@ -781,8 +777,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
 						lexer.addError(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment")
-						lexer.Token = TSyntaxError
-						break multiLineComment
+						panic(LexerPanic{})
 
 					default:
 						lexer.step()
@@ -1176,8 +1171,7 @@ func (lexer *Lexer) Next() {
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
 						lexer.addError(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment")
-						lexer.Token = TSyntaxError
-						break multiLineComment
+						panic(LexerPanic{})
 
 					default:
 						lexer.step()
@@ -2327,12 +2321,12 @@ func (lexer *Lexer) scanCommentText() {
 		}
 	}
 
-	if hasPreserveAnnotation {
+	if hasPreserveAnnotation || lexer.PreserveAllCommentsBefore {
 		if text[1] == '*' {
 			text = removeMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
 		}
 
-		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, Comment{
+		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, ast.Comment{
 			Loc:  ast.Loc{Start: int32(lexer.start)},
 			Text: text,
 		})

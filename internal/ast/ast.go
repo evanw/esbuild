@@ -250,6 +250,11 @@ type LocRef struct {
 	Ref Ref
 }
 
+type Comment struct {
+	Loc  Loc
+	Text string
+}
+
 type Span struct {
 	Text  string
 	Range Range
@@ -599,6 +604,15 @@ type ERequire struct {
 type EImport struct {
 	Expr              Expr
 	ImportRecordIndex *uint32
+
+	// Comments inside "import()" expressions have special meaning for Webpack.
+	// Preserving comments inside these expressions makes it possible to use
+	// esbuild as a TypeScript-to-JavaScript frontend for Webpack to improve
+	// performance. We intentionally do not interpret these comments in esbuild
+	// because esbuild is not Webpack. But we do preserve them since doing so is
+	// harmless, easy to maintain, and useful to people. See the Webpack docs for
+	// more info: https://webpack.js.org/api/module-methods/#magic-comments.
+	LeadingInteriorComments []Comment
 }
 
 func (*EArray) isExpr()             {}

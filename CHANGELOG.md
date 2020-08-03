@@ -6,6 +6,10 @@
 
     Previously esbuild only supported symlinks with relative paths, not absolute paths. Adding support for absolute paths in symlinks fixes issues with esbuild and [pnpm](https://github.com/pnpm/pnpm) on Windows.
 
+* Preserve leading comments inside `import()` expressions ([#309](https://github.com/evanw/esbuild/issues/309))
+
+    This makes it possible to use esbuild as a faster TypeScript-to-JavaScript frontend for Webpack, which has special [magic comments](https://webpack.js.org/api/module-methods/#magic-comments) inside `import()` expressions that affect Webpack's behavior.
+
 ## 0.6.14
 
 * Add support for parsing top-level await ([#253](https://github.com/evanw/esbuild/issues/253))
