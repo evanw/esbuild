@@ -325,6 +325,14 @@ func TestTemplate(t *testing.T) {
 
 func TestObject(t *testing.T) {
 	expectPrinted(t, "let x = {'(':')'}", "let x = {\"(\": \")\"};\n")
+	expectPrinted(t, "({})", "({});\n")
+	expectPrinted(t, "({}.x)", "({}).x;\n")
+	expectPrinted(t, "({} = {})", "({} = {});\n")
+	expectPrinted(t, "(x, {} = {})", "x, {} = {};\n")
+	expectPrinted(t, "let x = () => ({})", "let x = () => ({});\n")
+	expectPrinted(t, "let x = () => ({}.x)", "let x = () => ({}).x;\n")
+	expectPrinted(t, "let x = () => ({} = {})", "let x = () => ({} = {});\n")
+	expectPrinted(t, "let x = () => (x, {} = {})", "let x = () => (x, {} = {});\n")
 }
 
 func TestFor(t *testing.T) {
@@ -574,7 +582,7 @@ func TestWhitespace(t *testing.T) {
 
 	expectPrintedMinify(t, "()=>({})", "()=>({});")
 	expectPrintedMinify(t, "()=>({}[1])", "()=>({})[1];")
-	expectPrintedMinify(t, "()=>({}+0)", "()=>({})+0;")
+	expectPrintedMinify(t, "()=>({}+0)", "()=>({}+0);")
 	expectPrintedMinify(t, "()=>function(){}", "()=>function(){};")
 
 	expectPrintedMinify(t, "(function(){})", "(function(){});")

@@ -1834,7 +1834,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		wrap := level >= entry.Level || (e.Op == ast.BinOpIn && (flags&forbidIn) != 0)
 
 		// Destructuring assignments must be parenthesized
-		if p.stmtStart == len(p.js) {
+		if n := len(p.js); p.stmtStart == n || p.arrowExprStart == n {
 			if _, ok := e.Left.Data.(*ast.EObject); ok {
 				wrap = true
 			}

@@ -6,6 +6,10 @@
 
     Console output on Windows now uses color instead of being monochrome. This should make log messages easier to read.
 
+* Parenthesize destructuring assignment in arrow function expressions ([#313](https://github.com/evanw/esbuild/issues/313))
+
+    This fixes a bug where `() => ({} = {})` was incorrectly printed as `() => ({}) = {}`, which is a syntax error. This case is now printed correctly.
+
 ## 0.6.15
 
 * Support symlinks with absolute paths in `node_modules` ([#310](https://github.com/evanw/esbuild/issues/310))
