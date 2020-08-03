@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+* Add a download cache to the install script
+
+    This speeds up repeated esbuild installs for the same version by only downloading the binary from npm the first time and then reusing it for subsequent installs. The binary files are cached in these locations, which are the same locations as the Electron install script:
+
+    * Windows: `%USERPROFILE%\AppData\Local\Cache\esbuild\bin`
+    * macOS: `~/Library/Caches/esbuild/bin`
+    * Other: `~/.cache/esbuild/bin`
+
+    The cache holds a maximum of 5 entries and purges least-recently-used entries above that limit.
+
 ## 0.6.16
 
 * Colors for Windows console output

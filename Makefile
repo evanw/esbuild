@@ -84,14 +84,14 @@ platform-linux-arm64:
 platform-linux-ppc64le:
 	make GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
 
-platform-wasm: | esbuild
+platform-wasm: esbuild | scripts/node_modules
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 	cd npm/esbuild-wasm && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 	mkdir -p npm/esbuild-wasm/lib
 	node scripts/esbuild.js ./esbuild --wasm
 
-platform-neutral: | esbuild
+platform-neutral: esbuild | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild
 

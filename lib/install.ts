@@ -18,6 +18,23 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
     return;
   }
 
+  // Try to install from the cache if possible
+  const cachePath = getCachePath(name);
+  try {
+    // Copy from the cache
+    fs.copyFileSync(cachePath, toPath);
+    fs.chmodSync(toPath, 0o755);
+
+    // Mark the cache entry as used for LRU
+    const now = new Date;
+    fs.utimesSync(cachePath, now, now);
+
+    // Mark the operation as successful so this script is idempotent
+    fs.writeFileSync(stampPath, '');
+    return;
+  } catch {
+  }
+
   // Download the package from npm
   let officialRegistry = 'registry.npmjs.org';
   let urls = [`https://${officialRegistry}/${name}/-/${name}-${version}.tgz`];
@@ -49,10 +66,19 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
       if (debug) console.error(`Install successful`);
 
       // Write out the binary executable that was extracted from the package
-      fs.writeFileSync(toPath, buffer);
+      fs.writeFileSync(toPath, buffer, { mode: 0o755 });
 
       // Mark the operation as successful so this script is idempotent
       fs.writeFileSync(stampPath, '');
+
+      // Also try to cache the file to speed up future installs
+      try {
+        fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+        fs.copyFileSync(toPath, cachePath);
+        await cleanCacheLRU(cachePath);
+      } catch {
+      }
+
       return;
     }
 
@@ -65,6 +91,33 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
 
   console.error(`Install unsuccessful`);
   process.exit(1);
+}
+
+function getCachePath(name: string): string {
+  const home = os.homedir();
+  const common = ['esbuild', 'bin', `${name}@${version}`];
+  if (process.platform === 'darwin') return path.join(home, 'Library', 'Caches', ...common);
+  if (process.platform === 'win32') return path.join(home, 'AppData', 'Local', 'Cache', ...common);
+  return path.join(home, '.cache', ...common);
+}
+
+async function cleanCacheLRU(fileToKeep: string): Promise<void> {
+  // Gather all entries in the cache
+  const dir = path.dirname(fileToKeep);
+  const entries: { path: string, mtime: Date }[] = [];
+  await Promise.all(fs.readdirSync(dir).map(entry => new Promise(resolve => {
+    const entryPath = path.join(dir, entry);
+    fs.stat(entryPath, (err, stats) => {
+      if (!err) entries.push({ path: entryPath, mtime: stats.mtime });
+      resolve();
+    });
+  })));
+
+  // Only keep the most recent entries
+  entries.sort((a, b) => +b.mtime - +a.mtime);
+  await Promise.all(entries.slice(5).map(entry => new Promise(resolve => {
+    fs.unlink(entry.path, resolve);
+  })));
 }
 
 function fetch(url: string): Promise<Buffer> {
