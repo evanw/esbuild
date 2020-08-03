@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.15
 
 * Support symlinks with absolute paths in `node_modules` ([#310](https://github.com/evanw/esbuild/issues/310))
 
