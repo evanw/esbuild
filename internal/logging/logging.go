@@ -165,12 +165,12 @@ func NewStderrLog(options StderrOptions) Log {
 			case Error:
 				errors++
 				if options.LogLevel <= LevelError {
-					os.Stderr.WriteString(msg.String(options, terminalInfo))
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
 				}
 			case Warning:
 				warnings++
 				if options.LogLevel <= LevelWarning {
-					os.Stderr.WriteString(msg.String(options, terminalInfo))
+					writeStringWithColor(os.Stderr, msg.String(options, terminalInfo))
 				}
 			}
 
@@ -178,7 +178,8 @@ func NewStderrLog(options StderrOptions) Log {
 			if options.ErrorLimit != 0 && errors >= options.ErrorLimit {
 				errorLimitWasHit = true
 				if options.LogLevel <= LevelError {
-					fmt.Fprintf(os.Stderr, "%s reached (disable error limit with --error-limit=0)\n", errorAndWarningSummary(errors, warnings))
+					writeStringWithColor(os.Stderr, fmt.Sprintf(
+						"%s reached (disable error limit with --error-limit=0)\n", errorAndWarningSummary(errors, warnings)))
 				}
 			}
 		},
@@ -193,7 +194,7 @@ func NewStderrLog(options StderrOptions) Log {
 
 			// Print out a summary if the error limit wasn't hit
 			if !errorLimitWasHit && options.LogLevel <= LevelInfo && (warnings != 0 || errors != 0) {
-				fmt.Fprintf(os.Stderr, "%s\n", errorAndWarningSummary(errors, warnings))
+				writeStringWithColor(os.Stderr, fmt.Sprintf("%s\n", errorAndWarningSummary(errors, warnings)))
 			}
 
 			return msgs

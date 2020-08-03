@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Colors for Windows console output
+
+    Console output on Windows now uses color instead of being monochrome. This should make log messages easier to read.
+
 ## 0.6.15
 
 * Support symlinks with absolute paths in `node_modules` ([#310](https://github.com/evanw/esbuild/issues/310))

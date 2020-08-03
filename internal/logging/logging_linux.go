@@ -35,3 +35,7 @@ func GetTerminalInfo(file *os.File) (info TerminalInfo) {
 
 	return
 }
+
+func writeStringWithColor(file *os.File, text string) {
+	file.WriteString(text)
+}

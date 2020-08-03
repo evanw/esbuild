@@ -4,14 +4,16 @@ package logging
 
 import (
 	"os"
+	"strings"
 	"syscall"
 	"unsafe"
 )
 
-const SupportsColorEscapes = false
+const SupportsColorEscapes = true
 
 var kernel32 = syscall.NewLazyDLL("kernel32.dll")
 var getConsoleMode = kernel32.NewProc("GetConsoleMode")
+var setConsoleTextAttribute = kernel32.NewProc("SetConsoleTextAttribute")
 var getConsoleScreenBufferInfo = kernel32.NewProc("GetConsoleScreenBufferInfo")
 
 type consoleScreenBufferInfo struct {
@@ -40,7 +42,64 @@ func GetTerminalInfo(file *os.File) TerminalInfo {
 	syscall.Syscall(getConsoleScreenBufferInfo.Addr(), 2, fd, uintptr(unsafe.Pointer(&info)), 0)
 
 	return TerminalInfo{
-		IsTTY: isTTY != 0,
-		Width: int(info.dwSizeX) - 1,
+		IsTTY:           isTTY != 0,
+		Width:           int(info.dwSizeX) - 1,
+		UseColorEscapes: true,
 	}
+}
+
+func writeStringWithColor(file *os.File, text string) {
+	const FOREGROUND_BLUE = 1
+	const FOREGROUND_GREEN = 2
+	const FOREGROUND_RED = 4
+	const FOREGROUND_INTENSITY = 8
+
+	fd := file.Fd()
+	i := 0
+
+	for i < len(text) {
+		var attributes uintptr
+		end := i
+
+		switch {
+		case text[i] != 033:
+			i++
+			continue
+
+		case strings.HasPrefix(text[i:], colorReset):
+			i += len(colorReset)
+			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+
+		case strings.HasPrefix(text[i:], colorRed):
+			i += len(colorRed)
+			attributes = FOREGROUND_RED
+
+		case strings.HasPrefix(text[i:], colorGreen):
+			i += len(colorGreen)
+			attributes = FOREGROUND_GREEN
+
+		case strings.HasPrefix(text[i:], colorMagenta):
+			i += len(colorMagenta)
+			attributes = FOREGROUND_RED | FOREGROUND_BLUE
+
+		case strings.HasPrefix(text[i:], colorBold):
+			i += len(colorBold)
+			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY
+
+		case strings.HasPrefix(text[i:], colorResetBold):
+			i += len(colorResetBold)
+			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY
+
+		default:
+			i++
+			continue
+		}
+
+		file.WriteString(text[:end])
+		text = text[i:]
+		i = 0
+		setConsoleTextAttribute.Call(fd, attributes)
+	}
+
+	file.WriteString(text)
 }
