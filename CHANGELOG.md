@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Support symlinks with absolute paths in `node_modules` ([#310](https://github.com/evanw/esbuild/issues/310))
+
+    Previously esbuild only supported symlinks with relative paths, not absolute paths. Adding support for absolute paths in symlinks fixes issues with esbuild and [pnpm](https://github.com/pnpm/pnpm) on Windows.
+
 ## 0.6.14
 
 * Add support for parsing top-level await ([#253](https://github.com/evanw/esbuild/issues/253))

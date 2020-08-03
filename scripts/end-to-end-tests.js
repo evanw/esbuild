@@ -77,6 +77,18 @@
         'registry/node_modules/bar/index.js': `export const bar = 123`,
         'node_modules/foo/index.js': { symlink: `../../registry/node_modules/foo/index.js` },
       }),
+      test(['--bundle', 'in.js', '--outfile=node.js'], {
+        'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
+        'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
+        'registry/node_modules/bar/index.js': `export const bar = 123`,
+        'node_modules/foo': { symlink: `TEST_DIR_ABS_PATH/registry/node_modules/foo` },
+      }),
+      test(['--bundle', 'in.js', '--outfile=node.js'], {
+        'in.js': `import {foo} from 'foo'; if (foo !== 123) throw 'fail'`,
+        'registry/node_modules/foo/index.js': `export {bar as foo} from 'bar'`,
+        'registry/node_modules/bar/index.js': `export const bar = 123`,
+        'node_modules/foo/index.js': { symlink: `TEST_DIR_ABS_PATH/registry/node_modules/foo/index.js` },
+      }),
     )
   }
 
@@ -793,7 +805,7 @@
             mkdirp.sync(path.dirname(filePath))
 
             // Optionally symlink the file if the test requests it
-            if (contents.symlink) await symlinkAsync(contents.symlink, filePath)
+            if (contents.symlink) await symlinkAsync(contents.symlink.replace('TEST_DIR_ABS_PATH', thisTestDir), filePath)
             else await writeFileAsync(filePath, contents)
           }
 

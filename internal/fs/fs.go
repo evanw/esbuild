@@ -234,7 +234,10 @@ func (fs *realFS) ReadDirectory(dir string) map[string]Entry {
 					if err != nil {
 						continue // Skip over this entry
 					}
-					symlink = filepath.Clean(filepath.Join(dir, link))
+					if !filepath.IsAbs(link) {
+						link = filepath.Join(dir, link)
+					}
+					symlink = filepath.Clean(link)
 
 					// Re-run "lstat" on the symlink target
 					stat2, err2 := os.Lstat(symlink)
