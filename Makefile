@@ -99,6 +99,7 @@ test-otp:
 	test -n "$(OTP)" && echo publish --otp="$(OTP)"
 
 publish-all: update-version-go test-all test-extra
+	rm -fr npm && git checkout npm
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j10 \
 		publish-windows \
