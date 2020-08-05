@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.17
 
 * Add a download cache to the install script
 
