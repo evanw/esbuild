@@ -325,8 +325,7 @@ var Table = map[Feature]map[Engine][]int{
 		Node:    {4},
 		Safari:  {9},
 	},
-	TopLevelAwait: {
-	},
+	TopLevelAwait: {},
 }
 
 func isVersionLessThan(a []int, b []int) bool {

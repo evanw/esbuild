@@ -171,7 +171,8 @@ function upper(text) {
 function writeInnerMap(obj) {
   const keys = Object.keys(obj).sort()
   const maxLength = keys.reduce((a, b) => Math.max(a, b.length + 1), 0)
-  return keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} {${obj[x].join(', ')}},\n`).join('')
+  if (keys.length === 0) return '{}'
+  return `{\n${keys.map(x => `\t\t${(upper(x) + ':').padEnd(maxLength)} {${obj[x].join(', ')}},`).join('\n')}\n\t}`
 }
 
 fs.writeFileSync(__dirname + '/../internal/compat/table.go',
@@ -196,8 +197,7 @@ func (features Feature) Has(feature Feature) bool {
 }
 
 var Table = map[Feature]map[Engine][]int{
-${Object.keys(versions).sort().map(x => `\t${x}: {
-${writeInnerMap(versions[x])}\t},`).join('\n')}
+${Object.keys(versions).sort().map(x => `\t${x}: ${writeInnerMap(versions[x])},`).join('\n')}
 }
 
 func isVersionLessThan(a []int, b []int) bool {

@@ -20,6 +20,9 @@ test-go:
 vet-go:
 	go vet ./cmd/... ./internal/... ./pkg/...
 
+fmt-go:
+	go fmt ./cmd/... ./internal/... ./pkg/...
+
 test-wasm:
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
 
