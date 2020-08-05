@@ -37,6 +37,10 @@ jobs:
     - name: go vet
       run: go vet ./cmd/... ./internal/... ./pkg/...
 
+    - name: go fmt
+      if: matrix.os == 'macos-latest'
+      run: make fmt-go && git diff-index --quiet HEAD --
+
     - name: npm ci
       run: cd scripts && npm ci
 
