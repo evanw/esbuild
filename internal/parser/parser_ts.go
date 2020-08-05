@@ -668,7 +668,13 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 		return
 	}
 
+	name := p.lexer.Identifier
 	p.lexer.Expect(lexer.TIdentifier)
+
+	if opts.isModuleScope {
+		p.localTypeNames[name] = true
+	}
+
 	p.skipTypeScriptTypeParameters()
 	p.lexer.Expect(lexer.TEquals)
 	p.skipTypeScriptType(ast.LLowest)
@@ -820,6 +826,9 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc ast.Loc, opts parseStmtOpts) a
 	// real export either.
 	if len(stmts) == importEqualsCount || opts.isTypeScriptDeclare {
 		p.popAndDiscardScope(scopeIndex)
+		if opts.isModuleScope {
+			p.localTypeNames[nameText] = true
+		}
 		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 	}
 

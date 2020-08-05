@@ -66,6 +66,7 @@ type parser struct {
 	emittedNamespaceVars       map[ast.Ref]bool
 	isExportedInsideNamespace  map[ast.Ref]ast.Ref
 	knownEnumValues            map[ast.Ref]map[string]float64
+	localTypeNames             map[string]bool
 
 	// Imports (both ES6 and CommonJS) are tracked at the top level
 	importRecords               []ast.ImportRecord
@@ -3954,7 +3955,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				case "type":
 					// "export type foo = ..."
 					p.lexer.Next()
-					p.skipTypeScriptTypeStmt(parseStmtOpts{isExport: true})
+					p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope, isExport: true})
 					return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
 				case "namespace", "abstract", "module":
@@ -4185,7 +4186,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 
 		p.lexer.Next()
+		name := p.lexer.Identifier
 		p.lexer.Expect(lexer.TIdentifier)
+
+		if opts.isModuleScope {
+			p.localTypeNames[name] = true
+		}
+
 		p.skipTypeScriptTypeParameters()
 
 		if p.lexer.Token == lexer.TExtends {
@@ -4880,7 +4887,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					case "type":
 						if p.lexer.Token == lexer.TIdentifier {
 							// "type Foo = any"
-							p.skipTypeScriptTypeStmt(parseStmtOpts{})
+							p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
 							return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 						}
 
@@ -5838,6 +5845,16 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		switch {
 		case s.Value.Expr != nil:
 			*s.Value.Expr = p.visitExpr(*s.Value.Expr)
+
+			// Discard type-only export default statements
+			if p.TS.Parse {
+				if id, ok := (*s.Value.Expr).Data.(*ast.EIdentifier); ok {
+					symbol := p.symbols[id.Ref.InnerIndex]
+					if symbol.Kind == ast.SymbolUnbound && p.localTypeNames[symbol.Name] {
+						return stmts
+					}
+				}
+			}
 
 		case s.Value.Stmt != nil:
 			switch s2 := s.Value.Stmt.Data.(type) {
@@ -8587,6 +8604,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		emittedNamespaceVars:      make(map[ast.Ref]bool),
 		isExportedInsideNamespace: make(map[ast.Ref]ast.Ref),
 		knownEnumValues:           make(map[ast.Ref]map[string]float64),
+		localTypeNames:            make(map[string]bool),
 
 		// These are for handling ES6 imports and exports
 		importItemsForNamespace: make(map[ast.Ref]map[string]ast.LocRef),

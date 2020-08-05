@@ -12,6 +12,10 @@
 
     The cache holds a maximum of 5 entries and purges least-recently-used entries above that limit.
 
+* Omit `export default` of local type names ([#316](https://github.com/evanw/esbuild/issues/316))
+
+    Normally the `export default` syntax takes a value expression to export. However, TypeScript has a special case for `export default <identifier>` where the identifier is allowed to be a type expression instead of a value expression. In that case, the type expression should not be emitted in the resulting bundle. This release improves support for this case by omitting the export when the identifier matches a local type name.
+
 ## 0.6.16
 
 * Colors for Windows console output

@@ -1007,3 +1007,211 @@ console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default
 		},
 	})
 }
+
+func TestTSExportDefaultTypeIssue316(t *testing.T) {
+	expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import dc_def, { bar as dc } from './keep/declare-class'
+				import dl_def, { bar as dl } from './keep/declare-let'
+				import im_def, { bar as im } from './keep/interface-merged'
+				import in_def, { bar as _in } from './keep/interface-nested'
+				import tn_def, { bar as tn } from './keep/type-nested'
+				import vn_def, { bar as vn } from './keep/value-namespace'
+				import vnm_def, { bar as vnm } from './keep/value-namespace-merged'
+
+				import i_def, { bar as i } from './remove/interface'
+				import ie_def, { bar as ie } from './remove/interface-exported'
+				import t_def, { bar as t } from './remove/type'
+				import te_def, { bar as te } from './remove/type-exported'
+				import ton_def, { bar as ton } from './remove/type-only-namespace'
+				import tone_def, { bar as tone } from './remove/type-only-namespace-exported'
+
+				export default [
+					dc,
+					dl,
+					im,
+					_in,
+					tn,
+					vn,
+					vnm,
+
+					i,
+					ie,
+					t,
+					te,
+					ton,
+					tone,
+				]
+			`,
+			"/keep/declare-class.ts": `
+				declare class foo {}
+				export default foo
+				export let bar = 123
+			`,
+			"/keep/declare-let.ts": `
+				declare let foo: number
+				export default foo
+				export let bar = 123
+			`,
+			"/keep/interface-merged.ts": `
+				class foo {
+					static x = new foo
+				}
+				interface foo {}
+				export default foo
+				export let bar = 123
+			`,
+			"/keep/interface-nested.ts": `
+				if (true) {
+					interface foo {}
+				}
+				export default foo
+				export let bar = 123
+			`,
+			"/keep/type-nested.ts": `
+				if (true) {
+					type foo = number
+				}
+				export default foo
+				export let bar = 123
+			`,
+			"/keep/value-namespace.ts": `
+				namespace foo {
+					export let num = 0
+				}
+				export default foo
+				export let bar = 123
+			`,
+			"/keep/value-namespace-merged.ts": `
+				namespace foo {
+					export type num = number
+				}
+				namespace foo {
+					export let num = 0
+				}
+				export default foo
+				export let bar = 123
+			`,
+			"/remove/interface.ts": `
+				interface foo { }
+				export default foo
+				export let bar = 123
+			`,
+			"/remove/interface-exported.ts": `
+				export interface foo { }
+				export default foo
+				export let bar = 123
+			`,
+			"/remove/type.ts": `
+				type foo = number
+				export default foo
+				export let bar = 123
+			`,
+			"/remove/type-exported.ts": `
+				export type foo = number
+				export default foo
+				export let bar = 123
+			`,
+			"/remove/type-only-namespace.ts": `
+				namespace foo {
+					export type num = number
+				}
+				export default foo
+				export let bar = 123
+			`,
+			"/remove/type-only-namespace-exported.ts": `
+				export namespace foo {
+					export type num = number
+				}
+				export default foo
+				export let bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expected: map[string]string{
+			"/out.js": `// /keep/declare-class.ts
+var declare_class_default = foo;
+let bar = 123;
+
+// /keep/declare-let.ts
+var declare_let_default = foo;
+let bar2 = 123;
+
+// /keep/interface-merged.ts
+class foo2 {
+}
+foo2.x = new foo2();
+let bar3 = 123;
+
+// /keep/interface-nested.ts
+if (true) {
+}
+var interface_nested_default = foo;
+let bar4 = 123;
+
+// /keep/type-nested.ts
+if (true) {
+}
+var type_nested_default = foo;
+let bar5 = 123;
+
+// /keep/value-namespace.ts
+var foo4;
+(function(foo5) {
+  foo5.num = 0;
+})(foo4 || (foo4 = {}));
+let bar6 = 123;
+
+// /keep/value-namespace-merged.ts
+var foo3;
+(function(foo5) {
+  foo5.num = 0;
+})(foo3 || (foo3 = {}));
+let bar7 = 123;
+
+// /remove/interface.ts
+let bar8 = 123;
+
+// /remove/interface-exported.ts
+let bar9 = 123;
+
+// /remove/type.ts
+let bar10 = 123;
+
+// /remove/type-exported.ts
+let bar11 = 123;
+
+// /remove/type-only-namespace.ts
+let bar12 = 123;
+
+// /remove/type-only-namespace-exported.ts
+let bar13 = 123;
+
+// /entry.ts
+var entry_default = [
+  bar,
+  bar2,
+  bar3,
+  bar4,
+  bar5,
+  bar6,
+  bar7,
+  bar8,
+  bar9,
+  bar10,
+  bar11,
+  bar12,
+  bar13
+];
+export {
+  entry_default as default
+};
+`,
+		},
+	})
+}

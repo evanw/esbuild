@@ -471,13 +471,6 @@ func (p *printer) addSourceMapping(loc ast.Loc) {
 	}
 	originalLine--
 
-	if originalLine == -1 {
-		fmt.Printf("crash in file %s\n", p.options.SourceForSourceMap.PrettyPath)
-		fmt.Printf("lookup %d\n", loc.Start)
-		fmt.Printf("length %d\n", len(lineOffsetTables))
-		fmt.Printf("first %d\n", lineOffsetTables[0].byteOffsetToStartOfLine)
-	}
-
 	// Use the line to compute the column
 	line := &lineOffsetTables[originalLine]
 	originalColumn := int(loc.Start - line.byteOffsetToStartOfLine)
