@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Install script falls back to `npm install` ([#319](https://github.com/evanw/esbuild/issues/319))
+
+    The `esbuild` package has a post-install script that downloads the esbuild binary. However, this will fail if `registry.npmjs.org` (or the configured custom npm registry) is inaccessible.
+
+    This release adds an additional fallback for when the download fails. It tries to use the `npm install` command to download the esbuild binary instead. This handles situations where users have either configured npm with a proxy or have a custom command in their path called `npm`.
+
 ## 0.6.17
 
 * Add a download cache to the install script
