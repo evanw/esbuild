@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.18
 
 * Install script falls back to `npm install` ([#319](https://github.com/evanw/esbuild/issues/319))
 
