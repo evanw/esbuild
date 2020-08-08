@@ -2876,7 +2876,7 @@ func (c *linkerContext) generateChunk(chunk *chunkMeta) func([]ast.ImportRecord)
 
 			// Add the top-level directive if present
 			if file.ast.Directive != "" {
-				quoted := printer.Quote(file.ast.Directive) + ";" + newline
+				quoted := string(printer.QuoteForJSON(file.ast.Directive)) + ";" + newline
 				prevOffset.advanceString(quoted)
 				j.AddString(quoted)
 				newlineBeforeComment = true
@@ -3300,7 +3300,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 			} else {
 				needComma = true
 			}
-			j.AddString(source.QuotedPath)
+			j.AddBytes(source.QuotedPath)
 		}
 	}
 	j.AddString("]")
@@ -3315,7 +3315,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 			} else {
 				needComma = true
 			}
-			j.AddString(source.QuotedContents)
+			j.AddBytes(source.QuotedContents)
 		}
 	}
 	j.AddString("]")

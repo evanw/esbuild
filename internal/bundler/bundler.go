@@ -510,7 +510,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 		// Begin the metadata chunk
 		if options.AbsMetadataFile != "" {
-			j.AddString(printer.QuoteForJSON(source.PrettyPath))
+			j.AddBytes(printer.QuoteForJSON(source.PrettyPath))
 			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(source.Contents)))
 		}
 

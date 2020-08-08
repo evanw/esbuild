@@ -167,19 +167,41 @@ func (j *Joiner) Done() []byte {
 
 const hexChars = "0123456789ABCDEF"
 
-func QuoteForJSON(text string) string {
-	return quoteImpl(text, true)
+func QuoteForJSON(text string) []byte {
+	// Estimate the required length
+	lenEstimate := 2
+	for _, c := range text {
+		if c >= 0x20 && c <= 0x7E {
+			if c != '\\' && c != '"' {
+				lenEstimate++
+			} else {
+				lenEstimate += 2
+			}
+		} else {
+			switch c {
+			case '\b', '\f', '\n', '\r', '\t', '\v', '\\', '"':
+				lenEstimate += 2
+			default:
+				if c <= 0xFFFF {
+					lenEstimate += 6
+				} else {
+					lenEstimate += 12
+				}
+			}
+		}
+	}
+
+	// Preallocate the array
+	bytes := make([]byte, 0, lenEstimate)
+
+	// Fill the array
+	return quoteImpl(bytes, text, true)
 }
 
-func Quote(text string) string {
-	return quoteImpl(text, false)
-}
-
-func quoteImpl(text string, forJSON bool) string {
-	b := strings.Builder{}
+func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
 	i := 0
 	n := len(text)
-	b.WriteByte('"')
+	bytes = append(bytes, '"')
 
 	for i < n {
 		c := text[i]
@@ -195,80 +217,72 @@ func quoteImpl(text string, forJSON bool) string {
 				}
 				i += 1
 			}
-			b.WriteString(text[start:i])
+			bytes = append(bytes, text[start:i]...)
 			continue
 		}
 
 		switch c {
 		case '\b':
-			b.WriteString("\\b")
+			bytes = append(bytes, "\\b"...)
 			i++
 
 		case '\f':
-			b.WriteString("\\f")
+			bytes = append(bytes, "\\f"...)
 			i++
 
 		case '\n':
-			b.WriteString("\\n")
+			bytes = append(bytes, "\\n"...)
 			i++
 
 		case '\r':
-			b.WriteString("\\r")
+			bytes = append(bytes, "\\r"...)
 			i++
 
 		case '\t':
-			b.WriteString("\\t")
+			bytes = append(bytes, "\\t"...)
 			i++
 
 		case '\v':
-			b.WriteString("\\v")
+			bytes = append(bytes, "\\v"...)
 			i++
 
 		case '\\':
-			b.WriteString("\\\\")
+			bytes = append(bytes, "\\\\"...)
 			i++
 
 		case '"':
-			b.WriteString("\\\"")
+			bytes = append(bytes, "\\\""...)
 			i++
 
 		default:
 			r, width := lexer.DecodeWTF8Rune(text[i:])
 			i += width
 			if r <= 0xFF && !forJSON {
-				b.WriteString("\\x")
-				b.WriteByte(hexChars[r>>4])
-				b.WriteByte(hexChars[r&15])
+				bytes = append(
+					bytes,
+					'\\', 'x', hexChars[r>>4], hexChars[r&15],
+				)
 			} else if r <= 0xFFFF {
-				b.WriteString("\\u")
-				b.WriteByte(hexChars[r>>12])
-				b.WriteByte(hexChars[(r>>8)&15])
-				b.WriteByte(hexChars[(r>>4)&15])
-				b.WriteByte(hexChars[r&15])
+				bytes = append(
+					bytes,
+					'\\', 'u', hexChars[r>>12], hexChars[(r>>8)&15], hexChars[(r>>4)&15], hexChars[r&15],
+				)
 			} else {
 				r -= 0x10000
 				lo := 0xD800 + ((r >> 10) & 0x3FF)
 				hi := 0xDC00 + (r & 0x3FF)
-				b.WriteString("\\u")
-				b.WriteByte(hexChars[lo>>12])
-				b.WriteByte(hexChars[(lo>>8)&15])
-				b.WriteByte(hexChars[(lo>>4)&15])
-				b.WriteByte(hexChars[lo&15])
-				b.WriteString("\\u")
-				b.WriteByte(hexChars[hi>>12])
-				b.WriteByte(hexChars[(hi>>8)&15])
-				b.WriteByte(hexChars[(hi>>4)&15])
-				b.WriteByte(hexChars[hi&15])
+				bytes = append(
+					bytes,
+					'\\', 'u', hexChars[lo>>12], hexChars[(lo>>8)&15], hexChars[(lo>>4)&15], hexChars[lo&15],
+					'\\', 'u', hexChars[hi>>12], hexChars[(hi>>8)&15], hexChars[(hi>>4)&15], hexChars[hi&15],
+				)
 			}
 		}
 	}
 
-	b.WriteByte('"')
-	return b.String()
+	return append(bytes, '"')
 }
 
-// This is the same as "print(quoteUTF16(text))" without any unnecessary
-// temporary allocations
 func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 	temp := make([]byte, utf8.UTFMax)
 	js := p.js
@@ -447,6 +461,10 @@ func (p *printer) printBytes(bytes []byte) {
 // unnecessary temporary allocations
 func (p *printer) printUTF16(text []uint16) {
 	p.js = lexer.AppendUTF16ToBytes(p.js, text)
+}
+
+func (p *printer) printQuoted(text string) {
+	p.js = quoteImpl(p.js, text, false)
 }
 
 func (p *printer) addSourceMapping(loc ast.Loc) {
@@ -1157,7 +1175,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			}
 			p.printIndent()
 		}
-		p.print(Quote(record.Path.Text))
+		p.printQuoted(record.Path.Text)
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
@@ -1187,7 +1205,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		p.print("()")
 	} else {
 		p.print("require(")
-		p.print(Quote(record.Path.Text))
+		p.printQuoted(record.Path.Text)
 		p.print(")")
 	}
 
@@ -2384,7 +2402,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		}
 		p.print("from")
 		p.printSpace()
-		p.print(Quote(p.importRecords[s.ImportRecordIndex].Path.Text))
+		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
 		p.printSemicolonAfterStatement()
 
 	case *ast.SExportClause:
@@ -2467,7 +2485,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpace()
 		p.print("from")
 		p.printSpace()
-		p.print(Quote(p.importRecords[s.ImportRecordIndex].Path.Text))
+		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
 		p.printSemicolonAfterStatement()
 
 	case *ast.SLocal:
@@ -2740,7 +2758,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.printSpace()
 		}
 
-		p.print(Quote(p.importRecords[s.ImportRecordIndex].Path.Text))
+		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
 		p.printSemicolonAfterStatement()
 
 	case *ast.SBlock:
@@ -2841,8 +2859,8 @@ type PrintOptions struct {
 type QuotedSource struct {
 	// These are quoted ahead of time instead of during source map generation so
 	// the quoting happens in parallel instead of in serial
-	QuotedPath     string
-	QuotedContents string
+	QuotedPath     []byte
+	QuotedContents []byte
 }
 
 type SourceMapChunk struct {
@@ -2973,7 +2991,7 @@ func quotedSources(tree *ast.AST, options *PrintOptions) []QuotedSource {
 	if sm := options.InputSourceMap; sm != nil {
 		results := make([]QuotedSource, len(sm.Sources))
 		for i, source := range sm.Sources {
-			contents := "null"
+			contents := []byte("null")
 			if i < len(sm.SourcesContent) {
 				if value := sm.SourcesContent[i]; value != nil {
 					contents = QuoteForJSON(*value)
