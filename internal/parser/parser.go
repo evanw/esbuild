@@ -8947,6 +8947,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 		TopLevelSymbolToParts:   p.topLevelSymbolToParts,
 		ExportStarImportRecords: p.exportStarImportRecords,
 		ImportRecords:           p.importRecords,
+		ApproximateLineCount:    int32(p.lexer.ApproximateNewlineCount) + 1,
 
 		// CommonJS features
 		HasTopLevelReturn: p.hasTopLevelReturn,

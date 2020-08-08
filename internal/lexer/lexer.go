@@ -235,6 +235,7 @@ type Lexer struct {
 	current                         int
 	start                           int
 	end                             int
+	ApproximateNewlineCount         int
 	Token                           T
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
@@ -2196,6 +2197,16 @@ func (lexer *Lexer) step() {
 	// Use -1 to indicate the end of the file
 	if width == 0 {
 		codePoint = -1
+	}
+
+	// Track the approximate number of newlines in the file so we can preallocate
+	// the line offset table in the printer for source maps. The line offset table
+	// is the #1 highest allocation in the heap profile, so this is worth doing.
+	// This count is approximate because it handles "\n" and "\r\n" (the common
+	// cases) but not "\r" or "\u2028" or "\u2029". Getting this wrong is harmless
+	// because it's only a preallocation. The array will just grow if it's too small.
+	if codePoint == '\n' {
+		lexer.ApproximateNewlineCount++
 	}
 
 	lexer.codePoint = codePoint

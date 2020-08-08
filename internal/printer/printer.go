@@ -550,13 +550,15 @@ func (p *printer) updateGeneratedLineAndColumn() {
 	p.lastGeneratedUpdate = len(p.js)
 }
 
-func generateLineOffsetTables(contents string) []lineOffsetTable {
-	var lineOffsetTables []lineOffsetTable
+func generateLineOffsetTables(contents string, approximateLineCount int32) []lineOffsetTable {
 	var columnsForNonASCII []int32
 	byteOffsetToFirstNonASCII := int32(0)
 	lineByteOffset := 0
 	columnByteOffset := 0
 	column := int32(0)
+
+	// Preallocate the top-level table using the approximate line count from the lexer
+	lineOffsetTables := make([]lineOffsetTable, 0, approximateLineCount)
 
 	for i, c := range contents {
 		// Mark the start of the next line
@@ -2870,6 +2872,7 @@ func createPrinter(
 	symbols ast.SymbolMap,
 	importRecords []ast.ImportRecord,
 	options PrintOptions,
+	approximateLineCount int32,
 ) *printer {
 	p := &printer{
 		symbols:            symbols,
@@ -2900,7 +2903,7 @@ func createPrinter(
 	// If we're writing out a source map, prepare a table of line start indices
 	// to do binary search on to figure out what line a given AST node came from
 	if options.SourceForSourceMap != nil {
-		p.lineOffsetTables = generateLineOffsetTables(options.SourceForSourceMap.Contents)
+		p.lineOffsetTables = generateLineOffsetTables(options.SourceForSourceMap.Contents, approximateLineCount)
 	}
 
 	return p
@@ -2918,7 +2921,7 @@ type PrintResult struct {
 }
 
 func Print(tree ast.AST, symbols ast.SymbolMap, options PrintOptions) PrintResult {
-	p := createPrinter(symbols, tree.ImportRecords, options)
+	p := createPrinter(symbols, tree.ImportRecords, options, tree.ApproximateLineCount)
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
@@ -2943,7 +2946,7 @@ func Print(tree ast.AST, symbols ast.SymbolMap, options PrintOptions) PrintResul
 }
 
 func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) PrintResult {
-	p := createPrinter(symbols, nil, options)
+	p := createPrinter(symbols, nil, options, 0)
 
 	p.printExpr(expr, ast.LLowest, 0)
 

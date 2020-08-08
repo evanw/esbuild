@@ -1260,7 +1260,8 @@ type ImportRecord struct {
 }
 
 type AST struct {
-	HasLazyExport bool
+	ApproximateLineCount int32
+	HasLazyExport        bool
 
 	// This is a list of CommonJS features. When a file uses CommonJS features,
 	// it's not a candidate for "flat bundling" and must be wrapped in its own
