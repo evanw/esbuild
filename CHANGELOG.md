@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-* Reduce memory usage by 30% ([#304](https://github.com/evanw/esbuild/issues/304))
+* Reduce memory usage by 30-40% ([#304](https://github.com/evanw/esbuild/issues/304))
 
-    This release reduces memory usage by approximately 30% by avoiding unnecessary per-file symbol maps.
+    This release reduces memory usage. Memory is reduced by ~30% for all builds by avoiding unnecessary per-file symbol maps, and is reduced by an additional ~10% for builds with source maps by preallocating some large arrays relating to source map output.
 
 ## 0.6.18
 
