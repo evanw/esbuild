@@ -3,6 +3,7 @@ package parser
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
@@ -29,7 +30,7 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 func expectPrintedTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
@@ -43,7 +44,9 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.Print(ast, printer.PrintOptions{}).JS
+		symbols := ast.NewSymbolMap(1)
+		symbols.Outer[0] = tree.Symbols
+		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -71,7 +74,7 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 func expectPrintedTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
@@ -88,7 +91,9 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.Print(ast, printer.PrintOptions{}).JS
+		symbols := ast.NewSymbolMap(1)
+		symbols.Outer[0] = tree.Symbols
+		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }

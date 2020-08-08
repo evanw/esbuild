@@ -46,7 +46,7 @@ func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expect
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{})
+		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -58,7 +58,9 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.Print(ast, printer.PrintOptions{}).JS
+		symbols := ast.NewSymbolMap(1)
+		symbols.Outer[0] = tree.Symbols
+		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -66,7 +68,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			MangleSyntax: true,
 		})
 		msgs := log.Done()
@@ -78,7 +80,9 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.Print(ast, printer.PrintOptions{}).JS
+		symbols := ast.NewSymbolMap(1)
+		symbols.Outer[0] = tree.Symbols
+		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -89,7 +93,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		unsupportedFeatures := compat.UnsupportedFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		})
-		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			UnsupportedFeatures: unsupportedFeatures,
 		})
 		msgs := log.Done()
@@ -103,7 +107,9 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.Print(ast, printer.PrintOptions{
+		symbols := ast.NewSymbolMap(1)
+		symbols.Outer[0] = tree.Symbols
+		js := printer.Print(tree, symbols, printer.PrintOptions{
 			UnsupportedFeatures: unsupportedFeatures,
 		}).JS
 		test.AssertEqual(t, string(js), expected)
@@ -113,7 +119,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
 			}),
@@ -133,7 +139,9 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.Print(ast, printer.PrintOptions{}).JS
+		symbols := ast.NewSymbolMap(1)
+		symbols.Outer[0] = tree.Symbols
+		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -158,7 +166,7 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
 			},
@@ -172,7 +180,9 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.Print(ast, printer.PrintOptions{}).JS
+		symbols := ast.NewSymbolMap(1)
+		symbols.Outer[0] = tree.Symbols
+		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }

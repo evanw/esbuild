@@ -2917,8 +2917,8 @@ type PrintResult struct {
 	ExtractedComments map[string]bool
 }
 
-func Print(tree ast.AST, options PrintOptions) PrintResult {
-	p := createPrinter(tree.Symbols, tree.ImportRecords, options)
+func Print(tree ast.AST, symbols ast.SymbolMap, options PrintOptions) PrintResult {
+	p := createPrinter(symbols, tree.ImportRecords, options)
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {

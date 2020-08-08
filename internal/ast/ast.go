@@ -1276,7 +1276,7 @@ type AST struct {
 	Hashbang    string
 	Directive   string
 	Parts       []Part
-	Symbols     SymbolMap
+	Symbols     []Symbol
 	ModuleScope *Scope
 	ExportsRef  Ref
 	ModuleRef   Ref

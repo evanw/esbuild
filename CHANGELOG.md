@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Reduce memory usage by 30% ([#304](https://github.com/evanw/esbuild/issues/304))
+
+    This release reduces memory usage by approximately 30% by avoiding unnecessary per-file symbol maps.
+
 ## 0.6.18
 
 * Install script falls back to `npm install` ([#319](https://github.com/evanw/esbuild/issues/319))

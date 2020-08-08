@@ -3,6 +3,7 @@ package printer
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logging"
@@ -19,7 +20,7 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options PrintOptions) {
 	t.Run(name, func(t *testing.T) {
 		log := logging.NewDeferLog()
-		ast, ok := parser.Parse(log, test.SourceForTest(contents), config.Options{})
+		tree, ok := parser.Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -29,7 +30,9 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := Print(ast, options).JS
+		symbols := ast.NewSymbolMap(1)
+		symbols.Outer[0] = tree.Symbols
+		js := Print(tree, symbols, options).JS
 		assertEqual(t, string(js), expected)
 	})
 }

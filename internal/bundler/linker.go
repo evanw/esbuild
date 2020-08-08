@@ -308,9 +308,9 @@ func newLinkerContext(
 		file := files[sourceIndex]
 
 		// Clone the symbol map
-		fileSymbols := append([]ast.Symbol{}, file.ast.Symbols.Outer[sourceIndex]...)
+		fileSymbols := append([]ast.Symbol{}, file.ast.Symbols...)
 		c.symbols.Outer[sourceIndex] = fileSymbols
-		file.ast.Symbols = c.symbols
+		file.ast.Symbols = nil
 
 		// Zero out the use count statistics. These will be recomputed later after
 		// taking tree shaking into account.
@@ -2770,7 +2770,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	tree := file.ast
 	tree.Parts = []ast.Part{{Stmts: stmts}}
 	*result = compileResult{
-		PrintResult: printer.Print(tree, printOptions),
+		PrintResult: printer.Print(tree, c.symbols, printOptions),
 		sourceIndex: sourceIndex,
 	}
 
@@ -2780,7 +2780,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	if len(stmtList.entryPointTail) > 0 {
 		tree := file.ast
 		tree.Parts = []ast.Part{{Stmts: stmtList.entryPointTail}}
-		entryPointTail := printer.Print(tree, printOptions)
+		entryPointTail := printer.Print(tree, c.symbols, printOptions)
 		result.entryPointTail = &entryPointTail
 	}
 
@@ -2842,12 +2842,10 @@ func (c *linkerContext) generateChunk(chunk *chunkMeta) func([]ast.ImportRecord)
 			crossChunkPrefix = printer.Print(ast.AST{
 				ImportRecords: crossChunkImportRecords,
 				Parts:         []ast.Part{{Stmts: chunk.crossChunkPrefixStmts}},
-				Symbols:       c.symbols,
-			}, printOptions).JS
+			}, c.symbols, printOptions).JS
 			crossChunkSuffix = printer.Print(ast.AST{
-				Parts:   []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
-				Symbols: c.symbols,
-			}, printOptions).JS
+				Parts: []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
+			}, c.symbols, printOptions).JS
 		}
 
 		waitGroup.Wait()

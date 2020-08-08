@@ -8933,14 +8933,10 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 	// Make a wrapper symbol in case we need to be wrapped in a closure
 	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+p.source.IdentifierName)
 
-	// Make a symbol map that contains our file's symbols
-	symbols := ast.NewSymbolMap(int(source.Index) + 1)
-	symbols.Outer[source.Index] = p.symbols
-
 	return ast.AST{
 		Parts:                   parts,
 		ModuleScope:             p.moduleScope,
-		Symbols:                 symbols,
+		Symbols:                 p.symbols,
 		ExportsRef:              p.exportsRef,
 		ModuleRef:               p.moduleRef,
 		WrapperRef:              wrapperRef,
