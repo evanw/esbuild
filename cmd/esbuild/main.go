@@ -72,6 +72,7 @@ Examples:
 
 func main() {
 	osArgs := os.Args[1:]
+	heapFile := ""
 	traceFile := ""
 	cpuprofileFile := ""
 	isRunningService := false
@@ -89,6 +90,9 @@ func main() {
 		case arg == "--version":
 			fmt.Fprintf(os.Stderr, "%s\n", esbuildVersion)
 			os.Exit(0)
+
+		case strings.HasPrefix(arg, "--heap="):
+			heapFile = arg[len("--heap="):]
 
 		case strings.HasPrefix(arg, "--trace="):
 			traceFile = arg[len("--trace="):]
@@ -136,6 +140,25 @@ func main() {
 			defer f.Close()
 			trace.Start(f)
 			defer trace.Stop()
+		}
+
+		// To view a heap trace, use "go tool pprof [file]" and type "top". You can
+		// also drop it into https://speedscope.app and use the "left heavy" or
+		// "sandwich" view modes.
+		if heapFile != "" {
+			f, err := os.Create(heapFile)
+			if err != nil {
+				logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+					"Failed to create heap file: %s", err.Error()))
+				return
+			}
+			defer func() {
+				if err := pprof.WriteHeapProfile(f); err != nil {
+					logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+						"Failed to write heap profile: %s", err.Error()))
+				}
+				f.Close()
+			}()
 		}
 
 		// To view a CPU profile, drop the file into https://speedscope.app.
