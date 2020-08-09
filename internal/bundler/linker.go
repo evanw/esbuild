@@ -492,6 +492,7 @@ func (c *linkerContext) link() []OutputFile {
 	}
 
 	c.markPartsReachableFromEntryPoints()
+	c.handleCrossChunkAssignments()
 
 	if !c.options.IsBundling {
 		for _, entryPoint := range c.entryPoints {
@@ -625,88 +626,94 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		exports map[ast.Ref]bool
 	}
 
-	topLevelDeclaredSymbolToChunk := make(map[ast.Ref]uint32)
 	chunkMetas := make([]chunkMeta, len(chunks))
 
-	// For each chunk, see what symbols it uses from other chunks
+	// For each chunk, see what symbols it uses from other chunks. Do this in
+	// parallel because it's the most expensive part of this function.
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(chunks))
 	for chunkIndex, chunk := range chunks {
-		chunkKey := string(chunk.entryBits.entries)
-		imports := make(map[ast.Ref]bool)
-		chunkMetas[chunkIndex] = chunkMeta{imports: imports, exports: make(map[ast.Ref]bool)}
+		go func(chunkIndex int, chunk chunkInfo) {
+			chunkKey := string(chunk.entryBits.entries)
+			imports := make(map[ast.Ref]bool)
+			chunkMetas[chunkIndex] = chunkMeta{imports: imports, exports: make(map[ast.Ref]bool)}
 
-		// Go over each file in this chunk
-		for sourceIndex := range chunk.filesWithPartsInChunk {
-			file := &c.files[sourceIndex]
-			fileMeta := &c.fileMeta[sourceIndex]
+			// Go over each file in this chunk
+			for sourceIndex := range chunk.filesWithPartsInChunk {
+				file := &c.files[sourceIndex]
+				fileMeta := &c.fileMeta[sourceIndex]
 
-			// Go over each part in this file that's marked for inclusion in this chunk
-			for partIndex, partMeta := range fileMeta.partMeta {
-				if string(partMeta.entryBits.entries) != chunkKey {
-					continue
-				}
-				part := &file.ast.Parts[partIndex]
-
-				// Rewrite external dynamic imports to point to the chunk for that entry point
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					record := &file.ast.ImportRecords[importRecordIndex]
-					if record.SourceIndex != nil && c.isExternalDynamicImport(record) {
-						record.Path.Text = c.relativePathBetweenChunks(chunk.relDir, c.fileMeta[*record.SourceIndex].entryPointRelPath)
-						record.SourceIndex = nil
-					}
-				}
-
-				// Remember what chunk each top-level symbol is declared in. Symbols
-				// with multiple declarations such as repeated "var" statements with
-				// the same name should already be marked as all being in a single
-				// chunk. In that case this will overwrite the same value below which
-				// is fine.
-				for _, declared := range part.DeclaredSymbols {
-					if declared.IsTopLevel {
-						topLevelDeclaredSymbolToChunk[declared.Ref] = uint32(chunkIndex)
-					}
-				}
-
-				// Record each symbol used in this part. This will later be matched up
-				// with our map of which chunk a given symbol is declared in to
-				// determine if the symbol needs to be imported from another chunk.
-				for ref := range part.SymbolUses {
-					symbol := c.symbols.Get(ref)
-
-					// Ignore unbound symbols, which don't have declarations
-					if symbol.Kind == ast.SymbolUnbound {
+				// Go over each part in this file that's marked for inclusion in this chunk
+				for partIndex, partMeta := range fileMeta.partMeta {
+					if string(partMeta.entryBits.entries) != chunkKey {
 						continue
 					}
+					part := &file.ast.Parts[partIndex]
 
-					// Ignore symbols that are going to be replaced by undefined
-					if symbol.ImportItemStatus == ast.ImportItemMissing {
-						continue
+					// Rewrite external dynamic imports to point to the chunk for that entry point
+					for _, importRecordIndex := range part.ImportRecordIndices {
+						record := &file.ast.ImportRecords[importRecordIndex]
+						if record.SourceIndex != nil && c.isExternalDynamicImport(record) {
+							record.Path.Text = c.relativePathBetweenChunks(chunk.relDir, c.fileMeta[*record.SourceIndex].entryPointRelPath)
+							record.SourceIndex = nil
+						}
 					}
 
-					// If this is imported from another file, follow the import
-					// reference and reference the symbol in that file instead
-					if importToBind, ok := fileMeta.importsToBind[ref]; ok {
-						ref = importToBind.ref
-						symbol = c.symbols.Get(ref)
+					// Remember what chunk each top-level symbol is declared in. Symbols
+					// with multiple declarations such as repeated "var" statements with
+					// the same name should already be marked as all being in a single
+					// chunk. In that case this will overwrite the same value below which
+					// is fine.
+					for _, declared := range part.DeclaredSymbols {
+						if declared.IsTopLevel {
+							c.symbols.Get(declared.Ref).ChunkIndex = ^uint32(chunkIndex)
+						}
 					}
 
-					// If this is an ES6 import from a CommonJS file, it will become a
-					// property access off the namespace symbol instead of a bare
-					// identifier. In that case we want to pull in the namespace symbol
-					// instead. The namespace symbol stores the result of "require()".
-					if symbol.NamespaceAlias != nil {
-						ref = symbol.NamespaceAlias.NamespaceRef
-					}
+					// Record each symbol used in this part. This will later be matched up
+					// with our map of which chunk a given symbol is declared in to
+					// determine if the symbol needs to be imported from another chunk.
+					for ref := range part.SymbolUses {
+						symbol := c.symbols.Get(ref)
 
-					// We must record this relationship even for symbols that are not
-					// imports. Due to code splitting, the definition of a symbol may
-					// be moved to a separate chunk than the use of a symbol even if
-					// the definition and use of that symbol are originally from the
-					// same source file.
-					imports[ref] = true
+						// Ignore unbound symbols, which don't have declarations
+						if symbol.Kind == ast.SymbolUnbound {
+							continue
+						}
+
+						// Ignore symbols that are going to be replaced by undefined
+						if symbol.ImportItemStatus == ast.ImportItemMissing {
+							continue
+						}
+
+						// If this is imported from another file, follow the import
+						// reference and reference the symbol in that file instead
+						if importToBind, ok := fileMeta.importsToBind[ref]; ok {
+							ref = importToBind.ref
+							symbol = c.symbols.Get(ref)
+						}
+
+						// If this is an ES6 import from a CommonJS file, it will become a
+						// property access off the namespace symbol instead of a bare
+						// identifier. In that case we want to pull in the namespace symbol
+						// instead. The namespace symbol stores the result of "require()".
+						if symbol.NamespaceAlias != nil {
+							ref = symbol.NamespaceAlias.NamespaceRef
+						}
+
+						// We must record this relationship even for symbols that are not
+						// imports. Due to code splitting, the definition of a symbol may
+						// be moved to a separate chunk than the use of a symbol even if
+						// the definition and use of that symbol are originally from the
+						// same source file.
+						imports[ref] = true
+					}
 				}
 			}
-		}
+			waitGroup.Done()
+		}(chunkIndex, chunk)
 	}
+	waitGroup.Wait()
 
 	// Mark imported symbols as exported in the chunk from which they are declared
 	for chunkIndex := range chunks {
@@ -716,7 +723,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		chunk.importsFromOtherChunks = make(map[uint32]crossChunkImportItemArray)
 		for importRef := range chunkMetas[chunkIndex].imports {
 			// Ignore uses that aren't top-level symbols
-			if otherChunkIndex, ok := topLevelDeclaredSymbolToChunk[importRef]; ok && otherChunkIndex != uint32(chunkIndex) {
+			otherChunkIndex := ^c.symbols.Get(importRef).ChunkIndex
+			if otherChunkIndex != ^uint32(0) && otherChunkIndex != uint32(chunkIndex) {
 				chunk.importsFromOtherChunks[otherChunkIndex] =
 					append(chunk.importsFromOtherChunks[otherChunkIndex], crossChunkImportItem{ref: importRef})
 				chunkMetas[otherChunkIndex].exports[importRef] = true
@@ -1907,8 +1915,6 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	for i, entryPoint := range c.entryPoints {
 		c.includeFile(entryPoint, uint(i), 0)
 	}
-
-	c.handleCrossChunkAssignments()
 }
 
 // Code splitting may cause an assignment to a local variable to end up in a

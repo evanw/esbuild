@@ -1100,7 +1100,40 @@ const (
 	ImportItemMissing
 )
 
+// Note: the order of valies in this struct matters to reduce struct size.
 type Symbol struct {
+	Name string
+
+	// This is used for symbols that represent items in the import clause of an
+	// ES6 import statement. These should always be referenced by EImportIdentifier
+	// instead of an EIdentifier. When this is present, the expression should
+	// be printed as a property access off the namespace instead of as a bare
+	// identifier.
+	//
+	// For correctness, this must be stored on the symbol instead of indirectly
+	// associated with the Ref for the symbol somehow. In ES6 "flat bundling"
+	// mode, re-exported symbols are collapsed using MergeSymbols() and renamed
+	// symbols from other files that end up at this symbol must be able to tell
+	// if it has a namespace alias.
+	NamespaceAlias *NamespaceAlias
+
+	// Used by the parser for single pass parsing. Symbols that have been merged
+	// form a linked-list where the last link is the symbol to use. This link is
+	// an invalid ref if it's the last link. If this isn't invalid, you need to
+	// FollowSymbols to get the real one.
+	Link Ref
+
+	// An estimate of the number of uses of this symbol. This is used for
+	// minification (to prefer shorter names for more frequently used symbols).
+	// The reason why this is an estimate instead of an accurate count is that
+	// it's not updated during dead code elimination for speed. I figure that
+	// even without updating after parsing it's still a pretty good heuristic.
+	UseCountEstimate uint32
+
+	// This is for code splitting. Stored as one's complement so the zero value
+	// is invalid.
+	ChunkIndex uint32
+
 	Kind SymbolKind
 
 	// Certain symbols must not be renamed or minified. For example, the
@@ -1126,34 +1159,6 @@ type Symbol struct {
 	// avoid this. We also need to be able to replace such import items with
 	// undefined, which this status is also used for.
 	ImportItemStatus ImportItemStatus
-
-	// An estimate of the number of uses of this symbol. This is used for
-	// minification (to prefer shorter names for more frequently used symbols).
-	// The reason why this is an estimate instead of an accurate count is that
-	// it's not updated during dead code elimination for speed. I figure that
-	// even without updating after parsing it's still a pretty good heuristic.
-	UseCountEstimate uint32
-
-	Name string
-
-	// Used by the parser for single pass parsing. Symbols that have been merged
-	// form a linked-list where the last link is the symbol to use. This link is
-	// an invalid ref if it's the last link. If this isn't invalid, you need to
-	// FollowSymbols to get the real one.
-	Link Ref
-
-	// This is used for symbols that represent items in the import clause of an
-	// ES6 import statement. These should always be referenced by EImportIdentifier
-	// instead of an EIdentifier. When this is present, the expression should
-	// be printed as a property access off the namespace instead of as a bare
-	// identifier.
-	//
-	// For correctness, this must be stored on the symbol instead of indirectly
-	// associated with the Ref for the symbol somehow. In ES6 "flat bundling"
-	// mode, re-exported symbols are collapsed using MergeSymbols() and renamed
-	// symbols from other files that end up at this symbol must be able to tell
-	// if it has a namespace alias.
-	NamespaceAlias *NamespaceAlias
 }
 
 type NamespaceAlias struct {
