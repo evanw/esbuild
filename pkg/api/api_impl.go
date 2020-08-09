@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/bundler"
@@ -540,15 +541,22 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 								"Failed to write to stdout: %s", err.Error()))
 						}
 					} else {
+						// Write out files in parallel
+						waitGroup := sync.WaitGroup{}
+						waitGroup.Add(len(outputFiles))
 						for _, outputFile := range outputFiles {
-							if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
-								log.AddError(nil, ast.Loc{}, fmt.Sprintf(
-									"Failed to create output directory: %s", err.Error()))
-							} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
-								log.AddError(nil, ast.Loc{}, fmt.Sprintf(
-									"Failed to write to output file: %s", err.Error()))
-							}
+							go func(outputFile OutputFile) {
+								if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
+									log.AddError(nil, ast.Loc{}, fmt.Sprintf(
+										"Failed to create output directory: %s", err.Error()))
+								} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
+									log.AddError(nil, ast.Loc{}, fmt.Sprintf(
+										"Failed to write to output file: %s", err.Error()))
+								}
+								waitGroup.Done()
+							}(outputFile)
 						}
+						waitGroup.Wait()
 					}
 				}
 			}
