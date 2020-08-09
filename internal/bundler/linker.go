@@ -242,7 +242,7 @@ type partRef struct {
 	partIndex   uint32
 }
 
-type chunkMeta struct {
+type chunkInfo struct {
 	// The path of this chunk's directory relative to the output directory. Note:
 	// this must have OS-independent path separators (i.e. '/' not '\').
 	relDir string
@@ -271,7 +271,7 @@ type chunkMeta struct {
 
 // Returns the path of this chunk relative to the output directory. Note:
 // this must have OS-independent path separators (i.e. '/' not '\').
-func (chunk *chunkMeta) relPath() string {
+func (chunk *chunkInfo) relPath() string {
 	if chunk.baseNameOrEmpty == "" {
 		panic("Internal error")
 	}
@@ -511,7 +511,7 @@ func (c *linkerContext) link() []OutputFile {
 	return c.generateChunksInParallel(chunks)
 }
 
-func (c *linkerContext) generateChunksInParallel(chunks []chunkMeta) []OutputFile {
+func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFile {
 	// We want to process chunks with as much parallelism as possible. However,
 	// content hashing means chunks that import other chunks must be completed
 	// after the imported chunks are completed because the import paths contain
@@ -614,7 +614,7 @@ func (c *linkerContext) relativePathBetweenChunks(fromRelDir string, toRelPath s
 	return relPath
 }
 
-func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkMeta) {
+func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	if len(chunks) < 2 {
 		// No need to compute cross-chunk dependencies if there can't be any
 		return
@@ -828,7 +828,7 @@ func (a crossChunkImportArray) Less(i int, j int) bool {
 }
 
 // Sort cross-chunk imports by chunk name for determinism
-func (c *linkerContext) sortedCrossChunkImports(chunks []chunkMeta, importsFromOtherChunks map[uint32]crossChunkImportItemArray) crossChunkImportArray {
+func (c *linkerContext) sortedCrossChunkImports(chunks []chunkInfo, importsFromOtherChunks map[uint32]crossChunkImportItemArray) crossChunkImportArray {
 	result := make(crossChunkImportArray, 0, len(importsFromOtherChunks))
 
 	for otherChunkIndex, importItems := range importsFromOtherChunks {
@@ -2191,8 +2191,8 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	}
 }
 
-func (c *linkerContext) computeChunks() []chunkMeta {
-	chunks := make(map[string]chunkMeta)
+func (c *linkerContext) computeChunks() []chunkInfo {
+	chunks := make(map[string]chunkInfo)
 	neverReachedKey := string(newBitSet(uint(len(c.entryPoints))).entries)
 
 	// Compute entry point names
@@ -2225,7 +2225,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		// always generated even if the resulting file is empty
 		entryBits := newBitSet(uint(len(c.entryPoints)))
 		entryBits.setBit(uint(i))
-		chunks[string(entryBits.entries)] = chunkMeta{
+		chunks[string(entryBits.entries)] = chunkInfo{
 			entryBits:             entryBits,
 			isEntryPoint:          true,
 			sourceIndex:           entryPoint,
@@ -2262,7 +2262,7 @@ func (c *linkerContext) computeChunks() []chunkMeta {
 		sortedKeys = append(sortedKeys, key)
 	}
 	sort.Strings(sortedKeys)
-	sortedChunks := make([]chunkMeta, len(chunks))
+	sortedChunks := make([]chunkInfo, len(chunks))
 	for i, key := range sortedKeys {
 		sortedChunks[i] = chunks[key]
 	}
@@ -2285,7 +2285,7 @@ func (a chunkOrderArray) Less(i int, j int) bool {
 	return a[i].distance < a[j].distance || (a[i].distance == a[j].distance && a[i].path.ComesBeforeInSortedOrder(a[j].path))
 }
 
-func (c *linkerContext) chunkFileOrder(chunk *chunkMeta) []uint32 {
+func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 	sorted := make(chunkOrderArray, 0, len(chunk.filesWithPartsInChunk))
 
 	// Attach information to the files for use with sorting
@@ -2788,7 +2788,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	waitGroup.Done()
 }
 
-func (c *linkerContext) generateChunk(chunk *chunkMeta) func([]ast.ImportRecord) []OutputFile {
+func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
 	var results []OutputFile
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResult, 0, len(filesInChunkInOrder))
