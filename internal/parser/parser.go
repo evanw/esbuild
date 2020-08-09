@@ -5264,6 +5264,7 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []ast.Stmt) []ast.Stmt {
 		decls := []ast.Decl{}
 		for _, ref := range p.tempRefsToDeclare {
 			decls = append(decls, ast.Decl{Binding: ast.Binding{Data: &ast.BIdentifier{Ref: ref}}})
+			p.recordDeclaredSymbol(ref)
 		}
 
 		// If the first statement is a super() call, make sure it stays that way
@@ -5939,6 +5940,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		// Handle being exported inside a namespace
 		if s.IsExport && p.enclosingNamespaceRef != nil {
 			wrapIdentifier := func(loc ast.Loc, ref ast.Ref) ast.Expr {
+				p.recordUsage(*p.enclosingNamespaceRef)
 				return ast.Expr{Loc: loc, Data: &ast.EDot{
 					Target:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 					Name:    p.symbols[ref.InnerIndex].Name,
@@ -6142,7 +6144,6 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.popScope()
 
 	case *ast.SFunction:
-		p.recordDeclaredSymbol(s.Fn.Name.Ref)
 		p.visitFn(&s.Fn, stmt.Loc)
 
 		// Handle exporting this function from a namespace
@@ -6529,7 +6530,9 @@ func (p *parser) visitClass(class *ast.Class) {
 		property.TSDecorators = p.visitTSDecorators(property.TSDecorators)
 
 		// Special-case EPrivateIdentifier to allow it here
-		if _, ok := property.Key.Data.(*ast.EPrivateIdentifier); !ok {
+		if private, ok := property.Key.Data.(*ast.EPrivateIdentifier); ok {
+			p.recordDeclaredSymbol(private.Ref)
+		} else {
 			class.Properties[i].Key = p.visitExpr(property.Key)
 		}
 		if property.Value != nil {
@@ -7866,6 +7869,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 			}
 
 			// Otherwise, create a property access on the namespace
+			p.recordUsage(nsRef)
 			return ast.Expr{Loc: loc, Data: &ast.EDot{
 				Target:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: nsRef}},
 				Name:    name,
@@ -7907,6 +7911,10 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.tryBodyCount = 0
 	p.isThisCaptured = true
 	p.argumentsRef = &fn.ArgumentsRef
+
+	if fn.Name != nil {
+		p.recordDeclaredSymbol(fn.Name.Ref)
+	}
 
 	p.pushScopeForVisitPass(ast.ScopeFunctionArgs, scopeLoc)
 	p.visitArgs(fn.Args)

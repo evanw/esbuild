@@ -156,6 +156,7 @@ func (p *parser) lowerFunction(
 				ref := p.generateTempRef(tempRefNoDeclare, "")
 				target := p.convertBindingToExpr(arg.Binding, nil)
 				init := ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EIdentifier{Ref: ref}}
+				p.recordUsage(ref)
 
 				if decls, ok := p.lowerObjectRestToDecls(target, init, nil); ok {
 					// Replace the binding but leave the default value intact
@@ -704,19 +705,23 @@ func (p *parser) lowerPrivateGet(target ast.Expr, loc ast.Loc, private *ast.EPri
 	switch p.symbols[private.Ref.InnerIndex].Kind {
 	case ast.SymbolPrivateMethod, ast.SymbolPrivateStaticMethod:
 		// "this.#method" => "__privateMethod(this, #method, method_fn)"
+		fnRef := p.privateGetters[private.Ref]
+		p.recordUsage(fnRef)
 		return p.callRuntime(target.Loc, "__privateMethod", []ast.Expr{
 			target,
 			{Loc: loc, Data: &ast.EIdentifier{Ref: private.Ref}},
-			{Loc: loc, Data: &ast.EIdentifier{Ref: p.privateGetters[private.Ref]}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: fnRef}},
 		})
 
 	case ast.SymbolPrivateGet, ast.SymbolPrivateStaticGet,
 		ast.SymbolPrivateGetSetPair, ast.SymbolPrivateStaticGetSetPair:
 		// "this.#getter" => "__privateGet(this, #getter, getter_get)"
+		fnRef := p.privateGetters[private.Ref]
+		p.recordUsage(fnRef)
 		return p.callRuntime(target.Loc, "__privateGet", []ast.Expr{
 			target,
 			{Loc: loc, Data: &ast.EIdentifier{Ref: private.Ref}},
-			{Loc: loc, Data: &ast.EIdentifier{Ref: p.privateGetters[private.Ref]}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: fnRef}},
 		})
 
 	default:
@@ -738,11 +743,13 @@ func (p *parser) lowerPrivateSet(
 	case ast.SymbolPrivateSet, ast.SymbolPrivateStaticSet,
 		ast.SymbolPrivateGetSetPair, ast.SymbolPrivateStaticGetSetPair:
 		// "this.#setter = 123" => "__privateSet(this, #setter, 123, setter_set)"
+		fnRef := p.privateSetters[private.Ref]
+		p.recordUsage(fnRef)
 		return p.callRuntime(target.Loc, "__privateSet", []ast.Expr{
 			target,
 			{Loc: loc, Data: &ast.EIdentifier{Ref: private.Ref}},
 			value,
-			{Loc: loc, Data: &ast.EIdentifier{Ref: p.privateSetters[private.Ref]}},
+			{Loc: loc, Data: &ast.EIdentifier{Ref: fnRef}},
 		})
 
 	default:
@@ -900,6 +907,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init ast.Stmt, body *ast.Stmt) {
 		if len(s.Decls) == 1 && bindingHasObjectRest(s.Decls[0].Binding) {
 			ref := p.generateTempRef(tempRefNoDeclare, "")
 			decl := ast.Decl{Binding: s.Decls[0].Binding, Value: &ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}}}
+			p.recordUsage(ref)
 			decls := p.lowerObjectRestInDecls([]ast.Decl{decl})
 			s.Decls[0].Binding.Data = &ast.BIdentifier{Ref: ref}
 			bodyPrefixStmt = ast.Stmt{Loc: init.Loc, Data: &ast.SLocal{Kind: s.Kind, Decls: decls}}
@@ -926,6 +934,7 @@ func (p *parser) lowerObjectRestInCatchBinding(catch *ast.Catch) {
 	if catch.Binding != nil && bindingHasObjectRest(*catch.Binding) {
 		ref := p.generateTempRef(tempRefNoDeclare, "")
 		decl := ast.Decl{Binding: *catch.Binding, Value: &ast.Expr{Loc: catch.Binding.Loc, Data: &ast.EIdentifier{Ref: ref}}}
+		p.recordUsage(ref)
 		decls := p.lowerObjectRestInDecls([]ast.Decl{decl})
 		catch.Binding.Data = &ast.BIdentifier{Ref: ref}
 		stmts := make([]ast.Stmt, 0, 1+len(catch.Body))
@@ -1027,6 +1036,7 @@ func (p *parser) lowerObjectRestHelper(
 		// The initializer may have side effects so we must evaluate it once.
 		ref := p.generateTempRef(declare, "")
 		assign(ast.Expr{Loc: expr.Loc, Data: &ast.EIdentifier{Ref: ref}}, expr)
+		p.recordUsage(ref)
 		return ref
 	}
 
@@ -1046,6 +1056,8 @@ func (p *parser) lowerObjectRestHelper(
 			assign(ast.Expr{Loc: before[0].Key.Loc, Data: &ast.EObject{Properties: before, IsSingleLine: isSingleLine}},
 				ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}})
 			init = ast.Expr{Loc: init.Loc, Data: &ast.EIdentifier{Ref: ref}}
+			p.recordUsage(ref)
+			p.recordUsage(ref)
 		}
 
 		// Call "__rest" to clone the initializer without the keys for previous
@@ -1086,6 +1098,8 @@ func (p *parser) lowerObjectRestHelper(
 			tailExpr = ast.Expr{Loc: loc, Data: &ast.EArray{Items: after, IsSingleLine: isSingleLine}}
 			tailInit = ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tailRef}}
 			items = append(items, ast.Expr{Loc: loc, Data: &ast.ESpread{Value: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tailRef}}}})
+			p.recordUsage(tailRef)
+			p.recordUsage(tailRef)
 		}
 
 		// The original destructuring assignment must come first
@@ -1093,6 +1107,7 @@ func (p *parser) lowerObjectRestHelper(
 
 		// Then the deferred split is evaluated
 		visit(deferredBinding, ast.Expr{Loc: split.Loc, Data: &ast.EIdentifier{Ref: splitRef}}, nil)
+		p.recordUsage(splitRef)
 
 		// Then anything after the split
 		if len(after) > 0 {
@@ -1128,6 +1143,7 @@ func (p *parser) lowerObjectRestHelper(
 		splitRef := p.generateTempRef(declare, "")
 		deferredBinding := *binding
 		binding.Data = &ast.EIdentifier{Ref: splitRef}
+		p.recordUsage(splitRef)
 
 		// Use a destructuring assignment to unpack everything up to and including
 		// the split point
@@ -1135,6 +1151,7 @@ func (p *parser) lowerObjectRestHelper(
 
 		// Handle any nested rest binding patterns inside the split point
 		visit(deferredBinding, ast.Expr{Loc: binding.Loc, Data: &ast.EIdentifier{Ref: splitRef}}, nil)
+		p.recordUsage(splitRef)
 
 		// Then continue on to any properties after the split
 		if len(afterSplit) > 0 {
@@ -1210,26 +1227,6 @@ func (p *parser) lowerObjectRestHelper(
 	return true
 }
 
-// Returns "typeof ref === 'symbol' ? ref : ref + ''"
-func symbolOrString(loc ast.Loc, ref ast.Ref) ast.Expr {
-	return ast.Expr{Loc: loc, Data: &ast.EIf{
-		Test: ast.Expr{Loc: loc, Data: &ast.EBinary{
-			Op: ast.BinOpStrictEq,
-			Left: ast.Expr{Loc: loc, Data: &ast.EUnary{
-				Op:    ast.UnOpTypeof,
-				Value: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
-			}},
-			Right: ast.Expr{Loc: loc, Data: &ast.EString{Value: lexer.StringToUTF16("symbol")}},
-		}},
-		Yes: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
-		No: ast.Expr{Loc: loc, Data: &ast.EBinary{
-			Op:    ast.BinOpAdd,
-			Left:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
-			Right: ast.Expr{Loc: loc, Data: &ast.EString{}},
-		}},
-	}}
-}
-
 // Save a copy of the key for the call to "__rest" later on. Certain
 // expressions can be converted to keys more efficiently than others.
 func (p *parser) captureKeyForObjectRest(originalKey ast.Expr) (finalKey ast.Expr, capturedKey func() ast.Expr) {
@@ -1256,6 +1253,7 @@ func (p *parser) captureKeyForObjectRest(originalKey ast.Expr) (finalKey ast.Exp
 
 	case *ast.EIdentifier:
 		capturedKey = func() ast.Expr {
+			p.recordUsage(k.Ref)
 			return p.callRuntime(loc, "__restKey", []ast.Expr{{Loc: loc, Data: &ast.EIdentifier{Ref: k.Ref}}})
 		}
 
@@ -1265,6 +1263,7 @@ func (p *parser) captureKeyForObjectRest(originalKey ast.Expr) (finalKey ast.Exp
 		tempRef := p.generateTempRef(tempRefNeedsDeclare, "")
 		finalKey = ast.Assign(ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: tempRef}}, originalKey)
 		capturedKey = func() ast.Expr {
+			p.recordUsage(tempRef)
 			return p.callRuntime(loc, "__restKey", []ast.Expr{{Loc: loc, Data: &ast.EIdentifier{Ref: tempRef}}})
 		}
 	}
@@ -1545,6 +1544,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
 						ast.Expr{Loc: loc, Data: &ast.ENew{Target: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: p.weakMapRef}}}},
 					))
+					p.recordUsage(ref)
 
 					// Add every newly-constructed instance into this map
 					expr = ast.Expr{Loc: loc, Data: &ast.ECall{
@@ -1558,6 +1558,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 							init,
 						},
 					}}
+					p.recordUsage(ref)
 				} else if private == nil && p.Strict.ClassFields {
 					expr = p.callRuntime(loc, "__publicField", []ast.Expr{
 						target,
@@ -1619,6 +1620,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 						ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: ref}},
 						ast.Expr{Loc: loc, Data: &ast.ENew{Target: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: p.weakSetRef}}}},
 					))
+					p.recordUsage(ref)
 
 					// Determine where to store the private method
 					var target ast.Expr
@@ -1639,6 +1641,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 							target,
 						},
 					}}
+					p.recordUsage(ref)
 
 					if prop.IsStatic {
 						// Move this property to an assignment after the class ends

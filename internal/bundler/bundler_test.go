@@ -4212,27 +4212,27 @@ func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
 		},
 		expected: map[string]string{
 			"/out.js": `class Foo {
-  #a;
+  #b;
   foo = class {
     #c;
     #d;
     #e;
   };
-  get #b() {
+  get #a() {
   }
-  set #b() {
+  set #a() {
   }
 }
 class Bar {
-  #a;
+  #b;
   foo = class {
     #c;
     #d;
     #e;
   };
-  get #b() {
+  get #a() {
   }
-  set #b() {
+  set #a() {
   }
 }
 `,

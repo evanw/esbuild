@@ -932,6 +932,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		}}},
 		Args: []ast.Expr{argExpr},
 	}}}})
+	p.recordDeclaredSymbol(argRef)
 
 	return stmts
 }

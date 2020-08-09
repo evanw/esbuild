@@ -1346,6 +1346,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 					Name:  ast.LocRef{Ref: tempRef},
 					Alias: alias,
 				})
+				entryPointExportSymbolUses[tempRef] = ast.SymbolUse{CountEstimate: 2}
 			}
 		} else {
 			value = ast.Expr{Data: &ast.EIdentifier{Ref: export.ref}}
