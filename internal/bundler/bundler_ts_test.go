@@ -811,8 +811,8 @@ func TestTSImplicitExtensionsMissing(t *testing.T) {
 			"/mjs.tsx":     ``,
 			"/cjs.ts":      ``,
 			"/cjs.tsx":     ``,
-			"/js.js.ts":    ``,
-			"/jsx.jsx.tsx": ``,
+			"/js.ts.js":    ``,
+			"/jsx.tsx.jsx": ``,
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
@@ -821,6 +821,8 @@ func TestTSImplicitExtensionsMissing(t *testing.T) {
 		},
 		expectedScanLog: `/entry.ts: error: Could not resolve "./mjs.mjs"
 /entry.ts: error: Could not resolve "./cjs.cjs"
+/entry.ts: error: Could not resolve "./js.js"
+/entry.ts: error: Could not resolve "./jsx.jsx"
 `,
 	})
 }
