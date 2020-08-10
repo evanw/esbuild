@@ -8733,10 +8733,6 @@ func LazyExportAST(log logging.Log, source logging.Source, options config.Option
 	p := newParser(log, source, lexer.Lexer{}, &options)
 	p.prepareForVisitPass(&options)
 
-	// Make a symbol map that contains our file's symbols
-	symbols := ast.SymbolMap{Outer: make([][]ast.Symbol, source.Index+1)}
-	symbols.Outer[source.Index] = p.symbols
-
 	// Optionally call a runtime API function to transform the expression
 	if apiCall != "" {
 		p.symbolUses = make(map[ast.Ref]ast.SymbolUse)
