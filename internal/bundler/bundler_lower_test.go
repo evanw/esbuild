@@ -10,8 +10,12 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 )
 
+var lower_suite = suite{
+	name: "lower",
+}
+
 func TestLowerOptionalCatchNameCollisionNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				try {}
@@ -37,7 +41,7 @@ var e3;
 }
 
 func TestLowerObjectSpreadNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				let tests = [
@@ -102,7 +106,7 @@ let jsx = [
 }
 
 func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				let tests = {
@@ -175,7 +179,7 @@ let tests = {
 }
 
 func TestLowerPrivateFieldAssignments2015NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -253,7 +257,7 @@ _x = new WeakMap();
 }
 
 func TestLowerPrivateFieldAssignments2019NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -331,7 +335,7 @@ _x = new WeakMap();
 }
 
 func TestLowerPrivateFieldAssignments2020NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -408,7 +412,7 @@ _x = new WeakMap();
 }
 
 func TestLowerPrivateFieldAssignmentsNextNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -479,7 +483,7 @@ func TestLowerPrivateFieldAssignmentsNextNoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateFieldOptionalChain2019NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -518,7 +522,7 @@ _x = new WeakMap();
 }
 
 func TestLowerPrivateFieldOptionalChain2020NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -556,7 +560,7 @@ _x = new WeakMap();
 }
 
 func TestLowerPrivateFieldOptionalChainNextNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -589,7 +593,7 @@ func TestLowerPrivateFieldOptionalChainNextNoBundle(t *testing.T) {
 }
 
 func TestTSLowerPrivateFieldOptionalChain2015NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -628,7 +632,7 @@ _x = new WeakMap();
 }
 
 func TestTSLowerPrivateStaticMembers2015NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -677,7 +681,7 @@ _z.add(Foo);
 }
 
 func TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class WeakMap {
@@ -718,7 +722,7 @@ y_fn = function() {
 }
 
 func TestLowerPrivateGetterSetter2015(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -828,7 +832,7 @@ prop_set = function(val) {
 }
 
 func TestLowerPrivateGetterSetter2019(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -938,7 +942,7 @@ prop_set = function(val) {
 }
 
 func TestLowerPrivateGetterSetter2020(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1048,7 +1052,7 @@ prop_set = function(val) {
 }
 
 func TestLowerPrivateGetterSetterNext(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1146,7 +1150,7 @@ class Foo {
 }
 
 func TestLowerPrivateMethod2019(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1229,7 +1233,7 @@ method_fn = function() {
 }
 
 func TestLowerPrivateMethod2020(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1311,7 +1315,7 @@ method_fn = function() {
 }
 
 func TestLowerPrivateMethodNext(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1384,7 +1388,7 @@ class Foo {
 }
 
 func TestLowerPrivateClassExpr2020NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				export let Foo = class {
@@ -1425,7 +1429,7 @@ export let Foo = (_a = class {
 }
 
 func TestLowerPrivateMethodWithModifiers2020(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1482,7 +1486,7 @@ _sag.add(Foo);
 }
 
 func TestLowerAsync2016NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				async function foo(bar) {
@@ -1557,7 +1561,7 @@ export default [
 }
 
 func TestLowerAsync2017NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				async function foo(bar) {
@@ -1622,7 +1626,7 @@ export default [
 }
 
 func TestLowerAsyncThis2016CommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				exports.foo = async () => this
@@ -1648,7 +1652,7 @@ export default require_entry();
 }
 
 func TestLowerAsyncThis2016ES6(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				export let foo = async () => this
@@ -1674,7 +1678,7 @@ export {
 }
 
 func TestLowerClassFieldStrict2020NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1722,7 +1726,7 @@ __publicField(Foo, "s_bar", void 0);
 }
 
 func TestLowerClassField2020NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1767,7 +1771,7 @@ Foo.s_bar = void 0;
 }
 
 func TestLowerClassFieldStrictNextNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1807,7 +1811,7 @@ func TestLowerClassFieldStrictNextNoBundle(t *testing.T) {
 }
 
 func TestLowerClassFieldNextNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -1844,7 +1848,7 @@ func TestLowerClassFieldNextNoBundle(t *testing.T) {
 }
 
 func TestTSLowerClassFieldStrict2020NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -1892,7 +1896,7 @@ __publicField(Foo, "s_bar", void 0);
 }
 
 func TestTSLowerClassField2020NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -1935,7 +1939,7 @@ Foo.s_foo = 123;
 }
 
 func TestTSLowerClassPrivateFieldStrictNextNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -1975,7 +1979,7 @@ func TestTSLowerClassPrivateFieldStrictNextNoBundle(t *testing.T) {
 }
 
 func TestTSLowerClassPrivateFieldNextNoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -2013,7 +2017,7 @@ Foo.s_foo = 123;
 }
 
 func TestLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import loose from './loose'
@@ -2074,7 +2078,7 @@ console.log(loose_default, strict_default);
 }
 
 func TestTSLowerObjectRest2017NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				const { ...local_const } = {};
@@ -2191,7 +2195,7 @@ assign = __rest({}, []);
 }
 
 func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				const { ...local_const } = {};
@@ -2287,7 +2291,7 @@ for ({...x} = {}; x; x = null) {
 }
 
 func TestClassSuperThisIssue242NoBundle(t *testing.T) {
-	expectBundled(t, bundled{
+	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				export class A {}

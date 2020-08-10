@@ -6,8 +6,12 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 )
 
+var loader_suite = suite{
+	name: "loader",
+}
+
 func TestLoaderFile(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(require('./test.svg'))
@@ -41,7 +45,7 @@ console.log(require_test());
 }
 
 func TestLoaderFileMultipleNoCollision(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(
@@ -83,7 +87,7 @@ console.log(require_test(), require_test2());
 }
 
 func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(<div/>)
@@ -106,7 +110,7 @@ console.log(/* @__PURE__ */ React.createElement("div", null));
 }
 
 func TestRequireCustomExtensionString(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(require('./test.custom'))
@@ -136,7 +140,7 @@ console.log(require_test());
 }
 
 func TestRequireCustomExtensionBase64(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(require('./test.custom'))
@@ -166,7 +170,7 @@ console.log(require_test());
 }
 
 func TestRequireCustomExtensionDataURL(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(require('./test.custom'))
@@ -196,7 +200,7 @@ console.log(require_test());
 }
 
 func TestRequireCustomExtensionPreferLongest(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(require('./test.txt'), require('./test.base64.txt'))
@@ -233,7 +237,7 @@ console.log(require_test(), require_test_base64());
 }
 
 func TestAutoDetectMimeTypeFromExtension(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(require('./test.svg'))
@@ -263,7 +267,7 @@ console.log(require_test());
 }
 
 func TestLoaderJSONCommonJSAndES6(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				const x_json = require('./x.json')
@@ -308,7 +312,7 @@ console.log(x_json, y_default, small, if2);
 }
 
 func TestLoaderTextCommonJSAndES6(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				const x_txt = require('./x.txt')
@@ -341,7 +345,7 @@ console.log(x_txt, y_default);
 }
 
 func TestLoaderBase64CommonJSAndES6(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				const x_b64 = require('./x.b64')
@@ -378,7 +382,7 @@ console.log(x_b64, y_default);
 }
 
 func TestLoaderDataURLCommonJSAndES6(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				const x_url = require('./x.txt')
@@ -415,7 +419,7 @@ console.log(x_url, y_default);
 }
 
 func TestLoaderFileCommonJSAndES6(t *testing.T) {
-	expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				const x_url = require('./x.txt')

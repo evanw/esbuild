@@ -6,8 +6,12 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 )
 
+var dce_suite = suite{
+	name: "dce",
+}
+
 func TestPackageJsonSideEffectsFalseKeepNamedImportES6(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import {foo} from "demo-pkg"
@@ -41,7 +45,7 @@ console.log(foo);
 }
 
 func TestPackageJsonSideEffectsFalseKeepNamedImportCommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import {foo} from "demo-pkg"
@@ -78,7 +82,7 @@ console.log(demo_pkg.foo);
 }
 
 func TestPackageJsonSideEffectsFalseKeepStarImportES6(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import * as ns from "demo-pkg"
@@ -116,7 +120,7 @@ console.log(demo_pkg_exports);
 }
 
 func TestPackageJsonSideEffectsFalseKeepStarImportCommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import * as ns from "demo-pkg"
@@ -153,7 +157,7 @@ console.log(ns);
 }
 
 func TestPackageJsonSideEffectsTrueKeepES6(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import "demo-pkg"
@@ -186,7 +190,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsTrueKeepCommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import "demo-pkg"
@@ -223,7 +227,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import "demo-pkg"
@@ -264,7 +268,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import "demo-pkg"
@@ -302,7 +306,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import "demo-pkg"
@@ -332,7 +336,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import "demo-pkg"
@@ -362,7 +366,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsFalseRemoveNamedImportES6(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import {foo} from "demo-pkg"
@@ -392,7 +396,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsFalseRemoveNamedImportCommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import {foo} from "demo-pkg"
@@ -422,7 +426,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsFalseRemoveStarImportES6(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import * as ns from "demo-pkg"
@@ -452,7 +456,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsFalseRemoveStarImportCommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import * as ns from "demo-pkg"
@@ -482,7 +486,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsArrayRemove(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import {foo} from "demo-pkg"
@@ -512,7 +516,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsArrayKeep(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import {foo} from "demo-pkg"
@@ -545,7 +549,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsNestedDirectoryRemove(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import {foo} from "demo-pkg/a/b/c"
@@ -575,7 +579,7 @@ console.log("unused import");
 }
 
 func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import foo from "demo-pkg"
@@ -607,7 +611,7 @@ console.log(demo_pkg_default);
 }
 
 func TestJSONLoaderRemoveUnused(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import unused from "./example.json"
@@ -629,7 +633,7 @@ console.log("unused import");
 }
 
 func TestTextLoaderRemoveUnused(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import unused from "./example.txt"
@@ -651,7 +655,7 @@ console.log("unused import");
 }
 
 func TestBase64LoaderRemoveUnused(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import unused from "./example.data"
@@ -677,7 +681,7 @@ console.log("unused import");
 }
 
 func TestDataURLLoaderRemoveUnused(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import unused from "./example.data"
@@ -703,7 +707,7 @@ console.log("unused import");
 }
 
 func TestFileLoaderRemoveUnused(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import unused from "./example.data"
@@ -729,7 +733,7 @@ console.log("unused import");
 }
 
 func TestRemoveUnusedImportMeta(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				function foo() {
@@ -752,7 +756,7 @@ console.log("foo is unused");
 }
 
 func TestRemoveUnusedPureCommentCalls(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				function bar() {}
@@ -840,7 +844,7 @@ let new_exp_no = /* @__PURE__ */ new foo() ** foo();
 }
 
 func TestTreeShakingReactElements(t *testing.T) {
-	expectBundled(t, bundled{
+	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				function Foo() {}

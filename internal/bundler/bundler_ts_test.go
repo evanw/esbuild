@@ -6,8 +6,12 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 )
 
+var ts_suite = suite{
+	name: "ts",
+}
+
 func TestTSDeclareConst(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				declare const require: any
@@ -32,7 +36,7 @@ let foo = bar();
 }
 
 func TestTSDeclareLet(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				declare let require: any
@@ -57,7 +61,7 @@ let foo = bar();
 }
 
 func TestTSDeclareVar(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				declare var require: any
@@ -82,7 +86,7 @@ let foo = bar();
 }
 
 func TestTSDeclareClass(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				declare class require {}
@@ -107,7 +111,7 @@ let foo = bar();
 }
 
 func TestTSDeclareFunction(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				declare function require(): void
@@ -132,7 +136,7 @@ let foo = bar();
 }
 
 func TestTSDeclareNamespace(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				declare namespace require {}
@@ -157,7 +161,7 @@ let foo = bar();
 }
 
 func TestTSDeclareEnum(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				declare enum require {}
@@ -182,7 +186,7 @@ let foo = bar();
 }
 
 func TestTSDeclareConstEnum(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				declare const enum require {}
@@ -207,7 +211,7 @@ let foo = bar();
 }
 
 func TestTSImportEmptyNamespace(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import {ns} from './ns.ts'
@@ -234,7 +238,7 @@ foo();
 }
 
 func TestTSImportMissingES6(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import fn, {x as a, y as b} from './foo'
@@ -256,7 +260,7 @@ func TestTSImportMissingES6(t *testing.T) {
 }
 
 func TestTSImportMissingUnusedES6(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import fn, {x as a, y as b} from './foo'
@@ -277,7 +281,7 @@ func TestTSImportMissingUnusedES6(t *testing.T) {
 }
 
 func TestTSExportMissingES6(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import * as ns from './foo'
@@ -310,7 +314,7 @@ console.log(foo_exports);
 
 // It's an error to import from a file that does not exist
 func TestTSImportMissingFile(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import {Something} from './doesNotExist.ts'
@@ -328,7 +332,7 @@ func TestTSImportMissingFile(t *testing.T) {
 
 // It's not an error to import a type from a file that does not exist
 func TestTSImportTypeOnlyFile(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import {SomeType1} from './doesNotExist1.ts'
@@ -350,7 +354,7 @@ let foo = bar();
 }
 
 func TestTSExportEquals(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
 				import b from './b.ts'
@@ -383,7 +387,7 @@ console.log(b.default);
 }
 
 func TestTSExportNamespace(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
 				import {Foo} from './b.ts'
@@ -423,7 +427,7 @@ console.log(new Foo());
 }
 
 func TestTSMinifyEnum(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
 				enum Foo { A, B, C = Foo }
@@ -447,7 +451,7 @@ func TestTSMinifyEnum(t *testing.T) {
 }
 
 func TestTSMinifyNamespace(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
 				namespace Foo {
@@ -479,7 +483,7 @@ func TestTSMinifyNamespace(t *testing.T) {
 }
 
 func TestTSMinifyDerivedClass(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo extends Bar {
@@ -514,7 +518,7 @@ func TestTSMinifyDerivedClass(t *testing.T) {
 }
 
 func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import {a, b, c, d, e} from './other.ts'
@@ -549,7 +553,7 @@ console.log(a, b, c, d, e);
 }
 
 func TestTSImportVsLocalCollisionMixed(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import {a, b, c, d, e, real} from './other.ts'
@@ -588,7 +592,7 @@ console.log(a, b, c, d, e, real);
 }
 
 func TestTSMinifiedBundleES6(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import {foo} from './a'
@@ -616,7 +620,7 @@ func TestTSMinifiedBundleES6(t *testing.T) {
 }
 
 func TestTSMinifiedBundleCommonJS(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				const {foo} = require('./a')
@@ -647,7 +651,7 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 }
 
 func TestTypeScriptDecorators(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import all from './all'
@@ -1009,7 +1013,7 @@ console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default
 }
 
 func TestTSExportDefaultTypeIssue316(t *testing.T) {
-	expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import dc_def, { bar as dc } from './keep/declare-class'

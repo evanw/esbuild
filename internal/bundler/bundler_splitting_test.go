@@ -6,8 +6,12 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 )
 
+var splitting_suite = suite{
+	name: "splitting",
+}
+
 func TestSplittingSharedES6IntoES6(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				import {foo} from "./shared.js"
@@ -53,7 +57,7 @@ export {
 }
 
 func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				const {foo} = require("./shared.js")
@@ -103,7 +107,7 @@ export {
 }
 
 func TestSplittingDynamicES6IntoES6(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import("./foo.js").then(({bar}) => console.log(bar))
@@ -134,7 +138,7 @@ export {
 }
 
 func TestSplittingDynamicCommonJSIntoES6(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import("./foo.js").then(({default: {bar}}) => console.log(bar))
@@ -165,7 +169,7 @@ export default require_foo();
 }
 
 func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import {bar as a} from "./foo.js"
@@ -211,7 +215,7 @@ export {
 }
 
 func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import {bar as a} from "./foo.js"
@@ -258,7 +262,7 @@ export {
 }
 
 func TestSplittingAssignToLocal(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				import {foo, setFoo} from "./shared.js"
@@ -316,7 +320,7 @@ export {
 }
 
 func TestSplittingSideEffectsWithoutDependencies(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				import {a} from "./shared.js"
@@ -364,7 +368,7 @@ console.log("side effect");
 }
 
 func TestSplittingNestedDirectories(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/pages/pageA/page.js": `
 				import x from "../shared.js"
@@ -415,7 +419,7 @@ export {
 }
 
 func TestSplittingCircularReferenceIssue251(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				export * from './b.js';
@@ -472,7 +476,7 @@ export {
 }
 
 func TestSplittingMissingLazyExport(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				import {foo} from './common.js'
@@ -532,7 +536,7 @@ console.log(bar());
 }
 
 func TestSplittingReExportIssue273(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				export const a = 1
@@ -579,7 +583,7 @@ export {
 }
 
 func TestSplittingDynamicImportIssue272(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				import('./b')
@@ -610,7 +614,7 @@ export {
 }
 
 func TestSplittingDynamicImportOutsideSourceTreeIssue264(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry1.js": `
 				import('package')
@@ -644,7 +648,7 @@ console.log("imported");
 }
 
 func TestSplittingCrossChunkAssignmentDependencies(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				import {setValue} from './shared'
@@ -710,7 +714,7 @@ export {
 }
 
 func TestSplittingCrossChunkAssignmentDependenciesRecursive(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				import { setX } from './x'
@@ -831,7 +835,7 @@ export {
 }
 
 func TestSplittingDuplicateChunkCollision(t *testing.T) {
-	expectBundled(t, bundled{
+	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
 				import "./ab"

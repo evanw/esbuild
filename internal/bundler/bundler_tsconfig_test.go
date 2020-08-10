@@ -6,8 +6,12 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 )
 
+var tsconfig_suite = suite{
+	name: "tsconfig",
+}
+
 func TestTsConfigPaths(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
 				import baseurl_dot from './baseurl_dot'
@@ -187,7 +191,7 @@ console.log(baseurl_dot_default, baseurl_nested_default);
 }
 
 func TestTsConfigJSX(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
 				console.log(<><div/><div/></>)
@@ -215,7 +219,7 @@ console.log(/* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* 
 }
 
 func TestTsConfigNestedJSX(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
 				import factory from './factory'
@@ -278,7 +282,7 @@ console.log(factory_default, fragment_default, both_default);
 }
 
 func TestTsconfigJsonBaseUrl(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
 				import fn from 'lib/util'
@@ -319,7 +323,7 @@ console.log(util.default());
 }
 
 func TestJsconfigJsonBaseUrl(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
 				import fn from 'lib/util'
@@ -360,7 +364,7 @@ console.log(util.default());
 }
 
 func TestTsconfigJsonCommentAllowed(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
 				import fn from 'lib/util'
@@ -402,7 +406,7 @@ console.log(util.default());
 }
 
 func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
 				import fn from 'lib/util'
@@ -443,7 +447,7 @@ console.log(util.default());
 }
 
 func TestTsconfigJsonExtends(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				console.log(<div/>, <></>)
@@ -479,7 +483,7 @@ console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactor
 }
 
 func TestTsconfigJsonExtendsThreeLevels(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				console.log(<div/>, <></>)
@@ -520,7 +524,7 @@ console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactor
 }
 
 func TestTsconfigJsonExtendsLoop(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(123)
@@ -551,7 +555,7 @@ console.log(123);
 }
 
 func TestTsconfigJsonExtendsPackage(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.jsx": `
 				console.log(<div/>)
@@ -583,7 +587,7 @@ console.log(/* @__PURE__ */ worked("div", null));
 }
 
 func TestTsconfigJsonOverrideMissing(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.ts": `
 				import 'foo'
@@ -632,7 +636,7 @@ console.log("good");
 }
 
 func TestTsconfigJsonOverrideNodeModules(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.ts": `
 				import 'foo'
@@ -684,7 +688,7 @@ console.log("good");
 }
 
 func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
-	expectBundled(t, bundled{
+	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.tsx": `
 				console.log(<div/>)
