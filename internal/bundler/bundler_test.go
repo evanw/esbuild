@@ -137,7 +137,9 @@ func (s *suite) compareSnapshot(t *testing.T, testName string, generated string)
 		s.generatedSnapshots = make(map[string]string)
 		s.expectedSnapshots = make(map[string]string)
 		if contents, err := ioutil.ReadFile(s.path); err == nil {
-			for _, part := range strings.Split(string(contents), snapshotSplitter) {
+			// Replacing CRLF with LF is necessary to fix tests in GitHub actions,
+			// which for some reason check out the source code in CLRF mode
+			for _, part := range strings.Split(strings.ReplaceAll(string(contents), "\r\n", "\n"), snapshotSplitter) {
 				if newline := strings.IndexByte(part, '\n'); newline != -1 {
 					key := part[:newline]
 					value := part[newline+1:]
