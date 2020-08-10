@@ -806,6 +806,32 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 				return path + ext, true
 			}
 		}
+
+		// TypeScript-specific behavior: if the extension is ".js" or ".jsx", try
+		// replacing it with ".ts" or ".tsx". At the time of writing this specific
+		// behavior comes from the function "loadModuleFromFile()" in the file
+		// "moduleNameResolver.ts" in the TypeScript compiler source code. It
+		// contains this comment:
+		//
+		//   If that didn't work, try stripping a ".js" or ".jsx" extension and
+		//   replacing it with a TypeScript one; e.g. "./foo.js" can be matched
+		//   by "./foo.ts" or "./foo.d.ts"
+		//
+		// We don't care about ".d.ts" files because we can't do anything with
+		// those, so we ignore that part of the behavior.
+		//
+		// See the discussion here for more historical context:
+		// https://github.com/microsoft/TypeScript/issues/4595
+		if strings.HasSuffix(base, ".js") || strings.HasSuffix(base, ".jsx") {
+			lastDot := strings.LastIndexByte(base, '.')
+			// Note that the official compiler code always tries ".ts" before
+			// ".tsx" even if the original extension was ".jsx".
+			for _, ext := range []string{".ts", ".tsx"} {
+				if entries[base[:lastDot]+ext].Kind == fs.FileEntry {
+					return path[:len(path)-(len(base)-lastDot)] + ext, true
+				}
+			}
+		}
 	}
 
 	return "", false

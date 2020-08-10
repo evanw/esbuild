@@ -759,3 +759,68 @@ func TestTSExportDefaultTypeIssue316(t *testing.T) {
 		},
 	})
 }
+
+func TestTSImplicitExtensions(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import './pick-js.js'
+				import './pick-ts.js'
+				import './pick-jsx.jsx'
+				import './pick-tsx.jsx'
+				import './order-js.js'
+				import './order-jsx.jsx'
+			`,
+
+			"/pick-js.js": `console.log("correct")`,
+			"/pick-js.ts": `console.log("wrong")`,
+
+			"/pick-ts.jsx": `console.log("wrong")`,
+			"/pick-ts.ts":  `console.log("correct")`,
+
+			"/pick-jsx.jsx": `console.log("correct")`,
+			"/pick-jsx.tsx": `console.log("wrong")`,
+
+			"/pick-tsx.js":  `console.log("wrong")`,
+			"/pick-tsx.tsx": `console.log("correct")`,
+
+			"/order-js.ts":  `console.log("correct")`,
+			"/order-js.tsx": `console.log("wrong")`,
+
+			"/order-jsx.ts":  `console.log("correct")`,
+			"/order-jsx.tsx": `console.log("wrong")`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTSImplicitExtensionsMissing(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import './mjs.mjs'
+				import './cjs.cjs'
+				import './js.js'
+				import './jsx.jsx'
+			`,
+			"/mjs.ts":      ``,
+			"/mjs.tsx":     ``,
+			"/cjs.ts":      ``,
+			"/cjs.tsx":     ``,
+			"/js.js.ts":    ``,
+			"/jsx.jsx.tsx": ``,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.ts: error: Could not resolve "./mjs.mjs"
+/entry.ts: error: Could not resolve "./cjs.cjs"
+`,
+	})
+}

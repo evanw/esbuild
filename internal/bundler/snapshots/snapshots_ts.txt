@@ -168,6 +168,29 @@ class Foo {
 console.log(new Foo());
 
 ================================================================================
+TestTSImplicitExtensions
+---------- /out.js ----------
+// /pick-js.js
+console.log("correct");
+
+// /pick-ts.ts
+console.log("correct");
+
+// /pick-jsx.jsx
+console.log("correct");
+
+// /pick-tsx.tsx
+console.log("correct");
+
+// /order-js.ts
+console.log("correct");
+
+// /order-jsx.ts
+console.log("correct");
+
+// /entry.ts
+
+================================================================================
 TestTSImportEmptyNamespace
 ---------- /out.js ----------
 // /entry.ts

@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-* Reduce memory usage by 30-40% ([#304](https://github.com/evanw/esbuild/issues/304))
+* Reduce memory usage for large builds by 30-40% ([#304](https://github.com/evanw/esbuild/issues/304))
 
-    This release reduces memory usage. Memory is reduced by ~30% for all builds by avoiding unnecessary per-file symbol maps, and is reduced by an additional ~10% for builds with source maps by preallocating some large arrays relating to source map output.
+    This release reduces memory usage. These specific percentages are likely only accurate for builds with a large number of files. Memory is reduced by ~30% for all builds by avoiding unnecessary per-file symbol maps, and is reduced by an additional ~10% for builds with source maps by preallocating some large arrays relating to source map output.
+
+* Replace `.js` and `.jsx` with `.ts` or `.tsx` when resolving ([#118](https://github.com/evanw/esbuild/issues/118))
+
+    This adds an import path resolution behavior that's specific to the TypeScript compiler where you can use an import path that ends in `.js` or `.jsx` when the correct import path actually ends in `.ts` or `.tsx` instead. See the discussion here for more historical context: https://github.com/microsoft/TypeScript/issues/4595.
 
 ## 0.6.18
 
