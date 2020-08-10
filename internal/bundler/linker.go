@@ -156,6 +156,11 @@ type fileMeta struct {
 	// this module must be added as getters to the CommonJS "exports" object.
 	cjsStyleExports bool
 
+	// This is set when we need to pull in the "__export" symbol in to the part
+	// at "nsExportPartIndex". This can't be done in "createExportsForFile"
+	// because of concurrent map hazards. Instead, it must be done later.
+	needsExportSymbolFromRuntime bool
+
 	// The index of the automatically-generated part used to represent the
 	// CommonJS wrapper. This part is empty and is only useful for tree shaking
 	// and code splitting. The CommonJS wrapper can't be inserted into the part
@@ -1094,46 +1099,63 @@ func (c *linkerContext) scanImportsAndExports() {
 	// Step 5: Create namespace exports for every file. This is always necessary
 	// for CommonJS files, and is also necessary for other files if they are
 	// imported using an import star statement.
+	waitGroup := sync.WaitGroup{}
+	waitGroup.Add(len(c.reachableFiles))
 	for _, sourceIndex := range c.reachableFiles {
-		// Now that all exports have been resolved, sort and filter them to create
-		// something we can iterate over later.
-		fileMeta := &c.fileMeta[sourceIndex]
-		aliases := make([]string, 0, len(fileMeta.resolvedExports))
-		for alias, export := range fileMeta.resolvedExports {
-			// The automatically-generated namespace export is just for internal binding
-			// purposes and isn't meant to end up in generated code.
-			if alias == "*" {
-				continue
+		// This is the slowest step and is also parallelizable, so do this in parallel.
+		go func(sourceIndex uint32) {
+			// Now that all exports have been resolved, sort and filter them to create
+			// something we can iterate over later.
+			fileMeta := &c.fileMeta[sourceIndex]
+			aliases := make([]string, 0, len(fileMeta.resolvedExports))
+			for alias, export := range fileMeta.resolvedExports {
+				// The automatically-generated namespace export is just for internal binding
+				// purposes and isn't meant to end up in generated code.
+				if alias == "*" {
+					continue
+				}
+
+				// Re-exporting multiple symbols with the same name causes an ambiguous
+				// export. These names cannot be used and should not end up in generated code.
+				if export.isAmbiguous {
+					continue
+				}
+
+				// Ignore re-exported imports in TypeScript files that failed to be
+				// resolved. These are probably just type-only imports so the best thing to
+				// do is to silently omit them from the export list.
+				if c.fileMeta[export.sourceIndex].isProbablyTypeScriptType[export.ref] {
+					continue
+				}
+
+				aliases = append(aliases, alias)
 			}
+			sort.Strings(aliases)
+			fileMeta.sortedAndFilteredExportAliases = aliases
 
-			// Re-exporting multiple symbols with the same name causes an ambiguous
-			// export. These names cannot be used and should not end up in generated code.
-			if export.isAmbiguous {
-				continue
-			}
-
-			// Ignore re-exported imports in TypeScript files that failed to be
-			// resolved. These are probably just type-only imports so the best thing to
-			// do is to silently omit them from the export list.
-			if c.fileMeta[export.sourceIndex].isProbablyTypeScriptType[export.ref] {
-				continue
-			}
-
-			aliases = append(aliases, alias)
-		}
-		sort.Strings(aliases)
-		fileMeta.sortedAndFilteredExportAliases = aliases
-
-		// Export creation uses "sortedAndFilteredExportAliases" so this must
-		// come second after we fill in that array
-		c.createExportsForFile(uint32(sourceIndex))
+			// Export creation uses "sortedAndFilteredExportAliases" so this must
+			// come second after we fill in that array
+			c.createExportsForFile(uint32(sourceIndex))
+			waitGroup.Done()
+		}(sourceIndex)
 	}
+	waitGroup.Wait()
 
 	// Step 6: Bind imports to exports. This adds non-local dependencies on the
 	// parts that declare the export to all parts that use the import.
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
+
+		// Include the "__export" symbol from the runtime if it was used in the
+		// previous step. The previous step can't do this because it's running in
+		// parallel and can't safely mutate the "importsToBind" map of another file.
+		if fileMeta.needsExportSymbolFromRuntime {
+			runtimeFile := &c.files[runtime.SourceIndex]
+			exportRef := runtimeFile.ast.ModuleScope.Members["__export"]
+			exportPart := &file.ast.Parts[fileMeta.nsExportPartIndex]
+			c.generateUseOfSymbolForInclude(exportPart, fileMeta, 1, exportRef, runtime.SourceIndex)
+		}
 
 		for importRef, importToBind := range fileMeta.importsToBind {
 			resolvedFile := &c.files[importToBind.sourceIndex]
@@ -1253,6 +1275,11 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
+	////////////////////////////////////////////////////////////////////////////////
+	// WARNING: This method is run in parallel over all files. Do not mutate data
+	// for other files within this method or you will create a data race.
+	////////////////////////////////////////////////////////////////////////////////
+
 	var entryPointES6ExportItems []ast.ClauseItem
 	var entryPointExportStmts []ast.Stmt
 	fileMeta := &c.fileMeta[sourceIndex]
@@ -1279,8 +1306,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		// was eventually resolved to. We need to do this because imports have
 		// already been resolved by this point, so we can't generate a new import
 		// and have that be resolved later.
-		otherFileMeta := &c.fileMeta[export.sourceIndex]
-		if importToBind, ok := otherFileMeta.importsToBind[export.ref]; ok {
+		if importToBind, ok := c.fileMeta[export.sourceIndex].importsToBind[export.ref]; ok {
 			export.ref = importToBind.ref
 			export.sourceIndex = importToBind.sourceIndex
 		}
@@ -1479,7 +1505,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Pull in the "__export" symbol if it was used
 		if exportRef != ast.InvalidRef {
-			c.generateUseOfSymbolForInclude(exportPart, fileMeta, 1, exportRef, runtime.SourceIndex)
+			fileMeta.needsExportSymbolFromRuntime = true
 		}
 	}
 
