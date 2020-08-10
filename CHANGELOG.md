@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.19
 
 * Reduce memory usage for large builds by 30-40% ([#304](https://github.com/evanw/esbuild/issues/304))
 
