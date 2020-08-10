@@ -27,14 +27,6 @@ func TestImportStarUnused(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-
-// /entry.js
-let foo = 234;
-console.log(foo);
-`,
-		},
 	})
 }
 
@@ -55,19 +47,6 @@ func TestImportStarCapture(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo2
-});
-const foo2 = 123;
-
-// /entry.js
-let foo = 234;
-console.log(foo_exports, foo2, foo);
-`,
-		},
 	})
 }
 
@@ -87,15 +66,6 @@ func TestImportStarNoCapture(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo2 = 123;
-
-// /entry.js
-let foo = 234;
-console.log(foo2, foo2, foo);
-`,
 		},
 	})
 }
@@ -121,16 +91,6 @@ func TestImportStarExportImportStarUnused(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-
-// /bar.js
-
-// /entry.js
-let foo = 234;
-console.log(foo);
-`,
-		},
 	})
 }
 
@@ -154,21 +114,6 @@ func TestImportStarExportImportStarNoCapture(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo2
-});
-const foo2 = 123;
-
-// /bar.js
-
-// /entry.js
-let foo = 234;
-console.log(foo_exports.foo, foo_exports.foo, foo);
-`,
 		},
 	})
 }
@@ -194,21 +139,6 @@ func TestImportStarExportImportStarCapture(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo2
-});
-const foo2 = 123;
-
-// /bar.js
-
-// /entry.js
-let foo = 234;
-console.log(foo_exports, foo_exports.foo, foo);
-`,
-		},
 	})
 }
 
@@ -231,16 +161,6 @@ func TestImportStarExportStarAsUnused(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-
-// /bar.js
-
-// /entry.js
-let foo = 234;
-console.log(foo);
-`,
 		},
 	})
 }
@@ -265,21 +185,6 @@ func TestImportStarExportStarAsNoCapture(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo2
-});
-const foo2 = 123;
-
-// /bar.js
-
-// /entry.js
-let foo = 234;
-console.log(foo_exports.foo, foo_exports.foo, foo);
-`,
-		},
 	})
 }
 
@@ -302,21 +207,6 @@ func TestImportStarExportStarAsCapture(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo2
-});
-const foo2 = 123;
-
-// /bar.js
-
-// /entry.js
-let foo = 234;
-console.log(foo_exports, foo_exports.foo, foo);
-`,
 		},
 	})
 }
@@ -341,16 +231,6 @@ func TestImportStarExportStarUnused(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-
-// /bar.js
-
-// /entry.js
-let foo = 234;
-console.log(foo);
-`,
-		},
 	})
 }
 
@@ -373,17 +253,6 @@ func TestImportStarExportStarNoCapture(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo2 = 123;
-
-// /bar.js
-
-// /entry.js
-let foo = 234;
-console.log(foo2, foo2, foo);
-`,
 		},
 	})
 }
@@ -408,21 +277,6 @@ func TestImportStarExportStarCapture(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo2 = 123;
-
-// /bar.js
-const bar_exports = {};
-__export(bar_exports, {
-  foo: () => foo2
-});
-
-// /entry.js
-let foo = 234;
-console.log(bar_exports, foo2, foo);
-`,
-		},
 	})
 }
 
@@ -442,18 +296,6 @@ func TestImportStarCommonJSUnused(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
-});
-
-// /entry.js
-const ns = __toModule(require_foo());
-let foo = 234;
-console.log(foo);
-`,
 		},
 	})
 }
@@ -475,18 +317,6 @@ func TestImportStarCommonJSCapture(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
-});
-
-// /entry.js
-const ns = __toModule(require_foo());
-let foo = 234;
-console.log(ns, ns.foo, foo);
-`,
-		},
 	})
 }
 
@@ -506,18 +336,6 @@ func TestImportStarCommonJSNoCapture(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports) => {
-  exports.foo = 123;
-});
-
-// /entry.js
-const ns = __toModule(require_foo());
-let foo = 234;
-console.log(ns.foo, ns.foo, foo);
-`,
 		},
 	})
 }
@@ -539,21 +357,6 @@ func TestImportStarAndCommonJS(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo2
-  });
-  const foo2 = 123;
-});
-
-// /entry.js
-const ns = __toModule(require_foo());
-const ns2 = require_foo();
-console.log(ns.foo, ns2.foo);
-`,
-		},
 	})
 }
 
@@ -570,12 +373,6 @@ func TestImportStarNoBundleUnused(t *testing.T) {
 		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `import * as ns from "./foo";
-let foo = 234;
-console.log(foo);
-`,
 		},
 	})
 }
@@ -594,12 +391,6 @@ func TestImportStarNoBundleCapture(t *testing.T) {
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `import * as ns from "./foo";
-let foo = 234;
-console.log(ns, ns.foo, foo);
-`,
-		},
 	})
 }
 
@@ -616,12 +407,6 @@ func TestImportStarNoBundleNoCapture(t *testing.T) {
 		options: config.Options{
 			IsBundling:    false,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `import * as ns from "./foo";
-let foo = 234;
-console.log(ns.foo, ns.foo, foo);
-`,
 		},
 	})
 }
@@ -641,12 +426,6 @@ func TestImportStarMangleNoBundleUnused(t *testing.T) {
 			MangleSyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `import "./foo";
-let foo = 234;
-console.log(foo);
-`,
-		},
 	})
 }
 
@@ -665,12 +444,6 @@ func TestImportStarMangleNoBundleCapture(t *testing.T) {
 			MangleSyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `import * as ns from "./foo";
-let foo = 234;
-console.log(ns, ns.foo, foo);
-`,
-		},
 	})
 }
 
@@ -688,12 +461,6 @@ func TestImportStarMangleNoBundleNoCapture(t *testing.T) {
 			IsBundling:    false,
 			MangleSyntax:  true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `import * as ns from "./foo";
-let foo = 234;
-console.log(ns.foo, ns.foo, foo);
-`,
 		},
 	})
 }
@@ -722,24 +489,6 @@ func TestImportStarExportStarOmitAmbiguous(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const x = 1;
-
-// /bar.js
-const z = 4;
-
-// /common.js
-const common_exports = {};
-__export(common_exports, {
-  x: () => x,
-  z: () => z
-});
-
-// /entry.js
-console.log(common_exports);
-`,
 		},
 	})
 }
@@ -792,24 +541,6 @@ func TestImportStarOfExportStarAs(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /bar.js
-const bar_exports = {};
-__export(bar_exports, {
-  bar: () => bar
-});
-const bar = 123;
-
-// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  bar_ns: () => bar_exports
-});
-
-// /entry.js
-console.log(foo_exports);
-`,
-		},
 	})
 }
 
@@ -836,20 +567,6 @@ func TestImportOfExportStar(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /bar.js
-statement();
-statement();
-statement();
-statement();
-const bar = 123;
-
-// /foo.js
-
-// /entry.js
-console.log(bar);
-`,
 		},
 	})
 }
@@ -881,22 +598,6 @@ func TestImportOfExportStarOfImport(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /baz.js
-const value = 123;
-
-// /bar.js
-
-// /foo.js
-statement();
-statement();
-statement();
-statement();
-
-// /entry.js
-console.log(value);
-`,
-		},
 	})
 }
 
@@ -913,19 +614,6 @@ func TestExportSelfIIFE(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `(() => {
-  // /entry.js
-  var require_entry = __commonJS((exports) => {
-    __export(exports, {
-      foo: () => foo
-    });
-    const foo = 123;
-  });
-  require_entry();
-})();
-`,
 		},
 	})
 }
@@ -944,14 +632,6 @@ func TestExportSelfES6(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-const foo = 123;
-export {
-  foo
-};
-`,
-		},
 	})
 }
 
@@ -968,17 +648,6 @@ func TestExportSelfCommonJS(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-var require_entry = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo
-  });
-  const foo = 123;
-});
-module.exports = require_entry();
-`,
 		},
 	})
 }
@@ -998,15 +667,6 @@ func TestExportSelfCommonJSMinified(t *testing.T) {
 			OutputFormat:      config.FormatCommonJS,
 			AbsOutputFile:     "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-var b = d((c, a) => {
-  a.exports = {foo: 123};
-  console.log(b());
-});
-module.exports = b();
-`,
-		},
 	})
 }
 
@@ -1025,16 +685,6 @@ func TestImportSelfCommonJS(t *testing.T) {
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-var require_entry = __commonJS((exports) => {
-  const entry = __toModule(require_entry());
-  exports.foo = 123;
-  console.log(entry.foo);
-});
-module.exports = require_entry();
-`,
-		},
 	})
 }
 
@@ -1051,20 +701,6 @@ func TestExportSelfAsNamespaceES6(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-const entry_exports = {};
-__export(entry_exports, {
-  foo: () => foo,
-  ns: () => entry_exports
-});
-const foo = 123;
-export {
-  foo,
-  entry_exports as ns
-};
-`,
 		},
 	})
 }
@@ -1083,20 +719,6 @@ func TestImportExportSelfAsNamespaceES6(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-const entry_exports = {};
-__export(entry_exports, {
-  foo: () => foo,
-  ns: () => entry_exports
-});
-const foo = 123;
-export {
-  foo,
-  entry_exports as ns
-};
-`,
 		},
 	})
 }
@@ -1117,22 +739,6 @@ func TestReExportOtherFileExportSelfAsNamespaceES6(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo,
-  ns: () => foo_exports
-});
-const foo = 123;
-
-// /entry.js
-export {
-  foo,
-  foo_exports as ns
-};
-`,
 		},
 	})
 }
@@ -1155,22 +761,6 @@ func TestReExportOtherFileImportExportSelfAsNamespaceES6(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  foo: () => foo,
-  ns: () => foo_exports
-});
-const foo = 123;
-
-// /entry.js
-export {
-  foo,
-  foo_exports as ns
-};
-`,
-		},
 	})
 }
 
@@ -1190,16 +780,6 @@ func TestOtherFileExportSelfAsNamespaceUnusedES6(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo2 = 123;
-
-// /entry.js
-export {
-  foo2 as foo
-};
-`,
 		},
 	})
 }
@@ -1222,16 +802,6 @@ func TestOtherFileImportExportSelfAsNamespaceUnusedES6(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo2 = 123;
-
-// /entry.js
-export {
-  foo2 as foo
-};
-`,
-		},
 	})
 }
 
@@ -1249,19 +819,6 @@ func TestExportSelfAsNamespaceCommonJS(t *testing.T) {
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-var require_entry = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo,
-    ns: () => ns
-  });
-  const ns = __toModule(require_entry());
-  const foo = 123;
-});
-module.exports = require_entry();
-`,
-		},
 	})
 }
 
@@ -1278,18 +835,6 @@ func TestExportSelfAndRequireSelfCommonJS(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-var require_entry = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo
-  });
-  const foo = 123;
-  console.log(require_entry());
-});
-module.exports = require_entry();
-`,
 		},
 	})
 }
@@ -1309,19 +854,6 @@ func TestExportSelfAndImportSelfCommonJS(t *testing.T) {
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-var require_entry = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo
-  });
-  const x = __toModule(require_entry());
-  const foo = 123;
-  console.log(x);
-});
-module.exports = require_entry();
-`,
-		},
 	})
 }
 
@@ -1340,19 +872,6 @@ func TestExportOtherAsNamespaceCommonJS(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports2) => {
-  exports2.foo = 123;
-});
-
-// /entry.js
-__export(exports, {
-  ns: () => ns
-});
-const ns = __toModule(require_foo());
-`,
 		},
 	})
 }
@@ -1374,19 +893,6 @@ func TestImportExportOtherAsNamespaceCommonJS(t *testing.T) {
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports2) => {
-  exports2.foo = 123;
-});
-
-// /entry.js
-__export(exports, {
-  ns: () => ns
-});
-const ns = __toModule(require_foo());
-`,
-		},
 	})
 }
 
@@ -1406,18 +912,6 @@ func TestNamespaceImportMissingES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  x: () => x
-});
-const x = 123;
-
-// /entry.js
-console.log(foo_exports, void 0);
-`,
-		},
 	})
 }
 
@@ -1436,19 +930,6 @@ func TestExportOtherCommonJS(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports2) => {
-  exports2.foo = 123;
-});
-
-// /entry.js
-__export(exports, {
-  bar: () => foo.bar
-});
-const foo = __toModule(require_foo());
-`,
 		},
 	})
 }
@@ -1472,21 +953,6 @@ func TestExportOtherNestedCommonJS(t *testing.T) {
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports2) => {
-  exports2.foo = 123;
-});
-
-// /bar.js
-const foo = __toModule(require_foo());
-
-// /entry.js
-__export(exports, {
-  y: () => foo.x
-});
-`,
-		},
 	})
 }
 
@@ -1505,13 +971,6 @@ func TestNamespaceImportUnusedMissingES6(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-
-// /entry.js
-console.log(void 0);
-`,
 		},
 	})
 }
@@ -1532,17 +991,6 @@ func TestNamespaceImportMissingCommonJS(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports) => {
-  exports.x = 123;
-});
-
-// /entry.js
-const ns = __toModule(require_foo());
-console.log(ns, ns.foo);
-`,
-		},
 	})
 }
 
@@ -1561,17 +1009,6 @@ func TestNamespaceImportUnusedMissingCommonJS(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-var require_foo = __commonJS((exports) => {
-  exports.x = 123;
-});
-
-// /entry.js
-const ns = __toModule(require_foo());
-console.log(ns.foo);
-`,
 		},
 	})
 }
@@ -1595,20 +1032,6 @@ func TestReExportNamespaceImportMissingES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /bar.js
-const bar_exports = {};
-__export(bar_exports, {
-  x: () => x
-});
-const x = 123;
-
-// /foo.js
-
-// /entry.js
-console.log(bar_exports, bar_exports.foo);
-`,
-		},
 	})
 }
 
@@ -1630,20 +1053,6 @@ func TestReExportNamespaceImportUnusedMissingES6(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /bar.js
-const bar_exports = {};
-__export(bar_exports, {
-  x: () => x
-});
-const x = 123;
-
-// /foo.js
-
-// /entry.js
-console.log(bar_exports.foo);
-`,
 		},
 	})
 }
@@ -1717,20 +1126,6 @@ func TestNamespaceImportReExportStarMissingES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /bar.js
-const x = 123;
-
-// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  x: () => x
-});
-
-// /entry.js
-console.log(foo_exports, void 0);
-`,
-		},
 	})
 }
 
@@ -1753,15 +1148,6 @@ func TestNamespaceImportReExportStarUnusedMissingES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /bar.js
-
-// /foo.js
-
-// /entry.js
-console.log(void 0);
-`,
-		},
 	})
 }
 
@@ -1781,16 +1167,6 @@ func TestExportStarDefaultExportCommonJS(t *testing.T) {
 			IsBundling:    true,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /foo.js
-let foo = "foo";
-
-// /entry.js
-__export(exports, {
-  foo: () => foo
-});
-`,
 		},
 	})
 }
@@ -1816,22 +1192,6 @@ func TestIssue176(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /folders/child/foo.js
-const foo = () => "hi there";
-
-// /folders/child/index.js
-
-// /folders/index.js
-const folders_exports = {};
-__export(folders_exports, {
-  foo: () => foo
-});
-
-// /entry.js
-console.log(JSON.stringify(folders_exports));
-`,
 		},
 	})
 }

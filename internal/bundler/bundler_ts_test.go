@@ -27,11 +27,6 @@ func TestTSDeclareConst(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
-		},
 	})
 }
 
@@ -51,11 +46,6 @@ func TestTSDeclareLet(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
 		},
 	})
 }
@@ -77,11 +67,6 @@ func TestTSDeclareVar(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
-		},
 	})
 }
 
@@ -101,11 +86,6 @@ func TestTSDeclareClass(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
 		},
 	})
 }
@@ -127,11 +107,6 @@ func TestTSDeclareFunction(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
-		},
 	})
 }
 
@@ -151,11 +126,6 @@ func TestTSDeclareNamespace(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
 		},
 	})
 }
@@ -177,11 +147,6 @@ func TestTSDeclareEnum(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
-		},
 	})
 }
 
@@ -202,11 +167,6 @@ func TestTSDeclareConstEnum(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
-		},
 	})
 }
 
@@ -226,13 +186,6 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-function foo() {
-}
-foo();
-`,
 		},
 	})
 }
@@ -274,9 +227,6 @@ func TestTSImportMissingUnusedES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": ``,
-		},
 	})
 }
 
@@ -298,16 +248,6 @@ func TestTSExportMissingES6(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /bar.js
-
-// /foo.ts
-const foo_exports = {};
-
-// /entry.js
-console.log(foo_exports);
-`,
 		},
 	})
 }
@@ -345,11 +285,6 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let foo = bar();
-`,
-		},
 	})
 }
 
@@ -369,19 +304,6 @@ func TestTSExportEquals(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /b.ts
-var require_b = __commonJS((exports, module) => {
-  function foo() {
-  }
-  module.exports = [123, foo];
-});
-
-// /a.ts
-const b = __toModule(require_b());
-console.log(b.default);
-`,
 		},
 	})
 }
@@ -408,21 +330,6 @@ func TestTSExportNamespace(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /b.ts
-class Foo {
-}
-(function(Foo2) {
-  Foo2.foo = 1;
-})(Foo || (Foo = {}));
-(function(Foo2) {
-  Foo2.bar = 2;
-})(Foo || (Foo = {}));
-
-// /a.ts
-console.log(new Foo());
-`,
-		},
 	})
 }
 
@@ -442,10 +349,6 @@ func TestTSMinifyEnum(t *testing.T) {
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputDir:      "/",
-		},
-		expected: map[string]string{
-			"/a.js": "var Foo;(function(a){a[a.A=0]=\"A\",a[a.B=1]=\"B\",a[a.C=a]=\"C\"})(Foo||(Foo={}));\n",
-			"/b.js": "export var Foo;(function(a){a[a.X=0]=\"X\",a[a.Y=1]=\"Y\",a[a.Z=a]=\"Z\"})(Foo||(Foo={}));\n",
 		},
 	})
 }
@@ -475,10 +378,6 @@ func TestTSMinifyNamespace(t *testing.T) {
 			MinifyIdentifiers: true,
 			AbsOutputDir:      "/",
 		},
-		expected: map[string]string{
-			"/a.js": "var Foo;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(Foo||(Foo={}));\n",
-			"/b.js": "export var Foo;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(Foo||(Foo={}));\n",
-		},
 	})
 }
 
@@ -503,17 +402,6 @@ func TestTSMinifyDerivedClass(t *testing.T) {
 			UnsupportedFeatures: es(2015),
 			AbsOutputFile:       "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `class Foo extends Bar {
-  constructor() {
-    super();
-    this.foo = 1;
-    this.bar = 2;
-    foo(), bar();
-  }
-}
-`,
-		},
 	})
 }
 
@@ -536,18 +424,6 @@ func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.ts
-let a;
-const b = 0;
-var c;
-function d() {
-}
-class e {
-}
-console.log(a, b, c, d, e);
-`,
 		},
 	})
 }
@@ -573,21 +449,6 @@ func TestTSImportVsLocalCollisionMixed(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /other.ts
-let real = 123;
-
-// /entry.ts
-let a;
-const b = 0;
-var c;
-function d() {
-}
-class e {
-}
-console.log(a, b, c, d, e, real);
-`,
-		},
 	})
 }
 
@@ -611,10 +472,6 @@ func TestTSMinifiedBundleES6(t *testing.T) {
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `function a(){return 123}console.log(a());
-`,
 		},
 	})
 }
@@ -642,10 +499,6 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `var c=e(b=>{b.foo=function(){return 123}});var d=e((b,a)=>{a.exports={test:!0}});const{foo:f}=c();console.log(f(),d());
-`,
 		},
 	})
 }
@@ -776,239 +629,6 @@ func TestTypeScriptDecorators(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /all.ts
-let Foo = class {
-  constructor() {
-    this.mDef = 1;
-  }
-  method(arg0, arg1) {
-    return new Foo();
-  }
-  static sMethod(arg0, arg1) {
-    return new Foo();
-  }
-};
-Foo.sDef = new Foo();
-__decorate([
-  x,
-  y
-], Foo.prototype, "mUndef", 2);
-__decorate([
-  x,
-  y
-], Foo.prototype, "mDef", 2);
-__decorate([
-  x,
-  y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
-], Foo.prototype, "method", 1);
-__decorate([
-  x,
-  y
-], Foo.prototype, "sUndef", 2);
-__decorate([
-  x,
-  y
-], Foo.prototype, "sDef", 2);
-__decorate([
-  x,
-  y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
-], Foo.prototype, "sMethod", 1);
-Foo = __decorate([
-  x.y(),
-  new y.x()
-], Foo);
-var all_default = Foo;
-
-// /all_computed.ts
-var _a, _b, _c, _d, _e, _f, _g, _h;
-let Foo2 = class {
-  constructor() {
-    this[_b] = 1;
-    this[_d] = 2;
-  }
-  [(_a = mUndef(), _b = mDef(), _c = method())](arg0, arg1) {
-    return new Foo2();
-  }
-  static [(xUndef(), _d = xDef(), yUndef(), _e = yDef(), _f = sUndef(), _g = sDef(), _h = sMethod())](arg0, arg1) {
-    return new Foo2();
-  }
-};
-Foo2[_e] = 3;
-Foo2[_g] = new Foo2();
-__decorate([
-  x,
-  y
-], Foo2.prototype, _a, 2);
-__decorate([
-  x,
-  y
-], Foo2.prototype, _b, 2);
-__decorate([
-  x,
-  y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
-], Foo2.prototype, _c, 1);
-__decorate([
-  x,
-  y
-], Foo2.prototype, _f, 2);
-__decorate([
-  x,
-  y
-], Foo2.prototype, _g, 2);
-__decorate([
-  x,
-  y,
-  __param(0, x0),
-  __param(0, y0),
-  __param(1, x1),
-  __param(1, y1)
-], Foo2.prototype, _h, 1);
-Foo2 = __decorate([
-  x?.[_ + "y"](),
-  new y?.[_ + "x"]()
-], Foo2);
-var all_computed_default = Foo2;
-
-// /a.ts
-let a_class = class {
-  fn() {
-    return new a_class();
-  }
-};
-a_class.z = new a_class();
-a_class = __decorate([
-  x(() => 0),
-  y(() => 1)
-], a_class);
-let a = a_class;
-
-// /b.ts
-let b_class = class {
-  fn() {
-    return new b_class();
-  }
-};
-b_class.z = new b_class();
-b_class = __decorate([
-  x(() => 0),
-  y(() => 1)
-], b_class);
-let b = b_class;
-
-// /c.ts
-let c = class {
-  fn() {
-    return new c();
-  }
-};
-c.z = new c();
-c = __decorate([
-  x(() => 0),
-  y(() => 1)
-], c);
-
-// /d.ts
-let d = class {
-  fn() {
-    return new d();
-  }
-};
-d.z = new d();
-d = __decorate([
-  x(() => 0),
-  y(() => 1)
-], d);
-
-// /e.ts
-let e_default = class {
-};
-e_default = __decorate([
-  x(() => 0),
-  y(() => 1)
-], e_default);
-var e_default2 = e_default;
-
-// /f.ts
-let f2 = class {
-  fn() {
-    return new f2();
-  }
-};
-f2.z = new f2();
-f2 = __decorate([
-  x(() => 0),
-  y(() => 1)
-], f2);
-var f_default = f2;
-
-// /g.ts
-let g_default2 = class {
-};
-g_default2 = __decorate([
-  x(() => 0),
-  y(() => 1)
-], g_default2);
-var g_default = g_default2;
-
-// /h.ts
-let h2 = class {
-  fn() {
-    return new h2();
-  }
-};
-h2.z = new h2();
-h2 = __decorate([
-  x(() => 0),
-  y(() => 1)
-], h2);
-var h_default = h2;
-
-// /i.ts
-class i_class {
-}
-__decorate([
-  x(() => 0),
-  y(() => 1)
-], i_class.prototype, "foo", 2);
-let i2 = i_class;
-
-// /j.ts
-class j2 {
-  foo() {
-  }
-}
-__decorate([
-  x(() => 0),
-  y(() => 1)
-], j2.prototype, "foo", 1);
-
-// /k.ts
-class k_default {
-  foo(x2) {
-  }
-}
-__decorate([
-  __param(0, x2(() => 0)),
-  __param(0, y(() => 1))
-], k_default.prototype, "foo", 1);
-
-// /entry.js
-console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default, h_default, i2, j2, k_default);
-`,
-		},
 	})
 }
 
@@ -1136,86 +756,6 @@ func TestTSExportDefaultTypeIssue316(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /keep/declare-class.ts
-var declare_class_default = foo;
-let bar = 123;
-
-// /keep/declare-let.ts
-var declare_let_default = foo;
-let bar2 = 123;
-
-// /keep/interface-merged.ts
-class foo2 {
-}
-foo2.x = new foo2();
-let bar3 = 123;
-
-// /keep/interface-nested.ts
-if (true) {
-}
-var interface_nested_default = foo;
-let bar4 = 123;
-
-// /keep/type-nested.ts
-if (true) {
-}
-var type_nested_default = foo;
-let bar5 = 123;
-
-// /keep/value-namespace.ts
-var foo4;
-(function(foo5) {
-  foo5.num = 0;
-})(foo4 || (foo4 = {}));
-let bar6 = 123;
-
-// /keep/value-namespace-merged.ts
-var foo3;
-(function(foo5) {
-  foo5.num = 0;
-})(foo3 || (foo3 = {}));
-let bar7 = 123;
-
-// /remove/interface.ts
-let bar8 = 123;
-
-// /remove/interface-exported.ts
-let bar9 = 123;
-
-// /remove/type.ts
-let bar10 = 123;
-
-// /remove/type-exported.ts
-let bar11 = 123;
-
-// /remove/type-only-namespace.ts
-let bar12 = 123;
-
-// /remove/type-only-namespace-exported.ts
-let bar13 = 123;
-
-// /entry.ts
-var entry_default = [
-  bar,
-  bar2,
-  bar3,
-  bar4,
-  bar5,
-  bar6,
-  bar7,
-  bar8,
-  bar9,
-  bar10,
-  bar11,
-  bar12,
-  bar13
-];
-export {
-  entry_default as default
-};
-`,
 		},
 	})
 }

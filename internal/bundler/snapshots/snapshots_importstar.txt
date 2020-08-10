@@ -1,0 +1,692 @@
+TestExportOtherAsNamespaceCommonJS
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports2) => {
+  exports2.foo = 123;
+});
+
+// /entry.js
+__export(exports, {
+  ns: () => ns
+});
+const ns = __toModule(require_foo());
+
+================================================================================
+TestExportOtherCommonJS
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports2) => {
+  exports2.foo = 123;
+});
+
+// /entry.js
+__export(exports, {
+  bar: () => foo.bar
+});
+const foo = __toModule(require_foo());
+
+================================================================================
+TestExportOtherNestedCommonJS
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports2) => {
+  exports2.foo = 123;
+});
+
+// /bar.js
+const foo = __toModule(require_foo());
+
+// /entry.js
+__export(exports, {
+  y: () => foo.x
+});
+
+================================================================================
+TestExportSelfAndImportSelfCommonJS
+---------- /out.js ----------
+// /entry.js
+var require_entry = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo
+  });
+  const x = __toModule(require_entry());
+  const foo = 123;
+  console.log(x);
+});
+module.exports = require_entry();
+
+================================================================================
+TestExportSelfAndRequireSelfCommonJS
+---------- /out.js ----------
+// /entry.js
+var require_entry = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo
+  });
+  const foo = 123;
+  console.log(require_entry());
+});
+module.exports = require_entry();
+
+================================================================================
+TestExportSelfAsNamespaceCommonJS
+---------- /out.js ----------
+// /entry.js
+var require_entry = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo,
+    ns: () => ns
+  });
+  const ns = __toModule(require_entry());
+  const foo = 123;
+});
+module.exports = require_entry();
+
+================================================================================
+TestExportSelfAsNamespaceES6
+---------- /out.js ----------
+// /entry.js
+const entry_exports = {};
+__export(entry_exports, {
+  foo: () => foo,
+  ns: () => entry_exports
+});
+const foo = 123;
+export {
+  foo,
+  entry_exports as ns
+};
+
+================================================================================
+TestExportSelfCommonJS
+---------- /out.js ----------
+// /entry.js
+var require_entry = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo
+  });
+  const foo = 123;
+});
+module.exports = require_entry();
+
+================================================================================
+TestExportSelfCommonJSMinified
+---------- /out.js ----------
+// /entry.js
+var b = d((c, a) => {
+  a.exports = {foo: 123};
+  console.log(b());
+});
+module.exports = b();
+
+================================================================================
+TestExportSelfES6
+---------- /out.js ----------
+// /entry.js
+const foo = 123;
+export {
+  foo
+};
+
+================================================================================
+TestExportSelfIIFE
+---------- /out.js ----------
+(() => {
+  // /entry.js
+  var require_entry = __commonJS((exports) => {
+    __export(exports, {
+      foo: () => foo
+    });
+    const foo = 123;
+  });
+  require_entry();
+})();
+
+================================================================================
+TestExportStarDefaultExportCommonJS
+---------- /out.js ----------
+// /foo.js
+let foo = "foo";
+
+// /entry.js
+__export(exports, {
+  foo: () => foo
+});
+
+================================================================================
+TestImportExportOtherAsNamespaceCommonJS
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports2) => {
+  exports2.foo = 123;
+});
+
+// /entry.js
+__export(exports, {
+  ns: () => ns
+});
+const ns = __toModule(require_foo());
+
+================================================================================
+TestImportExportSelfAsNamespaceES6
+---------- /out.js ----------
+// /entry.js
+const entry_exports = {};
+__export(entry_exports, {
+  foo: () => foo,
+  ns: () => entry_exports
+});
+const foo = 123;
+export {
+  foo,
+  entry_exports as ns
+};
+
+================================================================================
+TestImportOfExportStar
+---------- /out.js ----------
+// /bar.js
+statement();
+statement();
+statement();
+statement();
+const bar = 123;
+
+// /foo.js
+
+// /entry.js
+console.log(bar);
+
+================================================================================
+TestImportOfExportStarOfImport
+---------- /out.js ----------
+// /baz.js
+const value = 123;
+
+// /bar.js
+
+// /foo.js
+statement();
+statement();
+statement();
+statement();
+
+// /entry.js
+console.log(value);
+
+================================================================================
+TestImportSelfCommonJS
+---------- /out.js ----------
+// /entry.js
+var require_entry = __commonJS((exports) => {
+  const entry = __toModule(require_entry());
+  exports.foo = 123;
+  console.log(entry.foo);
+});
+module.exports = require_entry();
+
+================================================================================
+TestImportStarAndCommonJS
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo2
+  });
+  const foo2 = 123;
+});
+
+// /entry.js
+const ns = __toModule(require_foo());
+const ns2 = require_foo();
+console.log(ns.foo, ns2.foo);
+
+================================================================================
+TestImportStarCapture
+---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
+});
+const foo2 = 123;
+
+// /entry.js
+let foo = 234;
+console.log(foo_exports, foo2, foo);
+
+================================================================================
+TestImportStarCommonJSCapture
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
+});
+
+// /entry.js
+const ns = __toModule(require_foo());
+let foo = 234;
+console.log(ns, ns.foo, foo);
+
+================================================================================
+TestImportStarCommonJSNoCapture
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
+});
+
+// /entry.js
+const ns = __toModule(require_foo());
+let foo = 234;
+console.log(ns.foo, ns.foo, foo);
+
+================================================================================
+TestImportStarCommonJSUnused
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.foo = 123;
+});
+
+// /entry.js
+const ns = __toModule(require_foo());
+let foo = 234;
+console.log(foo);
+
+================================================================================
+TestImportStarExportImportStarCapture
+---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
+});
+const foo2 = 123;
+
+// /bar.js
+
+// /entry.js
+let foo = 234;
+console.log(foo_exports, foo_exports.foo, foo);
+
+================================================================================
+TestImportStarExportImportStarNoCapture
+---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
+});
+const foo2 = 123;
+
+// /bar.js
+
+// /entry.js
+let foo = 234;
+console.log(foo_exports.foo, foo_exports.foo, foo);
+
+================================================================================
+TestImportStarExportImportStarUnused
+---------- /out.js ----------
+// /foo.js
+
+// /bar.js
+
+// /entry.js
+let foo = 234;
+console.log(foo);
+
+================================================================================
+TestImportStarExportStarAsCapture
+---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
+});
+const foo2 = 123;
+
+// /bar.js
+
+// /entry.js
+let foo = 234;
+console.log(foo_exports, foo_exports.foo, foo);
+
+================================================================================
+TestImportStarExportStarAsNoCapture
+---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo2
+});
+const foo2 = 123;
+
+// /bar.js
+
+// /entry.js
+let foo = 234;
+console.log(foo_exports.foo, foo_exports.foo, foo);
+
+================================================================================
+TestImportStarExportStarAsUnused
+---------- /out.js ----------
+// /foo.js
+
+// /bar.js
+
+// /entry.js
+let foo = 234;
+console.log(foo);
+
+================================================================================
+TestImportStarExportStarCapture
+---------- /out.js ----------
+// /foo.js
+const foo2 = 123;
+
+// /bar.js
+const bar_exports = {};
+__export(bar_exports, {
+  foo: () => foo2
+});
+
+// /entry.js
+let foo = 234;
+console.log(bar_exports, foo2, foo);
+
+================================================================================
+TestImportStarExportStarNoCapture
+---------- /out.js ----------
+// /foo.js
+const foo2 = 123;
+
+// /bar.js
+
+// /entry.js
+let foo = 234;
+console.log(foo2, foo2, foo);
+
+================================================================================
+TestImportStarExportStarOmitAmbiguous
+---------- /out.js ----------
+// /foo.js
+const x = 1;
+
+// /bar.js
+const z = 4;
+
+// /common.js
+const common_exports = {};
+__export(common_exports, {
+  x: () => x,
+  z: () => z
+});
+
+// /entry.js
+console.log(common_exports);
+
+================================================================================
+TestImportStarExportStarUnused
+---------- /out.js ----------
+// /foo.js
+
+// /bar.js
+
+// /entry.js
+let foo = 234;
+console.log(foo);
+
+================================================================================
+TestImportStarMangleNoBundleCapture
+---------- /out.js ----------
+import * as ns from "./foo";
+let foo = 234;
+console.log(ns, ns.foo, foo);
+
+================================================================================
+TestImportStarMangleNoBundleNoCapture
+---------- /out.js ----------
+import * as ns from "./foo";
+let foo = 234;
+console.log(ns.foo, ns.foo, foo);
+
+================================================================================
+TestImportStarMangleNoBundleUnused
+---------- /out.js ----------
+import "./foo";
+let foo = 234;
+console.log(foo);
+
+================================================================================
+TestImportStarNoBundleCapture
+---------- /out.js ----------
+import * as ns from "./foo";
+let foo = 234;
+console.log(ns, ns.foo, foo);
+
+================================================================================
+TestImportStarNoBundleNoCapture
+---------- /out.js ----------
+import * as ns from "./foo";
+let foo = 234;
+console.log(ns.foo, ns.foo, foo);
+
+================================================================================
+TestImportStarNoBundleUnused
+---------- /out.js ----------
+import * as ns from "./foo";
+let foo = 234;
+console.log(foo);
+
+================================================================================
+TestImportStarNoCapture
+---------- /out.js ----------
+// /foo.js
+const foo2 = 123;
+
+// /entry.js
+let foo = 234;
+console.log(foo2, foo2, foo);
+
+================================================================================
+TestImportStarOfExportStarAs
+---------- /out.js ----------
+// /bar.js
+const bar_exports = {};
+__export(bar_exports, {
+  bar: () => bar
+});
+const bar = 123;
+
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  bar_ns: () => bar_exports
+});
+
+// /entry.js
+console.log(foo_exports);
+
+================================================================================
+TestImportStarUnused
+---------- /out.js ----------
+// /foo.js
+
+// /entry.js
+let foo = 234;
+console.log(foo);
+
+================================================================================
+TestIssue176
+---------- /out.js ----------
+// /folders/child/foo.js
+const foo = () => "hi there";
+
+// /folders/child/index.js
+
+// /folders/index.js
+const folders_exports = {};
+__export(folders_exports, {
+  foo: () => foo
+});
+
+// /entry.js
+console.log(JSON.stringify(folders_exports));
+
+================================================================================
+TestNamespaceImportMissingCommonJS
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.x = 123;
+});
+
+// /entry.js
+const ns = __toModule(require_foo());
+console.log(ns, ns.foo);
+
+================================================================================
+TestNamespaceImportMissingES6
+---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  x: () => x
+});
+const x = 123;
+
+// /entry.js
+console.log(foo_exports, void 0);
+
+================================================================================
+TestNamespaceImportReExportStarMissingES6
+---------- /out.js ----------
+// /bar.js
+const x = 123;
+
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  x: () => x
+});
+
+// /entry.js
+console.log(foo_exports, void 0);
+
+================================================================================
+TestNamespaceImportReExportStarUnusedMissingES6
+---------- /out.js ----------
+// /bar.js
+
+// /foo.js
+
+// /entry.js
+console.log(void 0);
+
+================================================================================
+TestNamespaceImportUnusedMissingCommonJS
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports) => {
+  exports.x = 123;
+});
+
+// /entry.js
+const ns = __toModule(require_foo());
+console.log(ns.foo);
+
+================================================================================
+TestNamespaceImportUnusedMissingES6
+---------- /out.js ----------
+// /foo.js
+
+// /entry.js
+console.log(void 0);
+
+================================================================================
+TestOtherFileExportSelfAsNamespaceUnusedES6
+---------- /out.js ----------
+// /foo.js
+const foo2 = 123;
+
+// /entry.js
+export {
+  foo2 as foo
+};
+
+================================================================================
+TestOtherFileImportExportSelfAsNamespaceUnusedES6
+---------- /out.js ----------
+// /foo.js
+const foo2 = 123;
+
+// /entry.js
+export {
+  foo2 as foo
+};
+
+================================================================================
+TestReExportNamespaceImportMissingES6
+---------- /out.js ----------
+// /bar.js
+const bar_exports = {};
+__export(bar_exports, {
+  x: () => x
+});
+const x = 123;
+
+// /foo.js
+
+// /entry.js
+console.log(bar_exports, bar_exports.foo);
+
+================================================================================
+TestReExportNamespaceImportUnusedMissingES6
+---------- /out.js ----------
+// /bar.js
+const bar_exports = {};
+__export(bar_exports, {
+  x: () => x
+});
+const x = 123;
+
+// /foo.js
+
+// /entry.js
+console.log(bar_exports.foo);
+
+================================================================================
+TestReExportOtherFileExportSelfAsNamespaceES6
+---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo,
+  ns: () => foo_exports
+});
+const foo = 123;
+
+// /entry.js
+export {
+  foo,
+  foo_exports as ns
+};
+
+================================================================================
+TestReExportOtherFileImportExportSelfAsNamespaceES6
+---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  foo: () => foo,
+  ns: () => foo_exports
+});
+const foo = 123;
+
+// /entry.js
+export {
+  foo,
+  foo_exports as ns
+};

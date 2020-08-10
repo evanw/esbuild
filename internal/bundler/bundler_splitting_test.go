@@ -30,29 +30,6 @@ func TestSplittingSharedES6IntoES6(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expected: map[string]string{
-			"/out/a.js": `import {
-  foo
-} from "./chunk.iJkFSV6U.js";
-
-// /a.js
-console.log(foo);
-`,
-			"/out/b.js": `import {
-  foo
-} from "./chunk.iJkFSV6U.js";
-
-// /b.js
-console.log(foo);
-`,
-			"/out/chunk.iJkFSV6U.js": `// /shared.js
-let foo = 123;
-
-export {
-  foo
-};
-`,
-		},
 	})
 }
 
@@ -76,33 +53,6 @@ func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expected: map[string]string{
-			"/out/a.js": `import {
-  require_shared
-} from "./chunk.W46Rb0pk.js";
-
-// /a.js
-const {foo} = require_shared();
-console.log(foo);
-`,
-			"/out/b.js": `import {
-  require_shared
-} from "./chunk.W46Rb0pk.js";
-
-// /b.js
-const {foo: foo2} = require_shared();
-console.log(foo2);
-`,
-			"/out/chunk.W46Rb0pk.js": `// /shared.js
-var require_shared = __commonJS((exports) => {
-  exports.foo = 123;
-});
-
-export {
-  require_shared
-};
-`,
-		},
 	})
 }
 
@@ -123,17 +73,6 @@ func TestSplittingDynamicES6IntoES6(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expected: map[string]string{
-			"/out/entry.js": `// /entry.js
-import("./foo.js").then(({bar: bar2}) => console.log(bar2));
-`,
-			"/out/foo.js": `// /foo.js
-let bar = 123;
-export {
-  bar
-};
-`,
-		},
 	})
 }
 
@@ -153,17 +92,6 @@ func TestSplittingDynamicCommonJSIntoES6(t *testing.T) {
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
-		},
-		expected: map[string]string{
-			"/out/entry.js": `// /entry.js
-import("./foo.js").then(({default: {bar}}) => console.log(bar));
-`,
-			"/out/foo.js": `// /foo.js
-var require_foo = __commonJS((exports) => {
-  exports.bar = 123;
-});
-export default require_foo();
-`,
 		},
 	})
 }
@@ -186,31 +114,6 @@ func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expected: map[string]string{
-			"/out/entry.js": `import {
-  bar
-} from "./chunk.nvw10ONy.js";
-
-// /entry.js
-import("./foo.js").then(({bar: b}) => console.log(bar, b));
-`,
-			"/out/foo.js": `import {
-  bar
-} from "./chunk.nvw10ONy.js";
-
-// /foo.js
-export {
-  bar
-};
-`,
-			"/out/chunk.nvw10ONy.js": `// /foo.js
-let bar = 123;
-
-export {
-  bar
-};
-`,
-		},
 	})
 }
 
@@ -231,32 +134,6 @@ func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
-		},
-		expected: map[string]string{
-			"/out/entry.js": `import {
-  require_foo
-} from "./chunk.K9Rnzqz2.js";
-
-// /entry.js
-const foo = __toModule(require_foo());
-import("./foo.js").then(({default: {bar: b}}) => console.log(foo.bar, b));
-`,
-			"/out/foo.js": `import {
-  require_foo
-} from "./chunk.K9Rnzqz2.js";
-
-// /foo.js
-export default require_foo();
-`,
-			"/out/chunk.K9Rnzqz2.js": `// /foo.js
-var require_foo = __commonJS((exports) => {
-  exports.bar = 123;
-});
-
-export {
-  require_foo
-};
-`,
 		},
 	})
 }
@@ -287,35 +164,6 @@ func TestSplittingAssignToLocal(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expected: map[string]string{
-			"/out/a.js": `import {
-  foo,
-  setFoo
-} from "./chunk.8-s4RjmR.js";
-
-// /a.js
-setFoo(123);
-console.log(foo);
-`,
-			"/out/b.js": `import {
-  foo
-} from "./chunk.8-s4RjmR.js";
-
-// /b.js
-console.log(foo);
-`,
-			"/out/chunk.8-s4RjmR.js": `// /shared.js
-let foo;
-function setFoo(value) {
-  foo = value;
-}
-
-export {
-  foo,
-  setFoo
-};
-`,
-		},
 	})
 }
 
@@ -342,27 +190,6 @@ func TestSplittingSideEffectsWithoutDependencies(t *testing.T) {
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
-		},
-		expected: map[string]string{
-			"/out/a.js": `import "./chunk.Wqqj8fqN.js";
-
-// /shared.js
-let a = 1;
-
-// /a.js
-console.log(a);
-`,
-			"/out/b.js": `import "./chunk.Wqqj8fqN.js";
-
-// /shared.js
-let b = 2;
-
-// /b.js
-console.log(b);
-`,
-			"/out/chunk.Wqqj8fqN.js": `// /shared.js
-console.log("side effect");
-`,
 		},
 	})
 }
@@ -392,29 +219,6 @@ func TestSplittingNestedDirectories(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/Users/user/project/out",
 		},
-		expected: map[string]string{
-			"/Users/user/project/out/pageA/page.js": `import {
-  shared_default
-} from "../chunk.Y98gPOMH.js";
-
-// /Users/user/project/src/pages/pageA/page.js
-console.log(shared_default);
-`,
-			"/Users/user/project/out/pageB/page.js": `import {
-  shared_default
-} from "../chunk.Y98gPOMH.js";
-
-// /Users/user/project/src/pages/pageB/page.js
-console.log(-shared_default);
-`,
-			"/Users/user/project/out/chunk.Y98gPOMH.js": `// /Users/user/project/src/pages/shared.js
-var shared_default = 123;
-
-export {
-  shared_default
-};
-`,
-		},
 	})
 }
 
@@ -436,41 +240,6 @@ func TestSplittingCircularReferenceIssue251(t *testing.T) {
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
-		},
-		expected: map[string]string{
-			"/out/a.js": `import {
-  p,
-  q
-} from "./chunk.4ySCMXof.js";
-
-// /a.js
-export {
-  p,
-  q
-};
-`,
-			"/out/b.js": `import {
-  p,
-  q
-} from "./chunk.4ySCMXof.js";
-
-// /b.js
-export {
-  p,
-  q
-};
-`,
-			"/out/chunk.4ySCMXof.js": `// /b.js
-var q = 6;
-
-// /a.js
-var p = 5;
-
-export {
-  p,
-  q
-};
-`,
 		},
 	})
 }
@@ -503,35 +272,6 @@ func TestSplittingMissingLazyExport(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expected: map[string]string{
-			"/out/a.js": `import "./chunk.nsO65Sdr.js";
-
-// /empty.js
-const empty_exports = {};
-
-// /common.js
-function foo() {
-  return [empty_exports, void 0];
-}
-
-// /a.js
-console.log(foo());
-`,
-			"/out/b.js": `import "./chunk.nsO65Sdr.js";
-
-// /common.js
-function bar() {
-  return [void 0];
-}
-
-// /b.js
-console.log(bar());
-`,
-			"/out/chunk.nsO65Sdr.js": `// /empty.js
-
-// /common.js
-`,
-		},
 	})
 }
 
@@ -552,33 +292,6 @@ func TestSplittingReExportIssue273(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expected: map[string]string{
-			"/out/a.js": `import {
-  a
-} from "./chunk.Ldjbzhqa.js";
-
-// /a.js
-export {
-  a
-};
-`,
-			"/out/b.js": `import {
-  a
-} from "./chunk.Ldjbzhqa.js";
-
-// /b.js
-export {
-  a
-};
-`,
-			"/out/chunk.Ldjbzhqa.js": `// /a.js
-const a = 1;
-
-export {
-  a
-};
-`,
-		},
 	})
 }
 
@@ -598,17 +311,6 @@ func TestSplittingDynamicImportIssue272(t *testing.T) {
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
-		},
-		expected: map[string]string{
-			"/out/a.js": `// /a.js
-import("./b.js");
-`,
-			"/out/b.js": `// /b.js
-var b_default = 1;
-export {
-  b_default as default
-};
-`,
 		},
 	})
 }
@@ -632,17 +334,6 @@ func TestSplittingDynamicImportOutsideSourceTreeIssue264(t *testing.T) {
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
-		},
-		expected: map[string]string{
-			"/out/src/entry1.js": `// /Users/user/project/src/entry1.js
-import("../node_modules/package/index.js");
-`,
-			"/out/src/entry2.js": `// /Users/user/project/src/entry2.js
-import("../node_modules/package/index.js");
-`,
-			"/out/node_modules/package/index.js": `// /Users/user/project/node_modules/package/index.js
-console.log("imported");
-`,
 		},
 	})
 }
@@ -679,36 +370,6 @@ func TestSplittingCrossChunkAssignmentDependencies(t *testing.T) {
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
-		},
-		expected: map[string]string{
-			"/out/a.js": `import {
-  setValue
-} from "./chunk._9Zb2gmb.js";
-
-// /a.js
-setValue(123);
-`,
-			"/out/b.js": `import "./chunk._9Zb2gmb.js";
-
-// /b.js
-`,
-			"/out/chunk._9Zb2gmb.js": `// /shared.js
-var observer;
-var value;
-function getValue() {
-  return value;
-}
-function setValue(next) {
-  value = next;
-  if (observer)
-    observer();
-}
-sideEffects(getValue);
-
-export {
-  setValue
-};
-`,
 		},
 	})
 }
@@ -757,80 +418,6 @@ func TestSplittingCrossChunkAssignmentDependenciesRecursive(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
-		expected: map[string]string{
-			"/out/a.js": `import {
-  setX
-} from "./chunk.lf8PB6N3.js";
-
-// /a.js
-setX();
-`,
-			"/out/b.js": `import {
-  setZ
-} from "./chunk.2loht7HC.js";
-import "./chunk.lf8PB6N3.js";
-
-// /b.js
-setZ();
-`,
-			"/out/c.js": `import {
-  setY2,
-  setZ2
-} from "./chunk.2loht7HC.js";
-import {
-  setX2
-} from "./chunk.lf8PB6N3.js";
-
-// /c.js
-setX2();
-setY2();
-setZ2();
-`,
-			"/out/chunk.2loht7HC.js": `import {
-  setX
-} from "./chunk.lf8PB6N3.js";
-
-// /y.js
-let _y;
-function setY(v) {
-  _y = v;
-}
-function setY2(v) {
-  setX(v);
-  _y = v;
-}
-
-// /z.js
-let _z;
-function setZ(v) {
-  _z = v;
-}
-function setZ2(v) {
-  setY(v);
-  _z = v;
-}
-
-export {
-  setZ,
-  setY2,
-  setZ2
-};
-`,
-			"/out/chunk.lf8PB6N3.js": `// /x.js
-let _x;
-function setX(v) {
-  _x = v;
-}
-function setX2(v) {
-  _x = v;
-}
-
-export {
-  setX,
-  setX2
-};
-`,
-		},
 	})
 }
 
@@ -863,13 +450,6 @@ func TestSplittingDuplicateChunkCollision(t *testing.T) {
 			RemoveWhitespace: true,
 			OutputFormat:     config.FormatESModule,
 			AbsOutputDir:     "/out",
-		},
-		expected: map[string]string{
-			"/out/a.js":              "import\"./chunk.sQ4Fr0TC.js\";\n",
-			"/out/b.js":              "import\"./chunk.sQ4Fr0TC.js\";\n",
-			"/out/c.js":              "import\"./chunk.sQ4Fr0TC.js\";\n",
-			"/out/d.js":              "import\"./chunk.sQ4Fr0TC.js\";\n",
-			"/out/chunk.sQ4Fr0TC.js": "console.log(123);\n",
 		},
 	})
 }

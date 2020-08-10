@@ -32,15 +32,6 @@ func TestPackageJsonSideEffectsFalseKeepNamedImportES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-const foo = 123;
-console.log("hello");
-
-// /Users/user/project/src/entry.js
-console.log(foo);
-`,
-		},
 	})
 }
 
@@ -65,18 +56,6 @@ func TestPackageJsonSideEffectsFalseKeepNamedImportCommonJS(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  exports.foo = 123;
-  console.log("hello");
-});
-
-// /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_demo_pkg());
-console.log(demo_pkg.foo);
-`,
 		},
 	})
 }
@@ -103,19 +82,6 @@ func TestPackageJsonSideEffectsFalseKeepStarImportES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-const demo_pkg_exports = {};
-__export(demo_pkg_exports, {
-  foo: () => foo
-});
-const foo = 123;
-console.log("hello");
-
-// /Users/user/project/src/entry.js
-console.log(demo_pkg_exports);
-`,
-		},
 	})
 }
 
@@ -140,18 +106,6 @@ func TestPackageJsonSideEffectsFalseKeepStarImportCommonJS(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  exports.foo = 123;
-  console.log("hello");
-});
-
-// /Users/user/project/src/entry.js
-const ns = __toModule(require_demo_pkg());
-console.log(ns);
-`,
 		},
 	})
 }
@@ -178,14 +132,6 @@ func TestPackageJsonSideEffectsTrueKeepES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-console.log("hello");
-
-// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -210,18 +156,6 @@ func TestPackageJsonSideEffectsTrueKeepCommonJS(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  exports.foo = 123;
-  console.log("hello");
-});
-
-// /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_demo_pkg());
-console.log("unused import");
-`,
 		},
 	})
 }
@@ -249,21 +183,6 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo
-  });
-  const foo = 123;
-  console.log("hello");
-});
-
-// /Users/user/project/src/entry.js
-require_demo_pkg();
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -290,18 +209,6 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var require_demo_pkg = __commonJS((exports) => {
-  exports.foo = 123;
-  console.log("hello");
-});
-
-// /Users/user/project/src/entry.js
-require_demo_pkg();
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -326,11 +233,6 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
 		},
 	})
 }
@@ -357,11 +259,6 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -386,11 +283,6 @@ func TestPackageJsonSideEffectsFalseRemoveNamedImportES6(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
 		},
 	})
 }
@@ -417,11 +309,6 @@ func TestPackageJsonSideEffectsFalseRemoveNamedImportCommonJS(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -446,11 +333,6 @@ func TestPackageJsonSideEffectsFalseRemoveStarImportES6(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
 		},
 	})
 }
@@ -477,11 +359,6 @@ func TestPackageJsonSideEffectsFalseRemoveStarImportCommonJS(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -506,11 +383,6 @@ func TestPackageJsonSideEffectsArrayRemove(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
 		},
 	})
 }
@@ -537,14 +409,6 @@ func TestPackageJsonSideEffectsArrayKeep(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-console.log("hello");
-
-// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -570,11 +434,6 @@ func TestPackageJsonSideEffectsNestedDirectoryRemove(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/src/entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -599,14 +458,6 @@ func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /Users/user/project/node_modules/demo-pkg/index.js
-var demo_pkg_default = exprWithSideEffects();
-
-// /Users/user/project/src/entry.js
-console.log(demo_pkg_default);
-`,
-		},
 	})
 }
 
@@ -624,11 +475,6 @@ func TestJSONLoaderRemoveUnused(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -645,11 +491,6 @@ func TestTextLoaderRemoveUnused(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-console.log("unused import");
-`,
 		},
 	})
 }
@@ -672,11 +513,6 @@ func TestBase64LoaderRemoveUnused(t *testing.T) {
 				".data": config.LoaderBase64,
 			},
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -697,11 +533,6 @@ func TestDataURLLoaderRemoveUnused(t *testing.T) {
 				".js":   config.LoaderJS,
 				".data": config.LoaderDataURL,
 			},
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-console.log("unused import");
-`,
 		},
 	})
 }
@@ -724,11 +555,6 @@ func TestFileLoaderRemoveUnused(t *testing.T) {
 				".data": config.LoaderFile,
 			},
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-console.log("unused import");
-`,
-		},
 	})
 }
 
@@ -746,11 +572,6 @@ func TestRemoveUnusedImportMeta(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-console.log("foo is unused");
-`,
 		},
 	})
 }
@@ -815,31 +636,6 @@ func TestRemoveUnusedPureCommentCalls(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-function bar() {
-}
-let bare = foo(bar);
-let at_no = /* @__PURE__ */ foo(bar());
-let new_at_no = /* @__PURE__ */ new foo(bar());
-let num_no = /* @__PURE__ */ foo(bar());
-let new_num_no = /* @__PURE__ */ new foo(bar());
-let dot_no = /* @__PURE__ */ foo(sideEffect()).dot(bar());
-let new_dot_no = /* @__PURE__ */ new foo(sideEffect()).dot(bar());
-let nested_no = [1, /* @__PURE__ */ foo(bar()), 2];
-let new_nested_no = [1, /* @__PURE__ */ new foo(bar()), 2];
-let single_at_no = /* @__PURE__ */ foo(bar());
-let new_single_at_no = /* @__PURE__ */ new foo(bar());
-let single_num_no = /* @__PURE__ */ foo(bar());
-let new_single_num_no = /* @__PURE__ */ new foo(bar());
-let bad_no = foo(bar);
-let new_bad_no = new foo(bar);
-let parens_no = foo(bar);
-let new_parens_no = new foo(bar);
-let exp_no = /* @__PURE__ */ foo() ** foo();
-let new_exp_no = /* @__PURE__ */ new foo() ** foo();
-`,
-		},
 	})
 }
 
@@ -863,16 +659,6 @@ func TestTreeShakingReactElements(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.jsx
-function Foo() {
-}
-let d = /* @__PURE__ */ React.createElement("div", null);
-let e = /* @__PURE__ */ React.createElement(Foo, null, d);
-let f = /* @__PURE__ */ React.createElement(React.Fragment, null, e);
-console.log(f);
-`,
 		},
 	})
 }

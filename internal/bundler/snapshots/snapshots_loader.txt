@@ -1,0 +1,180 @@
+TestAutoDetectMimeTypeFromExtension
+---------- /out.js ----------
+// /test.svg
+var require_test = __commonJS((exports, module) => {
+  module.exports = "data:image/svg+xml;base64,YQBigGP/ZA==";
+});
+
+// /entry.js
+console.log(require_test());
+
+================================================================================
+TestJSXSyntaxInJSWithJSXLoader
+---------- /out.js ----------
+// /entry.js
+console.log(/* @__PURE__ */ React.createElement("div", null));
+
+================================================================================
+TestLoaderBase64CommonJSAndES6
+---------- /out.js ----------
+// /x.b64
+var require_x = __commonJS((exports, module) => {
+  module.exports = "eA==";
+});
+
+// /y.b64
+var y_default = "eQ==";
+
+// /entry.js
+const x_b64 = require_x();
+console.log(x_b64, y_default);
+
+================================================================================
+TestLoaderDataURLCommonJSAndES6
+---------- /out.js ----------
+// /x.txt
+var require_x = __commonJS((exports, module) => {
+  module.exports = "data:text/plain;charset=utf-8;base64,eA==";
+});
+
+// /y.txt
+var y_default = "data:text/plain;charset=utf-8;base64,eQ==";
+
+// /entry.js
+const x_url = require_x();
+console.log(x_url, y_default);
+
+================================================================================
+TestLoaderFile
+---------- /out/test.1HOBn_hi.svg ----------
+<svg>$</svg>
+---------- /out/entry.js ----------
+// /test.svg
+var require_test = __commonJS((exports, module) => {
+  module.exports = "test.1HOBn_hi.svg";
+});
+
+// /entry.js
+console.log(require_test());
+
+================================================================================
+TestLoaderFileCommonJSAndES6
+---------- /x.EfatjsUq.txt ----------
+x
+---------- /y.lcsL_Sl3.txt ----------
+y
+---------- /out.js ----------
+// /x.txt
+var require_x = __commonJS((exports, module) => {
+  module.exports = "x.EfatjsUq.txt";
+});
+
+// /y.txt
+var y_default = "y.lcsL_Sl3.txt";
+
+// /entry.js
+const x_url = require_x();
+console.log(x_url, y_default);
+
+================================================================================
+TestLoaderFileMultipleNoCollision
+---------- /dist/test.qUqP5cyx.txt ----------
+test
+---------- /dist/out.js ----------
+// /a/test.txt
+var require_test = __commonJS((exports, module) => {
+  module.exports = "test.qUqP5cyx.txt";
+});
+
+// /b/test.txt
+var require_test2 = __commonJS((exports, module) => {
+  module.exports = "test.qUqP5cyx.txt";
+});
+
+// /entry.js
+console.log(require_test(), require_test2());
+
+================================================================================
+TestLoaderJSONCommonJSAndES6
+---------- /out.js ----------
+// /x.json
+var require_x = __commonJS((exports, module) => {
+  module.exports = {x: true};
+});
+
+// /y.json
+var y1 = true;
+var y2 = false;
+var y_default = {y1, y2};
+
+// /z.json
+var small = "some small text";
+var if2 = "test keyword imports";
+
+// /entry.js
+const x_json = require_x();
+console.log(x_json, y_default, small, if2);
+
+================================================================================
+TestLoaderTextCommonJSAndES6
+---------- /out.js ----------
+// /x.txt
+var require_x = __commonJS((exports, module) => {
+  module.exports = "x";
+});
+
+// /y.txt
+var y_default = "y";
+
+// /entry.js
+const x_txt = require_x();
+console.log(x_txt, y_default);
+
+================================================================================
+TestRequireCustomExtensionBase64
+---------- /out.js ----------
+// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "YQBigGP/ZA==";
+});
+
+// /entry.js
+console.log(require_test());
+
+================================================================================
+TestRequireCustomExtensionDataURL
+---------- /out.js ----------
+// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
+});
+
+// /entry.js
+console.log(require_test());
+
+================================================================================
+TestRequireCustomExtensionPreferLongest
+---------- /out.js ----------
+// /test.txt
+var require_test = __commonJS((exports, module) => {
+  module.exports = "test.txt";
+});
+
+// /test.base64.txt
+var require_test_base64 = __commonJS((exports, module) => {
+  module.exports = "dGVzdC5iYXNlNjQudHh0";
+});
+
+// /entry.js
+console.log(require_test(), require_test_base64());
+
+================================================================================
+TestRequireCustomExtensionString
+---------- /out.js ----------
+// /test.custom
+var require_test = __commonJS((exports, module) => {
+  module.exports = "#include <stdio.h>";
+});
+
+// /entry.js
+console.log(require_test());

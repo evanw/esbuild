@@ -126,67 +126,6 @@ func TestTsConfigPaths(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/baseurl_dot/test0-success.ts
-var test0_success_default = "test0-success";
-
-// /Users/user/project/baseurl_dot/test1-success.ts
-var test1_success_default = "test1-success";
-
-// /Users/user/project/baseurl_dot/test2-success/foo.ts
-var foo_default = "test2-success";
-
-// /Users/user/project/baseurl_dot/test3-success.ts
-var test3_success_default = "test3-success";
-
-// /Users/user/project/baseurl_dot/test4-first/foo.ts
-var foo_default2 = "test4-success";
-
-// /Users/user/project/baseurl_dot/test5-second/foo.ts
-var foo_default3 = "test5-success";
-
-// /Users/user/project/baseurl_dot/index.ts
-var baseurl_dot_default = {
-  test0: test0_success_default,
-  test1: test1_success_default,
-  test2: foo_default,
-  test3: test3_success_default,
-  test4: foo_default2,
-  test5: foo_default3
-};
-
-// /Users/user/project/baseurl_nested/nested/test0-success.ts
-var test0_success_default2 = "test0-success";
-
-// /Users/user/project/baseurl_nested/nested/test1-success.ts
-var test1_success_default2 = "test1-success";
-
-// /Users/user/project/baseurl_nested/nested/test2-success/foo.ts
-var foo_default4 = "test2-success";
-
-// /Users/user/project/baseurl_nested/nested/test3-success.ts
-var test3_success_default2 = "test3-success";
-
-// /Users/user/project/baseurl_nested/nested/test4-first/foo.ts
-var foo_default5 = "test4-success";
-
-// /Users/user/project/baseurl_nested/nested/test5-second/foo.ts
-var foo_default6 = "test5-success";
-
-// /Users/user/project/baseurl_nested/index.ts
-var baseurl_nested_default = {
-  test0: test0_success_default2,
-  test1: test1_success_default2,
-  test2: foo_default4,
-  test3: test3_success_default2,
-  test4: foo_default5,
-  test5: foo_default6
-};
-
-// /Users/user/project/entry.ts
-console.log(baseurl_dot_default, baseurl_nested_default);
-`,
-		},
 	})
 }
 
@@ -209,11 +148,6 @@ func TestTsConfigJSX(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
-		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/entry.tsx
-console.log(/* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null)));
-`,
 		},
 	})
 }
@@ -264,20 +198,6 @@ func TestTsConfigNestedJSX(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/factory/index.tsx
-var factory_default = /* @__PURE__ */ h(React.Fragment, null, /* @__PURE__ */ h("div", null), /* @__PURE__ */ h("div", null));
-
-// /Users/user/project/fragment/index.tsx
-var fragment_default = /* @__PURE__ */ React.createElement(a.b, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null));
-
-// /Users/user/project/both/index.tsx
-var both_default = /* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null));
-
-// /Users/user/project/entry.ts
-console.log(factory_default, fragment_default, both_default);
-`,
-		},
 	})
 }
 
@@ -306,19 +226,6 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
-});
-
-// /Users/user/project/src/app/entry.js
-const util = __toModule(require_util());
-console.log(util.default());
-`,
-		},
 	})
 }
 
@@ -346,19 +253,6 @@ func TestJsconfigJsonBaseUrl(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
-		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
-});
-
-// /Users/user/project/src/app/entry.js
-const util = __toModule(require_util());
-console.log(util.default());
-`,
 		},
 	})
 }
@@ -389,19 +283,6 @@ func TestTsconfigJsonCommentAllowed(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
-});
-
-// /Users/user/project/src/app/entry.js
-const util = __toModule(require_util());
-console.log(util.default());
-`,
-		},
 	})
 }
 
@@ -429,19 +310,6 @@ func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
-		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/src/lib/util.js
-var require_util = __commonJS((exports, module) => {
-  module.exports = function() {
-    return 123;
-  };
-});
-
-// /Users/user/project/src/app/entry.js
-const util = __toModule(require_util());
-console.log(util.default());
-`,
 		},
 	})
 }
@@ -473,11 +341,6 @@ func TestTsconfigJsonExtends(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
-		},
-		expected: map[string]string{
-			"/out.js": `// /entry.jsx
-console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
-`,
 		},
 	})
 }
@@ -515,11 +378,6 @@ func TestTsconfigJsonExtendsThreeLevels(t *testing.T) {
 			IsBundling:    true,
 			AbsOutputFile: "/out.js",
 		},
-		expected: map[string]string{
-			"/out.js": `// /entry.jsx
-console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
-`,
-		},
 	})
 }
 
@@ -546,11 +404,6 @@ func TestTsconfigJsonExtendsLoop(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: "/base.json: warning: Base config file \"./tsconfig\" forms cycle\n",
-		expected: map[string]string{
-			"/out.js": `// /entry.js
-console.log(123);
-`,
-		},
 	})
 }
 
@@ -577,11 +430,6 @@ func TestTsconfigJsonExtendsPackage(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
-		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/src/app/entry.jsx
-console.log(/* @__PURE__ */ worked("div", null));
-`,
 		},
 	})
 }
@@ -624,13 +472,6 @@ func TestTsconfigJsonOverrideMissing(t *testing.T) {
 			IsBundling:       true,
 			AbsOutputFile:    "/Users/user/project/out.js",
 			TsConfigOverride: "/Users/user/project/other/config-for-ts.json",
-		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/other/foo-good.ts
-console.log("good");
-
-// /Users/user/project/src/app/entry.ts
-`,
 		},
 	})
 }
@@ -677,13 +518,6 @@ func TestTsconfigJsonOverrideNodeModules(t *testing.T) {
 			AbsOutputFile:    "/Users/user/project/out.js",
 			TsConfigOverride: "/Users/user/project/other/config-for-ts.json",
 		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/other/foo-good.ts
-console.log("good");
-
-// /Users/user/project/src/app/entry.ts
-`,
-		},
 	})
 }
 
@@ -711,11 +545,6 @@ func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
 		options: config.Options{
 			IsBundling:    true,
 			AbsOutputFile: "/Users/user/project/out.js",
-		},
-		expected: map[string]string{
-			"/Users/user/project/out.js": `// /Users/user/project/src/app/entry.tsx
-console.log(/* @__PURE__ */ worked("div", null));
-`,
 		},
 	})
 }

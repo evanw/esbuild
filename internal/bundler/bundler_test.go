@@ -62,7 +62,6 @@ func hasErrors(msgs []logging.Msg) bool {
 type bundled struct {
 	files              map[string]string
 	entryPaths         []string
-	expected           map[string]string
 	expectedScanLog    string
 	expectedCompileLog string
 	options            config.Options
