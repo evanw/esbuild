@@ -1030,7 +1030,7 @@ func TestPackageJsonBrowserWithModule(t *testing.T) {
 	})
 }
 
-func TestPackageJsonBrowserFromParent(t *testing.T) {
+func TestPackageJsonBrowserRecursive(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/package.json": `

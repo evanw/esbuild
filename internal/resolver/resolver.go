@@ -179,7 +179,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 		}
 
 		// Support remapping one package path to another via the "browser" field
-		if remapped, dinfo := r.lookupBrowserPkg(importPath, sourceDirInfo); dinfo != nil {
+		if remapped, dinfo := r.lookupBrowserRemap(importPath, sourceDirInfo); dinfo != nil {
 			if remapped == nil {
 				// "browser": {"module": false}
 				if absolute, ok := r.loadNodeModules(importPath, sourceDirInfo); ok {
@@ -244,11 +244,11 @@ func (r *resolver) recurseParents(current *dirInfo, walker func(*dirInfo) bool) 
 	return false
 }
 
-func (r *resolver) lookupTSPkg(path string, sourceDirInfo *dirInfo) (string, bool) {
+func (r *resolver) lookupTSConfigRemap(path string, sourceDirInfo *dirInfo) (string, bool) {
 	var mapping string
 
 	if ok := r.recurseParents(sourceDirInfo, func(cursor *dirInfo) bool {
-		if remapped, ok := r.getTSRemapped(path, cursor); ok {
+		if remapped, ok := r.getTSConfigRemap(path, cursor); ok {
 			mapping = remapped
 			return true
 		}
@@ -260,12 +260,12 @@ func (r *resolver) lookupTSPkg(path string, sourceDirInfo *dirInfo) (string, boo
 	return "", false
 }
 
-func (r *resolver) lookupBrowserPkg(importPath string, sourceDirInfo *dirInfo) (*string, *dirInfo) {
+func (r *resolver) lookupBrowserRemap(importPath string, sourceDirInfo *dirInfo) (*string, *dirInfo) {
 	var mapping *string
 	var dinfo *dirInfo
 
 	if ok := r.recurseParents(sourceDirInfo, func(cursor *dirInfo) bool {
-		if remapped, ok := r.getBrowserRemapped(importPath, cursor); ok {
+		if remapped, ok := r.getBrowserRemap(importPath, cursor); ok {
 			mapping = remapped
 			dinfo = cursor
 			return true
@@ -278,7 +278,7 @@ func (r *resolver) lookupBrowserPkg(importPath string, sourceDirInfo *dirInfo) (
 	return nil, nil
 }
 
-func (r *resolver) getTSRemapped(path string, dirInfo *dirInfo) (string, bool) {
+func (r *resolver) getTSConfigRemap(path string, dirInfo *dirInfo) (string, bool) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 	if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
 		// Try path substitutions first
@@ -298,7 +298,7 @@ func (r *resolver) getTSRemapped(path string, dirInfo *dirInfo) (string, bool) {
 	return "", false
 }
 
-func (r *resolver) getBrowserRemapped(importPath string, sourceDirInfo *dirInfo) (*string, bool) {
+func (r *resolver) getBrowserRemap(importPath string, sourceDirInfo *dirInfo) (*string, bool) {
 	if sourceDirInfo.enclosingBrowserScope != nil {
 		packageJson := sourceDirInfo.enclosingBrowserScope.packageJson
 		if packageJson.browserPackageMap != nil {
@@ -1079,7 +1079,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string) (
 
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-	if abspath, ok := r.lookupTSPkg(path, dirInfo); ok {
+	if abspath, ok := r.lookupTSConfigRemap(path, dirInfo); ok {
 		return abspath, true
 	}
 

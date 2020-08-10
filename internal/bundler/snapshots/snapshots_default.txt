@@ -1375,7 +1375,7 @@ function main_browser_esm_default() {
 console.log(main_browser_esm_default());
 
 ================================================================================
-TestPackageJsonBrowserFromParent
+TestPackageJsonBrowserRecursive
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/node_modules/https-browserify/index.js
 var require_https_browserify = __commonJS((exports, module) => {
