@@ -151,6 +151,16 @@ func TestTsConfigPathsRecursive(t *testing.T) {
 					return <p children={props.children} />
 				}
 			`,
+			"/Users/user/project/node_modules/worldview/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "./",
+						"paths": {
+							"something": ["else"]
+						}
+					}
+				}
+			`,
 			"/Users/user/project/node_modules/worldview/index.tsx": `
 				import { Text } from 'react-native'
 				export function worldview() {
