@@ -129,6 +129,43 @@ func TestTsConfigPaths(t *testing.T) {
 	})
 }
 
+func TestTsConfigPathsRecursive(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.ts": `
+				import { worldview } from 'worldview'
+				console.log(worldview)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "./",
+						"paths": {
+							"react-native": ["node_modules/react-native-web"]
+						}
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/react-native-web/index.tsx": `
+				export function Text(props) {
+					return <p children={props.children} />
+				}
+			`,
+			"/Users/user/project/node_modules/worldview/index.tsx": `
+				import { Text } from 'react-native'
+				export function worldview() {
+					return <Text>Hello World</Text>
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.ts"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestTsConfigJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

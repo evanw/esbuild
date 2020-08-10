@@ -95,6 +95,24 @@ var baseurl_nested_default = {
 console.log(baseurl_dot_default, baseurl_nested_default);
 
 ================================================================================
+TestTsConfigPathsRecursive
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/react-native-web/index.tsx
+function Text(props) {
+  return /* @__PURE__ */ React.createElement("p", {
+    children: props.children
+  });
+}
+
+// /Users/user/project/node_modules/worldview/index.tsx
+function worldview2() {
+  return /* @__PURE__ */ React.createElement(Text, null, "Hello World");
+}
+
+// /Users/user/project/entry.ts
+console.log(worldview2);
+
+================================================================================
 TestTsconfigJsonBaseUrl
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/src/lib/util.js
