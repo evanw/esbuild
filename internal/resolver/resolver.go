@@ -231,13 +231,10 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 func (r *resolver) recurseParents(current *dirInfo, walker func(*dirInfo) bool) bool {
 	cursor := current
 
-	// Check all browser fields of parents for match
 	for cursor != nil {
 		if matched := walker(cursor); matched {
 			return true
 		}
-
-		// Check parent
 		cursor = cursor.parent
 	}
 
