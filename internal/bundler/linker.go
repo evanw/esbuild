@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/resolver"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -73,6 +74,11 @@ type linkerContext struct {
 	// over this array. This array is also sorted in a deterministic ordering
 	// to help ensure deterministic builds (source indices are random).
 	reachableFiles []uint32
+
+	// This maps from unstable source index to stable reachable file index. This
+	// is useful as a deterministic key for sorting if you need to sort something
+	// containing a source index (such as "ast.Ref" symbol references).
+	stableSourceIndices []uint32
 
 	// We may need to refer to the CommonJS "module" symbol for exports
 	unboundModuleRef ast.Ref
@@ -317,12 +323,6 @@ func newLinkerContext(
 		c.symbols.Outer[sourceIndex] = fileSymbols
 		file.ast.Symbols = nil
 
-		// Zero out the use count statistics. These will be recomputed later after
-		// taking tree shaking into account.
-		for i := range fileSymbols {
-			fileSymbols[i].UseCountEstimate = 0
-		}
-
 		// Clone the parts
 		file.ast.Parts = append([]ast.Part{}, file.ast.Parts...)
 		for i, part := range file.ast.Parts {
@@ -381,6 +381,12 @@ func newLinkerContext(
 		}
 	}
 
+	// Create a way to convert source indices to a stable ordering
+	c.stableSourceIndices = make([]uint32, len(sources))
+	for stableIndex, sourceIndex := range c.reachableFiles {
+		c.stableSourceIndices[sourceIndex] = uint32(stableIndex)
+	}
+
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, sourceIndex := range entryPoints {
 		fileMeta := &c.fileMeta[sourceIndex]
@@ -398,9 +404,9 @@ func newLinkerContext(
 		runtimeSymbols := &c.symbols.Outer[runtime.SourceIndex]
 		c.unboundModuleRef = ast.Ref{OuterIndex: runtime.SourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
 		*runtimeSymbols = append(*runtimeSymbols, ast.Symbol{
-			Kind: ast.SymbolUnbound,
-			Name: "module",
-			Link: ast.InvalidRef,
+			Kind:         ast.SymbolUnbound,
+			OriginalName: "module",
+			Link:         ast.InvalidRef,
 		})
 	}
 
@@ -511,8 +517,6 @@ func (c *linkerContext) link() []OutputFile {
 	// Make sure calls to "ast.FollowSymbols()" in parallel goroutines after this
 	// won't hit concurrent map mutation hazards
 	ast.FollowAllSymbols(c.symbols)
-
-	c.renameOrMinifyAllSymbols()
 
 	return c.generateChunksInParallel(chunks)
 }
@@ -757,17 +761,14 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		chunk.exportsToOtherChunks = make(map[ast.Ref]string)
 		switch c.options.OutputFormat {
 		case config.FormatESModule:
-			r := exportRenamer{
-				symbols: c.symbols,
-				used:    make(map[string]uint32),
-			}
+			r := renamer.ExportRenamer{}
 			var items []ast.ClauseItem
 			for _, export := range c.sortedCrossChunkExportItems(chunkMetas[chunkIndex].exports) {
 				var alias string
 				if c.options.MinifyIdentifiers {
-					alias = r.nextMinifiedName()
+					alias = r.NextMinifiedName()
 				} else {
-					alias = r.nextRenamedName(c.symbols.Get(export.ref).Name)
+					alias = r.NextRenamedName(c.symbols.Get(export.ref).OriginalName)
 				}
 				items = append(items, ast.ClauseItem{Name: ast.LocRef{Ref: export.ref}, Alias: alias})
 				chunk.exportsToOtherChunks[export.ref] = alias
@@ -1147,6 +1148,17 @@ func (c *linkerContext) scanImportsAndExports() {
 		file := &c.files[sourceIndex]
 		fileMeta := &c.fileMeta[sourceIndex]
 
+		// If this isn't CommonJS, then rename the unused "exports" and "module"
+		// variables to avoid them causing the identically-named variables in
+		// actual CommonJS files from being renamed. This is purely about
+		// aesthetics and is not about correctness. This is done here because by
+		// this point, we know the CommonJS status will not change further.
+		if !fileMeta.cjsWrap && !fileMeta.cjsStyleExports {
+			name := c.sources[sourceIndex].IdentifierName
+			c.symbols.Get(file.ast.ExportsRef).OriginalName = name + "_exports"
+			c.symbols.Get(file.ast.ModuleRef).OriginalName = name + "_module"
+		}
+
 		// Include the "__export" symbol from the runtime if it was used in the
 		// previous step. The previous step can't do this because it's running in
 		// parallel and can't safely mutate the "importsToBind" map of another file.
@@ -1220,7 +1232,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 		// Generate a new symbol
 		inner := &c.symbols.Outer[sourceIndex]
 		ref := ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
-		*inner = append(*inner, ast.Symbol{Kind: ast.SymbolOther, Name: name, Link: ast.InvalidRef})
+		*inner = append(*inner, ast.Symbol{Kind: ast.SymbolOther, OriginalName: name, Link: ast.InvalidRef})
 		file.ast.ModuleScope.Generated = append(file.ast.ModuleScope.Generated, ref)
 
 		// Generate an ES6 export
@@ -1325,9 +1337,9 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				inner := &c.symbols.Outer[sourceIndex]
 				tempRef := ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
 				*inner = append(*inner, ast.Symbol{
-					Kind: ast.SymbolOther,
-					Name: "export_" + alias,
-					Link: ast.InvalidRef,
+					Kind:         ast.SymbolOther,
+					OriginalName: "export_" + alias,
+					Link:         ast.InvalidRef,
 				})
 
 				// Stick it on the module scope so it gets renamed and minified
@@ -1997,11 +2009,6 @@ func (c *linkerContext) handleCrossChunkAssignments() {
 	}
 }
 
-func (c *linkerContext) accumulateSymbolCount(ref ast.Ref, count uint32) {
-	ref = ast.FollowSymbols(c.symbols, ref)
-	c.symbols.Get(ref).UseCountEstimate += count
-}
-
 func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
 	fileMeta := &c.fileMeta[sourceIndex]
 
@@ -2017,15 +2024,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 	}
 	fileMeta.entryBits.setBit(entryPointBit)
 
-	// Accumulate symbol usage counts
 	file := &c.files[sourceIndex]
-	if file.ast.UsesExportsRef {
-		c.accumulateSymbolCount(file.ast.ExportsRef, 1)
-	}
-	if file.ast.UsesModuleRef {
-		c.accumulateSymbolCount(file.ast.ModuleRef, 1)
-	}
-
 	for partIndex, part := range file.ast.Parts {
 		canBeRemovedIfUnused := part.CanBeRemovedIfUnused
 
@@ -2211,16 +2210,6 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		}
 	}
 	c.includePartsForRuntimeSymbol(part, fileMeta, exportStarUses, "__exportStar", entryPointBit, distanceFromEntryPoint)
-
-	// Accumulate symbol usage counts. Do this last to also include
-	// automatically-generated usages from the code above.
-	for ref, use := range part.SymbolUses {
-		c.accumulateSymbolCount(ref, use.CountEstimate)
-	}
-	for _, declared := range part.DeclaredSymbols {
-		// Make sure to also count the declaration in addition to the uses
-		c.accumulateSymbolCount(declared.Ref, 1)
-	}
 }
 
 func (c *linkerContext) computeChunks() []chunkInfo {
@@ -2688,6 +2677,7 @@ type stmtList struct {
 }
 
 func (c *linkerContext) generateCodeForFileInChunk(
+	r renamer.Renamer,
 	waitGroup *sync.WaitGroup,
 	sourceIndex uint32,
 	entryBits bitSet,
@@ -2803,7 +2793,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	tree := file.ast
 	tree.Parts = []ast.Part{{Stmts: stmts}}
 	*result = compileResult{
-		PrintResult: printer.Print(tree, c.symbols, printOptions),
+		PrintResult: printer.Print(tree, c.symbols, r, printOptions),
 		sourceIndex: sourceIndex,
 	}
 
@@ -2813,11 +2803,131 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	if len(stmtList.entryPointTail) > 0 {
 		tree := file.ast
 		tree.Parts = []ast.Part{{Stmts: stmtList.entryPointTail}}
-		entryPointTail := printer.Print(tree, c.symbols, printOptions)
+		entryPointTail := printer.Print(tree, c.symbols, r, printOptions)
 		result.entryPointTail = &entryPointTail
 	}
 
 	waitGroup.Done()
+}
+
+func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []uint32) renamer.Renamer {
+	// Determine the reserved names (e.g. can't generate the name "if")
+	moduleScopes := make([]*ast.Scope, len(filesInOrder))
+	for i, sourceIndex := range filesInOrder {
+		moduleScopes[i] = c.files[sourceIndex].ast.ModuleScope
+	}
+	reservedNames := renamer.ComputeReservedNames(moduleScopes, c.symbols)
+
+	// These are used to implement bundling, and need to be free for use
+	if c.options.IsBundling {
+		reservedNames["require"] = 1
+		reservedNames["Promise"] = 1
+	}
+
+	// Minification uses frequency analysis to give shorter names to more frequent symbols
+	if c.options.MinifyIdentifiers {
+		// Determine the first top-level slot (i.e. not in a nested scope)
+		var firstTopLevelSlots ast.SlotCounts
+		for _, sourceIndex := range filesInOrder {
+			firstTopLevelSlots.UnionMax(c.files[sourceIndex].ast.NestedScopeSlotCounts)
+		}
+		r := renamer.NewMinifyRenamer(c.symbols, firstTopLevelSlots, reservedNames)
+
+		// Accumulate symbol usage counts into their slots
+		for _, sourceIndex := range filesInOrder {
+			file := &c.files[sourceIndex]
+			fileMeta := &c.fileMeta[sourceIndex]
+			if file.ast.UsesExportsRef {
+				r.AccumulateSymbolCount(file.ast.ExportsRef, 1)
+			}
+			if file.ast.UsesModuleRef {
+				r.AccumulateSymbolCount(file.ast.ModuleRef, 1)
+			}
+
+			for partIndex, part := range file.ast.Parts {
+				if !chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+					// Skip the part if it's not in this chunk
+					continue
+				}
+
+				// Accumulate symbol use counts
+				r.AccumulateSymbolUseCounts(part.SymbolUses, c.stableSourceIndices)
+
+				// Make sure to also count the declaration in addition to the uses
+				for _, declared := range part.DeclaredSymbols {
+					r.AccumulateSymbolCount(declared.Ref, 1)
+				}
+			}
+		}
+
+		r.AssignNamesByFrequency()
+		return r
+	}
+
+	// When we're not minifying, just append numbers to symbol names to avoid collisions
+	r := renamer.NewNumberRenamer(c.symbols, reservedNames)
+	nestedScopes := make(map[uint32][]*ast.Scope)
+
+	// Make sure imports get a chance to be renamed
+	var sorted renamer.StableRefArray
+	for _, imports := range chunk.importsFromOtherChunks {
+		for _, item := range imports {
+			sorted = append(sorted, renamer.StableRef{
+				StableOuterIndex: c.stableSourceIndices[item.ref.OuterIndex],
+				Ref:              item.ref,
+			})
+		}
+	}
+	sort.Sort(sorted)
+	for _, stable := range sorted {
+		r.AddTopLevelSymbol(stable.Ref)
+	}
+
+	for _, sourceIndex := range filesInOrder {
+		file := &c.files[sourceIndex]
+		fileMeta := &c.fileMeta[sourceIndex]
+		var scopes []*ast.Scope
+
+		// Modules wrapped in a CommonJS closure look like this:
+		//
+		//   // foo.js
+		//   var require_foo = __commonJS((exports, module) => {
+		//     ...
+		//   });
+		//
+		// The symbol "require_foo" is stored in "file.ast.WrapperRef". We want
+		// to be able to minify everything inside the closure without worrying
+		// about collisions with other CommonJS modules. Set up the scopes such
+		// that it appears as if the file was structured this way all along. It's
+		// not completely accurate (e.g. we don't set the parent of the module
+		// scope to this new top-level scope) but it's good enough for the
+		// renaming code.
+		if fileMeta.cjsWrap {
+			r.AddTopLevelSymbol(file.ast.WrapperRef)
+			nestedScopes[sourceIndex] = []*ast.Scope{file.ast.ModuleScope}
+			continue
+		}
+
+		// Rename each top-level symbol declaration in this chunk
+		for partIndex, part := range file.ast.Parts {
+			if chunk.entryBits.equals(fileMeta.partMeta[partIndex].entryBits) {
+				for _, declared := range part.DeclaredSymbols {
+					if declared.IsTopLevel {
+						r.AddTopLevelSymbol(declared.Ref)
+					}
+				}
+				scopes = append(scopes, part.Scopes...)
+			}
+		}
+
+		nestedScopes[sourceIndex] = scopes
+	}
+
+	// Recursively rename symbols in child scopes now that all top-level
+	// symbols have been renamed. This is done in parallel because the symbols
+	// inside nested scopes are independent and can't conflict.
+	r.AssignNamesByScope(nestedScopes)
+	return r
 }
 
 func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
@@ -2827,6 +2937,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 	runtimeMembers := c.files[runtime.SourceIndex].ast.ModuleScope.Members
 	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
 	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
+	r := c.renameSymbolsInChunk(chunk, filesInChunkInOrder)
 
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
@@ -2847,6 +2958,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 		compileResult := &compileResults[len(compileResults)-1]
 		waitGroup.Add(1)
 		go c.generateCodeForFileInChunk(
+			r,
 			&waitGroup,
 			sourceIndex,
 			chunk.entryBits,
@@ -2875,10 +2987,10 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 			crossChunkPrefix = printer.Print(ast.AST{
 				ImportRecords: crossChunkImportRecords,
 				Parts:         []ast.Part{{Stmts: chunk.crossChunkPrefixStmts}},
-			}, c.symbols, printOptions).JS
+			}, c.symbols, r, printOptions).JS
 			crossChunkSuffix = printer.Print(ast.AST{
 				Parts: []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
-			}, c.symbols, printOptions).JS
+			}, c.symbols, r, printOptions).JS
 		}
 
 		waitGroup.Wait()
@@ -3248,74 +3360,6 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 		for _, ref := range file.ast.ModuleScope.Members {
 			c.symbols.Get(ref).Kind = ast.SymbolUnbound
 		}
-	}
-}
-
-func (c *linkerContext) renameOrMinifyAllSymbols() {
-	topLevelScopes := make([]*ast.Scope, 0, len(c.files))
-	moduleScopes := make([]*ast.Scope, 0, len(c.files))
-
-	// Combine all file scopes
-	for _, sourceIndex := range c.reachableFiles {
-		file := &c.files[sourceIndex]
-		fileMeta := &c.fileMeta[sourceIndex]
-		moduleScopes = append(moduleScopes, file.ast.ModuleScope)
-		if fileMeta.cjsWrap {
-			// Modules wrapped in a CommonJS closure look like this:
-			//
-			//   // foo.js
-			//   var require_foo = __commonJS((exports, module) => {
-			//     ...
-			//   });
-			//
-			// The symbol "require_foo" is stored in "file.ast.WrapperRef". We want
-			// to be able to minify everything inside the closure without worrying
-			// about collisions with other CommonJS modules. Set up the scopes such
-			// that it appears as if the file was structured this way all along. It's
-			// not completely accurate (e.g. we don't set the parent of the module
-			// scope to this new top-level scope) but it's good enough for the
-			// renaming code.
-			//
-			// Note: make sure to not mutate the original scope since it's supposed
-			// to be immutable.
-			fakeTopLevelScope := &ast.Scope{
-				Members:   make(map[string]ast.Ref),
-				Generated: []ast.Ref{file.ast.WrapperRef},
-				Children:  []*ast.Scope{file.ast.ModuleScope},
-			}
-
-			// The unbound symbols are stored in the module scope. We need them for
-			// computing reserved names. Avoid needing to copy them all into the new
-			// fake top-level scope by still scanning the real module scope for
-			// unbound symbols.
-			topLevelScopes = append(topLevelScopes, fakeTopLevelScope)
-		} else {
-			topLevelScopes = append(topLevelScopes, file.ast.ModuleScope)
-
-			// If this isn't CommonJS, then rename the unused "exports" and "module"
-			// variables to avoid them causing the identically-named variables in
-			// actual CommonJS files from being renamed. This is purely about
-			// aesthetics and is not about correctness.
-			if !fileMeta.cjsStyleExports {
-				name := c.sources[sourceIndex].IdentifierName
-				c.symbols.Get(file.ast.ExportsRef).Name = name + "_exports"
-				c.symbols.Get(file.ast.ModuleRef).Name = name + "_module"
-			}
-		}
-	}
-
-	// Avoid collisions with any unbound symbols in this module group
-	reservedNames := computeReservedNames(moduleScopes, c.symbols)
-	if c.options.IsBundling {
-		// These are used to implement bundling, and need to be free for use
-		reservedNames["require"] = true
-		reservedNames["Promise"] = true
-	}
-
-	if c.options.MinifyIdentifiers {
-		minifyAllSymbols(reservedNames, topLevelScopes, c.symbols)
-	} else {
-		renameAllSymbols(reservedNames, topLevelScopes, c.symbols)
 	}
 }
 

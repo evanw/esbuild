@@ -7,6 +7,7 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
 )
 
@@ -46,7 +47,8 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 		}
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
+		r := renamer.NewNoOpRenamer(symbols)
+		js := printer.Print(tree, symbols, r, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -93,7 +95,8 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 		}
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
+		r := renamer.NewNoOpRenamer(symbols)
+		js := printer.Print(tree, symbols, r, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }

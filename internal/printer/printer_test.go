@@ -3,6 +3,8 @@ package printer
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/renamer"
+
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
@@ -32,7 +34,8 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		}
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		js := Print(tree, symbols, options).JS
+		r := renamer.NewNoOpRenamer(symbols)
+		js := Print(tree, symbols, r, options).JS
 		assertEqual(t, string(js), expected)
 	})
 }

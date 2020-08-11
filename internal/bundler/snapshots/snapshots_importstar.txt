@@ -113,8 +113,8 @@ module.exports = require_entry();
 TestExportSelfCommonJSMinified
 ---------- /out.js ----------
 // /entry.js
-var b = d((c, a) => {
-  a.exports = {foo: 123};
+var b = e((g, c) => {
+  c.exports = {foo: 123};
   console.log(b());
 });
 module.exports = b();
@@ -247,13 +247,13 @@ TestImportStarCapture
 // /foo.js
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /entry.js
-let foo = 234;
-console.log(foo_exports, foo2, foo);
+let foo2 = 234;
+console.log(foo_exports, foo, foo2);
 
 ================================================================================
 TestImportStarCommonJSCapture
@@ -265,8 +265,8 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.js
 const ns = __toModule(require_foo());
-let foo = 234;
-console.log(ns, ns.foo, foo);
+let foo2 = 234;
+console.log(ns, ns.foo, foo2);
 
 ================================================================================
 TestImportStarCommonJSNoCapture
@@ -278,8 +278,8 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.js
 const ns = __toModule(require_foo());
-let foo = 234;
-console.log(ns.foo, ns.foo, foo);
+let foo2 = 234;
+console.log(ns.foo, ns.foo, foo2);
 
 ================================================================================
 TestImportStarCommonJSUnused
@@ -300,15 +300,15 @@ TestImportStarExportImportStarCapture
 // /foo.js
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /bar.js
 
 // /entry.js
-let foo = 234;
-console.log(foo_exports, foo_exports.foo, foo);
+let foo2 = 234;
+console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportImportStarNoCapture
@@ -316,15 +316,15 @@ TestImportStarExportImportStarNoCapture
 // /foo.js
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /bar.js
 
 // /entry.js
-let foo = 234;
-console.log(foo_exports.foo, foo_exports.foo, foo);
+let foo2 = 234;
+console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportImportStarUnused
@@ -343,15 +343,15 @@ TestImportStarExportStarAsCapture
 // /foo.js
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /bar.js
 
 // /entry.js
-let foo = 234;
-console.log(foo_exports, foo_exports.foo, foo);
+let foo2 = 234;
+console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportStarAsNoCapture
@@ -359,15 +359,15 @@ TestImportStarExportStarAsNoCapture
 // /foo.js
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /bar.js
 
 // /entry.js
-let foo = 234;
-console.log(foo_exports.foo, foo_exports.foo, foo);
+let foo2 = 234;
+console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportStarAsUnused
@@ -384,29 +384,29 @@ console.log(foo);
 TestImportStarExportStarCapture
 ---------- /out.js ----------
 // /foo.js
-const foo2 = 123;
+const foo = 123;
 
 // /bar.js
 const bar_exports = {};
 __export(bar_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
 
 // /entry.js
-let foo = 234;
-console.log(bar_exports, foo2, foo);
+let foo2 = 234;
+console.log(bar_exports, foo, foo2);
 
 ================================================================================
 TestImportStarExportStarNoCapture
 ---------- /out.js ----------
 // /foo.js
-const foo2 = 123;
+const foo = 123;
 
 // /bar.js
 
 // /entry.js
-let foo = 234;
-console.log(foo2, foo2, foo);
+let foo2 = 234;
+console.log(foo, foo, foo2);
 
 ================================================================================
 TestImportStarExportStarOmitAmbiguous
@@ -484,11 +484,11 @@ console.log(foo);
 TestImportStarNoCapture
 ---------- /out.js ----------
 // /foo.js
-const foo2 = 123;
+const foo = 123;
 
 // /entry.js
-let foo = 234;
-console.log(foo2, foo2, foo);
+let foo2 = 234;
+console.log(foo, foo, foo2);
 
 ================================================================================
 TestImportStarOfExportStarAs
@@ -609,22 +609,22 @@ console.log(void 0);
 TestOtherFileExportSelfAsNamespaceUnusedES6
 ---------- /out.js ----------
 // /foo.js
-const foo2 = 123;
+const foo = 123;
 
 // /entry.js
 export {
-  foo2 as foo
+  foo
 };
 
 ================================================================================
 TestOtherFileImportExportSelfAsNamespaceUnusedES6
 ---------- /out.js ----------
 // /foo.js
-const foo2 = 123;
+const foo = 123;
 
 // /entry.js
 export {
-  foo2 as foo
+  foo
 };
 
 ================================================================================

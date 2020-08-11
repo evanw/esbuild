@@ -887,7 +887,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	var argExpr ast.Expr
 	if isExport && p.enclosingNamespaceRef != nil {
 		// "name = enclosing.name || (enclosing.name = {})"
-		name := p.symbols[nameRef.InnerIndex].Name
+		name := p.symbols[nameRef.InnerIndex].OriginalName
 		argExpr = ast.Assign(
 			ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
 			ast.Expr{Loc: nameLoc, Data: &ast.EBinary{
@@ -932,7 +932,6 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		}}},
 		Args: []ast.Expr{argExpr},
 	}}}})
-	p.recordDeclaredSymbol(argRef)
 
 	return stmts
 }

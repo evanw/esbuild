@@ -10,6 +10,7 @@ import (
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
 )
 
@@ -60,7 +61,8 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 		}
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
+		r := renamer.NewNoOpRenamer(symbols)
+		js := printer.Print(tree, symbols, r, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -82,7 +84,8 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 		}
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
+		r := renamer.NewNoOpRenamer(symbols)
+		js := printer.Print(tree, symbols, r, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -109,7 +112,8 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		}
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		js := printer.Print(tree, symbols, printer.PrintOptions{
+		r := renamer.NewNoOpRenamer(symbols)
+		js := printer.Print(tree, symbols, r, printer.PrintOptions{
 			UnsupportedFeatures: unsupportedFeatures,
 		}).JS
 		test.AssertEqual(t, string(js), expected)
@@ -141,7 +145,8 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 		}
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
+		r := renamer.NewNoOpRenamer(symbols)
+		js := printer.Print(tree, symbols, r, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -182,7 +187,8 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 		}
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
-		js := printer.Print(tree, symbols, printer.PrintOptions{}).JS
+		r := renamer.NewNoOpRenamer(symbols)
+		js := printer.Print(tree, symbols, r, printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }

@@ -19,13 +19,13 @@ TestTSImportStarCapture
 // /foo.ts
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /entry.ts
-let foo = 234;
-console.log(foo_exports, foo2, foo);
+let foo2 = 234;
+console.log(foo_exports, foo, foo2);
 
 ================================================================================
 TestTSImportStarCommonJSCapture
@@ -37,8 +37,8 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.ts
 const ns = __toModule(require_foo());
-let foo = 234;
-console.log(ns, ns.foo, foo);
+let foo2 = 234;
+console.log(ns, ns.foo, foo2);
 
 ================================================================================
 TestTSImportStarCommonJSNoCapture
@@ -50,8 +50,8 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.ts
 const ns = __toModule(require_foo());
-let foo = 234;
-console.log(ns.foo, ns.foo, foo);
+let foo2 = 234;
+console.log(ns.foo, ns.foo, foo2);
 
 ================================================================================
 TestTSImportStarCommonJSUnused
@@ -66,15 +66,15 @@ TestTSImportStarExportImportStarCapture
 // /foo.ts
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /bar.ts
 
 // /entry.ts
-let foo = 234;
-console.log(foo_exports, foo_exports.foo, foo);
+let foo2 = 234;
+console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
 TestTSImportStarExportImportStarNoCapture
@@ -82,15 +82,15 @@ TestTSImportStarExportImportStarNoCapture
 // /foo.ts
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /bar.ts
 
 // /entry.ts
-let foo = 234;
-console.log(foo_exports.foo, foo_exports.foo, foo);
+let foo2 = 234;
+console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestTSImportStarExportImportStarUnused
@@ -105,15 +105,15 @@ TestTSImportStarExportStarAsCapture
 // /foo.ts
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /bar.ts
 
 // /entry.ts
-let foo = 234;
-console.log(foo_exports, foo_exports.foo, foo);
+let foo2 = 234;
+console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
 TestTSImportStarExportStarAsNoCapture
@@ -121,15 +121,15 @@ TestTSImportStarExportStarAsNoCapture
 // /foo.ts
 const foo_exports = {};
 __export(foo_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
-const foo2 = 123;
+const foo = 123;
 
 // /bar.ts
 
 // /entry.ts
-let foo = 234;
-console.log(foo_exports.foo, foo_exports.foo, foo);
+let foo2 = 234;
+console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestTSImportStarExportStarAsUnused
@@ -142,29 +142,29 @@ console.log(foo);
 TestTSImportStarExportStarCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo2 = 123;
+const foo = 123;
 
 // /bar.ts
 const bar_exports = {};
 __export(bar_exports, {
-  foo: () => foo2
+  foo: () => foo
 });
 
 // /entry.ts
-let foo = 234;
-console.log(bar_exports, foo2, foo);
+let foo2 = 234;
+console.log(bar_exports, foo, foo2);
 
 ================================================================================
 TestTSImportStarExportStarNoCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo2 = 123;
+const foo = 123;
 
 // /bar.ts
 
 // /entry.ts
-let foo = 234;
-console.log(foo2, foo2, foo);
+let foo2 = 234;
+console.log(foo, foo, foo2);
 
 ================================================================================
 TestTSImportStarExportStarUnused
@@ -217,11 +217,11 @@ console.log(foo);
 TestTSImportStarNoCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo2 = 123;
+const foo = 123;
 
 // /entry.ts
-let foo = 234;
-console.log(foo2, foo2, foo);
+let foo2 = 234;
+console.log(foo, foo, foo2);
 
 ================================================================================
 TestTSImportStarUnused

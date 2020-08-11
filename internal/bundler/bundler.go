@@ -852,9 +852,10 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 }
 
 type runtimeCacheKey struct {
-	MangleSyntax bool
-	ES6          bool
-	Platform     config.Platform
+	MangleSyntax      bool
+	MinifyIdentifiers bool
+	ES6               bool
+	Platform          config.Platform
 }
 
 type runtimeCache struct {
@@ -870,9 +871,10 @@ var globalRuntimeCache runtimeCache
 func (cache *runtimeCache) parseRuntime(options *config.Options) (source logging.Source, runtimeAST ast.AST, ok bool) {
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
-		MangleSyntax: options.MangleSyntax,
-		Platform:     options.Platform,
-		ES6:          runtime.CanUseES6(options.UnsupportedFeatures),
+		MangleSyntax:      options.MangleSyntax,
+		MinifyIdentifiers: options.MinifyIdentifiers,
+		Platform:          options.Platform,
+		ES6:               runtime.CanUseES6(options.UnsupportedFeatures),
 	}
 
 	// Determine which source to use
@@ -898,9 +900,10 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logging
 	log := logging.NewDeferLog()
 	runtimeAST, ok = parser.Parse(log, source, config.Options{
 		// These configuration options must only depend on the key
-		MangleSyntax: key.MangleSyntax,
-		Platform:     key.Platform,
-		Defines:      cache.processedDefines(key.Platform),
+		MangleSyntax:      key.MangleSyntax,
+		MinifyIdentifiers: key.MinifyIdentifiers,
+		Platform:          key.Platform,
+		Defines:           cache.processedDefines(key.Platform),
 
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code

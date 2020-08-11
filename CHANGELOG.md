@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Symbols are now renamed separately per chunk ([#16](https://github.com/evanw/esbuild/issues/16))
+
+    Previously, bundling with code splitting assigned minified names using a single frequency distribution calculated across all chunks. This meant that typical code changes in one chunk would often cause the contents of all chunks to change, which negated some of the benefits of the browser cache.
+
+    Now symbol renaming (both minified and not minified) is done separately per chunk. It was challenging to implement this without making esbuild a lot slower and causing it to use a lot more memory. Symbol renaming has been mostly rewritten to accomplish this and appears to actually usually use a little less memory and run a bit faster than before, even for code splitting builds that generate a lot of chunks. In addition, minified chunks are now slightly smaller because a given minified name can now be reused by multiple chunks.
+
 ## 0.6.19
 
 * Reduce memory usage for large builds by 30-40% ([#304](https://github.com/evanw/esbuild/issues/304))

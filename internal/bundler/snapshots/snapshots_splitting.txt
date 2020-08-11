@@ -270,7 +270,7 @@ export default require_foo();
 TestSplittingDynamicES6IntoES6
 ---------- /out/entry.js ----------
 // /entry.js
-import("./foo.js").then(({bar: bar2}) => console.log(bar2));
+import("./foo.js").then(({bar}) => console.log(bar));
 
 ---------- /out/foo.js ----------
 // /foo.js
@@ -411,8 +411,8 @@ import {
 } from "./chunk.W46Rb0pk.js";
 
 // /b.js
-const {foo: foo2} = require_shared();
-console.log(foo2);
+const {foo} = require_shared();
+console.log(foo);
 
 ---------- /out/chunk.W46Rb0pk.js ----------
 // /shared.js

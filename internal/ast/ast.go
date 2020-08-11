@@ -1027,6 +1027,9 @@ const (
 	SymbolPrivateStaticSet
 	SymbolPrivateStaticGetSetPair
 
+	// Labels are in their own namespace
+	SymbolLabel
+
 	// TypeScript enums can merge with TypeScript namespaces and other TypeScript
 	// enums.
 	SymbolTSEnum
@@ -1100,9 +1103,12 @@ const (
 	ImportItemMissing
 )
 
-// Note: the order of valies in this struct matters to reduce struct size.
+// Note: the order of values in this struct matters to reduce struct size.
 type Symbol struct {
-	Name string
+	// This is the name that came from the parser. Printed names may be renamed
+	// during minification or to avoid name collisions. Do not use the original
+	// name during printing.
+	OriginalName string
 
 	// This is used for symbols that represent items in the import clause of an
 	// ES6 import statement. These should always be referenced by EImportIdentifier
@@ -1123,16 +1129,30 @@ type Symbol struct {
 	// FollowSymbols to get the real one.
 	Link Ref
 
-	// An estimate of the number of uses of this symbol. This is used for
-	// minification (to prefer shorter names for more frequently used symbols).
-	// The reason why this is an estimate instead of an accurate count is that
-	// it's not updated during dead code elimination for speed. I figure that
-	// even without updating after parsing it's still a pretty good heuristic.
+	// An estimate of the number of uses of this symbol. This is used to detect
+	// whether a symbol is used or not. For example, TypeScript imports that are
+	// unused must be removed because they are probably type-only imports. This
+	// is an estimate and may not be completely accurate due to oversights in the
+	// code. But it should always be non-zero when the symbol is used.
 	UseCountEstimate uint32
 
-	// This is for code splitting. Stored as one's complement so the zero value
-	// is invalid.
+	// This is for generating cross-chunk imports and exports for code splitting.
+	// It's stored as one's complement so the zero value is invalid.
 	ChunkIndex uint32
+
+	// This is used for minification. Symbols that are declared in sibling scopes
+	// can share a name. A good heuristic (from Google Closure Compiler) is to
+	// assign names to symbols from sibling scopes in declaration order. That way
+	// local variable names are reused in each global function like this, which
+	// improves gzip compression:
+	//
+	//   function x(a, b) { ... }
+	//   function y(a, b, c) { ... }
+	//
+	// The parser fills this in for symbols inside nested scopes. There are three
+	// slot namespaces: regular symbols, label symbols, and private symbols. This
+	// is stored as one's complement so the zero value is invalid.
+	NestedScopeSlot uint32
 
 	Kind SymbolKind
 
@@ -1159,6 +1179,40 @@ type Symbol struct {
 	// avoid this. We also need to be able to replace such import items with
 	// undefined, which this status is also used for.
 	ImportItemStatus ImportItemStatus
+}
+
+type SlotNamespace uint8
+
+const (
+	SlotDefault SlotNamespace = iota
+	SlotLabel
+	SlotPrivateName
+	SlotMustNotBeRenamed
+)
+
+func (s *Symbol) SlotNamespace() SlotNamespace {
+	if s.Kind == SymbolUnbound || s.MustNotBeRenamed {
+		return SlotMustNotBeRenamed
+	}
+	if s.Kind.IsPrivate() {
+		return SlotPrivateName
+	}
+	if s.Kind == SymbolLabel {
+		return SlotLabel
+	}
+	return SlotDefault
+}
+
+type SlotCounts [3]uint32
+
+func (a *SlotCounts) UnionMax(b SlotCounts) {
+	for i := range *a {
+		ai := &(*a)[i]
+		bi := b[i]
+		if *ai < bi {
+			*ai = bi
+		}
+	}
 }
 
 type NamespaceAlias struct {
@@ -1265,8 +1319,9 @@ type ImportRecord struct {
 }
 
 type AST struct {
-	ApproximateLineCount int32
-	HasLazyExport        bool
+	ApproximateLineCount  int32
+	NestedScopeSlotCounts SlotCounts
+	HasLazyExport         bool
 
 	// This is a list of CommonJS features. When a file uses CommonJS features,
 	// it's not a candidate for "flat bundling" and must be wrapped in its own
@@ -1336,7 +1391,8 @@ type NamedImport struct {
 // shaking and can be assigned to separate chunks (i.e. output files) by code
 // splitting.
 type Part struct {
-	Stmts []Stmt
+	Stmts  []Stmt
+	Scopes []*Scope
 
 	// Each is an index into the file-level import record list
 	ImportRecordIndices []uint32

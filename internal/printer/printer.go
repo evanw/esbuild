@@ -13,6 +13,7 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
@@ -395,6 +396,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 
 type printer struct {
 	symbols            ast.SymbolMap
+	renamer            renamer.Renamer
 	importRecords      []ast.ImportRecord
 	options            PrintOptions
 	extractedComments  map[string]bool
@@ -687,16 +689,9 @@ func (p *printer) printIndent() {
 	}
 }
 
-func (p *printer) symbolName(ref ast.Ref) string {
-	ref = ast.FollowSymbols(p.symbols, ref)
-	return p.symbols.Get(ref).Name
-}
-
 func (p *printer) printSymbol(ref ast.Ref) {
-	ref = ast.FollowSymbols(p.symbols, ref)
-	symbol := p.symbols.Get(ref)
 	p.printSpaceBeforeIdentifier()
-	p.print(symbol.Name)
+	p.print(p.renamer.NameForSymbol(ref))
 }
 
 func (p *printer) printBinding(binding ast.Binding) {
@@ -797,7 +792,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 							p.printUTF16(str.Value)
 
 							// Use a shorthand property if the names are the same
-							if id, ok := property.Value.Data.(*ast.BIdentifier); ok && lexer.UTF16EqualsString(str.Value, p.symbolName(id.Ref)) {
+							if id, ok := property.Value.Data.(*ast.BIdentifier); ok && lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
 								if property.DefaultValue != nil {
 									p.printSpace()
 									p.print("=")
@@ -1044,7 +1039,7 @@ func (p *printer) printProperty(item ast.Property) {
 			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.Value != nil {
 				switch e := item.Value.Data.(type) {
 				case *ast.EIdentifier:
-					if lexer.UTF16EqualsString(key.Value, p.symbolName(e.Ref)) {
+					if lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -1058,7 +1053,7 @@ func (p *printer) printProperty(item ast.Property) {
 					// Make sure we're not using a property access instead of an identifier
 					ref := ast.FollowSymbols(p.symbols, e.Ref)
 					symbol := p.symbols.Get(ref)
-					if symbol.NamespaceAlias == nil && lexer.UTF16EqualsString(key.Value, symbol.Name) {
+					if symbol.NamespaceAlias == nil && lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -1770,7 +1765,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(symbol.NamespaceAlias.Alias)
 		} else {
 			p.printSpaceBeforeIdentifier()
-			p.print(symbol.Name)
+			p.print(p.renamer.NameForSymbol(e.Ref))
 		}
 
 	case *ast.EAwait:
@@ -1924,8 +1919,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 func (p *printer) isUnboundEvalIdentifier(value ast.Expr) bool {
 	if id, ok := value.Data.(*ast.EIdentifier); ok {
+		// Using the original name here is ok since unbound symbols are not renamed
 		symbol := p.symbols.Get(ast.FollowSymbols(p.symbols, id.Ref))
-		return symbol.Kind == ast.SymbolUnbound && symbol.Name == "eval"
+		return symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "eval"
 	}
 	return false
 }
@@ -2428,7 +2424,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 				p.printNewline()
 				p.printIndent()
 			}
-			name := p.symbolName(item.Name.Ref)
+			name := p.renamer.NameForSymbol(item.Name.Ref)
 			p.print(name)
 			if name != item.Alias {
 				p.print(" as ")
@@ -2722,7 +2718,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 					p.printIndent()
 				}
 				p.print(item.Alias)
-				name := p.symbolName(item.Name.Ref)
+				name := p.renamer.NameForSymbol(item.Name.Ref)
 				if name != item.Alias {
 					p.print(" as ")
 					p.print(name)
@@ -2888,12 +2884,14 @@ type SourceMapChunk struct {
 
 func createPrinter(
 	symbols ast.SymbolMap,
+	r renamer.Renamer,
 	importRecords []ast.ImportRecord,
 	options PrintOptions,
 	approximateLineCount int32,
 ) *printer {
 	p := &printer{
 		symbols:            symbols,
+		renamer:            r,
 		importRecords:      importRecords,
 		options:            options,
 		stmtStart:          -1,
@@ -2938,8 +2936,8 @@ type PrintResult struct {
 	ExtractedComments map[string]bool
 }
 
-func Print(tree ast.AST, symbols ast.SymbolMap, options PrintOptions) PrintResult {
-	p := createPrinter(symbols, tree.ImportRecords, options, tree.ApproximateLineCount)
+func Print(tree ast.AST, symbols ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
+	p := createPrinter(symbols, r, tree.ImportRecords, options, tree.ApproximateLineCount)
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
@@ -2963,8 +2961,8 @@ func Print(tree ast.AST, symbols ast.SymbolMap, options PrintOptions) PrintResul
 	}
 }
 
-func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, options PrintOptions) PrintResult {
-	p := createPrinter(symbols, nil, options, 0)
+func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
+	p := createPrinter(symbols, r, nil, options, 0)
 
 	p.printExpr(expr, ast.LLowest, 0)
 

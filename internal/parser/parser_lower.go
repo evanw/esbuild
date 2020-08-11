@@ -1532,7 +1532,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				var expr ast.Expr
 				if mustLowerPrivate {
 					// Generate a new symbol for this private field
-					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].Name[1:])
+					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
 					p.symbols[private.Ref.InnerIndex].Link = ref
 
 					// Initialize the private field to a new WeakMap
@@ -1608,7 +1608,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 				// Don't generate a symbol for a getter/setter pair twice
 				if p.symbols[private.Ref.InnerIndex].Link == ast.InvalidRef {
 					// Generate a new symbol for this private method
-					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].Name[1:])
+					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
 					p.symbols[private.Ref.InnerIndex].Link = ref
 
 					// Initialize the private method to a new WeakSet
@@ -1676,7 +1676,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 									parameterFields = append(parameterFields, ast.AssignStmt(
 										ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EDot{
 											Target:  ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EThis{}},
-											Name:    p.symbols[id.Ref.InnerIndex].Name,
+											Name:    p.symbols[id.Ref.InnerIndex].OriginalName,
 											NameLoc: arg.Binding.Loc,
 										}},
 										ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EIdentifier{Ref: id.Ref}},

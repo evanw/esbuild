@@ -13,6 +13,7 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/runtime"
 )
 
@@ -43,6 +44,7 @@ type parser struct {
 	allocatedNames           []string
 	latestArrowArgLoc        ast.Loc
 	currentScope             *ast.Scope
+	scopesForCurrentPart     []*ast.Scope
 	symbols                  []ast.Symbol
 	tsUseCounts              []uint32
 	exportsRef               ast.Ref
@@ -479,9 +481,9 @@ func (p *parser) discardScopesUpTo(scopeIndex int) {
 func (p *parser) newSymbol(kind ast.SymbolKind, name string) ast.Ref {
 	ref := ast.Ref{OuterIndex: p.source.Index, InnerIndex: uint32(len(p.symbols))}
 	p.symbols = append(p.symbols, ast.Symbol{
-		Kind: kind,
-		Name: name,
-		Link: ast.InvalidRef,
+		Kind:         kind,
+		OriginalName: name,
+		Link:         ast.InvalidRef,
 	})
 	if p.TS.Parse {
 		p.tsUseCounts = append(p.tsUseCounts, 0)
@@ -5128,6 +5130,7 @@ func (p *parser) pushScopeForVisitPass(kind ast.ScopeKind, loc ast.Loc) {
 
 	p.scopesInOrder = p.scopesInOrder[1:]
 	p.currentScope = order.scope
+	p.scopesForCurrentPart = append(p.scopesForCurrentPart, order.scope)
 }
 
 type findSymbolResult struct {
@@ -5176,7 +5179,7 @@ func (p *parser) findSymbol(name string) findSymbolResult {
 
 func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
 	for s := p.currentScope; s != nil && !s.Kind.StopsHoisting(); s = s.Parent {
-		if s.Kind == ast.ScopeLabel && name == p.symbols[s.LabelRef.InnerIndex].Name {
+		if s.Kind == ast.ScopeLabel && name == p.symbols[s.LabelRef.InnerIndex].OriginalName {
 			// Track how many times we've referenced this symbol
 			p.recordUsage(s.LabelRef)
 			return s.LabelRef
@@ -5851,7 +5854,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			if p.TS.Parse {
 				if id, ok := (*s.Value.Expr).Data.(*ast.EIdentifier); ok {
 					symbol := p.symbols[id.Ref.InnerIndex]
-					if symbol.Kind == ast.SymbolUnbound && p.localTypeNames[symbol.Name] {
+					if symbol.Kind == ast.SymbolUnbound && p.localTypeNames[symbol.OriginalName] {
 						return stmts
 					}
 				}
@@ -5902,7 +5905,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SLabel:
 		p.pushScopeForVisitPass(ast.ScopeLabel, stmt.Loc)
 		name := p.loadNameFromRef(s.Name.Ref)
-		ref := p.newSymbol(ast.SymbolOther, name)
+		ref := p.newSymbol(ast.SymbolLabel, name)
 		s.Name.Ref = ref
 		p.currentScope.LabelRef = ref
 		s.Stmt = p.visitSingleStmt(s.Stmt)
@@ -5943,7 +5946,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				p.recordUsage(*p.enclosingNamespaceRef)
 				return ast.Expr{Loc: loc, Data: &ast.EDot{
 					Target:  ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
-					Name:    p.symbols[ref.InnerIndex].Name,
+					Name:    p.symbols[ref.InnerIndex].OriginalName,
 					NameLoc: loc,
 				}}
 			}
@@ -6152,7 +6155,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			stmts = append(stmts, stmt, ast.AssignStmt(
 				ast.Expr{Loc: stmt.Loc, Data: &ast.EDot{
 					Target:  ast.Expr{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
-					Name:    p.symbols[s.Fn.Name.Ref.InnerIndex].Name,
+					Name:    p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName,
 					NameLoc: s.Fn.Name.Loc,
 				}},
 				ast.Expr{Loc: s.Fn.Name.Loc, Data: &ast.EIdentifier{Ref: s.Fn.Name.Ref}},
@@ -6161,7 +6164,6 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SClass:
-		p.recordDeclaredSymbol(s.Class.Name.Ref)
 		p.visitClass(&s.Class)
 
 		// Remove the export flag inside a namespace
@@ -6179,7 +6181,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			stmts = append(stmts, ast.AssignStmt(
 				ast.Expr{Loc: stmt.Loc, Data: &ast.EDot{
 					Target:  ast.Expr{Loc: stmt.Loc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
-					Name:    p.symbols[s.Class.Name.Ref.InnerIndex].Name,
+					Name:    p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName,
 					NameLoc: s.Class.Name.Loc,
 				}},
 				ast.Expr{Loc: s.Class.Name.Loc, Data: &ast.EIdentifier{Ref: s.Class.Name.Ref}},
@@ -6193,6 +6195,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.recordDeclaredSymbol(s.Name.Ref)
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
 		defer p.popScope()
+		p.recordDeclaredSymbol(s.Arg)
 
 		// Scan ahead for any variables inside this namespace. This must be done
 		// ahead of time before visiting any statements inside the namespace
@@ -6327,6 +6330,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		oldEnclosingNamespaceRef := p.enclosingNamespaceRef
 		p.enclosingNamespaceRef = &s.Arg
 		p.pushScopeForVisitPass(ast.ScopeEntry, stmt.Loc)
+		p.recordDeclaredSymbol(s.Arg)
 		stmtsInsideNamespace := p.visitStmtsAndPrependTempRefs(s.Stmts)
 		p.popScope()
 		p.enclosingNamespaceRef = oldEnclosingNamespaceRef
@@ -6514,6 +6518,10 @@ func (p *parser) visitTSDecorators(tsDecorators []ast.Expr) []ast.Expr {
 
 func (p *parser) visitClass(class *ast.Class) {
 	class.TSDecorators = p.visitTSDecorators(class.TSDecorators)
+
+	if class.Name != nil {
+		p.recordDeclaredSymbol(class.Name.Ref)
+	}
 
 	if class.Extends != nil {
 		*class.Extends = p.visitExpr(*class.Extends)
@@ -7400,7 +7408,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", lexer.UTF16ToString(str.Value)))
 				} else {
 					r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-					p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to property on import %q", p.symbols[id.Ref.InnerIndex].Name))
+					p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to property on import %q", p.symbols[id.Ref.InnerIndex].OriginalName))
 				}
 			}
 		}
@@ -7678,7 +7686,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// but that doesn't mean it should become a direct eval.
 		if wasIdentifierBeforeVisit {
 			if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
-				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.Name == "eval" {
+				if symbol := p.symbols[id.Ref.InnerIndex]; symbol.OriginalName == "eval" {
 					e.IsDirectEval = true
 
 					// Mark this scope and all parent scopes as containing a direct eval.
@@ -7842,7 +7850,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 		if p.symbols[ref.InnerIndex].Kind == ast.SymbolImport {
 			// Create an error for assigning to an import namespace
 			r := lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", p.symbols[ref.InnerIndex].Name))
+			p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", p.symbols[ref.InnerIndex].OriginalName))
 		} else {
 			// Remember that this part assigns to this symbol for code splitting
 			use := p.symbolUses[ref]
@@ -7859,7 +7867,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 	// Substitute a namespace export reference now if appropriate
 	if p.TS.Parse {
 		if nsRef, ok := p.isExportedInsideNamespace[ref]; ok {
-			name := p.symbols[ref.InnerIndex].Name
+			name := p.symbols[ref.InnerIndex].OriginalName
 
 			// If this is a known enum value, inline the value of the enum
 			if enumValueMap, ok := p.knownEnumValues[nsRef]; ok {
@@ -8035,8 +8043,17 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 						if items == nil {
 							items = &[]ast.ClauseItem{}
 						}
-						for alias, name := range importItems {
-							originalName := p.symbols[name.Ref.InnerIndex].Name
+
+						// Sort keys for determinism
+						sorted := make([]string, 0, len(importItems))
+						for alias := range importItems {
+							sorted = append(sorted, alias)
+						}
+						sort.Strings(sorted)
+
+						for _, alias := range sorted {
+							name := importItems[alias]
+							originalName := p.symbols[name.Ref.InnerIndex].OriginalName
 							*items = append(*items, ast.ClauseItem{
 								Alias:        alias,
 								AliasLoc:     name.Loc,
@@ -8130,7 +8147,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 					// exported alias. This is somewhat confusing because each
 					// SExportFrom statement is basically SImport + SExportClause in one.
 					p.namedImports[item.Name.Ref] = ast.NamedImport{
-						Alias:             p.symbols[item.Name.Ref.InnerIndex].Name,
+						Alias:             p.symbols[item.Name.Ref.InnerIndex].OriginalName,
 						AliasLoc:          item.Name.Loc,
 						NamespaceRef:      s.NamespaceRef,
 						ImportRecordIndex: s.ImportRecordIndex,
@@ -8176,6 +8193,7 @@ func (p *parser) appendPart(parts []ast.Part, stmts []ast.Stmt) []ast.Part {
 	p.symbolUses = make(map[ast.Ref]ast.SymbolUse)
 	p.declaredSymbols = nil
 	p.importRecordsForCurrentPart = nil
+	p.scopesForCurrentPart = nil
 	part := ast.Part{
 		Stmts:      p.visitStmtsAndPrependTempRefs(stmts),
 		SymbolUses: p.symbolUses,
@@ -8184,6 +8202,7 @@ func (p *parser) appendPart(parts []ast.Part, stmts []ast.Stmt) []ast.Part {
 		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts)
 		part.DeclaredSymbols = p.declaredSymbols
 		part.ImportRecordIndices = p.importRecordsForCurrentPart
+		part.Scopes = p.scopesForCurrentPart
 		parts = append(parts, part)
 	}
 	return parts
@@ -8937,6 +8956,17 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 	// Make a wrapper symbol in case we need to be wrapped in a closure
 	wrapperRef := p.newSymbol(ast.SymbolOther, "require_"+p.source.IdentifierName)
 
+	// Assign slots to symbols in nested scopes. This is some precomputation for
+	// the symbol renaming pass that will happen later in the linker. It's done
+	// now in the parser because we want it to be done in parallel per file and
+	// we're already executing code in a dedicated goroutine for this file.
+	var nestedScopeSlotCounts ast.SlotCounts
+	if p.MinifyIdentifiers {
+		for _, child := range p.moduleScope.Children {
+			nestedScopeSlotCounts.UnionMax(renamer.AssignNestedScopeSlots(child, p.symbols, ast.SlotCounts{}))
+		}
+	}
+
 	return ast.AST{
 		Parts:                   parts,
 		ModuleScope:             p.moduleScope,
@@ -8948,6 +8978,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 		Directive:               directive,
 		NamedImports:            p.namedImports,
 		NamedExports:            p.namedExports,
+		NestedScopeSlotCounts:   nestedScopeSlotCounts,
 		TopLevelSymbolToParts:   p.topLevelSymbolToParts,
 		ExportStarImportRecords: p.exportStarImportRecords,
 		ImportRecords:           p.importRecords,

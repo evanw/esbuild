@@ -523,21 +523,21 @@ export default require_entry();
 TestExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // /foo/test.js
-const test_exports2 = {};
-__export(test_exports2, {
+const test_exports = {};
+__export(test_exports, {
   foo: () => foo
 });
 let foo = 123;
 
 // /bar/test.js
-const test_exports = {};
-__export(test_exports, {
+const test_exports2 = {};
+__export(test_exports2, {
   bar: () => bar
 });
 let bar = 123;
 
 // /entry.js
-console.log(exports, module.exports, test_exports2, test_exports);
+console.log(exports, module.exports, test_exports, test_exports2);
 
 ================================================================================
 TestExternalModuleExclusionPackage
@@ -1016,7 +1016,7 @@ console.log(shared_default);
 ================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
-var c=e(b=>{b.foo=function(){return 123}});var d=e((b,a)=>{a.exports={test:!0}});const{foo:f}=c();console.log(f(),d());
+var d=b(c=>{c.foo=function(){return 123}});var f=b((k,e)=>{e.exports={test:!0}});const{foo:h}=d();console.log(h(),f());
 
 ================================================================================
 TestMinifiedBundleES6
@@ -1032,21 +1032,21 @@ TestMinifiedBundleEndingWithImportantSemicolon
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // /foo/test.js
-const c = {};
-e(c, {
+const b = {};
+g(b, {
   foo: () => i
 });
 let i = 123;
 
 // /bar/test.js
-const b = {};
-e(b, {
-  bar: () => h
+const c = {};
+g(c, {
+  bar: () => j
 });
-let h = 123;
+let j = 123;
 
 // /entry.js
-console.log(exports, module.exports, c, b);
+console.log(exports, module.exports, b, c);
 
 ================================================================================
 TestMinifyPrivateIdentifiersNoBundle
@@ -1486,9 +1486,9 @@ TestRenamePrivateIdentifiersNoBundle
 class Foo {
   #foo;
   foo = class {
+    #foo;
     #foo2;
-    #foo22;
-    #bar2;
+    #bar;
   };
   get #bar() {
   }
@@ -1499,8 +1499,8 @@ class Bar {
   #foo;
   foo = class {
     #foo2;
-    #foo3;
-    #bar2;
+    #foo;
+    #bar;
   };
   get #bar() {
   }
@@ -1798,9 +1798,9 @@ var require_es6_ns_export_variable = __commonJS((exports) => {
 var require_es6_ns_export_function = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    function foo4() {
+    function foo() {
     }
-    ns3.foo = foo4;
+    ns3.foo = foo;
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -1809,9 +1809,9 @@ var require_es6_ns_export_function = __commonJS((exports) => {
 var require_es6_ns_export_async_function = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    async function foo4() {
+    async function foo() {
     }
-    ns3.foo = foo4;
+    ns3.foo = foo;
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -1820,9 +1820,9 @@ var require_es6_ns_export_async_function = __commonJS((exports) => {
 var require_es6_ns_export_enum = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    let Foo5;
-    (function(Foo6) {
-    })(Foo5 = ns3.Foo || (ns3.Foo = {}));
+    let Foo3;
+    (function(Foo4) {
+    })(Foo3 = ns3.Foo || (ns3.Foo = {}));
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -1831,9 +1831,9 @@ var require_es6_ns_export_enum = __commonJS((exports) => {
 var require_es6_ns_export_const_enum = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    let Foo5;
-    (function(Foo6) {
-    })(Foo5 = ns3.Foo || (ns3.Foo = {}));
+    let Foo3;
+    (function(Foo4) {
+    })(Foo3 = ns3.Foo || (ns3.Foo = {}));
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -1852,9 +1852,9 @@ var require_es6_ns_export_namespace = __commonJS((exports) => {
 var require_es6_ns_export_class = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    class Foo5 {
+    class Foo3 {
     }
-    ns3.Foo = Foo5;
+    ns3.Foo = Foo3;
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -1863,19 +1863,19 @@ var require_es6_ns_export_class = __commonJS((exports) => {
 var require_es6_ns_export_abstract_class = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    class Foo5 {
+    class Foo3 {
     }
-    ns3.Foo = Foo5;
+    ns3.Foo = Foo3;
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
 
 // /es6-import-stmt.js
-const dummy2 = __toModule(require_dummy());
+const dummy = __toModule(require_dummy());
 console.log(void 0);
 
 // /es6-import-assign.ts
-const x2 = require_dummy();
+const x = require_dummy();
 console.log(void 0);
 
 // /es6-import-dynamic.js
@@ -1902,15 +1902,15 @@ console.log(void 0);
 console.log(void 0);
 
 // /es6-export-enum.ts
-var Foo4;
-(function(Foo5) {
-})(Foo4 || (Foo4 = {}));
+var Foo;
+(function(Foo3) {
+})(Foo || (Foo = {}));
 console.log(void 0);
 
 // /es6-export-const-enum.ts
-var Foo3;
-(function(Foo5) {
-})(Foo3 || (Foo3 = {}));
+var Foo2;
+(function(Foo3) {
+})(Foo2 || (Foo2 = {}));
 console.log(void 0);
 
 // /es6-export-module.ts
@@ -1932,7 +1932,7 @@ console.log(void 0);
 console.log(void 0);
 
 // /es6-export-clause-from.js
-const dummy = __toModule(require_dummy());
+const dummy2 = __toModule(require_dummy());
 console.log(void 0);
 
 // /es6-export-star-as.js
@@ -1940,7 +1940,7 @@ const ns = __toModule(require_dummy());
 console.log(void 0);
 
 // /es6-export-import-assign.ts
-const x = require_dummy();
+const x2 = require_dummy();
 console.log(void 0);
 
 // /entry.js

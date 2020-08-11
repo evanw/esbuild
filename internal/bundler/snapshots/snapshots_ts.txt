@@ -75,17 +75,17 @@ var type_nested_default = foo;
 let bar5 = 123;
 
 // /keep/value-namespace.ts
-var foo4;
-(function(foo5) {
-  foo5.num = 0;
-})(foo4 || (foo4 = {}));
-let bar6 = 123;
-
-// /keep/value-namespace-merged.ts
 var foo3;
 (function(foo5) {
   foo5.num = 0;
 })(foo3 || (foo3 = {}));
+let bar6 = 123;
+
+// /keep/value-namespace-merged.ts
+var foo4;
+(function(foo5) {
+  foo5.num = 0;
+})(foo4 || (foo4 = {}));
 let bar7 = 123;
 
 // /remove/interface.ts
@@ -240,7 +240,7 @@ console.log(a, b, c, d, e, real);
 ================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
-var c=e(b=>{b.foo=function(){return 123}});var d=e((b,a)=>{a.exports={test:!0}});const{foo:f}=c();console.log(f(),d());
+var d=b(c=>{c.foo=function(){return 123}});var f=b((k,e)=>{e.exports={test:!0}});const{foo:h}=d();console.log(h(),f());
 
 ================================================================================
 TestTSMinifiedBundleES6
@@ -443,39 +443,39 @@ e_default = __decorate([
 var e_default2 = e_default;
 
 // /f.ts
-let f2 = class {
+let f = class {
   fn() {
-    return new f2();
+    return new f();
   }
 };
-f2.z = new f2();
-f2 = __decorate([
+f.z = new f();
+f = __decorate([
   x(() => 0),
   y(() => 1)
-], f2);
-var f_default = f2;
+], f);
+var f_default = f;
 
 // /g.ts
-let g_default2 = class {
+let g_default = class {
 };
-g_default2 = __decorate([
+g_default = __decorate([
   x(() => 0),
   y(() => 1)
-], g_default2);
-var g_default = g_default2;
+], g_default);
+var g_default2 = g_default;
 
 // /h.ts
-let h2 = class {
+let h = class {
   fn() {
-    return new h2();
+    return new h();
   }
 };
-h2.z = new h2();
-h2 = __decorate([
+h.z = new h();
+h = __decorate([
   x(() => 0),
   y(() => 1)
-], h2);
-var h_default = h2;
+], h);
+var h_default = h;
 
 // /i.ts
 class i_class {
@@ -484,17 +484,17 @@ __decorate([
   x(() => 0),
   y(() => 1)
 ], i_class.prototype, "foo", 2);
-let i2 = i_class;
+let i = i_class;
 
 // /j.ts
-class j2 {
+class j {
   foo() {
   }
 }
 __decorate([
   x(() => 0),
   y(() => 1)
-], j2.prototype, "foo", 1);
+], j.prototype, "foo", 1);
 
 // /k.ts
 class k_default {
@@ -507,4 +507,4 @@ __decorate([
 ], k_default.prototype, "foo", 1);
 
 // /entry.js
-console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default, h_default, i2, j2, k_default);
+console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default);
