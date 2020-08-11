@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Upgrade from Go 1.14 to Go 1.15
+
+    This change isn't represented by a commit in the repo, but from now on I will be using Go 1.15 to build the distributed binaries instead of Go 1.14. The [release notes for Go 1.15](https://golang.org/doc/go1.15) mention improvements to binary size:
+
+    > Go 1.15 reduces typical binary sizes by around 5% compared to Go 1.14 by eliminating certain types of GC metadata and more aggressively eliminating unused type metadata.
+
+    Initial testing shows that upgrading Go reduces the esbuild binary size on macOS from 7.4mb to 5.3mb, which is a 30% smaller binary! I assume the binary size savings are similar for other platforms. Run-time performance on the esbuild benchmarks seems consistent with previous releases.
+
 ## 0.6.20
 
 * Symbols are now renamed separately per chunk ([#16](https://github.com/evanw/esbuild/issues/16))
