@@ -17,6 +17,7 @@
     * [Tree shaking](#tree-shaking)
     * [Code splitting](#code-splitting)
 * [Notes about printing](#notes-about-printing)
+    * [Symbol minification](#symbol-minification)
 
 # Architecture Documentation
 
@@ -479,3 +480,100 @@ The printer converts JavaScript ASTs back into JavaScript source code. This is m
 Each file is printed independently from other files, so files can be printed in parallel. This extends to source map generation. As each file is printed, the printer builds up a "source map chunk" which is a [VLQ](https://en.wikipedia.org/wiki/Variable-length_quantity)-encoded sequence of source map offsets assuming the output file starts with the AST currently being printed. That source map chunk will later be "rebased" to start at the correct offset when all source map chunks are joined together. This is done by rewriting the first item in the sequence, which happens in `AppendSourceMapChunk()`.
 
 The current AST representation uses a single integer offset per AST node to store the location information. This is the index of the starting byte for that syntax construct in the original source file. Using this representation means that it's not possible to merge ASTs from two separate files and still have source maps work. That's not a problem since AST printing is fully parallelized in esbuild, but is something to keep in mind when modifying the code.
+
+### Symbol minification
+
+An important part of JavaScript minification is symbol renaming. Internal symbols (i.e. those not externally visible) can be renamed to shorter names without changing the meaning of the code. That looks something like this:
+
+<table>
+<tr><th>Original code</th><th>Code with symbol minification</th></tr>
+<tr><td>
+
+```js
+function useReducer(reducer, initialState) {
+  let [state, setState] = useState(initialState);
+  function dispatch(action) {
+    let nextState = reducer(state, action);
+    setState(nextState);
+  }
+  return [state, dispatch];
+}
+```
+
+</td><td>
+
+```js
+function useReducer(b, c) {
+  let [a, d] = useState(c);
+  function e(f) {
+    let g = b(a, f);
+    d(g);
+  }
+  return [a, e];
+}
+```
+
+</td></tr>
+</table>
+
+It may initially seem like we can easily rename all symbols to a single character by assigning a unicode character to each one. There are over 100,000 unicode characters that are valid JavaScript identifiers after all. However, the goal is actually to use as few bytes as possible, and most unicode characters use multiple bytes when encoded as UTF-8.
+
+For this reason most JavaScript minifiers (including esbuild) restrict generated symbols to ASCII-only. With ASCII, JavaScript has only 54 possible one-character identifiers and 3453 possible two-character identifiers, so we should use the shortest names to rename the most frequently used symbols so that we can save the most bytes.
+
+Another consideration is that symbols in sibling scopes can share the same name without conflicting due to scoping rules. We can use this to our advantage by deliberately merging unrelated symbols in independent scopes, and then adding the frequency statistics of all of these symbols together before generating the final names.
+
+Something to keep in mind when renaming symbols is that the resulting JavaScript will likely be compressed before being downloaded, usually with gzip compression. Repeated sequences of characters will compress better than unique sequences of characters. A trick esbuild borrows from [Google Closure Compiler](https://github.com/google/closure-compiler) is to merge the symbols for arguments of sibling functions together:
+
+```js
+// Before renaming
+function readFile(path, encoding, callback) { ... }
+function writeFile(path, contents, mode, callback) { ... }
+```
+
+```js
+// After renaming
+function x(a, b, c) { ... }
+function y(a, b, c, d) { ... }
+```
+
+Because the symbols for the function arguments have been merged together in order, the character sequence `a, b, c` is present in both functions which should help with gzip compression. This is handled in esbuild by assigning each symbol in a nested (i.e. not top-level) scope a "slot", which is an incrementing index into an array of frequency counters. The symbols `a`, `b`, `c`, and `d` would be assigned slots `0`, `1`, `2`, and `3` in the example above. This approach is extra helpful for esbuild because slot assignments can be computed in parallel.
+
+The algorithm:
+
+1. For each input source file (in parallel)
+
+    1. Track information for each top-level statement while parsing
+
+        Each top-level statement tracks the which symbols are used, how many times each symbol is used, which symbols it defines, and which nested scopes that top-level statement contains. Code splitting operates on top-level statement boundaries, so this information will tell us exactly what symbols to include in the frequency analysis after code splitting is complete. This information is collected during parsing.
+
+    2. Assign slots to symbols in nested scopes
+
+        Traverse the scope tree and assign slots to all symbols declared within each scope (skipping top-level scopes). Each scope in the scope tree starts assigning slots immediately after the maximum slot of the parent scope.
+
+2. For each output chunk file (in parallel)
+
+    1. Create an array of frequency counters
+
+        Each counter is indexed by slot and all counts are initially 0. The array length starts off being large enough to handle the maximum slot value of all files included in the chunk.
+
+    2. Assign slots for top-level symbols
+
+        For each top-level statement included in the chunk, iterate over all top-level symbols declared in that statement and assign each symbol to a new slot by appending to the counter array. This slot will not overlap with any slots from nested scopes. The count starts off at 1 to represent the declaration.
+
+    3. Accumulate symbol usage counts into slots
+
+        For each top-level statement included in the chunk, iterate over all symbol use records and increment the counter in that symbol's slot by the stored count from the symbol use record.
+
+    4. Sort slots by decreasing count
+
+        This should tell us which symbol slots should be assigned the shortest names to minimize file size.
+
+    5. Assign names to slots in order
+
+        Names are assigned from a fixed sequence of identifiers that starts off using one-character names, then two-character names, and so on (i.e. `a b c ... aa ba ca ... aaa baa caa ...`). We must be careful to avoid any JavaScript keywords such as `do` and `if` that would cause syntax errors. We must also avoid the names of any "unbound" symbols, which are symbols that are used without being declared such as `$` for jQuery.
+
+    6. When printing, use the name in that symbol's slot
+
+        The printer only needs access to the array containing the names (indexed by slot) and a way of mapping a symbol reference to a slot index. This is a compact representation that doesn't need a lot of memory per chunk because the slot array length is O(unique symbol names) instead of O(number of symbols). The mapping of symbols from nested scopes (which is usually the majority of symbols) to their slot index is static and can be shared between all chunks.
+
+It's worth mentioning that this algorithm must be performed three separate times because there are three separate symbol namespaces in JavaScript that need minification: normal symbols, [label symbols](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/label), and [private symbols](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Private_class_fields). The same name in separate namespaces can't conflict with each other, so it's ok to reuse the same name across namespaces.
