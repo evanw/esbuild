@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.20
 
 * Symbols are now renamed separately per chunk ([#16](https://github.com/evanw/esbuild/issues/16))
 

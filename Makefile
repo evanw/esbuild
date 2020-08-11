@@ -104,12 +104,14 @@ test-otp:
 publish-all: update-version-go test-all test-extra
 	rm -fr npm && git checkout npm
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j10 \
+	@read OTP && OTP="$$OTP" make -j5 \
 		publish-windows \
 		publish-windows-32 \
 		publish-darwin \
 		publish-freebsd \
-		publish-freebsd-arm64 \
+		publish-freebsd-arm64
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" make -j5 \
 		publish-linux \
 		publish-linux-32 \
 		publish-linux-arm64 \
