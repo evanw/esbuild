@@ -29,7 +29,6 @@ Options:
   --format=...          Output format (iife, cjs, esm, default iife when
                         platform is browser and cjs when platform is node)
   --splitting           Enable code splitting (currently only for esm)
-  --color=...           Force use of color terminal escapes (true or false)
   --global-name=...     The name of the global for the IIFE format
 
   --minify              Sets all --minify-* flags
@@ -59,6 +58,7 @@ Advanced options:
   --pure:N                  Mark the name N as a pure function for tree shaking
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
+  --color=...               Force use of color terminal escapes (true or false)
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
