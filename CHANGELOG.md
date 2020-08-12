@@ -6,6 +6,10 @@
 
     In most terminals, printing the bell character (ASCII code 7) will trigger a sound. The macOS terminal will also flash the screen if sound is muted. This is annoying, and can happen when dumping the output of esbuild to the terminal if the input contains a bell character. Now esbuild will always escape bell characters in the output to avoid this problem.
 
+* CommonJS modules now export properties of prototype ([#326](https://github.com/evanw/esbuild/issues/326))
+
+    This change is for compatibility with Webpack. You can now assign an object with a custom prototype to `module.exports` and esbuild will consider all enumerable properties on the prototype as exports. This behavior is necessary to correctly bundle the [paper.js](https://github.com/paperjs/paper.js) library, for example.
+
 ## 0.6.21
 
 * Upgrade from Go 1.14 to Go 1.15

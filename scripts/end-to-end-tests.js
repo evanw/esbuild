@@ -249,6 +249,77 @@
     }),
   )
 
+  // Test imports of properties from the prototype chain of "module.exports" for Webpack compatibility
+  tests.push(
+    // Imports
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import def from './cjs-proto'
+        import {prop} from './cjs-proto'
+        if (def.prop !== 123 || prop !== 123) throw 'fail'
+      `,
+      'cjs-proto.js': `module.exports = Object.create({prop: 123})`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import def, {prop} from './cjs-proto' // The TypeScript compiler fails with this syntax
+        if (def.prop !== 123 || prop !== 123) throw 'fail'
+      `,
+      'cjs-proto.js': `module.exports = Object.create({prop: 123})`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as star from './cjs-proto'
+        if (!star.default || star.default.prop !== 123 || star.prop !== 123) throw 'fail'
+      `,
+      'cjs-proto.js': `module.exports = Object.create({prop: 123})`,
+    }),
+
+    // Re-exports
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as test from './reexport'
+        if (test.def.prop !== 123 || test.prop !== 123) throw 'fail'
+      `,
+      'reexport.js': `
+        export {default as def} from './cjs-proto'
+        export {prop} from './cjs-proto'
+      `,
+      'cjs-proto.js': `module.exports = Object.create({prop: 123})`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as test from './reexport'
+        if (test.def.prop !== 123 || test.prop !== 123) throw 'fail'
+      `,
+      'reexport.js': `
+        export {default as def, prop} from './cjs-proto' // The TypeScript compiler fails with this syntax
+      `,
+      'cjs-proto.js': `module.exports = Object.create({prop: 123})`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as test from './reexport'
+        // Note: the specification says to ignore default exports in "export * from"
+        if (test.default || test.prop !== 123) throw 'fail'
+      `,
+      'reexport.js': `
+        export * from './cjs-proto'
+      `,
+      'cjs-proto.js': `module.exports = Object.create({prop: 123})`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import {star} from './reexport'
+        if (!star.default || star.default.prop !== 123 || star.prop !== 123) throw 'fail'
+      `,
+      'reexport.js': `
+        export * as star from './cjs-proto'
+      `,
+      'cjs-proto.js': `module.exports = Object.create({prop: 123})`,
+    }),
+  )
+
   // Tests for catch scope issues
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {

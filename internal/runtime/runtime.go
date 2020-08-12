@@ -74,13 +74,13 @@ func code(isES6 bool) string {
 	if isES6 {
 		text += `
 			for (let key in module)
-				if (__hasOwnProperty.call(module, key) && !__hasOwnProperty.call(target, key) && key !== 'default')
+				if (!__hasOwnProperty.call(target, key) && key !== 'default')
 					__defineProperty(target, key, { get: () => module[key], enumerable: true })
 		`
 	} else {
 		text += `
 			for (var key in module)
-				if (__hasOwnProperty.call(module, key) && !__hasOwnProperty.call(target, key) && key !== 'default')
+				if (!__hasOwnProperty.call(target, key) && key !== 'default')
 					(k => {
 						__defineProperty(target, k, { get: () => module[k], enumerable: true })
 					})(key)
