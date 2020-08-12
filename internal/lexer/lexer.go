@@ -294,18 +294,53 @@ func (lexer *Lexer) Raw() string {
 }
 
 func (lexer *Lexer) RawTemplateContents() string {
+	var text string
 	switch lexer.Token {
 	case TNoSubstitutionTemplateLiteral, TTemplateTail:
 		// "`x`" or "}x`"
-		return lexer.source.Contents[lexer.start+1 : lexer.end-1]
+		text = lexer.source.Contents[lexer.start+1 : lexer.end-1]
 
 	case TTemplateHead, TTemplateMiddle:
 		// "`x${" or "}x${"
-		return lexer.source.Contents[lexer.start+1 : lexer.end-2]
-
-	default:
-		return ""
+		text = lexer.source.Contents[lexer.start+1 : lexer.end-2]
 	}
+
+	if strings.IndexByte(text, '\r') == -1 {
+		return text
+	}
+
+	// From the specification:
+	//
+	// 11.8.6.1 Static Semantics: TV and TRV
+	//
+	// TV excludes the code units of LineContinuation while TRV includes
+	// them. <CR><LF> and <CR> LineTerminatorSequences are normalized to
+	// <LF> for both TV and TRV. An explicit EscapeSequence is needed to
+	// include a <CR> or <CR><LF> sequence.
+
+	bytes := []byte(text)
+	end := 0
+	i := 0
+
+	for i < len(bytes) {
+		c := bytes[i]
+		i++
+
+		if c == '\r' {
+			// Convert '\r\n' into '\n'
+			if i < len(bytes) && bytes[i] == '\n' {
+				i++
+			}
+
+			// Convert '\r' into '\n'
+			c = '\n'
+		}
+
+		bytes[end] = c
+		end++
+	}
+
+	return string(bytes[:end])
 }
 
 func (lexer *Lexer) IsIdentifierOrKeyword() bool {
@@ -1301,8 +1336,7 @@ func (lexer *Lexer) Next() {
 
 		case '\'', '"', '`':
 			quote := lexer.codePoint
-			hasEscape := false
-			isASCII := true
+			needsSlowPath := false
 			suffixLen := 1
 
 			if quote != '`' {
@@ -1318,7 +1352,7 @@ func (lexer *Lexer) Next() {
 			for {
 				switch lexer.codePoint {
 				case '\\':
-					hasEscape = true
+					needsSlowPath = true
 					lexer.step()
 
 					// Handle Windows CRLF
@@ -1333,7 +1367,16 @@ func (lexer *Lexer) Next() {
 				case -1: // This indicates the end of the file
 					lexer.SyntaxError()
 
-				case '\r', '\n':
+				case '\r':
+					if quote != '`' {
+						lexer.addError(ast.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
+						panic(LexerPanic{})
+					}
+
+					// Template literals require newline normalization
+					needsSlowPath = true
+
+				case '\n':
 					if quote != '`' {
 						lexer.addError(ast.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
 						panic(LexerPanic{})
@@ -1362,7 +1405,7 @@ func (lexer *Lexer) Next() {
 				default:
 					// Non-ASCII strings need the slow path
 					if lexer.codePoint >= 0x80 {
-						isASCII = false
+						needsSlowPath = true
 					} else if lexer.json.parse && lexer.codePoint < 0x20 {
 						lexer.SyntaxError()
 					}
@@ -1372,7 +1415,7 @@ func (lexer *Lexer) Next() {
 
 			text := lexer.source.Contents[lexer.start+1 : lexer.end-suffixLen]
 
-			if hasEscape || !isASCII {
+			if needsSlowPath {
 				// Slow path
 				lexer.StringLiteral = lexer.decodeEscapeSequences(lexer.start+1, text)
 			} else {
@@ -1970,7 +2013,27 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 		c, width := utf8.DecodeRuneInString(text[i:])
 		i += width
 
-		if c == '\\' {
+		switch c {
+		case '\r':
+			// From the specification:
+			//
+			// 11.8.6.1 Static Semantics: TV and TRV
+			//
+			// TV excludes the code units of LineContinuation while TRV includes
+			// them. <CR><LF> and <CR> LineTerminatorSequences are normalized to
+			// <LF> for both TV and TRV. An explicit EscapeSequence is needed to
+			// include a <CR> or <CR><LF> sequence.
+
+			// Convert '\r\n' into '\n'
+			if i < len(text) && text[i] == '\n' {
+				i++
+			}
+
+			// Convert '\r' into '\n'
+			decoded = append(decoded, '\n')
+			continue
+
+		case '\\':
 			c2, width2 := utf8.DecodeRuneInString(text[i:])
 			i += width2
 

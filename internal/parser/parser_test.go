@@ -947,6 +947,60 @@ func TestArrow(t *testing.T) {
 
 func TestTemplate(t *testing.T) {
 	expectPrinted(t, "`a${1 + `b${2}c` + 3}d`", "`a${1 + `b${2}c` + 3}d`;\n")
+
+	expectPrinted(t, "`a\nb`", "`a\nb`;\n")
+	expectPrinted(t, "`a\rb`", "`a\nb`;\n")
+	expectPrinted(t, "`a\r\nb`", "`a\nb`;\n")
+	expectPrinted(t, "`a\\nb`", "`a\nb`;\n")
+	expectPrinted(t, "`a\\rb`", "`a\\rb`;\n")
+	expectPrinted(t, "`a\\r\\nb`", "`a\\r\nb`;\n")
+	expectPrinted(t, "`a\u2028b`", "`a\\u2028b`;\n")
+	expectPrinted(t, "`a\u2029b`", "`a\\u2029b`;\n")
+
+	expectPrinted(t, "`a\n${b}`", "`a\n${b}`;\n")
+	expectPrinted(t, "`a\r${b}`", "`a\n${b}`;\n")
+	expectPrinted(t, "`a\r\n${b}`", "`a\n${b}`;\n")
+	expectPrinted(t, "`a\\n${b}`", "`a\n${b}`;\n")
+	expectPrinted(t, "`a\\r${b}`", "`a\\r${b}`;\n")
+	expectPrinted(t, "`a\\r\\n${b}`", "`a\\r\n${b}`;\n")
+	expectPrinted(t, "`a\u2028${b}`", "`a\\u2028${b}`;\n")
+	expectPrinted(t, "`a\u2029${b}`", "`a\\u2029${b}`;\n")
+
+	expectPrinted(t, "`${a}\nb`", "`${a}\nb`;\n")
+	expectPrinted(t, "`${a}\rb`", "`${a}\nb`;\n")
+	expectPrinted(t, "`${a}\r\nb`", "`${a}\nb`;\n")
+	expectPrinted(t, "`${a}\\nb`", "`${a}\nb`;\n")
+	expectPrinted(t, "`${a}\\rb`", "`${a}\\rb`;\n")
+	expectPrinted(t, "`${a}\\r\\nb`", "`${a}\\r\nb`;\n")
+	expectPrinted(t, "`${a}\u2028b`", "`${a}\\u2028b`;\n")
+	expectPrinted(t, "`${a}\u2029b`", "`${a}\\u2029b`;\n")
+
+	expectPrinted(t, "tag`a\nb`", "tag`a\nb`;\n")
+	expectPrinted(t, "tag`a\rb`", "tag`a\nb`;\n")
+	expectPrinted(t, "tag`a\r\nb`", "tag`a\nb`;\n")
+	expectPrinted(t, "tag`a\\nb`", "tag`a\\nb`;\n")
+	expectPrinted(t, "tag`a\\rb`", "tag`a\\rb`;\n")
+	expectPrinted(t, "tag`a\\r\\nb`", "tag`a\\r\\nb`;\n")
+	expectPrinted(t, "tag`a\u2028b`", "tag`a\u2028b`;\n")
+	expectPrinted(t, "tag`a\u2029b`", "tag`a\u2029b`;\n")
+
+	expectPrinted(t, "tag`a\n${b}`", "tag`a\n${b}`;\n")
+	expectPrinted(t, "tag`a\r${b}`", "tag`a\n${b}`;\n")
+	expectPrinted(t, "tag`a\r\n${b}`", "tag`a\n${b}`;\n")
+	expectPrinted(t, "tag`a\\n${b}`", "tag`a\\n${b}`;\n")
+	expectPrinted(t, "tag`a\\r${b}`", "tag`a\\r${b}`;\n")
+	expectPrinted(t, "tag`a\\r\\n${b}`", "tag`a\\r\\n${b}`;\n")
+	expectPrinted(t, "tag`a\u2028${b}`", "tag`a\u2028${b}`;\n")
+	expectPrinted(t, "tag`a\u2029${b}`", "tag`a\u2029${b}`;\n")
+
+	expectPrinted(t, "tag`${a}\nb`", "tag`${a}\nb`;\n")
+	expectPrinted(t, "tag`${a}\rb`", "tag`${a}\nb`;\n")
+	expectPrinted(t, "tag`${a}\r\nb`", "tag`${a}\nb`;\n")
+	expectPrinted(t, "tag`${a}\\nb`", "tag`${a}\\nb`;\n")
+	expectPrinted(t, "tag`${a}\\rb`", "tag`${a}\\rb`;\n")
+	expectPrinted(t, "tag`${a}\\r\\nb`", "tag`${a}\\r\\nb`;\n")
+	expectPrinted(t, "tag`${a}\u2028b`", "tag`${a}\u2028b`;\n")
+	expectPrinted(t, "tag`${a}\u2029b`", "tag`${a}\u2029b`;\n")
 }
 
 func TestSwitch(t *testing.T) {
