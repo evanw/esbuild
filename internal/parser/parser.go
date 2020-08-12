@@ -2500,6 +2500,7 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			if level >= ast.LPrefix {
 				return left
 			}
+			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
 			p.lexer.Next()

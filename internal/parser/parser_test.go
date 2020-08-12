@@ -2378,6 +2378,8 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "`a${b}c`;",
 		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "tag`abc`;",
+		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "tag`a${b}c`;",
 		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "class Foo { constructor() { new.target } }",
