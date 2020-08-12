@@ -350,10 +350,12 @@ Options:
   --outfile=...         The output file (for one entry point)
   --outdir=...          The output directory (for multiple entry points)
   --sourcemap           Emit a source map
-  --target=...          Environment target (e.g. es2017, chrome80)
+  --target=...          Environment target (e.g. es2017, chrome58, firefox57,
+                        safari11, edge16, node10, default esnext)
   --platform=...        Platform target (browser or node, default browser)
   --external:M          Exclude module M from the bundle
-  --format=...          Output format (iife, cjs, esm)
+  --format=...          Output format (iife, cjs, esm, default iife when
+                        platform is browser and cjs when platform is node)
   --splitting           Enable code splitting (currently only for esm)
   --color=...           Force use of color terminal escapes (true or false)
   --global-name=...     The name of the global for the IIFE format
@@ -376,8 +378,10 @@ Advanced options:
   --sourcemap=external      Do not link to the source map with a comment
   --sourcefile=...          Set the source file for the source map (for stdin)
   --error-limit=...         Maximum error count or 0 to disable (default 10)
-  --log-level=...           Disable logging (info, warning, error, silent)
+  --log-level=...           Disable logging (info, warning, error, silent,
+                            default info)
   --resolve-extensions=...  A comma-separated list of implicit extensions
+                            (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.json")
   --metafile=...            Write metadata about the build to a JSON file
   --strict                  Transforms handle edge cases but have more overhead
   --pure:N                  Mark the name N as a pure function for tree shaking
