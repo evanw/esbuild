@@ -207,6 +207,8 @@ Note that while transforming code containing top-level await is supported, bundl
 
 See also [the list of finished ECMAScript proposals](https://github.com/tc39/proposals/blob/master/finished-proposals.md) and [the list of active ECMAScript proposals](https://github.com/tc39/proposals/blob/master/README.md).
 
+Transforming ES6+ syntax to ES5 is not supported yet. However, if you're using esbuild to transform ES5 code, you should still set `--target=es5`. This prevents esbuild from introducing ES6 syntax into your ES5 code. For example, without this flag the object literal `{x: x}` will become `{x}` and the string `"a\nb"` will become a multi-line template literal when minifying. Both of these substitutions are done because the resulting code is shorter, but the substitutions will not be performed if `--target=es5` is present.
+
 #### TypeScript syntax support:
 
 TypeScript files are transformed by removing type annotations and converting TypeScript-only syntax features to JavaScript code. This section documents the support of TypeScript-only syntax features. Please refer to the [previous section](#javascript-syntax-support) for support of JavaScript syntax features, which also applies in TypeScript files.
