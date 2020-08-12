@@ -228,16 +228,12 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 
 // recurseParents recursively walks up the dirInfo hierarchy (child -> parent)
 // the walker func returns true to stop (i.e: match found) and false to continue
-func (r *resolver) recurseParents(current *dirInfo, walker func(*dirInfo) bool) bool {
-	cursor := current
-
-	for cursor != nil {
-		if matched := walker(cursor); matched {
+func (r *resolver) recurseParents(dirInfo *dirInfo, walker func(*dirInfo) bool) bool {
+	for info := dirInfo; info != nil; info = info.parent {
+		if matched := walker(info); matched {
 			return true
 		}
-		cursor = cursor.parent
 	}
-
 	return false
 }
 
