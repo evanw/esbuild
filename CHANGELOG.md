@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* The bell character is now escaped
+
+    In most terminals, printing the bell character (ASCII code 7) will trigger a sound. The macOS terminal will also flash the screen if sound is muted. This is annoying, and can happen when dumping the output of esbuild to the terminal if the input contains a bell character. Now esbuild will always escape bell characters in the output to avoid this problem.
+
 ## 0.6.21
 
 * Upgrade from Go 1.14 to Go 1.15

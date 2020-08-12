@@ -295,13 +295,19 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 		i++
 
 		switch c {
-		case '\x00':
+		// Special-case the null character and the bell character. The null
+		// character may mess with code written in C that treats null characters as
+		// the end of the string, and the bell character may cause dumping this
+		// file to the terminal to make a sound, which is undesirable.
+		case '\x00', '\x07':
+			js = append(js, '\\')
+
 			// We don't want "\x001" to be written as "\01"
-			if i >= n || text[i] < '0' || text[i] > '9' {
-				js = append(js, "\\0"...)
-			} else {
-				js = append(js, "\\x00"...)
+			if i < n && text[i] >= '0' && text[i] <= '9' {
+				js = append(js, "x0"...)
 			}
+
+			js = append(js, '0'+byte(c))
 
 		case '\b':
 			js = append(js, "\\b"...)
