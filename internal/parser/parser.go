@@ -1849,15 +1849,47 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		return ast.Expr{Loc: loc, Data: &ast.EString{Value: value}}
 
 	case lexer.TNoSubstitutionTemplateLiteral:
-		p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 		head := p.lexer.StringLiteral
 		p.lexer.Next()
+		if p.UnsupportedFeatures.Has(compat.TemplateLiteral) {
+			return ast.Expr{Loc: loc, Data: &ast.EString{Value: head}}
+		}
 		return ast.Expr{Loc: loc, Data: &ast.ETemplate{Head: head}}
 
 	case lexer.TTemplateHead:
-		p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 		head := p.lexer.StringLiteral
 		parts := p.parseTemplateParts(false /* includeRaw */)
+		if p.UnsupportedFeatures.Has(compat.TemplateLiteral) {
+			var value ast.Expr
+			if len(head) == 0 {
+				// "`${x}y`" => "x + 'y'"
+				part := parts[0]
+				value = ast.Expr{Loc: loc, Data: &ast.EBinary{
+					Op:    ast.BinOpAdd,
+					Left:  part.Value,
+					Right: ast.Expr{Loc: part.TailLoc, Data: &ast.EString{Value: part.Tail}},
+				}}
+				parts = parts[1:]
+			} else {
+				// "`x${y}`" => "'x' + y"
+				value = ast.Expr{Loc: loc, Data: &ast.EString{Value: head}}
+			}
+			for _, part := range parts {
+				value = ast.Expr{Loc: loc, Data: &ast.EBinary{
+					Op:    ast.BinOpAdd,
+					Left:  value,
+					Right: part.Value,
+				}}
+				if len(part.Tail) > 0 {
+					value = ast.Expr{Loc: loc, Data: &ast.EBinary{
+						Op:    ast.BinOpAdd,
+						Left:  value,
+						Right: ast.Expr{Loc: part.TailLoc, Data: &ast.EString{Value: part.Tail}},
+					}}
+				}
+			}
+			return value
+		}
 		return ast.Expr{Loc: loc, Data: &ast.ETemplate{Head: head, Parts: parts}}
 
 	case lexer.TNumericLiteral:
@@ -3172,13 +3204,14 @@ func (p *parser) parseTemplateParts(includeRaw bool) []ast.TemplatePart {
 	for {
 		p.lexer.Next()
 		value := p.parseExpr(ast.LLowest)
+		tailLoc := p.lexer.Loc()
 		p.lexer.RescanCloseBraceAsTemplateToken()
 		tail := p.lexer.StringLiteral
 		tailRaw := ""
 		if includeRaw {
 			tailRaw = p.lexer.RawTemplateContents()
 		}
-		parts = append(parts, ast.TemplatePart{Value: value, Tail: tail, TailRaw: tailRaw})
+		parts = append(parts, ast.TemplatePart{Value: value, TailLoc: tailLoc, Tail: tail, TailRaw: tailRaw})
 		if p.lexer.Token == lexer.TTemplateTail {
 			p.lexer.Next()
 			break

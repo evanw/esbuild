@@ -10,6 +10,10 @@
 
     Initial testing shows that upgrading Go reduces the esbuild binary size on macOS from 7.4mb to 5.3mb, which is a 30% smaller binary! I assume the binary size savings are similar for other platforms. Run-time performance on the esbuild benchmarks seems consistent with previous releases.
 
+* Lower non-tag template literals to ES5 ([#297](https://github.com/evanw/esbuild/issues/297))
+
+    You can now use non-tag template literals such as `` `abc` `` and `` `a${b}c` `` with `--target=es5` and esbuild will convert them to string addition such as `"abc"` and `"a" + b + "c"` instead of reporting an error.
+
 ## 0.6.20
 
 * Symbols are now renamed separately per chunk ([#16](https://github.com/evanw/esbuild/issues/16))

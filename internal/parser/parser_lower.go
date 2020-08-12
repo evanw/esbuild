@@ -46,7 +46,7 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) (didGene
 		name = "object literal extensions"
 
 	case compat.TemplateLiteral:
-		name = "template literals"
+		name = "tagged template literals"
 
 	case compat.Destructuring:
 		name = "destructuring"

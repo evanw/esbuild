@@ -569,6 +569,7 @@ type EString struct{ Value []uint16 }
 
 type TemplatePart struct {
 	Value   Expr
+	TailLoc Loc
 	Tail    []uint16
 	TailRaw string // This is only filled out for tagged template literals
 }

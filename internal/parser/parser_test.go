@@ -2374,14 +2374,19 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "for ({} in []);",
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "`abc`;",
-		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "`a${b}c`;",
-		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
+	expectPrintedTarget(t, 5, "`abc`;", "\"abc\";\n")
+	expectPrintedTarget(t, 5, "`a${b}`;", "\"a\" + b;\n")
+	expectPrintedTarget(t, 5, "`${a}b`;", "a + \"b\";\n")
+	expectPrintedTarget(t, 5, "`${a}${b}`;", "a + \"\" + b;\n")
+	expectPrintedTarget(t, 5, "`a${b}c`;", "\"a\" + b + \"c\";\n")
+	expectPrintedTarget(t, 5, "`a${b}${c}`;", "\"a\" + b + c;\n")
+	expectPrintedTarget(t, 5, "`a${b}${c}d`;", "\"a\" + b + c + \"d\";\n")
+	expectPrintedTarget(t, 5, "`a${b}c${d}`;", "\"a\" + b + \"c\" + d;\n")
+	expectPrintedTarget(t, 5, "`a${b}c${d}e`;", "\"a\" + b + \"c\" + d + \"e\";\n")
 	expectParseErrorTarget(t, 5, "tag`abc`;",
-		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
+		"<stdin>: error: Transforming tagged template literals to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "tag`a${b}c`;",
-		"<stdin>: error: Transforming template literals to the configured target environment is not supported yet\n")
+		"<stdin>: error: Transforming tagged template literals to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "class Foo { constructor() { new.target } }",
 		"<stdin>: error: Transforming class syntax to the configured target environment is not supported yet\n"+
 			"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n"+
