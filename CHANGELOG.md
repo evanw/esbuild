@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.21
 
 * Upgrade from Go 1.14 to Go 1.15
 
