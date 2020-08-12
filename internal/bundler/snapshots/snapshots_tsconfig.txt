@@ -105,12 +105,12 @@ function Text(props) {
 }
 
 // /Users/user/project/node_modules/worldview/index.tsx
-function worldview2() {
+function worldview() {
   return /* @__PURE__ */ React.createElement(Text, null, "Hello World");
 }
 
 // /Users/user/project/entry.ts
-console.log(worldview2);
+console.log(worldview);
 
 ================================================================================
 TestTsconfigJsonBaseUrl
