@@ -203,7 +203,36 @@ func (r *MinifyRenamer) AssignNamesByFrequency() {
 }
 
 // Returns the number of nested slots
-func AssignNestedScopeSlots(scope *ast.Scope, symbols []ast.Symbol, slot ast.SlotCounts) ast.SlotCounts {
+func AssignNestedScopeSlots(moduleScope *ast.Scope, symbols []ast.Symbol) (slotCounts ast.SlotCounts) {
+	// Temporarily set the nested scope slots of top-level symbols to non-zero so
+	// they aren't renamed in nested scopes. This prevents us from accidentally
+	// assigning nested scope slots to variables declared using "var" in a nested
+	// scope that are actually hoisted up to the module scope to become a top-
+	// level symbol.
+	for _, ref := range moduleScope.Members {
+		symbols[ref.InnerIndex].NestedScopeSlot = 1
+	}
+	for _, ref := range moduleScope.Generated {
+		symbols[ref.InnerIndex].NestedScopeSlot = 1
+	}
+
+	// Assign nested scope slots independently for each nested scope
+	for _, child := range moduleScope.Children {
+		slotCounts.UnionMax(assignNestedScopeSlotsHelper(child, symbols, ast.SlotCounts{}))
+	}
+
+	// Then set the nested scope slots of top-level symbols back to zero. Top-
+	// level symbols are not supposed to have nested scope slots.
+	for _, ref := range moduleScope.Members {
+		symbols[ref.InnerIndex].NestedScopeSlot = 0
+	}
+	for _, ref := range moduleScope.Generated {
+		symbols[ref.InnerIndex].NestedScopeSlot = 0
+	}
+	return
+}
+
+func assignNestedScopeSlotsHelper(scope *ast.Scope, symbols []ast.Symbol, slot ast.SlotCounts) ast.SlotCounts {
 	// Sort member map keys for determinism
 	sortedMembers := make([]int, 0, len(scope.Members))
 	for _, ref := range scope.Members {
@@ -232,7 +261,7 @@ func AssignNestedScopeSlots(scope *ast.Scope, symbols []ast.Symbol, slot ast.Slo
 	// Assign slots for the symbols of child scopes
 	slotCounts := slot
 	for _, child := range scope.Children {
-		slotCounts.UnionMax(AssignNestedScopeSlots(child, symbols, slot))
+		slotCounts.UnionMax(assignNestedScopeSlotsHelper(child, symbols, slot))
 	}
 	return slotCounts
 }

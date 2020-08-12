@@ -18,6 +18,10 @@
 
     This fixes a bug with esbuild that caused carriage-return characters to incorrectly end up in multi-line template literals if the source file used Windows-style line endings (i.e. `\r\n`). The ES6 language specification says that both carriage-return characters and Windows carriage-return line-feed sequences must be converted to line-feed characters instead. With this change, esbuild's parsing of multi-line template literals should no longer be platform-dependent.
 
+* Fix minification bug with variable hoisting
+
+    Hoisted variables that are declared with `var` in a nested scope but hoisted to the top-level scope were incorrectly minified as a nested scope symbol instead of a top-level symbol, which could potentially cause a name collision. This bug has been fixed.
+
 ## 0.6.20
 
 * Symbols are now renamed separately per chunk ([#16](https://github.com/evanw/esbuild/issues/16))

@@ -8996,9 +8996,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 	// we're already executing code in a dedicated goroutine for this file.
 	var nestedScopeSlotCounts ast.SlotCounts
 	if p.MinifyIdentifiers {
-		for _, child := range p.moduleScope.Children {
-			nestedScopeSlotCounts.UnionMax(renamer.AssignNestedScopeSlots(child, p.symbols, ast.SlotCounts{}))
-		}
+		nestedScopeSlotCounts = renamer.AssignNestedScopeSlots(p.moduleScope, p.symbols)
 	}
 
 	return ast.AST{

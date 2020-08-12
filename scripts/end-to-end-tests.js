@@ -371,6 +371,40 @@
     }),
   )
 
+  // Test minification of hoisted top-level symbols declared in nested scopes.
+  // Previously this code was incorrectly transformed into this, which crashes:
+  //
+  //   var c = false;
+  //   var d = function a() {
+  //     b[a]();
+  //   };
+  //   for (var a = 0, b = [() => c = true]; a < b.length; a++) {
+  //     d();
+  //   }
+  //   export default c;
+  //
+  // The problem is that "var i" is declared in a nested scope but hoisted to
+  // the top-level scope. So it's accidentally assigned a nested scope slot
+  // even though it's a top-level symbol, not a nested scope symbol.
+  tests.push(
+    test(['in.js', '--outfile=out.js', '--format=esm', '--minify', '--bundle'], {
+      'in.js': `
+        var worked = false
+        var loop = function fn() {
+          array[i]();
+        };
+        for (var i = 0, array = [() => worked = true]; i < array.length; i++) {
+          loop();
+        }
+        export default worked
+      `,
+      'node.js': `
+        import worked from './out.js'
+        if (!worked) throw 'fail'
+      `,
+    }),
+  )
+
   // Test tree shaking
   tests.push(
     // Keep because used (ES6)
