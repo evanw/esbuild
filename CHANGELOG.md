@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.22
 
 * The bell character is now escaped
 
