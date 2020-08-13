@@ -655,5 +655,5 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome
 	cp -r bench/rome/src require/parcel2/bench/rome/src # Can't use a symbolic link or ".parcelrc" breaks
 	echo '$(PARCELRC)' > require/parcel2/bench/rome/.parcelrc
 	cd require/parcel2/bench/rome && time -p ../../node_modules/.bin/parcel build --no-autoinstall src/entry.ts \
-		--dist-dir ../../../../bench/rome/parcel2 --cache-dir .cache
-	du -h bench/rome/parcel2/rome.parcel2.js*
+		--dist-dir ../../../../bench/rome/parcel2 --cache-dir .cache --no-scope-hoist
+	du -h bench/rome/parcel2/entry.js*
