@@ -180,6 +180,11 @@ require/webpack/node_modules:
 	echo '{}' > require/webpack/package.json
 	cd require/webpack && npm install webpack@4.43.0 webpack-cli@3.3.11 ts-loader@7.0.5 typescript@3.9.3
 
+require/webpack5/node_modules:
+	mkdir -p require/webpack5
+	echo '{}' > require/webpack5/package.json
+	cd require/webpack5 && npm install webpack@5.0.0-beta.25 webpack-cli@3.3.12
+
 require/rollup/node_modules:
 	mkdir -p require/rollup
 	echo '{}' > require/rollup/package.json
@@ -394,6 +399,10 @@ THREE_WEBPACK_FLAGS += --devtool=sourcemap
 THREE_WEBPACK_FLAGS += --mode=production
 THREE_WEBPACK_FLAGS += --output-library THREE
 
+THREE_WEBPACK5_FLAGS += --devtool=source-map
+THREE_WEBPACK5_FLAGS += --mode=production
+THREE_WEBPACK5_FLAGS += --output-library THREE
+
 THREE_PARCEL_FLAGS += --global THREE
 THREE_PARCEL_FLAGS += --no-autoinstall
 THREE_PARCEL_FLAGS += --out-dir out
@@ -408,7 +417,7 @@ THREE_FUSEBOX_RUN += }).runProd({
 THREE_FUSEBOX_RUN +=   bundles: { app: './app.js' },
 THREE_FUSEBOX_RUN += });
 
-demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-parcel demo-three-parcel2 demo-three-fusebox
+demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-webpack5 demo-three-parcel demo-three-parcel2 demo-three-fusebox
 
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
@@ -433,6 +442,14 @@ demo-three-webpack: | require/webpack/node_modules demo/three
 	ln -s ../../../../demo/three/webpack require/webpack/demo/three/out
 	cd require/webpack/demo/three && time -p ../../node_modules/.bin/webpack src/Three.js $(THREE_WEBPACK_FLAGS) -o out/Three.webpack.js
 	du -h demo/three/webpack/Three.webpack.js*
+
+demo-three-webpack5: | require/webpack5/node_modules demo/three
+	rm -fr require/webpack5/demo/three demo/three/webpack5
+	mkdir -p require/webpack5/demo/three demo/three/webpack5
+	ln -s ../../../../demo/three/src require/webpack5/demo/three/src
+	ln -s ../../../../demo/three/webpack5 require/webpack5/demo/three/out
+	cd require/webpack5/demo/three && time -p ../../node_modules/.bin/webpack src/Three.js $(THREE_WEBPACK5_FLAGS) -o out/Three.webpack5.js
+	du -h demo/three/webpack5/Three.webpack5.js*
 
 demo-three-parcel: | require/parcel/node_modules demo/three
 	rm -fr require/parcel/demo/three demo/three/parcel
@@ -463,7 +480,7 @@ demo-three-fusebox: | require/fusebox/node_modules demo/three
 
 ################################################################################
 
-bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-parcel bench-three-fusebox
+bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-webpack5 bench-three-parcel bench-three-fusebox
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
@@ -488,6 +505,15 @@ bench-three-webpack: | require/webpack/node_modules bench/three
 	ln -s ../../../../bench/three/webpack require/webpack/bench/three/out
 	cd require/webpack/bench/three && time -p ../../node_modules/.bin/webpack src/entry.js $(THREE_WEBPACK_FLAGS) -o out/entry.webpack.js
 	du -h bench/three/webpack/entry.webpack.js*
+
+bench-three-webpack5: | require/webpack5/node_modules bench/three
+	rm -fr require/webpack5/bench/three bench/three/webpack5
+	mkdir -p require/webpack5/bench/three bench/three/webpack5
+	ln -s ../../../../bench/three/src require/webpack5/bench/three/src
+	ln -s ../../../../bench/three/webpack5 require/webpack5/bench/three/out
+	cd require/webpack5/bench/three && time -p node --max-old-space-size=8192 \
+		../../node_modules/.bin/webpack src/entry.js $(THREE_WEBPACK5_FLAGS) -o out/entry.webpack5.js
+	du -h bench/three/webpack5/entry.webpack5.js*
 
 bench-three-parcel: | require/parcel/node_modules bench/three
 	rm -fr require/parcel/bench/three bench/three/parcel
