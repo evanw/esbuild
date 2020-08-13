@@ -634,7 +634,11 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		}
 	} else if parentInfo == nil {
 		// If there is a tsconfig.json override, mount it at the root directory
-		info.tsConfigJson, _ = r.parseJsTsConfig(forceTsConfig, make(map[string]bool))
+		var status parseStatus
+		info.tsConfigJson, status = r.parseJsTsConfig(forceTsConfig, make(map[string]bool))
+		if status == parseReadFailure {
+			r.log.AddError(nil, ast.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q", r.PrettyPath(forceTsConfig)))
+		}
 	}
 
 	// Propagate the enclosing tsconfig.json from the parent directory

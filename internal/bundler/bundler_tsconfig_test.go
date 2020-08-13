@@ -521,6 +521,21 @@ func TestTsconfigJsonOverrideNodeModules(t *testing.T) {
 	})
 }
 
+func TestTsconfigJsonOverrideInvalid(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": ``,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			IsBundling:       true,
+			AbsOutputFile:    "/out.js",
+			TsConfigOverride: "/this/file/doesn't/exist/tsconfig.json",
+		},
+		expectedScanLog: "error: Cannot find tsconfig file \"/this/file/doesn't/exist/tsconfig.json\"\n",
+	})
+}
+
 func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add an error message for a missing `--tsconfig` file ([#330](https://github.com/evanw/esbuild/issues/330))
+
+    The `--tsconfig` flag that was added in version 0.6.1 didn't report an error if the provided file doesn't actually exist. This release makes doing this an error that will fail the build.
+
 ## 0.6.22
 
 * The bell character is now escaped
