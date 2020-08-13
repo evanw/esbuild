@@ -456,7 +456,7 @@ demo-three-parcel2: | require/parcel2/node_modules demo/three
 	ln -s ../../../../demo/three/src require/parcel2/demo/three/src
 	echo 'import * as THREE from "./src/Three.js"; window.THREE = THREE' > require/parcel2/demo/three/Three.parcel2.js
 	cd require/parcel2/demo/three && time -p ../../node_modules/.bin/parcel build --no-autoinstall Three.parcel2.js \
-		--dist-dir ../../../../demo/three/parcel2
+		--dist-dir ../../../../demo/three/parcel2 --cache-dir .cache
 	du -h demo/three/parcel2/Three.parcel2.js*
 
 THREE_FUSEBOX_RUN += require('fuse-box').fusebox({
@@ -531,7 +531,7 @@ bench-three-parcel2: | require/parcel2/node_modules bench/three
 	ln -s ../../../../bench/three/src require/parcel2/bench/three/src
 	echo 'import * as THREE from "./src/entry.js"; window.THREE = THREE' > require/parcel2/bench/three/entry.parcel2.js
 	cd require/parcel2/bench/three && time -p ../../node_modules/.bin/parcel build --no-autoinstall entry.parcel2.js \
-		--dist-dir ../../../../bench/three/parcel2
+		--dist-dir ../../../../bench/three/parcel2 --cache-dir .cache
 	du -h bench/three/parcel2/entry.parcel2.js*
 
 bench-three-fusebox: | require/fusebox/node_modules bench/three
@@ -675,7 +675,7 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 	# This uses --no-scope-hoist because otherwise Parcel 2 can't handle TypeScript files
 	# that re-export types. See https://github.com/parcel-bundler/parcel/issues/4796.
 	cd require/parcel2/bench/rome && time -p ../../node_modules/.bin/parcel build --no-autoinstall \
-		src/rome.parcel.ts --dist-dir ../../../../bench/rome/parcel2 --no-scope-hoist
+		src/rome.parcel.ts --dist-dir ../../../../bench/rome/parcel2 --no-scope-hoist --cache-dir .cache
 
 	du -h bench/rome/parcel2/rome.parcel.js*
 	cd bench/rome-verify && rm -fr parcel2 && ROME_CACHE=0 node ../rome/parcel2/rome.parcel.js bundle packages/rome parcel2
