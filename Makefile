@@ -171,37 +171,38 @@ clean:
 	rm -rf npm/esbuild-wasm/lib
 	go clean -testcache ./internal/...
 
-node_modules:
-	npm ci
+################################################################################
+# These npm packages are used for benchmarks. Instal them in subdirectories
+# because we want to install the same package name at multiple versions
 
-# This fixes TypeScript parsing bugs in Parcel 2. Parcel 2 switched to using
-# Babel to transform TypeScript into JavaScript, and Babel's TypeScript parser is
-# incomplete. It cannot parse the code in the TypeScript benchmark.
-#
-# The suggested workaround for any Babel bugs is to install a plugin to get the
-# old TypeScript parser back. Read this thread for more information:
-# https://github.com/parcel-bundler/parcel/issues/2023
-PARCELRC += {
-PARCELRC +=   "extends": ["@parcel/config-default"],
-PARCELRC +=   "transformers": {
-PARCELRC +=     "*.ts": ["@parcel/transformer-typescript-tsc"]
-PARCELRC +=   }
-PARCELRC += }
+require/webpack/node_modules:
+	mkdir -p require/webpack
+	echo '{}' > require/webpack/package.json
+	cd require/webpack && npm install webpack@4.43.0 webpack-cli@3.3.11 ts-loader@7.0.5 typescript@3.9.3
 
-# There are benchmarks below for both Parcel 1 and Parcel 2. But npm doesn't
-# support parallel installs with different versions, so use another directory.
-#
-# This also uses a symlink as a workaround for a Parcel 2 issue where it
-# searches for the "@babel/core" package relative to the input file instead of
-# within the "node_modules" folder where Parcel 2 is installed, which causes
-# builds to fail.
-parcel2/node_modules:
-	mkdir parcel2
-	echo '{}' > parcel2/package.json
-	echo '$(PARCELRC)' > parcel2/.parcelrc
-	cd parcel2 && npm install parcel@2.0.0-beta.1 @parcel/transformer-typescript-tsc@2.0.0-beta.1 typescript@3.9.5
-	ln -s ../demo parcel2/demo
-	ln -s ../bench parcel2/bench
+require/rollup/node_modules:
+	mkdir -p require/rollup
+	echo '{}' > require/rollup/package.json
+	cd require/rollup && npm install rollup@2.10.9 rollup-plugin-terser@6.1.0
+
+require/parcel/node_modules:
+	mkdir -p require/parcel
+	echo '{}' > require/parcel/package.json
+	cd require/parcel && npm install parcel@1.12.4
+
+	# Fix a bug where parcel doesn't know about one specific node builtin module
+	mkdir -p require/parcel/node_modules/inspector
+	touch require/parcel/node_modules/inspector/index.js
+
+require/fusebox/node_modules:
+	mkdir -p require/fusebox
+	echo '{}' > require/fusebox/package.json
+	cd require/fusebox && npm install fuse-box@4.0.0-next.435
+
+require/parcel2/node_modules:
+	mkdir -p require/parcel2
+	echo '{}' > require/parcel2/package.json
+	cd require/parcel2 && npm install parcel@2.0.0-beta.1 @parcel/transformer-typescript-tsc@2.0.0-beta.1 typescript@3.9.5
 
 scripts/node_modules:
 	cd scripts && npm ci
@@ -375,11 +376,11 @@ demo/three: | github/three
 	cp -r github/three/src demo/three/src
 
 bench/three: | github/three
-	mkdir -p bench/three
-	echo > bench/three/entry.js
-	for i in 1 2 3 4 5 6 7 8 9 10; do test -d "bench/three/copy$$i" || cp -r github/three/src "bench/three/copy$$i"; done
-	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/entry.js; done
-	echo 'Line count:' && find bench/three -name '*.js' | xargs wc -l | tail -n 1
+	mkdir -p bench/three/src
+	echo > bench/three/src/entry.js
+	for i in 1 2 3 4 5 6 7 8 9 10; do test -d "bench/three/src/copy$$i" || cp -r github/three/src "bench/three/src/copy$$i"; done
+	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/src/entry.js; done
+	echo 'Line count:' && find bench/three/src -name '*.js' | xargs wc -l | tail -n 1
 
 ################################################################################
 
@@ -395,7 +396,7 @@ THREE_WEBPACK_FLAGS += --output-library THREE
 
 THREE_PARCEL_FLAGS += --global THREE
 THREE_PARCEL_FLAGS += --no-autoinstall
-THREE_PARCEL_FLAGS += --out-dir .
+THREE_PARCEL_FLAGS += --out-dir out
 THREE_PARCEL_FLAGS += --public-url ./
 
 THREE_FUSEBOX_RUN += require('fuse-box').fusebox({
@@ -407,49 +408,58 @@ THREE_FUSEBOX_RUN += }).runProd({
 THREE_FUSEBOX_RUN +=   bundles: { app: './app.js' },
 THREE_FUSEBOX_RUN += });
 
-demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-parcel demo-three-fusebox
+demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-parcel demo-three-parcel2 demo-three-fusebox
 
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
 	mkdir -p demo/three/esbuild
-	cd demo/three/esbuild && time -p ../../../esbuild --bundle --global-name=THREE --sourcemap --minify ../src/Three.js --outfile=Three.esbuild.js
+	cd demo/three && time -p ../../esbuild --bundle --global-name=THREE --sourcemap --minify src/Three.js --outfile=esbuild/Three.esbuild.js
 	du -h demo/three/esbuild/Three.esbuild.js*
 	shasum demo/three/esbuild/Three.esbuild.js*
 
-demo-three-rollup: | node_modules demo/three
-	rm -fr demo/three/rollup
-	mkdir -p demo/three/rollup
-	echo "$(THREE_ROLLUP_CONFIG)" > demo/three/rollup/config.js
-	cd demo/three/rollup && time -p ../../../node_modules/.bin/rollup ../src/Three.js -o Three.rollup.js -c config.js
+demo-three-rollup: | require/rollup/node_modules demo/three
+	rm -fr require/rollup/demo/three demo/three/rollup
+	mkdir -p require/rollup/demo/three demo/three/rollup
+	echo "$(THREE_ROLLUP_CONFIG)" > require/rollup/demo/three/config.js
+	ln -s ../../../../demo/three/src require/rollup/demo/three/src
+	ln -s ../../../../demo/three/rollup require/rollup/demo/three/out
+	cd require/rollup/demo/three && time -p ../../node_modules/.bin/rollup src/Three.js -o out/Three.rollup.js -c config.js
 	du -h demo/three/rollup/Three.rollup.js*
 
-demo-three-webpack: | node_modules demo/three
-	rm -fr demo/three/webpack node_modules/.cache/terser-webpack-plugin
-	mkdir -p demo/three/webpack
-	cd demo/three/webpack && time -p ../../../node_modules/.bin/webpack ../src/Three.js $(THREE_WEBPACK_FLAGS) -o Three.webpack.js
+demo-three-webpack: | require/webpack/node_modules demo/three
+	rm -fr require/webpack/demo/three demo/three/webpack require/webpack/node_modules/.cache/terser-webpack-plugin
+	mkdir -p require/webpack/demo/three demo/three/webpack
+	ln -s ../../../../demo/three/src require/webpack/demo/three/src
+	ln -s ../../../../demo/three/webpack require/webpack/demo/three/out
+	cd require/webpack/demo/three && time -p ../../node_modules/.bin/webpack src/Three.js $(THREE_WEBPACK_FLAGS) -o out/Three.webpack.js
 	du -h demo/three/webpack/Three.webpack.js*
 
-demo-three-parcel: | node_modules demo/three
-	rm -fr demo/three/parcel
-	mkdir -p demo/three/parcel
-	cd demo/three/parcel && time -p ../../../node_modules/.bin/parcel build ../src/Three.js $(THREE_PARCEL_FLAGS) --out-file Three.parcel.js
+demo-three-parcel: | require/parcel/node_modules demo/three
+	rm -fr require/parcel/demo/three demo/three/parcel
+	mkdir -p require/parcel/demo/three demo/three/parcel
+	ln -s ../../../../demo/three/src require/parcel/demo/three/src
+	ln -s ../../../../demo/three/parcel require/parcel/demo/three/out
+	cd require/parcel/demo/three && time -p ../../node_modules/.bin/parcel build src/Three.js $(THREE_PARCEL_FLAGS) --out-file Three.parcel.js
 	du -h demo/three/parcel/Three.parcel.js*
 
-demo-three-parcel2: | parcel2/node_modules demo/three
-	rm -fr demo/three/parcel2
-	mkdir -p demo/three/parcel2
-	echo 'import * as THREE from "../src/Three.js"; window.THREE = THREE' > demo/three/parcel2/Three.parcel2.js
-	cd parcel2 && time -p ./node_modules/.bin/parcel build --no-autoinstall demo/three/src/Three.js \
-		--dist-dir ./demo/three/parcel2 --cache-dir ./demo/three/parcel2/.cache
+demo-three-parcel2: | require/parcel2/node_modules demo/three
+	rm -fr require/parcel2/demo/three demo/three/parcel2
+	mkdir -p require/parcel2/demo/three demo/three/parcel2
+	ln -s ../../../../demo/three/src require/parcel2/demo/three/src
+	echo 'import * as THREE from "./src/Three.js"; window.THREE = THREE' > require/parcel2/demo/three/Three.parcel2.js
+	cd require/parcel2/demo/three && time -p ../../node_modules/.bin/parcel build --no-autoinstall Three.parcel2.js \
+		--dist-dir ../../../../demo/three/parcel2 --cache-dir .cache
 	du -h demo/three/parcel2/Three.parcel2.js*
 
-demo-three-fusebox: | node_modules demo/three
-	rm -fr demo/three/fusebox
-	mkdir -p demo/three/fusebox
-	echo "$(THREE_FUSEBOX_RUN)" > demo/three/fusebox/run.js
-	echo 'import * as THREE from "../src/Three.js"; window.THREE = THREE' > demo/three/fusebox/fusebox-entry.js
-	cd demo/three/fusebox && time -p node run.js
-	du -h demo/three/fusebox/dist/app.js*
+demo-three-fusebox: | require/fusebox/node_modules demo/three
+	rm -fr require/fusebox/demo/three demo/three/fusebox
+	mkdir -p require/fusebox/demo/three demo/three/fusebox
+	echo "$(THREE_FUSEBOX_RUN)" > require/fusebox/demo/three/run.js
+	ln -s ../../../../demo/three/src require/fusebox/demo/three/src
+	ln -s ../../../../demo/three/fusebox require/fusebox/demo/three/dist
+	echo 'import * as THREE from "./src/Three.js"; window.THREE = THREE' > require/fusebox/demo/three/fusebox-entry.js
+	cd require/fusebox/demo/three && time -p node run.js
+	du -h demo/three/fusebox/app.js*
 
 ################################################################################
 
@@ -458,47 +468,55 @@ bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-th
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
 	mkdir -p bench/three/esbuild
-	cd bench/three/esbuild && time -p ../../../esbuild --bundle --global-name=THREE --sourcemap --minify ../entry.js --outfile=entry.esbuild.js
+	cd bench/three && time -p ../../esbuild --bundle --global-name=THREE --sourcemap --minify src/entry.js --outfile=esbuild/entry.esbuild.js
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 
-bench-three-rollup: | node_modules bench/three
-	rm -fr bench/three/rollup
-	mkdir -p bench/three/rollup
-	echo "$(THREE_ROLLUP_CONFIG)" > bench/three/rollup/config.js
-	cd bench/three/rollup && time -p ../../../node_modules/.bin/rollup ../entry.js -o entry.rollup.js -c config.js
+bench-three-rollup: | require/rollup/node_modules bench/three
+	rm -fr require/rollup/bench/three bench/three/rollup
+	mkdir -p require/rollup/bench/three bench/three/rollup
+	echo "$(THREE_ROLLUP_CONFIG)" > require/rollup/bench/three/config.js
+	ln -s ../../../../bench/three/src require/rollup/bench/three/src
+	ln -s ../../../../bench/three/rollup require/rollup/bench/three/out
+	cd require/rollup/bench/three && time -p ../../node_modules/.bin/rollup src/entry.js -o out/entry.rollup.js -c config.js
 	du -h bench/three/rollup/entry.rollup.js*
 
-bench-three-webpack: | node_modules bench/three
-	rm -fr bench/three/webpack node_modules/.cache/terser-webpack-plugin
-	mkdir -p bench/three/webpack
-	cd bench/three/webpack && time -p ../../../node_modules/.bin/webpack ../entry.js $(THREE_WEBPACK_FLAGS) -o entry.webpack.js
+bench-three-webpack: | require/webpack/node_modules bench/three
+	rm -fr require/webpack/bench/three bench/three/webpack require/webpack/node_modules/.cache/terser-webpack-plugin
+	mkdir -p require/webpack/bench/three bench/three/webpack
+	ln -s ../../../../bench/three/src require/webpack/bench/three/src
+	ln -s ../../../../bench/three/webpack require/webpack/bench/three/out
+	cd require/webpack/bench/three && time -p ../../node_modules/.bin/webpack src/entry.js $(THREE_WEBPACK_FLAGS) -o out/entry.webpack.js
 	du -h bench/three/webpack/entry.webpack.js*
 
-bench-three-parcel: | node_modules bench/three
-	rm -fr bench/three/parcel
-	mkdir -p bench/three/parcel
-	cd bench/three/parcel && time -p ../../../node_modules/.bin/parcel build ../entry.js $(THREE_PARCEL_FLAGS) --out-file entry.parcel.js
+bench-three-parcel: | require/parcel/node_modules bench/three
+	rm -fr require/parcel/bench/three bench/three/parcel
+	mkdir -p require/parcel/bench/three bench/three/parcel
+	ln -s ../../../../bench/three/src require/parcel/bench/three/src
+	ln -s ../../../../bench/three/parcel require/parcel/bench/three/out
+	cd require/parcel/bench/three && time -p ../../node_modules/.bin/parcel build src/entry.js $(THREE_PARCEL_FLAGS) --out-file entry.parcel.js
 	du -h bench/three/parcel/entry.parcel.js*
 
-# Note: This is currently broken because it runs out of memory. It's unclear
-# how to fix this because the process that runs out of memory is a child worker
-# process, and there's no option to pass a "--max-old-space-size" flag to it.
-bench-three-parcel2: | parcel2/node_modules bench/three
-	rm -fr bench/three/parcel2
-	mkdir -p bench/three/parcel2
-	echo 'import * as THREE from "../entry.js"; window.THREE = THREE' > bench/three/parcel2/entry.parcel2.js
-	cd parcel2 && time -p ./node_modules/.bin/parcel build --no-autoinstall bench/three/parcel2/entry.parcel2.js \
-		--dist-dir ./bench/three/parcel2 --cache-dir ./bench/three/parcel2/.cache
+# Note: This is currently broken because it runs out of memory. See
+# https://github.com/parcel-bundler/parcel/issues/4795 for details.
+bench-three-parcel2: | require/parcel2/node_modules bench/three
+	rm -fr require/parcel2/bench/three bench/three/parcel2
+	mkdir -p require/parcel2/bench/three bench/three/parcel2
+	ln -s ../../../../bench/three/src require/parcel2/bench/three/src
+	echo 'import * as THREE from "./src/entry.js"; window.THREE = THREE' > require/parcel2/bench/three/entry.parcel2.js
+	cd require/parcel2/bench/three && time -p ../../node_modules/.bin/parcel build --no-autoinstall entry.parcel2.js \
+		--dist-dir ../../../../bench/three/parcel2 --cache-dir .cache
 	du -h bench/three/parcel2/entry.parcel2.js*
 
-bench-three-fusebox: | node_modules bench/three
-	rm -fr bench/three/fusebox
-	mkdir -p bench/three/fusebox
-	echo "$(THREE_FUSEBOX_RUN)" > bench/three/fusebox/run.js
-	echo 'import * as THREE from "../entry.js"; window.THREE = THREE' > bench/three/fusebox/fusebox-entry.js
-	cd bench/three/fusebox && time -p node --max-old-space-size=8192 run.js
-	du -h bench/three/fusebox/dist/app.js*
+bench-three-fusebox: | require/fusebox/node_modules bench/three
+	rm -fr require/fusebox/bench/three bench/three/fusebox
+	mkdir -p require/fusebox/bench/three bench/three/fusebox
+	echo "$(THREE_FUSEBOX_RUN)" > require/fusebox/bench/three/run.js
+	ln -s ../../../../bench/three/src require/fusebox/bench/three/src
+	ln -s ../../../../bench/three/fusebox require/fusebox/bench/three/dist
+	echo 'import * as THREE from "./src/entry.js"; window.THREE = THREE' > require/fusebox/bench/three/fusebox-entry.js
+	cd require/fusebox/bench/three && time -p node --max-old-space-size=8192 run.js
+	du -h bench/three/fusebox/app.js*
 
 ################################################################################
 
@@ -515,21 +533,21 @@ ROME_TSCONFIG +=   }
 ROME_TSCONFIG += }
 
 ROME_WEBPACK_CONFIG += module.exports = {
-ROME_WEBPACK_CONFIG +=   entry: '../src/entry.ts',
+ROME_WEBPACK_CONFIG +=   entry: './src/entry.ts',
 ROME_WEBPACK_CONFIG +=   mode: 'production',
 ROME_WEBPACK_CONFIG +=   target: 'node',
 ROME_WEBPACK_CONFIG +=   devtool: 'sourcemap',
 ROME_WEBPACK_CONFIG +=   module: { rules: [{ test: /\.ts$$/, loader: 'ts-loader', options: { transpileOnly: true } }] },
 ROME_WEBPACK_CONFIG +=   resolve: {
 ROME_WEBPACK_CONFIG +=     extensions: ['.ts', '.js'],
-ROME_WEBPACK_CONFIG +=     alias: { rome: __dirname + '/../src/rome', '@romejs': __dirname + '/../src/@romejs' },
+ROME_WEBPACK_CONFIG +=     alias: { rome: __dirname + '/src/rome', '@romejs': __dirname + '/src/@romejs' },
 ROME_WEBPACK_CONFIG +=   },
-ROME_WEBPACK_CONFIG +=   output: { filename: 'rome.webpack.js', path: __dirname },
+ROME_WEBPACK_CONFIG +=   output: { filename: 'rome.webpack.js', path: __dirname + '/out' },
 ROME_WEBPACK_CONFIG += };
 
 ROME_PARCEL_FLAGS += --bundle-node-modules
 ROME_PARCEL_FLAGS += --no-autoinstall
-ROME_PARCEL_FLAGS += --out-dir .
+ROME_PARCEL_FLAGS += --out-dir out
 ROME_PARCEL_FLAGS += --public-url ./
 ROME_PARCEL_FLAGS += --target node
 
@@ -549,10 +567,6 @@ bench/rome: | github/rome
 	sed "/createHook/d" bench/rome/src/@romejs/js-compiler/index.ts >> .temp
 	mv .temp bench/rome/src/@romejs/js-compiler/index.ts
 
-	# Fix a bug where parcel doesn't know about one specific node builtin module
-	mkdir -p bench/rome/src/node_modules/inspector
-	touch bench/rome/src/node_modules/inspector/index.js
-
 	# These aliases are required to fix parcel path resolution
 	echo '{ "alias": {' > bench/rome/src/package.json
 	ls bench/rome/src/@romejs | sed 's/.*/"\@romejs\/&": ".\/@romejs\/&",/g' >> bench/rome/src/package.json
@@ -569,28 +583,51 @@ bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-parcel
 bench-rome-esbuild: esbuild | bench/rome
 	rm -fr bench/rome/esbuild
 	mkdir -p bench/rome/esbuild
-	cd bench/rome/esbuild && time -p ../../../esbuild --bundle --sourcemap --minify ../src/entry.ts --outfile=rome.esbuild.js --platform=node
+	cd bench/rome && time -p ../../esbuild --bundle --sourcemap --minify src/entry.ts --outfile=esbuild/rome.esbuild.js --platform=node
 	du -h bench/rome/esbuild/rome.esbuild.js*
 	shasum bench/rome/esbuild/rome.esbuild.js*
 
-bench-rome-webpack: | node_modules bench/rome
-	rm -fr bench/rome/webpack node_modules/.cache/terser-webpack-plugin
-	mkdir -p bench/rome/webpack
-	echo "$(ROME_WEBPACK_CONFIG)" > bench/rome/webpack/webpack.config.js
-	cd bench/rome/webpack && time -p ../../../node_modules/.bin/webpack
+bench-rome-webpack: | require/webpack/node_modules bench/rome
+	rm -fr require/webpack/bench/rome bench/rome/webpack require/webpack/node_modules/.cache/terser-webpack-plugin
+	mkdir -p require/webpack/bench/rome bench/rome/webpack
+	echo "$(ROME_WEBPACK_CONFIG)" > require/webpack/bench/rome/webpack.config.js
+	ln -s ../../../../bench/rome/src require/webpack/bench/rome/src
+	ln -s ../../../../bench/rome/webpack require/webpack/bench/rome/out
+	cd require/webpack/bench/rome && time -p ../../node_modules/.bin/webpack
 	du -h bench/rome/webpack/rome.webpack.js*
 
-bench-rome-parcel: | node_modules bench/rome
-	rm -fr bench/rome/parcel
-	mkdir -p bench/rome/parcel
-	cd bench/rome/parcel && time -p ../../../node_modules/.bin/parcel build ../src/entry.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
+bench-rome-parcel: | require/parcel/node_modules bench/rome
+	rm -fr require/parcel/bench/rome bench/rome/parcel
+	mkdir -p require/parcel/bench/rome bench/rome/parcel
+	ln -s ../../../../bench/rome/src require/parcel/bench/rome/src
+	ln -s ../../../../bench/rome/parcel require/parcel/bench/rome/out
+	cd require/parcel/bench/rome && time -p ../../node_modules/.bin/parcel build src/entry.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
 	du -h bench/rome/parcel/rome.parcel.js*
 
+# This fixes TypeScript parsing bugs in Parcel 2. Parcel 2 switched to using
+# Babel to transform TypeScript into JavaScript, and Babel's TypeScript parser is
+# incomplete. It cannot parse the code in the TypeScript benchmark.
+#
+# The suggested workaround for any Babel bugs is to install a plugin to get the
+# old TypeScript parser back. Read this thread for more information:
+# https://github.com/parcel-bundler/parcel/issues/2023.
+#
+# It also looks like the Parcel team is considering reverting this change:
+# https://github.com/parcel-bundler/parcel/issues/4938.
+PARCELRC += {
+PARCELRC +=   "extends": ["@parcel/config-default"],
+PARCELRC +=   "transformers": {
+PARCELRC +=     "*.ts": ["@parcel/transformer-typescript-tsc"]
+PARCELRC +=   }
+PARCELRC += }
+
 # Note: This is currently broken because Parcel 2 can't handle TypeScript files
-# that re-export types.
-bench-rome-parcel2: | parcel2/node_modules bench/rome
-	rm -fr bench/rome/parcel2
-	mkdir -p bench/rome/parcel2
-	cd parcel2 && time -p ./node_modules/.bin/parcel build --no-autoinstall bench/rome/src/entry.ts \
-		--dist-dir ./bench/rome/parcel2 --cache-dir ./bench/rome/parcel2/.cache
+# that re-export types. See https://github.com/parcel-bundler/parcel/issues/4796.
+bench-rome-parcel2: | require/parcel2/node_modules bench/rome
+	rm -fr require/parcel2/bench/rome bench/rome/parcel2
+	mkdir -p require/parcel2/bench/rome bench/rome/parcel2
+	cp -r bench/rome/src require/parcel2/bench/rome/src # Can't use a symbolic link or ".parcelrc" breaks
+	echo '$(PARCELRC)' > require/parcel2/bench/rome/.parcelrc
+	cd require/parcel2/bench/rome && time -p ../../node_modules/.bin/parcel build --no-autoinstall src/entry.ts \
+		--dist-dir ../../../../bench/rome/parcel2 --cache-dir .cache
 	du -h bench/rome/parcel2/rome.parcel2.js*

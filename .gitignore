@@ -18,7 +18,7 @@
 /npm/esbuild-windows-64/esbuild.exe
 /npm/esbuild/install.js
 /npm/esbuild/lib/
-/parcel2/
+/require/
 /scripts/.end-to-end-tests/
 /scripts/.js-api-tests/
 /scripts/.verify-source-map/
