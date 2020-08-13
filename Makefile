@@ -12,7 +12,7 @@ test-all:
 	make -j6 test-go vet-go verify-source-map end-to-end-tests js-api-tests test-wasm
 
 # This includes tests of some 3rd-party libraries, which can be very slow
-test-extra: test-all test-preact-splitting test-sucrase test-esprima test-rollup
+test-extra: test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
 
 test-go:
 	go test ./internal/...
@@ -456,7 +456,7 @@ demo-three-parcel2: | require/parcel2/node_modules demo/three
 	ln -s ../../../../demo/three/src require/parcel2/demo/three/src
 	echo 'import * as THREE from "./src/Three.js"; window.THREE = THREE' > require/parcel2/demo/three/Three.parcel2.js
 	cd require/parcel2/demo/three && time -p ../../node_modules/.bin/parcel build --no-autoinstall Three.parcel2.js \
-		--dist-dir ../../../../demo/three/parcel2 --cache-dir .cache
+		--dist-dir ../../../../demo/three/parcel2
 	du -h demo/three/parcel2/Three.parcel2.js*
 
 THREE_FUSEBOX_RUN += require('fuse-box').fusebox({
@@ -531,7 +531,7 @@ bench-three-parcel2: | require/parcel2/node_modules bench/three
 	ln -s ../../../../bench/three/src require/parcel2/bench/three/src
 	echo 'import * as THREE from "./src/entry.js"; window.THREE = THREE' > require/parcel2/bench/three/entry.parcel2.js
 	cd require/parcel2/bench/three && time -p ../../node_modules/.bin/parcel build --no-autoinstall entry.parcel2.js \
-		--dist-dir ../../../../bench/three/parcel2 --cache-dir .cache
+		--dist-dir ../../../../bench/three/parcel2
 	du -h bench/three/parcel2/entry.parcel2.js*
 
 bench-three-fusebox: | require/fusebox/node_modules bench/three
@@ -583,16 +583,25 @@ bench/rome: | github/rome
 	rm -r bench/rome/src/@romejs/js-parser/test-fixtures
 	echo 'Line count:' && (find bench/rome/src -name '*.ts' && find bench/rome/src -name '*.js') | xargs wc -l | tail -n 1
 
+# This target provides an easy way to verify that the build is correct. Since
+# Rome is self-hosted, we can just run the bundle to build Rome. This makes sure
+# the bundle doesn't crash when run and is a good test of a non-trivial workload.
+bench/rome-verify: | github/rome
+	mkdir -p bench/rome-verify
+	cp -r github/rome/packages bench/rome-verify/packages
+	cp github/rome/package.json bench/rome-verify/package.json
+
 ################################################################################
 
 bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-parcel
 
-bench-rome-esbuild: esbuild | bench/rome
+bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
 	mkdir -p bench/rome/esbuild
 	cd bench/rome && time -p ../../esbuild --bundle --sourcemap --minify src/entry.ts --outfile=esbuild/rome.esbuild.js --platform=node
 	du -h bench/rome/esbuild/rome.esbuild.js*
 	shasum bench/rome/esbuild/rome.esbuild.js*
+	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
 
 ROME_WEBPACK_CONFIG += module.exports = {
 ROME_WEBPACK_CONFIG +=   entry: './src/entry.ts',
@@ -607,7 +616,7 @@ ROME_WEBPACK_CONFIG +=   },
 ROME_WEBPACK_CONFIG +=   output: { filename: 'rome.webpack.js', path: __dirname + '/out' },
 ROME_WEBPACK_CONFIG += };
 
-bench-rome-webpack: | require/webpack/node_modules bench/rome
+bench-rome-webpack: | require/webpack/node_modules bench/rome bench/rome-verify
 	rm -fr require/webpack/bench/rome bench/rome/webpack require/webpack/node_modules/.cache/terser-webpack-plugin
 	mkdir -p require/webpack/bench/rome bench/rome/webpack
 	echo "$(ROME_WEBPACK_CONFIG)" > require/webpack/bench/rome/webpack.config.js
@@ -615,6 +624,7 @@ bench-rome-webpack: | require/webpack/node_modules bench/rome
 	ln -s ../../../../bench/rome/webpack require/webpack/bench/rome/out
 	cd require/webpack/bench/rome && time -p ../../node_modules/.bin/webpack
 	du -h bench/rome/webpack/rome.webpack.js*
+	cd bench/rome-verify && rm -fr webpack && ROME_CACHE=0 node ../rome/webpack/rome.webpack.js bundle packages/rome webpack
 
 ROME_PARCEL_FLAGS += --bundle-node-modules
 ROME_PARCEL_FLAGS += --no-autoinstall
@@ -622,13 +632,14 @@ ROME_PARCEL_FLAGS += --out-dir out
 ROME_PARCEL_FLAGS += --public-url ./
 ROME_PARCEL_FLAGS += --target node
 
-bench-rome-parcel: | require/parcel/node_modules bench/rome
+bench-rome-parcel: | require/parcel/node_modules bench/rome bench/rome-verify
 	rm -fr require/parcel/bench/rome bench/rome/parcel
 	mkdir -p require/parcel/bench/rome bench/rome/parcel
 	ln -s ../../../../bench/rome/src require/parcel/bench/rome/src
 	ln -s ../../../../bench/rome/parcel require/parcel/bench/rome/out
 	cd require/parcel/bench/rome && time -p ../../node_modules/.bin/parcel build src/entry.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
 	du -h bench/rome/parcel/rome.parcel.js*
+	cd bench/rome-verify && rm -fr parcel && ROME_CACHE=0 node ../rome/parcel/rome.parcel.js bundle packages/rome parcel
 
 # This fixes TypeScript parsing bugs in Parcel 2. Parcel 2 switched to using
 # Babel to transform TypeScript into JavaScript, and Babel's TypeScript parser is
@@ -647,13 +658,24 @@ PARCELRC +=     "*.ts": ["@parcel/transformer-typescript-tsc"]
 PARCELRC +=   }
 PARCELRC += }
 
-# Note: This is currently broken because Parcel 2 can't handle TypeScript files
-# that re-export types. See https://github.com/parcel-bundler/parcel/issues/4796.
-bench-rome-parcel2: | require/parcel2/node_modules bench/rome
+# Note: This is currently broken. The resulting bundle crashes when run because
+# TypeScript statements of the form "import os = require('os')" are omitted.
+# I'm not sure why this happens, and I'm also not sure if this is a bug or if
+# Parcel needs some additional configuration to use this TypeScript syntax.
+bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 	rm -fr require/parcel2/bench/rome bench/rome/parcel2
 	mkdir -p require/parcel2/bench/rome bench/rome/parcel2
 	cp -r bench/rome/src require/parcel2/bench/rome/src # Can't use a symbolic link or ".parcelrc" breaks
 	echo '$(PARCELRC)' > require/parcel2/bench/rome/.parcelrc
-	cd require/parcel2/bench/rome && time -p ../../node_modules/.bin/parcel build --no-autoinstall src/entry.ts \
-		--dist-dir ../../../../bench/rome/parcel2 --cache-dir .cache --no-scope-hoist
-	du -h bench/rome/parcel2/entry.js*
+
+	# Work around a bug that causes the resulting bundle to crash when run.
+	# See https://github.com/parcel-bundler/parcel/issues/1762 for more info.
+	echo 'import "regenerator-runtime/runtime"; import "./entry.ts"' > require/parcel2/bench/rome/src/rome.parcel.ts
+
+	# This uses --no-scope-hoist because otherwise Parcel 2 can't handle TypeScript files
+	# that re-export types. See https://github.com/parcel-bundler/parcel/issues/4796.
+	cd require/parcel2/bench/rome && time -p ../../node_modules/.bin/parcel build --no-autoinstall \
+		src/rome.parcel.ts --dist-dir ../../../../bench/rome/parcel2 --no-scope-hoist
+
+	du -h bench/rome/parcel2/rome.parcel.js*
+	cd bench/rome-verify && rm -fr parcel2 && ROME_CACHE=0 node ../rome/parcel2/rome.parcel.js bundle packages/rome parcel2
