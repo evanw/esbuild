@@ -1444,6 +1444,28 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "if (!a) {} else throw b", "if (a)\n  throw b;\n")
 	expectPrintedMangle(t, "a(); if (b) throw c", "if (a(), b)\n  throw c;\n")
 	expectPrintedMangle(t, "if (a) if (b) throw c", "if (a && b)\n  throw c;\n")
+
+	expectPrintedMangle(t, "a ? b : b", "a, b;\n")
+	expectPrintedMangle(t, "let a; a ? b : b", "let a;\nb;\n")
+
+	expectPrintedMangle(t, "a ? -b : -b", "a, -b;\n")
+	expectPrintedMangle(t, "a ? b.c : b.c", "a, b.c;\n")
+	expectPrintedMangle(t, "a ? b?.c : b?.c", "a, b?.c;\n")
+	expectPrintedMangle(t, "a ? b[c] : b[c]", "a, b[c];\n")
+	expectPrintedMangle(t, "a ? b() : b()", "a, b();\n")
+	expectPrintedMangle(t, "a ? b?.() : b?.()", "a, b?.();\n")
+	expectPrintedMangle(t, "a ? b?.[c] : b?.[c]", "a, b?.[c];\n")
+	expectPrintedMangle(t, "a ? b == c : b == c", "a, b == c;\n")
+	expectPrintedMangle(t, "a ? b.c(d + e[f]) : b.c(d + e[f])", "a, b.c(d + e[f]);\n")
+
+	expectPrintedMangle(t, "a ? -b : !b", "a ? -b : !b;\n")
+	expectPrintedMangle(t, "a ? b() : b(c)", "a ? b() : b(c);\n")
+	expectPrintedMangle(t, "a ? b(c) : b(d)", "a ? b(c) : b(d);\n")
+	expectPrintedMangle(t, "a ? b?.c : b.c", "a ? b?.c : b.c;\n")
+	expectPrintedMangle(t, "a ? b?.() : b()", "a ? b?.() : b();\n")
+	expectPrintedMangle(t, "a ? b?.[c] : b[c]", "a ? b?.[c] : b[c];\n")
+	expectPrintedMangle(t, "a ? b == c : b != c", "a ? b == c : b != c;\n")
+	expectPrintedMangle(t, "a ? b.c(d + e[f]) : b.c(d + e[g])", "a ? b.c(d + e[f]) : b.c(d + e[g]);\n")
 }
 
 func TestMangleReturn(t *testing.T) {

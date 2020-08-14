@@ -16,6 +16,7 @@
 
     This release contains these additional rules for syntax minification:
 
+    * `a ? b : b` is minified to `a, b`
     * `a ? a : b` is minified to `a || b`
     * `a == void 0` is minified to `a == null`
     * `a && (b && c)` is minified to `a && b && c` (same for `||`)

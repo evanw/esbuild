@@ -346,6 +346,59 @@ func checkEqualityIfNoSideEffects(left ast.E, right ast.E) (bool, bool) {
 	return false, false
 }
 
+func valuesLookTheSame(left ast.E, right ast.E) bool {
+	switch a := left.(type) {
+	case *ast.EIdentifier:
+		if b, ok := right.(*ast.EIdentifier); ok && a.Ref == b.Ref {
+			return true
+		}
+
+	case *ast.EDot:
+		if b, ok := right.(*ast.EDot); ok && a.OptionalChain == b.OptionalChain &&
+			a.Name == b.Name && valuesLookTheSame(a.Target.Data, b.Target.Data) {
+			return true
+		}
+
+	case *ast.EIndex:
+		if b, ok := right.(*ast.EIndex); ok && a.OptionalChain == b.OptionalChain &&
+			valuesLookTheSame(a.Target.Data, b.Target.Data) && valuesLookTheSame(a.Index.Data, b.Index.Data) {
+			return true
+		}
+
+	case *ast.EIf:
+		if b, ok := right.(*ast.EIf); ok && valuesLookTheSame(a.Test.Data, b.Test.Data) &&
+			valuesLookTheSame(a.Yes.Data, b.Yes.Data) && valuesLookTheSame(a.No.Data, b.No.Data) {
+			return true
+		}
+
+	case *ast.EUnary:
+		if b, ok := right.(*ast.EUnary); ok && a.Op == b.Op && valuesLookTheSame(a.Value.Data, b.Value.Data) {
+			return true
+		}
+
+	case *ast.EBinary:
+		if b, ok := right.(*ast.EBinary); ok && a.Op == b.Op && valuesLookTheSame(a.Left.Data, b.Left.Data) &&
+			valuesLookTheSame(a.Right.Data, b.Right.Data) {
+			return true
+		}
+
+	case *ast.ECall:
+		if b, ok := right.(*ast.ECall); ok && a.OptionalChain == b.OptionalChain &&
+			a.IsDirectEval == b.IsDirectEval && a.CanBeUnwrappedIfUnused == b.CanBeUnwrappedIfUnused &&
+			len(a.Args) == len(b.Args) && valuesLookTheSame(a.Target.Data, b.Target.Data) {
+			for i := range a.Args {
+				if !valuesLookTheSame(a.Args[i].Data, b.Args[i].Data) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	equal, ok := checkEqualityIfNoSideEffects(left, right)
+	return ok && equal
+}
+
 func hasValueForThisInCall(expr ast.Expr) bool {
 	switch expr.Data.(type) {
 	case *ast.EDot, *ast.EIndex:
@@ -5912,6 +5965,14 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 	if not, ok := e.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
 		e.Test = not.Value
 		e.Yes, e.No = e.No, e.Yes
+	}
+
+	// "a ? b : b" => "a, b"
+	if valuesLookTheSame(e.Yes.Data, e.No.Data) {
+		if p.exprCanBeRemovedIfUnused(e.Test) {
+			return e.Yes
+		}
+		return ast.JoinWithComma(e.Test, e.Yes)
 	}
 
 	// "a ? a : b" => "a || b"
