@@ -354,13 +354,13 @@ func valuesLookTheSame(left ast.E, right ast.E) bool {
 		}
 
 	case *ast.EDot:
-		if b, ok := right.(*ast.EDot); ok && a.OptionalChain == b.OptionalChain &&
+		if b, ok := right.(*ast.EDot); ok && a.HasSameFlagsAs(b) &&
 			a.Name == b.Name && valuesLookTheSame(a.Target.Data, b.Target.Data) {
 			return true
 		}
 
 	case *ast.EIndex:
-		if b, ok := right.(*ast.EIndex); ok && a.OptionalChain == b.OptionalChain &&
+		if b, ok := right.(*ast.EIndex); ok && a.HasSameFlagsAs(b) &&
 			valuesLookTheSame(a.Target.Data, b.Target.Data) && valuesLookTheSame(a.Index.Data, b.Index.Data) {
 			return true
 		}
@@ -383,8 +383,7 @@ func valuesLookTheSame(left ast.E, right ast.E) bool {
 		}
 
 	case *ast.ECall:
-		if b, ok := right.(*ast.ECall); ok && a.OptionalChain == b.OptionalChain &&
-			a.IsDirectEval == b.IsDirectEval && a.CanBeUnwrappedIfUnused == b.CanBeUnwrappedIfUnused &&
+		if b, ok := right.(*ast.ECall); ok && a.HasSameFlagsAs(b) &&
 			len(a.Args) == len(b.Args) && valuesLookTheSame(a.Target.Data, b.Target.Data) {
 			for i := range a.Args {
 				if !valuesLookTheSame(a.Args[i].Data, b.Args[i].Data) {
@@ -5992,6 +5991,31 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 	if id, ok := e.Test.Data.(*ast.EIdentifier); ok {
 		if id2, ok := e.Yes.Data.(*ast.EIdentifier); ok && id.Ref == id2.Ref {
 			return ast.Expr{Loc: loc, Data: &ast.EBinary{Op: ast.BinOpLogicalOr, Left: e.Test, Right: e.No}}
+		}
+	}
+
+	// "a ? b(c, d) : b(e, d)" => "b(a ? c : e, d)"
+	if y, ok := e.Yes.Data.(*ast.ECall); ok && len(y.Args) > 0 {
+		if n, ok := e.No.Data.(*ast.ECall); ok && len(n.Args) == len(y.Args) &&
+			y.HasSameFlagsAs(n) && valuesLookTheSame(y.Target.Data, n.Target.Data) {
+			// Only do this if the condition can be reordered without side effects. For
+			// example, if the test is an unbound identifier, reordering could
+			// potentially mean a ReferenceError would no longer be thrown.
+			if p.exprCanBeRemovedIfUnused(e.Test) && p.exprCanBeRemovedIfUnused(y.Target) {
+				sameTailArgs := true
+				for i, count := 1, len(y.Args); i < count; i++ {
+					if !valuesLookTheSame(y.Args[i].Data, n.Args[i].Data) {
+						sameTailArgs = false
+						break
+					}
+				}
+				if sameTailArgs {
+					e.Yes = y.Args[0]
+					e.No = n.Args[0]
+					y.Args[0] = ast.Expr{Loc: loc, Data: e}
+					return ast.Expr{Loc: loc, Data: y}
+				}
+			}
 		}
 	}
 

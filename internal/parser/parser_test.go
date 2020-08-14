@@ -1492,6 +1492,21 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "a = b === c ? true : false", "a = b === c;\n")
 	expectPrintedMangle(t, "a = b !== c ? true : false", "a = b !== c;\n")
 
+	expectPrintedMangle(t, "a ? b(c) : b(d)", "a ? b(c) : b(d);\n")
+	expectPrintedMangle(t, "let a; a ? b(c) : b(d)", "let a;\na ? b(c) : b(d);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(c) : b(d)", "let a, b;\nb(a ? c : d);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(c, 0) : b(d)", "let a, b;\na ? b(c, 0) : b(d);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(c) : b(d, 0)", "let a, b;\na ? b(c) : b(d, 0);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(c, 0) : b(d, 1)", "let a, b;\na ? b(c, 0) : b(d, 1);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(c, 0) : b(d, 0)", "let a, b;\nb(a ? c : d, 0);\n")
+
+	// Note: "a.x" may change "b" and "b.y" may change "a" in the examples
+	// below, so the presence of these expressions must prevent reordering
+	expectPrintedMangle(t, "let a; a.x ? b(c) : b(d)", "let a;\na.x ? b(c) : b(d);\n")
+	expectPrintedMangle(t, "let a, b; a.x ? b(c) : b(d)", "let a, b;\na.x ? b(c) : b(d);\n")
+	expectPrintedMangle(t, "let a, b; a ? b.y(c) : b.y(d)", "let a, b;\na ? b.y(c) : b.y(d);\n")
+	expectPrintedMangle(t, "let a, b; a.x ? b.y(c) : b.y(d)", "let a, b;\na.x ? b.y(c) : b.y(d);\n")
+
 	expectPrintedMangle(t, "a ? b : b", "a, b;\n")
 	expectPrintedMangle(t, "let a; a ? b : b", "let a;\nb;\n")
 

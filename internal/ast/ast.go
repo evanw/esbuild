@@ -467,6 +467,12 @@ type ECall struct {
 	CanBeUnwrappedIfUnused bool
 }
 
+func (a *ECall) HasSameFlagsAs(b *ECall) bool {
+	return a.OptionalChain == b.OptionalChain &&
+		a.IsDirectEval == b.IsDirectEval &&
+		a.CanBeUnwrappedIfUnused == b.CanBeUnwrappedIfUnused
+}
+
 type EDot struct {
 	Target        Expr
 	Name          string
@@ -483,10 +489,20 @@ type EDot struct {
 	CallCanBeUnwrappedIfUnused bool
 }
 
+func (a *EDot) HasSameFlagsAs(b *EDot) bool {
+	return a.OptionalChain == b.OptionalChain &&
+		a.CanBeRemovedIfUnused == b.CanBeRemovedIfUnused &&
+		a.CallCanBeUnwrappedIfUnused == b.CallCanBeUnwrappedIfUnused
+}
+
 type EIndex struct {
 	Target        Expr
 	Index         Expr
 	OptionalChain OptionalChain
+}
+
+func (a *EIndex) HasSameFlagsAs(b *EIndex) bool {
+	return a.OptionalChain == b.OptionalChain
 }
 
 type EArrow struct {
