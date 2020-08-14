@@ -6694,6 +6694,22 @@ func (p *parser) jsxStringsToMemberExpression(loc ast.Loc, parts []string, assig
 	return value
 }
 
+func (p *parser) checkForTypeofAndString(a ast.Expr, b ast.Expr) bool {
+	if typeof, ok := a.Data.(*ast.EUnary); ok && typeof.Op == ast.UnOpTypeof {
+		if str, ok := b.Data.(*ast.EString); ok {
+			value := lexer.UTF16ToString(str.Value)
+			switch value {
+			case "undefined", "object", "boolean", "number", "bigint", "string", "symbol", "function", "unknown":
+			default:
+				r := p.source.RangeOfString(b.Loc)
+				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("The \"typeof\" operator will never evaluate to %q", value))
+			}
+			return true
+		}
+	}
+	return false
+}
+
 func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc ast.Loc) bool {
 	switch e := value.Data.(type) {
 	case *ast.ENumber:
@@ -7140,29 +7156,49 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				}
 
 				return ast.Expr{Loc: expr.Loc, Data: data}, exprOut{}
-			} else if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
+			}
+			if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
 			}
+			p.checkForTypeofAndString(e.Left, e.Right)
+			p.checkForTypeofAndString(e.Right, e.Left)
 
 		case ast.BinOpStrictEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: result}}, exprOut{}
-			} else if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
+			}
+			if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
+			}
+			if p.checkForTypeofAndString(e.Left, e.Right) || p.checkForTypeofAndString(e.Right, e.Left) {
+				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
+				if p.MangleSyntax {
+					e.Op = ast.BinOpLooseEq
+				}
 			}
 
 		case ast.BinOpLooseNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
-			} else if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
+			}
+			if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
 			}
+			p.checkForTypeofAndString(e.Left, e.Right)
+			p.checkForTypeofAndString(e.Right, e.Left)
 
 		case ast.BinOpStrictNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
-			} else if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
+			}
+			if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
+			}
+			if p.checkForTypeofAndString(e.Left, e.Right) || p.checkForTypeofAndString(e.Right, e.Left) {
+				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
+				if p.MangleSyntax {
+					e.Op = ast.BinOpLooseNe
+				}
 			}
 
 		case ast.BinOpNullishCoalescing:

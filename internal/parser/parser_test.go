@@ -1312,6 +1312,18 @@ func TestCatch(t *testing.T) {
 	expectParseError(t, "try {} catch (e) { const e = 0 }", "<stdin>: error: \"e\" has already been declared\n")
 }
 
+func TestWarningTypeofEquals(t *testing.T) {
+	expectParseError(t, "typeof x === 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "typeof x !== 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "typeof x == 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "typeof x != 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+
+	expectParseError(t, "'strang' === typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "'strang' !== typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "'strang' == typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "'strang' != typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+}
+
 func TestMangleFor(t *testing.T) {
 	expectPrintedMangle(t, "var a; while (1) ;", "for (var a; ; )\n  ;\n")
 	expectPrintedMangle(t, "let a; while (1) ;", "let a;\nfor (; ; )\n  ;\n")
@@ -1472,6 +1484,18 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedMangle(t, "tag`a${x}b${'y'}c`", "tag`a${x}b${\"y\"}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${y}c`", "tag`a${\"x\"}b${y}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
+}
+
+func TestMangleTypeofEquals(t *testing.T) {
+	expectPrintedMangle(t, "typeof x === y", "typeof x === y;\n")
+	expectPrintedMangle(t, "typeof x !== y", "typeof x !== y;\n")
+	expectPrintedMangle(t, "typeof x === 'string'", "typeof x == \"string\";\n")
+	expectPrintedMangle(t, "typeof x !== 'string'", "typeof x != \"string\";\n")
+
+	expectPrintedMangle(t, "y === typeof x", "y === typeof x;\n")
+	expectPrintedMangle(t, "y !== typeof x", "y !== typeof x;\n")
+	expectPrintedMangle(t, "'string' === typeof x", "\"string\" == typeof x;\n")
+	expectPrintedMangle(t, "'string' !== typeof x", "\"string\" != typeof x;\n")
 }
 
 func TestMangleUnused(t *testing.T) {
