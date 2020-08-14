@@ -5140,7 +5140,7 @@ func (p *parser) generateTempRef(declare generateTempRefArg, optionalName string
 		scope = scope.Parent
 	}
 	if optionalName == "" {
-		optionalName = "_" + lexer.NumberToMinifiedName(p.tempRefCount)
+		optionalName = "_" + ast.DefaultNameMinifier.NumberToMinifiedName(p.tempRefCount)
 		p.tempRefCount++
 	}
 	ref := p.newSymbol(ast.SymbolOther, optionalName)
@@ -8928,6 +8928,43 @@ func (p *parser) declareCommonJSSymbol(kind ast.SymbolKind, name string) ast.Ref
 	return ref
 }
 
+// Compute a character frequency histogram for everything that's not a bound
+// symbol. This is used to modify how minified names are generated for slightly
+// better gzip compression. Even though it's a very small win, we still do it
+// because it's simple to do and very cheap to compute.
+func (p *parser) computeCharacterFrequency() *ast.CharFreq {
+	if !p.MinifyIdentifiers || p.source.Index == runtime.SourceIndex {
+		return nil
+	}
+
+	// Add everything in the file to the histogram
+	charFreq := &ast.CharFreq{}
+	charFreq.Scan(p.source.Contents, 1)
+
+	// Subtract out all symbols that will be minified
+	var visit func(*ast.Scope)
+	visit = func(scope *ast.Scope) {
+		for _, ref := range scope.Members {
+			symbol := &p.symbols[ref.InnerIndex]
+			if symbol.SlotNamespace() != ast.SlotMustNotBeRenamed {
+				charFreq.Scan(symbol.OriginalName, -int32(symbol.UseCountEstimate))
+			}
+		}
+		if scope.LabelRef != ast.InvalidRef {
+			symbol := &p.symbols[scope.LabelRef.InnerIndex]
+			if symbol.SlotNamespace() != ast.SlotMustNotBeRenamed {
+				charFreq.Scan(symbol.OriginalName, -int32(symbol.UseCountEstimate)-1)
+			}
+		}
+		for _, child := range scope.Children {
+			visit(child)
+		}
+	}
+	visit(p.moduleScope)
+
+	return charFreq
+}
+
 func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string, directive string) ast.AST {
 	// Insert an import statement for any runtime imports we generated
 	if len(p.runtimeImports) > 0 {
@@ -9034,6 +9071,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 	return ast.AST{
 		Parts:                   parts,
 		ModuleScope:             p.moduleScope,
+		CharFreq:                p.computeCharacterFrequency(),
 		Symbols:                 p.symbols,
 		ExportsRef:              p.exportsRef,
 		ModuleRef:               p.moduleRef,

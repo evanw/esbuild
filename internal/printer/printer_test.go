@@ -3,13 +3,12 @@ package printer
 import (
 	"testing"
 
-	"github.com/evanw/esbuild/internal/renamer"
-
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/parser"
+	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
 )
 

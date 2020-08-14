@@ -240,12 +240,12 @@ console.log(a, b, c, d, e, real);
 ================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
-var d=b(c=>{c.foo=function(){return 123}});var f=b((k,e)=>{e.exports={test:!0}});const{foo:h}=d();console.log(h(),f());
+var n=e(r=>{r.foo=function(){return 123}});var u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
 
 ================================================================================
 TestTSMinifiedBundleES6
 ---------- /out.js ----------
-function a(){return 123}console.log(a());
+function o(){return 123}console.log(o());
 
 ================================================================================
 TestTSMinifyDerivedClass
@@ -262,18 +262,18 @@ class Foo extends Bar {
 ================================================================================
 TestTSMinifyEnum
 ---------- /a.js ----------
-var Foo;(function(a){a[a.A=0]="A",a[a.B=1]="B",a[a.C=a]="C"})(Foo||(Foo={}));
+var Foo;(function(e){e[e.A=0]="A",e[e.B=1]="B",e[e.C=e]="C"})(Foo||(Foo={}));
 
 ---------- /b.js ----------
-export var Foo;(function(a){a[a.X=0]="X",a[a.Y=1]="Y",a[a.Z=a]="Z"})(Foo||(Foo={}));
+export var Foo;(function(e){e[e.X=0]="X",e[e.Y=1]="Y",e[e.Z=e]="Z"})(Foo||(Foo={}));
 
 ================================================================================
 TestTSMinifyNamespace
 ---------- /a.js ----------
-var Foo;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(Foo||(Foo={}));
+var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
 
 ---------- /b.js ----------
-export var Foo;(function(a){let b;(function(c){foo(a,c)})(b=a.Bar||(a.Bar={}))})(Foo||(Foo={}));
+export var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
 
 ================================================================================
 TestTypeScriptDecorators

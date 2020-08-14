@@ -9,16 +9,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/evanw/esbuild/internal/compat"
-	"github.com/evanw/esbuild/internal/renamer"
-	"github.com/evanw/esbuild/internal/resolver"
-
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logging"
 	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/renamer"
+	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
 )
 
@@ -2833,9 +2832,13 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		r := renamer.NewMinifyRenamer(c.symbols, firstTopLevelSlots, reservedNames)
 
 		// Accumulate symbol usage counts into their slots
+		freq := ast.CharFreq{}
 		for _, sourceIndex := range filesInOrder {
 			file := &c.files[sourceIndex]
 			fileMeta := &c.fileMeta[sourceIndex]
+			if file.ast.CharFreq != nil {
+				freq.Include(file.ast.CharFreq)
+			}
 			if file.ast.UsesExportsRef {
 				r.AccumulateSymbolCount(file.ast.ExportsRef, 1)
 			}
@@ -2859,7 +2862,14 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 			}
 		}
 
-		r.AssignNamesByFrequency()
+		// Add all of the character frequency histograms for all files in this
+		// chunk together, then use it to compute the character sequence used to
+		// generate minified names. This results in slightly better gzip compression
+		// over assigning minified names in order (i.e. "a b c ..."). Even though
+		// it's a very small win, we still do it because it's simple to do and very
+		// cheap to compute.
+		minifier := freq.Compile()
+		r.AssignNamesByFrequency(&minifier)
 		return r
 	}
 

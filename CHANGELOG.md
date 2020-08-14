@@ -8,6 +8,10 @@
 
     The hashes previously used [base64 encoding](https://en.wikipedia.org/wiki/Base64) but I recently realized that since certain file systems (e.g. Windows) are case-insensitive, this could lead to confusing situations where esbuild could theoretically generate two files with different case-sensitive names but with the same case-insensitive name. Hashes now use [base32 encoding](https://en.wikipedia.org/wiki/Base32) which only includes uppercase letters, not lowercase letters, which should avoid this confusing situation.
 
+* Optimize character frequency for better gzip compression
+
+    The character sequence used to generate minified names is now the characters in the input files sorted descending by frequency. Previously it was just the valid identifier characters in alphabetic order. This means minified names are more likely to contain characters found elsewhere in the output file (e.g. in keywords and strings). This is a pretty small win but it was added because it's a consistent win, it's simple to implement, and it's very fast to compute.
+
 ## 0.6.23
 
 * Add an error message for a missing `--tsconfig` file ([#330](https://github.com/evanw/esbuild/issues/330))

@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/evanw/esbuild/internal/sourcemap"
@@ -1340,6 +1341,7 @@ type AST struct {
 	Parts       []Part
 	Symbols     []Symbol
 	ModuleScope *Scope
+	CharFreq    *CharFreq
 	ExportsRef  Ref
 	ModuleRef   Ref
 	WrapperRef  Ref
@@ -1358,6 +1360,104 @@ type AST struct {
 
 	SourceMapComment Span
 	SourceMap        *sourcemap.SourceMap
+}
+
+// This is a histogram of character frequencies for minification
+type CharFreq [64]int32
+
+func (freq *CharFreq) Scan(text string, delta int32) {
+	if delta == 0 {
+		return
+	}
+
+	// This matches the order in "DefaultNameMinifier"
+	for i, n := 0, len(text); i < n; i++ {
+		c := text[i]
+		switch {
+		case c >= 'a' && c <= 'z':
+			(*freq)[c-'a'] += delta
+		case c >= 'A' && c <= 'Z':
+			(*freq)[c-('A'-26)] += delta
+		case c >= '0' && c <= '9':
+			(*freq)[c+(52-'0')] += delta
+		case c == '_':
+			(*freq)[62] += delta
+		case c == '$':
+			(*freq)[63] += delta
+		}
+	}
+}
+
+func (freq *CharFreq) Include(other *CharFreq) {
+	for i := 0; i < 64; i++ {
+		(*freq)[i] += (*other)[i]
+	}
+}
+
+type NameMinifier struct {
+	head string
+	tail string
+}
+
+var DefaultNameMinifier = NameMinifier{
+	head: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$",
+	tail: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$",
+}
+
+type charAndCount struct {
+	index byte
+	count int32
+	char  string
+}
+
+// This type is just so we can use Go's native sort function
+type charAndCountArray []charAndCount
+
+func (a charAndCountArray) Len() int          { return len(a) }
+func (a charAndCountArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a charAndCountArray) Less(i int, j int) bool {
+	ai := a[i]
+	aj := a[j]
+	return ai.count > aj.count || (ai.count == aj.count && ai.index < aj.index)
+}
+
+func (freq *CharFreq) Compile() NameMinifier {
+	// Sort the histogram in descending order by count
+	array := make(charAndCountArray, 64)
+	for i := 0; i < len(DefaultNameMinifier.tail); i++ {
+		array[i] = charAndCount{
+			char:  DefaultNameMinifier.tail[i : i+1],
+			index: byte(i),
+			count: freq[i],
+		}
+	}
+	sort.Sort(array)
+
+	// Compute the identifier start and identifier continue sequences
+	minifier := NameMinifier{}
+	for _, item := range array {
+		if item.char < "0" || item.char > "9" {
+			minifier.head += item.char
+		}
+		minifier.tail += item.char
+	}
+	return minifier
+}
+
+func (minifier *NameMinifier) NumberToMinifiedName(i int) string {
+	j := i % 54
+	name := minifier.head[j : j+1]
+	i = i / 54
+
+	for i > 0 {
+		i--
+		j := i % 64
+		name += minifier.tail[j : j+1]
+		i = i / 64
+	}
+
+	return name
 }
 
 func (ast *AST) HasCommonJSFeatures() bool {

@@ -1,32 +1,32 @@
 TestArgumentDefaultValueScopeNoBundle
 ---------- /out.js ----------
-export function a(d = foo) {
-  var e;
-  return d;
+export function a(o = foo) {
+  var r;
+  return o;
 }
 export class b {
-  fn(d = foo) {
-    var e;
-    return d;
+  fn(o = foo) {
+    var r;
+    return o;
   }
 }
 export let c = [
-  function(d = foo) {
-    var e;
-    return d;
+  function(o = foo) {
+    var r;
+    return o;
   },
-  (d = foo) => {
-    var e;
-    return d;
+  (o = foo) => {
+    var r;
+    return o;
   },
-  {fn(d = foo) {
-    var e;
-    return d;
+  {fn(o = foo) {
+    var r;
+    return o;
   }},
   class {
-    fn(d = foo) {
-      var e;
-      return d;
+    fn(o = foo) {
+      var r;
+      return o;
     }
   }
 ];
@@ -35,89 +35,89 @@ export let c = [
 TestArgumentsSpecialCaseNoBundle
 ---------- /out.js ----------
 (() => {
-  var a;
-  function c(b = arguments) {
+  var r;
+  function t(n = arguments) {
     return arguments;
   }
-  (function(b = arguments) {
+  (function(n = arguments) {
     return arguments;
   });
-  ({foo(b = arguments) {
+  ({foo(n = arguments) {
     return arguments;
   }});
-  class d {
-    foo(b = arguments) {
+  class u {
+    foo(n = arguments) {
       return arguments;
     }
   }
   (class {
-    foo(b = arguments) {
+    foo(n = arguments) {
       return arguments;
     }
   });
-  function c(b = arguments) {
+  function t(n = arguments) {
     var arguments;
     return arguments;
   }
-  (function(b = arguments) {
+  (function(n = arguments) {
     var arguments;
     return arguments;
   });
-  ({foo(b = arguments) {
+  ({foo(n = arguments) {
     var arguments;
     return arguments;
   }});
   class e {
-    foo(b = arguments) {
+    foo(n = arguments) {
       var arguments;
       return arguments;
     }
   }
   (class {
-    foo(b = arguments) {
+    foo(n = arguments) {
       var arguments;
       return arguments;
     }
   });
-  (b) => a;
-  () => a;
-  async () => a;
-  (b = a) => a;
-  async (b = a) => a;
-  (b) => a;
-  () => a;
-  async () => a;
-  (b = a) => a;
-  async (b = a) => a;
-  (b) => {
-    return a;
+  (n) => r;
+  () => r;
+  async () => r;
+  (n = r) => r;
+  async (n = r) => r;
+  (n) => r;
+  () => r;
+  async () => r;
+  (n = r) => r;
+  async (n = r) => r;
+  (n) => {
+    return r;
   };
   () => {
-    return a;
+    return r;
   };
   async () => {
-    return a;
+    return r;
   };
-  (b = a) => {
-    return a;
+  (n = r) => {
+    return r;
   };
-  async (b = a) => {
-    return a;
+  async (n = r) => {
+    return r;
   };
-  (b) => {
-    return a;
+  (n) => {
+    return r;
   };
   () => {
-    return a;
+    return r;
   };
   async () => {
-    return a;
+    return r;
   };
-  (b = a) => {
-    return a;
+  (n = r) => {
+    return r;
   };
-  async (b = a) => {
-    return a;
+  async (n = r) => {
+    return r;
   };
 })();
 
@@ -126,14 +126,14 @@ TestArrowFnScope
 ---------- /out.js ----------
 // /entry.js
 tests = {
-  0: (a = (c) => a + c, b) => a + b,
-  1: (a, b = (c) => b + c) => b + a,
-  2: (a = (d = (f) => a + d + f, e) => a + d + e, b, c) => a + b + c,
-  3: (a, b, c = (d, e = (f) => c + e + f) => c + e + d) => c + a + b,
-  4: (x = (a) => x + a, y, x + y),
-  5: (y, x = (a) => x + a, x + y),
-  6: (x = (a = (c) => x + a + c, b) => x + a + b, y, z, x + y + z),
-  7: (y, z, x = (a, b = (c) => x + b + c) => x + b + a, x + y + z)
+  0: (s = (e) => s + e, t) => s + t,
+  1: (s, t = (e) => t + e) => t + s,
+  2: (s = (a = (c) => s + a + c, b) => s + a + b, t, e) => s + t + e,
+  3: (s, t, e = (a, b = (c) => e + b + c) => e + b + a) => e + s + t,
+  4: (x = (s) => x + s, y, x + y),
+  5: (y, x = (s) => x + s, x + y),
+  6: (x = (s = (e) => x + s + e, t) => x + s + t, y, z, x + y + z),
+  7: (y, z, x = (s, t = (e) => x + t + e) => x + t + s, x + y + z)
 };
 
 ================================================================================
@@ -175,25 +175,25 @@ console.log("in a");console.log("in b");console.log("in c");
 TestDirectEvalTaintingNoBundle
 ---------- /out.js ----------
 function test1() {
-  function add(b, a) {
-    return b + a;
+  function add(n, t) {
+    return n + t;
   }
   eval("add(1, 2)");
 }
 function test2() {
-  function b(a, c) {
-    return a + c;
+  function n(t, e) {
+    return t + e;
   }
   (0, eval)("add(1, 2)");
 }
 function test3() {
-  function b(a, c) {
-    return a + c;
+  function n(t, e) {
+    return t + e;
   }
 }
 function test4(eval) {
-  function add(b, a) {
-    return b + a;
+  function add(n, t) {
+    return n + t;
   }
   eval("add(1, 2)");
 }
@@ -475,11 +475,11 @@ export default 123;
 export var varName = 234;
 export let letName = 234;
 export const constName = 234;
-function a() {
+function o() {
 }
-class b {
+class s {
 }
-export {Class as Cls, a as Fn2, b as Cls2};
+export {Class as Cls, o as Fn2, s as Cls2};
 export function Func() {
 }
 export class Class {
@@ -492,7 +492,7 @@ export default function() {
 }
 
 ---------- /out/c.js ----------
-export default function a() {
+export default function o() {
 }
 
 ---------- /out/d.js ----------
@@ -500,7 +500,7 @@ export default class {
 }
 
 ---------- /out/e.js ----------
-export default class a {
+export default class o {
 }
 
 ================================================================================
@@ -619,18 +619,18 @@ TestImportFormsWithMinifyIdentifiersAndNoBundle
 ---------- /out.js ----------
 import "foo";
 import {} from "foo";
-import * as a from "foo";
-import {a as b, b as c} from "foo";
-import d from "foo";
-import f, * as e from "foo";
-import g, {a2 as h, b as i} from "foo";
-const j = [
+import * as o from "foo";
+import {a as f, b as r} from "foo";
+import m from "foo";
+import i, * as t from "foo";
+import p, {a2 as s, b as n} from "foo";
+const a = [
   import("foo"),
   function() {
     return import("foo");
   }
 ];
-console.log(a, b, c, d, f, e, g, h, i, j);
+console.log(o, f, r, m, i, t, p, s, n, a);
 
 ================================================================================
 TestImportFormsWithNoBundle
@@ -1016,12 +1016,12 @@ console.log(shared_default);
 ================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
-var d=b(c=>{c.foo=function(){return 123}});var f=b((k,e)=>{e.exports={test:!0}});const{foo:h}=d();console.log(h(),f());
+var n=e(r=>{r.foo=function(){return 123}});var u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
 
 ================================================================================
 TestMinifiedBundleES6
 ---------- /out.js ----------
-function a(){return 123}a();console.log(a());
+function o(){return 123}o();console.log(o());
 
 ================================================================================
 TestMinifiedBundleEndingWithImportantSemicolon
@@ -1032,46 +1032,46 @@ TestMinifiedBundleEndingWithImportantSemicolon
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // /foo/test.js
-const b = {};
-g(b, {
-  foo: () => i
+const t = {};
+f(t, {
+  foo: () => l
 });
-let i = 123;
+let l = 123;
 
 // /bar/test.js
-const c = {};
-g(c, {
-  bar: () => j
+const r = {};
+f(r, {
+  bar: () => m
 });
-let j = 123;
+let m = 123;
 
 // /entry.js
-console.log(exports, module.exports, b, c);
+console.log(exports, module.exports, t, r);
 
 ================================================================================
 TestMinifyNestedLabelsNoBundle
 ---------- /out.js ----------
-a:{b:{c:{d:{e:{f:{g:{h:{i:{j:{k:{l:{m:{n:{o:{p:{nl(`
+n:{l:{a:{b:{c:{d:{e:{f:{g:{h:{i:{j:{k:{m:{o:{p:{nl(`
 `);q:{r:{s:{t:{u:{v:{w:{x:{y:{z:{A:{B:{C:{D:{E:{F:{nl(`
 `);G:{H:{I:{J:{K:{L:{M:{N:{O:{P:{Q:{R:{S:{T:{U:{V:{nl(`
-`);W:{X:{Y:{Z:{_:{$:{aa:{ba:{ca:{da:{ea:{fa:{ga:{ha:{ia:{ja:{nl(`
-`);ka:{la:{ma:{na:{oa:{pa:{qa:{ra:{sa:{ta:{ua:{va:{wa:{xa:{ya:{za:{nl(`
-`);Aa:{Ba:{Ca:{Da:{Ea:{Fa:{Ga:{Ha:{Ia:{Ja:{Ka:{La:{Ma:{Na:{Oa:{Pa:{nl(`
-`);Qa:{Ra:{Sa:{Ta:{Ua:{Va:{Wa:{Xa:{Ya:{Za:{_a:{$a:{ab:{bb:{cb:{db:{nl(`
-`);eb:{fb:{gb:{hb:{ib:{jb:{kb:{lb:{mb:{nb:{ob:{pb:{qb:{rb:{sb:{tb:{nl(`
-`);ub:{vb:{wb:{xb:{yb:{zb:{Ab:{Bb:{Cb:{Db:{Eb:{Fb:{Gb:{Hb:{Ib:{Jb:{nl(`
-`);Kb:{Lb:{Mb:{Nb:{Ob:{Pb:{Qb:{Rb:{Sb:{Tb:{Ub:{Vb:{Wb:{Xb:{Yb:{Zb:{nl(`
-`);_b:{$b:{ac:{bc:{cc:{dc:{ec:{fc:{gc:{hc:{ic:{jc:{kc:{lc:{mc:{nc:{nl(`
-`);oc:{pc:{qc:{rc:{sc:{tc:{uc:{vc:{wc:{xc:{yc:{zc:{Ac:{Bc:{Cc:{Dc:{nl(`
-`);Ec:{Fc:{Gc:{Hc:{Ic:{Jc:{Kc:{Lc:{Mc:{Nc:{Oc:{Pc:{Qc:{Rc:{Sc:{Tc:{nl(`
-`);Uc:{Vc:{Wc:{Xc:{Yc:{Zc:{_c:{$c:{ad:{bd:{cd:{dd:{ed:{fd:{gd:{hd:{nl(`
-`);id:{jd:{kd:{ld:{md:{nd:{od:{pd:{qd:{rd:{sd:{td:{ud:{vd:{wd:{xd:{nl(`
-`);yd:{zd:{Ad:{Bd:{Cd:{Dd:{Ed:{Fd:{Gd:{Hd:{Id:{Jd:{Kd:{Ld:{Md:{Nd:{nl(`
-`);Od:{Pd:{Qd:{Rd:{Sd:{Td:{Ud:{Vd:{Wd:{Xd:{Yd:{Zd:{_d:{$d:{ae:{be:{nl(`
-`);ce:{de:{ee:{fe:{ge:{he:{ie:{je:{ke:{le:{me:{ne:{oe:{pe:{qe:{re:{nl(`
-`);se:{te:{ue:{ve:{we:{xe:{ye:{ze:{Ae:{Be:{Ce:{De:{Ee:{Fe:{Ge:{He:{nl(`
-`);Ie:{Je:{Ke:{Le:{Me:{Ne:{Oe:{Pe:{Qe:{Re:{Se:{Te:{Ue:{Ve:{We:{Xe:{nl(`
-`);Ye:{Ze:{_e:{$e:{af:{bf:{cf:{df:{ef:{ff:{gf:{hf:{jf:{}}}}}}}}}}}}}}}}}}nl(`
+`);W:{X:{Y:{Z:{_:{$:{nn:{ln:{an:{bn:{cn:{dn:{en:{fn:{gn:{hn:{nl(`
+`);jn:{kn:{mn:{on:{pn:{qn:{rn:{sn:{tn:{un:{vn:{wn:{xn:{yn:{zn:{An:{nl(`
+`);Bn:{Cn:{Dn:{En:{Fn:{Gn:{Hn:{In:{Jn:{Kn:{Ln:{Mn:{Nn:{On:{Pn:{Qn:{nl(`
+`);Rn:{Sn:{Tn:{Un:{Vn:{Wn:{Xn:{Yn:{Zn:{_n:{$n:{nl:{ll:{al:{bl:{cl:{nl(`
+`);dl:{el:{fl:{gl:{hl:{il:{jl:{kl:{ml:{ol:{pl:{ql:{rl:{sl:{tl:{ul:{nl(`
+`);vl:{wl:{xl:{yl:{zl:{Al:{Bl:{Cl:{Dl:{El:{Fl:{Gl:{Hl:{Il:{Jl:{Kl:{nl(`
+`);Ll:{Ml:{Nl:{Ol:{Pl:{Ql:{Rl:{Sl:{Tl:{Ul:{Vl:{Wl:{Xl:{Yl:{Zl:{_l:{nl(`
+`);$l:{na:{la:{aa:{ba:{ca:{da:{ea:{fa:{ga:{ha:{ia:{ja:{ka:{ma:{oa:{nl(`
+`);pa:{qa:{ra:{sa:{ta:{ua:{va:{wa:{xa:{ya:{za:{Aa:{Ba:{Ca:{Da:{Ea:{nl(`
+`);Fa:{Ga:{Ha:{Ia:{Ja:{Ka:{La:{Ma:{Na:{Oa:{Pa:{Qa:{Ra:{Sa:{Ta:{Ua:{nl(`
+`);Va:{Wa:{Xa:{Ya:{Za:{_a:{$a:{nb:{lb:{ab:{bb:{cb:{db:{eb:{fb:{gb:{nl(`
+`);hb:{ib:{jb:{kb:{mb:{ob:{pb:{qb:{rb:{sb:{tb:{ub:{vb:{wb:{xb:{yb:{nl(`
+`);zb:{Ab:{Bb:{Cb:{Db:{Eb:{Fb:{Gb:{Hb:{Ib:{Jb:{Kb:{Lb:{Mb:{Nb:{Ob:{nl(`
+`);Pb:{Qb:{Rb:{Sb:{Tb:{Ub:{Vb:{Wb:{Xb:{Yb:{Zb:{_b:{$b:{nc:{lc:{ac:{nl(`
+`);bc:{cc:{dc:{ec:{fc:{gc:{hc:{ic:{jc:{kc:{mc:{oc:{pc:{qc:{rc:{sc:{nl(`
+`);tc:{uc:{vc:{wc:{xc:{yc:{zc:{Ac:{Bc:{Cc:{Dc:{Ec:{Fc:{Gc:{Hc:{Ic:{nl(`
+`);Jc:{Kc:{Lc:{Mc:{Nc:{Oc:{Pc:{Qc:{Rc:{Sc:{Tc:{Uc:{Vc:{Wc:{Xc:{Yc:{nl(`
+`);Zc:{_c:{$c:{nd:{ld:{ad:{bd:{cd:{dd:{ed:{fd:{gd:{hd:{}}}}}}}}}}}}}}}}}}nl(`
 `)}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}nl(`
 `)}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}nl(`
 `)}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}nl(`
@@ -1081,27 +1081,27 @@ a:{b:{c:{d:{e:{f:{g:{h:{i:{j:{k:{l:{m:{n:{o:{p:{nl(`
 TestMinifyPrivateIdentifiersNoBundle
 ---------- /out.js ----------
 class Foo {
-  #b;
+  #a;
   foo = class {
-    #c;
-    #d;
-    #e;
+    #s;
+    #f;
+    #r;
   };
-  get #a() {
+  get #o() {
   }
-  set #a() {
+  set #o() {
   }
 }
 class Bar {
-  #b;
+  #a;
   foo = class {
-    #c;
-    #d;
-    #e;
+    #s;
+    #f;
+    #r;
   };
-  get #a() {
+  get #o() {
   }
-  set #a() {
+  set #o() {
   }
 }
 
@@ -2103,14 +2103,14 @@ TestUseStrictDirectiveMinifyNoBundle
 TestWithStatementTaintingNoBundle
 ---------- /out.js ----------
 (() => {
-  let a = 1;
+  let e = 1;
   let outer = 2;
   let outerDead = 3;
   with ({}) {
     var hoisted = 4;
-    let b = 5;
+    let t = 5;
     hoisted++;
-    b++;
+    t++;
     if (1)
       outer++;
     if (0)
@@ -2118,7 +2118,7 @@ TestWithStatementTaintingNoBundle
   }
   if (1) {
     hoisted++;
-    a++;
+    e++;
     outer++;
     outerDead++;
   }

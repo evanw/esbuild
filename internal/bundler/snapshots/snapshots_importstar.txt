@@ -113,11 +113,11 @@ module.exports = require_entry();
 TestExportSelfCommonJSMinified
 ---------- /out.js ----------
 // /entry.js
-var b = e((g, c) => {
-  c.exports = {foo: 123};
-  console.log(b());
+var e = n((t, r) => {
+  r.exports = {foo: 123};
+  console.log(e());
 });
-module.exports = b();
+module.exports = e();
 
 ================================================================================
 TestExportSelfES6

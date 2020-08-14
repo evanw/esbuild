@@ -168,7 +168,7 @@ func (r *MinifyRenamer) AccumulateSymbolCount(ref ast.Ref, count uint32) {
 	(*slots)[i].count += count
 }
 
-func (r *MinifyRenamer) AssignNamesByFrequency() {
+func (r *MinifyRenamer) AssignNamesByFrequency(minifier *ast.NameMinifier) {
 	for ns, slots := range r.slots {
 		// Sort symbols by count
 		sorted := make(slotAndCountArray, len(slots))
@@ -180,7 +180,7 @@ func (r *MinifyRenamer) AssignNamesByFrequency() {
 		// Assign names to symbols
 		nextName := 0
 		for _, data := range sorted {
-			name := lexer.NumberToMinifiedName(nextName)
+			name := minifier.NumberToMinifiedName(nextName)
 			nextName++
 
 			// Make sure we never generate a reserved name. We only have to worry
@@ -191,13 +191,13 @@ func (r *MinifyRenamer) AssignNamesByFrequency() {
 			switch ast.SlotNamespace(ns) {
 			case ast.SlotDefault:
 				for r.reservedNames[name] != 0 {
-					name = lexer.NumberToMinifiedName(nextName)
+					name = minifier.NumberToMinifiedName(nextName)
 					nextName++
 				}
 
 			case ast.SlotLabel:
 				for lexer.Keywords[name] != 0 {
-					name = lexer.NumberToMinifiedName(nextName)
+					name = minifier.NumberToMinifiedName(nextName)
 					nextName++
 				}
 			}
@@ -525,7 +525,7 @@ func (r *ExportRenamer) NextRenamedName(name string) string {
 }
 
 func (r *ExportRenamer) NextMinifiedName() string {
-	name := lexer.NumberToMinifiedName(r.count)
+	name := ast.DefaultNameMinifier.NumberToMinifiedName(r.count)
 	r.count++
 	return name
 }
