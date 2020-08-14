@@ -13,7 +13,7 @@ func ComputeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[
 	names := make(map[string]uint32)
 
 	// All keywords are reserved names
-	for k := range lexer.Keywords() {
+	for k := range lexer.Keywords {
 		names[k] = 1
 	}
 
@@ -184,9 +184,19 @@ func (r *MinifyRenamer) AssignNamesByFrequency() {
 			nextName++
 
 			// Make sure we never generate a reserved name. We only have to worry
-			// about this for normal symbols, not for labels or private names.
-			if ast.SlotNamespace(ns) == ast.SlotDefault {
+			// about collisions with reserved identifiers for normal symbols, and we
+			// only have to worry about collisions with keywords for labels. We do
+			// not have to worry about either for private names because they start
+			// with a "#" character.
+			switch ast.SlotNamespace(ns) {
+			case ast.SlotDefault:
 				for r.reservedNames[name] != 0 {
+					name = lexer.NumberToMinifiedName(nextName)
+					nextName++
+				}
+
+			case ast.SlotLabel:
+				for lexer.Keywords[name] != 0 {
 					name = lexer.NumberToMinifiedName(nextName)
 					nextName++
 				}
@@ -256,6 +266,13 @@ func assignNestedScopeSlotsHelper(scope *ast.Scope, symbols []ast.Symbol, slot a
 			symbol.NestedScopeSlot = ^slot[ns]
 			slot[ns]++
 		}
+	}
+
+	// Labels are always declared in a nested scope, so we don't need to check.
+	if scope.LabelRef != ast.InvalidRef {
+		symbol := &symbols[scope.LabelRef.InnerIndex]
+		symbol.NestedScopeSlot = ^slot[ast.SlotLabel]
+		slot[ast.SlotLabel]++
 	}
 
 	// Assign slots for the symbols of child scopes

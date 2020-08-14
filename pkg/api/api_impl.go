@@ -278,7 +278,7 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 
 		// Allow substituting for an identifier
 		if lexer.IsIdentifier(value) {
-			if _, ok := lexer.Keywords()[value]; !ok {
+			if _, ok := lexer.Keywords[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
 				rawDefines[key] = config.DefineData{
 					DefineFunc: func(findSymbol config.FindSymbol) ast.E {

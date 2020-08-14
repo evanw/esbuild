@@ -1049,6 +1049,35 @@ let j = 123;
 console.log(exports, module.exports, b, c);
 
 ================================================================================
+TestMinifyNestedLabelsNoBundle
+---------- /out.js ----------
+a:{b:{c:{d:{e:{f:{g:{h:{i:{j:{k:{l:{m:{n:{o:{p:{nl(`
+`);q:{r:{s:{t:{u:{v:{w:{x:{y:{z:{A:{B:{C:{D:{E:{F:{nl(`
+`);G:{H:{I:{J:{K:{L:{M:{N:{O:{P:{Q:{R:{S:{T:{U:{V:{nl(`
+`);W:{X:{Y:{Z:{_:{$:{aa:{ba:{ca:{da:{ea:{fa:{ga:{ha:{ia:{ja:{nl(`
+`);ka:{la:{ma:{na:{oa:{pa:{qa:{ra:{sa:{ta:{ua:{va:{wa:{xa:{ya:{za:{nl(`
+`);Aa:{Ba:{Ca:{Da:{Ea:{Fa:{Ga:{Ha:{Ia:{Ja:{Ka:{La:{Ma:{Na:{Oa:{Pa:{nl(`
+`);Qa:{Ra:{Sa:{Ta:{Ua:{Va:{Wa:{Xa:{Ya:{Za:{_a:{$a:{ab:{bb:{cb:{db:{nl(`
+`);eb:{fb:{gb:{hb:{ib:{jb:{kb:{lb:{mb:{nb:{ob:{pb:{qb:{rb:{sb:{tb:{nl(`
+`);ub:{vb:{wb:{xb:{yb:{zb:{Ab:{Bb:{Cb:{Db:{Eb:{Fb:{Gb:{Hb:{Ib:{Jb:{nl(`
+`);Kb:{Lb:{Mb:{Nb:{Ob:{Pb:{Qb:{Rb:{Sb:{Tb:{Ub:{Vb:{Wb:{Xb:{Yb:{Zb:{nl(`
+`);_b:{$b:{ac:{bc:{cc:{dc:{ec:{fc:{gc:{hc:{ic:{jc:{kc:{lc:{mc:{nc:{nl(`
+`);oc:{pc:{qc:{rc:{sc:{tc:{uc:{vc:{wc:{xc:{yc:{zc:{Ac:{Bc:{Cc:{Dc:{nl(`
+`);Ec:{Fc:{Gc:{Hc:{Ic:{Jc:{Kc:{Lc:{Mc:{Nc:{Oc:{Pc:{Qc:{Rc:{Sc:{Tc:{nl(`
+`);Uc:{Vc:{Wc:{Xc:{Yc:{Zc:{_c:{$c:{ad:{bd:{cd:{dd:{ed:{fd:{gd:{hd:{nl(`
+`);id:{jd:{kd:{ld:{md:{nd:{od:{pd:{qd:{rd:{sd:{td:{ud:{vd:{wd:{xd:{nl(`
+`);yd:{zd:{Ad:{Bd:{Cd:{Dd:{Ed:{Fd:{Gd:{Hd:{Id:{Jd:{Kd:{Ld:{Md:{Nd:{nl(`
+`);Od:{Pd:{Qd:{Rd:{Sd:{Td:{Ud:{Vd:{Wd:{Xd:{Yd:{Zd:{_d:{$d:{ae:{be:{nl(`
+`);ce:{de:{ee:{fe:{ge:{he:{ie:{je:{ke:{le:{me:{ne:{oe:{pe:{qe:{re:{nl(`
+`);se:{te:{ue:{ve:{we:{xe:{ye:{ze:{Ae:{Be:{Ce:{De:{Ee:{Fe:{Ge:{He:{nl(`
+`);Ie:{Je:{Ke:{Le:{Me:{Ne:{Oe:{Pe:{Qe:{Re:{Se:{Te:{Ue:{Ve:{We:{Xe:{nl(`
+`);Ye:{Ze:{_e:{$e:{af:{bf:{cf:{df:{ef:{ff:{gf:{hf:{jf:{}}}}}}}}}}}}}}}}}}nl(`
+`)}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}nl(`
+`)}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}nl(`
+`)}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}nl(`
+`)}}}}}}}}}}}}}}}}}}}}}}}}}}}
+
+================================================================================
 TestMinifyPrivateIdentifiersNoBundle
 ---------- /out.js ----------
 class Foo {
@@ -1073,6 +1102,31 @@ class Bar {
   get #a() {
   }
   set #a() {
+  }
+}
+
+================================================================================
+TestMinifySiblingLabelsNoBundle
+---------- /out.js ----------
+a: {
+  b: {
+    if (x)
+      break b;
+    break a;
+  }
+}
+a: {
+  b: {
+    if (x)
+      break b;
+    break a;
+  }
+}
+a: {
+  b: {
+    if (x)
+      break b;
+    break a;
   }
 }
 
@@ -1479,6 +1533,31 @@ export {
   fs as f,
   readFileSync as rfs
 };
+
+================================================================================
+TestRenameLabelsNoBundle
+---------- /out.js ----------
+foo: {
+  bar: {
+    if (x)
+      break bar;
+    break foo;
+  }
+}
+foo2: {
+  bar2: {
+    if (x)
+      break bar2;
+    break foo2;
+  }
+}
+foo: {
+  bar: {
+    if (x)
+      break bar;
+    break foo;
+  }
+}
 
 ================================================================================
 TestRenamePrivateIdentifiersNoBundle

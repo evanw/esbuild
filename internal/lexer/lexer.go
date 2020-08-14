@@ -165,7 +165,7 @@ const (
 	TYield
 )
 
-var keywords = map[string]T{
+var Keywords = map[string]T{
 	// Reserved words
 	"break":      TBreak,
 	"case":       TCase,
@@ -214,14 +214,6 @@ var keywords = map[string]T{
 	"public":     TPublic,
 	"static":     TStatic,
 	"yield":      TYield,
-}
-
-func Keywords() map[string]T {
-	result := make(map[string]T)
-	for k, v := range keywords {
-		result[k] = v
-	}
-	return result
 }
 
 type json struct {
@@ -1446,7 +1438,7 @@ func (lexer *Lexer) Next() {
 			} else {
 				contents := lexer.Raw()
 				lexer.Identifier = contents
-				lexer.Token = keywords[contents]
+				lexer.Token = Keywords[contents]
 				if lexer.Token == 0 {
 					lexer.Token = TIdentifier
 				}
@@ -1569,7 +1561,7 @@ func (lexer *Lexer) scanIdentifierWithEscapes(kind identifierKind) (string, T) {
 	//   // This is an fine (equivalent to "foo.var;")
 	//   foo.\u0076\u0061\u0072;
 	//
-	if keywords[text] != 0 {
+	if Keywords[text] != 0 {
 		return text, TEscapedKeyword
 	} else {
 		return text, TIdentifier

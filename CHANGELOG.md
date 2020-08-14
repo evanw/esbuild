@@ -6,6 +6,10 @@
 
     The `--tsconfig` flag that was added in version 0.6.1 didn't report an error if the provided file doesn't actually exist. This release makes doing this an error that will fail the build.
 
+* Avoid generating the minified label name `if` ([#332](https://github.com/evanw/esbuild/issues/332))
+
+    The recent minification changes in 0.6.20 introduced a regression where input files containing 333 or more label statements resulted in a label being assigned the minified name `if`, which is a JavaScript keyword. This is the first JavaScript keyword in the minified name sequence that esbuild uses for label names: `a b c ... aa ba ca ...`. The regression has been fixed and there is now test coverage for this case.
+
 ## 0.6.22
 
 * The bell character is now escaped
