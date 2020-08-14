@@ -1661,6 +1661,14 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EString:
+		// If this was originally a template literal, print it as one as long as we're not minifying
+		if e.PreferTemplate && !p.options.RemoveWhitespace && !p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
+			p.print("`")
+			p.printQuotedUTF16(e.Value, '`')
+			p.print("`")
+			return
+		}
+
 		c := p.bestQuoteCharForString(e.Value, true /* allowBacktick */)
 		p.print(c)
 		p.printQuotedUTF16(e.Value, rune(c[0]))

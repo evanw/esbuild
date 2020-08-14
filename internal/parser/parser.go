@@ -1851,10 +1851,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 	case lexer.TNoSubstitutionTemplateLiteral:
 		head := p.lexer.StringLiteral
 		p.lexer.Next()
-		if p.UnsupportedFeatures.Has(compat.TemplateLiteral) {
-			return ast.Expr{Loc: loc, Data: &ast.EString{Value: head}}
-		}
-		return ast.Expr{Loc: loc, Data: &ast.ETemplate{Head: head}}
+		return ast.Expr{Loc: loc, Data: &ast.EString{Value: head, PreferTemplate: true}}
 
 	case lexer.TTemplateHead:
 		head := p.lexer.StringLiteral
@@ -6394,8 +6391,6 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 					nextNumericValue = e.Value + 1
 				case *ast.EString:
 					hasStringValue = true
-				case *ast.ETemplate:
-					hasStringValue = e.Tag == nil && len(e.Parts) == 0
 				}
 			} else if hasNumericValue {
 				valuesSoFar[name] = nextNumericValue
@@ -6894,7 +6889,10 @@ func foldStringAddition(left ast.Expr, right ast.Expr) *ast.Expr {
 	case *ast.EString:
 		switch r := right.Data.(type) {
 		case *ast.EString:
-			return &ast.Expr{Loc: left.Loc, Data: &ast.EString{Value: joinStrings(l.Value, r.Value)}}
+			return &ast.Expr{Loc: left.Loc, Data: &ast.EString{
+				Value:          joinStrings(l.Value, r.Value),
+				PreferTemplate: l.PreferTemplate || r.PreferTemplate,
+			}}
 
 		case *ast.ETemplate:
 			if r.Tag == nil {
@@ -7857,11 +7855,6 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	case *ast.EImport:
 		e.Expr = p.visitExpr(e.Expr)
 
-		// Convert no-substitution template literals into strings
-		if template, ok := e.Expr.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
-			e.Expr.Data = &ast.EString{Value: template.Head}
-		}
-
 		// The argument must be a string
 		if str, ok := e.Expr.Data.(*ast.EString); ok {
 			// Ignore calls to import() if the control flow is provably dead here.
@@ -7971,11 +7964,6 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					"This call to \"require\" will not be bundled because it has %d arguments", len(e.Args)))
 			} else {
 				arg := e.Args[0]
-
-				// Convert no-substitution template literals into strings when bundling
-				if template, ok := arg.Data.(*ast.ETemplate); ok && template.Tag == nil && len(template.Parts) == 0 {
-					arg.Data = &ast.EString{Value: template.Head}
-				}
 
 				// The argument must be a string
 				if str, ok := arg.Data.(*ast.EString); ok {

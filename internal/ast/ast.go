@@ -566,7 +566,10 @@ type EObject struct {
 
 type ESpread struct{ Value Expr }
 
-type EString struct{ Value []uint16 }
+type EString struct {
+	Value          []uint16
+	PreferTemplate bool
+}
 
 type TemplatePart struct {
 	Value   Expr
