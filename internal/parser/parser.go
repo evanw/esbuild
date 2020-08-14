@@ -5724,6 +5724,67 @@ func statementCaresAboutScope(stmt ast.Stmt) bool {
 	}
 }
 
+func dropFirstStatement(body ast.Stmt, replace *ast.Stmt) ast.Stmt {
+	if block, ok := body.Data.(*ast.SBlock); ok && len(block.Stmts) > 0 {
+		if replace != nil {
+			block.Stmts[0] = *replace
+		} else if len(block.Stmts) == 2 && !statementCaresAboutScope(block.Stmts[1]) {
+			return block.Stmts[1]
+		} else {
+			block.Stmts = block.Stmts[1:]
+		}
+		return body
+	}
+	if replace != nil {
+		return *replace
+	}
+	return ast.Stmt{Loc: body.Loc, Data: &ast.SEmpty{}}
+}
+
+func mangleFor(s *ast.SFor) {
+	// Get the first statement in the loop
+	first := s.Body
+	if block, ok := first.Data.(*ast.SBlock); ok && len(block.Stmts) > 0 {
+		first = block.Stmts[0]
+	}
+
+	if ifS, ok := first.Data.(*ast.SIf); ok {
+		// "for (;;) if (x) break;" => "for (; !x;) ;"
+		// "for (; a;) if (x) break;" => "for (; a && !x;) ;"
+		// "for (;;) if (x) break; else y();" => "for (; !x;) y();"
+		// "for (; a;) if (x) break; else y();" => "for (; a && !x;) y();"
+		if breakS, ok := ifS.Yes.Data.(*ast.SBreak); ok && breakS.Name == nil {
+			var not ast.Expr
+			if unary, ok := ifS.Test.Data.(*ast.EUnary); ok && unary.Op == ast.UnOpNot {
+				not = unary.Value
+			} else {
+				not = ast.Expr{Loc: ifS.Test.Loc, Data: &ast.EUnary{Op: ast.UnOpNot, Value: ifS.Test}}
+			}
+			if s.Test != nil {
+				s.Test = &ast.Expr{Loc: s.Test.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: *s.Test, Right: not}}
+			} else {
+				s.Test = &not
+			}
+			s.Body = dropFirstStatement(s.Body, ifS.No)
+			return
+		}
+
+		// "for (;;) if (x) y(); else break;" => "for (; x;) y();"
+		// "for (; a;) if (x) y(); else break;" => "for (; a && x;) y();"
+		if ifS.No != nil {
+			if breakS, ok := ifS.No.Data.(*ast.SBreak); ok && breakS.Name == nil {
+				if s.Test != nil {
+					s.Test = &ast.Expr{Loc: s.Test.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: *s.Test, Right: ifS.Test}}
+				} else {
+					s.Test = &ifS.Test
+				}
+				s.Body = dropFirstStatement(s.Body, &ifS.Yes)
+				return
+			}
+		}
+	}
+}
+
 func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanValue bool) ast.Stmt {
 	// Constant folding using the test expression
 	if isTestBooleanConstant {
@@ -6108,7 +6169,9 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			if boolean, ok := toBooleanWithoutSideEffects(s.Test.Data); ok && boolean {
 				test = nil
 			}
-			stmt = ast.Stmt{Loc: stmt.Loc, Data: &ast.SFor{Test: test, Body: s.Body}}
+			forS := &ast.SFor{Test: test, Body: s.Body}
+			mangleFor(forS)
+			stmt = ast.Stmt{Loc: stmt.Loc, Data: forS}
 		}
 
 	case *ast.SDoWhile:
@@ -6177,6 +6240,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 		s.Body = p.visitSingleStmt(s.Body)
 		p.popScope()
+
+		if p.MangleSyntax {
+			mangleFor(s)
+		}
 
 	case *ast.SForIn:
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
@@ -7617,7 +7684,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
 
-		// Post-process the binary expression
+		// Post-process the unary expression
 		switch e.Op {
 		case ast.UnOpNot:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Value.Data); ok {

@@ -1347,6 +1347,23 @@ func TestMangleFor(t *testing.T) {
 
 	expectPrintedMangle(t, "a(); while (1) ;", "for (a(); ; )\n  ;\n")
 	expectPrintedMangle(t, "a(); for (b();;) ;", "for (a(), b(); ; )\n  ;\n")
+
+	expectPrintedMangle(t, "for (; ;) if (x) break;", "for (; !x; )\n  ;\n")
+	expectPrintedMangle(t, "for (; ;) if (!x) break;", "for (; x; )\n  ;\n")
+	expectPrintedMangle(t, "for (; a;) if (x) break;", "for (; a && !x; )\n  ;\n")
+	expectPrintedMangle(t, "for (; a;) if (!x) break;", "for (; a && x; )\n  ;\n")
+	expectPrintedMangle(t, "for (; ;) { if (x) break; y(); }", "for (; !x; )\n  y();\n")
+	expectPrintedMangle(t, "for (; a;) { if (x) break; y(); }", "for (; a && !x; )\n  y();\n")
+	expectPrintedMangle(t, "for (; ;) if (x) break; else y();", "for (; !x; )\n  y();\n")
+	expectPrintedMangle(t, "for (; a;) if (x) break; else y();", "for (; a && !x; )\n  y();\n")
+	expectPrintedMangle(t, "for (; ;) { if (x) break; else y(); z(); }", "for (; !x; )\n  y(), z();\n")
+	expectPrintedMangle(t, "for (; a;) { if (x) break; else y(); z(); }", "for (; a && !x; )\n  y(), z();\n")
+	expectPrintedMangle(t, "for (; ;) if (x) y(); else break;", "for (; x; )\n  y();\n")
+	expectPrintedMangle(t, "for (; ;) if (!x) y(); else break;", "for (; !x; )\n  y();\n")
+	expectPrintedMangle(t, "for (; a;) if (x) y(); else break;", "for (; a && x; )\n  y();\n")
+	expectPrintedMangle(t, "for (; a;) if (!x) y(); else break;", "for (; a && !x; )\n  y();\n")
+	expectPrintedMangle(t, "for (; ;) { if (x) y(); else break; z(); }", "for (; x; ) {\n  y();\n  z();\n}\n")
+	expectPrintedMangle(t, "for (; a;) { if (x) y(); else break; z(); }", "for (; a && x; ) {\n  y();\n  z();\n}\n")
 }
 
 func TestMangleUndefined(t *testing.T) {

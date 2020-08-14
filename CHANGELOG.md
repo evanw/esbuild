@@ -21,6 +21,7 @@
     * `a && (b && c)` is minified to `a && b && c` (same for `||`)
     * `typeof a === "string"` is minified to `typeof a == "string"`
     * `if (a) if (b) return c` is minified to `if (a && b) return c`
+    * `while (a) if (!b) break;` is minified to `for (; a && b; ) ;`
 
     These improvements cause minified code to be slightly smaller.
 
