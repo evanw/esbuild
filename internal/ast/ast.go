@@ -663,6 +663,35 @@ func AssignStmt(a Expr, b Expr) Stmt {
 	return Stmt{a.Loc, &SExpr{Expr{a.Loc, &EBinary{BinOpAssign, a, b}}}}
 }
 
+func Not(a Expr) Expr {
+	// "!!!a" => "!a"
+	if not, ok := a.Data.(*EUnary); ok && not.Op == UnOpNot && IsBooleanValue(not.Value) {
+		return not.Value
+	}
+	return Expr{a.Loc, &EUnary{UnOpNot, a}}
+}
+
+func IsBooleanValue(a Expr) bool {
+	switch e := a.Data.(type) {
+	case *EBoolean:
+		return true
+	case *EUnary:
+		return e.Op == UnOpNot || e.Op == UnOpDelete
+	case *EBinary:
+		switch e.Op {
+		case BinOpStrictEq, BinOpStrictNe, BinOpLooseEq, BinOpLooseNe,
+			BinOpLt, BinOpGt, BinOpLe, BinOpGe,
+			BinOpInstanceof, BinOpIn:
+			return true
+		case BinOpLogicalOr, BinOpLogicalAnd:
+			return IsBooleanValue(e.Left) && IsBooleanValue(e.Right)
+		case BinOpNullishCoalescing:
+			return IsBooleanValue(e.Left)
+		}
+	}
+	return false
+}
+
 func JoinWithComma(a Expr, b Expr) Expr {
 	return Expr{a.Loc, &EBinary{BinOpComma, a, b}}
 }

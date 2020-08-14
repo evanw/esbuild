@@ -5808,7 +5808,7 @@ func mangleFor(s *ast.SFor) {
 			if unary, ok := ifS.Test.Data.(*ast.EUnary); ok && unary.Op == ast.UnOpNot {
 				not = unary.Value
 			} else {
-				not = ast.Expr{Loc: ifS.Test.Loc, Data: &ast.EUnary{Op: ast.UnOpNot, Value: ifS.Test}}
+				not = ast.Not(ifS.Test)
 			}
 			if s.Test != nil {
 				s.Test = &ast.Expr{Loc: s.Test.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: *s.Test, Right: not}}
@@ -5973,6 +5973,19 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 			return e.Yes
 		}
 		return ast.JoinWithComma(e.Test, e.Yes)
+	}
+
+	// "a ? true : false" => "!!a"
+	// "a ? false : true" => "!a"
+	if yes, ok := e.Yes.Data.(*ast.EBoolean); ok {
+		if no, ok := e.No.Data.(*ast.EBoolean); ok {
+			if yes.Value && !no.Value {
+				return ast.Not(ast.Not(e.Test))
+			}
+			if !yes.Value && no.Value {
+				return ast.Not(e.Test)
+			}
+		}
 	}
 
 	// "a ? a : b" => "a || b"
@@ -7748,6 +7761,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.UnOpNot:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Value.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !boolean}}, exprOut{}
+			}
+
+			// "!!!a" => "!a"
+			if not, ok := e.Value.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot && ast.IsBooleanValue(not.Value) {
+				return not.Value, exprOut{}
 			}
 
 		case ast.UnOpVoid:
