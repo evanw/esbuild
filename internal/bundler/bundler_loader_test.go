@@ -16,10 +16,7 @@ func TestLoaderFile(t *testing.T) {
 			"/entry.js": `
 				console.log(require('./test.svg'))
 			`,
-
-			// "<svg>$</svg>" generates the file name "test.1HOBn/hi.svg" if the
-			// standard base64 encoding is used instead of the URL base64 encoding
-			"/test.svg": "<svg>$</svg>",
+			"/test.svg": "<svg></svg>",
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{

@@ -180,7 +180,7 @@ let buildTests = {
     const makePath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
 
     // Check outputs
-    const chunk = 'chunk.zIqPdeGN.js';
+    const chunk = 'chunk.ZSFI65PB.js';
     assert.deepStrictEqual(json.outputs[makePath(path.basename(entry1))].imports, [{ path: makePath(chunk) }])
     assert.deepStrictEqual(json.outputs[makePath(path.basename(entry2))].imports, [{ path: makePath(chunk) }])
     assert.deepStrictEqual(json.outputs[makePath(chunk)].imports, [])
@@ -232,7 +232,7 @@ let buildTests = {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk.ELHpQs8z.js'
+    const chunk = 'chunk.CCY6SQWP.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "./${chunk}";
@@ -282,7 +282,7 @@ export {
     assert.strictEqual(value.outputFiles.length, 3)
 
     // These should all use forward slashes, even on Windows
-    const chunk = 'chunk.7QUqUGms.js'
+    const chunk = 'chunk.5UCSUUDJ.js'
     assert.strictEqual(Buffer.from(value.outputFiles[0].contents).toString(), `import {
   common_default
 } from "../${chunk}";

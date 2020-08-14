@@ -2,7 +2,6 @@ package bundler
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"path"
@@ -3202,8 +3201,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 				// Figure out the base name for the source map which may include the content hash
 				var sourceMapBaseName string
 				if chunk.baseNameOrEmpty == "" {
-					hashBytes := sha1.Sum(sourceMap)
-					hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+					hash := hashForFileName(sourceMap)
 					sourceMapBaseName = "chunk." + hash + c.options.OutputExtensionFor(".js") + ".map"
 				} else {
 					sourceMapBaseName = chunk.baseNameOrEmpty + ".map"
@@ -3229,8 +3227,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 
 		// Figure out the base name for this chunk now that the content hash is known
 		if chunk.baseNameOrEmpty == "" {
-			hashBytes := sha1.Sum(jsContents)
-			hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+			hash := hashForFileName(jsContents)
 			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionFor(".js")
 		}
 

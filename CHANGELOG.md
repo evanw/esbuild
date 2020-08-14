@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Switch from base64 encoding to base32 encoding for file hashes
+
+    Certain output files contain hashes in their name both to prevent collisions and to improve caching. For example, an SVG file named `example.svg` that is loaded using the `file` loader might be copied to a file named `example.T3K5TRK4.svg` in the build directory. The hashes are based on the file's contents so they only change when the file content itself changes.
+
+    The hashes previously used [base64 encoding](https://en.wikipedia.org/wiki/Base64) but I recently realized that since certain file systems (e.g. Windows) are case-insensitive, this could lead to confusing situations where esbuild could theoretically generate two files with different case-sensitive names but with the same case-insensitive name. Hashes now use [base32 encoding](https://en.wikipedia.org/wiki/Base32) which only includes uppercase letters, not lowercase letters, which should avoid this confusing situation.
+
 ## 0.6.23
 
 * Add an error message for a missing `--tsconfig` file ([#330](https://github.com/evanw/esbuild/issues/330))

@@ -3,6 +3,7 @@ package bundler
 import (
 	"bytes"
 	"crypto/sha1"
+	"encoding/base32"
 	"encoding/base64"
 	"fmt"
 	"mime"
@@ -208,9 +209,7 @@ func parseFile(args parseArgs) {
 	case config.LoaderFile:
 		// Add a hash to the file name to prevent multiple files with the same name
 		// but different contents from colliding
-		bytes := []byte(source.Contents)
-		hashBytes := sha1.Sum(bytes)
-		hash := base64.URLEncoding.EncodeToString(hashBytes[:])[:8]
+		hash := hashForFileName([]byte(source.Contents))
 		ext := path.Ext(args.baseName)
 		baseName := args.baseName[:len(args.baseName)-len(ext)] + "." + hash + ext
 
@@ -384,6 +383,11 @@ func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base st
 // file system paths.
 func lowerCaseAbsPathForWindows(absPath string) string {
 	return strings.ToLower(absPath)
+}
+
+func hashForFileName(bytes []byte) string {
+	hashBytes := sha1.Sum(bytes)
+	return base32.StdEncoding.EncodeToString(hashBytes[:])[:8]
 }
 
 func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
