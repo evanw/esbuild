@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.23
 
 * Add an error message for a missing `--tsconfig` file ([#330](https://github.com/evanw/esbuild/issues/330))
 
