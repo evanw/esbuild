@@ -7163,6 +7163,18 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			p.checkForTypeofAndString(e.Left, e.Right)
 			p.checkForTypeofAndString(e.Right, e.Left)
 
+			if p.MangleSyntax {
+				// "void 0 == x" => "null == x"
+				if _, ok := e.Left.Data.(*ast.EUndefined); ok {
+					e.Left.Data = &ast.ENull{}
+				}
+
+				// "x == void 0" => "x == null"
+				if _, ok := e.Right.Data.(*ast.EUndefined); ok {
+					e.Right.Data = &ast.ENull{}
+				}
+			}
+
 		case ast.BinOpStrictEq:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: result}}, exprOut{}
@@ -7186,6 +7198,18 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 			p.checkForTypeofAndString(e.Left, e.Right)
 			p.checkForTypeofAndString(e.Right, e.Left)
+
+			if p.MangleSyntax {
+				// "void 0 != x" => "null != x"
+				if _, ok := e.Left.Data.(*ast.EUndefined); ok {
+					e.Left.Data = &ast.ENull{}
+				}
+
+				// "x != void 0" => "x != null"
+				if _, ok := e.Right.Data.(*ast.EUndefined); ok {
+					e.Right.Data = &ast.ENull{}
+				}
+			}
 
 		case ast.BinOpStrictNe:
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {

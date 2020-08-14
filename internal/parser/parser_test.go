@@ -1510,6 +1510,18 @@ func TestMangleNestedLogical(t *testing.T) {
 	expectPrintedMangle(t, "a || (b && c)", "a || b && c;\n")
 }
 
+func TestMangleEqualsUndefined(t *testing.T) {
+	expectPrintedMangle(t, "a === void 0", "a === void 0;\n")
+	expectPrintedMangle(t, "a !== void 0", "a !== void 0;\n")
+	expectPrintedMangle(t, "void 0 === a", "void 0 === a;\n")
+	expectPrintedMangle(t, "void 0 !== a", "void 0 !== a;\n")
+
+	expectPrintedMangle(t, "a == void 0", "a == null;\n")
+	expectPrintedMangle(t, "a != void 0", "a != null;\n")
+	expectPrintedMangle(t, "void 0 == a", "null == a;\n")
+	expectPrintedMangle(t, "void 0 != a", "null != a;\n")
+}
+
 func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "null", "")
 	expectPrintedMangle(t, "void 0", "")
