@@ -1396,6 +1396,7 @@ func TestMangleBlock(t *testing.T) {
 func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "1 ? a() : b()", "a();\n")
 	expectPrintedMangle(t, "0 ? a() : b()", "b();\n")
+	expectPrintedMangle(t, "a ? a : b", "a || b;\n")
 	expectPrintedMangle(t, "a ? b() : c()", "a ? b() : c();\n")
 	expectPrintedMangle(t, "!a ? b() : c()", "a ? c() : b();\n")
 	expectPrintedMangle(t, "!!a ? b() : c()", "a ? b() : c();\n")
@@ -1429,6 +1430,8 @@ func TestMangleIf(t *testing.T) {
 }
 
 func TestMangleReturn(t *testing.T) {
+	expectPrintedMangle(t, "function foo() { a = b; if (a) return a; if (b) c = b; return c; }",
+		"function foo() {\n  return a = b, a || (b && (c = b), c);\n}\n")
 	expectPrintedMangle(t, "function foo() { a = b; if (a) return; if (b) c = b; return c; }",
 		"function foo() {\n  return a = b, a ? void 0 : (b && (c = b), c);\n}\n")
 	expectPrintedMangle(t, "function foo() { if (!a) return b; return c; }", "function foo() {\n  return a ? c : b;\n}\n")
@@ -1439,11 +1442,18 @@ func TestMangleReturn(t *testing.T) {
 	expectPrintedMangle(t, "if (!a) return b(); else return c()", "return a ? c() : b();\n")
 	expectPrintedMangle(t, "if (!!a) return b(); else return c()", "return a ? b() : c();\n")
 	expectPrintedMangle(t, "if (!!!a) return b(); else return c()", "return a ? c() : b();\n")
+
+	expectPrintedMangle(t, "if (1) return a(); return b()", "return a();\n")
+	expectPrintedMangle(t, "if (0) return a(); return b()", "return b();\n")
+	expectPrintedMangle(t, "if (a) return b(); return c()", "return a ? b() : c();\n")
+	expectPrintedMangle(t, "if (!a) return b(); return c()", "return a ? c() : b();\n")
+	expectPrintedMangle(t, "if (!!a) return b(); return c()", "return a ? b() : c();\n")
+	expectPrintedMangle(t, "if (!!!a) return b(); return c()", "return a ? c() : b();\n")
 }
 
 func TestMangleThrow(t *testing.T) {
 	expectPrintedMangle(t, "function foo() { a = b; if (a) throw a; if (b) c = b; throw c; }",
-		"function foo() {\n  throw a = b, a ? a : (b && (c = b), c);\n}\n")
+		"function foo() {\n  throw a = b, a || (b && (c = b), c);\n}\n")
 	expectPrintedMangle(t, "function foo() { if (!a) throw b; throw c; }", "function foo() {\n  throw a ? c : b;\n}\n")
 
 	expectPrintedMangle(t, "if (1) throw a(); else throw b()", "throw a();\n")
@@ -1452,6 +1462,13 @@ func TestMangleThrow(t *testing.T) {
 	expectPrintedMangle(t, "if (!a) throw b(); else throw c()", "throw a ? c() : b();\n")
 	expectPrintedMangle(t, "if (!!a) throw b(); else throw c()", "throw a ? b() : c();\n")
 	expectPrintedMangle(t, "if (!!!a) throw b(); else throw c()", "throw a ? c() : b();\n")
+
+	expectPrintedMangle(t, "if (1) throw a(); throw b()", "throw a();\n")
+	expectPrintedMangle(t, "if (0) throw a(); throw b()", "throw b();\n")
+	expectPrintedMangle(t, "if (a) throw b(); throw c()", "throw a ? b() : c();\n")
+	expectPrintedMangle(t, "if (!a) throw b(); throw c()", "throw a ? c() : b();\n")
+	expectPrintedMangle(t, "if (!!a) throw b(); throw c()", "throw a ? b() : c();\n")
+	expectPrintedMangle(t, "if (!!!a) throw b(); throw c()", "throw a ? c() : b();\n")
 }
 
 func TestMangleInitializer(t *testing.T) {

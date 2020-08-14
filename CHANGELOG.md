@@ -12,6 +12,18 @@
 
     The character sequence used to generate minified names is now the characters in the input files sorted descending by frequency. Previously it was just the valid identifier characters in alphabetic order. This means minified names are more likely to contain characters found elsewhere in the output file (e.g. in keywords and strings). This is a pretty small win but it was added because it's a consistent win, it's simple to implement, and it's very fast to compute.
 
+* Minor syntax minification improvements
+
+    This release contains these additional rules for syntax minification:
+
+    * `a ? a : b` is minified to `a || b`
+    * `a == void 0` is minified to `a == null`
+    * `a && (b && c)` is minified to `a && b && c` (same for `||`)
+    * `typeof a === "string"` is minified to `typeof a == "string"`
+    * `if (a) if (b) return c` is minified to `if (a && b) return c`
+
+    These improvements cause minified code to be slightly smaller.
+
 ## 0.6.23
 
 * Add an error message for a missing `--tsconfig` file ([#330](https://github.com/evanw/esbuild/issues/330))

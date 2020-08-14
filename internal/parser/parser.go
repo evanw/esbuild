@@ -5364,7 +5364,13 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 
 	// Merge adjacent statements during mangling
 	result := make([]ast.Stmt, 0, len(visited))
+	isControlFlowDead := false
 	for _, stmt := range visited {
+		if isControlFlowDead && !shouldKeepStmtInDeadControlFlow(stmt) {
+			// Strip unnecessary statements if the control flow is dead here
+			continue
+		}
+
 		switch s := stmt.Data.(type) {
 		case *ast.SEmpty:
 			// Strip empty statements
@@ -5427,6 +5433,8 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 				}
 			}
 
+			isControlFlowDead = true
+
 		case *ast.SThrow:
 			// Merge throw statements with the previous expression statement
 			if len(result) > 0 {
@@ -5436,6 +5444,8 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					continue
 				}
 			}
+
+			isControlFlowDead = true
 
 		case *ast.SFor:
 			if len(result) > 0 {
@@ -5542,11 +5552,12 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					} else {
 						if comma, ok := prevS.Test.Data.(*ast.EBinary); ok && comma.Op == ast.BinOpComma {
 							// "if (a, b) return c; return d;" => "return a, b ? c : d;"
-							value := ast.JoinWithComma(comma.Left, ast.Expr{Loc: comma.Right.Loc, Data: &ast.EIf{Test: comma.Right, Yes: *left, No: *right}})
+							value := ast.JoinWithComma(comma.Left, p.mangleIfExpr(comma.Right.Loc, &ast.EIf{Test: comma.Right, Yes: *left, No: *right}))
 							lastReturn = &ast.SReturn{Value: &value}
 						} else {
 							// "if (a) return b; return c;" => "return a ? b : c;"
-							lastReturn = &ast.SReturn{Value: &ast.Expr{Loc: prevS.Test.Loc, Data: &ast.EIf{Test: prevS.Test, Yes: *left, No: *right}}}
+							value := p.mangleIfExpr(prevS.Test.Loc, &ast.EIf{Test: prevS.Test, Yes: *left, No: *right})
+							lastReturn = &ast.SReturn{Value: &value}
 						}
 					}
 
@@ -5600,10 +5611,10 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					// Merge the last two statements
 					if comma, ok := prevS.Test.Data.(*ast.EBinary); ok && comma.Op == ast.BinOpComma {
 						// "if (a, b) return c; return d;" => "return a, b ? c : d;"
-						lastThrow = &ast.SThrow{Value: ast.JoinWithComma(comma.Left, ast.Expr{Loc: comma.Right.Loc, Data: &ast.EIf{Test: comma.Right, Yes: left, No: right}})}
+						lastThrow = &ast.SThrow{Value: ast.JoinWithComma(comma.Left, p.mangleIfExpr(comma.Right.Loc, &ast.EIf{Test: comma.Right, Yes: left, No: right}))}
 					} else {
 						// "if (a) return b; return c;" => "return a ? b : c;"
-						lastThrow = &ast.SThrow{Value: ast.Expr{Loc: prevS.Test.Loc, Data: &ast.EIf{Test: prevS.Test, Yes: left, No: right}}}
+						lastThrow = &ast.SThrow{Value: p.mangleIfExpr(prevS.Test.Loc, &ast.EIf{Test: prevS.Test, Yes: left, No: right})}
 					}
 					lastStmt = ast.Stmt{Loc: prevStmt.Loc, Data: lastThrow}
 					result[prevIndex] = lastStmt
@@ -5764,21 +5775,12 @@ func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, t
 				}}}}
 			}
 		} else if no, ok := s.No.Data.(*ast.SExpr); ok {
-			if not, ok := s.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
-				// "if (!a) b(); else c();" => "a ? c() : b();"
-				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EIf{
-					Test: not.Value,
-					Yes:  no.Value,
-					No:   yes.Value,
-				}}}}
-			} else {
-				// "if (a) b(); else c();" => "a ? b() : c();"
-				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EIf{
-					Test: s.Test,
-					Yes:  yes.Value,
-					No:   no.Value,
-				}}}}
-			}
+			// "if (a) b(); else c();" => "a ? b() : c();"
+			return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: p.mangleIfExpr(loc, &ast.EIf{
+				Test: s.Test,
+				Yes:  yes.Value,
+				No:   no.Value,
+			})}}
 		}
 	} else if _, ok := s.Yes.Data.(*ast.SEmpty); ok {
 		// "yes" is missing
@@ -5845,6 +5847,23 @@ func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, t
 	}
 
 	return ast.Stmt{Loc: loc, Data: s}
+}
+
+func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
+	// "!a ? b : c" => "a ? c : b"
+	if not, ok := e.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
+		e.Test = not.Value
+		e.Yes, e.No = e.No, e.Yes
+	}
+
+	// "a ? a : b" => "a || b"
+	if id, ok := e.Test.Data.(*ast.EIdentifier); ok {
+		if id2, ok := e.Yes.Data.(*ast.EIdentifier); ok && id.Ref == id2.Ref {
+			return ast.Expr{Loc: loc, Data: &ast.EBinary{Op: ast.BinOpLogicalOr, Left: e.Test, Right: e.No}}
+		}
+	}
+
+	return ast.Expr{Loc: loc, Data: e}
 }
 
 func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt {
@@ -7722,11 +7741,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 		if p.MangleSyntax {
-			// "!a ? b : c" => "a ? c : b"
-			if not, ok := e.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
-				e.Test = not.Value
-				e.Yes, e.No = e.No, e.Yes
-			}
+			return p.mangleIfExpr(expr.Loc, e), exprOut{}
 		}
 
 	case *ast.EAwait:
