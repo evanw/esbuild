@@ -1412,6 +1412,8 @@ func TestMangleIf(t *testing.T) {
 
 	expectPrintedMangle(t, "if (a) {} else throw b", "if (!a)\n  throw b;\n")
 	expectPrintedMangle(t, "if (!a) {} else throw b", "if (a)\n  throw b;\n")
+	expectPrintedMangle(t, "a(); if (b) throw c", "if (a(), b)\n  throw c;\n")
+	expectPrintedMangle(t, "if (a) if (b) throw c", "if (a && b)\n  throw c;\n")
 }
 
 func TestMangleReturn(t *testing.T) {

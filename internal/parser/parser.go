@@ -5391,6 +5391,15 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 			}
 
 		case *ast.SIf:
+			// Absorb a previous expression statement
+			if len(result) > 0 {
+				prevStmt := result[len(result)-1]
+				if prevS, ok := prevStmt.Data.(*ast.SExpr); ok && !ast.IsSuperCall(prevStmt) {
+					s.Test = ast.JoinWithComma(prevS.Value, s.Test)
+					result = result[:len(result)-1]
+				}
+			}
+
 			if isJumpStatement(s.Yes.Data) && s.No != nil {
 				// "if (a) return b; else if (c) return d; else return e;" => "if (a) return b; if (c) return d; return e;"
 				for {
@@ -5531,8 +5540,14 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 						lastValue := ast.JoinWithComma(prevS.Test, *left)
 						lastReturn = &ast.SReturn{Value: &lastValue}
 					} else {
-						// "if (a) return b; return c;" => "return a ? b : c;"
-						lastReturn = &ast.SReturn{Value: &ast.Expr{Loc: prevS.Test.Loc, Data: &ast.EIf{Test: prevS.Test, Yes: *left, No: *right}}}
+						if comma, ok := prevS.Test.Data.(*ast.EBinary); ok && comma.Op == ast.BinOpComma {
+							// "if (a, b) return c; return d;" => "return a, b ? c : d;"
+							value := ast.JoinWithComma(comma.Left, ast.Expr{Loc: comma.Right.Loc, Data: &ast.EIf{Test: comma.Right, Yes: *left, No: *right}})
+							lastReturn = &ast.SReturn{Value: &value}
+						} else {
+							// "if (a) return b; return c;" => "return a ? b : c;"
+							lastReturn = &ast.SReturn{Value: &ast.Expr{Loc: prevS.Test.Loc, Data: &ast.EIf{Test: prevS.Test, Yes: *left, No: *right}}}
+						}
 					}
 
 					// Merge the last two statements
@@ -5583,7 +5598,13 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 					}
 
 					// Merge the last two statements
-					lastThrow = &ast.SThrow{Value: ast.Expr{Loc: prevS.Test.Loc, Data: &ast.EIf{Test: prevS.Test, Yes: left, No: right}}}
+					if comma, ok := prevS.Test.Data.(*ast.EBinary); ok && comma.Op == ast.BinOpComma {
+						// "if (a, b) return c; return d;" => "return a, b ? c : d;"
+						lastThrow = &ast.SThrow{Value: ast.JoinWithComma(comma.Left, ast.Expr{Loc: comma.Right.Loc, Data: &ast.EIf{Test: comma.Right, Yes: left, No: right}})}
+					} else {
+						// "if (a) return b; return c;" => "return a ? b : c;"
+						lastThrow = &ast.SThrow{Value: ast.Expr{Loc: prevS.Test.Loc, Data: &ast.EIf{Test: prevS.Test, Yes: left, No: right}}}
+					}
 					lastStmt = ast.Stmt{Loc: prevStmt.Loc, Data: lastThrow}
 					result[prevIndex] = lastStmt
 					result = result[:len(result)-1]
@@ -5808,6 +5829,17 @@ func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, t
 				// "if (!a) return b; else return c;" => "if (a) return c; else return b;"
 				s.Test = not.Value
 				s.Yes, *s.No = *s.No, s.Yes
+			}
+		} else {
+			// "no" is missing
+			if s2, ok := s.Yes.Data.(*ast.SIf); ok && s2.No == nil {
+				// "if (a) if (b) return c;" => "if (a && b) return c;"
+				s.Test.Data = &ast.EBinary{
+					Op:    ast.BinOpLogicalAnd,
+					Left:  s.Test,
+					Right: s2.Test,
+				}
+				s.Yes = s2.Yes
 			}
 		}
 	}
