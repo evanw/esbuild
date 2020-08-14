@@ -7237,6 +7237,14 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				}
 			}
 
+			if p.MangleSyntax {
+				// "a || (b || c)" => "a || b || c"
+				if right, ok := e.Right.Data.(*ast.EBinary); ok && right.Op == ast.BinOpLogicalOr {
+					e.Left.Data = &ast.EBinary{Op: ast.BinOpLogicalOr, Left: e.Left, Right: right.Left}
+					e.Right = right.Right
+				}
+			}
+
 		case ast.BinOpLogicalAnd:
 			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok {
 				if boolean {
@@ -7249,6 +7257,14 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					return e.Right, exprOut{}
 				} else {
 					return e.Left, exprOut{}
+				}
+			}
+
+			if p.MangleSyntax {
+				// "a && (b && c)" => "a && b && c"
+				if right, ok := e.Right.Data.(*ast.EBinary); ok && right.Op == ast.BinOpLogicalAnd {
+					e.Left.Data = &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: e.Left, Right: right.Left}
+					e.Right = right.Right
 				}
 			}
 

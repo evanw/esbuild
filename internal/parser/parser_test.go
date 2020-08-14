@@ -1498,6 +1498,18 @@ func TestMangleTypeofEquals(t *testing.T) {
 	expectPrintedMangle(t, "'string' !== typeof x", "\"string\" != typeof x;\n")
 }
 
+func TestMangleNestedLogical(t *testing.T) {
+	expectPrintedMangle(t, "(a && b) && c", "a && b && c;\n")
+	expectPrintedMangle(t, "a && (b && c)", "a && b && c;\n")
+	expectPrintedMangle(t, "(a || b) && c", "(a || b) && c;\n")
+	expectPrintedMangle(t, "a && (b || c)", "a && (b || c);\n")
+
+	expectPrintedMangle(t, "(a || b) || c", "a || b || c;\n")
+	expectPrintedMangle(t, "a || (b || c)", "a || b || c;\n")
+	expectPrintedMangle(t, "(a && b) || c", "a && b || c;\n")
+	expectPrintedMangle(t, "a || (b && c)", "a || b && c;\n")
+}
+
 func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "null", "")
 	expectPrintedMangle(t, "void 0", "")
