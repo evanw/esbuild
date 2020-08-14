@@ -8028,6 +8028,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	case *ast.EFunction:
 		p.visitFn(&e.Fn, expr.Loc)
 
+		// Remove unused function names when minifying
+		if p.MangleSyntax && e.Fn.Name != nil && p.symbols[e.Fn.Name.Ref.InnerIndex].UseCountEstimate == 0 {
+			e.Fn.Name = nil
+		}
+
 	case *ast.EClass:
 		if e.Class.Name != nil {
 			p.pushScopeForVisitPass(ast.ScopeClassName, expr.Loc)
@@ -8035,6 +8040,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		p.visitClass(&e.Class)
 		if e.Class.Name != nil {
 			p.popScope()
+		}
+
+		// Remove unused class names when minifying
+		if p.MangleSyntax && e.Class.Name != nil && p.symbols[e.Class.Name.Ref.InnerIndex].UseCountEstimate == 0 {
+			e.Class.Name = nil
 		}
 
 		// Lower class field syntax for browsers that don't support it
