@@ -1507,6 +1507,9 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "let a, b; a ? b.y(c) : b.y(d)", "let a, b;\na ? b.y(c) : b.y(d);\n")
 	expectPrintedMangle(t, "let a, b; a.x ? b.y(c) : b.y(d)", "let a, b;\na.x ? b.y(c) : b.y(d);\n")
 
+	expectPrintedMangle(t, "a ? b : c ? b : d", "a || c ? b : d;\n")
+	expectPrintedMangle(t, "a ? b ? c : d : d", "a && b ? c : d;\n")
+
 	expectPrintedMangle(t, "a ? b : b", "a, b;\n")
 	expectPrintedMangle(t, "let a; a ? b : b", "let a;\nb;\n")
 

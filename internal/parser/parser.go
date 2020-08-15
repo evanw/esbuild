@@ -5994,6 +5994,20 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 		}
 	}
 
+	// "a ? b ? c : d : d" => "a && b ? c : d"
+	if yesIf, ok := e.Yes.Data.(*ast.EIf); ok && valuesLookTheSame(yesIf.No.Data, e.No.Data) {
+		e.Test.Data = &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: e.Test, Right: yesIf.Test}
+		e.Yes = yesIf.Yes
+		return ast.Expr{Loc: loc, Data: e}
+	}
+
+	// "a ? b : c ? b : d" => "a || c ? b : d"
+	if noIf, ok := e.No.Data.(*ast.EIf); ok && valuesLookTheSame(e.Yes.Data, noIf.Yes.Data) {
+		e.Test.Data = &ast.EBinary{Op: ast.BinOpLogicalOr, Left: e.Test, Right: noIf.Test}
+		e.No = noIf.No
+		return ast.Expr{Loc: loc, Data: e}
+	}
+
 	// "a ? b(c, d) : b(e, d)" => "b(a ? c : e, d)"
 	if y, ok := e.Yes.Data.(*ast.ECall); ok && len(y.Args) > 0 {
 		if n, ok := e.No.Data.(*ast.ECall); ok && len(n.Args) == len(y.Args) &&

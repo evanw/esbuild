@@ -22,6 +22,8 @@
     * `a && (b && c)` is minified to `a && b && c` (same for `||`)
     * `a ? b(c) : b(d)` is minified to `b(a ? c : d)`
     * `a ? true : false` is minified to `!!a`
+    * `a ? (b ? c : d) : d` is minified to `(a && b) ? c : d`
+    * `a ? b : (c ? b : d)` is minified to `(a || c) ? b : d`
     * `(function foo() {})` is minified to `(function() {})`
     * `typeof a === "string"` is minified to `typeof a == "string"`
     * `if (a) if (b) return c` is minified to `if (a && b) return c`
