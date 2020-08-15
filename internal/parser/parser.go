@@ -6087,9 +6087,10 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 	if y, ok := e.Yes.Data.(*ast.ECall); ok && len(y.Args) > 0 {
 		if n, ok := e.No.Data.(*ast.ECall); ok && len(n.Args) == len(y.Args) &&
 			y.HasSameFlagsAs(n) && valuesLookTheSame(y.Target.Data, n.Target.Data) {
-			// Only do this if the condition can be reordered without side effects. For
-			// example, if the test is an unbound identifier, reordering could
-			// potentially mean a ReferenceError would no longer be thrown.
+			// Only do this if the condition can be reordered past the call target
+			// without side effects. For example, if the test or the call target is
+			// an unbound identifier, reordering could potentially mean evaluating
+			// the code could throw a different ReferenceError.
 			if p.exprCanBeRemovedIfUnused(e.Test) && p.exprCanBeRemovedIfUnused(y.Target) {
 				sameTailArgs := true
 				for i, count := 1, len(y.Args); i < count; i++ {
@@ -6099,10 +6100,24 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 					}
 				}
 				if sameTailArgs {
-					e.Yes = y.Args[0]
-					e.No = n.Args[0]
-					y.Args[0] = ast.Expr{Loc: loc, Data: e}
-					return ast.Expr{Loc: loc, Data: y}
+					yesSpread, yesIsSpread := y.Args[0].Data.(*ast.ESpread)
+					noSpread, noIsSpread := n.Args[0].Data.(*ast.ESpread)
+
+					// "a ? b(...c) : b(...e)" => "b(...a ? c : e)"
+					if yesIsSpread && noIsSpread {
+						e.Yes = yesSpread.Value
+						e.No = noSpread.Value
+						y.Args[0] = ast.Expr{Loc: loc, Data: &ast.ESpread{Value: ast.Expr{Loc: loc, Data: e}}}
+						return ast.Expr{Loc: loc, Data: y}
+					}
+
+					// "a ? b(c) : b(e)" => "b(a ? c : e)"
+					if !yesIsSpread && !noIsSpread {
+						e.Yes = y.Args[0]
+						e.No = n.Args[0]
+						y.Args[0] = ast.Expr{Loc: loc, Data: e}
+						return ast.Expr{Loc: loc, Data: y}
+					}
 				}
 			}
 		}
