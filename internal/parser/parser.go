@@ -6032,6 +6032,24 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 		return ast.Expr{Loc: loc, Data: e}
 	}
 
+	// "a ? c : (b, c)" => "(a || b), c"
+	if comma, ok := e.No.Data.(*ast.EBinary); ok && comma.Op == ast.BinOpComma && valuesLookTheSame(e.Yes.Data, comma.Right.Data) {
+		return ast.JoinWithComma(ast.Expr{Loc: loc, Data: &ast.EBinary{
+			Op:    ast.BinOpLogicalOr,
+			Left:  e.Test,
+			Right: comma.Left,
+		}}, comma.Right)
+	}
+
+	// "a ? (b, c) : c" => "(a && b), c"
+	if comma, ok := e.Yes.Data.(*ast.EBinary); ok && comma.Op == ast.BinOpComma && valuesLookTheSame(comma.Right.Data, e.No.Data) {
+		return ast.JoinWithComma(ast.Expr{Loc: loc, Data: &ast.EBinary{
+			Op:    ast.BinOpLogicalAnd,
+			Left:  e.Test,
+			Right: comma.Left,
+		}}, comma.Right)
+	}
+
 	// "a ? b || c : c" => "(a && b) || c"
 	if binary, ok := e.Yes.Data.(*ast.EBinary); ok && binary.Op == ast.BinOpLogicalOr &&
 		valuesLookTheSame(binary.Right.Data, e.No.Data) {

@@ -1525,6 +1525,11 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "a ? b : c ? b : d", "a || c ? b : d;\n")
 	expectPrintedMangle(t, "a ? b ? c : d : d", "a && b ? c : d;\n")
 
+	expectPrintedMangle(t, "a ? c : (b, c)", "a || b, c;\n")
+	expectPrintedMangle(t, "a ? (b, c) : c", "a && b, c;\n")
+	expectPrintedMangle(t, "a ? c : (b, d)", "a ? c : (b, d);\n")
+	expectPrintedMangle(t, "a ? (b, c) : d", "a ? (b, c) : d;\n")
+
 	expectPrintedMangle(t, "a ? b || c : c", "a && b || c;\n")
 	expectPrintedMangle(t, "a ? b || c : d", "a ? b || c : d;\n")
 	expectPrintedMangle(t, "a ? b && c : c", "a ? b && c : c;\n")
