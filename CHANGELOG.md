@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.24
 
 * Switch from base64 encoding to base32 encoding for file hashes
 
