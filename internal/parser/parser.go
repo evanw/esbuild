@@ -6033,6 +6033,45 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 		}
 	}
 
+	// Try using the "??" operator, but only if it's supported
+	if !p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
+		if binary, ok := e.Test.Data.(*ast.EBinary); ok {
+			switch binary.Op {
+			case ast.BinOpLooseEq:
+				// "a == null ? b : a" => "a ?? b"
+				if _, ok := binary.Right.Data.(*ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Left) && valuesLookTheSame(binary.Left.Data, e.No.Data) {
+					binary.Op = ast.BinOpNullishCoalescing
+					binary.Right = e.Yes
+					return ast.Expr{Loc: loc, Data: binary}
+				}
+
+				// "null == a ? b : a" => "a ?? b"
+				if _, ok := binary.Left.Data.(*ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Right) && valuesLookTheSame(binary.Right.Data, e.No.Data) {
+					binary.Op = ast.BinOpNullishCoalescing
+					binary.Left = binary.Right
+					binary.Right = e.Yes
+					return ast.Expr{Loc: loc, Data: binary}
+				}
+
+			case ast.BinOpLooseNe:
+				// "a != null ? a : b" => "a ?? b"
+				if _, ok := binary.Right.Data.(*ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Left) && valuesLookTheSame(binary.Left.Data, e.Yes.Data) {
+					binary.Op = ast.BinOpNullishCoalescing
+					binary.Right = e.No
+					return ast.Expr{Loc: loc, Data: binary}
+				}
+
+				// "null != a ? a : b" => "a ?? b"
+				if _, ok := binary.Left.Data.(*ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Right) && valuesLookTheSame(binary.Right.Data, e.Yes.Data) {
+					binary.Op = ast.BinOpNullishCoalescing
+					binary.Left = binary.Right
+					binary.Right = e.No
+					return ast.Expr{Loc: loc, Data: binary}
+				}
+			}
+		}
+	}
+
 	return ast.Expr{Loc: loc, Data: e}
 }
 

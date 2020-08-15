@@ -22,6 +22,7 @@
     * `a && (b && c)` is minified to `a && b && c` (same for `||`)
     * `a ? b(c) : b(d)` is minified to `b(a ? c : d)`
     * `a ? true : false` is minified to `!!a`
+    * `a != null ? a : b` is minified to `a ?? b` if it's supported in the target environment
     * `a ? (b ? c : d) : d` is minified to `(a && b) ? c : d`
     * `a ? b : (c ? b : d)` is minified to `(a || c) ? b : d`
     * `(function foo() {})` is minified to `(function() {})`

@@ -314,7 +314,7 @@ demo/preact-splitting:
 test-preact-splitting: esbuild | demo/preact-splitting
 	cd demo/preact-splitting && rm -fr out && ../../esbuild --bundle --splitting --format=esm src/*.js --outdir=out --out-extension:.js=.mjs
 	cd demo/preact-splitting && for h in $(PREACT_HOOKS); do set -e && node --experimental-modules out/$$h.mjs; done
-	cd demo/preact-splitting && rm -fr out && ../../esbuild --bundle --splitting --format=esm src/*.js --outdir=out --out-extension:.js=.mjs --minify
+	cd demo/preact-splitting && rm -fr out && ../../esbuild --bundle --splitting --format=esm src/*.js --outdir=out --out-extension:.js=.mjs --minify --target=node12
 	cd demo/preact-splitting && for h in $(PREACT_HOOKS); do set -e && node --experimental-modules out/$$h.mjs; done
 
 ################################################################################
