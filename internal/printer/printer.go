@@ -2798,9 +2798,9 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("break")
-		if s.Name != nil {
+		if s.Label != nil {
 			p.print(" ")
-			p.printSymbol(s.Name.Ref)
+			p.printSymbol(s.Label.Ref)
 		}
 		p.printSemicolonAfterStatement()
 
@@ -2808,9 +2808,9 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("continue")
-		if s.Name != nil {
+		if s.Label != nil {
 			p.print(" ")
-			p.printSymbol(s.Name.Ref)
+			p.printSymbol(s.Label.Ref)
 		}
 		p.printSemicolonAfterStatement()
 

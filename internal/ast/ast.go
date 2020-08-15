@@ -955,11 +955,11 @@ type SLocal struct {
 }
 
 type SBreak struct {
-	Name *LocRef
+	Label *LocRef
 }
 
 type SContinue struct {
-	Name *LocRef
+	Label *LocRef
 }
 
 func (*SBlock) isStmt()         {}

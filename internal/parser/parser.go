@@ -4895,13 +4895,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Next()
 		name := p.parseLabelName()
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{Loc: loc, Data: &ast.SBreak{Name: name}}
+		return ast.Stmt{Loc: loc, Data: &ast.SBreak{Label: name}}
 
 	case lexer.TContinue:
 		p.lexer.Next()
 		name := p.parseLabelName()
 		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{Loc: loc, Data: &ast.SContinue{Name: name}}
+		return ast.Stmt{Loc: loc, Data: &ast.SContinue{Label: name}}
 
 	case lexer.TReturn:
 		p.lexer.Next()
@@ -5810,7 +5810,7 @@ func mangleFor(s *ast.SFor) {
 		// "for (; a;) if (x) break;" => "for (; a && !x;) ;"
 		// "for (;;) if (x) break; else y();" => "for (; !x;) y();"
 		// "for (; a;) if (x) break; else y();" => "for (; a && !x;) y();"
-		if breakS, ok := ifS.Yes.Data.(*ast.SBreak); ok && breakS.Name == nil {
+		if breakS, ok := ifS.Yes.Data.(*ast.SBreak); ok && breakS.Label == nil {
 			var not ast.Expr
 			if unary, ok := ifS.Test.Data.(*ast.EUnary); ok && unary.Op == ast.UnOpNot {
 				not = unary.Value
@@ -5829,7 +5829,7 @@ func mangleFor(s *ast.SFor) {
 		// "for (;;) if (x) y(); else break;" => "for (; x;) y();"
 		// "for (; a;) if (x) y(); else break;" => "for (; a && x;) y();"
 		if ifS.No != nil {
-			if breakS, ok := ifS.No.Data.(*ast.SBreak); ok && breakS.Name == nil {
+			if breakS, ok := ifS.No.Data.(*ast.SBreak); ok && breakS.Label == nil {
 				if s.Test != nil {
 					s.Test = &ast.Expr{Loc: s.Test.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: *s.Test, Right: ifS.Test}}
 				} else {
@@ -6260,15 +6260,15 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	case *ast.SBreak:
-		if s.Name != nil {
-			name := p.loadNameFromRef(s.Name.Ref)
-			s.Name.Ref = p.findLabelSymbol(s.Name.Loc, name)
+		if s.Label != nil {
+			name := p.loadNameFromRef(s.Label.Ref)
+			s.Label.Ref = p.findLabelSymbol(s.Label.Loc, name)
 		}
 
 	case *ast.SContinue:
-		if s.Name != nil {
-			name := p.loadNameFromRef(s.Name.Ref)
-			s.Name.Ref = p.findLabelSymbol(s.Name.Loc, name)
+		if s.Label != nil {
+			name := p.loadNameFromRef(s.Label.Ref)
+			s.Label.Ref = p.findLabelSymbol(s.Label.Loc, name)
 		}
 
 	case *ast.SLabel:
