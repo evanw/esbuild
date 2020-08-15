@@ -7226,6 +7226,32 @@ func (p *parser) valueForThis(loc ast.Loc) (ast.Expr, bool) {
 	return ast.Expr{}, false
 }
 
+func isBinaryNullAndUndefined(left ast.Expr, right ast.Expr, op ast.OpCode) (ast.Expr, ast.Expr, bool) {
+	if a, ok := left.Data.(*ast.EBinary); ok && a.Op == op {
+		if b, ok := right.Data.(*ast.EBinary); ok && b.Op == op {
+			if idA, ok := a.Left.Data.(*ast.EIdentifier); ok {
+				if idB, ok := b.Left.Data.(*ast.EIdentifier); ok && idA.Ref == idB.Ref {
+					// "a === null || a === void 0"
+					if _, ok := a.Right.Data.(*ast.ENull); ok {
+						if _, ok := b.Right.Data.(*ast.EUndefined); ok {
+							return a.Left, a.Right, true
+						}
+					}
+
+					// "a === void 0 || a === null"
+					if _, ok := a.Right.Data.(*ast.EUndefined); ok {
+						if _, ok := b.Right.Data.(*ast.ENull); ok {
+							return b.Left, b.Right, true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return ast.Expr{}, ast.Expr{}, false
+}
+
 func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
@@ -7508,6 +7534,13 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					e.Left.Data = &ast.EBinary{Op: ast.BinOpLogicalOr, Left: e.Left, Right: right.Left}
 					e.Right = right.Right
 				}
+
+				// "a === null || a === undefined" => "a == null"
+				if left, right, ok := isBinaryNullAndUndefined(e.Left, e.Right, ast.BinOpStrictEq); ok {
+					e.Op = ast.BinOpLooseEq
+					e.Left = left
+					e.Right = right
+				}
 			}
 
 		case ast.BinOpLogicalAnd:
@@ -7530,6 +7563,13 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				if right, ok := e.Right.Data.(*ast.EBinary); ok && right.Op == ast.BinOpLogicalAnd {
 					e.Left.Data = &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: e.Left, Right: right.Left}
 					e.Right = right.Right
+				}
+
+				// "a !== null && a !== undefined" => "a != null"
+				if left, right, ok := isBinaryNullAndUndefined(e.Left, e.Right, ast.BinOpStrictNe); ok {
+					e.Op = ast.BinOpLooseNe
+					e.Left = left
+					e.Right = right
 				}
 			}
 

@@ -1535,6 +1535,9 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "let b; a = null === b ? c : b", "let b;\na = b === null ? c : b;\n")
 	expectPrintedMangle(t, "let b; a = null !== b ? b : c", "let b;\na = b !== null ? b : c;\n")
 
+	expectPrintedMangle(t, "let b; a = null === b || b === undefined ? c : b", "let b;\na = b ?? c;\n")
+	expectPrintedMangle(t, "let b; a = b !== undefined && b !== null ? b : c", "let b;\na = b ?? c;\n")
+
 	expectPrintedMangle(t, "a ? b : b", "a, b;\n")
 	expectPrintedMangle(t, "let a; a ? b : b", "let a;\nb;\n")
 
@@ -1666,6 +1669,30 @@ func TestMangleEqualsUndefined(t *testing.T) {
 	expectPrintedMangle(t, "a != void 0", "a != null;\n")
 	expectPrintedMangle(t, "void 0 == a", "a == null;\n")
 	expectPrintedMangle(t, "void 0 != a", "a != null;\n")
+
+	expectPrintedMangle(t, "a === null || a === undefined", "a == null;\n")
+	expectPrintedMangle(t, "a === null || a !== undefined", "a === null || a !== void 0;\n")
+	expectPrintedMangle(t, "a !== null || a === undefined", "a !== null || a === void 0;\n")
+	expectPrintedMangle(t, "a === null && a === undefined", "a === null && a === void 0;\n")
+	expectPrintedMangle(t, "a.x === null || a.x === undefined", "a.x === null || a.x === void 0;\n")
+
+	expectPrintedMangle(t, "a === undefined || a === null", "a == null;\n")
+	expectPrintedMangle(t, "a === undefined || a !== null", "a === void 0 || a !== null;\n")
+	expectPrintedMangle(t, "a !== undefined || a === null", "a !== void 0 || a === null;\n")
+	expectPrintedMangle(t, "a === undefined && a === null", "a === void 0 && a === null;\n")
+	expectPrintedMangle(t, "a.x === undefined || a.x === null", "a.x === void 0 || a.x === null;\n")
+
+	expectPrintedMangle(t, "a !== null && a !== undefined", "a != null;\n")
+	expectPrintedMangle(t, "a !== null && a === undefined", "a !== null && a === void 0;\n")
+	expectPrintedMangle(t, "a === null && a !== undefined", "a === null && a !== void 0;\n")
+	expectPrintedMangle(t, "a !== null || a !== undefined", "a !== null || a !== void 0;\n")
+	expectPrintedMangle(t, "a.x !== null && a.x !== undefined", "a.x !== null && a.x !== void 0;\n")
+
+	expectPrintedMangle(t, "a !== undefined && a !== null", "a != null;\n")
+	expectPrintedMangle(t, "a !== undefined && a === null", "a !== void 0 && a === null;\n")
+	expectPrintedMangle(t, "a === undefined && a !== null", "a === void 0 && a !== null;\n")
+	expectPrintedMangle(t, "a !== undefined || a !== null", "a !== void 0 || a !== null;\n")
+	expectPrintedMangle(t, "a.x !== undefined && a.x !== null", "a.x !== void 0 && a.x !== null;\n")
 }
 
 func TestMangleUnusedFunctionExpressionNames(t *testing.T) {

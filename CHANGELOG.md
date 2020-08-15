@@ -29,6 +29,7 @@
     * `typeof a === "string"` is minified to `typeof a == "string"`
     * `if (a) if (b) return c` is minified to `if (a && b) return c`
     * `while (a) if (!b) break;` is minified to `for (; a && b; ) ;`
+    * `a === null || a === undefined` is minified to `a == null`
 
     These improvements cause minified code to be slightly smaller.
 
