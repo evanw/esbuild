@@ -5475,7 +5475,7 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 						break
 					}
 				}
-				result = append(result, stmt)
+				result = appendIfBodyPreservingScope(result, stmt)
 				continue
 			}
 
@@ -5842,18 +5842,35 @@ func mangleFor(s *ast.SFor) {
 	}
 }
 
-func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanValue bool) ast.Stmt {
+func appendIfBodyPreservingScope(stmts []ast.Stmt, body ast.Stmt) []ast.Stmt {
+	if block, ok := body.Data.(*ast.SBlock); ok {
+		keepBlock := false
+		for _, stmt := range block.Stmts {
+			if statementCaresAboutScope(stmt) {
+				keepBlock = true
+				break
+			}
+		}
+		if !keepBlock {
+			return append(stmts, block.Stmts...)
+		}
+	}
+
+	if statementCaresAboutScope(body) {
+		return append(stmts, ast.Stmt{Loc: body.Loc, Data: &ast.SBlock{Stmts: []ast.Stmt{body}}})
+	}
+
+	return append(stmts, body)
+}
+
+func (p *parser) mangleIf(stmts []ast.Stmt, loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, testBooleanValue bool) []ast.Stmt {
 	// Constant folding using the test expression
 	if isTestBooleanConstant {
 		if testBooleanValue {
 			// The test is true
 			if s.No == nil || !shouldKeepStmtInDeadControlFlow(*s.No) {
 				// We can drop the "no" branch
-				if statementCaresAboutScope(s.Yes) {
-					return ast.Stmt{Loc: s.Yes.Loc, Data: &ast.SBlock{Stmts: []ast.Stmt{s.Yes}}}
-				} else {
-					return s.Yes
-				}
+				return appendIfBodyPreservingScope(stmts, s.Yes)
 			} else {
 				// We have to keep the "no" branch
 			}
@@ -5862,12 +5879,9 @@ func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, t
 			if !shouldKeepStmtInDeadControlFlow(s.Yes) {
 				// We can drop the "yes" branch
 				if s.No == nil {
-					return ast.Stmt{Loc: loc, Data: &ast.SEmpty{}}
-				} else if statementCaresAboutScope(*s.No) {
-					return ast.Stmt{Loc: s.No.Loc, Data: &ast.SBlock{Stmts: []ast.Stmt{*s.No}}}
-				} else {
-					return *s.No
+					return stmts
 				}
+				return appendIfBodyPreservingScope(stmts, *s.No)
 			} else {
 				// We have to keep the "yes" branch
 			}
@@ -5879,53 +5893,53 @@ func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, t
 		if s.No == nil {
 			if not, ok := s.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
 				// "if (!a) b();" => "a || b();"
-				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
+				return append(stmts, ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
 					Op:    ast.BinOpLogicalOr,
 					Left:  not.Value,
 					Right: yes.Value,
-				}}}}
+				}}}})
 			} else {
 				// "if (a) b();" => "a && b();"
-				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
+				return append(stmts, ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
 					Op:    ast.BinOpLogicalAnd,
 					Left:  s.Test,
 					Right: yes.Value,
-				}}}}
+				}}}})
 			}
 		} else if no, ok := s.No.Data.(*ast.SExpr); ok {
 			// "if (a) b(); else c();" => "a ? b() : c();"
-			return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: p.mangleIfExpr(loc, &ast.EIf{
+			return append(stmts, ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: p.mangleIfExpr(loc, &ast.EIf{
 				Test: s.Test,
 				Yes:  yes.Value,
 				No:   no.Value,
-			})}}
+			})}})
 		}
 	} else if _, ok := s.Yes.Data.(*ast.SEmpty); ok {
 		// "yes" is missing
 		if s.No == nil {
 			// "yes" and "no" are both missing
 			if p.exprCanBeRemovedIfUnused(s.Test) {
-				// "if (1) {}" => ";"
-				return ast.Stmt{Loc: loc, Data: &ast.SEmpty{}}
+				// "if (1) {}" => ""
+				return stmts
 			} else {
 				// "if (a) {}" => "a;"
-				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: s.Test}}
+				return append(stmts, ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: s.Test}})
 			}
 		} else if no, ok := s.No.Data.(*ast.SExpr); ok {
 			if not, ok := s.Test.Data.(*ast.EUnary); ok && not.Op == ast.UnOpNot {
 				// "if (!a) {} else b();" => "a && b();"
-				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
+				return append(stmts, ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
 					Op:    ast.BinOpLogicalAnd,
 					Left:  not.Value,
 					Right: no.Value,
-				}}}}
+				}}}})
 			} else {
 				// "if (a) {} else b();" => "a || b();"
-				return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
+				return append(stmts, ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: ast.Expr{Loc: loc, Data: &ast.EBinary{
 					Op:    ast.BinOpLogicalOr,
 					Left:  s.Test,
 					Right: no.Value,
-				}}}}
+				}}}})
 			}
 		} else {
 			// "yes" is missing and "no" is not missing (and is not an expression)
@@ -5964,7 +5978,7 @@ func (p *parser) mangleIf(loc ast.Loc, s *ast.SIf, isTestBooleanConstant bool, t
 		}
 	}
 
-	return ast.Stmt{Loc: loc, Data: s}
+	return append(stmts, ast.Stmt{Loc: loc, Data: s})
 }
 
 func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
@@ -6401,7 +6415,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 		if p.MangleSyntax {
-			stmt = p.mangleIf(stmt.Loc, s, ok, boolean)
+			return p.mangleIf(stmts, stmt.Loc, s, ok, boolean)
 		}
 
 	case *ast.SFor:

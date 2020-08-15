@@ -1482,6 +1482,21 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "a(); if (b) throw c", "if (a(), b)\n  throw c;\n")
 	expectPrintedMangle(t, "if (a) if (b) throw c", "if (a && b)\n  throw c;\n")
 
+	expectPrintedMangle(t, "if (true) { let a = b; if (c) throw d }",
+		"{\n  let a = b;\n  if (c)\n    throw d;\n}\n")
+	expectPrintedMangle(t, "if (true) { if (a) throw b; if (c) throw d }",
+		"if (a)\n  throw b;\nif (c)\n  throw d;\n")
+
+	expectPrintedMangle(t, "if (false) throw a; else { let b = c; if (d) throw e }",
+		"{\n  let b = c;\n  if (d)\n    throw e;\n}\n")
+	expectPrintedMangle(t, "if (false) throw a; else { if (b) throw c; if (d) throw e }",
+		"if (b)\n  throw c;\nif (d)\n  throw e;\n")
+
+	expectPrintedMangle(t, "if (a) { if (b) throw c; else { let d = e; if (f) throw g } }",
+		"if (a) {\n  if (b)\n    throw c;\n  {\n    let d = e;\n    if (f)\n      throw g;\n  }\n}\n")
+	expectPrintedMangle(t, "if (a) { if (b) throw c; else if (d) throw e; else if (f) throw g }",
+		"if (a) {\n  if (b)\n    throw c;\n  if (d)\n    throw e;\n  if (f)\n    throw g;\n}\n")
+
 	expectPrintedMangle(t, "a = b ? true : false", "a = !!b;\n")
 	expectPrintedMangle(t, "a = b ? false : true", "a = !b;\n")
 	expectPrintedMangle(t, "a = !b ? true : false", "a = !b;\n")
