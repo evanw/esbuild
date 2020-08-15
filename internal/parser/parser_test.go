@@ -1653,6 +1653,50 @@ func TestMangleInitializer(t *testing.T) {
 	expectPrintedMangle(t, "var [] = undefined", "var [] = void 0;\n")
 }
 
+func TestMangleCall(t *testing.T) {
+	expectPrintedMangle(t, "x = foo(1, ...[], 2)", "x = foo(1, 2);\n")
+	expectPrintedMangle(t, "x = foo(1, ...2, 3)", "x = foo(1, ...2, 3);\n")
+	expectPrintedMangle(t, "x = foo(1, ...[2], 3)", "x = foo(1, 2, 3);\n")
+	expectPrintedMangle(t, "x = foo(1, ...[2, 3], 4)", "x = foo(1, 2, 3, 4);\n")
+	expectPrintedMangle(t, "x = foo(1, ...[2, ...y, 3], 4)", "x = foo(1, 2, ...y, 3, 4);\n")
+	expectPrintedMangle(t, "x = foo(1, ...{a, b}, 4)", "x = foo(1, ...{a, b}, 4);\n")
+
+	// Holes must become undefined
+	expectPrintedMangle(t, "x = foo(1, ...[,2,,], 3)", "x = foo(1, void 0, 2, void 0, 3);\n")
+}
+
+func TestMangleArray(t *testing.T) {
+	expectPrintedMangle(t, "x = [1, ...[], 2]", "x = [1, 2];\n")
+	expectPrintedMangle(t, "x = [1, ...2, 3]", "x = [1, ...2, 3];\n")
+	expectPrintedMangle(t, "x = [1, ...[2], 3]", "x = [1, 2, 3];\n")
+	expectPrintedMangle(t, "x = [1, ...[2, 3], 4]", "x = [1, 2, 3, 4];\n")
+	expectPrintedMangle(t, "x = [1, ...[2, ...y, 3], 4]", "x = [1, 2, ...y, 3, 4];\n")
+	expectPrintedMangle(t, "x = [1, ...{a, b}, 4]", "x = [1, ...{a, b}, 4];\n")
+
+	// Holes must become undefined, which is different than a hole
+	expectPrintedMangle(t, "x = [1, ...[,2,,], 3]", "x = [1, void 0, 2, void 0, 3];\n")
+}
+
+func TestMangleObject(t *testing.T) {
+	expectPrintedMangle(t, "x = {a, ...{}, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...b, c}", "x = {a, ...b, c};\n")
+	expectPrintedMangle(t, "x = {a, ...{b}, c}", "x = {a, b, c};\n")
+	expectPrintedMangle(t, "x = {a, ...{b() {}}, c}", "x = {a, b() {\n}, c};\n")
+	expectPrintedMangle(t, "x = {a, ...{b, c}, d}", "x = {a, b, c, d};\n")
+	expectPrintedMangle(t, "x = {a, ...{b, ...y, c}, d}", "x = {a, b, ...y, c, d};\n")
+	expectPrintedMangle(t, "x = {a, ...[b, c], d}", "x = {a, ...[b, c], d};\n")
+
+	// Computed properties should be ok
+	expectPrintedMangle(t, "x = {a, ...{[b]: c}, d}", "x = {a, [b]: c, d};\n")
+	expectPrintedMangle(t, "x = {a, ...{[b]() {}}, c}", "x = {a, [b]() {\n}, c};\n")
+
+	// Getters and setters are not supported
+	expectPrintedMangle(t, "x = {a, ...{b, get c() { return y++ }, d}, e}",
+		"x = {a, b, ...{get c() {\n  return y++;\n}, d}, e};\n")
+	expectPrintedMangle(t, "x = {a, ...{b, set c(_) { throw _ }, d}, e}",
+		"x = {a, b, ...{set c(_) {\n  throw _;\n}, d}, e};\n")
+}
+
 func TestMangleArrow(t *testing.T) {
 	expectPrintedMangle(t, "var a = () => {}", "var a = () => {\n};\n")
 	expectPrintedMangle(t, "var a = () => 123", "var a = () => 123;\n")

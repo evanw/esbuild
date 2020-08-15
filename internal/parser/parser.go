@@ -7334,6 +7334,25 @@ func isBinaryNullAndUndefined(left ast.Expr, right ast.Expr, op ast.OpCode) (ast
 	return ast.Expr{}, ast.Expr{}, false
 }
 
+func inlineSpreadsOfArrayLiterals(values []ast.Expr) (results []ast.Expr) {
+	for _, value := range values {
+		if spread, ok := value.Data.(*ast.ESpread); ok {
+			if array, ok := spread.Value.Data.(*ast.EArray); ok {
+				for _, item := range array.Items {
+					if _, ok := item.Data.(*ast.EMissing); ok {
+						results = append(results, ast.Expr{Loc: item.Loc, Data: &ast.EUndefined{}})
+					} else {
+						results = append(results, item)
+					}
+				}
+				continue
+			}
+		}
+		results = append(results, value)
+	}
+	return
+}
+
 func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
@@ -8110,17 +8129,30 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		if in.assignTarget != ast.AssignTargetNone {
 			p.markSyntaxFeature(compat.Destructuring, ast.Range{Loc: expr.Loc, Len: 1})
 		}
+		hasSpread := false
 		for i, item := range e.Items {
-			e.Items[i], _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
+			item, _ := p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
+			if _, ok := item.Data.(*ast.ESpread); ok {
+				hasSpread = true
+			}
+			e.Items[i] = item
+		}
+
+		// "[1, ...[2, 3], 4]" => "[1, 2, 3, 4]"
+		if p.MangleSyntax && hasSpread && in.assignTarget == ast.AssignTargetNone {
+			e.Items = inlineSpreadsOfArrayLiterals(e.Items)
 		}
 
 	case *ast.EObject:
 		if in.assignTarget != ast.AssignTargetNone {
 			p.markSyntaxFeature(compat.Destructuring, ast.Range{Loc: expr.Loc, Len: 1})
 		}
+		hasSpread := false
 		for i, property := range e.Properties {
 			if property.Kind != ast.PropertySpread {
 				e.Properties[i].Key = p.visitExpr(property.Key)
+			} else {
+				hasSpread = true
 			}
 			if property.Value != nil {
 				*property.Value, _ = p.visitExprInOut(*property.Value, exprIn{assignTarget: in.assignTarget})
@@ -8130,9 +8162,35 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 		}
 
-		// Object expressions represent both object literals and binding patterns.
-		// Only lower object spread if we're an object literal, not a binding pattern.
 		if in.assignTarget == ast.AssignTargetNone {
+			// "{a, ...{b, c}, d}" => "{a, b, c, d}"
+			if p.MangleSyntax && hasSpread {
+				var properties []ast.Property
+				for _, property := range e.Properties {
+					if property.Kind == ast.PropertySpread {
+						if object, ok := property.Value.Data.(*ast.EObject); ok {
+							for i, p := range object.Properties {
+								// Getters are evaluated at iteration time. The property
+								// descriptor is not inlined into the caller. Since we are not
+								// evaluating code at compile time, just bail if we hit one
+								// and preserve the spread with the remaining properties.
+								if p.Kind == ast.PropertyGet || p.Kind == ast.PropertySet {
+									object.Properties = object.Properties[i:]
+									properties = append(properties, property)
+									break
+								}
+								properties = append(properties, p)
+							}
+							continue
+						}
+					}
+					properties = append(properties, property)
+				}
+				e.Properties = properties
+			}
+
+			// Object expressions represent both object literals and binding patterns.
+			// Only lower object spread if we're an object literal, not a binding pattern.
 			return p.lowerObjectSpread(expr.Loc, e), exprOut{}
 		}
 
@@ -8178,8 +8236,18 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			storeThisArgForParentOptionalChain: storeThisArg,
 		})
 		e.Target = target
+		hasSpread := false
 		for i, arg := range e.Args {
-			e.Args[i] = p.visitExpr(arg)
+			arg = p.visitExpr(arg)
+			if _, ok := arg.Data.(*ast.ESpread); ok {
+				hasSpread = true
+			}
+			e.Args[i] = arg
+		}
+
+		// "foo(1, ...[2, 3], 4)" => "foo(1, 2, 3, 4)"
+		if p.MangleSyntax && hasSpread && in.assignTarget == ast.AssignTargetNone {
+			e.Args = inlineSpreadsOfArrayLiterals(e.Args)
 		}
 
 		// Detect if this is a direct eval. Note that "(1 ? eval : 0)(x)" will
