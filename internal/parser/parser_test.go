@@ -1450,7 +1450,12 @@ func TestMangleDoubleNot(t *testing.T) {
 func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "1 ? a() : b()", "a();\n")
 	expectPrintedMangle(t, "0 ? a() : b()", "b();\n")
+
 	expectPrintedMangle(t, "a ? a : b", "a || b;\n")
+	expectPrintedMangle(t, "a ? b : a", "a && b;\n")
+	expectPrintedMangle(t, "a.x ? a.x : b", "a.x ? a.x : b;\n")
+	expectPrintedMangle(t, "a.x ? b : a.x", "a.x ? b : a.x;\n")
+
 	expectPrintedMangle(t, "a ? b() : c()", "a ? b() : c();\n")
 	expectPrintedMangle(t, "!a ? b() : c()", "a ? c() : b();\n")
 	expectPrintedMangle(t, "!!a ? b() : c()", "a ? b() : c();\n")

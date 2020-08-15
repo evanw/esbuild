@@ -6011,10 +6011,15 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 		}
 	}
 
-	// "a ? a : b" => "a || b"
 	if id, ok := e.Test.Data.(*ast.EIdentifier); ok {
+		// "a ? a : b" => "a || b"
 		if id2, ok := e.Yes.Data.(*ast.EIdentifier); ok && id.Ref == id2.Ref {
 			return ast.Expr{Loc: loc, Data: &ast.EBinary{Op: ast.BinOpLogicalOr, Left: e.Test, Right: e.No}}
+		}
+
+		// "a ? b : a" => "a && b"
+		if id2, ok := e.No.Data.(*ast.EIdentifier); ok && id.Ref == id2.Ref {
+			return ast.Expr{Loc: loc, Data: &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: e.Test, Right: e.Yes}}
 		}
 	}
 
