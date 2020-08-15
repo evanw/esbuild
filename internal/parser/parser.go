@@ -227,6 +227,14 @@ func isJumpStatement(data ast.S) bool {
 	return false
 }
 
+func isPrimitiveToReorder(e ast.E) bool {
+	switch e.(type) {
+	case *ast.ENull, *ast.EUndefined, *ast.EString, *ast.EBoolean, *ast.ENumber, *ast.EBigInt:
+		return true
+	}
+	return false
+}
+
 func toBooleanWithoutSideEffects(data ast.E) (bool, bool) {
 	switch e := data.(type) {
 	case *ast.ENull, *ast.EUndefined:
@@ -7360,6 +7368,16 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 		e.Right = p.visitExpr(e.Right)
 
+		// Always put constants on the right for equality comparisons to help
+		// reduce the number of cases we have to check during pattern matching. We
+		// can only reorder expressions that do not have any side effects.
+		switch e.Op {
+		case ast.BinOpLooseEq, ast.BinOpLooseNe, ast.BinOpStrictEq, ast.BinOpStrictNe:
+			if isPrimitiveToReorder(e.Left.Data) && !isPrimitiveToReorder(e.Right.Data) {
+				e.Left, e.Right = e.Right, e.Left
+			}
+		}
+
 		// Post-process the binary expression
 		switch e.Op {
 		case ast.BinOpComma:
@@ -7396,14 +7414,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
 			}
 			p.checkForTypeofAndString(e.Left, e.Right)
-			p.checkForTypeofAndString(e.Right, e.Left)
 
 			if p.MangleSyntax {
-				// "void 0 == x" => "null == x"
-				if _, ok := e.Left.Data.(*ast.EUndefined); ok {
-					e.Left.Data = &ast.ENull{}
-				}
-
 				// "x == void 0" => "x == null"
 				if _, ok := e.Right.Data.(*ast.EUndefined); ok {
 					e.Right.Data = &ast.ENull{}
@@ -7417,7 +7429,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
 			}
-			if p.checkForTypeofAndString(e.Left, e.Right) || p.checkForTypeofAndString(e.Right, e.Left) {
+			if p.checkForTypeofAndString(e.Left, e.Right) {
 				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
 				if p.MangleSyntax {
 					e.Op = ast.BinOpLooseEq
@@ -7432,14 +7444,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
 			}
 			p.checkForTypeofAndString(e.Left, e.Right)
-			p.checkForTypeofAndString(e.Right, e.Left)
 
 			if p.MangleSyntax {
-				// "void 0 != x" => "null != x"
-				if _, ok := e.Left.Data.(*ast.EUndefined); ok {
-					e.Left.Data = &ast.ENull{}
-				}
-
 				// "x != void 0" => "x != null"
 				if _, ok := e.Right.Data.(*ast.EUndefined); ok {
 					e.Right.Data = &ast.ENull{}
@@ -7453,7 +7459,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
 				p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
 			}
-			if p.checkForTypeofAndString(e.Left, e.Right) || p.checkForTypeofAndString(e.Right, e.Left) {
+			if p.checkForTypeofAndString(e.Left, e.Right) {
 				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
 				if p.MangleSyntax {
 					e.Op = ast.BinOpLooseNe

@@ -2068,7 +2068,7 @@ console.log([
   require,
   true,
   notRequire,
-  "function" == typeof notRequire && require
+  typeof notRequire == "function" && require
 ]);
 
 ================================================================================
@@ -2090,8 +2090,8 @@ console.log([
   typeof require,
   typeof require == "function",
   typeof require == "function" && require,
-  "function" == typeof require,
-  "function" == typeof require && require
+  typeof require == "function",
+  typeof require == "function" && require
 ]);
 
 ================================================================================

@@ -1520,20 +1520,20 @@ func TestMangleIf(t *testing.T) {
 
 	expectPrintedMangle(t, "let b; a = null == b ? c : b", "let b;\na = b ?? c;\n")
 	expectPrintedMangle(t, "let b; a = null != b ? b : c", "let b;\na = b ?? c;\n")
-	expectPrintedMangle(t, "let b; a = null == b ? b : c", "let b;\na = null == b ? b : c;\n")
-	expectPrintedMangle(t, "let b; a = null != b ? c : b", "let b;\na = null != b ? c : b;\n")
+	expectPrintedMangle(t, "let b; a = null == b ? b : c", "let b;\na = b == null ? b : c;\n")
+	expectPrintedMangle(t, "let b; a = null != b ? c : b", "let b;\na = b != null ? c : b;\n")
 
 	// Don't do this if the condition has side effects
 	expectPrintedMangle(t, "let b; a = b.x == null ? c : b.x", "let b;\na = b.x == null ? c : b.x;\n")
 	expectPrintedMangle(t, "let b; a = b.x != null ? b.x : c", "let b;\na = b.x != null ? b.x : c;\n")
-	expectPrintedMangle(t, "let b; a = null == b.x ? c : b.x", "let b;\na = null == b.x ? c : b.x;\n")
-	expectPrintedMangle(t, "let b; a = null != b.x ? b.x : c", "let b;\na = null != b.x ? b.x : c;\n")
+	expectPrintedMangle(t, "let b; a = null == b.x ? c : b.x", "let b;\na = b.x == null ? c : b.x;\n")
+	expectPrintedMangle(t, "let b; a = null != b.x ? b.x : c", "let b;\na = b.x != null ? b.x : c;\n")
 
 	// Don't do this for strict equality comparisons
 	expectPrintedMangle(t, "let b; a = b === null ? c : b", "let b;\na = b === null ? c : b;\n")
 	expectPrintedMangle(t, "let b; a = b !== null ? b : c", "let b;\na = b !== null ? b : c;\n")
-	expectPrintedMangle(t, "let b; a = null === b ? c : b", "let b;\na = null === b ? c : b;\n")
-	expectPrintedMangle(t, "let b; a = null !== b ? b : c", "let b;\na = null !== b ? b : c;\n")
+	expectPrintedMangle(t, "let b; a = null === b ? c : b", "let b;\na = b === null ? c : b;\n")
+	expectPrintedMangle(t, "let b; a = null !== b ? b : c", "let b;\na = b !== null ? b : c;\n")
 
 	expectPrintedMangle(t, "a ? b : b", "a, b;\n")
 	expectPrintedMangle(t, "let a; a ? b : b", "let a;\nb;\n")
@@ -1640,8 +1640,8 @@ func TestMangleTypeofEquals(t *testing.T) {
 
 	expectPrintedMangle(t, "y === typeof x", "y === typeof x;\n")
 	expectPrintedMangle(t, "y !== typeof x", "y !== typeof x;\n")
-	expectPrintedMangle(t, "'string' === typeof x", "\"string\" == typeof x;\n")
-	expectPrintedMangle(t, "'string' !== typeof x", "\"string\" != typeof x;\n")
+	expectPrintedMangle(t, "'string' === typeof x", "typeof x == \"string\";\n")
+	expectPrintedMangle(t, "'string' !== typeof x", "typeof x != \"string\";\n")
 }
 
 func TestMangleNestedLogical(t *testing.T) {
@@ -1659,13 +1659,13 @@ func TestMangleNestedLogical(t *testing.T) {
 func TestMangleEqualsUndefined(t *testing.T) {
 	expectPrintedMangle(t, "a === void 0", "a === void 0;\n")
 	expectPrintedMangle(t, "a !== void 0", "a !== void 0;\n")
-	expectPrintedMangle(t, "void 0 === a", "void 0 === a;\n")
-	expectPrintedMangle(t, "void 0 !== a", "void 0 !== a;\n")
+	expectPrintedMangle(t, "void 0 === a", "a === void 0;\n")
+	expectPrintedMangle(t, "void 0 !== a", "a !== void 0;\n")
 
 	expectPrintedMangle(t, "a == void 0", "a == null;\n")
 	expectPrintedMangle(t, "a != void 0", "a != null;\n")
-	expectPrintedMangle(t, "void 0 == a", "null == a;\n")
-	expectPrintedMangle(t, "void 0 != a", "null != a;\n")
+	expectPrintedMangle(t, "void 0 == a", "a == null;\n")
+	expectPrintedMangle(t, "void 0 != a", "a != null;\n")
 }
 
 func TestMangleUnusedFunctionExpressionNames(t *testing.T) {
