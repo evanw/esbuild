@@ -1522,6 +1522,10 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "let a, b; a ? b(...c) : b(d)", "let a, b;\na ? b(...c) : b(d);\n")
 	expectPrintedMangle(t, "let a, b; a ? b(c) : b(...d)", "let a, b;\na ? b(c) : b(...d);\n")
 	expectPrintedMangle(t, "let a, b; a ? b(...c) : b(...d)", "let a, b;\nb(...a ? c : d);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(a) : b(c)", "let a, b;\nb(a || c);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(c) : b(a)", "let a, b;\nb(a && c);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(...a) : b(...c)", "let a, b;\nb(...a || c);\n")
+	expectPrintedMangle(t, "let a, b; a ? b(...c) : b(...a)", "let a, b;\nb(...a && c);\n")
 
 	// Note: "a.x" may change "b" and "b.y" may change "a" in the examples
 	// below, so the presence of these expressions must prevent reordering

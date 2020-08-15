@@ -6107,7 +6107,7 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 					if yesIsSpread && noIsSpread {
 						e.Yes = yesSpread.Value
 						e.No = noSpread.Value
-						y.Args[0] = ast.Expr{Loc: loc, Data: &ast.ESpread{Value: ast.Expr{Loc: loc, Data: e}}}
+						y.Args[0] = ast.Expr{Loc: loc, Data: &ast.ESpread{Value: p.mangleIfExpr(loc, e)}}
 						return ast.Expr{Loc: loc, Data: y}
 					}
 
@@ -6115,7 +6115,7 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 					if !yesIsSpread && !noIsSpread {
 						e.Yes = y.Args[0]
 						e.No = n.Args[0]
-						y.Args[0] = ast.Expr{Loc: loc, Data: e}
+						y.Args[0] = p.mangleIfExpr(loc, e)
 						return ast.Expr{Loc: loc, Data: y}
 					}
 				}
