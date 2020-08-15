@@ -20,6 +20,8 @@
     * `a ? a : b` is minified to `a || b`
     * `a == void 0` is minified to `a == null`
     * `a && (b && c)` is minified to `a && b && c` (same for `||`)
+    * `a ? b || c : c` is minified to `a && b || c`
+    * `a ? c : b && c` is minified to `(a || b) && c`
     * `a ? b(c) : b(d)` is minified to `b(a ? c : d)`
     * `a ? true : false` is minified to `!!a`
     * `a != null ? a : b` is minified to `a ?? b` if it's supported in the target environment

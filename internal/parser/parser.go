@@ -5974,11 +5974,13 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 		e.Yes, e.No = e.No, e.Yes
 	}
 
-	// "a ? b : b" => "a, b"
 	if valuesLookTheSame(e.Yes.Data, e.No.Data) {
+		// "/* @__PURE__ */ a() ? b : b" => "b"
 		if p.exprCanBeRemovedIfUnused(e.Test) {
 			return e.Yes
 		}
+
+		// "a ? b : b" => "a, b"
 		return ast.JoinWithComma(e.Test, e.Yes)
 	}
 
@@ -6014,6 +6016,34 @@ func (p *parser) mangleIfExpr(loc ast.Loc, e *ast.EIf) ast.Expr {
 		e.Test.Data = &ast.EBinary{Op: ast.BinOpLogicalOr, Left: e.Test, Right: noIf.Test}
 		e.No = noIf.No
 		return ast.Expr{Loc: loc, Data: e}
+	}
+
+	// "a ? b || c : c" => "(a && b) || c"
+	if binary, ok := e.Yes.Data.(*ast.EBinary); ok && binary.Op == ast.BinOpLogicalOr &&
+		valuesLookTheSame(binary.Right.Data, e.No.Data) {
+		return ast.Expr{Loc: loc, Data: &ast.EBinary{
+			Op: ast.BinOpLogicalOr,
+			Left: ast.Expr{Loc: loc, Data: &ast.EBinary{
+				Op:    ast.BinOpLogicalAnd,
+				Left:  e.Test,
+				Right: binary.Left,
+			}},
+			Right: binary.Right,
+		}}
+	}
+
+	// "a ? c : b && c" => "(a || b) && c"
+	if binary, ok := e.No.Data.(*ast.EBinary); ok && binary.Op == ast.BinOpLogicalAnd &&
+		valuesLookTheSame(e.Yes.Data, binary.Right.Data) {
+		return ast.Expr{Loc: loc, Data: &ast.EBinary{
+			Op: ast.BinOpLogicalAnd,
+			Left: ast.Expr{Loc: loc, Data: &ast.EBinary{
+				Op:    ast.BinOpLogicalOr,
+				Left:  e.Test,
+				Right: binary.Left,
+			}},
+			Right: binary.Right,
+		}}
 	}
 
 	// "a ? b(c, d) : b(e, d)" => "b(a ? c : e, d)"
