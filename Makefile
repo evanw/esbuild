@@ -370,7 +370,7 @@ terser: esbuild | demo/terser
 	node scripts/terser-tests.js
 
 ################################################################################
-# This generates a project containing 10 copies of the Three.js library
+# three.js demo
 
 github/three:
 	mkdir -p github
@@ -380,21 +380,11 @@ demo/three: | github/three
 	mkdir -p demo/three
 	cp -r github/three/src demo/three/src
 
-bench/three: | github/three
-	mkdir -p bench/three/src
-	echo > bench/three/src/entry.js
-	for i in 1 2 3 4 5 6 7 8 9 10; do test -d "bench/three/src/copy$$i" || cp -r github/three/src "bench/three/src/copy$$i"; done
-	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/src/entry.js; done
-	echo 'Line count:' && find bench/three/src -name '*.js' | xargs wc -l | tail -n 1
-
-################################################################################
-
 demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-webpack5 demo-three-parcel demo-three-parcel2 demo-three-fusebox
 
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
-	mkdir -p demo/three/esbuild
-	cd demo/three && time -p ../../esbuild --bundle --global-name=THREE --sourcemap --minify src/Three.js --outfile=esbuild/Three.esbuild.js
+	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify demo/three/src/Three.js --outfile=demo/three/esbuild/Three.esbuild.js
 	du -h demo/three/esbuild/Three.esbuild.js*
 	shasum demo/three/esbuild/Three.esbuild.js*
 
@@ -479,13 +469,20 @@ demo-three-fusebox: | require/fusebox/node_modules demo/three
 	du -h demo/three/fusebox/app.js*
 
 ################################################################################
+# three.js benchmark (measures JavaScript performance, same as three.js demo but 10x bigger)
+
+bench/three: | github/three
+	mkdir -p bench/three/src
+	echo > bench/three/src/entry.js
+	for i in 1 2 3 4 5 6 7 8 9 10; do test -d "bench/three/src/copy$$i" || cp -r github/three/src "bench/three/src/copy$$i"; done
+	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/src/entry.js; done
+	echo 'Line count:' && find bench/three/src -name '*.js' | xargs wc -l | tail -n 1
 
 bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-webpack5 bench-three-parcel bench-three-fusebox
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
-	mkdir -p bench/three/esbuild
-	cd bench/three && time -p ../../esbuild --bundle --global-name=THREE --sourcemap --minify src/entry.js --outfile=esbuild/entry.esbuild.js
+	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 
@@ -545,6 +542,7 @@ bench-three-fusebox: | require/fusebox/node_modules bench/three
 	du -h bench/three/fusebox/app.js*
 
 ################################################################################
+# Rome benchmark (measures TypeScript performance)
 
 ROME_TSCONFIG += {
 ROME_TSCONFIG +=   \"compilerOptions\": {
@@ -591,14 +589,11 @@ bench/rome-verify: | github/rome
 	cp -r github/rome/packages bench/rome-verify/packages
 	cp github/rome/package.json bench/rome-verify/package.json
 
-################################################################################
-
 bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-parcel
 
 bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
-	mkdir -p bench/rome/esbuild
-	cd bench/rome && time -p ../../esbuild --bundle --sourcemap --minify src/entry.ts --outfile=esbuild/rome.esbuild.js --platform=node
+	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node
 	du -h bench/rome/esbuild/rome.esbuild.js*
 	shasum bench/rome/esbuild/rome.esbuild.js*
 	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
@@ -679,3 +674,28 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 
 	du -h bench/rome/parcel2/rome.parcel.js*
 	cd bench/rome-verify && rm -fr parcel2 && ROME_CACHE=0 node ../rome/parcel2/rome.parcel.js bundle packages/rome parcel2
+
+################################################################################
+# React admin benchmark (measures performance of an application-like setup)
+
+READMIN_HTML = <meta charset=utf8><div id=root></div><script src=main.js></script>
+
+github/readmin:
+	mkdir -p github
+	git clone --depth 1 --branch v3.8.1 https://github.com/marmelab/react-admin.git github/react-admin
+
+bench/readmin: | github/readmin
+	mkdir -p bench/readmin
+	cp -r github/readmin/examples/simple bench/readmin/repo
+	cp scripts/readmin-package-lock.json bench/readmin/repo/package-lock.json # Pin package versions for determinism
+	cd bench/readmin/repo && npm ci
+
+bench-readmin: bench-readmin-esbuild
+
+bench-readmin-esbuild: esbuild | bench/readmin
+	rm -fr bench/readmin/esbuild
+	time -p ./esbuild --bundle --minify --loader:.js=jsx --define:process.env.NODE_ENV='"production"' \
+		--define:global=window --sourcemap --outfile=bench/readmin/esbuild/main.js bench/readmin/repo/src/index.js
+	echo "$(READMIN_HTML)" > bench/readmin/esbuild/index.html
+	du -h bench/readmin/esbuild/main.js*
+	shasum bench/readmin/esbuild/main.js*
