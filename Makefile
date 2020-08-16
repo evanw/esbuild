@@ -394,7 +394,7 @@ demo-three-esbuild: esbuild | demo/three
 
 demo-three-eswasm: npm/esbuild-wasm/esbuild.wasm | demo/three npm/esbuild-wasm/wasm_exec.js
 	rm -fr demo/three/eswasm
-	time -p node npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/esbuild.wasm --bundle --global-name=THREE \
+	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --global-name=THREE \
 		--sourcemap --minify demo/three/src/Three.js --outfile=demo/three/eswasm/Three.eswasm.js
 	du -h demo/three/eswasm/Three.eswasm.js*
 	shasum demo/three/eswasm/Three.eswasm.js*
@@ -499,7 +499,7 @@ bench-three-esbuild: esbuild | bench/three
 
 bench-three-eswasm: npm/esbuild-wasm/esbuild.wasm | bench/three npm/esbuild-wasm/wasm_exec.js
 	rm -fr bench/three/eswasm
-	time -p node npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/esbuild.wasm --bundle --global-name=THREE \
+	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --global-name=THREE \
 		--sourcemap --minify bench/three/src/entry.js --outfile=bench/three/eswasm/entry.eswasm.js
 	du -h bench/three/eswasm/entry.eswasm.js*
 	shasum bench/three/eswasm/entry.eswasm.js*
@@ -720,7 +720,7 @@ bench-readmin-esbuild: esbuild | bench/readmin
 
 bench-readmin-eswasm: npm/esbuild-wasm/esbuild.wasm | bench/readmin npm/esbuild-wasm/wasm_exec.js
 	rm -fr bench/readmin/eswasm
-	time -p node npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/esbuild.wasm \
+	time -p ./npm/esbuild-wasm/bin/esbuild \
 		--bundle --minify --loader:.js=jsx --define:process.env.NODE_ENV='"production"' \
 		--define:global=window --sourcemap --outfile=bench/readmin/eswasm/main.js bench/readmin/repo/src/index.js
 	echo "$(READMIN_HTML)" > bench/readmin/eswasm/index.html

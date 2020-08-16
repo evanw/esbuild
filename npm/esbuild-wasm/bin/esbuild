@@ -1,9 +1,23 @@
 #!/usr/bin/env node
 
 // Forward to the automatically-generated WebAssembly loader from the Go compiler
-const wasm_exec = require.resolve('esbuild-wasm/wasm_exec.js');
-const esbuild_wasm = require.resolve('esbuild-wasm/esbuild.wasm');
-const code = require('fs').readFileSync(wasm_exec, 'utf8');
-const wrapper = new Function('require', 'module', 'process', code);
+
+const path = require('path');
+const fs = require('fs');
+
+const wasm_exec = path.join(__dirname, '..', 'wasm_exec.js');
+const esbuild_wasm = path.join(__dirname, '..', 'esbuild.wasm');
+
+const code = fs.readFileSync(wasm_exec, 'utf8');
+const wrapper = new Function('require', 'module', 'process', 'WebAssembly', code);
+
+function instantiate(bytes, importObject) {
+  // Using this API causes "./esbuild --version" to run around 1 second faster
+  // than using the "WebAssembly.instantiate()" API when run in node (v12.16.2)
+  const module = new WebAssembly.Module(bytes);
+  const instance = new WebAssembly.Instance(module, importObject);
+  return Promise.resolve({ instance, module });
+}
+
 const argv = ['node', wasm_exec, esbuild_wasm].concat(process.argv.slice(2));
-wrapper(require, require.main, Object.assign(Object.create(process), { argv }));
+wrapper(require, require.main, Object.assign(Object.create(process), { argv }), { instantiate });

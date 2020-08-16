@@ -6,6 +6,12 @@
 
     Source maps are JSON files, and must obey the [JSON specification](https://www.json.org/). The escape sequence `\v` (for the ASCII control character 11) is valid in JavaScript but not in JSON. Previously esbuild contained a bug where source maps for files containing this ASCII control character were invalid JSON. This release fixes the bug by printing this character as `\u000B` instead.
 
+* Speedup for `esbuild-wasm` when using the command line
+
+    The [esbuild-wasm](https://www.npmjs.com/package/esbuild-wasm) package includes a WebAssembly command-line tool called `esbuild` which functions the same as the native command-line tool called `esbuild` in the [esbuild](https://www.npmjs.com/package/esbuild) package. The difference is that the WebAssembly implementation is around an order of magnitude slower than the native version.
+
+    This release changes the API used to instantiate the WebAssembly module from [WebAssembly.instantiate](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/instantiate) to [WebAssembly.Module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/Module/Module), which reduces end-to-end build time by around 1 second on my development laptop. The WebAssembly version is still much slower than the native version, but now it's a little faster than before.
+
 ## 0.6.24
 
 * Switch from base64 encoding to base32 encoding for file hashes
