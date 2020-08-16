@@ -180,7 +180,7 @@ func QuoteForJSON(text string) []byte {
 			}
 		} else {
 			switch c {
-			case '\b', '\f', '\n', '\r', '\t', '\v', '\\', '"':
+			case '\b', '\f', '\n', '\r', '\t', '\\', '"':
 				lenEstimate += 2
 			default:
 				if c <= 0xFFFF {
@@ -243,10 +243,6 @@ func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
 			bytes = append(bytes, "\\t"...)
 			i++
 
-		case '\v':
-			bytes = append(bytes, "\\v"...)
-			i++
-
 		case '\\':
 			bytes = append(bytes, "\\\\"...)
 			i++
@@ -259,10 +255,14 @@ func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
 			r, width := lexer.DecodeWTF8Rune(text[i:])
 			i += width
 			if r <= 0xFF && !forJSON {
-				bytes = append(
-					bytes,
-					'\\', 'x', hexChars[r>>4], hexChars[r&15],
-				)
+				if r == '\v' {
+					bytes = append(bytes, "\\v"...)
+				} else {
+					bytes = append(
+						bytes,
+						'\\', 'x', hexChars[r>>4], hexChars[r&15],
+					)
+				}
 			} else if r <= 0xFFFF {
 				bytes = append(
 					bytes,

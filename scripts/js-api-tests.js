@@ -530,6 +530,19 @@ let transformTests = {
     await Promise.all(promises)
   },
 
+  async sourceMapControlCharacterEscapes({ service }) {
+    let code = ''
+    for (let i = 0; i < 32; i++) code += String.fromCharCode(i);
+    const input = `return \`${code}\``;
+    const { js, jsSourceMap } = await service.transform(input, { sourcemap: true, sourcefile: 'afile.js' })
+    const fn = new Function(js)
+    assert.strictEqual(fn(), code.replace('\r', '\n'))
+    const map = JSON.parse(jsSourceMap)
+    assert.strictEqual(map.version, 3)
+    assert.strictEqual(map.sourcesContent.length, 1)
+    assert.strictEqual(map.sourcesContent[0], input)
+  },
+
   async nullishCoalescingLoose({ service }) {
     const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: false })
     assert.strictEqual(js, `a != null ? a : b;\n`)

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Avoid the `\v` escape sequence in JSON strings
+
+    Source maps are JSON files, and must obey the [JSON specification](https://www.json.org/). The escape sequence `\v` (for the ASCII control character 11) is valid in JavaScript but not in JSON. Previously esbuild contained a bug where source maps for files containing this ASCII control character were invalid JSON. This release fixes the bug by printing this character as `\u000B` instead.
+
 ## 0.6.24
 
 * Switch from base64 encoding to base32 encoding for file hashes
