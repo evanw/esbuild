@@ -12,6 +12,16 @@
 
     This release changes the API used to instantiate the WebAssembly module from [WebAssembly.instantiate](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/instantiate) to [WebAssembly.Module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/Module/Module), which reduces end-to-end build time by around 1 second on my development laptop. The WebAssembly version is still much slower than the native version, but now it's a little faster than before.
 
+* Optimize for the `@material-ui/icons` package
+
+    This package has a directory containing over 11,000 files. Certain optimizations that esbuild did to speed up path resolution for common cases reduced performance for this edge case. This release changes some aspects of path resolution caching to dramatically improve performance for this edge case at the expense of a slight reduction in performance for the common case.
+
+    New benchmark times:
+
+    * JavaScript benchmark: 0.35s => 0.37s
+    * TypeScript benchmark: 0.10s => 0.10s
+    * This edge case: 1.01s => 0.22s
+
 ## 0.6.24
 
 * Switch from base64 encoding to base32 encoding for file hashes

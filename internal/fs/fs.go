@@ -17,14 +17,77 @@ const (
 )
 
 type Entry struct {
-	Kind    EntryKind
-	Symlink string
+	symlink  string
+	dir      string
+	base     string
+	mutex    sync.Mutex
+	kind     EntryKind
+	needStat bool
+}
+
+func (e *Entry) Kind() EntryKind {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	if e.needStat {
+		e.stat()
+	}
+	return e.kind
+}
+
+func (e *Entry) Symlink() string {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	if e.needStat {
+		e.stat()
+	}
+	return e.symlink
+}
+
+func (e *Entry) stat() {
+	e.needStat = false
+	entryPath := filepath.Join(e.dir, e.base)
+
+	// Use "lstat" since we want information about symbolic links
+	stat, err := os.Lstat(entryPath)
+	if err != nil {
+		return
+	}
+	mode := stat.Mode()
+
+	// Follow symlinks now so the cache contains the translation
+	if (mode & os.ModeSymlink) != 0 {
+		link, err := os.Readlink(entryPath)
+		if err != nil {
+			return // Skip over this entry
+		}
+		if !filepath.IsAbs(link) {
+			link = filepath.Join(e.dir, link)
+		}
+		e.symlink = filepath.Clean(link)
+
+		// Re-run "lstat" on the symlink target
+		stat2, err2 := os.Lstat(e.symlink)
+		if err2 != nil {
+			return // Skip over this entry
+		}
+		mode = stat2.Mode()
+		if (mode & os.ModeSymlink) != 0 {
+			return // Symlink chains are not supported
+		}
+	}
+
+	// We consider the entry either a directory or a file
+	if (mode & os.ModeDir) != 0 {
+		e.kind = DirEntry
+	} else {
+		e.kind = FileEntry
+	}
 }
 
 type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
 	// mutate it.
-	ReadDirectory(path string) map[string]Entry
+	ReadDirectory(path string) map[string]*Entry
 	ReadFile(path string) (string, bool)
 
 	// This is part of the interface because the mock interface used for tests
@@ -42,12 +105,12 @@ type FS interface {
 ////////////////////////////////////////////////////////////////////////////////
 
 type mockFS struct {
-	dirs  map[string]map[string]Entry
+	dirs  map[string]map[string]*Entry
 	files map[string]string
 }
 
 func MockFS(input map[string]string) FS {
-	dirs := make(map[string]map[string]Entry)
+	dirs := make(map[string]map[string]*Entry)
 	files := make(map[string]string)
 
 	for k, v := range input {
@@ -59,16 +122,16 @@ func MockFS(input map[string]string) FS {
 			kDir := path.Dir(k)
 			dir, ok := dirs[kDir]
 			if !ok {
-				dir = make(map[string]Entry)
+				dir = make(map[string]*Entry)
 				dirs[kDir] = dir
 			}
 			if kDir == k {
 				break
 			}
 			if k == original {
-				dir[path.Base(k)] = Entry{Kind: FileEntry}
+				dir[path.Base(k)] = &Entry{kind: FileEntry}
 			} else {
-				dir[path.Base(k)] = Entry{Kind: DirEntry}
+				dir[path.Base(k)] = &Entry{kind: DirEntry}
 			}
 			k = kDir
 		}
@@ -77,7 +140,7 @@ func MockFS(input map[string]string) FS {
 	return &mockFS{dirs, files}
 }
 
-func (fs *mockFS) ReadDirectory(path string) map[string]Entry {
+func (fs *mockFS) ReadDirectory(path string) map[string]*Entry {
 	return fs.dirs[path]
 }
 
@@ -158,8 +221,7 @@ func (*mockFS) Rel(base string, target string) (string, bool) {
 
 type realFS struct {
 	// Stores the file entries for directories we've listed before
-	entriesMutex sync.RWMutex
-	entries      map[string]map[string]Entry
+	entries map[string]map[string]*Entry
 
 	// For the current working directory
 	cwd string
@@ -197,19 +259,14 @@ func RealFS() FS {
 		cwd = realpath(cwd)
 	}
 	return &realFS{
-		entries: make(map[string]map[string]Entry),
+		entries: make(map[string]map[string]*Entry),
 		cwd:     cwd,
 	}
 }
 
-func (fs *realFS) ReadDirectory(dir string) map[string]Entry {
+func (fs *realFS) ReadDirectory(dir string) map[string]*Entry {
 	// First, check the cache
-	cached, ok := func() (map[string]Entry, bool) {
-		fs.entriesMutex.RLock()
-		defer fs.entriesMutex.RUnlock()
-		cached, ok := fs.entries[dir]
-		return cached, ok
-	}()
+	cached, ok := fs.entries[dir]
 
 	// Cache hit: stop now
 	if ok {
@@ -218,52 +275,22 @@ func (fs *realFS) ReadDirectory(dir string) map[string]Entry {
 
 	// Cache miss: read the directory entries
 	names, err := readdir(dir)
-	entries := make(map[string]Entry)
+	entries := make(map[string]*Entry)
 	if err == nil {
 		for _, name := range names {
-			entryPath := filepath.Join(dir, name)
-
-			// Use "lstat" since we want information about symbolic links
-			if stat, err := os.Lstat(entryPath); err == nil {
-				mode := stat.Mode()
-				symlink := ""
-
-				// Follow symlinks now so the cache contains the translation
-				if (mode & os.ModeSymlink) != 0 {
-					link, err := os.Readlink(entryPath)
-					if err != nil {
-						continue // Skip over this entry
-					}
-					if !filepath.IsAbs(link) {
-						link = filepath.Join(dir, link)
-					}
-					symlink = filepath.Clean(link)
-
-					// Re-run "lstat" on the symlink target
-					stat2, err2 := os.Lstat(symlink)
-					if err2 != nil {
-						continue // Skip over this entry
-					}
-					mode = stat2.Mode()
-					if (mode & os.ModeSymlink) != 0 {
-						continue // Symlink chains are not supported
-					}
-				}
-
-				// We consider the entry either a directory or a file
-				if (mode & os.ModeDir) != 0 {
-					entries[name] = Entry{Kind: DirEntry, Symlink: symlink}
-				} else {
-					entries[name] = Entry{Kind: FileEntry, Symlink: symlink}
-				}
+			// Call "stat" lazily for performance. The "@material-ui/icons" package
+			// contains a directory with over 11,000 entries in it and running "stat"
+			// for each entry was a big performance issue for that package.
+			entries[name] = &Entry{
+				dir:      dir,
+				base:     name,
+				needStat: true,
 			}
 		}
 	}
 
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
-	fs.entriesMutex.Lock()
-	defer fs.entriesMutex.Unlock()
 	if err != nil {
 		fs.entries[dir] = nil
 		return nil

@@ -116,12 +116,14 @@ func (r *resolver) finalizeResolve(path ast.Path, isExternal bool) *ResolveResul
 				result.StrictClassFields = dirInfo.tsConfigJson.useDefineForClassFields
 			}
 
-			if entry := dirInfo.entries[base]; entry.Symlink != "" {
-				// Is this entry itself a symlink?
-				result.Path.Text = entry.Symlink
-			} else if dirInfo.absRealPath != "" {
-				// Is there at least one parent directory with a symlink?
-				result.Path.Text = r.fs.Join(dirInfo.absRealPath, base)
+			if entry, ok := dirInfo.entries[base]; ok {
+				if symlink := entry.Symlink(); symlink != "" {
+					// Is this entry itself a symlink?
+					result.Path.Text = symlink
+				} else if dirInfo.absRealPath != "" {
+					// Is there at least one parent directory with a symlink?
+					result.Path.Text = r.fs.Join(dirInfo.absRealPath, base)
+				}
 			}
 		}
 	}
@@ -340,7 +342,7 @@ type dirInfo struct {
 
 	// All relevant information about this directory
 	absPath        string
-	entries        map[string]fs.Entry
+	entries        map[string]*fs.Entry
 	hasNodeModules bool          // Is there a "node_modules" subdirectory?
 	absPathIndex   *string       // Is there an "index.js" file?
 	packageJson    *packageJson  // Is there a "package.json" file?
@@ -599,23 +601,28 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 	// A "node_modules" directory isn't allowed to directly contain another "node_modules" directory
 	base := r.fs.Base(path)
-	info.hasNodeModules = base != "node_modules" && entries["node_modules"].Kind == fs.DirEntry
+	if base != "node_modules" {
+		if entry, ok := entries["node_modules"]; ok {
+			info.hasNodeModules = entry.Kind() == fs.DirEntry
+		}
+	}
 
 	// Propagate the browser scope into child directories
 	if parentInfo != nil {
 		info.enclosingBrowserScope = parentInfo.enclosingBrowserScope
 
 		// Make sure "absRealPath" is the real path of the directory (resolving any symlinks)
-		symlink := parentInfo.entries[base].Symlink
-		if symlink != "" {
-			info.absRealPath = symlink
-		} else if parentInfo.absRealPath != "" {
-			info.absRealPath = r.fs.Join(parentInfo.absRealPath, base)
+		if entry, ok := parentInfo.entries[base]; ok {
+			if symlink := entry.Symlink(); symlink != "" {
+				info.absRealPath = symlink
+			} else if parentInfo.absRealPath != "" {
+				info.absRealPath = r.fs.Join(parentInfo.absRealPath, base)
+			}
 		}
 	}
 
 	// Record if this directory has a package.json file
-	if entries["package.json"].Kind == fs.FileEntry {
+	if entry, ok := entries["package.json"]; ok && entry.Kind() == fs.FileEntry {
 		info.packageJson = r.parsePackageJSON(path)
 
 		// Propagate this browser scope into child directories
@@ -626,9 +633,9 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 	if forceTsConfig := r.options.TsConfigOverride; forceTsConfig == "" {
 		// Record if this directory has a tsconfig.json or jsconfig.json file
-		if entries["tsconfig.json"].Kind == fs.FileEntry {
+		if entry, ok := entries["tsconfig.json"]; ok && entry.Kind() == fs.FileEntry {
 			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), make(map[string]bool))
-		} else if entries["jsconfig.json"].Kind == fs.FileEntry {
+		} else if entry, ok := entries["jsconfig.json"]; ok && entry.Kind() == fs.FileEntry {
 			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), make(map[string]bool))
 		}
 	} else if parentInfo == nil {
@@ -799,13 +806,13 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 		base := r.fs.Base(path)
 
 		// Try the plain path without any extensions
-		if entries[base].Kind == fs.FileEntry {
+		if entry, ok := entries[base]; ok && entry.Kind() == fs.FileEntry {
 			return path, true
 		}
 
 		// Try the path with extensions
 		for _, ext := range r.options.ExtensionOrder {
-			if entries[base+ext].Kind == fs.FileEntry {
+			if entry, ok := entries[base+ext]; ok && entry.Kind() == fs.FileEntry {
 				return path + ext, true
 			}
 		}
@@ -830,7 +837,7 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 			// Note that the official compiler code always tries ".ts" before
 			// ".tsx" even if the original extension was ".jsx".
 			for _, ext := range []string{".ts", ".tsx"} {
-				if entries[base[:lastDot]+ext].Kind == fs.FileEntry {
+				if entry, ok := entries[base[:lastDot]+ext]; ok && entry.Kind() == fs.FileEntry {
 					return path[:len(path)-(len(base)-lastDot)] + ext, true
 				}
 			}
@@ -843,11 +850,11 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 // We want to minimize the number of times directory contents are listed. For
 // this reason, the directory entries are computed by the caller and then
 // passed down to us.
-func (r *resolver) loadAsIndex(path string, entries map[string]fs.Entry) (string, bool) {
+func (r *resolver) loadAsIndex(path string, entries map[string]*fs.Entry) (string, bool) {
 	// Try the "index" file with extensions
 	for _, ext := range r.options.ExtensionOrder {
 		base := "index" + ext
-		if entries[base].Kind == fs.FileEntry {
+		if entry, ok := entries[base]; ok && entry.Kind() == fs.FileEntry {
 			return r.fs.Join(path, base), true
 		}
 	}
