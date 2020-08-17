@@ -40,11 +40,11 @@ type resolver struct {
 	fs      fs.FS
 	log     logging.Log
 	options config.Options
+	mutex   sync.Mutex
 
 	// This cache maps a directory path to information about that directory and
 	// all parent directories
-	dirCacheMutex sync.RWMutex
-	dirCache      map[string]*dirInfo
+	dirCache map[string]*dirInfo
 }
 
 func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
@@ -71,6 +71,9 @@ func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
 }
 
 func (r *resolver) Resolve(sourceDir string, importPath string) *ResolveResult {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
 	path, isExternal := r.resolveWithoutSymlinks(sourceDir, importPath)
 	if path == nil {
 		return nil
@@ -81,6 +84,9 @@ func (r *resolver) Resolve(sourceDir string, importPath string) *ResolveResult {
 }
 
 func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
 	// Just decorate the absolute path with information from parent directories
 	return r.finalizeResolve(ast.Path{Text: absPath, IsAbsolute: true}, false)
 }
@@ -344,12 +350,7 @@ type dirInfo struct {
 
 func (r *resolver) dirInfoCached(path string) *dirInfo {
 	// First, check the cache
-	cached, ok := func() (*dirInfo, bool) {
-		r.dirCacheMutex.RLock()
-		defer r.dirCacheMutex.RUnlock()
-		cached, ok := r.dirCache[path]
-		return cached, ok
-	}()
+	cached, ok := r.dirCache[path]
 
 	// Cache hit: stop now
 	if ok {
@@ -361,8 +362,6 @@ func (r *resolver) dirInfoCached(path string) *dirInfo {
 
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
-	r.dirCacheMutex.Lock()
-	defer r.dirCacheMutex.Unlock()
 	r.dirCache[path] = info
 	return info
 }
