@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.25
 
 * Avoid the `\v` escape sequence in JSON strings
 
@@ -12,15 +12,9 @@
 
     This release changes the API used to instantiate the WebAssembly module from [WebAssembly.instantiate](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/instantiate) to [WebAssembly.Module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/Module/Module), which reduces end-to-end build time by around 1 second on my development laptop. The WebAssembly version is still much slower than the native version, but now it's a little faster than before.
 
-* Optimize for the `@material-ui/icons` package
+* Optimize for the [@material-ui/icons](https://www.npmjs.com/package/@material-ui/icons) package
 
-    This package has a directory containing over 11,000 files. Certain optimizations that esbuild did to speed up path resolution for common cases reduced performance for this edge case. This release changes some aspects of path resolution caching to dramatically improve performance for this edge case at the expense of a slight reduction in performance for the common case.
-
-    New benchmark times:
-
-    * JavaScript benchmark: 0.35s => 0.37s
-    * TypeScript benchmark: 0.10s => 0.10s
-    * This edge case: 1.01s => 0.22s
+    This package has a directory containing over 11,000 files. Certain optimizations in esbuild that worked fine for common cases severely impacted performance for this edge case. This release changes some aspects of path resolution caching to fix these problems. Build time for a certain benchmark involving this package improved from 1.01s for the previous release to 0.22s for this release. Other benchmark times appear to be unaffected.
 
 ## 0.6.24
 
