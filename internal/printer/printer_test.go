@@ -654,4 +654,13 @@ func TestES5(t *testing.T) {
 
 	expectPrintedTarget(t, 5, "x => x", "(function(x) {\n  return x;\n});\n")
 	expectPrintedTarget(t, 2015, "x => x", "(x) => x;\n")
+
+	expectPrintedTarget(t, 5, "() => {}", "(function() {\n});\n")
+	expectPrintedTarget(t, 2015, "() => {}", "() => {\n};\n")
+
+	expectPrintedTargetMinify(t, 5, "x => x", "(function(x){return x});")
+	expectPrintedTargetMinify(t, 2015, "x => x", "x=>x;")
+
+	expectPrintedTargetMinify(t, 5, "() => {}", "(function(){});")
+	expectPrintedTargetMinify(t, 2015, "() => {}", "()=>{};")
 }

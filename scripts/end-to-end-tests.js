@@ -127,40 +127,44 @@
   )
 
   // Test internal ES6 export
-  tests.push(
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `import * as out from './foo'; if (out.foo !== 123) throw 'fail'`,
-      'foo.js': `exports.foo = 123`,
-    }),
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `import * as out from './foo'; if (out.default !== 123) throw 'fail'`,
-      'foo.js': `module.exports = 123`,
-    }),
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `import * as out from './foo'; if (out.foo !== 123) throw 'fail'`,
-      'foo.js': `export const foo = 123`,
-    }),
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `import * as out from './foo'; if (out.default !== 123) throw 'fail'`,
-      'foo.js': `export default 123`,
-    }),
+  for (const minify of [[], ['--minify']]) {
+    for (const target of ['es5', 'es6']) {
+      tests.push(
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import * as out from './foo'; if (out.foo !== 123) throw 'fail'`,
+          'foo.js': `exports.foo = 123`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import * as out from './foo'; if (out.default !== 123) throw 'fail'`,
+          'foo.js': `module.exports = 123`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import * as out from './foo'; if (out.foo !== 123) throw 'fail'`,
+          'foo.js': `export var foo = 123`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import * as out from './foo'; if (out.default !== 123) throw 'fail'`,
+          'foo.js': `export default 123`,
+        }),
 
-    // Self export
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      // Exporting like this doesn't work, but that's ok
-      'in.js': `exports.foo = 123; import * as out from './in'; if (out.foo !== undefined) throw 'fail'`,
-    }),
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      // Exporting like this doesn't work, but that's ok
-      'in.js': `module.exports = {foo: 123}; import * as out from './in'; if (out.foo !== undefined) throw 'fail'`,
-    }),
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `export const foo = 123; import * as out from './in'; if (out.foo !== 123) throw 'fail'`,
-    }),
-    test(['--bundle', 'in.js', '--outfile=node.js'], {
-      'in.js': `export default 123; import * as out from './in'; if (out.default !== 123) throw 'fail'`,
-    }),
-  )
+        // Self export
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          // Exporting like this doesn't work, but that's ok
+          'in.js': `exports.foo = 123; import * as out from './in'; if (out.foo !== undefined) throw 'fail'`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          // Exporting like this doesn't work, but that's ok
+          'in.js': `module.exports = {foo: 123}; import * as out from './in'; if (out.foo !== undefined) throw 'fail'`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `export var foo = 123; import * as out from './in'; if (out.foo !== 123) throw 'fail'`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `export default 123; import * as out from './in'; if (out.default !== 123) throw 'fail'`,
+        }),
+      )
+    }
+  }
 
   // Test external CommonJS export
   tests.push(

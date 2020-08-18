@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix syntax error when minifying and bundling CommonJS to ES5 ([#335](https://github.com/evanw/esbuild/issues/335))
+
+    With the flags `--minify --bundle --target=es5`, esbuild had a bug where the arrow function for the closure used to wrap CommonJS modules was not correctly printed as an ES5 function expression, causing a syntax error. This bug has been fixed.
+
 ## 0.6.25
 
 * Avoid the `\v` escape sequence in JSON strings

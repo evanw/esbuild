@@ -1502,7 +1502,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print("function")
 		}
 
-		p.printFnArgs(e.Args, e.HasRestArg, true)
+		p.printFnArgs(e.Args, e.HasRestArg, !useFunction)
 		p.printSpace()
 
 		if !useFunction {
