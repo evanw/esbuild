@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.26
 
 * Fix syntax error when minifying and bundling CommonJS to ES5 ([#335](https://github.com/evanw/esbuild/issues/335))
 
