@@ -1204,6 +1204,19 @@ TestNestedScopeBug
 })();
 
 ================================================================================
+TestNewExpressionCommonJS
+---------- /out.js ----------
+// /foo.js
+var require_foo = __commonJS((exports, module) => {
+  class Foo {
+  }
+  module.exports = {Foo};
+});
+
+// /entry.js
+new (require_foo()).Foo();
+
+================================================================================
 TestNodeModules
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/node_modules/demo-pkg/index.js

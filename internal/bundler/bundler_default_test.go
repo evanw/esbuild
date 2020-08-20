@@ -79,6 +79,27 @@ func TestNestedCommonJS(t *testing.T) {
 	})
 }
 
+// This test makes sure that NewExpressions containing require() calls aren't
+// broken.
+func TestNewExpressionCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+        new (require("./foo.js")).Foo();
+			`,
+			"/foo.js": `
+        class Foo {}
+				module.exports = {Foo};
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestCommonJSFromES6(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
