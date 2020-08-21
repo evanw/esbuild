@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.27
 
 * Add parentheses when calling `require()` inside `new` ([#339](https://github.com/evanw/esbuild/issues/339))
 
