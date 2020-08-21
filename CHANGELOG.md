@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add parentheses when calling `require()` inside `new` ([#339](https://github.com/evanw/esbuild/issues/339))
+
+    This release fixes an issue where `new (require('path')).ctor()` became `new require_path().ctor()` after bundling, which caused `require_path()` to be invoked as the constructor instead of `ctor()`. With this fix the code `new (require_path()).ctor()` is generated instead, which correctly invokes `ctor()` as the constructor. This was contributed by [@rtsao](https://github.com/rtsao).
+
 ## 0.6.26
 
 * Fix syntax error when minifying and bundling CommonJS to ES5 ([#335](https://github.com/evanw/esbuild/issues/335))

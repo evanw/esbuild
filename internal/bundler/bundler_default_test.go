@@ -85,10 +85,10 @@ func TestNewExpressionCommonJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-        new (require("./foo.js")).Foo();
+				new (require("./foo.js")).Foo();
 			`,
 			"/foo.js": `
-        class Foo {}
+				class Foo {}
 				module.exports = {Foo};
 			`,
 		},

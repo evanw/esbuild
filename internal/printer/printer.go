@@ -1226,7 +1226,6 @@ const (
 	forbidCall = 1 << iota
 	forbidIn
 	hasNonOptionalChainParent
-	wrapRequireCall
 )
 
 func (p *printer) printUndefined(level ast.L) {
@@ -1291,7 +1290,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printSpaceBeforeIdentifier()
 		p.print("new")
 		p.printSpace()
-		p.printExpr(e.Target, ast.LNew, forbidCall|wrapRequireCall)
+		p.printExpr(e.Target, ast.LNew, forbidCall)
 
 		// TODO: Omit this while minifying
 		p.print("(")
@@ -1364,7 +1363,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.ERequire:
-		wrap := level >= ast.LNew || (flags&wrapRequireCall) != 0
+		wrap := level >= ast.LNew || (flags&forbidCall) != 0
 		if wrap {
 			p.print("(")
 		}
