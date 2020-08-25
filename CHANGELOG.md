@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Avoid running out of file handles when ulimit is low ([#348](https://github.com/evanw/esbuild/issues/348))
+
+    When esbuild uses aggressive concurrency, it can sometimes simultaneously use more file handles than allowed by the system. This can be a problem when the limit is low (e.g. using `ulimit -n 32`). In this release, esbuild now limits itself to using a maximum of 32 file handles simultaneously. This limit was chosen to be low enough to not cause issues with normal ulimit values but high enough to not impact benchmark times.
+
 ## 0.6.27
 
 * Add parentheses when calling `require()` inside `new` ([#339](https://github.com/evanw/esbuild/issues/339))

@@ -48,6 +48,8 @@ func (e *Entry) stat() {
 	entryPath := filepath.Join(e.dir, e.base)
 
 	// Use "lstat" since we want information about symbolic links
+	beforeFileOpen()
+	defer afterFileClose()
 	stat, err := os.Lstat(entryPath)
 	if err != nil {
 		return
@@ -227,6 +229,18 @@ type realFS struct {
 	cwd string
 }
 
+// Limit the number of files open simultaneously to avoid ulimit issues
+var fileOpenLimit = make(chan bool, 32)
+
+func beforeFileOpen() {
+	// This will block if the number of open files is already at the limit
+	fileOpenLimit <- false
+}
+
+func afterFileClose() {
+	<-fileOpenLimit
+}
+
 func realpath(path string) string {
 	dir := filepath.Dir(path)
 	if dir == path {
@@ -234,6 +248,8 @@ func realpath(path string) string {
 	}
 	dir = realpath(dir)
 	path = filepath.Join(dir, filepath.Base(path))
+	beforeFileOpen()
+	defer afterFileClose()
 	if link, err := os.Readlink(path); err == nil {
 		if filepath.IsAbs(link) {
 			return link
@@ -300,6 +316,8 @@ func (fs *realFS) ReadDirectory(dir string) map[string]*Entry {
 }
 
 func (fs *realFS) ReadFile(path string) (string, bool) {
+	beforeFileOpen()
+	defer afterFileClose()
 	buffer, err := ioutil.ReadFile(path)
 	return string(buffer), err == nil
 }
@@ -337,6 +355,8 @@ func (*realFS) Rel(base string, target string) (string, bool) {
 }
 
 func readdir(dirname string) ([]string, error) {
+	beforeFileOpen()
+	defer afterFileClose()
 	f, err := os.Open(dirname)
 	if err != nil {
 		return nil, err
