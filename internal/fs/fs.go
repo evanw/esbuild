@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 type EntryKind uint8
@@ -90,7 +91,7 @@ type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
 	// mutate it.
 	ReadDirectory(path string) map[string]*Entry
-	ReadFile(path string) (string, bool)
+	ReadFile(path string) (string, error)
 
 	// This is part of the interface because the mock interface used for tests
 	// should not depend on file system behavior (i.e. different slashes for
@@ -146,9 +147,12 @@ func (fs *mockFS) ReadDirectory(path string) map[string]*Entry {
 	return fs.dirs[path]
 }
 
-func (fs *mockFS) ReadFile(path string) (string, bool) {
+func (fs *mockFS) ReadFile(path string) (string, error) {
 	contents, ok := fs.files[path]
-	return contents, ok
+	if !ok {
+		return "", syscall.ENOENT
+	}
+	return contents, nil
 }
 
 func (*mockFS) Abs(p string) (string, bool) {
@@ -315,11 +319,16 @@ func (fs *realFS) ReadDirectory(dir string) map[string]*Entry {
 	return entries
 }
 
-func (fs *realFS) ReadFile(path string) (string, bool) {
+func (fs *realFS) ReadFile(path string) (string, error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
 	buffer, err := ioutil.ReadFile(path)
-	return string(buffer), err == nil
+	if err != nil {
+		if pathErr, ok := err.(*os.PathError); ok {
+			return "", pathErr.Unwrap()
+		}
+	}
+	return string(buffer), err
 }
 
 func (*realFS) Abs(p string) (string, bool) {

@@ -14,14 +14,14 @@ func TestBasic(t *testing.T) {
 	})
 
 	// Test a missing file
-	_, ok := fs.ReadFile("/missing.txt")
-	if ok {
+	_, err := fs.ReadFile("/missing.txt")
+	if err == nil {
 		t.Fatal("Unexpectedly found /missing.txt")
 	}
 
 	// Test an existing file
-	readme, ok := fs.ReadFile("/README.md")
-	if !ok {
+	readme, err := fs.ReadFile("/README.md")
+	if err != nil {
 		t.Fatal("Expected to find /README.md")
 	}
 	if readme != "// README.md" {
@@ -29,8 +29,8 @@ func TestBasic(t *testing.T) {
 	}
 
 	// Test an existing nested file
-	index, ok := fs.ReadFile("/src/index.js")
-	if !ok {
+	index, err := fs.ReadFile("/src/index.js")
+	if err != nil {
 		t.Fatal("Expected to find /src/index.js")
 	}
 	if index != "// src/index.js" {

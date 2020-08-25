@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"unicode"
 	"unicode/utf8"
 
@@ -118,11 +119,16 @@ func parseFile(args parseArgs) {
 		loader = stdin.Loader
 	} else if args.keyPath.IsAbsolute {
 		// Read normal modules from disk
-		var ok bool
-		source.Contents, ok = args.res.Read(args.keyPath.Text)
-		if !ok {
-			args.log.AddRangeError(args.importSource, args.pathRange,
-				fmt.Sprintf("Could not read from file: %s", args.keyPath.Text))
+		var err error
+		source.Contents, err = args.fs.ReadFile(args.keyPath.Text)
+		if err != nil {
+			if err == syscall.ENOENT {
+				args.log.AddRangeError(args.importSource, args.pathRange,
+					fmt.Sprintf("Could not read from file: %s", args.keyPath.Text))
+			} else {
+				args.log.AddRangeError(args.importSource, args.pathRange,
+					fmt.Sprintf("Cannot read file %q: %s", args.res.PrettyPath(args.keyPath.Text), err.Error()))
+			}
 			args.results <- parseResult{}
 			return
 		}
@@ -305,7 +311,7 @@ func parseFile(args parseArgs) {
 
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
-		if path, contents := extractSourceMapFromComment(args.log, args.fs, &source, result.file.ast.SourceMapComment); contents != nil {
+		if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, result.file.ast.SourceMapComment); contents != nil {
 			prettyPath := path.Text
 			if path.IsAbsolute {
 				prettyPath = args.res.PrettyPath(prettyPath)
@@ -321,7 +327,7 @@ func parseFile(args parseArgs) {
 	args.results <- result
 }
 
-func extractSourceMapFromComment(log logging.Log, fs fs.FS, source *logging.Source, comment ast.Span) (ast.Path, *string) {
+func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolver, source *logging.Source, comment ast.Span) (ast.Path, *string) {
 	// Data URL
 	if strings.HasPrefix(comment.Text, "data:") {
 		if strings.HasPrefix(comment.Text, "data:application/json;") {
@@ -348,9 +354,13 @@ func extractSourceMapFromComment(log logging.Log, fs fs.FS, source *logging.Sour
 	// Absolute path
 	if source.KeyPath.IsAbsolute {
 		absPath := fs.Join(fs.Dir(source.KeyPath.Text), comment.Text)
-		contents, ok := fs.ReadFile(absPath)
-		if !ok {
-			log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Could not find source map file: %s", absPath))
+		contents, err := fs.ReadFile(absPath)
+		if err != nil {
+			if err == syscall.ENOENT {
+				log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Could not find source map file: %s", absPath))
+				return ast.Path{}, nil
+			}
+			log.AddRangeError(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(absPath), err.Error()))
 			return ast.Path{}, nil
 		}
 		return ast.Path{IsAbsolute: true, Text: absPath}, &contents
