@@ -13,7 +13,9 @@ import (
 	"os"
 	"runtime/debug"
 	"sync"
+	"syscall"
 
+	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
 )
@@ -236,11 +238,12 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 
 	transformInput := input
 	if inputFS {
-		bytes, err := ioutil.ReadFile(input)
-		if err == nil {
-			err = os.Remove(input)
+		realFS := fs.RealFS()
+		bytes, ok := realFS.ReadFile(input)
+		if !ok {
+			return encodeErrorPacket(id, syscall.ENOENT)
 		}
-		if err != nil {
+		if err := os.Remove(input); err != nil {
 			return encodeErrorPacket(id, err)
 		}
 		transformInput = string(bytes)
