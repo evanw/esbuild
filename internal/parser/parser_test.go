@@ -1695,6 +1695,19 @@ func TestMangleObject(t *testing.T) {
 		"x = {a, b, ...{get c() {\n  return y++;\n}, d}, e};\n")
 	expectPrintedMangle(t, "x = {a, ...{b, set c(_) { throw _ }, d}, e}",
 		"x = {a, b, ...{set c(_) {\n  throw _;\n}, d}, e};\n")
+
+	// Spread is ignored for certain values
+	expectPrintedMangle(t, "x = {a, ...true, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...null, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...void 0, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...123, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...123n, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, .../x/, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...function(){}, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...()=>{}, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...'123', b}", "x = {a, ...\"123\", b};\n")
+	expectPrintedMangle(t, "x = {a, ...[1, 2, 3], b}", "x = {a, ...[1, 2, 3], b};\n")
+	expectPrintedMangle(t, "x = {a, ...(()=>{})(), b}", "x = {a, ...(() => {\n})(), b};\n")
 }
 
 func TestMangleArrow(t *testing.T) {

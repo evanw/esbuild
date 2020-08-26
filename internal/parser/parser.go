@@ -8168,14 +8168,20 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				var properties []ast.Property
 				for _, property := range e.Properties {
 					if property.Kind == ast.PropertySpread {
-						if object, ok := property.Value.Data.(*ast.EObject); ok {
-							for i, p := range object.Properties {
+						switch v := property.Value.Data.(type) {
+						case *ast.EBoolean, *ast.ENull, *ast.EUndefined, *ast.ENumber,
+							*ast.EBigInt, *ast.ERegExp, *ast.EFunction, *ast.EArrow:
+							// This value is ignored because it doesn't have any of its own properties
+							continue
+
+						case *ast.EObject:
+							for i, p := range v.Properties {
 								// Getters are evaluated at iteration time. The property
 								// descriptor is not inlined into the caller. Since we are not
 								// evaluating code at compile time, just bail if we hit one
 								// and preserve the spread with the remaining properties.
 								if p.Kind == ast.PropertyGet || p.Kind == ast.PropertySet {
-									object.Properties = object.Properties[i:]
+									v.Properties = v.Properties[i:]
 									properties = append(properties, property)
 									break
 								}
