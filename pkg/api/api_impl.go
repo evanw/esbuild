@@ -546,6 +546,8 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 						waitGroup.Add(len(outputFiles))
 						for _, outputFile := range outputFiles {
 							go func(outputFile OutputFile) {
+								fs.BeforeFileOpen()
+								defer fs.AfterFileClose()
 								if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
 									log.AddError(nil, ast.Loc{}, fmt.Sprintf(
 										"Failed to create output directory: %s", err.Error()))
