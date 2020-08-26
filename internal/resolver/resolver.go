@@ -601,7 +601,14 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// List the directories
-	entries := r.fs.ReadDirectory(path)
+	entries, err := r.fs.ReadDirectory(path)
+	if err != nil {
+		if err != syscall.ENOENT {
+			r.log.AddError(nil, ast.Loc{},
+				fmt.Sprintf("Cannot read directory %q: %s", r.PrettyPath(path), err.Error()))
+		}
+		return nil
+	}
 	info := &dirInfo{
 		absPath: path,
 		parent:  parentInfo,
@@ -701,13 +708,16 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	// "main" property is supposed to be CommonJS, and ES6 helps us generate
 	// better code.
 	mainPath := ""
+	var mainRange ast.Range
 	if moduleJson, _, ok := getProperty(json, "module"); ok {
 		if main, ok := getString(moduleJson); ok {
 			mainPath = r.fs.Join(path, main)
+			mainRange = jsonSource.RangeOfString(moduleJson.Loc)
 		}
 	} else if mainJson, _, ok := getProperty(json, "main"); ok {
 		if main, ok := getString(mainJson); ok {
 			mainPath = r.fs.Join(path, main)
+			mainRange = jsonSource.RangeOfString(mainJson.Loc)
 		}
 	}
 
@@ -736,6 +746,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 			//   },
 			//
 			mainPath = r.fs.Join(path, browser)
+			mainRange = jsonSource.RangeOfString(browserJson.Loc)
 		} else if browser, ok := browserJson.Data.(*ast.EObject); ok {
 			// The value is an object
 			browserPackageMap := make(map[string]*string)
@@ -811,11 +822,15 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 			packageJson.absPathMain = &absolute
 		} else {
 			// Is it a directory?
-			if mainEntries := r.fs.ReadDirectory(mainPath); mainEntries != nil {
+			mainEntries, err := r.fs.ReadDirectory(mainPath)
+			if err == nil {
 				// Look for an "index" file with known extensions
 				if absolute, ok = r.loadAsIndex(mainPath, mainEntries); ok {
 					packageJson.absPathMain = &absolute
 				}
+			} else if err != syscall.ENOENT {
+				r.log.AddRangeError(&jsonSource, mainRange,
+					fmt.Sprintf("Cannot read directory %q: %s", r.PrettyPath(mainPath), err.Error()))
 			}
 		}
 	}
@@ -825,46 +840,52 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 
 func (r *resolver) loadAsFile(path string) (string, bool) {
 	// Read the directory entries once to minimize locking
-	entries := r.fs.ReadDirectory(r.fs.Dir(path))
-
-	if entries != nil {
-		base := r.fs.Base(path)
-
-		// Try the plain path without any extensions
-		if entry, ok := entries[base]; ok && entry.Kind() == fs.FileEntry {
-			return path, true
+	dirPath := r.fs.Dir(path)
+	entries, err := r.fs.ReadDirectory(dirPath)
+	if err != nil {
+		if err != syscall.ENOENT {
+			r.log.AddError(nil, ast.Loc{},
+				fmt.Sprintf("Cannot read directory %q: %s", r.PrettyPath(dirPath), err.Error()))
 		}
+		return "", false
+	}
 
-		// Try the path with extensions
-		for _, ext := range r.options.ExtensionOrder {
-			if entry, ok := entries[base+ext]; ok && entry.Kind() == fs.FileEntry {
-				return path + ext, true
-			}
+	base := r.fs.Base(path)
+
+	// Try the plain path without any extensions
+	if entry, ok := entries[base]; ok && entry.Kind() == fs.FileEntry {
+		return path, true
+	}
+
+	// Try the path with extensions
+	for _, ext := range r.options.ExtensionOrder {
+		if entry, ok := entries[base+ext]; ok && entry.Kind() == fs.FileEntry {
+			return path + ext, true
 		}
+	}
 
-		// TypeScript-specific behavior: if the extension is ".js" or ".jsx", try
-		// replacing it with ".ts" or ".tsx". At the time of writing this specific
-		// behavior comes from the function "loadModuleFromFile()" in the file
-		// "moduleNameResolver.ts" in the TypeScript compiler source code. It
-		// contains this comment:
-		//
-		//   If that didn't work, try stripping a ".js" or ".jsx" extension and
-		//   replacing it with a TypeScript one; e.g. "./foo.js" can be matched
-		//   by "./foo.ts" or "./foo.d.ts"
-		//
-		// We don't care about ".d.ts" files because we can't do anything with
-		// those, so we ignore that part of the behavior.
-		//
-		// See the discussion here for more historical context:
-		// https://github.com/microsoft/TypeScript/issues/4595
-		if strings.HasSuffix(base, ".js") || strings.HasSuffix(base, ".jsx") {
-			lastDot := strings.LastIndexByte(base, '.')
-			// Note that the official compiler code always tries ".ts" before
-			// ".tsx" even if the original extension was ".jsx".
-			for _, ext := range []string{".ts", ".tsx"} {
-				if entry, ok := entries[base[:lastDot]+ext]; ok && entry.Kind() == fs.FileEntry {
-					return path[:len(path)-(len(base)-lastDot)] + ext, true
-				}
+	// TypeScript-specific behavior: if the extension is ".js" or ".jsx", try
+	// replacing it with ".ts" or ".tsx". At the time of writing this specific
+	// behavior comes from the function "loadModuleFromFile()" in the file
+	// "moduleNameResolver.ts" in the TypeScript compiler source code. It
+	// contains this comment:
+	//
+	//   If that didn't work, try stripping a ".js" or ".jsx" extension and
+	//   replacing it with a TypeScript one; e.g. "./foo.js" can be matched
+	//   by "./foo.ts" or "./foo.d.ts"
+	//
+	// We don't care about ".d.ts" files because we can't do anything with
+	// those, so we ignore that part of the behavior.
+	//
+	// See the discussion here for more historical context:
+	// https://github.com/microsoft/TypeScript/issues/4595
+	if strings.HasSuffix(base, ".js") || strings.HasSuffix(base, ".jsx") {
+		lastDot := strings.LastIndexByte(base, '.')
+		// Note that the official compiler code always tries ".ts" before
+		// ".tsx" even if the original extension was ".jsx".
+		for _, ext := range []string{".ts", ".tsx"} {
+			if entry, ok := entries[base[:lastDot]+ext]; ok && entry.Kind() == fs.FileEntry {
+				return path[:len(path)-(len(base)-lastDot)] + ext, true
 			}
 		}
 	}

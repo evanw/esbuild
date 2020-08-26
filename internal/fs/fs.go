@@ -90,7 +90,7 @@ func (e *Entry) stat() {
 type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
 	// mutate it.
-	ReadDirectory(path string) map[string]*Entry
+	ReadDirectory(path string) (map[string]*Entry, error)
 	ReadFile(path string) (string, error)
 
 	// This is part of the interface because the mock interface used for tests
@@ -143,8 +143,12 @@ func MockFS(input map[string]string) FS {
 	return &mockFS{dirs, files}
 }
 
-func (fs *mockFS) ReadDirectory(path string) map[string]*Entry {
-	return fs.dirs[path]
+func (fs *mockFS) ReadDirectory(path string) (map[string]*Entry, error) {
+	dir := fs.dirs[path]
+	if dir == nil {
+		return nil, syscall.ENOENT
+	}
+	return dir, nil
 }
 
 func (fs *mockFS) ReadFile(path string) (string, error) {
@@ -227,10 +231,15 @@ func (*mockFS) Rel(base string, target string) (string, bool) {
 
 type realFS struct {
 	// Stores the file entries for directories we've listed before
-	entries map[string]map[string]*Entry
+	entries map[string]entriesOrErr
 
 	// For the current working directory
 	cwd string
+}
+
+type entriesOrErr struct {
+	entries map[string]*Entry
+	err     error
 }
 
 // Limit the number of files open simultaneously to avoid ulimit issues
@@ -279,18 +288,18 @@ func RealFS() FS {
 		cwd = realpath(cwd)
 	}
 	return &realFS{
-		entries: make(map[string]map[string]*Entry),
+		entries: make(map[string]entriesOrErr),
 		cwd:     cwd,
 	}
 }
 
-func (fs *realFS) ReadDirectory(dir string) map[string]*Entry {
+func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
 	// First, check the cache
 	cached, ok := fs.entries[dir]
 
 	// Cache hit: stop now
 	if ok {
-		return cached
+		return cached.entries, cached.err
 	}
 
 	// Cache miss: read the directory entries
@@ -312,11 +321,13 @@ func (fs *realFS) ReadDirectory(dir string) map[string]*Entry {
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
 	if err != nil {
-		fs.entries[dir] = nil
-		return nil
+		if pathErr, ok := err.(*os.PathError); ok {
+			err = pathErr.Unwrap()
+		}
+		entries = nil
 	}
-	fs.entries[dir] = entries
-	return entries
+	fs.entries[dir] = entriesOrErr{entries: entries, err: err}
+	return entries, err
 }
 
 func (fs *realFS) ReadFile(path string) (string, error) {
@@ -325,7 +336,7 @@ func (fs *realFS) ReadFile(path string) (string, error) {
 	buffer, err := ioutil.ReadFile(path)
 	if err != nil {
 		if pathErr, ok := err.(*os.PathError); ok {
-			return "", pathErr.Unwrap()
+			err = pathErr.Unwrap()
 		}
 	}
 	return string(buffer), err
