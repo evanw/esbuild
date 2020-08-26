@@ -1,6 +1,5 @@
 import fs = require('fs');
 import os = require('os');
-import url = require('url');
 import path = require('path');
 import zlib = require('zlib');
 import https = require('https');
@@ -36,73 +35,52 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
   } catch {
   }
 
-  // Download the package from npm
-  let officialRegistry = 'registry.npmjs.org';
-  let urls = [`https://${officialRegistry}/${name}/-/${name}-${version}.tgz`];
-  let debug = false;
-
-  let finishInstall = (buffer: Buffer): void => {
-    // Write out the binary executable that was extracted from the package
-    fs.writeFileSync(toPath, buffer, { mode: 0o755 });
-
-    // Mark the operation as successful so this script is idempotent
-    fs.writeFileSync(stampPath, '');
-
-    // Also try to cache the file to speed up future installs
-    try {
-      fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-      fs.copyFileSync(toPath, cachePath);
-      cleanCacheLRU(cachePath);
-    } catch {
-    }
-
-    if (debug) console.error(`Install successful`);
-  };
-
-  // Try downloading from a custom registry first if one is configured
+  // Next, try to install using npm. This should handle various tricky cases
+  // such as environments where requests to npmjs.org will hang (in which case
+  // there is probably a proxy and/or a custom registry configured instead).
+  let buffer: Buffer | undefined;
+  let didFail = false;
   try {
-    let env = url.parse(process.env.npm_config_registry || '');
-    if (env.protocol && env.host && env.pathname && env.host !== officialRegistry) {
-      let query = url.format({ ...env, pathname: path.posix.join(env.pathname, `${name}/${version}`) });
-      try {
-        // Query the API for the tarball location
-        let tarball = JSON.parse((await fetch(query)).toString()).dist.tarball;
-        if (urls.indexOf(tarball) < 0) urls.unshift(tarball);
-      } catch (err) {
-        console.error(`Failed to download ${JSON.stringify(query)}: ${err && err.message || err}`);
-        debug = true;
-      }
-    }
-  } catch {
-  }
-
-  // Try each registry URL in succession
-  for (let url of urls) {
-    let tryText = `Trying to download ${JSON.stringify(url)}`;
-    try {
-      if (debug) console.error(tryText);
-      finishInstall(extractFileFromTarGzip(await fetch(url), fromPath));
-      return;
-    } catch (err) {
-      if (!debug) console.error(tryText);
-      console.error(`Failed to download ${JSON.stringify(url)}: ${err && err.message || err}`);
-      debug = true;
-    }
-  }
-
-  // If all of this fails, try using npm install instead. This is an attempt to
-  // work around users that cannot send normal HTTP requests. For example, they
-  // may have blocked registry.npmjs.org and configured a HTTPS proxy instead.
-  try {
-    console.log(`Trying to install "${name}" using npm`)
-    finishInstall(installUsingNPM(name, fromPath));
-    return;
+    buffer = installUsingNPM(name, fromPath);
   } catch (err) {
+    didFail = true;
+    console.error(`Trying to install "${name}" using npm`);
     console.error(`Failed to install "${name}" using npm: ${err && err.message || err}`);
   }
 
-  console.error(`Install unsuccessful`);
-  process.exit(1);
+  // If that fails, the user could have npm configured incorrectly or could not
+  // have npm installed. Try downloading directly from npm as a last resort.
+  if (!buffer) {
+    const url = `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`;
+    console.error(`Trying to download ${JSON.stringify(url)}`);
+    try {
+      buffer = extractFileFromTarGzip(await fetch(url), fromPath);
+    } catch (err) {
+      console.error(`Failed to download ${JSON.stringify(url)}: ${err && err.message || err}`);
+    }
+  }
+
+  // Give up if none of that worked
+  if (!buffer) {
+    console.error(`Install unsuccessful`);
+    process.exit(1);
+  }
+
+  // Write out the binary executable that was extracted from the package
+  fs.writeFileSync(toPath, buffer, { mode: 0o755 });
+
+  // Mark the operation as successful so this script is idempotent
+  fs.writeFileSync(stampPath, '');
+
+  // Also try to cache the file to speed up future installs
+  try {
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.copyFileSync(toPath, cachePath);
+    cleanCacheLRU(cachePath);
+  } catch {
+  }
+
+  if (didFail) console.error(`Install successful`);
 }
 
 function getCachePath(name: string): string {
@@ -182,7 +160,7 @@ function installUsingNPM(name: string, file: string): Buffer {
   const env = { ...process.env, npm_config_global: undefined };
 
   child_process.execSync(`npm install --loglevel=error --prefer-offline --no-audit --progress=false ${name}@${version}`,
-    { cwd: installDir, stdio: 'inherit', env });
+    { cwd: installDir, stdio: 'pipe', env });
   const buffer = fs.readFileSync(path.join(installDir, 'node_modules', name, file));
   removeRecursive(installDir);
   return buffer;

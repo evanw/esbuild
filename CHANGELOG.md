@@ -6,6 +6,12 @@
 
     When esbuild uses aggressive concurrency, it can sometimes simultaneously use more file handles than allowed by the system. This can be a problem when the limit is low (e.g. using `ulimit -n 32`). In this release, esbuild now limits itself to using a maximum of 32 file handles simultaneously. This limit was chosen to be low enough to not cause issues with normal ulimit values but high enough to not impact benchmark times.
 
+* Install script tries `npm install` before a direct download ([#347](https://github.com/evanw/esbuild/issues/347))
+
+    The `esbuild` package has a post-install script that downloads the native binary for the current platform over HTTP. Some people have configured their environments such that HTTP requests to npmjs.org will hang, and configured npm to use a proxy for HTTP requests instead. In this case, esbuild's install script will still work as long as `npm install` works because the HTTP request will eventually time out, at which point the install script will run `npm install` as a fallback. The timeout is of course undesirable.
+
+    This release changes the order of attempted download methods in the install script. Now `npm install` is tried first and directly downloading the file over HTTP will be tried as a fallback. This means installations will be slightly slower since npm is slow, but it should avoid the situation where the install script takes a long time because it's waiting for a HTTP timeout. This should still support the scenarios where there is a HTTP proxy configured, where there is a custom registry configured, and where the `npm` command isn't available.
+
 ## 0.6.27
 
 * Add parentheses when calling `require()` inside `new` ([#339](https://github.com/evanw/esbuild/issues/339))
