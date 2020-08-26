@@ -592,6 +592,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Convert and validate the transformOpts
 	options := config.Options{
+		IsTransforming: true,
 		UnsupportedFeatures: validateFeatures(log, transformOpts.Target, transformOpts.Engines),
 		Strict:              validateStrict(transformOpts.Strict),
 		JSX: config.JSXOptions{
@@ -603,6 +604,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		MangleSyntax:      transformOpts.MinifySyntax,
 		RemoveWhitespace:  transformOpts.MinifyWhitespace,
 		MinifyIdentifiers: transformOpts.MinifyIdentifiers,
+		OutputFormat:      validateFormat(transformOpts.Format),
 		AbsOutputFile:     transformOpts.Sourcefile + "-out",
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
@@ -610,6 +612,13 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			SourceFile: transformOpts.Sourcefile,
 		},
 	}
+
+	if options.OutputFormat == config.FormatESModule {
+		options.OutputFormat = config.FormatPreserve
+	} else if options.OutputFormat != config.FormatPreserve {
+		options.IsBundling = true
+	}
+
 	if options.SourceMap == config.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name
 		log.AddError(nil, ast.Loc{}, "Cannot transform with linked source maps")

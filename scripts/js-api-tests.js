@@ -463,6 +463,38 @@ let transformTests = {
     assert.strictEqual(js, `export const foo = 123;\n`)
   },
 
+  async esm_to_esm({ service }) {
+    const { js } = await service.transform(`import path from 'path';export default path`, { format: 'esm' })
+
+    assert.strictEqual(js, `import path2 from "path";\nexport default path2;\n`)
+  },
+
+  async esm_to_cjs({ service, testDir }) {
+    const { js } = await service.transform(`import path from 'path';export default path`, { format: 'cjs' })
+
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(output, js)
+    const result = require(output)
+    assert.strictEqual(result.default, path)
+    assert.strictEqual(result.__esModule, true)
+  },
+
+  async esm_to_iife({ service, testDir }) {
+    const { js } = await service.transform(`const a = document.querySelector('.a')`, { format: 'iife' })
+
+    assert.strictEqual(js, `(() => {\n  // <stdin>\n  const a = document.querySelector(".a");\n})();\n`)
+  },
+
+  async esm_to_iife_with_import({ service, testDir }) {
+    try {
+      await service.transform(`import path from 'path';export default path`, { format: 'iife' })
+
+      assert.fail('iife can not import')
+    } catch (error) {
+      assert.strictEqual(error.message, `Transform failed with 1 error:\n<stdin>:1:17: error: Could not resolve "path"`)
+    }
+  },
+
   async jsx({ service }) {
     const { js } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
     assert.strictEqual(js, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)

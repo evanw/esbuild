@@ -145,7 +145,8 @@ type ExternalModules struct {
 type Options struct {
 	// true: imports are scanned and bundled along with the file
 	// false: imports are left alone and the file is passed through as-is
-	IsBundling bool
+	IsBundling     bool
+	IsTransforming bool
 
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool

@@ -259,7 +259,7 @@ func parseFile(args parseArgs) {
 	if args.options.IsBundling {
 		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
 
-		if len(result.file.ast.ImportRecords) > 0 {
+		if len(result.file.ast.ImportRecords) > 0 && !(args.options.IsTransforming && args.options.OutputFormat != config.FormatIIFE) {
 			cache := make(map[string]*resolver.ResolveResult)
 
 			// Resolve relative to the parent directory of the source file with the

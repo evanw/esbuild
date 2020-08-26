@@ -9,6 +9,8 @@ export interface CommonOptions {
   target?: string | string[];
   strict?: boolean | Strict[];
 
+  format?: Format;
+
   minify?: boolean;
   minifyWhitespace?: boolean;
   minifyIdentifiers?: boolean;
@@ -32,7 +34,6 @@ export interface BuildOptions extends CommonOptions {
   metafile?: string;
   outdir?: string;
   platform?: Platform;
-  format?: Format;
   color?: boolean;
   external?: string[];
   loader?: { [ext: string]: Loader };

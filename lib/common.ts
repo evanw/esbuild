@@ -20,6 +20,8 @@ function pushCommonFlags(flags: string[], options: types.CommonOptions, isTTY: b
   if (options.minifyWhitespace) flags.push('--minify-whitespace');
   if (options.minifyIdentifiers) flags.push('--minify-identifiers');
 
+  if (options.format) flags.push(`--format=${options.format}`);
+
   if (options.jsxFactory) flags.push(`--jsx-factory=${options.jsxFactory}`);
   if (options.jsxFragment) flags.push(`--jsx-fragment=${options.jsxFragment}`);
   if (options.define) {
@@ -50,7 +52,6 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [str
   if (options.outfile) flags.push(`--outfile=${options.outfile}`);
   if (options.outdir) flags.push(`--outdir=${options.outdir}`);
   if (options.platform) flags.push(`--platform=${options.platform}`);
-  if (options.format) flags.push(`--format=${options.format}`);
   if (options.tsconfig) flags.push(`--tsconfig=${options.tsconfig}`);
   if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
   if (options.external) for (let name of options.external) flags.push(`--external:${name}`);
