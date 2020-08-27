@@ -673,6 +673,14 @@ func TestTreeShakingBinaryExpressions(t *testing.T) {
 				let c = "c";
 				let d = c + "d";
 				console.log(d);
+
+				let e = {
+					toString() {
+						console.log("effect");
+						return "e";
+					}
+				}
+				let noprune = "str" + e;
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
