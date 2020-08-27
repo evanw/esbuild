@@ -8910,6 +8910,9 @@ func (p *parser) exprCanBeRemovedIfUnused(expr ast.Expr) bool {
 		*ast.EString, *ast.EThis, *ast.ERegExp, *ast.EFunction, *ast.EArrow, *ast.EImportMeta:
 		return true
 
+	case *ast.EBinary:
+		return p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
+
 	case *ast.EDot:
 		return e.CanBeRemovedIfUnused
 

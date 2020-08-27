@@ -227,6 +227,14 @@ TestTextLoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestTreeShakingBinaryExpressions
+---------- /out.js ----------
+// /entry.js
+let c = "c";
+let d = c + "d";
+console.log(d);
+
+================================================================================
 TestTreeShakingReactElements
 ---------- /out.js ----------
 // /entry.jsx

@@ -662,3 +662,23 @@ func TestTreeShakingReactElements(t *testing.T) {
 		},
 	})
 }
+
+func TestTreeShakingBinaryExpressions(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let a = "a";
+				let b = a + "b";
+
+				let c = "c";
+				let d = c + "d";
+				console.log(d);
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
