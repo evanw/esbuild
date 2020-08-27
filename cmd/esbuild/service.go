@@ -237,8 +237,9 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 
 	transformInput := input
 	if inputFS {
-		realFS := fs.RealFS()
-		bytes, err := realFS.ReadFile(input)
+		fs.BeforeFileOpen()
+		bytes, err := ioutil.ReadFile(input)
+		fs.AfterFileClose()
 		if err == nil {
 			err = os.Remove(input)
 		}
