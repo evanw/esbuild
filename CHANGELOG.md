@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.28
 
 * Avoid running out of file handles when ulimit is low ([#348](https://github.com/evanw/esbuild/issues/348))
 
