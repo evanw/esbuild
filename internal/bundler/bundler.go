@@ -357,7 +357,7 @@ func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolve
 		contents, err := fs.ReadFile(absPath)
 		if err != nil {
 			if err == syscall.ENOENT {
-				log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Could not find source map file: %s", absPath))
+				log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Could not find source map file: %s", res.PrettyPath(absPath)))
 				return ast.Path{}, nil
 			}
 			log.AddRangeError(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(absPath), err.Error()))

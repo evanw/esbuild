@@ -636,6 +636,15 @@
         }
         new Foo().bar()
       `,
+    }, {
+      expectedStderr: `in.js:23:30: warning: Reading from setter-only property "#setter" will throw
+            expect(() => this.#setter, 'member.get is not a function')
+                              ~~~~~~~
+in.js:24:30: warning: Writing to getter-only property "#getter" will throw
+            expect(() => this.#getter = 1, 'member.set is not a function')
+                              ~~~~~~~
+2 warnings
+`,
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
@@ -846,6 +855,54 @@
     )
   }
 
+  // Test file handle errors other than ENOENT
+  {
+    const errorText = process.platform === 'win32' ? 'The handle is invalid.' : 'is a directory';
+    tests.push(
+      test(['src/entry.js', '--bundle', '--outfile=node.js', '--sourcemap'], {
+        'src/entry.js': `
+        //# sourceMappingURL=entry.js.map
+      `,
+        'src/entry.js.map/x': ``,
+      }, {
+        expectedStderr: `src/entry.js:2:29: error: Cannot read file "src/entry.js.map": ${errorText}
+        //# sourceMappingURL=entry.js.map
+                             ~~~~~~~~~~~~
+1 error
+` ,
+      }),
+      test(['src/entry.js', '--bundle', '--outfile=node.js'], {
+        'src/entry.js/x': ``,
+      }, {
+        expectedStderr: `error: Cannot read file "src/entry.js": ${errorText}
+1 error
+`,
+      }),
+      test(['src/entry.js', '--bundle', '--outfile=node.js'], {
+        'src/entry.js': ``,
+        'src/tsconfig.json': `{"extends": "./base.json"}`,
+        'src/base.json/x': ``,
+      }, {
+        expectedStderr: `src/tsconfig.json:1:12: error: Cannot read file "src/base.json": ${errorText}
+{"extends": "./base.json"}
+            ~~~~~~~~~~~~~
+1 error
+`,
+      }),
+      test(['src/entry.js', '--bundle', '--outfile=node.js'], {
+        'src/entry.js': ``,
+        'src/tsconfig.json': `{"extends": "foo"}`,
+        'src/node_modules/foo/tsconfig.json/x': ``,
+      }, {
+        expectedStderr: `src/tsconfig.json:1:12: error: Cannot read file "src/node_modules/foo/tsconfig.json": ${errorText}
+{"extends": "foo"}
+            ~~~~~
+1 error
+`,
+      }),
+    )
+  }
+
   // Test writing to stdout
   tests.push(
     // These should succeed
@@ -899,6 +956,7 @@
       const hasCJS = args.includes('--format=cjs')
       const hasESM = args.includes('--format=esm')
       const formats = hasCJS || !hasBundle ? ['cjs'] : hasESM ? ['esm'] : ['cjs', 'esm']
+      const expectedStderr = options && options.expectedStderr || '';
 
       // If the test doesn't specify a format, test both formats
       for (const format of formats) {
@@ -919,8 +977,9 @@
           }
 
           // Run esbuild
-          await execFileAsync(esbuildPath, modifiedArgs,
+          const { stderr } = await execFileAsync(esbuildPath, modifiedArgs,
             { cwd: thisTestDir, stdio: 'pipe' })
+          assert.strictEqual(stderr, expectedStderr);
 
           // Run the resulting node.js file and make sure it exits cleanly. The
           // use of "pathToFileURL" is a workaround for a problem where node
@@ -952,6 +1011,14 @@
         }
 
         catch (e) {
+          if (e && e.stderr !== void 0) {
+            try {
+              assert.strictEqual(e.stderr, expectedStderr);
+              return true;
+            } catch (e2) {
+              e = e2;
+            }
+          }
           console.error(`❌ test failed: ${e && e.message || e}
   dir: ${path.relative(dirname, thisTestDir)}
   args: ${modifiedArgs.join(' ')}
