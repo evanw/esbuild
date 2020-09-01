@@ -1089,15 +1089,6 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "1 != 2", "true;\n")
 	expectPrinted(t, "1 != '1'", "1 != \"1\";\n")
 
-	expectParseError(t, "x === -0", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
-	expectParseError(t, "x == -0", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
-	expectParseError(t, "x !== -0", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
-	expectParseError(t, "x != -0", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
-	expectParseError(t, "-0 === x", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
-	expectParseError(t, "-0 == x", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
-	expectParseError(t, "-0 !== x", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
-	expectParseError(t, "-0 != x", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
-
 	expectPrinted(t, "'a' === '\\x61'", "true;\n")
 	expectPrinted(t, "'a' === '\\x62'", "false;\n")
 	expectPrinted(t, "'a' === 'abc'", "false;\n")
@@ -1310,6 +1301,25 @@ func TestCatch(t *testing.T) {
 	expectParseError(t, "try {} catch ({e}) { function e() {} }", "<stdin>: error: \"e\" has already been declared\n")
 	expectParseError(t, "try {} catch (e) { let e }", "<stdin>: error: \"e\" has already been declared\n")
 	expectParseError(t, "try {} catch (e) { const e = 0 }", "<stdin>: error: \"e\" has already been declared\n")
+}
+
+func TestWarningEqualsNegativeZero(t *testing.T) {
+	expectParseError(t, "x === -0", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
+	expectParseError(t, "x == -0", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
+	expectParseError(t, "x !== -0", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
+	expectParseError(t, "x != -0", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
+
+	expectParseError(t, "-0 === x", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
+	expectParseError(t, "-0 == x", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
+	expectParseError(t, "-0 !== x", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
+	expectParseError(t, "-0 != x", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
+}
+
+func TestWarningEqualsNewObject(t *testing.T) {
+	expectParseError(t, "x === []", "<stdin>: warning: Comparison using the === operator here is always false\n")
+	expectParseError(t, "x !== []", "<stdin>: warning: Comparison using the !== operator here is always true\n")
+	expectParseError(t, "x == []", "")
+	expectParseError(t, "x != []", "")
 }
 
 func TestWarningTypeofEquals(t *testing.T) {
