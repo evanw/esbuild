@@ -530,6 +530,7 @@ func TestPattern(t *testing.T) {
 }
 
 func TestObject(t *testing.T) {
+	expectPrinted(t, "({foo})", "({foo});\n")
 	expectPrinted(t, "({foo:0})", "({foo: 0});\n")
 	expectPrinted(t, "({foo() {}})", "({foo() {\n}});\n")
 	expectPrinted(t, "({*foo() {}})", "({*foo() {\n}});\n")
@@ -542,8 +543,9 @@ func TestObject(t *testing.T) {
 	expectPrinted(t, "({get if() {}})", "({get if() {\n}});\n")
 	expectPrinted(t, "({set if() {}})", "({set if() {\n}});\n")
 
-	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
+	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \":\" but found \"foo\"\n")
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
+	expectParseError(t, "({if})", "<stdin>: error: Expected \":\" but found \"}\"\n")
 }
 
 func TestComputedProperty(t *testing.T) {

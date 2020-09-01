@@ -1214,7 +1214,8 @@ func (p *parser) parseProperty(
 
 		// Parse a shorthand property
 		if !opts.isClass && kind == ast.PropertyNormal && p.lexer.Token != lexer.TColon &&
-			p.lexer.Token != lexer.TOpenParen && p.lexer.Token != lexer.TLessThan && !opts.isGenerator {
+			p.lexer.Token != lexer.TOpenParen && p.lexer.Token != lexer.TLessThan && !opts.isGenerator &&
+			lexer.Keywords[name] == lexer.T(0) {
 			ref := p.storeNameInRef(name)
 			value := ast.Expr{Loc: key.Loc, Data: &ast.EIdentifier{Ref: ref}}
 
