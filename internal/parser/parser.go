@@ -7554,6 +7554,16 @@ func locAfterOp(e *ast.EBinary) ast.Loc {
 	}
 }
 
+func canBeDeleted(expr ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *ast.EIdentifier, *ast.EDot, *ast.EIndex:
+		return true
+	case *ast.ENumber:
+		return math.IsInf(e.Value, 1) || math.IsNaN(e.Value)
+	}
+	return false
+}
+
 func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
@@ -8171,13 +8181,35 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			p.typeofTarget = e.Value.Data
 
 		case ast.UnOpDelete:
+			canBeDeletedBefore := canBeDeleted(e.Value)
 			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true, assignTarget: ast.AssignTargetReplace})
 			e.Value = value
+			canBeDeletedAfter := canBeDeleted(e.Value)
 
 			// Lower optional chaining if present since we're guaranteed to be the
 			// end of the chain
 			if out.childContainsOptionalChain {
 				return p.lowerOptionalChain(expr, in, out, nil)
+			}
+
+			// Make sure we don't accidentally change the return value
+			//
+			//   Returns false:
+			//     "var a; delete (a)"
+			//     "var a = Object.freeze({b: 1}); delete (a.b)"
+			//     "var a = Object.freeze({b: 1}); delete (a?.b)"
+			//     "var a = Object.freeze({b: 1}); delete (a['b'])"
+			//     "var a = Object.freeze({b: 1}); delete (a?.['b'])"
+			//
+			//   Returns true:
+			//     "var a; delete (0, a)"
+			//     "var a = Object.freeze({b: 1}); delete (true && a.b)"
+			//     "var a = Object.freeze({b: 1}); delete (false || a?.b)"
+			//     "var a = Object.freeze({b: 1}); delete (null ?? a?.['b'])"
+			//     "var a = Object.freeze({b: 1}); delete (true ? a['b'] : a['b'])"
+			//
+			if canBeDeletedAfter && !canBeDeletedBefore {
+				e.Value = ast.JoinWithComma(ast.Expr{Loc: e.Value.Loc, Data: &ast.ENumber{}}, e.Value)
 			}
 
 			return expr, exprOut{}

@@ -1734,7 +1734,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.printSpaceBeforeIdentifier()
 			p.print("Infinity")
 		} else if value == negativeInfinity {
-			if level >= ast.LExponentiation {
+			if level >= ast.LPrefix {
 				p.print("(-Infinity)")
 			} else {
 				p.printSpaceBeforeOperator(ast.UnOpNeg)
@@ -1747,7 +1747,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 				// Remember the end of the latest number
 				p.prevNumEnd = len(p.js)
-			} else if level >= ast.LExponentiation {
+			} else if level >= ast.LPrefix {
 				// Expressions such as "(-1).toString" need to wrap negative numbers.
 				// Instead of testing for "value < 0" we test for "signbit(value)" and
 				// "!isNaN(value)" because we need this to be true for "-0" and "-0 < 0"
@@ -1896,6 +1896,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				leftLevel = ast.LCall
 			} else if _, ok := e.Left.Data.(*ast.EUndefined); ok {
 				// Undefined is printed as "void 0"
+				leftLevel = ast.LCall
+			} else if _, ok := e.Left.Data.(*ast.ENumber); ok {
+				// Negative numbers are printed using a unary operator
 				leftLevel = ast.LCall
 			} else if p.options.RemoveWhitespace {
 				// When minifying, booleans are printed as "!0 and "!1"

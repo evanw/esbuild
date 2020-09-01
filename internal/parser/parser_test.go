@@ -1938,6 +1938,18 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "let x = (1 ? y[z] : 2)()", "let x = (0, y[z])();\n")
 	expectPrintedMangle(t, "let x = (0 ? 1 : y[z])()", "let x = (0, y[z])();\n")
 
+	// Make sure the return value of "delete" is preserved
+	expectPrintedMangle(t, "delete (x)", "delete x;\n")
+	expectPrintedMangle(t, "delete (2, x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (true && x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (false || x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (null ?? x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (1 ? x : 2)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (0 ? 1 : x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (1, NaN)", "delete (0, NaN);\n")
+	expectPrintedMangle(t, "delete (1, Infinity)", "delete (0, Infinity);\n")
+	expectPrintedMangle(t, "delete (1, -Infinity)", "delete -Infinity;\n")
+
 	expectPrintedMangle(t, "foo ? 1 : 2", "foo;\n")
 	expectPrintedMangle(t, "foo ? 1 : bar", "foo || bar;\n")
 	expectPrintedMangle(t, "foo ? bar : 2", "foo && bar;\n")
