@@ -1331,6 +1331,20 @@ func TestWarningEqualsNewObject(t *testing.T) {
 	expectParseError(t, "switch ([]) { case x: }", "") // Don't bother to handle this case
 }
 
+func TestWarningEqualsNaN(t *testing.T) {
+	expectParseError(t, "x === NaN", "<stdin>: warning: Comparison with NaN using the === operator here is always false\n")
+	expectParseError(t, "x !== NaN", "<stdin>: warning: Comparison with NaN using the !== operator here is always true\n")
+	expectParseError(t, "x == NaN", "<stdin>: warning: Comparison with NaN using the == operator here is always false\n")
+	expectParseError(t, "x != NaN", "<stdin>: warning: Comparison with NaN using the != operator here is always true\n")
+	expectParseError(t, "switch (x) { case NaN: }", "<stdin>: warning: This case clause will never be evaluated because equality with NaN is always false\n")
+
+	expectParseError(t, "NaN === x", "<stdin>: warning: Comparison with NaN using the === operator here is always false\n")
+	expectParseError(t, "NaN !== x", "<stdin>: warning: Comparison with NaN using the !== operator here is always true\n")
+	expectParseError(t, "NaN == x", "<stdin>: warning: Comparison with NaN using the == operator here is always false\n")
+	expectParseError(t, "NaN != x", "<stdin>: warning: Comparison with NaN using the != operator here is always true\n")
+	expectParseError(t, "switch (NaN) { case x: }", "") // Don't bother to handle this case
+}
+
 func TestWarningTypeofEquals(t *testing.T) {
 	expectParseError(t, "typeof x === 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
 	expectParseError(t, "typeof x !== 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")

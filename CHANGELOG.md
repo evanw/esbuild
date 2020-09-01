@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Add a warning for comparison with `NaN`
+
+    This warning triggers for code such as `x === NaN`. Code that does this is almost certainly a bug because `NaN === NaN` is false in JavaScript.
+
 * Add a warning for duplicate switch case clauses
 
     This warning detects situations when multiple `case` clauses in the same `switch` statement match on the same expression. This almost certainly indicates a problem with the code. This warning protects against situations like this:

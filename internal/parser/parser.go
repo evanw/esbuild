@@ -7195,6 +7195,7 @@ func (p *parser) checkForTypeofAndString(a ast.Expr, b ast.Expr) bool {
 func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc ast.Loc) bool {
 	switch e := value.Data.(type) {
 	case *ast.ENumber:
+		// "0 === -0" is true in JavaScript
 		if e.Value == 0 && math.Signbit(e.Value) {
 			r := ast.Range{Loc: value.Loc, Len: 0}
 			if int(r.Loc.Start) < len(p.source.Contents) && p.source.Contents[r.Loc.Start] == '-' {
@@ -7204,6 +7205,18 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 			text := fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op)
 			if op == "case" {
 				text = "Comparison with -0 using a case clause will also match 0"
+			}
+			p.log.AddRangeWarning(&p.source, r, text)
+			return true
+		}
+
+		// "NaN === NaN" is false in JavaScript
+		if math.IsNaN(e.Value) {
+			index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
+			r := ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))}
+			text := fmt.Sprintf("Comparison with NaN using the %s operator here is always %v", op, op[0] == '!')
+			if op == "case" {
+				text = "This case clause will never be evaluated because equality with NaN is always false"
 			}
 			p.log.AddRangeWarning(&p.source, r, text)
 			return true
