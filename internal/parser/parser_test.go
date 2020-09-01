@@ -1308,11 +1308,13 @@ func TestWarningEqualsNegativeZero(t *testing.T) {
 	expectParseError(t, "x == -0", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
 	expectParseError(t, "x !== -0", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
 	expectParseError(t, "x != -0", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
+	expectParseError(t, "switch (x) { case -0: }", "<stdin>: warning: Comparison with -0 using a case clause will also match 0\n")
 
 	expectParseError(t, "-0 === x", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
 	expectParseError(t, "-0 == x", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
 	expectParseError(t, "-0 !== x", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
 	expectParseError(t, "-0 != x", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
+	expectParseError(t, "switch (-0) { case x: }", "") // Don't bother to handle this case
 }
 
 func TestWarningEqualsNewObject(t *testing.T) {
@@ -1320,18 +1322,27 @@ func TestWarningEqualsNewObject(t *testing.T) {
 	expectParseError(t, "x !== []", "<stdin>: warning: Comparison using the !== operator here is always true\n")
 	expectParseError(t, "x == []", "")
 	expectParseError(t, "x != []", "")
+	expectParseError(t, "switch (x) { case []: }", "<stdin>: warning: This case clause will never be evaluated because the comparison is always false\n")
+
+	expectParseError(t, "[] === x", "<stdin>: warning: Comparison using the === operator here is always false\n")
+	expectParseError(t, "[] !== x", "<stdin>: warning: Comparison using the !== operator here is always true\n")
+	expectParseError(t, "[] == x", "")
+	expectParseError(t, "[] != x", "")
+	expectParseError(t, "switch ([]) { case x: }", "") // Don't bother to handle this case
 }
 
 func TestWarningTypeofEquals(t *testing.T) {
-	expectParseError(t, "typeof x === 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "typeof x !== 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "typeof x == 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "typeof x != 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "typeof x === 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "typeof x !== 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "typeof x == 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "typeof x != 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "switch (typeof x) { case 'null': }", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
 
-	expectParseError(t, "'strang' === typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "'strang' !== typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "'strang' == typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "'strang' != typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "'null' === typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "'null' !== typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "'null' == typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "'null' != typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "switch ('null') { case typeof x: }", "") // Don't bother to handle this case
 }
 
 func TestMangleFor(t *testing.T) {

@@ -6528,6 +6528,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		for i, c := range s.Cases {
 			if c.Value != nil {
 				*c.Value = p.visitExpr(*c.Value)
+				p.warnAboutEqualityCheck("case", *c.Value, c.Value.Loc)
+				p.checkForTypeofAndString(s.Test, *c.Value)
 			}
 			c.Body = p.visitStmts(c.Body)
 
@@ -7032,12 +7034,15 @@ func (p *parser) checkForTypeofAndString(a ast.Expr, b ast.Expr) bool {
 	return false
 }
 
-func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, binary *ast.EBinary) bool {
+func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc ast.Loc) bool {
 	switch e := value.Data.(type) {
 	case *ast.ENumber:
 		if e.Value == 0 && math.Signbit(e.Value) {
-			p.log.AddWarning(&p.source, value.Loc,
-				fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op))
+			text := fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op)
+			if op == "case" {
+				text = "Comparison with -0 using a case clause will also match 0"
+			}
+			p.log.AddWarning(&p.source, value.Loc, text)
 			return true
 		}
 
@@ -7046,15 +7051,13 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, binary *ast.E
 		// This warning only applies to strict equality because loose equality can
 		// cause string conversions. For example, "x == []" is true if x is the
 		// empty string.
-		if len(op) == 3 {
-			afterOp := binary.Right.Loc.Start
-			if afterOp < binary.Left.Loc.Start {
-				// Handle the case when we have transposed the operands
-				afterOp = binary.Left.Loc.Start
+		if len(op) > 2 {
+			index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
+			text := fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!')
+			if op == "case" {
+				text = "This case clause will never be evaluated because the comparison is always false"
 			}
-			index := strings.LastIndex(p.source.Contents[:afterOp], op)
-			p.log.AddRangeWarning(&p.source, ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))},
-				fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!'))
+			p.log.AddRangeWarning(&p.source, ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))}, text)
 			return true
 		}
 	}
@@ -7363,6 +7366,15 @@ func inlineSpreadsOfArrayLiterals(values []ast.Expr) (results []ast.Expr) {
 	return
 }
 
+func locAfterOp(e *ast.EBinary) ast.Loc {
+	if e.Left.Loc.Start < e.Right.Loc.Start {
+		return e.Right.Loc
+	} else {
+		// Handle the case when we have transposed the operands
+		return e.Left.Loc
+	}
+}
+
 func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
@@ -7547,8 +7559,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 				return ast.Expr{Loc: expr.Loc, Data: data}, exprOut{}
 			}
-			if !p.warnAboutEqualityCheck("==", e.Left, e) {
-				p.warnAboutEqualityCheck("==", e.Right, e)
+			afterOpLoc := locAfterOp(e)
+			if !p.warnAboutEqualityCheck("==", e.Left, afterOpLoc) {
+				p.warnAboutEqualityCheck("==", e.Right, afterOpLoc)
 			}
 			p.checkForTypeofAndString(e.Left, e.Right)
 
@@ -7563,8 +7576,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: result}}, exprOut{}
 			}
-			if !p.warnAboutEqualityCheck("===", e.Left, e) {
-				p.warnAboutEqualityCheck("===", e.Right, e)
+			afterOpLoc := locAfterOp(e)
+			if !p.warnAboutEqualityCheck("===", e.Left, afterOpLoc) {
+				p.warnAboutEqualityCheck("===", e.Right, afterOpLoc)
 			}
 			if p.checkForTypeofAndString(e.Left, e.Right) {
 				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
@@ -7577,8 +7591,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
 			}
-			if !p.warnAboutEqualityCheck("!=", e.Left, e) {
-				p.warnAboutEqualityCheck("!=", e.Right, e)
+			afterOpLoc := locAfterOp(e)
+			if !p.warnAboutEqualityCheck("!=", e.Left, afterOpLoc) {
+				p.warnAboutEqualityCheck("!=", e.Right, afterOpLoc)
 			}
 			p.checkForTypeofAndString(e.Left, e.Right)
 
@@ -7593,8 +7608,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
 			}
-			if !p.warnAboutEqualityCheck("!==", e.Left, e) {
-				p.warnAboutEqualityCheck("!==", e.Right, e)
+			afterOpLoc := locAfterOp(e)
+			if !p.warnAboutEqualityCheck("!==", e.Left, afterOpLoc) {
+				p.warnAboutEqualityCheck("!==", e.Right, afterOpLoc)
 			}
 			if p.checkForTypeofAndString(e.Left, e.Right) {
 				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
