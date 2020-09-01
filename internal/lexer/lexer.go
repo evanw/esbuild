@@ -157,10 +157,6 @@ const (
 	TImplements
 	TInterface
 	TLet
-	TPackage
-	TPrivate
-	TProtected
-	TPublic
 	TStatic
 	TYield
 )
@@ -208,12 +204,20 @@ var Keywords = map[string]T{
 	"implements": TImplements,
 	"interface":  TInterface,
 	"let":        TLet,
-	"package":    TPackage,
-	"private":    TPrivate,
-	"protected":  TProtected,
-	"public":     TPublic,
 	"static":     TStatic,
 	"yield":      TYield,
+}
+
+var StrictModeReservedWords = []string{
+	"implements",
+	"interface",
+	"let",
+	"package",
+	"private",
+	"protected",
+	"public",
+	"static",
+	"yield",
 }
 
 type json struct {

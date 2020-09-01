@@ -189,6 +189,10 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class A<T extends number> implements B.C<D, E>, F.G<H, I> {}", "class A {\n}\n")
 	expectPrintedTS(t, "class A<T extends number> extends X implements B.C<D, E>, F.G<H, I> {}", "class A extends X {\n}\n")
 
+	expectPrintedTS(t, "class Foo { constructor(public) {} }", "class Foo {\n  constructor(public) {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { constructor(protected) {} }", "class Foo {\n  constructor(protected) {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { constructor(private) {} }", "class Foo {\n  constructor(private) {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { constructor(readonly) {} }", "class Foo {\n  constructor(readonly) {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { constructor(public x) {} }", "class Foo {\n  constructor(x) {\n    this.x = x;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { constructor(protected x) {} }", "class Foo {\n  constructor(x) {\n    this.x = x;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { constructor(private x) {} }", "class Foo {\n  constructor(x) {\n    this.x = x;\n  }\n}\n")

@@ -211,6 +211,7 @@ type fnOpts struct {
 	allowYield     bool
 	allowSuperCall bool
 	isTopLevel     bool
+	isConstructor  bool
 
 	// In TypeScript, forward declarations of functions have no bodies
 	allowMissingBodyForTypeScript bool
@@ -1336,6 +1337,7 @@ func (p *parser) parseProperty(
 			allowYield:        opts.isGenerator,
 			allowSuperCall:    opts.classHasExtends && isConstructor,
 			allowTSDecorators: opts.allowTSDecorators,
+			isConstructor:     isConstructor,
 
 			// Only allow omitting the body if we're parsing TypeScript class
 			allowMissingBodyForTypeScript: p.TS.Parse && opts.isClass,
@@ -3799,38 +3801,31 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			fn.HasRestArg = true
 		}
 
-		// Potentially parse a TypeScript accessibility modifier
-		isTypeScriptField := false
-		if p.TS.Parse {
-			switch p.lexer.Token {
-			case lexer.TPrivate, lexer.TProtected, lexer.TPublic:
-				isTypeScriptField = true
-				p.lexer.Next()
-
-				// TypeScript requires an identifier binding
-				if p.lexer.Token != lexer.TIdentifier {
-					p.lexer.Expect(lexer.TIdentifier)
-				}
-			}
-		}
-
+		isTypeScriptCtorField := false
 		isIdentifier := p.lexer.Token == lexer.TIdentifier
-		identifierText := p.lexer.Identifier
+		text := p.lexer.Identifier
 		arg := p.parseBinding()
 
 		if p.TS.Parse {
-			// Skip over "readonly"
-			isBeforeBinding := p.lexer.Token == lexer.TIdentifier || p.lexer.Token == lexer.TOpenBrace || p.lexer.Token == lexer.TOpenBracket
-			if isBeforeBinding && isIdentifier && identifierText == "readonly" {
-				isTypeScriptField = true
+			// Skip over TypeScript accessibility modifiers, which turn this argument
+			// into a class field when used inside a class constructor. This is known
+			// as a "parameter property" in TypeScript.
+			if isIdentifier && opts.isConstructor {
+				for p.lexer.Token == lexer.TIdentifier || p.lexer.Token == lexer.TOpenBrace || p.lexer.Token == lexer.TOpenBracket {
+					if text != "public" && text != "private" && text != "protected" && text != "readonly" {
+						break
+					}
+					isTypeScriptCtorField = true
 
-				// TypeScript requires an identifier binding
-				if p.lexer.Token != lexer.TIdentifier {
-					p.lexer.Expect(lexer.TIdentifier)
+					// TypeScript requires an identifier binding
+					if p.lexer.Token != lexer.TIdentifier {
+						p.lexer.Expect(lexer.TIdentifier)
+					}
+					text = p.lexer.Identifier
+
+					// Re-parse the binding (the current binding is the TypeScript keyword)
+					arg = p.parseBinding()
 				}
-
-				// Re-parse the binding (the current binding is the "readonly" keyword)
-				arg = p.parseBinding()
 			}
 
 			// "function foo(a?) {}"
@@ -3861,7 +3856,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			Default:      defaultValue,
 
 			// We need to track this because it affects code generation
-			IsTypeScriptCtorField: isTypeScriptField,
+			IsTypeScriptCtorField: isTypeScriptCtorField,
 		})
 
 		if p.lexer.Token != lexer.TComma {

@@ -127,10 +127,6 @@ var tokenToString = map[T]string{
 	TImplements: "\"implements\"",
 	TInterface:  "\"interface\"",
 	TLet:        "\"let\"",
-	TPackage:    "\"package\"",
-	TPrivate:    "\"private\"",
-	TProtected:  "\"protected\"",
-	TPublic:     "\"public\"",
 	TStatic:     "\"static\"",
 	TYield:      "\"yield\"",
 }
