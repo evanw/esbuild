@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+* Add a warning for duplicate switch case clauses
+
+    This warning detects situations when multiple `case` clauses in the same `switch` statement match on the same expression. This almost certainly indicates a problem with the code. This warning protects against situations like this:
+
+    ```js
+    switch (typeof x) {
+      case 'object':
+        // ...
+      case 'function':
+        // ...
+      case 'boolean':
+        // ...
+      case 'object':
+        // ...
+    }
+    ```
+
 ## 0.6.28
 
 * Avoid running out of file handles when ulimit is low ([#348](https://github.com/evanw/esbuild/issues/348))

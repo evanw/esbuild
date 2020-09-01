@@ -55,6 +55,7 @@ type parser struct {
 	symbolUses               map[ast.Ref]ast.SymbolUse
 	declaredSymbols          []ast.DeclaredSymbol
 	runtimeImports           map[string]ast.Ref
+	duplicateCaseChecker     duplicateCaseChecker
 
 	// For lowering private methods
 	weakMapRef     ast.Ref
@@ -218,6 +219,168 @@ type fnOpts struct {
 	allowTSDecorators bool
 }
 
+const bloomFilterSize = 251
+
+type duplicateCaseValue struct {
+	hash  uint32
+	value ast.Expr
+}
+
+type duplicateCaseChecker struct {
+	bloomFilter [(bloomFilterSize + 7) / 8]byte
+	cases       []duplicateCaseValue
+}
+
+func (dc *duplicateCaseChecker) reset() {
+	// Preserve capacity
+	dc.cases = dc.cases[:0]
+
+	// This should be optimized by the compiler. See this for more information:
+	// https://github.com/golang/go/issues/5373
+	bytes := dc.bloomFilter
+	for i := range bytes {
+		bytes[i] = 0
+	}
+}
+
+func (dc *duplicateCaseChecker) check(p *parser, expr ast.Expr) {
+	if hash, ok := duplicateCaseHash(expr); ok {
+		bucket := hash % bloomFilterSize
+		entry := &dc.bloomFilter[bucket/8]
+		mask := byte(1) << (bucket % 8)
+
+		// Check for collisions
+		if (*entry & mask) != 0 {
+			for _, c := range dc.cases {
+				if c.hash == hash {
+					if equals, couldBeIncorrect := duplicateCaseEquals(c.value, expr); equals {
+						index := strings.LastIndex(p.source.Contents[:expr.Loc.Start], "case")
+						r := lexer.RangeOfIdentifier(p.source, ast.Loc{Start: int32(index)})
+						if couldBeIncorrect {
+							p.log.AddRangeWarning(&p.source, r,
+								"This case clause may never be evaluated because it likely duplicates an earlier case clause")
+						} else {
+							p.log.AddRangeWarning(&p.source, r,
+								"This case clause will never be evaluated because it duplicates an earlier case clause")
+						}
+					}
+					return
+				}
+			}
+		}
+
+		*entry |= mask
+		dc.cases = append(dc.cases, duplicateCaseValue{hash: hash, value: expr})
+	}
+}
+
+func hashCombine(seed uint32, hash uint32) uint32 {
+	return seed ^ (hash + 0x9e3779b9 + (seed << 6) + (seed >> 2))
+}
+
+func duplicateCaseHash(expr ast.Expr) (uint32, bool) {
+	switch e := expr.Data.(type) {
+	case *ast.ENull:
+		return 0, true
+
+	case *ast.EUndefined:
+		return 1, true
+
+	case *ast.EBoolean:
+		if e.Value {
+			return hashCombine(2, 1), true
+		}
+		return hashCombine(2, 0), true
+
+	case *ast.ENumber:
+		bits := math.Float64bits(e.Value)
+		return hashCombine(hashCombine(3, uint32(bits)), uint32(bits>>32)), true
+
+	case *ast.EString:
+		hash := uint32(4)
+		for _, c := range e.Value {
+			hash = hashCombine(hash, uint32(c))
+		}
+		return hash, true
+
+	case *ast.EBigInt:
+		hash := uint32(5)
+		for _, c := range e.Value {
+			hash = hashCombine(hash, uint32(c))
+		}
+		return hash, true
+
+	case *ast.EIdentifier:
+		return hashCombine(6, e.Ref.InnerIndex), true
+
+	case *ast.EDot:
+		if target, ok := duplicateCaseHash(e.Target); ok {
+			hash := hashCombine(7, target)
+			for _, c := range e.Name {
+				hash = hashCombine(hash, uint32(c))
+			}
+			return hash, true
+		}
+
+	case *ast.EIndex:
+		if target, ok := duplicateCaseHash(e.Target); ok {
+			if index, ok := duplicateCaseHash(e.Index); ok {
+				return hashCombine(hashCombine(8, target), index), true
+			}
+		}
+	}
+
+	return 0, false
+}
+
+func duplicateCaseEquals(left ast.Expr, right ast.Expr) (equals bool, couldBeIncorrect bool) {
+	switch a := left.Data.(type) {
+	case *ast.ENull:
+		_, ok := right.Data.(*ast.ENull)
+		return ok, false
+
+	case *ast.EUndefined:
+		_, ok := right.Data.(*ast.EUndefined)
+		return ok, false
+
+	case *ast.EBoolean:
+		b, ok := right.Data.(*ast.EBoolean)
+		return ok && a.Value == b.Value, false
+
+	case *ast.ENumber:
+		b, ok := right.Data.(*ast.ENumber)
+		return ok && a.Value == b.Value, false
+
+	case *ast.EString:
+		b, ok := right.Data.(*ast.EString)
+		return ok && lexer.UTF16EqualsUTF16(a.Value, b.Value), false
+
+	case *ast.EBigInt:
+		b, ok := right.Data.(*ast.EBigInt)
+		return ok && a.Value == b.Value, false
+
+	case *ast.EIdentifier:
+		b, ok := right.Data.(*ast.EIdentifier)
+		return ok && a.Ref == b.Ref, false
+
+	case *ast.EDot:
+		if b, ok := right.Data.(*ast.EDot); ok && a.OptionalChain == b.OptionalChain && a.Name == b.Name {
+			equals, _ := duplicateCaseEquals(a.Target, b.Target)
+			return equals, true
+		}
+
+	case *ast.EIndex:
+		if b, ok := right.Data.(*ast.EIndex); ok && a.OptionalChain == b.OptionalChain {
+			if equals, _ := duplicateCaseEquals(a.Index, b.Index); equals {
+				equals, _ := duplicateCaseEquals(a.Target, b.Target)
+				return equals, true
+			}
+		}
+	}
+
+	return false, false
+}
+
 func isJumpStatement(data ast.S) bool {
 	switch data.(type) {
 	case *ast.SBreak, *ast.SContinue, *ast.SReturn, *ast.SThrow:
@@ -308,47 +471,34 @@ func typeofWithoutSideEffects(data ast.E) (string, bool) {
 	return "", false
 }
 
+// Returns "equal, ok". If "ok" is false, then nothing is known about the two
+// values. If "ok" is true, the equality or inequality of the two values is
+// stored in "equal".
 func checkEqualityIfNoSideEffects(left ast.E, right ast.E) (bool, bool) {
 	switch l := left.(type) {
 	case *ast.ENull:
-		if _, ok := right.(*ast.ENull); ok {
-			return true, true
-		}
+		_, ok := right.(*ast.ENull)
+		return ok, ok
 
 	case *ast.EUndefined:
-		if _, ok := right.(*ast.EUndefined); ok {
-			return true, true
-		}
+		_, ok := right.(*ast.EUndefined)
+		return ok, ok
 
 	case *ast.EBoolean:
-		if r, ok := right.(*ast.EBoolean); ok {
-			return l.Value == r.Value, true
-		}
+		r, ok := right.(*ast.EBoolean)
+		return ok && l.Value == r.Value, ok
 
 	case *ast.ENumber:
-		if r, ok := right.(*ast.ENumber); ok {
-			return l.Value == r.Value, true
-		}
+		r, ok := right.(*ast.ENumber)
+		return ok && l.Value == r.Value, ok
 
 	case *ast.EBigInt:
-		if r, ok := right.(*ast.EBigInt); ok {
-			return l.Value == r.Value, true
-		}
+		r, ok := right.(*ast.EBigInt)
+		return ok && l.Value == r.Value, ok
 
 	case *ast.EString:
-		if r, ok := right.(*ast.EString); ok {
-			lv := l.Value
-			rv := r.Value
-			if len(lv) != len(rv) {
-				return false, true
-			}
-			for i := 0; i < len(lv); i++ {
-				if lv[i] != rv[i] {
-					return false, true
-				}
-			}
-			return true, true
-		}
+		r, ok := right.(*ast.EString)
+		return ok && lexer.UTF16EqualsUTF16(l.Value, r.Value), ok
 	}
 
 	return false, false
@@ -6537,6 +6687,14 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			s.Cases[i] = c
 		}
 		p.popScope()
+
+		// Check for duplicate case values
+		p.duplicateCaseChecker.reset()
+		for _, c := range s.Cases {
+			if c.Value != nil {
+				p.duplicateCaseChecker.check(p, *c.Value)
+			}
+		}
 
 	case *ast.SFunction:
 		p.visitFn(&s.Fn, stmt.Loc)

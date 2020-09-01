@@ -1345,6 +1345,37 @@ func TestWarningTypeofEquals(t *testing.T) {
 	expectParseError(t, "switch ('null') { case typeof x: }", "") // Don't bother to handle this case
 }
 
+func TestWarningDuplicateCase(t *testing.T) {
+	expectParseError(t, "switch (x) { case null: case undefined: }", "")
+	expectParseError(t, "switch (x) { case false: case true: }", "")
+	expectParseError(t, "switch (x) { case 0: case 1: }", "")
+	expectParseError(t, "switch (x) { case 1: case 1n: }", "")
+	expectParseError(t, "switch (x) { case 'a': case 'b': }", "")
+	expectParseError(t, "switch (x) { case y: case z: }", "")
+	expectParseError(t, "switch (x) { case y.a: case y.b: }", "")
+	expectParseError(t, "switch (x) { case y.a: case z.a: }", "")
+	expectParseError(t, "switch (x) { case y.a: case y?.a: }", "")
+	expectParseError(t, "switch (x) { case y[a]: case y[b]: }", "")
+	expectParseError(t, "switch (x) { case y[a]: case z[a]: }", "")
+	expectParseError(t, "switch (x) { case y[a]: case y?.[a]: }", "")
+
+	alwaysWarning := "<stdin>: warning: This case clause will never be evaluated because it duplicates an earlier case clause\n"
+	likelyWarning := "<stdin>: warning: This case clause may never be evaluated because it likely duplicates an earlier case clause\n"
+
+	expectParseError(t, "switch (x) { case null: case null: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case undefined: case undefined: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case true: case true: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case false: case false: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case 0xF: case 15: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case 'a': case `a`: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case 123n: case 1_2_3n: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case y: case y: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case y.a: case y.a: }", likelyWarning)
+	expectParseError(t, "switch (x) { case y?.a: case y?.a: }", likelyWarning)
+	expectParseError(t, "switch (x) { case y[a]: case y[a]: }", likelyWarning)
+	expectParseError(t, "switch (x) { case y?.[a]: case y?.[a]: }", likelyWarning)
+}
+
 func TestMangleFor(t *testing.T) {
 	expectPrintedMangle(t, "var a; while (1) ;", "for (var a; ; )\n  ;\n")
 	expectPrintedMangle(t, "let a; while (1) ;", "let a;\nfor (; ; )\n  ;\n")
