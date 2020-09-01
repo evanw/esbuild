@@ -102,10 +102,8 @@ async function test_case(service, test) {
   // Run esbuild as a minifier
   try {
     var { js: output } = await service.transform(input_code, {
-      // Don't use "minifyWhitespace: true" because esbuild uses some ES6 syntax
-      // to make things shorter and uglify can't parse ES6.
-      minifySyntax: true,
-      minifyIdentifiers: true,
+      minify: true,
+      target: 'es5',
     });
   } catch (e) {
     const formatError = ({ text, location }) => {
