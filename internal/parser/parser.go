@@ -7038,11 +7038,16 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 	switch e := value.Data.(type) {
 	case *ast.ENumber:
 		if e.Value == 0 && math.Signbit(e.Value) {
+			r := ast.Range{Loc: value.Loc, Len: 0}
+			if int(r.Loc.Start) < len(p.source.Contents) && p.source.Contents[r.Loc.Start] == '-' {
+				zeroRange := p.source.RangeOfNumber(ast.Loc{Start: r.Loc.Start + 1})
+				r.Len = zeroRange.Len + 1
+			}
 			text := fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op)
 			if op == "case" {
 				text = "Comparison with -0 using a case clause will also match 0"
 			}
-			p.log.AddWarning(&p.source, value.Loc, text)
+			p.log.AddRangeWarning(&p.source, r, text)
 			return true
 		}
 
@@ -7053,11 +7058,12 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc as
 		// empty string.
 		if len(op) > 2 {
 			index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
+			r := ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))}
 			text := fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!')
 			if op == "case" {
 				text = "This case clause will never be evaluated because the comparison is always false"
 			}
-			p.log.AddRangeWarning(&p.source, ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))}, text)
+			p.log.AddRangeWarning(&p.source, r, text)
 			return true
 		}
 	}
