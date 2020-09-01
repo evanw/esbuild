@@ -2806,9 +2806,11 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "({ x() {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "({ get x() {} });",
+	expectParseErrorTarget(t, 5, "({ get x() {} });", "")
+	expectParseErrorTarget(t, 5, "({ set x() {} });", "")
+	expectParseErrorTarget(t, 5, "({ get [x]() {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "({ set x() {} });",
+	expectParseErrorTarget(t, 5, "({ set [x]() {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "function foo([]) {}",
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")

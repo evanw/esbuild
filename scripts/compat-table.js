@@ -1,6 +1,7 @@
 // Run this using "make compat-table"
 const fs = require('fs')
 const path = require('path')
+const es5 = require('../github/compat-table/data-es5')
 const es6 = require('../github/compat-table/data-es6')
 const stage1to3 = require('../github/compat-table/data-esnext')
 const stage4 = require('../github/compat-table/data-es2016plus')
@@ -9,11 +10,16 @@ const compareVersions = require('../github/compat-table/build-utils/compare-vers
 const parseEnvsVersions = require('../github/compat-table/build-utils/parse-envs-versions')
 const interpolateAllResults = require('../github/compat-table/build-utils/interpolate-all-results')
 
+interpolateAllResults(es5.tests, environments)
 interpolateAllResults(es6.tests, environments)
 interpolateAllResults(stage1to3.tests, environments)
 interpolateAllResults(stage4.tests, environments)
 
 const features = {
+  // ES5 features
+  'Object/array literal extensions: Getter accessors': { target: 'ObjectAccessors' },
+  'Object/array literal extensions: Setter accessors': { target: 'ObjectAccessors' },
+
   // ES6 features
   'default function parameters': { target: 'DefaultArgument' },
   'rest parameters': { target: 'RestArgument' },
@@ -95,6 +101,9 @@ function mergeVersions(target, res) {
   }
 }
 
+// ES5 features
+mergeVersions('ObjectAccessors', { es5: true })
+
 // ES6 features
 mergeVersions('ArraySpread', { es2015: true })
 mergeVersions('Arrow', { es2015: true })
@@ -135,7 +144,7 @@ mergeVersions('ImportMeta', {
   safari11_1: true,
 })
 
-for (const test of [...es6.tests, ...stage4.tests, ...stage1to3.tests]) {
+for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {
   const feature = features[test.name]
   if (feature) {
     feature.found = true

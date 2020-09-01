@@ -1177,11 +1177,13 @@ func (p *parser) parseProperty(
 				switch name {
 				case "get":
 					if !opts.isAsync {
+						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
 						return p.parseProperty(ast.PropertyGet, opts, nil)
 					}
 
 				case "set":
 					if !opts.isAsync {
+						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
 						return p.parseProperty(ast.PropertySet, opts, nil)
 					}
 
@@ -1299,7 +1301,7 @@ func (p *parser) parseProperty(
 	// Parse a method expression
 	if p.lexer.Token == lexer.TOpenParen || kind != ast.PropertyNormal ||
 		opts.isClass || opts.isAsync || opts.isGenerator {
-		if p.lexer.Token == lexer.TOpenParen {
+		if p.lexer.Token == lexer.TOpenParen && kind != ast.PropertyGet && kind != ast.PropertySet {
 			p.markSyntaxFeature(compat.ObjectExtensions, p.lexer.Range())
 		}
 		loc := p.lexer.Loc()

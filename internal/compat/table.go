@@ -45,6 +45,7 @@ const (
 	NestedRestBinding
 	NewTarget
 	NullishCoalescing
+	ObjectAccessors
 	ObjectExtensions
 	ObjectRestSpread
 	OptionalCatchBinding
@@ -270,6 +271,15 @@ var Table = map[Feature]map[Engine][]int{
 		IOS:     {13, 4},
 		Node:    {14, 0},
 		Safari:  {13, 1},
+	},
+	ObjectAccessors: {
+		Chrome:  {5},
+		Edge:    {12},
+		ES:      {5},
+		Firefox: {2},
+		IOS:     {6},
+		Node:    {0, 10},
+		Safari:  {3, 1},
 	},
 	ObjectExtensions: {
 		Chrome:  {44},

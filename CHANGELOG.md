@@ -23,6 +23,10 @@
     }
     ```
 
+* Allow getters and setters in ES5 ([#356](https://github.com/evanw/esbuild/issues/356))
+
+    This was an oversight. I incorrectly thought getters and setters were added in ES6, not in ES5. This release allows getter and setter method syntax even when `--target=es5`.
+
 ## 0.6.28
 
 * Avoid running out of file handles when ulimit is low ([#348](https://github.com/evanw/esbuild/issues/348))
