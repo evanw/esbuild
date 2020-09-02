@@ -2540,7 +2540,7 @@ func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
 						#bar
 					}
 					get #bar() {}
-					set #bar() {}
+					set #bar(x) {}
 				}
 				class Bar {
 					#foo
@@ -2550,7 +2550,7 @@ func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
 						#bar
 					}
 					get #bar() {}
-					set #bar() {}
+					set #bar(x) {}
 				}
 			`,
 		},
@@ -2574,7 +2574,7 @@ func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
 						#bar
 					}
 					get #bar() {}
-					set #bar() {}
+					set #bar(x) {}
 				}
 				class Bar {
 					#foo
@@ -2584,7 +2584,7 @@ func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
 						#bar
 					}
 					get #bar() {}
-					set #bar() {}
+					set #bar(x) {}
 				}
 			`,
 		},

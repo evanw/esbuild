@@ -371,7 +371,7 @@ func TestTSLowerPrivateStaticMembers2015NoBundle(t *testing.T) {
 				class Foo {
 					static #x
 					static get #y() {}
-					static set #y() {}
+					static set #y(x) {}
 					static #z() {}
 					foo() {
 						Foo.#x += 1

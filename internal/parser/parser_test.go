@@ -535,13 +535,13 @@ func TestObject(t *testing.T) {
 	expectPrinted(t, "({foo() {}})", "({foo() {\n}});\n")
 	expectPrinted(t, "({*foo() {}})", "({*foo() {\n}});\n")
 	expectPrinted(t, "({get foo() {}})", "({get foo() {\n}});\n")
-	expectPrinted(t, "({set foo() {}})", "({set foo() {\n}});\n")
+	expectPrinted(t, "({set foo(x) {}})", "({set foo(x) {\n}});\n")
 
 	expectPrinted(t, "({if:0})", "({if: 0});\n")
 	expectPrinted(t, "({if() {}})", "({if() {\n}});\n")
 	expectPrinted(t, "({*if() {}})", "({*if() {\n}});\n")
 	expectPrinted(t, "({get if() {}})", "({get if() {\n}});\n")
-	expectPrinted(t, "({set if() {}})", "({set if() {\n}});\n")
+	expectPrinted(t, "({set if(x) {}})", "({set if(x) {\n}});\n")
 
 	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
@@ -555,6 +555,18 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({__proto__: 1, ['__proto__']: 2})", "")
 	expectParseError(t, "({__proto__, __proto__: 2})", "")
 	expectParseError(t, "({__proto__: x, __proto__: y} = z)", "")
+
+	expectParseError(t, "({set foo() {}})", "<stdin>: error: Setter \"foo\" must have exactly one argument\n")
+	expectParseError(t, "({get foo(x) {}})", "<stdin>: error: Getter \"foo\" must have zero arguments\n")
+	expectParseError(t, "({set foo(x, y) {}})", "<stdin>: error: Setter \"foo\" must have exactly one argument\n")
+
+	expectParseError(t, "(class {set #foo() {}})", "<stdin>: error: Setter \"#foo\" must have exactly one argument\n")
+	expectParseError(t, "(class {get #foo(x) {}})", "<stdin>: error: Getter \"#foo\" must have zero arguments\n")
+	expectParseError(t, "(class {set #foo(x, y) {}})", "<stdin>: error: Setter \"#foo\" must have exactly one argument\n")
+
+	expectParseError(t, "({set [foo]() {}})", "<stdin>: error: Setter property must have exactly one argument\n")
+	expectParseError(t, "({get [foo](x) {}})", "<stdin>: error: Getter property must have zero arguments\n")
+	expectParseError(t, "({set [foo](x, y) {}})", "<stdin>: error: Setter property must have exactly one argument\n")
 }
 
 func TestComputedProperty(t *testing.T) {
@@ -606,11 +618,11 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { foo() {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { *foo() {} }", "class Foo {\n  *foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { get foo() {} }", "class Foo {\n  get foo() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { set foo() {} }", "class Foo {\n  set foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set foo(x) {} }", "class Foo {\n  set foo(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static foo() {} }", "class Foo {\n  static foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static *foo() {} }", "class Foo {\n  static *foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static get foo() {} }", "class Foo {\n  static get foo() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static set foo() {} }", "class Foo {\n  static set foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set foo(x) {} }", "class Foo {\n  static set foo(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { async foo() {} }", "class Foo {\n  async foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async foo() {} }", "class Foo {\n  static async foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async *foo() {} }", "class Foo {\n  static async *foo() {\n  }\n}\n")
@@ -619,11 +631,11 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { if() {} }", "class Foo {\n  if() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { *if() {} }", "class Foo {\n  *if() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { get if() {} }", "class Foo {\n  get if() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { set if() {} }", "class Foo {\n  set if() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set if(x) {} }", "class Foo {\n  set if(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static if() {} }", "class Foo {\n  static if() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static *if() {} }", "class Foo {\n  static *if() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static get if() {} }", "class Foo {\n  static get if() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static set if() {} }", "class Foo {\n  static set if() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set if(x) {} }", "class Foo {\n  static set if(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { async if() {} }", "class Foo {\n  async if() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async if() {} }", "class Foo {\n  static async if() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async *if() {} }", "class Foo {\n  static async *if() {\n  }\n}\n")
@@ -631,11 +643,11 @@ func TestClass(t *testing.T) {
 
 	expectPrinted(t, "class Foo { a() {} b() {} }", "class Foo {\n  a() {\n  }\n  b() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { a() {} get b() {} }", "class Foo {\n  a() {\n  }\n  get b() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { a() {} set b() {} }", "class Foo {\n  a() {\n  }\n  set b() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { a() {} set b(x) {} }", "class Foo {\n  a() {\n  }\n  set b(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { a() {} static b() {} }", "class Foo {\n  a() {\n  }\n  static b() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { a() {} static *b() {} }", "class Foo {\n  a() {\n  }\n  static *b() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { a() {} static get b() {} }", "class Foo {\n  a() {\n  }\n  static get b() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { a() {} static set b() {} }", "class Foo {\n  a() {\n  }\n  static set b() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { a() {} static set b(x) {} }", "class Foo {\n  a() {\n  }\n  static set b(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { a() {} async b() {} }", "class Foo {\n  a() {\n  }\n  async b() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { a() {} static async b() {} }", "class Foo {\n  a() {\n  }\n  static async b() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { a() {} static async *b() {} }", "class Foo {\n  a() {\n  }\n  static async *b() {\n  }\n}\n")
@@ -645,14 +657,14 @@ func TestClass(t *testing.T) {
 
 	// The name "constructor" is sometimes forbidden
 	expectPrinted(t, "class Foo { get ['constructor']() {} }", "class Foo {\n  get [\"constructor\"]() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { set ['constructor']() {} }", "class Foo {\n  set [\"constructor\"]() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set ['constructor'](x) {} }", "class Foo {\n  set [\"constructor\"](x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { *['constructor']() {} }", "class Foo {\n  *[\"constructor\"]() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { async ['constructor']() {} }", "class Foo {\n  async [\"constructor\"]() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { async *['constructor']() {} }", "class Foo {\n  async *[\"constructor\"]() {\n  }\n}\n")
 	expectParseError(t, "class Foo { get constructor() {} }", "<stdin>: error: Class constructor cannot be a getter\n")
 	expectParseError(t, "class Foo { get 'constructor'() {} }", "<stdin>: error: Class constructor cannot be a getter\n")
-	expectParseError(t, "class Foo { set constructor() {} }", "<stdin>: error: Class constructor cannot be a setter\n")
-	expectParseError(t, "class Foo { set 'constructor'() {} }", "<stdin>: error: Class constructor cannot be a setter\n")
+	expectParseError(t, "class Foo { set constructor(x) {} }", "<stdin>: error: Class constructor cannot be a setter\n")
+	expectParseError(t, "class Foo { set 'constructor'(x) {} }", "<stdin>: error: Class constructor cannot be a setter\n")
 	expectParseError(t, "class Foo { *constructor() {} }", "<stdin>: error: Class constructor cannot be a generator\n")
 	expectParseError(t, "class Foo { *'constructor'() {} }", "<stdin>: error: Class constructor cannot be a generator\n")
 	expectParseError(t, "class Foo { async constructor() {} }", "<stdin>: error: Class constructor cannot be an async function\n")
@@ -661,8 +673,8 @@ func TestClass(t *testing.T) {
 	expectParseError(t, "class Foo { async *'constructor'() {} }", "<stdin>: error: Class constructor cannot be an async function\n")
 	expectPrinted(t, "class Foo { static get constructor() {} }", "class Foo {\n  static get constructor() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static get 'constructor'() {} }", "class Foo {\n  static get constructor() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static set constructor() {} }", "class Foo {\n  static set constructor() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static set 'constructor'() {} }", "class Foo {\n  static set constructor() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set constructor(x) {} }", "class Foo {\n  static set constructor(x) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set 'constructor'(x) {} }", "class Foo {\n  static set constructor(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static *constructor() {} }", "class Foo {\n  static *constructor() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static *'constructor'() {} }", "class Foo {\n  static *constructor() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async constructor() {} }", "class Foo {\n  static async constructor() {\n  }\n}\n")
@@ -671,7 +683,7 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { static async *'constructor'() {} }", "class Foo {\n  static async *constructor() {\n  }\n}\n")
 	expectPrinted(t, "({ constructor: 1 })", "({constructor: 1});\n")
 	expectPrinted(t, "({ get constructor() {} })", "({get constructor() {\n}});\n")
-	expectPrinted(t, "({ set constructor() {} })", "({set constructor() {\n}});\n")
+	expectPrinted(t, "({ set constructor(x) {} })", "({set constructor(x) {\n}});\n")
 	expectPrinted(t, "({ *constructor() {} })", "({*constructor() {\n}});\n")
 	expectPrinted(t, "({ async constructor() {} })", "({async constructor() {\n}});\n")
 	expectPrinted(t, "({ async* constructor() {} })", "({async *constructor() {\n}});\n")
@@ -679,8 +691,8 @@ func TestClass(t *testing.T) {
 	// The name "prototype" is sometimes forbidden
 	expectPrinted(t, "class Foo { get prototype() {} }", "class Foo {\n  get prototype() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { get 'prototype'() {} }", "class Foo {\n  get prototype() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { set prototype() {} }", "class Foo {\n  set prototype() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { set 'prototype'() {} }", "class Foo {\n  set prototype() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set prototype(x) {} }", "class Foo {\n  set prototype(x) {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set 'prototype'(x) {} }", "class Foo {\n  set prototype(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { *prototype() {} }", "class Foo {\n  *prototype() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { *'prototype'() {} }", "class Foo {\n  *prototype() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { async prototype() {} }", "class Foo {\n  async prototype() {\n  }\n}\n")
@@ -689,8 +701,8 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { async *'prototype'() {} }", "class Foo {\n  async *prototype() {\n  }\n}\n")
 	expectParseError(t, "class Foo { static get prototype() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
 	expectParseError(t, "class Foo { static get 'prototype'() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
-	expectParseError(t, "class Foo { static set prototype() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
-	expectParseError(t, "class Foo { static set 'prototype'() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
+	expectParseError(t, "class Foo { static set prototype(x) {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
+	expectParseError(t, "class Foo { static set 'prototype'(x) {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
 	expectParseError(t, "class Foo { static *prototype() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
 	expectParseError(t, "class Foo { static *'prototype'() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
 	expectParseError(t, "class Foo { static async prototype() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
@@ -698,13 +710,13 @@ func TestClass(t *testing.T) {
 	expectParseError(t, "class Foo { static async *prototype() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
 	expectParseError(t, "class Foo { static async *'prototype'() {} }", "<stdin>: error: Invalid static method name \"prototype\"\n")
 	expectPrinted(t, "class Foo { static get ['prototype']() {} }", "class Foo {\n  static get [\"prototype\"]() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static set ['prototype']() {} }", "class Foo {\n  static set [\"prototype\"]() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set ['prototype'](x) {} }", "class Foo {\n  static set [\"prototype\"](x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static *['prototype']() {} }", "class Foo {\n  static *[\"prototype\"]() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async ['prototype']() {} }", "class Foo {\n  static async [\"prototype\"]() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static async *['prototype']() {} }", "class Foo {\n  static async *[\"prototype\"]() {\n  }\n}\n")
 	expectPrinted(t, "({ prototype: 1 })", "({prototype: 1});\n")
 	expectPrinted(t, "({ get prototype() {} })", "({get prototype() {\n}});\n")
-	expectPrinted(t, "({ set prototype() {} })", "({set prototype() {\n}});\n")
+	expectPrinted(t, "({ set prototype(x) {} })", "({set prototype(x) {\n}});\n")
 	expectPrinted(t, "({ *prototype() {} })", "({*prototype() {\n}});\n")
 	expectPrinted(t, "({ async prototype() {} })", "({async prototype() {\n}});\n")
 	expectPrinted(t, "({ async* prototype() {} })", "({async *prototype() {\n}});\n")
@@ -932,7 +944,7 @@ func TestLabels(t *testing.T) {
 func TestArrow(t *testing.T) {
 	expectParseError(t, "({a: b, c() {}}) => {}", "<stdin>: error: Invalid binding pattern\n")
 	expectParseError(t, "({a: b, get c() {}}) => {}", "<stdin>: error: Invalid binding pattern\n")
-	expectParseError(t, "({a: b, set c() {}}) => {}", "<stdin>: error: Invalid binding pattern\n")
+	expectParseError(t, "({a: b, set c(x) {}}) => {}", "<stdin>: error: Invalid binding pattern\n")
 
 	expectPrinted(t, "x => function() {}", "(x) => function() {\n};\n")
 	expectPrinted(t, "(x) => function() {}", "(x) => function() {\n};\n")
@@ -2731,12 +2743,12 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectPrinted(t, "class Foo { #foo = 1 }", "class Foo {\n  #foo = 1;\n}\n")
 	expectPrinted(t, "class Foo { #foo() {} }", "class Foo {\n  #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { get #foo() {} }", "class Foo {\n  get #foo() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { set #foo() {} }", "class Foo {\n  set #foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set #foo(x) {} }", "class Foo {\n  set #foo(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static #foo }", "class Foo {\n  static #foo;\n}\n")
 	expectPrinted(t, "class Foo { static #foo = 1 }", "class Foo {\n  static #foo = 1;\n}\n")
 	expectPrinted(t, "class Foo { static #foo() {} }", "class Foo {\n  static #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static get #foo() {} }", "class Foo {\n  static get #foo() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static set #foo() {} }", "class Foo {\n  static set #foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set #foo(x) {} }", "class Foo {\n  static set #foo(x) {\n  }\n}\n")
 
 	// The name "#constructor" is forbidden
 	expectParseError(t, "class Foo { #constructor }", "<stdin>: error: Invalid field name \"#constructor\"\n")
@@ -2760,18 +2772,18 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectParseError(t, "class Foo { static #foo; #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
 	expectParseError(t, "class Foo { #foo; #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
 	expectParseError(t, "class Foo { #foo; get #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { #foo; set #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { #foo; set #foo(x) {} }", "<stdin>: error: \"#foo\" has already been declared\n")
 	expectParseError(t, "class Foo { #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
 	expectParseError(t, "class Foo { get #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { set #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { set #foo(x) {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
 	expectParseError(t, "class Foo { get #foo() {} get #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { set #foo() {} set #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { get #foo() {} set #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { set #foo() {} get #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectPrinted(t, "class Foo { get #foo() {} set #foo() { this.#foo } }",
-		"class Foo {\n  get #foo() {\n  }\n  set #foo() {\n    this.#foo;\n  }\n}\n")
-	expectPrinted(t, "class Foo { set #foo() { this.#foo } get #foo() {} }",
-		"class Foo {\n  set #foo() {\n    this.#foo;\n  }\n  get #foo() {\n  }\n}\n")
+	expectParseError(t, "class Foo { set #foo(x) {} set #foo(x) {} }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { get #foo() {} set #foo(x) {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { set #foo(x) {} get #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectPrinted(t, "class Foo { get #foo() {} set #foo(x) { this.#foo } }",
+		"class Foo {\n  get #foo() {\n  }\n  set #foo(x) {\n    this.#foo;\n  }\n}\n")
+	expectPrinted(t, "class Foo { set #foo(x) { this.#foo } get #foo() {} }",
+		"class Foo {\n  set #foo(x) {\n    this.#foo;\n  }\n  get #foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { #foo } class Bar { #foo }", "class Foo {\n  #foo;\n}\nclass Bar {\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { foo = this.#foo; #foo }", "class Foo {\n  foo = this.#foo;\n  #foo;\n}\n")
 	expectPrinted(t, "class Foo { foo = this?.#foo; #foo }", "class Foo {\n  foo = this?.#foo;\n  #foo;\n}\n")
@@ -2785,9 +2797,9 @@ func TestPrivateIdentifiers(t *testing.T) {
 		"<stdin>: warning: Writing to getter-only property \"#x\" will throw\n")
 	expectParseError(t, "class Foo { get #x() { this.#x += 1 } }",
 		"<stdin>: warning: Writing to getter-only property \"#x\" will throw\n")
-	expectParseError(t, "class Foo { set #x() { this.#x } }",
+	expectParseError(t, "class Foo { set #x(x) { this.#x } }",
 		"<stdin>: warning: Reading from setter-only property \"#x\" will throw\n")
-	expectParseError(t, "class Foo { set #x() { this.#x += 1 } }",
+	expectParseError(t, "class Foo { set #x(x) { this.#x += 1 } }",
 		"<stdin>: warning: Reading from setter-only property \"#x\" will throw\n")
 
 	expectPrinted(t, `class Foo {
@@ -2844,10 +2856,10 @@ func TestES5(t *testing.T) {
 	expectParseErrorTarget(t, 5, "({ x() {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "({ get x() {} });", "")
-	expectParseErrorTarget(t, 5, "({ set x() {} });", "")
+	expectParseErrorTarget(t, 5, "({ set x(x) {} });", "")
 	expectParseErrorTarget(t, 5, "({ get [x]() {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "({ set [x]() {} });",
+	expectParseErrorTarget(t, 5, "({ set [x](x) {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "function foo([]) {}",
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")

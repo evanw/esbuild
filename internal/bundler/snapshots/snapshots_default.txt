@@ -1089,7 +1089,7 @@ class Foo {
   };
   get #o() {
   }
-  set #o() {
+  set #o(o) {
   }
 }
 class Bar {
@@ -1101,7 +1101,7 @@ class Bar {
   };
   get #o() {
   }
-  set #o() {
+  set #o(o) {
   }
 }
 
@@ -1584,7 +1584,7 @@ class Foo {
   };
   get #bar() {
   }
-  set #bar() {
+  set #bar(x) {
   }
 }
 class Bar {
@@ -1596,7 +1596,7 @@ class Bar {
   };
   get #bar() {
   }
-  set #bar() {
+  set #bar(x) {
   }
 }
 

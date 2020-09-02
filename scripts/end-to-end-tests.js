@@ -620,7 +620,7 @@
           #foo
           #method() {}
           get #getter() {}
-          set #setter() {}
+          set #setter(x) {}
           bar() {
             let obj = {}
             expect(() => obj.#foo, 'Cannot read from private field')

@@ -1083,7 +1083,7 @@ _x = new WeakMap();
 _y = new WeakSet();
 y_get = function() {
 };
-y_set = function() {
+y_set = function(x) {
 };
 _z = new WeakSet();
 z_fn = function() {

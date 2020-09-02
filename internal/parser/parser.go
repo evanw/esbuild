@@ -1083,6 +1083,16 @@ func (p *parser) logArrowArgErrors(errors *deferredArrowArgErrors) {
 	}
 }
 
+func (p *parser) keyNameForError(key ast.Expr) string {
+	switch k := key.Data.(type) {
+	case *ast.EString:
+		return fmt.Sprintf("%q", lexer.UTF16ToString(k.Value))
+	case *ast.EPrivateIdentifier:
+		return fmt.Sprintf("%q", p.loadNameFromRef(k.Ref))
+	}
+	return "property"
+}
+
 type propertyOpts struct {
 	asyncRange  ast.Range
 	isAsync     bool
@@ -1096,9 +1106,7 @@ type propertyOpts struct {
 	tsDecorators      []ast.Expr
 }
 
-func (p *parser) parseProperty(
-	kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors,
-) (ast.Property, bool) {
+func (p *parser) parseProperty(kind ast.PropertyKind, opts propertyOpts, errors *deferredErrors) (ast.Property, bool) {
 	var key ast.Expr
 	keyRange := p.lexer.Range()
 	isComputed := false
@@ -1354,6 +1362,24 @@ func (p *parser) parseProperty(
 
 		p.popScope()
 		value := ast.Expr{Loc: loc, Data: &ast.EFunction{Fn: fn}}
+
+		// Enforce argument rules for accessors
+		switch kind {
+		case ast.PropertyGet:
+			if len(fn.Args) > 0 {
+				r := lexer.RangeOfIdentifier(p.source, fn.Args[0].Binding.Loc)
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Getter %s must have zero arguments", p.keyNameForError(key)))
+			}
+
+		case ast.PropertySet:
+			if len(fn.Args) != 1 {
+				r := lexer.RangeOfIdentifier(p.source, key.Loc)
+				if len(fn.Args) > 1 {
+					r = lexer.RangeOfIdentifier(p.source, fn.Args[1].Binding.Loc)
+				}
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Setter %s must have exactly one argument", p.keyNameForError(key)))
+			}
+		}
 
 		// Special-case private identifiers
 		if private, ok := key.Data.(*ast.EPrivateIdentifier); ok {

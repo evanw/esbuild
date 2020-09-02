@@ -491,16 +491,16 @@ func TestArrow(t *testing.T) {
 	expectPrinted(t, "([...a, ...b])", "[...a, ...b];\n")
 	expectPrinted(t, "({a: b, c() {}})", "({a: b, c() {\n}});\n")
 	expectPrinted(t, "({a: b, get c() {}})", "({a: b, get c() {\n}});\n")
-	expectPrinted(t, "({a: b, set c() {}})", "({a: b, set c() {\n}});\n")
+	expectPrinted(t, "({a: b, set c(x) {}})", "({a: b, set c(x) {\n}});\n")
 }
 
 func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo extends (a, b) {}", "class Foo extends (a, b) {\n}\n")
 	expectPrinted(t, "class Foo { get foo() {} }", "class Foo {\n  get foo() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { set foo() {} }", "class Foo {\n  set foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { set foo(x) {} }", "class Foo {\n  set foo(x) {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static foo() {} }", "class Foo {\n  static foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static get foo() {} }", "class Foo {\n  static get foo() {\n  }\n}\n")
-	expectPrinted(t, "class Foo { static set foo() {} }", "class Foo {\n  static set foo() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { static set foo(x) {} }", "class Foo {\n  static set foo(x) {\n  }\n}\n")
 }
 
 func TestImport(t *testing.T) {
