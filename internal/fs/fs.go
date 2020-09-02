@@ -321,9 +321,6 @@ func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
 	if err != nil {
-		if pathErr, ok := err.(*os.PathError); ok {
-			err = pathErr.Unwrap()
-		}
 		entries = nil
 	}
 	fs.entries[dir] = entriesOrErr{entries: entries, err: err}
@@ -334,11 +331,20 @@ func (fs *realFS) ReadFile(path string) (string, error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
 	buffer, err := ioutil.ReadFile(path)
-	if err != nil {
-		if pathErr, ok := err.(*os.PathError); ok {
-			err = pathErr.Unwrap()
-		}
+
+	// Unwrap to get the underlying error
+	if pathErr, ok := err.(*os.PathError); ok {
+		err = pathErr.Unwrap()
 	}
+
+	// Windows returns ENOTDIR here even though nothing we've done yet has asked
+	// for a directory. This really means ENOENT on Windows. Return ENOENT here
+	// so callers that check for ENOENT will successfully detect this file as
+	// missing.
+	if err == syscall.ENOTDIR {
+		return "", syscall.ENOENT
+	}
+
 	return string(buffer), err
 }
 
@@ -378,9 +384,35 @@ func readdir(dirname string) ([]string, error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
 	f, err := os.Open(dirname)
+
+	// Unwrap to get the underlying error
+	if pathErr, ok := err.(*os.PathError); ok {
+		err = pathErr.Unwrap()
+	}
+
+	// Windows returns ENOTDIR here even though nothing we've done yet has asked
+	// for a directory. This really means ENOENT on Windows. Return ENOENT here
+	// so callers that check for ENOENT will successfully detect this directory
+	// as missing.
+	if err == syscall.ENOTDIR {
+		return nil, syscall.ENOENT
+	}
+
+	// Stop now if there was an error
 	if err != nil {
 		return nil, err
 	}
+
 	defer f.Close()
-	return f.Readdirnames(-1)
+	entries, err := f.Readdirnames(-1)
+
+	// Unwrap to get the underlying error
+	if syscallErr, ok := err.(*os.SyscallError); ok {
+		err = syscallErr.Unwrap()
+	}
+
+	// Don't convert ENOTDIR to ENOENT here. ENOTDIR is a legitimate error
+	// condition for Readdirnames() on non-Windows platforms.
+
+	return entries, err
 }

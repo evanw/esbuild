@@ -892,13 +892,22 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
         'src/entry.js': ``,
         'src/tsconfig.json': `{"extends": "foo"}`,
-        'src/node_modules/foo/tsconfig.json/x': ``,
+        'node_modules/foo/tsconfig.json/x': ``,
       }, {
-        expectedStderr: `src/tsconfig.json:1:12: error: Cannot read file "src/node_modules/foo/tsconfig.json": ${errorText}
+        expectedStderr: `src/tsconfig.json:1:12: error: Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
 {"extends": "foo"}
             ~~~~~
 1 error
 `,
+      }),
+      test(['src/entry.js', '--bundle', '--outfile=node.js'], {
+        'src/entry.js': ``,
+
+        // These missing directories shouldn't cause any errors on Windows
+        'package.json': `{
+          "main": "dist/cjs/index.js",
+          "module": "dist/esm/index.js"
+        }`,
       }),
     )
   }

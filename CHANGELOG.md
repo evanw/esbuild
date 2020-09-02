@@ -27,6 +27,10 @@
 
     This was an oversight. I incorrectly thought getters and setters were added in ES6, not in ES5. This release allows getter and setter method syntax even when `--target=es5`.
 
+* Fix a Windows-only regression with missing directory errors ([#359](https://github.com/evanw/esbuild/issues/359))
+
+    Various Go file system APIs return `ENOTDIR` for missing file system entries on Windows instead of `ENOENT` like they do on other platforms. This interfered with code added in the previous release that makes unexpected file system errors no longer silent. `ENOTDIR` is usually an unexpected error because it's supposed to happen when the file system entry is present but just unexpectedly a file instead of a directory. This release changes `ENOTDIR` to `ENOENT` in certain cases so that these Windows-only errors are no longer treated as unexpected errors.
+
 ## 0.6.28
 
 * Avoid running out of file handles when ulimit is low ([#348](https://github.com/evanw/esbuild/issues/348))
