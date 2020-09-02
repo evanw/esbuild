@@ -274,6 +274,21 @@ func TestNumericLiteral(t *testing.T) {
 	expectNumber(t, "0O1_2", 10)
 	expectNumber(t, "0x1_2", 0x12)
 	expectNumber(t, "0X1_2", 0x12)
+	expectNumber(t, "08.0_1", 8.01)
+	expectNumber(t, "09.0_1", 9.01)
+
+	expectLexerError(t, "0_0", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "0_1", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "0_7", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "0_8", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "0_9", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "00_0", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "01_0", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "07_0", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "08_0", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "09_0", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "08_0.1", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "09_0.1", "<stdin>: error: Syntax error \"_\"\n")
 
 	expectLexerError(t, "1__2", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, ".1__2", "<stdin>: error: Syntax error \"_\"\n")
@@ -287,11 +302,14 @@ func TestNumericLiteral(t *testing.T) {
 
 	expectLexerError(t, "1_", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, "1._", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "1_.", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, ".1_", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, "1e_", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, "1e1_", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, "1_e1", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, ".1_e1", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "1._2", "<stdin>: error: Syntax error \"_\"\n")
+	expectLexerError(t, "1_.2", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, "0b_1", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, "0B_1", "<stdin>: error: Syntax error \"_\"\n")
 	expectLexerError(t, "0o_1", "<stdin>: error: Syntax error \"_\"\n")
@@ -356,7 +374,7 @@ func TestBigIntegerLiteral(t *testing.T) {
 	expectLexerError(t, "000n", "<stdin>: error: Syntax error \"n\"\n")
 	expectLexerError(t, "0123n", "<stdin>: error: Syntax error \"n\"\n")
 	expectLexerError(t, "089n", "<stdin>: error: Syntax error \"n\"\n")
-	expectLexerError(t, "0_1n", "<stdin>: error: Syntax error \"n\"\n")
+	expectLexerError(t, "0_1n", "<stdin>: error: Syntax error \"_\"\n")
 }
 
 func expectString(t *testing.T, contents string, expected string) {

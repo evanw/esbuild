@@ -1594,7 +1594,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 		case 'x', 'X':
 			base = 16
 
-		case '0', '1', '2', '3', '4', '5', '6', '7':
+		case '0', '1', '2', '3', '4', '5', '6', '7', '_':
 			base = 8
 			isLegacyOctalLiteral = true
 		}
@@ -1619,7 +1619,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 				}
 
 				// The first digit must exist
-				if isFirst {
+				if isFirst || isLegacyOctalLiteral {
 					lexer.SyntaxError()
 				}
 
@@ -1702,6 +1702,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 		}
 	} else {
 		// Floating-point literal
+		isInvalidLegacyOctalLiteral := first == '0' && (lexer.codePoint == '8' || lexer.codePoint == '9')
 
 		// Initial digits
 		for {
@@ -1712,6 +1713,11 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 
 				// Cannot have multiple underscores in a row
 				if lastUnderscoreEnd > 0 && lexer.end == lastUnderscoreEnd+1 {
+					lexer.SyntaxError()
+				}
+
+				// The specification forbids underscores in this case
+				if isInvalidLegacyOctalLiteral {
 					lexer.SyntaxError()
 				}
 
@@ -1731,6 +1737,9 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 
 			hasDotOrExponent = true
 			lexer.step()
+			if lexer.codePoint == '_' {
+				lexer.SyntaxError()
+			}
 			for {
 				if lexer.codePoint < '0' || lexer.codePoint > '9' {
 					if lexer.codePoint != '_' {
