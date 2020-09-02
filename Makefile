@@ -175,6 +175,10 @@ clean:
 	rm -rf npm/esbuild-wasm/lib
 	go clean -testcache ./internal/...
 
+# This also cleans directories containing cached code from other projects
+clean-all: clean
+	rm -fr github demo bench
+
 ################################################################################
 # These npm packages are used for benchmarks. Instal them in subdirectories
 # because we want to install the same package name at multiple versions
@@ -698,13 +702,13 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 
 READMIN_HTML = <meta charset=utf8><div id=root></div><script src=main.js></script>
 
-github/readmin:
+github/react-admin:
 	mkdir -p github
 	git clone --depth 1 --branch v3.8.1 https://github.com/marmelab/react-admin.git github/react-admin
 
-bench/readmin: | github/readmin
+bench/readmin: | github/react-admin
 	mkdir -p bench/readmin
-	cp -r github/readmin/examples/simple bench/readmin/repo
+	cp -r github/react-admin/examples/simple bench/readmin/repo
 	cp scripts/readmin-package-lock.json bench/readmin/repo/package-lock.json # Pin package versions for determinism
 	cd bench/readmin/repo && npm ci
 
