@@ -8378,7 +8378,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 		hasSpread := false
 		hasProto := false
-		for i, property := range e.Properties {
+		for i := range e.Properties {
+			property := &e.Properties[i]
+
 			if property.Kind != ast.PropertySpread {
 				key := p.visitExpr(property.Key)
 				e.Properties[i].Key = key
@@ -8396,6 +8398,15 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			} else {
 				hasSpread = true
 			}
+
+			// Extract the initializer for expressions like "({ a: b = c } = d)"
+			if in.assignTarget != ast.AssignTargetNone && property.Initializer == nil && property.Value != nil {
+				if binary, ok := property.Value.Data.(*ast.EBinary); ok && binary.Op == ast.BinOpAssign {
+					property.Initializer = &binary.Right
+					property.Value = &binary.Left
+				}
+			}
+
 			if property.Value != nil {
 				*property.Value, _ = p.visitExprInOut(*property.Value, exprIn{assignTarget: in.assignTarget})
 			}

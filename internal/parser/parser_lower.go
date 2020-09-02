@@ -1137,11 +1137,6 @@ func (p *parser) lowerObjectRestHelper(
 		split := &upToSplit[len(upToSplit)-1]
 		binding := split.Value
 
-		// If this has a default value, skip the value to target the binding
-		if binary, ok := binding.Data.(*ast.EBinary); ok && binary.Op == ast.BinOpAssign {
-			binding = &binary.Left
-		}
-
 		// Swap the binding with a temporary
 		splitRef := p.generateTempRef(declare, "")
 		deferredBinding := *binding
