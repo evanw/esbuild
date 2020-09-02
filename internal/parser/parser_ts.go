@@ -655,6 +655,41 @@ func (p *parser) canFollowTypeArgumentsInExpression() bool {
 	}
 }
 
+func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
+	name := p.lexer.Identifier
+	p.lexer.Expect(lexer.TIdentifier)
+
+	if opts.isModuleScope {
+		p.localTypeNames[name] = true
+	}
+
+	p.skipTypeScriptTypeParameters()
+
+	if p.lexer.Token == lexer.TExtends {
+		p.lexer.Next()
+		for {
+			p.skipTypeScriptType(ast.LLowest)
+			if p.lexer.Token != lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+		}
+	}
+
+	if p.lexer.IsContextualKeyword("implements") {
+		p.lexer.Next()
+		for {
+			p.skipTypeScriptType(ast.LLowest)
+			if p.lexer.Token != lexer.TComma {
+				break
+			}
+			p.lexer.Next()
+		}
+	}
+
+	p.skipTypeScriptObjectType()
+}
+
 func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 	if opts.isExport && p.lexer.Token == lexer.TOpenBrace {
 		// "export type {foo}"

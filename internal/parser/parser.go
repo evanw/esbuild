@@ -3955,7 +3955,7 @@ func (p *parser) parseClass(name *ast.LocRef, classOpts parseClassOpts) ast.Clas
 		}
 	}
 
-	if p.TS.Parse && p.lexer.Token == lexer.TImplements {
+	if p.TS.Parse && p.lexer.IsContextualKeyword("implements") {
 		p.lexer.Next()
 		for {
 			p.skipTypeScriptType(ast.LLowest)
@@ -4173,14 +4173,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			opts.isExport = true
 			return p.parseStmt(opts)
 
-		case lexer.TInterface:
-			if p.TS.Parse {
-				opts.isExport = true
-				return p.parseStmt(opts)
-			}
-			p.lexer.Unexpected()
-			return ast.Stmt{}
-
 		case lexer.TIdentifier:
 			if p.lexer.IsContextualKeyword("async") {
 				// "export async function foo() {}"
@@ -4199,10 +4191,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope, isExport: true})
 					return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
-				case "namespace", "abstract", "module":
+				case "namespace", "abstract", "module", "interface":
 					// "export namespace Foo {}"
 					// "export abstract class Foo {}"
 					// "export module Foo {}"
+					// "export interface Foo {}"
 					opts.isExport = true
 					return p.parseStmt(opts)
 
@@ -4273,7 +4266,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				return ast.Stmt{Loc: loc, Data: &ast.SExportDefault{DefaultName: defaultName, Value: ast.ExprOrStmt{Expr: &expr}}}
 			}
 
-			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass || p.lexer.Token == lexer.TInterface {
+			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass || p.lexer.IsContextualKeyword("interface") {
 				stmt := p.parseStmt(parseStmtOpts{
 					tsDecorators:     opts.tsDecorators,
 					isNameOptional:   true,
@@ -4420,46 +4413,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.lexer.Unexpected()
 		}
 		return p.parseTypeScriptEnumStmt(loc, opts)
-
-	case lexer.TInterface:
-		if !p.TS.Parse {
-			p.lexer.Unexpected()
-		}
-
-		p.lexer.Next()
-		name := p.lexer.Identifier
-		p.lexer.Expect(lexer.TIdentifier)
-
-		if opts.isModuleScope {
-			p.localTypeNames[name] = true
-		}
-
-		p.skipTypeScriptTypeParameters()
-
-		if p.lexer.Token == lexer.TExtends {
-			p.lexer.Next()
-			for {
-				p.skipTypeScriptType(ast.LLowest)
-				if p.lexer.Token != lexer.TComma {
-					break
-				}
-				p.lexer.Next()
-			}
-		}
-
-		if p.lexer.Token == lexer.TImplements {
-			p.lexer.Next()
-			for {
-				p.skipTypeScriptType(ast.LLowest)
-				if p.lexer.Token != lexer.TComma {
-					break
-				}
-				p.lexer.Next()
-			}
-		}
-
-		p.skipTypeScriptObjectType()
-		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
 	case lexer.TAt:
 		// Parse decorators before class statements, which are potentially exported
@@ -5141,6 +5094,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 							(p.lexer.Token == lexer.TStringLiteral && opts.isTypeScriptDeclare)) {
 							return p.parseTypeScriptNamespaceStmt(loc, opts)
 						}
+
+					case "interface":
+						// "interface Foo {}"
+						p.skipTypeScriptInterfaceStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
+						return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
 					case "abstract":
 						if p.lexer.Token == lexer.TClass || opts.tsDecorators != nil {

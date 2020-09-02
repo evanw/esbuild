@@ -534,10 +534,7 @@ func TestTokens(t *testing.T) {
 		{"with", TWith},
 
 		// Strict mode reserved words
-		{"implements", TImplements},
-		{"interface", TInterface},
 		{"let", TLet},
-		{"static", TStatic},
 		{"yield", TYield},
 	}
 

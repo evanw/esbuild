@@ -543,7 +543,7 @@ func TestObject(t *testing.T) {
 	expectPrinted(t, "({get if() {}})", "({get if() {\n}});\n")
 	expectPrinted(t, "({set if() {}})", "({set if() {\n}});\n")
 
-	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \":\" but found \"foo\"\n")
+	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 	expectParseError(t, "({if})", "<stdin>: error: Expected \":\" but found \"}\"\n")
 }

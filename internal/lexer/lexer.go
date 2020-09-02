@@ -154,10 +154,7 @@ const (
 	TWith
 
 	// Strict mode reserved words
-	TImplements
-	TInterface
 	TLet
-	TStatic
 	TYield
 )
 
@@ -201,11 +198,8 @@ var Keywords = map[string]T{
 	"with":       TWith,
 
 	// Strict mode reserved words
-	"implements": TImplements,
-	"interface":  TInterface,
-	"let":        TLet,
-	"static":     TStatic,
-	"yield":      TYield,
+	"let":   TLet,
+	"yield": TYield,
 }
 
 var StrictModeReservedWords = []string{

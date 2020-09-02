@@ -124,11 +124,8 @@ var tokenToString = map[T]string{
 	TWith:       "\"with\"",
 
 	// Strict mode reserved words
-	TImplements: "\"implements\"",
-	TInterface:  "\"interface\"",
-	TLet:        "\"let\"",
-	TStatic:     "\"static\"",
-	TYield:      "\"yield\"",
+	TLet:   "\"let\"",
+	TYield: "\"yield\"",
 }
 
 // This is from https://github.com/microsoft/TypeScript/blob/master/src/compiler/transformers/jsx.ts
