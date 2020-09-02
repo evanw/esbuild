@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.29
 
 * Add a warning for comparison with `NaN`
 
