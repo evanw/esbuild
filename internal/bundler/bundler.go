@@ -351,13 +351,13 @@ func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolve
 		return ast.Path{}, nil
 	}
 
-	// Absolute path
+	// Relative path in a file with an absolute path
 	if source.KeyPath.IsAbsolute {
 		absPath := fs.Join(fs.Dir(source.KeyPath.Text), comment.Text)
 		contents, err := fs.ReadFile(absPath)
 		if err != nil {
 			if err == syscall.ENOENT {
-				log.AddRangeWarning(source, comment.Range, fmt.Sprintf("Could not find source map file: %s", res.PrettyPath(absPath)))
+				// Don't report a warning because this is likely unactionable
 				return ast.Path{}, nil
 			}
 			log.AddRangeError(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(absPath), err.Error()))
