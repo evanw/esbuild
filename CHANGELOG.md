@@ -35,6 +35,10 @@
 
     According to the JavaScript specification, getter methods must have zero arguments and setter methods must have exactly one argument. This release enforces these rules.
 
+* Validate assignment targets
+
+    Code containing invalid assignments such as `1 = 2` will now be correctly rejected as a syntax error. Previously such code was passed through unmodified and the output file would contain a syntax error (i.e. "garbage in, garbage out").
+
 ## 0.6.28
 
 * Avoid running out of file handles when ulimit is low ([#348](https://github.com/evanw/esbuild/issues/348))

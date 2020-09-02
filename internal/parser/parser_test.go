@@ -195,17 +195,24 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 
 func TestBinOp(t *testing.T) {
 	for code, entry := range ast.OpTable {
-		if ast.OpCode(code).IsLeftAssociative() {
+		opCode := ast.OpCode(code)
+
+		if opCode.IsLeftAssociative() {
 			op := entry.Text
 			expectPrinted(t, "a "+op+" b "+op+" c", "a "+op+" b "+op+" c;\n")
 			expectPrinted(t, "(a "+op+" b) "+op+" c", "a "+op+" b "+op+" c;\n")
 			expectPrinted(t, "a "+op+" (b "+op+" c)", "a "+op+" (b "+op+" c);\n")
 		}
 
-		if ast.OpCode(code).IsRightAssociative() {
+		if opCode.IsRightAssociative() {
 			op := entry.Text
 			expectPrinted(t, "a "+op+" b "+op+" c", "a "+op+" b "+op+" c;\n")
-			expectPrinted(t, "(a "+op+" b) "+op+" c", "(a "+op+" b) "+op+" c;\n")
+
+			// Avoid errors about invalid assignment targets
+			if opCode.BinaryAssignTarget() == ast.AssignTargetNone {
+				expectPrinted(t, "(a "+op+" b) "+op+" c", "(a "+op+" b) "+op+" c;\n")
+			}
+
 			expectPrinted(t, "a "+op+" (b "+op+" c)", "a "+op+" b "+op+" c;\n")
 		}
 	}
@@ -527,6 +534,27 @@ func TestArrays(t *testing.T) {
 func TestPattern(t *testing.T) {
 	expectPrinted(t, "let {if: x} = y", "let {if: x} = y;\n")
 	expectParseError(t, "let {x: if} = y", "<stdin>: error: Expected identifier but found \"if\"\n")
+}
+
+func TestAssignTarget(t *testing.T) {
+	expectParseError(t, "x = 0", "")
+	expectParseError(t, "x.y = 0", "")
+	expectParseError(t, "x[y] = 0", "")
+	expectParseError(t, "[,] = 0", "")
+	expectParseError(t, "[x] = 0", "")
+	expectParseError(t, "[x = y] = 0", "")
+	expectParseError(t, "[...x] = 0", "")
+	expectParseError(t, "({...x} = 0)", "")
+	expectParseError(t, "({x = 0} = 0)", "")
+	expectParseError(t, "({x: y = 0} = 0)", "")
+
+	expectParseError(t, "[...x = y] = 0", "<stdin>: error: Invalid assignment target\n")
+	expectParseError(t, "x() = 0", "<stdin>: error: Invalid assignment target\n")
+	expectParseError(t, "x?.y = 0", "<stdin>: error: Invalid assignment target\n")
+	expectParseError(t, "x?.[y] = 0", "<stdin>: error: Invalid assignment target\n")
+	expectParseError(t, "({x: 0} = 0)", "<stdin>: error: Invalid assignment target\n")
+	expectParseError(t, "({x() {}} = 0)", "<stdin>: error: Invalid assignment target\n")
+	expectParseError(t, "({x: 0 = y} = 0)", "<stdin>: error: Invalid assignment target\n")
 }
 
 func TestObject(t *testing.T) {

@@ -108,6 +108,7 @@ type parser struct {
 	isThisCaptured    bool
 	argumentsRef      *ast.Ref
 	callTarget        ast.E
+	deleteTarget      ast.E
 	moduleScope       *ast.Scope
 	isControlFlowDead bool
 
@@ -2296,7 +2297,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		for p.lexer.Token != lexer.TCloseBracket {
 			switch p.lexer.Token {
 			case lexer.TComma:
-				items = append(items, ast.Expr{Loc: loc, Data: &ast.EMissing{}})
+				items = append(items, ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EMissing{}})
 
 			case lexer.TDotDotDot:
 				p.markSyntaxFeature(compat.ArraySpread, p.lexer.Range())
@@ -6872,7 +6873,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		return stmts
 
 	default:
-		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
+		panic("Internal error")
 	}
 
 	stmts = append(stmts, stmt)
@@ -7545,9 +7546,27 @@ func canBeDeleted(expr ast.Expr) bool {
 	return false
 }
 
-func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
+func (p *parser) isValidAssignmentTarget(expr ast.Expr) bool {
 	switch e := expr.Data.(type) {
-	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
+	case *ast.EIdentifier, *ast.EObject, *ast.EArray:
+		// Don't worry about recursive checking for objects and arrays. This will
+		// already be handled naturally by passing down the assign target flag.
+		return true
+	case *ast.EDot:
+		return e.OptionalChain == ast.OptionalChainNone
+	case *ast.EIndex:
+		return e.OptionalChain == ast.OptionalChainNone
+	}
+	return false
+}
+
+func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
+	if in.assignTarget != ast.AssignTargetNone && !p.isValidAssignmentTarget(expr) {
+		p.log.AddError(&p.source, expr.Loc, "Invalid assignment target")
+	}
+
+	switch e := expr.Data.(type) {
+	case *ast.ENull, *ast.ESuper, *ast.EString,
 		*ast.EBoolean, *ast.ENumber, *ast.EBigInt,
 		*ast.ERegExp, *ast.ENewTarget, *ast.EUndefined:
 
@@ -7572,7 +7591,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		e.Ref = result.ref
 
 		// Substitute user-specified defines for unbound symbols
-		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound && !result.isInsideWithScope {
+		if p.symbols[e.Ref.InnerIndex].Kind == ast.SymbolUnbound && !result.isInsideWithScope && e != p.deleteTarget {
 			if data, ok := p.Defines.IdentifierDefines[name]; ok {
 				if data.DefineFunc != nil {
 					new := p.valueForDefine(expr.Loc, in.assignTarget, data.DefineFunc)
@@ -8185,8 +8204,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			return expr, exprOut{}
 
 		case ast.UnOpDelete:
+			p.deleteTarget = e.Value.Data
 			canBeDeletedBefore := canBeDeleted(e.Value)
-			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true, assignTarget: ast.AssignTargetReplace})
+			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true})
 			e.Value = value
 			canBeDeletedAfter := canBeDeleted(e.Value)
 
@@ -8360,9 +8380,20 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 		hasSpread := false
 		for i, item := range e.Items {
-			item, _ := p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
-			if _, ok := item.Data.(*ast.ESpread); ok {
+			switch e2 := item.Data.(type) {
+			case *ast.EMissing:
+			case *ast.ESpread:
+				e2.Value, _ = p.visitExprInOut(e2.Value, exprIn{assignTarget: in.assignTarget})
 				hasSpread = true
+			case *ast.EBinary:
+				if in.assignTarget != ast.AssignTargetNone && e2.Op == ast.BinOpAssign {
+					e2.Left, _ = p.visitExprInOut(e2.Left, exprIn{assignTarget: ast.AssignTargetReplace})
+					e2.Right = p.visitExpr(e2.Right)
+				} else {
+					item, _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
+				}
+			default:
+				item, _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
 			}
 			e.Items[i] = item
 		}
@@ -8662,7 +8693,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		_, expr = p.lowerClass(ast.Stmt{}, expr)
 
 	default:
-		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))
+		panic("Internal error")
 	}
 
 	return expr, exprOut{}
