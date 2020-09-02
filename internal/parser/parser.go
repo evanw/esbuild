@@ -1753,10 +1753,17 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 
 		// First, try converting the expressions to bindings
 		for _, item := range items {
+			isSpread := false
 			if spread, ok := item.Data.(*ast.ESpread); ok {
 				item = spread.Value
+				isSpread = true
 			}
 			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog)
+			if initializer != nil && isSpread {
+				index := strings.LastIndex(p.source.Contents[:initializer.Loc.Start], "=")
+				r := ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: 1}
+				p.log.AddRangeError(&p.source, r, "A rest argument cannot have a default initializer")
+			}
 			invalidLog = log
 			args = append(args, ast.Arg{Binding: binding, Default: initializer})
 		}
