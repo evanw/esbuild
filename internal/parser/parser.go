@@ -8176,6 +8176,29 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.UnOpTypeof:
 			p.typeofTarget = e.Value.Data
 
+			_, idBefore := e.Value.Data.(*ast.EIdentifier)
+			e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
+			id, idAfter := e.Value.Data.(*ast.EIdentifier)
+
+			// The expression "typeof (0, x)" must not become "typeof x" if "x"
+			// is unbound because that could suppress a ReferenceError from "x"
+			if !idBefore && idAfter && p.symbols[id.Ref.InnerIndex].Kind == ast.SymbolUnbound {
+				e.Value = ast.JoinWithComma(ast.Expr{Loc: e.Value.Loc, Data: &ast.ENumber{}}, e.Value)
+			}
+
+			// "typeof require" => "'function'"
+			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
+				p.ignoreUsage(p.requireRef)
+				p.typeofRequire = &ast.EString{Value: lexer.StringToUTF16("function")}
+				return ast.Expr{Loc: expr.Loc, Data: p.typeofRequire}, exprOut{}
+			}
+
+			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
+				return ast.Expr{Loc: expr.Loc, Data: &ast.EString{Value: lexer.StringToUTF16(typeof)}}, exprOut{}
+			}
+
+			return expr, exprOut{}
+
 		case ast.UnOpDelete:
 			canBeDeletedBefore := canBeDeleted(e.Value)
 			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true, assignTarget: ast.AssignTargetReplace})
@@ -8228,18 +8251,6 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.UnOpVoid:
 			if p.exprCanBeRemovedIfUnused(e.Value) {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EUndefined{}}, exprOut{}
-			}
-
-		case ast.UnOpTypeof:
-			// "typeof require" => "'function'"
-			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
-				p.ignoreUsage(p.requireRef)
-				p.typeofRequire = &ast.EString{Value: lexer.StringToUTF16("function")}
-				return ast.Expr{Loc: expr.Loc, Data: p.typeofRequire}, exprOut{}
-			}
-
-			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{Loc: expr.Loc, Data: &ast.EString{Value: lexer.StringToUTF16(typeof)}}, exprOut{}
 			}
 
 		case ast.UnOpPos:

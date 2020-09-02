@@ -1800,6 +1800,20 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
 }
 
+func TestMangleTypeofIdentifier(t *testing.T) {
+	expectPrintedMangle(t, "typeof (123, x)", "typeof (0, x);\n")
+	expectPrintedMangle(t, "typeof (123, x.y)", "typeof x.y;\n")
+	expectPrintedMangle(t, "typeof (123, x); var x", "typeof x;\nvar x;\n")
+
+	expectPrintedMangle(t, "typeof (true && x)", "typeof (0, x);\n")
+	expectPrintedMangle(t, "typeof (true && x.y)", "typeof x.y;\n")
+	expectPrintedMangle(t, "typeof (true && x); var x", "typeof x;\nvar x;\n")
+
+	expectPrintedMangle(t, "typeof (false || x)", "typeof (0, x);\n")
+	expectPrintedMangle(t, "typeof (false || x.y)", "typeof x.y;\n")
+	expectPrintedMangle(t, "typeof (false || x); var x", "typeof x;\nvar x;\n")
+}
+
 func TestMangleTypeofEquals(t *testing.T) {
 	expectPrintedMangle(t, "typeof x === y", "typeof x === y;\n")
 	expectPrintedMangle(t, "typeof x !== y", "typeof x !== y;\n")
