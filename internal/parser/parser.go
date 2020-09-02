@@ -1121,6 +1121,11 @@ func (p *parser) parseProperty(kind ast.PropertyKind, opts propertyOpts, errors 
 		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EString{Value: p.lexer.StringLiteral}}
 		p.lexer.Next()
 
+	case lexer.TBigIntegerLiteral:
+		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EBigInt{Value: p.lexer.Identifier}}
+		p.markSyntaxFeature(compat.BigInt, p.lexer.Range())
+		p.lexer.Next()
+
 	case lexer.TPrivateIdentifier:
 		if !opts.isClass || len(opts.tsDecorators) > 0 {
 			p.lexer.Expected(lexer.TIdentifier)
@@ -2141,7 +2146,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		value := p.lexer.Identifier
 		p.markSyntaxFeature(compat.BigInt, p.lexer.Range())
 		p.lexer.Next()
-		return ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EBigInt{Value: value}}
+		return ast.Expr{Loc: loc, Data: &ast.EBigInt{Value: value}}
 
 	case lexer.TSlash, lexer.TSlashEquals:
 		p.lexer.ScanRegExp()

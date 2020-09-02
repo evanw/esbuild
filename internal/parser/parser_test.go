@@ -560,6 +560,9 @@ func TestAssignTarget(t *testing.T) {
 func TestObject(t *testing.T) {
 	expectPrinted(t, "({foo})", "({foo});\n")
 	expectPrinted(t, "({foo:0})", "({foo: 0});\n")
+	expectPrinted(t, "({1e9:0})", "({1e9: 0});\n")
+	expectPrinted(t, "({1_2_3n:0})", "({123n: 0});\n")
+	expectPrinted(t, "({0x1_2_3n:0})", "({0x123n: 0});\n")
 	expectPrinted(t, "({foo() {}})", "({foo() {\n}});\n")
 	expectPrinted(t, "({*foo() {}})", "({*foo() {\n}});\n")
 	expectPrinted(t, "({get foo() {}})", "({get foo() {\n}});\n")
