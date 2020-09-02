@@ -534,6 +534,9 @@ func TestArrays(t *testing.T) {
 func TestPattern(t *testing.T) {
 	expectPrinted(t, "let {if: x} = y", "let {if: x} = y;\n")
 	expectParseError(t, "let {x: if} = y", "<stdin>: error: Expected identifier but found \"if\"\n")
+
+	expectPrinted(t, "let {1_2_3n: x} = y", "let {123n: x} = y;\n")
+	expectPrinted(t, "let {0x1_2_3n: x} = y", "let {0x123n: x} = y;\n")
 }
 
 func TestAssignTarget(t *testing.T) {

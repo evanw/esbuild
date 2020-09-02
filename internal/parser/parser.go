@@ -1473,6 +1473,11 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EString{Value: p.lexer.StringLiteral}}
 		p.lexer.Next()
 
+	case lexer.TBigIntegerLiteral:
+		key = ast.Expr{Loc: p.lexer.Loc(), Data: &ast.EBigInt{Value: p.lexer.Identifier}}
+		p.markSyntaxFeature(compat.BigInt, p.lexer.Range())
+		p.lexer.Next()
+
 	case lexer.TOpenBracket:
 		isComputed = true
 		p.lexer.Next()
