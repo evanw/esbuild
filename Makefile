@@ -42,7 +42,7 @@ js-api-tests: | scripts/node_modules
 	node scripts/js-api-tests.js
 
 update-version-go:
-	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
+	node -e 'console.log(`package main\n\nconst esbuildVersion = "$(ESBUILD_VERSION)"`)' > cmd/esbuild/version.go
 
 platform-all: update-version-go test-all
 	make -j11 \
