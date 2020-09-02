@@ -83,6 +83,7 @@ Several reasons:
 * [Snowpack](https://github.com/pikapkg/snowpack)
 * [HUGO](https://github.com/gohugoio/hugo)
 * [@web/test-runner](https://www.npmjs.com/package/@web/test-runner)
+* [@web/dev-server](https://www.npmjs.com/package/@web/dev-server)
 
 #### Currently supported:
 
