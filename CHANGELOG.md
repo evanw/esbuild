@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased
+
+* Add a warning for comparison with `NaN`
+
+    This warning triggers for code such as `x === NaN`. Code that does this is almost certainly a bug because `NaN === NaN` is false in JavaScript.
+
+* Add a warning for duplicate switch case clauses
+
+    This warning detects situations when multiple `case` clauses in the same `switch` statement match on the same expression. This almost certainly indicates a problem with the code. This warning protects against situations like this:
+
+    ```js
+    switch (typeof x) {
+      case 'object':
+        // ...
+      case 'function':
+        // ...
+      case 'boolean':
+        // ...
+      case 'object':
+        // ...
+    }
+    ```
+
+* Allow getters and setters in ES5 ([#356](https://github.com/evanw/esbuild/issues/356))
+
+    This was an oversight. I incorrectly thought getters and setters were added in ES6, not in ES5. This release allows getter and setter method syntax even when `--target=es5`.
+
+* Fix a Windows-only regression with missing directory errors ([#359](https://github.com/evanw/esbuild/issues/359))
+
+    Various Go file system APIs return `ENOTDIR` for missing file system entries on Windows instead of `ENOENT` like they do on other platforms. This interfered with code added in the previous release that makes unexpected file system errors no longer silent. `ENOTDIR` is usually an unexpected error because it's supposed to happen when the file system entry is present but just unexpectedly a file instead of a directory. This release changes `ENOTDIR` to `ENOENT` in certain cases so that these Windows-only errors are no longer treated as unexpected errors.
+
+## 0.6.28
+
+* Avoid running out of file handles when ulimit is low ([#348](https://github.com/evanw/esbuild/issues/348))
+
+    When esbuild uses aggressive concurrency, it can sometimes simultaneously use more file handles than allowed by the system. This can be a problem when the limit is low (e.g. using `ulimit -n 32`). In this release, esbuild now limits itself to using a maximum of 32 file operations simultaneously (in practice this may use up to 64 file handles since some file operations need two handles). This limit was chosen to be low enough to not cause issues with normal ulimit values but high enough to not impact benchmark times.
+
+* Unexpected file system errors are no longer silent ([#348](https://github.com/evanw/esbuild/issues/348))
+
+    All file system errors were previously treated the same; any error meant the file or directory was considered to not exist. This was problematic when the process ran out of available file handles because it meant esbuild could ignore files that do actually exist if file handles are exhausted. Then esbuild could potentially generate a different output instead of failing with an error. Now if esbuild gets into this situation, it should report unexpected file system errors and fail to build instead of continuing to build and potentially producing incorrect output.
+
+* Install script tries `npm install` before a direct download ([#347](https://github.com/evanw/esbuild/issues/347))
+
+    The `esbuild` package has a post-install script that downloads the native binary for the current platform over HTTP. Some people have configured their environments such that HTTP requests to npmjs.org will hang, and configured npm to use a proxy for HTTP requests instead. In this case, esbuild's install script will still work as long as `npm install` works because the HTTP request will eventually time out, at which point the install script will run `npm install` as a fallback. The timeout is of course undesirable.
+
+    This release changes the order of attempted download methods in the install script. Now `npm install` is tried first and directly downloading the file over HTTP will be tried as a fallback. This means installations will be slightly slower since npm is slow, but it should avoid the situation where the install script takes a long time because it's waiting for a HTTP timeout. This should still support the scenarios where there is a HTTP proxy configured, where there is a custom registry configured, and where the `npm` command isn't available.
+
 ## 0.6.27
 
 * Add parentheses when calling `require()` inside `new` ([#339](https://github.com/evanw/esbuild/issues/339))

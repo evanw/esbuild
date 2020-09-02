@@ -42,7 +42,7 @@ js-api-tests: | scripts/node_modules
 	node scripts/js-api-tests.js
 
 update-version-go:
-	echo "package main\n\nconst esbuildVersion = \"$(ESBUILD_VERSION)\"" > cmd/esbuild/version.go
+	node -e 'console.log(`package main\n\nconst esbuildVersion = "$(ESBUILD_VERSION)"`)' > cmd/esbuild/version.go
 
 platform-all: update-version-go test-all
 	make -j11 \
@@ -175,6 +175,10 @@ clean:
 	rm -rf npm/esbuild-wasm/lib
 	go clean -testcache ./internal/...
 
+# This also cleans directories containing cached code from other projects
+clean-all: clean
+	rm -fr github demo bench
+
 ################################################################################
 # These npm packages are used for benchmarks. Instal them in subdirectories
 # because we want to install the same package name at multiple versions
@@ -246,7 +250,7 @@ test262: esbuild | demo/test262
 github/uglify:
 	mkdir -p github/uglify
 	cd github/uglify && git init && git remote add origin https://github.com/mishoo/uglifyjs.git
-	cd github/uglify && git fetch --depth 1 origin 7a033bb825975a6a729813b2cbe5a722a9047456 && git checkout FETCH_HEAD
+	cd github/uglify && git fetch --depth 1 origin 83a3cbf1514e81292b749655f2f712e82a5a2ba8 && git checkout FETCH_HEAD
 
 demo/uglify: | github/uglify
 	mkdir -p demo
@@ -698,13 +702,13 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 
 READMIN_HTML = <meta charset=utf8><div id=root></div><script src=main.js></script>
 
-github/readmin:
+github/react-admin:
 	mkdir -p github
 	git clone --depth 1 --branch v3.8.1 https://github.com/marmelab/react-admin.git github/react-admin
 
-bench/readmin: | github/readmin
+bench/readmin: | github/react-admin
 	mkdir -p bench/readmin
-	cp -r github/readmin/examples/simple bench/readmin/repo
+	cp -r github/react-admin/examples/simple bench/readmin/repo
 	cp scripts/readmin-package-lock.json bench/readmin/repo/package-lock.json # Pin package versions for determinism
 	cd bench/readmin/repo && npm ci
 

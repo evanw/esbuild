@@ -537,10 +537,6 @@ func TestTokens(t *testing.T) {
 		{"implements", TImplements},
 		{"interface", TInterface},
 		{"let", TLet},
-		{"package", TPackage},
-		{"private", TPrivate},
-		{"protected", TProtected},
-		{"public", TPublic},
 		{"static", TStatic},
 		{"yield", TYield},
 	}

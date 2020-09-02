@@ -109,6 +109,25 @@ func (s *Source) RangeOfString(loc ast.Loc) ast.Range {
 	return ast.Range{Loc: loc, Len: 0}
 }
 
+func (s *Source) RangeOfNumber(loc ast.Loc) (r ast.Range) {
+	text := s.Contents[loc.Start:]
+	r = ast.Range{Loc: loc, Len: 0}
+
+	if len(text) > 0 {
+		if c := text[0]; c >= '0' && c <= '9' {
+			r.Len = 1
+			for int(r.Len) < len(text) {
+				c := text[r.Len]
+				if (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '.' && c != '_' {
+					break
+				}
+				r.Len++
+			}
+		}
+	}
+	return
+}
+
 func plural(prefix string, count int) string {
 	if count == 1 {
 		return fmt.Sprintf("%d %s", count, prefix)

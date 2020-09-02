@@ -14,6 +14,7 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
 )
@@ -236,7 +237,9 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 
 	transformInput := input
 	if inputFS {
+		fs.BeforeFileOpen()
 		bytes, err := ioutil.ReadFile(input)
+		fs.AfterFileClose()
 		if err == nil {
 			err = os.Remove(input)
 		}
@@ -252,18 +255,22 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 
 	if inputFS && len(result.JS) > 0 {
 		file := input + ".js"
+		fs.BeforeFileOpen()
 		if err := ioutil.WriteFile(file, result.JS, 0644); err == nil {
 			result.JS = []byte(file)
 			jsFS = true
 		}
+		fs.AfterFileClose()
 	}
 
 	if inputFS && len(result.JSSourceMap) > 0 {
 		file := input + ".map"
+		fs.BeforeFileOpen()
 		if err := ioutil.WriteFile(file, result.JSSourceMap, 0644); err == nil {
 			result.JSSourceMap = []byte(file)
 			jsSourceMapFS = true
 		}
+		fs.AfterFileClose()
 	}
 
 	return encodePacket(packet{

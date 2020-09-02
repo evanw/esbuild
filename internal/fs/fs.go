@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 type EntryKind uint8
@@ -48,6 +49,8 @@ func (e *Entry) stat() {
 	entryPath := filepath.Join(e.dir, e.base)
 
 	// Use "lstat" since we want information about symbolic links
+	BeforeFileOpen()
+	defer AfterFileClose()
 	stat, err := os.Lstat(entryPath)
 	if err != nil {
 		return
@@ -87,8 +90,8 @@ func (e *Entry) stat() {
 type FS interface {
 	// The returned map is immutable and is cached across invocations. Do not
 	// mutate it.
-	ReadDirectory(path string) map[string]*Entry
-	ReadFile(path string) (string, bool)
+	ReadDirectory(path string) (map[string]*Entry, error)
+	ReadFile(path string) (string, error)
 
 	// This is part of the interface because the mock interface used for tests
 	// should not depend on file system behavior (i.e. different slashes for
@@ -140,13 +143,20 @@ func MockFS(input map[string]string) FS {
 	return &mockFS{dirs, files}
 }
 
-func (fs *mockFS) ReadDirectory(path string) map[string]*Entry {
-	return fs.dirs[path]
+func (fs *mockFS) ReadDirectory(path string) (map[string]*Entry, error) {
+	dir := fs.dirs[path]
+	if dir == nil {
+		return nil, syscall.ENOENT
+	}
+	return dir, nil
 }
 
-func (fs *mockFS) ReadFile(path string) (string, bool) {
+func (fs *mockFS) ReadFile(path string) (string, error) {
 	contents, ok := fs.files[path]
-	return contents, ok
+	if !ok {
+		return "", syscall.ENOENT
+	}
+	return contents, nil
 }
 
 func (*mockFS) Abs(p string) (string, bool) {
@@ -221,10 +231,27 @@ func (*mockFS) Rel(base string, target string) (string, bool) {
 
 type realFS struct {
 	// Stores the file entries for directories we've listed before
-	entries map[string]map[string]*Entry
+	entries map[string]entriesOrErr
 
 	// For the current working directory
 	cwd string
+}
+
+type entriesOrErr struct {
+	entries map[string]*Entry
+	err     error
+}
+
+// Limit the number of files open simultaneously to avoid ulimit issues
+var fileOpenLimit = make(chan bool, 32)
+
+func BeforeFileOpen() {
+	// This will block if the number of open files is already at the limit
+	fileOpenLimit <- false
+}
+
+func AfterFileClose() {
+	<-fileOpenLimit
 }
 
 func realpath(path string) string {
@@ -234,6 +261,8 @@ func realpath(path string) string {
 	}
 	dir = realpath(dir)
 	path = filepath.Join(dir, filepath.Base(path))
+	BeforeFileOpen()
+	defer AfterFileClose()
 	if link, err := os.Readlink(path); err == nil {
 		if filepath.IsAbs(link) {
 			return link
@@ -259,18 +288,18 @@ func RealFS() FS {
 		cwd = realpath(cwd)
 	}
 	return &realFS{
-		entries: make(map[string]map[string]*Entry),
+		entries: make(map[string]entriesOrErr),
 		cwd:     cwd,
 	}
 }
 
-func (fs *realFS) ReadDirectory(dir string) map[string]*Entry {
+func (fs *realFS) ReadDirectory(dir string) (map[string]*Entry, error) {
 	// First, check the cache
 	cached, ok := fs.entries[dir]
 
 	// Cache hit: stop now
 	if ok {
-		return cached
+		return cached.entries, cached.err
 	}
 
 	// Cache miss: read the directory entries
@@ -292,16 +321,31 @@ func (fs *realFS) ReadDirectory(dir string) map[string]*Entry {
 	// Update the cache unconditionally. Even if the read failed, we don't want to
 	// retry again later. The directory is inaccessible so trying again is wasted.
 	if err != nil {
-		fs.entries[dir] = nil
-		return nil
+		entries = nil
 	}
-	fs.entries[dir] = entries
-	return entries
+	fs.entries[dir] = entriesOrErr{entries: entries, err: err}
+	return entries, err
 }
 
-func (fs *realFS) ReadFile(path string) (string, bool) {
+func (fs *realFS) ReadFile(path string) (string, error) {
+	BeforeFileOpen()
+	defer AfterFileClose()
 	buffer, err := ioutil.ReadFile(path)
-	return string(buffer), err == nil
+
+	// Unwrap to get the underlying error
+	if pathErr, ok := err.(*os.PathError); ok {
+		err = pathErr.Unwrap()
+	}
+
+	// Windows returns ENOTDIR here even though nothing we've done yet has asked
+	// for a directory. This really means ENOENT on Windows. Return ENOENT here
+	// so callers that check for ENOENT will successfully detect this file as
+	// missing.
+	if err == syscall.ENOTDIR {
+		return "", syscall.ENOENT
+	}
+
+	return string(buffer), err
 }
 
 func (*realFS) Abs(p string) (string, bool) {
@@ -337,10 +381,38 @@ func (*realFS) Rel(base string, target string) (string, bool) {
 }
 
 func readdir(dirname string) ([]string, error) {
+	BeforeFileOpen()
+	defer AfterFileClose()
 	f, err := os.Open(dirname)
+
+	// Unwrap to get the underlying error
+	if pathErr, ok := err.(*os.PathError); ok {
+		err = pathErr.Unwrap()
+	}
+
+	// Windows returns ENOTDIR here even though nothing we've done yet has asked
+	// for a directory. This really means ENOENT on Windows. Return ENOENT here
+	// so callers that check for ENOENT will successfully detect this directory
+	// as missing.
+	if err == syscall.ENOTDIR {
+		return nil, syscall.ENOENT
+	}
+
+	// Stop now if there was an error
 	if err != nil {
 		return nil, err
 	}
+
 	defer f.Close()
-	return f.Readdirnames(-1)
+	entries, err := f.Readdirnames(-1)
+
+	// Unwrap to get the underlying error
+	if syscallErr, ok := err.(*os.SyscallError); ok {
+		err = syscallErr.Unwrap()
+	}
+
+	// Don't convert ENOTDIR to ENOENT here. ENOTDIR is a legitimate error
+	// condition for Readdirnames() on non-Windows platforms.
+
+	return entries, err
 }

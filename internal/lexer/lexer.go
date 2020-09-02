@@ -157,10 +157,6 @@ const (
 	TImplements
 	TInterface
 	TLet
-	TPackage
-	TPrivate
-	TProtected
-	TPublic
 	TStatic
 	TYield
 )
@@ -208,12 +204,20 @@ var Keywords = map[string]T{
 	"implements": TImplements,
 	"interface":  TInterface,
 	"let":        TLet,
-	"package":    TPackage,
-	"private":    TPrivate,
-	"protected":  TProtected,
-	"public":     TPublic,
 	"static":     TStatic,
 	"yield":      TYield,
+}
+
+var StrictModeReservedWords = []string{
+	"implements",
+	"interface",
+	"let",
+	"package",
+	"private",
+	"protected",
+	"public",
+	"static",
+	"yield",
 }
 
 type json struct {
@@ -2482,7 +2486,7 @@ func UTF16EqualsString(text []uint16, str string) bool {
 		// Strings can't be equal if UTF-16 encoding is longer than UTF-8 encoding
 		return false
 	}
-	temp := make([]byte, utf8.UTFMax)
+	temp := [utf8.UTFMax]byte{}
 	n := len(text)
 	j := 0
 	for i := 0; i < n; i++ {
@@ -2492,7 +2496,7 @@ func UTF16EqualsString(text []uint16, str string) bool {
 			r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
 			i++
 		}
-		width := encodeWTF8Rune(temp, r1)
+		width := encodeWTF8Rune(temp[:], r1)
 		if j+width > len(str) {
 			return false
 		}
@@ -2504,6 +2508,18 @@ func UTF16EqualsString(text []uint16, str string) bool {
 		}
 	}
 	return j == len(str)
+}
+
+func UTF16EqualsUTF16(a []uint16, b []uint16) bool {
+	if len(a) == len(b) {
+		for i, c := range a {
+			if c != b[i] {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // Does "append(bytes, UTF16ToString(text))" without a temporary allocation

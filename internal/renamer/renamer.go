@@ -12,8 +12,11 @@ import (
 func ComputeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[string]uint32 {
 	names := make(map[string]uint32)
 
-	// All keywords are reserved names
+	// All keywords and strict mode reserved words are reserved names
 	for k := range lexer.Keywords {
+		names[k] = 1
+	}
+	for _, k := range lexer.StrictModeReservedWords {
 		names[k] = 1
 	}
 

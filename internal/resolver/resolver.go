@@ -1,9 +1,11 @@
 package resolver
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
@@ -32,7 +34,6 @@ type ResolveResult struct {
 type Resolver interface {
 	Resolve(sourceDir string, importPath string) *ResolveResult
 	ResolveAbs(absPath string) *ResolveResult
-	Read(path string) (string, bool)
 	PrettyPath(path string) string
 }
 
@@ -247,11 +248,6 @@ func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath st
 	}
 }
 
-func (r *resolver) Read(path string) (string, bool) {
-	contents, ok := r.fs.ReadFile(path)
-	return contents, ok
-}
-
 func (r *resolver) PrettyPath(path string) string {
 	if rel, ok := r.fs.Rel(r.fs.Cwd(), path); ok {
 		path = rel
@@ -383,10 +379,17 @@ func (r *resolver) parseMemberExpressionForJSX(source logging.Source, loc ast.Lo
 	return parts
 }
 
-func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsConfigJson, parseStatus) {
+var parseErrorImportCycle = errors.New("(import cycle)")
+
+// This may return "parseErrorAlreadyLogged" in which case there was a syntax
+// error, but it's already been reported. No further errors should be logged.
+//
+// Nested calls may also return "parseErrorImportCycle". In that case the
+// caller is responsible for logging an appropriate error message.
+func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsConfigJson, error) {
 	// Don't infinite loop if a series of "extends" links forms a cycle
 	if visited[file] {
-		return nil, parseImportCycle
+		return nil, parseErrorImportCycle
 	}
 	visited[file] = true
 	filePath := r.fs.Dir(file)
@@ -399,12 +402,12 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 	// these particular files. This is likely not a completely accurate
 	// emulation of what the TypeScript compiler does (e.g. string escape
 	// behavior may also be different).
-	json, tsConfigSource, status := r.parseJSON(file, parser.ParseJSONOptions{
+	json, tsConfigSource, err := r.parseJSON(file, parser.ParseJSONOptions{
 		AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
 		AllowTrailingCommas: true,
 	})
-	if status != parseSuccess {
-		return nil, status
+	if err != nil {
+		return nil, err
 	}
 
 	var result tsConfigJson
@@ -426,16 +429,19 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 					// Skip "node_modules" folders
 					if r.fs.Base(current) != "node_modules" {
 						join := r.fs.Join(current, "node_modules", extends)
-						filesToCheck := []string{join, join + ".json", r.fs.Join(join, "tsconfig.json")}
+						filesToCheck := []string{r.fs.Join(join, "tsconfig.json"), join, join + ".json"}
 						for _, fileToCheck := range filesToCheck {
-							base, baseStatus := r.parseJsTsConfig(fileToCheck, visited)
-							if baseStatus == parseReadFailure {
+							base, err := r.parseJsTsConfig(fileToCheck, visited)
+							if err == nil {
+								result = *base
+							} else if err == syscall.ENOENT {
 								continue
-							} else if baseStatus == parseImportCycle {
+							} else if err == parseErrorImportCycle {
 								r.log.AddRangeWarning(&tsConfigSource, warnRange,
 									fmt.Sprintf("Base config file %q forms cycle", extends))
-							} else if baseStatus == parseSuccess {
-								result = *base
+							} else if err != parseErrorAlreadyLogged {
+								r.log.AddRangeError(&tsConfigSource, warnRange,
+									fmt.Sprintf("Cannot read file %q: %s", r.PrettyPath(fileToCheck), err.Error()))
 							}
 							found = true
 							break
@@ -453,14 +459,17 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 				// If this is a regular path, search relative to the enclosing directory
 				extendsFile := r.fs.Join(filePath, extends)
 				for _, fileToCheck := range []string{extendsFile, extendsFile + ".json"} {
-					base, baseStatus := r.parseJsTsConfig(fileToCheck, visited)
-					if baseStatus == parseReadFailure {
+					base, err := r.parseJsTsConfig(fileToCheck, visited)
+					if err == nil {
+						result = *base
+					} else if err == syscall.ENOENT {
 						continue
-					} else if baseStatus == parseImportCycle {
+					} else if err == parseErrorImportCycle {
 						r.log.AddRangeWarning(&tsConfigSource, warnRange,
 							fmt.Sprintf("Base config file %q forms cycle", extends))
-					} else if baseStatus == parseSuccess {
-						result = *base
+					} else if err != parseErrorAlreadyLogged {
+						r.log.AddRangeError(&tsConfigSource, warnRange,
+							fmt.Sprintf("Cannot read file %q: %s", r.PrettyPath(fileToCheck), err.Error()))
 					}
 					found = true
 					break
@@ -559,7 +568,7 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 		}
 	}
 
-	return &result, parseSuccess
+	return &result, nil
 }
 
 func isValidTSConfigPathPattern(text string, log logging.Log, source logging.Source, loc ast.Loc) bool {
@@ -592,7 +601,14 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// List the directories
-	entries := r.fs.ReadDirectory(path)
+	entries, err := r.fs.ReadDirectory(path)
+	if err != nil {
+		if err != syscall.ENOENT {
+			r.log.AddError(nil, ast.Loc{},
+				fmt.Sprintf("Cannot read directory %q: %s", r.PrettyPath(path), err.Error()))
+		}
+		return nil
+	}
 	info := &dirInfo{
 		absPath: path,
 		parent:  parentInfo,
@@ -631,19 +647,30 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		}
 	}
 
-	if forceTsConfig := r.options.TsConfigOverride; forceTsConfig == "" {
-		// Record if this directory has a tsconfig.json or jsconfig.json file
-		if entry, ok := entries["tsconfig.json"]; ok && entry.Kind() == fs.FileEntry {
-			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "tsconfig.json"), make(map[string]bool))
-		} else if entry, ok := entries["jsconfig.json"]; ok && entry.Kind() == fs.FileEntry {
-			info.tsConfigJson, _ = r.parseJsTsConfig(r.fs.Join(path, "jsconfig.json"), make(map[string]bool))
+	// Record if this directory has a tsconfig.json or jsconfig.json file
+	{
+		var tsConfigPath string
+		if forceTsConfig := r.options.TsConfigOverride; forceTsConfig == "" {
+			if entry, ok := entries["tsconfig.json"]; ok && entry.Kind() == fs.FileEntry {
+				tsConfigPath = r.fs.Join(path, "tsconfig.json")
+			} else if entry, ok := entries["jsconfig.json"]; ok && entry.Kind() == fs.FileEntry {
+				tsConfigPath = r.fs.Join(path, "jsconfig.json")
+			}
+		} else if parentInfo == nil {
+			// If there is a tsconfig.json override, mount it at the root directory
+			tsConfigPath = forceTsConfig
 		}
-	} else if parentInfo == nil {
-		// If there is a tsconfig.json override, mount it at the root directory
-		var status parseStatus
-		info.tsConfigJson, status = r.parseJsTsConfig(forceTsConfig, make(map[string]bool))
-		if status == parseReadFailure {
-			r.log.AddError(nil, ast.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q", r.PrettyPath(forceTsConfig)))
+		if tsConfigPath != "" {
+			var err error
+			info.tsConfigJson, err = r.parseJsTsConfig(tsConfigPath, make(map[string]bool))
+			if err != nil {
+				if err == syscall.ENOENT {
+					r.log.AddError(nil, ast.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q", r.PrettyPath(tsConfigPath)))
+				} else if err != parseErrorAlreadyLogged {
+					r.log.AddError(nil, ast.Loc{},
+						fmt.Sprintf("Cannot read file %q: %s", r.PrettyPath(tsConfigPath), err.Error()))
+				}
+			}
 		}
 	}
 
@@ -664,8 +691,13 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 }
 
 func (r *resolver) parsePackageJSON(path string) *packageJson {
-	json, jsonSource, status := r.parseJSON(r.fs.Join(path, "package.json"), parser.ParseJSONOptions{})
-	if status != parseSuccess {
+	packageJsonPath := r.fs.Join(path, "package.json")
+	json, jsonSource, err := r.parseJSON(packageJsonPath, parser.ParseJSONOptions{})
+	if err != nil {
+		if err != parseErrorAlreadyLogged {
+			r.log.AddError(nil, ast.Loc{},
+				fmt.Sprintf("Cannot read file %q: %s", r.PrettyPath(packageJsonPath), err.Error()))
+		}
 		return nil
 	}
 
@@ -676,13 +708,16 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	// "main" property is supposed to be CommonJS, and ES6 helps us generate
 	// better code.
 	mainPath := ""
+	var mainRange ast.Range
 	if moduleJson, _, ok := getProperty(json, "module"); ok {
 		if main, ok := getString(moduleJson); ok {
 			mainPath = r.fs.Join(path, main)
+			mainRange = jsonSource.RangeOfString(moduleJson.Loc)
 		}
 	} else if mainJson, _, ok := getProperty(json, "main"); ok {
 		if main, ok := getString(mainJson); ok {
 			mainPath = r.fs.Join(path, main)
+			mainRange = jsonSource.RangeOfString(mainJson.Loc)
 		}
 	}
 
@@ -711,6 +746,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 			//   },
 			//
 			mainPath = r.fs.Join(path, browser)
+			mainRange = jsonSource.RangeOfString(browserJson.Loc)
 		} else if browser, ok := browserJson.Data.(*ast.EObject); ok {
 			// The value is an object
 			browserPackageMap := make(map[string]*string)
@@ -786,11 +822,15 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 			packageJson.absPathMain = &absolute
 		} else {
 			// Is it a directory?
-			if mainEntries := r.fs.ReadDirectory(mainPath); mainEntries != nil {
+			mainEntries, err := r.fs.ReadDirectory(mainPath)
+			if err == nil {
 				// Look for an "index" file with known extensions
 				if absolute, ok = r.loadAsIndex(mainPath, mainEntries); ok {
 					packageJson.absPathMain = &absolute
 				}
+			} else if err != syscall.ENOENT {
+				r.log.AddRangeError(&jsonSource, mainRange,
+					fmt.Sprintf("Cannot read directory %q: %s", r.PrettyPath(mainPath), err.Error()))
 			}
 		}
 	}
@@ -800,46 +840,52 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 
 func (r *resolver) loadAsFile(path string) (string, bool) {
 	// Read the directory entries once to minimize locking
-	entries := r.fs.ReadDirectory(r.fs.Dir(path))
-
-	if entries != nil {
-		base := r.fs.Base(path)
-
-		// Try the plain path without any extensions
-		if entry, ok := entries[base]; ok && entry.Kind() == fs.FileEntry {
-			return path, true
+	dirPath := r.fs.Dir(path)
+	entries, err := r.fs.ReadDirectory(dirPath)
+	if err != nil {
+		if err != syscall.ENOENT {
+			r.log.AddError(nil, ast.Loc{},
+				fmt.Sprintf("Cannot read directory %q: %s", r.PrettyPath(dirPath), err.Error()))
 		}
+		return "", false
+	}
 
-		// Try the path with extensions
-		for _, ext := range r.options.ExtensionOrder {
-			if entry, ok := entries[base+ext]; ok && entry.Kind() == fs.FileEntry {
-				return path + ext, true
-			}
+	base := r.fs.Base(path)
+
+	// Try the plain path without any extensions
+	if entry, ok := entries[base]; ok && entry.Kind() == fs.FileEntry {
+		return path, true
+	}
+
+	// Try the path with extensions
+	for _, ext := range r.options.ExtensionOrder {
+		if entry, ok := entries[base+ext]; ok && entry.Kind() == fs.FileEntry {
+			return path + ext, true
 		}
+	}
 
-		// TypeScript-specific behavior: if the extension is ".js" or ".jsx", try
-		// replacing it with ".ts" or ".tsx". At the time of writing this specific
-		// behavior comes from the function "loadModuleFromFile()" in the file
-		// "moduleNameResolver.ts" in the TypeScript compiler source code. It
-		// contains this comment:
-		//
-		//   If that didn't work, try stripping a ".js" or ".jsx" extension and
-		//   replacing it with a TypeScript one; e.g. "./foo.js" can be matched
-		//   by "./foo.ts" or "./foo.d.ts"
-		//
-		// We don't care about ".d.ts" files because we can't do anything with
-		// those, so we ignore that part of the behavior.
-		//
-		// See the discussion here for more historical context:
-		// https://github.com/microsoft/TypeScript/issues/4595
-		if strings.HasSuffix(base, ".js") || strings.HasSuffix(base, ".jsx") {
-			lastDot := strings.LastIndexByte(base, '.')
-			// Note that the official compiler code always tries ".ts" before
-			// ".tsx" even if the original extension was ".jsx".
-			for _, ext := range []string{".ts", ".tsx"} {
-				if entry, ok := entries[base[:lastDot]+ext]; ok && entry.Kind() == fs.FileEntry {
-					return path[:len(path)-(len(base)-lastDot)] + ext, true
-				}
+	// TypeScript-specific behavior: if the extension is ".js" or ".jsx", try
+	// replacing it with ".ts" or ".tsx". At the time of writing this specific
+	// behavior comes from the function "loadModuleFromFile()" in the file
+	// "moduleNameResolver.ts" in the TypeScript compiler source code. It
+	// contains this comment:
+	//
+	//   If that didn't work, try stripping a ".js" or ".jsx" extension and
+	//   replacing it with a TypeScript one; e.g. "./foo.js" can be matched
+	//   by "./foo.ts" or "./foo.d.ts"
+	//
+	// We don't care about ".d.ts" files because we can't do anything with
+	// those, so we ignore that part of the behavior.
+	//
+	// See the discussion here for more historical context:
+	// https://github.com/microsoft/TypeScript/issues/4595
+	if strings.HasSuffix(base, ".js") || strings.HasSuffix(base, ".jsx") {
+		lastDot := strings.LastIndexByte(base, '.')
+		// Note that the official compiler code always tries ".ts" before
+		// ".tsx" even if the original extension was ".jsx".
+		for _, ext := range []string{".ts", ".tsx"} {
+			if entry, ok := entries[base[:lastDot]+ext]; ok && entry.Kind() == fs.FileEntry {
+				return path[:len(path)-(len(base)-lastDot)] + ext, true
 			}
 		}
 	}
@@ -862,28 +908,25 @@ func (r *resolver) loadAsIndex(path string, entries map[string]*fs.Entry) (strin
 	return "", false
 }
 
-type parseStatus uint8
+var parseErrorAlreadyLogged = errors.New("(error already logged)")
 
-const (
-	parseSuccess parseStatus = iota
-	parseReadFailure
-	parseSyntaxError
-	parseImportCycle
-)
-
-func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logging.Source, parseStatus) {
-	if contents, ok := r.fs.ReadFile(path); ok {
-		source := logging.Source{
-			KeyPath:    ast.Path{Text: path},
-			PrettyPath: r.PrettyPath(path),
-			Contents:   contents,
-		}
-		if result, ok := parser.ParseJSON(r.log, source, options); ok {
-			return result, source, parseSuccess
-		}
-		return ast.Expr{}, logging.Source{}, parseSyntaxError
+// This may return "parseErrorAlreadyLogged" in which case there was a syntax
+// error, but it's already been reported. No further errors should be logged.
+func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logging.Source, error) {
+	contents, err := r.fs.ReadFile(path)
+	if err != nil {
+		return ast.Expr{}, logging.Source{}, err
 	}
-	return ast.Expr{}, logging.Source{}, parseReadFailure
+	source := logging.Source{
+		KeyPath:    ast.Path{Text: path},
+		PrettyPath: r.PrettyPath(path),
+		Contents:   contents,
+	}
+	result, ok := parser.ParseJSON(r.log, source, options)
+	if !ok {
+		return ast.Expr{}, logging.Source{}, parseErrorAlreadyLogged
+	}
+	return result, source, nil
 }
 
 func getProperty(json ast.Expr, name string) (ast.Expr, ast.Loc, bool) {

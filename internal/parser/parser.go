@@ -55,6 +55,7 @@ type parser struct {
 	symbolUses               map[ast.Ref]ast.SymbolUse
 	declaredSymbols          []ast.DeclaredSymbol
 	runtimeImports           map[string]ast.Ref
+	duplicateCaseChecker     duplicateCaseChecker
 
 	// For lowering private methods
 	weakMapRef     ast.Ref
@@ -210,12 +211,175 @@ type fnOpts struct {
 	allowYield     bool
 	allowSuperCall bool
 	isTopLevel     bool
+	isConstructor  bool
 
 	// In TypeScript, forward declarations of functions have no bodies
 	allowMissingBodyForTypeScript bool
 
 	// Allow TypeScript decorators in function arguments
 	allowTSDecorators bool
+}
+
+const bloomFilterSize = 251
+
+type duplicateCaseValue struct {
+	hash  uint32
+	value ast.Expr
+}
+
+type duplicateCaseChecker struct {
+	bloomFilter [(bloomFilterSize + 7) / 8]byte
+	cases       []duplicateCaseValue
+}
+
+func (dc *duplicateCaseChecker) reset() {
+	// Preserve capacity
+	dc.cases = dc.cases[:0]
+
+	// This should be optimized by the compiler. See this for more information:
+	// https://github.com/golang/go/issues/5373
+	bytes := dc.bloomFilter
+	for i := range bytes {
+		bytes[i] = 0
+	}
+}
+
+func (dc *duplicateCaseChecker) check(p *parser, expr ast.Expr) {
+	if hash, ok := duplicateCaseHash(expr); ok {
+		bucket := hash % bloomFilterSize
+		entry := &dc.bloomFilter[bucket/8]
+		mask := byte(1) << (bucket % 8)
+
+		// Check for collisions
+		if (*entry & mask) != 0 {
+			for _, c := range dc.cases {
+				if c.hash == hash {
+					if equals, couldBeIncorrect := duplicateCaseEquals(c.value, expr); equals {
+						index := strings.LastIndex(p.source.Contents[:expr.Loc.Start], "case")
+						r := lexer.RangeOfIdentifier(p.source, ast.Loc{Start: int32(index)})
+						if couldBeIncorrect {
+							p.log.AddRangeWarning(&p.source, r,
+								"This case clause may never be evaluated because it likely duplicates an earlier case clause")
+						} else {
+							p.log.AddRangeWarning(&p.source, r,
+								"This case clause will never be evaluated because it duplicates an earlier case clause")
+						}
+					}
+					return
+				}
+			}
+		}
+
+		*entry |= mask
+		dc.cases = append(dc.cases, duplicateCaseValue{hash: hash, value: expr})
+	}
+}
+
+func hashCombine(seed uint32, hash uint32) uint32 {
+	return seed ^ (hash + 0x9e3779b9 + (seed << 6) + (seed >> 2))
+}
+
+func duplicateCaseHash(expr ast.Expr) (uint32, bool) {
+	switch e := expr.Data.(type) {
+	case *ast.ENull:
+		return 0, true
+
+	case *ast.EUndefined:
+		return 1, true
+
+	case *ast.EBoolean:
+		if e.Value {
+			return hashCombine(2, 1), true
+		}
+		return hashCombine(2, 0), true
+
+	case *ast.ENumber:
+		bits := math.Float64bits(e.Value)
+		return hashCombine(hashCombine(3, uint32(bits)), uint32(bits>>32)), true
+
+	case *ast.EString:
+		hash := uint32(4)
+		for _, c := range e.Value {
+			hash = hashCombine(hash, uint32(c))
+		}
+		return hash, true
+
+	case *ast.EBigInt:
+		hash := uint32(5)
+		for _, c := range e.Value {
+			hash = hashCombine(hash, uint32(c))
+		}
+		return hash, true
+
+	case *ast.EIdentifier:
+		return hashCombine(6, e.Ref.InnerIndex), true
+
+	case *ast.EDot:
+		if target, ok := duplicateCaseHash(e.Target); ok {
+			hash := hashCombine(7, target)
+			for _, c := range e.Name {
+				hash = hashCombine(hash, uint32(c))
+			}
+			return hash, true
+		}
+
+	case *ast.EIndex:
+		if target, ok := duplicateCaseHash(e.Target); ok {
+			if index, ok := duplicateCaseHash(e.Index); ok {
+				return hashCombine(hashCombine(8, target), index), true
+			}
+		}
+	}
+
+	return 0, false
+}
+
+func duplicateCaseEquals(left ast.Expr, right ast.Expr) (equals bool, couldBeIncorrect bool) {
+	switch a := left.Data.(type) {
+	case *ast.ENull:
+		_, ok := right.Data.(*ast.ENull)
+		return ok, false
+
+	case *ast.EUndefined:
+		_, ok := right.Data.(*ast.EUndefined)
+		return ok, false
+
+	case *ast.EBoolean:
+		b, ok := right.Data.(*ast.EBoolean)
+		return ok && a.Value == b.Value, false
+
+	case *ast.ENumber:
+		b, ok := right.Data.(*ast.ENumber)
+		return ok && a.Value == b.Value, false
+
+	case *ast.EString:
+		b, ok := right.Data.(*ast.EString)
+		return ok && lexer.UTF16EqualsUTF16(a.Value, b.Value), false
+
+	case *ast.EBigInt:
+		b, ok := right.Data.(*ast.EBigInt)
+		return ok && a.Value == b.Value, false
+
+	case *ast.EIdentifier:
+		b, ok := right.Data.(*ast.EIdentifier)
+		return ok && a.Ref == b.Ref, false
+
+	case *ast.EDot:
+		if b, ok := right.Data.(*ast.EDot); ok && a.OptionalChain == b.OptionalChain && a.Name == b.Name {
+			equals, _ := duplicateCaseEquals(a.Target, b.Target)
+			return equals, true
+		}
+
+	case *ast.EIndex:
+		if b, ok := right.Data.(*ast.EIndex); ok && a.OptionalChain == b.OptionalChain {
+			if equals, _ := duplicateCaseEquals(a.Index, b.Index); equals {
+				equals, _ := duplicateCaseEquals(a.Target, b.Target)
+				return equals, true
+			}
+		}
+	}
+
+	return false, false
 }
 
 func isJumpStatement(data ast.S) bool {
@@ -308,47 +472,34 @@ func typeofWithoutSideEffects(data ast.E) (string, bool) {
 	return "", false
 }
 
+// Returns "equal, ok". If "ok" is false, then nothing is known about the two
+// values. If "ok" is true, the equality or inequality of the two values is
+// stored in "equal".
 func checkEqualityIfNoSideEffects(left ast.E, right ast.E) (bool, bool) {
 	switch l := left.(type) {
 	case *ast.ENull:
-		if _, ok := right.(*ast.ENull); ok {
-			return true, true
-		}
+		_, ok := right.(*ast.ENull)
+		return ok, ok
 
 	case *ast.EUndefined:
-		if _, ok := right.(*ast.EUndefined); ok {
-			return true, true
-		}
+		_, ok := right.(*ast.EUndefined)
+		return ok, ok
 
 	case *ast.EBoolean:
-		if r, ok := right.(*ast.EBoolean); ok {
-			return l.Value == r.Value, true
-		}
+		r, ok := right.(*ast.EBoolean)
+		return ok && l.Value == r.Value, ok
 
 	case *ast.ENumber:
-		if r, ok := right.(*ast.ENumber); ok {
-			return l.Value == r.Value, true
-		}
+		r, ok := right.(*ast.ENumber)
+		return ok && l.Value == r.Value, ok
 
 	case *ast.EBigInt:
-		if r, ok := right.(*ast.EBigInt); ok {
-			return l.Value == r.Value, true
-		}
+		r, ok := right.(*ast.EBigInt)
+		return ok && l.Value == r.Value, ok
 
 	case *ast.EString:
-		if r, ok := right.(*ast.EString); ok {
-			lv := l.Value
-			rv := r.Value
-			if len(lv) != len(rv) {
-				return false, true
-			}
-			for i := 0; i < len(lv); i++ {
-				if lv[i] != rv[i] {
-					return false, true
-				}
-			}
-			return true, true
-		}
+		r, ok := right.(*ast.EString)
+		return ok && lexer.UTF16EqualsUTF16(l.Value, r.Value), ok
 	}
 
 	return false, false
@@ -1027,11 +1178,13 @@ func (p *parser) parseProperty(
 				switch name {
 				case "get":
 					if !opts.isAsync {
+						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
 						return p.parseProperty(ast.PropertyGet, opts, nil)
 					}
 
 				case "set":
 					if !opts.isAsync {
+						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
 						return p.parseProperty(ast.PropertySet, opts, nil)
 					}
 
@@ -1061,7 +1214,8 @@ func (p *parser) parseProperty(
 
 		// Parse a shorthand property
 		if !opts.isClass && kind == ast.PropertyNormal && p.lexer.Token != lexer.TColon &&
-			p.lexer.Token != lexer.TOpenParen && p.lexer.Token != lexer.TLessThan && !opts.isGenerator {
+			p.lexer.Token != lexer.TOpenParen && p.lexer.Token != lexer.TLessThan && !opts.isGenerator &&
+			lexer.Keywords[name] == lexer.T(0) {
 			ref := p.storeNameInRef(name)
 			value := ast.Expr{Loc: key.Loc, Data: &ast.EIdentifier{Ref: ref}}
 
@@ -1149,7 +1303,7 @@ func (p *parser) parseProperty(
 	// Parse a method expression
 	if p.lexer.Token == lexer.TOpenParen || kind != ast.PropertyNormal ||
 		opts.isClass || opts.isAsync || opts.isGenerator {
-		if p.lexer.Token == lexer.TOpenParen {
+		if p.lexer.Token == lexer.TOpenParen && kind != ast.PropertyGet && kind != ast.PropertySet {
 			p.markSyntaxFeature(compat.ObjectExtensions, p.lexer.Range())
 		}
 		loc := p.lexer.Loc()
@@ -1184,6 +1338,7 @@ func (p *parser) parseProperty(
 			allowYield:        opts.isGenerator,
 			allowSuperCall:    opts.classHasExtends && isConstructor,
 			allowTSDecorators: opts.allowTSDecorators,
+			isConstructor:     isConstructor,
 
 			// Only allow omitting the body if we're parsing TypeScript class
 			allowMissingBodyForTypeScript: p.TS.Parse && opts.isClass,
@@ -3647,38 +3802,31 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			fn.HasRestArg = true
 		}
 
-		// Potentially parse a TypeScript accessibility modifier
-		isTypeScriptField := false
-		if p.TS.Parse {
-			switch p.lexer.Token {
-			case lexer.TPrivate, lexer.TProtected, lexer.TPublic:
-				isTypeScriptField = true
-				p.lexer.Next()
-
-				// TypeScript requires an identifier binding
-				if p.lexer.Token != lexer.TIdentifier {
-					p.lexer.Expect(lexer.TIdentifier)
-				}
-			}
-		}
-
+		isTypeScriptCtorField := false
 		isIdentifier := p.lexer.Token == lexer.TIdentifier
-		identifierText := p.lexer.Identifier
+		text := p.lexer.Identifier
 		arg := p.parseBinding()
 
 		if p.TS.Parse {
-			// Skip over "readonly"
-			isBeforeBinding := p.lexer.Token == lexer.TIdentifier || p.lexer.Token == lexer.TOpenBrace || p.lexer.Token == lexer.TOpenBracket
-			if isBeforeBinding && isIdentifier && identifierText == "readonly" {
-				isTypeScriptField = true
+			// Skip over TypeScript accessibility modifiers, which turn this argument
+			// into a class field when used inside a class constructor. This is known
+			// as a "parameter property" in TypeScript.
+			if isIdentifier && opts.isConstructor {
+				for p.lexer.Token == lexer.TIdentifier || p.lexer.Token == lexer.TOpenBrace || p.lexer.Token == lexer.TOpenBracket {
+					if text != "public" && text != "private" && text != "protected" && text != "readonly" {
+						break
+					}
+					isTypeScriptCtorField = true
 
-				// TypeScript requires an identifier binding
-				if p.lexer.Token != lexer.TIdentifier {
-					p.lexer.Expect(lexer.TIdentifier)
+					// TypeScript requires an identifier binding
+					if p.lexer.Token != lexer.TIdentifier {
+						p.lexer.Expect(lexer.TIdentifier)
+					}
+					text = p.lexer.Identifier
+
+					// Re-parse the binding (the current binding is the TypeScript keyword)
+					arg = p.parseBinding()
 				}
-
-				// Re-parse the binding (the current binding is the "readonly" keyword)
-				arg = p.parseBinding()
 			}
 
 			// "function foo(a?) {}"
@@ -3709,7 +3857,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 			Default:      defaultValue,
 
 			// We need to track this because it affects code generation
-			IsTypeScriptCtorField: isTypeScriptField,
+			IsTypeScriptCtorField: isTypeScriptCtorField,
 		})
 
 		if p.lexer.Token != lexer.TComma {
@@ -6528,6 +6676,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		for i, c := range s.Cases {
 			if c.Value != nil {
 				*c.Value = p.visitExpr(*c.Value)
+				p.warnAboutEqualityCheck("case", *c.Value, c.Value.Loc)
+				p.checkForTypeofAndString(s.Test, *c.Value)
 			}
 			c.Body = p.visitStmts(c.Body)
 
@@ -6535,6 +6685,14 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			s.Cases[i] = c
 		}
 		p.popScope()
+
+		// Check for duplicate case values
+		p.duplicateCaseChecker.reset()
+		for _, c := range s.Cases {
+			if c.Value != nil {
+				p.duplicateCaseChecker.check(p, *c.Value)
+			}
+		}
 
 	case *ast.SFunction:
 		p.visitFn(&s.Fn, stmt.Loc)
@@ -7035,18 +7193,48 @@ func (p *parser) checkForTypeofAndString(a ast.Expr, b ast.Expr) bool {
 func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc ast.Loc) bool {
 	switch e := value.Data.(type) {
 	case *ast.ENumber:
+		// "0 === -0" is true in JavaScript
 		if e.Value == 0 && math.Signbit(e.Value) {
-			p.log.AddWarning(&p.source, value.Loc,
-				fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op))
+			r := ast.Range{Loc: value.Loc, Len: 0}
+			if int(r.Loc.Start) < len(p.source.Contents) && p.source.Contents[r.Loc.Start] == '-' {
+				zeroRange := p.source.RangeOfNumber(ast.Loc{Start: r.Loc.Start + 1})
+				r.Len = zeroRange.Len + 1
+			}
+			text := fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op)
+			if op == "case" {
+				text = "Comparison with -0 using a case clause will also match 0"
+			}
+			p.log.AddRangeWarning(&p.source, r, text)
+			return true
+		}
+
+		// "NaN === NaN" is false in JavaScript
+		if math.IsNaN(e.Value) {
+			index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
+			r := ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))}
+			text := fmt.Sprintf("Comparison with NaN using the %s operator here is always %v", op, op[0] == '!')
+			if op == "case" {
+				text = "This case clause will never be evaluated because equality with NaN is always false"
+			}
+			p.log.AddRangeWarning(&p.source, r, text)
 			return true
 		}
 
 	case *ast.EArray, *ast.EArrow, *ast.EClass,
 		*ast.EFunction, *ast.EObject, *ast.ERegExp:
-		index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
-		p.log.AddRangeWarning(&p.source, ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))},
-			fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!'))
-		return true
+		// This warning only applies to strict equality because loose equality can
+		// cause string conversions. For example, "x == []" is true if x is the
+		// empty string.
+		if len(op) > 2 {
+			index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
+			r := ast.Range{Loc: ast.Loc{Start: int32(index)}, Len: int32(len(op))}
+			text := fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!')
+			if op == "case" {
+				text = "This case clause will never be evaluated because the comparison is always false"
+			}
+			p.log.AddRangeWarning(&p.source, r, text)
+			return true
+		}
 	}
 
 	return false
@@ -7353,6 +7541,25 @@ func inlineSpreadsOfArrayLiterals(values []ast.Expr) (results []ast.Expr) {
 	return
 }
 
+func locAfterOp(e *ast.EBinary) ast.Loc {
+	if e.Left.Loc.Start < e.Right.Loc.Start {
+		return e.Right.Loc
+	} else {
+		// Handle the case when we have transposed the operands
+		return e.Left.Loc
+	}
+}
+
+func canBeDeleted(expr ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *ast.EIdentifier, *ast.EDot, *ast.EIndex:
+		return true
+	case *ast.ENumber:
+		return math.IsInf(e.Value, 1) || math.IsNaN(e.Value)
+	}
+	return false
+}
+
 func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	switch e := expr.Data.(type) {
 	case *ast.EMissing, *ast.ENull, *ast.ESuper, *ast.EString,
@@ -7537,8 +7744,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 				return ast.Expr{Loc: expr.Loc, Data: data}, exprOut{}
 			}
-			if !p.warnAboutEqualityCheck("==", e.Left, e.Right.Loc) {
-				p.warnAboutEqualityCheck("==", e.Right, e.Right.Loc)
+			afterOpLoc := locAfterOp(e)
+			if !p.warnAboutEqualityCheck("==", e.Left, afterOpLoc) {
+				p.warnAboutEqualityCheck("==", e.Right, afterOpLoc)
 			}
 			p.checkForTypeofAndString(e.Left, e.Right)
 
@@ -7553,8 +7761,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: result}}, exprOut{}
 			}
-			if !p.warnAboutEqualityCheck("===", e.Left, e.Right.Loc) {
-				p.warnAboutEqualityCheck("===", e.Right, e.Right.Loc)
+			afterOpLoc := locAfterOp(e)
+			if !p.warnAboutEqualityCheck("===", e.Left, afterOpLoc) {
+				p.warnAboutEqualityCheck("===", e.Right, afterOpLoc)
 			}
 			if p.checkForTypeofAndString(e.Left, e.Right) {
 				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
@@ -7567,8 +7776,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
 			}
-			if !p.warnAboutEqualityCheck("!=", e.Left, e.Right.Loc) {
-				p.warnAboutEqualityCheck("!=", e.Right, e.Right.Loc)
+			afterOpLoc := locAfterOp(e)
+			if !p.warnAboutEqualityCheck("!=", e.Left, afterOpLoc) {
+				p.warnAboutEqualityCheck("!=", e.Right, afterOpLoc)
 			}
 			p.checkForTypeofAndString(e.Left, e.Right)
 
@@ -7583,8 +7793,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			if result, ok := checkEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EBoolean{Value: !result}}, exprOut{}
 			}
-			if !p.warnAboutEqualityCheck("!==", e.Left, e.Right.Loc) {
-				p.warnAboutEqualityCheck("!==", e.Right, e.Right.Loc)
+			afterOpLoc := locAfterOp(e)
+			if !p.warnAboutEqualityCheck("!==", e.Left, afterOpLoc) {
+				p.warnAboutEqualityCheck("!==", e.Right, afterOpLoc)
 			}
 			if p.checkForTypeofAndString(e.Left, e.Right) {
 				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
@@ -7965,14 +8176,59 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.UnOpTypeof:
 			p.typeofTarget = e.Value.Data
 
+			_, idBefore := e.Value.Data.(*ast.EIdentifier)
+			e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
+			id, idAfter := e.Value.Data.(*ast.EIdentifier)
+
+			// The expression "typeof (0, x)" must not become "typeof x" if "x"
+			// is unbound because that could suppress a ReferenceError from "x"
+			if !idBefore && idAfter && p.symbols[id.Ref.InnerIndex].Kind == ast.SymbolUnbound {
+				e.Value = ast.JoinWithComma(ast.Expr{Loc: e.Value.Loc, Data: &ast.ENumber{}}, e.Value)
+			}
+
+			// "typeof require" => "'function'"
+			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
+				p.ignoreUsage(p.requireRef)
+				p.typeofRequire = &ast.EString{Value: lexer.StringToUTF16("function")}
+				return ast.Expr{Loc: expr.Loc, Data: p.typeofRequire}, exprOut{}
+			}
+
+			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
+				return ast.Expr{Loc: expr.Loc, Data: &ast.EString{Value: lexer.StringToUTF16(typeof)}}, exprOut{}
+			}
+
+			return expr, exprOut{}
+
 		case ast.UnOpDelete:
+			canBeDeletedBefore := canBeDeleted(e.Value)
 			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true, assignTarget: ast.AssignTargetReplace})
 			e.Value = value
+			canBeDeletedAfter := canBeDeleted(e.Value)
 
 			// Lower optional chaining if present since we're guaranteed to be the
 			// end of the chain
 			if out.childContainsOptionalChain {
 				return p.lowerOptionalChain(expr, in, out, nil)
+			}
+
+			// Make sure we don't accidentally change the return value
+			//
+			//   Returns false:
+			//     "var a; delete (a)"
+			//     "var a = Object.freeze({b: 1}); delete (a.b)"
+			//     "var a = Object.freeze({b: 1}); delete (a?.b)"
+			//     "var a = Object.freeze({b: 1}); delete (a['b'])"
+			//     "var a = Object.freeze({b: 1}); delete (a?.['b'])"
+			//
+			//   Returns true:
+			//     "var a; delete (0, a)"
+			//     "var a = Object.freeze({b: 1}); delete (true && a.b)"
+			//     "var a = Object.freeze({b: 1}); delete (false || a?.b)"
+			//     "var a = Object.freeze({b: 1}); delete (null ?? a?.['b'])"
+			//     "var a = Object.freeze({b: 1}); delete (true ? a['b'] : a['b'])"
+			//
+			if canBeDeletedAfter && !canBeDeletedBefore {
+				e.Value = ast.JoinWithComma(ast.Expr{Loc: e.Value.Loc, Data: &ast.ENumber{}}, e.Value)
 			}
 
 			return expr, exprOut{}
@@ -7995,18 +8251,6 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		case ast.UnOpVoid:
 			if p.exprCanBeRemovedIfUnused(e.Value) {
 				return ast.Expr{Loc: expr.Loc, Data: &ast.EUndefined{}}, exprOut{}
-			}
-
-		case ast.UnOpTypeof:
-			// "typeof require" => "'function'"
-			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
-				p.ignoreUsage(p.requireRef)
-				p.typeofRequire = &ast.EString{Value: lexer.StringToUTF16("function")}
-				return ast.Expr{Loc: expr.Loc, Data: p.typeofRequire}, exprOut{}
-			}
-
-			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
-				return ast.Expr{Loc: expr.Loc, Data: &ast.EString{Value: lexer.StringToUTF16(typeof)}}, exprOut{}
 			}
 
 		case ast.UnOpPos:
@@ -8168,14 +8412,20 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 				var properties []ast.Property
 				for _, property := range e.Properties {
 					if property.Kind == ast.PropertySpread {
-						if object, ok := property.Value.Data.(*ast.EObject); ok {
-							for i, p := range object.Properties {
+						switch v := property.Value.Data.(type) {
+						case *ast.EBoolean, *ast.ENull, *ast.EUndefined, *ast.ENumber,
+							*ast.EBigInt, *ast.ERegExp, *ast.EFunction, *ast.EArrow:
+							// This value is ignored because it doesn't have any of its own properties
+							continue
+
+						case *ast.EObject:
+							for i, p := range v.Properties {
 								// Getters are evaluated at iteration time. The property
 								// descriptor is not inlined into the caller. Since we are not
 								// evaluating code at compile time, just bail if we hit one
 								// and preserve the spread with the remaining properties.
 								if p.Kind == ast.PropertyGet || p.Kind == ast.PropertySet {
-									object.Properties = object.Properties[i:]
+									v.Properties = v.Properties[i:]
 									properties = append(properties, property)
 									break
 								}

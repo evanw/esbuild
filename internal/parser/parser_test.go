@@ -530,6 +530,7 @@ func TestPattern(t *testing.T) {
 }
 
 func TestObject(t *testing.T) {
+	expectPrinted(t, "({foo})", "({foo});\n")
 	expectPrinted(t, "({foo:0})", "({foo: 0});\n")
 	expectPrinted(t, "({foo() {}})", "({foo() {\n}});\n")
 	expectPrinted(t, "({*foo() {}})", "({*foo() {\n}});\n")
@@ -542,8 +543,9 @@ func TestObject(t *testing.T) {
 	expectPrinted(t, "({get if() {}})", "({get if() {\n}});\n")
 	expectPrinted(t, "({set if() {}})", "({set if() {\n}});\n")
 
-	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
+	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \":\" but found \"foo\"\n")
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
+	expectParseError(t, "({if})", "<stdin>: error: Expected \":\" but found \"}\"\n")
 }
 
 func TestComputedProperty(t *testing.T) {
@@ -1089,15 +1091,6 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "1 != 2", "true;\n")
 	expectPrinted(t, "1 != '1'", "1 != \"1\";\n")
 
-	expectParseError(t, "x === -0", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
-	expectParseError(t, "x == -0", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
-	expectParseError(t, "x !== -0", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
-	expectParseError(t, "x != -0", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
-	expectParseError(t, "-0 === x", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
-	expectParseError(t, "-0 == x", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
-	expectParseError(t, "-0 !== x", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
-	expectParseError(t, "-0 != x", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
-
 	expectPrinted(t, "'a' === '\\x61'", "true;\n")
 	expectPrinted(t, "'a' === '\\x62'", "false;\n")
 	expectPrinted(t, "'a' === 'abc'", "false;\n")
@@ -1312,16 +1305,91 @@ func TestCatch(t *testing.T) {
 	expectParseError(t, "try {} catch (e) { const e = 0 }", "<stdin>: error: \"e\" has already been declared\n")
 }
 
-func TestWarningTypeofEquals(t *testing.T) {
-	expectParseError(t, "typeof x === 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "typeof x !== 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "typeof x == 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "typeof x != 'strang'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+func TestWarningEqualsNegativeZero(t *testing.T) {
+	expectParseError(t, "x === -0", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
+	expectParseError(t, "x == -0", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
+	expectParseError(t, "x !== -0", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
+	expectParseError(t, "x != -0", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
+	expectParseError(t, "switch (x) { case -0: }", "<stdin>: warning: Comparison with -0 using a case clause will also match 0\n")
 
-	expectParseError(t, "'strang' === typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "'strang' !== typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "'strang' == typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
-	expectParseError(t, "'strang' != typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"strang\"\n")
+	expectParseError(t, "-0 === x", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
+	expectParseError(t, "-0 == x", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
+	expectParseError(t, "-0 !== x", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
+	expectParseError(t, "-0 != x", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
+	expectParseError(t, "switch (-0) { case x: }", "") // Don't bother to handle this case
+}
+
+func TestWarningEqualsNewObject(t *testing.T) {
+	expectParseError(t, "x === []", "<stdin>: warning: Comparison using the === operator here is always false\n")
+	expectParseError(t, "x !== []", "<stdin>: warning: Comparison using the !== operator here is always true\n")
+	expectParseError(t, "x == []", "")
+	expectParseError(t, "x != []", "")
+	expectParseError(t, "switch (x) { case []: }", "<stdin>: warning: This case clause will never be evaluated because the comparison is always false\n")
+
+	expectParseError(t, "[] === x", "<stdin>: warning: Comparison using the === operator here is always false\n")
+	expectParseError(t, "[] !== x", "<stdin>: warning: Comparison using the !== operator here is always true\n")
+	expectParseError(t, "[] == x", "")
+	expectParseError(t, "[] != x", "")
+	expectParseError(t, "switch ([]) { case x: }", "") // Don't bother to handle this case
+}
+
+func TestWarningEqualsNaN(t *testing.T) {
+	expectParseError(t, "x === NaN", "<stdin>: warning: Comparison with NaN using the === operator here is always false\n")
+	expectParseError(t, "x !== NaN", "<stdin>: warning: Comparison with NaN using the !== operator here is always true\n")
+	expectParseError(t, "x == NaN", "<stdin>: warning: Comparison with NaN using the == operator here is always false\n")
+	expectParseError(t, "x != NaN", "<stdin>: warning: Comparison with NaN using the != operator here is always true\n")
+	expectParseError(t, "switch (x) { case NaN: }", "<stdin>: warning: This case clause will never be evaluated because equality with NaN is always false\n")
+
+	expectParseError(t, "NaN === x", "<stdin>: warning: Comparison with NaN using the === operator here is always false\n")
+	expectParseError(t, "NaN !== x", "<stdin>: warning: Comparison with NaN using the !== operator here is always true\n")
+	expectParseError(t, "NaN == x", "<stdin>: warning: Comparison with NaN using the == operator here is always false\n")
+	expectParseError(t, "NaN != x", "<stdin>: warning: Comparison with NaN using the != operator here is always true\n")
+	expectParseError(t, "switch (NaN) { case x: }", "") // Don't bother to handle this case
+}
+
+func TestWarningTypeofEquals(t *testing.T) {
+	expectParseError(t, "typeof x === 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "typeof x !== 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "typeof x == 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "typeof x != 'null'", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "switch (typeof x) { case 'null': }", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+
+	expectParseError(t, "'null' === typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "'null' !== typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "'null' == typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "'null' != typeof x", "<stdin>: warning: The \"typeof\" operator will never evaluate to \"null\"\n")
+	expectParseError(t, "switch ('null') { case typeof x: }", "") // Don't bother to handle this case
+}
+
+func TestWarningDuplicateCase(t *testing.T) {
+	expectParseError(t, "switch (x) { case null: case undefined: }", "")
+	expectParseError(t, "switch (x) { case false: case true: }", "")
+	expectParseError(t, "switch (x) { case 0: case 1: }", "")
+	expectParseError(t, "switch (x) { case 1: case 1n: }", "")
+	expectParseError(t, "switch (x) { case 'a': case 'b': }", "")
+	expectParseError(t, "switch (x) { case y: case z: }", "")
+	expectParseError(t, "switch (x) { case y.a: case y.b: }", "")
+	expectParseError(t, "switch (x) { case y.a: case z.a: }", "")
+	expectParseError(t, "switch (x) { case y.a: case y?.a: }", "")
+	expectParseError(t, "switch (x) { case y[a]: case y[b]: }", "")
+	expectParseError(t, "switch (x) { case y[a]: case z[a]: }", "")
+	expectParseError(t, "switch (x) { case y[a]: case y?.[a]: }", "")
+
+	alwaysWarning := "<stdin>: warning: This case clause will never be evaluated because it duplicates an earlier case clause\n"
+	likelyWarning := "<stdin>: warning: This case clause may never be evaluated because it likely duplicates an earlier case clause\n"
+
+	expectParseError(t, "switch (x) { case null: case null: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case undefined: case undefined: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case true: case true: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case false: case false: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case 0xF: case 15: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case 'a': case `a`: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case 123n: case 1_2_3n: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case y: case y: }", alwaysWarning)
+	expectParseError(t, "switch (x) { case y.a: case y.a: }", likelyWarning)
+	expectParseError(t, "switch (x) { case y?.a: case y?.a: }", likelyWarning)
+	expectParseError(t, "switch (x) { case y[a]: case y[a]: }", likelyWarning)
+	expectParseError(t, "switch (x) { case y?.[a]: case y?.[a]: }", likelyWarning)
 }
 
 func TestMangleFor(t *testing.T) {
@@ -1695,6 +1763,19 @@ func TestMangleObject(t *testing.T) {
 		"x = {a, b, ...{get c() {\n  return y++;\n}, d}, e};\n")
 	expectPrintedMangle(t, "x = {a, ...{b, set c(_) { throw _ }, d}, e}",
 		"x = {a, b, ...{set c(_) {\n  throw _;\n}, d}, e};\n")
+
+	// Spread is ignored for certain values
+	expectPrintedMangle(t, "x = {a, ...true, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...null, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...void 0, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...123, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...123n, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, .../x/, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...function(){}, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...()=>{}, b}", "x = {a, b};\n")
+	expectPrintedMangle(t, "x = {a, ...'123', b}", "x = {a, ...\"123\", b};\n")
+	expectPrintedMangle(t, "x = {a, ...[1, 2, 3], b}", "x = {a, ...[1, 2, 3], b};\n")
+	expectPrintedMangle(t, "x = {a, ...(()=>{})(), b}", "x = {a, ...(() => {\n})(), b};\n")
 }
 
 func TestMangleArrow(t *testing.T) {
@@ -1717,6 +1798,20 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedMangle(t, "tag`a${x}b${'y'}c`", "tag`a${x}b${\"y\"}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${y}c`", "tag`a${\"x\"}b${y}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
+}
+
+func TestMangleTypeofIdentifier(t *testing.T) {
+	expectPrintedMangle(t, "typeof (123, x)", "typeof (0, x);\n")
+	expectPrintedMangle(t, "typeof (123, x.y)", "typeof x.y;\n")
+	expectPrintedMangle(t, "typeof (123, x); var x", "typeof x;\nvar x;\n")
+
+	expectPrintedMangle(t, "typeof (true && x)", "typeof (0, x);\n")
+	expectPrintedMangle(t, "typeof (true && x.y)", "typeof x.y;\n")
+	expectPrintedMangle(t, "typeof (true && x); var x", "typeof x;\nvar x;\n")
+
+	expectPrintedMangle(t, "typeof (false || x)", "typeof (0, x);\n")
+	expectPrintedMangle(t, "typeof (false || x.y)", "typeof x.y;\n")
+	expectPrintedMangle(t, "typeof (false || x); var x", "typeof x;\nvar x;\n")
 }
 
 func TestMangleTypeofEquals(t *testing.T) {
@@ -1858,6 +1953,18 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "let x = (null ?? y[z])()", "let x = (0, y[z])();\n")
 	expectPrintedMangle(t, "let x = (1 ? y[z] : 2)()", "let x = (0, y[z])();\n")
 	expectPrintedMangle(t, "let x = (0 ? 1 : y[z])()", "let x = (0, y[z])();\n")
+
+	// Make sure the return value of "delete" is preserved
+	expectPrintedMangle(t, "delete (x)", "delete x;\n")
+	expectPrintedMangle(t, "delete (2, x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (true && x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (false || x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (null ?? x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (1 ? x : 2)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (0 ? 1 : x)", "delete (0, x);\n")
+	expectPrintedMangle(t, "delete (1, NaN)", "delete (0, NaN);\n")
+	expectPrintedMangle(t, "delete (1, Infinity)", "delete (0, Infinity);\n")
+	expectPrintedMangle(t, "delete (1, -Infinity)", "delete -Infinity;\n")
 
 	expectPrintedMangle(t, "foo ? 1 : 2", "foo;\n")
 	expectPrintedMangle(t, "foo ? 1 : bar", "foo || bar;\n")
@@ -2727,9 +2834,11 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "({ x() {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "({ get x() {} });",
+	expectParseErrorTarget(t, 5, "({ get x() {} });", "")
+	expectParseErrorTarget(t, 5, "({ set x() {} });", "")
+	expectParseErrorTarget(t, 5, "({ get [x]() {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
-	expectParseErrorTarget(t, 5, "({ set x() {} });",
+	expectParseErrorTarget(t, 5, "({ set [x]() {} });",
 		"<stdin>: error: Transforming object literal extensions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "function foo([]) {}",
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")

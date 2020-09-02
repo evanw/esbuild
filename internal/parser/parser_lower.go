@@ -42,6 +42,9 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) (didGene
 	case compat.ForOf:
 		name = "for-of loops"
 
+	case compat.ObjectAccessors:
+		name = "object accessors"
+
 	case compat.ObjectExtensions:
 		name = "object literal extensions"
 

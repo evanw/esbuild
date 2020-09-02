@@ -190,26 +190,41 @@ let buildTests = {
   async writeFalse({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
-    await writeFileAsync(input, 'console.log()')
+    const metafile = path.join(testDir, 'meta.json')
+    const inputCode = 'console.log()'
+    await writeFileAsync(input, inputCode)
+
     const value = await esbuild.build({
       entryPoints: [input],
       bundle: true,
       outfile: output,
       sourcemap: true,
       format: 'esm',
+      metafile,
       write: false,
     })
+
     assert.strictEqual(await fs.existsSync(output), false)
     assert.notStrictEqual(value.outputFiles, void 0)
-    assert.strictEqual(value.outputFiles.length, 2)
+    assert.strictEqual(value.outputFiles.length, 3)
     assert.strictEqual(value.outputFiles[0].path, output + '.map')
     assert.strictEqual(value.outputFiles[0].contents.constructor, Uint8Array)
     assert.strictEqual(value.outputFiles[1].path, output)
     assert.strictEqual(value.outputFiles[1].contents.constructor, Uint8Array)
+    assert.strictEqual(value.outputFiles[2].path, metafile)
+    assert.strictEqual(value.outputFiles[2].contents.constructor, Uint8Array)
+
     const sourceMap = JSON.parse(Buffer.from(value.outputFiles[0].contents).toString())
     const js = Buffer.from(value.outputFiles[1].contents).toString()
     assert.strictEqual(sourceMap.version, 3)
     assert.strictEqual(js, `// scripts/.js-api-tests/writeFalse/in.js\nconsole.log();\n//# sourceMappingURL=out.js.map\n`)
+
+    const cwd = process.cwd()
+    const makePath = file => path.relative(cwd, file).split(path.sep).join('/')
+    const meta = JSON.parse(Buffer.from(value.outputFiles[2].contents).toString())
+    assert.strictEqual(meta.inputs[makePath(input)].bytes, inputCode.length)
+    assert.strictEqual(meta.outputs[makePath(output)].bytes, js.length)
+    assert.strictEqual(meta.outputs[makePath(output + '.map')].bytes, value.outputFiles[0].contents.length)
   },
 
   async splittingRelativeSameDir({ esbuild, testDir }) {
