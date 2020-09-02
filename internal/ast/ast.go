@@ -307,10 +307,11 @@ type Property struct {
 	//
 	Initializer *Expr
 
-	Kind       PropertyKind
-	IsComputed bool
-	IsMethod   bool
-	IsStatic   bool
+	Kind         PropertyKind
+	IsComputed   bool
+	IsMethod     bool
+	IsStatic     bool
+	WasShorthand bool
 }
 
 type PropertyBinding struct {

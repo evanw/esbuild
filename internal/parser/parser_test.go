@@ -546,6 +546,15 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({static foo() {}})", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
 	expectParseError(t, "({`a`})", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 	expectParseError(t, "({if})", "<stdin>: error: Expected \":\" but found \"}\"\n")
+
+	expectParseError(t, "({__proto__: 1, __proto__: 2})", "<stdin>: error: Cannot specify the \"__proto__\" property more than once per object\n")
+	expectParseError(t, "({__proto__: 1, '__proto__': 2})", "<stdin>: error: Cannot specify the \"__proto__\" property more than once per object\n")
+	expectParseError(t, "({__proto__: 1, __proto__() {}})", "")
+	expectParseError(t, "({__proto__: 1, get __proto__() {}})", "")
+	expectParseError(t, "({__proto__: 1, set __proto__(x) {}})", "")
+	expectParseError(t, "({__proto__: 1, ['__proto__']: 2})", "")
+	expectParseError(t, "({__proto__, __proto__: 2})", "")
+	expectParseError(t, "({__proto__: x, __proto__: y} = z)", "")
 }
 
 func TestComputedProperty(t *testing.T) {

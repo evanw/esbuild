@@ -1229,10 +1229,11 @@ func (p *parser) parseProperty(
 			}
 
 			return ast.Property{
-				Kind:        kind,
-				Key:         key,
-				Value:       &value,
-				Initializer: initializer,
+				Kind:         kind,
+				Key:          key,
+				Value:        &value,
+				Initializer:  initializer,
+				WasShorthand: true,
 			}, true
 		}
 	}
@@ -8350,9 +8351,22 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			p.markSyntaxFeature(compat.Destructuring, ast.Range{Loc: expr.Loc, Len: 1})
 		}
 		hasSpread := false
+		hasProto := false
 		for i, property := range e.Properties {
 			if property.Kind != ast.PropertySpread {
-				e.Properties[i].Key = p.visitExpr(property.Key)
+				key := p.visitExpr(property.Key)
+				e.Properties[i].Key = key
+
+				// Forbid duplicate "__proto__" properties according to the specification
+				if !property.IsComputed && !property.WasShorthand && !property.IsMethod && in.assignTarget == ast.AssignTargetNone {
+					if str, ok := key.Data.(*ast.EString); ok && lexer.UTF16EqualsString(str.Value, "__proto__") {
+						if hasProto {
+							r := lexer.RangeOfIdentifier(p.source, key.Loc)
+							p.log.AddRangeError(&p.source, r, "Cannot specify the \"__proto__\" property more than once per object")
+						}
+						hasProto = true
+					}
+				}
 			} else {
 				hasSpread = true
 			}
