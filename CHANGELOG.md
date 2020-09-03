@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))
 
