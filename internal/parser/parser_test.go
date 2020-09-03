@@ -1418,6 +1418,17 @@ func TestWarningTypeofEquals(t *testing.T) {
 	expectParseError(t, "switch ('null') { case typeof x: }", "") // Don't bother to handle this case
 }
 
+func TestWarningDeleteSuperProperty(t *testing.T) {
+	text := "<stdin>: warning: Attempting to delete a property of \"super\" will throw a ReferenceError\n"
+	expectParseError(t, "class Foo extends Bar { constructor() { delete super.foo } }", text)
+	expectParseError(t, "class Foo extends Bar { constructor() { delete super['foo'] } }", text)
+	expectParseError(t, "class Foo extends Bar { constructor() { delete (super.foo) } }", text)
+	expectParseError(t, "class Foo extends Bar { constructor() { delete (super['foo']) } }", text)
+
+	expectParseError(t, "class Foo extends Bar { constructor() { delete super.foo.bar } }", "")
+	expectParseError(t, "class Foo extends Bar { constructor() { delete super['foo']['bar'] } }", "")
+}
+
 func TestWarningDuplicateCase(t *testing.T) {
 	expectParseError(t, "switch (x) { case null: case undefined: }", "")
 	expectParseError(t, "switch (x) { case false: case true: }", "")

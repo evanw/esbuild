@@ -8221,6 +8221,23 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			return expr, exprOut{}
 
 		case ast.UnOpDelete:
+			// Warn about code that tries to do "delete super.foo"
+			var superPropLoc ast.Loc
+			switch e2 := e.Value.Data.(type) {
+			case *ast.EDot:
+				if _, ok := e2.Target.Data.(*ast.ESuper); ok {
+					superPropLoc = e2.Target.Loc
+				}
+			case *ast.EIndex:
+				if _, ok := e2.Target.Data.(*ast.ESuper); ok {
+					superPropLoc = e2.Target.Loc
+				}
+			}
+			if superPropLoc.Start != 0 {
+				r := lexer.RangeOfIdentifier(p.source, superPropLoc)
+				p.log.AddRangeWarning(&p.source, r, "Attempting to delete a property of \"super\" will throw a ReferenceError")
+			}
+
 			p.deleteTarget = e.Value.Data
 			canBeDeletedBefore := canBeDeleted(e.Value)
 			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true})
