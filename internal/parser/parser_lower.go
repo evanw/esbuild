@@ -462,15 +462,39 @@ flatten:
 	// Step 5: Wrap it all in a conditional that returns the chain or the default
 	// value if the initial value is null/undefined. The default value is usually
 	// "undefined" but is "true" if the chain ends in a "delete" operator.
-	result = ast.Expr{Loc: loc, Data: &ast.EIf{
-		Test: ast.Expr{Loc: loc, Data: &ast.EBinary{
-			Op:    ast.BinOpLooseEq,
-			Left:  expr,
-			Right: ast.Expr{Loc: loc, Data: &ast.ENull{}},
-		}},
-		Yes: valueWhenUndefined,
-		No:  result,
-	}}
+	if p.Strict.OptionalChaining {
+		// "x?.y" => "x === null || x === void 0 ? void 0 : x.y"
+		// "x()?.y()" => "(_a = x()) === null || _a === void 0 ? void 0 : _a.y()"
+		result = ast.Expr{Loc: loc, Data: &ast.EIf{
+			Test: ast.Expr{Loc: loc, Data: &ast.EBinary{
+				Op: ast.BinOpLogicalOr,
+				Left: ast.Expr{Loc: loc, Data: &ast.EBinary{
+					Op:    ast.BinOpStrictEq,
+					Left:  expr,
+					Right: ast.Expr{Loc: loc, Data: &ast.ENull{}},
+				}},
+				Right: ast.Expr{Loc: loc, Data: &ast.EBinary{
+					Op:    ast.BinOpStrictEq,
+					Left:  exprFunc(),
+					Right: ast.Expr{Loc: loc, Data: &ast.EUndefined{}},
+				}},
+			}},
+			Yes: valueWhenUndefined,
+			No:  result,
+		}}
+	} else {
+		// "x?.y" => "x == null ? void 0 : x.y"
+		// "x()?.y()" => "(_a = x()) == null ? void 0 : _a.y()"
+		result = ast.Expr{Loc: loc, Data: &ast.EIf{
+			Test: ast.Expr{Loc: loc, Data: &ast.EBinary{
+				Op:    ast.BinOpLooseEq,
+				Left:  expr,
+				Right: ast.Expr{Loc: loc, Data: &ast.ENull{}},
+			}},
+			Yes: valueWhenUndefined,
+			No:  result,
+		}}
+	}
 	if exprWrapFunc != nil {
 		result = exprWrapFunc(result)
 	}

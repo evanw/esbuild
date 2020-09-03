@@ -18,6 +18,10 @@
     (_a = super.foo) == null ? void 0 : _a.call(this);
     ```
 
+* Add a `--strict:optional-chaining` option
+
+    This affects the transform for the `?.` optional chaining operator. In loose mode (the default), `a?.b` is transformed to `a == null ? void 0 : a.b`. This works fine in all cases except when `a` is the special object `document.all`. In strict mode, `a?.b` is transformed to `a === null || a === void 0 ? void 0 : a.b` which works correctly with `document.all`. Enable `--strict:optional-chaining` if you need to use `document.all` with the `?.` operator.
+
 ## 0.6.29
 
 * Add a warning for comparison with `NaN`

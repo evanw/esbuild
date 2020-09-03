@@ -179,6 +179,7 @@ const (
 
 type StrictOptions struct {
 	NullishCoalescing bool
+	OptionalChaining  bool
 	ClassFields       bool
 }
 

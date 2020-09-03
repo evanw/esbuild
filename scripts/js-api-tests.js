@@ -573,6 +573,21 @@ let transformTests = {
     assert.strictEqual(js, `a !== null && a !== void 0 ? a : b;\n`)
   },
 
+  async optionalChainingLoose({ service }) {
+    const { js } = await service.transform(`a?.b`, { target: 'es2019', strict: false })
+    assert.strictEqual(js, `a == null ? void 0 : a.b;\n`)
+  },
+
+  async optionalChainingStrict({ service }) {
+    const { js } = await service.transform(`a?.b`, { target: 'es2019', strict: true })
+    assert.strictEqual(js, `a === null || a === void 0 ? void 0 : a.b;\n`)
+  },
+
+  async optionalChainingStrictExplicit({ service }) {
+    const { js } = await service.transform(`a?.b`, { target: 'es2019', strict: ['optional-chaining'] })
+    assert.strictEqual(js, `a === null || a === void 0 ? void 0 : a.b;\n`)
+  },
+
   async pureCallPrint({ service }) {
     const { js: js1 } = await service.transform(`print(123, foo)`, { minifySyntax: true, pure: [] })
     assert.strictEqual(js1, `print(123, foo);\n`)

@@ -34,6 +34,16 @@ type StrictOptions struct {
 	// not "null" or "undefined".
 	NullishCoalescing bool
 
+	// Loose:  "a?.b" => "a == null ? void 0 : a.b"
+	// Strict: "a?.b" => "a === null || a === void 0 ? void 0 : a.b"
+	//
+	// The disadvantage of strictness here is code bloat. The only observable
+	// difference between the two is when the left operand is the bizarre legacy
+	// value "document.all". This value is special-cased in the standard for
+	// legacy reasons such that "document.all == null" is true even though it's
+	// not "null" or "undefined".
+	OptionalChaining bool
+
 	// Loose:  "class Foo { foo = 1 }" => "class Foo { constructor() { this.foo = 1; } }"
 	// Strict: "class Foo { foo = 1 }" => "class Foo { constructor() { __publicField(this, 'foo', 1); } }"
 	//

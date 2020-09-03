@@ -91,6 +91,7 @@ func validateLogLevel(value LogLevel) logging.LogLevel {
 func validateStrict(value StrictOptions) config.StrictOptions {
 	return config.StrictOptions{
 		NullishCoalescing: value.NullishCoalescing,
+		OptionalChaining:  value.OptionalChaining,
 		ClassFields:       value.ClassFields,
 	}
 }

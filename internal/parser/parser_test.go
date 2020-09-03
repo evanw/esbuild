@@ -129,6 +129,7 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 			}),
 			Strict: config.StrictOptions{
 				NullishCoalescing: true,
+				OptionalChaining:  true,
 				ClassFields:       true,
 			},
 		})
@@ -2720,7 +2721,7 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2020, "undefined?.[x]", "void 0;\n")
 	expectPrintedTarget(t, 2020, "undefined?.(x)", "void 0;\n")
 
-	// Check multiple levels of nesting
+	// Check multiple levels of nesting (loose)
 	expectPrintedTarget(t, 2019, "a?.b?.c?.d", `var _a, _b;
 (_b = (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.c) == null ? void 0 : _b.d;
 `)
@@ -2731,7 +2732,18 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a == null ? void 0 : a(b)) == null ? void 0 : _a(c)) == null ? void 0 : _b(d);
 `)
 
-	// Check the need to use ".call()"
+	// Check multiple levels of nesting (strict)
+	expectPrintedTargetStrict(t, 2019, "a?.b?.c?.d", `var _a, _b;
+(_b = (_a = a === null || a === void 0 ? void 0 : a.b) === null || _a === void 0 ? void 0 : _a.c) === null || _b === void 0 ? void 0 : _b.d;
+`)
+	expectPrintedTargetStrict(t, 2019, "a?.[b]?.[c]?.[d]", `var _a, _b;
+(_b = (_a = a === null || a === void 0 ? void 0 : a[b]) === null || _a === void 0 ? void 0 : _a[c]) === null || _b === void 0 ? void 0 : _b[d];
+`)
+	expectPrintedTargetStrict(t, 2019, "a?.(b)?.(c)?.(d)", `var _a, _b;
+(_b = (_a = a === null || a === void 0 ? void 0 : a(b)) === null || _a === void 0 ? void 0 : _a(c)) === null || _b === void 0 ? void 0 : _b(d);
+`)
+
+	// Check the need to use ".call()" (loose)
 	expectPrintedTarget(t, 2019, "a.b?.(c)", `var _a;
 (_a = a.b) == null ? void 0 : _a.call(a, c);
 `)
@@ -2751,11 +2763,31 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
 `)
 
+	// Check the need to use ".call()" (strict)
+	expectPrintedTargetStrict(t, 2019, "a.b?.(c)", `var _a;
+(_a = a.b) === null || _a === void 0 ? void 0 : _a.call(a, c);
+`)
+	expectPrintedTargetStrict(t, 2019, "a[b]?.(c)", `var _a;
+(_a = a[b]) === null || _a === void 0 ? void 0 : _a.call(a, c);
+`)
+	expectPrintedTargetStrict(t, 2019, "a?.[b]?.(c)", `var _a;
+(_a = a === null || a === void 0 ? void 0 : a[b]) === null || _a === void 0 ? void 0 : _a.call(a, c);
+`)
+	expectPrintedTargetStrict(t, 2019, "123?.[b]?.(c)", `var _a;
+(_a = 123 === null || 123 === void 0 ? void 0 : 123[b]) === null || _a === void 0 ? void 0 : _a.call(123, c);
+`)
+	expectPrintedTargetStrict(t, 2019, "a?.[b][c]?.(d)", `var _a, _b;
+(_b = a === null || a === void 0 ? void 0 : (_a = a[b])[c]) === null || _b === void 0 ? void 0 : _b.call(_a, d);
+`)
+	expectPrintedTargetStrict(t, 2019, "a[b][c]?.(d)", `var _a, _b;
+(_b = (_a = a[b])[c]) === null || _b === void 0 ? void 0 : _b.call(_a, d);
+`)
+
 	// Check that direct eval status is propagated through optional chaining
 	expectPrintedTarget(t, 2019, "eval?.(x)", "eval == null ? void 0 : eval(x);\n")
 	expectPrintedTarget(t, 2019, "(1 ? eval : 0)?.(x)", "eval == null ? void 0 : (0, eval)(x);\n")
 
-	// Check super property access
+	// Check super property access (loose)
 	expectPrintedTarget(t, 2019, "class Foo extends Bar { foo() { super.bar?.() } }", `class Foo extends Bar {
   foo() {
     var _a;
@@ -2767,6 +2799,22 @@ func TestLowerOptionalChain(t *testing.T) {
   foo() {
     var _a;
     (_a = super["bar"]) == null ? void 0 : _a.call(this);
+  }
+}
+`)
+
+	// Check super property access (strict)
+	expectPrintedTargetStrict(t, 2019, "class Foo extends Bar { foo() { super.bar?.() } }", `class Foo extends Bar {
+  foo() {
+    var _a;
+    (_a = super.bar) === null || _a === void 0 ? void 0 : _a.call(this);
+  }
+}
+`)
+	expectPrintedTargetStrict(t, 2019, "class Foo extends Bar { foo() { super['bar']?.() } }", `class Foo extends Bar {
+  foo() {
+    var _a;
+    (_a = super["bar"]) === null || _a === void 0 ? void 0 : _a.call(this);
   }
 }
 `)
