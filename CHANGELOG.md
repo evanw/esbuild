@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))
+
+    This fixes a bug where lowering the code `super.foo?.()` was incorrectly transformed to this:
+
+    ```js
+    var _a, _b;
+    (_b = (_a = super).foo) == null ? void 0 : _b.call(_a);
+    ```
+
+    This is invalid code because a bare `super` keyword is not allowed. Now that code is transformed to this instead:
+
+    ```js
+    var _a;
+    (_a = super.foo) == null ? void 0 : _a.call(this);
+    ```
+
 ## 0.6.29
 
 * Add a warning for comparison with `NaN`

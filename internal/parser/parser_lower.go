@@ -308,33 +308,51 @@ flatten:
 			// be used as the value for "this".
 			switch e := expr.Data.(type) {
 			case *ast.EDot:
-				targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
-				expr = ast.Expr{Loc: loc, Data: &ast.EDot{
-					Target:  targetFunc(),
-					Name:    e.Name,
-					NameLoc: e.NameLoc,
-				}}
-				thisArg = targetFunc()
-				targetWrapFunc = wrapFunc
-
-			case *ast.EIndex:
-				targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
-				targetWrapFunc = wrapFunc
-
-				// Capture the value of "this" if the target of the starting call
-				// expression is a private property access
-				if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
-					// "foo().#bar?.()" must capture "foo()" for "this"
-					expr = p.lowerPrivateGet(targetFunc(), e.Index.Loc, private)
+				if _, ok := e.Target.Data.(*ast.ESuper); ok {
+					// Special-case "super.foo?.()" to avoid a syntax error. Without this,
+					// we would generate:
+					//
+					//   (_b = (_a = super).foo) == null ? void 0 : _b.call(_a)
+					//
+					// which is a syntax error. Now we generate this instead:
+					//
+					//   (_a = super.foo) == null ? void 0 : _a.call(this)
+					//
+					thisArg = ast.Expr{Loc: loc, Data: &ast.EThis{}}
+				} else {
+					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+					expr = ast.Expr{Loc: loc, Data: &ast.EDot{
+						Target:  targetFunc(),
+						Name:    e.Name,
+						NameLoc: e.NameLoc,
+					}}
 					thisArg = targetFunc()
-					break
+					targetWrapFunc = wrapFunc
 				}
 
-				expr = ast.Expr{Loc: loc, Data: &ast.EIndex{
-					Target: targetFunc(),
-					Index:  e.Index,
-				}}
-				thisArg = targetFunc()
+			case *ast.EIndex:
+				if _, ok := e.Target.Data.(*ast.ESuper); ok {
+					// See the comment above about a similar special case for EDot
+					thisArg = ast.Expr{Loc: loc, Data: &ast.EThis{}}
+				} else {
+					targetFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, e.Target)
+					targetWrapFunc = wrapFunc
+
+					// Capture the value of "this" if the target of the starting call
+					// expression is a private property access
+					if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
+						// "foo().#bar?.()" must capture "foo()" for "this"
+						expr = p.lowerPrivateGet(targetFunc(), e.Index.Loc, private)
+						thisArg = targetFunc()
+						break
+					}
+
+					expr = ast.Expr{Loc: loc, Data: &ast.EIndex{
+						Target: targetFunc(),
+						Index:  e.Index,
+					}}
+					thisArg = targetFunc()
+				}
 			}
 		}
 	}
