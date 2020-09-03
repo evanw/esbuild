@@ -1662,7 +1662,8 @@ func TestRequireFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: "/entry.js: error: Could not resolve \"fs\"\n",
+		expectedScanLog: `/entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+`,
 	})
 }
 
@@ -1718,7 +1719,7 @@ func TestImportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `/entry.js: error: Could not resolve "fs"
+		expectedScanLog: `/entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
 `,
 	})
 }
@@ -1779,7 +1780,7 @@ func TestExportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `/entry.js: error: Could not resolve "fs"
+		expectedScanLog: `/entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
 `,
 	})
 }
@@ -2810,7 +2811,7 @@ func TestDuplicateEntryPointError(t *testing.T) {
 			IsBundling:   true,
 			AbsOutputDir: "/out.js",
 		},
-		expectedScanLog: "error: Duplicate entry point: /entry.js\n",
+		expectedScanLog: "error: Duplicate entry point \"/entry.js\"\n",
 	})
 }
 

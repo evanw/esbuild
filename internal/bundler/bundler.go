@@ -298,7 +298,14 @@ func parseFile(args parseArgs) {
 						// fallback.
 						if !record.IsInsideTryBody {
 							r := source.RangeOfString(record.Loc)
-							args.log.AddRangeError(&source, r, fmt.Sprintf("Could not resolve %q", record.Path.Text))
+							hint := ""
+							if args.options.Platform != config.PlatformNode {
+								if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
+									hint = " (set platform to \"node\" when building for node)"
+								}
+							}
+							args.log.AddRangeError(&source, r,
+								fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
 						}
 						continue
 					}
@@ -495,7 +502,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
 
 		if duplicateEntryPoints[lowerAbsPath] {
-			log.AddError(nil, ast.Loc{}, "Duplicate entry point: "+prettyPath)
+			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
 			continue
 		}
 
@@ -503,7 +510,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		resolveResult := res.ResolveAbs(absPath)
 
 		if resolveResult == nil {
-			log.AddError(nil, ast.Loc{}, "Could not resolve: "+prettyPath)
+			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
 			continue
 		}
 
