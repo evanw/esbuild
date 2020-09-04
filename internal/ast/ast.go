@@ -50,6 +50,7 @@ const (
 	LPostfix
 	LNew
 	LCall
+	LMember
 )
 
 type OpCode int

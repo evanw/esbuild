@@ -54,6 +54,12 @@
         }
         ```
 
+    * It is now a syntax error to use an `import()` expression with the `new` operator without parentheses:
+
+        ```js
+        new import('path')
+        ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))

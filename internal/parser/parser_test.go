@@ -1342,9 +1342,12 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "(import('foo'))", "import(\"foo\");\n")
 	expectPrinted(t, "{import('foo')}", "{\n  import(\"foo\");\n}\n")
 	expectPrinted(t, "import('foo').then(() => {})", "import(\"foo\").then(() => {\n});\n")
+	expectPrinted(t, "new import.meta", "new import.meta();\n")
+	expectPrinted(t, "new (import('foo'))", "new (import(\"foo\"))();\n")
 	expectParseError(t, "import()", "<stdin>: error: Unexpected \")\"\n")
 	expectParseError(t, "import(...a)", "<stdin>: error: Unexpected \"...\"\n")
 	expectParseError(t, "import(a, b)", "<stdin>: error: Expected \")\" but found \",\"\n")
+	expectParseError(t, "new import('foo')", "<stdin>: error: Cannot use an \"import\" expression here without parentheses\n")
 
 	expectPrinted(t, "import.meta", "import.meta;\n")
 	expectPrinted(t, "(import.meta)", "import.meta;\n")

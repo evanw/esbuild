@@ -2276,7 +2276,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			return ast.Expr{Loc: loc, Data: &ast.ENewTarget{}}
 		}
 
-		target := p.parseExprWithFlags(ast.LCall, flags)
+		target := p.parseExprWithFlags(ast.LMember, flags)
 		args := []ast.Expr{}
 
 		if p.TS.Parse {
@@ -2523,7 +2523,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 	case lexer.TImport:
 		p.hasES6ImportSyntax = true
 		p.lexer.Next()
-		return p.parseImportExpr(loc)
+		return p.parseImportExpr(loc, level)
 
 	default:
 		p.lexer.Unexpected()
@@ -2577,7 +2577,7 @@ func (p *parser) willNeedBindingPattern() bool {
 	}
 }
 
-func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
+func (p *parser) parseImportExpr(loc ast.Loc, level ast.L) ast.Expr {
 	// Parse an "import.meta" expression
 	if p.lexer.Token == lexer.TDot {
 		p.lexer.Next()
@@ -2593,6 +2593,11 @@ func (p *parser) parseImportExpr(loc ast.Loc) ast.Expr {
 		} else {
 			p.lexer.ExpectedString("\"meta\"")
 		}
+	}
+
+	if level > ast.LCall {
+		r := lexer.RangeOfIdentifier(p.source, loc)
+		p.log.AddRangeError(&p.source, r, "Cannot use an \"import\" expression here without parentheses")
 	}
 
 	// Allow "in" inside call arguments
@@ -4923,7 +4928,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		case lexer.TOpenParen, lexer.TDot:
 			// "import('path')"
 			// "import.meta"
-			expr := p.parseSuffix(p.parseImportExpr(loc), ast.LLowest, nil, 0)
+			expr := p.parseSuffix(p.parseImportExpr(loc, ast.LLowest), ast.LLowest, nil, 0)
 			p.lexer.ExpectOrInsertSemicolon()
 			return ast.Stmt{Loc: loc, Data: &ast.SExpr{Value: expr}}
 
