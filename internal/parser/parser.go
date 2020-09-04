@@ -5147,7 +5147,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					// Parse a labeled statement
 					p.lexer.Next()
 					name := ast.LocRef{Loc: expr.Loc, Ref: ident.Ref}
-					stmt := p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideLabel})
+					nestedOpts := parseStmtOpts{}
+					if opts.lexicalDecl != lexicalDeclForbid {
+						nestedOpts.lexicalDecl = lexicalDeclAllowFnInsideLabel
+					}
+					stmt := p.parseStmt(nestedOpts)
 					return ast.Stmt{Loc: loc, Data: &ast.SLabel{Name: name, Stmt: stmt}}
 				}
 
