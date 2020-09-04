@@ -39,6 +39,7 @@ type parser struct {
 	allowPrivateIdentifiers  bool
 	hasTopLevelReturn        bool
 	fnOptsParse              fnOptsParse
+	fnOptsVisit              fnOptsVisit
 	latestReturnHadSemicolon bool
 	hasImportMeta            bool
 	allocatedNames           []string
@@ -175,21 +176,6 @@ type parser struct {
 	typeofRequireEqualsFn       ast.E
 	typeofRequireEqualsFnTarget ast.E
 
-	// This is used to silence references to "require" inside a try/catch
-	// statement. The assumption is that the try/catch statement is there to
-	// handle the case where the reference to "require" crashes. Specifically,
-	// the workaround handles the "moment" library which contains code that
-	// looks like this:
-	//
-	//   try {
-	//     oldLocale = globalLocale._abbr;
-	//     var aliasedRequire = require;
-	//     aliasedRequire('./locale/' + name);
-	//     getSetGlobalLocale(oldLocale);
-	//   } catch (e) {}
-	//
-	tryBodyCount int
-
 	// Temporary variables used for lowering
 	tempRefsToDeclare []ast.Ref
 	tempRefCount      int
@@ -221,6 +207,25 @@ type fnOptsParse struct {
 
 	// Allow TypeScript decorators in function arguments
 	allowTSDecorators bool
+}
+
+// This is function-specific information used during visiting. It is saved and
+// restored on the call stack around code that parses nested functions.
+type fnOptsVisit struct {
+	// This is used to silence references to "require" inside a try/catch
+	// statement. The assumption is that the try/catch statement is there to
+	// handle the case where the reference to "require" crashes. Specifically,
+	// the workaround handles the "moment" library which contains code that
+	// looks like this:
+	//
+	//   try {
+	//     oldLocale = globalLocale._abbr;
+	//     var aliasedRequire = require;
+	//     aliasedRequire('./locale/' + name);
+	//     getSetGlobalLocale(oldLocale);
+	//   } catch (e) {}
+	//
+	tryBodyCount int
 }
 
 const bloomFilterSize = 251
@@ -6700,9 +6705,9 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.STry:
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
-		p.tryBodyCount++
+		p.fnOptsVisit.tryBodyCount++
 		s.Body = p.visitStmts(s.Body)
-		p.tryBodyCount--
+		p.fnOptsVisit.tryBodyCount--
 		p.popScope()
 
 		if s.Catch != nil {
@@ -8699,7 +8704,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					}
 
 					importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, lexer.UTF16ToString(str.Value))
-					p.importRecords[importRecordIndex].IsInsideTryBody = p.tryBodyCount != 0
+					p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOptsVisit.tryBodyCount != 0
 					p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 					// Create a new expression to represent the operation
@@ -8724,8 +8729,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EArrow:
-		oldTryBodyCount := p.tryBodyCount
-		p.tryBodyCount = 0
+		oldFnOpts := p.fnOptsVisit
+		p.fnOptsVisit = fnOptsVisit{}
 
 		p.pushScopeForVisitPass(ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args)
@@ -8747,7 +8752,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 		}
 
-		p.tryBodyCount = oldTryBodyCount
+		p.fnOptsVisit = oldFnOpts
 
 	case *ast.EFunction:
 		p.visitFn(&e.Fn, expr.Loc)
@@ -8833,7 +8838,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 	}
 
 	// Warn about uses of "require" other than a direct call
-	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.tryBodyCount == 0 {
+	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.fnOptsVisit.tryBodyCount == 0 {
 		// "typeof require == 'function' && require"
 		if e == p.typeofRequireEqualsFnTarget {
 			// Become "false" in the browser and "require" in node
@@ -8859,10 +8864,10 @@ func extractNumericValues(left ast.Expr, right ast.Expr) (float64, float64, bool
 }
 
 func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
-	oldTryBodyCount := p.tryBodyCount
+	oldFnOpts := p.fnOptsVisit
 	oldIsThisCaptured := p.isThisCaptured
 	oldArgumentsRef := p.argumentsRef
-	p.tryBodyCount = 0
+	p.fnOptsVisit = fnOptsVisit{}
 	p.isThisCaptured = true
 	p.argumentsRef = &fn.ArgumentsRef
 
@@ -8878,7 +8883,7 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil)
 	p.popScope()
 
-	p.tryBodyCount = oldTryBodyCount
+	p.fnOptsVisit = oldFnOpts
 	p.isThisCaptured = oldIsThisCaptured
 	p.argumentsRef = oldArgumentsRef
 }
