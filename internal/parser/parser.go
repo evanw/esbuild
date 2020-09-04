@@ -858,12 +858,12 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 			//     let x; // SyntaxError: Identifier 'x' has already been declared
 			//   }
 			//
-			s.Members[name] = ast.ScopeMember{Ref: ref}
+			s.Members[name] = ast.ScopeMember{Ref: ref, Loc: loc}
 		}
 	}
 
 	// Overwrite this name in the declaring scope
-	scope.Members[name] = ast.ScopeMember{Ref: ref}
+	scope.Members[name] = ast.ScopeMember{Ref: ref, Loc: loc}
 	return ref
 }
 
@@ -5401,7 +5401,7 @@ func (p *parser) findSymbol(name string) findSymbolResult {
 		if s == nil {
 			// Allocate an "unbound" symbol
 			ref = p.newSymbol(ast.SymbolUnbound, name)
-			p.moduleScope.Members[name] = ast.ScopeMember{Ref: ref}
+			p.moduleScope.Members[name] = ast.ScopeMember{Ref: ref, Loc: ast.Loc{Start: -1}}
 			break
 		}
 	}
@@ -9748,7 +9748,7 @@ func (p *parser) declareCommonJSSymbol(kind ast.SymbolKind, name string) ast.Ref
 	// to this name will become bound to this symbol after this (since we haven't
 	// run the visit pass yet).
 	if !ok {
-		p.moduleScope.Members[name] = ast.ScopeMember{Ref: ref}
+		p.moduleScope.Members[name] = ast.ScopeMember{Ref: ref, Loc: ast.Loc{Start: -1}}
 		return ref
 	}
 

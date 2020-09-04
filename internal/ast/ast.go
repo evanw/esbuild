@@ -1292,6 +1292,7 @@ func (kind ScopeKind) StopsHoisting() bool {
 
 type ScopeMember struct {
 	Ref Ref
+	Loc Loc
 }
 
 type Scope struct {
