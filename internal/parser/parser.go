@@ -4166,7 +4166,11 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 	//     function foo(): void {}
 	//
 	if name != nil {
-		name.Ref = p.declareSymbol(ast.SymbolHoistedFunction, name.Loc, nameText)
+		kind := ast.SymbolOther
+		if !isGenerator && !isAsync {
+			kind = ast.SymbolHoistedFunction
+		}
+		name.Ref = p.declareSymbol(kind, name.Loc, nameText)
 		if opts.isExport {
 			p.recordExport(name.Loc, nameText, name.Ref)
 		}

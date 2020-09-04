@@ -27,7 +27,18 @@
         export * as class from 'path'
         ```
 
-    * It is now a syntax error to use `break` or `continue` in invalid locations.
+    * It is now a syntax error to use a generator or `async` function in the same scope as a `var` with the same name:
+
+        ```js
+        var foo
+        function *foo() {}
+        ```
+
+    * It is now a syntax error to use `break` or `continue` in invalid locations:
+
+        ```js
+        function foo() { break }
+        ```
 
 ## 0.6.30
 
