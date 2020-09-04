@@ -22,8 +22,8 @@ func ComputeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[
 
 	// All unbound symbols must be reserved names
 	for _, scope := range moduleScopes {
-		for _, ref := range scope.Members {
-			symbol := symbols.Get(ref)
+		for _, member := range scope.Members {
+			symbol := symbols.Get(member.Ref)
 			if symbol.Kind == ast.SymbolUnbound || symbol.MustNotBeRenamed {
 				names[symbol.OriginalName] = 1
 			}
@@ -222,8 +222,8 @@ func AssignNestedScopeSlots(moduleScope *ast.Scope, symbols []ast.Symbol) (slotC
 	// assigning nested scope slots to variables declared using "var" in a nested
 	// scope that are actually hoisted up to the module scope to become a top-
 	// level symbol.
-	for _, ref := range moduleScope.Members {
-		symbols[ref.InnerIndex].NestedScopeSlot = 1
+	for _, member := range moduleScope.Members {
+		symbols[member.Ref.InnerIndex].NestedScopeSlot = 1
 	}
 	for _, ref := range moduleScope.Generated {
 		symbols[ref.InnerIndex].NestedScopeSlot = 1
@@ -236,8 +236,8 @@ func AssignNestedScopeSlots(moduleScope *ast.Scope, symbols []ast.Symbol) (slotC
 
 	// Then set the nested scope slots of top-level symbols back to zero. Top-
 	// level symbols are not supposed to have nested scope slots.
-	for _, ref := range moduleScope.Members {
-		symbols[ref.InnerIndex].NestedScopeSlot = 0
+	for _, member := range moduleScope.Members {
+		symbols[member.Ref.InnerIndex].NestedScopeSlot = 0
 	}
 	for _, ref := range moduleScope.Generated {
 		symbols[ref.InnerIndex].NestedScopeSlot = 0
@@ -248,8 +248,8 @@ func AssignNestedScopeSlots(moduleScope *ast.Scope, symbols []ast.Symbol) (slotC
 func assignNestedScopeSlotsHelper(scope *ast.Scope, symbols []ast.Symbol, slot ast.SlotCounts) ast.SlotCounts {
 	// Sort member map keys for determinism
 	sortedMembers := make([]int, 0, len(scope.Members))
-	for _, ref := range scope.Members {
-		sortedMembers = append(sortedMembers, int(ref.InnerIndex))
+	for _, member := range scope.Members {
+		sortedMembers = append(sortedMembers, int(member.Ref.InnerIndex))
 	}
 	sort.Ints(sortedMembers)
 
@@ -387,8 +387,8 @@ func (r *NumberRenamer) assignNamesRecursive(scope *ast.Scope, sourceIndex uint3
 
 	// Sort member map keys for determinism, reusing a shared memory buffer
 	*sorted = (*sorted)[:0]
-	for _, ref := range scope.Members {
-		*sorted = append(*sorted, int(ref.InnerIndex))
+	for _, member := range scope.Members {
+		*sorted = append(*sorted, int(member.Ref.InnerIndex))
 	}
 	sort.Ints(*sorted)
 

@@ -573,7 +573,7 @@ func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 	scope := &ast.Scope{
 		Kind:     kind,
 		Parent:   parent,
-		Members:  make(map[string]ast.Ref),
+		Members:  make(map[string]ast.ScopeMember),
 		LabelRef: ast.InvalidRef,
 	}
 	if parent != nil {
@@ -597,11 +597,11 @@ func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 		if scope.Parent.Kind != ast.ScopeFunctionArgs {
 			panic("Internal error")
 		}
-		for name, ref := range scope.Parent.Members {
+		for name, member := range scope.Parent.Members {
 			// Don't copy down the optional function expression name. Re-declaring
 			// the name of a function expression is allowed.
-			if p.symbols[ref.InnerIndex].Kind != ast.SymbolHoistedFunction {
-				scope.Members[name] = ref
+			if p.symbols[member.Ref.InnerIndex].Kind != ast.SymbolHoistedFunction {
+				scope.Members[name] = member
 			}
 		}
 	}
@@ -615,8 +615,8 @@ func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 func (p *parser) popScope() {
 	// We cannot rename anything inside a scope containing a direct eval() call
 	if p.currentScope.ContainsDirectEval {
-		for _, ref := range p.currentScope.Members {
-			p.symbols[ref.InnerIndex].MustNotBeRenamed = true
+		for _, member := range p.currentScope.Members {
+			p.symbols[member.Ref.InnerIndex].MustNotBeRenamed = true
 		}
 	}
 
@@ -770,7 +770,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 	if kind.IsHoisted() {
 		for !scope.Kind.StopsHoisting() {
 			if existing, ok := scope.Members[name]; ok {
-				symbol := p.symbols[existing.InnerIndex]
+				symbol := p.symbols[existing.Ref.InnerIndex]
 				switch symbol.Kind {
 				case ast.SymbolUnbound, ast.SymbolHoisted, ast.SymbolHoistedFunction:
 					// Continue on to the parent scope
@@ -781,7 +781,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 				default:
 					r := lexer.RangeOfIdentifier(p.source, loc)
 					p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", name))
-					return existing
+					return existing.Ref
 				}
 			}
 			scope = scope.Parent
@@ -793,26 +793,26 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 
 	// Check for a collision in the declaring scope
 	if existing, ok := scope.Members[name]; ok {
-		symbol := &p.symbols[existing.InnerIndex]
+		symbol := &p.symbols[existing.Ref.InnerIndex]
 
 		switch p.canMergeSymbols(symbol.Kind, kind) {
 		case mergeForbidden:
 			r := lexer.RangeOfIdentifier(p.source, loc)
 			p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", name))
-			return existing
+			return existing.Ref
 
 		case mergeKeepExisting:
-			ref = existing
+			ref = existing.Ref
 
 		case mergeReplaceWithNew:
 			symbol.Link = ref
 
 		case mergeBecomePrivateGetSetPair:
-			ref = existing
+			ref = existing.Ref
 			symbol.Kind = ast.SymbolPrivateGetSetPair
 
 		case mergeBecomePrivateStaticGetSetPair:
-			ref = existing
+			ref = existing.Ref
 			symbol.Kind = ast.SymbolPrivateStaticGetSetPair
 		}
 	}
@@ -835,7 +835,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 			}
 
 			if existing, ok := s.Members[name]; ok {
-				symbol := p.symbols[existing.InnerIndex]
+				symbol := p.symbols[existing.Ref.InnerIndex]
 
 				// See "VariableStatements in Catch blocks" in the spec for why we
 				// special-case catch identifiers here:
@@ -843,7 +843,7 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 				//   http://www.ecma-international.org/ecma-262/6.0/#sec-variablestatements-in-catch-blocks
 				//
 				if symbol.Kind == ast.SymbolUnbound || symbol.Kind == ast.SymbolCatchIdentifier {
-					p.symbols[existing.InnerIndex].Link = ref
+					p.symbols[existing.Ref.InnerIndex].Link = ref
 				}
 			}
 
@@ -858,12 +858,12 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 			//     let x; // SyntaxError: Identifier 'x' has already been declared
 			//   }
 			//
-			s.Members[name] = ref
+			s.Members[name] = ast.ScopeMember{Ref: ref}
 		}
 	}
 
 	// Overwrite this name in the declaring scope
-	scope.Members[name] = ref
+	scope.Members[name] = ast.ScopeMember{Ref: ref}
 	return ref
 }
 
@@ -5393,7 +5393,7 @@ func (p *parser) findSymbol(name string) findSymbolResult {
 
 		// Is the symbol a member of this scope?
 		if member, ok := s.Members[name]; ok {
-			ref = member
+			ref = member.Ref
 			break
 		}
 
@@ -5401,7 +5401,7 @@ func (p *parser) findSymbol(name string) findSymbolResult {
 		if s == nil {
 			// Allocate an "unbound" symbol
 			ref = p.newSymbol(ast.SymbolUnbound, name)
-			p.moduleScope.Members[name] = ref
+			p.moduleScope.Members[name] = ast.ScopeMember{Ref: ref}
 			break
 		}
 	}
@@ -9716,7 +9716,7 @@ func (p *parser) prepareForVisitPass(options *config.Options) {
 }
 
 func (p *parser) declareCommonJSSymbol(kind ast.SymbolKind, name string) ast.Ref {
-	ref, ok := p.moduleScope.Members[name]
+	member, ok := p.moduleScope.Members[name]
 
 	// If the code declared this symbol using "var name", then this is actually
 	// not a collision. For example, node will let you do this:
@@ -9736,19 +9736,19 @@ func (p *parser) declareCommonJSSymbol(kind ast.SymbolKind, name string) ast.Ref
 	//
 	// Both the "exports" argument and "var exports" are hoisted variables, so
 	// they don't collide.
-	if ok && p.symbols[ref.InnerIndex].Kind == ast.SymbolHoisted &&
+	if ok && p.symbols[member.Ref.InnerIndex].Kind == ast.SymbolHoisted &&
 		kind == ast.SymbolHoisted && !p.hasES6ImportSyntax && !p.hasES6ExportSyntax {
-		return ref
+		return member.Ref
 	}
 
 	// Create a new symbol if we didn't merge with an existing one above
-	ref = p.newSymbol(kind, name)
+	ref := p.newSymbol(kind, name)
 
 	// If the variable wasn't declared, declare it now. This means any references
 	// to this name will become bound to this symbol after this (since we haven't
 	// run the visit pass yet).
 	if !ok {
-		p.moduleScope.Members[name] = ref
+		p.moduleScope.Members[name] = ast.ScopeMember{Ref: ref}
 		return ref
 	}
 
@@ -9776,8 +9776,8 @@ func (p *parser) computeCharacterFrequency() *ast.CharFreq {
 	// Subtract out all symbols that will be minified
 	var visit func(*ast.Scope)
 	visit = func(scope *ast.Scope) {
-		for _, ref := range scope.Members {
-			symbol := &p.symbols[ref.InnerIndex]
+		for _, member := range scope.Members {
+			symbol := &p.symbols[member.Ref.InnerIndex]
 			if symbol.SlotNamespace() != ast.SlotMustNotBeRenamed {
 				charFreq.Scan(symbol.OriginalName, -int32(symbol.UseCountEstimate))
 			}

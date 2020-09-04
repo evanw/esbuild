@@ -1162,7 +1162,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// parallel and can't safely mutate the "importsToBind" map of another file.
 		if fileMeta.needsExportSymbolFromRuntime {
 			runtimeFile := &c.files[runtime.SourceIndex]
-			exportRef := runtimeFile.ast.ModuleScope.Members["__export"]
+			exportRef := runtimeFile.ast.ModuleScope.Members["__export"].Ref
 			exportPart := &file.ast.Parts[fileMeta.nsExportPartIndex]
 			c.generateUseOfSymbolForInclude(exportPart, fileMeta, 1, exportRef, runtime.SourceIndex)
 		}
@@ -1469,7 +1469,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	exportRef := ast.InvalidRef
 	if len(properties) > 0 {
 		runtimeFile := &c.files[runtime.SourceIndex]
-		exportRef = runtimeFile.ast.ModuleScope.Members["__export"]
+		exportRef = runtimeFile.ast.ModuleScope.Members["__export"].Ref
 		nsExportStmts = append(nsExportStmts, ast.Stmt{Data: &ast.SExpr{Value: ast.Expr{Data: &ast.ECall{
 			Target: ast.Expr{Data: &ast.EIdentifier{Ref: exportRef}},
 			Args: []ast.Expr{
@@ -2454,7 +2454,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 						}
 
 						// Prefix this module with "__exportStar(exports, ns)"
-						exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"]
+						exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"].Ref
 						stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
 							Loc: stmt.Loc,
 							Data: &ast.SExpr{Value: ast.Expr{Loc: stmt.Loc, Data: &ast.ECall{
@@ -2474,7 +2474,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					} else {
 						if record.IsExportStarRunTimeEval {
 							// Prefix this module with "__exportStar(exports, require(path))"
-							exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"]
+							exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"].Ref
 							stmtList.prefixStmts = append(stmtList.prefixStmts, ast.Stmt{
 								Loc: stmt.Loc,
 								Data: &ast.SExpr{Value: ast.Expr{Loc: stmt.Loc, Data: &ast.ECall{
@@ -2944,8 +2944,8 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResult, 0, len(filesInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].ast.ModuleScope.Members
-	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"])
-	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"])
+	commonJSRef := ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"].Ref)
+	toModuleRef := ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"].Ref)
 	r := c.renameSymbolsInChunk(chunk, filesInChunkInOrder)
 
 	// Generate JavaScript for each file in parallel
@@ -3364,8 +3364,8 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 	// since they are all potentially exported (e.g. if this is used in a
 	// <script> tag). All symbols in nested scopes are still minified.
 	if !hasImportOrExport {
-		for _, ref := range file.ast.ModuleScope.Members {
-			c.symbols.Get(ref).Kind = ast.SymbolUnbound
+		for _, member := range file.ast.ModuleScope.Members {
+			c.symbols.Get(member.Ref).Kind = ast.SymbolUnbound
 		}
 	}
 }

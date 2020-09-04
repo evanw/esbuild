@@ -1290,11 +1290,15 @@ func (kind ScopeKind) StopsHoisting() bool {
 	return kind >= ScopeEntry
 }
 
+type ScopeMember struct {
+	Ref Ref
+}
+
 type Scope struct {
 	Kind      ScopeKind
 	Parent    *Scope
 	Children  []*Scope
-	Members   map[string]Ref
+	Members   map[string]ScopeMember
 	Generated []Ref
 
 	// This is used to store the ref of the label symbol for ScopeLabel scopes.
