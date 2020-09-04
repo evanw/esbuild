@@ -550,9 +550,6 @@ func TestTokens(t *testing.T) {
 		{"void", TVoid},
 		{"while", TWhile},
 		{"with", TWith},
-
-		// Strict mode reserved words
-		{"let", TLet},
 	}
 
 	for _, it := range expected {

@@ -152,9 +152,6 @@ const (
 	TVoid
 	TWhile
 	TWith
-
-	// Strict mode reserved words
-	TLet
 )
 
 var Keywords = map[string]T{
@@ -195,9 +192,6 @@ var Keywords = map[string]T{
 	"void":       TVoid,
 	"while":      TWhile,
 	"with":       TWith,
-
-	// Strict mode reserved words
-	"let": TLet,
 }
 
 var StrictModeReservedWords = []string{

@@ -3265,6 +3265,37 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 	}
 }
 
+func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (ast.Expr, ast.Stmt, []ast.Decl) {
+	letRange := p.lexer.Range()
+	raw := p.lexer.Raw()
+
+	if p.lexer.Token != lexer.TIdentifier || raw != "let" {
+		return p.parseExpr(ast.LLowest), ast.Stmt{}, nil
+	}
+
+	p.lexer.Next()
+
+	switch p.lexer.Token {
+	case lexer.TIdentifier, lexer.TOpenBracket, lexer.TOpenBrace:
+		if !p.lexer.HasNewlineBefore || p.lexer.Token == lexer.TOpenBracket {
+			if opts.lexicalDecl != lexicalDeclAllowAll {
+				p.forbidLexicalDecl(letRange.Loc)
+			}
+			p.markSyntaxFeature(compat.Let, letRange)
+			decls := p.parseAndDeclareDecls(ast.SymbolOther, opts)
+			return ast.Expr{}, ast.Stmt{Loc: letRange.Loc, Data: &ast.SLocal{
+				Kind:     ast.LocalLet,
+				Decls:    decls,
+				IsExport: opts.isExport,
+			}}, decls
+		}
+	}
+
+	ref := p.storeNameInRef(raw)
+	expr := ast.Expr{Loc: letRange.Loc, Data: &ast.EIdentifier{Ref: ref}}
+	return p.parseSuffix(expr, ast.LLowest, nil, 0), ast.Stmt{}, nil
+}
+
 func (p *parser) parseCallArgs() []ast.Expr {
 	// Allow "in" inside call arguments
 	oldAllowIn := p.allowIn
@@ -4270,7 +4301,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 
 		switch p.lexer.Token {
-		case lexer.TClass, lexer.TConst, lexer.TFunction, lexer.TLet, lexer.TVar:
+		case lexer.TClass, lexer.TConst, lexer.TFunction, lexer.TVar:
 			opts.isExport = true
 			return p.parseStmt(opts)
 
@@ -4292,6 +4323,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			return p.parseStmt(opts)
 
 		case lexer.TIdentifier:
+			if p.lexer.IsContextualKeyword("let") {
+				opts.isExport = true
+				return p.parseStmt(opts)
+			}
+
 			if p.lexer.IsContextualKeyword("async") {
 				// "export async function foo() {}"
 				asyncRange := p.lexer.Range()
@@ -4596,20 +4632,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			IsExport: opts.isExport,
 		}}
 
-	case lexer.TLet:
-		if opts.lexicalDecl != lexicalDeclAllowAll {
-			p.forbidLexicalDecl(loc)
-		}
-		p.markSyntaxFeature(compat.Let, p.lexer.Range())
-		p.lexer.Next()
-		decls := p.parseAndDeclareDecls(ast.SymbolOther, opts)
-		p.lexer.ExpectOrInsertSemicolon()
-		return ast.Stmt{Loc: loc, Data: &ast.SLocal{
-			Kind:     ast.LocalLet,
-			Decls:    decls,
-			IsExport: opts.isExport,
-		}}
-
 	case lexer.TConst:
 		if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(loc)
@@ -4839,12 +4861,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			decls = p.parseAndDeclareDecls(ast.SymbolHoisted, parseStmtOpts{})
 			init = &ast.Stmt{Loc: initLoc, Data: &ast.SLocal{Kind: ast.LocalVar, Decls: decls}}
 
-		case lexer.TLet:
-			p.markSyntaxFeature(compat.Let, p.lexer.Range())
-			p.lexer.Next()
-			decls = p.parseAndDeclareDecls(ast.SymbolOther, parseStmtOpts{})
-			init = &ast.Stmt{Loc: initLoc, Data: &ast.SLocal{Kind: ast.LocalLet, Decls: decls}}
-
 		case lexer.TConst:
 			p.markSyntaxFeature(compat.Const, p.lexer.Range())
 			p.lexer.Next()
@@ -4854,7 +4870,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		case lexer.TSemicolon:
 
 		default:
-			init = &ast.Stmt{Loc: initLoc, Data: &ast.SExpr{Value: p.parseExpr(ast.LLowest)}}
+			var expr ast.Expr
+			var stmt ast.Stmt
+			expr, stmt, decls = p.parseExprOrLetStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowAll})
+			if stmt.Data != nil {
+				init = &stmt
+			} else {
+				init = &ast.Stmt{Loc: initLoc, Data: &ast.SExpr{Value: expr}}
+			}
 		}
 
 		// "in" expressions are allowed again
@@ -5185,7 +5208,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			}
 			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), ast.LLowest, nil, 0)
 		} else {
-			expr = p.parseExpr(ast.LLowest)
+			var stmt ast.Stmt
+			expr, stmt, _ = p.parseExprOrLetStmt(opts)
+			if stmt.Data != nil {
+				p.lexer.ExpectOrInsertSemicolon()
+				return stmt
+			}
 		}
 
 		if isIdentifier {

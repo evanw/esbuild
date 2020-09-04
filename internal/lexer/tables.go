@@ -122,9 +122,6 @@ var tokenToString = map[T]string{
 	TVoid:       "\"void\"",
 	TWhile:      "\"while\"",
 	TWith:       "\"with\"",
-
-	// Strict mode reserved words
-	TLet: "\"let\"",
 }
 
 // This is from https://github.com/microsoft/TypeScript/blob/master/src/compiler/transformers/jsx.ts

@@ -564,6 +564,11 @@ func TestASI(t *testing.T) {
 	expectParseError(t, "(async\n() => {})", "<stdin>: error: Expected \")\" but found \"=>\"\n")
 	expectParseError(t, "(async\nfunction foo() {})", "<stdin>: error: Expected \")\" but found \"function\"\n")
 
+	expectPrinted(t, "let\nx = 0", "let;\nx = 0;\n")
+	expectPrinted(t, "let\n[x] = 0", "let [x] = 0;\n")
+	expectPrinted(t, "let\n{x}", "let;\n{\n  x;\n}\n")
+	expectParseError(t, "let\n{x} = 0", "<stdin>: error: Unexpected \"=\"\n")
+
 	// This is a weird corner case where ASI applies without a newline
 	expectPrinted(t, "do x;while(y)z", "do\n  x;\nwhile (y);\nz;\n")
 	expectPrinted(t, "do x;while(y);z", "do\n  x;\nwhile (y);\nz;\n")

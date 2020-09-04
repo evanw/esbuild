@@ -60,6 +60,12 @@
         new import('path')
         ```
 
+    * Using `let` as an identifier is now allowed:
+
+        ```js
+        let = null
+        ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))
