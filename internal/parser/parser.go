@@ -3802,6 +3802,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOpts) (fn ast.Fn, hadBody bool
 	fn.HasRestArg = false
 	fn.IsAsync = opts.allowAwait
 	fn.IsGenerator = opts.allowYield
+	fn.OpenParenLoc = p.lexer.Loc()
 	p.lexer.Expect(lexer.TOpenParen)
 
 	// Await and yield are not allowed in function arguments
@@ -4084,12 +4085,20 @@ func (p *parser) parsePath() (ast.Loc, string) {
 // This assumes the "function" token has already been parsed
 func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyncRange ast.Range) ast.Stmt {
 	isGenerator := p.lexer.Token == lexer.TAsterisk
-	if !opts.allowLexicalDecl && (isGenerator || isAsync) {
-		p.forbidLexicalDecl(loc)
-	}
 	if isGenerator {
 		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
 		p.lexer.Next()
+	}
+
+	switch opts.lexicalDecl {
+	case lexicalDeclForbid:
+		p.forbidLexicalDecl(loc)
+
+	// Allow certain function statements in certain single-statement contexts
+	case lexicalDeclAllowFnInsideIf, lexicalDeclAllowFnInsideLabel:
+		if opts.isTypeScriptDeclare || isGenerator || isAsync {
+			p.forbidLexicalDecl(loc)
+		}
 	}
 
 	var name *ast.LocRef
@@ -4108,7 +4117,14 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 		p.skipTypeScriptTypeParameters()
 	}
 
-	scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
+	// Introduce a fake block scope for function declarations inside if statements
+	var ifStmtScopeIndex int
+	hasIfScope := opts.lexicalDecl == lexicalDeclAllowFnInsideIf
+	if hasIfScope {
+		ifStmtScopeIndex = p.pushScopeForParsePass(ast.ScopeBlock, loc)
+	}
+
+	scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, p.lexer.Loc())
 
 	fn, hadBody := p.parseFn(name, fnOpts{
 		asyncRange: asyncRange,
@@ -4122,6 +4138,12 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 	// Don't output anything if it's just a forward declaration of a function
 	if opts.isTypeScriptDeclare || !hadBody {
 		p.popAndDiscardScope(scopeIndex)
+
+		// Balance the fake block scope introduced above
+		if hasIfScope {
+			p.popAndDiscardScope(ifStmtScopeIndex)
+		}
+
 		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 	}
 
@@ -4140,6 +4162,12 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 		}
 	}
 
+	// Balance the fake block scope introduced above
+	if hasIfScope {
+		p.popScope()
+	}
+
+	fn.HasIfScope = hasIfScope
 	return ast.Stmt{Loc: loc, Data: &ast.SFunction{Fn: fn, IsExport: opts.isExport}}
 }
 
@@ -4151,9 +4179,18 @@ type deferredTSDecorators struct {
 	scopeIndex int
 }
 
+type lexicalDecl uint8
+
+const (
+	lexicalDeclForbid lexicalDecl = iota
+	lexicalDeclAllowAll
+	lexicalDeclAllowFnInsideIf
+	lexicalDeclAllowFnInsideLabel
+)
+
 type parseStmtOpts struct {
 	tsDecorators        *deferredTSDecorators
-	allowLexicalDecl    bool
+	lexicalDecl         lexicalDecl
 	isModuleScope       bool
 	isNamespaceScope    bool
 	isExport            bool
@@ -4240,7 +4277,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				case "declare":
 					// "export declare class Foo {}"
 					opts.isExport = true
-					opts.allowLexicalDecl = true
+					opts.lexicalDecl = lexicalDeclAllowAll
 					opts.isTypeScriptDeclare = true
 					return p.parseStmt(opts)
 				}
@@ -4278,8 +4315,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				if p.lexer.Token == lexer.TFunction {
 					p.lexer.Expect(lexer.TFunction)
 					stmt := p.parseFnStmt(loc, parseStmtOpts{
-						isNameOptional:   true,
-						allowLexicalDecl: true,
+						isNameOptional: true,
+						lexicalDecl:    lexicalDeclAllowAll,
 					}, true /* isAsync */, asyncRange)
 					if _, ok := stmt.Data.(*ast.STypeScript); ok {
 						return stmt // This was just a type annotation
@@ -4306,9 +4343,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 
 			if p.lexer.Token == lexer.TFunction || p.lexer.Token == lexer.TClass || p.lexer.IsContextualKeyword("interface") {
 				stmt := p.parseStmt(parseStmtOpts{
-					tsDecorators:     opts.tsDecorators,
-					isNameOptional:   true,
-					allowLexicalDecl: true,
+					tsDecorators:   opts.tsDecorators,
+					isNameOptional: true,
+					lexicalDecl:    lexicalDeclAllowAll,
 				})
 				if _, ok := stmt.Data.(*ast.STypeScript); ok {
 					return stmt // This was just a type annotation
@@ -4494,7 +4531,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		return ast.Stmt{}
 
 	case lexer.TClass:
-		if !opts.allowLexicalDecl {
+		if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(loc)
 		}
 		return p.parseClassStmt(loc, opts)
@@ -4510,7 +4547,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}}
 
 	case lexer.TLet:
-		if !opts.allowLexicalDecl {
+		if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(loc)
 		}
 		p.markSyntaxFeature(compat.Let, p.lexer.Range())
@@ -4524,7 +4561,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}}
 
 	case lexer.TConst:
-		if !opts.allowLexicalDecl {
+		if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(loc)
 		}
 		p.markSyntaxFeature(compat.Const, p.lexer.Range())
@@ -4550,11 +4587,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		p.lexer.Expect(lexer.TOpenParen)
 		test := p.parseExpr(ast.LLowest)
 		p.lexer.Expect(lexer.TCloseParen)
-		yes := p.parseStmt(parseStmtOpts{})
+		yes := p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideIf})
 		var no *ast.Stmt = nil
 		if p.lexer.Token == lexer.TElse {
 			p.lexer.Next()
-			stmt := p.parseStmt(parseStmtOpts{})
+			stmt := p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideIf})
 			no = &stmt
 		}
 		return ast.Stmt{Loc: loc, Data: &ast.SIf{Test: test, Yes: yes, No: no}}
@@ -4638,7 +4675,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					break caseBody
 
 				default:
-					body = append(body, p.parseStmt(parseStmtOpts{allowLexicalDecl: true}))
+					body = append(body, p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowAll}))
 				}
 			}
 
@@ -5110,7 +5147,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					// Parse a labeled statement
 					p.lexer.Next()
 					name := ast.LocRef{Loc: expr.Loc, Ref: ident.Ref}
-					stmt := p.parseStmt(parseStmtOpts{})
+					stmt := p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideLabel})
 					return ast.Stmt{Loc: loc, Data: &ast.SLabel{Name: name, Stmt: stmt}}
 				}
 
@@ -5144,7 +5181,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						}
 
 					case "declare":
-						opts.allowLexicalDecl = true
+						opts.lexicalDecl = lexicalDeclAllowAll
 						opts.isTypeScriptDeclare = true
 
 						// "@decorator declare class Foo {}"
@@ -5282,7 +5319,7 @@ func (p *parser) forbidLexicalDecl(loc ast.Loc) {
 func (p *parser) parseStmtsUpTo(end lexer.T, opts parseStmtOpts) []ast.Stmt {
 	stmts := []ast.Stmt{}
 	returnWithoutSemicolonStart := int32(-1)
-	opts.allowLexicalDecl = true
+	opts.lexicalDecl = lexicalDeclAllowAll
 
 	for {
 		// Preserve some statement-level comments
@@ -5832,7 +5869,19 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 }
 
 func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
+	// Introduce a fake block scope for function declarations inside if statements
+	fn, ok := stmt.Data.(*ast.SFunction)
+	hasIfScope := ok && fn.Fn.HasIfScope
+	if hasIfScope {
+		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
+	}
+
 	stmts := p.visitStmts([]ast.Stmt{stmt})
+
+	// Balance the fake block scope introduced above
+	if hasIfScope {
+		p.popScope()
+	}
 
 	// This statement could potentially expand to several statements
 	switch len(stmts) {
@@ -6391,7 +6440,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		case s.Value.Stmt != nil:
 			switch s2 := s.Value.Stmt.Data.(type) {
 			case *ast.SFunction:
-				p.visitFn(&s2.Fn, s.Value.Stmt.Loc)
+				p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc)
 
 			case *ast.SClass:
 				p.visitClass(&s2.Class)
@@ -6691,7 +6740,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SFunction:
-		p.visitFn(&s.Fn, stmt.Loc)
+		p.visitFn(&s.Fn, s.Fn.OpenParenLoc)
 
 		// Handle exporting this function from a namespace
 		if s.IsExport && p.enclosingNamespaceRef != nil {

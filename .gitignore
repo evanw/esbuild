@@ -21,5 +21,6 @@
 /require/
 /scripts/.end-to-end-tests/
 /scripts/.js-api-tests/
+/scripts/.test262/
 /scripts/.verify-source-map/
 node_modules/

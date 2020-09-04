@@ -655,6 +655,22 @@ func TestLexicalDecl(t *testing.T) {
 		expectParseError(t, fmt.Sprintf(context, "async function x() {}"), "<stdin>: error: Cannot use a declaration in a single-statement context\n")
 		expectParseError(t, fmt.Sprintf(context, "async function* x() {}"), "<stdin>: error: Cannot use a declaration in a single-statement context\n")
 	}
+
+	expectPrinted(t, "function f() {}", "function f() {\n}\n")
+	expectPrinted(t, "{function f() {}} let f", "{\n  function f() {\n  }\n}\nlet f;\n")
+	expectPrinted(t, "if (1) function f() {} let f", "if (1)\n  function f() {\n  }\nlet f;\n")
+	expectPrinted(t, "if (0) ; else function f() {} let f", "if (0)\n  ;\nelse\n  function f() {\n  }\nlet f;\n")
+	expectPrinted(t, "x: function f() {}", "x:\n  function f() {\n  }\n")
+	expectPrinted(t, "{function* f() {}} let f", "{\n  function* f() {\n  }\n}\nlet f;\n")
+	expectPrinted(t, "{async function f() {}} let f", "{\n  async function f() {\n  }\n}\nlet f;\n")
+
+	expectParseError(t, "for (;;) function f() {}", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "for (x in y) function f() {}", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "for (x of y) function f() {}", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "for await (x of y) function f() {}", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "with (1) function f() {}", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "while (1) function f() {}", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "do function f() {} while (0)", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
 }
 
 func TestClass(t *testing.T) {
@@ -1362,6 +1378,9 @@ func TestCatch(t *testing.T) {
 	expectPrinted(t, "let e; try {} catch (e) {}", "let e;\ntry {\n} catch (e) {\n}\n")
 	expectPrinted(t, "try { var e } catch (e) {}", "try {\n  var e;\n} catch (e) {\n}\n")
 	expectPrinted(t, "try { function e() {} } catch (e) {}", "try {\n  function e() {\n  }\n} catch (e) {\n}\n")
+	expectPrinted(t, "try {} catch (e) { { function e() {} } }", "try {\n} catch (e) {\n  {\n    function e() {\n    }\n  }\n}\n")
+	expectPrinted(t, "try {} catch (e) { if (1) function e() {} }", "try {\n} catch (e) {\n  if (1)\n    function e() {\n    }\n}\n")
+	expectPrinted(t, "try {} catch (e) { if (0) ; else function e() {} }", "try {\n} catch (e) {\n  if (0)\n    ;\n  else\n    function e() {\n    }\n}\n")
 
 	expectParseError(t, "try {} catch (e) { function e() {} }", "<stdin>: error: \"e\" has already been declared\n")
 	expectParseError(t, "try {} catch ({e}) { var e }", "<stdin>: error: \"e\" has already been declared\n")

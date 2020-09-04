@@ -333,6 +333,7 @@ type Arg struct {
 
 type Fn struct {
 	Name         *LocRef
+	OpenParenLoc Loc
 	Args         []Arg
 	Body         FnBody
 	ArgumentsRef Ref
@@ -340,6 +341,7 @@ type Fn struct {
 	IsAsync     bool
 	IsGenerator bool
 	HasRestArg  bool
+	HasIfScope  bool
 }
 
 type FnBody struct {

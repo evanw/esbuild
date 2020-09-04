@@ -9,9 +9,36 @@
     ```js
     let foo
     {
-      function foo() { }
+      function foo() {}
     }
     ```
+
+* Introduce a scope for functions inside if statements
+
+    Function declarations are allowed inside if statements like this:
+
+    ```js
+    if (true)
+      function foo() {}
+    ```
+
+    That code must behave equivalently to this code:
+
+    ```js
+    if (true) {
+      function foo() {}
+    }
+    ```
+
+    This release fixes a bug where the function `foo` was declared in the scope containing the `if` statement instead of in a nested scope. The bug meant that code like this was incorrectly treated as a syntax error:
+
+    ```js
+    let foo
+    if (true)
+      function foo() {}
+    ```
+
+    This code is now allowed. This is an edge case that is unlikely to come up in real-world code because the function `foo` is completely inaccessible due to the nested scope. But this edge case is checked in conformance tests.
 
 ## 0.6.30
 
