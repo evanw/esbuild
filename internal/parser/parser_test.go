@@ -553,6 +553,17 @@ func TestASI(t *testing.T) {
 	expectParseError(t, "function* foo(){yield\n*a}", "<stdin>: error: Unexpected \"*\"\n")
 	expectPrinted(t, "function* foo(){yield*\na}", "function* foo() {\n  yield* a;\n}\n")
 
+	expectPrinted(t, "async\nx => {}", "async;\n(x) => {\n};\n")
+	expectPrinted(t, "async\nfunction foo() {}", "async;\nfunction foo() {\n}\n")
+	expectPrinted(t, "export default async\nx => {}", "export default async;\n(x) => {\n};\n")
+	expectPrinted(t, "export default async\nfunction foo() {}", "export default async;\nfunction foo() {\n}\n")
+	expectParseError(t, "async\n() => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseError(t, "export async\nfunction foo() {}", "<stdin>: error: Unexpected newline after \"async\"\n")
+	expectParseError(t, "export default async\n() => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseError(t, "(async\nx => {})", "<stdin>: error: Expected \")\" but found \"x\"\n")
+	expectParseError(t, "(async\n() => {})", "<stdin>: error: Expected \")\" but found \"=>\"\n")
+	expectParseError(t, "(async\nfunction foo() {})", "<stdin>: error: Expected \")\" but found \"function\"\n")
+
 	// This is a weird corner case where ASI applies without a newline
 	expectPrinted(t, "do x;while(y)z", "do\n  x;\nwhile (y);\nz;\n")
 	expectPrinted(t, "do x;while(y);z", "do\n  x;\nwhile (y);\nz;\n")
@@ -952,6 +963,7 @@ func TestYield(t *testing.T) {
 	expectParseError(t, "function *foo() { (x = yield y) => {} }", "<stdin>: error: Cannot use a \"yield\" expression here\n")
 	expectPrinted(t, "function *foo() { (x = yield y) }", "function* foo() {\n  x = yield y;\n}\n")
 	expectParseError(t, "function foo() { (x = yield y) }", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
+	expectParseError(t, "function *foo() { (x = \\u0079ield) }", "<stdin>: error: The keyword \"yield\" cannot be escaped\n")
 }
 
 func TestAsync(t *testing.T) {
@@ -1041,13 +1053,19 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "async(x = await y)", "async(x = await y);\n")
 
 	// Keywords with escapes
-	expectParseError(t, "\\u0061wait foo", "<stdin>: error: Expected \";\" but found \"foo\"\n")
-	expectParseError(t, "\\u0061sync function foo() {}", "<stdin>: error: Expected \";\" but found \"function\"\n")
-	expectParseError(t, "(\\u0061sync function() {})", "<stdin>: error: Expected \")\" but found \"function\"\n")
-	expectParseError(t, "+\\u0061sync function() {}", "<stdin>: error: Expected \";\" but found \"function\"\n")
+	expectPrinted(t, "\\u0061sync", "async;\n")
+	expectPrinted(t, "(\\u0061sync)", "async;\n")
+	expectPrinted(t, "function foo() { \\u0061wait }", "function foo() {\n  await;\n}\n")
+	expectPrinted(t, "function foo() { var \\u0061wait }", "function foo() {\n  var await;\n}\n")
+	expectParseError(t, "\\u0061wait", "<stdin>: error: The keyword \"await\" cannot be escaped\n")
+	expectParseError(t, "var \\u0061wait", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "async function foo() { \\u0061wait }", "<stdin>: error: The keyword \"await\" cannot be escaped\n")
+	expectParseError(t, "async function foo() { var \\u0061wait }", "<stdin>: error: Cannot use \"await\" as an identifier here\n")
+	expectParseError(t, "\\u0061sync x => {}", "<stdin>: error: Expected \";\" but found \"x\"\n")
 	expectParseError(t, "\\u0061sync () => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
-	expectParseError(t, "(\\u0061sync () => {})", "<stdin>: error: Expected \")\" but found \"=>\"\n")
-	expectParseError(t, "+\\u0061sync () => {}", "<stdin>: error: Expected \";\" but found \"=>\"\n")
+	expectParseError(t, "\\u0061sync function foo() {}", "<stdin>: error: Expected \";\" but found \"function\"\n")
+	expectParseError(t, "({ \\u0061sync foo() {} })", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
+	expectParseError(t, "({ \\u0061sync *foo() {} })", "<stdin>: error: Expected \"}\" but found \"*\"\n")
 
 	// For-await
 	expectParseError(t, "for await(;;);", "<stdin>: error: Unexpected \";\"\n")

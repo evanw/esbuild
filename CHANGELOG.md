@@ -46,6 +46,14 @@
         var yield = null
         ```
 
+    * It is now a syntax error to use `yield` or `await` inside a generator or `async` function if it contains an escape sequence:
+
+        ```js
+        async function foo() {
+          return \u0061wait;
+        }
+        ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))

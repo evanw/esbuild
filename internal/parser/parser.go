@@ -1172,6 +1172,7 @@ func (p *parser) parseProperty(kind ast.PropertyKind, opts propertyOpts, errors 
 
 	default:
 		name := p.lexer.Identifier
+		raw := p.lexer.Raw()
 		nameRange := p.lexer.Range()
 		if !p.lexer.IsIdentifierOrKeyword() {
 			p.lexer.Expect(lexer.TIdentifier)
@@ -1194,33 +1195,33 @@ func (p *parser) parseProperty(kind ast.PropertyKind, opts propertyOpts, errors 
 			if couldBeModifierKeyword {
 				switch name {
 				case "get":
-					if !opts.isAsync {
+					if !opts.isAsync && raw == name {
 						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
 						return p.parseProperty(ast.PropertyGet, opts, nil)
 					}
 
 				case "set":
-					if !opts.isAsync {
+					if !opts.isAsync && raw == name {
 						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
 						return p.parseProperty(ast.PropertySet, opts, nil)
 					}
 
 				case "async":
-					if !opts.isAsync {
+					if !opts.isAsync && raw == name {
 						opts.isAsync = true
 						opts.asyncRange = nameRange
 						return p.parseProperty(kind, opts, nil)
 					}
 
 				case "static":
-					if !opts.isStatic && !opts.isAsync && opts.isClass {
+					if !opts.isStatic && !opts.isAsync && opts.isClass && raw == name {
 						opts.isStatic = true
 						return p.parseProperty(kind, opts, nil)
 					}
 
 				case "private", "protected", "public", "readonly", "abstract", "declare":
 					// Skip over TypeScript keywords
-					if opts.isClass && p.TS.Parse {
+					if opts.isClass && p.TS.Parse && raw == name {
 						return p.parseProperty(kind, opts, nil)
 					}
 				}
@@ -1589,50 +1590,51 @@ func (p *parser) isAsyncExprSuffix() bool {
 // keyword and are currently looking at the following token.
 func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 	// Make sure this matches the switch statement in isAsyncExprSuffix()
-	switch p.lexer.Token {
-	// "async function() {}"
-	case lexer.TFunction:
-		return p.parseFnExpr(asyncRange.Loc, true /* isAsync */, asyncRange)
+	if !p.lexer.HasNewlineBefore {
+		switch p.lexer.Token {
+		// "async function() {}"
+		case lexer.TFunction:
+			return p.parseFnExpr(asyncRange.Loc, true /* isAsync */, asyncRange)
 
-		// "async => {}"
-	case lexer.TEqualsGreaterThan:
-		arg := ast.Arg{Binding: ast.Binding{Loc: asyncRange.Loc, Data: &ast.BIdentifier{Ref: p.storeNameInRef("async")}}}
+			// "async => {}"
+		case lexer.TEqualsGreaterThan:
+			arg := ast.Arg{Binding: ast.Binding{Loc: asyncRange.Loc, Data: &ast.BIdentifier{Ref: p.storeNameInRef("async")}}}
 
-		p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
-		defer p.popScope()
+			p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
+			defer p.popScope()
 
-		return ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]ast.Arg{arg}, fnOptsParse{})}
+			return ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]ast.Arg{arg}, fnOptsParse{})}
 
-		// "async x => {}"
-	case lexer.TIdentifier:
-		ref := p.storeNameInRef(p.lexer.Identifier)
-		arg := ast.Arg{Binding: ast.Binding{Loc: p.lexer.Loc(), Data: &ast.BIdentifier{Ref: ref}}}
-		p.lexer.Next()
+			// "async x => {}"
+		case lexer.TIdentifier:
+			ref := p.storeNameInRef(p.lexer.Identifier)
+			arg := ast.Arg{Binding: ast.Binding{Loc: p.lexer.Loc(), Data: &ast.BIdentifier{Ref: ref}}}
+			p.lexer.Next()
 
-		p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
-		defer p.popScope()
+			p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
+			defer p.popScope()
 
-		arrow := p.parseArrowBody([]ast.Arg{arg}, fnOptsParse{allowAwait: true})
-		arrow.IsAsync = true
-		return ast.Expr{Loc: asyncRange.Loc, Data: arrow}
+			arrow := p.parseArrowBody([]ast.Arg{arg}, fnOptsParse{allowAwait: true})
+			arrow.IsAsync = true
+			return ast.Expr{Loc: asyncRange.Loc, Data: arrow}
 
-		// "async()"
-		// "async () => {}"
-	case lexer.TOpenParen:
-		p.lexer.Next()
-		return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
-
-		// "async"
-		// "async + 1"
-	default:
-		// Distinguish between a call like "async<T>()" and an arrow like "async <T>() => {}"
-		if p.TS.Parse && p.lexer.Token == lexer.TLessThan && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
+			// "async()"
+			// "async () => {}"
+		case lexer.TOpenParen:
 			p.lexer.Next()
 			return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
 		}
-
-		return ast.Expr{Loc: asyncRange.Loc, Data: &ast.EIdentifier{Ref: p.storeNameInRef("async")}}
 	}
+
+	// "async"
+	// "async + 1"
+	// Distinguish between a call like "async<T>()" and an arrow like "async <T>() => {}"
+	if p.TS.Parse && p.lexer.Token == lexer.TLessThan && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
+		p.lexer.Next()
+		return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
+	}
+
+	return ast.Expr{Loc: asyncRange.Loc, Data: &ast.EIdentifier{Ref: p.storeNameInRef("async")}}
 }
 
 func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) ast.Expr {
@@ -2038,30 +2040,40 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		p.lexer.Next()
 
 		// Handle async and await expressions
-		switch raw {
+		switch name {
 		case "async":
-			return p.parseAsyncPrefixExpr(nameRange)
+			if raw == "async" {
+				return p.parseAsyncPrefixExpr(nameRange)
+			}
 
 		case "await":
 			if p.fnOptsParse.allowAwait {
-				if p.fnOptsParse.isTopLevel {
-					p.markSyntaxFeature(compat.TopLevelAwait, nameRange)
+				if raw != "await" {
+					p.log.AddRangeError(&p.source, nameRange, "The keyword \"await\" cannot be escaped")
+				} else {
+					if p.fnOptsParse.isTopLevel {
+						p.markSyntaxFeature(compat.TopLevelAwait, nameRange)
+					}
+					if p.fnOptsParse.arrowArgErrors != nil {
+						p.fnOptsParse.arrowArgErrors.invalidExprAwait = nameRange
+					}
+					return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LPrefix)}}
 				}
-				if p.fnOptsParse.arrowArgErrors != nil {
-					p.fnOptsParse.arrowArgErrors.invalidExprAwait = nameRange
-				}
-				return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LPrefix)}}
 			}
 
 		case "yield":
 			if p.fnOptsParse.allowYield {
-				if level > ast.LAssign {
-					p.log.AddRangeError(&p.source, nameRange, "Cannot use a \"yield\" expression here without parentheses")
+				if raw != "yield" {
+					p.log.AddRangeError(&p.source, nameRange, "The keyword \"yield\" cannot be escaped")
+				} else {
+					if level > ast.LAssign {
+						p.log.AddRangeError(&p.source, nameRange, "Cannot use a \"yield\" expression here without parentheses")
+					}
+					if p.fnOptsParse.arrowArgErrors != nil {
+						p.fnOptsParse.arrowArgErrors.invalidExprYield = nameRange
+					}
+					return p.parseYieldExpr(loc)
 				}
-				if p.fnOptsParse.arrowArgErrors != nil {
-					p.fnOptsParse.arrowArgErrors.invalidExprYield = nameRange
-				}
-				return p.parseYieldExpr(loc)
 			} else if !p.lexer.HasNewlineBefore {
 				// Try to gracefully recover if "yield" is used in the wrong place
 				switch p.lexer.Token {
@@ -3691,7 +3703,11 @@ func (p *parser) parseBinding() ast.Binding {
 
 	switch p.lexer.Token {
 	case lexer.TIdentifier:
-		ref := p.storeNameInRef(p.lexer.Identifier)
+		name := p.lexer.Identifier
+		if (p.fnOptsParse.allowAwait && name == "await") || (p.fnOptsParse.allowYield && name == "yield") {
+			p.log.AddRangeError(&p.source, p.lexer.Range(), fmt.Sprintf("Cannot use %q as an identifier here", name))
+		}
+		ref := p.storeNameInRef(name)
 		p.lexer.Next()
 		return ast.Binding{Loc: loc, Data: &ast.BIdentifier{Ref: ref}}
 
@@ -4275,6 +4291,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				// "export async function foo() {}"
 				asyncRange := p.lexer.Range()
 				p.lexer.Next()
+				if p.lexer.HasNewlineBefore {
+					p.log.AddError(&p.source, ast.Loc{Start: asyncRange.End()}, "Unexpected newline after \"async\"")
+					panic(lexer.LexerPanic{})
+				}
 				p.lexer.Expect(lexer.TFunction)
 				opts.isExport = true
 				return p.parseFnStmt(loc, opts, true /* isAsync */, asyncRange)
@@ -4334,7 +4354,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				asyncRange := p.lexer.Range()
 				p.lexer.Next()
 
-				if p.lexer.Token == lexer.TFunction {
+				if p.lexer.Token == lexer.TFunction && !p.lexer.HasNewlineBefore {
 					p.lexer.Expect(lexer.TFunction)
 					stmt := p.parseFnStmt(loc, parseStmtOpts{
 						isNameOptional: true,
@@ -5154,7 +5174,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		if isIdentifier && p.lexer.Raw() == "async" {
 			asyncRange := p.lexer.Range()
 			p.lexer.Next()
-			if p.lexer.Token == lexer.TFunction {
+			if p.lexer.Token == lexer.TFunction && !p.lexer.HasNewlineBefore {
 				p.lexer.Next()
 				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */, asyncRange)
 			}
