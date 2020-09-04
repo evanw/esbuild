@@ -40,6 +40,12 @@
         function foo() { break }
         ```
 
+    * Using `yield` as an identifier outside of a generator function is now allowed:
+
+        ```js
+        var yield = null
+        ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))

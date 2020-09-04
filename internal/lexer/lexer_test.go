@@ -553,7 +553,6 @@ func TestTokens(t *testing.T) {
 
 		// Strict mode reserved words
 		{"let", TLet},
-		{"yield", TYield},
 	}
 
 	for _, it := range expected {

@@ -935,6 +935,8 @@ func TestGenerator(t *testing.T) {
 
 func TestYield(t *testing.T) {
 	expectParseError(t, "yield 100", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
+	expectParseError(t, "-yield 100", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
+	expectPrinted(t, "yield\n100", "yield;\n100;\n")
 
 	expectParseError(t, "function* bar(x = yield y) {}", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")
 	expectParseError(t, "(function*(x = yield y) {})", "<stdin>: error: Cannot use \"yield\" outside a generator function\n")

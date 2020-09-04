@@ -2031,48 +2031,6 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		p.lexer.Next()
 		return ast.Expr{Loc: loc, Data: &ast.EThis{}}
 
-	case lexer.TYield:
-		if !p.fnOptsParse.allowYield {
-			p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"yield\" outside a generator function")
-			panic(lexer.LexerPanic{})
-		}
-
-		if level > ast.LAssign {
-			p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use a \"yield\" expression here without parentheses")
-			panic(lexer.LexerPanic{})
-		}
-
-		if p.fnOptsParse.arrowArgErrors != nil {
-			p.fnOptsParse.arrowArgErrors.invalidExprYield = p.lexer.Range()
-		}
-
-		p.lexer.Next()
-
-		// Parse a yield-from expression, which yields from an iterator
-		isStar := p.lexer.Token == lexer.TAsterisk
-		if isStar {
-			if p.lexer.HasNewlineBefore {
-				p.lexer.Unexpected()
-			}
-			p.lexer.Next()
-		}
-
-		var value *ast.Expr
-
-		// The yield expression only has a value in certain cases
-		switch p.lexer.Token {
-		case lexer.TCloseBrace, lexer.TCloseBracket, lexer.TCloseParen,
-			lexer.TColon, lexer.TComma, lexer.TSemicolon:
-
-		default:
-			if isStar || !p.lexer.HasNewlineBefore {
-				expr := p.parseExpr(ast.LYield)
-				value = &expr
-			}
-		}
-
-		return ast.Expr{Loc: loc, Data: &ast.EYield{Value: value, IsStar: isStar}}
-
 	case lexer.TIdentifier:
 		name := p.lexer.Identifier
 		nameRange := p.lexer.Range()
@@ -2080,16 +2038,39 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		p.lexer.Next()
 
 		// Handle async and await expressions
-		if raw == "async" {
+		switch raw {
+		case "async":
 			return p.parseAsyncPrefixExpr(nameRange)
-		} else if p.fnOptsParse.allowAwait && raw == "await" {
-			if p.fnOptsParse.isTopLevel {
-				p.markSyntaxFeature(compat.TopLevelAwait, nameRange)
+
+		case "await":
+			if p.fnOptsParse.allowAwait {
+				if p.fnOptsParse.isTopLevel {
+					p.markSyntaxFeature(compat.TopLevelAwait, nameRange)
+				}
+				if p.fnOptsParse.arrowArgErrors != nil {
+					p.fnOptsParse.arrowArgErrors.invalidExprAwait = nameRange
+				}
+				return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LPrefix)}}
 			}
-			if p.fnOptsParse.arrowArgErrors != nil {
-				p.fnOptsParse.arrowArgErrors.invalidExprAwait = nameRange
+
+		case "yield":
+			if p.fnOptsParse.allowYield {
+				if level > ast.LAssign {
+					p.log.AddRangeError(&p.source, nameRange, "Cannot use a \"yield\" expression here without parentheses")
+				}
+				if p.fnOptsParse.arrowArgErrors != nil {
+					p.fnOptsParse.arrowArgErrors.invalidExprYield = nameRange
+				}
+				return p.parseYieldExpr(loc)
+			} else if !p.lexer.HasNewlineBefore {
+				// Try to gracefully recover if "yield" is used in the wrong place
+				switch p.lexer.Token {
+				case lexer.TNull, lexer.TIdentifier, lexer.TFalse, lexer.TTrue,
+					lexer.TNumericLiteral, lexer.TBigIntegerLiteral, lexer.TStringLiteral:
+					p.log.AddRangeError(&p.source, nameRange, "Cannot use \"yield\" outside a generator function")
+					return p.parseYieldExpr(loc)
+				}
 			}
-			return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LPrefix)}}
 		}
 
 		// Handle the start of an arrow expression
@@ -2536,6 +2517,33 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		p.lexer.Unexpected()
 		return ast.Expr{}
 	}
+}
+
+func (p *parser) parseYieldExpr(loc ast.Loc) ast.Expr {
+	// Parse a yield-from expression, which yields from an iterator
+	isStar := p.lexer.Token == lexer.TAsterisk
+	if isStar {
+		if p.lexer.HasNewlineBefore {
+			p.lexer.Unexpected()
+		}
+		p.lexer.Next()
+	}
+
+	var value *ast.Expr
+
+	// The yield expression only has a value in certain cases
+	switch p.lexer.Token {
+	case lexer.TCloseBrace, lexer.TCloseBracket, lexer.TCloseParen,
+		lexer.TColon, lexer.TComma, lexer.TSemicolon:
+
+	default:
+		if isStar || !p.lexer.HasNewlineBefore {
+			expr := p.parseExpr(ast.LYield)
+			value = &expr
+		}
+	}
+
+	return ast.Expr{Loc: loc, Data: &ast.EYield{Value: value, IsStar: isStar}}
 }
 
 func (p *parser) willNeedBindingPattern() bool {

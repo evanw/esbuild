@@ -155,7 +155,6 @@ const (
 
 	// Strict mode reserved words
 	TLet
-	TYield
 )
 
 var Keywords = map[string]T{
@@ -198,8 +197,7 @@ var Keywords = map[string]T{
 	"with":       TWith,
 
 	// Strict mode reserved words
-	"let":   TLet,
-	"yield": TYield,
+	"let": TLet,
 }
 
 var StrictModeReservedWords = []string{
