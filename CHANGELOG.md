@@ -21,6 +21,12 @@
           function foo() {}
         ```
 
+    * Keywords can now be used as export aliases with `export * as` statements:
+
+        ```js
+        export * as class from 'path'
+        ```
+
     * It is now a syntax error to use `break` or `continue` in invalid locations.
 
 ## 0.6.30

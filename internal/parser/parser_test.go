@@ -1353,6 +1353,7 @@ func TestExport(t *testing.T) {
 	expectPrinted(t, "export const x = 0, y = 1", "export const x = 0, y = 1;\n")
 	expectPrinted(t, "export * from \"foo\"", "export * from \"foo\";\n")
 	expectPrinted(t, "export * as ns from \"foo\"", "export * as ns from \"foo\";\n")
+	expectPrinted(t, "export * as if from \"foo\"", "export * as if from \"foo\";\n")
 	expectPrinted(t, "export {x}", "export {x};\n")
 	expectPrinted(t, "export {x as y}", "export {x as y};\n")
 	expectPrinted(t, "export {x as y, z}", "export {x as y, z};\n")

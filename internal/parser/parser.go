@@ -4431,7 +4431,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				name := p.lexer.Identifier
 				namespaceRef = p.storeNameInRef(name)
 				alias = &ast.ExportStarAlias{Loc: p.lexer.Loc(), Name: name}
-				p.lexer.Expect(lexer.TIdentifier)
+				if !p.lexer.IsIdentifierOrKeyword() {
+					p.lexer.Expect(lexer.TIdentifier)
+				}
+				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("from")
 				pathLoc, pathText = p.parsePath()
 			} else {
