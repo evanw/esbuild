@@ -365,6 +365,34 @@ func TestDecls(t *testing.T) {
 	expectParseError(t, "for ([...a, b] of c) {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
 }
 
+func TestBreakAndContinue(t *testing.T) {
+	expectParseError(t, "break", "<stdin>: error: Cannot use \"break\" here\n")
+	expectParseError(t, "continue", "<stdin>: error: Cannot use \"continue\" here\n")
+
+	expectParseError(t, "x: { break }", "<stdin>: error: Cannot use \"break\" here\n")
+	expectParseError(t, "x: { break x }", "")
+	expectParseError(t, "x: { continue }", "<stdin>: error: Cannot use \"continue\" here\n")
+	expectParseError(t, "x: { continue x }", "<stdin>: error: Cannot continue to label \"x\"\n")
+
+	expectParseError(t, "while (1) break", "")
+	expectParseError(t, "while (1) continue", "")
+	expectParseError(t, "while (1) { function foo() { break } }", "<stdin>: error: Cannot use \"break\" here\n")
+	expectParseError(t, "while (1) { function foo() { continue } }", "<stdin>: error: Cannot use \"continue\" here\n")
+	expectParseError(t, "x: while (1) break x", "")
+	expectParseError(t, "x: while (1) continue x", "")
+	expectParseError(t, "x: while (1) y: { break x }", "")
+	expectParseError(t, "x: while (1) y: { continue x }", "")
+	expectParseError(t, "x: while (1) y: { break y }", "")
+	expectParseError(t, "x: while (1) y: { continue y }", "<stdin>: error: Cannot continue to label \"y\"\n")
+	expectParseError(t, "x: while (1) { function foo() { break x } }", "<stdin>: error: There is no containing label named \"x\"\n")
+	expectParseError(t, "x: while (1) { function foo() { continue x } }", "<stdin>: error: There is no containing label named \"x\"\n")
+
+	expectParseError(t, "switch (1) { case 1: break }", "")
+	expectParseError(t, "switch (1) { case 1: continue }", "<stdin>: error: Cannot use \"continue\" here\n")
+	expectParseError(t, "x: switch (1) { case 1: break x }", "")
+	expectParseError(t, "x: switch (1) { case 1: continue x }", "<stdin>: error: Cannot continue to label \"x\"\n")
+}
+
 func TestFor(t *testing.T) {
 	expectParseError(t, "for (; in x) ;", "<stdin>: error: Unexpected \"in\"\n")
 	expectParseError(t, "for (; of x) ;", "<stdin>: error: Expected \";\" but found \"x\"\n")
@@ -2123,7 +2151,7 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { throw b }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { return b }", "a();\n")
 	expectPrintedMangle(t, "b: { if (1) a(); else { break b } }", "b:\n  a();\n")
-	expectPrintedMangle(t, "b: { if (1) a(); else { continue b } }", "b:\n  a();\n")
+	expectPrintedMangle(t, "b: while (1) if (1) a(); else { continue b }", "b:\n  for (; ; )\n    a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { class b {} }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { debugger }", "a();\n")
 

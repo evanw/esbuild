@@ -212,6 +212,9 @@ type fnOptsParse struct {
 // This is function-specific information used during visiting. It is saved and
 // restored on the call stack around code that parses nested functions.
 type fnOptsVisit struct {
+	isInsideLoop   bool
+	isInsideSwitch bool
+
 	// This is used to silence references to "require" inside a try/catch
 	// statement. The assumption is that the try/catch statement is there to
 	// handle the case where the reference to "require" crashes. Specifically,
@@ -5460,12 +5463,15 @@ func (p *parser) findSymbol(name string) findSymbolResult {
 	return findSymbolResult{ref, isInsideWithScope}
 }
 
-func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
+func (p *parser) findLabelSymbol(loc ast.Loc, name string) (ref ast.Ref, isLoop bool, ok bool) {
 	for s := p.currentScope; s != nil && !s.Kind.StopsHoisting(); s = s.Parent {
 		if s.Kind == ast.ScopeLabel && name == p.symbols[s.LabelRef.InnerIndex].OriginalName {
 			// Track how many times we've referenced this symbol
 			p.recordUsage(s.LabelRef)
-			return s.LabelRef
+			ref = s.LabelRef
+			isLoop = s.LabelStmtIsLoop
+			ok = true
+			return
 		}
 	}
 
@@ -5473,11 +5479,11 @@ func (p *parser) findLabelSymbol(loc ast.Loc, name string) ast.Ref {
 	p.log.AddRangeError(&p.source, r, fmt.Sprintf("There is no containing label named %q", name))
 
 	// Allocate an "unbound" symbol
-	ref := p.newSymbol(ast.SymbolUnbound, name)
+	ref = p.newSymbol(ast.SymbolUnbound, name)
 
 	// Track how many times we've referenced this symbol
 	p.recordUsage(ref)
-	return ref
+	return
 }
 
 func findIdentifiers(binding ast.Binding, identifiers []ast.Decl) []ast.Decl {
@@ -5877,6 +5883,14 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 	}
 
 	return result
+}
+
+func (p *parser) visitLoopBody(stmt ast.Stmt) ast.Stmt {
+	oldIsInsideLoop := p.fnOptsVisit.isInsideLoop
+	p.fnOptsVisit.isInsideLoop = true
+	stmt = p.visitSingleStmt(stmt)
+	p.fnOptsVisit.isInsideLoop = oldIsInsideLoop
+	return stmt
 }
 
 func (p *parser) visitSingleStmt(stmt ast.Stmt) ast.Stmt {
@@ -6481,13 +6495,24 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SBreak:
 		if s.Label != nil {
 			name := p.loadNameFromRef(s.Label.Ref)
-			s.Label.Ref = p.findLabelSymbol(s.Label.Loc, name)
+			s.Label.Ref, _, _ = p.findLabelSymbol(s.Label.Loc, name)
+		} else if !p.fnOptsVisit.isInsideLoop && !p.fnOptsVisit.isInsideSwitch {
+			r := lexer.RangeOfIdentifier(p.source, stmt.Loc)
+			p.log.AddRangeError(&p.source, r, "Cannot use \"break\" here")
 		}
 
 	case *ast.SContinue:
 		if s.Label != nil {
 			name := p.loadNameFromRef(s.Label.Ref)
-			s.Label.Ref = p.findLabelSymbol(s.Label.Loc, name)
+			var isLoop, ok bool
+			s.Label.Ref, isLoop, ok = p.findLabelSymbol(s.Label.Loc, name)
+			if ok && !isLoop {
+				r := lexer.RangeOfIdentifier(p.source, s.Label.Loc)
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot continue to label \"%s\"", name))
+			}
+		} else if !p.fnOptsVisit.isInsideLoop {
+			r := lexer.RangeOfIdentifier(p.source, stmt.Loc)
+			p.log.AddRangeError(&p.source, r, "Cannot use \"continue\" here")
 		}
 
 	case *ast.SLabel:
@@ -6496,6 +6521,10 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		ref := p.newSymbol(ast.SymbolLabel, name)
 		s.Name.Ref = ref
 		p.currentScope.LabelRef = ref
+		switch s.Stmt.Data.(type) {
+		case *ast.SFor, *ast.SForIn, *ast.SForOf, *ast.SWhile, *ast.SDoWhile:
+			p.currentScope.LabelStmtIsLoop = true
+		}
 		s.Stmt = p.visitSingleStmt(s.Stmt)
 		p.popScope()
 
@@ -6603,7 +6632,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SWhile:
 		s.Test = p.visitBooleanExpr(s.Test)
-		s.Body = p.visitSingleStmt(s.Body)
+		s.Body = p.visitLoopBody(s.Body)
 
 		if p.MangleSyntax {
 			// "while (a) {}" => "for (;a;) {}"
@@ -6617,7 +6646,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		}
 
 	case *ast.SDoWhile:
-		s.Body = p.visitSingleStmt(s.Body)
+		s.Body = p.visitLoopBody(s.Body)
 		s.Test = p.visitBooleanExpr(s.Test)
 
 	case *ast.SIf:
@@ -6680,7 +6709,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		if s.Update != nil {
 			*s.Update = p.visitExpr(*s.Update)
 		}
-		s.Body = p.visitSingleStmt(s.Body)
+		s.Body = p.visitLoopBody(s.Body)
 		p.popScope()
 
 		if p.MangleSyntax {
@@ -6691,7 +6720,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
 		p.visitForLoopInit(s.Init, true)
 		s.Value = p.visitExpr(s.Value)
-		s.Body = p.visitSingleStmt(s.Body)
+		s.Body = p.visitLoopBody(s.Body)
 		p.popScope()
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
@@ -6699,7 +6728,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
 		p.visitForLoopInit(s.Init, true)
 		s.Value = p.visitExpr(s.Value)
-		s.Body = p.visitSingleStmt(s.Body)
+		s.Body = p.visitLoopBody(s.Body)
 		p.popScope()
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
@@ -6729,6 +6758,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SSwitch:
 		s.Test = p.visitExpr(s.Test)
 		p.pushScopeForVisitPass(ast.ScopeBlock, s.BodyLoc)
+		oldIsInsideSwitch := p.fnOptsVisit.isInsideSwitch
+		p.fnOptsVisit.isInsideSwitch = true
 		for i, c := range s.Cases {
 			if c.Value != nil {
 				*c.Value = p.visitExpr(*c.Value)
@@ -6740,6 +6771,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			// Make sure the assignment to the body above is preserved
 			s.Cases[i] = c
 		}
+		p.fnOptsVisit.isInsideSwitch = oldIsInsideSwitch
 		p.popScope()
 
 		// Check for duplicate case values

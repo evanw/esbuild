@@ -2,43 +2,26 @@
 
 ## Unreleased
 
-* Fix some edge cases with symbol hoisting
+* Fix various edge cases for conformance tests
 
-    Function declarations are normally hoisted to the top of the enclosing function scope. However, there is an exception made when doing so would cause an error. In that case, the function declaration is only hoisted to the top of the scope it was declared in and there is no syntax error. Previously esbuild incorrectly reported an error for these cases:
+    * Hoisted function declarations in nested scopes can now shadow symbols in the enclosing scope without a syntax error:
 
-    ```js
-    let foo
-    {
-      function foo() {}
-    }
-    ```
+        ```js
+        let foo
+        {
+          function foo() {}
+        }
+        ```
 
-* Introduce a scope for functions inside if statements
+    * If statements directly containing function declarations now introduce a nested scope so this code is no longer a syntax error:
 
-    Function declarations are allowed inside if statements like this:
+        ```js
+        let foo
+        if (true)
+          function foo() {}
+        ```
 
-    ```js
-    if (true)
-      function foo() {}
-    ```
-
-    That code must behave equivalently to this code:
-
-    ```js
-    if (true) {
-      function foo() {}
-    }
-    ```
-
-    This release fixes a bug where the function `foo` was declared in the scope containing the `if` statement instead of in a nested scope. The bug meant that code like this was incorrectly treated as a syntax error:
-
-    ```js
-    let foo
-    if (true)
-      function foo() {}
-    ```
-
-    This code is now allowed. This is an edge case that is unlikely to come up in real-world code because the function `foo` is completely inaccessible due to the nested scope. But this edge case is checked in conformance tests.
+    * It is now a syntax error to use `break` or `continue` in invalid locations.
 
 ## 0.6.30
 

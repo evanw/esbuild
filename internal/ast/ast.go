@@ -1305,7 +1305,8 @@ type Scope struct {
 	Generated []Ref
 
 	// This is used to store the ref of the label symbol for ScopeLabel scopes.
-	LabelRef Ref
+	LabelRef        Ref
+	LabelStmtIsLoop bool
 
 	// If a scope contains a direct eval() expression, then none of the symbols
 	// inside that scope can be renamed. We conservatively assume that the
