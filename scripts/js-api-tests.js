@@ -545,6 +545,121 @@ let transformTests = {
     await Promise.all(promises)
   },
 
+  async tryCatchScopeMerge({ service }) {
+    const code = `
+      var x = 1
+      if (x !== 1) throw 'fail'
+      try {
+        throw 2
+      } catch (x) {
+        if (x !== 2) throw 'fail'
+        {
+          if (x !== 2) throw 'fail'
+          var x = 3
+          if (x !== 3) throw 'fail'
+        }
+        if (x !== 3) throw 'fail'
+      }
+      if (x !== 1) throw 'fail'
+    `;
+    new Function(code)(); // Verify that the code itself is correct
+    new Function((await service.transform(code)).js)();
+  },
+
+  async nestedFunctionHoist({ service }) {
+    const code = `
+      if (x !== void 0) throw 'fail'
+      {
+        if (x !== void 0) throw 'fail'
+        {
+          x()
+          function x() {}
+          x()
+        }
+        x()
+      }
+      x()
+    `;
+    new Function(code)(); // Verify that the code itself is correct
+    new Function((await service.transform(code)).js)();
+  },
+
+  async nestedFunctionHoistBefore({ service }) {
+    const code = `
+      var x = 1
+      if (x !== 1) throw 'fail'
+      {
+        if (x !== 1) throw 'fail'
+        {
+          x()
+          function x() {}
+          x()
+        }
+        x()
+      }
+      x()
+    `;
+    new Function(code)(); // Verify that the code itself is correct
+    new Function((await service.transform(code)).js)();
+  },
+
+  async nestedFunctionHoistAfter({ service }) {
+    const code = `
+      if (x !== void 0) throw 'fail'
+      {
+        if (x !== void 0) throw 'fail'
+        {
+          x()
+          function x() {}
+          x()
+        }
+        x()
+      }
+      x()
+      var x = 1
+    `;
+    new Function(code)(); // Verify that the code itself is correct
+    new Function((await service.transform(code)).js)();
+  },
+
+  async nestedFunctionShadowBefore({ service }) {
+    const code = `
+      let x = 1
+      if (x !== 1) throw 'fail'
+      {
+        if (x !== 1) throw 'fail'
+        {
+          x()
+          function x() {}
+          x()
+        }
+        if (x !== 1) throw 'fail'
+      }
+      if (x !== 1) throw 'fail'
+    `;
+    new Function(code)(); // Verify that the code itself is correct
+    new Function((await service.transform(code)).js)();
+  },
+
+  async nestedFunctionShadowAfter({ service }) {
+    const code = `
+      try { x; throw 'fail' } catch (e) { if (!(e instanceof ReferenceError)) throw e }
+      {
+        try { x; throw 'fail' } catch (e) { if (!(e instanceof ReferenceError)) throw e }
+        {
+          x()
+          function x() {}
+          x()
+        }
+        try { x; throw 'fail' } catch (e) { if (!(e instanceof ReferenceError)) throw e }
+      }
+      try { x; throw 'fail' } catch (e) { if (!(e instanceof ReferenceError)) throw e }
+      let x = 1
+    `;
+    new Function(code)(); // Verify that the code itself is correct
+    new Function((await service.transform(code)).js)();
+  },
+
   async sourceMapControlCharacterEscapes({ service }) {
     let code = ''
     for (let i = 0; i < 32; i++) code += String.fromCharCode(i);

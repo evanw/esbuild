@@ -440,31 +440,39 @@ func TestScope(t *testing.T) {
 	expectParseError(t, "var x; let x", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "let x; var x", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "let x; let x", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "function x() {} let x", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "let x; function x() {}", "<stdin>: error: \"x\" has already been declared\n")
 
 	expectParseError(t, "var x; {var x}", "")
 	expectParseError(t, "var x; {let x}", "")
 	expectParseError(t, "let x; {var x}", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "let x; {let x}", "")
+	expectParseError(t, "let x; {function x() {}}", "")
 
 	expectParseError(t, "{var x} var x", "")
 	expectParseError(t, "{var x} let x", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "{let x} var x", "")
 	expectParseError(t, "{let x} let x", "")
+	expectParseError(t, "{function x() {}} let x", "")
 
 	expectParseError(t, "{var x; {var x}}", "")
 	expectParseError(t, "{var x; {let x}}", "")
 	expectParseError(t, "{let x; {var x}}", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "{let x; {let x}}", "")
+	expectParseError(t, "{let x; {function x() {}}}", "")
 
 	expectParseError(t, "{{var x} var x}", "")
 	expectParseError(t, "{{var x} let x}", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "{{let x} var x}", "")
 	expectParseError(t, "{{let x} let x}", "")
+	expectParseError(t, "{{function x() {}} let x}", "")
 
 	expectParseError(t, "{var x} {var x}", "")
 	expectParseError(t, "{var x} {let x}", "")
 	expectParseError(t, "{let x} {var x}", "")
 	expectParseError(t, "{let x} {let x}", "")
+	expectParseError(t, "{let x} {function x() {}}", "")
+	expectParseError(t, "{function x() {}} {let x}", "")
 
 	expectParseError(t, "var x=1, x=2", "")
 	expectParseError(t, "let x=1, x=2", "<stdin>: error: \"x\" has already been declared\n")
@@ -1350,12 +1358,12 @@ func TestExportClause(t *testing.T) {
 func TestCatch(t *testing.T) {
 	expectPrinted(t, "try {} catch (e) {}", "try {\n} catch (e) {\n}\n")
 	expectPrinted(t, "try {} catch (e) { var e }", "try {\n} catch (e) {\n  var e;\n}\n")
-	expectPrinted(t, "try {} catch (e) { function e() {} }", "try {\n} catch (e) {\n  function e() {\n  }\n}\n")
 	expectPrinted(t, "var e; try {} catch (e) {}", "var e;\ntry {\n} catch (e) {\n}\n")
 	expectPrinted(t, "let e; try {} catch (e) {}", "let e;\ntry {\n} catch (e) {\n}\n")
 	expectPrinted(t, "try { var e } catch (e) {}", "try {\n  var e;\n} catch (e) {\n}\n")
 	expectPrinted(t, "try { function e() {} } catch (e) {}", "try {\n  function e() {\n  }\n} catch (e) {\n}\n")
 
+	expectParseError(t, "try {} catch (e) { function e() {} }", "<stdin>: error: \"e\" has already been declared\n")
 	expectParseError(t, "try {} catch ({e}) { var e }", "<stdin>: error: \"e\" has already been declared\n")
 	expectParseError(t, "try {} catch ({e}) { function e() {} }", "<stdin>: error: \"e\" has already been declared\n")
 	expectParseError(t, "try {} catch (e) { let e }", "<stdin>: error: \"e\" has already been declared\n")

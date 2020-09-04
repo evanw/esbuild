@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Fix some edge cases with symbol hoisting
+
+    Function declarations are normally hoisted to the top of the enclosing function scope. However, there is an exception made when doing so would cause an error. In that case, the function declaration is only hoisted to the top of the scope it was declared in and there is no syntax error. Previously esbuild incorrectly reported an error for these cases:
+
+    ```js
+    let foo
+    {
+      function foo() { }
+    }
+    ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))

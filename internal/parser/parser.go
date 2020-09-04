@@ -760,39 +760,20 @@ func (p *parser) canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) me
 		return mergeBecomePrivateStaticGetSetPair
 	}
 
+	// "try {} catch (e) { var e }"
+	if existing == ast.SymbolCatchIdentifier && new == ast.SymbolHoisted {
+		return mergeKeepExisting
+	}
+
 	return mergeForbidden
 }
 
 func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) ast.Ref {
-	scope := p.currentScope
-
-	// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
-	if kind.IsHoisted() {
-		for !scope.Kind.StopsHoisting() {
-			if existing, ok := scope.Members[name]; ok {
-				symbol := p.symbols[existing.Ref.InnerIndex]
-				switch symbol.Kind {
-				case ast.SymbolUnbound, ast.SymbolHoisted, ast.SymbolHoistedFunction:
-					// Continue on to the parent scope
-				case ast.SymbolCatchIdentifier:
-					// This is a weird special case. Silently merge the existing symbol
-					// into this one. The merging will happen later on after the new
-					// symbol exists.
-				default:
-					r := lexer.RangeOfIdentifier(p.source, loc)
-					p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", name))
-					return existing.Ref
-				}
-			}
-			scope = scope.Parent
-		}
-	}
-
 	// Allocate a new symbol
 	ref := p.newSymbol(kind, name)
 
 	// Check for a collision in the declaring scope
-	if existing, ok := scope.Members[name]; ok {
+	if existing, ok := p.currentScope.Members[name]; ok {
 		symbol := &p.symbols[existing.Ref.InnerIndex]
 
 		switch p.canMergeSymbols(symbol.Kind, kind) {
@@ -817,54 +798,66 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 		}
 	}
 
-	// Hoist "var" symbols up to the enclosing function scope
-	if kind.IsHoisted() {
-		for s := p.currentScope; !s.Kind.StopsHoisting(); s = s.Parent {
-			// Variable declarations hoisted past a "with" statement may actually end
-			// up overwriting a property on the target of the "with" statement instead
-			// of initializing the variable. We must not rename them or we risk
-			// causing a behavior change.
-			//
-			//   var obj = { foo: 1 }
-			//   with (obj) { var foo = 2 }
-			//   assert(foo === undefined)
-			//   assert(obj.foo === 2)
-			//
-			if s.Kind == ast.ScopeWith {
-				p.symbols[ref.InnerIndex].MustNotBeRenamed = true
-			}
+	// Overwrite this name in the declaring scope
+	p.currentScope.Members[name] = ast.ScopeMember{Ref: ref, Loc: loc}
+	return ref
+}
 
-			if existing, ok := s.Members[name]; ok {
-				symbol := p.symbols[existing.Ref.InnerIndex]
+func (p *parser) hoistSymbols(scope *ast.Scope) {
+nextMember:
+	for _, member := range scope.Members {
+		symbol := &p.symbols[member.Ref.InnerIndex]
 
-				// See "VariableStatements in Catch blocks" in the spec for why we
-				// special-case catch identifiers here:
+		// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
+		if (symbol.Kind.IsHoisted() || symbol.Kind == ast.SymbolCatchIdentifier) && !scope.Kind.StopsHoisting() {
+			s := scope.Parent
+			for {
+				// Variable declarations hoisted past a "with" statement may actually end
+				// up overwriting a property on the target of the "with" statement instead
+				// of initializing the variable. We must not rename them or we risk
+				// causing a behavior change.
 				//
-				//   http://www.ecma-international.org/ecma-262/6.0/#sec-variablestatements-in-catch-blocks
+				//   var obj = { foo: 1 }
+				//   with (obj) { var foo = 2 }
+				//   assert(foo === undefined)
+				//   assert(obj.foo === 2)
 				//
-				if symbol.Kind == ast.SymbolUnbound || symbol.Kind == ast.SymbolCatchIdentifier {
-					p.symbols[existing.Ref.InnerIndex].Link = ref
+				if s.Kind == ast.ScopeWith {
+					symbol.MustNotBeRenamed = true
 				}
-			}
 
-			// Add the symbol to all parent scopes, not just the one it's declared
-			// in. This prevents us from later on declaring a symbol that would
-			// interfere with the hoisting:
-			//
-			//   {
-			//     {
-			//       var x;
-			//     }
-			//     let x; // SyntaxError: Identifier 'x' has already been declared
-			//   }
-			//
-			s.Members[name] = ast.ScopeMember{Ref: ref, Loc: loc}
+				if existing, ok := s.Members[symbol.OriginalName]; ok {
+					switch p.symbols[existing.Ref.InnerIndex].Kind {
+					case ast.SymbolUnbound, ast.SymbolHoisted, ast.SymbolHoistedFunction, ast.SymbolCatchIdentifier:
+						// Silently merge this symbol into the existing symbol
+						symbol.Link = existing.Ref
+						s.Members[symbol.OriginalName] = existing
+						continue nextMember
+
+					default:
+						// An identifier binding from a catch statement and a function
+						// declaration can both silently shadow another hoisted symbol
+						if symbol.Kind != ast.SymbolCatchIdentifier && symbol.Kind != ast.SymbolHoistedFunction {
+							r := lexer.RangeOfIdentifier(p.source, member.Loc)
+							p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", symbol.OriginalName))
+						}
+						continue nextMember
+					}
+				}
+
+				if s.Kind.StopsHoisting() {
+					// Declare the member in the scope that stopped the hoisting
+					s.Members[symbol.OriginalName] = member
+					break
+				}
+				s = s.Parent
+			}
 		}
 	}
 
-	// Overwrite this name in the declaring scope
-	scope.Members[name] = ast.ScopeMember{Ref: ref, Loc: loc}
-	return ref
+	for _, child := range scope.Children {
+		p.hoistSymbols(child)
+	}
 }
 
 func (p *parser) declareBinding(kind ast.SymbolKind, binding ast.Binding, opts parseStmtOpts) {
@@ -9685,6 +9678,7 @@ func (p *parser) validateJSX(span ast.Span, name string) []string {
 func (p *parser) prepareForVisitPass(options *config.Options) {
 	p.pushScopeForVisitPass(ast.ScopeEntry, ast.Loc{Start: locModuleScope})
 	p.moduleScope = p.currentScope
+	p.hoistSymbols(p.moduleScope)
 
 	if options.IsBundling {
 		p.exportsRef = p.declareCommonJSSymbol(ast.SymbolHoisted, "exports")
