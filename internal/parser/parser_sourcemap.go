@@ -40,70 +40,47 @@ func ParseSourceMap(log logging.Log, source logging.Source) *sourcemap.SourceMap
 
 		switch lexer.UTF16ToString(prop.Key.Data.(*ast.EString).Value) {
 		case "sections":
-			log.AddRangeError(&source, keyRange, "Source maps with \"sections\" are not supported")
+			log.AddRangeWarning(&source, keyRange, "Source maps with \"sections\" are not supported")
 			return nil
 
 		case "version":
-			if value, ok := prop.Value.Data.(*ast.ENumber); !ok {
-				log.AddRangeError(&source, keyRange, "The value for the \"version\" field must be a number")
-				return nil
-			} else {
-				if value.Value != 3 {
-					log.AddRangeError(&source, keyRange, "The source map \"version\" must be 3")
-					return nil
-				}
+			if value, ok := prop.Value.Data.(*ast.ENumber); ok && value.Value == 3 {
 				hasVersion = true
 			}
 
 		case "mappings":
-			if value, ok := prop.Value.Data.(*ast.EString); !ok {
-				log.AddRangeError(&source, keyRange, "The value for the \"mappings\" field must be a string")
-				return nil
-			} else {
+			if value, ok := prop.Value.Data.(*ast.EString); ok {
 				mappingsRaw = value.Value
 				mappingsRange = keyRange
 			}
 
 		case "sources":
-			if value, ok := prop.Value.Data.(*ast.EArray); !ok {
-				log.AddRangeError(&source, keyRange, "The value for the \"sources\" field must be an array")
-				return nil
-			} else {
+			if value, ok := prop.Value.Data.(*ast.EArray); ok {
 				sources = nil
 				for _, item := range value.Items {
-					if element, ok := item.Data.(*ast.EString); !ok {
-						log.AddError(&source, item.Loc, "Each element in the \"sources\" array must be a string")
-						return nil
-					} else {
+					if element, ok := item.Data.(*ast.EString); ok {
 						sources = append(sources, sourcesPrefix+lexer.UTF16ToString(element.Value))
 					}
 				}
 			}
 
 		case "sourcesContent":
-			if value, ok := prop.Value.Data.(*ast.EArray); !ok {
-				log.AddRangeError(&source, keyRange, "The value for the \"sourcesContent\" field must be an array")
-				return nil
-			} else {
+			if value, ok := prop.Value.Data.(*ast.EArray); ok {
 				sourcesContent = nil
 				for _, item := range value.Items {
-					switch element := item.Data.(type) {
-					case *ast.EString:
+					if element, ok := item.Data.(*ast.EString); ok {
 						str := lexer.UTF16ToString(element.Value)
 						sourcesContent = append(sourcesContent, &str)
-					case *ast.ENull:
+					} else {
 						sourcesContent = append(sourcesContent, nil)
-					default:
-						log.AddError(&source, item.Loc, "Each element in the \"sourcesContent\" array must be a string or null")
-						return nil
 					}
 				}
 			}
 		}
 	}
 
+	// Silently fail if the version was missing or incorrect
 	if !hasVersion {
-		log.AddError(&source, expr.Loc, "This source map is missing the \"version\" field")
 		return nil
 	}
 
@@ -231,7 +208,7 @@ func ParseSourceMap(log logging.Log, source logging.Source) *sourcemap.SourceMap
 	}
 
 	if errorText != "" {
-		log.AddRangeError(&source, mappingsRange,
+		log.AddRangeWarning(&source, mappingsRange,
 			fmt.Sprintf("Bad \"mappings\" data in source map at character %d: %s", current, errorText))
 		return nil
 	}

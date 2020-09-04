@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Invalid source maps are no longer an error ([#367](https://github.com/evanw/esbuild/issues/367))
+
+    Previously esbuild would fail the build with an error if it encountered a source map that failed validation according to [the specification](https://sourcemaps.info/spec.html). Now invalid source maps will be validated with an error-tolerant validator that will either silently ignore errors or generate a warning, but will never fail the build.
+
 * Fix various edge cases for conformance tests
 
     * Hoisted function declarations in nested scopes can now shadow symbols in the enclosing scope without a syntax error:
