@@ -491,7 +491,7 @@ let transformTests = {
 
       assert.fail('iife can not import')
     } catch (error) {
-      assert.strictEqual(error.message, `Transform failed with 1 error:\n<stdin>:1:17: error: Could not resolve "path"`)
+      assert.strictEqual(error.message, `Transform failed with 1 error:\n<stdin>:1:17: error: Could not resolve "path" (set platform to "node" when building for node)`)
     }
   },
 

@@ -271,7 +271,7 @@ type TransformOptions struct {
 	Defines       map[string]string
 	PureFunctions []string
 
-	Format     Format
+	Format Format
 
 	Sourcefile string
 	Loader     Loader

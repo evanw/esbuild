@@ -243,19 +243,19 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			switch value {
 			case "iife":
 				if buildOpts != nil {
-				buildOpts.Format = api.FormatIIFE
+					buildOpts.Format = api.FormatIIFE
 				} else {
 					transformOpts.Format = api.FormatIIFE
 				}
 			case "cjs":
 				if buildOpts != nil {
-				buildOpts.Format = api.FormatCommonJS
+					buildOpts.Format = api.FormatCommonJS
 				} else {
 					transformOpts.Format = api.FormatCommonJS
 				}
 			case "esm":
 				if buildOpts != nil {
-				buildOpts.Format = api.FormatESModule
+					buildOpts.Format = api.FormatESModule
 				} else {
 					transformOpts.Format = api.FormatESModule
 				}

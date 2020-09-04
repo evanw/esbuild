@@ -592,7 +592,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Convert and validate the transformOpts
 	options := config.Options{
-		IsTransforming: true,
+		IsTransforming:      true,
 		UnsupportedFeatures: validateFeatures(log, transformOpts.Target, transformOpts.Engines),
 		Strict:              validateStrict(transformOpts.Strict),
 		JSX: config.JSXOptions{
