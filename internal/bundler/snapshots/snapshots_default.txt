@@ -36,47 +36,47 @@ TestArgumentsSpecialCaseNoBundle
 ---------- /out.js ----------
 (() => {
   var r;
-  function u(n = arguments) {
+  function t(n = arguments) {
     return arguments;
   }
   (function(n = arguments) {
     return arguments;
   });
   ({foo(n = arguments) {
+    return arguments;
+  }});
+  class u {
+    foo(n = arguments) {
+      return arguments;
+    }
+  }
+  (class {
+    foo(n = arguments) {
+      return arguments;
+    }
+  });
+  function t(n = arguments) {
+    var arguments;
+    return arguments;
+  }
+  (function(n = arguments) {
+    var arguments;
+    return arguments;
+  });
+  ({foo(n = arguments) {
+    var arguments;
     return arguments;
   }});
   class e {
     foo(n = arguments) {
+      var arguments;
       return arguments;
     }
   }
   (class {
     foo(n = arguments) {
+      var arguments;
       return arguments;
-    }
-  });
-  function u(n = arguments) {
-    var t;
-    return t;
-  }
-  (function(n = arguments) {
-    var t;
-    return t;
-  });
-  ({foo(n = arguments) {
-    var t;
-    return t;
-  }});
-  class a {
-    foo(n = arguments) {
-      var t;
-      return t;
-    }
-  }
-  (class {
-    foo(n = arguments) {
-      var t;
-      return t;
     }
   });
   (n) => r;

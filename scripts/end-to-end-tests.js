@@ -324,6 +324,26 @@
     }),
   )
 
+  // Tests for "arguments" scope issues
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      'in.js': `
+        function arguments() {
+          return arguments.length
+        }
+        if (arguments(0, 1) !== 2) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      'in.js': `
+        let value = (function arguments() {
+          return arguments.length
+        })(0, 1)
+        if (value !== 2) throw 'fail'
+      `,
+    }),
+  )
+
   // Tests for catch scope issues
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {

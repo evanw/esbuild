@@ -608,10 +608,10 @@ func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 			panic("Internal error")
 		}
 		for name, member := range scope.Parent.Members {
-			// Don't copy down the optional function expression name or the special
-			// "arguments" variable. Re-declaring both of these is allowed.
+			// Don't copy down the optional function expression name. Re-declaring
+			// the name of a function expression is allowed.
 			kind := p.symbols[member.Ref.InnerIndex].Kind
-			if kind != ast.SymbolHoistedFunction && kind != ast.SymbolArguments {
+			if kind != ast.SymbolHoistedFunction {
 				scope.Members[name] = member
 			}
 		}
@@ -719,6 +719,7 @@ type mergeResult int
 const (
 	mergeForbidden = iota
 	mergeReplaceWithNew
+	mergeOverwriteWithNew
 	mergeKeepExisting
 	mergeBecomePrivateGetSetPair
 	mergeBecomePrivateStaticGetSetPair
@@ -776,6 +777,16 @@ func (p *parser) canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) me
 		return mergeReplaceWithNew
 	}
 
+	// "function() { var arguments }"
+	if existing == ast.SymbolArguments && new == ast.SymbolHoisted {
+		return mergeKeepExisting
+	}
+
+	// "function() { let arguments }"
+	if existing == ast.SymbolArguments && new != ast.SymbolHoisted {
+		return mergeOverwriteWithNew
+	}
+
 	return mergeForbidden
 }
 
@@ -806,6 +817,8 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc ast.Loc, name string) as
 		case mergeBecomePrivateStaticGetSetPair:
 			ref = existing.Ref
 			symbol.Kind = ast.SymbolPrivateStaticGetSetPair
+
+		case mergeOverwriteWithNew:
 		}
 	}
 
@@ -1658,8 +1671,13 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) as
 
 	// The name is optional
 	if p.lexer.Token == lexer.TIdentifier {
-		nameLoc := p.lexer.Loc()
-		name = &ast.LocRef{Loc: nameLoc, Ref: p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, p.lexer.Identifier)}
+		// Don't declare the name "arguments" since it's shadowed and inaccessible
+		name = &ast.LocRef{Loc: p.lexer.Loc()}
+		if text := p.lexer.Identifier; text != "arguments" {
+			name.Ref = p.declareSymbol(ast.SymbolHoistedFunction, name.Loc, text)
+		} else {
+			name.Ref = p.newSymbol(ast.SymbolHoistedFunction, text)
+		}
 		p.lexer.Next()
 	}
 
