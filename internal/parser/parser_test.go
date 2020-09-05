@@ -753,6 +753,13 @@ func TestLexicalDecl(t *testing.T) {
 	expectParseError(t, "do label: label2: function f() {} while (0)", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
 }
 
+func TestFunction(t *testing.T) {
+	expectPrinted(t, "function arguments() {}", "function arguments() {\n}\n")
+	expectPrinted(t, "(function arguments() {})", "(function arguments() {\n});\n")
+	expectPrinted(t, "function foo(arguments) {}", "function foo(arguments) {\n}\n")
+	expectPrinted(t, "(function foo(arguments) {})", "(function foo(arguments) {\n});\n")
+}
+
 func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { foo() {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { *foo() {} }", "class Foo {\n  *foo() {\n  }\n}\n")

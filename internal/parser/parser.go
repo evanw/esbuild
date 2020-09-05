@@ -608,9 +608,10 @@ func (p *parser) pushScopeForParsePass(kind ast.ScopeKind, loc ast.Loc) int {
 			panic("Internal error")
 		}
 		for name, member := range scope.Parent.Members {
-			// Don't copy down the optional function expression name. Re-declaring
-			// the name of a function expression is allowed.
-			if p.symbols[member.Ref.InnerIndex].Kind != ast.SymbolHoistedFunction {
+			// Don't copy down the optional function expression name or the special
+			// "arguments" variable. Re-declaring both of these is allowed.
+			kind := p.symbols[member.Ref.InnerIndex].Kind
+			if kind != ast.SymbolHoistedFunction && kind != ast.SymbolArguments {
 				scope.Members[name] = member
 			}
 		}
@@ -3880,11 +3881,6 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOptsParse) (fn ast.Fn, hadBody
 	p.fnOptsParse.allowAwait = false
 	p.fnOptsParse.allowYield = false
 
-	// Reserve the special name "arguments" in this scope. This ensures that it
-	// shadows any variable called "arguments" in any parent scopes.
-	fn.ArgumentsRef = p.declareSymbol(ast.SymbolHoisted, ast.Loc{}, "arguments")
-	p.symbols[fn.ArgumentsRef.InnerIndex].MustNotBeRenamed = true
-
 	for p.lexer.Token != lexer.TCloseParen {
 		// Skip over "this" type annotations
 		if p.TS.Parse && p.lexer.Token == lexer.TThis {
@@ -3976,6 +3972,15 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOptsParse) (fn ast.Fn, hadBody
 			p.lexer.Expect(lexer.TCloseParen)
 		}
 		p.lexer.Next()
+	}
+
+	// Reserve the special name "arguments" in this scope. This ensures that it
+	// shadows any variable called "arguments" in any parent scopes. But only do
+	// this if it wasn't already declared above because arguments are allowed to
+	// be called "arguments", in which case the real "arguments" is inaccessible.
+	if _, ok := p.currentScope.Members["arguments"]; !ok {
+		fn.ArgumentsRef = p.declareSymbol(ast.SymbolArguments, fn.OpenParenLoc, "arguments")
+		p.symbols[fn.ArgumentsRef.InnerIndex].MustNotBeRenamed = true
 	}
 
 	p.lexer.Expect(lexer.TCloseParen)

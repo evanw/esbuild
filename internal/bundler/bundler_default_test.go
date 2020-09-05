@@ -3089,3 +3089,30 @@ func TestAssignToImport(t *testing.T) {
 `,
 	})
 }
+
+func TestMinifyArguments(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function a(x = arguments) {
+					let arguments
+				}
+				function b(x = arguments) {
+					let arguments
+				}
+				function c(x = arguments) {
+					let arguments
+				}
+				a()
+				b()
+				c()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:        true,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+	})
+}

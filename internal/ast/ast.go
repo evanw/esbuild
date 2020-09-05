@@ -1066,6 +1066,9 @@ const (
 	// This symbol is for handling this weird special case.
 	SymbolCatchIdentifier
 
+	// This is the special "arguments" variable inside functions
+	SymbolArguments
+
 	// Classes can merge with TypeScript namespaces.
 	SymbolClass
 

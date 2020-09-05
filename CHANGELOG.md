@@ -79,6 +79,14 @@
 
         Instead the behavior will be left up to the host environment at run-time, which should cause a run-time error. However, this will still be treated as a compile-time error when bundling because the scope-hoisting optimization that happens during bundling means the host may no longer cause run-time errors.
 
+    * You can now declare a variable named `arguments` inside a function without an error:
+
+        ```js
+        function foo() {
+          let arguments = null
+        }
+        ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))
