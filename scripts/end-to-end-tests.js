@@ -328,80 +328,93 @@
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {
       'in.js': `
-      var x = 0, y = []
-      try {
-        throw 1
-      } catch (x) {
-        y.push(x)
-        var x = 2
-        y.push(x)
-      }
-      y.push(x)
-      if (y + '' !== '1,2,0') throw 'fail: ' + y
-    `,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify'], {
-      'in.js': `
-      var x = 0, y = []
-      try {
-        throw 1
-      } catch (x) {
-        y.push(x)
-        var x = 2
-        y.push(x)
-      }
-      finally { x = 3 }
-      y.push(x)
-      if (y + '' !== '1,2,3') throw 'fail: ' + y
-    `,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify'], {
-      'in.js': `
-      var y = []
-      try {
-        throw 1
-      } catch (x) {
-        y.push(x)
-        var x = 2
-        y.push(x)
-      }
-      y.push(x)
-      if (y + '' !== '1,2,') throw 'fail: ' + y
-    `,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify'], {
-      'in.js': `
-      var y = []
-      try {
-        throw 1
-      } catch (x) {
-        y.push(x)
-        x = 2
-        y.push(x)
-      }
-      y.push(typeof x)
-      if (y + '' !== '1,2,undefined') throw 'fail: ' + y
-    `,
-    }),
-    test(['in.js', '--outfile=node.js', '--minify'], {
-      'in.js': `
-      var y = []
-      try {
-        throw 1
-      } catch (x) {
-        y.push(x)
+        var x = 0, y = []
         try {
-          throw 2
+          throw 1
         } catch (x) {
           y.push(x)
-          var x = 3
+          var x = 2
           y.push(x)
         }
         y.push(x)
-      }
-      y.push(x)
-      if (y + '' !== '1,2,3,1,') throw 'fail: ' + y
-    `,
+        if (y + '' !== '1,2,0') throw 'fail: ' + y
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      'in.js': `
+        var x = 0, y = []
+        try {
+          throw 1
+        } catch (x) {
+          y.push(x)
+          var x = 2
+          y.push(x)
+        }
+        finally { x = 3 }
+        y.push(x)
+        if (y + '' !== '1,2,3') throw 'fail: ' + y
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      'in.js': `
+        var y = []
+        try {
+          throw 1
+        } catch (x) {
+          y.push(x)
+          var x = 2
+          y.push(x)
+        }
+        y.push(x)
+        if (y + '' !== '1,2,') throw 'fail: ' + y
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      'in.js': `
+        var y = []
+        try {
+          throw 1
+        } catch (x) {
+          y.push(x)
+          x = 2
+          y.push(x)
+        }
+        y.push(typeof x)
+        if (y + '' !== '1,2,undefined') throw 'fail: ' + y
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      'in.js': `
+        var y = []
+        try {
+          throw 1
+        } catch (x) {
+          y.push(x)
+          try {
+            throw 2
+          } catch (x) {
+            y.push(x)
+            var x = 3
+            y.push(x)
+          }
+          y.push(x)
+        }
+        y.push(x)
+        if (y + '' !== '1,2,3,1,') throw 'fail: ' + y
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify'], {
+      'in.js': `
+        var y = []
+        try { x; y.push('fail') } catch (e) {}
+        try {
+          throw 1
+        } catch (x) {
+          y.push(x)
+        }
+        try { x; y.push('fail') } catch (e) {}
+        if (y + '' !== '1') throw 'fail: ' + y
+      `,
     }),
   )
 

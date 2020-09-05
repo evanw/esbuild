@@ -773,7 +773,7 @@ func (p *parser) canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) me
 
 	// "try {} catch (e) { var e }"
 	if existing == ast.SymbolCatchIdentifier && new == ast.SymbolHoisted {
-		return mergeKeepExisting
+		return mergeReplaceWithNew
 	}
 
 	return mergeForbidden
@@ -820,7 +820,7 @@ nextMember:
 		symbol := &p.symbols[member.Ref.InnerIndex]
 
 		// Check for collisions that would prevent to hoisting "var" symbols up to the enclosing function scope
-		if (symbol.Kind.IsHoisted() || symbol.Kind == ast.SymbolCatchIdentifier) && !scope.Kind.StopsHoisting() {
+		if symbol.Kind.IsHoisted() && !scope.Kind.StopsHoisting() {
 			s := scope.Parent
 			for {
 				// Variable declarations hoisted past a "with" statement may actually end
@@ -837,13 +837,19 @@ nextMember:
 					symbol.MustNotBeRenamed = true
 				}
 
-				if existing, ok := s.Members[symbol.OriginalName]; ok {
-					switch p.symbols[existing.Ref.InnerIndex].Kind {
-					case ast.SymbolUnbound, ast.SymbolHoisted, ast.SymbolHoistedFunction, ast.SymbolCatchIdentifier:
+				if existingMember, ok := s.Members[symbol.OriginalName]; ok {
+					existingSymbol := &p.symbols[existingMember.Ref.InnerIndex]
+					switch existingSymbol.Kind {
+					case ast.SymbolUnbound, ast.SymbolHoisted, ast.SymbolHoistedFunction:
 						// Silently merge this symbol into the existing symbol
-						symbol.Link = existing.Ref
-						s.Members[symbol.OriginalName] = existing
+						symbol.Link = existingMember.Ref
+						s.Members[symbol.OriginalName] = existingMember
 						continue nextMember
+
+					case ast.SymbolCatchIdentifier:
+						// Silently merge the existing symbol into this symbol
+						existingSymbol.Link = member.Ref
+						s.Members[symbol.OriginalName] = member
 
 					default:
 						// An identifier binding from a catch statement and a function
