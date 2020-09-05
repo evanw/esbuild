@@ -3047,3 +3047,45 @@ func TestTopLevelAwait(t *testing.T) {
 `,
 	})
 }
+
+func TestAssignToImport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":                  `import "./bad0.js"`,
+			"/node_modules/foo/index.js": ``,
+
+			"/bad0.js": `import x from "foo"; x = 1; import "./bad1.js"`,
+			"/bad1.js": `import x from "foo"; x++; import "./bad2.js"`,
+			"/bad2.js": `import x from "foo"; ([x] = 1); import "./bad3.js"`,
+			"/bad3.js": `import x from "foo"; ({x} = 1); import "./bad4.js"`,
+			"/bad4.js": `import x from "foo"; ({y: x} = 1); import "./bad5.js"`,
+			"/bad5.js": `import {x} from "foo"; x++; import "./bad6.js"`,
+			"/bad6.js": `import * as x from "foo"; x++; import "./bad7.js"`,
+			"/bad7.js": `import * as x from "foo"; x.y = 1; import "./bad8.js"`,
+			"/bad8.js": `import * as x from "foo"; x[y] = 1; import "./bad9.js"`,
+			"/bad9.js": `import * as x from "foo"; x['y'] = 1; import "./good0.js"`,
+
+			"/good0.js": `import x from "foo"; ({y = x} = 1); import "./good1.js"`,
+			"/good1.js": `import x from "foo"; ({[x]: y} = 1); import "./good2.js"`,
+			"/good2.js": `import x from "foo"; x.y = 1; import "./good3.js"`,
+			"/good3.js": `import x from "foo"; x[y] = 1; import "./good4.js"`,
+			"/good4.js": `import x from "foo"; x['y'] = 1`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/bad0.js: error: Cannot assign to import "x"
+/bad1.js: error: Cannot assign to import "x"
+/bad2.js: error: Cannot assign to import "x"
+/bad3.js: error: Cannot assign to import "x"
+/bad4.js: error: Cannot assign to import "x"
+/bad5.js: error: Cannot assign to import "x"
+/bad6.js: error: Cannot assign to import "x"
+/bad7.js: error: Cannot assign to import "y"
+/bad8.js: error: Cannot assign to property on import "x"
+/bad9.js: error: Cannot assign to import "y"
+`,
+	})
+}

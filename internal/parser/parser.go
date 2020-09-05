@@ -8309,8 +8309,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			e.Index = p.visitExpr(e.Index)
 		}
 
-		// Create an error for assigning to an import namespace
-		if in.assignTarget != ast.AssignTargetNone {
+		// Create an error for assigning to an import namespace when bundling. Even
+		// though this is a run-time error, we make it a compile-time error when
+		// bundling because scope hoisting means these will no longer be run-time
+		// errors.
+		if p.IsBundling && in.assignTarget != ast.AssignTargetNone {
 			if id, ok := e.Target.Data.(*ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Kind == ast.SymbolImport {
 				if str, ok := e.Index.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(str.Value) {
 					r := p.source.RangeOfString(e.Index.Loc)
@@ -8897,7 +8900,7 @@ func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defi
 func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e *ast.EIdentifier) ast.Expr {
 	ref := e.Ref
 
-	if assignTarget != ast.AssignTargetNone {
+	if p.IsBundling && assignTarget != ast.AssignTargetNone {
 		if p.symbols[ref.InnerIndex].Kind == ast.SymbolImport {
 			// Create an error for assigning to an import namespace
 			r := lexer.RangeOfIdentifier(p.source, loc)
