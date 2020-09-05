@@ -529,12 +529,12 @@ func TestScope(t *testing.T) {
 	expectParseError(t, "(function foo() { const foo = 0 })", "")
 
 	expectParseError(t, "var x; function x() {}", "")
-	expectParseError(t, "var x; function *x() {}", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "var x; async function x() {}", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "var x; function *x() {}", "")
+	expectParseError(t, "var x; async function x() {}", "")
 	expectParseError(t, "let x; function x() {}", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "function x() {} var x", "")
-	expectParseError(t, "function* x() {} var x", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "async function x() {} var x", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "function* x() {} var x", "")
+	expectParseError(t, "async function x() {} var x", "")
 	expectParseError(t, "function x() {} let x", "<stdin>: error: \"x\" has already been declared\n")
 	expectParseError(t, "function x() {} function x() {}", "")
 
@@ -762,6 +762,12 @@ func TestLexicalDecl(t *testing.T) {
 }
 
 func TestFunction(t *testing.T) {
+	expectPrinted(t, "function f() {} function f() {}", "function f() {\n}\nfunction f() {\n}\n")
+	expectPrinted(t, "function f() {} function* f() {}", "function f() {\n}\nfunction* f() {\n}\n")
+	expectPrinted(t, "function* f() {} function* f() {}", "function* f() {\n}\nfunction* f() {\n}\n")
+	expectPrinted(t, "function f() {} async function f() {}", "function f() {\n}\nasync function f() {\n}\n")
+	expectPrinted(t, "async function f() {} async function f() {}", "async function f() {\n}\nasync function f() {\n}\n")
+
 	expectPrinted(t, "function arguments() {}", "function arguments() {\n}\n")
 	expectPrinted(t, "(function arguments() {})", "(function arguments() {\n});\n")
 	expectPrinted(t, "function foo(arguments) {}", "function foo(arguments) {\n}\n")

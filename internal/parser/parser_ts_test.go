@@ -348,6 +348,18 @@ export let x;
   0;
 })(foo || (foo = {}));
 `)
+	expectPrintedTS(t, "function* foo() {} namespace foo { 0 }", `function* foo() {
+}
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+`)
+	expectPrintedTS(t, "async function foo() {} namespace foo { 0 }", `async function foo() {
+}
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+`)
 	expectPrintedTS(t, "class foo {} namespace foo { 0 }", `class foo {
 }
 (function(foo) {
@@ -368,6 +380,8 @@ export let x;
 })(foo || (foo = {}));
 `)
 	expectParseErrorTS(t, "namespace foo { 0 } function foo() {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } function* foo() {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } async function foo() {}", "<stdin>: error: \"foo\" has already been declared\n")
 	expectParseErrorTS(t, "namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
 	expectPrintedTS(t, "namespace foo { 0 } enum foo { a }", `var foo;
 (function(foo) {
@@ -396,6 +410,22 @@ export let x;
   0;
 })(foo || (foo = {}));
 function foo() {
+}
+`)
+	expectPrintedTS(t, "function* foo() {} namespace foo { 0 } function* foo() {}", `function* foo() {
+}
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+function* foo() {
+}
+`)
+	expectPrintedTS(t, "async function foo() {} namespace foo { 0 } async function foo() {}", `async function foo() {
+}
+(function(foo) {
+  0;
+})(foo || (foo = {}));
+async function foo() {
 }
 `)
 

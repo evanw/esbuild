@@ -1066,6 +1066,11 @@ const (
 	// This symbol is for handling this weird special case.
 	SymbolCatchIdentifier
 
+	// Generator and async functions are not hoisted, but still have special
+	// properties such as being able to overwrite previous functions with the
+	// same name
+	SymbolGeneratorOrAsyncFunction
+
 	// This is the special "arguments" variable inside functions
 	SymbolArguments
 
@@ -1128,6 +1133,10 @@ func (kind SymbolKind) Feature() compat.Feature {
 
 func (kind SymbolKind) IsHoisted() bool {
 	return kind == SymbolHoisted || kind == SymbolHoistedFunction
+}
+
+func (kind SymbolKind) IsHoistedOrFunction() bool {
+	return kind.IsHoisted() || kind == SymbolGeneratorOrAsyncFunction
 }
 
 var InvalidRef Ref = Ref{^uint32(0), ^uint32(0)}

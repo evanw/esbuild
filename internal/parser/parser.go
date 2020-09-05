@@ -749,15 +749,17 @@ func (p *parser) canMergeSymbols(existing ast.SymbolKind, new ast.SymbolKind) me
 	// "namespace Foo { ... } namespace Foo { ... }"
 	// "function Foo() {} namespace Foo { ... }"
 	// "enum Foo {} namespace Foo { ... }"
-	if new == ast.SymbolTSNamespace && (existing == ast.SymbolTSNamespace ||
-		existing == ast.SymbolHoistedFunction || existing == ast.SymbolTSEnum || existing == ast.SymbolClass) {
-		return mergeKeepExisting
+	if new == ast.SymbolTSNamespace {
+		switch existing {
+		case ast.SymbolTSNamespace, ast.SymbolHoistedFunction, ast.SymbolGeneratorOrAsyncFunction, ast.SymbolTSEnum, ast.SymbolClass:
+			return mergeKeepExisting
+		}
 	}
 
 	// "var foo; var foo;"
 	// "var foo; function foo() {}"
 	// "function foo() {} var foo;"
-	if new.IsHoisted() && existing.IsHoisted() {
+	if new.IsHoistedOrFunction() && existing.IsHoistedOrFunction() {
 		return mergeKeepExisting
 	}
 
@@ -4284,9 +4286,9 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 	//     function foo(): void {}
 	//
 	if name != nil {
-		kind := ast.SymbolOther
-		if !isGenerator && !isAsync {
-			kind = ast.SymbolHoistedFunction
+		kind := ast.SymbolHoistedFunction
+		if isGenerator || isAsync {
+			kind = ast.SymbolGeneratorOrAsyncFunction
 		}
 		name.Ref = p.declareSymbol(kind, name.Loc, nameText)
 		if opts.isExport {
