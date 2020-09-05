@@ -3176,8 +3176,23 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			if level >= ast.LLogicalOr {
 				return left
 			}
+
+			// Prevent "||" inside "??" from the right
+			if level == ast.LNullishCoalescing {
+				p.lexer.Unexpected()
+			}
+
 			p.lexer.Next()
-			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalOr, Left: left, Right: p.parseExpr(ast.LLogicalOr)}}
+			right := p.parseExpr(ast.LLogicalOr)
+			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalOr, Left: left, Right: right}}
+
+			// Prevent "||" inside "??" from the left
+			if level < ast.LNullishCoalescing {
+				left = p.parseSuffix(left, ast.LNullishCoalescing+1, nil, flags)
+				if p.lexer.Token == lexer.TQuestionQuestion {
+					p.lexer.Unexpected()
+				}
+			}
 
 		case lexer.TBarBarEquals:
 			if level >= ast.LAssign {
@@ -3190,8 +3205,22 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			if level >= ast.LLogicalAnd {
 				return left
 			}
+
+			// Prevent "&&" inside "??" from the right
+			if level == ast.LNullishCoalescing {
+				p.lexer.Unexpected()
+			}
+
 			p.lexer.Next()
 			left = ast.Expr{Loc: left.Loc, Data: &ast.EBinary{Op: ast.BinOpLogicalAnd, Left: left, Right: p.parseExpr(ast.LLogicalAnd)}}
+
+			// Prevent "&&" inside "??" from the left
+			if level < ast.LNullishCoalescing {
+				left = p.parseSuffix(left, ast.LNullishCoalescing+1, nil, flags)
+				if p.lexer.Token == lexer.TQuestionQuestion {
+					p.lexer.Unexpected()
+				}
+			}
 
 		case lexer.TAmpersandAmpersandEquals:
 			if level >= ast.LAssign {

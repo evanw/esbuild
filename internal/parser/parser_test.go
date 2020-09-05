@@ -2545,6 +2545,19 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 }
 
 func TestLowerNullishCoalescing(t *testing.T) {
+	expectParseError(t, "a ?? b && c", "<stdin>: error: Unexpected \"&&\"\n")
+	expectParseError(t, "a ?? b || c", "<stdin>: error: Unexpected \"||\"\n")
+	expectParseError(t, "a ?? b && c || d", "<stdin>: error: Unexpected \"&&\"\n")
+	expectParseError(t, "a ?? b || c && d", "<stdin>: error: Unexpected \"||\"\n")
+	expectParseError(t, "a && b ?? c", "<stdin>: error: Unexpected \"??\"\n")
+	expectParseError(t, "a || b ?? c", "<stdin>: error: Unexpected \"??\"\n")
+	expectParseError(t, "a && b || c ?? c", "<stdin>: error: Unexpected \"??\"\n")
+	expectParseError(t, "a || b && c ?? d", "<stdin>: error: Unexpected \"??\"\n")
+	expectPrinted(t, "a ?? b, b && c", "a ?? b, b && c;\n")
+	expectPrinted(t, "a ?? b, b || c", "a ?? b, b || c;\n")
+	expectPrinted(t, "a && b, b ?? c", "a && b, b ?? c;\n")
+	expectPrinted(t, "a || b, b ?? c", "a || b, b ?? c;\n")
+
 	expectPrintedTarget(t, 2020, "a ?? b", "a ?? b;\n")
 	expectPrintedTargetStrict(t, 2020, "a ?? b", "a ?? b;\n")
 
