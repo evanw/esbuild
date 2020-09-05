@@ -87,6 +87,13 @@
         }
         ```
 
+    * Comma expressions in the iterable position of for-of loops are now a syntax error:
+
+        ```js
+        for (var a of b, c) {
+        }
+        ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))

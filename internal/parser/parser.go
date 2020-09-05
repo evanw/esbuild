@@ -4900,7 +4900,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			p.forbidInitializers(decls, "of", false)
 			p.markSyntaxFeature(compat.ForOf, p.lexer.Range())
 			p.lexer.Next()
-			value := p.parseExpr(ast.LLowest)
+			value := p.parseExpr(ast.LComma)
 			p.lexer.Expect(lexer.TCloseParen)
 			body := p.parseStmt(parseStmtOpts{})
 			return ast.Stmt{Loc: loc, Data: &ast.SForOf{IsAwait: isForAwait, Init: *init, Value: value, Body: body}}
