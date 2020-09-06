@@ -16,7 +16,7 @@ func ComputeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[
 	for k := range lexer.Keywords {
 		names[k] = 1
 	}
-	for _, k := range lexer.StrictModeReservedWords {
+	for k := range lexer.StrictModeReservedWords {
 		names[k] = 1
 	}
 

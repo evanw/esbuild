@@ -819,6 +819,12 @@ func TestClass(t *testing.T) {
 
 	expectParseError(t, "class Foo { `a`() {} }", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 
+	// Strict mode reserved words cannot be used as class names
+	expectParseError(t, "class static {}", "<stdin>: error: Unexpected \"static\"\n")
+	expectParseError(t, "class implements {}", "<stdin>: error: Unexpected \"implements\"\n")
+	expectParseError(t, "(class static {})", "<stdin>: error: Expected \"{\" but found \"static\"\n")
+	expectParseError(t, "(class implements {})", "<stdin>: error: Expected \"{\" but found \"implements\"\n")
+
 	// The name "arguments" is forbidden
 	expectParseError(t, "class Foo { arguments = 1 }", "")
 	expectParseError(t, "class Foo { x = function() { arguments } }", "")

@@ -110,6 +110,12 @@
         }
         ```
 
+    * It is now a syntax error to a strict mode reserved word to name a `class`
+
+        ```js
+        class static {}
+        ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))

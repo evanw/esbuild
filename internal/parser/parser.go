@@ -2268,7 +2268,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 		p.lexer.Next()
 		var name *ast.LocRef
 
-		if p.lexer.Token == lexer.TIdentifier {
+		if p.lexer.Token == lexer.TIdentifier && !lexer.StrictModeReservedWords[p.lexer.Identifier] {
 			p.pushScopeForParsePass(ast.ScopeClassName, loc)
 			nameLoc := p.lexer.Loc()
 			name = &ast.LocRef{Loc: loc, Ref: p.declareSymbol(ast.SymbolOther, nameLoc, p.lexer.Identifier)}
@@ -4069,9 +4069,14 @@ func (p *parser) parseClassStmt(loc ast.Loc, opts parseStmtOpts) ast.Stmt {
 		p.lexer.Expected(lexer.TClass)
 	}
 
-	if !opts.isNameOptional || p.lexer.Token == lexer.TIdentifier {
+	isIdentifier := p.lexer.Token == lexer.TIdentifier
+	isStrictModeReservedWord := isIdentifier && lexer.StrictModeReservedWords[p.lexer.Identifier]
+	if !opts.isNameOptional || (isIdentifier && !isStrictModeReservedWord) {
 		nameLoc := p.lexer.Loc()
 		nameText := p.lexer.Identifier
+		if isStrictModeReservedWord {
+			p.lexer.Unexpected()
+		}
 		p.lexer.Expect(lexer.TIdentifier)
 		name = &ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
 		if !opts.isTypeScriptDeclare {

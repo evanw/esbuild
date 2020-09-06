@@ -194,16 +194,16 @@ var Keywords = map[string]T{
 	"with":       TWith,
 }
 
-var StrictModeReservedWords = []string{
-	"implements",
-	"interface",
-	"let",
-	"package",
-	"private",
-	"protected",
-	"public",
-	"static",
-	"yield",
+var StrictModeReservedWords = map[string]bool{
+	"implements": true,
+	"interface":  true,
+	"let":        true,
+	"package":    true,
+	"private":    true,
+	"protected":  true,
+	"public":     true,
+	"static":     true,
+	"yield":      true,
 }
 
 type json struct {

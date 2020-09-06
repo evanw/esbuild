@@ -163,20 +163,32 @@ func TestTSTypes(t *testing.T) {
 }
 
 func TestTSClass(t *testing.T) {
+	expectPrintedTS(t, "export default class Foo {}", "export default class Foo {\n}\n")
+	expectPrintedTS(t, "export default class Foo extends Bar<T> {}", "export default class Foo extends Bar {\n}\n")
+	expectPrintedTS(t, "export default class Foo extends Bar<T>() {}", "export default class Foo extends Bar() {\n}\n")
+	expectPrintedTS(t, "export default class Foo implements Bar<T> {}", "export default class Foo {\n}\n")
 	expectPrintedTS(t, "export default class Foo<T> {}", "export default class Foo {\n}\n")
 	expectPrintedTS(t, "export default class Foo<T> extends Bar<T> {}", "export default class Foo extends Bar {\n}\n")
 	expectPrintedTS(t, "export default class Foo<T> extends Bar<T>() {}", "export default class Foo extends Bar() {\n}\n")
+	expectPrintedTS(t, "export default class Foo<T> implements Bar<T> {}", "export default class Foo {\n}\n")
 	expectPrintedTS(t, "(class Foo<T> {})", "(class Foo {\n});\n")
 	expectPrintedTS(t, "(class Foo<T> extends Bar<T> {})", "(class Foo extends Bar {\n});\n")
 	expectPrintedTS(t, "(class Foo<T> extends Bar<T>() {})", "(class Foo extends Bar() {\n});\n")
+	expectPrintedTS(t, "(class Foo<T> implements Bar<T> {})", "(class Foo {\n});\n")
 
+	expectPrintedTS(t, "export default class {}", "export default class {\n}\n")
+	expectPrintedTS(t, "export default class extends Foo<T> {}", "export default class extends Foo {\n}\n")
+	expectPrintedTS(t, "export default class implements Foo<T> {}", "export default class {\n}\n")
 	expectPrintedTS(t, "export default class <T> {}", "export default class {\n}\n")
 	expectPrintedTS(t, "export default class <T> extends Foo<T> {}", "export default class extends Foo {\n}\n")
+	expectPrintedTS(t, "export default class <T> implements Foo<T> {}", "export default class {\n}\n")
 	expectPrintedTS(t, "(class <T> {})", "(class {\n});\n")
 	expectPrintedTS(t, "(class extends Foo<T> {})", "(class extends Foo {\n});\n")
 	expectPrintedTS(t, "(class extends Foo<T>() {})", "(class extends Foo() {\n});\n")
+	expectPrintedTS(t, "(class implements Foo<T> {})", "(class {\n});\n")
 	expectPrintedTS(t, "(class <T> extends Foo<T> {})", "(class extends Foo {\n});\n")
 	expectPrintedTS(t, "(class <T> extends Foo<T>() {})", "(class extends Foo() {\n});\n")
+	expectPrintedTS(t, "(class <T> implements Foo<T> {})", "(class {\n});\n")
 
 	expectPrintedTS(t, "abstract class A { abstract foo(): void; bar(): void {} }", "class A {\n  bar() {\n  }\n}\n")
 	expectPrintedTS(t, "export abstract class A { abstract foo(): void; bar(): void {} }", "export class A {\n  bar() {\n  }\n}\n")
