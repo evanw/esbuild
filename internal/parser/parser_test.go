@@ -819,6 +819,16 @@ func TestClass(t *testing.T) {
 
 	expectParseError(t, "class Foo { `a`() {} }", "<stdin>: error: Expected identifier but found \"`a`\"\n")
 
+	// The name "arguments" is forbidden
+	expectParseError(t, "class Foo { arguments = 1 }", "")
+	expectParseError(t, "class Foo { x = function() { arguments } }", "")
+	expectParseError(t, "class Foo { [arguments] }", "<stdin>: error: Cannot access \"arguments\" here\n")
+	expectParseError(t, "class Foo { [arguments = 1] }", "<stdin>: error: Cannot access \"arguments\" here\n")
+	expectParseError(t, "class Foo { x = arguments }", "<stdin>: error: Cannot access \"arguments\" here\n")
+	expectParseError(t, "class Foo { x = () => arguments }", "<stdin>: error: Cannot access \"arguments\" here\n")
+	expectParseError(t, "class Foo { x = typeof arguments }", "<stdin>: error: Cannot access \"arguments\" here\n")
+	expectParseError(t, "class Foo { x = 1 ? 2 : arguments }", "<stdin>: error: Cannot access \"arguments\" here\n")
+
 	// The name "constructor" is sometimes forbidden
 	expectPrinted(t, "class Foo { get ['constructor']() {} }", "class Foo {\n  get [\"constructor\"]() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { set ['constructor'](x) {} }", "class Foo {\n  set [\"constructor\"](x) {\n  }\n}\n")

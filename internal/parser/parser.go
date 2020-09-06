@@ -4150,6 +4150,10 @@ func (p *parser) parseClass(name *ast.LocRef, classOpts parseClassOpts) ast.Clas
 	// A scope is needed for private identifiers
 	scopeIndex := p.pushScopeForParsePass(ast.ScopeClassBody, bodyLoc)
 
+	// Make it an error to use "arguments" in a class body
+	argumentsRef := p.declareSymbol(ast.SymbolError, bodyLoc, "arguments")
+	p.symbols[argumentsRef.InnerIndex].MustNotBeRenamed = true
+
 	for p.lexer.Token != lexer.TCloseBrace {
 		if p.lexer.Token == lexer.TSemicolon {
 			p.lexer.Next()
@@ -5554,7 +5558,7 @@ type findSymbolResult struct {
 	isInsideWithScope bool
 }
 
-func (p *parser) findSymbol(name string) findSymbolResult {
+func (p *parser) findSymbol(loc ast.Loc, name string) findSymbolResult {
 	var ref ast.Ref
 	isInsideWithScope := false
 	s := p.currentScope
@@ -5568,6 +5572,10 @@ func (p *parser) findSymbol(name string) findSymbolResult {
 		// Is the symbol a member of this scope?
 		if member, ok := s.Members[name]; ok {
 			ref = member.Ref
+			if p.symbols[ref.InnerIndex].Kind == ast.SymbolError {
+				r := lexer.RangeOfIdentifier(p.source, loc)
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot access %q here", name))
+			}
 			break
 		}
 
@@ -6539,7 +6547,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		// "export {foo}"
 		for i, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
-			ref := p.findSymbol(name).ref
+			ref := p.findSymbol(item.AliasLoc, name).ref
 			s.Items[i].Name.Ref = ref
 			p.recordExport(item.AliasLoc, item.Alias, ref)
 		}
@@ -7348,7 +7356,7 @@ func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 		return false
 	}
 
-	result := p.findSymbol(name)
+	result := p.findSymbol(expr.Loc, name)
 
 	// We must not be in a "with" statement scope
 	if result.isInsideWithScope {
@@ -7361,7 +7369,7 @@ func (p *parser) isDotDefineMatch(expr ast.Expr, parts []string) bool {
 
 func (p *parser) jsxStringsToMemberExpression(loc ast.Loc, parts []string, assignTarget ast.AssignTarget) ast.Expr {
 	// Generate an identifier for the first part
-	ref := p.findSymbol(parts[0]).ref
+	ref := p.findSymbol(loc, parts[0]).ref
 	targetIfLast := ast.AssignTargetNone
 	if len(parts) == 1 {
 		targetIfLast = assignTarget
@@ -7819,7 +7827,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EIdentifier:
 		name := p.loadNameFromRef(e.Ref)
-		result := p.findSymbol(name)
+		result := p.findSymbol(expr.Loc, name)
 		e.Ref = result.ref
 
 		// Substitute user-specified defines for unbound symbols
@@ -8343,7 +8351,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// Special-case EPrivateIdentifier to allow it here
 		if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok {
 			name := p.loadNameFromRef(private.Ref)
-			result := p.findSymbol(name)
+			result := p.findSymbol(e.Index.Loc, name)
 			private.Ref = result.ref
 
 			// Unlike regular identifiers, there are no unbound private identifiers
@@ -8952,7 +8960,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 }
 
 func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defineFunc config.DefineFunc) ast.Expr {
-	expr := ast.Expr{Loc: loc, Data: defineFunc(p.findSymbolHelper)}
+	expr := ast.Expr{Loc: loc, Data: defineFunc(loc, p.findSymbolHelper)}
 	if id, ok := expr.Data.(*ast.EIdentifier); ok {
 		return p.handleIdentifier(loc, assignTarget, id)
 	}
@@ -9756,7 +9764,7 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 		namedExports:            make(map[string]ast.Ref),
 	}
 
-	p.findSymbolHelper = func(name string) ast.Ref { return p.findSymbol(name).ref }
+	p.findSymbolHelper = func(loc ast.Loc, name string) ast.Ref { return p.findSymbol(loc, name).ref }
 	p.pushScopeForParsePass(ast.ScopeEntry, ast.Loc{Start: locModuleScope})
 
 	return p

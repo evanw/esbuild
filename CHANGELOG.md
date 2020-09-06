@@ -102,6 +102,14 @@
         (a ?? b) || c // Allowed
         ```
 
+    * It is now a syntax error to use `arguments` inside a `class` field initializer
+
+        ```js
+        class Foo {
+          foo = arguments
+        }
+        ```
+
 ## 0.6.30
 
 * Fix optional call of `super` property ([#362](https://github.com/evanw/esbuild/issues/362))

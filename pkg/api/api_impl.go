@@ -282,8 +282,8 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 			if _, ok := lexer.Keywords[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
 				rawDefines[key] = config.DefineData{
-					DefineFunc: func(findSymbol config.FindSymbol) ast.E {
-						return &ast.EIdentifier{Ref: findSymbol(name)}
+					DefineFunc: func(loc ast.Loc, findSymbol config.FindSymbol) ast.E {
+						return &ast.EIdentifier{Ref: findSymbol(loc, name)}
 					},
 				}
 				continue
@@ -302,13 +302,13 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 		var fn config.DefineFunc
 		switch e := expr.Data.(type) {
 		case *ast.ENull:
-			fn = func(config.FindSymbol) ast.E { return &ast.ENull{} }
+			fn = func(ast.Loc, config.FindSymbol) ast.E { return &ast.ENull{} }
 		case *ast.EBoolean:
-			fn = func(config.FindSymbol) ast.E { return &ast.EBoolean{Value: e.Value} }
+			fn = func(ast.Loc, config.FindSymbol) ast.E { return &ast.EBoolean{Value: e.Value} }
 		case *ast.EString:
-			fn = func(config.FindSymbol) ast.E { return &ast.EString{Value: e.Value} }
+			fn = func(ast.Loc, config.FindSymbol) ast.E { return &ast.EString{Value: e.Value} }
 		case *ast.ENumber:
-			fn = func(config.FindSymbol) ast.E { return &ast.ENumber{Value: e.Value} }
+			fn = func(ast.Loc, config.FindSymbol) ast.E { return &ast.ENumber{Value: e.Value} }
 		default:
 			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue

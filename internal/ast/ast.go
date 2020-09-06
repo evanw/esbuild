@@ -1106,6 +1106,9 @@ const (
 
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther
+
+	// This symbol causes a compile error when referenced
+	SymbolError
 )
 
 func (kind SymbolKind) IsPrivate() bool {

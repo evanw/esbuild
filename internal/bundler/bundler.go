@@ -971,7 +971,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 	}
 	result := config.ProcessDefines(map[string]config.DefineData{
 		"__platform": config.DefineData{
-			DefineFunc: func(config.FindSymbol) ast.E {
+			DefineFunc: func(ast.Loc, config.FindSymbol) ast.E {
 				return &ast.EString{Value: lexer.StringToUTF16(platform)}
 			},
 		},
