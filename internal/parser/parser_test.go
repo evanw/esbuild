@@ -576,6 +576,10 @@ func TestASI(t *testing.T) {
 	expectPrinted(t, "let\n[x] = 0", "let [x] = 0;\n")
 	expectPrinted(t, "let\n{x}", "let;\n{\n  x;\n}\n")
 	expectParseError(t, "let\n{x} = 0", "<stdin>: error: Unexpected \"=\"\n")
+	expectParseError(t, "function *foo() { let\nyield 0 }",
+		"<stdin>: error: Cannot use \"yield\" as an identifier here\n<stdin>: error: Expected \";\" but found \"0\"\n")
+	expectParseError(t, "async function foo() { let\nawait 0 }",
+		"<stdin>: error: Cannot use \"await\" as an identifier here\n<stdin>: error: Expected \";\" but found \"0\"\n")
 
 	// This is a weird corner case where ASI applies without a newline
 	expectPrinted(t, "do x;while(y)z", "do\n  x;\nwhile (y);\nz;\n")

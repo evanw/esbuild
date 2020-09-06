@@ -3333,7 +3333,9 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (ast.Expr, ast.Stmt, []a
 
 	switch p.lexer.Token {
 	case lexer.TIdentifier, lexer.TOpenBracket, lexer.TOpenBrace:
-		if !p.lexer.HasNewlineBefore || p.lexer.Token == lexer.TOpenBracket {
+		if !p.lexer.HasNewlineBefore || p.lexer.Token == lexer.TOpenBracket ||
+			(p.fnOptsParse.allowAwait && p.lexer.IsContextualKeyword("await")) ||
+			(p.fnOptsParse.allowYield && p.lexer.IsContextualKeyword("yield")) {
 			if opts.lexicalDecl != lexicalDeclAllowAll {
 				p.forbidLexicalDecl(letRange.Loc)
 			}
