@@ -2783,6 +2783,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		Indent:              indent,
 		OutputFormat:        c.options.OutputFormat,
 		RemoveWhitespace:    c.options.RemoveWhitespace,
+		MangleSyntax:        c.options.MangleSyntax,
 		ToModuleRef:         toModuleRef,
 		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
 		UnsupportedFeatures: c.options.UnsupportedFeatures,
@@ -2993,6 +2994,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 				Indent:           indent,
 				OutputFormat:     c.options.OutputFormat,
 				RemoveWhitespace: c.options.RemoveWhitespace,
+				MangleSyntax:     c.options.MangleSyntax,
 			}
 			crossChunkPrefix = printer.Print(ast.AST{
 				ImportRecords: crossChunkImportRecords,

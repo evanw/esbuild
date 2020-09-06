@@ -1123,7 +1123,7 @@ func (p *printer) bestQuoteCharForString(data []uint16, allowBacktick bool) stri
 	for i, c := range data {
 		switch c {
 		case '\n':
-			if p.options.RemoveWhitespace {
+			if p.options.MangleSyntax {
 				// The backslash for the newline costs an extra character for old-style
 				// string literals when compared to a template literal
 				backtickCost--
@@ -1160,11 +1160,6 @@ type requireCallArgs struct {
 }
 
 func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []ast.Comment) {
-	space := " "
-	if p.options.RemoveWhitespace {
-		space = ""
-	}
-
 	record := &p.importRecords[importRecordIndex]
 	p.printSpaceBeforeIdentifier()
 
@@ -1191,7 +1186,11 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 
 	// Make sure "import()" expressions return promises
 	if record.Kind == ast.ImportDynamic {
-		p.print("Promise.resolve().then(()" + space + "=>" + space)
+		if p.options.RemoveWhitespace {
+			p.print("Promise.resolve().then(()=>")
+		} else {
+			p.print("Promise.resolve().then(() => ")
+		}
 	}
 
 	// Make sure CommonJS imports are converted to ES6 if necessary
@@ -1639,7 +1638,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 	case *ast.EBoolean:
-		if p.options.RemoveWhitespace {
+		if p.options.MangleSyntax {
 			if level >= ast.LPrefix {
 				if e.Value {
 					p.print("(!0)")
@@ -1664,7 +1663,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.EString:
 		// If this was originally a template literal, print it as one as long as we're not minifying
-		if e.PreferTemplate && !p.options.RemoveWhitespace && !p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
+		if e.PreferTemplate && !p.options.MangleSyntax && !p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
 			p.print("`")
 			p.printQuotedUTF16(e.Value, '`')
 			p.print("`")
@@ -1678,7 +1677,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 	case *ast.ETemplate:
 		// Convert no-substitution template literals into strings if it's smaller
-		if p.options.RemoveWhitespace && e.Tag == nil && len(e.Parts) == 0 {
+		if p.options.MangleSyntax && e.Tag == nil && len(e.Parts) == 0 {
 			c := p.bestQuoteCharForString(e.Head, true /* allowBacktick */)
 			p.print(c)
 			p.printQuotedUTF16(e.Head, rune(c[0]))
@@ -1902,7 +1901,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			} else if _, ok := e.Left.Data.(*ast.ENumber); ok {
 				// Negative numbers are printed using a unary operator
 				leftLevel = ast.LCall
-			} else if p.options.RemoveWhitespace {
+			} else if p.options.MangleSyntax {
 				// When minifying, booleans are printed as "!0 and "!1"
 				if _, ok := e.Left.Data.(*ast.EBoolean); ok {
 					leftLevel = ast.LCall
@@ -2860,6 +2859,7 @@ func (p *printer) shouldIgnoreSourceMap() bool {
 type PrintOptions struct {
 	OutputFormat        config.Format
 	RemoveWhitespace    bool
+	MangleSyntax        bool
 	ExtractComments     bool
 	Indent              int
 	ToModuleRef         ast.Ref

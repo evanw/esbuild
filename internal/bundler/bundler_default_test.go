@@ -2685,6 +2685,7 @@ func TestMinifyNestedLabelsNoBundle(t *testing.T) {
 		options: config.Options{
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
+			MangleSyntax:      true,
 			AbsOutputFile:     "/out.js",
 		},
 	})

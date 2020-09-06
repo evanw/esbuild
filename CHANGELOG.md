@@ -48,6 +48,10 @@
 
     Note that converting CommonJS `require()` calls to ES6 imports is not currently supported. Code containing a reference to `require` in these situations will generate a warning.
 
+* Change the flag for boolean and string minification ([#371](https://github.com/evanw/esbuild/issues/371))
+
+    Previously setting the `--minify-whitespace` flag shortened `true` and `false` to `!0` and `!1` and shortened string literals containing many newlines by writing them as template literals instead. These shortening operations have been changed to the `--minify-syntax` flag instead. There is no change in behavior for the `--minify` flag because that flag already implies both `--minify-whitespace` and `--minify-syntax`.
+
 * Remove trailing `()` from `new` when minifying
 
     Now `new Foo()` will be printed as `new Foo` when minifying (as long as it's safe to do so), resulting in slightly shorter minified code.

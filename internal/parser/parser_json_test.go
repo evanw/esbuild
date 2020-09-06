@@ -67,8 +67,8 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 }
 
 func TestJSONAtom(t *testing.T) {
-	expectPrintedJSON(t, "false", "!1")
-	expectPrintedJSON(t, "true", "!0")
+	expectPrintedJSON(t, "false", "false")
+	expectPrintedJSON(t, "true", "true")
 	expectPrintedJSON(t, "null", "null")
 	expectParseErrorJSON(t, "undefined", "<stdin>: error: Unexpected \"undefined\"\n")
 }
@@ -98,7 +98,7 @@ func TestJSONString(t *testing.T) {
 	expectPrintedJSON(t, "\"\\/\"", "\"/\"")
 	expectPrintedJSON(t, "\"\\b\"", "\"\\b\"")
 	expectPrintedJSON(t, "\"\\f\"", "\"\\f\"")
-	expectPrintedJSON(t, "\"\\n\"", "`\n`")
+	expectPrintedJSON(t, "\"\\n\"", "\"\\n\"")
 	expectPrintedJSON(t, "\"\\r\"", "\"\\r\"")
 	expectPrintedJSON(t, "\"\\t\"", "\"\t\"")
 	expectPrintedJSON(t, "\"\\u0000\"", "\"\\0\"")

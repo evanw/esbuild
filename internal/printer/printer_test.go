@@ -49,6 +49,12 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedMangle(t *testing.T, contents string, expected string) {
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
+		MangleSyntax: true,
+	})
+}
+
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
 	expectPrintedCommon(t, contents, contents, expected, PrintOptions{
 		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
@@ -63,6 +69,15 @@ func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, exp
 			compat.ES: {esVersion},
 		}),
 		RemoveWhitespace: true,
+	})
+}
+
+func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, expected string) {
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
+		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		MangleSyntax: true,
 	})
 }
 
@@ -605,12 +620,14 @@ func TestWhitespace(t *testing.T) {
 	expectPrintedMinify(t, "(function(){})", "(function(){});")
 	expectPrintedMinify(t, "(class{})", "(class{});")
 	expectPrintedMinify(t, "({})", "({});")
+}
 
-	expectPrintedMinify(t, "let x = '\\n'", "let x=`\n`;")
-	expectPrintedMinify(t, "let x = `\n`", "let x=`\n`;")
-	expectPrintedMinify(t, "let x = '\\n${}'", "let x=\"\\n${}\";")
-	expectPrintedMinify(t, "let x = `\n\\${}`", "let x=\"\\n${}\";")
-	expectPrintedMinify(t, "let x = `\n\\${}${y}\\${}`", "let x=`\n\\${}${y}\\${}`;")
+func TestMangle(t *testing.T) {
+	expectPrintedMangle(t, "let x = '\\n'", "let x = `\n`;\n")
+	expectPrintedMangle(t, "let x = `\n`", "let x = `\n`;\n")
+	expectPrintedMangle(t, "let x = '\\n${}'", "let x = \"\\n${}\";\n")
+	expectPrintedMangle(t, "let x = `\n\\${}`", "let x = \"\\n${}\";\n")
+	expectPrintedMangle(t, "let x = `\n\\${}${y}\\${}`", "let x = `\n\\${}${y}\\${}`;\n")
 }
 
 func TestMinify(t *testing.T) {
@@ -625,8 +642,10 @@ func TestMinify(t *testing.T) {
 
 	expectPrinted(t, "true ** 2", "true ** 2;\n")
 	expectPrinted(t, "false ** 2", "false ** 2;\n")
-	expectPrintedMinify(t, "true ** 2", "(!0)**2;")
-	expectPrintedMinify(t, "false ** 2", "(!1)**2;")
+	expectPrintedMinify(t, "true ** 2", "true**2;")
+	expectPrintedMinify(t, "false ** 2", "false**2;")
+	expectPrintedMangle(t, "true ** 2", "(!0) ** 2;\n")
+	expectPrintedMangle(t, "false ** 2", "(!1) ** 2;\n")
 
 	expectPrintedMinify(t, "import a from 'path'", "import a from\"path\";")
 	expectPrintedMinify(t, "import * as ns from 'path'", "import*as ns from\"path\";")
@@ -637,10 +656,10 @@ func TestMinify(t *testing.T) {
 
 	// Print some strings using template literals when minifying
 	expectPrinted(t, "'\\n'", "\"\\n\";\n")
-	expectPrintedMinify(t, "'\\n'", "`\n`;")
-	expectPrintedMinify(t, "({'\\n': 0})", "({\"\\n\":0});")
-	expectPrintedMinify(t, "(class{'\\n' = 0})", "(class{\"\\n\"=0});")
-	expectPrintedMinify(t, "class Foo{'\\n' = 0}", "class Foo{\"\\n\"=0}")
+	expectPrintedMangle(t, "'\\n'", "`\n`;\n")
+	expectPrintedMangle(t, "({'\\n': 0})", "({\"\\n\": 0});\n")
+	expectPrintedMangle(t, "(class{'\\n' = 0})", "(class {\n  \"\\n\" = 0;\n});\n")
+	expectPrintedMangle(t, "class Foo{'\\n' = 0}", "class Foo {\n  \"\\n\" = 0;\n}\n")
 
 	// Special identifiers must not be minified
 	expectPrintedMinify(t, "exports", "exports;")
@@ -653,8 +672,8 @@ func TestMinify(t *testing.T) {
 }
 
 func TestES5(t *testing.T) {
-	expectPrintedTargetMinify(t, 5, "foo('a\\n\\n\\nb')", "foo(\"a\\n\\n\\nb\");")
-	expectPrintedTargetMinify(t, 2015, "foo('a\\n\\n\\nb')", "foo(`a\n\n\nb`);")
+	expectPrintedTargetMangle(t, 5, "foo('a\\n\\n\\nb')", "foo(\"a\\n\\n\\nb\");\n")
+	expectPrintedTargetMangle(t, 2015, "foo('a\\n\\n\\nb')", "foo(`a\n\n\nb`);\n")
 
 	expectPrintedTarget(t, 5, "foo({a, b})", "foo({a: a, b: b});\n")
 	expectPrintedTarget(t, 2015, "foo({a, b})", "foo({a, b});\n")
