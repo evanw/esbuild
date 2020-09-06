@@ -64,3 +64,7 @@ jobs:
     - name: Preact Splitting Tests
       if: matrix.os == 'ubuntu-latest'
       run: make test-preact-splitting
+
+    - name: Uglify Tests
+      if: matrix.os == 'ubuntu-latest'
+      run: make uglify
