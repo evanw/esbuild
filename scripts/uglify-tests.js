@@ -17,7 +17,6 @@ async function main() {
   // process.stdout.isTTY = false;
 
   // Make sure the tests are installed
-  console.log('Downloading uglify...');
   childProcess.execSync('make demo/uglify', { cwd: repoDir, stdio: 'pipe' });
   U = require(path.join(uglifyDir, 'test', 'node'));
 
@@ -99,6 +98,17 @@ async function test_case(service, test) {
     });
   }
 
+  // Ignore tests that no longer pass in modern versions of node. These tests
+  // contain code that is now considered a syntax error. The relevant code is
+  // this:
+  //
+  //   try{throw 42}catch(a){console.log(a);function a(){}}
+  //
+  if (test.node_version && !semver.satisfies(process.version, test.node_version)) {
+    console.error("*** skipping test %j with node_version %j", test.name, test.node_version);
+    return;
+  }
+
   // Run esbuild as a minifier
   try {
     var { js: output } = await service.transform(input_code, {
@@ -106,6 +116,18 @@ async function test_case(service, test) {
       target: 'es5',
     });
   } catch (e) {
+    // These two tests fail because they contain setters without arguments,
+    // which is a syntax error. These test failures do not indicate anything
+    // wrong with esbuild so the failures are ignored. Here is one of the
+    // tests:
+    //
+    //   function f(){var a={get b(){},set b(){}};return{a:a}}
+    //
+    if (test.name === 'unsafe_object_accessor' || test.name === 'keep_name_of_setter') {
+      console.error("*** skipping test with known syntax error:", test.name);
+      return;
+    }
+
     const formatError = ({ text, location }) => {
       if (!location) return `\nerror: ${text}`;
       const { file, line, column } = location;
