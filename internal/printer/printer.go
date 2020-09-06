@@ -1292,16 +1292,18 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printSpace()
 		p.printExpr(e.Target, ast.LNew, forbidCall)
 
-		// TODO: Omit this while minifying
-		p.print("(")
-		for i, arg := range e.Args {
-			if i != 0 {
-				p.print(",")
-				p.printSpace()
+		// Omit the "()" when minifying, but only when safe to do so
+		if !p.options.RemoveWhitespace || len(e.Args) > 0 || level >= ast.LPostfix {
+			p.print("(")
+			for i, arg := range e.Args {
+				if i != 0 {
+					p.print(",")
+					p.printSpace()
+				}
+				p.printExpr(arg, ast.LComma, 0)
 			}
-			p.printExpr(arg, ast.LComma, 0)
+			p.print(")")
 		}
-		p.print(")")
 
 		if wrap {
 			p.print(")")

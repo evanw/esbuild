@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Remove trailing `()` from `new` when minifying
+
+    Now `new Foo()` will be printed as `new Foo` when minifying (as long as it's safe to do so), resulting in slightly shorter minified code.
+
 ## 0.6.31
 
 * Invalid source maps are no longer an error ([#367](https://github.com/evanw/esbuild/issues/367))

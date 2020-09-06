@@ -202,6 +202,13 @@ func TestNew(t *testing.T) {
 	expectPrinted(t, "new (import('foo')).bar", "new (import(\"foo\")).bar();\n")
 	expectPrinted(t, "new (import('foo')[bar])", "new (import(\"foo\"))[bar]();\n")
 	expectPrinted(t, "new (import('foo'))[bar]", "new (import(\"foo\"))[bar]();\n")
+
+	expectPrintedMinify(t, "new x", "new x;")
+	expectPrintedMinify(t, "new x.y", "new x.y;")
+	expectPrintedMinify(t, "(new x).y", "new x().y;")
+	expectPrintedMinify(t, "new x().y", "new x().y;")
+	expectPrintedMinify(t, "new x() + y", "new x+y;")
+	expectPrintedMinify(t, "new x() ** 2", "new x**2;")
 }
 
 func TestCall(t *testing.T) {
