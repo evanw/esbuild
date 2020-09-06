@@ -7493,7 +7493,7 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, assignTarget ast.AssignTarget, dot
 				p.isImportItem[item.Ref] = true
 
 				symbol := &p.symbols[item.Ref.InnerIndex]
-				if !p.IsBundling {
+				if p.Mode == config.ModePassThrough {
 					// Make sure the printer prints this as a property access
 					symbol.NamespaceAlias = &ast.NamespaceAlias{
 						NamespaceRef: id.Ref,
@@ -7515,7 +7515,7 @@ func (p *parser) maybeRewriteDot(loc ast.Loc, assignTarget ast.AssignTarget, dot
 			// imported module end up in the same module group and the namespace
 			// symbol has never been captured, then we don't need to generate
 			// any code for the namespace at all.
-			if p.IsBundling {
+			if p.Mode != config.ModePassThrough {
 				p.ignoreUsage(id.Ref)
 			}
 
@@ -7709,7 +7709,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 }
 
 func (p *parser) valueForThis(loc ast.Loc) (ast.Expr, bool) {
-	if p.IsBundling && !p.isThisCaptured {
+	if p.Mode != config.ModePassThrough && !p.isThisCaptured {
 		if p.hasES6ImportSyntax || p.hasES6ExportSyntax {
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
@@ -8388,7 +8388,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		// though this is a run-time error, we make it a compile-time error when
 		// bundling because scope hoisting means these will no longer be run-time
 		// errors.
-		if p.IsBundling && in.assignTarget != ast.AssignTargetNone {
+		if p.Mode == config.ModeBundle && in.assignTarget != ast.AssignTargetNone {
 			if id, ok := e.Target.Data.(*ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Kind == ast.SymbolImport {
 				if str, ok := e.Index.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(str.Value) {
 					r := p.source.RangeOfString(e.Index.Loc)
@@ -8439,10 +8439,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 
 			// "typeof require" => "'function'"
-			if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
-				p.ignoreUsage(p.requireRef)
-				p.typeofRequire = &ast.EString{Value: lexer.StringToUTF16("function")}
-				return ast.Expr{Loc: expr.Loc, Data: p.typeofRequire}, exprOut{}
+			if p.Mode == config.ModeBundle {
+				if id, ok := e.Value.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
+					p.ignoreUsage(p.requireRef)
+					p.typeofRequire = &ast.EString{Value: lexer.StringToUTF16("function")}
+					return ast.Expr{Loc: expr.Loc, Data: p.typeofRequire}, exprOut{}
+				}
 			}
 
 			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
@@ -8765,7 +8767,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 			e.ImportRecordIndex = &importRecordIndex
-		} else if p.IsBundling {
+		} else if p.Mode == config.ModeBundle {
 			r := lexer.RangeOfIdentifier(p.source, expr.Loc)
 			p.log.AddRangeWarning(&p.source, r,
 				"This dynamic import will not be bundled because the argument is not a string literal")
@@ -8863,36 +8865,43 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 		// Track calls to require() so we can use them while bundling
-		if id, ok := e.Target.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef && p.IsBundling {
-			// There must be one argument
-			if len(e.Args) != 1 {
-				r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
-					"This call to \"require\" will not be bundled because it has %d arguments", len(e.Args)))
-			} else {
-				arg := e.Args[0]
+		if p.Mode != config.ModePassThrough {
+			if id, ok := e.Target.Data.(*ast.EIdentifier); ok && id.Ref == p.requireRef {
+				if p.Mode == config.ModeBundle {
+					// There must be one argument
+					if len(e.Args) != 1 {
+						r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+						p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
+							"This call to \"require\" will not be bundled because it has %d arguments", len(e.Args)))
+					} else {
+						arg := e.Args[0]
 
-				// The argument must be a string
-				if str, ok := arg.Data.(*ast.EString); ok {
-					// Ignore calls to require() if the control flow is provably dead here.
-					// We don't want to spend time scanning the required files if they will
-					// never be used.
-					if p.isControlFlowDead {
-						return ast.Expr{Loc: expr.Loc, Data: &ast.ENull{}}, exprOut{}
+						// The argument must be a string
+						if str, ok := arg.Data.(*ast.EString); ok {
+							// Ignore calls to require() if the control flow is provably dead here.
+							// We don't want to spend time scanning the required files if they will
+							// never be used.
+							if p.isControlFlowDead {
+								return ast.Expr{Loc: expr.Loc, Data: &ast.ENull{}}, exprOut{}
+							}
+
+							importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, lexer.UTF16ToString(str.Value))
+							p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOptsVisit.tryBodyCount != 0
+							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+
+							// Create a new expression to represent the operation
+							p.ignoreUsage(p.requireRef)
+							return ast.Expr{Loc: expr.Loc, Data: &ast.ERequire{ImportRecordIndex: importRecordIndex}}, exprOut{}
+						}
+
+						r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+						p.log.AddRangeWarning(&p.source, r,
+							"This call to \"require\" will not be bundled because the argument is not a string literal")
 					}
-
-					importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, lexer.UTF16ToString(str.Value))
-					p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOptsVisit.tryBodyCount != 0
-					p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-
-					// Create a new expression to represent the operation
-					p.ignoreUsage(p.requireRef)
-					return ast.Expr{Loc: expr.Loc, Data: &ast.ERequire{ImportRecordIndex: importRecordIndex}}, exprOut{}
+				} else if p.OutputFormat == config.FormatESModule {
+					r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+					p.log.AddRangeWarning(&p.source, r, "Converting \"require\" to \"esm\" is currently not supported")
 				}
-
-				r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-				p.log.AddRangeWarning(&p.source, r,
-					"This call to \"require\" will not be bundled because the argument is not a string literal")
 			}
 		}
 
@@ -8975,7 +8984,7 @@ func (p *parser) valueForDefine(loc ast.Loc, assignTarget ast.AssignTarget, defi
 func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e *ast.EIdentifier) ast.Expr {
 	ref := e.Ref
 
-	if p.IsBundling && assignTarget != ast.AssignTargetNone {
+	if p.Mode == config.ModeBundle && assignTarget != ast.AssignTargetNone {
 		if p.symbols[ref.InnerIndex].Kind == ast.SymbolImport {
 			// Create an error for assigning to an import namespace
 			r := lexer.RangeOfIdentifier(p.source, loc)
@@ -9066,7 +9075,7 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.argumentsRef = oldArgumentsRef
 }
 
-func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []ast.Stmt {
+func (p *parser) scanForImportsAndExports(stmts []ast.Stmt) []ast.Stmt {
 	stmtsEnd := 0
 
 	for _, stmt := range stmts {
@@ -9161,7 +9170,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 				}
 			}
 
-			if isBundling {
+			if p.Mode != config.ModePassThrough {
 				if s.StarNameLoc != nil {
 					// If we're bundling a star import, add any import items we generated
 					// for this namespace while parsing as explicit import items instead.
@@ -9251,7 +9260,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
 			// Only track import paths if we want dependencies
-			if isBundling {
+			if p.Mode == config.ModeBundle {
 				if s.Alias != nil {
 					// "export * as ns from 'path'"
 					p.namedImports[s.NamespaceRef] = ast.NamedImport{
@@ -9270,7 +9279,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt, isBundling bool) []a
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
 			// Only track import paths if we want dependencies
-			if isBundling {
+			if p.Mode == config.ModeBundle {
 				for _, item := range s.Items {
 					// Note that the imported alias is not item.Alias, which is the
 					// exported alias. This is somewhat confusing because each
@@ -9813,7 +9822,7 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 
 	// Strip off a leading "use strict" directive when not bundling
 	directive := ""
-	if !options.IsBundling && len(stmts) > 0 {
+	if p.Mode != config.ModeBundle && len(stmts) > 0 {
 		if s, ok := stmts[0].Data.(*ast.SDirective); ok {
 			directive = lexer.UTF16ToString(s.Value)
 			stmts = stmts[1:]
@@ -9840,7 +9849,7 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
 	parts := []ast.Part{}
-	if !p.IsBundling {
+	if p.Mode != config.ModeBundle {
 		// When not bundling, everything comes in a single part
 		parts = p.appendPart(parts, stmts)
 	} else {
@@ -9918,7 +9927,7 @@ func (p *parser) prepareForVisitPass(options *config.Options) {
 	p.moduleScope = p.currentScope
 	p.hoistSymbols(p.moduleScope)
 
-	if options.IsBundling {
+	if p.Mode != config.ModePassThrough {
 		p.exportsRef = p.declareCommonJSSymbol(ast.SymbolHoisted, "exports")
 		p.requireRef = p.declareCommonJSSymbol(ast.SymbolUnbound, "require")
 		p.moduleRef = p.declareCommonJSSymbol(ast.SymbolHoisted, "module")
@@ -9929,7 +9938,7 @@ func (p *parser) prepareForVisitPass(options *config.Options) {
 	}
 
 	// Convert "import.meta" to a variable if it's not supported in the output format
-	if p.hasImportMeta && (p.UnsupportedFeatures.Has(compat.ImportMeta) || (options.IsBundling && !p.OutputFormat.KeepES6ImportExportSyntax())) {
+	if p.hasImportMeta && (p.UnsupportedFeatures.Has(compat.ImportMeta) || (p.Mode != config.ModePassThrough && !p.OutputFormat.KeepES6ImportExportSyntax())) {
 		p.importMetaRef = p.newSymbol(ast.SymbolOther, "import_meta")
 		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
 	} else {
@@ -10079,7 +10088,7 @@ func (p *parser) toAST(source logging.Source, parts []ast.Part, hashbang string,
 	for _, part := range parts {
 		p.importRecordsForCurrentPart = nil
 		p.declaredSymbols = nil
-		part.Stmts = p.scanForImportsAndExports(part.Stmts, p.IsBundling)
+		part.Stmts = p.scanForImportsAndExports(part.Stmts)
 		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
 		part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
 		if len(part.Stmts) > 0 {

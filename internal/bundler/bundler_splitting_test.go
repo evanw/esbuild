@@ -25,7 +25,7 @@ func TestSplittingSharedES6IntoES6(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -48,7 +48,7 @@ func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -68,7 +68,7 @@ func TestSplittingDynamicES6IntoES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -88,7 +88,7 @@ func TestSplittingDynamicCommonJSIntoES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -109,7 +109,7 @@ func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -130,7 +130,7 @@ func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -159,7 +159,7 @@ func TestSplittingAssignToLocal(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -186,7 +186,7 @@ func TestSplittingSideEffectsWithoutDependencies(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -214,7 +214,7 @@ func TestSplittingNestedDirectories(t *testing.T) {
 			"/Users/user/project/src/pages/pageB/page.js",
 		},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/Users/user/project/out",
@@ -236,7 +236,7 @@ func TestSplittingCircularReferenceIssue251(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -267,7 +267,7 @@ func TestSplittingMissingLazyExport(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -287,7 +287,7 @@ func TestSplittingReExportIssue273(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -307,7 +307,7 @@ func TestSplittingDynamicImportIssue272(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -330,7 +330,7 @@ func TestSplittingDynamicImportOutsideSourceTreeIssue264(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry1.js", "/Users/user/project/src/entry2.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -366,7 +366,7 @@ func TestSplittingCrossChunkAssignmentDependencies(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -413,7 +413,7 @@ func TestSplittingCrossChunkAssignmentDependenciesRecursive(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js", "/c.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			CodeSplitting: true,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
@@ -445,7 +445,7 @@ func TestSplittingDuplicateChunkCollision(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js", "/b.js", "/c.js", "/d.js"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			CodeSplitting:    true,
 			RemoveWhitespace: true,
 			OutputFormat:     config.FormatESModule,

@@ -256,10 +256,12 @@ type TransformOptions struct {
 	ErrorLimit int
 	LogLevel   LogLevel
 
-	Sourcemap SourceMap
-	Target    Target
-	Engines   []Engine
-	Strict    StrictOptions
+	Sourcemap  SourceMap
+	Target     Target
+	Format     Format
+	GlobalName string
+	Engines    []Engine
+	Strict     StrictOptions
 
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool

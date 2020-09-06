@@ -494,9 +494,19 @@ let transformTests = {
     assert.strictEqual(js, `module.exports = {x: "y"};\n`)
   },
 
+  async jsonESM({ service }) {
+    const { js } = await service.transform(`{ "x": "y" }`, { loader: 'json', format: 'esm' })
+    assert.strictEqual(js, `var x = "y";\nvar stdin_default = {x};\nexport {\n  stdin_default as default,\n  x\n};\n`)
+  },
+
   async text({ service }) {
     const { js } = await service.transform(`This is some text`, { loader: 'text' })
     assert.strictEqual(js, `module.exports = "This is some text";\n`)
+  },
+
+  async textESM({ service }) {
+    const { js } = await service.transform(`This is some text`, { loader: 'text', format: 'esm' })
+    assert.strictEqual(js, `var stdin_default = "This is some text";\nexport {\n  stdin_default as default\n};\n`)
   },
 
   async base64({ service }) {

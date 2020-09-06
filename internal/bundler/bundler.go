@@ -256,7 +256,7 @@ func parseFile(args parseArgs) {
 
 	// Run the resolver on the parse thread so it's not run on the main thread.
 	// That way the main thread isn't blocked if the resolver takes a while.
-	if args.options.IsBundling {
+	if args.options.Mode == config.ModeBundle {
 		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
 
 		if len(result.file.ast.ImportRecords) > 0 {
@@ -536,7 +536,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		}
 
 		// Don't try to resolve paths if we're not bundling
-		if options.IsBundling {
+		if options.Mode == config.ModeBundle {
 			for _, part := range result.file.ast.Parts {
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &result.file.ast.ImportRecords[importRecordIndex]
@@ -647,7 +647,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 	}
 
 	// The format can't be "preserve" while bundling
-	if options.IsBundling && options.OutputFormat == config.FormatPreserve {
+	if options.Mode == config.ModeBundle && options.OutputFormat == config.FormatPreserve {
 		options.OutputFormat = config.FormatESModule
 	}
 
@@ -928,7 +928,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logging
 
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code
-		IsBundling: true,
+		Mode: config.ModeBundle,
 	})
 	if log.HasErrors() {
 		panic("Internal error: failed to parse runtime")

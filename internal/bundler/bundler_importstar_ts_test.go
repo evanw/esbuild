@@ -24,7 +24,7 @@ func TestTSImportStarUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -44,7 +44,7 @@ func TestTSImportStarCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -64,7 +64,7 @@ func TestTSImportStarNoCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -88,7 +88,7 @@ func TestTSImportStarExportImportStarUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -112,7 +112,7 @@ func TestTSImportStarExportImportStarNoCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -136,7 +136,7 @@ func TestTSImportStarExportImportStarCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -159,7 +159,7 @@ func TestTSImportStarExportStarAsUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -182,7 +182,7 @@ func TestTSImportStarExportStarAsNoCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -205,7 +205,7 @@ func TestTSImportStarExportStarAsCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -228,7 +228,7 @@ func TestTSImportStarExportStarUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -251,7 +251,7 @@ func TestTSImportStarExportStarNoCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -274,7 +274,7 @@ func TestTSImportStarExportStarCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -294,7 +294,7 @@ func TestTSImportStarCommonJSUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -314,7 +314,7 @@ func TestTSImportStarCommonJSCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -334,7 +334,7 @@ func TestTSImportStarCommonJSNoCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -354,7 +354,7 @@ func TestTSImportStarAndCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -371,7 +371,6 @@ func TestTSImportStarNoBundleUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -388,7 +387,6 @@ func TestTSImportStarNoBundleCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -405,7 +403,6 @@ func TestTSImportStarNoBundleNoCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -422,7 +419,6 @@ func TestTSImportStarMangleNoBundleUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    false,
 			MangleSyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
@@ -440,7 +436,6 @@ func TestTSImportStarMangleNoBundleCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    false,
 			MangleSyntax:  true,
 			AbsOutputFile: "/out.js",
 		},
@@ -458,7 +453,6 @@ func TestTSImportStarMangleNoBundleNoCapture(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    false,
 			MangleSyntax:  true,
 			AbsOutputFile: "/out.js",
 		},

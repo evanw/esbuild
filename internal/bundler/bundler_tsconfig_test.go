@@ -123,7 +123,7 @@ func TestTsConfigPaths(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -146,7 +146,7 @@ func TestTsConfigJSX(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/entry.tsx"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -195,7 +195,7 @@ func TestTsConfigNestedJSX(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -223,7 +223,7 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -251,7 +251,7 @@ func TestJsconfigJsonBaseUrl(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -280,7 +280,7 @@ func TestTsconfigJsonCommentAllowed(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -308,7 +308,7 @@ func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -339,7 +339,7 @@ func TestTsconfigJsonExtends(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.jsx"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -375,7 +375,7 @@ func TestTsconfigJsonExtendsThreeLevels(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.jsx"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -400,7 +400,7 @@ func TestTsconfigJsonExtendsLoop(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: "/base.json: warning: Base config file \"./tsconfig\" forms cycle\n",
@@ -428,7 +428,7 @@ func TestTsconfigJsonExtendsPackage(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.jsx"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -469,7 +469,7 @@ func TestTsconfigJsonOverrideMissing(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.ts"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			AbsOutputFile:    "/Users/user/project/out.js",
 			TsConfigOverride: "/Users/user/project/other/config-for-ts.json",
 		},
@@ -514,7 +514,7 @@ func TestTsconfigJsonOverrideNodeModules(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.ts"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			AbsOutputFile:    "/Users/user/project/out.js",
 			TsConfigOverride: "/Users/user/project/other/config-for-ts.json",
 		},
@@ -528,7 +528,7 @@ func TestTsconfigJsonOverrideInvalid(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			AbsOutputFile:    "/out.js",
 			TsConfigOverride: "/this/file/doesn't/exist/tsconfig.json",
 		},
@@ -558,7 +558,7 @@ func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.tsx"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})

@@ -324,6 +324,299 @@
     }),
   )
 
+  // Test for format conversion without bundling
+  tests.push(
+    // ESM => ESM
+    test(['in.js', '--outfile=node.js', '--format=esm'], {
+      'in.js': `
+        import {exists} from 'fs'
+        if (!exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=esm'], {
+      'in.js': `
+        import fs from 'fs'
+        if (!fs.exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=esm'], {
+      'in.js': `
+        import * as fs from 'fs'
+        if (!fs.exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=esm'], {
+      'in.js': `
+        let fn = async () => {
+          let fs = await import('fs')
+          if (!fs.exists) throw 'fail'
+        }
+        export {fn as async}
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=out.js', '--format=esm'], {
+      'in.js': `
+        export let foo = 'abc'
+        export default function() {
+          return 123
+        }
+      `,
+      'node.js': `
+        import * as out from './out.js'
+        if (out.foo !== 'abc' || out.default() !== 123) throw 'fail'
+      `,
+    }),
+
+    // ESM => CJS
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `
+        import {exists} from 'fs'
+        if (!exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `
+        import fs from 'fs'
+        if (!fs.exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `
+        import * as fs from 'fs'
+        if (!fs.exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `
+        let fn = async () => {
+          let fs = await import('fs')
+          if (!fs.exists) throw 'fail'
+        }
+        export {fn as async}
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `
+        export let foo = 'abc'
+        export default function() {
+          return 123
+        }
+      `,
+      'node.js': `
+        const out = require('./out.js')
+        if (out.foo !== 'abc' || out.default() !== 123) throw 'fail'
+      `,
+    }),
+
+    // ESM => IIFE
+    test(['in.js', '--outfile=node.js', '--format=iife'], {
+      'in.js': `
+        import {exists} from 'fs'
+        if (!exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=iife'], {
+      'in.js': `
+        import fs from 'fs'
+        if (!fs.exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=iife'], {
+      'in.js': `
+        import * as fs from 'fs'
+        if (!fs.exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=iife', '--global-name=test'], {
+      'in.js': `
+        let fn = async () => {
+          let fs = await import('fs')
+          if (!fs.exists) throw 'fail'
+        }
+        export {fn as async}
+      `,
+      'node.js': `
+        const code = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        const out = new Function('require', code + '; return test')(require)
+        exports.async = out.async
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=out.js', '--format=iife', '--global-name=test'], {
+      'in.js': `
+        export let foo = 'abc'
+        export default function() {
+          return 123
+        }
+      `,
+      'node.js': `
+        const code = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        const out = new Function(code + '; return test')()
+        if (out.foo !== 'abc' || out.default() !== 123) throw 'fail'
+      `,
+    }),
+
+    // JSON
+    test(['in.json', '--outfile=out.js', '--format=esm'], {
+      'in.json': `{"foo": 123}`,
+      'node.js': `
+        import def from './out.js'
+        import {foo} from './out.js'
+        if (foo !== 123 || def.foo !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.json', '--outfile=out.js', '--format=cjs'], {
+      'in.json': `{"foo": 123}`,
+      'node.js': `
+        const out = require('./out.js')
+        if (out.foo !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.json', '--outfile=out.js', '--format=iife', '--global-name=test'], {
+      'in.json': `{"foo": 123}`,
+      'node.js': `
+        const code = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        const out = new Function(code + '; return test')()
+        if (out.foo !== 123) throw 'fail'
+      `,
+    }),
+
+    // CJS => CJS
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `
+        const {exists} = require('fs')
+        if (!exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--format=cjs'], {
+      'in.js': `
+        const fs = require('fs')
+        if (!fs.exists) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `
+        module.exports = 123
+      `,
+      'node.js': `
+        const out = require('./out.js')
+        if (out !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `
+        exports.foo = 123
+      `,
+      'node.js': `
+        const out = require('./out.js')
+        if (out.foo !== 123) throw 'fail'
+      `,
+    }),
+
+    // CJS => IIFE
+    test(['in.js', '--outfile=out.js', '--format=iife'], {
+      'in.js': `
+        const {exists} = require('fs')
+        if (!exists) throw 'fail'
+      `,
+      'node.js': `
+        const code = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        new Function('require', code)(require)
+      `,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=iife'], {
+      'in.js': `
+        const fs = require('fs')
+        if (!fs.exists) throw 'fail'
+      `,
+      'node.js': `
+        const code = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        new Function('require', code)(require)
+      `,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=iife', '--global-name=test'], {
+      'in.js': `
+        module.exports = 123
+      `,
+      'node.js': `
+        const code = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        const out = new Function(code + '; return test')()
+        if (out !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=iife', '--global-name=test'], {
+      'in.js': `
+        exports.foo = 123
+      `,
+      'node.js': `
+        const code = require('fs').readFileSync(__dirname + '/out.js', 'utf8')
+        const out = new Function(code + '; return test')()
+        if (out.foo !== 123) throw 'fail'
+      `,
+    }),
+
+    // CJS => ESM
+    test(['in.js', '--outfile=out.js', '--format=esm'], {
+      'in.js': `
+        const {exists} = require('fs')
+        if (!exists) throw 'fail'
+      `,
+      'node.js': `
+        let fn = async () => {
+          let error
+          await import('./out.js').catch(x => error = x)
+          if (!error || error.message !== 'require is not defined') throw 'fail'
+        }
+        export {fn as async}
+      `,
+    }, {
+      async: true,
+      expectedStderr: `in.js:2:25: warning: Converting "require" to "esm" is currently not supported
+        const {exists} = require('fs')
+                         ~~~~~~~
+1 warning
+`,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=esm'], {
+      'in.js': `
+        const fs = require('fs')
+        if (!fs.exists) throw 'fail'
+      `,
+      'node.js': `
+        let fn = async () => {
+          let error
+          await import('./out.js').catch(x => error = x)
+          if (!error || error.message !== 'require is not defined') throw 'fail'
+        }
+        export {fn as async}
+      `,
+    }, {
+      async: true,
+      expectedStderr: `in.js:2:19: warning: Converting "require" to "esm" is currently not supported
+        const fs = require('fs')
+                   ~~~~~~~
+1 warning
+`,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=esm'], {
+      'in.js': `
+        module.exports = 123
+      `,
+      'node.js': `
+        import out from './out.js'
+        if (out !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=out.js', '--format=esm'], {
+      'in.js': `
+        exports.foo = 123
+      `,
+      'node.js': `
+        import out from './out.js'
+        if (out.foo !== 123) throw 'fail'
+      `,
+    }),
+  )
+
   // Tests for "arguments" scope issues
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {
@@ -995,9 +1288,10 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
   function test(args, files, options) {
     return async () => {
       const hasBundle = args.includes('--bundle')
+      const hasIIFE = args.includes('--format=iife')
       const hasCJS = args.includes('--format=cjs')
       const hasESM = args.includes('--format=esm')
-      const formats = hasCJS || !hasBundle ? ['cjs'] : hasESM ? ['esm'] : ['cjs', 'esm']
+      const formats = hasIIFE ? ['iife'] : hasESM ? ['esm'] : hasCJS || !hasBundle ? ['cjs'] : ['cjs', 'esm']
       const expectedStderr = options && options.expectedStderr || '';
 
       // If the test doesn't specify a format, test both formats
@@ -1031,6 +1325,7 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
           let testExports
           switch (format) {
             case 'cjs':
+            case 'iife':
               await writeFileAsync(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
               testExports = (await import(url.pathToFileURL(`${nodePath}.js`))).default
               break
@@ -1049,14 +1344,17 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
           }
 
           // Clean up test output
-          rimraf.sync(thisTestDir, { disableGlob: true })
+          rimraf.sync(thisTestDir, { disableGlob: true });
         }
 
         catch (e) {
           if (e && e.stderr !== void 0) {
             try {
               assert.strictEqual(e.stderr, expectedStderr);
-              return true;
+
+              // Clean up test output
+              rimraf.sync(thisTestDir, { disableGlob: true });
+              continue;
             } catch (e2) {
               e = e2;
             }

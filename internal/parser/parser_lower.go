@@ -9,6 +9,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
 )
 
@@ -16,10 +17,16 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) (didGene
 	didGenerateError = true
 
 	if !p.UnsupportedFeatures.Has(feature) {
-		if feature == compat.TopLevelAwait && p.IsBundling {
-			p.log.AddRangeError(&p.source, r,
-				"Top-level await is currently not supported when bundling")
-			return
+		if feature == compat.TopLevelAwait {
+			if p.Mode == config.ModeBundle {
+				p.log.AddRangeError(&p.source, r, "Top-level await is currently not supported when bundling")
+				return
+			}
+			if p.Mode == config.ModeConvertFormat && !p.OutputFormat.KeepES6ImportExportSyntax() {
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf(
+					"Top-level await is currently not supported with the %q output format", p.OutputFormat.String()))
+				return
+			}
 		}
 
 		didGenerateError = false

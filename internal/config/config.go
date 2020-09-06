@@ -130,6 +130,18 @@ func (f Format) KeepES6ImportExportSyntax() bool {
 	return f == FormatPreserve || f == FormatESModule
 }
 
+func (f Format) String() string {
+	switch f {
+	case FormatIIFE:
+		return "iife"
+	case FormatCommonJS:
+		return "cjs"
+	case FormatESModule:
+		return "esm"
+	}
+	return ""
+}
+
 type StdinInfo struct {
 	Loader        Loader
 	Contents      string
@@ -142,11 +154,16 @@ type ExternalModules struct {
 	AbsPaths    map[string]bool
 }
 
-type Options struct {
-	// true: imports are scanned and bundled along with the file
-	// false: imports are left alone and the file is passed through as-is
-	IsBundling bool
+type Mode uint8
 
+const (
+	ModePassThrough Mode = iota
+	ModeConvertFormat
+	ModeBundle
+)
+
+type Options struct {
+	Mode              Mode
 	RemoveWhitespace  bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool

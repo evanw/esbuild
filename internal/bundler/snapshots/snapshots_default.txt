@@ -2067,6 +2067,20 @@ const es6_ns_export_class = __toModule(require_es6_ns_export_class());
 const es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstract_class());
 
 ================================================================================
+TestTopLevelAwaitNoBundle
+---------- /out.js ----------
+await foo;
+for await (foo of bar)
+  ;
+
+================================================================================
+TestTopLevelAwaitNoBundleES6
+---------- /out.js ----------
+await foo;
+for await (foo of bar)
+  ;
+
+================================================================================
 TestTopLevelReturn
 ---------- /out.js ----------
 // /foo.js

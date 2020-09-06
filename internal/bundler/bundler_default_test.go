@@ -25,7 +25,7 @@ func TestSimpleES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -46,7 +46,7 @@ func TestSimpleCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -73,7 +73,7 @@ func TestNestedCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -94,7 +94,7 @@ func TestNewExpressionCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -121,7 +121,7 @@ func TestCommonJSFromES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -148,7 +148,7 @@ func TestES6FromCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -174,7 +174,7 @@ func TestNestedES6FromCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -199,7 +199,7 @@ func TestExportFormsES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
@@ -225,7 +225,7 @@ func TestExportFormsIIFE(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatIIFE,
 			ModuleName:    "moduleName",
 			AbsOutputFile: "/out.js",
@@ -262,7 +262,6 @@ func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 			"/e.js",
 		},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputDir:      "/out",
 		},
@@ -289,7 +288,6 @@ func TestImportFormsWithNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -315,7 +313,6 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -356,7 +353,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -380,7 +377,7 @@ func TestReExportDefaultCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -401,7 +398,7 @@ func TestExportChain(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -419,7 +416,7 @@ func TestExportInfiniteCycle1(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `/entry.js: error: Detected cycle while resolving import "a"
@@ -444,7 +441,7 @@ func TestExportInfiniteCycle2(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `/entry.js: error: Detected cycle while resolving import "a"
@@ -468,7 +465,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.jsx"},
 		options: config.Options{
-			IsBundling: true,
+			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
 				Factory:  []string{"elem"},
 				Fragment: []string{"frag"},
@@ -492,7 +489,7 @@ func TestJSXImportsES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.jsx"},
 		options: config.Options{
-			IsBundling: true,
+			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
 				Factory:  []string{"elem"},
 				Fragment: []string{"frag"},
@@ -511,7 +508,7 @@ func TestJSXSyntaxInJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: error: Unexpected "<"
@@ -534,7 +531,7 @@ func TestNodeModules(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -560,7 +557,7 @@ func TestPackageJsonMain(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -587,7 +584,7 @@ func TestPackageJsonSyntaxErrorComment(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: "/Users/user/project/node_modules/demo-pkg/package.json: error: JSON does not support comments\n",
@@ -615,7 +612,7 @@ func TestPackageJsonSyntaxErrorTrailingComma(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: "/Users/user/project/node_modules/demo-pkg/package.json: error: JSON does not support trailing commas\n",
@@ -648,7 +645,7 @@ func TestPackageJsonModule(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -674,7 +671,7 @@ func TestPackageJsonBrowserString(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -717,7 +714,7 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -753,7 +750,7 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -786,7 +783,7 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -825,7 +822,7 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -864,7 +861,7 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -898,7 +895,7 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -927,7 +924,7 @@ func TestPackageJsonBrowserMapNativeModuleDisabled(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -961,7 +958,7 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -999,7 +996,7 @@ func TestPackageJsonBrowserOverModule(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -1045,7 +1042,7 @@ func TestPackageJsonBrowserWithModule(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
@@ -1063,7 +1060,7 @@ func TestRequireChildDirCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1082,7 +1079,7 @@ func TestRequireChildDirES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1100,7 +1097,7 @@ func TestRequireParentDirCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/dir/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1119,7 +1116,7 @@ func TestRequireParentDirES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/dir/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1138,7 +1135,7 @@ func TestImportMissingES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `/entry.js: error: No matching export for import "default"
@@ -1159,7 +1156,7 @@ func TestImportMissingUnusedES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `/entry.js: error: No matching export for import "default"
@@ -1181,7 +1178,7 @@ func TestImportMissingCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1201,7 +1198,7 @@ func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `/entry.js: warning: Import "default" will always be undefined
@@ -1227,7 +1224,7 @@ func TestExportMissingES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `/foo.js: error: No matching export for import "nope"
@@ -1248,7 +1245,7 @@ func TestDotImport(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1267,7 +1264,7 @@ func TestRequireWithTemplate(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1286,7 +1283,7 @@ func TestDynamicImportWithTemplateIIFE(t *testing.T) {
 		},
 		entryPaths: []string{"/a.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
 		},
@@ -1305,7 +1302,7 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal
@@ -1326,7 +1323,7 @@ func TestRequireBadArgumentCount(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: warning: This call to "require" will not be bundled because it has 0 arguments
@@ -1351,7 +1348,7 @@ func TestRequireJson(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1367,7 +1364,7 @@ func TestRequireTxt(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1383,7 +1380,7 @@ func TestRequireBadExtension(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: error: File extension not supported: /test
@@ -1401,7 +1398,7 @@ func TestFalseRequire(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1417,7 +1414,7 @@ func TestRequireWithoutCall(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
@@ -1437,7 +1434,7 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
@@ -1461,7 +1458,7 @@ func TestRequireWithCallInsideTry(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1482,7 +1479,7 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1502,7 +1499,7 @@ func TestSourceMap(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			SourceMap:     config.SourceMapLinkedWithComment,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
@@ -1531,7 +1528,7 @@ func TestNestedScopeBug(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1550,7 +1547,7 @@ func TestHashbangBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1565,7 +1562,6 @@ func TestHashbangNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1586,7 +1582,7 @@ func TestTypeofRequireBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1607,7 +1603,6 @@ func TestTypeofRequireNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1634,7 +1629,7 @@ func TestTypeofRequireBadPatterns(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
@@ -1658,7 +1653,7 @@ func TestRequireFSBrowser(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
@@ -1676,7 +1671,7 @@ func TestRequireFSNode(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
@@ -1693,7 +1688,7 @@ func TestRequireFSNodeMinify(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			RemoveWhitespace: true,
 			OutputFormat:     config.FormatCommonJS,
 			AbsOutputFile:    "/out.js",
@@ -1715,7 +1710,7 @@ func TestImportFSBrowser(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
@@ -1737,7 +1732,7 @@ func TestImportFSNodeCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
@@ -1758,7 +1753,7 @@ func TestImportFSNodeES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
@@ -1776,7 +1771,7 @@ func TestExportFSBrowser(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
@@ -1795,7 +1790,7 @@ func TestExportFSNode(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
 		},
@@ -1816,7 +1811,7 @@ func TestReExportFSNode(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
 		},
@@ -1836,7 +1831,7 @@ func TestExportFSNodeInCommonJSModule(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
 		},
@@ -1852,7 +1847,7 @@ func TestExportWildcardFSNodeES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
@@ -1869,7 +1864,7 @@ func TestExportWildcardFSNodeCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
@@ -1893,7 +1888,7 @@ func TestMinifiedBundleES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        true,
+			Mode:              config.ModeBundle,
 			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
@@ -1920,7 +1915,7 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        true,
+			Mode:              config.ModeBundle,
 			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
@@ -1938,7 +1933,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			RemoveWhitespace: true,
 			OutputFormat:     config.FormatIIFE,
 			AbsOutputFile:    "/out.js",
@@ -1956,7 +1951,6 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1978,7 +1972,7 @@ func TestTopLevelReturn(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -1996,7 +1990,7 @@ func TestThisOutsideFunction(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2021,7 +2015,7 @@ func TestThisInsideFunction(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2110,7 +2104,7 @@ func TestThisWithES6Syntax(t *testing.T) {
 			"/entry.js",
 		},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2134,7 +2128,7 @@ func TestArrowFnScope(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        true,
+			Mode:              config.ModeBundle,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2151,7 +2145,6 @@ func TestSwitchScopeNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2174,7 +2167,6 @@ func TestArgumentDefaultValueScopeNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2228,7 +2220,6 @@ func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2262,7 +2253,6 @@ func TestWithStatementTaintingNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2308,7 +2298,6 @@ func TestDirectEvalTaintingNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2336,7 +2325,7 @@ func TestImportReExportES6Issue149(t *testing.T) {
 		},
 		entryPaths: []string{"/app.jsx"},
 		options: config.Options{
-			IsBundling: true,
+			Mode: config.ModeBundle,
 			JSX: config.JSXOptions{
 				Factory: []string{"h"},
 			},
@@ -2362,7 +2351,7 @@ func TestExternalModuleExclusionPackage(t *testing.T) {
 		},
 		entryPaths: []string{"/index.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
@@ -2395,7 +2384,7 @@ func TestExternalModuleExclusionScopedPackage(t *testing.T) {
 		},
 		entryPaths: []string{"/index.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
@@ -2427,7 +2416,7 @@ func TestScopedExternalModuleExclusion(t *testing.T) {
 		},
 		entryPaths: []string{"/index.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
@@ -2453,7 +2442,7 @@ func TestExternalModuleExclusionRelativePath(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/index.js"},
 		options: config.Options{
-			IsBundling:   true,
+			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
 			ExternalModules: config.ExternalModules{
 				AbsPaths: map[string]bool{
@@ -2523,7 +2512,7 @@ func TestManyEntryPoints(t *testing.T) {
 			"/e30.js", "/e31.js", "/e32.js", "/e33.js", "/e34.js", "/e35.js", "/e36.js", "/e37.js", "/e38.js", "/e39.js",
 		},
 		options: config.Options{
-			IsBundling:   true,
+			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
 	})
@@ -2557,7 +2546,6 @@ func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2591,7 +2579,6 @@ func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2624,7 +2611,6 @@ func TestRenameLabelsNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2657,7 +2643,6 @@ func TestMinifySiblingLabelsNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},
@@ -2698,7 +2683,6 @@ func TestMinifyNestedLabelsNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        false,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
@@ -2723,7 +2707,7 @@ func TestExportsAndModuleFormatCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
@@ -2750,7 +2734,7 @@ func TestMinifiedExportsAndModuleFormatCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        true,
+			Mode:              config.ModeBundle,
 			MinifyIdentifiers: true,
 			OutputFormat:      config.FormatCommonJS,
 			AbsOutputFile:     "/out.js",
@@ -2775,7 +2759,6 @@ func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:       false,
 			MangleSyntax:     true,
 			RemoveWhitespace: true,
 			AbsOutputFile:    "/out.js",
@@ -2792,7 +2775,7 @@ func TestNoOverwriteInputFileError(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:   true,
+			Mode:         config.ModeBundle,
 			AbsOutputDir: "/",
 		},
 		expectedCompileLog: "error: Refusing to overwrite input file: /entry.js\n",
@@ -2808,7 +2791,7 @@ func TestDuplicateEntryPointError(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js", "/entry.js"},
 		options: config.Options{
-			IsBundling:   true,
+			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out.js",
 		},
 		expectedScanLog: "error: Duplicate entry point \"/entry.js\"\n",
@@ -2824,7 +2807,7 @@ func TestMultipleEntryPointsSameNameCollision(t *testing.T) {
 		},
 		entryPaths: []string{"/a/entry.js", "/b/entry.js"},
 		options: config.Options{
-			IsBundling:   true,
+			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out/",
 		},
 	})
@@ -2842,7 +2825,7 @@ func TestReExportCommonJSAsES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2864,7 +2847,7 @@ func TestReExportDefaultInternal(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2883,7 +2866,7 @@ func TestReExportDefaultExternal(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
@@ -2905,7 +2888,6 @@ func TestReExportDefaultNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2920,7 +2902,7 @@ func TestImportMetaCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
@@ -2936,7 +2918,7 @@ func TestImportMetaES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 		},
@@ -2952,7 +2934,6 @@ func TestImportMetaNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    false,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -2972,7 +2953,7 @@ func TestDeduplicateCommentsInBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			RemoveWhitespace: true,
 			AbsOutputFile:    "/out.js",
 		},
@@ -2989,7 +2970,7 @@ func TestIIFE_ES5(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:          true,
+			Mode:                config.ModeBundle,
 			UnsupportedFeatures: es(5),
 			OutputFormat:        config.FormatIIFE,
 			AbsOutputFile:       "/out.js",
@@ -3006,7 +2987,7 @@ func TestOutputExtensionRemappingFile(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			OutputExtensions: map[string]string{".js": ".notjs"},
 			AbsOutputFile:    "/out.js",
 		},
@@ -3022,7 +3003,7 @@ func TestOutputExtensionRemappingDir(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:       true,
+			Mode:             config.ModeBundle,
 			OutputExtensions: map[string]string{".js": ".notjs"},
 			AbsOutputDir:     "/out",
 		},
@@ -3039,11 +3020,83 @@ func TestTopLevelAwait(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.js: error: Top-level await is currently not supported when bundling
 /entry.js: error: Top-level await is currently not supported when bundling
+`,
+	})
+}
+
+func TestTopLevelAwaitNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTopLevelAwaitNoBundleES6(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			OutputFormat:  config.FormatESModule,
+			Mode:          config.ModeConvertFormat,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTopLevelAwaitNoBundleCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			OutputFormat:  config.FormatCommonJS,
+			Mode:          config.ModeConvertFormat,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: Top-level await is currently not supported with the "cjs" output format
+/entry.js: error: Top-level await is currently not supported with the "cjs" output format
+`,
+	})
+}
+
+func TestTopLevelAwaitNoBundleIIFE(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			OutputFormat:  config.FormatIIFE,
+			Mode:          config.ModeConvertFormat,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: Top-level await is currently not supported with the "iife" output format
+/entry.js: error: Top-level await is currently not supported with the "iife" output format
 `,
 	})
 }
@@ -3073,7 +3126,7 @@ func TestAssignToImport(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/bad0.js: error: Cannot assign to import "x"
@@ -3110,7 +3163,7 @@ func TestMinifyArguments(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:        true,
+			Mode:              config.ModeBundle,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
 		},

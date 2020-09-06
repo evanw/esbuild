@@ -20,7 +20,7 @@ func TestLoaderFile(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:   true,
+			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out/",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":  config.LoaderJS,
@@ -46,7 +46,7 @@ func TestLoaderFileMultipleNoCollision(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/dist/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":  config.LoaderJS,
@@ -65,7 +65,7 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js": config.LoaderJSX,
@@ -84,7 +84,7 @@ func TestRequireCustomExtensionString(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":     config.LoaderJS,
@@ -104,7 +104,7 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":     config.LoaderJS,
@@ -124,7 +124,7 @@ func TestRequireCustomExtensionDataURL(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":     config.LoaderJS,
@@ -145,7 +145,7 @@ func TestRequireCustomExtensionPreferLongest(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":         config.LoaderJS,
@@ -166,7 +166,7 @@ func TestAutoDetectMimeTypeFromExtension(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":  config.LoaderJS,
@@ -195,7 +195,7 @@ func TestLoaderJSONCommonJSAndES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -214,7 +214,7 @@ func TestLoaderTextCommonJSAndES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -233,7 +233,7 @@ func TestLoaderBase64CommonJSAndES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":  config.LoaderJS,
@@ -256,7 +256,7 @@ func TestLoaderDataURLCommonJSAndES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":  config.LoaderJS,
@@ -279,12 +279,66 @@ func TestLoaderFileCommonJSAndES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":  config.LoaderJS,
 				".txt": config.LoaderFile,
 			},
+		},
+	})
+}
+
+func TestLoaderJSONNoBundle(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/test.json": `{"test": 123}`,
+		},
+		entryPaths: []string{"/test.json"},
+		options: config.Options{
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestLoaderJSONNoBundleES6(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/test.json": `{"test": 123}`,
+		},
+		entryPaths: []string{"/test.json"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestLoaderJSONNoBundleCommonJS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/test.json": `{"test": 123}`,
+		},
+		entryPaths: []string{"/test.json"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestLoaderJSONNoBundleIIFE(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/test.json": `{"test": 123}`,
+		},
+		entryPaths: []string{"/test.json"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatIIFE,
+			AbsOutputFile: "/out.js",
 		},
 	})
 }

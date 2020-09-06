@@ -24,7 +24,7 @@ func TestTSDeclareConst(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -44,7 +44,7 @@ func TestTSDeclareLet(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -64,7 +64,7 @@ func TestTSDeclareVar(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -84,7 +84,7 @@ func TestTSDeclareClass(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -104,7 +104,7 @@ func TestTSDeclareFunction(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -124,7 +124,7 @@ func TestTSDeclareNamespace(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -144,7 +144,7 @@ func TestTSDeclareEnum(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -164,7 +164,7 @@ func TestTSDeclareConstEnum(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -184,7 +184,7 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -203,7 +203,7 @@ func TestTSImportMissingES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `/entry.ts: error: No matching export for import "default"
@@ -224,7 +224,7 @@ func TestTSImportMissingUnusedES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -246,7 +246,7 @@ func TestTSExportMissingES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -263,7 +263,7 @@ func TestTSImportMissingFile(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: "/entry.ts: error: Could not resolve \"./doesNotExist.ts\"\n",
@@ -282,7 +282,7 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -302,7 +302,7 @@ func TestTSExportEquals(t *testing.T) {
 		},
 		entryPaths: []string{"/a.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -327,7 +327,7 @@ func TestTSExportNamespace(t *testing.T) {
 		},
 		entryPaths: []string{"/a.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -422,7 +422,7 @@ func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -446,7 +446,7 @@ func TestTSImportVsLocalCollisionMixed(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -467,7 +467,7 @@ func TestTSMinifiedBundleES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:        true,
+			Mode:              config.ModeBundle,
 			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
@@ -494,7 +494,7 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:        true,
+			Mode:              config.ModeBundle,
 			MangleSyntax:      true,
 			RemoveWhitespace:  true,
 			MinifyIdentifiers: true,
@@ -626,7 +626,7 @@ func TestTypeScriptDecorators(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -754,7 +754,7 @@ func TestTSExportDefaultTypeIssue316(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -792,7 +792,7 @@ func TestTSImplicitExtensions(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -816,7 +816,7 @@ func TestTSImplicitExtensionsMissing(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `/entry.ts: error: Could not resolve "./mjs.mjs"

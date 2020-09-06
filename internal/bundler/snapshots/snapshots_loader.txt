@@ -116,6 +116,36 @@ const x_json = require_x();
 console.log(x_json, y_default, small, if2);
 
 ================================================================================
+TestLoaderJSONNoBundle
+---------- /out.js ----------
+module.exports = {test: 123};
+
+================================================================================
+TestLoaderJSONNoBundleCommonJS
+---------- /out.js ----------
+module.exports = {test: 123};
+
+================================================================================
+TestLoaderJSONNoBundleES6
+---------- /out.js ----------
+var test = 123;
+var test_default = {test};
+export {
+  test_default as default,
+  test
+};
+
+================================================================================
+TestLoaderJSONNoBundleIIFE
+---------- /out.js ----------
+(() => {
+  var require_test = __commonJS((exports, module) => {
+    module.exports = {test: 123};
+  });
+  require_test();
+})();
+
+================================================================================
 TestLoaderTextCommonJSAndES6
 ---------- /out.js ----------
 // /x.txt

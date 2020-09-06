@@ -370,8 +370,9 @@ func newLinkerContext(
 
 		// Also associate some default metadata with the file
 		c.fileMeta[sourceIndex] = fileMeta{
-			distanceFromEntryPoint:   ^uint32(0),
-			cjsStyleExports:          file.ast.HasCommonJSFeatures() || (file.ast.HasLazyExport && !c.options.IsBundling),
+			distanceFromEntryPoint: ^uint32(0),
+			cjsStyleExports: file.ast.HasCommonJSFeatures() || (file.ast.HasLazyExport && (c.options.Mode == config.ModePassThrough ||
+				(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax()))),
 			partMeta:                 make([]partMeta, len(file.ast.Parts)),
 			resolvedExports:          resolvedExports,
 			isProbablyTypeScriptType: make(map[ast.Ref]bool),
@@ -503,7 +504,7 @@ func (c *linkerContext) link() []OutputFile {
 	c.markPartsReachableFromEntryPoints()
 	c.handleCrossChunkAssignments()
 
-	if !c.options.IsBundling {
+	if c.options.Mode == config.ModePassThrough {
 		for _, entryPoint := range c.entryPoints {
 			c.markExportsAsUnbound(entryPoint)
 		}
@@ -2060,7 +2061,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 		// Include all parts in this file with side effects, or just include
 		// everything if tree-shaking is disabled. Note that we still want to
 		// perform tree-shaking on the runtime even if tree-shaking is disabled.
-		if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !c.options.IsBundling && sourceIndex != runtime.SourceIndex) {
+		if !canBeRemovedIfUnused || (!part.ForceTreeShaking && c.options.Mode != config.ModeBundle && sourceIndex != runtime.SourceIndex) {
 			c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
 		}
 	}
@@ -2420,7 +2421,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 }
 
 func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtList, partStmts []ast.Stmt) {
-	shouldStripExports := c.options.IsBundling || sourceIndex == runtime.SourceIndex
+	shouldStripExports := c.options.Mode != config.ModePassThrough || sourceIndex == runtime.SourceIndex
 	shouldExtractES6StmtsForCJSWrap := c.fileMeta[sourceIndex].cjsWrap
 
 	for _, stmt := range partStmts {
@@ -2783,7 +2784,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		OutputFormat:        c.options.OutputFormat,
 		RemoveWhitespace:    c.options.RemoveWhitespace,
 		ToModuleRef:         toModuleRef,
-		ExtractComments:     c.options.IsBundling && c.options.RemoveWhitespace,
+		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
 		UnsupportedFeatures: c.options.UnsupportedFeatures,
 		SourceForSourceMap:  sourceForSourceMap,
 		InputSourceMap:      file.ast.SourceMap,
@@ -2817,7 +2818,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	reservedNames := renamer.ComputeReservedNames(moduleScopes, c.symbols)
 
 	// These are used to implement bundling, and need to be free for use
-	if c.options.IsBundling {
+	if c.options.Mode != config.ModePassThrough {
 		reservedNames["require"] = 1
 		reservedNames["Promise"] = 1
 	}
@@ -3104,7 +3105,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 			}
 
 			// Don't add a file name comment for the runtime
-			if c.options.IsBundling && !c.options.RemoveWhitespace && !isRuntime {
+			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && !isRuntime {
 				if newlineBeforeComment {
 					prevOffset.advanceString("\n")
 					j.AddString("\n")

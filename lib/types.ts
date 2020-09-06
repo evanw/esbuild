@@ -6,6 +6,8 @@ export type Strict = 'nullish-coalescing' | 'optional-chaining' | 'class-fields'
 
 export interface CommonOptions {
   sourcemap?: boolean | 'inline' | 'external';
+  format?: Format;
+  globalName?: string;
   target?: string | string[];
   strict?: boolean | Strict[];
 
@@ -25,14 +27,12 @@ export interface CommonOptions {
 }
 
 export interface BuildOptions extends CommonOptions {
-  globalName?: string;
   bundle?: boolean;
   splitting?: boolean;
   outfile?: string;
   metafile?: string;
   outdir?: string;
   platform?: Platform;
-  format?: Format;
   color?: boolean;
   external?: string[];
   loader?: { [ext: string]: Loader };

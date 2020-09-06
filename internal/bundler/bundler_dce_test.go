@@ -29,7 +29,7 @@ func TestPackageJsonSideEffectsFalseKeepNamedImportES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -54,7 +54,7 @@ func TestPackageJsonSideEffectsFalseKeepNamedImportCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -79,7 +79,7 @@ func TestPackageJsonSideEffectsFalseKeepStarImportES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -104,7 +104,7 @@ func TestPackageJsonSideEffectsFalseKeepStarImportCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -129,7 +129,7 @@ func TestPackageJsonSideEffectsTrueKeepES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -154,7 +154,7 @@ func TestPackageJsonSideEffectsTrueKeepCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -180,7 +180,7 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -206,7 +206,7 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -231,7 +231,7 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -256,7 +256,7 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -281,7 +281,7 @@ func TestPackageJsonSideEffectsFalseRemoveNamedImportES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -306,7 +306,7 @@ func TestPackageJsonSideEffectsFalseRemoveNamedImportCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -331,7 +331,7 @@ func TestPackageJsonSideEffectsFalseRemoveStarImportES6(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -356,7 +356,7 @@ func TestPackageJsonSideEffectsFalseRemoveStarImportCommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -381,7 +381,7 @@ func TestPackageJsonSideEffectsArrayRemove(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -406,7 +406,7 @@ func TestPackageJsonSideEffectsArrayKeep(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -431,7 +431,7 @@ func TestPackageJsonSideEffectsNestedDirectoryRemove(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -455,7 +455,7 @@ func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -472,7 +472,7 @@ func TestJSONLoaderRemoveUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -489,7 +489,7 @@ func TestTextLoaderRemoveUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -506,7 +506,7 @@ func TestBase64LoaderRemoveUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":   config.LoaderJS,
@@ -527,7 +527,7 @@ func TestDataURLLoaderRemoveUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":   config.LoaderJS,
@@ -548,7 +548,7 @@ func TestFileLoaderRemoveUnused(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
 				".js":   config.LoaderJS,
@@ -570,7 +570,7 @@ func TestRemoveUnusedImportMeta(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -633,7 +633,7 @@ func TestRemoveUnusedPureCommentCalls(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -657,7 +657,7 @@ func TestTreeShakingReactElements(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.jsx"},
 		options: config.Options{
-			IsBundling:    true,
+			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
 	})

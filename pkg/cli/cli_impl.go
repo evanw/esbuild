@@ -106,8 +106,12 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case strings.HasPrefix(arg, "--resolve-extensions=") && buildOpts != nil:
 			buildOpts.ResolveExtensions = strings.Split(arg[len("--resolve-extensions="):], ",")
 
-		case strings.HasPrefix(arg, "--global-name=") && buildOpts != nil:
-			buildOpts.GlobalName = arg[len("--global-name="):]
+		case strings.HasPrefix(arg, "--global-name="):
+			if buildOpts != nil {
+				buildOpts.GlobalName = arg[len("--global-name="):]
+			} else {
+				transformOpts.GlobalName = arg[len("--global-name="):]
+			}
 
 		case strings.HasPrefix(arg, "--metafile=") && buildOpts != nil:
 			buildOpts.Metafile = arg[len("--metafile="):]
@@ -238,15 +242,27 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				return fmt.Errorf("Invalid platform: %q (valid: browser, node)", value)
 			}
 
-		case strings.HasPrefix(arg, "--format=") && buildOpts != nil:
+		case strings.HasPrefix(arg, "--format="):
 			value := arg[len("--format="):]
 			switch value {
 			case "iife":
-				buildOpts.Format = api.FormatIIFE
+				if buildOpts != nil {
+					buildOpts.Format = api.FormatIIFE
+				} else {
+					transformOpts.Format = api.FormatIIFE
+				}
 			case "cjs":
-				buildOpts.Format = api.FormatCommonJS
+				if buildOpts != nil {
+					buildOpts.Format = api.FormatCommonJS
+				} else {
+					transformOpts.Format = api.FormatCommonJS
+				}
 			case "esm":
-				buildOpts.Format = api.FormatESModule
+				if buildOpts != nil {
+					buildOpts.Format = api.FormatESModule
+				} else {
+					transformOpts.Format = api.FormatESModule
+				}
 			default:
 				return fmt.Errorf("Invalid format: %q (valid: iife, cjs, esm)", value)
 			}

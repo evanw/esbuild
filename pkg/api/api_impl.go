@@ -421,7 +421,6 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		RemoveWhitespace:  buildOpts.MinifyWhitespace,
 		MinifyIdentifiers: buildOpts.MinifyIdentifiers,
 		ModuleName:        buildOpts.GlobalName,
-		IsBundling:        buildOpts.Bundle,
 		CodeSplitting:     buildOpts.Splitting,
 		OutputFormat:      validateFormat(buildOpts.Format),
 		AbsOutputFile:     validatePath(log, realFS, buildOpts.Outfile),
@@ -481,11 +480,8 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		options.AbsOutputDir = realFS.Cwd()
 	}
 
-	if !options.IsBundling {
+	if !buildOpts.Bundle {
 		// Disallow bundle-only options when not bundling
-		if options.OutputFormat != config.FormatPreserve {
-			log.AddError(nil, ast.Loc{}, "Cannot use \"format\" without \"bundle\"")
-		}
 		if len(options.ExternalModules.NodeModules) > 0 || len(options.ExternalModules.AbsPaths) > 0 {
 			log.AddError(nil, ast.Loc{}, "Cannot use \"external\" without \"bundle\"")
 		}
@@ -497,6 +493,13 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		case config.PlatformNode:
 			options.OutputFormat = config.FormatCommonJS
 		}
+	}
+
+	// Set the output mode using other settings
+	if buildOpts.Bundle {
+		options.Mode = config.ModeBundle
+	} else if options.OutputFormat != config.FormatPreserve {
+		options.Mode = config.ModeConvertFormat
 	}
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
@@ -600,6 +603,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		},
 		Defines:           validateDefines(log, transformOpts.Defines, transformOpts.PureFunctions),
 		SourceMap:         validateSourceMap(transformOpts.Sourcemap),
+		OutputFormat:      validateFormat(transformOpts.Format),
+		ModuleName:        transformOpts.GlobalName,
 		MangleSyntax:      transformOpts.MinifySyntax,
 		RemoveWhitespace:  transformOpts.MinifyWhitespace,
 		MinifyIdentifiers: transformOpts.MinifyIdentifiers,
@@ -617,6 +622,11 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	if options.SourceMap != config.SourceMapNone && options.Stdin.SourceFile == "" {
 		log.AddError(nil, ast.Loc{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
+	}
+
+	// Set the output mode using other settings
+	if options.OutputFormat != config.FormatPreserve {
+		options.Mode = config.ModeConvertFormat
 	}
 
 	var results []bundler.OutputFile

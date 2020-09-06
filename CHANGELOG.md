@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+* Allow `--format` when bundling is disabled ([#109](https://github.com/evanw/esbuild/issues/109))
+
+    This change means esbuild can be used to convert ES6 import and export syntax to CommonJS syntax. The following code:
+
+    ```js
+    import foo from 'foo'
+    export const bar = foo
+    ```
+
+    will be transformed into the following code with `--format=cjs` (the code for `__export` and `__toModule` was omitted for brevity):
+
+    ```js
+    __export(exports, {
+      bar: () => bar
+    });
+    const foo = __toModule(require("foo"));
+    const bar = foo.default;
+    ```
+
+    This also applies to non-JavaScript loaders too. The following JSON:
+
+    ```json
+    {"foo": true, "bar": false}
+    ```
+
+    is normally converted to the following code with `--loader=json`:
+
+    ```js
+    module.exports = {foo: true, bar: false};
+    ```
+
+    but will be transformed into the following code instead with `--loader=json --format=esm`:
+
+    ```js
+    var foo = true;
+    var bar = false;
+    var stdin_default = {foo, bar};
+    export {
+      bar,
+      stdin_default as default,
+      foo
+    };
+    ```
+
+    Note that converting CommonJS `require()` calls to ES6 imports is not currently supported. Code containing a reference to `require` in these situations will generate a warning.
+
 * Remove trailing `()` from `new` when minifying
 
     Now `new Foo()` will be printed as `new Foo` when minifying (as long as it's safe to do so), resulting in slightly shorter minified code.

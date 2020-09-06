@@ -12,6 +12,8 @@ function pushCommonFlags(flags: string[], options: types.CommonOptions, isTTY: b
     if (options.target instanceof Array) flags.push(`--target=${Array.from(options.target).map(validateTarget).join(',')}`)
     else flags.push(`--target=${validateTarget(options.target)}`)
   }
+  if (options.format) flags.push(`--format=${options.format}`);
+  if (options.globalName) flags.push(`--global-name=${options.globalName}`);
   if (options.strict === true) flags.push(`--strict`);
   else if (options.strict) for (let key of options.strict) flags.push(`--strict:${key}`);
 
@@ -43,14 +45,12 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [str
   pushCommonFlags(flags, options, isTTY, 'info');
 
   if (options.sourcemap) flags.push(`--sourcemap${options.sourcemap === true ? '' : `=${options.sourcemap}`}`);
-  if (options.globalName) flags.push(`--global-name=${options.globalName}`);
   if (options.bundle) flags.push('--bundle');
   if (options.splitting) flags.push('--splitting');
   if (options.metafile) flags.push(`--metafile=${options.metafile}`);
   if (options.outfile) flags.push(`--outfile=${options.outfile}`);
   if (options.outdir) flags.push(`--outdir=${options.outdir}`);
   if (options.platform) flags.push(`--platform=${options.platform}`);
-  if (options.format) flags.push(`--format=${options.format}`);
   if (options.tsconfig) flags.push(`--tsconfig=${options.tsconfig}`);
   if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
   if (options.external) for (let name of options.external) flags.push(`--external:${name}`);
