@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.31
 
 * Invalid source maps are no longer an error ([#367](https://github.com/evanw/esbuild/issues/367))
 
@@ -29,13 +29,6 @@
 
         ```js
         export * as class from 'path'
-        ```
-
-    * It is now a syntax error to use a generator or `async` function in the same scope as a `var` with the same name:
-
-        ```js
-        var foo
-        function *foo() {}
         ```
 
     * It is now a syntax error to use `break` or `continue` in invalid locations:
