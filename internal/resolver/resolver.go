@@ -188,24 +188,19 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 		}
 
 		// Support remapping one package path to another via the "browser" field
-		if sourceDirInfo.enclosingBrowserScope != nil {
-			packageJson := sourceDirInfo.enclosingBrowserScope.packageJson
-			if packageJson.browserPackageMap != nil {
-				if remapped, ok := packageJson.browserPackageMap[importPath]; ok {
-					if remapped == nil {
-						// "browser": {"module": false}
-						if absolute, ok := r.loadNodeModules(importPath, sourceDirInfo); ok {
-							return &ast.Path{Text: "disabled:" + absolute}, false
-						} else {
-							return &ast.Path{Text: "disabled:" + importPath}, false
-						}
-					} else {
-						// "browser": {"module": "./some-file"}
-						// "browser": {"module": "another-module"}
-						importPath = *remapped
-						sourceDirInfo = sourceDirInfo.enclosingBrowserScope
-					}
+		if remapped, dinfo := r.lookupBrowserRemap(importPath, sourceDirInfo); dinfo != nil {
+			if remapped == nil {
+				// "browser": {"module": false}
+				if absolute, ok := r.loadNodeModules(importPath, sourceDirInfo); ok {
+					return &ast.Path{Text: "disabled:" + absolute}, false
+				} else {
+					return &ast.Path{Text: "disabled:" + importPath}, false
 				}
+			} else {
+				// "browser": {"module": "./some-file"}
+				// "browser": {"module": "another-module"}
+				importPath = *remapped
+				sourceDirInfo = dinfo.enclosingBrowserScope
 			}
 		}
 
@@ -238,6 +233,85 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 	}
 
 	return &ast.Path{Text: result, IsAbsolute: true}, false
+}
+
+// recurseParents recursively walks up the dirInfo hierarchy (child -> parent)
+// the walker func returns true to stop (i.e: match found) and false to continue
+func (r *resolver) recurseParents(dirInfo *dirInfo, walker func(*dirInfo) bool) bool {
+	for info := dirInfo; info != nil; info = info.parent {
+		if matched := walker(info); matched {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *resolver) lookupTSConfigRemap(path string, sourceDirInfo *dirInfo) (string, bool) {
+	var mapping string
+
+	if ok := r.recurseParents(sourceDirInfo, func(cursor *dirInfo) bool {
+		if remapped, ok := r.getTSConfigRemap(path, cursor); ok {
+			mapping = remapped
+			return true
+		}
+		return false
+	}); ok {
+		return mapping, true
+	}
+
+	return "", false
+}
+
+func (r *resolver) lookupBrowserRemap(importPath string, sourceDirInfo *dirInfo) (*string, *dirInfo) {
+	var mapping *string
+	var dinfo *dirInfo
+
+	if ok := r.recurseParents(sourceDirInfo, func(cursor *dirInfo) bool {
+		if remapped, ok := r.getBrowserRemap(importPath, cursor); ok {
+			mapping = remapped
+			dinfo = cursor
+			return true
+		}
+		return false
+	}); ok {
+		return mapping, dinfo
+	}
+
+	return nil, nil
+}
+
+func (r *resolver) getTSConfigRemap(path string, dirInfo *dirInfo) (string, bool) {
+	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
+	if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
+		// Try path substitutions first
+		if dirInfo.tsConfigJson.paths != nil {
+			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJson, path); ok {
+				return absolute, true
+			}
+		}
+
+		// Try looking up the path relative to the base URL
+		basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+		if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+			return absolute, true
+		}
+	}
+
+	return "", false
+}
+
+func (r *resolver) getBrowserRemap(importPath string, sourceDirInfo *dirInfo) (*string, bool) {
+	if sourceDirInfo.enclosingBrowserScope != nil {
+		packageJson := sourceDirInfo.enclosingBrowserScope.packageJson
+		if packageJson.browserPackageMap != nil {
+			if remapped, ok := packageJson.browserPackageMap[importPath]; ok {
+				// NOTE: remapped can be nil but exist in map (module disabled)
+				return remapped, true
+			}
+		}
+	}
+
+	return nil, false
 }
 
 func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string) (string, bool) {
@@ -1051,19 +1125,8 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string) (
 
 func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-	if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
-		// Try path substitutions first
-		if dirInfo.tsConfigJson.paths != nil {
-			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJson, path); ok {
-				return absolute, true
-			}
-		}
-
-		// Try looking up the path relative to the base URL
-		basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
-		if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
-			return absolute, true
-		}
+	if abspath, ok := r.lookupTSConfigRemap(path, dirInfo); ok {
+		return abspath, true
 	}
 
 	// Then check for the package in any enclosing "node_modules" directories

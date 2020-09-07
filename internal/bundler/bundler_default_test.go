@@ -1048,6 +1048,50 @@ func TestPackageJsonBrowserWithModule(t *testing.T) {
 	})
 }
 
+func TestPackageJsonBrowserRecursive(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/package.json": `
+				{
+					"browser": {
+						"https": "https-browserify"
+					}
+				}
+			`,
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/https-browserify/index.js": `
+				module.exports = {
+					get: function() { return false; }
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"name": "demo-pkg",
+					"module": "./index.js",
+					"browser": {
+						"fs": false
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				const https = require('https')
+				const fs = require('fs');
+				module.exports = function(url, cb) {
+					return https.get(url, cb);
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			IsBundling:    true,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestRequireChildDirCommonJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
