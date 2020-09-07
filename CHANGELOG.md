@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.32
 
 * Allow `--format` when bundling is disabled ([#109](https://github.com/evanw/esbuild/issues/109))
 
