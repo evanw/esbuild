@@ -137,6 +137,7 @@ func (p *parser) lowerFunction(
 	bodyLoc ast.Loc,
 	bodyStmts *[]ast.Stmt,
 	preferExpr *bool,
+	hasRestArg *bool,
 ) {
 	// Lower object rest binding patterns in function arguments
 	if p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
@@ -208,23 +209,99 @@ func (p *parser) lowerFunction(
 			thisValue = ast.Expr{Loc: bodyLoc, Data: &ast.EThis{}}
 		}
 
-		// Only reference the "arguments" variable if it's actually used
-		var arguments ast.Expr
-		if p.argumentsRef != nil && p.symbolUses[*p.argumentsRef].CountEstimate > 0 {
-			arguments = ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: *p.argumentsRef}}
+		// Move the code into a nested generator function
+		fn := ast.Fn{
+			IsGenerator: true,
+			Body:        ast.FnBody{Loc: bodyLoc, Stmts: *bodyStmts},
+		}
+		*bodyStmts = nil
+
+		// Forward the arguments to the wrapper function
+		usesArguments := p.argumentsRef != nil && p.symbolUses[*p.argumentsRef].CountEstimate > 0
+		var forwardedArgs ast.Expr
+		if len(*args) == 0 && !usesArguments {
+			// Don't allocate anything if arguments aren't needed
+			forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.ENull{}}
 		} else {
-			arguments = ast.Expr{Loc: bodyLoc, Data: &ast.EArray{}}
+			// Errors thrown during argument evaluation must reject the
+			// resulting promise, which needs more complex code to handle
+			couldThrowErrors := false
+			for _, arg := range *args {
+				if _, ok := arg.Binding.Data.(*ast.BIdentifier); !ok || arg.Default != nil {
+					couldThrowErrors = true
+					break
+				}
+			}
+
+			if !couldThrowErrors {
+				// Simple case: the arguments can stay on the outer function. It's
+				// worth separating out the simple case because it's the common case
+				// and it generates smaller code.
+				if usesArguments {
+					// If "arguments" is used, make sure to forward all arguments
+					// (even those past the last declared argument variable)
+					forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: *p.argumentsRef}}
+				} else {
+					// Don't allocate anything if arguments aren't needed
+					forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.ENull{}}
+				}
+			} else {
+				// Complex case: the arguments must be moved to the inner function
+				fn.Args = *args
+				fn.HasRestArg = *hasRestArg
+				*args = nil
+				*hasRestArg = false
+
+				// Make sure to not change the value of the "length" property
+				for i, arg := range fn.Args {
+					if arg.Default != nil || fn.HasRestArg && i+1 == len(fn.Args) {
+						// Arguments from here on don't add to the "length"
+						break
+					}
+
+					// Generate a dummy variable
+					argRef := p.newSymbol(ast.SymbolOther, fmt.Sprintf("_%d", i))
+					p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+					*args = append(*args, ast.Arg{Binding: ast.Binding{Loc: arg.Binding.Loc, Data: &ast.BIdentifier{Ref: argRef}}})
+				}
+
+				// Forward all arguments from the outer function to the inner function
+				if p.argumentsRef != nil {
+					// Normal functions can just use "arguments" to forward everything
+					forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: *p.argumentsRef}}
+				} else {
+					// Arrow functions can't use "arguments", so we need to forward
+					// the arguments manually
+
+					// If the arrow function uses a rest argument, use one during forwarding too
+					if usesArguments || fn.HasRestArg {
+						argRef := p.newSymbol(ast.SymbolOther, fmt.Sprintf("_%d", len(*args)))
+						p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+						*args = append(*args, ast.Arg{Binding: ast.Binding{Loc: bodyLoc, Data: &ast.BIdentifier{Ref: argRef}}})
+						*hasRestArg = true
+					}
+
+					// Forward all of the arguments
+					items := make([]ast.Expr, 0, len(*args))
+					for i, arg := range *args {
+						id := arg.Binding.Data.(*ast.BIdentifier)
+						item := ast.Expr{Loc: arg.Binding.Loc, Data: &ast.EIdentifier{Ref: id.Ref}}
+						if *hasRestArg && i+1 == len(*args) {
+							item.Data = &ast.ESpread{Value: item}
+						}
+						items = append(items, item)
+					}
+					forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.EArray{Items: items, IsSingleLine: true}}
+				}
+			}
 		}
 
-		// "async function foo() { stmts }" => "function foo() { return __async(this, arguments, function* () { stmts }) }"
+		// "async function foo(a, b) { stmts }" => "function foo(a, b) { return __async(this, null, function* () { stmts }) }"
 		*isAsync = false
 		callAsync := p.callRuntime(bodyLoc, "__async", []ast.Expr{
 			thisValue,
-			arguments,
-			{Loc: bodyLoc, Data: &ast.EFunction{Fn: ast.Fn{
-				IsGenerator: true,
-				Body:        ast.FnBody{Loc: bodyLoc, Stmts: *bodyStmts},
-			}}},
+			forwardedArgs,
+			{Loc: bodyLoc, Data: &ast.EFunction{Fn: fn}},
 		})
 		*bodyStmts = []ast.Stmt{{Loc: bodyLoc, Data: &ast.SReturn{Value: &callAsync}}}
 	}

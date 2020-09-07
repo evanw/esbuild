@@ -27,7 +27,7 @@ function foo(bar) {
 }
 class Foo {
   foo() {
-    return __async(this, [], function* () {
+    return __async(this, null, function* () {
     });
   }
 }
@@ -35,18 +35,18 @@ export default [
   foo,
   Foo,
   function() {
-    return __async(this, [], function* () {
+    return __async(this, null, function* () {
     });
   },
-  () => __async(this, [], function* () {
+  () => __async(this, null, function* () {
   }),
   {foo() {
-    return __async(this, [], function* () {
+    return __async(this, null, function* () {
     });
   }},
   class {
     foo() {
-      return __async(this, [], function* () {
+      return __async(this, null, function* () {
       });
     }
   },
@@ -95,7 +95,7 @@ TestLowerAsyncThis2016CommonJS
 ---------- /out.js ----------
 // /entry.js
 var require_entry = __commonJS((exports) => {
-  exports.foo = () => __async(exports, [], function* () {
+  exports.foo = () => __async(exports, null, function* () {
     return exports;
   });
 });
@@ -105,7 +105,7 @@ export default require_entry();
 TestLowerAsyncThis2016ES6
 ---------- /out.js ----------
 // /entry.js
-let foo = () => __async(void 0, [], function* () {
+let foo = () => __async(void 0, null, function* () {
   return void 0;
 });
 export {

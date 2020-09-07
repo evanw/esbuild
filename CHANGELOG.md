@@ -60,6 +60,19 @@
 
     Previously using `async` functions did not cause a compile error when targeting `es5` since if they are unavailable, they are rewritten to use generator functions instead. However, generator functions may also be unsupported. It is now an error to use `async` functions if generator functions are unsupported.
 
+* Fix subtle issue with transforming `async` functions when targeting `es2016` or below
+
+    The TypeScript compiler has a bug where, when the language target is set to `ES2016` or earlier, exceptions thrown during argument evaluation are incorrectly thrown immediately instead of later causing the returned promise to be rejected. Since esbuild replicates TypeScript's `async` function transformation pass, esbuild inherited this same bug. The behavior of esbuild has been changed to match the JavaScript specification.
+
+    Here's an example of code that was affected:
+
+    ```js
+    async function test(value = getDefaultValue()) {}
+    let promise = test()
+    ```
+
+    The call to `test()` here should never throw, even if `getDefaultValue()` throws an exception.
+
 ## 0.6.31
 
 * Invalid source maps are no longer an error ([#367](https://github.com/evanw/esbuild/issues/367))

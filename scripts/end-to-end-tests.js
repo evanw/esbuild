@@ -1044,6 +1044,96 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
         }
       `,
     }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      // The async transform must not change the argument count
+      'in.js': `
+        async function a(x, y) {}
+        if (a.length !== 2) throw 'fail: a'
+
+        async function b(x, y = x(), z) {}
+        if (b.length !== 1) throw 'fail: b'
+
+        async function c(x, y, ...z) {}
+        if (c.length !== 2) throw 'fail: c'
+
+        let d = async function(x, y) {}
+        if (d.length !== 2) throw 'fail: d'
+
+        let e = async function(x, y = x(), z) {}
+        if (e.length !== 1) throw 'fail: e'
+
+        let f = async function(x, y, ...z) {}
+        if (f.length !== 2) throw 'fail: f'
+
+        let g = async (x, y) => {}
+        if (g.length !== 2) throw 'fail: g'
+
+        let h = async (x, y = x(), z) => {}
+        if (h.length !== 1) throw 'fail: h'
+
+        let i = async (x, y, ...z) => {}
+        if (i.length !== 2) throw 'fail: i'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      // Functions must be able to access arguments past the argument count using "arguments"
+      'in.js': `
+        exports.async = async () => {
+          async function a() { return arguments[2] }
+          async function b(x, y) { return arguments[2] }
+          async function c(x, y = x) { return arguments[2] }
+          let d = async function() { return arguments[2] }
+          let e = async function(x, y) { return arguments[2] }
+          let f = async function(x, y = x) { return arguments[2] }
+          for (let fn of [a, b, c, d, e, f]) {
+            if ((await fn('x', 'y', 'z')) !== 'z') throw 'fail: ' + fn
+          }
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      // Functions must be able to access arguments past the argument count using a rest argument
+      'in.js': `
+        exports.async = async () => {
+          async function a(...rest) { return rest[3] }
+          async function b(x, y, ...rest) { return rest[1] }
+          async function c(x, y = x, ...rest) { return rest[1] }
+          let d = async function(...rest) { return rest[3] }
+          let e = async function(x, y, ...rest) { return rest[1] }
+          let f = async function(x, y = x, ...rest) { return rest[1] }
+          let g = async (...rest) => rest[3]
+          let h = async (x, y, ...rest) => rest[1]
+          let i = async (x, y = x, ...rest) => rest[1]
+          for (let fn of [a, b, c, d, e, f, g, h, i]) {
+            if ((await fn(11, 22, 33, 44)) !== 44) throw 'fail: ' + fn
+          }
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      // Errors in the evaluation of async function arguments should reject the resulting promise
+      'in.js': `
+        exports.async = async () => {
+          let expected = new Error('You should never see this error')
+          let throws = () => { throw expected }
+          async function a(x, y = throws()) {}
+          async function b({ [throws()]: x }) {}
+          let c = async function (x, y = throws()) {}
+          let d = async function ({ [throws()]: x }) {}
+          let e = async (x, y = throws()) => {}
+          let f = async ({ [throws()]: x }) => {}
+          for (let fn of [a, b, c, d, e, f]) {
+            let promise = fn({})
+            try {
+              await promise
+            } catch (e) {
+              if (e === expected) continue
+            }
+            throw 'fail: ' + fn
+          }
+        }
+      `,
+    }, { async: true }),
   )
 
   // Object rest pattern tests

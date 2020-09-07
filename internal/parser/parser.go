@@ -8935,7 +8935,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		p.pushScopeForVisitPass(ast.ScopeFunctionBody, e.Body.Loc)
 		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts)
 		p.popScope()
-		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr)
+		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg)
 		p.popScope()
 
 		if p.MangleSyntax && len(e.Body.Stmts) == 1 {
@@ -9078,7 +9078,7 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.pushScopeForVisitPass(ast.ScopeFunctionBody, fn.Body.Loc)
 	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts)
 	p.popScope()
-	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil)
+	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg)
 	p.popScope()
 
 	p.fnOptsVisit = oldFnOpts
