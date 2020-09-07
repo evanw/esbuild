@@ -233,18 +233,20 @@ func (p *parser) lowerFunction(
 				}
 			}
 
-			if !couldThrowErrors {
+			// If code uses "arguments" then we must move the arguments to the inner
+			// function. This is because you can modify arguments by assigning to
+			// elements in the "arguments" object:
+			//
+			//   async function foo(x) {
+			//     arguments[0] = 1;
+			//     // "x" must be 1 here
+			//   }
+			//
+			if !couldThrowErrors && !usesArguments {
 				// Simple case: the arguments can stay on the outer function. It's
 				// worth separating out the simple case because it's the common case
 				// and it generates smaller code.
-				if usesArguments {
-					// If "arguments" is used, make sure to forward all arguments
-					// (even those past the last declared argument variable)
-					forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: *p.argumentsRef}}
-				} else {
-					// Don't allocate anything if arguments aren't needed
-					forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.ENull{}}
-				}
+				forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.ENull{}}
 			} else {
 				// Complex case: the arguments must be moved to the inner function
 				fn.Args = *args
@@ -273,8 +275,9 @@ func (p *parser) lowerFunction(
 					// Arrow functions can't use "arguments", so we need to forward
 					// the arguments manually
 
-					// If the arrow function uses a rest argument, use one during forwarding too
-					if usesArguments || fn.HasRestArg {
+					// If we need to forward more than the current number of arguments,
+					// add a rest argument to the set of forwarding variables
+					if usesArguments || fn.HasRestArg || len(*args) < len(fn.Args) {
 						argRef := p.newSymbol(ast.SymbolOther, fmt.Sprintf("_%d", len(*args)))
 						p.currentScope.Generated = append(p.currentScope.Generated, argRef)
 						*args = append(*args, ast.Arg{Binding: ast.Binding{Loc: bodyLoc, Data: &ast.BIdentifier{Ref: argRef}}})

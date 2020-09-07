@@ -1076,6 +1076,19 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
       `,
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
+      // Functions must be able to access default arguments past the last non-default argument
+      'in.js': `
+        exports.async = async () => {
+          async function a(x, y = 0) { return y }
+          let b = async function(x, y = 0) { return y }
+          let c = async (x, y = 0) => y
+          for (let fn of [a, b, c]) {
+            if ((await fn('x', 'y')) !== 'y') throw 'fail: ' + fn
+          }
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
       // Functions must be able to access arguments past the argument count using "arguments"
       'in.js': `
         exports.async = async () => {
@@ -1106,6 +1119,19 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
           let i = async (x, y = x, ...rest) => rest[1]
           for (let fn of [a, b, c, d, e, f, g, h, i]) {
             if ((await fn(11, 22, 33, 44)) !== 44) throw 'fail: ' + fn
+          }
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      // Functions must be able to modify arguments using "arguments"
+      'in.js': `
+        exports.async = async () => {
+          async function a(x) { let y = [x, arguments[0]]; arguments[0] = 'y'; return y.concat(x, arguments[0]) }
+          let b = async function(x) { let y = [x, arguments[0]]; arguments[0] = 'y'; return y.concat(x, arguments[0]) }
+          for (let fn of [a, b]) {
+            let values = (await fn('x')) + ''
+            if (values !== 'x,x,y,y') throw 'fail: ' + values
           }
         }
       `,

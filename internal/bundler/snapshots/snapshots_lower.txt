@@ -19,8 +19,8 @@ _e = new WeakMap();
 ================================================================================
 TestLowerAsync2016NoBundle
 ---------- /out.js ----------
-function foo(bar) {
-  return __async(this, arguments, function* () {
+function foo(_0) {
+  return __async(this, arguments, function* (bar) {
     yield bar;
     return [this, arguments];
   });
@@ -51,7 +51,7 @@ export default [
     }
   },
   function() {
-    return (bar) => __async(this, arguments, function* () {
+    return (_0) => __async(this, arguments, function* (bar) {
       yield bar;
       return [this, arguments];
     });
