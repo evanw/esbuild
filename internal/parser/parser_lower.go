@@ -79,6 +79,9 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) (didGene
 	case compat.Generator:
 		name = "generator functions"
 
+	case compat.AsyncAwait:
+		name = "async functions"
+
 	case compat.AsyncGenerator:
 		name = "async generator functions"
 
@@ -114,6 +117,14 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) (didGene
 	p.log.AddRangeError(&p.source, r,
 		fmt.Sprintf("Transforming %s to %s is not supported yet", name, where))
 	return
+}
+
+// Mark the feature if "loweredFeature" is unsupported. This is used when one
+// feature is implemented in terms of another feature.
+func (p *parser) markLoweredSyntaxFeature(feature compat.Feature, r ast.Range, loweredFeature compat.Feature) {
+	if p.UnsupportedFeatures.Has(loweredFeature) {
+		p.markSyntaxFeature(feature, r)
+	}
 }
 
 func (p *parser) isPrivateUnsupported(private *ast.EPrivateIdentifier) bool {

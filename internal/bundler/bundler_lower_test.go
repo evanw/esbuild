@@ -873,6 +873,38 @@ func TestLowerAsyncThis2016ES6(t *testing.T) {
 	})
 }
 
+func TestLowerAsyncES5(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":        `import './fn-stmt'`,
+			"/fn-stmt.js":      `async function foo() {} import './fn-expr'`,
+			"/fn-expr.js":      `(async function() {}); import './arrow-1'`,
+			"/arrow-1.js":      `(async () => {}); import './arrow-2'`,
+			"/arrow-2.js":      `(async x => {}); import './export-def-1'`,
+			"/export-def-1.js": `export default async function foo() {} import './export-def-2'`,
+			"/export-def-2.js": `export default async function() {} import './obj-method'`,
+			"/obj-method.js":   `({async foo() {}})`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                config.ModeBundle,
+			UnsupportedFeatures: es(5),
+			AbsOutputFile:       "/out.js",
+		},
+		expectedScanLog: `/fn-stmt.js: error: Transforming async functions to the configured target environment is not supported yet
+/fn-expr.js: error: Transforming async functions to the configured target environment is not supported yet
+/arrow-1.js: error: Transforming async functions to the configured target environment is not supported yet
+/arrow-1.js: error: Transforming arrow functions to the configured target environment is not supported yet
+/arrow-2.js: error: Transforming async functions to the configured target environment is not supported yet
+/arrow-2.js: error: Transforming arrow functions to the configured target environment is not supported yet
+/export-def-1.js: error: Transforming async functions to the configured target environment is not supported yet
+/export-def-2.js: error: Transforming async functions to the configured target environment is not supported yet
+/obj-method.js: error: Transforming async functions to the configured target environment is not supported yet
+/obj-method.js: error: Transforming object literal extensions to the configured target environment is not supported yet
+`,
+	})
+}
+
 func TestLowerClassFieldStrict2020NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

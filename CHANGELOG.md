@@ -56,6 +56,10 @@
 
     Now `new Foo()` will be printed as `new Foo` when minifying (as long as it's safe to do so), resulting in slightly shorter minified code.
 
+* Forbid `async` functions when the target is `es5`
+
+    Previously using `async` functions did not cause a compile error when targeting `es5` since if they are unavailable, they are rewritten to use generator functions instead. However, generator functions may also be unsupported. It is now an error to use `async` functions if generator functions are unsupported.
+
 ## 0.6.31
 
 * Invalid source maps are no longer an error ([#367](https://github.com/evanw/esbuild/issues/367))

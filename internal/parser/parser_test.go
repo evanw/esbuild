@@ -3185,7 +3185,8 @@ func TestES5(t *testing.T) {
 	expectParseErrorTarget(t, 5, "async => foo;",
 		"<stdin>: error: Transforming arrow functions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "async () => foo;",
-		"<stdin>: error: Transforming arrow functions to the configured target environment is not supported yet\n")
+		"<stdin>: error: Transforming async functions to the configured target environment is not supported yet\n"+
+			"<stdin>: error: Transforming arrow functions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "() => foo;",
 		"<stdin>: error: Transforming arrow functions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "x => x;",

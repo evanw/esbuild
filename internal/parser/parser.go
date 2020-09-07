@@ -1232,6 +1232,7 @@ func (p *parser) parseProperty(kind ast.PropertyKind, opts propertyOpts, errors 
 					if !opts.isAsync && raw == name {
 						opts.isAsync = true
 						opts.asyncRange = nameRange
+						p.markLoweredSyntaxFeature(compat.AsyncAwait, nameRange, compat.Generator)
 						return p.parseProperty(kind, opts, nil)
 					}
 
@@ -1629,6 +1630,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 
 			// "async x => {}"
 		case lexer.TIdentifier:
+			p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
 			ref := p.storeNameInRef(p.lexer.Identifier)
 			arg := ast.Arg{Binding: ast.Binding{Loc: p.lexer.Loc(), Data: &ast.BIdentifier{Ref: ref}}}
 			p.lexer.Next()
@@ -1644,7 +1646,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 			// "async () => {}"
 		case lexer.TOpenParen:
 			p.lexer.Next()
-			return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
+			return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true, asyncRange: asyncRange})
 		}
 	}
 
@@ -1653,7 +1655,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 	// Distinguish between a call like "async<T>()" and an arrow like "async <T>() => {}"
 	if p.TS.Parse && p.lexer.Token == lexer.TLessThan && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
 		p.lexer.Next()
-		return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true})
+		return p.parseParenExpr(asyncRange.Loc, parenExprOpts{isAsync: true, asyncRange: asyncRange})
 	}
 
 	return ast.Expr{Loc: asyncRange.Loc, Data: &ast.EIdentifier{Ref: p.storeNameInRef("async")}}
@@ -1665,6 +1667,8 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) as
 	if isGenerator {
 		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
 		p.lexer.Next()
+	} else if isAsync {
+		p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
 	}
 	var name *ast.LocRef
 
@@ -1697,6 +1701,7 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) as
 }
 
 type parenExprOpts struct {
+	asyncRange   ast.Range
 	isAsync      bool
 	forceArrowFn bool
 }
@@ -1787,6 +1792,10 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	if p.lexer.Token == lexer.TEqualsGreaterThan || opts.forceArrowFn || (p.TS.Parse && p.lexer.Token == lexer.TColon) {
 		invalidLog := []ast.Loc{}
 		args := []ast.Arg{}
+
+		if opts.isAsync {
+			p.markLoweredSyntaxFeature(compat.AsyncAwait, opts.asyncRange, compat.Generator)
+		}
 
 		// First, try converting the expressions to bindings
 		for _, item := range items {
@@ -4229,6 +4238,8 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 	if isGenerator {
 		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
 		p.lexer.Next()
+	} else if isAsync {
+		p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
 	}
 
 	switch opts.lexicalDecl {
@@ -4467,7 +4478,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				p.lexer.Next()
 
 				if p.lexer.Token == lexer.TFunction && !p.lexer.HasNewlineBefore {
-					p.lexer.Expect(lexer.TFunction)
+					p.lexer.Next()
 					stmt := p.parseFnStmt(loc, parseStmtOpts{
 						isNameOptional: true,
 						lexicalDecl:    lexicalDeclAllowAll,
