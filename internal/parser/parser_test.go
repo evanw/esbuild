@@ -1045,6 +1045,15 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "async (...x,) => {}", "<stdin>: error: Unexpected \",\" after rest pattern\n")
 	expectParseError(t, "async => await 0", "<stdin>: error: Expected \";\" but found \"0\"\n")
 
+	expectPrinted(t, "async () => { await foo`bar` }", "async () => {\n  await foo`bar`;\n};\n")
+	expectPrinted(t, "async () => { await foo`bar${baz}` }", "async () => {\n  await foo`bar${baz}`;\n};\n")
+	expectPrinted(t, "async () => { (await foo)`bar` }", "async () => {\n  (await foo)`bar`;\n};\n")
+	expectPrinted(t, "async () => { (await foo)`bar${baz}` }", "async () => {\n  (await foo)`bar${baz}`;\n};\n")
+	expectPrinted(t, "async () => { await a, b }", "async () => {\n  await a, b;\n};\n")
+	expectPrinted(t, "async () => { (await a), b }", "async () => {\n  await a, b;\n};\n")
+	expectPrinted(t, "async () => { await foo.bar }", "async () => {\n  await foo.bar;\n};\n")
+	expectPrinted(t, "async () => { (await foo).bar  }", "async () => {\n  (await foo).bar;\n};\n")
+
 	expectPrinted(t, "(async x => y), z", "async (x) => y, z;\n")
 	expectPrinted(t, "(async x => y, z)", "async (x) => y, z;\n")
 	expectPrinted(t, "(async x => (y, z))", "async (x) => (y, z);\n")
