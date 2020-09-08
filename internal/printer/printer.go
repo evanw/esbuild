@@ -1796,7 +1796,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printSpaceBeforeIdentifier()
 		p.print("await")
 		p.printSpace()
-		p.printExpr(e.Value, ast.LPrefix, 0)
+		p.printExpr(e.Value, ast.LLowest, 0)
 
 		if wrap {
 			p.print(")")

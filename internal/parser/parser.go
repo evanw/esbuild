@@ -2093,7 +2093,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 					if p.fnOptsParse.arrowArgErrors != nil {
 						p.fnOptsParse.arrowArgErrors.invalidExprAwait = nameRange
 					}
-					return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LPrefix)}}
+					return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LLowest)}}
 				}
 			}
 
