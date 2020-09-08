@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix precedence of tagged template expressions ([#372](https://github.com/evanw/esbuild/issues/372))
+
+    Previously `` await tag`text` `` and `` new tag`text` `` were incorrectly parsed as `` (await tag)`text` `` and `` (new tag)`text` ``. They are now correctly parsed as `` await (tag`text`) `` and `` new (tag`text`) `` instead.
+
 ## 0.6.32
 
 * Allow `--format` when bundling is disabled ([#109](https://github.com/evanw/esbuild/issues/109))

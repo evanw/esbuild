@@ -2850,9 +2850,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			optionalChain = ast.OptionalChainContinue
 
 		case lexer.TNoSubstitutionTemplateLiteral:
-			if level >= ast.LPrefix {
-				return left
-			}
 			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()
@@ -2861,9 +2858,6 @@ func (p *parser) parseSuffix(left ast.Expr, level ast.L, errors *deferredErrors,
 			left = ast.Expr{Loc: left.Loc, Data: &ast.ETemplate{Tag: &tag, Head: head, HeadRaw: headRaw}}
 
 		case lexer.TTemplateHead:
-			if level >= ast.LPrefix {
-				return left
-			}
 			p.markSyntaxFeature(compat.TemplateLiteral, p.lexer.Range())
 			head := p.lexer.StringLiteral
 			headRaw := p.lexer.RawTemplateContents()

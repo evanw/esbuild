@@ -353,6 +353,32 @@ func TestTemplate(t *testing.T) {
 	expectPrinted(t, "let x = `$}y{`", "let x = `$}y{`;\n")
 	expectPrinted(t, "let x = `\\${y}`", "let x = `\\${y}`;\n")
 	expectPrinted(t, "let x = `$\\{y}`", "let x = `\\${y}`;\n")
+
+	expectPrinted(t, "await tag`x`", "await tag`x`;\n")
+	expectPrinted(t, "await (tag`x`)", "await tag`x`;\n")
+	expectPrinted(t, "(await tag)`x`", "(await tag)`x`;\n")
+
+	expectPrinted(t, "await tag`${x}`", "await tag`${x}`;\n")
+	expectPrinted(t, "await (tag`${x}`)", "await tag`${x}`;\n")
+	expectPrinted(t, "(await tag)`${x}`", "(await tag)`${x}`;\n")
+
+	expectPrinted(t, "new tag`x`", "new tag`x`();\n")
+	expectPrinted(t, "new (tag`x`)", "new tag`x`();\n")
+	expectPrinted(t, "new tag()`x`", "new tag()`x`;\n")
+	expectPrinted(t, "(new tag)`x`", "new tag()`x`;\n")
+	expectPrintedMinify(t, "new tag`x`", "new tag`x`;")
+	expectPrintedMinify(t, "new (tag`x`)", "new tag`x`;")
+	expectPrintedMinify(t, "new tag()`x`", "new tag()`x`;")
+	expectPrintedMinify(t, "(new tag)`x`", "new tag()`x`;")
+
+	expectPrinted(t, "new tag`${x}`", "new tag`${x}`();\n")
+	expectPrinted(t, "new (tag`${x}`)", "new tag`${x}`();\n")
+	expectPrinted(t, "new tag()`${x}`", "new tag()`${x}`;\n")
+	expectPrinted(t, "(new tag)`${x}`", "new tag()`${x}`;\n")
+	expectPrintedMinify(t, "new tag`${x}`", "new tag`${x}`;")
+	expectPrintedMinify(t, "new (tag`${x}`)", "new tag`${x}`;")
+	expectPrintedMinify(t, "new tag()`${x}`", "new tag()`${x}`;")
+	expectPrintedMinify(t, "(new tag)`${x}`", "new tag()`${x}`;")
 }
 
 func TestObject(t *testing.T) {
