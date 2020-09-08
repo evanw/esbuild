@@ -3933,6 +3933,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOptsParse) (fn ast.Fn, hadBody
 	fn.HasRestArg = false
 	fn.IsAsync = opts.allowAwait
 	fn.IsGenerator = opts.allowYield
+	fn.ArgumentsRef = ast.InvalidRef
 	fn.OpenParenLoc = p.lexer.Loc()
 	p.lexer.Expect(lexer.TOpenParen)
 
