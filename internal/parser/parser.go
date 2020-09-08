@@ -38,8 +38,9 @@ type parser struct {
 	allowIn                  bool
 	allowPrivateIdentifiers  bool
 	hasTopLevelReturn        bool
-	fnOptsParse              fnOptsParse
-	fnOptsVisit              fnOptsVisit
+	fnOrArrowDataParse       fnOrArrowDataParse
+	fnOrArrowDataVisit       fnOrArrowDataVisit
+	fnOnlyDataVisit          fnOnlyDataVisit
 	latestReturnHadSemicolon bool
 	hasImportMeta            bool
 	allocatedNames           []string
@@ -106,8 +107,6 @@ type parser struct {
 	// The visit pass binds identifiers to declared symbols, does constant
 	// folding, substitutes compile-time variable definitions, and lowers certain
 	// syntactic constructs as appropriate.
-	isThisCaptured    bool
-	argumentsRef      *ast.Ref
 	callTarget        ast.E
 	deleteTarget      ast.E
 	moduleScope       *ast.Scope
@@ -191,8 +190,9 @@ type scopeOrder struct {
 }
 
 // This is function-specific information used during parsing. It is saved and
-// restored on the call stack around code that parses nested functions.
-type fnOptsParse struct {
+// restored on the call stack around code that parses nested functions and
+// arrow expressions.
+type fnOrArrowDataParse struct {
 	asyncRange     ast.Range
 	arrowArgErrors *deferredArrowArgErrors
 	isOutsideFn    bool
@@ -210,8 +210,9 @@ type fnOptsParse struct {
 }
 
 // This is function-specific information used during visiting. It is saved and
-// restored on the call stack around code that parses nested functions.
-type fnOptsVisit struct {
+// restored on the call stack around code that parses nested functions and
+// arrow expressions.
+type fnOrArrowDataVisit struct {
 	isInsideLoop   bool
 	isInsideSwitch bool
 
@@ -229,6 +230,14 @@ type fnOptsVisit struct {
 	//   } catch (e) {}
 	//
 	tryBodyCount int
+}
+
+// This is function-specific information used during visiting. It is saved and
+// restored on the call stack around code that parses nested functions (but not
+// nested arrow functions).
+type fnOnlyDataVisit struct {
+	isThisCaptured bool
+	argumentsRef   *ast.Ref
 }
 
 const bloomFilterSize = 251
@@ -1374,7 +1383,7 @@ func (p *parser) parseProperty(kind ast.PropertyKind, opts propertyOpts, errors 
 			}
 		}
 
-		fn, hadBody := p.parseFn(nil, fnOptsParse{
+		fn, hadBody := p.parseFn(nil, fnOrArrowDataParse{
 			asyncRange:        opts.asyncRange,
 			allowAwait:        opts.isAsync,
 			allowYield:        opts.isGenerator,
@@ -1557,7 +1566,7 @@ func (p *parser) parsePropertyBinding() ast.PropertyBinding {
 	}
 }
 
-func (p *parser) parseArrowBody(args []ast.Arg, opts fnOptsParse) *ast.EArrow {
+func (p *parser) parseArrowBody(args []ast.Arg, data fnOrArrowDataParse) *ast.EArrow {
 	arrowLoc := p.lexer.Loc()
 
 	// Newlines are not allowed before "=>"
@@ -1578,22 +1587,22 @@ func (p *parser) parseArrowBody(args []ast.Arg, opts fnOptsParse) *ast.EArrow {
 	}
 
 	// The ability to call "super()" is inherited by arrow functions
-	opts.allowSuperCall = p.fnOptsParse.allowSuperCall
+	data.allowSuperCall = p.fnOrArrowDataParse.allowSuperCall
 
 	if p.lexer.Token == lexer.TOpenBrace {
 		return &ast.EArrow{
 			Args: args,
-			Body: p.parseFnBody(opts),
+			Body: p.parseFnBody(data),
 		}
 	}
 
 	p.pushScopeForParsePass(ast.ScopeFunctionBody, arrowLoc)
 	defer p.popScope()
 
-	oldFnOpts := p.fnOptsParse
-	p.fnOptsParse = opts
+	oldFnOrArrowData := p.fnOrArrowDataParse
+	p.fnOrArrowDataParse = data
 	expr := p.parseExpr(ast.LComma)
-	p.fnOptsParse = oldFnOpts
+	p.fnOrArrowDataParse = oldFnOrArrowData
 	return &ast.EArrow{
 		Args:       args,
 		PreferExpr: true,
@@ -1626,7 +1635,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 			p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
 			defer p.popScope()
 
-			return ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]ast.Arg{arg}, fnOptsParse{})}
+			return ast.Expr{Loc: asyncRange.Loc, Data: p.parseArrowBody([]ast.Arg{arg}, fnOrArrowDataParse{})}
 
 			// "async x => {}"
 		case lexer.TIdentifier:
@@ -1638,7 +1647,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange ast.Range) ast.Expr {
 			p.pushScopeForParsePass(ast.ScopeFunctionArgs, asyncRange.Loc)
 			defer p.popScope()
 
-			arrow := p.parseArrowBody([]ast.Arg{arg}, fnOptsParse{allowAwait: true})
+			arrow := p.parseArrowBody([]ast.Arg{arg}, fnOrArrowDataParse{allowAwait: true})
 			arrow.IsAsync = true
 			return ast.Expr{Loc: asyncRange.Loc, Data: arrow}
 
@@ -1692,7 +1701,7 @@ func (p *parser) parseFnExpr(loc ast.Loc, isAsync bool, asyncRange ast.Range) as
 		p.skipTypeScriptTypeParameters()
 	}
 
-	fn, _ := p.parseFn(name, fnOptsParse{
+	fn, _ := p.parseFn(name, fnOrArrowDataParse{
 		asyncRange: asyncRange,
 		allowAwait: isAsync,
 		allowYield: isGenerator,
@@ -1728,8 +1737,8 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	p.allowIn = true
 
 	// Forbid "await" and "yield", but only for arrow functions
-	oldFnOpts := p.fnOptsParse
-	p.fnOptsParse.arrowArgErrors = &arrowArgErrors
+	oldFnOrArrowData := p.fnOrArrowDataParse
+	p.fnOrArrowDataParse.arrowArgErrors = &arrowArgErrors
 
 	// Scan over the comma-separated arguments or expressions
 	for p.lexer.Token != lexer.TCloseParen {
@@ -1786,7 +1795,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 	p.allowIn = oldAllowIn
 
 	// Also restore "await" and "yield" expression errors
-	p.fnOptsParse = oldFnOpts
+	p.fnOrArrowDataParse = oldFnOrArrowData
 
 	// Are these arguments to an arrow function?
 	if p.lexer.Token == lexer.TEqualsGreaterThan || opts.forceArrowFn || (p.TS.Parse && p.lexer.Token == lexer.TColon) {
@@ -1833,7 +1842,7 @@ func (p *parser) parseParenExpr(loc ast.Loc, opts parenExprOpts) ast.Expr {
 				panic(lexer.LexerPanic{})
 			}
 
-			arrow := p.parseArrowBody(args, fnOptsParse{allowAwait: opts.isAsync})
+			arrow := p.parseArrowBody(args, fnOrArrowDataParse{allowAwait: opts.isAsync})
 			arrow.IsAsync = opts.isAsync
 			arrow.HasRestArg = spreadRange.Len > 0
 			p.popScope()
@@ -2022,7 +2031,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 
 		switch p.lexer.Token {
 		case lexer.TOpenParen:
-			if level < ast.LCall && p.fnOptsParse.allowSuperCall {
+			if level < ast.LCall && p.fnOrArrowDataParse.allowSuperCall {
 				return ast.Expr{Loc: loc, Data: &ast.ESuper{}}
 			}
 
@@ -2083,30 +2092,30 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			}
 
 		case "await":
-			if p.fnOptsParse.allowAwait {
+			if p.fnOrArrowDataParse.allowAwait {
 				if raw != "await" {
 					p.log.AddRangeError(&p.source, nameRange, "The keyword \"await\" cannot be escaped")
 				} else {
-					if p.fnOptsParse.isTopLevel {
+					if p.fnOrArrowDataParse.isTopLevel {
 						p.markSyntaxFeature(compat.TopLevelAwait, nameRange)
 					}
-					if p.fnOptsParse.arrowArgErrors != nil {
-						p.fnOptsParse.arrowArgErrors.invalidExprAwait = nameRange
+					if p.fnOrArrowDataParse.arrowArgErrors != nil {
+						p.fnOrArrowDataParse.arrowArgErrors.invalidExprAwait = nameRange
 					}
 					return ast.Expr{Loc: loc, Data: &ast.EAwait{Value: p.parseExpr(ast.LPrefix)}}
 				}
 			}
 
 		case "yield":
-			if p.fnOptsParse.allowYield {
+			if p.fnOrArrowDataParse.allowYield {
 				if raw != "yield" {
 					p.log.AddRangeError(&p.source, nameRange, "The keyword \"yield\" cannot be escaped")
 				} else {
 					if level > ast.LAssign {
 						p.log.AddRangeError(&p.source, nameRange, "Cannot use a \"yield\" expression here without parentheses")
 					}
-					if p.fnOptsParse.arrowArgErrors != nil {
-						p.fnOptsParse.arrowArgErrors.invalidExprYield = nameRange
+					if p.fnOrArrowDataParse.arrowArgErrors != nil {
+						p.fnOrArrowDataParse.arrowArgErrors.invalidExprYield = nameRange
 					}
 					return p.parseYieldExpr(loc)
 				}
@@ -2129,7 +2138,7 @@ func (p *parser) parsePrefix(level ast.L, errors *deferredErrors, flags exprFlag
 			p.pushScopeForParsePass(ast.ScopeFunctionArgs, loc)
 			defer p.popScope()
 
-			return ast.Expr{Loc: loc, Data: p.parseArrowBody([]ast.Arg{arg}, fnOptsParse{})}
+			return ast.Expr{Loc: loc, Data: p.parseArrowBody([]ast.Arg{arg}, fnOrArrowDataParse{})}
 		}
 
 		ref := p.storeNameInRef(name)
@@ -3337,8 +3346,8 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (ast.Expr, ast.Stmt, []a
 	switch p.lexer.Token {
 	case lexer.TIdentifier, lexer.TOpenBracket, lexer.TOpenBrace:
 		if !p.lexer.HasNewlineBefore || p.lexer.Token == lexer.TOpenBracket ||
-			(p.fnOptsParse.allowAwait && p.lexer.IsContextualKeyword("await")) ||
-			(p.fnOptsParse.allowYield && p.lexer.IsContextualKeyword("yield")) {
+			(p.fnOrArrowDataParse.allowAwait && p.lexer.IsContextualKeyword("await")) ||
+			(p.fnOrArrowDataParse.allowYield && p.lexer.IsContextualKeyword("yield")) {
 			if opts.lexicalDecl != lexicalDeclAllowAll {
 				p.forbidLexicalDecl(letRange.Loc)
 			}
@@ -3801,7 +3810,7 @@ func (p *parser) parseBinding() ast.Binding {
 	switch p.lexer.Token {
 	case lexer.TIdentifier:
 		name := p.lexer.Identifier
-		if (p.fnOptsParse.allowAwait && name == "await") || (p.fnOptsParse.allowYield && name == "yield") {
+		if (p.fnOrArrowDataParse.allowAwait && name == "await") || (p.fnOrArrowDataParse.allowYield && name == "yield") {
 			p.log.AddRangeError(&p.source, p.lexer.Range(), fmt.Sprintf("Cannot use %q as an identifier here", name))
 		}
 		ref := p.storeNameInRef(name)
@@ -3924,23 +3933,23 @@ func (p *parser) parseBinding() ast.Binding {
 	return ast.Binding{}
 }
 
-func (p *parser) parseFn(name *ast.LocRef, opts fnOptsParse) (fn ast.Fn, hadBody bool) {
-	if opts.allowAwait && opts.allowYield {
-		p.markSyntaxFeature(compat.AsyncGenerator, opts.asyncRange)
+func (p *parser) parseFn(name *ast.LocRef, data fnOrArrowDataParse) (fn ast.Fn, hadBody bool) {
+	if data.allowAwait && data.allowYield {
+		p.markSyntaxFeature(compat.AsyncGenerator, data.asyncRange)
 	}
 
 	fn.Name = name
 	fn.HasRestArg = false
-	fn.IsAsync = opts.allowAwait
-	fn.IsGenerator = opts.allowYield
+	fn.IsAsync = data.allowAwait
+	fn.IsGenerator = data.allowYield
 	fn.ArgumentsRef = ast.InvalidRef
 	fn.OpenParenLoc = p.lexer.Loc()
 	p.lexer.Expect(lexer.TOpenParen)
 
 	// Await and yield are not allowed in function arguments
-	oldFnOpts := p.fnOptsParse
-	p.fnOptsParse.allowAwait = false
-	p.fnOptsParse.allowYield = false
+	oldFnOrArrowData := p.fnOrArrowDataParse
+	p.fnOrArrowDataParse.allowAwait = false
+	p.fnOrArrowDataParse.allowYield = false
 
 	for p.lexer.Token != lexer.TCloseParen {
 		// Skip over "this" type annotations
@@ -3958,7 +3967,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOptsParse) (fn ast.Fn, hadBody
 		}
 
 		var tsDecorators []ast.Expr
-		if opts.allowTSDecorators {
+		if data.allowTSDecorators {
 			tsDecorators = p.parseTypeScriptDecorators()
 		}
 
@@ -3977,7 +3986,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOptsParse) (fn ast.Fn, hadBody
 			// Skip over TypeScript accessibility modifiers, which turn this argument
 			// into a class field when used inside a class constructor. This is known
 			// as a "parameter property" in TypeScript.
-			if isIdentifier && opts.isConstructor {
+			if isIdentifier && data.isConstructor {
 				for p.lexer.Token == lexer.TIdentifier || p.lexer.Token == lexer.TOpenBrace || p.lexer.Token == lexer.TOpenBracket {
 					if text != "public" && text != "private" && text != "protected" && text != "readonly" {
 						break
@@ -4045,7 +4054,7 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOptsParse) (fn ast.Fn, hadBody
 	}
 
 	p.lexer.Expect(lexer.TCloseParen)
-	p.fnOptsParse = oldFnOpts
+	p.fnOrArrowDataParse = oldFnOrArrowData
 
 	// "function foo(): any {}"
 	if p.TS.Parse && p.lexer.Token == lexer.TColon {
@@ -4054,12 +4063,12 @@ func (p *parser) parseFn(name *ast.LocRef, opts fnOptsParse) (fn ast.Fn, hadBody
 	}
 
 	// "function foo(): any;"
-	if opts.allowMissingBodyForTypeScript && p.lexer.Token != lexer.TOpenBrace {
+	if data.allowMissingBodyForTypeScript && p.lexer.Token != lexer.TOpenBrace {
 		p.lexer.ExpectOrInsertSemicolon()
 		return
 	}
 
-	fn.Body = p.parseFnBody(opts)
+	fn.Body = p.parseFnBody(data)
 	hadBody = true
 	return
 }
@@ -4273,7 +4282,7 @@ func (p *parser) parseFnStmt(loc ast.Loc, opts parseStmtOpts, isAsync bool, asyn
 
 	scopeIndex := p.pushScopeForParsePass(ast.ScopeFunctionArgs, p.lexer.Loc())
 
-	fn, hadBody := p.parseFn(name, fnOptsParse{
+	fn, hadBody := p.parseFn(name, fnOrArrowDataParse{
 		asyncRange: asyncRange,
 		allowAwait: isAsync,
 		allowYield: isGenerator,
@@ -4907,12 +4916,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		isForAwait := p.lexer.IsContextualKeyword("await")
 		if isForAwait {
 			awaitRange := p.lexer.Range()
-			if !p.fnOptsParse.allowAwait {
+			if !p.fnOrArrowDataParse.allowAwait {
 				p.log.AddRangeError(&p.source, awaitRange, "Cannot use \"await\" outside an async function")
 				isForAwait = false
 			} else {
 				didGenerateError := p.markSyntaxFeature(compat.ForAwait, awaitRange)
-				if p.fnOptsParse.isTopLevel && !didGenerateError {
+				if p.fnOrArrowDataParse.isTopLevel && !didGenerateError {
 					p.markSyntaxFeature(compat.TopLevelAwait, awaitRange)
 				}
 			}
@@ -5241,7 +5250,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 		}
 		p.latestReturnHadSemicolon = p.lexer.Token == lexer.TSemicolon
 		p.lexer.ExpectOrInsertSemicolon()
-		if p.fnOptsParse.isOutsideFn {
+		if p.fnOrArrowDataParse.isOutsideFn {
 			p.hasTopLevelReturn = true
 		}
 		return ast.Stmt{Loc: loc, Data: &ast.SReturn{Value: value}}
@@ -5452,10 +5461,10 @@ func (p *parser) addImportRecord(kind ast.ImportKind, loc ast.Loc, text string) 
 	return index
 }
 
-func (p *parser) parseFnBody(opts fnOptsParse) ast.FnBody {
-	oldFnOpts := p.fnOptsParse
+func (p *parser) parseFnBody(data fnOrArrowDataParse) ast.FnBody {
+	oldFnOrArrowData := p.fnOrArrowDataParse
 	oldAllowIn := p.allowIn
-	p.fnOptsParse = opts
+	p.fnOrArrowDataParse = data
 	p.allowIn = true
 
 	loc := p.lexer.Loc()
@@ -5467,7 +5476,7 @@ func (p *parser) parseFnBody(opts fnOptsParse) ast.FnBody {
 	p.lexer.Next()
 
 	p.allowIn = oldAllowIn
-	p.fnOptsParse = oldFnOpts
+	p.fnOrArrowDataParse = oldFnOrArrowData
 	return ast.FnBody{Loc: loc, Stmts: stmts}
 }
 
@@ -6035,10 +6044,10 @@ func (p *parser) visitStmts(stmts []ast.Stmt) []ast.Stmt {
 }
 
 func (p *parser) visitLoopBody(stmt ast.Stmt) ast.Stmt {
-	oldIsInsideLoop := p.fnOptsVisit.isInsideLoop
-	p.fnOptsVisit.isInsideLoop = true
+	oldIsInsideLoop := p.fnOrArrowDataVisit.isInsideLoop
+	p.fnOrArrowDataVisit.isInsideLoop = true
 	stmt = p.visitSingleStmt(stmt)
-	p.fnOptsVisit.isInsideLoop = oldIsInsideLoop
+	p.fnOrArrowDataVisit.isInsideLoop = oldIsInsideLoop
 	return stmt
 }
 
@@ -6645,7 +6654,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 		if s.Label != nil {
 			name := p.loadNameFromRef(s.Label.Ref)
 			s.Label.Ref, _, _ = p.findLabelSymbol(s.Label.Loc, name)
-		} else if !p.fnOptsVisit.isInsideLoop && !p.fnOptsVisit.isInsideSwitch {
+		} else if !p.fnOrArrowDataVisit.isInsideLoop && !p.fnOrArrowDataVisit.isInsideSwitch {
 			r := lexer.RangeOfIdentifier(p.source, stmt.Loc)
 			p.log.AddRangeError(&p.source, r, "Cannot use \"break\" here")
 		}
@@ -6659,7 +6668,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 				r := lexer.RangeOfIdentifier(p.source, s.Label.Loc)
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot continue to label \"%s\"", name))
 			}
-		} else if !p.fnOptsVisit.isInsideLoop {
+		} else if !p.fnOrArrowDataVisit.isInsideLoop {
 			r := lexer.RangeOfIdentifier(p.source, stmt.Loc)
 			p.log.AddRangeError(&p.source, r, "Cannot use \"continue\" here")
 		}
@@ -6883,9 +6892,9 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.STry:
 		p.pushScopeForVisitPass(ast.ScopeBlock, stmt.Loc)
-		p.fnOptsVisit.tryBodyCount++
+		p.fnOrArrowDataVisit.tryBodyCount++
 		s.Body = p.visitStmts(s.Body)
-		p.fnOptsVisit.tryBodyCount--
+		p.fnOrArrowDataVisit.tryBodyCount--
 		p.popScope()
 
 		if s.Catch != nil {
@@ -6907,8 +6916,8 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 	case *ast.SSwitch:
 		s.Test = p.visitExpr(s.Test)
 		p.pushScopeForVisitPass(ast.ScopeBlock, s.BodyLoc)
-		oldIsInsideSwitch := p.fnOptsVisit.isInsideSwitch
-		p.fnOptsVisit.isInsideSwitch = true
+		oldIsInsideSwitch := p.fnOrArrowDataVisit.isInsideSwitch
+		p.fnOrArrowDataVisit.isInsideSwitch = true
 		for i, c := range s.Cases {
 			if c.Value != nil {
 				*c.Value = p.visitExpr(*c.Value)
@@ -6920,7 +6929,7 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			// Make sure the assignment to the body above is preserved
 			s.Cases[i] = c
 		}
-		p.fnOptsVisit.isInsideSwitch = oldIsInsideSwitch
+		p.fnOrArrowDataVisit.isInsideSwitch = oldIsInsideSwitch
 		p.popScope()
 
 		// Check for duplicate case values
@@ -7310,8 +7319,8 @@ func (p *parser) visitClass(class *ast.Class) {
 		*class.Extends = p.visitExpr(*class.Extends)
 	}
 
-	oldIsThisCaptured := p.isThisCaptured
-	p.isThisCaptured = true
+	oldIsThisCaptured := p.fnOnlyDataVisit.isThisCaptured
+	p.fnOnlyDataVisit.isThisCaptured = true
 
 	// A scope is needed for private identifiers
 	p.pushScopeForVisitPass(ast.ScopeClassBody, class.BodyLoc)
@@ -7334,7 +7343,7 @@ func (p *parser) visitClass(class *ast.Class) {
 		}
 	}
 
-	p.isThisCaptured = oldIsThisCaptured
+	p.fnOnlyDataVisit.isThisCaptured = oldIsThisCaptured
 }
 
 func (p *parser) visitArgs(args []ast.Arg) {
@@ -7715,7 +7724,7 @@ func (p *parser) visitExpr(expr ast.Expr) ast.Expr {
 }
 
 func (p *parser) valueForThis(loc ast.Loc) (ast.Expr, bool) {
-	if p.Mode != config.ModePassThrough && !p.isThisCaptured {
+	if p.Mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisCaptured {
 		if p.hasES6ImportSyntax || p.hasES6ExportSyntax {
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
@@ -8892,7 +8901,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 							}
 
 							importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, lexer.UTF16ToString(str.Value))
-							p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOptsVisit.tryBodyCount != 0
+							p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
 							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 							// Create a new expression to represent the operation
@@ -8922,8 +8931,8 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 		}
 
 	case *ast.EArrow:
-		oldFnOpts := p.fnOptsVisit
-		p.fnOptsVisit = fnOptsVisit{}
+		oldFnOrArrowData := p.fnOrArrowDataVisit
+		p.fnOrArrowDataVisit = fnOrArrowDataVisit{}
 
 		p.pushScopeForVisitPass(ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args)
@@ -8945,7 +8954,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 		}
 
-		p.fnOptsVisit = oldFnOpts
+		p.fnOrArrowDataVisit = oldFnOrArrowData
 
 	case *ast.EFunction:
 		p.visitFn(&e.Fn, expr.Loc)
@@ -9031,7 +9040,7 @@ func (p *parser) handleIdentifier(loc ast.Loc, assignTarget ast.AssignTarget, e 
 	}
 
 	// Warn about uses of "require" other than a direct call
-	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.fnOptsVisit.tryBodyCount == 0 {
+	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.fnOrArrowDataVisit.tryBodyCount == 0 {
 		// "typeof require == 'function' && require"
 		if e == p.typeofRequireEqualsFnTarget {
 			// Become "false" in the browser and "require" in node
@@ -9057,12 +9066,13 @@ func extractNumericValues(left ast.Expr, right ast.Expr) (float64, float64, bool
 }
 
 func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
-	oldFnOpts := p.fnOptsVisit
-	oldIsThisCaptured := p.isThisCaptured
-	oldArgumentsRef := p.argumentsRef
-	p.fnOptsVisit = fnOptsVisit{}
-	p.isThisCaptured = true
-	p.argumentsRef = &fn.ArgumentsRef
+	oldFnOrArrowData := p.fnOrArrowDataVisit
+	oldFnOnlyData := p.fnOnlyDataVisit
+	p.fnOrArrowDataVisit = fnOrArrowDataVisit{}
+	p.fnOnlyDataVisit = fnOnlyDataVisit{
+		isThisCaptured: true,
+		argumentsRef:   &fn.ArgumentsRef,
+	}
 
 	if fn.Name != nil {
 		p.recordDeclaredSymbol(fn.Name.Ref)
@@ -9076,9 +9086,8 @@ func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg)
 	p.popScope()
 
-	p.fnOptsVisit = oldFnOpts
-	p.isThisCaptured = oldIsThisCaptured
-	p.argumentsRef = oldArgumentsRef
+	p.fnOrArrowDataVisit = oldFnOrArrowData
+	p.fnOnlyDataVisit = oldFnOnlyData
 }
 
 func (p *parser) scanForImportsAndExports(stmts []ast.Stmt) []ast.Stmt {
@@ -9757,13 +9766,13 @@ func newParser(log logging.Log, source logging.Source, lexer lexer.Lexer, option
 	}
 
 	p := &parser{
-		log:            log,
-		source:         source,
-		lexer:          lexer,
-		allowIn:        true,
-		Options:        *options,
-		fnOptsParse:    fnOptsParse{isOutsideFn: true},
-		runtimeImports: make(map[string]ast.Ref),
+		log:                log,
+		source:             source,
+		lexer:              lexer,
+		allowIn:            true,
+		Options:            *options,
+		fnOrArrowDataParse: fnOrArrowDataParse{isOutsideFn: true},
+		runtimeImports:     make(map[string]ast.Ref),
 
 		// For lowering private methods
 		weakMapRef:     ast.InvalidRef,
@@ -9819,8 +9828,8 @@ func Parse(log logging.Log, source logging.Source, options config.Options) (resu
 	}
 
 	// Allow top-level await
-	p.fnOptsParse.allowAwait = true
-	p.fnOptsParse.isTopLevel = true
+	p.fnOrArrowDataParse.allowAwait = true
+	p.fnOrArrowDataParse.isTopLevel = true
 
 	// Parse the file in the first pass, but do not bind symbols
 	stmts := p.parseStmtsUpTo(lexer.TEndOfFile, parseStmtOpts{isModuleScope: true})

@@ -217,7 +217,7 @@ func (p *parser) lowerFunction(
 		*bodyStmts = nil
 
 		// Forward the arguments to the wrapper function
-		usesArguments := p.argumentsRef != nil && p.symbolUses[*p.argumentsRef].CountEstimate > 0
+		usesArguments := p.fnOnlyDataVisit.argumentsRef != nil && p.symbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
 		var forwardedArgs ast.Expr
 		if len(*args) == 0 && !usesArguments {
 			// Don't allocate anything if arguments aren't needed
@@ -268,9 +268,9 @@ func (p *parser) lowerFunction(
 				}
 
 				// Forward all arguments from the outer function to the inner function
-				if p.argumentsRef != nil {
+				if p.fnOnlyDataVisit.argumentsRef != nil {
 					// Normal functions can just use "arguments" to forward everything
-					forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: *p.argumentsRef}}
+					forwardedArgs = ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: *p.fnOnlyDataVisit.argumentsRef}}
 				} else {
 					// Arrow functions can't use "arguments", so we need to forward
 					// the arguments manually
