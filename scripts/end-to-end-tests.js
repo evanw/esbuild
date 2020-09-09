@@ -1160,6 +1160,53 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
         }
       `,
     }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      // Functions handle "super" property accesses
+      'in.js': `
+        exports.async = async () => {
+          class Base {
+            foo(x, y) {
+              return x + y
+            }
+          }
+          class Derived extends Base {
+            async test(key) {
+              return [
+                await super.foo,
+                await super[key],
+
+                await super.foo.name,
+                await super[key].name,
+                await super.foo?.name,
+                await super[key]?.name,
+                await super._foo?.name,
+                await super['_' + key]?.name,
+
+                await super.foo(1, 2),
+                await super[key](1, 2),
+                await super.foo?.(1, 2),
+                await super[key]?.(1, 2),
+                await super._foo?.(1, 2),
+                await super['_' + key]?.(1, 2),
+              ]
+            }
+          }
+          let d = new Derived
+          let observed = await d.test('foo')
+          let expected = [
+            d.foo, d.foo,
+            d.foo.name, d.foo.name, d.foo.name, d.foo.name, void 0, void 0,
+            3, 3, 3, 3, void 0, void 0,
+          ]
+          for (let i = 0; i < expected.length; i++) {
+            if (observed[i] !== expected[i]) {
+              console.log(i, observed[i], expected[i])
+              throw 'fail'
+            }
+          }
+        }
+      `,
+    }, { async: true }),
   )
 
   // Object rest pattern tests

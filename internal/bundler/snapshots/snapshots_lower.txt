@@ -91,6 +91,30 @@ export default [
 ];
 
 ================================================================================
+TestLowerAsyncSuperES2016NoBundle
+---------- /out.js ----------
+class Derived extends Base {
+  test(key) {
+    var __super = (key2) => super[key2];
+    return __async(this, null, function* () {
+      var _a, _b, _c, _d;
+      return [
+        yield __super("foo"),
+        yield __super(key),
+        yield __super("foo").name,
+        yield __super(key).name,
+        yield (_a = __super("foo")) == null ? void 0 : _a.name,
+        yield (_b = __super(key)) == null ? void 0 : _b.name,
+        yield __super("foo").call(this, 1, 2),
+        yield __super(key).call(this, 1, 2),
+        yield (_c = __super("foo")) == null ? void 0 : _c.call(this, 1, 2),
+        yield (_d = __super(key)) == null ? void 0 : _d.call(this, 1, 2)
+      ];
+    });
+  }
+}
+
+================================================================================
 TestLowerAsyncThis2016CommonJS
 ---------- /out.js ----------
 // /entry.js

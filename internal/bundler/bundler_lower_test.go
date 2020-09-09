@@ -905,6 +905,38 @@ func TestLowerAsyncES5(t *testing.T) {
 	})
 }
 
+func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Derived extends Base {
+					async test(key) {
+						return [
+							await super.foo,
+							await super[key],
+
+							await super.foo.name,
+							await super[key].name,
+							await super.foo?.name,
+							await super[key]?.name,
+
+							await super.foo(1, 2),
+							await super[key](1, 2),
+							await super.foo?.(1, 2),
+							await super[key]?.(1, 2),
+						]
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			UnsupportedFeatures: es(2016),
+			AbsOutputFile:       "/out.js",
+		},
+	})
+}
+
 func TestLowerClassFieldStrict2020NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -306,7 +306,37 @@ func (p *parser) lowerFunction(
 			forwardedArgs,
 			{Loc: bodyLoc, Data: &ast.EFunction{Fn: fn}},
 		})
-		*bodyStmts = []ast.Stmt{{Loc: bodyLoc, Data: &ast.SReturn{Value: &callAsync}}}
+		returnStmt := ast.Stmt{Loc: bodyLoc, Data: &ast.SReturn{Value: &callAsync}}
+
+		// Prepend the "super" index function if necessary
+		if p.fnOrArrowDataVisit.superIndexRef != nil {
+			argRef := p.newSymbol(ast.SymbolOther, "key")
+			p.currentScope.Generated = append(p.currentScope.Generated, *p.fnOrArrowDataVisit.superIndexRef, argRef)
+			superIndexStmt := ast.Stmt{Loc: bodyLoc, Data: &ast.SLocal{
+				Decls: []ast.Decl{ast.Decl{
+					Binding: ast.Binding{Loc: bodyLoc, Data: &ast.BIdentifier{Ref: *p.fnOrArrowDataVisit.superIndexRef}},
+					Value: &ast.Expr{Loc: bodyLoc, Data: &ast.EArrow{
+						Args: []ast.Arg{ast.Arg{
+							Binding: ast.Binding{Loc: bodyLoc, Data: &ast.BIdentifier{Ref: argRef}},
+						}},
+						Body: ast.FnBody{
+							Loc: bodyLoc,
+							Stmts: []ast.Stmt{ast.Stmt{Loc: bodyLoc, Data: &ast.SReturn{
+								Value: &ast.Expr{Loc: bodyLoc, Data: &ast.EIndex{
+									Target: ast.Expr{Loc: bodyLoc, Data: &ast.ESuper{}},
+									Index:  ast.Expr{Loc: bodyLoc, Data: &ast.EIdentifier{Ref: argRef}},
+								}},
+							}}},
+						},
+						PreferExpr: true,
+					}},
+				}},
+			}}
+			p.recordUsage(argRef)
+			*bodyStmts = []ast.Stmt{superIndexStmt, returnStmt}
+		} else {
+			*bodyStmts = []ast.Stmt{returnStmt}
+		}
 	}
 }
 
@@ -407,6 +437,12 @@ flatten:
 			switch e := expr.Data.(type) {
 			case *ast.EDot:
 				if _, ok := e.Target.Data.(*ast.ESuper); ok {
+					// Lower "super.prop" if necessary
+					if p.shouldLowerSuperPropertyAccess(e.Target) {
+						key := ast.Expr{Loc: e.NameLoc, Data: &ast.EString{Value: lexer.StringToUTF16(e.Name)}}
+						expr = p.lowerSuperPropertyAccess(expr.Loc, key)
+					}
+
 					// Special-case "super.foo?.()" to avoid a syntax error. Without this,
 					// we would generate:
 					//
@@ -430,6 +466,11 @@ flatten:
 
 			case *ast.EIndex:
 				if _, ok := e.Target.Data.(*ast.ESuper); ok {
+					// Lower "super[prop]" if necessary
+					if p.shouldLowerSuperPropertyAccess(e.Target) {
+						expr = p.lowerSuperPropertyAccess(expr.Loc, e.Index)
+					}
+
 					// See the comment above about a similar special case for EDot
 					thisArg = ast.Expr{Loc: loc, Data: &ast.EThis{}}
 				} else {
@@ -1988,4 +2029,56 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 		class.Name = nil
 	}
 	return stmts, ast.Expr{}
+}
+
+func (p *parser) shouldLowerSuperPropertyAccess(expr ast.Expr) bool {
+	if p.fnOrArrowDataVisit.isAsync && p.UnsupportedFeatures.Has(compat.AsyncAwait) {
+		_, isSuper := expr.Data.(*ast.ESuper)
+		return isSuper
+	}
+	return false
+}
+
+func (p *parser) lowerSuperPropertyAccess(loc ast.Loc, key ast.Expr) ast.Expr {
+	if p.fnOrArrowDataVisit.superIndexRef == nil {
+		ref := p.newSymbol(ast.SymbolOther, "__super")
+		p.fnOrArrowDataVisit.superIndexRef = &ref
+	}
+	p.recordUsage(*p.fnOrArrowDataVisit.superIndexRef)
+	return ast.Expr{Loc: loc, Data: &ast.ECall{
+		Target: ast.Expr{Loc: loc, Data: &ast.EIdentifier{Ref: *p.fnOrArrowDataVisit.superIndexRef}},
+		Args:   []ast.Expr{key},
+	}}
+}
+
+func (p *parser) maybeLowerSuperPropertyAccessInsideCall(call *ast.ECall) {
+	var key ast.Expr
+
+	switch e := call.Target.Data.(type) {
+	case *ast.EDot:
+		// Lower "super.prop" if necessary
+		if !p.shouldLowerSuperPropertyAccess(e.Target) {
+			return
+		}
+		key = ast.Expr{Loc: e.NameLoc, Data: &ast.EString{Value: lexer.StringToUTF16(e.Name)}}
+
+	case *ast.EIndex:
+		// Lower "super[prop]" if necessary
+		if !p.shouldLowerSuperPropertyAccess(e.Target) {
+			return
+		}
+		key = e.Index
+
+	default:
+		return
+	}
+
+	// "super.foo(a, b)" => "__superIndex('foo').call(this, a, b)"
+	call.Target.Data = &ast.EDot{
+		Target:  p.lowerSuperPropertyAccess(call.Target.Loc, key),
+		NameLoc: key.Loc,
+		Name:    "call",
+	}
+	thisExpr := ast.Expr{Loc: call.Target.Loc, Data: &ast.EThis{}}
+	call.Args = append([]ast.Expr{thisExpr}, call.Args...)
 }

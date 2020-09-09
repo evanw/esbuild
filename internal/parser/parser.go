@@ -213,6 +213,9 @@ type fnOrArrowDataParse struct {
 // restored on the call stack around code that parses nested functions and
 // arrow expressions.
 type fnOrArrowDataVisit struct {
+	superIndexRef *ast.Ref
+
+	isAsync        bool
 	isInsideLoop   bool
 	isInsideSwitch bool
 
@@ -7820,6 +7823,8 @@ func (p *parser) isValidAssignmentTarget(expr ast.Expr) bool {
 	return false
 }
 
+// This function takes "exprIn" as input from the caller and produces "exprOut"
+// for the caller to pass along extra data. This is mostly for optional chaining.
 func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 	if in.assignTarget != ast.AssignTargetNone && !p.isValidAssignmentTarget(expr) {
 		p.log.AddError(&p.source, expr.Loc, "Invalid assignment target")
@@ -8399,6 +8404,11 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			e.Index = p.visitExpr(e.Index)
 		}
 
+		// Lower "super[prop]" if necessary
+		if !isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
+			return p.lowerSuperPropertyAccess(expr.Loc, e.Index), exprOut{}
+		}
+
 		// Create an error for assigning to an import namespace when bundling. Even
 		// though this is a run-time error, we make it a compile-time error when
 		// bundling because scope hoisting means these will no longer be run-time
@@ -8597,10 +8607,17 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			}
 		}
 
+		isCallTarget := e == p.callTarget
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == ast.OptionalChainContinue,
 		})
 		e.Target = target
+
+		// Lower "super.prop" if necessary
+		if !isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
+			key := ast.Expr{Loc: e.NameLoc, Data: &ast.EString{Value: lexer.StringToUTF16(e.Name)}}
+			return p.lowerSuperPropertyAccess(expr.Loc, key), exprOut{}
+		}
 
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != ast.OptionalChainNone
@@ -8877,6 +8894,7 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 				}}), exprOut{}
 			}
+			p.maybeLowerSuperPropertyAccessInsideCall(e)
 		}
 
 		// Track calls to require() so we can use them while bundling
@@ -8932,7 +8950,9 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 
 	case *ast.EArrow:
 		oldFnOrArrowData := p.fnOrArrowDataVisit
-		p.fnOrArrowDataVisit = fnOrArrowDataVisit{}
+		p.fnOrArrowDataVisit = fnOrArrowDataVisit{
+			isAsync: e.IsAsync,
+		}
 
 		p.pushScopeForVisitPass(ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args)
@@ -9068,7 +9088,9 @@ func extractNumericValues(left ast.Expr, right ast.Expr) (float64, float64, bool
 func (p *parser) visitFn(fn *ast.Fn, scopeLoc ast.Loc) {
 	oldFnOrArrowData := p.fnOrArrowDataVisit
 	oldFnOnlyData := p.fnOnlyDataVisit
-	p.fnOrArrowDataVisit = fnOrArrowDataVisit{}
+	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
+		isAsync: fn.IsAsync,
+	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{
 		isThisCaptured: true,
 		argumentsRef:   &fn.ArgumentsRef,

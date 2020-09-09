@@ -510,12 +510,13 @@ func (a *EIndex) HasSameFlagsAs(b *EIndex) bool {
 }
 
 type EArrow struct {
+	Args []Arg
+	Body FnBody
+
 	IsAsync         bool
-	Args            []Arg
 	HasRestArg      bool
 	IsParenthesized bool
 	PreferExpr      bool // Use shorthand if true and "Body" is a single return statement
-	Body            FnBody
 }
 
 type EFunction struct{ Fn Fn }
