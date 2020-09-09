@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.33
 
 * Fix precedence of tagged template expressions ([#372](https://github.com/evanw/esbuild/issues/372))
 
