@@ -437,7 +437,7 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 	})
 }
 
-func TestPackageJsonBrowserOverModule(t *testing.T) {
+func TestPackageJsonBrowserOverModuleBrowser(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -470,12 +470,52 @@ func TestPackageJsonBrowserOverModule(t *testing.T) {
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformBrowser,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})
 }
 
-func TestPackageJsonBrowserWithModule(t *testing.T) {
+func TestPackageJsonBrowserOverModuleNode(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./main.esm.js",
+					"browser": "./main.browser.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.esm.js": `
+				export default function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.browser.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonBrowserWithModuleBrowser(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -516,6 +556,54 @@ func TestPackageJsonBrowserWithModule(t *testing.T) {
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			Platform:      config.PlatformBrowser,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonBrowserWithModuleNode(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./main.esm.js",
+					"browser": {
+						"./main.js": "./main.browser.js",
+						"./main.esm.js": "./main.browser.esm.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.esm.js": `
+				export default function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.browser.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.browser.esm.js": `
+				export default function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})

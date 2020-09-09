@@ -158,7 +158,7 @@ const demo_pkg = __toModule(require_main_browser());
 console.log(demo_pkg.default());
 
 ================================================================================
-TestPackageJsonBrowserOverModule
+TestPackageJsonBrowserOverModuleBrowser
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/node_modules/demo-pkg/main.browser.js
 var require_main_browser = __commonJS((exports, module) => {
@@ -170,6 +170,17 @@ var require_main_browser = __commonJS((exports, module) => {
 // /Users/user/project/src/entry.js
 const demo_pkg = __toModule(require_main_browser());
 console.log(demo_pkg.default());
+
+================================================================================
+TestPackageJsonBrowserOverModuleNode
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/main.esm.js
+function main_esm_default() {
+  return 123;
+}
+
+// /Users/user/project/src/entry.js
+console.log(main_esm_default());
 
 ================================================================================
 TestPackageJsonBrowserString
@@ -186,7 +197,7 @@ const demo_pkg = __toModule(require_browser());
 console.log(demo_pkg.default());
 
 ================================================================================
-TestPackageJsonBrowserWithModule
+TestPackageJsonBrowserWithModuleBrowser
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/node_modules/demo-pkg/main.browser.esm.js
 function main_browser_esm_default() {
@@ -195,6 +206,17 @@ function main_browser_esm_default() {
 
 // /Users/user/project/src/entry.js
 console.log(main_browser_esm_default());
+
+================================================================================
+TestPackageJsonBrowserWithModuleNode
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/main.esm.js
+function main_esm_default() {
+  return 123;
+}
+
+// /Users/user/project/src/entry.js
+console.log(main_esm_default());
 
 ================================================================================
 TestPackageJsonMain
