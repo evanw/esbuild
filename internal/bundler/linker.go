@@ -399,14 +399,18 @@ func newLinkerContext(
 	}
 
 	// Allocate a new unbound symbol called "module" in case we need it later
-	{
+	if c.options.OutputFormat == config.FormatCommonJS {
 		runtimeSymbols := &c.symbols.Outer[runtime.SourceIndex]
+		runtimeScope := c.files[runtime.SourceIndex].ast.ModuleScope
 		c.unboundModuleRef = ast.Ref{OuterIndex: runtime.SourceIndex, InnerIndex: uint32(len(*runtimeSymbols))}
+		runtimeScope.Generated = append(runtimeScope.Generated, c.unboundModuleRef)
 		*runtimeSymbols = append(*runtimeSymbols, ast.Symbol{
 			Kind:         ast.SymbolUnbound,
 			OriginalName: "module",
 			Link:         ast.InvalidRef,
 		})
+	} else {
+		c.unboundModuleRef = ast.InvalidRef
 	}
 
 	return c
