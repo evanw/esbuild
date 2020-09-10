@@ -5325,7 +5325,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				if p.TS.Parse {
 					switch name {
 					case "type":
-						if p.lexer.Token == lexer.TIdentifier {
+						if p.lexer.Token == lexer.TIdentifier && !p.lexer.HasNewlineBefore {
 							// "type Foo = any"
 							p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
 							return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
