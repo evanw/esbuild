@@ -6,7 +6,6 @@
 package runtime
 
 import (
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/logging"
 )
@@ -186,7 +185,7 @@ func code(isES6 bool) string {
 
 var ES6Source = logging.Source{
 	Index:          SourceIndex,
-	KeyPath:        ast.Path{Text: "<runtime>"},
+	KeyPath:        logging.Path{Text: "<runtime>"},
 	PrettyPath:     "<runtime>",
 	IdentifierName: "runtime",
 	Contents:       code(true /* isES6 */),
@@ -194,7 +193,7 @@ var ES6Source = logging.Source{
 
 var ES5Source = logging.Source{
 	Index:          SourceIndex,
-	KeyPath:        ast.Path{Text: "<runtime>"},
+	KeyPath:        logging.Path{Text: "<runtime>"},
 	PrettyPath:     "<runtime>",
 	IdentifierName: "runtime",
 	Contents:       code(false /* isES6 */),

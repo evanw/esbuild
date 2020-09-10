@@ -10,8 +10,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-
-	"github.com/evanw/esbuild/internal/ast"
 )
 
 type Log struct {
@@ -50,6 +48,39 @@ type MsgLocation struct {
 	LineText string
 }
 
+type Loc struct {
+	// This is the 0-based index of this location from the start of the file, in bytes
+	Start int32
+}
+
+type Range struct {
+	Loc Loc
+	Len int32
+}
+
+func (r Range) End() int32 {
+	return r.Loc.Start + r.Len
+}
+
+// This is used to represent both file system paths (IsAbsolute == true) and
+// abstract module paths (IsAbsolute == false). Abstract module paths represent
+// "virtual modules" when used for an input file and "package paths" when used
+// to represent an external module.
+type Path struct {
+	Text       string
+	IsAbsolute bool
+}
+
+func (a Path) ComesBeforeInSortedOrder(b Path) bool {
+	if !a.IsAbsolute && b.IsAbsolute {
+		return false
+	}
+	if a.IsAbsolute && !b.IsAbsolute {
+		return true
+	}
+	return a.Text < b.Text
+}
+
 type Source struct {
 	Index uint32
 
@@ -64,7 +95,7 @@ type Source struct {
 	//
 	// If it's marked as not an absolute path, it's an opaque string that is used
 	// to refer to an automatically-generated module.
-	KeyPath ast.Path
+	KeyPath Path
 
 	// This is used for error messages and the metadata JSON file.
 	//
@@ -83,14 +114,14 @@ type Source struct {
 	Contents string
 }
 
-func (s *Source) TextForRange(r ast.Range) string {
+func (s *Source) TextForRange(r Range) string {
 	return s.Contents[r.Loc.Start : r.Loc.Start+r.Len]
 }
 
-func (s *Source) RangeOfString(loc ast.Loc) ast.Range {
+func (s *Source) RangeOfString(loc Loc) Range {
 	text := s.Contents[loc.Start:]
 	if len(text) == 0 {
-		return ast.Range{Loc: loc, Len: 0}
+		return Range{Loc: loc, Len: 0}
 	}
 
 	quote := text[0]
@@ -99,19 +130,19 @@ func (s *Source) RangeOfString(loc ast.Loc) ast.Range {
 		for i := 1; i < len(text); i++ {
 			c := text[i]
 			if c == quote {
-				return ast.Range{Loc: loc, Len: int32(i + 1)}
+				return Range{Loc: loc, Len: int32(i + 1)}
 			} else if c == '\\' {
 				i += 1
 			}
 		}
 	}
 
-	return ast.Range{Loc: loc, Len: 0}
+	return Range{Loc: loc, Len: 0}
 }
 
-func (s *Source) RangeOfNumber(loc ast.Loc) (r ast.Range) {
+func (s *Source) RangeOfNumber(loc Loc) (r Range) {
 	text := s.Contents[loc.Start:]
-	r = ast.Range{Loc: loc, Len: 0}
+	r = Range{Loc: loc, Len: 0}
 
 	if len(text) > 0 {
 		if c := text[0]; c >= '0' && c <= '9' {
@@ -242,7 +273,7 @@ func PrintErrorToStderr(osArgs []string, text string) {
 	}
 
 	log := NewStderrLog(options)
-	log.AddError(nil, ast.Loc{}, text)
+	log.AddError(nil, Loc{}, text)
 	log.Done()
 }
 
@@ -551,7 +582,7 @@ func (log Log) Done() []Msg {
 	return log.done()
 }
 
-func (log Log) AddError(source *Source, loc ast.Loc, text string) {
+func (log Log) AddError(source *Source, loc Loc, text string) {
 	log.addMsg(Msg{
 		Kind:     Error,
 		Text:     text,
@@ -559,7 +590,7 @@ func (log Log) AddError(source *Source, loc ast.Loc, text string) {
 	})
 }
 
-func (log Log) AddWarning(source *Source, loc ast.Loc, text string) {
+func (log Log) AddWarning(source *Source, loc Loc, text string) {
 	log.addMsg(Msg{
 		Kind:     Warning,
 		Text:     text,
@@ -567,7 +598,7 @@ func (log Log) AddWarning(source *Source, loc ast.Loc, text string) {
 	})
 }
 
-func (log Log) AddRangeError(source *Source, r ast.Range, text string) {
+func (log Log) AddRangeError(source *Source, r Range, text string) {
 	log.addMsg(Msg{
 		Kind:     Error,
 		Text:     text,
@@ -575,7 +606,7 @@ func (log Log) AddRangeError(source *Source, r ast.Range, text string) {
 	})
 }
 
-func (log Log) AddRangeWarning(source *Source, r ast.Range, text string) {
+func (log Log) AddRangeWarning(source *Source, r Range, text string) {
 	log.addMsg(Msg{
 		Kind:     Warning,
 		Text:     text,

@@ -66,13 +66,13 @@ type parseArgs struct {
 	fs           fs.FS
 	log          logging.Log
 	res          resolver.Resolver
-	keyPath      ast.Path
+	keyPath      logging.Path
 	prettyPath   string
 	baseName     string
 	sourceIndex  uint32
 	importSource *logging.Source
 	flags        parseFlags
-	pathRange    ast.Range
+	pathRange    logging.Range
 	options      config.Options
 	results      chan parseResult
 
@@ -334,7 +334,7 @@ func parseFile(args parseArgs) {
 	args.results <- result
 }
 
-func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolver, source *logging.Source, comment ast.Span) (ast.Path, *string) {
+func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolver, source *logging.Source, comment ast.Span) (logging.Path, *string) {
 	// Data URL
 	if strings.HasPrefix(comment.Text, "data:") {
 		if strings.HasPrefix(comment.Text, "data:application/json;") {
@@ -344,18 +344,18 @@ func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolve
 				encoded := comment.Text[n:]
 				decoded, err := base64.StdEncoding.DecodeString(encoded)
 				if err != nil {
-					r := ast.Range{Loc: ast.Loc{Start: comment.Range.Loc.Start + n}, Len: comment.Range.Len - n}
+					r := logging.Range{Loc: logging.Loc{Start: comment.Range.Loc.Start + n}, Len: comment.Range.Len - n}
 					log.AddRangeWarning(source, r, "Invalid base64 data in source map")
-					return ast.Path{}, nil
+					return logging.Path{}, nil
 				}
 				contents := string(decoded)
-				return ast.Path{Text: source.PrettyPath + ".sourceMappingURL"}, &contents
+				return logging.Path{Text: source.PrettyPath + ".sourceMappingURL"}, &contents
 			}
 		}
 
 		// Anything else is unsupported
 		log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
-		return ast.Path{}, nil
+		return logging.Path{}, nil
 	}
 
 	// Relative path in a file with an absolute path
@@ -365,17 +365,17 @@ func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolve
 		if err != nil {
 			if err == syscall.ENOENT {
 				// Don't report a warning because this is likely unactionable
-				return ast.Path{}, nil
+				return logging.Path{}, nil
 			}
 			log.AddRangeError(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(absPath), err.Error()))
-			return ast.Path{}, nil
+			return logging.Path{}, nil
 		}
-		return ast.Path{IsAbsolute: true, Text: absPath}, &contents
+		return logging.Path{IsAbsolute: true, Text: absPath}, &contents
 	}
 
 	// Anything else is unsupported
 	log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
-	return ast.Path{}, nil
+	return logging.Path{}, nil
 }
 
 func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base string) config.Loader {
@@ -441,7 +441,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		resolveResult resolver.ResolveResult,
 		prettyPath string,
 		importSource *logging.Source,
-		pathRange ast.Range,
+		pathRange logging.Range,
 		absResolveDir string,
 		kind inputKind,
 	) uint32 {
@@ -491,8 +491,8 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 	// Treat stdin as an extra entry point
 	if options.Stdin != nil {
-		resolveResult := resolver.ResolveResult{Path: ast.Path{Text: "<stdin>"}}
-		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, ast.Range{}, options.Stdin.AbsResolveDir, inputKindStdin)
+		resolveResult := resolver.ResolveResult{Path: logging.Path{Text: "<stdin>"}}
+		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logging.Range{}, options.Stdin.AbsResolveDir, inputKindStdin)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -502,7 +502,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
 
 		if duplicateEntryPoints[lowerAbsPath] {
-			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
+			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
 			continue
 		}
 
@@ -510,11 +510,11 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		resolveResult := res.ResolveAbs(absPath)
 
 		if resolveResult == nil {
-			log.AddError(nil, ast.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
+			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
 			continue
 		}
 
-		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, ast.Range{}, "", inputKindEntryPoint)
+		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, logging.Range{}, "", inputKindEntryPoint)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -714,7 +714,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 		for _, outputFile := range outputFiles {
 			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
 			if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
-				log.AddError(nil, ast.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
+				log.AddError(nil, logging.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
 			}
 		}
 
@@ -748,7 +748,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 			if relPath, ok := b.fs.Rel(b.fs.Cwd(), outputPath); ok {
 				outputPath = relPath
 			}
-			log.AddError(nil, ast.Loc{}, "Two output files share the same path but have different contents: "+outputPath)
+			log.AddError(nil, logging.Loc{}, "Two output files share the same path but have different contents: "+outputPath)
 		}
 		outputFiles = outputFiles[:end]
 	}
@@ -971,7 +971,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 	}
 	result := config.ProcessDefines(map[string]config.DefineData{
 		"__platform": config.DefineData{
-			DefineFunc: func(ast.Loc, config.FindSymbol) ast.E {
+			DefineFunc: func(logging.Loc, config.FindSymbol) ast.E {
 				return &ast.EString{Value: lexer.StringToUTF16(platform)}
 			},
 		},

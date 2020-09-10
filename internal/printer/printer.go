@@ -422,7 +422,7 @@ type printer struct {
 
 	// For source maps
 	sourceMap           []byte
-	prevLoc             ast.Loc
+	prevLoc             logging.Loc
 	prevState           SourceMapState
 	lastGeneratedUpdate int
 	generatedColumn     int
@@ -478,7 +478,7 @@ func (p *printer) printQuoted(text string) {
 	p.js = quoteImpl(p.js, text, false)
 }
 
-func (p *printer) addSourceMapping(loc ast.Loc) {
+func (p *printer) addSourceMapping(loc logging.Loc) {
 	if p.options.SourceForSourceMap == nil || loc == p.prevLoc {
 		return
 	}
@@ -2922,7 +2922,7 @@ func createPrinter(
 		prevOpEnd:          -1,
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
-		prevLoc:            ast.Loc{Start: -1},
+		prevLoc:            logging.Loc{Start: -1},
 
 		// We automatically repeat the previous source mapping if we ever generate
 		// a line that doesn't start with a mapping. This helps give files more

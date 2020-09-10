@@ -263,12 +263,12 @@ func NewLexerJSON(log logging.Log, source logging.Source, allowComments bool) Le
 	return lexer
 }
 
-func (lexer *Lexer) Loc() ast.Loc {
-	return ast.Loc{Start: int32(lexer.start)}
+func (lexer *Lexer) Loc() logging.Loc {
+	return logging.Loc{Start: int32(lexer.start)}
 }
 
-func (lexer *Lexer) Range() ast.Range {
-	return ast.Range{Loc: ast.Loc{Start: int32(lexer.start)}, Len: int32(lexer.end - lexer.start)}
+func (lexer *Lexer) Range() logging.Range {
+	return logging.Range{Loc: logging.Loc{Start: int32(lexer.start)}, Len: int32(lexer.end - lexer.start)}
 }
 
 func (lexer *Lexer) Raw() string {
@@ -341,7 +341,7 @@ func (lexer *Lexer) ExpectContextualKeyword(text string) {
 }
 
 func (lexer *Lexer) SyntaxError() {
-	loc := ast.Loc{Start: int32(lexer.end)}
+	loc := logging.Loc{Start: int32(lexer.end)}
 	message := "Unexpected end of file"
 	if lexer.end < len(lexer.source.Contents) {
 		c, _ := utf8.DecodeRuneInString(lexer.source.Contents[lexer.end:])
@@ -585,10 +585,10 @@ func IsWhitespace(codePoint rune) bool {
 	}
 }
 
-func RangeOfIdentifier(source logging.Source, loc ast.Loc) ast.Range {
+func RangeOfIdentifier(source logging.Source, loc logging.Loc) logging.Range {
 	text := source.Contents[loc.Start:]
 	if len(text) == 0 {
-		return ast.Range{Loc: loc, Len: 0}
+		return logging.Range{Loc: loc, Len: 0}
 	}
 
 	i := 0
@@ -600,7 +600,7 @@ func RangeOfIdentifier(source logging.Source, loc ast.Loc) ast.Range {
 		for i < len(text) {
 			c2, width2 := utf8.DecodeRuneInString(text[i:])
 			if !IsIdentifierContinue(c2) {
-				return ast.Range{Loc: loc, Len: int32(i)}
+				return logging.Range{Loc: loc, Len: int32(i)}
 			}
 			i += width2
 		}
@@ -1336,7 +1336,7 @@ func (lexer *Lexer) Next() {
 
 				case '\r':
 					if quote != '`' {
-						lexer.addError(ast.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
+						lexer.addError(logging.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
 						panic(LexerPanic{})
 					}
 
@@ -1345,7 +1345,7 @@ func (lexer *Lexer) Next() {
 
 				case '\n':
 					if quote != '`' {
-						lexer.addError(ast.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
+						lexer.addError(logging.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
 						panic(LexerPanic{})
 					}
 
@@ -1520,7 +1520,7 @@ func (lexer *Lexer) scanIdentifierWithEscapes(kind identifierKind) (string, T) {
 		identifier = identifier[1:] // Skip over the "#"
 	}
 	if !IsIdentifier(identifier) {
-		lexer.addRangeError(ast.Range{Loc: ast.Loc{Start: int32(lexer.start)}, Len: int32(lexer.end - lexer.start)},
+		lexer.addRangeError(logging.Range{Loc: logging.Loc{Start: int32(lexer.start)}, Len: int32(lexer.end - lexer.start)},
 			fmt.Sprintf("Invalid identifier: %q", text))
 	}
 
@@ -2142,7 +2142,7 @@ func (lexer *Lexer) decodeEscapeSequences(start int, text string) []uint16 {
 					}
 
 					if isOutOfRange {
-						lexer.addRangeError(ast.Range{Loc: ast.Loc{Start: int32(start + hexStart)}, Len: int32(i - hexStart)},
+						lexer.addRangeError(logging.Range{Loc: logging.Loc{Start: int32(start + hexStart)}, Len: int32(i - hexStart)},
 							"Unicode escape sequence is out of range")
 						panic(LexerPanic{})
 					}
@@ -2253,13 +2253,13 @@ func (lexer *Lexer) step() {
 	lexer.current += width
 }
 
-func (lexer *Lexer) addError(loc ast.Loc, text string) {
+func (lexer *Lexer) addError(loc logging.Loc, text string) {
 	if !lexer.IsLogDisabled {
 		lexer.log.AddError(&lexer.source, loc, text)
 	}
 }
 
-func (lexer *Lexer) addRangeError(r ast.Range, text string) {
+func (lexer *Lexer) addRangeError(r logging.Range, text string) {
 	if !lexer.IsLogDisabled {
 		lexer.log.AddRangeError(&lexer.source, r, text)
 	}
@@ -2326,8 +2326,8 @@ func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (as
 
 	return ast.Span{
 		Text: text[:i],
-		Range: ast.Range{
-			Loc: ast.Loc{Start: int32(start)},
+		Range: logging.Range{
+			Loc: logging.Loc{Start: int32(start)},
 			Len: int32(i),
 		},
 	}, true
@@ -2377,7 +2377,7 @@ func (lexer *Lexer) scanCommentText() {
 		}
 
 		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, ast.Comment{
-			Loc:  ast.Loc{Start: int32(lexer.start)},
+			Loc:  logging.Loc{Start: int32(lexer.start)},
 			Text: text,
 		})
 	}

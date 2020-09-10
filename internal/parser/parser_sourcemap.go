@@ -26,7 +26,7 @@ func ParseSourceMap(log logging.Log, source logging.Source) *sourcemap.SourceMap
 	var sourcesContent []*string
 	var sources []string
 	var mappingsRaw []uint16
-	var mappingsRange ast.Range
+	var mappingsRange logging.Range
 	hasVersion := false
 
 	// Treat the paths in the source map as relative to the directory containing the source map

@@ -11,9 +11,10 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/logging"
 )
 
-func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) (didGenerateError bool) {
+func (p *parser) markSyntaxFeature(feature compat.Feature, r logging.Range) (didGenerateError bool) {
 	didGenerateError = true
 
 	if !p.UnsupportedFeatures.Has(feature) {
@@ -121,7 +122,7 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r ast.Range) (didGene
 
 // Mark the feature if "loweredFeature" is unsupported. This is used when one
 // feature is implemented in terms of another feature.
-func (p *parser) markLoweredSyntaxFeature(feature compat.Feature, r ast.Range, loweredFeature compat.Feature) {
+func (p *parser) markLoweredSyntaxFeature(feature compat.Feature, r logging.Range, loweredFeature compat.Feature) {
 	if p.UnsupportedFeatures.Has(loweredFeature) {
 		p.markSyntaxFeature(feature, r)
 	}
@@ -134,7 +135,7 @@ func (p *parser) isPrivateUnsupported(private *ast.EPrivateIdentifier) bool {
 func (p *parser) lowerFunction(
 	isAsync *bool,
 	args *[]ast.Arg,
-	bodyLoc ast.Loc,
+	bodyLoc logging.Loc,
 	bodyStmts *[]ast.Stmt,
 	preferExpr *bool,
 	hasRestArg *bool,
@@ -691,7 +692,7 @@ func (p *parser) lowerAssignmentOperator(value ast.Expr, callback func(ast.Expr,
 	return value
 }
 
-func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
+func (p *parser) lowerExponentiationAssignmentOperator(loc logging.Loc, e *ast.EBinary) ast.Expr {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		// "a.#b **= c" => "__privateSet(a, #b, __pow(__privateGet(a, #b), c))"
 		targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
@@ -708,7 +709,7 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc ast.Loc, e *ast.EBina
 	})
 }
 
-func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EBinary) ast.Expr {
+func (p *parser) lowerNullishCoalescingAssignmentOperator(loc logging.Loc, e *ast.EBinary) ast.Expr {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
 			// "a.#b ??= c" => "(_a = __privateGet(a, #b)) != null ? _a : __privateSet(a, #b, c)"
@@ -742,7 +743,7 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc ast.Loc, e *ast.EB
 	})
 }
 
-func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op ast.OpCode) ast.Expr {
+func (p *parser) lowerLogicalAssignmentOperator(loc logging.Loc, e *ast.EBinary, op ast.OpCode) ast.Expr {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
 		// "a.#b &&= c" => "__privateGet(a, #b) && __privateSet(a, #b, c)"
 		// "a.#b ||= c" => "__privateGet(a, #b) || __privateSet(a, #b, c)"
@@ -765,7 +766,7 @@ func (p *parser) lowerLogicalAssignmentOperator(loc ast.Loc, e *ast.EBinary, op 
 	})
 }
 
-func (p *parser) lowerNullishCoalescing(loc ast.Loc, left ast.Expr, right ast.Expr) ast.Expr {
+func (p *parser) lowerNullishCoalescing(loc logging.Loc, left ast.Expr, right ast.Expr) ast.Expr {
 	if p.Strict.NullishCoalescing {
 		// "x ?? y" => "x !== null && x !== void 0 ? x : y"
 		// "x() ?? y()" => "_a = x(), _a !== null && _a !== void 0 ? _a : y"
@@ -827,7 +828,7 @@ func (p *parser) lowerNullishCoalescing(loc ast.Loc, left ast.Expr, right ast.Ex
 // "{x: 1}" which is incorrect. Converting the above code instead to
 // "let c = __assign(__assign({}, a), b)" means "c" becomes "{x: 1, y: 2}"
 // which is correct.
-func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
+func (p *parser) lowerObjectSpread(loc logging.Loc, e *ast.EObject) ast.Expr {
 	needsLowering := false
 
 	if p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
@@ -885,7 +886,7 @@ func (p *parser) lowerObjectSpread(loc ast.Loc, e *ast.EObject) ast.Expr {
 	return result
 }
 
-func (p *parser) lowerPrivateGet(target ast.Expr, loc ast.Loc, private *ast.EPrivateIdentifier) ast.Expr {
+func (p *parser) lowerPrivateGet(target ast.Expr, loc logging.Loc, private *ast.EPrivateIdentifier) ast.Expr {
 	switch p.symbols[private.Ref.InnerIndex].Kind {
 	case ast.SymbolPrivateMethod, ast.SymbolPrivateStaticMethod:
 		// "this.#method" => "__privateMethod(this, #method, method_fn)"
@@ -919,7 +920,7 @@ func (p *parser) lowerPrivateGet(target ast.Expr, loc ast.Loc, private *ast.EPri
 
 func (p *parser) lowerPrivateSet(
 	target ast.Expr,
-	loc ast.Loc,
+	loc logging.Loc,
 	private *ast.EPrivateIdentifier,
 	value ast.Expr,
 ) ast.Expr {
@@ -946,7 +947,7 @@ func (p *parser) lowerPrivateSet(
 	}
 }
 
-func (p *parser) lowerPrivateSetUnOp(target ast.Expr, loc ast.Loc, private *ast.EPrivateIdentifier, op ast.OpCode, isSuffix bool) ast.Expr {
+func (p *parser) lowerPrivateSetUnOp(target ast.Expr, loc logging.Loc, private *ast.EPrivateIdentifier, op ast.OpCode, isSuffix bool) ast.Expr {
 	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
 	target = targetFunc()
 
@@ -977,7 +978,7 @@ func (p *parser) lowerPrivateSetUnOp(target ast.Expr, loc ast.Loc, private *ast.
 	}}))
 }
 
-func (p *parser) lowerPrivateSetBinOp(target ast.Expr, loc ast.Loc, private *ast.EPrivateIdentifier, op ast.OpCode, value ast.Expr) ast.Expr {
+func (p *parser) lowerPrivateSetBinOp(target ast.Expr, loc logging.Loc, private *ast.EPrivateIdentifier, op ast.OpCode, value ast.Expr) ast.Expr {
 	// "target.#private += 123" => "__privateSet(target, #private, __privateGet(target, #private) + 123)"
 	targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(target.Loc, 2, target)
 	return targetWrapFunc(p.lowerPrivateSet(targetFunc(), loc, private, ast.Expr{Loc: value.Loc, Data: &ast.EBinary{
@@ -989,13 +990,13 @@ func (p *parser) lowerPrivateSetBinOp(target ast.Expr, loc ast.Loc, private *ast
 
 // Returns valid data if target is an expression of the form "foo.#bar" and if
 // the language target is such that private members must be lowered
-func (p *parser) extractPrivateIndex(target ast.Expr) (ast.Expr, ast.Loc, *ast.EPrivateIdentifier) {
+func (p *parser) extractPrivateIndex(target ast.Expr) (ast.Expr, logging.Loc, *ast.EPrivateIdentifier) {
 	if index, ok := target.Data.(*ast.EIndex); ok {
 		if private, ok := index.Index.Data.(*ast.EPrivateIdentifier); ok && p.isPrivateUnsupported(private) {
 			return index.Target, index.Index.Loc, private
 		}
 	}
-	return ast.Expr{}, ast.Loc{}, nil
+	return ast.Expr{}, logging.Loc{}, nil
 }
 
 func bindingHasObjectRest(binding ast.Binding) bool {
@@ -1464,7 +1465,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 	// Unpack the class from the statement or expression
 	var kind classKind
 	var class *ast.Class
-	var classLoc ast.Loc
+	var classLoc logging.Loc
 	var defaultName ast.LocRef
 	if stmt.Data == nil {
 		e, _ := expr.Data.(*ast.EClass)
@@ -2039,7 +2040,7 @@ func (p *parser) shouldLowerSuperPropertyAccess(expr ast.Expr) bool {
 	return false
 }
 
-func (p *parser) lowerSuperPropertyAccess(loc ast.Loc, key ast.Expr) ast.Expr {
+func (p *parser) lowerSuperPropertyAccess(loc logging.Loc, key ast.Expr) ast.Expr {
 	if p.fnOrArrowDataVisit.superIndexRef == nil {
 		ref := p.newSymbol(ast.SymbolOther, "__super")
 		p.fnOrArrowDataVisit.superIndexRef = &ref

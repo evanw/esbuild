@@ -206,7 +206,7 @@ type exportData struct {
 
 	// The location of the path string for error messages. This is only from re-
 	// exports (i.e. "export * from 'foo'").
-	pathLoc *ast.Loc
+	pathLoc *logging.Loc
 
 	// This is the file that the named export above came from. This will be
 	// different from the file that contains this object if this is a re-export.
@@ -418,7 +418,7 @@ func newLinkerContext(
 
 type indexAndPath struct {
 	sourceIndex uint32
-	path        ast.Path
+	path        logging.Path
 }
 
 // This type is just so we can use Go's native sort function
@@ -472,7 +472,7 @@ func findReachableFiles(sources []logging.Source, files []file, entryPoints []ui
 	return reachableFiles
 }
 
-func (c *linkerContext) addRangeError(source logging.Source, r ast.Range, text string) {
+func (c *linkerContext) addRangeError(source logging.Source, r logging.Range, text string) {
 	c.log.AddRangeError(&source, r, text)
 	c.hasErrors = true
 }
@@ -583,7 +583,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 			for i, otherChunkIndex := range chunk.crossChunkImports {
 				crossChunkImportRecords[i] = ast.ImportRecord{
 					Kind: ast.ImportStmt,
-					Path: ast.Path{Text: c.relativePathBetweenChunks(chunk.relDir, chunks[otherChunkIndex].relPath())},
+					Path: logging.Path{Text: c.relativePathBetweenChunks(chunk.relDir, chunks[otherChunkIndex].relPath())},
 				}
 			}
 
@@ -610,7 +610,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 func (c *linkerContext) relativePathBetweenChunks(fromRelDir string, toRelPath string) string {
 	relPath, ok := c.fs.Rel(fromRelDir, toRelPath)
 	if !ok {
-		c.log.AddError(nil, ast.Loc{},
+		c.log.AddError(nil, logging.Loc{},
 			fmt.Sprintf("Cannot traverse from directory %q to chunk %q", fromRelDir, toRelPath))
 		return ""
 	}
@@ -883,7 +883,7 @@ func (a crossChunkImportItemArray) Less(i int, j int) bool {
 
 type crossChunkExportItem struct {
 	ref     ast.Ref
-	keyPath ast.Path
+	keyPath logging.Path
 }
 
 // This type is just so we can use Go's native sort function
@@ -1745,7 +1745,7 @@ func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited ma
 func (c *linkerContext) addExportsForExportStar(
 	resolvedExports map[string]exportData,
 	sourceIndex uint32,
-	topLevelPathLoc *ast.Loc,
+	topLevelPathLoc *logging.Loc,
 	visited map[uint32]bool,
 ) {
 	// Avoid infinite loops due to cycles in the export star graph
@@ -2296,7 +2296,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 type chunkOrder struct {
 	sourceIndex uint32
 	distance    uint32
-	path        ast.Path
+	path        logging.Path
 }
 
 // This type is just so we can use Go's native sort function
@@ -2389,7 +2389,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 	sourceIndex uint32,
 	stmtList *stmtList,
 	partStmts []ast.Stmt,
-	loc ast.Loc,
+	loc logging.Loc,
 	namespaceRef ast.Ref,
 	importRecordIndex uint32,
 ) bool {
