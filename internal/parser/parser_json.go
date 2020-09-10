@@ -5,12 +5,12 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 type jsonParser struct {
-	log                 logging.Log
-	source              logging.Source
+	log                 logger.Log
+	source              logger.Source
 	lexer               lexer.Lexer
 	allowTrailingCommas bool
 }
@@ -155,7 +155,7 @@ type ParseJSONOptions struct {
 	AllowTrailingCommas bool
 }
 
-func ParseJSON(log logging.Log, source logging.Source, options ParseJSONOptions) (result ast.Expr, ok bool) {
+func ParseJSON(log logger.Log, source logger.Source, options ParseJSONOptions) (result ast.Expr, ok bool) {
 	ok = true
 	defer func() {
 		r := recover()

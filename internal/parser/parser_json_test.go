@@ -5,19 +5,19 @@ import (
 	"testing"
 
 	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/test"
 )
 
 func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, expected)
 	})
@@ -28,12 +28,12 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 // bundles, not JSON bundles.
 func expectPrintedJSON(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, "")
 		if !ok {
@@ -48,12 +48,12 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 
 func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, warning)
 		if !ok {

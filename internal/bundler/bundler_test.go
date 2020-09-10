@@ -19,7 +19,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/kylelemons/godebug/diff"
 )
@@ -42,17 +42,17 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	}
 }
 
-func assertLog(t *testing.T, msgs []logging.Msg, expected string) {
+func assertLog(t *testing.T, msgs []logger.Msg, expected string) {
 	text := ""
 	for _, msg := range msgs {
-		text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+		text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 	}
 	assertEqual(t, text, expected)
 }
 
-func hasErrors(msgs []logging.Msg) bool {
+func hasErrors(msgs []logger.Msg) bool {
 	for _, msg := range msgs {
-		if msg.Kind == logging.Error {
+		if msg.Kind == logger.Error {
 			return true
 		}
 	}
@@ -83,7 +83,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 		if args.options.AbsOutputFile != "" {
 			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
 		}
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		resolver := resolver.NewResolver(fs, log, args.options)
 		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.options)
 		msgs := log.Done()
@@ -94,7 +94,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 			return
 		}
 
-		log = logging.NewDeferLog()
+		log = logger.NewDeferLog()
 		args.options.OmitRuntimeForTests = true
 		results := bundle.Compile(log, args.options)
 		msgs = log.Done()

@@ -8,7 +8,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
@@ -16,12 +16,12 @@ import (
 
 func expectParseError(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, expected)
 	})
@@ -29,7 +29,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 
 func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		Parse(log, test.SourceForTest(contents), config.Options{
 			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
@@ -38,7 +38,7 @@ func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expect
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, expected)
 	})
@@ -46,13 +46,13 @@ func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expect
 
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			if msg.Kind != logging.Warning {
-				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			if msg.Kind != logger.Warning {
+				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 			}
 		}
 		test.AssertEqual(t, text, "")
@@ -69,14 +69,14 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			MangleSyntax: true,
 		})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, "")
 		if !ok {
@@ -92,7 +92,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		unsupportedFeatures := compat.UnsupportedFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		})
@@ -102,8 +102,8 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			if msg.Kind != logging.Warning {
-				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			if msg.Kind != logger.Warning {
+				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 			}
 		}
 		test.AssertEqual(t, text, "")
@@ -122,7 +122,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 
 func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
@@ -136,8 +136,8 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			if msg.Kind != logging.Warning {
-				text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			if msg.Kind != logger.Warning {
+				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 			}
 		}
 		test.AssertEqual(t, text, "")
@@ -154,7 +154,7 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 
 func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		Parse(log, test.SourceForTest(contents), config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
@@ -163,7 +163,7 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, expected)
 	})
@@ -171,7 +171,7 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 
 func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
@@ -180,7 +180,7 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, "")
 		if !ok {

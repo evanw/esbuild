@@ -7,7 +7,7 @@ package parser
 import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 func (p *parser) skipTypeScriptBinding() {
@@ -737,7 +737,7 @@ func (p *parser) parseTypeScriptDecorators() []ast.Expr {
 	return tsDecorators
 }
 
-func (p *parser) parseTypeScriptEnumStmt(loc logging.Loc, opts parseStmtOpts) ast.Stmt {
+func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) ast.Stmt {
 	p.lexer.Expect(lexer.TEnum)
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
@@ -805,7 +805,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logging.Loc, opts parseStmtOpts) as
 	}}
 }
 
-func (p *parser) parseTypeScriptNamespaceStmt(loc logging.Loc, opts parseStmtOpts) ast.Stmt {
+func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts) ast.Stmt {
 	// "namespace Foo {}"
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
@@ -890,7 +890,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logging.Loc, opts parseStmtOpt
 }
 
 func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
-	stmts []ast.Stmt, stmtLoc logging.Loc, isExport bool, nameLoc logging.Loc,
+	stmts []ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
 	nameRef ast.Ref, argRef ast.Ref, stmtsInsideClosure []ast.Stmt,
 ) []ast.Stmt {
 	// Follow the link chain in case symbols were merged

@@ -7,7 +7,7 @@ package runtime
 
 import (
 	"github.com/evanw/esbuild/internal/compat"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 // The runtime source is always at a special index. The index is always zero
@@ -183,17 +183,17 @@ func code(isES6 bool) string {
 	return text
 }
 
-var ES6Source = logging.Source{
+var ES6Source = logger.Source{
 	Index:          SourceIndex,
-	KeyPath:        logging.Path{Text: "<runtime>"},
+	KeyPath:        logger.Path{Text: "<runtime>"},
 	PrettyPath:     "<runtime>",
 	IdentifierName: "runtime",
 	Contents:       code(true /* isES6 */),
 }
 
-var ES5Source = logging.Source{
+var ES5Source = logger.Source{
 	Index:          SourceIndex,
-	KeyPath:        logging.Path{Text: "<runtime>"},
+	KeyPath:        logger.Path{Text: "<runtime>"},
 	PrettyPath:     "<runtime>",
 	IdentifierName: "runtime",
 	Contents:       code(false /* isES6 */),

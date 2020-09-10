@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/compat"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
@@ -234,18 +234,18 @@ var OpTable = []opTableEntry{
 }
 
 type LocRef struct {
-	Loc logging.Loc
+	Loc logger.Loc
 	Ref Ref
 }
 
 type Comment struct {
-	Loc  logging.Loc
+	Loc  logger.Loc
 	Text string
 }
 
 type Span struct {
 	Text  string
-	Range logging.Range
+	Range logger.Range
 }
 
 type PropertyKind int
@@ -301,7 +301,7 @@ type Arg struct {
 
 type Fn struct {
 	Name         *LocRef
-	OpenParenLoc logging.Loc
+	OpenParenLoc logger.Loc
 	Args         []Arg
 	Body         FnBody
 	ArgumentsRef Ref
@@ -313,7 +313,7 @@ type Fn struct {
 }
 
 type FnBody struct {
-	Loc   logging.Loc
+	Loc   logger.Loc
 	Stmts []Stmt
 }
 
@@ -321,7 +321,7 @@ type Class struct {
 	TSDecorators []Expr
 	Name         *LocRef
 	Extends      *Expr
-	BodyLoc      logging.Loc
+	BodyLoc      logger.Loc
 	Properties   []Property
 }
 
@@ -331,7 +331,7 @@ type ArrayBinding struct {
 }
 
 type Binding struct {
-	Loc  logging.Loc
+	Loc  logger.Loc
 	Data B
 }
 
@@ -360,7 +360,7 @@ func (*BArray) isBinding()      {}
 func (*BObject) isBinding()     {}
 
 type Expr struct {
-	Loc  logging.Loc
+	Loc  logger.Loc
 	Data E
 }
 
@@ -447,7 +447,7 @@ func (a *ECall) HasSameFlagsAs(b *ECall) bool {
 type EDot struct {
 	Target        Expr
 	Name          string
-	NameLoc       logging.Loc
+	NameLoc       logger.Loc
 	OptionalChain OptionalChain
 
 	// If true, this property access is known to be free of side-effects. That
@@ -561,7 +561,7 @@ type EString struct {
 
 type TemplatePart struct {
 	Value   Expr
-	TailLoc logging.Loc
+	TailLoc logger.Loc
 	Tail    []uint16
 	TailRaw string // This is only filled out for tagged template literals
 }
@@ -698,7 +698,7 @@ type ExprOrStmt struct {
 }
 
 type Stmt struct {
-	Loc  logging.Loc
+	Loc  logger.Loc
 	Data S
 }
 
@@ -743,7 +743,7 @@ type SExportDefault struct {
 }
 
 type ExportStarAlias struct {
-	Loc  logging.Loc
+	Loc  logger.Loc
 	Name string
 }
 
@@ -769,7 +769,7 @@ type SExpr struct {
 }
 
 type EnumValue struct {
-	Loc   logging.Loc
+	Loc   logger.Loc
 	Ref   Ref
 	Name  []uint16
 	Value *Expr
@@ -842,18 +842,18 @@ type SWhile struct {
 
 type SWith struct {
 	Value   Expr
-	BodyLoc logging.Loc
+	BodyLoc logger.Loc
 	Body    Stmt
 }
 
 type Catch struct {
-	Loc     logging.Loc
+	Loc     logger.Loc
 	Binding *Binding
 	Body    []Stmt
 }
 
 type Finally struct {
-	Loc   logging.Loc
+	Loc   logger.Loc
 	Stmts []Stmt
 }
 
@@ -870,7 +870,7 @@ type Case struct {
 
 type SSwitch struct {
 	Test    Expr
-	BodyLoc logging.Loc
+	BodyLoc logger.Loc
 	Cases   []Case
 }
 
@@ -895,7 +895,7 @@ type SImport struct {
 
 	DefaultName       *LocRef
 	Items             *[]ClauseItem
-	StarNameLoc       *logging.Loc
+	StarNameLoc       *logger.Loc
 	ImportRecordIndex uint32
 	IsSingleLine      bool
 }
@@ -981,7 +981,7 @@ func IsSuperCall(stmt Stmt) bool {
 
 type ClauseItem struct {
 	Alias    string
-	AliasLoc logging.Loc
+	AliasLoc logger.Loc
 	Name     LocRef
 
 	// This is needed for "export {foo as bar} from 'path'" statements. This case
@@ -1278,7 +1278,7 @@ func (kind ScopeKind) StopsHoisting() bool {
 
 type ScopeMember struct {
 	Ref Ref
-	Loc logging.Loc
+	Loc logger.Loc
 }
 
 type Scope struct {
@@ -1331,8 +1331,8 @@ const (
 )
 
 type ImportRecord struct {
-	Loc  logging.Loc
-	Path logging.Path
+	Loc  logger.Loc
+	Path logger.Path
 
 	// If this is an internal CommonJS import, this is the symbol of a function
 	// that takes no arguments which, when called, implements require() for this
@@ -1518,7 +1518,7 @@ type NamedImport struct {
 	LocalPartsWithUses []uint32
 
 	Alias             string
-	AliasLoc          logging.Loc
+	AliasLoc          logger.Loc
 	NamespaceRef      Ref
 	ImportRecordIndex uint32
 

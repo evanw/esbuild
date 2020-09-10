@@ -1,6 +1,6 @@
 // +build windows
 
-package logging
+package logger
 
 import (
 	"os"

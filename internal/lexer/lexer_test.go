@@ -7,7 +7,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/test"
 )
 
@@ -30,14 +30,14 @@ func assertEqualStrings(t *testing.T, a string, b string) {
 }
 
 func lexToken(t *testing.T, contents string) T {
-	log := logging.NewDeferLog()
+	log := logger.NewDeferLog()
 	lexer := NewLexer(log, test.SourceForTest(contents))
 	return lexer.Token
 }
 
 func expectLexerError(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		func() {
 			defer func() {
 				r := recover()
@@ -50,7 +50,7 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, expected)
 	})
@@ -58,7 +58,7 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 
 func expectHashbang(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -84,7 +84,7 @@ func TestHashbang(t *testing.T) {
 
 func expectIdentifier(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -121,7 +121,7 @@ func TestIdentifier(t *testing.T) {
 
 func expectNumber(t *testing.T, contents string, expected float64) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -326,7 +326,7 @@ func TestNumericLiteral(t *testing.T) {
 
 func expectBigInteger(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()
@@ -379,7 +379,7 @@ func TestBigIntegerLiteral(t *testing.T) {
 
 func expectString(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
 				r := recover()

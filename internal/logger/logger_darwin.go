@@ -1,6 +1,6 @@
 // +build darwin
 
-package logging
+package logger
 
 import (
 	"os"

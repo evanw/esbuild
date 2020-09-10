@@ -12,7 +12,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
@@ -422,7 +422,7 @@ type printer struct {
 
 	// For source maps
 	sourceMap           []byte
-	prevLoc             logging.Loc
+	prevLoc             logger.Loc
 	prevState           SourceMapState
 	lastGeneratedUpdate int
 	generatedColumn     int
@@ -478,7 +478,7 @@ func (p *printer) printQuoted(text string) {
 	p.js = quoteImpl(p.js, text, false)
 }
 
-func (p *printer) addSourceMapping(loc logging.Loc) {
+func (p *printer) addSourceMapping(loc logger.Loc) {
 	if p.options.SourceForSourceMap == nil || loc == p.prevLoc {
 		return
 	}
@@ -2867,7 +2867,7 @@ type PrintOptions struct {
 
 	// This contains the contents of the input file to map back to in the source
 	// map. If it's nil that means we're not generating source maps.
-	SourceForSourceMap *logging.Source
+	SourceForSourceMap *logger.Source
 
 	// This will be present if the input file had a source map. In that case we
 	// want to map all the way back to the original input file(s).
@@ -2922,7 +2922,7 @@ func createPrinter(
 		prevOpEnd:          -1,
 		prevNumEnd:         -1,
 		prevRegExpEnd:      -1,
-		prevLoc:            logging.Loc{Start: -1},
+		prevLoc:            logger.Loc{Start: -1},
 
 		// We automatically repeat the previous source mapping if we ever generate
 		// a line that doesn't start with a mapping. This helps give files more

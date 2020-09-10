@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 var processedGlobalsMutex sync.Mutex
@@ -112,8 +112,8 @@ var knownGlobals = [][]string{
 	{"Math", "trunc"},
 }
 
-type FindSymbol func(logging.Loc, string) ast.Ref
-type DefineFunc func(logging.Loc, FindSymbol) ast.E
+type FindSymbol func(logger.Loc, string) ast.Ref
+type DefineFunc func(logger.Loc, FindSymbol) ast.E
 
 type DefineData struct {
 	DefineFunc DefineFunc
@@ -179,13 +179,13 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 
 	// Swap in certain literal values because those can be constant folded
 	result.IdentifierDefines["undefined"] = DefineData{
-		DefineFunc: func(logging.Loc, FindSymbol) ast.E { return &ast.EUndefined{} },
+		DefineFunc: func(logger.Loc, FindSymbol) ast.E { return &ast.EUndefined{} },
 	}
 	result.IdentifierDefines["NaN"] = DefineData{
-		DefineFunc: func(logging.Loc, FindSymbol) ast.E { return &ast.ENumber{Value: math.NaN()} },
+		DefineFunc: func(logger.Loc, FindSymbol) ast.E { return &ast.ENumber{Value: math.NaN()} },
 	}
 	result.IdentifierDefines["Infinity"] = DefineData{
-		DefineFunc: func(logging.Loc, FindSymbol) ast.E { return &ast.ENumber{Value: math.Inf(1)} },
+		DefineFunc: func(logger.Loc, FindSymbol) ast.E { return &ast.ENumber{Value: math.Inf(1)} },
 	}
 
 	// Then copy the user-specified defines in afterwards, which will overwrite

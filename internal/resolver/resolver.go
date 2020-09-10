@@ -11,12 +11,12 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/parser"
 )
 
 type ResolveResult struct {
-	Path       logging.Path
+	Path       logger.Path
 	IsExternal bool
 
 	// If not empty, these should override the default values
@@ -39,7 +39,7 @@ type Resolver interface {
 
 type resolver struct {
 	fs      fs.FS
-	log     logging.Log
+	log     logger.Log
 	options config.Options
 	mutex   sync.Mutex
 
@@ -48,7 +48,7 @@ type resolver struct {
 	dirCache map[string]*dirInfo
 }
 
-func NewResolver(fs fs.FS, log logging.Log, options config.Options) Resolver {
+func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
 	// Bundling for node implies allowing node's builtin modules
 	if options.Platform == config.PlatformNode {
 		externalNodeModules := make(map[string]bool)
@@ -89,10 +89,10 @@ func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 	defer r.mutex.Unlock()
 
 	// Just decorate the absolute path with information from parent directories
-	return r.finalizeResolve(logging.Path{Text: absPath, IsAbsolute: true}, false)
+	return r.finalizeResolve(logger.Path{Text: absPath, IsAbsolute: true}, false)
 }
 
-func (r *resolver) finalizeResolve(path logging.Path, isExternal bool) *ResolveResult {
+func (r *resolver) finalizeResolve(path logger.Path, isExternal bool) *ResolveResult {
 	result := ResolveResult{Path: path, IsExternal: isExternal}
 
 	if result.Path.IsAbsolute {
@@ -132,7 +132,7 @@ func (r *resolver) finalizeResolve(path logging.Path, isExternal bool) *ResolveR
 	return &result
 }
 
-func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (path *logging.Path, isExternal bool) {
+func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (path *logger.Path, isExternal bool) {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	result := ""
@@ -154,7 +154,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 
 		// Check for external packages first
 		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[pathText] {
-			return &logging.Path{Text: pathText, IsAbsolute: isAbsolute}, true
+			return &logger.Path{Text: pathText, IsAbsolute: isAbsolute}, true
 		}
 
 		if absolute, ok := r.loadAsFileOrDirectory(pathText); ok {
@@ -168,7 +168,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 			query := importPath
 			for {
 				if r.options.ExternalModules.NodeModules[query] {
-					return &logging.Path{Text: importPath}, true
+					return &logger.Path{Text: importPath}, true
 				}
 
 				// If the module "foo" has been marked as external, we also want to treat
@@ -195,9 +195,9 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 					if remapped == nil {
 						// "browser": {"module": false}
 						if absolute, ok := r.loadNodeModules(importPath, sourceDirInfo); ok {
-							return &logging.Path{Text: "disabled:" + absolute}, false
+							return &logger.Path{Text: "disabled:" + absolute}, false
 						} else {
-							return &logging.Path{Text: "disabled:" + importPath}, false
+							return &logger.Path{Text: "disabled:" + importPath}, false
 						}
 					} else {
 						// "browser": {"module": "./some-file"}
@@ -227,7 +227,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 		if packageJson.browserNonPackageMap != nil {
 			if remapped, ok := packageJson.browserNonPackageMap[result]; ok {
 				if remapped == nil {
-					return &logging.Path{Text: "disabled:" + result}, false
+					return &logger.Path{Text: "disabled:" + result}, false
 				}
 				result, ok = r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped)
 				if !ok {
@@ -237,7 +237,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) (
 		}
 	}
 
-	return &logging.Path{Text: result, IsAbsolute: true}, false
+	return &logger.Path{Text: result, IsAbsolute: true}, false
 }
 
 func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string) (string, bool) {
@@ -364,7 +364,7 @@ func (r *resolver) dirInfoCached(path string) *dirInfo {
 	return info
 }
 
-func (r *resolver) parseMemberExpressionForJSX(source logging.Source, loc logging.Loc, text string) []string {
+func (r *resolver) parseMemberExpressionForJSX(source logger.Source, loc logger.Loc, text string) []string {
 	if text == "" {
 		return nil
 	}
@@ -571,7 +571,7 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 	return &result, nil
 }
 
-func isValidTSConfigPathPattern(text string, log logging.Log, source logging.Source, loc logging.Loc) bool {
+func isValidTSConfigPathPattern(text string, log logger.Log, source logger.Source, loc logger.Loc) bool {
 	foundAsterisk := false
 	for i := 0; i < len(text); i++ {
 		if text[i] == '*' {
@@ -604,7 +604,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	entries, err := r.fs.ReadDirectory(path)
 	if err != nil {
 		if err != syscall.ENOENT {
-			r.log.AddError(nil, logging.Loc{},
+			r.log.AddError(nil, logger.Loc{},
 				fmt.Sprintf("Cannot read directory %q: %s", r.PrettyPath(path), err.Error()))
 		}
 		return nil
@@ -665,9 +665,9 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 			info.tsConfigJson, err = r.parseJsTsConfig(tsConfigPath, make(map[string]bool))
 			if err != nil {
 				if err == syscall.ENOENT {
-					r.log.AddError(nil, logging.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q", r.PrettyPath(tsConfigPath)))
+					r.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q", r.PrettyPath(tsConfigPath)))
 				} else if err != parseErrorAlreadyLogged {
-					r.log.AddError(nil, logging.Loc{},
+					r.log.AddError(nil, logger.Loc{},
 						fmt.Sprintf("Cannot read file %q: %s", r.PrettyPath(tsConfigPath), err.Error()))
 				}
 			}
@@ -695,7 +695,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	json, jsonSource, err := r.parseJSON(packageJsonPath, parser.ParseJSONOptions{})
 	if err != nil {
 		if err != parseErrorAlreadyLogged {
-			r.log.AddError(nil, logging.Loc{},
+			r.log.AddError(nil, logger.Loc{},
 				fmt.Sprintf("Cannot read file %q: %s", r.PrettyPath(packageJsonPath), err.Error()))
 		}
 		return nil
@@ -708,7 +708,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	// "main" property is supposed to be CommonJS, and ES6 helps us generate
 	// better code.
 	mainPath := ""
-	var mainRange logging.Range
+	var mainRange logger.Range
 	if moduleJson, _, ok := getProperty(json, "module"); ok {
 		if main, ok := getString(moduleJson); ok {
 			mainPath = r.fs.Join(path, main)
@@ -844,7 +844,7 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 	entries, err := r.fs.ReadDirectory(dirPath)
 	if err != nil {
 		if err != syscall.ENOENT {
-			r.log.AddError(nil, logging.Loc{},
+			r.log.AddError(nil, logger.Loc{},
 				fmt.Sprintf("Cannot read directory %q: %s", r.PrettyPath(dirPath), err.Error()))
 		}
 		return "", false
@@ -912,24 +912,24 @@ var parseErrorAlreadyLogged = errors.New("(error already logged)")
 
 // This may return "parseErrorAlreadyLogged" in which case there was a syntax
 // error, but it's already been reported. No further errors should be logged.
-func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logging.Source, error) {
+func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logger.Source, error) {
 	contents, err := r.fs.ReadFile(path)
 	if err != nil {
-		return ast.Expr{}, logging.Source{}, err
+		return ast.Expr{}, logger.Source{}, err
 	}
-	source := logging.Source{
-		KeyPath:    logging.Path{Text: path},
+	source := logger.Source{
+		KeyPath:    logger.Path{Text: path},
 		PrettyPath: r.PrettyPath(path),
 		Contents:   contents,
 	}
 	result, ok := parser.ParseJSON(r.log, source, options)
 	if !ok {
-		return ast.Expr{}, logging.Source{}, parseErrorAlreadyLogged
+		return ast.Expr{}, logger.Source{}, parseErrorAlreadyLogged
 	}
 	return result, source, nil
 }
 
-func getProperty(json ast.Expr, name string) (ast.Expr, logging.Loc, bool) {
+func getProperty(json ast.Expr, name string) (ast.Expr, logger.Loc, bool) {
 	if obj, ok := json.Data.(*ast.EObject); ok {
 		for _, prop := range obj.Properties {
 			if key, ok := prop.Key.Data.(*ast.EString); ok && key.Value != nil &&
@@ -938,7 +938,7 @@ func getProperty(json ast.Expr, name string) (ast.Expr, logging.Loc, bool) {
 			}
 		}
 	}
-	return ast.Expr{}, logging.Loc{}, false
+	return ast.Expr{}, logger.Loc{}, false
 }
 
 func getString(json ast.Expr) (string, bool) {

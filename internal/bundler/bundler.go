@@ -20,7 +20,7 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
@@ -49,7 +49,7 @@ type file struct {
 type Bundle struct {
 	fs          fs.FS
 	res         resolver.Resolver
-	sources     []logging.Source
+	sources     []logger.Source
 	files       []file
 	entryPoints []uint32
 }
@@ -64,15 +64,15 @@ type parseFlags struct {
 
 type parseArgs struct {
 	fs           fs.FS
-	log          logging.Log
+	log          logger.Log
 	res          resolver.Resolver
-	keyPath      logging.Path
+	keyPath      logger.Path
 	prettyPath   string
 	baseName     string
 	sourceIndex  uint32
-	importSource *logging.Source
+	importSource *logger.Source
 	flags        parseFlags
-	pathRange    logging.Range
+	pathRange    logger.Range
 	options      config.Options
 	results      chan parseResult
 
@@ -83,7 +83,7 @@ type parseArgs struct {
 }
 
 type parseResult struct {
-	source logging.Source
+	source logger.Source
 	file   file
 	ok     bool
 
@@ -91,7 +91,7 @@ type parseResult struct {
 }
 
 func parseFile(args parseArgs) {
-	source := logging.Source{
+	source := logger.Source{
 		Index:      args.sourceIndex,
 		KeyPath:    args.keyPath,
 		PrettyPath: args.prettyPath,
@@ -323,7 +323,7 @@ func parseFile(args parseArgs) {
 			if path.IsAbsolute {
 				prettyPath = args.res.PrettyPath(prettyPath)
 			}
-			result.file.ast.SourceMap = parser.ParseSourceMap(args.log, logging.Source{
+			result.file.ast.SourceMap = parser.ParseSourceMap(args.log, logger.Source{
 				KeyPath:    path,
 				PrettyPath: prettyPath,
 				Contents:   *contents,
@@ -334,7 +334,7 @@ func parseFile(args parseArgs) {
 	args.results <- result
 }
 
-func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolver, source *logging.Source, comment ast.Span) (logging.Path, *string) {
+func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment ast.Span) (logger.Path, *string) {
 	// Data URL
 	if strings.HasPrefix(comment.Text, "data:") {
 		if strings.HasPrefix(comment.Text, "data:application/json;") {
@@ -344,18 +344,18 @@ func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolve
 				encoded := comment.Text[n:]
 				decoded, err := base64.StdEncoding.DecodeString(encoded)
 				if err != nil {
-					r := logging.Range{Loc: logging.Loc{Start: comment.Range.Loc.Start + n}, Len: comment.Range.Len - n}
+					r := logger.Range{Loc: logger.Loc{Start: comment.Range.Loc.Start + n}, Len: comment.Range.Len - n}
 					log.AddRangeWarning(source, r, "Invalid base64 data in source map")
-					return logging.Path{}, nil
+					return logger.Path{}, nil
 				}
 				contents := string(decoded)
-				return logging.Path{Text: source.PrettyPath + ".sourceMappingURL"}, &contents
+				return logger.Path{Text: source.PrettyPath + ".sourceMappingURL"}, &contents
 			}
 		}
 
 		// Anything else is unsupported
 		log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
-		return logging.Path{}, nil
+		return logger.Path{}, nil
 	}
 
 	// Relative path in a file with an absolute path
@@ -365,17 +365,17 @@ func extractSourceMapFromComment(log logging.Log, fs fs.FS, res resolver.Resolve
 		if err != nil {
 			if err == syscall.ENOENT {
 				// Don't report a warning because this is likely unactionable
-				return logging.Path{}, nil
+				return logger.Path{}, nil
 			}
 			log.AddRangeError(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(absPath), err.Error()))
-			return logging.Path{}, nil
+			return logger.Path{}, nil
 		}
-		return logging.Path{IsAbsolute: true, Text: absPath}, &contents
+		return logger.Path{IsAbsolute: true, Text: absPath}, &contents
 	}
 
 	// Anything else is unsupported
 	log.AddRangeWarning(source, comment.Range, "Unsupported source map comment")
-	return logging.Path{}, nil
+	return logger.Path{}, nil
 }
 
 func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base string) config.Loader {
@@ -407,8 +407,8 @@ func hashForFileName(bytes []byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes[:])[:8]
 }
 
-func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
-	sources := []logging.Source{}
+func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
+	sources := []logger.Source{}
 	files := []file{}
 	visited := make(map[string]uint32)
 	results := make(chan parseResult)
@@ -420,7 +420,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 	// Always start by parsing the runtime file
 	{
-		sources = append(sources, logging.Source{})
+		sources = append(sources, logger.Source{})
 		files = append(files, file{})
 		remaining++
 		go func() {
@@ -440,8 +440,8 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 	maybeParseFile := func(
 		resolveResult resolver.ResolveResult,
 		prettyPath string,
-		importSource *logging.Source,
-		pathRange logging.Range,
+		importSource *logger.Source,
+		pathRange logger.Range,
 		absResolveDir string,
 		kind inputKind,
 	) uint32 {
@@ -453,7 +453,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		if !ok {
 			sourceIndex = uint32(len(sources))
 			visited[visitedKey] = sourceIndex
-			sources = append(sources, logging.Source{})
+			sources = append(sources, logger.Source{})
 			files = append(files, file{})
 			flags := parseFlags{
 				isEntryPoint:      kind == inputKindEntryPoint,
@@ -491,8 +491,8 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 
 	// Treat stdin as an extra entry point
 	if options.Stdin != nil {
-		resolveResult := resolver.ResolveResult{Path: logging.Path{Text: "<stdin>"}}
-		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logging.Range{}, options.Stdin.AbsResolveDir, inputKindStdin)
+		resolveResult := resolver.ResolveResult{Path: logger.Path{Text: "<stdin>"}}
+		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, options.Stdin.AbsResolveDir, inputKindStdin)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -502,7 +502,7 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
 
 		if duplicateEntryPoints[lowerAbsPath] {
-			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
 			continue
 		}
 
@@ -510,11 +510,11 @@ func ScanBundle(log logging.Log, fs fs.FS, res resolver.Resolver, entryPaths []s
 		resolveResult := res.ResolveAbs(absPath)
 
 		if resolveResult == nil {
-			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
 			continue
 		}
 
-		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, logging.Range{}, "", inputKindEntryPoint)
+		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, "", inputKindEntryPoint)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -641,7 +641,7 @@ type compileResult struct {
 	generatedOffset lineColumnOffset
 }
 
-func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
+func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
@@ -714,7 +714,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 		for _, outputFile := range outputFiles {
 			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
 			if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
-				log.AddError(nil, logging.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
+				log.AddError(nil, logger.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
 			}
 		}
 
@@ -748,7 +748,7 @@ func (b *Bundle) Compile(log logging.Log, options config.Options) []OutputFile {
 			if relPath, ok := b.fs.Rel(b.fs.Cwd(), outputPath); ok {
 				outputPath = relPath
 			}
-			log.AddError(nil, logging.Loc{}, "Two output files share the same path but have different contents: "+outputPath)
+			log.AddError(nil, logger.Loc{}, "Two output files share the same path but have different contents: "+outputPath)
 		}
 		outputFiles = outputFiles[:end]
 	}
@@ -889,7 +889,7 @@ type runtimeCache struct {
 
 var globalRuntimeCache runtimeCache
 
-func (cache *runtimeCache) parseRuntime(options *config.Options) (source logging.Source, runtimeAST ast.AST, ok bool) {
+func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.Source, runtimeAST ast.AST, ok bool) {
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
 		MangleSyntax:      options.MangleSyntax,
@@ -918,7 +918,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logging
 	}
 
 	// Cache miss
-	log := logging.NewDeferLog()
+	log := logger.NewDeferLog()
 	runtimeAST, ok = parser.Parse(log, source, config.Options{
 		// These configuration options must only depend on the key
 		MangleSyntax:      key.MangleSyntax,
@@ -971,7 +971,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 	}
 	result := config.ProcessDefines(map[string]config.DefineData{
 		"__platform": config.DefineData{
-			DefineFunc: func(logging.Loc, config.FindSymbol) ast.E {
+			DefineFunc: func(logger.Loc, config.FindSymbol) ast.E {
 				return &ast.EString{Value: lexer.StringToUTF16(platform)}
 			},
 		},

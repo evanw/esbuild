@@ -6,7 +6,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
@@ -20,12 +20,12 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 
 func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options PrintOptions) {
 	t.Run(name, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		tree, ok := parser.Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		assertEqual(t, text, "")
 		if !ok {

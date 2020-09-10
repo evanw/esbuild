@@ -5,7 +5,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
@@ -13,7 +13,7 @@ import (
 
 func expectParseErrorTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
@@ -22,7 +22,7 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, expected)
 	})
@@ -30,7 +30,7 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 
 func expectPrintedTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
@@ -39,7 +39,7 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, "")
 		if !ok {
@@ -55,7 +55,7 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 
 func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
@@ -67,7 +67,7 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, expected)
 	})
@@ -75,7 +75,7 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 
 func expectPrintedTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
-		log := logging.NewDeferLog()
+		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
 				Parse: true,
@@ -87,7 +87,7 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logging.StderrOptions{}, logging.TerminalInfo{})
+			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, "")
 		if !ok {

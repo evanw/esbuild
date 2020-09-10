@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/api"
 )
 
@@ -488,17 +488,17 @@ func runImpl(osArgs []string) int {
 			}
 			bytes, err := ioutil.ReadAll(os.Stdin)
 			if err != nil {
-				logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 					"Could not read from stdin: %s", err.Error()))
 				return 1
 			}
 			buildOptions.Stdin.Contents = string(bytes)
 		} else if buildOptions.Stdin != nil {
 			if buildOptions.Stdin.Sourcefile != "" {
-				logging.PrintErrorToStderr(osArgs,
+				logger.PrintErrorToStderr(osArgs,
 					"\"sourcefile\" only applies when reading from stdin")
 			} else {
-				logging.PrintErrorToStderr(osArgs,
+				logger.PrintErrorToStderr(osArgs,
 					"\"loader\" without extension only applies when reading from stdin")
 			}
 			return 1
@@ -514,7 +514,7 @@ func runImpl(osArgs []string) int {
 		// Read the input from stdin
 		bytes, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
-			logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+			logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 				"Could not read from stdin: %s", err.Error()))
 			return 1
 		}
@@ -529,7 +529,7 @@ func runImpl(osArgs []string) int {
 		os.Stdout.Write(result.JS)
 
 	case err != nil:
-		logging.PrintErrorToStderr(osArgs, err.Error())
+		logger.PrintErrorToStderr(osArgs, err.Error())
 		return 1
 	}
 

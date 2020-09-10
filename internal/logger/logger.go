@@ -1,4 +1,4 @@
-package logging
+package logger
 
 // Logging is currently designed to look and feel like clang's error format.
 // Errors are streamed asynchronously as they happen, each error contains the

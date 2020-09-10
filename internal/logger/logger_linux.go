@@ -1,6 +1,6 @@
 // +build linux
 
-package logging
+package logger
 
 import (
 	"os"

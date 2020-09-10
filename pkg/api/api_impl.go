@@ -16,7 +16,7 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/resolver"
 )
@@ -62,27 +62,27 @@ func validateSourceMap(value SourceMap) config.SourceMap {
 	}
 }
 
-func validateColor(value StderrColor) logging.StderrColor {
+func validateColor(value StderrColor) logger.StderrColor {
 	switch value {
 	case ColorIfTerminal:
-		return logging.ColorIfTerminal
+		return logger.ColorIfTerminal
 	case ColorNever:
-		return logging.ColorNever
+		return logger.ColorNever
 	case ColorAlways:
-		return logging.ColorAlways
+		return logger.ColorAlways
 	default:
 		panic("Invalid color")
 	}
 }
 
-func validateLogLevel(value LogLevel) logging.LogLevel {
+func validateLogLevel(value LogLevel) logger.LogLevel {
 	switch value {
 	case LogLevelInfo:
-		return logging.LevelInfo
+		return logger.LevelInfo
 	case LogLevelWarning:
-		return logging.LevelWarning
+		return logger.LevelWarning
 	case LogLevelError:
-		return logging.LevelError
+		return logger.LevelError
 	default:
 		panic("Invalid log level")
 	}
@@ -144,7 +144,7 @@ func validateEngine(value EngineName) compat.Engine {
 
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
 
-func validateFeatures(log logging.Log, target Target, engines []Engine) compat.Feature {
+func validateFeatures(log logger.Log, target Target, engines []Engine) compat.Feature {
 	constraints := make(map[compat.Engine][]int)
 
 	switch target {
@@ -197,13 +197,13 @@ func validateFeatures(log logging.Log, target Target, engines []Engine) compat.F
 			}
 		}
 
-		log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid version: %q", engine.Version))
+		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid version: %q", engine.Version))
 	}
 
 	return compat.UnsupportedFeatures(constraints)
 }
 
-func validateExternals(log logging.Log, fs fs.FS, paths []string) config.ExternalModules {
+func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalModules {
 	result := config.ExternalModules{
 		NodeModules: make(map[string]bool),
 		AbsPaths:    make(map[string]bool),
@@ -222,24 +222,24 @@ func isValidExtension(ext string) bool {
 	return len(ext) >= 2 && ext[0] == '.' && ext[len(ext)-1] != '.'
 }
 
-func validateResolveExtensions(log logging.Log, order []string) []string {
+func validateResolveExtensions(log logger.Log, order []string) []string {
 	if order == nil {
 		return []string{".tsx", ".ts", ".jsx", ".mjs", ".cjs", ".js", ".json"}
 	}
 	for _, ext := range order {
 		if !isValidExtension(ext) {
-			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid file extension: %q", ext))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid file extension: %q", ext))
 		}
 	}
 	return order
 }
 
-func validateLoaders(log logging.Log, loaders map[string]Loader) map[string]config.Loader {
+func validateLoaders(log logger.Log, loaders map[string]Loader) map[string]config.Loader {
 	result := bundler.DefaultExtensionToLoaderMap()
 	if loaders != nil {
 		for ext, loader := range loaders {
 			if !isValidExtension(ext) {
-				log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid file extension: %q", ext))
+				log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid file extension: %q", ext))
 			}
 			result[ext] = validateLoader(loader)
 		}
@@ -247,21 +247,21 @@ func validateLoaders(log logging.Log, loaders map[string]Loader) map[string]conf
 	return result
 }
 
-func validateJSX(log logging.Log, text string, name string) []string {
+func validateJSX(log logger.Log, text string, name string) []string {
 	if text == "" {
 		return nil
 	}
 	parts := strings.Split(text, ".")
 	for _, part := range parts {
 		if !lexer.IsIdentifier(part) {
-			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
 			return nil
 		}
 	}
 	return parts
 }
 
-func validateDefines(log logging.Log, defines map[string]string, pureFns []string) *config.ProcessedDefines {
+func validateDefines(log logger.Log, defines map[string]string, pureFns []string) *config.ProcessedDefines {
 	if len(defines) == 0 && len(pureFns) == 0 {
 		return nil
 	}
@@ -272,7 +272,7 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
 			if !lexer.IsIdentifier(part) {
-				log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid define key: %q", key))
+				log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define key: %q", key))
 				continue
 			}
 		}
@@ -282,7 +282,7 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 			if _, ok := lexer.Keywords[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
 				rawDefines[key] = config.DefineData{
-					DefineFunc: func(loc logging.Loc, findSymbol config.FindSymbol) ast.E {
+					DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) ast.E {
 						return &ast.EIdentifier{Ref: findSymbol(loc, name)}
 					},
 				}
@@ -291,10 +291,10 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 		}
 
 		// Parse the value as JSON
-		source := logging.Source{Contents: value}
-		expr, ok := parser.ParseJSON(logging.NewDeferLog(), source, parser.ParseJSONOptions{})
+		source := logger.Source{Contents: value}
+		expr, ok := parser.ParseJSON(logger.NewDeferLog(), source, parser.ParseJSONOptions{})
 		if !ok {
-			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue
 		}
 
@@ -302,15 +302,15 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 		var fn config.DefineFunc
 		switch e := expr.Data.(type) {
 		case *ast.ENull:
-			fn = func(logging.Loc, config.FindSymbol) ast.E { return &ast.ENull{} }
+			fn = func(logger.Loc, config.FindSymbol) ast.E { return &ast.ENull{} }
 		case *ast.EBoolean:
-			fn = func(logging.Loc, config.FindSymbol) ast.E { return &ast.EBoolean{Value: e.Value} }
+			fn = func(logger.Loc, config.FindSymbol) ast.E { return &ast.EBoolean{Value: e.Value} }
 		case *ast.EString:
-			fn = func(logging.Loc, config.FindSymbol) ast.E { return &ast.EString{Value: e.Value} }
+			fn = func(logger.Loc, config.FindSymbol) ast.E { return &ast.EString{Value: e.Value} }
 		case *ast.ENumber:
-			fn = func(logging.Loc, config.FindSymbol) ast.E { return &ast.ENumber{Value: e.Value} }
+			fn = func(logger.Loc, config.FindSymbol) ast.E { return &ast.ENumber{Value: e.Value} }
 		default:
-			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue
 		}
 
@@ -321,7 +321,7 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
 			if !lexer.IsIdentifier(part) {
-				log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid pure function: %q", key))
+				log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid pure function: %q", key))
 				continue
 			}
 		}
@@ -338,32 +338,32 @@ func validateDefines(log logging.Log, defines map[string]string, pureFns []strin
 	return &processed
 }
 
-func validatePath(log logging.Log, fs fs.FS, relPath string) string {
+func validatePath(log logger.Log, fs fs.FS, relPath string) string {
 	if relPath == "" {
 		return ""
 	}
 	absPath, ok := fs.Abs(relPath)
 	if !ok {
-		log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid path: %s", relPath))
+		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid path: %s", relPath))
 	}
 	return absPath
 }
 
-func validateOutputExtensions(log logging.Log, outExtensions map[string]string) map[string]string {
+func validateOutputExtensions(log logger.Log, outExtensions map[string]string) map[string]string {
 	result := make(map[string]string)
 	for key, value := range outExtensions {
 		if key != ".js" {
-			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .js)", key))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .js)", key))
 		}
 		if !isValidExtension(value) {
-			log.AddError(nil, logging.Loc{}, fmt.Sprintf("Invalid output extension: %q", value))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q", value))
 		}
 		result[key] = value
 	}
 	return result
 }
 
-func messagesOfKind(kind logging.MsgKind, msgs []logging.Msg) []Message {
+func messagesOfKind(kind logger.MsgKind, msgs []logger.Msg) []Message {
 	var filtered []Message
 	for _, msg := range msgs {
 		if msg.Kind == kind {
@@ -393,11 +393,11 @@ func messagesOfKind(kind logging.MsgKind, msgs []logging.Msg) []Message {
 // Build API
 
 func buildImpl(buildOpts BuildOptions) BuildResult {
-	var log logging.Log
+	var log logger.Log
 	if buildOpts.LogLevel == LogLevelSilent {
-		log = logging.NewDeferLog()
+		log = logger.NewDeferLog()
 	} else {
-		log = logging.NewStderrLog(logging.StderrOptions{
+		log = logger.NewStderrLog(logger.StderrOptions{
 			IncludeSource: true,
 			ErrorLimit:    buildOpts.ErrorLimit,
 			Color:         validateColor(buildOpts.Color),
@@ -448,13 +448,13 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	}
 
 	if options.AbsOutputDir == "" && entryPathCount > 1 {
-		log.AddError(nil, logging.Loc{},
+		log.AddError(nil, logger.Loc{},
 			"Must use \"outdir\" when there are multiple input files")
 	} else if options.AbsOutputDir == "" && options.CodeSplitting {
-		log.AddError(nil, logging.Loc{},
+		log.AddError(nil, logger.Loc{},
 			"Must use \"outdir\" when code splitting is enabled")
 	} else if options.AbsOutputFile != "" && options.AbsOutputDir != "" {
-		log.AddError(nil, logging.Loc{}, "Cannot use both \"outfile\" and \"outdir\"")
+		log.AddError(nil, logger.Loc{}, "Cannot use both \"outfile\" and \"outdir\"")
 	} else if options.AbsOutputFile != "" {
 		// If the output file is specified, use it to derive the output directory
 		options.AbsOutputDir = realFS.Dir(options.AbsOutputFile)
@@ -463,14 +463,14 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 
 		// Forbid certain features when writing to stdout
 		if options.SourceMap != config.SourceMapNone && options.SourceMap != config.SourceMapInline {
-			log.AddError(nil, logging.Loc{}, "Cannot use an external source map without an output path")
+			log.AddError(nil, logger.Loc{}, "Cannot use an external source map without an output path")
 		}
 		if options.AbsMetadataFile != "" {
-			log.AddError(nil, logging.Loc{}, "Cannot use \"metafile\" without an output path")
+			log.AddError(nil, logger.Loc{}, "Cannot use \"metafile\" without an output path")
 		}
 		for _, loader := range options.ExtensionToLoader {
 			if loader == config.LoaderFile {
-				log.AddError(nil, logging.Loc{}, "Cannot use the \"file\" loader without an output path")
+				log.AddError(nil, logger.Loc{}, "Cannot use the \"file\" loader without an output path")
 				break
 			}
 		}
@@ -483,7 +483,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	if !buildOpts.Bundle {
 		// Disallow bundle-only options when not bundling
 		if len(options.ExternalModules.NodeModules) > 0 || len(options.ExternalModules.AbsPaths) > 0 {
-			log.AddError(nil, logging.Loc{}, "Cannot use \"external\" without \"bundle\"")
+			log.AddError(nil, logger.Loc{}, "Cannot use \"external\" without \"bundle\"")
 		}
 	} else if options.OutputFormat == config.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
@@ -504,7 +504,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
 	if options.CodeSplitting && options.OutputFormat != config.FormatESModule {
-		log.AddError(nil, logging.Loc{}, "Splitting currently only works with the \"esm\" format")
+		log.AddError(nil, logger.Loc{}, "Splitting currently only works with the \"esm\" format")
 	}
 
 	var outputFiles []OutputFile
@@ -538,10 +538,10 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 					// Special-case writing to stdout
 					if options.WriteToStdout {
 						if len(outputFiles) != 1 {
-							log.AddError(nil, logging.Loc{}, fmt.Sprintf(
+							log.AddError(nil, logger.Loc{}, fmt.Sprintf(
 								"Internal error: did not expect to generate %d files when writing to stdout", len(outputFiles)))
 						} else if _, err := os.Stdout.Write(outputFiles[0].Contents); err != nil {
-							log.AddError(nil, logging.Loc{}, fmt.Sprintf(
+							log.AddError(nil, logger.Loc{}, fmt.Sprintf(
 								"Failed to write to stdout: %s", err.Error()))
 						}
 					} else {
@@ -553,10 +553,10 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 								fs.BeforeFileOpen()
 								defer fs.AfterFileClose()
 								if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
-									log.AddError(nil, logging.Loc{}, fmt.Sprintf(
+									log.AddError(nil, logger.Loc{}, fmt.Sprintf(
 										"Failed to create output directory: %s", err.Error()))
 								} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
-									log.AddError(nil, logging.Loc{}, fmt.Sprintf(
+									log.AddError(nil, logger.Loc{}, fmt.Sprintf(
 										"Failed to write to output file: %s", err.Error()))
 								}
 								waitGroup.Done()
@@ -571,8 +571,8 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 
 	msgs := log.Done()
 	return BuildResult{
-		Errors:      messagesOfKind(logging.Error, msgs),
-		Warnings:    messagesOfKind(logging.Warning, msgs),
+		Errors:      messagesOfKind(logger.Error, msgs),
+		Warnings:    messagesOfKind(logger.Warning, msgs),
 		OutputFiles: outputFiles,
 	}
 }
@@ -581,11 +581,11 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 // Transform API
 
 func transformImpl(input string, transformOpts TransformOptions) TransformResult {
-	var log logging.Log
+	var log logger.Log
 	if transformOpts.LogLevel == LogLevelSilent {
-		log = logging.NewDeferLog()
+		log = logger.NewDeferLog()
 	} else {
-		log = logging.NewStderrLog(logging.StderrOptions{
+		log = logger.NewStderrLog(logger.StderrOptions{
 			IncludeSource: true,
 			ErrorLimit:    transformOpts.ErrorLimit,
 			Color:         validateColor(transformOpts.Color),
@@ -617,10 +617,10 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 	if options.SourceMap == config.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name
-		log.AddError(nil, logging.Loc{}, "Cannot transform with linked source maps")
+		log.AddError(nil, logger.Loc{}, "Cannot transform with linked source maps")
 	}
 	if options.SourceMap != config.SourceMapNone && options.Stdin.SourceFile == "" {
-		log.AddError(nil, logging.Loc{},
+		log.AddError(nil, logger.Loc{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
 	}
 
@@ -663,8 +663,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	msgs := log.Done()
 	return TransformResult{
-		Errors:      messagesOfKind(logging.Error, msgs),
-		Warnings:    messagesOfKind(logging.Warning, msgs),
+		Errors:      messagesOfKind(logger.Error, msgs),
+		Warnings:    messagesOfKind(logger.Warning, msgs),
 		JS:          js,
 		JSSourceMap: jsSourceMap,
 	}

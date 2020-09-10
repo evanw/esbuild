@@ -6,12 +6,12 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/lexer"
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 // Specification: https://sourcemaps.info/spec.html
-func ParseSourceMap(log logging.Log, source logging.Source) *sourcemap.SourceMap {
+func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	expr, ok := ParseJSON(log, source, ParseJSONOptions{})
 	if !ok {
 		return nil
@@ -26,7 +26,7 @@ func ParseSourceMap(log logging.Log, source logging.Source) *sourcemap.SourceMap
 	var sourcesContent []*string
 	var sources []string
 	var mappingsRaw []uint16
-	var mappingsRange logging.Range
+	var mappingsRange logger.Range
 	hasVersion := false
 
 	// Treat the paths in the source map as relative to the directory containing the source map

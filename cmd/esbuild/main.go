@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evanw/esbuild/internal/logging"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/cli"
 )
 
@@ -124,7 +124,7 @@ func main() {
 	}
 
 	// Print help text when there are no arguments
-	if len(osArgs) == 0 && logging.GetTerminalInfo(os.Stdin).IsTTY {
+	if len(osArgs) == 0 && logger.GetTerminalInfo(os.Stdin).IsTTY {
 		fmt.Fprintf(os.Stderr, "%s\n", helpText)
 		os.Exit(0)
 	}
@@ -137,7 +137,7 @@ func main() {
 		if traceFile != "" {
 			f, err := os.Create(traceFile)
 			if err != nil {
-				logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 					"Failed to create trace file: %s", err.Error()))
 				return
 			}
@@ -152,13 +152,13 @@ func main() {
 		if heapFile != "" {
 			f, err := os.Create(heapFile)
 			if err != nil {
-				logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 					"Failed to create heap file: %s", err.Error()))
 				return
 			}
 			defer func() {
 				if err := pprof.WriteHeapProfile(f); err != nil {
-					logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+					logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 						"Failed to write heap profile: %s", err.Error()))
 				}
 				f.Close()
@@ -172,7 +172,7 @@ func main() {
 		if cpuprofileFile != "" {
 			f, err := os.Create(cpuprofileFile)
 			if err != nil {
-				logging.PrintErrorToStderr(osArgs, fmt.Sprintf(
+				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 					"Failed to create cpuprofile file: %s", err.Error()))
 				return
 			}
