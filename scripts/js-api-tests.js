@@ -97,6 +97,19 @@ let buildTests = {
     assert.strictEqual(require(output).result, 123)
   },
 
+  async requireAbsolutePath({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const dependency = path.join(testDir, 'dep.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `import value from "${dependency}"; export default value`)
+    await writeFileAsync(dependency, `export default 123`)
+    const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    assert.strictEqual(value.outputFiles, void 0)
+    const result = require(output)
+    assert.strictEqual(result.default, 123)
+    assert.strictEqual(result.__esModule, true)
+  },
+
   async metafile({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const imported = path.join(testDir, 'imported.js')

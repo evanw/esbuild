@@ -175,6 +175,8 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 			// a relative path from the output directory to that path.
 			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}
 		}
+
+		return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: "file"}}}
 	}
 
 	if !IsPackagePath(importPath) {
