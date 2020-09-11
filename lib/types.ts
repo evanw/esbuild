@@ -4,7 +4,7 @@ export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'json' | 'text' | 'base64' | 
 export type LogLevel = 'info' | 'warning' | 'error' | 'silent';
 export type Strict = 'nullish-coalescing' | 'optional-chaining' | 'class-fields';
 
-export interface CommonOptions {
+interface CommonOptions {
   sourcemap?: boolean | 'inline' | 'external';
   format?: Format;
   globalName?: string;

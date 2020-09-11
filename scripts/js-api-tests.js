@@ -14,6 +14,17 @@ const repoDir = path.dirname(__dirname)
 const rootTestDir = path.join(repoDir, 'scripts', '.js-api-tests')
 
 let buildTests = {
+  async errorIfEntryPointsNotArray({ esbuild }) {
+    try {
+      await esbuild.build({ entryPoints: 'this is not an array' })
+      throw new Error('Expected build failure');
+    } catch (e) {
+      if (e.message !== '"entryPoints" must be an array') {
+        throw e;
+      }
+    }
+  },
+
   async es6_to_cjs({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')

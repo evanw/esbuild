@@ -20,6 +20,12 @@
 
     Keep in mind that the [`"browser"` field](https://github.com/defunctzombie/package-browser-field-spec) still takes precedence over both `"module"` and `"main"`.
 
+* Additional validation of arguments to JavaScript API calls ([#381](https://github.com/evanw/esbuild/issues/381))
+
+    JavaScript API calls each take an object with many optional properties as an argument. Previously there was only minimal validation of the contents of that object. If you aren't using TypeScript, this can lead to confusing situations when the data on the object is invalid. Now there is some additional validation done to the shape of the object and the types of the properties.
+
+    It is now an error to pass an object with a property that esbuild won't use. This should help to catch typos. It is also now an error if a property on the object has an unexpected type.
+
 ## 0.6.34
 
 * Fix parsing of `type;` statements followed by an identifier in TypeScript ([#377](https://github.com/evanw/esbuild/pull/377))

@@ -7,92 +7,181 @@ function validateTarget(target: string): string {
   return target
 }
 
-function pushCommonFlags(flags: string[], options: types.CommonOptions, isTTY: boolean, logLevelDefault: types.LogLevel): void {
-  if (options.target) {
-    if (options.target instanceof Array) flags.push(`--target=${Array.from(options.target).map(validateTarget).join(',')}`)
-    else flags.push(`--target=${validateTarget(options.target)}`)
-  }
-  if (options.format) flags.push(`--format=${options.format}`);
-  if (options.globalName) flags.push(`--global-name=${options.globalName}`);
-  if (options.strict === true) flags.push(`--strict`);
-  else if (options.strict) for (let key of options.strict) flags.push(`--strict:${key}`);
+let mustBeBoolean = (value: boolean | undefined): string | null =>
+  typeof value === 'boolean' ? null : 'a boolean';
 
-  if (options.minify) flags.push('--minify');
-  if (options.minifySyntax) flags.push('--minify-syntax');
-  if (options.minifyWhitespace) flags.push('--minify-whitespace');
-  if (options.minifyIdentifiers) flags.push('--minify-identifiers');
+let mustBeString = (value: string | undefined): string | null =>
+  typeof value === 'string' ? null : 'a string';
 
-  if (options.jsxFactory) flags.push(`--jsx-factory=${options.jsxFactory}`);
-  if (options.jsxFragment) flags.push(`--jsx-fragment=${options.jsxFragment}`);
-  if (options.define) {
-    for (let key in options.define) {
-      if (key.indexOf('=') >= 0) throw new Error(`Invalid define: ${key}`);
-      flags.push(`--define:${key}=${options.define[key]}`);
-    }
-  }
-  if (options.pure) for (let fn of options.pure) flags.push(`--pure:${fn}`);
+let mustBeInteger = (value: number | undefined): string | null =>
+  typeof value === 'number' && value === (value | 0) ? null : 'an integer';
 
-  if (options.color) flags.push(`--color=${options.color}`);
-  else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
-  flags.push(`--log-level=${options.logLevel || logLevelDefault}`);
-  flags.push(`--error-limit=${options.errorLimit || 0}`);
+let mustBeArray = (value: string[] | undefined): string | null =>
+  Array.isArray(value) ? null : 'an array';
+
+let mustBeObject = (value: Object | undefined): string | null =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'an object';
+
+let mustBeStringOrBoolean = (value: string | boolean | undefined): string | null =>
+  typeof value === 'string' || typeof value === 'boolean' ? null : 'a string or a boolean';
+
+let mustBeStringOrArray = (value: string | string[] | undefined): string | null =>
+  typeof value === 'string' || Array.isArray(value) ? null : 'a string or an array';
+
+let mustBeBooleanOrArray = (value: boolean | string[] | undefined): string | null =>
+  typeof value === 'boolean' || Array.isArray(value) ? null : 'a boolean or an array';
+
+type OptionKeys = { [key: string]: boolean };
+
+function getFlag<T, K extends keyof T>(object: T, keys: OptionKeys, key: K, mustBeFn: (value: T[K]) => string | null): T[K] | undefined {
+  let value = object[key];
+  if (value === undefined) return undefined;
+  let mustBe = mustBeFn(value);
+  if (mustBe !== null) throw new Error(`"${key}" must be ${mustBe}`);
+  keys[key + ''] = true;
+  return value;
 }
 
-function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [string[], string | null, string | null] {
+function checkForInvalidFlags(object: Object, keys: OptionKeys): void {
+  for (let key in object) {
+    if (!(key in keys)) {
+      throw new Error(`Invalid option: "${key}"`);
+    }
+  }
+}
+
+function pushCommonFlags(flags: string[], options: types.CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
+  let target = getFlag(options, keys, 'target', mustBeStringOrArray);
+  let format = getFlag(options, keys, 'format', mustBeString);
+  let globalName = getFlag(options, keys, 'globalName', mustBeString);
+  let strict = getFlag(options, keys, 'strict', mustBeBooleanOrArray);
+  let minify = getFlag(options, keys, 'minify', mustBeBoolean);
+  let minifySyntax = getFlag(options, keys, 'minifySyntax', mustBeBoolean);
+  let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean);
+  let minifyIdentifiers = getFlag(options, keys, 'minifyIdentifiers', mustBeBoolean);
+  let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
+  let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
+  let define = getFlag(options, keys, 'define', mustBeObject);
+  let pure = getFlag(options, keys, 'pure', mustBeArray);
+  let color = getFlag(options, keys, 'color', mustBeBoolean);
+  let logLevel = getFlag(options, keys, 'logLevel', mustBeString);
+  let errorLimit = getFlag(options, keys, 'errorLimit', mustBeInteger);
+
+  if (target) {
+    if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)
+    else flags.push(`--target=${validateTarget(target)}`)
+  }
+  if (format) flags.push(`--format=${format}`);
+  if (globalName) flags.push(`--global-name=${globalName}`);
+  if (strict === true) flags.push(`--strict`);
+  else if (strict) for (let key of strict) flags.push(`--strict:${key}`);
+
+  if (minify) flags.push('--minify');
+  if (minifySyntax) flags.push('--minify-syntax');
+  if (minifyWhitespace) flags.push('--minify-whitespace');
+  if (minifyIdentifiers) flags.push('--minify-identifiers');
+
+  if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`);
+  if (jsxFragment) flags.push(`--jsx-fragment=${jsxFragment}`);
+  if (define) {
+    for (let key in define) {
+      if (key.indexOf('=') >= 0) throw new Error(`Invalid define: ${key}`);
+      flags.push(`--define:${key}=${define[key]}`);
+    }
+  }
+  if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
+
+  if (color) flags.push(`--color=${color}`);
+  else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
+  flags.push(`--log-level=${logLevel || logLevelDefault}`);
+  flags.push(`--error-limit=${errorLimit || 0}`);
+}
+
+function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [string[], boolean, string | null, string | null] {
   let flags: string[] = [];
+  let keys: OptionKeys = Object.create(null);
   let stdinContents: string | null = null;
   let stdinResolveDir: string | null = null;
-  pushCommonFlags(flags, options, isTTY, 'info');
+  pushCommonFlags(flags, options, keys, isTTY, 'info');
 
-  if (options.sourcemap) flags.push(`--sourcemap${options.sourcemap === true ? '' : `=${options.sourcemap}`}`);
-  if (options.bundle) flags.push('--bundle');
-  if (options.splitting) flags.push('--splitting');
-  if (options.metafile) flags.push(`--metafile=${options.metafile}`);
-  if (options.outfile) flags.push(`--outfile=${options.outfile}`);
-  if (options.outdir) flags.push(`--outdir=${options.outdir}`);
-  if (options.platform) flags.push(`--platform=${options.platform}`);
-  if (options.tsconfig) flags.push(`--tsconfig=${options.tsconfig}`);
-  if (options.resolveExtensions) flags.push(`--resolve-extensions=${options.resolveExtensions.join(',')}`);
-  if (options.external) for (let name of options.external) flags.push(`--external:${name}`);
-  if (options.loader) {
-    for (let ext in options.loader) {
+  let sourcemap = getFlag(options, keys, 'sourcemap', mustBeStringOrBoolean);
+  let bundle = getFlag(options, keys, 'bundle', mustBeBoolean);
+  let splitting = getFlag(options, keys, 'splitting', mustBeBoolean);
+  let metafile = getFlag(options, keys, 'metafile', mustBeString);
+  let outfile = getFlag(options, keys, 'outfile', mustBeString);
+  let outdir = getFlag(options, keys, 'outdir', mustBeString);
+  let platform = getFlag(options, keys, 'platform', mustBeString);
+  let tsconfig = getFlag(options, keys, 'tsconfig', mustBeString);
+  let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
+  let external = getFlag(options, keys, 'external', mustBeArray);
+  let loader = getFlag(options, keys, 'loader', mustBeObject);
+  let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
+  let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
+  let stdin = getFlag(options, keys, 'stdin', mustBeObject);
+  let write = getFlag(options, keys, 'write', mustBeBoolean) !== false;
+  checkForInvalidFlags(options, keys);
+
+  if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
+  if (bundle) flags.push('--bundle');
+  if (splitting) flags.push('--splitting');
+  if (metafile) flags.push(`--metafile=${metafile}`);
+  if (outfile) flags.push(`--outfile=${outfile}`);
+  if (outdir) flags.push(`--outdir=${outdir}`);
+  if (platform) flags.push(`--platform=${platform}`);
+  if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
+  if (resolveExtensions) flags.push(`--resolve-extensions=${resolveExtensions.join(',')}`);
+  if (external) for (let name of external) flags.push(`--external:${name}`);
+  if (loader) {
+    for (let ext in loader) {
       if (ext.indexOf('=') >= 0) throw new Error(`Invalid extension: ${ext}`);
-      flags.push(`--loader:${ext}=${options.loader[ext]}`);
+      flags.push(`--loader:${ext}=${loader[ext]}`);
     }
   }
-  if (options.outExtension) {
-    for (let ext in options.outExtension) {
+  if (outExtension) {
+    for (let ext in outExtension) {
       if (ext.indexOf('=') >= 0) throw new Error(`Invalid extension: ${ext}`);
-      flags.push(`--out-extension:${ext}=${options.outExtension[ext]}`);
+      flags.push(`--out-extension:${ext}=${outExtension[ext]}`);
     }
   }
 
-  if (options.entryPoints) {
-    for (let entryPoint of options.entryPoints) {
+  if (entryPoints) {
+    for (let entryPoint of entryPoints) {
       entryPoint += '';
       if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
       flags.push(entryPoint);
     }
   }
 
-  if (options.stdin) {
-    let { contents, resolveDir, sourcefile, loader } = options.stdin;
+  if (stdin) {
+    let stdinKeys: OptionKeys = Object.create(null);
+    let contents = getFlag(stdin, stdinKeys, 'contents', mustBeString);
+    let resolveDir = getFlag(stdin, stdinKeys, 'resolveDir', mustBeString);
+    let sourcefile = getFlag(stdin, stdinKeys, 'sourcefile', mustBeString);
+    let loader = getFlag(stdin, stdinKeys, 'loader', mustBeString);
+    checkForInvalidFlags(stdin, stdinKeys);
+
     if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
     if (loader) flags.push(`--loader=${loader}`);
     if (resolveDir) stdinResolveDir = resolveDir + '';
     stdinContents = contents ? contents + '' : '';
   }
 
-  return [flags, stdinContents, stdinResolveDir];
+  return [flags, write, stdinContents, stdinResolveDir];
 }
 
 function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolean): string[] {
   let flags: string[] = [];
-  pushCommonFlags(flags, options, isTTY, 'silent');
+  let keys: OptionKeys = Object.create(null);
+  pushCommonFlags(flags, options, keys, isTTY, 'silent');
 
-  if (options.sourcemap) flags.push(`--sourcemap=${options.sourcemap === true ? 'external' : options.sourcemap}`);
-  if (options.sourcefile) flags.push(`--sourcefile=${options.sourcefile}`);
-  if (options.loader) flags.push(`--loader=${options.loader}`);
+  let sourcemap = getFlag(options, keys, 'sourcemap', mustBeStringOrBoolean);
+  let sourcefile = getFlag(options, keys, 'sourcefile', mustBeString);
+  let loader = getFlag(options, keys, 'loader', mustBeString);
+  checkForInvalidFlags(options, keys);
+
+  if (sourcemap) flags.push(`--sourcemap=${sourcemap === true ? 'external' : sourcemap}`);
+  if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
+  if (loader) flags.push(`--loader=${loader}`);
 
   return flags;
 }
@@ -221,9 +310,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
     service: {
       build(options, isTTY, callback) {
-        let [flags, stdin, resolveDir] = flagsForBuildOptions(options, isTTY);
+        let [flags, write, stdin, resolveDir] = flagsForBuildOptions(options, isTTY);
         try {
-          let write = options.write !== false;
           let request: protocol.BuildRequest = { command: 'build', flags, write, stdin, resolveDir };
           sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
             if (error) return callback(new Error(error), null);
