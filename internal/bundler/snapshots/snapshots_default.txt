@@ -504,6 +504,42 @@ export default class o {
 }
 
 ================================================================================
+TestExportTypeIssue379
+---------- /out.js ----------
+// /a.ts
+const a_exports = {};
+__export(a_exports, {
+  foo: () => foo
+});
+let foo = 123;
+
+// /b.ts
+const b_exports = {};
+__export(b_exports, {
+  foo: () => foo2
+});
+let foo2 = 123;
+
+// /test.ts
+
+// /c.ts
+const c_exports = {};
+__export(c_exports, {
+  foo: () => foo3
+});
+let foo3 = 123;
+
+// /d.ts
+const d_exports = {};
+__export(d_exports, {
+  foo: () => foo4
+});
+let foo4 = 123;
+
+// /entry.ts
+console.log(a_exports, b_exports, c_exports, d_exports);
+
+================================================================================
 TestExportWildcardFSNodeCommonJS
 ---------- /out.js ----------
 // /entry.js

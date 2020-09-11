@@ -826,3 +826,46 @@ func TestTSImplicitExtensionsMissing(t *testing.T) {
 `,
 	})
 }
+
+func TestExportTypeIssue379(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import * as A from './a'
+				import * as B from './b'
+				import * as C from './c'
+				import * as D from './d'
+				console.log(A, B, C, D)
+			`,
+			"/a.ts": `
+				type Test = Element
+				let foo = 123
+				export { Test, foo }
+			`,
+			"/b.ts": `
+				export type Test = Element
+				export let foo = 123
+			`,
+			"/c.ts": `
+				import { Test } from './test'
+				let foo = 123
+				export { Test }
+				export { foo }
+			`,
+			"/d.ts": `
+				export { Test }
+				export { foo }
+				import { Test } from './test'
+				let foo = 123
+			`,
+			"/test.ts": `
+				export type Test = Element
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

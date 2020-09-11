@@ -6573,12 +6573,27 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 
 	case *ast.SExportClause:
 		// "export {foo}"
-		for i, item := range s.Items {
+		end := 0
+		for _, item := range s.Items {
 			name := p.loadNameFromRef(item.Name.Ref)
 			ref := p.findSymbol(item.AliasLoc, name).ref
-			s.Items[i].Name.Ref = ref
+
+			// Strip exports of non-local symbols in TypeScript, since those likely
+			// correspond to type-only exports
+			if p.TS.Parse && p.symbols[ref.InnerIndex].Kind == ast.SymbolUnbound {
+				continue
+			}
+
+			item.Name.Ref = ref
+			s.Items[end] = item
+			end++
 			p.recordExport(item.AliasLoc, item.Alias, ref)
 		}
+		if end == 0 {
+			// Remove empty export statements entirely
+			return stmts
+		}
+		s.Items = s.Items[:end]
 
 	case *ast.SExportFrom:
 		// "export {foo} from 'path'"
@@ -9310,6 +9325,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt) []ast.Stmt {
 						AliasLoc:          s.Alias.Loc,
 						NamespaceRef:      ast.InvalidRef,
 						ImportRecordIndex: s.ImportRecordIndex,
+						IsExported:        true,
 					}
 				} else {
 					// "export * from 'path'"
@@ -9334,30 +9350,6 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt) []ast.Stmt {
 						IsExported:        true,
 					}
 				}
-			}
-
-		case *ast.SExportClause:
-			// Strip exports of non-local symbols in TypeScript, since those likely
-			// correspond to type-only exports
-			if p.TS.Parse {
-				itemsEnd := 0
-				for _, item := range s.Items {
-					if p.symbols[item.Name.Ref.InnerIndex].Kind != ast.SymbolUnbound {
-						s.Items[itemsEnd] = item
-						itemsEnd++
-
-						// Mark re-exported imports as such
-						if namedImport, ok := p.namedImports[item.Name.Ref]; ok {
-							namedImport.IsExported = true
-							p.namedImports[item.Name.Ref] = namedImport
-						}
-					}
-				}
-				if itemsEnd == 0 {
-					// Remove empty export statements entirely
-					continue
-				}
-				s.Items = s.Items[:itemsEnd]
 			}
 		}
 
@@ -10139,6 +10131,21 @@ func (p *parser) toAST(source logger.Source, parts []ast.Part, hashbang string, 
 		}
 	}
 	parts = parts[:partsEnd]
+
+	// Do a second pass for exported items now that imported items are filled out
+	for _, part := range parts {
+		for _, stmt := range part.Stmts {
+			if s, ok := stmt.Data.(*ast.SExportClause); ok {
+				for _, item := range s.Items {
+					// Mark re-exported imports as such
+					if namedImport, ok := p.namedImports[item.Name.Ref]; ok {
+						namedImport.IsExported = true
+						p.namedImports[item.Name.Ref] = namedImport
+					}
+				}
+			}
+		}
+	}
 
 	// Analyze cross-part dependencies for tree shaking and code splitting
 	{

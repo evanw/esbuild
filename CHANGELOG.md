@@ -13,6 +13,10 @@
 
     This was contributed by [@rtsao](https://github.com/rtsao).
 
+* Fix `export {Type}` in TypeScript when bundling ([#379](https://github.com/evanw/esbuild/issues/379))
+
+    In TypeScript, `export {Type}` is supposed to be silently removed by the compiler if `Type` does not refer to a value declared locally in the file. Previously this behavior was incompletely implemented. The statement itself was removed but the export record was not, so later stages of the pipeline could sometimes add the export statement back. This release removes the export record as well as the statement so it should stay removed in all cases.
+
 ## 0.6.33
 
 * Fix precedence of tagged template expressions ([#372](https://github.com/evanw/esbuild/issues/372))
