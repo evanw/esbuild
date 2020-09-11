@@ -143,19 +143,20 @@ func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) 
 		}()
 
 		// Handle the request
-		data := p.value.([]interface{})
-		switch data[0] {
+		request := p.value.(map[string]interface{})
+		command := request["command"].(string)
+		switch command {
 		case "build":
-			return service.handleBuildRequest(p.id, data[1].(map[string]interface{}))
+			return service.handleBuildRequest(p.id, request)
 
 		case "transform":
-			return service.handleTransformRequest(p.id, data[1].(map[string]interface{}))
+			return service.handleTransformRequest(p.id, request)
 
 		default:
 			return encodePacket(packet{
 				id: p.id,
 				value: map[string]interface{}{
-					"error": fmt.Sprintf("Invalid command: %s", p.value),
+					"error": fmt.Sprintf("Invalid command: %s", command),
 				},
 			})
 		}
@@ -185,8 +186,6 @@ func encodeErrorPacket(id uint32, err error) []byte {
 func (service *serviceType) handleBuildRequest(id uint32, request map[string]interface{}) []byte {
 	write := request["write"].(bool)
 	flags := decodeStringArray(request["flags"].([]interface{}))
-	stdin, hasStdin := request["stdin"].(string)
-	resolveDir, hasResolveDir := request["resolveDir"].(string)
 
 	options, err := cli.ParseBuildOptions(flags)
 	if err == nil && write && options.Outfile == "" && options.Outdir == "" {
@@ -197,12 +196,12 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 
 	// Optionally allow input from the stdin channel
-	if hasStdin {
+	if stdin, ok := request["stdin"].(string); ok {
 		if options.Stdin == nil {
 			options.Stdin = &api.StdinOptions{}
 		}
 		options.Stdin.Contents = stdin
-		if hasResolveDir {
+		if resolveDir, ok := request["resolveDir"].(string); ok {
 			options.Stdin.ResolveDir = resolveDir
 		}
 	}

@@ -69,6 +69,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [str
 
   if (options.entryPoints) {
     for (let entryPoint of options.entryPoints) {
+      entryPoint += '';
       if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
       flags.push(entryPoint);
     }
@@ -128,10 +129,10 @@ export interface StreamService {
 }
 
 // This can't use any promises because it must work for both sync and async code
-export function createChannel(options: StreamIn): StreamOut {
-  let callbacks = new Map<number, (error: string | null, response: protocol.Value) => void>();
+export function createChannel(streamIn: StreamIn): StreamOut {
+  let responseCallbacks = new Map<number, (error: string | null, response: protocol.Value) => void>();
   let isClosed = false;
-  let nextID = 0;
+  let nextRequestID = 0;
 
   // Use a long-lived buffer to store stdout data
   let stdout = new Uint8Array(16 * 1024);
@@ -167,38 +168,34 @@ export function createChannel(options: StreamIn): StreamOut {
   let afterClose = () => {
     // When the process is closed, fail all pending requests
     isClosed = true;
-    for (let callback of callbacks.values()) {
+    for (let callback of responseCallbacks.values()) {
       callback('The service was stopped', null);
     }
-    callbacks.clear();
+    responseCallbacks.clear();
   };
 
-  let sendRequest = <Req, Res>(value: [string, Req], callback: (error: string | null, response: Res | null) => void): void => {
+  let sendRequest = <Req, Res>(value: Req, callback: (error: string | null, response: Res | null) => void): void => {
     if (isClosed) return callback('The service is no longer running', null);
-    let id = nextID++;
-    callbacks.set(id, callback as any);
-    options.writeToStdin(protocol.encodePacket({ id, isRequest: true, value: value as any }));
+    let id = nextRequestID++;
+    responseCallbacks.set(id, callback as any);
+    streamIn.writeToStdin(protocol.encodePacket({ id, isRequest: true, value: value as any }));
   };
 
   let sendResponse = (id: number, value: protocol.Value): void => {
     if (isClosed) throw new Error('The service is no longer running');
-    options.writeToStdin(protocol.encodePacket({ id, isRequest: false, value }));
+    streamIn.writeToStdin(protocol.encodePacket({ id, isRequest: false, value }));
   };
 
-  let handleRequest = (id: number, command: string, request: protocol.Value) => {
+  let handleRequest = async (id: number, request: any) => {
     // Catch exceptions in the code below so they get passed to the caller
     try {
+      let command = request.command;
       switch (command) {
         default:
           throw new Error(`Invalid command: ` + command);
       }
     } catch (e) {
-      let error = 'Internal error'
-      try {
-        error = e + '';
-      } catch {
-      }
-      sendResponse(id, { error });
+      sendResponse(id, { errors: [await extractErrorMessageV8(e, streamIn)] } as any);
     }
   };
 
@@ -206,12 +203,12 @@ export function createChannel(options: StreamIn): StreamOut {
     let packet = protocol.decodePacket(bytes) as any;
 
     if (packet.isRequest) {
-      handleRequest(packet.id, packet.value[0], packet.value[1]);
+      handleRequest(packet.id, packet.value);
     }
 
     else {
-      let callback = callbacks.get(packet.id)!;
-      callbacks.delete(packet.id);
+      let callback = responseCallbacks.get(packet.id)!;
+      responseCallbacks.delete(packet.id);
       if (packet.value.error) callback(packet.value.error, {});
       else callback(null, packet.value);
     }
@@ -225,18 +222,16 @@ export function createChannel(options: StreamIn): StreamOut {
       build(options, isTTY, callback) {
         let [flags, stdin, resolveDir] = flagsForBuildOptions(options, isTTY);
         let write = options.write !== false;
-        sendRequest<protocol.BuildRequest, protocol.BuildResponse>(
-          ['build', { flags, write, stdin, resolveDir }],
-          (error, response) => {
-            if (error) return callback(new Error(error), null);
-            let errors = response!.errors;
-            let warnings = response!.warnings;
-            if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
-            let result: types.BuildResult = { warnings };
-            if (!write) result.outputFiles = response!.outputFiles;
-            callback(null, result);
-          },
-        );
+        let request: protocol.BuildRequest = { command: 'build', flags, write, stdin, resolveDir };
+        sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
+          if (error) return callback(new Error(error), null);
+          let errors = response!.errors;
+          let warnings = response!.warnings;
+          if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
+          let result: types.BuildResult = { warnings };
+          if (!write) result.outputFiles = response!.outputFiles;
+          callback(null, result);
+        });
       },
 
       transform(input, options, isTTY, fs, callback) {
@@ -259,49 +254,48 @@ export function createChannel(options: StreamIn): StreamOut {
         // possible but falls back to sending the data over the stdio pipe if
         // that doesn't work.
         let start = (inputPath: string | null) => {
-          sendRequest<protocol.TransformRequest, protocol.TransformResponse>(
-            ['transform', {
-              flags,
-              inputFS: inputPath !== null,
-              input: inputPath !== null ? inputPath : input,
-            }],
-            (error, response) => {
-              if (error) return callback(new Error(error), null);
-              let errors = response!.errors;
-              let warnings = response!.warnings;
-              let outstanding = 1;
-              let next = () => --outstanding === 0 && callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
-              if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
+          let request: protocol.TransformRequest = {
+            command: 'transform',
+            flags,
+            inputFS: inputPath !== null,
+            input: inputPath !== null ? inputPath : input,
+          };
+          sendRequest<protocol.TransformRequest, protocol.TransformResponse>(request, (error, response) => {
+            if (error) return callback(new Error(error), null);
+            let errors = response!.errors;
+            let warnings = response!.warnings;
+            let outstanding = 1;
+            let next = () => --outstanding === 0 && callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
+            if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
 
-              // Read the JavaScript file from the file system
-              if (response!.jsFS) {
-                outstanding++;
-                fs.readFile(response!.js, (err, contents) => {
-                  if (err !== null) {
-                    callback(err, null);
-                  } else {
-                    response!.js = contents!;
-                    next();
-                  }
-                });
-              }
+            // Read the JavaScript file from the file system
+            if (response!.jsFS) {
+              outstanding++;
+              fs.readFile(response!.js, (err, contents) => {
+                if (err !== null) {
+                  callback(err, null);
+                } else {
+                  response!.js = contents!;
+                  next();
+                }
+              });
+            }
 
-              // Read the source map file from the file system
-              if (response!.jsSourceMapFS) {
-                outstanding++;
-                fs.readFile(response!.jsSourceMap, (err, contents) => {
-                  if (err !== null) {
-                    callback(err, null);
-                  } else {
-                    response!.jsSourceMap = contents!;
-                    next();
-                  }
-                });
-              }
+            // Read the source map file from the file system
+            if (response!.jsSourceMapFS) {
+              outstanding++;
+              fs.readFile(response!.jsSourceMap, (err, contents) => {
+                if (err !== null) {
+                  callback(err, null);
+                } else {
+                  response!.jsSourceMap = contents!;
+                  next();
+                }
+              });
+            }
 
-              next();
-            },
-          );
+            next();
+          });
         };
         if (input.length > 1024 * 1024) {
           let next = start;

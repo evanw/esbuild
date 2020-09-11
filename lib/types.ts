@@ -54,13 +54,15 @@ export interface StdinOptions {
 
 export interface Message {
   text: string;
-  location: null | {
-    file: string;
-    line: number; // 1-based
-    column: number; // 0-based, in bytes
-    length: number; // in bytes
-    lineText: string;
-  };
+  location: Location | null;
+}
+
+export interface Location {
+  file: string;
+  line: number; // 1-based
+  column: number; // 0-based, in bytes
+  length: number; // in bytes
+  lineText: string;
 }
 
 export interface OutputFile {
