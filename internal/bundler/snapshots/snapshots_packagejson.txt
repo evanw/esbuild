@@ -158,6 +158,20 @@ const demo_pkg = __toModule(require_main_browser());
 console.log(demo_pkg.default());
 
 ================================================================================
+TestPackageJsonBrowserOverMainNode
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main());
+console.log(demo_pkg.default());
+
+================================================================================
 TestPackageJsonBrowserOverModuleBrowser
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/node_modules/demo-pkg/main.browser.js
@@ -170,17 +184,6 @@ var require_main_browser = __commonJS((exports, module) => {
 // /Users/user/project/src/entry.js
 const demo_pkg = __toModule(require_main_browser());
 console.log(demo_pkg.default());
-
-================================================================================
-TestPackageJsonBrowserOverModuleNode
----------- /Users/user/project/out.js ----------
-// /Users/user/project/node_modules/demo-pkg/main.esm.js
-function main_esm_default() {
-  return 123;
-}
-
-// /Users/user/project/src/entry.js
-console.log(main_esm_default());
 
 ================================================================================
 TestPackageJsonBrowserString
@@ -197,6 +200,20 @@ const demo_pkg = __toModule(require_browser());
 console.log(demo_pkg.default());
 
 ================================================================================
+TestPackageJsonBrowserWithMainNode
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main());
+console.log(demo_pkg.default());
+
+================================================================================
 TestPackageJsonBrowserWithModuleBrowser
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/node_modules/demo-pkg/main.browser.esm.js
@@ -206,17 +223,6 @@ function main_browser_esm_default() {
 
 // /Users/user/project/src/entry.js
 console.log(main_browser_esm_default());
-
-================================================================================
-TestPackageJsonBrowserWithModuleNode
----------- /Users/user/project/out.js ----------
-// /Users/user/project/node_modules/demo-pkg/main.esm.js
-function main_esm_default() {
-  return 123;
-}
-
-// /Users/user/project/src/entry.js
-console.log(main_esm_default());
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireBrowser
@@ -231,6 +237,26 @@ console.log(require_main_browser());
 
 // /Users/user/project/src/test-module.js
 const demo_pkg = __toModule(require_main_browser());
+console.log(demo_pkg.default);
+
+// /Users/user/project/src/entry.js
+
+================================================================================
+TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/module.js
+var require_module = __commonJS((exports) => {
+  __export(exports, {
+    default: () => module_default
+  });
+  var module_default = "module";
+});
+
+// /Users/user/project/src/test-main.js
+console.log(require_module());
+
+// /Users/user/project/src/test-module.js
+const demo_pkg = __toModule(require_module());
 console.log(demo_pkg.default);
 
 // /Users/user/project/src/entry.js
@@ -297,6 +323,27 @@ var require_custom_main = __commonJS((exports, module) => {
 // /Users/user/project/src/entry.js
 const demo_pkg = __toModule(require_custom_main());
 console.log(demo_pkg.default());
+
+================================================================================
+TestPackageJsonMainFieldsA
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/a.js
+var require_a = __commonJS((exports, module) => {
+  module.exports = "a";
+});
+
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_a());
+console.log(demo_pkg.default);
+
+================================================================================
+TestPackageJsonMainFieldsB
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/b.js
+var b_default = "b";
+
+// /Users/user/project/src/entry.js
+console.log(b_default);
 
 ================================================================================
 TestPackageJsonModule

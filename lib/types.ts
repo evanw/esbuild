@@ -37,6 +37,7 @@ export interface BuildOptions extends CommonOptions {
   external?: string[];
   loader?: { [ext: string]: Loader };
   resolveExtensions?: string[];
+  mainFields?: string[];
   write?: boolean;
   tsconfig?: string;
   outExtension?: { [ext: string]: string };

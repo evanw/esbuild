@@ -215,6 +215,7 @@ type BuildOptions struct {
 	Platform          Platform
 	Format            Format
 	Externals         []string
+	MainFields        []string
 	Loaders           map[string]Loader
 	ResolveExtensions []string
 	Tsconfig          string

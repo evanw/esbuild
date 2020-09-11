@@ -19,6 +19,35 @@ import (
 // "false" using the "browser" field of "package.json".
 const BrowserFalseNamespace = "empty"
 
+var defaultMainFields = map[config.Platform][]string{
+	// Note that this means if a package specifies "main", "module", and
+	// "browser" then "browser" will win out over "module". This is the
+	// same behavior as webpack: https://github.com/webpack/webpack/issues/4674.
+	//
+	// This is deliberate because the presence of the "browser" field is a
+	// good signal that the "module" field may have non-browser stuff in it,
+	// which will crash or fail to be bundled when targeting the browser.
+	config.PlatformBrowser: []string{"browser", "module", "main"},
+
+	// Note that this means if a package specifies "module" and "main", the ES6
+	// module will not be selected. This means tree shaking will not work when
+	// targeting node environments.
+	//
+	// This is unfortunately necessary for compatibility. Some packages
+	// incorrectly treat the "module" field as "code for the browser". It
+	// actually means "code for ES6 environments" which includes both node
+	// and the browser.
+	//
+	// For example, the package "@firebase/app" prints a warning on startup about
+	// the bundler incorrectly using code meant for the browser if the bundler
+	// selects the "module" field instead of the "main" field.
+	//
+	// If you want to enable tree shaking when targeting node, you will have to
+	// configure the main fields to be "module" and then "main". Keep in mind
+	// that some packages may break if you do this.
+	config.PlatformNode: []string{"main", "module"},
+}
+
 // Path resolution is a mess. One tricky issue is the "module" override for the
 // "main" field in "package.json" files. Bundlers generally prefer "module" over
 // "main" but that breaks packages that export a function in "main" for use with
@@ -308,17 +337,7 @@ func (r *resolver) PrettyPath(path logger.Path) string {
 ////////////////////////////////////////////////////////////////////////////////
 
 type packageJson struct {
-	// The "main" field. This is what node itself uses when you require() the
-	// package. It's usually (always?) in CommonJS format. This is used when
-	// packages are imported via "require".
-	absPathMain *string
-
-	// The "module" field. This is supposed to be in ES6 format. The idea is
-	// that "main" and "module" both have the same code but just in different
-	// formats. Then bundlers that support ES6 can prefer the "module" field
-	// over the "main" field for more efficient bundling. We prefer this if
-	// a module is never imported using "require".
-	absPathModule *string
+	absMainFields map[string]string
 
 	// Present if the "browser" field is present. This field is intended to be
 	// used by bundlers and lets you redirect the paths of certain 3rd-party
@@ -333,7 +352,6 @@ type packageJson struct {
 	// tell, the official spec is a GitHub repo hosted by a user account:
 	// https://github.com/defunctzombie/package-browser-field-spec. The npm docs
 	// say almost nothing: https://docs.npmjs.com/files/package.json.
-	absPathBrowser       *string
 	browserNonPackageMap map[string]*string
 	browserPackageMap    map[string]*string
 
@@ -726,10 +744,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// Are all main fields from "package.json" missing?
-	if info.packageJson == nil ||
-		(info.packageJson.absPathMain == nil &&
-			info.packageJson.absPathModule == nil &&
-			info.packageJson.absPathBrowser == nil) {
+	if info.packageJson == nil || info.packageJson.absMainFields == nil {
 		// Look for an "index" file with known extensions
 		if absolute, ok := r.loadAsIndex(path, entries); ok {
 			info.absPathIndex = &absolute
@@ -773,17 +788,21 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 
 	packageJson := &packageJson{}
 
-	// Read the "main" property
-	if mainJson, _, ok := getProperty(json, "main"); ok {
-		if main, ok := getString(mainJson); ok {
-			packageJson.absPathMain = toAbsPath(r.fs.Join(path, main), jsonSource.RangeOfString(mainJson.Loc))
-		}
+	// Read the "main" fields
+	mainFields := r.options.MainFields
+	if mainFields == nil {
+		mainFields = defaultMainFields[r.options.Platform]
 	}
-
-	// Read the "module" property
-	if moduleJson, _, ok := getProperty(json, "module"); ok {
-		if module, ok := getString(moduleJson); ok {
-			packageJson.absPathModule = toAbsPath(r.fs.Join(path, module), jsonSource.RangeOfString(moduleJson.Loc))
+	for _, field := range mainFields {
+		if mainJson, _, ok := getProperty(json, field); ok {
+			if main, ok := getString(mainJson); ok {
+				if packageJson.absMainFields == nil {
+					packageJson.absMainFields = make(map[string]string)
+				}
+				if absPath := toAbsPath(r.fs.Join(path, main), jsonSource.RangeOfString(mainJson.Loc)); absPath != nil {
+					packageJson.absMainFields[field] = *absPath
+				}
+			}
 		}
 	}
 
@@ -800,9 +819,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 		//     "./dist/index.node.esm.js": "./dist/index.browser.esm.js"
 		//   },
 		//
-		if browser, ok := getString(browserJson); ok {
-			packageJson.absPathBrowser = toAbsPath(r.fs.Join(path, browser), jsonSource.RangeOfString(browserJson.Loc))
-		} else if browser, ok := browserJson.Data.(*ast.EObject); ok {
+		if browser, ok := browserJson.Data.(*ast.EObject); ok {
 			// The value is an object
 			browserPackageMap := make(map[string]*string)
 			browserNonPackageMap := make(map[string]*string)
@@ -1006,47 +1023,44 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 	}
 
 	// Try using the main field(s) from "package.json"
-	if dirInfo.packageJson != nil {
-		// If the value is a string, then we should just replace the main path.
-		//
-		// Note that this means if a package specifies "main", "module", and
-		// "browser" then "browser" will win out over "module". This is the
-		// same behavior as webpack: https://github.com/webpack/webpack/issues/4674.
-		//
-		// This is deliberate because the presence of the "browser" field is a
-		// good signal that the "module" field may have non-browser stuff in it,
-		// which will crash or fail to be bundled when targeting the browser.
-		if r.options.Platform == config.PlatformBrowser {
-			if browser := dirInfo.packageJson.absPathBrowser; browser != nil {
-				return PathPair{Primary: logger.Path{Text: *browser, Namespace: "file"}}, true
+	if dirInfo.packageJson != nil && dirInfo.packageJson.absMainFields != nil {
+		absMainFields := dirInfo.packageJson.absMainFields
+		mainFields := r.options.MainFields
+		autoMain := false
+
+		// If the user has not explicitly specified a "main" field order,
+		// use a default one determined by the current platform target
+		if mainFields == nil {
+			mainFields = defaultMainFields[r.options.Platform]
+			autoMain = true
+		}
+
+		for _, field := range mainFields {
+			if absolute, ok := absMainFields[field]; ok {
+				// If the user did not manually configure a "main" field order, then
+				// use a special per-module automatic algorithm to decide whether to
+				// use "module" or "main" based on whether the package is imported
+				// using "import" or "require".
+				if autoMain && field == "module" {
+					if absoluteMain, ok := absMainFields["main"]; ok {
+						// If both the "main" and "module" fields exist, use "main" if the path is
+						// for "require" and "module" if the path is for "import". If we're using
+						// "module", return enough information to be able to fall back to "main"
+						// later if that decision was incorrect.
+						if kind != ast.ImportRequire {
+							return PathPair{
+								// This is the whole point of the path pair
+								Primary:   logger.Path{Text: absolute, Namespace: "file"},
+								Secondary: logger.Path{Text: absoluteMain, Namespace: "file"},
+							}, true
+						} else {
+							return PathPair{Primary: logger.Path{Text: absoluteMain, Namespace: "file"}}, true
+						}
+					}
+				}
+
+				return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true
 			}
-		}
-
-		main := dirInfo.packageJson.absPathMain
-		module := dirInfo.packageJson.absPathModule
-
-		// If both the "main" and "module" fields exist, use "main" if the path is
-		// for "require" and "module" if the path is for "import". If we're using
-		// "module", include enough information to be able to fall back to "main"
-		// later if that decision was incorrect.
-		if main != nil && module != nil {
-			if kind != ast.ImportRequire {
-				return PathPair{
-					// This is the whole point of the path pair
-					Primary:   logger.Path{Text: *module, Namespace: "file"},
-					Secondary: logger.Path{Text: *main, Namespace: "file"},
-				}, true
-			} else {
-				return PathPair{Primary: logger.Path{Text: *main, Namespace: "file"}}, true
-			}
-		}
-
-		// Otherwise just use the one exists, if any
-		if module != nil {
-			return PathPair{Primary: logger.Path{Text: *module, Namespace: "file"}}, true
-		}
-		if main != nil {
-			return PathPair{Primary: logger.Path{Text: *main, Namespace: "file"}}, true
 		}
 	}
 

@@ -183,6 +183,7 @@ type Options struct {
 	UnsupportedFeatures compat.Feature
 
 	ExtensionOrder  []string
+	MainFields      []string
 	ExternalModules ExternalModules
 
 	AbsOutputFile     string

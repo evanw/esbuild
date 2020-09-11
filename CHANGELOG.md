@@ -18,7 +18,15 @@
 
     The workaround for these problems in this release is that esbuild will now exclusively use `"main"` for a package that is loaded using `require()` at least once. Otherwise, if a package is only loaded using `import`, esbuild will exclusively use the `"module"` field. This still takes advantage of tree shaking for ECMAScript modules but gracefully falls back to CommonJS for compatibility.
 
-    Keep in mind that the [`"browser"` field](https://github.com/defunctzombie/package-browser-field-spec) still takes precedence over both `"module"` and `"main"`.
+    Keep in mind that the [`"browser"` field](https://github.com/defunctzombie/package-browser-field-spec) still takes precedence over both `"module"` and `"main"` when building for the browser platform.
+
+* Add the `--main-fields=` flag ([#363](https://github.com/evanw/esbuild/issues/363))
+
+    This adopts a configuration option from Webpack that lets you specify the order of "main fields" from `package.json` to use when determining the main module file for a package. Node only uses `main` but bundlers often respect other ones too such as `module` or `browser`. You can read more about this feature in the Webpack documentation [here](https://webpack.js.org/configuration/resolve/#resolvemainfields).
+
+    The default order when targeting the browser is essentially `browser,module,main` with the caveat that `main` may be chosen over `module` for CommonJS compatibility as described above. If choosing `module` over `main` at the expense of CommonJS compatibility is important to you, this behavior can be disabled by explicitly specifying `--main-fields=browser,module,main`.
+
+    The default order when targeting node is `main,module`. Note that this is different than Webpack, which defaults to `module,main`. This is also for compatibility because some packages incorrectly treat `module` as meaning "code for the browser" instead of what it actually means, which is "code for ES6 environments". Unfortunately this disables most tree shaking that would otherwise be possible because it means CommonJS modules will be chosen over ECMAScript modules. If choosing `module` over `main` is important to you (e.g. to potentially take advantage of improved tree shaking), this behavior can be disabled by explicitly specifying `--main-fields=module,main`.
 
 * Additional validation of arguments to JavaScript API calls ([#381](https://github.com/evanw/esbuild/issues/381))
 

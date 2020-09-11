@@ -58,6 +58,9 @@ Advanced options:
   --pure:N                  Mark the name N as a pure function for tree shaking
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
+  --main-fields=...         Override the main file order in package.json
+                            (default "browser,module,main" when platform is
+                            browser and "main,module" when platform is node)
   --color=...               Force use of color terminal escapes (true or false)
 
 Examples:

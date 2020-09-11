@@ -119,6 +119,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [str
   let platform = getFlag(options, keys, 'platform', mustBeString);
   let tsconfig = getFlag(options, keys, 'tsconfig', mustBeString);
   let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
+  let mainFields = getFlag(options, keys, 'mainFields', mustBeArray);
   let external = getFlag(options, keys, 'external', mustBeArray);
   let loader = getFlag(options, keys, 'loader', mustBeObject);
   let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
@@ -136,6 +137,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [str
   if (platform) flags.push(`--platform=${platform}`);
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
   if (resolveExtensions) flags.push(`--resolve-extensions=${resolveExtensions.join(',')}`);
+  if (mainFields) flags.push(`--resolve-extensions=${mainFields.join(',')}`);
   if (external) for (let name of external) flags.push(`--external:${name}`);
   if (loader) {
     for (let ext in loader) {

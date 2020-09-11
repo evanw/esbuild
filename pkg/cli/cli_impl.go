@@ -106,6 +106,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case strings.HasPrefix(arg, "--resolve-extensions=") && buildOpts != nil:
 			buildOpts.ResolveExtensions = strings.Split(arg[len("--resolve-extensions="):], ",")
 
+		case strings.HasPrefix(arg, "--main-fields=") && buildOpts != nil:
+			buildOpts.MainFields = strings.Split(arg[len("--main-fields="):], ",")
+
 		case strings.HasPrefix(arg, "--global-name="):
 			if buildOpts != nil {
 				buildOpts.GlobalName = arg[len("--global-name="):]

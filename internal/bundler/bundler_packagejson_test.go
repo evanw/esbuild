@@ -476,7 +476,7 @@ func TestPackageJsonBrowserOverModuleBrowser(t *testing.T) {
 	})
 }
 
-func TestPackageJsonBrowserOverModuleNode(t *testing.T) {
+func TestPackageJsonBrowserOverMainNode(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -562,7 +562,7 @@ func TestPackageJsonBrowserWithModuleBrowser(t *testing.T) {
 	})
 }
 
-func TestPackageJsonBrowserWithModuleNode(t *testing.T) {
+func TestPackageJsonBrowserWithMainNode(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -727,6 +727,42 @@ func TestPackageJsonDualPackageHazardImportAndRequireSeparateFiles(t *testing.T)
 	})
 }
 
+func TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import './test-main'
+				import './test-module'
+			`,
+			"/Users/user/project/src/test-main.js": `
+				console.log(require('demo-pkg'))
+			`,
+			"/Users/user/project/src/test-module.js": `
+				import value from 'demo-pkg'
+				console.log(value)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./module.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = 'main'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.js": `
+				export default 'module'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			MainFields:    []string{"module", "main"},
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestPackageJsonDualPackageHazardImportAndRequireBrowser(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -767,6 +803,64 @@ func TestPackageJsonDualPackageHazardImportAndRequireBrowser(t *testing.T) {
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonMainFieldsA(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import value from 'demo-pkg'
+				console.log(value)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"a": "./a.js",
+					"b": "./b.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/a.js": `
+				module.exports = 'a'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/b.js": `
+				export default 'b'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			MainFields:    []string{"a", "b"},
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonMainFieldsB(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import value from 'demo-pkg'
+				console.log(value)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"a": "./a.js",
+					"b": "./b.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/a.js": `
+				module.exports = 'a'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/b.js": `
+				export default 'b'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			MainFields:    []string{"b", "a"},
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 	})

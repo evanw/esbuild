@@ -431,6 +431,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		ExtensionOrder:    validateResolveExtensions(log, buildOpts.ResolveExtensions),
 		ExternalModules:   validateExternals(log, realFS, buildOpts.Externals),
 		TsConfigOverride:  validatePath(log, realFS, buildOpts.Tsconfig),
+		MainFields:        buildOpts.MainFields,
 	}
 	entryPaths := make([]string, len(buildOpts.EntryPoints))
 	for i, entryPoint := range buildOpts.EntryPoints {
