@@ -6578,9 +6578,14 @@ func (p *parser) visitAndAppendStmt(stmts []ast.Stmt, stmt ast.Stmt) []ast.Stmt 
 			name := p.loadNameFromRef(item.Name.Ref)
 			ref := p.findSymbol(item.AliasLoc, name).ref
 
-			// Strip exports of non-local symbols in TypeScript, since those likely
-			// correspond to type-only exports
-			if p.TS.Parse && p.symbols[ref.InnerIndex].Kind == ast.SymbolUnbound {
+			if p.symbols[ref.InnerIndex].Kind == ast.SymbolUnbound {
+				// Silently strip exports of non-local symbols in TypeScript, since
+				// those likely correspond to type-only exports. But report exports of
+				// non-local symbols as errors in JavaScript.
+				if !p.TS.Parse {
+					r := lexer.RangeOfIdentifier(p.source, item.Name.Loc)
+					p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q is not declared in this file", name))
+				}
 				continue
 			}
 

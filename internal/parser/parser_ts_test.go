@@ -1227,7 +1227,7 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrintedTS(t, "{ var Foo; } export {Foo}", "{\n  var Foo;\n}\nexport {Foo};\n")
 	expectPrintedTS(t, "{ let Foo; } export {Foo}", "{\n  let Foo;\n}\n")
 	expectPrintedTS(t, "export {Foo}", "")
-	expectPrinted(t, "export {Foo}", "export {Foo};\n")
+	expectParseError(t, "export {Foo}", "<stdin>: error: \"Foo\" is not declared in this file\n")
 }
 
 func TestTSOptionalChain(t *testing.T) {
