@@ -21,6 +21,10 @@
 
     It is now an error to export an identifier using `export {foo}` if `foo` is not declared locally in the same file. This error matches the error that would happen at run-time if the code were to be evaluated in a JavaScript environment that supports ES6 module syntax. This is only an error in JavaScript. In TypeScript, the missing identifier is silently removed instead since it's assumed to be a type name.
 
+* Handle source maps with out-of-order mappings ([#378](https://github.com/evanw/esbuild/issues/378))
+
+    Almost all tools that generate source maps write out the mappings in increasing order by generated position since the mappings are generated along with the output. However, some tools can apparently generate source maps with out-of-order mappings. It's impossible for generated line numbers to be out of order due to the way the source map format works, but it's possible for generated column numbers to be out of order. This release fixes this issue by sorting the mappings by generated position after parsing if necessary.
+
 ## 0.6.33
 
 * Fix precedence of tagged template expressions ([#372](https://github.com/evanw/esbuild/issues/372))

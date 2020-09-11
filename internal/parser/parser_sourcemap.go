@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -89,7 +90,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		return nil
 	}
 
-	var mappings []sourcemap.Mapping
+	var mappings mappingArray
 	mappingsLen := len(mappingsRaw)
 	sourcesLen := len(sources)
 	generatedLine := 0
@@ -100,6 +101,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	current := 0
 	errorText := ""
 	errorLen := 0
+	needSort := false
 
 	// Parse the mappings
 	for current < mappingsLen {
@@ -120,9 +122,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		}
 		if generatedColumnDelta < 0 {
 			// This would mess up binary search
-			errorText = "Unexpected generated column decrease"
-			errorLen = i
-			break
+			needSort = true
 		}
 		generatedColumn += generatedColumnDelta
 		if generatedColumn < 0 {
@@ -225,9 +225,29 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		return nil
 	}
 
+	if needSort {
+		// If we get here, some mappings are out of order. Lines can't be out of
+		// order by construction but columns can. This is a pretty rare situation
+		// because almost all source map generators always write out mappings in
+		// order as they write the output instead of scrambling the order.
+		sort.Stable(mappings)
+	}
+
 	return &sourcemap.SourceMap{
 		Sources:        sources,
 		SourcesContent: sourcesContent,
 		Mappings:       mappings,
 	}
+}
+
+// This type is just so we can use Go's native sort function
+type mappingArray []sourcemap.Mapping
+
+func (a mappingArray) Len() int          { return len(a) }
+func (a mappingArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a mappingArray) Less(i int, j int) bool {
+	ai := a[i]
+	aj := a[j]
+	return ai.GeneratedLine < aj.GeneratedLine || (ai.GeneratedLine == aj.GeneratedLine && ai.GeneratedColumn <= aj.GeneratedColumn)
 }
