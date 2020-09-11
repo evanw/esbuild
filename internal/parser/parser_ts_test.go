@@ -118,6 +118,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type x = {0: number, readonly 1: boolean}\n[]", "[];\n")
 	expectPrintedTS(t, "type x = {'a': number, readonly 'b': boolean}\n[]", "[];\n")
 	expectPrintedTS(t, "type\nFoo = {}", "type;\nFoo = {};\n")
+	expectParseErrorTS(t, "export type\nFoo = {}", "<stdin>: error: Unexpected newline after \"type\"\n")
 	expectPrintedTS(t, "let x: {x: 'a', y: false, z: null}", "let x;\n")
 	expectPrintedTS(t, "let x: {foo(): void}", "let x;\n")
 	expectPrintedTS(t, "let x: {['x']: number}", "let x;\n")

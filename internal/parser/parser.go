@@ -4434,7 +4434,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				switch p.lexer.Identifier {
 				case "type":
 					// "export type foo = ..."
+					typeRange := p.lexer.Range()
 					p.lexer.Next()
+					if p.lexer.HasNewlineBefore {
+						p.log.AddError(&p.source, logger.Loc{Start: typeRange.End()}, "Unexpected newline after \"type\"")
+						panic(lexer.LexerPanic{})
+					}
 					p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope, isExport: true})
 					return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
