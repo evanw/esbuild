@@ -19,8 +19,33 @@ import (
 // "false" using the "browser" field of "package.json".
 const BrowserFalseNamespace = "empty"
 
+// Path resolution is a mess. One tricky issue is the "module" override for the
+// "main" field in "package.json" files. Bundlers generally prefer "module" over
+// "main" but that breaks packages that export a function in "main" for use with
+// "require()", since resolving to "module" means an object will be returned. We
+// attempt to handle this automatically by having import statements resolve to
+// "module" but switch that out later for "main" if "require()" is used too.
+type PathPair struct {
+	// Either secondary will be empty, or primary will be "module" and secondary
+	// will be "main"
+	Primary   logger.Path
+	Secondary logger.Path
+}
+
+func (pp *PathPair) iter() []*logger.Path {
+	result := []*logger.Path{&pp.Primary, &pp.Secondary}
+	if !pp.HasSecondary() {
+		result = result[:1]
+	}
+	return result
+}
+
+func (pp *PathPair) HasSecondary() bool {
+	return pp.Secondary.Text != ""
+}
+
 type ResolveResult struct {
-	Path       logger.Path
+	PathPair   PathPair
 	IsExternal bool
 
 	// If not empty, these should override the default values
@@ -36,7 +61,7 @@ type ResolveResult struct {
 }
 
 type Resolver interface {
-	Resolve(sourceDir string, importPath string) *ResolveResult
+	Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult
 	ResolveAbs(absPath string) *ResolveResult
 	PrettyPath(path logger.Path) string
 }
@@ -75,11 +100,11 @@ func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourceDir string, importPath string) *ResolveResult {
+func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	result := r.resolveWithoutSymlinks(sourceDir, importPath)
+	result := r.resolveWithoutSymlinks(sourceDir, importPath, kind)
 	if result == nil {
 		return nil
 	}
@@ -93,39 +118,41 @@ func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 	defer r.mutex.Unlock()
 
 	// Just decorate the absolute path with information from parent directories
-	return r.finalizeResolve(ResolveResult{Path: logger.Path{Text: absPath, Namespace: "file"}})
+	return r.finalizeResolve(ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}})
 }
 
 func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
-	if result.Path.Namespace == "file" {
-		if dirInfo := r.dirInfoCached(r.fs.Dir(result.Path.Text)); dirInfo != nil {
-			base := r.fs.Base(result.Path.Text)
+	for _, path := range result.PathPair.iter() {
+		if path.Namespace == "file" {
+			if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
+				base := r.fs.Base(path.Text)
 
-			// Look up this file in the "sideEffects" map in the nearest enclosing
-			// directory with a "package.json" file
-			for info := dirInfo; info != nil; info = info.parent {
-				if info.packageJson != nil {
-					if info.packageJson.sideEffectsMap != nil {
-						result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[result.Path.Text]
+				// Look up this file in the "sideEffects" map in the nearest enclosing
+				// directory with a "package.json" file
+				for info := dirInfo; info != nil; info = info.parent {
+					if info.packageJson != nil {
+						if info.packageJson.sideEffectsMap != nil {
+							result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[path.Text]
+						}
+						break
 					}
-					break
 				}
-			}
 
-			// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-			if dirInfo.tsConfigJson != nil {
-				result.JSXFactory = dirInfo.tsConfigJson.jsxFactory
-				result.JSXFragment = dirInfo.tsConfigJson.jsxFragmentFactory
-				result.StrictClassFields = dirInfo.tsConfigJson.useDefineForClassFields
-			}
+				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
+				if path == &result.PathPair.Primary && dirInfo.tsConfigJson != nil {
+					result.JSXFactory = dirInfo.tsConfigJson.jsxFactory
+					result.JSXFragment = dirInfo.tsConfigJson.jsxFragmentFactory
+					result.StrictClassFields = dirInfo.tsConfigJson.useDefineForClassFields
+				}
 
-			if entry, ok := dirInfo.entries[base]; ok {
-				if symlink := entry.Symlink(); symlink != "" {
-					// Is this entry itself a symlink?
-					result.Path.Text = symlink
-				} else if dirInfo.absRealPath != "" {
-					// Is there at least one parent directory with a symlink?
-					result.Path.Text = r.fs.Join(dirInfo.absRealPath, base)
+				if entry, ok := dirInfo.entries[base]; ok {
+					if symlink := entry.Symlink(); symlink != "" {
+						// Is this entry itself a symlink?
+						path.Text = symlink
+					} else if dirInfo.absRealPath != "" {
+						// Is there at least one parent directory with a symlink?
+						path.Text = r.fs.Join(dirInfo.absRealPath, base)
+					}
 				}
 			}
 		}
@@ -134,10 +161,10 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 	return &result
 }
 
-func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) *ResolveResult {
+func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
-	result := ""
+	var result PathPair
 
 	// Return early if this is already an absolute path
 	if r.fs.IsAbs(importPath) {
@@ -146,7 +173,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) *
 			// been marked as an external module, mark it as *not* an absolute path.
 			// That way we preserve the literal text in the output and don't generate
 			// a relative path from the output directory to that path.
-			return &ResolveResult{Path: logger.Path{Text: importPath}, IsExternal: true}
+			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}
 		}
 	}
 
@@ -155,10 +182,10 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) *
 
 		// Check for external packages first
 		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[absPath] {
-			return &ResolveResult{Path: logger.Path{Text: absPath, Namespace: "file"}, IsExternal: true}
+			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}
 		}
 
-		if absolute, ok := r.loadAsFileOrDirectory(absPath); ok {
+		if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
 			result = absolute
 		} else {
 			return nil
@@ -169,7 +196,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) *
 			query := importPath
 			for {
 				if r.options.ExternalModules.NodeModules[query] {
-					return &ResolveResult{Path: logger.Path{Text: importPath}, IsExternal: true}
+					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath}}, IsExternal: true}
 				}
 
 				// If the module "foo" has been marked as external, we also want to treat
@@ -195,10 +222,14 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) *
 				if remapped, ok := packageJson.browserPackageMap[importPath]; ok {
 					if remapped == nil {
 						// "browser": {"module": false}
-						if absolute, ok := r.loadNodeModules(importPath, sourceDirInfo); ok {
-							return &ResolveResult{Path: logger.Path{Text: absolute, Namespace: BrowserFalseNamespace}}
+						if absolute, ok := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
+							absolute.Primary = logger.Path{Text: absolute.Primary.Text, Namespace: BrowserFalseNamespace}
+							if absolute.HasSecondary() {
+								absolute.Secondary = logger.Path{Text: absolute.Secondary.Text, Namespace: BrowserFalseNamespace}
+							}
+							return &ResolveResult{PathPair: absolute}
 						} else {
-							return &ResolveResult{Path: logger.Path{Text: importPath, Namespace: BrowserFalseNamespace}}
+							return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: BrowserFalseNamespace}}}
 						}
 					} else {
 						// "browser": {"module": "./some-file"}
@@ -210,7 +241,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) *
 			}
 		}
 
-		if absolute, ok := r.resolveWithoutRemapping(sourceDirInfo, importPath); ok {
+		if absolute, ok := r.resolveWithoutRemapping(sourceDirInfo, importPath, kind); ok {
 			result = absolute
 		} else {
 			// Note: node's "self references" are not currently supported
@@ -219,33 +250,35 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string) *
 	}
 
 	// Check the directory that contains this file
-	resultDir := r.fs.Dir(result)
-	resultDirInfo := r.dirInfoCached(resultDir)
+	for _, path := range result.iter() {
+		resultDir := r.fs.Dir(path.Text)
+		resultDirInfo := r.dirInfoCached(resultDir)
 
-	// Support remapping one non-module path to another via the "browser" field
-	if resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
-		packageJson := resultDirInfo.enclosingBrowserScope.packageJson
-		if packageJson.browserNonPackageMap != nil {
-			if remapped, ok := packageJson.browserNonPackageMap[result]; ok {
-				if remapped == nil {
-					return &ResolveResult{Path: logger.Path{Text: result, Namespace: BrowserFalseNamespace}}
-				}
-				result, ok = r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped)
-				if !ok {
-					return nil
+		// Support remapping one non-module path to another via the "browser" field
+		if resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
+			packageJson := resultDirInfo.enclosingBrowserScope.packageJson
+			if packageJson.browserNonPackageMap != nil {
+				if remapped, ok := packageJson.browserNonPackageMap[path.Text]; ok {
+					if remapped == nil {
+						path.Namespace = BrowserFalseNamespace
+					} else if remappedResult, ok := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
+						*path = remappedResult.Primary
+					} else {
+						return nil
+					}
 				}
 			}
 		}
 	}
 
-	return &ResolveResult{Path: logger.Path{Text: result, Namespace: "file"}}
+	return &ResolveResult{PathPair: result}
 }
 
-func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string) (string, bool) {
+func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool) {
 	if IsPackagePath(importPath) {
-		return r.loadNodeModules(importPath, sourceDirInfo)
+		return r.loadNodeModules(importPath, kind, sourceDirInfo)
 	} else {
-		return r.loadAsFileOrDirectory(r.fs.Join(sourceDirInfo.absPath, importPath))
+		return r.loadAsFileOrDirectory(r.fs.Join(sourceDirInfo.absPath, importPath), kind)
 	}
 }
 
@@ -273,19 +306,17 @@ func (r *resolver) PrettyPath(path logger.Path) string {
 ////////////////////////////////////////////////////////////////////////////////
 
 type packageJson struct {
-	// The package.json format has two ways to specify the main file for the
-	// package:
-	//
-	// * The "main" field. This is what node itself uses when you require() the
-	//   package. It's usually (always?) in CommonJS format.
-	//
-	// * The "module" field. This is supposed to be in ES6 format. The idea is
-	//   that "main" and "module" both have the same code but just in different
-	//   formats. Then bundlers that support ES6 can prefer the "module" field
-	//   over the "main" field for more efficient bundling. We support ES6 so
-	//   we always prefer the "module" field over the "main" field.
-	//
+	// The "main" field. This is what node itself uses when you require() the
+	// package. It's usually (always?) in CommonJS format. This is used when
+	// packages are imported via "require".
 	absPathMain *string
+
+	// The "module" field. This is supposed to be in ES6 format. The idea is
+	// that "main" and "module" both have the same code but just in different
+	// formats. Then bundlers that support ES6 can prefer the "module" field
+	// over the "main" field for more efficient bundling. We prefer this if
+	// a module is never imported using "require".
+	absPathModule *string
 
 	// Present if the "browser" field is present. This field is intended to be
 	// used by bundlers and lets you redirect the paths of certain 3rd-party
@@ -300,6 +331,7 @@ type packageJson struct {
 	// tell, the official spec is a GitHub repo hosted by a user account:
 	// https://github.com/defunctzombie/package-browser-field-spec. The npm docs
 	// say almost nothing: https://docs.npmjs.com/files/package.json.
+	absPathBrowser       *string
 	browserNonPackageMap map[string]*string
 	browserPackageMap    map[string]*string
 
@@ -691,8 +723,11 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		info.tsConfigJson = parentInfo.tsConfigJson
 	}
 
-	// Is the "main" field from "package.json" missing?
-	if info.packageJson == nil || info.packageJson.absPathMain == nil {
+	// Are all main fields from "package.json" missing?
+	if info.packageJson == nil ||
+		(info.packageJson.absPathMain == nil &&
+			info.packageJson.absPathModule == nil &&
+			info.packageJson.absPathBrowser == nil) {
 		// Look for an "index" file with known extensions
 		if absolute, ok := r.loadAsIndex(path, entries); ok {
 			info.absPathIndex = &absolute
@@ -714,52 +749,57 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 		return nil
 	}
 
+	toAbsPath := func(pathText string, pathRange logger.Range) *string {
+		// Is it a file?
+		if absolute, ok := r.loadAsFile(pathText); ok {
+			return &absolute
+		}
+
+		// Is it a directory?
+		if mainEntries, err := r.fs.ReadDirectory(pathText); err == nil {
+			// Look for an "index" file with known extensions
+			if absolute, ok := r.loadAsIndex(pathText, mainEntries); ok {
+				return &absolute
+			}
+		} else if err != syscall.ENOENT {
+			r.log.AddRangeError(&jsonSource, pathRange,
+				fmt.Sprintf("Cannot read directory %q: %s",
+					r.PrettyPath(logger.Path{Text: pathText, Namespace: "file"}), err.Error()))
+		}
+		return nil
+	}
+
 	packageJson := &packageJson{}
 
-	// Read the "module" property, or the "main" property as a fallback. We
-	// prefer the "module" property because it's supposed to be ES6 while the
-	// "main" property is supposed to be CommonJS, and ES6 helps us generate
-	// better code.
-	mainPath := ""
-	var mainRange logger.Range
-	if moduleJson, _, ok := getProperty(json, "module"); ok {
-		if main, ok := getString(moduleJson); ok {
-			mainPath = r.fs.Join(path, main)
-			mainRange = jsonSource.RangeOfString(moduleJson.Loc)
-		}
-	} else if mainJson, _, ok := getProperty(json, "main"); ok {
+	// Read the "main" property
+	if mainJson, _, ok := getProperty(json, "main"); ok {
 		if main, ok := getString(mainJson); ok {
-			mainPath = r.fs.Join(path, main)
-			mainRange = jsonSource.RangeOfString(mainJson.Loc)
+			packageJson.absPathMain = toAbsPath(r.fs.Join(path, main), jsonSource.RangeOfString(mainJson.Loc))
+		}
+	}
+
+	// Read the "module" property
+	if moduleJson, _, ok := getProperty(json, "module"); ok {
+		if module, ok := getString(moduleJson); ok {
+			packageJson.absPathModule = toAbsPath(r.fs.Join(path, module), jsonSource.RangeOfString(moduleJson.Loc))
 		}
 	}
 
 	// Read the "browser" property, but only when targeting the browser
 	if browserJson, _, ok := getProperty(json, "browser"); ok && r.options.Platform == config.PlatformBrowser {
+		// We both want the ability to have the option of CJS vs. ESM and the
+		// option of having node vs. browser. The way to do this is to use the
+		// object literal form of the "browser" field like this:
+		//
+		//   "main": "dist/index.node.cjs.js",
+		//   "module": "dist/index.node.esm.js",
+		//   "browser": {
+		//     "./dist/index.node.cjs.js": "./dist/index.browser.cjs.js",
+		//     "./dist/index.node.esm.js": "./dist/index.browser.esm.js"
+		//   },
+		//
 		if browser, ok := getString(browserJson); ok {
-			// If the value is a string, then we should just replace the main path.
-			//
-			// Note that this means if a package specifies "main", "module", and
-			// "browser" then "browser" will win out over "module". This is the
-			// same behavior as webpack: https://github.com/webpack/webpack/issues/4674.
-			//
-			// This is deliberate because the presence of the "browser" field is a
-			// good signal that the "module" field may have non-browser stuff in it,
-			// which will crash or fail to be bundled when targeting the browser.
-			//
-			// We both want the ability to have the option of CJS vs. ESM and the
-			// option of having node vs. browser. The way to do this is to use the
-			// object literal form of the "browser" field like this:
-			//
-			//   "main": "dist/index.node.cjs.js",
-			//   "module": "dist/index.node.esm.js",
-			//   "browser": {
-			//     "./dist/index.node.cjs.js": "./dist/index.browser.cjs.js",
-			//     "./dist/index.node.esm.js": "./dist/index.browser.esm.js"
-			//   },
-			//
-			mainPath = r.fs.Join(path, browser)
-			mainRange = jsonSource.RangeOfString(browserJson.Loc)
+			packageJson.absPathBrowser = toAbsPath(r.fs.Join(path, browser), jsonSource.RangeOfString(browserJson.Loc))
 		} else if browser, ok := browserJson.Data.(*ast.EObject); ok {
 			// The value is an object
 			browserPackageMap := make(map[string]*string)
@@ -825,27 +865,6 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 		default:
 			r.log.AddWarning(&jsonSource, sideEffectsJson.Loc,
 				"Invalid value for \"sideEffects\"")
-		}
-	}
-
-	// Delay parsing "main" into an absolute path in case "browser" replaces it
-	if mainPath != "" {
-		// Is it a file?
-		if absolute, ok := r.loadAsFile(mainPath); ok {
-			packageJson.absPathMain = &absolute
-		} else {
-			// Is it a directory?
-			mainEntries, err := r.fs.ReadDirectory(mainPath)
-			if err == nil {
-				// Look for an "index" file with known extensions
-				if absolute, ok = r.loadAsIndex(mainPath, mainEntries); ok {
-					packageJson.absPathMain = &absolute
-				}
-			} else if err != syscall.ENOENT {
-				r.log.AddRangeError(&jsonSource, mainRange,
-					fmt.Sprintf("Cannot read directory %q: %s",
-						r.PrettyPath(logger.Path{Text: mainPath, Namespace: "file"}), err.Error()))
-			}
 		}
 	}
 
@@ -971,46 +990,86 @@ func getBool(json ast.Expr) (bool, bool) {
 	return false, false
 }
 
-func (r *resolver) loadAsFileOrDirectory(path string) (string, bool) {
+func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool) {
 	// Is this a file?
 	absolute, ok := r.loadAsFile(path)
 	if ok {
-		return absolute, true
+		return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true
 	}
 
 	// Is this a directory?
 	dirInfo := r.dirInfoCached(path)
 	if dirInfo == nil {
-		return "", false
+		return PathPair{}, false
 	}
 
-	// Return the "main" field from "package.json"
-	if dirInfo.packageJson != nil && dirInfo.packageJson.absPathMain != nil {
-		return *dirInfo.packageJson.absPathMain, true
+	// Try using the main field(s) from "package.json"
+	if dirInfo.packageJson != nil {
+		// If the value is a string, then we should just replace the main path.
+		//
+		// Note that this means if a package specifies "main", "module", and
+		// "browser" then "browser" will win out over "module". This is the
+		// same behavior as webpack: https://github.com/webpack/webpack/issues/4674.
+		//
+		// This is deliberate because the presence of the "browser" field is a
+		// good signal that the "module" field may have non-browser stuff in it,
+		// which will crash or fail to be bundled when targeting the browser.
+		if r.options.Platform == config.PlatformBrowser {
+			if browser := dirInfo.packageJson.absPathBrowser; browser != nil {
+				return PathPair{Primary: logger.Path{Text: *browser, Namespace: "file"}}, true
+			}
+		}
+
+		main := dirInfo.packageJson.absPathMain
+		module := dirInfo.packageJson.absPathModule
+
+		// If both the "main" and "module" fields exist, use "main" if the path is
+		// for "require" and "module" if the path is for "import". If we're using
+		// "module", include enough information to be able to fall back to "main"
+		// later if that decision was incorrect.
+		if main != nil && module != nil {
+			if kind != ast.ImportRequire {
+				return PathPair{
+					// This is the whole point of the path pair
+					Primary:   logger.Path{Text: *module, Namespace: "file"},
+					Secondary: logger.Path{Text: *main, Namespace: "file"},
+				}, true
+			} else {
+				return PathPair{Primary: logger.Path{Text: *main, Namespace: "file"}}, true
+			}
+		}
+
+		// Otherwise just use the one exists, if any
+		if module != nil {
+			return PathPair{Primary: logger.Path{Text: *module, Namespace: "file"}}, true
+		}
+		if main != nil {
+			return PathPair{Primary: logger.Path{Text: *main, Namespace: "file"}}, true
+		}
 	}
 
 	// Return the "index.js" file
 	if dirInfo.absPathIndex != nil {
-		return *dirInfo.absPathIndex, true
+		return PathPair{Primary: logger.Path{Text: *dirInfo.absPathIndex, Namespace: "file"}}, true
 	}
 
-	return "", false
+	return PathPair{}, false
 }
 
 // This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
 // official TypeScript compiler
-func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string) (string, bool) {
+func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, kind ast.ImportKind) (PathPair, bool) {
 	// Check for exact matches first
 	for key, originalPaths := range tsConfigJson.paths {
 		if key == path {
 			for _, originalPath := range originalPaths {
 				// Load the original path relative to the "baseUrl" from tsconfig.json
 				absoluteOriginalPath := r.fs.Join(*tsConfigJson.absPathBaseUrl, originalPath)
-				if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath); ok {
+				if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 					return absolute, true
 				}
 			}
-			return "", false
+			return PathPair{}, false
 		}
 	}
 
@@ -1056,28 +1115,28 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string) (
 
 			// Load the original path relative to the "baseUrl" from tsconfig.json
 			absoluteOriginalPath := r.fs.Join(*tsConfigJson.absPathBaseUrl, originalPath)
-			if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath); ok {
+			if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 				return absolute, true
 			}
 		}
 	}
 
-	return "", false
+	return PathPair{}, false
 }
 
-func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool) {
+func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 	if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
 		// Try path substitutions first
 		if dirInfo.tsConfigJson.paths != nil {
-			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJson, path); ok {
+			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJson, path, kind); ok {
 				return absolute, true
 			}
 		}
 
 		// Try looking up the path relative to the base URL
 		basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
-		if absolute, ok := r.loadAsFileOrDirectory(basePath); ok {
+		if absolute, ok := r.loadAsFileOrDirectory(basePath, kind); ok {
 			return absolute, true
 		}
 	}
@@ -1087,7 +1146,7 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 		// Skip directories that are themselves called "node_modules", since we
 		// don't ever want to search for "node_modules/node_modules"
 		if dirInfo.hasNodeModules {
-			absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(dirInfo.absPath, "node_modules", path))
+			absolute, ok := r.loadAsFileOrDirectory(r.fs.Join(dirInfo.absPath, "node_modules", path), kind)
 			if ok {
 				return absolute, true
 			}
@@ -1100,7 +1159,7 @@ func (r *resolver) loadNodeModules(path string, dirInfo *dirInfo) (string, bool)
 		}
 	}
 
-	return "", false
+	return PathPair{}, false
 }
 
 // Package paths are loaded from a "node_modules" directory. Non-package paths

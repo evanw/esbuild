@@ -6,6 +6,20 @@
 
     Output files that start with a hashbang line such as `#!/usr/bin/env node` will now automatically be marked as executable. This lets you run them directly in a Unix-like shell without using the `node` command.
 
+* Use `"main"` for `require()` and `"module"` for `import` ([#363](https://github.com/evanw/esbuild/issues/363))
+
+    The [node module resolution algorithm](https://nodejs.org/api/modules.html#modules_all_together) uses the `"main"` field in `package.json` to determine which file to load when a package is loaded with `require()`. Independent of node, most bundlers have converged on a convention where the `"module"` field takes precedence over the `"main"` field when present. Package authors can then use the `"module"` field to publish the same code in a different format for bundlers than for node.
+
+    This is commonly used to publish "dual packages" that appear to use ECMAScript modules to bundlers but that appear to use CommonJS modules to node. This is useful because ECMAScript modules improve bundler output by taking advantage of "tree shaking" (basically dead-code elimination) and because ECMAScript modules cause lots of problems in node (for example, node doesn't support importing ECMAScript modules using `require()`).
+
+    The problem is that if code using `require()` resolves to the `"module"` field in esbuild, the resulting value is currently always an object. ECMAScript modules export a namespace containing all exported properties. There is no direct equivalent of `module.exports = value` in CommonJS. The closest is `export default value` but the CommonJS equivalent of that is `exports.default = value`. This is problematic for code containing `module.exports = function() {}` which is a frequently-used CommonJS library pattern. An example of such an issue is Webpack issue [#6584](https://github.com/webpack/webpack/issues/6584).
+
+    An often-proposed way to fix this is to map `require()` to `"main"` and map `import` to `"module"`. The problem with this is that it means the same package would be loaded into memory more than once if it is loaded both with `require()` and with `import` (perhaps from separate packages). An example of such an issue is GraphQL issue [#1479](https://github.com/graphql/graphql-js/issues/1479#issuecomment-416718578).
+
+    The workaround for these problems in this release is that esbuild will now exclusively use `"main"` for a package that is loaded using `require()` at least once. Otherwise, if a package is only loaded using `import`, esbuild will exclusively use the `"module"` field. This still takes advantage of tree shaking for ECMAScript modules but gracefully falls back to CommonJS for compatibility.
+
+    Keep in mind that the [`"browser"` field](https://github.com/defunctzombie/package-browser-field-spec) still takes precedence over both `"module"` and `"main"`.
+
 ## 0.6.34
 
 * Fix parsing of `type;` statements followed by an identifier in TypeScript ([#377](https://github.com/evanw/esbuild/pull/377))

@@ -219,6 +219,72 @@ function main_esm_default() {
 console.log(main_esm_default());
 
 ================================================================================
+TestPackageJsonDualPackageHazardImportAndRequireBrowser
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/main.browser.js
+var require_main_browser = __commonJS((exports, module) => {
+  module.exports = "browser main";
+});
+
+// /Users/user/project/src/test-main.js
+console.log(require_main_browser());
+
+// /Users/user/project/src/test-module.js
+const demo_pkg = __toModule(require_main_browser());
+console.log(demo_pkg.default);
+
+// /Users/user/project/src/entry.js
+
+================================================================================
+TestPackageJsonDualPackageHazardImportAndRequireSameFile
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  module.exports = "main";
+});
+
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_main());
+console.log(demo_pkg.default, require_main());
+
+================================================================================
+TestPackageJsonDualPackageHazardImportAndRequireSeparateFiles
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  module.exports = "main";
+});
+
+// /Users/user/project/src/test-main.js
+console.log(require_main());
+
+// /Users/user/project/src/test-module.js
+const demo_pkg = __toModule(require_main());
+console.log(demo_pkg.default);
+
+// /Users/user/project/src/entry.js
+
+================================================================================
+TestPackageJsonDualPackageHazardImportOnly
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/module.js
+var module_default = "module";
+
+// /Users/user/project/src/entry.js
+console.log(module_default);
+
+================================================================================
+TestPackageJsonDualPackageHazardRequireOnly
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/main.js
+var require_main = __commonJS((exports, module) => {
+  module.exports = "main";
+});
+
+// /Users/user/project/src/entry.js
+console.log(require_main());
+
+================================================================================
 TestPackageJsonMain
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/node_modules/demo-pkg/custom-main.js

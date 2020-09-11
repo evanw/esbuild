@@ -608,3 +608,166 @@ func TestPackageJsonBrowserWithModuleNode(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageJsonDualPackageHazardImportOnly(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import value from 'demo-pkg'
+				console.log(value)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./module.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = 'main'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.js": `
+				export default 'module'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonDualPackageHazardRequireOnly(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				console.log(require('demo-pkg'))
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./module.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = 'main'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.js": `
+				export default 'module'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonDualPackageHazardImportAndRequireSameFile(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import value from 'demo-pkg'
+				console.log(value, require('demo-pkg'))
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./module.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = 'main'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.js": `
+				export default 'module'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonDualPackageHazardImportAndRequireSeparateFiles(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import './test-main'
+				import './test-module'
+			`,
+			"/Users/user/project/src/test-main.js": `
+				console.log(require('demo-pkg'))
+			`,
+			"/Users/user/project/src/test-module.js": `
+				import value from 'demo-pkg'
+				console.log(value)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./module.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = 'main'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.js": `
+				export default 'module'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonDualPackageHazardImportAndRequireBrowser(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import './test-main'
+				import './test-module'
+			`,
+			"/Users/user/project/src/test-main.js": `
+				console.log(require('demo-pkg'))
+			`,
+			"/Users/user/project/src/test-module.js": `
+				import value from 'demo-pkg'
+				console.log(value)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./main.js",
+					"module": "./module.js",
+					"browser": {
+						"./main.js": "./main.browser.js",
+						"./module.js": "./module.browser.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.js": `
+				module.exports = 'main'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.js": `
+				export default 'module'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/main.browser.js": `
+				module.exports = 'browser main'
+			`,
+			"/Users/user/project/node_modules/demo-pkg/module.browser.js": `
+				export default 'browser module'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}

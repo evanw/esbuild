@@ -257,7 +257,8 @@ func parseFile(args parseArgs) {
 		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
 
 		if len(result.file.ast.ImportRecords) > 0 {
-			cache := make(map[string]*resolver.ResolveResult)
+			cacheRequire := make(map[string]*resolver.ResolveResult)
+			cacheImport := make(map[string]*resolver.ResolveResult)
 
 			// Resolve relative to the parent directory of the source file with the
 			// import path. Just use the current directory if the source file is virtual.
@@ -279,13 +280,17 @@ func parseFile(args parseArgs) {
 					}
 
 					// Cache the path in case it's imported multiple times in this file
+					cache := cacheImport
+					if record.Kind == ast.ImportRequire {
+						cache = cacheRequire
+					}
 					if resolveResult, ok := cache[record.Path.Text]; ok {
 						result.resolveResults[importRecordIndex] = resolveResult
 						continue
 					}
 
 					// Run the resolver and log an error if the path couldn't be resolved
-					resolveResult := args.res.Resolve(sourceDir, record.Path.Text)
+					resolveResult := args.res.Resolve(sourceDir, record.Path.Text, record.Kind)
 					cache[record.Path.Text] = resolveResult
 
 					if resolveResult == nil {
@@ -402,10 +407,9 @@ func hashForFileName(bytes []byte) string {
 }
 
 func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
-	sources := []logger.Source{}
-	files := []file{}
+	results := []parseResult{}
 	visited := make(map[string]uint32)
-	results := make(chan parseResult)
+	resultChannel := make(chan parseResult)
 	remaining := 0
 
 	if options.ExtensionToLoader == nil {
@@ -414,12 +418,11 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 	// Always start by parsing the runtime file
 	{
-		sources = append(sources, logger.Source{})
-		files = append(files, file{})
+		results = append(results, parseResult{})
 		remaining++
 		go func() {
 			source, ast, ok := globalRuntimeCache.parseRuntime(&options)
-			results <- parseResult{source: source, file: file{ast: ast}, ok: ok}
+			resultChannel <- parseResult{source: source, file: file{ast: ast}, ok: ok}
 		}()
 	}
 
@@ -439,16 +442,16 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		absResolveDir string,
 		kind inputKind,
 	) uint32 {
-		visitedKey := resolveResult.Path.Text
-		if resolveResult.Path.Namespace == "file" {
+		path := resolveResult.PathPair.Primary
+		visitedKey := path.Text
+		if path.Namespace == "file" {
 			visitedKey = lowerCaseAbsPathForWindows(visitedKey)
 		}
 		sourceIndex, ok := visited[visitedKey]
 		if !ok {
-			sourceIndex = uint32(len(sources))
+			sourceIndex = uint32(len(results))
 			visited[visitedKey] = sourceIndex
-			sources = append(sources, logger.Source{})
-			files = append(files, file{})
+			results = append(results, parseResult{})
 			flags := parseFlags{
 				isEntryPoint:      kind == inputKindEntryPoint,
 				ignoreIfUnused:    resolveResult.IgnoreIfUnused,
@@ -465,15 +468,15 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				fs:              fs,
 				log:             log,
 				res:             res,
-				keyPath:         resolveResult.Path,
+				keyPath:         path,
 				prettyPath:      prettyPath,
-				baseName:        fs.Base(resolveResult.Path.Text),
+				baseName:        fs.Base(path.Text),
 				sourceIndex:     sourceIndex,
 				importSource:    importSource,
 				flags:           flags,
 				importPathRange: importPathRange,
 				options:         optionsClone,
-				results:         results,
+				results:         resultChannel,
 				absResolveDir:   absResolveDir,
 			})
 		}
@@ -485,7 +488,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 	// Treat stdin as an extra entry point
 	if options.Stdin != nil {
-		resolveResult := resolver.ResolveResult{Path: logger.Path{Text: "<stdin>"}}
+		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: logger.Path{Text: "<stdin>"}}}
 		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, options.Stdin.AbsResolveDir, inputKindStdin)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
@@ -512,9 +515,54 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
+	// Continue scanning until all dependencies have been discovered
 	for remaining > 0 {
-		result := <-results
+		result := <-resultChannel
 		remaining--
+		if !result.ok {
+			continue
+		}
+
+		// Don't try to resolve paths if we're not bundling
+		if options.Mode == config.ModeBundle {
+			for _, part := range result.file.ast.Parts {
+				for _, importRecordIndex := range part.ImportRecordIndices {
+					record := &result.file.ast.ImportRecords[importRecordIndex]
+
+					// Skip this import record if the previous resolver call failed
+					resolveResult := result.resolveResults[importRecordIndex]
+					if resolveResult == nil {
+						continue
+					}
+
+					path := resolveResult.PathPair.Primary
+					if !resolveResult.IsExternal {
+						// Handle a path within the bundle
+						prettyPath := res.PrettyPath(path)
+						pathRange := result.source.RangeOfString(record.Loc)
+						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.source, pathRange, "", inputKindNormal)
+						record.SourceIndex = &sourceIndex
+					} else {
+						// If the path to the external module is relative to the source
+						// file, rewrite the path to be relative to the working directory
+						if path.Namespace == "file" {
+							if relPath, ok := fs.Rel(options.AbsOutputDir, path.Text); ok {
+								// Prevent issues with path separators being different on Windows
+								record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
+							}
+						}
+					}
+				}
+			}
+		}
+
+		results[result.source.Index] = result
+	}
+
+	// Now that all files have been scanned, process the final file import records
+	sources := make([]logger.Source, len(results))
+	files := make([]file, len(results))
+	for _, result := range results {
 		if !result.ok {
 			continue
 		}
@@ -537,37 +585,39 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 					// Skip this import record if the previous resolver call failed
 					resolveResult := result.resolveResults[importRecordIndex]
-					if resolveResult == nil {
+					if resolveResult == nil || record.SourceIndex == nil {
 						continue
 					}
 
-					if !resolveResult.IsExternal {
-						// Handle a path within the bundle
-						prettyPath := res.PrettyPath(resolveResult.Path)
-						importPathRange := source.RangeOfString(record.Loc)
-						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &source, importPathRange, "", inputKindNormal)
-						record.SourceIndex = &sourceIndex
+					// Now that all files have been scanned, look for packages that are imported
+					// both with "import" and "require". Rewrite any imports that reference the
+					// "module" package.json field to the "main" package.json field instead.
+					//
+					// This attempts to automatically avoid the "dual package hazard" where a
+					// package has both a CommonJS module version and an ECMAScript module
+					// version and exports a non-object in CommonJS (often a function). If we
+					// pick the "module" field and the package is imported with "require" then
+					// code expecting a function will crash.
+					if resolveResult.PathPair.HasSecondary() {
+						secondaryKey := resolveResult.PathPair.Secondary.Text
+						if resolveResult.PathPair.Secondary.Namespace == "file" {
+							secondaryKey = lowerCaseAbsPathForWindows(secondaryKey)
+						}
+						if secondarySourceIndex, ok := visited[secondaryKey]; ok {
+							record.SourceIndex = &secondarySourceIndex
+						}
+					}
 
-						// Generate metadata about each import
-						if options.AbsMetadataFile != "" {
-							if isFirstImport {
-								isFirstImport = false
-								j.AddString("\n        ")
-							} else {
-								j.AddString(",\n        ")
-							}
-							j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-								printer.QuoteForJSON(prettyPath)))
+					// Generate metadata about each import
+					if options.AbsMetadataFile != "" {
+						if isFirstImport {
+							isFirstImport = false
+							j.AddString("\n        ")
+						} else {
+							j.AddString(",\n        ")
 						}
-					} else {
-						// If the path to the external module is relative to the source
-						// file, rewrite the path to be relative to the working directory
-						if resolveResult.Path.Namespace == "file" {
-							if relPath, ok := fs.Rel(options.AbsOutputDir, resolveResult.Path.Text); ok {
-								// Prevent issues with path separators being different on Windows
-								record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
-							}
-						}
+						j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
+							printer.QuoteForJSON(results[*record.SourceIndex].source.PrettyPath)))
 					}
 				}
 			}
