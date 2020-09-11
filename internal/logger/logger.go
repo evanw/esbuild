@@ -13,9 +13,9 @@ import (
 )
 
 type Log struct {
-	addMsg    func(Msg)
-	hasErrors func() bool
-	done      func() []Msg
+	AddMsg    func(Msg)
+	HasErrors func() bool
+	Done      func() []Msg
 }
 
 type LogLevel int8
@@ -195,7 +195,7 @@ func NewStderrLog(options StderrOptions) Log {
 	}
 
 	return Log{
-		addMsg: func(msg Msg) {
+		AddMsg: func(msg Msg) {
 			mutex.Lock()
 			defer mutex.Unlock()
 			msgs = append(msgs, msg)
@@ -227,12 +227,12 @@ func NewStderrLog(options StderrOptions) Log {
 				}
 			}
 		},
-		hasErrors: func() bool {
+		HasErrors: func() bool {
 			mutex.Lock()
 			defer mutex.Unlock()
 			return errors > 0
 		},
-		done: func() []Msg {
+		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
 
@@ -247,7 +247,11 @@ func NewStderrLog(options StderrOptions) Log {
 }
 
 func PrintErrorToStderr(osArgs []string, text string) {
-	options := StderrOptions{}
+	PrintMessageToStderr(osArgs, Msg{Kind: Error, Text: text})
+}
+
+func PrintMessageToStderr(osArgs []string, msg Msg) {
+	options := StderrOptions{IncludeSource: true}
 
 	// Implement a mini argument parser so these options always work even if we
 	// haven't yet gotten to the general-purpose argument parsing code
@@ -267,7 +271,7 @@ func PrintErrorToStderr(osArgs []string, text string) {
 	}
 
 	log := NewStderrLog(options)
-	log.AddError(nil, Loc{}, text)
+	log.AddMsg(msg)
 	log.Done()
 }
 
@@ -277,7 +281,7 @@ func NewDeferLog() Log {
 	var hasErrors bool
 
 	return Log{
-		addMsg: func(msg Msg) {
+		AddMsg: func(msg Msg) {
 			mutex.Lock()
 			defer mutex.Unlock()
 			if msg.Kind == Error {
@@ -285,12 +289,12 @@ func NewDeferLog() Log {
 			}
 			msgs = append(msgs, msg)
 		},
-		hasErrors: func() bool {
+		HasErrors: func() bool {
 			mutex.Lock()
 			defer mutex.Unlock()
 			return hasErrors
 		},
-		done: func() []Msg {
+		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
 			return msgs
@@ -355,7 +359,7 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 	d := detailStruct(msg, terminalInfo)
 
 	if terminalInfo.UseColorEscapes {
-		return fmt.Sprintf("%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s\n",
+		return fmt.Sprintf("%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s\n",
 			colorBold, d.Path,
 			d.Line,
 			d.Column,
@@ -363,11 +367,11 @@ func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
 			colorResetBold, d.Message,
 			colorReset, d.SourceBefore, colorGreen, d.SourceMarked, colorReset, d.SourceAfter,
 			colorGreen, d.Indent, d.Marker,
-			colorReset)
+			colorReset, d.ContentAfter)
 	}
 
-	return fmt.Sprintf("%s:%d:%d: %s: %s\n%s\n%s%s\n",
-		d.Path, d.Line, d.Column, d.Kind, d.Message, d.Source, d.Indent, d.Marker)
+	return fmt.Sprintf("%s:%d:%d: %s: %s\n%s\n%s%s%s\n",
+		d.Path, d.Line, d.Column, d.Kind, d.Message, d.Source, d.Indent, d.Marker, d.ContentAfter)
 }
 
 type MsgDetail struct {
@@ -385,10 +389,15 @@ type MsgDetail struct {
 
 	Indent string
 	Marker string
+
+	ContentAfter string
 }
 
 func computeLineAndColumn(contents string, offset int) (lineCount int, columnCount int, lineStart int, lineEnd int) {
 	var prevCodePoint rune
+	if offset > len(contents) {
+		offset = len(contents)
+	}
 
 	// Scan up to the offset and count lines
 	for i, codePoint := range contents[:offset] {
@@ -419,39 +428,63 @@ loop:
 	return
 }
 
-func locationOrNil(source *Source, start int32, length int32) *MsgLocation {
+func locationOrNil(source *Source, r Range) *MsgLocation {
 	if source == nil {
 		return nil
 	}
 
 	// Convert the index into a line and column number
-	lineCount, columnCount, lineStart, lineEnd := computeLineAndColumn(source.Contents, int(start))
+	lineCount, columnCount, lineStart, lineEnd := computeLineAndColumn(source.Contents, int(r.Loc.Start))
 
 	return &MsgLocation{
 		File:     source.PrettyPath,
 		Line:     lineCount + 1, // 0-based to 1-based
 		Column:   columnCount,
-		Length:   int(length),
+		Length:   int(r.Len),
 		LineText: source.Contents[lineStart:lineEnd],
 	}
 }
 
 func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
+	// Only highlight the first line of the line text
+	loc := *msg.Location
+	endOfFirstLine := len(loc.LineText)
+	for i, c := range loc.LineText {
+		if c == '\r' || c == '\n' || c == '\u2028' || c == '\u2029' {
+			endOfFirstLine = i
+			break
+		}
+	}
+	firstLine := loc.LineText[:endOfFirstLine]
+	afterFirstLine := loc.LineText[endOfFirstLine:]
+
+	// Clamp values in range
+	if loc.Line < 0 {
+		loc.Line = 0
+	}
+	if loc.Column < 0 {
+		loc.Column = 0
+	}
+	if loc.Length < 0 {
+		loc.Length = 0
+	}
+	if loc.Column > endOfFirstLine {
+		loc.Column = endOfFirstLine
+	}
+	if loc.Length > endOfFirstLine-loc.Column {
+		loc.Length = endOfFirstLine - loc.Column
+	}
+
 	spacesPerTab := 2
-	loc := msg.Location
-	lineText := renderTabStops(loc.LineText, spacesPerTab)
-	indent := strings.Repeat(" ", len(renderTabStops(loc.LineText[:loc.Column], spacesPerTab)))
+	lineText := renderTabStops(firstLine, spacesPerTab)
+	indent := strings.Repeat(" ", len(renderTabStops(firstLine[:loc.Column], spacesPerTab)))
 	marker := "^"
 	markerStart := len(indent)
 	markerEnd := len(indent)
 
 	// Extend markers to cover the full range of the error
 	if loc.Length > 0 {
-		end := loc.Column + loc.Length
-		if end > len(loc.LineText) {
-			end = len(loc.LineText)
-		}
-		markerEnd = len(renderTabStops(loc.LineText[:end], spacesPerTab))
+		markerEnd = len(renderTabStops(firstLine[:loc.Column+loc.Length], spacesPerTab))
 	}
 
 	// Clip the marker to the bounds of the line
@@ -541,6 +574,8 @@ func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
 
 		Indent: indent,
 		Marker: marker,
+
+		ContentAfter: afterFirstLine,
 	}
 }
 
@@ -568,42 +603,34 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 	return withoutTabs.String()
 }
 
-func (log Log) HasErrors() bool {
-	return log.hasErrors()
-}
-
-func (log Log) Done() []Msg {
-	return log.done()
-}
-
 func (log Log) AddError(source *Source, loc Loc, text string) {
-	log.addMsg(Msg{
+	log.AddMsg(Msg{
 		Kind:     Error,
 		Text:     text,
-		Location: locationOrNil(source, loc.Start, 0),
+		Location: locationOrNil(source, Range{Loc: loc}),
 	})
 }
 
 func (log Log) AddWarning(source *Source, loc Loc, text string) {
-	log.addMsg(Msg{
+	log.AddMsg(Msg{
 		Kind:     Warning,
 		Text:     text,
-		Location: locationOrNil(source, loc.Start, 0),
+		Location: locationOrNil(source, Range{Loc: loc}),
 	})
 }
 
 func (log Log) AddRangeError(source *Source, r Range, text string) {
-	log.addMsg(Msg{
+	log.AddMsg(Msg{
 		Kind:     Error,
 		Text:     text,
-		Location: locationOrNil(source, r.Loc.Start, r.Len),
+		Location: locationOrNil(source, r),
 	})
 }
 
 func (log Log) AddRangeWarning(source *Source, r Range, text string) {
-	log.addMsg(Msg{
+	log.AddMsg(Msg{
 		Kind:     Warning,
 		Text:     text,
-		Location: locationOrNil(source, r.Loc.Start, r.Len),
+		Location: locationOrNil(source, r),
 	})
 }

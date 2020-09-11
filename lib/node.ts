@@ -98,6 +98,7 @@ let startService: typeof types.startService = options => {
     writeToStdin(bytes) {
       child.stdin.write(bytes);
     },
+    readFileSync: fs.readFileSync,
   });
   child.stdout.on('data', readFromStdout);
   child.stdout.on('end', afterClose);

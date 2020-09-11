@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
 )
@@ -151,6 +152,18 @@ func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) 
 
 		case "transform":
 			return service.handleTransformRequest(p.id, request)
+
+		case "error":
+			// This just exists so that errors during JavaScript API setup get printed
+			// nicely to the console. This matters if the JavaScript API setup code
+			// swallows thrown errors. We still want to be able to see the error.
+			flags := decodeStringArray(request["flags"].([]interface{}))
+			msg := decodeMessageToPrivate(request["error"].(map[string]interface{}))
+			logger.PrintMessageToStderr(flags, msg)
+			return encodePacket(packet{
+				id:    p.id,
+				value: make(map[string]interface{}),
+			})
 
 		default:
 			return encodePacket(packet{
@@ -328,4 +341,23 @@ func encodeMessages(msgs []api.Message) []interface{} {
 		}
 	}
 	return values
+}
+
+func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
+	msg := logger.Msg{Text: obj["text"].(string)}
+
+	// Some messages won't have a location
+	loc := obj["location"]
+	if loc != nil {
+		loc := loc.(map[string]interface{})
+		msg.Location = &logger.MsgLocation{
+			File:     loc["file"].(string),
+			Line:     loc["line"].(int),
+			Column:   loc["column"].(int),
+			Length:   loc["length"].(int),
+			LineText: loc["lineText"].(string),
+		}
+	}
+
+	return msg
 }

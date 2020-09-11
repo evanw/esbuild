@@ -98,7 +98,8 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
 }
 
 export interface StreamIn {
-  writeToStdin: (data: Uint8Array) => void,
+  writeToStdin: (data: Uint8Array) => void;
+  readFileSync?: (path: string, encoding: 'utf8') => string;
 }
 
 export interface StreamOut {
@@ -221,17 +222,23 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     service: {
       build(options, isTTY, callback) {
         let [flags, stdin, resolveDir] = flagsForBuildOptions(options, isTTY);
-        let write = options.write !== false;
-        let request: protocol.BuildRequest = { command: 'build', flags, write, stdin, resolveDir };
-        sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
-          if (error) return callback(new Error(error), null);
-          let errors = response!.errors;
-          let warnings = response!.warnings;
-          if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
-          let result: types.BuildResult = { warnings };
-          if (!write) result.outputFiles = response!.outputFiles;
-          callback(null, result);
-        });
+        try {
+          let write = options.write !== false;
+          let request: protocol.BuildRequest = { command: 'build', flags, write, stdin, resolveDir };
+          sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
+            if (error) return callback(new Error(error), null);
+            let errors = response!.errors;
+            let warnings = response!.warnings;
+            if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
+            let result: types.BuildResult = { warnings };
+            if (!write) result.outputFiles = response!.outputFiles;
+            callback(null, result);
+          });
+        } catch (e) {
+          sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn) }, () => {
+            callback(e, null);
+          });
+        }
       },
 
       transform(input, options, isTTY, fs, callback) {
@@ -254,48 +261,54 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         // possible but falls back to sending the data over the stdio pipe if
         // that doesn't work.
         let start = (inputPath: string | null) => {
-          let request: protocol.TransformRequest = {
-            command: 'transform',
-            flags,
-            inputFS: inputPath !== null,
-            input: inputPath !== null ? inputPath : input,
-          };
-          sendRequest<protocol.TransformRequest, protocol.TransformResponse>(request, (error, response) => {
-            if (error) return callback(new Error(error), null);
-            let errors = response!.errors;
-            let warnings = response!.warnings;
-            let outstanding = 1;
-            let next = () => --outstanding === 0 && callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
-            if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
+          try {
+            let request: protocol.TransformRequest = {
+              command: 'transform',
+              flags,
+              inputFS: inputPath !== null,
+              input: inputPath !== null ? inputPath : input,
+            };
+            sendRequest<protocol.TransformRequest, protocol.TransformResponse>(request, (error, response) => {
+              if (error) return callback(new Error(error), null);
+              let errors = response!.errors;
+              let warnings = response!.warnings;
+              let outstanding = 1;
+              let next = () => --outstanding === 0 && callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
+              if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
 
-            // Read the JavaScript file from the file system
-            if (response!.jsFS) {
-              outstanding++;
-              fs.readFile(response!.js, (err, contents) => {
-                if (err !== null) {
-                  callback(err, null);
-                } else {
-                  response!.js = contents!;
-                  next();
-                }
-              });
-            }
+              // Read the JavaScript file from the file system
+              if (response!.jsFS) {
+                outstanding++;
+                fs.readFile(response!.js, (err, contents) => {
+                  if (err !== null) {
+                    callback(err, null);
+                  } else {
+                    response!.js = contents!;
+                    next();
+                  }
+                });
+              }
 
-            // Read the source map file from the file system
-            if (response!.jsSourceMapFS) {
-              outstanding++;
-              fs.readFile(response!.jsSourceMap, (err, contents) => {
-                if (err !== null) {
-                  callback(err, null);
-                } else {
-                  response!.jsSourceMap = contents!;
-                  next();
-                }
-              });
-            }
+              // Read the source map file from the file system
+              if (response!.jsSourceMapFS) {
+                outstanding++;
+                fs.readFile(response!.jsSourceMap, (err, contents) => {
+                  if (err !== null) {
+                    callback(err, null);
+                  } else {
+                    response!.jsSourceMap = contents!;
+                    next();
+                  }
+                });
+              }
 
-            next();
-          });
+              next();
+            });
+          } catch (e) {
+            sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn) }, () => {
+              callback(e, null);
+            });
+          }
         };
         if (input.length > 1024 * 1024) {
           let next = start;
@@ -305,6 +318,61 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       },
     },
   };
+}
+
+function extractErrorMessageV8(e: any, streamIn: StreamIn): types.Message {
+  let text = 'Internal error'
+  let location: types.Location | null = null
+
+  try {
+    text = ((e && e.message) || e) + '';
+  } catch {
+  }
+
+  // Optionally attempt to extract the file from the stack trace, works in V8/node
+  try {
+    let stack = e.stack + ''
+    let lines = stack.split('\n', 3)
+    let at = '    at '
+
+    // Check to see if this looks like a V8 stack trace
+    if (streamIn.readFileSync && !lines[0].startsWith(at) && lines[1].startsWith(at)) {
+      let line = lines[1].slice(at.length)
+      while (true) {
+        // Unwrap a function name
+        let match = /^\S+ \((.*)\)$/.exec(line)
+        if (match) {
+          line = match[1]
+          continue
+        }
+
+        // Unwrap an eval wrapper
+        match = /^eval at \S+ \((.*)\)(?:, \S+:\d+:\d+)?$/.exec(line)
+        if (match) {
+          line = match[1]
+          continue
+        }
+
+        // Match on the file location
+        match = /^(\S+):(\d+):(\d+)$/.exec(line)
+        if (match) {
+          let contents = streamIn.readFileSync(match[1], 'utf8')
+          let lineText = contents.split(/\r\n|\r|\n|\u2028|\u2029/)[+match[2] - 1] || ''
+          location = {
+            file: match[1],
+            line: +match[2],
+            column: +match[3] - 1,
+            length: 0,
+            lineText: lineText + '\n' + lines.slice(1).join('\n'),
+          }
+        }
+        break
+      }
+    }
+  } catch {
+  }
+
+  return { text, location }
 }
 
 function failureErrorWithLog(text: string, errors: types.Message[], warnings: types.Message[]): Error {
