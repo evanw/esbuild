@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Mark output files with a hashbang as executable ([#364](https://github.com/evanw/esbuild/issues/364))
+
+    Output files that start with a hashbang line such as `#!/usr/bin/env node` will now automatically be marked as executable. This lets you run them directly in a Unix-like shell without using the `node` command.
+
 ## 0.6.34
 
 * Fix parsing of `type;` statements followed by an identifier in TypeScript ([#377](https://github.com/evanw/esbuild/pull/377))

@@ -619,6 +619,8 @@ type OutputFile struct {
 	// about this file in JSON format. This is a partial JSON file that will be
 	// fully assembled later.
 	jsonMetadataChunk []byte
+
+	IsExecutable bool
 }
 
 type lineColumnOffset struct {

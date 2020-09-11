@@ -3023,6 +3023,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 			newline = ""
 		}
 		newlineBeforeComment := false
+		isExecutable := false
 
 		if chunk.isEntryPoint {
 			file := &c.files[chunk.sourceIndex]
@@ -3033,6 +3034,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 				prevOffset.advanceString(hashbang)
 				j.AddString(hashbang)
 				newlineBeforeComment = true
+				isExecutable = true
 			}
 
 			// Add the top-level directive if present
@@ -3262,6 +3264,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 			AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
 			Contents:          jsContents,
 			jsonMetadataChunk: jsonMetadataChunk,
+			IsExecutable:      isExecutable,
 		})
 		return results
 	}

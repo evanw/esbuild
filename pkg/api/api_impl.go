@@ -522,6 +522,44 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
+				if buildOpts.Write {
+					// Special-case writing to stdout
+					if options.WriteToStdout {
+						if len(results) != 1 {
+							log.AddError(nil, logger.Loc{}, fmt.Sprintf(
+								"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
+						} else if _, err := os.Stdout.Write(results[0].Contents); err != nil {
+							log.AddError(nil, logger.Loc{}, fmt.Sprintf(
+								"Failed to write to stdout: %s", err.Error()))
+						}
+					} else {
+						// Write out files in parallel
+						waitGroup := sync.WaitGroup{}
+						waitGroup.Add(len(results))
+						for _, result := range results {
+							go func(result bundler.OutputFile) {
+								fs.BeforeFileOpen()
+								defer fs.AfterFileClose()
+								if err := os.MkdirAll(filepath.Dir(result.AbsPath), 0755); err != nil {
+									log.AddError(nil, logger.Loc{}, fmt.Sprintf(
+										"Failed to create output directory: %s", err.Error()))
+								} else {
+									var mode os.FileMode = 0644
+									if result.IsExecutable {
+										mode = 0755
+									}
+									if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
+										log.AddError(nil, logger.Loc{}, fmt.Sprintf(
+											"Failed to write to output file: %s", err.Error()))
+									}
+								}
+								waitGroup.Done()
+							}(result)
+						}
+						waitGroup.Wait()
+					}
+				}
+
 				// Return the results
 				outputFiles = make([]OutputFile, len(results))
 				for i, result := range results {
@@ -531,38 +569,6 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 					outputFiles[i] = OutputFile{
 						Path:     result.AbsPath,
 						Contents: result.Contents,
-					}
-				}
-
-				if buildOpts.Write {
-					// Special-case writing to stdout
-					if options.WriteToStdout {
-						if len(outputFiles) != 1 {
-							log.AddError(nil, logger.Loc{}, fmt.Sprintf(
-								"Internal error: did not expect to generate %d files when writing to stdout", len(outputFiles)))
-						} else if _, err := os.Stdout.Write(outputFiles[0].Contents); err != nil {
-							log.AddError(nil, logger.Loc{}, fmt.Sprintf(
-								"Failed to write to stdout: %s", err.Error()))
-						}
-					} else {
-						// Write out files in parallel
-						waitGroup := sync.WaitGroup{}
-						waitGroup.Add(len(outputFiles))
-						for _, outputFile := range outputFiles {
-							go func(outputFile OutputFile) {
-								fs.BeforeFileOpen()
-								defer fs.AfterFileClose()
-								if err := os.MkdirAll(filepath.Dir(outputFile.Path), 0755); err != nil {
-									log.AddError(nil, logger.Loc{}, fmt.Sprintf(
-										"Failed to create output directory: %s", err.Error()))
-								} else if err := ioutil.WriteFile(outputFile.Path, outputFile.Contents, 0644); err != nil {
-									log.AddError(nil, logger.Loc{}, fmt.Sprintf(
-										"Failed to write to output file: %s", err.Error()))
-								}
-								waitGroup.Done()
-							}(outputFile)
-						}
-						waitGroup.Wait()
 					}
 				}
 			}
