@@ -26,7 +26,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	var sourcesContent []*string
 	var sources []string
 	var mappingsRaw []uint16
-	var mappingsRange logger.Range
+	var mappingsStart int32
 	hasVersion := false
 
 	// Treat the paths in the source map as relative to the directory containing the source map
@@ -51,7 +51,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		case "mappings":
 			if value, ok := prop.Value.Data.(*ast.EString); ok {
 				mappingsRaw = value.Value
-				mappingsRange = keyRange
+				mappingsStart = prop.Value.Loc.Start + 1
 			}
 
 		case "sources":
@@ -99,6 +99,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	originalColumn := 0
 	current := 0
 	errorText := ""
+	errorLen := 0
 
 	// Parse the mappings
 	for current < mappingsLen {
@@ -114,19 +115,22 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		generatedColumnDelta, i, ok := sourcemap.DecodeVLQUTF16(mappingsRaw[current:])
 		if !ok {
 			errorText = "Missing generated column"
+			errorLen = i
 			break
 		}
-		current += i
 		if generatedColumnDelta < 0 {
 			// This would mess up binary search
 			errorText = "Unexpected generated column decrease"
+			errorLen = i
 			break
 		}
 		generatedColumn += generatedColumnDelta
 		if generatedColumn < 0 {
 			errorText = fmt.Sprintf("Invalid generated column value: %d", generatedColumn)
+			errorLen = i
 			break
 		}
+		current += i
 
 		// According to the specification, it's valid for a mapping to have 1,
 		// 4, or 5 variable-length fields. Having one field means there's no
@@ -147,40 +151,46 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		sourceIndexDelta, i, ok := sourcemap.DecodeVLQUTF16(mappingsRaw[current:])
 		if !ok {
 			errorText = "Missing source index"
+			errorLen = i
 			break
 		}
-		current += i
 		sourceIndex += sourceIndexDelta
 		if sourceIndex < 0 || sourceIndex >= sourcesLen {
 			errorText = fmt.Sprintf("Invalid source index value: %d", sourceIndex)
+			errorLen = i
 			break
 		}
+		current += i
 
 		// Read the original line
 		originalLineDelta, i, ok := sourcemap.DecodeVLQUTF16(mappingsRaw[current:])
 		if !ok {
 			errorText = "Missing original line"
+			errorLen = i
 			break
 		}
-		current += i
 		originalLine += originalLineDelta
 		if originalLine < 0 {
 			errorText = fmt.Sprintf("Invalid original line value: %d", originalLine)
+			errorLen = i
 			break
 		}
+		current += i
 
 		// Read the original column
 		originalColumnDelta, i, ok := sourcemap.DecodeVLQUTF16(mappingsRaw[current:])
 		if !ok {
 			errorText = "Missing original column"
+			errorLen = i
 			break
 		}
-		current += i
 		originalColumn += originalColumnDelta
 		if originalColumn < 0 {
 			errorText = fmt.Sprintf("Invalid original column value: %d", originalColumn)
+			errorLen = i
 			break
 		}
+		current += i
 
 		// Ignore the optional name index
 		if _, i, ok := sourcemap.DecodeVLQUTF16(mappingsRaw[current:]); ok {
@@ -194,6 +204,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 			} else if c != ';' {
 				errorText = fmt.Sprintf("Invalid character after mapping: %q",
 					lexer.UTF16ToString(mappingsRaw[current:current+1]))
+				errorLen = 1
 				break
 			}
 		}
@@ -208,7 +219,8 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	}
 
 	if errorText != "" {
-		log.AddRangeWarning(&source, mappingsRange,
+		r := logger.Range{Loc: logger.Loc{Start: mappingsStart + int32(current)}, Len: int32(errorLen)}
+		log.AddRangeWarning(&source, r,
 			fmt.Sprintf("Bad \"mappings\" data in source map at character %d: %s", current, errorText))
 		return nil
 	}
