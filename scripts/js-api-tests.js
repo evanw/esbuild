@@ -101,7 +101,7 @@ let buildTests = {
     const input = path.join(testDir, 'in.js')
     const dependency = path.join(testDir, 'dep.js')
     const output = path.join(testDir, 'out.js')
-    await writeFileAsync(input, `import value from "${dependency}"; export default value`)
+    await writeFileAsync(input, `import value from ${JSON.stringify(dependency)}; export default value`)
     await writeFileAsync(dependency, `export default 123`)
     const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     assert.strictEqual(value.outputFiles, void 0)
