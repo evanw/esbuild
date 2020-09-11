@@ -50,7 +50,13 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys): void {
   }
 }
 
-function pushCommonFlags(flags: string[], options: types.CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
+function pushCommonFlags(
+  flags: string[],
+  options: types.BuildOptions | types.TransformOptions,
+  keys: OptionKeys,
+  isTTY: boolean,
+  logLevelDefault: types.LogLevel,
+): void {
   let target = getFlag(options, keys, 'target', mustBeStringOrArray);
   let format = getFlag(options, keys, 'format', mustBeString);
   let globalName = getFlag(options, keys, 'globalName', mustBeString);
