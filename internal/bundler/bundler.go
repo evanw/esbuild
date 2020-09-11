@@ -63,18 +63,18 @@ type parseFlags struct {
 }
 
 type parseArgs struct {
-	fs           fs.FS
-	log          logger.Log
-	res          resolver.Resolver
-	keyPath      logger.Path
-	prettyPath   string
-	baseName     string
-	sourceIndex  uint32
-	importSource *logger.Source
-	flags        parseFlags
-	pathRange    logger.Range
-	options      config.Options
-	results      chan parseResult
+	fs              fs.FS
+	log             logger.Log
+	res             resolver.Resolver
+	keyPath         logger.Path
+	prettyPath      string
+	baseName        string
+	sourceIndex     uint32
+	importSource    *logger.Source
+	flags           parseFlags
+	importPathRange logger.Range
+	options         config.Options
+	results         chan parseResult
 
 	// If non-empty, this provides a fallback directory to resolve imports
 	// against for virtual source files (i.e. those with no file system path).
@@ -100,7 +100,7 @@ func parseFile(args parseArgs) {
 	// Try to determine the identifier name by the absolute path, since it may
 	// need to look at the parent directory. But make sure to not treat the key
 	// as a file system path if it's not marked as one.
-	if args.keyPath.IsAbsolute {
+	if args.keyPath.Namespace == "file" {
 		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.keyPath.Text)
 	} else {
 		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.baseName)
@@ -117,27 +117,24 @@ func parseFile(args parseArgs) {
 			source.PrettyPath = stdin.SourceFile
 		}
 		loader = stdin.Loader
-	} else if args.keyPath.IsAbsolute {
+	} else if args.keyPath.Namespace == "file" {
 		// Read normal modules from disk
 		var err error
 		source.Contents, err = args.fs.ReadFile(args.keyPath.Text)
 		if err != nil {
 			if err == syscall.ENOENT {
-				args.log.AddRangeError(args.importSource, args.pathRange,
+				args.log.AddRangeError(args.importSource, args.importPathRange,
 					fmt.Sprintf("Could not read from file: %s", args.keyPath.Text))
 			} else {
-				args.log.AddRangeError(args.importSource, args.pathRange,
-					fmt.Sprintf("Cannot read file %q: %s", args.res.PrettyPath(args.keyPath.Text), err.Error()))
+				args.log.AddRangeError(args.importSource, args.importPathRange,
+					fmt.Sprintf("Cannot read file %q: %s", args.res.PrettyPath(args.keyPath), err.Error()))
 			}
 			args.results <- parseResult{}
 			return
 		}
 		loader = loaderFromFileExtension(args.options.ExtensionToLoader, args.baseName)
-	} else {
-		// Right now the only non-absolute modules are disabled ones
-		if !strings.HasPrefix(args.keyPath.Text, "disabled:") {
-			panic("Internal error")
-		}
+	} else if source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
+		// Force disabled modules to be empty
 		loader = config.LoaderJS
 	}
 
@@ -244,7 +241,7 @@ func parseFile(args parseArgs) {
 
 	default:
 		result.ok = false
-		args.log.AddRangeError(args.importSource, args.pathRange,
+		args.log.AddRangeError(args.importSource, args.importPathRange,
 			fmt.Sprintf("File extension not supported: %s", args.prettyPath))
 	}
 
@@ -265,7 +262,7 @@ func parseFile(args parseArgs) {
 			// Resolve relative to the parent directory of the source file with the
 			// import path. Just use the current directory if the source file is virtual.
 			var sourceDir string
-			if source.KeyPath.IsAbsolute {
+			if source.KeyPath.Namespace == "file" {
 				sourceDir = args.fs.Dir(source.KeyPath.Text)
 			} else if args.absResolveDir != "" {
 				sourceDir = args.absResolveDir
@@ -319,13 +316,9 @@ func parseFile(args parseArgs) {
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
 		if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, result.file.ast.SourceMapComment); contents != nil {
-			prettyPath := path.Text
-			if path.IsAbsolute {
-				prettyPath = args.res.PrettyPath(prettyPath)
-			}
 			result.file.ast.SourceMap = parser.ParseSourceMap(args.log, logger.Source{
 				KeyPath:    path,
-				PrettyPath: prettyPath,
+				PrettyPath: args.res.PrettyPath(path),
 				Contents:   *contents,
 			})
 		}
@@ -359,18 +352,19 @@ func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver
 	}
 
 	// Relative path in a file with an absolute path
-	if source.KeyPath.IsAbsolute {
+	if source.KeyPath.Namespace == "file" {
 		absPath := fs.Join(fs.Dir(source.KeyPath.Text), comment.Text)
+		path := logger.Path{Text: absPath, Namespace: "file"}
 		contents, err := fs.ReadFile(absPath)
 		if err != nil {
 			if err == syscall.ENOENT {
 				// Don't report a warning because this is likely unactionable
 				return logger.Path{}, nil
 			}
-			log.AddRangeError(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(absPath), err.Error()))
+			log.AddRangeError(source, comment.Range, fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(path), err.Error()))
 			return logger.Path{}, nil
 		}
-		return logger.Path{IsAbsolute: true, Text: absPath}, &contents
+		return path, &contents
 	}
 
 	// Anything else is unsupported
@@ -441,12 +435,12 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		resolveResult resolver.ResolveResult,
 		prettyPath string,
 		importSource *logger.Source,
-		pathRange logger.Range,
+		importPathRange logger.Range,
 		absResolveDir string,
 		kind inputKind,
 	) uint32 {
 		visitedKey := resolveResult.Path.Text
-		if resolveResult.Path.IsAbsolute {
+		if resolveResult.Path.Namespace == "file" {
 			visitedKey = lowerCaseAbsPathForWindows(visitedKey)
 		}
 		sourceIndex, ok := visited[visitedKey]
@@ -468,19 +462,19 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				optionsClone.Stdin = nil
 			}
 			go parseFile(parseArgs{
-				fs:            fs,
-				log:           log,
-				res:           res,
-				keyPath:       resolveResult.Path,
-				prettyPath:    prettyPath,
-				baseName:      fs.Base(resolveResult.Path.Text),
-				sourceIndex:   sourceIndex,
-				importSource:  importSource,
-				flags:         flags,
-				pathRange:     pathRange,
-				options:       optionsClone,
-				results:       results,
-				absResolveDir: absResolveDir,
+				fs:              fs,
+				log:             log,
+				res:             res,
+				keyPath:         resolveResult.Path,
+				prettyPath:      prettyPath,
+				baseName:        fs.Base(resolveResult.Path.Text),
+				sourceIndex:     sourceIndex,
+				importSource:    importSource,
+				flags:           flags,
+				importPathRange: importPathRange,
+				options:         optionsClone,
+				results:         results,
+				absResolveDir:   absResolveDir,
 			})
 		}
 		return sourceIndex
@@ -498,7 +492,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 	// Add any remaining entry points
 	for _, absPath := range entryPaths {
-		prettyPath := res.PrettyPath(absPath)
+		prettyPath := res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
 
 		if duplicateEntryPoints[lowerAbsPath] {
@@ -549,12 +543,9 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 					if !resolveResult.IsExternal {
 						// Handle a path within the bundle
-						prettyPath := resolveResult.Path.Text
-						if resolveResult.Path.IsAbsolute {
-							prettyPath = res.PrettyPath(prettyPath)
-						}
-						pathRange := source.RangeOfString(record.Loc)
-						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &source, pathRange, "", inputKindNormal)
+						prettyPath := res.PrettyPath(resolveResult.Path)
+						importPathRange := source.RangeOfString(record.Loc)
+						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &source, importPathRange, "", inputKindNormal)
 						record.SourceIndex = &sourceIndex
 
 						// Generate metadata about each import
@@ -571,7 +562,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 					} else {
 						// If the path to the external module is relative to the source
 						// file, rewrite the path to be relative to the working directory
-						if resolveResult.Path.IsAbsolute {
+						if resolveResult.Path.Namespace == "file" {
 							if relPath, ok := fs.Rel(options.AbsOutputDir, resolveResult.Path.Text); ok {
 								// Prevent issues with path separators being different on Windows
 								record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
@@ -707,7 +698,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 		for _, group := range resultGroups {
 			for _, sourceIndex := range group.reachableFiles {
 				keyPath := b.sources[sourceIndex].KeyPath
-				if keyPath.IsAbsolute {
+				if keyPath.Namespace == "file" {
 					lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
 					sourceAbsPaths[lowerAbsPath] = sourceIndex
 				}
@@ -782,7 +773,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	absPaths := make([]string, 0, len(isEntryPoint))
 	for entryPoint := range isEntryPoint {
 		keyPath := b.sources[entryPoint].KeyPath
-		if keyPath.IsAbsolute {
+		if keyPath.Namespace == "file" {
 			absPaths = append(absPaths, keyPath.Text)
 		}
 	}
@@ -865,7 +856,8 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 			} else {
 				j.AddString(",\n    ")
 			}
-			j.AddString(fmt.Sprintf("%s: ", printer.QuoteForJSON(b.res.PrettyPath(result.AbsPath))))
+			j.AddString(fmt.Sprintf("%s: ", printer.QuoteForJSON(b.res.PrettyPath(
+				logger.Path{Text: result.AbsPath, Namespace: "file"}))))
 			j.AddBytes(result.jsonMetadataChunk)
 		}
 	}

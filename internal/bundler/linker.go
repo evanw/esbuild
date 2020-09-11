@@ -1633,7 +1633,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 			// Resolve the import by one step
 			nextTracker, status := c.advanceImportTracker(tracker)
 			switch status {
-			case importCommonJS, importCommonJSWithoutExports, importExternal:
+			case importCommonJS, importCommonJSWithoutExports, importExternal, importDisabled:
 				if status == importExternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
 					// Imports from external modules should not be converted to CommonJS
 					// if the output format preserves the original ES6 import statements
@@ -1844,6 +1844,10 @@ const (
 	// The imported file was treated as CommonJS but is known to have no exports
 	importCommonJSWithoutExports
 
+	// The imported file was disabled by mapping it to false in the "browser"
+	// field of package.json
+	importDisabled
+
 	// The imported file is external and has unknown exports
 	importExternal
 
@@ -1864,10 +1868,16 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		return importTracker{}, importExternal
 	}
 
+	// Is this a disabled file?
+	otherSourceIndex := *record.SourceIndex
+	if c.sources[otherSourceIndex].KeyPath.Namespace == resolver.BrowserFalseNamespace {
+		return importTracker{}, importDisabled
+	}
+
 	// Is this a CommonJS file?
-	otherFileMeta := &c.fileMeta[*record.SourceIndex]
+	otherFileMeta := &c.fileMeta[otherSourceIndex]
 	if otherFileMeta.cjsStyleExports {
-		otherFile := &c.files[*record.SourceIndex]
+		otherFile := &c.files[otherSourceIndex]
 		if !otherFile.ast.UsesCommonJSExports() && !otherFile.ast.HasES6Syntax() {
 			return importTracker{}, importCommonJSWithoutExports
 		}
@@ -2227,7 +2237,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			baseName = c.fs.Base(c.options.AbsOutputFile)
 		} else {
 			source := c.sources[entryPoint]
-			if !source.KeyPath.IsAbsolute {
+			if source.KeyPath.Namespace != "file" {
 				baseName = source.IdentifierName
 			} else if relPath, ok := c.fs.Rel(c.lcaAbsPath, source.KeyPath.Text); ok {
 				relDir = c.fs.Dir(relPath)
@@ -3083,7 +3093,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 				}
 				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-					printer.QuoteForJSON(c.res.PrettyPath(importAbsPath))))
+					printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}))))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")

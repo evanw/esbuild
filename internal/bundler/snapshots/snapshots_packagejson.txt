@@ -19,7 +19,7 @@ try {
 ================================================================================
 TestPackageJsonBrowserMapModuleDisabled
 ---------- /Users/user/project/out.js ----------
-// disabled:/Users/user/project/node_modules/node-pkg/index.js
+// empty:/Users/user/project/node_modules/node-pkg/index.js
 var require_index = __commonJS(() => {
 });
 
@@ -82,13 +82,13 @@ console.log(demo_pkg.default());
 ================================================================================
 TestPackageJsonBrowserMapNativeModuleDisabled
 ---------- /Users/user/project/out.js ----------
-// disabled:fs
-var require_disabled_fs = __commonJS(() => {
+// empty:fs
+var require_fs = __commonJS(() => {
 });
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fs = require_disabled_fs();
+  const fs = require_fs();
   module.exports = function() {
     return fs.readFile();
   };
@@ -101,7 +101,7 @@ console.log(demo_pkg.default());
 ================================================================================
 TestPackageJsonBrowserMapRelativeDisabled
 ---------- /Users/user/project/out.js ----------
-// disabled:/Users/user/project/node_modules/demo-pkg/util-node.js
+// empty:/Users/user/project/node_modules/demo-pkg/util-node.js
 var require_util_node = __commonJS(() => {
 });
 
