@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.34
 
 * Fix parsing of `type;` statements followed by an identifier in TypeScript ([#377](https://github.com/evanw/esbuild/pull/377))
 
