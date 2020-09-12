@@ -16,6 +16,10 @@ type TSOptions struct {
 	Parse bool
 }
 
+type FlowOptions struct {
+	Parse bool
+}
+
 type Platform uint8
 
 const (
@@ -177,6 +181,7 @@ type Options struct {
 	Strict   StrictOptions
 	Defines  *ProcessedDefines
 	TS       TSOptions
+	Flow     FlowOptions
 	JSX      JSXOptions
 	Platform Platform
 
