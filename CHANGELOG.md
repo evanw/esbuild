@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix bug that forbids `undefined` values in the JavaScript API
+
+    The validation added in the previous release was accidentally overly restrictive and forbids `undefined` values for optional properties. This release allows `undefined` values again (which are simply ignored).
+
 ## 0.7.0
 
 * Mark output files with a hashbang as executable ([#364](https://github.com/evanw/esbuild/issues/364))

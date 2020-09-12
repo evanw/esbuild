@@ -467,6 +467,23 @@ async function futureSyntax(service, js, targetBelow, targetAbove) {
 }
 
 let transformTests = {
+  async ignoreUndefinedOptions({ service }) {
+    // This should not throw
+    await service.transform(``, { jsxFactory: void 0 })
+  },
+
+  async ignoreUndefinedOptions({ service }) {
+    // This should throw
+    try {
+      await service.transform(``, { jsxFactory: ['React', 'createElement'] })
+      throw new Error('Expected transform failure');
+    } catch (e) {
+      if (e.message !== '"jsxFactory" must be a string') {
+        throw e;
+      }
+    }
+  },
+
   async cjs_require({ service }) {
     const { js } = await service.transform(`const {foo} = require('path')`, {})
     assert.strictEqual(js, `const {foo} = require("path");\n`)

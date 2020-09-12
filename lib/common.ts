@@ -35,10 +35,10 @@ type OptionKeys = { [key: string]: boolean };
 
 function getFlag<T, K extends keyof T>(object: T, keys: OptionKeys, key: K, mustBeFn: (value: T[K]) => string | null): T[K] | undefined {
   let value = object[key];
+  keys[key + ''] = true;
   if (value === undefined) return undefined;
   let mustBe = mustBeFn(value);
   if (mustBe !== null) throw new Error(`"${key}" must be ${mustBe}`);
-  keys[key + ''] = true;
   return value;
 }
 
