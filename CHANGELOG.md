@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.1
 
 * Fix bug that forbids `undefined` values in the JavaScript API
 
