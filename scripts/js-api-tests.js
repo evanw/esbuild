@@ -535,6 +535,13 @@ let transformTests = {
     assert.strictEqual(js, `module.exports = {x: "y"};\n`)
   },
 
+  async jsonMinified({ service }) {
+    const { js } = await service.transform(`{ "x": "y" }`, { loader: 'json', minify: true })
+    const module = {}
+    new Function('module', js)(module)
+    assert.deepStrictEqual(module.exports, { x: 'y' })
+  },
+
   async jsonESM({ service }) {
     const { js } = await service.transform(`{ "x": "y" }`, { loader: 'json', format: 'esm' })
     assert.strictEqual(js, `var x = "y";\nvar stdin_default = {x};\nexport {\n  stdin_default as default,\n  x\n};\n`)

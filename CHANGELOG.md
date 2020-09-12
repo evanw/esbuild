@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a bug where `module` was incorrectly minified for non-JavaScript loaders
+
+    If you pass a non-JavaScript file such as a `.json` file to esbuild, it will by default generate `module.exports = {...}`. However, the `module` variable would incorrectly be minified when `--minify` is present. This issue has been fixed. This bug did not appear if `--format=cjs` was also present, only if no `--format` flag was specified.
+
 ## 0.7.1
 
 * Fix bug that forbids `undefined` values in the JavaScript API
