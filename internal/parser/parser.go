@@ -5083,6 +5083,54 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 			stmt.IsSingleLine = isSingleLine
 			p.lexer.ExpectContextualKeyword("from")
 
+		case lexer.TTypeof:
+			// "import typeof foo from 'path';"
+			if !p.Flow.Parse {
+				p.lexer.Unexpected()
+				return ast.Stmt{}
+			}
+			p.lexer.Next()
+			hasDefaultSpecifier := false
+			switch p.lexer.Token {
+			case lexer.TIdentifier:
+				// "import typeof defaultName from 'path';"
+				// "import typeof defaultName, {foo, bar} from 'path';"
+				hasDefaultSpecifier = true
+				p.lexer.Next()
+
+			case lexer.TAsterisk:
+				// "import typeof * as foo from 'path';"
+				p.lexer.Next()
+				p.lexer.ExpectContextualKeyword("as")
+				p.lexer.Expect(lexer.TIdentifier)
+
+			case lexer.TOpenBrace:
+				// "import typeof {foo} from 'path';"
+				p.parseImportClause()
+			}
+			if hasDefaultSpecifier && p.lexer.Token == lexer.TComma {
+				p.lexer.Next()
+				switch p.lexer.Token {
+				case lexer.TAsterisk:
+					// "import typeof defaultItem, * as ns from 'path'"
+					p.lexer.Next()
+					p.lexer.ExpectContextualKeyword("as")
+					p.lexer.Expect(lexer.TIdentifier)
+
+				case lexer.TOpenBrace:
+					// "import typeof defaultItem, {item1, item2} from 'path'"
+					p.parseImportClause()
+
+				default:
+					p.lexer.Unexpected()
+				}
+			}
+
+			p.lexer.ExpectContextualKeyword("from")
+			p.parsePath()
+			p.lexer.ExpectOrInsertSemicolon()
+			return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
+
 		case lexer.TIdentifier:
 			// "import defaultItem from 'path'"
 			// "import foo = bar"
