@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 * Mark output files with a hashbang as executable ([#364](https://github.com/evanw/esbuild/issues/364))
 
