@@ -12,7 +12,9 @@ import (
 )
 
 func expectParseErrorTS(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
@@ -29,7 +31,9 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 }
 
 func expectPrintedTS(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
@@ -54,7 +58,9 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 }
 
 func expectParseErrorTSX(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{
@@ -74,7 +80,9 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 }
 
 func expectPrintedTSX(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
 			TS: config.TSOptions{

@@ -13,13 +13,16 @@ import (
 )
 
 func assertEqual(t *testing.T, a interface{}, b interface{}) {
+	t.Helper()
 	if a != b {
 		t.Fatalf("%s != %s", a, b)
 	}
 }
 
 func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options PrintOptions) {
+	t.Helper()
 	t.Run(name, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		tree, ok := parser.Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
@@ -40,22 +43,26 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 }
 
 func expectPrinted(t *testing.T, contents string, expected string) {
+	t.Helper()
 	expectPrintedCommon(t, contents, contents, expected, PrintOptions{})
 }
 
 func expectPrintedMinify(t *testing.T, contents string, expected string) {
+	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
 		RemoveWhitespace: true,
 	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
+	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
 		MangleSyntax: true,
 	})
 }
 
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
 	expectPrintedCommon(t, contents, contents, expected, PrintOptions{
 		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
@@ -64,6 +71,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 }
 
 func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
 		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
@@ -73,6 +81,7 @@ func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, exp
 }
 
 func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
 		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
