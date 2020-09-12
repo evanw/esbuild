@@ -11,7 +11,9 @@ import (
 )
 
 func expectParseErrorJSON(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
@@ -27,7 +29,9 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 // code may not be valid JSON. That's ok because esbuild always outputs JS
 // bundles, not JSON bundles.
 func expectPrintedJSON(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
@@ -47,7 +51,9 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 }
 
 func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()

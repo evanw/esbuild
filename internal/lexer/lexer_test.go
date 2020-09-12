@@ -12,6 +12,7 @@ import (
 )
 
 func assertEqualStrings(t *testing.T, a string, b string) {
+	t.Helper()
 	pretty := func(text string) string {
 		builder := strings.Builder{}
 		builder.WriteRune('"')
@@ -36,7 +37,9 @@ func lexToken(t *testing.T, contents string) T {
 }
 
 func expectLexerError(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		func() {
 			defer func() {
@@ -57,7 +60,9 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 }
 
 func expectHashbang(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
@@ -83,7 +88,9 @@ func TestHashbang(t *testing.T) {
 }
 
 func expectIdentifier(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
@@ -120,7 +127,9 @@ func TestIdentifier(t *testing.T) {
 }
 
 func expectNumber(t *testing.T, contents string, expected float64) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
@@ -325,7 +334,9 @@ func TestNumericLiteral(t *testing.T) {
 }
 
 func expectBigInteger(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {
@@ -378,7 +389,9 @@ func TestBigIntegerLiteral(t *testing.T) {
 }
 
 func expectString(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		lexer := func() Lexer {
 			defer func() {

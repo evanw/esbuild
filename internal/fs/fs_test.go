@@ -66,7 +66,9 @@ func TestRel(t *testing.T) {
 	fs := MockFS(map[string]string{})
 
 	expect := func(a string, b string, c string) {
+		t.Helper()
 		t.Run(fmt.Sprintf("Rel(%q, %q) == %q", a, b, c), func(t *testing.T) {
+			t.Helper()
 			rel, ok := fs.Rel(a, b)
 			if !ok {
 				t.Fatalf("!ok")

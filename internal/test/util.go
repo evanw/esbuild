@@ -7,6 +7,7 @@ import (
 )
 
 func AssertEqual(t *testing.T, a interface{}, b interface{}) {
+	t.Helper()
 	if a != b {
 		t.Fatalf("%s != %s", a, b)
 	}
