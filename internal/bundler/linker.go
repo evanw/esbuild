@@ -13,9 +13,9 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
@@ -928,7 +928,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				record := &file.ast.ImportRecords[importRecordIndex]
 
-				// Make sure the printer can require() CommonJS modules
+				// Make sure the js_printer can require() CommonJS modules
 				if record.SourceIndex != nil {
 					record.WrapperRef = c.files[*record.SourceIndex].ast.WrapperRef
 				}
@@ -2794,7 +2794,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	}
 
 	// Convert the AST to JavaScript code
-	printOptions := printer.PrintOptions{
+	printOptions := js_printer.PrintOptions{
 		Indent:              indent,
 		OutputFormat:        c.options.OutputFormat,
 		RemoveWhitespace:    c.options.RemoveWhitespace,
@@ -2808,7 +2808,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	tree := file.ast
 	tree.Parts = []ast.Part{{Stmts: stmts}}
 	*result = compileResult{
-		PrintResult: printer.Print(tree, c.symbols, r, printOptions),
+		PrintResult: js_printer.Print(tree, c.symbols, r, printOptions),
 		sourceIndex: sourceIndex,
 	}
 
@@ -2818,7 +2818,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	if len(stmtList.entryPointTail) > 0 {
 		tree := file.ast
 		tree.Parts = []ast.Part{{Stmts: stmtList.entryPointTail}}
-		entryPointTail := printer.Print(tree, c.symbols, r, printOptions)
+		entryPointTail := js_printer.Print(tree, c.symbols, r, printOptions)
 		result.entryPointTail = &entryPointTail
 	}
 
@@ -3005,24 +3005,24 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 			if c.options.OutputFormat == config.FormatIIFE {
 				indent++
 			}
-			printOptions := printer.PrintOptions{
+			printOptions := js_printer.PrintOptions{
 				Indent:           indent,
 				OutputFormat:     c.options.OutputFormat,
 				RemoveWhitespace: c.options.RemoveWhitespace,
 				MangleSyntax:     c.options.MangleSyntax,
 			}
-			crossChunkPrefix = printer.Print(ast.AST{
+			crossChunkPrefix = js_printer.Print(ast.AST{
 				ImportRecords: crossChunkImportRecords,
 				Parts:         []ast.Part{{Stmts: chunk.crossChunkPrefixStmts}},
 			}, c.symbols, r, printOptions).JS
-			crossChunkSuffix = printer.Print(ast.AST{
+			crossChunkSuffix = js_printer.Print(ast.AST{
 				Parts: []ast.Part{{Stmts: chunk.crossChunkSuffixStmts}},
 			}, c.symbols, r, printOptions).JS
 		}
 
 		waitGroup.Wait()
 
-		j := printer.Joiner{}
+		j := js_printer.Joiner{}
 		prevOffset := lineColumnOffset{}
 
 		// Optionally strip whitespace
@@ -3050,7 +3050,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 
 			// Add the top-level directive if present
 			if file.ast.Directive != "" {
-				quoted := string(printer.QuoteForJSON(file.ast.Directive)) + ";" + newline
+				quoted := string(js_printer.QuoteForJSON(file.ast.Directive)) + ";" + newline
 				prevOffset.advanceString(quoted)
 				j.AddString(quoted)
 				newlineBeforeComment = true
@@ -3082,7 +3082,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 		}
 
 		// Start the metadata
-		jMeta := printer.Joiner{}
+		jMeta := js_printer.Joiner{}
 		if c.options.AbsMetadataFile != "" {
 			isFirstMeta := true
 			jMeta.AddString("{\n      \"imports\": [")
@@ -3094,7 +3094,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 				}
 				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-					printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}))))
+					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}))))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
@@ -3105,7 +3105,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 
 		// Concatenate the generated JavaScript chunks together
 		var compileResultsForSourceMap []compileResult
-		var entryPointTail *printer.PrintResult
+		var entryPointTail *js_printer.PrintResult
 		var commentList []string
 		commentSet := make(map[string]bool)
 		for _, compileResult := range compileResults {
@@ -3169,7 +3169,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 						jMeta.AddString(",")
 					}
 					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-						printer.QuoteForJSON(c.sources[compileResult.sourceIndex].PrettyPath),
+						js_printer.QuoteForJSON(c.sources[compileResult.sourceIndex].PrettyPath),
 						len(compileResult.JS)))
 				}
 			}
@@ -3392,7 +3392,7 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 }
 
 func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byte {
-	j := printer.Joiner{}
+	j := js_printer.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
 	// Write the sources
@@ -3427,7 +3427,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 
 	// Write the mappings
 	j.AddString(",\n  \"mappings\": \"")
-	prevEndState := printer.SourceMapState{}
+	prevEndState := js_printer.SourceMapState{}
 	prevColumnOffset := 0
 	sourceMapIndex := 0
 	for _, result := range results {
@@ -3446,7 +3446,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 		// index per entry point by modifying the first source mapping. This
 		// is done by AppendSourceMapChunk() using the source index passed
 		// here.
-		startState := printer.SourceMapState{
+		startState := js_printer.SourceMapState{
 			SourceIndex:     sourceMapIndex,
 			GeneratedLine:   offset.lines,
 			GeneratedColumn: offset.columns,
@@ -3456,7 +3456,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResult) []byt
 		}
 
 		// Append the precomputed source map chunk
-		printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
+		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState

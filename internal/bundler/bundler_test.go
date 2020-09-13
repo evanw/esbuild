@@ -31,6 +31,7 @@ func es(version int) compat.Feature {
 }
 
 func assertEqual(t *testing.T, a interface{}, b interface{}) {
+	t.Helper()
 	if a != b {
 		stringA := fmt.Sprintf("%v", a)
 		stringB := fmt.Sprintf("%v", b)
@@ -43,6 +44,7 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 }
 
 func assertLog(t *testing.T, msgs []logger.Msg, expected string) {
+	t.Helper()
 	text := ""
 	for _, msg := range msgs {
 		text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
@@ -76,8 +78,10 @@ type suite struct {
 }
 
 func (s *suite) expectBundled(t *testing.T, args bundled) {
+	t.Helper()
 	testName := t.Name()
 	t.Run("", func(t *testing.T) {
+		t.Helper()
 		fs := fs.MockFS(args.files)
 		args.options.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".json"}
 		if args.options.AbsOutputFile != "" {
@@ -129,6 +133,7 @@ var globalSuites map[*suite]bool
 var globalUpdateSnapshots bool
 
 func (s *suite) compareSnapshot(t *testing.T, testName string, generated string) {
+	t.Helper()
 	// Initialize the test suite during the first test
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

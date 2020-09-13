@@ -5,13 +5,15 @@ import (
 	"testing"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/test"
 )
 
 func expectParseErrorJSON(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
@@ -27,7 +29,9 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 // code may not be valid JSON. That's ok because esbuild always outputs JS
 // bundles, not JSON bundles.
 func expectPrintedJSON(t *testing.T, contents string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
@@ -39,7 +43,7 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.PrintExpr(expr, ast.SymbolMap{}, nil, printer.PrintOptions{
+		js := js_printer.PrintExpr(expr, ast.SymbolMap{}, nil, js_printer.PrintOptions{
 			RemoveWhitespace: true,
 		}).JS
 		test.AssertEqual(t, string(js), expected)
@@ -47,7 +51,9 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 }
 
 func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string, expected string) {
+	t.Helper()
 	t.Run(contents, func(t *testing.T) {
+		t.Helper()
 		log := logger.NewDeferLog()
 		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
 		msgs := log.Done()
@@ -59,7 +65,7 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := printer.PrintExpr(expr, ast.SymbolMap{}, nil, printer.PrintOptions{
+		js := js_printer.PrintExpr(expr, ast.SymbolMap{}, nil, js_printer.PrintOptions{
 			RemoveWhitespace: true,
 		}).JS
 		test.AssertEqual(t, string(js), expected)
