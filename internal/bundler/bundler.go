@@ -19,10 +19,10 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/parser"
-	"github.com/evanw/esbuild/internal/printer"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
 )
@@ -568,12 +568,12 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		}
 
 		source := result.source
-		j := printer.Joiner{}
+		j := js_printer.Joiner{}
 		isFirstImport := true
 
 		// Begin the metadata chunk
 		if options.AbsMetadataFile != "" {
-			j.AddBytes(printer.QuoteForJSON(source.PrettyPath))
+			j.AddBytes(js_printer.QuoteForJSON(source.PrettyPath))
 			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(source.Contents)))
 		}
 
@@ -617,7 +617,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 							j.AddString(",\n        ")
 						}
 						j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-							printer.QuoteForJSON(results[*record.SourceIndex].source.PrettyPath)))
+							js_printer.QuoteForJSON(results[*record.SourceIndex].source.PrettyPath)))
 					}
 				}
 			}
@@ -670,12 +670,12 @@ type lineColumnOffset struct {
 }
 
 type compileResult struct {
-	printer.PrintResult
+	js_printer.PrintResult
 
 	// If this is an entry point, this is optional code to stick on the end of
 	// the chunk. This is used to for example trigger the lazily-evaluated
 	// CommonJS wrapper for the entry point.
-	entryPointTail *printer.PrintResult
+	entryPointTail *js_printer.PrintResult
 
 	sourceIndex uint32
 
@@ -881,7 +881,7 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 	}
 	sort.Sort(sorted)
 
-	j := printer.Joiner{}
+	j := js_printer.Joiner{}
 	j.AddString("{\n  \"inputs\": {")
 
 	// Write inputs
@@ -906,7 +906,7 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 			} else {
 				j.AddString(",\n    ")
 			}
-			j.AddString(fmt.Sprintf("%s: ", printer.QuoteForJSON(b.res.PrettyPath(
+			j.AddString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(b.res.PrettyPath(
 				logger.Path{Text: result.AbsPath, Namespace: "file"}))))
 			j.AddBytes(result.jsonMetadataChunk)
 		}

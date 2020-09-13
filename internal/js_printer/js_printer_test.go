@@ -1,4 +1,4 @@
-package printer
+package js_printer
 
 import (
 	"testing"
