@@ -1764,7 +1764,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) ast.Expr {
 		}
 
 		// Skip over types
-		if p.TS.Parse && p.lexer.Token == lexer.TColon {
+		if (p.TS.Parse || p.Flow.Parse) && p.lexer.Token == lexer.TColon {
 			typeColonRange = p.lexer.Range()
 			p.lexer.Next()
 			p.skipTypeScriptType(ast.LLowest)
@@ -1858,8 +1858,8 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) ast.Expr {
 	// parent scope as if the scope was never pushed in the first place.
 	p.popAndFlattenScope(scopeIndex)
 
-	// If this isn't an arrow function, then types aren't allowed
-	if typeColonRange.Len > 0 {
+	// If this isn't an arrow function, then TS types are not allowed (Flow ok)
+	if p.TS.Parse && typeColonRange.Len > 0 {
 		p.log.AddRangeError(&p.source, typeColonRange, "Unexpected \":\"")
 		panic(lexer.LexerPanic{})
 	}
