@@ -72,6 +72,7 @@ func TestFlowImportTypeof(t *testing.T) {
 func TestFlowTypeCastExpressions(t *testing.T) {
 	expectPrintedFlow(t, "(value: number)", "value;\n")
 	expectPrintedFlow(t, "((value: any): number)", "value;\n")
+	expectPrintedFlow(t, "(value: typeof bar)", "value;\n")
 
 	// expectPrintedFlow(t, "([a: string]) => {}", "([a]) => {};")
 
