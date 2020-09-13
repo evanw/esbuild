@@ -3636,6 +3636,12 @@ func (p *parser) parseAndDeclareDecls(kind ast.SymbolKind, opts parseStmtOpts) [
 				p.skipTypeScriptType(ast.LLowest)
 			}
 		}
+		if p.Flow.Parse {
+			if p.lexer.Token == lexer.TColon {
+				p.lexer.Expect(lexer.TColon)
+				p.skipFlowType(ast.LLowest)
+			}
+		}
 
 		if p.lexer.Token == lexer.TEquals {
 			p.lexer.Next()
