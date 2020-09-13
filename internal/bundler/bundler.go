@@ -28,6 +28,7 @@ import (
 )
 
 type file struct {
+	source logger.Source
 	ast    ast.AST
 	loader config.Loader
 
@@ -49,7 +50,6 @@ type file struct {
 type Bundle struct {
 	fs          fs.FS
 	res         resolver.Resolver
-	sources     []logger.Source
 	files       []file
 	entryPoints []uint32
 }
@@ -83,9 +83,8 @@ type parseArgs struct {
 }
 
 type parseResult struct {
-	source logger.Source
-	file   file
-	ok     bool
+	file file
+	ok   bool
 
 	resolveResults []*resolver.ResolveResult
 }
@@ -150,8 +149,8 @@ func parseFile(args parseArgs) {
 	}
 
 	result := parseResult{
-		source: source,
 		file: file{
+			source:         source,
 			loader:         loader,
 			ignoreIfUnused: args.flags.ignoreIfUnused,
 		},
@@ -422,7 +421,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		remaining++
 		go func() {
 			source, ast, ok := globalRuntimeCache.parseRuntime(&options)
-			resultChannel <- parseResult{source: source, file: file{ast: ast}, ok: ok}
+			resultChannel <- parseResult{file: file{source: source, ast: ast}, ok: ok}
 		}()
 	}
 
@@ -539,8 +538,8 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 					if !resolveResult.IsExternal {
 						// Handle a path within the bundle
 						prettyPath := res.PrettyPath(path)
-						pathRange := result.source.RangeOfString(record.Loc)
-						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.source, pathRange, "", inputKindNormal)
+						pathRange := result.file.source.RangeOfString(record.Loc)
+						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, pathRange, "", inputKindNormal)
 						record.SourceIndex = &sourceIndex
 					} else {
 						// If the path to the external module is relative to the source
@@ -556,25 +555,23 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			}
 		}
 
-		results[result.source.Index] = result
+		results[result.file.source.Index] = result
 	}
 
 	// Now that all files have been scanned, process the final file import records
-	sources := make([]logger.Source, len(results))
 	files := make([]file, len(results))
 	for _, result := range results {
 		if !result.ok {
 			continue
 		}
 
-		source := result.source
 		j := js_printer.Joiner{}
 		isFirstImport := true
 
 		// Begin the metadata chunk
 		if options.AbsMetadataFile != "" {
-			j.AddBytes(js_printer.QuoteForJSON(source.PrettyPath))
-			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(source.Contents)))
+			j.AddBytes(js_printer.QuoteForJSON(result.file.source.PrettyPath))
+			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.source.Contents)))
 		}
 
 		// Don't try to resolve paths if we're not bundling
@@ -617,7 +614,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 							j.AddString(",\n        ")
 						}
 						j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-							js_printer.QuoteForJSON(results[*record.SourceIndex].source.PrettyPath)))
+							js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath)))
 					}
 				}
 			}
@@ -632,11 +629,15 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		}
 
 		result.file.jsonMetadataChunk = j.Done()
-		sources[source.Index] = source
-		files[source.Index] = result.file
+		files[result.file.source.Index] = result.file
 	}
 
-	return Bundle{fs, res, sources, files, entryPoints}
+	return Bundle{
+		fs:          fs,
+		res:         res,
+		files:       files,
+		entryPoints: entryPoints,
+	}
 }
 
 func DefaultExtensionToLoaderMap() map[string]config.Loader {
@@ -705,7 +706,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	var resultGroups []linkGroup
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.res, b.sources, b.files, b.entryPoints, lcaAbsPath)
+		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints, lcaAbsPath)
 		resultGroups = []linkGroup{{
 			outputFiles:    c.link(),
 			reachableFiles: c.reachableFiles,
@@ -717,7 +718,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint uint32) {
-				c := newLinkerContext(&options, log, b.fs, b.res, b.sources, b.files, []uint32{entryPoint}, lcaAbsPath)
+				c := newLinkerContext(&options, log, b.fs, b.res, b.files, []uint32{entryPoint}, lcaAbsPath)
 				resultGroups[i] = linkGroup{
 					outputFiles:    c.link(),
 					reachableFiles: c.reachableFiles,
@@ -747,7 +748,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 		sourceAbsPaths := make(map[string]uint32)
 		for _, group := range resultGroups {
 			for _, sourceIndex := range group.reachableFiles {
-				keyPath := b.sources[sourceIndex].KeyPath
+				keyPath := b.files[sourceIndex].source.KeyPath
 				if keyPath.Namespace == "file" {
 					lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
 					sourceAbsPaths[lowerAbsPath] = sourceIndex
@@ -757,7 +758,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 		for _, outputFile := range outputFiles {
 			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
 			if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
-				log.AddError(nil, logger.Loc{}, "Refusing to overwrite input file: "+b.sources[sourceIndex].PrettyPath)
+				log.AddError(nil, logger.Loc{}, "Refusing to overwrite input file: "+b.files[sourceIndex].source.PrettyPath)
 			}
 		}
 
@@ -807,7 +808,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 
 	// If code splitting is enabled, also treat dynamic imports as entry points
 	if codeSplitting {
-		for _, sourceIndex := range findReachableFiles(b.sources, b.files, b.entryPoints) {
+		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
 			file := b.files[sourceIndex]
 			for _, part := range file.ast.Parts {
 				for _, importRecordIndex := range part.ImportRecordIndices {
@@ -822,7 +823,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	// Ignore any paths for virtual modules (that don't exist on the file system)
 	absPaths := make([]string, 0, len(isEntryPoint))
 	for entryPoint := range isEntryPoint {
-		keyPath := b.sources[entryPoint].KeyPath
+		keyPath := b.files[entryPoint].source.KeyPath
 		if keyPath.Namespace == "file" {
 			absPaths = append(absPaths, keyPath.Text)
 		}
@@ -873,10 +874,10 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 
 func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 	// Sort files by key path for determinism
-	sorted := make(indexAndPathArray, 0, len(b.sources))
-	for sourceIndex, source := range b.sources {
+	sorted := make(indexAndPathArray, 0, len(b.files))
+	for sourceIndex, file := range b.files {
 		if uint32(sourceIndex) != runtime.SourceIndex {
-			sorted = append(sorted, indexAndPath{uint32(sourceIndex), source.KeyPath})
+			sorted = append(sorted, indexAndPath{uint32(sourceIndex), file.source.KeyPath})
 		}
 	}
 	sort.Sort(sorted)
