@@ -6,7 +6,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/printer"
+	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
 )
@@ -48,7 +48,7 @@ func expectPrintedFlow(t *testing.T, contents string, expected string) {
 		symbols := ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
-		js := printer.Print(tree, symbols, r, printer.PrintOptions{}).JS
+		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
