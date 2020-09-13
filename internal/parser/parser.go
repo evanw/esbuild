@@ -1767,7 +1767,12 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) ast.Expr {
 		if (p.TS.Parse || p.Flow.Parse) && p.lexer.Token == lexer.TColon {
 			typeColonRange = p.lexer.Range()
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LLowest)
+			if p.TS.Parse {
+				p.skipTypeScriptType(ast.LLowest)
+			}
+			if p.Flow.Parse {
+				p.skipFlowType(ast.LLowest)
+			}
 		}
 
 		// There may be a "=" after the type
@@ -4430,7 +4435,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 				return p.parseFnStmt(loc, opts, true /* isAsync */, asyncRange)
 			}
 
-			if p.TS.Parse {
+			if p.TS.Parse || p.Flow.Parse {
 				switch p.lexer.Identifier {
 				case "type":
 					// "export type foo = ..."
@@ -4440,7 +4445,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 						p.log.AddError(&p.source, logger.Loc{Start: typeRange.End()}, "Unexpected newline after \"type\"")
 						panic(lexer.LexerPanic{})
 					}
-					p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope, isExport: true})
+					if p.TS.Parse {
+						p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope, isExport: true})
+					}
+					if p.Flow.Parse {
+						p.skipFlowTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope, isExport: true})
+					}
 					return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 
 				case "namespace", "abstract", "module", "interface":
@@ -5375,12 +5385,18 @@ func (p *parser) parseStmt(opts parseStmtOpts) ast.Stmt {
 					return ast.Stmt{Loc: loc, Data: &ast.SLabel{Name: name, Stmt: stmt}}
 				}
 
-				if p.TS.Parse {
+				if p.TS.Parse || p.Flow.Parse {
 					switch name {
 					case "type":
 						if p.lexer.Token == lexer.TIdentifier && !p.lexer.HasNewlineBefore {
 							// "type Foo = any"
-							p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
+							if p.TS.Parse {
+								p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
+							}
+							if p.Flow.Parse {
+								p.skipFlowTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
+							}
+
 							return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
 						}
 
