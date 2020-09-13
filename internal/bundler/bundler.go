@@ -33,6 +33,7 @@ type file struct {
 	ast       ast.AST
 	loader    config.Loader
 	sourceMap *sourcemap.SourceMap
+	meta      fileMeta
 
 	// If this file ends up being used in the bundle, this is an additional file
 	// that must be written to the output directory. It's used by the "file"
