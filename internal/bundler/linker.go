@@ -58,7 +58,6 @@ type linkerContext struct {
 	res         resolver.Resolver
 	symbols     ast.SymbolMap
 	entryPoints []uint32
-	sources     []logger.Source
 	files       []file
 	fileMeta    []fileMeta
 	hasErrors   bool
@@ -292,7 +291,6 @@ func newLinkerContext(
 	log logger.Log,
 	fs fs.FS,
 	res resolver.Resolver,
-	sources []logger.Source,
 	files []file,
 	entryPoints []uint32,
 	lcaAbsPath string,
@@ -303,12 +301,11 @@ func newLinkerContext(
 		log:            log,
 		fs:             fs,
 		res:            res,
-		sources:        sources,
 		entryPoints:    append([]uint32{}, entryPoints...),
 		files:          make([]file, len(files)),
 		fileMeta:       make([]fileMeta, len(files)),
 		symbols:        ast.NewSymbolMap(len(files)),
-		reachableFiles: findReachableFiles(sources, files, entryPoints),
+		reachableFiles: findReachableFiles(files, entryPoints),
 		lcaAbsPath:     lcaAbsPath,
 	}
 
@@ -381,7 +378,7 @@ func newLinkerContext(
 	}
 
 	// Create a way to convert source indices to a stable ordering
-	c.stableSourceIndices = make([]uint32, len(sources))
+	c.stableSourceIndices = make([]uint32, len(c.files))
 	for stableIndex, sourceIndex := range c.reachableFiles {
 		c.stableSourceIndices[sourceIndex] = uint32(stableIndex)
 	}
@@ -432,7 +429,7 @@ func (a indexAndPathArray) Less(i int, j int) bool {
 }
 
 // Find all files reachable from all entry points
-func findReachableFiles(sources []logger.Source, files []file, entryPoints []uint32) []uint32 {
+func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 	visited := make(map[uint32]bool)
 	sorted := indexAndPathArray{}
 	var visit func(uint32)
@@ -449,7 +446,7 @@ func findReachableFiles(sources []logger.Source, files []file, entryPoints []uin
 					}
 				}
 			}
-			sorted = append(sorted, indexAndPath{sourceIndex, sources[sourceIndex].KeyPath})
+			sorted = append(sorted, indexAndPath{sourceIndex, files[sourceIndex].source.KeyPath})
 		}
 	}
 
@@ -913,7 +910,7 @@ func (a crossChunkExportItemArray) Less(i int, j int) bool {
 func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[ast.Ref]bool) crossChunkExportItemArray {
 	result := make(crossChunkExportItemArray, 0, len(exportRefs))
 	for ref := range exportRefs {
-		result = append(result, crossChunkExportItem{ref: ref, keyPath: c.sources[ref.OuterIndex].KeyPath})
+		result = append(result, crossChunkExportItem{ref: ref, keyPath: c.files[ref.OuterIndex].source.KeyPath})
 	}
 	sort.Sort(result)
 	return result
@@ -1158,7 +1155,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// aesthetics and is not about correctness. This is done here because by
 		// this point, we know the CommonJS status will not change further.
 		if !fileMeta.cjsWrap && !fileMeta.cjsStyleExports {
-			name := c.sources[sourceIndex].IdentifierName
+			name := c.files[sourceIndex].source.IdentifierName
 			c.symbols.Get(file.ast.ExportsRef).OriginalName = name + "_exports"
 			c.symbols.Get(file.ast.ModuleRef).OriginalName = name + "_module"
 		}
@@ -1287,7 +1284,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 	}
 
 	// Generate the default export
-	generateExport(c.sources[sourceIndex].IdentifierName+"_default", "default", lazy.Value, prevExports)
+	generateExport(c.files[sourceIndex].source.IdentifierName+"_default", "default", lazy.Value, prevExports)
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
@@ -1622,7 +1619,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 			} else {
 				checkCycle = false
 				if cycleDetector == tracker {
-					source := c.sources[sourceIndex]
+					source := c.files[sourceIndex].source
 					namedImport := c.files[sourceIndex].ast.NamedImports[importRef]
 					c.addRangeError(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 						fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
@@ -1655,7 +1652,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 				// Warn about importing from a file that is known to not have any exports
 				if status == importCommonJSWithoutExports {
-					source := c.sources[tracker.sourceIndex]
+					source := c.files[tracker.sourceIndex].source
 					c.log.AddRangeWarning(&source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 						fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
 				}
@@ -1666,14 +1663,14 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 					symbol.ImportItemStatus = ast.ImportItemMissing
 				} else {
 					// Report mismatched imports and exports
-					source := c.sources[tracker.sourceIndex]
+					source := c.files[tracker.sourceIndex].source
 					namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 					c.addRangeError(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 						fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 				}
 
 			case importAmbiguous:
-				source := c.sources[tracker.sourceIndex]
+				source := c.files[tracker.sourceIndex].source
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
 				c.addRangeError(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 					fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
@@ -1871,7 +1868,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 
 	// Is this a disabled file?
 	otherSourceIndex := *record.SourceIndex
-	if c.sources[otherSourceIndex].KeyPath.Namespace == resolver.BrowserFalseNamespace {
+	if c.files[otherSourceIndex].source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
 		return importTracker{}, importDisabled
 	}
 
@@ -2237,7 +2234,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		if c.options.AbsOutputFile != "" {
 			baseName = c.fs.Base(c.options.AbsOutputFile)
 		} else {
-			source := c.sources[entryPoint]
+			source := c.files[entryPoint].source
 			if source.KeyPath.Namespace != "file" {
 				baseName = source.IdentifierName
 			} else if relPath, ok := c.fs.Rel(c.lcaAbsPath, source.KeyPath.Text); ok {
@@ -2328,7 +2325,7 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 		sorted = append(sorted, chunkOrder{
 			sourceIndex: sourceIndex,
 			distance:    c.fileMeta[sourceIndex].distanceFromEntryPoint,
-			path:        c.sources[sourceIndex].KeyPath,
+			path:        c.files[sourceIndex].source.KeyPath,
 		})
 	}
 
@@ -2782,7 +2779,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 	}
 
 	// Only generate a source map if needed
-	sourceForSourceMap := &c.sources[sourceIndex]
+	sourceForSourceMap := &c.files[sourceIndex].source
 	if !file.loader.CanHaveSourceMap() || c.options.SourceMap == config.SourceMapNone {
 		sourceForSourceMap = nil
 	}
@@ -3130,7 +3127,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 					j.AddString("\n")
 				}
 
-				text := fmt.Sprintf("%s// %s\n", indent, c.sources[compileResult.sourceIndex].PrettyPath)
+				text := fmt.Sprintf("%s// %s\n", indent, c.files[compileResult.sourceIndex].source.PrettyPath)
 				prevOffset.advanceString(text)
 				j.AddString(text)
 			}
@@ -3169,7 +3166,7 @@ func (c *linkerContext) generateChunk(chunk *chunkInfo) func([]ast.ImportRecord)
 						jMeta.AddString(",")
 					}
 					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-						js_printer.QuoteForJSON(c.sources[compileResult.sourceIndex].PrettyPath),
+						js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath),
 						len(compileResult.JS)))
 				}
 			}
