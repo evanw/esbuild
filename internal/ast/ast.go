@@ -1343,6 +1343,11 @@ type ImportRecord struct {
 	// nil for an external import (not included in the bundle)
 	SourceIndex *uint32
 
+	// Sometimes the parser creates an import record and decides it isn't needed.
+	// For example, TypeScript code may have import statements that later turn
+	// out to be type-only imports after analyzing the whole file.
+	IsUnused bool
+
 	// If this is true, the import doesn't actually use any imported values. The
 	// import is only used for its side effects.
 	DoesNotUseExports bool

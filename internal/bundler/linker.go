@@ -924,11 +924,12 @@ func (c *linkerContext) scanImportsAndExports() {
 			// Handle require() and import()
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				record := &file.ast.ImportRecords[importRecordIndex]
+				if record.SourceIndex == nil {
+					continue
+				}
 
 				// Make sure the js_printer can require() CommonJS modules
-				if record.SourceIndex != nil {
-					record.WrapperRef = c.files[*record.SourceIndex].ast.WrapperRef
-				}
+				record.WrapperRef = c.files[*record.SourceIndex].ast.WrapperRef
 
 				switch record.Kind {
 				case ast.ImportStmt:
@@ -966,7 +967,7 @@ func (c *linkerContext) scanImportsAndExports() {
 					//
 					//   import MutationObserver from '@sheerun/mutationobserver-shim';
 					//
-					if !record.DoesNotUseExports && record.SourceIndex != nil {
+					if !record.DoesNotUseExports {
 						otherSourceIndex := *record.SourceIndex
 						otherFile := &c.files[otherSourceIndex]
 						if !otherFile.ast.HasES6Syntax() && !otherFile.ast.HasLazyExport {
@@ -976,26 +977,20 @@ func (c *linkerContext) scanImportsAndExports() {
 
 				case ast.ImportRequire:
 					// Files that are imported with require() must be CommonJS modules
-					if record.SourceIndex != nil {
-						c.fileMeta[*record.SourceIndex].cjsStyleExports = true
-					}
+					c.fileMeta[*record.SourceIndex].cjsStyleExports = true
 
 				case ast.ImportDynamic:
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
-						if record.SourceIndex != nil {
-							otherFileMeta := &c.fileMeta[*record.SourceIndex]
-							if !otherFileMeta.isEntryPoint {
-								c.entryPoints = append(c.entryPoints, *record.SourceIndex)
-								otherFileMeta.isEntryPoint = true
-							}
+						otherFileMeta := &c.fileMeta[*record.SourceIndex]
+						if !otherFileMeta.isEntryPoint {
+							c.entryPoints = append(c.entryPoints, *record.SourceIndex)
+							otherFileMeta.isEntryPoint = true
 						}
 					} else {
 						// If we're not splitting, then import() is just a require() that
 						// returns a promise, so the imported file must be a CommonJS module
-						if record.SourceIndex != nil {
-							c.fileMeta[*record.SourceIndex].cjsStyleExports = true
-						}
+						c.fileMeta[*record.SourceIndex].cjsStyleExports = true
 					}
 				}
 			}

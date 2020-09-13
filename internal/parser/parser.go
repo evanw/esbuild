@@ -9228,6 +9228,7 @@ func (p *parser) scanForImportsAndExports(stmts []ast.Stmt) []ast.Stmt {
 				// We do not want to do this culling in JavaScript though because the
 				// module may have side effects even if all imports are unused.
 				if p.TS.Parse && foundImports && isUnusedInTypeScript {
+					p.importRecords[s.ImportRecordIndex].IsUnused = true
 					continue
 				}
 			}

@@ -270,49 +270,53 @@ func parseFile(args parseArgs) {
 				sourceDir = args.fs.Cwd()
 			}
 
-			for _, part := range result.file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					// Don't try to resolve imports that are already resolved
-					record := &result.file.ast.ImportRecords[importRecordIndex]
-					if record.SourceIndex != nil {
-						continue
-					}
-
-					// Cache the path in case it's imported multiple times in this file
-					cache := cacheImport
-					if record.Kind == ast.ImportRequire {
-						cache = cacheRequire
-					}
-					if resolveResult, ok := cache[record.Path.Text]; ok {
-						result.resolveResults[importRecordIndex] = resolveResult
-						continue
-					}
-
-					// Run the resolver and log an error if the path couldn't be resolved
-					resolveResult := args.res.Resolve(sourceDir, record.Path.Text, record.Kind)
-					cache[record.Path.Text] = resolveResult
-
-					if resolveResult == nil {
-						// Failed imports inside a try/catch are silently turned into
-						// external imports instead of causing errors. This matches a common
-						// code pattern for conditionally importing a module with a graceful
-						// fallback.
-						if !record.IsInsideTryBody {
-							r := source.RangeOfString(record.Loc)
-							hint := ""
-							if args.options.Platform != config.PlatformNode {
-								if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
-									hint = " (set platform to \"node\" when building for node)"
-								}
-							}
-							args.log.AddRangeError(&source, r,
-								fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
-						}
-						continue
-					}
-
-					result.resolveResults[importRecordIndex] = resolveResult
+			for importRecordIndex := range result.file.ast.ImportRecords {
+				// Don't try to resolve imports that are already resolved
+				record := &result.file.ast.ImportRecords[importRecordIndex]
+				if record.SourceIndex != nil {
+					continue
 				}
+
+				// Ignore records that the parser has discarded. This is used to remove
+				// type-only imports in TypeScript files.
+				if record.IsUnused {
+					continue
+				}
+
+				// Cache the path in case it's imported multiple times in this file
+				cache := cacheImport
+				if record.Kind == ast.ImportRequire {
+					cache = cacheRequire
+				}
+				if resolveResult, ok := cache[record.Path.Text]; ok {
+					result.resolveResults[importRecordIndex] = resolveResult
+					continue
+				}
+
+				// Run the resolver and log an error if the path couldn't be resolved
+				resolveResult := args.res.Resolve(sourceDir, record.Path.Text, record.Kind)
+				cache[record.Path.Text] = resolveResult
+
+				if resolveResult == nil {
+					// Failed imports inside a try/catch are silently turned into
+					// external imports instead of causing errors. This matches a common
+					// code pattern for conditionally importing a module with a graceful
+					// fallback.
+					if !record.IsInsideTryBody {
+						r := source.RangeOfString(record.Loc)
+						hint := ""
+						if args.options.Platform != config.PlatformNode {
+							if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
+								hint = " (set platform to \"node\" when building for node)"
+							}
+						}
+						args.log.AddRangeError(&source, r,
+							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
+					}
+					continue
+				}
+
+				result.resolveResults[importRecordIndex] = resolveResult
 			}
 		}
 	}
@@ -524,31 +528,29 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 		// Don't try to resolve paths if we're not bundling
 		if options.Mode == config.ModeBundle {
-			for _, part := range result.file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					record := &result.file.ast.ImportRecords[importRecordIndex]
+			for importRecordIndex := range result.file.ast.ImportRecords {
+				record := &result.file.ast.ImportRecords[importRecordIndex]
 
-					// Skip this import record if the previous resolver call failed
-					resolveResult := result.resolveResults[importRecordIndex]
-					if resolveResult == nil {
-						continue
-					}
+				// Skip this import record if the previous resolver call failed
+				resolveResult := result.resolveResults[importRecordIndex]
+				if resolveResult == nil {
+					continue
+				}
 
-					path := resolveResult.PathPair.Primary
-					if !resolveResult.IsExternal {
-						// Handle a path within the bundle
-						prettyPath := res.PrettyPath(path)
-						pathRange := result.file.source.RangeOfString(record.Loc)
-						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, pathRange, "", inputKindNormal)
-						record.SourceIndex = &sourceIndex
-					} else {
-						// If the path to the external module is relative to the source
-						// file, rewrite the path to be relative to the working directory
-						if path.Namespace == "file" {
-							if relPath, ok := fs.Rel(options.AbsOutputDir, path.Text); ok {
-								// Prevent issues with path separators being different on Windows
-								record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
-							}
+				path := resolveResult.PathPair.Primary
+				if !resolveResult.IsExternal {
+					// Handle a path within the bundle
+					prettyPath := res.PrettyPath(path)
+					pathRange := result.file.source.RangeOfString(record.Loc)
+					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, pathRange, "", inputKindNormal)
+					record.SourceIndex = &sourceIndex
+				} else {
+					// If the path to the external module is relative to the source
+					// file, rewrite the path to be relative to the working directory
+					if path.Namespace == "file" {
+						if relPath, ok := fs.Rel(options.AbsOutputDir, path.Text); ok {
+							// Prevent issues with path separators being different on Windows
+							record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
 						}
 					}
 				}
@@ -576,46 +578,44 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 		// Don't try to resolve paths if we're not bundling
 		if options.Mode == config.ModeBundle {
-			for _, part := range result.file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					record := &result.file.ast.ImportRecords[importRecordIndex]
+			for importRecordIndex := range result.file.ast.ImportRecords {
+				record := &result.file.ast.ImportRecords[importRecordIndex]
 
-					// Skip this import record if the previous resolver call failed
-					resolveResult := result.resolveResults[importRecordIndex]
-					if resolveResult == nil || record.SourceIndex == nil {
-						continue
-					}
+				// Skip this import record if the previous resolver call failed
+				resolveResult := result.resolveResults[importRecordIndex]
+				if resolveResult == nil || record.SourceIndex == nil {
+					continue
+				}
 
-					// Now that all files have been scanned, look for packages that are imported
-					// both with "import" and "require". Rewrite any imports that reference the
-					// "module" package.json field to the "main" package.json field instead.
-					//
-					// This attempts to automatically avoid the "dual package hazard" where a
-					// package has both a CommonJS module version and an ECMAScript module
-					// version and exports a non-object in CommonJS (often a function). If we
-					// pick the "module" field and the package is imported with "require" then
-					// code expecting a function will crash.
-					if resolveResult.PathPair.HasSecondary() {
-						secondaryKey := resolveResult.PathPair.Secondary.Text
-						if resolveResult.PathPair.Secondary.Namespace == "file" {
-							secondaryKey = lowerCaseAbsPathForWindows(secondaryKey)
-						}
-						if secondarySourceIndex, ok := visited[secondaryKey]; ok {
-							record.SourceIndex = &secondarySourceIndex
-						}
+				// Now that all files have been scanned, look for packages that are imported
+				// both with "import" and "require". Rewrite any imports that reference the
+				// "module" package.json field to the "main" package.json field instead.
+				//
+				// This attempts to automatically avoid the "dual package hazard" where a
+				// package has both a CommonJS module version and an ECMAScript module
+				// version and exports a non-object in CommonJS (often a function). If we
+				// pick the "module" field and the package is imported with "require" then
+				// code expecting a function will crash.
+				if resolveResult.PathPair.HasSecondary() {
+					secondaryKey := resolveResult.PathPair.Secondary.Text
+					if resolveResult.PathPair.Secondary.Namespace == "file" {
+						secondaryKey = lowerCaseAbsPathForWindows(secondaryKey)
 					}
+					if secondarySourceIndex, ok := visited[secondaryKey]; ok {
+						record.SourceIndex = &secondarySourceIndex
+					}
+				}
 
-					// Generate metadata about each import
-					if options.AbsMetadataFile != "" {
-						if isFirstImport {
-							isFirstImport = false
-							j.AddString("\n        ")
-						} else {
-							j.AddString(",\n        ")
-						}
-						j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-							js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath)))
+				// Generate metadata about each import
+				if options.AbsMetadataFile != "" {
+					if isFirstImport {
+						isFirstImport = false
+						j.AddString("\n        ")
+					} else {
+						j.AddString(",\n        ")
 					}
+					j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
+						js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath)))
 				}
 			}
 		}
@@ -810,11 +810,9 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	if codeSplitting {
 		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
 			file := b.files[sourceIndex]
-			for _, part := range file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
-						isEntryPoint[*record.SourceIndex] = true
-					}
+			for importRecordIndex := range file.ast.ImportRecords {
+				if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
+					isEntryPoint[*record.SourceIndex] = true
 				}
 			}
 		}
