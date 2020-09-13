@@ -35,19 +35,34 @@ type file struct {
 	sourceMap *sourcemap.SourceMap
 	meta      fileMeta
 
-	// If this file ends up being used in the bundle, this is an additional file
-	// that must be written to the output directory. It's used by the "file"
-	// loader.
-	additionalFile *OutputFile
+	// The minimum number of links in the module graph to get from an entry point
+	// to this file
+	distanceFromEntryPoint uint32
 
-	// If true, this file was listed as not having side effects by a package.json
-	// file in one of our containing directories with a "sideEffects" field.
-	ignoreIfUnused bool
+	// This holds all entry points that can reach this file. It will be used to
+	// assign the parts in this file to a chunk.
+	entryBits bitSet
 
 	// If "AbsMetadataFile" is present, this will be filled out with information
 	// about this file in JSON format. This is a partial JSON file that will be
 	// fully assembled later.
 	jsonMetadataChunk []byte
+
+	// The path of this entry point relative to the lowest common ancestor
+	// directory containing all entry points. Note: this must have OS-independent
+	// path separators (i.e. '/' not '\').
+	entryPointRelPath string
+
+	// If this file ends up being used in the bundle, this is an additional file
+	// that must be written to the output directory. It's used by the "file"
+	// loader.
+	additionalFile *OutputFile
+
+	isEntryPoint bool
+
+	// If true, this file was listed as not having side effects by a package.json
+	// file in one of our containing directories with a "sideEffects" field.
+	ignoreIfUnused bool
 }
 
 type Bundle struct {

@@ -86,13 +86,7 @@ type linkerContext struct {
 // linking operations may be happening in parallel with different metadata for
 // the same file.
 type fileMeta struct {
-	partMeta     []partMeta
-	isEntryPoint bool
-
-	// The path of this entry point relative to the lowest common ancestor
-	// directory containing all entry points. Note: this must have OS-independent
-	// path separators (i.e. '/' not '\').
-	entryPointRelPath string
+	partMeta []partMeta
 
 	// This is the index to the automatically-generated part containing code that
 	// calls "__export(exports, { ... getters ... })". This is used to generate
@@ -169,14 +163,6 @@ type fileMeta struct {
 	// because the wrapper contains other parts, which can't be represented by
 	// the current part system.
 	cjsWrapperPartIndex *uint32
-
-	// The minimum number of links in the module graph to get from an entry point
-	// to this file
-	distanceFromEntryPoint uint32
-
-	// This holds all entry points that can reach this file. It will be used to
-	// assign the parts in this file to a chunk.
-	entryBits bitSet
 
 	// This includes both named exports and re-exports.
 	//
@@ -361,8 +347,8 @@ func newLinkerContext(
 		}
 
 		// Also associate some default metadata with the file
+		file.distanceFromEntryPoint = ^uint32(0)
 		file.meta = fileMeta{
-			distanceFromEntryPoint: ^uint32(0),
 			cjsStyleExports: file.ast.HasCommonJSFeatures() || (file.ast.HasLazyExport && (c.options.Mode == config.ModePassThrough ||
 				(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax()))),
 			partMeta:                 make([]partMeta, len(file.ast.Parts)),
@@ -383,13 +369,13 @@ func newLinkerContext(
 
 	// Mark all entry points so we don't add them again for import() expressions
 	for _, sourceIndex := range entryPoints {
-		fileMeta := &c.files[sourceIndex].meta
-		fileMeta.isEntryPoint = true
+		file := &c.files[sourceIndex]
+		file.isEntryPoint = true
 
 		// Entry points must be CommonJS-style if the output format doesn't support
 		// ES6 export syntax
-		if !options.OutputFormat.KeepES6ImportExportSyntax() && c.files[sourceIndex].ast.HasES6Exports {
-			fileMeta.cjsStyleExports = true
+		if !options.OutputFormat.KeepES6ImportExportSyntax() && file.ast.HasES6Exports {
+			file.meta.cjsStyleExports = true
 		}
 	}
 
@@ -659,7 +645,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 					for _, importRecordIndex := range part.ImportRecordIndices {
 						record := &file.ast.ImportRecords[importRecordIndex]
 						if record.SourceIndex != nil && c.isExternalDynamicImport(record) {
-							record.Path.Text = c.relativePathBetweenChunks(chunk.relDir, c.files[*record.SourceIndex].meta.entryPointRelPath)
+							record.Path.Text = c.relativePathBetweenChunks(chunk.relDir, c.files[*record.SourceIndex].entryPointRelPath)
 							record.SourceIndex = nil
 						}
 					}
@@ -977,10 +963,9 @@ func (c *linkerContext) scanImportsAndExports() {
 				case ast.ImportDynamic:
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
-						otherFileMeta := &c.files[*record.SourceIndex].meta
-						if !otherFileMeta.isEntryPoint {
+						if !otherFile.isEntryPoint {
 							c.entryPoints = append(c.entryPoints, *record.SourceIndex)
-							otherFileMeta.isEntryPoint = true
+							otherFile.isEntryPoint = true
 						}
 					} else {
 						// If we're not splitting, then import() is just a require() that
@@ -1078,7 +1063,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// symbols. In that case make sure to mark them as such so they don't
 		// get minified.
 		if (c.options.OutputFormat == config.FormatPreserve || c.options.OutputFormat == config.FormatCommonJS) &&
-			!file.meta.cjsWrap && file.meta.isEntryPoint {
+			!file.meta.cjsWrap && file.isEntryPoint {
 			exportsRef := ast.FollowSymbols(c.symbols, file.ast.ExportsRef)
 			moduleRef := ast.FollowSymbols(c.symbols, file.ast.ModuleRef)
 			c.symbols.Get(exportsRef).Kind = ast.SymbolUnbound
@@ -1289,7 +1274,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// entry point is a CommonJS-style module, since that would generate an ES6
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
-	needsEntryPointES6ExportPart := file.meta.isEntryPoint && !file.meta.cjsWrap &&
+	needsEntryPointES6ExportPart := file.isEntryPoint && !file.meta.cjsWrap &&
 		c.options.OutputFormat == config.FormatESModule && len(file.meta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
@@ -1424,7 +1409,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			}},
 		})
 		nsExportSymbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
-		if file.meta.isEntryPoint {
+		if file.isEntryPoint {
 			entryPointExportSymbolUses[export.ref] = ast.SymbolUse{CountEstimate: 1}
 		}
 
@@ -1434,7 +1419,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			// file if it came in through an export star
 			dep := partRef{sourceIndex: export.sourceIndex, partIndex: partIndex}
 			nsExportNonLocalDependencies = append(nsExportNonLocalDependencies, dep)
-			if file.meta.isEntryPoint {
+			if file.isEntryPoint {
 				entryPointExportNonLocalDependencies = append(entryPointExportNonLocalDependencies, dep)
 			}
 		}
@@ -1516,7 +1501,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// If we're an entry point, call the require function at the end of the
 	// bundle right before bundle evaluation ends
 	var cjsWrapStmt ast.Stmt
-	if file.meta.isEntryPoint && file.meta.cjsWrap {
+	if file.isEntryPoint && file.meta.cjsWrap {
 		switch c.options.OutputFormat {
 		case config.FormatPreserve:
 			// "require_foo();"
@@ -1886,7 +1871,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 	bitCount := uint(len(c.entryPoints))
 	for _, sourceIndex := range c.reachableFiles {
 		file := &c.files[sourceIndex]
-		file.meta.entryBits = newBitSet(bitCount)
+		file.entryBits = newBitSet(bitCount)
 		for partIndex := range file.meta.partMeta {
 			partMeta := &file.meta.partMeta[partIndex]
 			partMeta.entryBits = newBitSet(bitCount)
@@ -1980,9 +1965,9 @@ func (c *linkerContext) handleCrossChunkAssignments() {
 								hasA := partMetaA.entryBits.hasBit(uint(entryPointBit))
 								hasB := partMetaB.entryBits.hasBit(uint(entryPointBit))
 								if hasA && !hasB {
-									c.includePart(sourceIndex, otherPartIndex, uint(entryPointBit), file.meta.distanceFromEntryPoint)
+									c.includePart(sourceIndex, otherPartIndex, uint(entryPointBit), file.distanceFromEntryPoint)
 								} else if hasB && !hasA {
-									c.includePart(sourceIndex, uint32(partIndex), uint(entryPointBit), file.meta.distanceFromEntryPoint)
+									c.includePart(sourceIndex, uint32(partIndex), uint(entryPointBit), file.distanceFromEntryPoint)
 								}
 							}
 
@@ -2003,16 +1988,16 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 	file := &c.files[sourceIndex]
 
 	// Track the minimum distance to an entry point
-	if distanceFromEntryPoint < file.meta.distanceFromEntryPoint {
-		file.meta.distanceFromEntryPoint = distanceFromEntryPoint
+	if distanceFromEntryPoint < file.distanceFromEntryPoint {
+		file.distanceFromEntryPoint = distanceFromEntryPoint
 	}
 	distanceFromEntryPoint++
 
 	// Don't mark this file more than once
-	if file.meta.entryBits.hasBit(entryPointBit) {
+	if file.entryBits.hasBit(entryPointBit) {
 		return
 	}
-	file.meta.entryBits.setBit(entryPointBit)
+	file.entryBits.setBit(entryPointBit)
 
 	for partIndex, part := range file.ast.Parts {
 		canBeRemovedIfUnused := part.CanBeRemovedIfUnused
@@ -2057,7 +2042,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 	}
 
 	// If this is an entry point, include all exports
-	if file.meta.isEntryPoint {
+	if file.isEntryPoint {
 		for _, alias := range file.meta.sortedAndFilteredExportAliases {
 			export := file.meta.resolvedExports[alias]
 			targetSourceIndex := export.sourceIndex
@@ -2110,7 +2095,7 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 }
 
 func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord) bool {
-	return record.Kind == ast.ImportDynamic && c.files[*record.SourceIndex].meta.isEntryPoint
+	return record.Kind == ast.ImportDynamic && c.files[*record.SourceIndex].isEntryPoint
 }
 
 func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
@@ -2228,7 +2213,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 		// Always use cross-platform path separators to avoid problems with Windows
 		relDir = strings.ReplaceAll(relDir, "\\", "/")
-		c.files[entryPoint].meta.entryPointRelPath = path.Join(relDir, baseName)
+		c.files[entryPoint].entryPointRelPath = path.Join(relDir, baseName)
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty
@@ -2302,7 +2287,7 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 		file := &c.files[sourceIndex]
 		sorted = append(sorted, chunkOrder{
 			sourceIndex: sourceIndex,
-			distance:    file.meta.distanceFromEntryPoint,
+			distance:    file.distanceFromEntryPoint,
 			path:        file.source.KeyPath,
 		})
 	}
@@ -2326,7 +2311,7 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 
 		visited[sourceIndex] = true
 		file := &c.files[sourceIndex]
-		isFileInThisChunk := chunk.entryBits.equals(file.meta.entryBits)
+		isFileInThisChunk := chunk.entryBits.equals(file.entryBits)
 
 		for partIndex, part := range file.ast.Parts {
 			isPartInThisChunk := chunk.entryBits.equals(file.meta.partMeta[partIndex].entryBits)
