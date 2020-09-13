@@ -6,7 +6,6 @@ import (
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 // Every module (i.e. file) is parsed into a separate AST data structure. For
@@ -1405,7 +1404,6 @@ type AST struct {
 	ExportStarImportRecords []uint32
 
 	SourceMapComment Span
-	SourceMap        *sourcemap.SourceMap
 }
 
 // This is a histogram of character frequencies for minification

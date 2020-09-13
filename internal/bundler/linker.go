@@ -2795,7 +2795,7 @@ func (c *linkerContext) generateCodeForFileInChunk(
 		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
 		UnsupportedFeatures: c.options.UnsupportedFeatures,
 		SourceForSourceMap:  sourceForSourceMap,
-		InputSourceMap:      file.ast.SourceMap,
+		InputSourceMap:      file.sourceMap,
 	}
 	tree := file.ast
 	tree.Parts = []ast.Part{{Stmts: stmts}}

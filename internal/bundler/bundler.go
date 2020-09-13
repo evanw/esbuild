@@ -25,12 +25,14 @@ import (
 	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
+	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 type file struct {
-	source logger.Source
-	ast    ast.AST
-	loader config.Loader
+	source    logger.Source
+	ast       ast.AST
+	loader    config.Loader
+	sourceMap *sourcemap.SourceMap
 
 	// If this file ends up being used in the bundle, this is an additional file
 	// that must be written to the output directory. It's used by the "file"
@@ -324,7 +326,7 @@ func parseFile(args parseArgs) {
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
 		if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, result.file.ast.SourceMapComment); contents != nil {
-			result.file.ast.SourceMap = parser.ParseSourceMap(args.log, logger.Source{
+			result.file.sourceMap = parser.ParseSourceMap(args.log, logger.Source{
 				KeyPath:    path,
 				PrettyPath: args.res.PrettyPath(path),
 				Contents:   *contents,
