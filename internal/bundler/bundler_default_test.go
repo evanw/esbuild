@@ -2597,22 +2597,24 @@ func TestAssignToImport(t *testing.T) {
 			"/entry.js":                  `import "./bad0.js"`,
 			"/node_modules/foo/index.js": ``,
 
-			"/bad0.js": `import x from "foo"; x = 1; import "./bad1.js"`,
-			"/bad1.js": `import x from "foo"; x++; import "./bad2.js"`,
-			"/bad2.js": `import x from "foo"; ([x] = 1); import "./bad3.js"`,
-			"/bad3.js": `import x from "foo"; ({x} = 1); import "./bad4.js"`,
-			"/bad4.js": `import x from "foo"; ({y: x} = 1); import "./bad5.js"`,
-			"/bad5.js": `import {x} from "foo"; x++; import "./bad6.js"`,
-			"/bad6.js": `import * as x from "foo"; x++; import "./bad7.js"`,
-			"/bad7.js": `import * as x from "foo"; x.y = 1; import "./bad8.js"`,
-			"/bad8.js": `import * as x from "foo"; x[y] = 1; import "./bad9.js"`,
-			"/bad9.js": `import * as x from "foo"; x['y'] = 1; import "./good0.js"`,
+			"/bad0.js":  `import x from "foo"; x = 1; import "./bad1.js"`,
+			"/bad1.js":  `import x from "foo"; x++; import "./bad2.js"`,
+			"/bad2.js":  `import x from "foo"; ([x] = 1); import "./bad3.js"`,
+			"/bad3.js":  `import x from "foo"; ({x} = 1); import "./bad4.js"`,
+			"/bad4.js":  `import x from "foo"; ({y: x} = 1); import "./bad5.js"`,
+			"/bad5.js":  `import {x} from "foo"; x++; import "./bad6.js"`,
+			"/bad6.js":  `import * as x from "foo"; x++; import "./bad7.js"`,
+			"/bad7.js":  `import * as x from "foo"; x.y = 1; import "./bad8.js"`,
+			"/bad8.js":  `import * as x from "foo"; x[y] = 1; import "./bad9.js"`,
+			"/bad9.js":  `import * as x from "foo"; x['y'] = 1; import "./bad10.js"`,
+			"/bad10.js": `import * as x from "foo"; x['y z'] = 1; import "./good0.js"`,
 
 			"/good0.js": `import x from "foo"; ({y = x} = 1); import "./good1.js"`,
 			"/good1.js": `import x from "foo"; ({[x]: y} = 1); import "./good2.js"`,
 			"/good2.js": `import x from "foo"; x.y = 1; import "./good3.js"`,
 			"/good3.js": `import x from "foo"; x[y] = 1; import "./good4.js"`,
 			"/good4.js": `import x from "foo"; x['y'] = 1`,
+			"/good5.js": `import x from "foo"; x['y z'] = 1`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
@@ -2629,6 +2631,7 @@ func TestAssignToImport(t *testing.T) {
 /bad7.js: error: Cannot assign to import "y"
 /bad8.js: error: Cannot assign to property on import "x"
 /bad9.js: error: Cannot assign to import "y"
+/bad10.js: error: Cannot assign to import "y z"
 `,
 	})
 }

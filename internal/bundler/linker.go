@@ -1246,7 +1246,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 	var prevExports []prevExport
 	if object, ok := lazy.Value.Data.(*ast.EObject); ok {
 		for i, property := range object.Properties {
-			if str, ok := property.Key.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(str.Value) {
+			if str, ok := property.Key.Data.(*ast.EString); ok && (!file.isEntryPoint || lexer.IsIdentifierUTF16(str.Value)) {
 				name := lexer.UTF16ToString(str.Value)
 				export := generateExport(name, name, *property.Value, nil)
 				prevExports = append(prevExports, export)

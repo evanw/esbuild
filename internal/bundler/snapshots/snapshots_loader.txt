@@ -116,20 +116,38 @@ const x_json = require_x();
 console.log(x_json, y_default, small, if2);
 
 ================================================================================
+TestLoaderJSONInvalidIdentifierES6
+---------- /out.js ----------
+// /test.json
+var invalid_identifier = true;
+
+// /test2.json
+const test2_exports = {};
+__export(test2_exports, {
+  default: () => test2_default,
+  "invalid-identifier": () => invalid_identifier2
+});
+var invalid_identifier2 = true;
+var test2_default = {"invalid-identifier": invalid_identifier2};
+
+// /entry.js
+console.log(invalid_identifier, test2_exports);
+
+================================================================================
 TestLoaderJSONNoBundle
 ---------- /out.js ----------
-module.exports = {test: 123};
+module.exports = {test: 123, "invalid-identifier": true};
 
 ================================================================================
 TestLoaderJSONNoBundleCommonJS
 ---------- /out.js ----------
-module.exports = {test: 123};
+module.exports = {test: 123, "invalid-identifier": true};
 
 ================================================================================
 TestLoaderJSONNoBundleES6
 ---------- /out.js ----------
 var test = 123;
-var test_default = {test};
+var test_default = {test, "invalid-identifier": true};
 export {
   test_default as default,
   test
@@ -140,7 +158,7 @@ TestLoaderJSONNoBundleIIFE
 ---------- /out.js ----------
 (() => {
   var require_test = __commonJS((exports, module) => {
-    module.exports = {test: 123};
+    module.exports = {test: 123, "invalid-identifier": true};
   });
   require_test();
 })();

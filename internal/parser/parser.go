@@ -7435,14 +7435,18 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, as
 		if i+1 == len(parts) {
 			targetIfLast = assignTarget
 		}
-		value = p.maybeRewriteDot(loc, targetIfLast, &ast.EDot{
-			Target:  value,
-			Name:    parts[i],
-			NameLoc: loc,
+		if expr, ok := p.maybeRewritePropertyAccess(loc, targetIfLast, ast.OptionalChainNone, value, parts[i], loc); ok {
+			value = expr
+		} else {
+			value = ast.Expr{Loc: loc, Data: &ast.EDot{
+				Target:  value,
+				Name:    parts[i],
+				NameLoc: loc,
 
-			// Enable tree shaking
-			CanBeRemovedIfUnused: true,
-		})
+				// Enable tree shaking
+				CanBeRemovedIfUnused: true,
+			}}
+		}
 	}
 
 	return value
@@ -7517,22 +7521,29 @@ func (p *parser) warnAboutEqualityCheck(op string, value ast.Expr, afterOpLoc lo
 // EDot nodes represent a property access. This function may return an
 // expression to replace the property access with. It assumes that the
 // target of the EDot expression has already been visited.
-func (p *parser) maybeRewriteDot(loc logger.Loc, assignTarget ast.AssignTarget, dot *ast.EDot) ast.Expr {
-	if id, ok := dot.Target.Data.(*ast.EIdentifier); ok {
+func (p *parser) maybeRewritePropertyAccess(
+	loc logger.Loc,
+	assignTarget ast.AssignTarget,
+	optionalChain ast.OptionalChain,
+	target ast.Expr,
+	name string,
+	nameLoc logger.Loc,
+) (ast.Expr, bool) {
+	if id, ok := target.Data.(*ast.EIdentifier); ok {
 		// Rewrite property accesses on explicit namespace imports as an identifier.
 		// This lets us replace them easily in the printer to rebind them to
 		// something else without paying the cost of a whole-tree traversal during
 		// module linking just to rewrite these EDot expressions.
 		if importItems, ok := p.importItemsForNamespace[id.Ref]; ok {
 			// Cache translation so each property access resolves to the same import
-			item, ok := importItems[dot.Name]
+			item, ok := importItems[name]
 			if !ok {
 				// Generate a new import item symbol in the module scope
-				item = ast.LocRef{Loc: dot.NameLoc, Ref: p.newSymbol(ast.SymbolImport, dot.Name)}
+				item = ast.LocRef{Loc: nameLoc, Ref: p.newSymbol(ast.SymbolImport, name)}
 				p.moduleScope.Generated = append(p.moduleScope.Generated, item.Ref)
 
 				// Link the namespace import and the import item together
-				importItems[dot.Name] = item
+				importItems[name] = item
 				p.isImportItem[item.Ref] = true
 
 				symbol := &p.symbols[item.Ref.InnerIndex]
@@ -7540,7 +7551,7 @@ func (p *parser) maybeRewriteDot(loc logger.Loc, assignTarget ast.AssignTarget, 
 					// Make sure the printer prints this as a property access
 					symbol.NamespaceAlias = &ast.NamespaceAlias{
 						NamespaceRef: id.Ref,
-						Alias:        dot.Name,
+						Alias:        name,
 					}
 				} else {
 					// Mark this as generated in case it's missing. We don't want to
@@ -7564,20 +7575,20 @@ func (p *parser) maybeRewriteDot(loc logger.Loc, assignTarget ast.AssignTarget, 
 
 			// Track how many times we've referenced this symbol
 			p.recordUsage(item.Ref)
-			return p.handleIdentifier(dot.NameLoc, assignTarget, &ast.EIdentifier{Ref: item.Ref})
+			return p.handleIdentifier(nameLoc, assignTarget, &ast.EIdentifier{Ref: item.Ref}), true
 		}
 
 		// If this is a known enum value, inline the value of the enum
-		if p.TS.Parse && dot.OptionalChain == ast.OptionalChainNone {
+		if p.TS.Parse && optionalChain == ast.OptionalChainNone {
 			if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
-				if number, ok := enumValueMap[dot.Name]; ok {
-					return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: number}}
+				if number, ok := enumValueMap[name]; ok {
+					return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: number}}, true
 				}
 			}
 		}
 	}
 
-	return ast.Expr{Loc: loc, Data: dot}
+	return ast.Expr{}, false
 }
 
 func joinStrings(a []uint16, b []uint16) []uint16 {
@@ -8434,44 +8445,33 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			return p.lowerSuperPropertyAccess(expr.Loc, e.Index), exprOut{}
 		}
 
-		// Create an error for assigning to an import namespace when bundling. Even
-		// though this is a run-time error, we make it a compile-time error when
-		// bundling because scope hoisting means these will no longer be run-time
-		// errors.
-		if p.Mode == config.ModeBundle && in.assignTarget != ast.AssignTargetNone {
-			if id, ok := e.Target.Data.(*ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Kind == ast.SymbolImport {
-				if str, ok := e.Index.Data.(*ast.EString); ok && lexer.IsIdentifierUTF16(str.Value) {
-					r := p.source.RangeOfString(e.Index.Loc)
-					p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to import %q", lexer.UTF16ToString(str.Value)))
-				} else {
-					r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-					p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to property on import %q", p.symbols[id.Ref.InnerIndex].OriginalName))
-				}
-			}
-		}
-
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
-		// If this is a known enum value, inline the value of the enum
-		if p.TS.Parse && e.OptionalChain == ast.OptionalChainNone {
-			if str, ok := e.Index.Data.(*ast.EString); ok {
-				if id, ok := e.Target.Data.(*ast.EIdentifier); ok {
-					if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
-						if number, ok := enumValueMap[lexer.UTF16ToString(str.Value)]; ok {
-							return ast.Expr{Loc: expr.Loc, Data: &ast.ENumber{Value: number}}, exprOut{}
-						}
-					}
-				}
+		// Potentially rewrite this property access
+		out = exprOut{childContainsOptionalChain: containsOptionalChain}
+		if str, ok := e.Index.Data.(*ast.EString); ok {
+			name := lexer.UTF16ToString(str.Value)
+			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, e.OptionalChain, e.Target, name, e.Index.Loc); ok {
+				return value, out
 			}
 		}
 
-		return expr, exprOut{
-			childContainsOptionalChain: containsOptionalChain,
+		// Create an error for assigning to an import namespace when bundling. Even
+		// though this is a run-time error, we make it a compile-time error when
+		// bundling because scope hoisting means these will no longer be run-time
+		// errors.
+		if p.Mode == config.ModeBundle && in.assignTarget != ast.AssignTargetNone {
+			if id, ok := e.Target.Data.(*ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Kind == ast.SymbolImport {
+				r := lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to property on import %q", p.symbols[id.Ref.InnerIndex].OriginalName))
+			}
 		}
+
+		return ast.Expr{Loc: expr.Loc, Data: e}, out
 
 	case *ast.EUnary:
 		switch e.Op {
@@ -8650,9 +8650,12 @@ func (p *parser) visitExprInOut(expr ast.Expr, in exprIn) (ast.Expr, exprOut) {
 			return p.lowerOptionalChain(expr, in, out, nil)
 		}
 
-		return p.maybeRewriteDot(expr.Loc, in.assignTarget, e), exprOut{
-			childContainsOptionalChain: containsOptionalChain,
+		// Potentially rewrite this property access
+		out = exprOut{childContainsOptionalChain: containsOptionalChain}
+		if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, e.OptionalChain, e.Target, e.Name, e.NameLoc); ok {
+			return value, out
 		}
+		return ast.Expr{Loc: expr.Loc, Data: e}, out
 
 	case *ast.EIf:
 		isCallTarget := e == p.callTarget

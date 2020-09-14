@@ -483,6 +483,35 @@ func IsIdentifier(text string) bool {
 	return true
 }
 
+func ForceValidIdentifier(text string) string {
+	if IsIdentifier(text) {
+		return text
+	}
+	sb := strings.Builder{}
+
+	// Identifier start
+	c, width := utf8.DecodeRuneInString(text)
+	text = text[width:]
+	if IsIdentifierStart(c) {
+		sb.WriteRune(c)
+	} else {
+		sb.WriteRune('_')
+	}
+
+	// Identifier continue
+	for text != "" {
+		c, width := utf8.DecodeRuneInString(text)
+		text = text[width:]
+		if IsIdentifierContinue(c) {
+			sb.WriteRune(c)
+		} else {
+			sb.WriteRune('_')
+		}
+	}
+
+	return sb.String()
+}
+
 // This does "IsIdentifier(UTF16ToString(text))" without any allocations
 func IsIdentifierUTF16(text []uint16) bool {
 	n := len(text)

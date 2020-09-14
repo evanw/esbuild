@@ -1779,8 +1779,15 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.printUndefined(level)
 		} else if symbol.NamespaceAlias != nil {
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
-			p.print(".")
-			p.print(symbol.NamespaceAlias.Alias)
+			alias := symbol.NamespaceAlias.Alias
+			if lexer.IsIdentifier(alias) {
+				p.print(".")
+				p.print(alias)
+			} else {
+				p.print("[")
+				p.printQuoted(alias)
+				p.print("]")
+			}
 		} else {
 			p.printSpaceBeforeIdentifier()
 			p.print(p.renamer.NameForSymbol(e.Ref))
