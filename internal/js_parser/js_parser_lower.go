@@ -2,7 +2,7 @@
 // older JavaScript. For example, "a ** b" becomes a call to "Math.pow(a, b)"
 // when lowered. Which syntax is lowered is determined by the language target.
 
-package parser
+package js_parser
 
 import (
 	"fmt"

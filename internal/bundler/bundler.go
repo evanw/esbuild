@@ -20,9 +20,9 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/js_lexer"
+	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
 	"github.com/evanw/esbuild/internal/sourcemap"
@@ -177,42 +177,42 @@ func parseFile(args parseArgs) {
 
 	switch loader {
 	case config.LoaderJS:
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
+		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderJSX:
 		args.options.JSX.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
+		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderTS:
 		args.options.TS.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
+		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderTSX:
 		args.options.TS.Parse = true
 		args.options.JSX.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
+		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderJSON:
 		var expr ast.Expr
-		expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		expr, result.ok = js_parser.ParseJSON(args.log, source, js_parser.ParseJSONOptions{})
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderText:
 		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBinary:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderDataURL:
@@ -223,7 +223,7 @@ func parseFile(args parseArgs) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + strings.ReplaceAll(mimeType, "; ", ";") + ";base64," + encoded
 		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(url)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderFile:
@@ -238,7 +238,7 @@ func parseFile(args parseArgs) {
 
 		// Export the resulting relative path as a string
 		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(baseName)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 		// Optionally add metadata about the file
@@ -295,7 +295,7 @@ func parseFile(args parseArgs) {
 					continue
 				}
 
-				// Ignore records that the parser has discarded. This is used to remove
+				// Ignore records that the js_parser has discarded. This is used to remove
 				// type-only imports in TypeScript files.
 				if record.IsUnused {
 					continue
@@ -342,7 +342,7 @@ func parseFile(args parseArgs) {
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
 		if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, result.file.ast.SourceMapComment); contents != nil {
-			result.file.sourceMap = parser.ParseSourceMap(args.log, logger.Source{
+			result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
 				KeyPath:    path,
 				PrettyPath: args.res.PrettyPath(path),
 				Contents:   *contents,
@@ -980,7 +980,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 
 	// Cache miss
 	log := logger.NewDeferLog()
-	runtimeAST, ok = parser.Parse(log, source, config.Options{
+	runtimeAST, ok = js_parser.Parse(log, source, config.Options{
 		// These configuration options must only depend on the key
 		MangleSyntax:      key.MangleSyntax,
 		MinifyIdentifiers: key.MinifyIdentifiers,

@@ -11,8 +11,8 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/js_lexer"
+	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/parser"
 )
 
 // This namespace is used when a module has been disabled by being mapped to
@@ -461,7 +461,7 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 	// these particular files. This is likely not a completely accurate
 	// emulation of what the TypeScript compiler does (e.g. string escape
 	// behavior may also be different).
-	json, tsConfigSource, err := r.parseJSON(file, parser.ParseJSONOptions{
+	json, tsConfigSource, err := r.parseJSON(file, js_parser.ParseJSONOptions{
 		AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
 		AllowTrailingCommas: true,
 	})
@@ -756,7 +756,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 func (r *resolver) parsePackageJSON(path string) *packageJson {
 	packageJsonPath := r.fs.Join(path, "package.json")
-	json, jsonSource, err := r.parseJSON(packageJsonPath, parser.ParseJSONOptions{})
+	json, jsonSource, err := r.parseJSON(packageJsonPath, js_parser.ParseJSONOptions{})
 	if err != nil {
 		if err != parseErrorAlreadyLogged {
 			r.log.AddError(nil, logger.Loc{},
@@ -965,7 +965,7 @@ var parseErrorAlreadyLogged = errors.New("(error already logged)")
 
 // This may return "parseErrorAlreadyLogged" in which case there was a syntax
 // error, but it's already been reported. No further errors should be logged.
-func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.Expr, logger.Source, error) {
+func (r *resolver) parseJSON(path string, options js_parser.ParseJSONOptions) (ast.Expr, logger.Source, error) {
 	contents, err := r.fs.ReadFile(path)
 	if err != nil {
 		return ast.Expr{}, logger.Source{}, err
@@ -976,7 +976,7 @@ func (r *resolver) parseJSON(path string, options parser.ParseJSONOptions) (ast.
 		PrettyPath: r.PrettyPath(keyPath),
 		Contents:   contents,
 	}
-	result, ok := parser.ParseJSON(r.log, source, options)
+	result, ok := js_parser.ParseJSON(r.log, source, options)
 	if !ok {
 		return ast.Expr{}, logger.Source{}, parseErrorAlreadyLogged
 	}

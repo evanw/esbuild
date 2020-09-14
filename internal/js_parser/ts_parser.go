@@ -2,7 +2,7 @@
 // over type expressions as if they are whitespace and doesn't bother generating
 // an AST because nothing uses type information.
 
-package parser
+package js_parser
 
 import (
 	"github.com/evanw/esbuild/internal/ast"

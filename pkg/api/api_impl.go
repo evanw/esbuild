@@ -16,8 +16,8 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/js_lexer"
+	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/resolver"
 )
 
@@ -292,7 +292,7 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 
 		// Parse the value as JSON
 		source := logger.Source{Contents: value}
-		expr, ok := parser.ParseJSON(logger.NewDeferLog(), source, parser.ParseJSONOptions{})
+		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(), source, js_parser.ParseJSONOptions{})
 		if !ok {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue
