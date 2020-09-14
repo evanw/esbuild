@@ -1,4 +1,4 @@
-package lexer
+package js_lexer
 
 // The lexer converts a source file to a stream of tokens. Unlike many
 // compilers, esbuild does not run the lexer to completion before the parser is

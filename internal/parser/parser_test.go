@@ -7,8 +7,8 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
-	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
@@ -2325,19 +2325,19 @@ func TestUnicodeWhitespace(t *testing.T) {
 		"\uFEFF", // zero width non-breaking space
 	}
 
-	// Test "lexer.Next()"
+	// Test "js_lexer.Next()"
 	expectParseError(t, "var\u0008x", "<stdin>: error: Expected identifier but found \"\\b\"\n")
 	for _, s := range whitespace {
 		expectPrinted(t, "var"+s+"x", "var x;\n")
 	}
 
-	// Test "lexer.NextInsideJSXElement()"
+	// Test "js_lexer.NextInsideJSXElement()"
 	expectParseErrorJSX(t, "<x\u0008y/>", "<stdin>: error: Expected \">\" but found \"\\b\"\n")
 	for _, s := range whitespace {
 		expectPrintedJSX(t, "<x"+s+"y/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  y: true\n});\n")
 	}
 
-	// Test "lexer.NextJSXElementChild()"
+	// Test "js_lexer.NextJSXElementChild()"
 	expectPrintedJSX(t, "<x>\n\u0008\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"\\b\");\n")
 	for _, s := range whitespace {
 		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null);\n")
@@ -2353,19 +2353,19 @@ func TestUnicodeWhitespace(t *testing.T) {
 		"\u0085", // next line (nel)
 	}
 
-	// Test "lexer.Next()"
+	// Test "js_lexer.Next()"
 	for _, s := range invalidWhitespaceInJS {
-		r, _ := lexer.DecodeWTF8Rune(s)
+		r, _ := js_lexer.DecodeWTF8Rune(s)
 		expectParseError(t, "var"+s+"x", fmt.Sprintf("<stdin>: error: Expected identifier but found \"\\u%04x\"\n", r))
 	}
 
-	// Test "lexer.NextInsideJSXElement()"
+	// Test "js_lexer.NextInsideJSXElement()"
 	for _, s := range invalidWhitespaceInJS {
-		r, _ := lexer.DecodeWTF8Rune(s)
+		r, _ := js_lexer.DecodeWTF8Rune(s)
 		expectParseErrorJSX(t, "<x"+s+"y/>", fmt.Sprintf("<stdin>: error: Expected \">\" but found \"\\u%04x\"\n", r))
 	}
 
-	// Test "lexer.NextJSXElementChild()"
+	// Test "js_lexer.NextJSXElementChild()"
 	for _, s := range invalidWhitespaceInJS {
 		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \""+s+"\");\n")
 	}

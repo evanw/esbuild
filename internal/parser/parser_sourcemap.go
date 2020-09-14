@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
@@ -39,7 +39,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	for _, prop := range obj.Properties {
 		keyRange := source.RangeOfString(prop.Key.Loc)
 
-		switch lexer.UTF16ToString(prop.Key.Data.(*ast.EString).Value) {
+		switch js_lexer.UTF16ToString(prop.Key.Data.(*ast.EString).Value) {
 		case "sections":
 			log.AddRangeWarning(&source, keyRange, "Source maps with \"sections\" are not supported")
 			return nil
@@ -60,7 +60,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				sources = nil
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*ast.EString); ok {
-						sources = append(sources, sourcesPrefix+lexer.UTF16ToString(element.Value))
+						sources = append(sources, sourcesPrefix+js_lexer.UTF16ToString(element.Value))
 					}
 				}
 			}
@@ -70,7 +70,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				sourcesContent = nil
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*ast.EString); ok {
-						str := lexer.UTF16ToString(element.Value)
+						str := js_lexer.UTF16ToString(element.Value)
 						sourcesContent = append(sourcesContent, &str)
 					} else {
 						sourcesContent = append(sourcesContent, nil)
@@ -203,7 +203,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				current++
 			} else if c != ';' {
 				errorText = fmt.Sprintf("Invalid character after mapping: %q",
-					lexer.UTF16ToString(mappingsRaw[current:current+1]))
+					js_lexer.UTF16ToString(mappingsRaw[current:current+1]))
 				errorLen = 1
 				break
 			}

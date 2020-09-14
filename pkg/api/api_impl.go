@@ -15,7 +15,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/resolver"
@@ -253,7 +253,7 @@ func validateJSX(log logger.Log, text string, name string) []string {
 	}
 	parts := strings.Split(text, ".")
 	for _, part := range parts {
-		if !lexer.IsIdentifier(part) {
+		if !js_lexer.IsIdentifier(part) {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
 			return nil
 		}
@@ -271,15 +271,15 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 	for key, value := range defines {
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
-			if !lexer.IsIdentifier(part) {
+			if !js_lexer.IsIdentifier(part) {
 				log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define key: %q", key))
 				continue
 			}
 		}
 
 		// Allow substituting for an identifier
-		if lexer.IsIdentifier(value) {
-			if _, ok := lexer.Keywords[value]; !ok {
+		if js_lexer.IsIdentifier(value) {
+			if _, ok := js_lexer.Keywords[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
 				rawDefines[key] = config.DefineData{
 					DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) ast.E {
@@ -320,7 +320,7 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 	for _, key := range pureFns {
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
-			if !lexer.IsIdentifier(part) {
+			if !js_lexer.IsIdentifier(part) {
 				log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid pure function: %q", key))
 				continue
 			}

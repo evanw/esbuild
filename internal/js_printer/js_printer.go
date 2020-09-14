@@ -11,7 +11,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/sourcemap"
@@ -252,7 +252,7 @@ func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
 			i++
 
 		default:
-			r, width := lexer.DecodeWTF8Rune(text[i:])
+			r, width := js_lexer.DecodeWTF8Rune(text[i:])
 			i += width
 			if r <= 0xFF && !forJSON {
 				if r == '\v' {
@@ -468,10 +468,10 @@ func (p *printer) printBytes(bytes []byte) {
 	p.js = append(p.js, bytes...)
 }
 
-// This is the same as "print(lexer.UTF16ToString(text))" without any
+// This is the same as "print(js_lexer.UTF16ToString(text))" without any
 // unnecessary temporary allocations
 func (p *printer) printUTF16(text []uint16) {
-	p.js = lexer.AppendUTF16ToBytes(p.js, text)
+	p.js = js_lexer.AppendUTF16ToBytes(p.js, text)
 }
 
 func (p *printer) printQuoted(text string) {
@@ -795,13 +795,13 @@ func (p *printer) printBinding(binding ast.Binding) {
 					}
 
 					if str, ok := property.Key.Data.(*ast.EString); ok {
-						if lexer.IsIdentifierUTF16(str.Value) {
+						if js_lexer.IsIdentifierUTF16(str.Value) {
 							p.addSourceMapping(property.Key.Loc)
 							p.printSpaceBeforeIdentifier()
 							p.printUTF16(str.Value)
 
 							// Use a shorthand property if the names are the same
-							if id, ok := property.Value.Data.(*ast.BIdentifier); ok && lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
+							if id, ok := property.Value.Data.(*ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
 								if property.DefaultValue != nil {
 									p.printSpace()
 									p.print("=")
@@ -893,7 +893,7 @@ func (p *printer) printSemicolonIfNeeded() {
 func (p *printer) printSpaceBeforeIdentifier() {
 	buffer := p.js
 	n := len(buffer)
-	if n > 0 && (lexer.IsIdentifierContinue(rune(buffer[n-1])) || n == p.prevRegExpEnd) {
+	if n > 0 && (js_lexer.IsIdentifierContinue(rune(buffer[n-1])) || n == p.prevRegExpEnd) {
 		p.print(" ")
 	}
 }
@@ -1040,7 +1040,7 @@ func (p *printer) printProperty(item ast.Property) {
 
 	case *ast.EString:
 		p.addSourceMapping(item.Key.Loc)
-		if lexer.IsIdentifierUTF16(key.Value) {
+		if js_lexer.IsIdentifierUTF16(key.Value) {
 			p.printSpaceBeforeIdentifier()
 			p.printUTF16(key.Value)
 
@@ -1048,7 +1048,7 @@ func (p *printer) printProperty(item ast.Property) {
 			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.Value != nil {
 				switch e := item.Value.Data.(type) {
 				case *ast.EIdentifier:
-					if lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
+					if js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -1062,7 +1062,7 @@ func (p *printer) printProperty(item ast.Property) {
 					// Make sure we're not using a property access instead of an identifier
 					ref := ast.FollowSymbols(p.symbols, e.Ref)
 					symbol := p.symbols.Get(ref)
-					if symbol.NamespaceAlias == nil && lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
+					if symbol.NamespaceAlias == nil && js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
@@ -1780,7 +1780,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		} else if symbol.NamespaceAlias != nil {
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			alias := symbol.NamespaceAlias.Alias
-			if lexer.IsIdentifier(alias) {
+			if js_lexer.IsIdentifier(alias) {
 				p.print(".")
 				p.print(alias)
 			} else {

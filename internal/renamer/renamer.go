@@ -6,17 +6,17 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_lexer"
 )
 
 func ComputeReservedNames(moduleScopes []*ast.Scope, symbols ast.SymbolMap) map[string]uint32 {
 	names := make(map[string]uint32)
 
 	// All keywords and strict mode reserved words are reserved names
-	for k := range lexer.Keywords {
+	for k := range js_lexer.Keywords {
 		names[k] = 1
 	}
-	for k := range lexer.StrictModeReservedWords {
+	for k := range js_lexer.StrictModeReservedWords {
 		names[k] = 1
 	}
 
@@ -199,7 +199,7 @@ func (r *MinifyRenamer) AssignNamesByFrequency(minifier *ast.NameMinifier) {
 				}
 
 			case ast.SlotLabel:
-				for lexer.Keywords[name] != 0 {
+				for js_lexer.Keywords[name] != 0 {
 					name = minifier.NumberToMinifiedName(nextName)
 					nextName++
 				}
@@ -461,7 +461,7 @@ func (s *numberScope) findNameUse(name string) nameUse {
 }
 
 func (s *numberScope) findUnusedName(name string) string {
-	name = lexer.ForceValidIdentifier(name)
+	name = js_lexer.ForceValidIdentifier(name)
 
 	if use := s.findNameUse(name); use != nameUnused {
 		// If the name is already in use, generate a new name by appending a number

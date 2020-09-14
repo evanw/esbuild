@@ -10,7 +10,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -440,7 +440,7 @@ flatten:
 				if _, ok := e.Target.Data.(*ast.ESuper); ok {
 					// Lower "super.prop" if necessary
 					if p.shouldLowerSuperPropertyAccess(e.Target) {
-						key := ast.Expr{Loc: e.NameLoc, Data: &ast.EString{Value: lexer.StringToUTF16(e.Name)}}
+						key := ast.Expr{Loc: e.NameLoc, Data: &ast.EString{Value: js_lexer.StringToUTF16(e.Name)}}
 						expr = p.lowerSuperPropertyAccess(expr.Loc, key)
 					}
 
@@ -1749,7 +1749,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 					if key, ok := prop.Key.Data.(*ast.EString); ok && !prop.IsComputed {
 						target = ast.Expr{Loc: loc, Data: &ast.EDot{
 							Target:  target,
-							Name:    lexer.UTF16ToString(key.Value),
+							Name:    js_lexer.UTF16ToString(key.Value),
 							NameLoc: loc,
 						}}
 					} else {
@@ -1844,7 +1844,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 					*prop.Value,
 				))
 				continue
-			} else if key, ok := prop.Key.Data.(*ast.EString); ok && lexer.UTF16EqualsString(key.Value, "constructor") {
+			} else if key, ok := prop.Key.Data.(*ast.EString); ok && js_lexer.UTF16EqualsString(key.Value, "constructor") {
 				if fn, ok := prop.Value.Data.(*ast.EFunction); ok {
 					ctor = fn
 
@@ -1886,7 +1886,7 @@ func (p *parser) lowerClass(stmt ast.Stmt, expr ast.Expr) ([]ast.Stmt, ast.Expr)
 			// Append it to the list to reuse existing allocation space
 			class.Properties = append(class.Properties, ast.Property{
 				IsMethod: true,
-				Key:      ast.Expr{Loc: classLoc, Data: &ast.EString{Value: lexer.StringToUTF16("constructor")}},
+				Key:      ast.Expr{Loc: classLoc, Data: &ast.EString{Value: js_lexer.StringToUTF16("constructor")}},
 				Value:    &ast.Expr{Loc: classLoc, Data: ctor},
 			})
 
@@ -2061,7 +2061,7 @@ func (p *parser) maybeLowerSuperPropertyAccessInsideCall(call *ast.ECall) {
 		if !p.shouldLowerSuperPropertyAccess(e.Target) {
 			return
 		}
-		key = ast.Expr{Loc: e.NameLoc, Data: &ast.EString{Value: lexer.StringToUTF16(e.Name)}}
+		key = ast.Expr{Loc: e.NameLoc, Data: &ast.EString{Value: js_lexer.StringToUTF16(e.Name)}}
 
 	case *ast.EIndex:
 		// Lower "super[prop]" if necessary

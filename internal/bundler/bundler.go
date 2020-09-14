@@ -19,8 +19,8 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
-	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/resolver"
@@ -199,19 +199,19 @@ func parseFile(args parseArgs) {
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderText:
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(source.Contents)}}
+		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
 		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
+		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
 		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBinary:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
+		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
 		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
 		result.file.ignoreIfUnused = true
 
@@ -222,7 +222,7 @@ func parseFile(args parseArgs) {
 		}
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + strings.ReplaceAll(mimeType, "; ", ";") + ";base64," + encoded
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(url)}}
+		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(url)}}
 		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
@@ -237,7 +237,7 @@ func parseFile(args parseArgs) {
 		targetFolder := args.options.AbsOutputDir
 
 		// Export the resulting relative path as a string
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(baseName)}}
+		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(baseName)}}
 		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
@@ -1033,7 +1033,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 	result := config.ProcessDefines(map[string]config.DefineData{
 		"__platform": config.DefineData{
 			DefineFunc: func(logger.Loc, config.FindSymbol) ast.E {
-				return &ast.EString{Value: lexer.StringToUTF16(platform)}
+				return &ast.EString{Value: js_lexer.StringToUTF16(platform)}
 			},
 		},
 	})

@@ -10,7 +10,7 @@ import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/parser"
 )
@@ -429,7 +429,7 @@ func (r *resolver) parseMemberExpressionForJSX(source logger.Source, loc logger.
 	}
 	parts := strings.Split(text, ".")
 	for _, part := range parts {
-		if !lexer.IsIdentifier(part) {
+		if !js_lexer.IsIdentifier(part) {
 			warnRange := source.RangeOfString(loc)
 			r.log.AddRangeWarning(&source, warnRange, fmt.Sprintf("Invalid JSX member expression: %q", text))
 			return nil
@@ -873,7 +873,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 			packageJson.sideEffectsMap = make(map[string]bool)
 			for _, itemJson := range data.Items {
 				if item, ok := itemJson.Data.(*ast.EString); ok && item.Value != nil {
-					absolute := r.fs.Join(path, lexer.UTF16ToString(item.Value))
+					absolute := r.fs.Join(path, js_lexer.UTF16ToString(item.Value))
 					packageJson.sideEffectsMap[absolute] = true
 				} else {
 					r.log.AddWarning(&jsonSource, itemJson.Loc,
@@ -987,7 +987,7 @@ func getProperty(json ast.Expr, name string) (ast.Expr, logger.Loc, bool) {
 	if obj, ok := json.Data.(*ast.EObject); ok {
 		for _, prop := range obj.Properties {
 			if key, ok := prop.Key.Data.(*ast.EString); ok && key.Value != nil &&
-				len(key.Value) == len(name) && lexer.UTF16ToString(key.Value) == name {
+				len(key.Value) == len(name) && js_lexer.UTF16ToString(key.Value) == name {
 				return *prop.Value, prop.Key.Loc, true
 			}
 		}
@@ -997,7 +997,7 @@ func getProperty(json ast.Expr, name string) (ast.Expr, logger.Loc, bool) {
 
 func getString(json ast.Expr) (string, bool) {
 	if value, ok := json.Data.(*ast.EString); ok {
-		return lexer.UTF16ToString(value.Value), true
+		return js_lexer.UTF16ToString(value.Value), true
 	}
 	return "", false
 }

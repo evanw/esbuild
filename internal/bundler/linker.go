@@ -13,8 +13,8 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
-	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/resolver"
@@ -1246,8 +1246,8 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 	var prevExports []prevExport
 	if object, ok := lazy.Value.Data.(*ast.EObject); ok {
 		for i, property := range object.Properties {
-			if str, ok := property.Key.Data.(*ast.EString); ok && (!file.isEntryPoint || lexer.IsIdentifierUTF16(str.Value)) {
-				name := lexer.UTF16ToString(str.Value)
+			if str, ok := property.Key.Data.(*ast.EString); ok && (!file.isEntryPoint || js_lexer.IsIdentifierUTF16(str.Value)) {
+				name := js_lexer.UTF16ToString(str.Value)
 				export := generateExport(name, name, *property.Value, nil)
 				prevExports = append(prevExports, export)
 				object.Properties[i].Value = &ast.Expr{Loc: property.Key.Loc, Data: &ast.EIdentifier{Ref: export.ref}}
@@ -1402,7 +1402,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 
 		// Add a getter property
 		properties = append(properties, ast.Property{
-			Key: ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(alias)}},
+			Key: ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(alias)}},
 			Value: &ast.Expr{Data: &ast.EArrow{
 				PreferExpr: true,
 				Body:       ast.FnBody{Stmts: []ast.Stmt{{Loc: value.Loc, Data: &ast.SReturn{Value: &value}}}},
@@ -1591,7 +1591,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				checkCycle = false
 				if cycleDetector == tracker {
 					namedImport := file.ast.NamedImports[importRef]
-					c.addRangeError(file.source, lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
+					c.addRangeError(file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
 						fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
 					break
 				}
@@ -1623,7 +1623,7 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// Warn about importing from a file that is known to not have any exports
 				if status == importCommonJSWithoutExports {
 					source := c.files[tracker.sourceIndex].source
-					c.log.AddRangeWarning(&source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+					c.log.AddRangeWarning(&source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 						fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
 				}
 
@@ -1635,14 +1635,14 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 					// Report mismatched imports and exports
 					source := c.files[tracker.sourceIndex].source
 					namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
-					c.addRangeError(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+					c.addRangeError(source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 						fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 				}
 
 			case importAmbiguous:
 				source := c.files[tracker.sourceIndex].source
 				namedImport := c.files[tracker.sourceIndex].ast.NamedImports[tracker.importRef]
-				c.addRangeError(source, lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+				c.addRangeError(source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 					fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
 
 			case importProbablyTypeScriptType:
