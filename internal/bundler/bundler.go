@@ -16,9 +16,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/js_printer"
@@ -30,7 +30,7 @@ import (
 
 type file struct {
 	source    logger.Source
-	ast       ast.AST
+	ast       js_ast.AST
 	loader    config.Loader
 	sourceMap *sourcemap.SourceMap
 	meta      fileMeta
@@ -118,9 +118,9 @@ func parseFile(args parseArgs) {
 	// need to look at the parent directory. But make sure to not treat the key
 	// as a file system path if it's not marked as one.
 	if args.keyPath.Namespace == "file" {
-		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.keyPath.Text)
+		source.IdentifierName = js_ast.GenerateNonUniqueNameFromPath(args.keyPath.Text)
 	} else {
-		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.baseName)
+		source.IdentifierName = js_ast.GenerateNonUniqueNameFromPath(args.baseName)
 	}
 
 	var loader config.Loader
@@ -193,25 +193,25 @@ func parseFile(args parseArgs) {
 		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderJSON:
-		var expr ast.Expr
+		var expr js_ast.Expr
 		expr, result.ok = js_parser.ParseJSON(args.log, source, js_parser.ParseJSONOptions{})
 		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderText:
-		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
 		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
 		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBinary:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
 		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
 		result.file.ignoreIfUnused = true
 
@@ -222,7 +222,7 @@ func parseFile(args parseArgs) {
 		}
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + strings.ReplaceAll(mimeType, "; ", ";") + ";base64," + encoded
-		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(url)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(url)}}
 		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
@@ -237,7 +237,7 @@ func parseFile(args parseArgs) {
 		targetFolder := args.options.AbsOutputDir
 
 		// Export the resulting relative path as a string
-		expr := ast.Expr{Data: &ast.EString{Value: js_lexer.StringToUTF16(baseName)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(baseName)}}
 		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
@@ -303,7 +303,7 @@ func parseFile(args parseArgs) {
 
 				// Cache the path in case it's imported multiple times in this file
 				cache := cacheImport
-				if record.Kind == ast.ImportRequire {
+				if record.Kind == js_ast.ImportRequire {
 					cache = cacheRequire
 				}
 				if resolveResult, ok := cache[record.Path.Text]; ok {
@@ -353,7 +353,7 @@ func parseFile(args parseArgs) {
 	args.results <- result
 }
 
-func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment ast.Span) (logger.Path, *string) {
+func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment js_ast.Span) (logger.Path, *string) {
 	// Data URL
 	if strings.HasPrefix(comment.Text, "data:") {
 		if strings.HasPrefix(comment.Text, "data:application/json;") {
@@ -829,7 +829,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
 			file := b.files[sourceIndex]
 			for importRecordIndex := range file.ast.ImportRecords {
-				if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
+				if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == js_ast.ImportDynamic {
 					isEntryPoint[*record.SourceIndex] = true
 				}
 			}
@@ -942,7 +942,7 @@ type runtimeCacheKey struct {
 
 type runtimeCache struct {
 	astMutex sync.Mutex
-	astMap   map[runtimeCacheKey]ast.AST
+	astMap   map[runtimeCacheKey]js_ast.AST
 
 	definesMutex sync.Mutex
 	definesMap   map[config.Platform]*config.ProcessedDefines
@@ -950,7 +950,7 @@ type runtimeCache struct {
 
 var globalRuntimeCache runtimeCache
 
-func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.Source, runtimeAST ast.AST, ok bool) {
+func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.Source, runtimeAST js_ast.AST, ok bool) {
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
 		MangleSyntax:      options.MangleSyntax,
@@ -1000,7 +1000,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		cache.astMutex.Lock()
 		defer cache.astMutex.Unlock()
 		if cache.astMap == nil {
-			cache.astMap = make(map[runtimeCacheKey]ast.AST)
+			cache.astMap = make(map[runtimeCacheKey]js_ast.AST)
 		}
 		cache.astMap[key] = runtimeAST
 	}
@@ -1032,8 +1032,8 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 	}
 	result := config.ProcessDefines(map[string]config.DefineData{
 		"__platform": config.DefineData{
-			DefineFunc: func(logger.Loc, config.FindSymbol) ast.E {
-				return &ast.EString{Value: js_lexer.StringToUTF16(platform)}
+			DefineFunc: func(logger.Loc, config.FindSymbol) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16(platform)}
 			},
 		},
 	})

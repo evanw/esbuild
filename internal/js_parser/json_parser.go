@@ -3,7 +3,7 @@ package js_parser
 import (
 	"fmt"
 
-	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -29,42 +29,42 @@ func (p *jsonParser) parseMaybeTrailingComma(closeToken js_lexer.T) bool {
 	return true
 }
 
-func (p *jsonParser) parseExpr() ast.Expr {
+func (p *jsonParser) parseExpr() js_ast.Expr {
 	loc := p.lexer.Loc()
 
 	switch p.lexer.Token {
 	case js_lexer.TFalse:
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: false}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: false}}
 
 	case js_lexer.TTrue:
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: true}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: true}}
 
 	case js_lexer.TNull:
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.ENull{}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}}
 
 	case js_lexer.TStringLiteral:
 		value := p.lexer.StringLiteral
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.EString{Value: value}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: value}}
 
 	case js_lexer.TNumericLiteral:
 		value := p.lexer.Number
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: value}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: value}}
 
 	case js_lexer.TMinus:
 		p.lexer.Next()
 		value := p.lexer.Number
 		p.lexer.Expect(js_lexer.TNumericLiteral)
-		return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: -value}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: -value}}
 
 	case js_lexer.TOpenBracket:
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
-		items := []ast.Expr{}
+		items := []js_ast.Expr{}
 
 		for p.lexer.Token != js_lexer.TCloseBracket {
 			if len(items) > 0 {
@@ -87,7 +87,7 @@ func (p *jsonParser) parseExpr() ast.Expr {
 			isSingleLine = false
 		}
 		p.lexer.Expect(js_lexer.TCloseBracket)
-		return ast.Expr{Loc: loc, Data: &ast.EArray{
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EArray{
 			Items:        items,
 			IsSingleLine: isSingleLine,
 		}}
@@ -95,7 +95,7 @@ func (p *jsonParser) parseExpr() ast.Expr {
 	case js_lexer.TOpenBrace:
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
-		properties := []ast.Property{}
+		properties := []js_ast.Property{}
 		duplicates := make(map[string]bool)
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
@@ -113,7 +113,7 @@ func (p *jsonParser) parseExpr() ast.Expr {
 
 			keyString := p.lexer.StringLiteral
 			keyRange := p.lexer.Range()
-			key := ast.Expr{Loc: keyRange.Loc, Data: &ast.EString{Value: keyString}}
+			key := js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: keyString}}
 			p.lexer.Expect(js_lexer.TStringLiteral)
 
 			// Warn about duplicate keys
@@ -127,8 +127,8 @@ func (p *jsonParser) parseExpr() ast.Expr {
 			p.lexer.Expect(js_lexer.TColon)
 			value := p.parseExpr()
 
-			property := ast.Property{
-				Kind:  ast.PropertyNormal,
+			property := js_ast.Property{
+				Kind:  js_ast.PropertyNormal,
 				Key:   key,
 				Value: &value,
 			}
@@ -139,14 +139,14 @@ func (p *jsonParser) parseExpr() ast.Expr {
 			isSingleLine = false
 		}
 		p.lexer.Expect(js_lexer.TCloseBrace)
-		return ast.Expr{Loc: loc, Data: &ast.EObject{
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
 			Properties:   properties,
 			IsSingleLine: isSingleLine,
 		}}
 
 	default:
 		p.lexer.Unexpected()
-		return ast.Expr{}
+		return js_ast.Expr{}
 	}
 }
 
@@ -155,7 +155,7 @@ type ParseJSONOptions struct {
 	AllowTrailingCommas bool
 }
 
-func ParseJSON(log logger.Log, source logger.Source, options ParseJSONOptions) (result ast.Expr, ok bool) {
+func ParseJSON(log logger.Log, source logger.Source, options ParseJSONOptions) (result js_ast.Expr, ok bool) {
 	ok = true
 	defer func() {
 		r := recover()

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/test"
@@ -43,7 +43,7 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := js_printer.PrintExpr(expr, ast.SymbolMap{}, nil, js_printer.PrintOptions{
+		js := js_printer.PrintExpr(expr, js_ast.SymbolMap{}, nil, js_printer.PrintOptions{
 			RemoveWhitespace: true,
 		}).JS
 		test.AssertEqual(t, string(js), expected)
@@ -65,7 +65,7 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := js_printer.PrintExpr(expr, ast.SymbolMap{}, nil, js_printer.PrintOptions{
+		js := js_printer.PrintExpr(expr, js_ast.SymbolMap{}, nil, js_printer.PrintOptions{
 			RemoveWhitespace: true,
 		}).JS
 		test.AssertEqual(t, string(js), expected)

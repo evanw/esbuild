@@ -3,9 +3,9 @@ package js_printer
 import (
 	"testing"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
@@ -34,7 +34,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := Print(tree, symbols, r, options).JS

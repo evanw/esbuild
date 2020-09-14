@@ -1,4 +1,4 @@
-package ast
+package js_ast
 
 import (
 	"sort"

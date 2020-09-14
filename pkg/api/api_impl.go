@@ -10,11 +10,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
@@ -282,8 +282,8 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 			if _, ok := js_lexer.Keywords[value]; !ok {
 				name := value // The closure must close over a variable inside the loop
 				rawDefines[key] = config.DefineData{
-					DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) ast.E {
-						return &ast.EIdentifier{Ref: findSymbol(loc, name)}
+					DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
+						return &js_ast.EIdentifier{Ref: findSymbol(loc, name)}
 					},
 				}
 				continue
@@ -301,14 +301,14 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 		// Only allow atoms for now
 		var fn config.DefineFunc
 		switch e := expr.Data.(type) {
-		case *ast.ENull:
-			fn = func(logger.Loc, config.FindSymbol) ast.E { return &ast.ENull{} }
-		case *ast.EBoolean:
-			fn = func(logger.Loc, config.FindSymbol) ast.E { return &ast.EBoolean{Value: e.Value} }
-		case *ast.EString:
-			fn = func(logger.Loc, config.FindSymbol) ast.E { return &ast.EString{Value: e.Value} }
-		case *ast.ENumber:
-			fn = func(logger.Loc, config.FindSymbol) ast.E { return &ast.ENumber{Value: e.Value} }
+		case *js_ast.ENull:
+			fn = func(logger.Loc, config.FindSymbol) js_ast.E { return &js_ast.ENull{} }
+		case *js_ast.EBoolean:
+			fn = func(logger.Loc, config.FindSymbol) js_ast.E { return &js_ast.EBoolean{Value: e.Value} }
+		case *js_ast.EString:
+			fn = func(logger.Loc, config.FindSymbol) js_ast.E { return &js_ast.EString{Value: e.Value} }
+		case *js_ast.ENumber:
+			fn = func(logger.Loc, config.FindSymbol) js_ast.E { return &js_ast.ENumber{Value: e.Value} }
 		default:
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue

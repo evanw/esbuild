@@ -5,7 +5,7 @@
 package js_parser
 
 import (
-	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -98,7 +98,7 @@ func (p *parser) skipTypeScriptFnArgs() {
 		// "(a: any)"
 		if p.lexer.Token == js_lexer.TColon {
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptType(js_ast.LLowest)
 		}
 
 		// "(a, b)"
@@ -131,7 +131,7 @@ func (p *parser) skipTypeScriptParenOrFnType() {
 		p.skipTypeScriptReturnType()
 	} else {
 		p.lexer.Expect(js_lexer.TOpenParen)
-		p.skipTypeScriptType(ast.LLowest)
+		p.skipTypeScriptType(js_ast.LLowest)
 		p.lexer.Expect(js_lexer.TCloseParen)
 	}
 }
@@ -150,16 +150,16 @@ func (p *parser) skipTypeScriptReturnType() {
 		// Continue on to the "is" check below to handle something like
 		// "function assert(x: any): asserts x is boolean"
 	} else {
-		p.skipTypeScriptType(ast.LLowest)
+		p.skipTypeScriptType(js_ast.LLowest)
 	}
 
 	if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
 		p.lexer.Next()
-		p.skipTypeScriptType(ast.LLowest)
+		p.skipTypeScriptType(js_ast.LLowest)
 	}
 }
 
-func (p *parser) skipTypeScriptType(level ast.L) {
+func (p *parser) skipTypeScriptType(level js_ast.L) {
 	p.skipTypeScriptTypePrefix()
 	p.skipTypeScriptTypeSuffix(level)
 }
@@ -214,7 +214,7 @@ func (p *parser) skipTypeScriptTypePrefix() {
 		switch p.lexer.Identifier {
 		case "keyof", "readonly", "infer":
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LPrefix)
+			p.skipTypeScriptType(js_ast.LPrefix)
 
 		case "unique":
 			p.lexer.Next()
@@ -254,10 +254,10 @@ func (p *parser) skipTypeScriptTypePrefix() {
 			if p.lexer.Token == js_lexer.TDotDotDot {
 				p.lexer.Next()
 			}
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptType(js_ast.LLowest)
 			if p.lexer.Token == js_lexer.TColon {
 				p.lexer.Next()
-				p.skipTypeScriptType(ast.LLowest)
+				p.skipTypeScriptType(js_ast.LLowest)
 			}
 			if p.lexer.Token != js_lexer.TComma {
 				break
@@ -274,22 +274,22 @@ func (p *parser) skipTypeScriptTypePrefix() {
 	}
 }
 
-func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
+func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 	for {
 		switch p.lexer.Token {
 		case js_lexer.TBar:
-			if level >= ast.LBitwiseOr {
+			if level >= js_ast.LBitwiseOr {
 				return
 			}
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LBitwiseOr)
+			p.skipTypeScriptType(js_ast.LBitwiseOr)
 
 		case js_lexer.TAmpersand:
-			if level >= ast.LBitwiseAnd {
+			if level >= js_ast.LBitwiseAnd {
 				return
 			}
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LBitwiseAnd)
+			p.skipTypeScriptType(js_ast.LBitwiseAnd)
 
 		case js_lexer.TDot:
 			p.lexer.Next()
@@ -305,7 +305,7 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			}
 			p.lexer.Next()
 			if p.lexer.Token != js_lexer.TCloseBracket {
-				p.skipTypeScriptType(ast.LLowest)
+				p.skipTypeScriptType(js_ast.LLowest)
 			}
 			p.lexer.Expect(js_lexer.TCloseBracket)
 
@@ -317,7 +317,7 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 			}
 			p.lexer.ExpectLessThan(false /* isInsideJSXElement */)
 			for {
-				p.skipTypeScriptType(ast.LLowest)
+				p.skipTypeScriptType(js_ast.LLowest)
 				if p.lexer.Token != js_lexer.TComma {
 					break
 				}
@@ -331,10 +331,10 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 				return
 			}
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LCompare)
+			p.skipTypeScriptType(js_ast.LCompare)
 
 		case js_lexer.TQuestion:
-			if level >= ast.LConditional {
+			if level >= js_ast.LConditional {
 				return
 			}
 			p.lexer.Next()
@@ -349,9 +349,9 @@ func (p *parser) skipTypeScriptTypeSuffix(level ast.L) {
 				return
 			}
 
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptType(js_ast.LLowest)
 			p.lexer.Expect(js_lexer.TColon)
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptType(js_ast.LLowest)
 
 		default:
 			return
@@ -381,13 +381,13 @@ func (p *parser) skipTypeScriptObjectType() {
 		if p.lexer.Token == js_lexer.TOpenBracket {
 			// Index signature or computed property
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptType(js_ast.LLowest)
 
 			// "{ [key: string]: number }"
 			// "{ readonly [K in keyof T]: T[K] }"
 			if p.lexer.Token == js_lexer.TColon || p.lexer.Token == js_lexer.TIn {
 				p.lexer.Next()
-				p.skipTypeScriptType(ast.LLowest)
+				p.skipTypeScriptType(js_ast.LLowest)
 			}
 
 			p.lexer.Expect(js_lexer.TCloseBracket)
@@ -417,7 +417,7 @@ func (p *parser) skipTypeScriptObjectType() {
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 			p.lexer.Next()
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptType(js_ast.LLowest)
 
 		case js_lexer.TOpenParen:
 			// Method signature
@@ -461,13 +461,13 @@ func (p *parser) skipTypeScriptTypeParameters() {
 			// "class Foo<T extends number> {}"
 			if p.lexer.Token == js_lexer.TExtends {
 				p.lexer.Next()
-				p.skipTypeScriptType(ast.LLowest)
+				p.skipTypeScriptType(js_ast.LLowest)
 			}
 
 			// "class Foo<T = void> {}"
 			if p.lexer.Token == js_lexer.TEquals {
 				p.lexer.Next()
-				p.skipTypeScriptType(ast.LLowest)
+				p.skipTypeScriptType(js_ast.LLowest)
 			}
 
 			if p.lexer.Token != js_lexer.TComma {
@@ -491,7 +491,7 @@ func (p *parser) skipTypeScriptTypeArguments(isInsideJSXElement bool) bool {
 	p.lexer.Next()
 
 	for {
-		p.skipTypeScriptType(ast.LLowest)
+		p.skipTypeScriptType(js_ast.LLowest)
 		if p.lexer.Token != js_lexer.TComma {
 			break
 		}
@@ -669,7 +669,7 @@ func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
 	if p.lexer.Token == js_lexer.TExtends {
 		p.lexer.Next()
 		for {
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptType(js_ast.LLowest)
 			if p.lexer.Token != js_lexer.TComma {
 				break
 			}
@@ -680,7 +680,7 @@ func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
 	if p.lexer.IsContextualKeyword("implements") {
 		p.lexer.Next()
 		for {
-			p.skipTypeScriptType(ast.LLowest)
+			p.skipTypeScriptType(js_ast.LLowest)
 			if p.lexer.Token != js_lexer.TComma {
 				break
 			}
@@ -713,12 +713,12 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 
 	p.skipTypeScriptTypeParameters()
 	p.lexer.Expect(js_lexer.TEquals)
-	p.skipTypeScriptType(ast.LLowest)
+	p.skipTypeScriptType(js_ast.LLowest)
 	p.lexer.ExpectOrInsertSemicolon()
 }
 
-func (p *parser) parseTypeScriptDecorators() []ast.Expr {
-	var tsDecorators []ast.Expr
+func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
+	var tsDecorators []js_ast.Expr
 	if p.TS.Parse {
 		for p.lexer.Token == js_lexer.TAt {
 			p.lexer.Next()
@@ -731,32 +731,32 @@ func (p *parser) parseTypeScriptDecorators() []ast.Expr {
 			//   }
 			//
 			// This matches the behavior of the TypeScript compiler.
-			tsDecorators = append(tsDecorators, p.parseExprWithFlags(ast.LNew, exprFlagTSDecorator))
+			tsDecorators = append(tsDecorators, p.parseExprWithFlags(js_ast.LNew, exprFlagTSDecorator))
 		}
 	}
 	return tsDecorators
 }
 
-func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) ast.Stmt {
+func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	p.lexer.Expect(js_lexer.TEnum)
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
 	p.lexer.Expect(js_lexer.TIdentifier)
-	name := ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
-	argRef := ast.InvalidRef
+	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
+	argRef := js_ast.InvalidRef
 	if !opts.isTypeScriptDeclare {
-		name.Ref = p.declareSymbol(ast.SymbolTSEnum, nameLoc, nameText)
-		p.pushScopeForParsePass(ast.ScopeEntry, loc)
-		argRef = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
+		name.Ref = p.declareSymbol(js_ast.SymbolTSEnum, nameLoc, nameText)
+		p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
+		argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
 	}
 	p.lexer.Expect(js_lexer.TOpenBrace)
 
-	values := []ast.EnumValue{}
+	values := []js_ast.EnumValue{}
 
 	for p.lexer.Token != js_lexer.TCloseBrace {
-		value := ast.EnumValue{
+		value := js_ast.EnumValue{
 			Loc: p.lexer.Loc(),
-			Ref: ast.InvalidRef,
+			Ref: js_ast.InvalidRef,
 		}
 
 		// Parse the name
@@ -771,13 +771,13 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) ast
 
 		// Identifiers can be referenced by other values
 		if !opts.isTypeScriptDeclare && js_lexer.IsIdentifierUTF16(value.Name) {
-			value.Ref = p.declareSymbol(ast.SymbolOther, value.Loc, js_lexer.UTF16ToString(value.Name))
+			value.Ref = p.declareSymbol(js_ast.SymbolOther, value.Loc, js_lexer.UTF16ToString(value.Name))
 		}
 
 		// Parse the initializer
 		if p.lexer.Token == js_lexer.TEquals {
 			p.lexer.Next()
-			initializer := p.parseExpr(ast.LComma)
+			initializer := p.parseExpr(js_ast.LComma)
 			value.Value = &initializer
 		}
 
@@ -797,7 +797,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) ast
 	}
 
 	p.lexer.Expect(js_lexer.TCloseBrace)
-	return ast.Stmt{Loc: loc, Data: &ast.SEnum{
+	return js_ast.Stmt{Loc: loc, Data: &js_ast.SEnum{
 		Name:     name,
 		Arg:      argRef,
 		Values:   values,
@@ -805,28 +805,28 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) ast
 	}}
 }
 
-func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts) ast.Stmt {
+func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	// "namespace Foo {}"
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
 	p.lexer.Next()
 
-	name := ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
-	argRef := ast.InvalidRef
+	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
+	argRef := js_ast.InvalidRef
 
-	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
+	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
 	oldEnclosingNamespaceRef := p.enclosingNamespaceRef
 	p.enclosingNamespaceRef = &name.Ref
 
 	if !opts.isTypeScriptDeclare {
-		argRef = p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, nameText)
+		argRef = p.declareSymbol(js_ast.SymbolHoistedFunction, nameLoc, nameText)
 	}
 
-	var stmts []ast.Stmt
+	var stmts []js_ast.Stmt
 	if p.lexer.Token == js_lexer.TDot {
 		dotLoc := p.lexer.Loc()
 		p.lexer.Next()
-		stmts = []ast.Stmt{p.parseTypeScriptNamespaceStmt(dotLoc, parseStmtOpts{
+		stmts = []js_ast.Stmt{p.parseTypeScriptNamespaceStmt(dotLoc, parseStmtOpts{
 			isExport:            true,
 			isNamespaceScope:    true,
 			isTypeScriptDeclare: opts.isTypeScriptDeclare,
@@ -850,7 +850,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	// to be considered empty and thus be removed.
 	importEqualsCount := 0
 	for _, stmt := range stmts {
-		if local, ok := stmt.Data.(*ast.SLocal); ok && local.WasTSImportEqualsInNamespace && !local.IsExport {
+		if local, ok := stmt.Data.(*js_ast.SLocal); ok && local.WasTSImportEqualsInNamespace && !local.IsExport {
 			importEqualsCount++
 		}
 	}
@@ -865,13 +865,13 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		if opts.isModuleScope {
 			p.localTypeNames[nameText] = true
 		}
-		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 	}
 
 	p.popScope()
 	if !opts.isTypeScriptDeclare {
 		_, alreadyExists := p.currentScope.Members[nameText]
-		name.Ref = p.declareSymbol(ast.SymbolTSNamespace, nameLoc, nameText)
+		name.Ref = p.declareSymbol(js_ast.SymbolTSNamespace, nameLoc, nameText)
 
 		// It's valid to have multiple exported namespace statements as long as
 		// each one has the "export" keyword. Make sure we don't record the same
@@ -881,7 +881,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 			p.recordExport(nameLoc, nameText, name.Ref)
 		}
 	}
-	return ast.Stmt{Loc: loc, Data: &ast.SNamespace{
+	return js_ast.Stmt{Loc: loc, Data: &js_ast.SNamespace{
 		Name:     name,
 		Arg:      argRef,
 		Stmts:    stmts,
@@ -890,56 +890,56 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 }
 
 func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
-	stmts []ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
-	nameRef ast.Ref, argRef ast.Ref, stmtsInsideClosure []ast.Stmt,
-) []ast.Stmt {
+	stmts []js_ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
+	nameRef js_ast.Ref, argRef js_ast.Ref, stmtsInsideClosure []js_ast.Stmt,
+) []js_ast.Stmt {
 	// Follow the link chain in case symbols were merged
 	symbol := p.symbols[nameRef.InnerIndex]
-	for symbol.Link != ast.InvalidRef {
+	for symbol.Link != js_ast.InvalidRef {
 		nameRef = symbol.Link
 		symbol = p.symbols[nameRef.InnerIndex]
 	}
 
 	// Make sure to only emit a variable once for a given namespace, since there
 	// can be multiple namespace blocks for the same namespace
-	if (symbol.Kind == ast.SymbolTSNamespace || symbol.Kind == ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
+	if (symbol.Kind == js_ast.SymbolTSNamespace || symbol.Kind == js_ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
 		p.emittedNamespaceVars[nameRef] = true
 		if p.enclosingNamespaceRef == nil {
 			// Top-level namespace
-			stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SLocal{
-				Kind:     ast.LocalVar,
-				Decls:    []ast.Decl{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: nameRef}}}},
+			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
+				Kind:     js_ast.LocalVar,
+				Decls:    []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}},
 				IsExport: isExport,
 			}})
 		} else {
 			// Nested namespace
-			stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SLocal{
-				Kind:  ast.LocalLet,
-				Decls: []ast.Decl{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: nameRef}}}},
+			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
+				Kind:  js_ast.LocalLet,
+				Decls: []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}},
 			}})
 		}
 	}
 
-	var argExpr ast.Expr
+	var argExpr js_ast.Expr
 	if isExport && p.enclosingNamespaceRef != nil {
 		// "name = enclosing.name || (enclosing.name = {})"
 		name := p.symbols[nameRef.InnerIndex].OriginalName
-		argExpr = ast.Assign(
-			ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
-			ast.Expr{Loc: nameLoc, Data: &ast.EBinary{
-				Op: ast.BinOpLogicalOr,
-				Left: ast.Expr{Loc: nameLoc, Data: &ast.EDot{
-					Target:  ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+		argExpr = js_ast.Assign(
+			js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+			js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
+				Op: js_ast.BinOpLogicalOr,
+				Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
+					Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 					Name:    name,
 					NameLoc: nameLoc,
 				}},
-				Right: ast.Assign(
-					ast.Expr{Loc: nameLoc, Data: &ast.EDot{
-						Target:  ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+				Right: js_ast.Assign(
+					js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
+						Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 						Name:    name,
 						NameLoc: nameLoc,
 					}},
-					ast.Expr{Loc: nameLoc, Data: &ast.EObject{}},
+					js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
 				),
 			}},
 		)
@@ -948,12 +948,12 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 		p.recordUsage(nameRef)
 	} else {
 		// "name || (name = {})"
-		argExpr = ast.Expr{Loc: nameLoc, Data: &ast.EBinary{
-			Op:   ast.BinOpLogicalOr,
-			Left: ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
-			Right: ast.Assign(
-				ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
-				ast.Expr{Loc: nameLoc, Data: &ast.EObject{}},
+		argExpr = js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
+			Op:   js_ast.BinOpLogicalOr,
+			Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+			Right: js_ast.Assign(
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
 			),
 		}}
 		p.recordUsage(nameRef)
@@ -961,12 +961,12 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	}
 
 	// Call the closure with the name object
-	stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SExpr{Value: ast.Expr{Loc: stmtLoc, Data: &ast.ECall{
-		Target: ast.Expr{Loc: stmtLoc, Data: &ast.EFunction{Fn: ast.Fn{
-			Args: []ast.Arg{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: argRef}}}},
-			Body: ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+	stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.ECall{
+		Target: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
+			Args: []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}},
+			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
 		}}},
-		Args: []ast.Expr{argExpr},
+		Args: []js_ast.Expr{argExpr},
 	}}}})
 
 	return stmts

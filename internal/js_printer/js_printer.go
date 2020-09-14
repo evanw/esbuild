@@ -8,9 +8,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
@@ -404,9 +404,9 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 }
 
 type printer struct {
-	symbols            ast.SymbolMap
+	symbols            js_ast.SymbolMap
 	renamer            renamer.Renamer
-	importRecords      []ast.ImportRecord
+	importRecords      []js_ast.ImportRecord
 	options            PrintOptions
 	extractedComments  map[string]bool
 	needsSemicolon     bool
@@ -414,7 +414,7 @@ type printer struct {
 	stmtStart          int
 	exportDefaultStart int
 	arrowExprStart     int
-	prevOp             ast.OpCode
+	prevOp             js_ast.OpCode
 	prevOpEnd          int
 	prevNumEnd         int
 	prevRegExpEnd      int
@@ -698,21 +698,21 @@ func (p *printer) printIndent() {
 	}
 }
 
-func (p *printer) printSymbol(ref ast.Ref) {
+func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printSpaceBeforeIdentifier()
 	p.print(p.renamer.NameForSymbol(ref))
 }
 
-func (p *printer) printBinding(binding ast.Binding) {
+func (p *printer) printBinding(binding js_ast.Binding) {
 	p.addSourceMapping(binding.Loc)
 
 	switch b := binding.Data.(type) {
-	case *ast.BMissing:
+	case *js_ast.BMissing:
 
-	case *ast.BIdentifier:
+	case *js_ast.BIdentifier:
 		p.printSymbol(b.Ref)
 
-	case *ast.BArray:
+	case *js_ast.BArray:
 		p.print("[")
 		if len(b.Items) > 0 {
 			if !b.IsSingleLine {
@@ -739,11 +739,11 @@ func (p *printer) printBinding(binding ast.Binding) {
 					p.printSpace()
 					p.print("=")
 					p.printSpace()
-					p.printExpr(*item.DefaultValue, ast.LComma, 0)
+					p.printExpr(*item.DefaultValue, js_ast.LComma, 0)
 				}
 
 				// Make sure there's a comma after trailing missing items
-				if _, ok := item.Binding.Data.(*ast.BMissing); ok && i == len(b.Items)-1 {
+				if _, ok := item.Binding.Data.(*js_ast.BMissing); ok && i == len(b.Items)-1 {
 					p.print(",")
 				}
 			}
@@ -756,7 +756,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 		}
 		p.print("]")
 
-	case *ast.BObject:
+	case *js_ast.BObject:
 		p.print("{")
 		if len(b.Properties) > 0 {
 			if !b.IsSingleLine {
@@ -780,7 +780,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 				} else {
 					if property.IsComputed {
 						p.print("[")
-						p.printExpr(property.Key, ast.LComma, 0)
+						p.printExpr(property.Key, js_ast.LComma, 0)
 						p.print("]:")
 						p.printSpace()
 						p.printBinding(property.Value)
@@ -789,32 +789,32 @@ func (p *printer) printBinding(binding ast.Binding) {
 							p.printSpace()
 							p.print("=")
 							p.printSpace()
-							p.printExpr(*property.DefaultValue, ast.LComma, 0)
+							p.printExpr(*property.DefaultValue, js_ast.LComma, 0)
 						}
 						continue
 					}
 
-					if str, ok := property.Key.Data.(*ast.EString); ok {
+					if str, ok := property.Key.Data.(*js_ast.EString); ok {
 						if js_lexer.IsIdentifierUTF16(str.Value) {
 							p.addSourceMapping(property.Key.Loc)
 							p.printSpaceBeforeIdentifier()
 							p.printUTF16(str.Value)
 
 							// Use a shorthand property if the names are the same
-							if id, ok := property.Value.Data.(*ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
+							if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
 								if property.DefaultValue != nil {
 									p.printSpace()
 									p.print("=")
 									p.printSpace()
-									p.printExpr(*property.DefaultValue, ast.LComma, 0)
+									p.printExpr(*property.DefaultValue, js_ast.LComma, 0)
 								}
 								continue
 							}
 						} else {
-							p.printExpr(property.Key, ast.LLowest, 0)
+							p.printExpr(property.Key, js_ast.LLowest, 0)
 						}
 					} else {
-						p.printExpr(property.Key, ast.LLowest, 0)
+						p.printExpr(property.Key, js_ast.LLowest, 0)
 					}
 
 					p.print(":")
@@ -826,7 +826,7 @@ func (p *printer) printBinding(binding ast.Binding) {
 					p.printSpace()
 					p.print("=")
 					p.printSpace()
-					p.printExpr(*property.DefaultValue, ast.LComma, 0)
+					p.printExpr(*property.DefaultValue, js_ast.LComma, 0)
 				}
 			}
 
@@ -855,7 +855,7 @@ func (p *printer) printNewline() {
 	}
 }
 
-func (p *printer) printSpaceBeforeOperator(next ast.OpCode) {
+func (p *printer) printSpaceBeforeOperator(next js_ast.OpCode) {
 	if p.prevOpEnd == len(p.js) {
 		prev := p.prevOp
 
@@ -866,10 +866,10 @@ func (p *printer) printSpaceBeforeOperator(next ast.OpCode) {
 		// "x + ++ y" => "x+ ++y"
 		// "-- >" => "-- >"
 		// "< ! --" => "<! --"
-		if ((prev == ast.BinOpAdd || prev == ast.UnOpPos) && (next == ast.BinOpAdd || next == ast.UnOpPos || next == ast.UnOpPreInc)) ||
-			((prev == ast.BinOpSub || prev == ast.UnOpNeg) && (next == ast.BinOpSub || next == ast.UnOpNeg || next == ast.UnOpPreDec)) ||
-			(prev == ast.UnOpPostDec && next == ast.BinOpGt) ||
-			(prev == ast.UnOpNot && next == ast.UnOpPreDec && len(p.js) > 1 && p.js[len(p.js)-2] == '<') {
+		if ((prev == js_ast.BinOpAdd || prev == js_ast.UnOpPos) && (next == js_ast.BinOpAdd || next == js_ast.UnOpPos || next == js_ast.UnOpPreInc)) ||
+			((prev == js_ast.BinOpSub || prev == js_ast.UnOpNeg) && (next == js_ast.BinOpSub || next == js_ast.UnOpNeg || next == js_ast.UnOpPreDec)) ||
+			(prev == js_ast.UnOpPostDec && next == js_ast.BinOpGt) ||
+			(prev == js_ast.UnOpNot && next == js_ast.UnOpPreDec && len(p.js) > 1 && p.js[len(p.js)-2] == '<') {
 			p.print(" ")
 		}
 	}
@@ -898,12 +898,12 @@ func (p *printer) printSpaceBeforeIdentifier() {
 	}
 }
 
-func (p *printer) printFnArgs(args []ast.Arg, hasRestArg bool, isArrow bool) {
+func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) {
 	wrap := true
 
 	// Minify "(a) => {}" as "a=>{}"
 	if p.options.RemoveWhitespace && !hasRestArg && isArrow && len(args) == 1 {
-		if _, ok := args[0].Binding.Data.(*ast.BIdentifier); ok && args[0].Default == nil {
+		if _, ok := args[0].Binding.Data.(*js_ast.BIdentifier); ok && args[0].Default == nil {
 			wrap = false
 		}
 	}
@@ -926,7 +926,7 @@ func (p *printer) printFnArgs(args []ast.Arg, hasRestArg bool, isArrow bool) {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*arg.Default, ast.LComma, 0)
+			p.printExpr(*arg.Default, js_ast.LComma, 0)
 		}
 	}
 
@@ -935,17 +935,17 @@ func (p *printer) printFnArgs(args []ast.Arg, hasRestArg bool, isArrow bool) {
 	}
 }
 
-func (p *printer) printFn(fn ast.Fn) {
+func (p *printer) printFn(fn js_ast.Fn) {
 	p.printFnArgs(fn.Args, fn.HasRestArg, false)
 	p.printSpace()
 	p.printBlock(fn.Body.Stmts)
 }
 
-func (p *printer) printClass(class ast.Class) {
+func (p *printer) printClass(class js_ast.Class) {
 	if class.Extends != nil {
 		p.print(" extends")
 		p.printSpace()
-		p.printExpr(*class.Extends, ast.LNew-1, 0)
+		p.printExpr(*class.Extends, js_ast.LNew-1, 0)
 	}
 	p.printSpace()
 
@@ -972,10 +972,10 @@ func (p *printer) printClass(class ast.Class) {
 	p.print("}")
 }
 
-func (p *printer) printProperty(item ast.Property) {
-	if item.Kind == ast.PropertySpread {
+func (p *printer) printProperty(item js_ast.Property) {
+	if item.Kind == js_ast.PropertySpread {
 		p.print("...")
-		p.printExpr(*item.Value, ast.LComma, 0)
+		p.printExpr(*item.Value, js_ast.LComma, 0)
 		return
 	}
 
@@ -985,19 +985,19 @@ func (p *printer) printProperty(item ast.Property) {
 	}
 
 	switch item.Kind {
-	case ast.PropertyGet:
+	case js_ast.PropertyGet:
 		p.printSpaceBeforeIdentifier()
 		p.print("get")
 		p.printSpace()
 
-	case ast.PropertySet:
+	case js_ast.PropertySet:
 		p.printSpaceBeforeIdentifier()
 		p.print("set")
 		p.printSpace()
 	}
 
 	if item.Value != nil {
-		if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
+		if fn, ok := item.Value.Data.(*js_ast.EFunction); item.IsMethod && ok {
 			if fn.Fn.IsAsync {
 				p.printSpaceBeforeIdentifier()
 				p.print("async")
@@ -1011,34 +1011,34 @@ func (p *printer) printProperty(item ast.Property) {
 
 	if item.IsComputed {
 		p.print("[")
-		p.printExpr(item.Key, ast.LComma, 0)
+		p.printExpr(item.Key, js_ast.LComma, 0)
 		p.print("]")
 
 		if item.Value != nil {
-			if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
+			if fn, ok := item.Value.Data.(*js_ast.EFunction); item.IsMethod && ok {
 				p.printFn(fn.Fn)
 				return
 			}
 
 			p.print(":")
 			p.printSpace()
-			p.printExpr(*item.Value, ast.LComma, 0)
+			p.printExpr(*item.Value, js_ast.LComma, 0)
 		}
 
 		if item.Initializer != nil {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*item.Initializer, ast.LComma, 0)
+			p.printExpr(*item.Initializer, js_ast.LComma, 0)
 		}
 		return
 	}
 
 	switch key := item.Key.Data.(type) {
-	case *ast.EPrivateIdentifier:
+	case *js_ast.EPrivateIdentifier:
 		p.printSymbol(key.Ref)
 
-	case *ast.EString:
+	case *js_ast.EString:
 		p.addSourceMapping(item.Key.Loc)
 		if js_lexer.IsIdentifierUTF16(key.Value) {
 			p.printSpaceBeforeIdentifier()
@@ -1047,27 +1047,27 @@ func (p *printer) printProperty(item ast.Property) {
 			// Use a shorthand property if the names are the same
 			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.Value != nil {
 				switch e := item.Value.Data.(type) {
-				case *ast.EIdentifier:
+				case *js_ast.EIdentifier:
 					if js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
 							p.printSpace()
-							p.printExpr(*item.Initializer, ast.LComma, 0)
+							p.printExpr(*item.Initializer, js_ast.LComma, 0)
 						}
 						return
 					}
 
-				case *ast.EImportIdentifier:
+				case *js_ast.EImportIdentifier:
 					// Make sure we're not using a property access instead of an identifier
-					ref := ast.FollowSymbols(p.symbols, e.Ref)
+					ref := js_ast.FollowSymbols(p.symbols, e.Ref)
 					symbol := p.symbols.Get(ref)
 					if symbol.NamespaceAlias == nil && js_lexer.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
 						if item.Initializer != nil {
 							p.printSpace()
 							p.print("=")
 							p.printSpace()
-							p.printExpr(*item.Initializer, ast.LComma, 0)
+							p.printExpr(*item.Initializer, js_ast.LComma, 0)
 						}
 						return
 					}
@@ -1081,11 +1081,11 @@ func (p *printer) printProperty(item ast.Property) {
 		}
 
 	default:
-		p.printExpr(item.Key, ast.LLowest, 0)
+		p.printExpr(item.Key, js_ast.LLowest, 0)
 	}
 
-	if item.Kind != ast.PropertyNormal {
-		f, ok := item.Value.Data.(*ast.EFunction)
+	if item.Kind != js_ast.PropertyNormal {
+		f, ok := item.Value.Data.(*js_ast.EFunction)
 		if ok {
 			p.printFn(f.Fn)
 			return
@@ -1093,21 +1093,21 @@ func (p *printer) printProperty(item ast.Property) {
 	}
 
 	if item.Value != nil {
-		if fn, ok := item.Value.Data.(*ast.EFunction); item.IsMethod && ok {
+		if fn, ok := item.Value.Data.(*js_ast.EFunction); item.IsMethod && ok {
 			p.printFn(fn.Fn)
 			return
 		}
 
 		p.print(":")
 		p.printSpace()
-		p.printExpr(*item.Value, ast.LComma, 0)
+		p.printExpr(*item.Value, js_ast.LComma, 0)
 	}
 
 	if item.Initializer != nil {
 		p.printSpace()
 		p.print("=")
 		p.printSpace()
-		p.printExpr(*item.Initializer, ast.LComma, 0)
+		p.printExpr(*item.Initializer, js_ast.LComma, 0)
 	}
 }
 
@@ -1159,12 +1159,12 @@ type requireCallArgs struct {
 	mustReturnPromise bool
 }
 
-func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []ast.Comment) {
+func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInteriorComments []js_ast.Comment) {
 	record := &p.importRecords[importRecordIndex]
 	p.printSpaceBeforeIdentifier()
 
 	// Preserve "import()" expressions that don't point inside the bundle
-	if record.SourceIndex == nil && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
+	if record.SourceIndex == nil && record.Kind == js_ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
 		p.print("import(")
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
@@ -1185,7 +1185,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 	}
 
 	// Make sure "import()" expressions return promises
-	if record.Kind == ast.ImportDynamic {
+	if record.Kind == js_ast.ImportDynamic {
 		if p.options.RemoveWhitespace {
 			p.print("Promise.resolve().then(()=>")
 		} else {
@@ -1216,7 +1216,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		p.print(")")
 	}
 
-	if record.Kind == ast.ImportDynamic {
+	if record.Kind == js_ast.ImportDynamic {
 		p.print(")")
 	}
 }
@@ -1227,8 +1227,8 @@ const (
 	hasNonOptionalChainParent
 )
 
-func (p *printer) printUndefined(level ast.L) {
-	if level >= ast.LPrefix {
+func (p *printer) printUndefined(level js_ast.L) {
+	if level >= js_ast.LPrefix {
 		p.print("(void 0)")
 	} else {
 		p.printSpaceBeforeIdentifier()
@@ -1237,44 +1237,44 @@ func (p *printer) printUndefined(level ast.L) {
 	}
 }
 
-func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
+func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 	p.addSourceMapping(expr.Loc)
 
 	switch e := expr.Data.(type) {
-	case *ast.EMissing:
+	case *js_ast.EMissing:
 
-	case *ast.EUndefined:
+	case *js_ast.EUndefined:
 		p.printUndefined(level)
 
-	case *ast.ESuper:
+	case *js_ast.ESuper:
 		p.printSpaceBeforeIdentifier()
 		p.print("super")
 
-	case *ast.ENull:
+	case *js_ast.ENull:
 		p.printSpaceBeforeIdentifier()
 		p.print("null")
 
-	case *ast.EThis:
+	case *js_ast.EThis:
 		p.printSpaceBeforeIdentifier()
 		p.print("this")
 
-	case *ast.ESpread:
+	case *js_ast.ESpread:
 		p.print("...")
-		p.printExpr(e.Value, ast.LComma, 0)
+		p.printExpr(e.Value, js_ast.LComma, 0)
 
-	case *ast.ENewTarget:
+	case *js_ast.ENewTarget:
 		p.printSpaceBeforeIdentifier()
 		p.print("new.target")
 
-	case *ast.EImportMeta:
+	case *js_ast.EImportMeta:
 		p.printSpaceBeforeIdentifier()
 		p.print("import.meta")
 
-	case *ast.ENew:
-		wrap := level >= ast.LCall
+	case *js_ast.ENew:
+		wrap := level >= js_ast.LCall
 
 		hasPureComment := !p.options.RemoveWhitespace && e.CanBeUnwrappedIfUnused
-		if hasPureComment && level >= ast.LPostfix {
+		if hasPureComment && level >= js_ast.LPostfix {
 			wrap = true
 		}
 
@@ -1289,17 +1289,17 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printSpaceBeforeIdentifier()
 		p.print("new")
 		p.printSpace()
-		p.printExpr(e.Target, ast.LNew, forbidCall)
+		p.printExpr(e.Target, js_ast.LNew, forbidCall)
 
 		// Omit the "()" when minifying, but only when safe to do so
-		if !p.options.RemoveWhitespace || len(e.Args) > 0 || level >= ast.LPostfix {
+		if !p.options.RemoveWhitespace || len(e.Args) > 0 || level >= js_ast.LPostfix {
 			p.print("(")
 			for i, arg := range e.Args {
 				if i != 0 {
 					p.print(",")
 					p.printSpace()
 				}
-				p.printExpr(arg, ast.LComma, 0)
+				p.printExpr(arg, js_ast.LComma, 0)
 			}
 			p.print(")")
 		}
@@ -1308,17 +1308,17 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.ECall:
-		wrap := level >= ast.LNew || (flags&forbidCall) != 0
+	case *js_ast.ECall:
+		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		targetFlags := 0
-		if e.OptionalChain == ast.OptionalChainNone {
+		if e.OptionalChain == js_ast.OptionalChainNone {
 			targetFlags = hasNonOptionalChainParent
 		} else if (flags & hasNonOptionalChainParent) != 0 {
 			wrap = true
 		}
 
 		hasPureComment := !p.options.RemoveWhitespace && e.CanBeUnwrappedIfUnused
-		if hasPureComment && level >= ast.LPostfix {
+		if hasPureComment && level >= js_ast.LPostfix {
 			wrap = true
 		}
 
@@ -1341,13 +1341,13 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			} else {
 				p.print("(0, ")
 			}
-			p.printExpr(e.Target, ast.LPostfix, 0)
+			p.printExpr(e.Target, js_ast.LPostfix, 0)
 			p.print(")")
 		} else {
-			p.printExpr(e.Target, ast.LPostfix, targetFlags)
+			p.printExpr(e.Target, js_ast.LPostfix, targetFlags)
 		}
 
-		if e.OptionalChain == ast.OptionalChainStart {
+		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?.")
 		}
 		p.print("(")
@@ -1356,15 +1356,15 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				p.print(",")
 				p.printSpace()
 			}
-			p.printExpr(arg, ast.LComma, 0)
+			p.printExpr(arg, js_ast.LComma, 0)
 		}
 		p.print(")")
 		if wrap {
 			p.print(")")
 		}
 
-	case *ast.ERequire:
-		wrap := level >= ast.LNew || (flags&forbidCall) != 0
+	case *js_ast.ERequire:
+		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		if wrap {
 			p.print("(")
 		}
@@ -1373,13 +1373,13 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.EImport:
-		wrap := level >= ast.LNew || (flags&forbidCall) != 0
+	case *js_ast.EImport:
+		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		if wrap {
 			p.print("(")
 		}
 
-		var leadingInteriorComments []ast.Comment
+		var leadingInteriorComments []js_ast.Comment
 		if !p.options.RemoveWhitespace {
 			leadingInteriorComments = e.LeadingInteriorComments
 		}
@@ -1398,7 +1398,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				}
 				p.printIndent()
 			}
-			p.printExpr(e.Expr, ast.LComma, 0)
+			p.printExpr(e.Expr, js_ast.LComma, 0)
 			if len(leadingInteriorComments) > 0 {
 				p.printNewline()
 				p.options.Indent--
@@ -1411,9 +1411,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.EDot:
+	case *js_ast.EDot:
 		wrap := false
-		if e.OptionalChain == ast.OptionalChainNone {
+		if e.OptionalChain == js_ast.OptionalChainNone {
 			flags |= hasNonOptionalChainParent
 		} else {
 			if (flags & hasNonOptionalChainParent) != 0 {
@@ -1422,8 +1422,8 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			}
 			flags &= ^hasNonOptionalChainParent
 		}
-		p.printExpr(e.Target, ast.LPostfix, flags)
-		if e.OptionalChain == ast.OptionalChainStart {
+		p.printExpr(e.Target, js_ast.LPostfix, flags)
+		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?")
 		} else if p.prevNumEnd == len(p.js) {
 			// "1.toString" is a syntax error, so print "1 .toString" instead
@@ -1436,9 +1436,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.EIndex:
+	case *js_ast.EIndex:
 		wrap := false
-		if e.OptionalChain == ast.OptionalChainNone {
+		if e.OptionalChain == js_ast.OptionalChainNone {
 			flags |= hasNonOptionalChainParent
 		} else {
 			if (flags & hasNonOptionalChainParent) != 0 {
@@ -1447,47 +1447,47 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			}
 			flags &= ^hasNonOptionalChainParent
 		}
-		p.printExpr(e.Target, ast.LPostfix, flags)
-		if e.OptionalChain == ast.OptionalChainStart {
+		p.printExpr(e.Target, js_ast.LPostfix, flags)
+		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?.")
 		}
-		if private, ok := e.Index.Data.(*ast.EPrivateIdentifier); ok {
-			if e.OptionalChain != ast.OptionalChainStart {
+		if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok {
+			if e.OptionalChain != js_ast.OptionalChainStart {
 				p.print(".")
 			}
 			p.printSymbol(private.Ref)
 		} else {
 			p.print("[")
-			p.printExpr(e.Index, ast.LLowest, 0)
+			p.printExpr(e.Index, js_ast.LLowest, 0)
 			p.print("]")
 		}
 		if wrap {
 			p.print(")")
 		}
 
-	case *ast.EIf:
-		wrap := level >= ast.LConditional
+	case *js_ast.EIf:
+		wrap := level >= js_ast.LConditional
 		if wrap {
 			p.print("(")
 			flags &= ^forbidIn
 		}
-		p.printExpr(e.Test, ast.LConditional, flags&forbidIn)
+		p.printExpr(e.Test, js_ast.LConditional, flags&forbidIn)
 		p.printSpace()
 		p.print("?")
 		p.printSpace()
-		p.printExpr(e.Yes, ast.LYield, 0)
+		p.printExpr(e.Yes, js_ast.LYield, 0)
 		p.printSpace()
 		p.print(":")
 		p.printSpace()
-		p.printExpr(e.No, ast.LYield, flags&forbidIn)
+		p.printExpr(e.No, js_ast.LYield, flags&forbidIn)
 		if wrap {
 			p.print(")")
 		}
 
-	case *ast.EArrow:
+	case *js_ast.EArrow:
 		n := len(p.js)
 		useFunction := p.options.UnsupportedFeatures.Has(compat.Arrow)
-		wrap := level >= ast.LAssign || (useFunction && (p.stmtStart == n || p.exportDefaultStart == n))
+		wrap := level >= js_ast.LAssign || (useFunction && (p.stmtStart == n || p.exportDefaultStart == n))
 
 		if wrap {
 			p.print("(")
@@ -1513,9 +1513,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 		wasPrinted := false
 		if len(e.Body.Stmts) == 1 && e.PreferExpr && !useFunction {
-			if s, ok := e.Body.Stmts[0].Data.(*ast.SReturn); ok && s.Value != nil {
+			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok && s.Value != nil {
 				p.arrowExprStart = len(p.js)
-				p.printExpr(*s.Value, ast.LComma, 0)
+				p.printExpr(*s.Value, js_ast.LComma, 0)
 				wasPrinted = true
 			}
 		}
@@ -1526,7 +1526,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.EFunction:
+	case *js_ast.EFunction:
 		n := len(p.js)
 		wrap := p.stmtStart == n || p.exportDefaultStart == n
 		if wrap {
@@ -1549,7 +1549,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.EClass:
+	case *js_ast.EClass:
 		n := len(p.js)
 		wrap := p.stmtStart == n || p.exportDefaultStart == n
 		if wrap {
@@ -1565,7 +1565,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.EArray:
+	case *js_ast.EArray:
 		p.print("[")
 		if len(e.Items) > 0 {
 			if !e.IsSingleLine {
@@ -1583,10 +1583,10 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 					p.printNewline()
 					p.printIndent()
 				}
-				p.printExpr(item, ast.LComma, 0)
+				p.printExpr(item, js_ast.LComma, 0)
 
 				// Make sure there's a comma after trailing missing items
-				_, ok := item.Data.(*ast.EMissing)
+				_, ok := item.Data.(*js_ast.EMissing)
 				if ok && i == len(e.Items)-1 {
 					p.print(",")
 				}
@@ -1600,7 +1600,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 		p.print("]")
 
-	case *ast.EObject:
+	case *js_ast.EObject:
 		n := len(p.js)
 		wrap := p.stmtStart == n || p.arrowExprStart == n
 		if wrap {
@@ -1637,9 +1637,9 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(")")
 		}
 
-	case *ast.EBoolean:
+	case *js_ast.EBoolean:
 		if p.options.MangleSyntax {
-			if level >= ast.LPrefix {
+			if level >= js_ast.LPrefix {
 				if e.Value {
 					p.print("(!0)")
 				} else {
@@ -1661,7 +1661,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			}
 		}
 
-	case *ast.EString:
+	case *js_ast.EString:
 		// If this was originally a template literal, print it as one as long as we're not minifying
 		if e.PreferTemplate && !p.options.MangleSyntax && !p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
 			p.print("`")
@@ -1675,7 +1675,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printQuotedUTF16(e.Value, rune(c[0]))
 		p.print(c)
 
-	case *ast.ETemplate:
+	case *js_ast.ETemplate:
 		// Convert no-substitution template literals into strings if it's smaller
 		if p.options.MangleSyntax && e.Tag == nil && len(e.Parts) == 0 {
 			c := p.bestQuoteCharForString(e.Head, true /* allowBacktick */)
@@ -1686,7 +1686,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 		if e.Tag != nil {
-			p.printExpr(*e.Tag, ast.LPostfix, 0)
+			p.printExpr(*e.Tag, js_ast.LPostfix, 0)
 		}
 		p.print("`")
 		if e.Tag != nil {
@@ -1696,7 +1696,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 		for _, part := range e.Parts {
 			p.print("${")
-			p.printExpr(part.Value, ast.LLowest, 0)
+			p.printExpr(part.Value, js_ast.LLowest, 0)
 			p.print("}")
 			if e.Tag != nil {
 				p.print(part.TailRaw)
@@ -1706,7 +1706,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 		p.print("`")
 
-	case *ast.ERegExp:
+	case *js_ast.ERegExp:
 		buffer := p.js
 		n := len(buffer)
 
@@ -1719,12 +1719,12 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		// Need a space before the next identifier to avoid it turning into flags
 		p.prevRegExpEnd = len(p.js)
 
-	case *ast.EBigInt:
+	case *js_ast.EBigInt:
 		p.printSpaceBeforeIdentifier()
 		p.print(e.Value)
 		p.print("n")
 
-	case *ast.ENumber:
+	case *js_ast.ENumber:
 		value := e.Value
 		absValue := math.Abs(value)
 
@@ -1735,10 +1735,10 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.printSpaceBeforeIdentifier()
 			p.print("Infinity")
 		} else if value == negativeInfinity {
-			if level >= ast.LPrefix {
+			if level >= js_ast.LPrefix {
 				p.print("(-Infinity)")
 			} else {
-				p.printSpaceBeforeOperator(ast.UnOpNeg)
+				p.printSpaceBeforeOperator(js_ast.UnOpNeg)
 				p.print("-Infinity")
 			}
 		} else {
@@ -1748,7 +1748,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 
 				// Remember the end of the latest number
 				p.prevNumEnd = len(p.js)
-			} else if level >= ast.LPrefix {
+			} else if level >= js_ast.LPrefix {
 				// Expressions such as "(-1).toString" need to wrap negative numbers.
 				// Instead of testing for "value < 0" we test for "signbit(value)" and
 				// "!isNaN(value)" because we need this to be true for "-0" and "-0 < 0"
@@ -1757,7 +1757,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				p.printNonNegativeFloat(absValue)
 				p.print(")")
 			} else {
-				p.printSpaceBeforeOperator(ast.UnOpNeg)
+				p.printSpaceBeforeOperator(js_ast.UnOpNeg)
 				p.print("-")
 				p.printNonNegativeFloat(absValue)
 
@@ -1766,16 +1766,16 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			}
 		}
 
-	case *ast.EIdentifier:
+	case *js_ast.EIdentifier:
 		p.printSpaceBeforeIdentifier()
 		p.printSymbol(e.Ref)
 
-	case *ast.EImportIdentifier:
+	case *js_ast.EImportIdentifier:
 		// Potentially use a property access instead of an identifier
-		ref := ast.FollowSymbols(p.symbols, e.Ref)
+		ref := js_ast.FollowSymbols(p.symbols, e.Ref)
 		symbol := p.symbols.Get(ref)
 
-		if symbol.ImportItemStatus == ast.ImportItemMissing {
+		if symbol.ImportItemStatus == js_ast.ImportItemMissing {
 			p.printUndefined(level)
 		} else if symbol.NamespaceAlias != nil {
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
@@ -1793,8 +1793,8 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 			p.print(p.renamer.NameForSymbol(e.Ref))
 		}
 
-	case *ast.EAwait:
-		wrap := level >= ast.LPrefix
+	case *js_ast.EAwait:
+		wrap := level >= js_ast.LPrefix
 
 		if wrap {
 			p.print("(")
@@ -1803,14 +1803,14 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		p.printSpaceBeforeIdentifier()
 		p.print("await")
 		p.printSpace()
-		p.printExpr(e.Value, ast.LPrefix, 0)
+		p.printExpr(e.Value, js_ast.LPrefix, 0)
 
 		if wrap {
 			p.print(")")
 		}
 
-	case *ast.EYield:
-		wrap := level >= ast.LAssign
+	case *js_ast.EYield:
+		wrap := level >= js_ast.LAssign
 
 		if wrap {
 			p.print("(")
@@ -1824,15 +1824,15 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 				p.print("*")
 			}
 			p.printSpace()
-			p.printExpr(*e.Value, ast.LYield, 0)
+			p.printExpr(*e.Value, js_ast.LYield, 0)
 		}
 
 		if wrap {
 			p.print(")")
 		}
 
-	case *ast.EUnary:
-		entry := ast.OpTable[e.Op]
+	case *js_ast.EUnary:
+		entry := js_ast.OpTable[e.Op]
 		wrap := level >= entry.Level
 
 		if wrap {
@@ -1840,7 +1840,7 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 		if !e.Op.IsPrefix() {
-			p.printExpr(e.Value, ast.LPostfix-1, 0)
+			p.printExpr(e.Value, js_ast.LPostfix-1, 0)
 		}
 
 		if entry.IsKeyword {
@@ -1855,20 +1855,20 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 		if e.Op.IsPrefix() {
-			p.printExpr(e.Value, ast.LPrefix-1, 0)
+			p.printExpr(e.Value, js_ast.LPrefix-1, 0)
 		}
 
 		if wrap {
 			p.print(")")
 		}
 
-	case *ast.EBinary:
-		entry := ast.OpTable[e.Op]
-		wrap := level >= entry.Level || (e.Op == ast.BinOpIn && (flags&forbidIn) != 0)
+	case *js_ast.EBinary:
+		entry := js_ast.OpTable[e.Op]
+		wrap := level >= entry.Level || (e.Op == js_ast.BinOpIn && (flags&forbidIn) != 0)
 
 		// Destructuring assignments must be parenthesized
 		if n := len(p.js); p.stmtStart == n || p.arrowExprStart == n {
-			if _, ok := e.Left.Data.(*ast.EObject); ok {
+			if _, ok := e.Left.Data.(*js_ast.EObject); ok {
 				wrap = true
 			}
 		}
@@ -1889,36 +1889,36 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 		}
 
 		switch e.Op {
-		case ast.BinOpNullishCoalescing:
+		case js_ast.BinOpNullishCoalescing:
 			// "??" can't directly contain "||" or "&&" without being wrapped in parentheses
-			if left, ok := e.Left.Data.(*ast.EBinary); ok && (left.Op == ast.BinOpLogicalOr || left.Op == ast.BinOpLogicalAnd) {
-				leftLevel = ast.LPrefix
+			if left, ok := e.Left.Data.(*js_ast.EBinary); ok && (left.Op == js_ast.BinOpLogicalOr || left.Op == js_ast.BinOpLogicalAnd) {
+				leftLevel = js_ast.LPrefix
 			}
-			if right, ok := e.Right.Data.(*ast.EBinary); ok && (right.Op == ast.BinOpLogicalOr || right.Op == ast.BinOpLogicalAnd) {
-				rightLevel = ast.LPrefix
+			if right, ok := e.Right.Data.(*js_ast.EBinary); ok && (right.Op == js_ast.BinOpLogicalOr || right.Op == js_ast.BinOpLogicalAnd) {
+				rightLevel = js_ast.LPrefix
 			}
 
-		case ast.BinOpPow:
+		case js_ast.BinOpPow:
 			// "**" can't contain certain unary expressions
-			if left, ok := e.Left.Data.(*ast.EUnary); ok && left.Op.UnaryAssignTarget() == ast.AssignTargetNone {
-				leftLevel = ast.LCall
-			} else if _, ok := e.Left.Data.(*ast.EUndefined); ok {
+			if left, ok := e.Left.Data.(*js_ast.EUnary); ok && left.Op.UnaryAssignTarget() == js_ast.AssignTargetNone {
+				leftLevel = js_ast.LCall
+			} else if _, ok := e.Left.Data.(*js_ast.EUndefined); ok {
 				// Undefined is printed as "void 0"
-				leftLevel = ast.LCall
-			} else if _, ok := e.Left.Data.(*ast.ENumber); ok {
+				leftLevel = js_ast.LCall
+			} else if _, ok := e.Left.Data.(*js_ast.ENumber); ok {
 				// Negative numbers are printed using a unary operator
-				leftLevel = ast.LCall
+				leftLevel = js_ast.LCall
 			} else if p.options.MangleSyntax {
 				// When minifying, booleans are printed as "!0 and "!1"
-				if _, ok := e.Left.Data.(*ast.EBoolean); ok {
-					leftLevel = ast.LCall
+				if _, ok := e.Left.Data.(*js_ast.EBoolean); ok {
+					leftLevel = js_ast.LCall
 				}
 			}
 		}
 
 		p.printExpr(e.Left, leftLevel, flags&forbidIn)
 
-		if e.Op != ast.BinOpComma {
+		if e.Op != js_ast.BinOpComma {
 			p.printSpace()
 		}
 
@@ -1945,11 +1945,11 @@ func (p *printer) printExpr(expr ast.Expr, level ast.L, flags int) {
 	}
 }
 
-func (p *printer) isUnboundEvalIdentifier(value ast.Expr) bool {
-	if id, ok := value.Data.(*ast.EIdentifier); ok {
+func (p *printer) isUnboundEvalIdentifier(value js_ast.Expr) bool {
+	if id, ok := value.Data.(*js_ast.EIdentifier); ok {
 		// Using the original name here is ok since unbound symbols are not renamed
-		symbol := p.symbols.Get(ast.FollowSymbols(p.symbols, id.Ref))
-		return symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "eval"
+		symbol := p.symbols.Get(js_ast.FollowSymbols(p.symbols, id.Ref))
+		return symbol.Kind == js_ast.SymbolUnbound && symbol.OriginalName == "eval"
 	}
 	return false
 }
@@ -2119,7 +2119,7 @@ func (p *printer) printNonNegativeFloat(absValue float64) {
 	p.printBytes(result)
 }
 
-func (p *printer) printDeclStmt(isExport bool, keyword string, decls []ast.Decl) {
+func (p *printer) printDeclStmt(isExport bool, keyword string, decls []js_ast.Decl) {
 	p.printIndent()
 	p.printSpaceBeforeIdentifier()
 	if isExport {
@@ -2129,17 +2129,17 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []ast.Decl)
 	p.printSemicolonAfterStatement()
 }
 
-func (p *printer) printForLoopInit(init ast.Stmt) {
+func (p *printer) printForLoopInit(init js_ast.Stmt) {
 	switch s := init.Data.(type) {
-	case *ast.SExpr:
-		p.printExpr(s.Value, ast.LLowest, forbidIn)
-	case *ast.SLocal:
+	case *js_ast.SExpr:
+		p.printExpr(s.Value, js_ast.LLowest, forbidIn)
+	case *js_ast.SLocal:
 		switch s.Kind {
-		case ast.LocalVar:
+		case js_ast.LocalVar:
 			p.printDecls("var", s.Decls, forbidIn)
-		case ast.LocalLet:
+		case js_ast.LocalLet:
 			p.printDecls("let", s.Decls, forbidIn)
-		case ast.LocalConst:
+		case js_ast.LocalConst:
 			p.printDecls("const", s.Decls, forbidIn)
 		}
 	default:
@@ -2147,7 +2147,7 @@ func (p *printer) printForLoopInit(init ast.Stmt) {
 	}
 }
 
-func (p *printer) printDecls(keyword string, decls []ast.Decl, flags int) {
+func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags int) {
 	p.print(keyword)
 	p.printSpace()
 
@@ -2162,13 +2162,13 @@ func (p *printer) printDecls(keyword string, decls []ast.Decl, flags int) {
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
-			p.printExpr(*decl.Value, ast.LComma, flags)
+			p.printExpr(*decl.Value, js_ast.LComma, flags)
 		}
 	}
 }
 
-func (p *printer) printBody(body ast.Stmt) {
-	if block, ok := body.Data.(*ast.SBlock); ok {
+func (p *printer) printBody(body js_ast.Stmt) {
+	if block, ok := body.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
 		p.printBlock(block.Stmts)
 		p.printNewline()
@@ -2180,7 +2180,7 @@ func (p *printer) printBody(body ast.Stmt) {
 	}
 }
 
-func (p *printer) printBlock(stmts []ast.Stmt) {
+func (p *printer) printBlock(stmts []js_ast.Stmt) {
 	p.print("{")
 	p.printNewline()
 
@@ -2196,28 +2196,28 @@ func (p *printer) printBlock(stmts []ast.Stmt) {
 	p.print("}")
 }
 
-func wrapToAvoidAmbiguousElse(s ast.S) bool {
+func wrapToAvoidAmbiguousElse(s js_ast.S) bool {
 	for {
 		switch current := s.(type) {
-		case *ast.SIf:
+		case *js_ast.SIf:
 			if current.No == nil {
 				return true
 			}
 			s = current.No.Data
 
-		case *ast.SFor:
+		case *js_ast.SFor:
 			s = current.Body.Data
 
-		case *ast.SForIn:
+		case *js_ast.SForIn:
 			s = current.Body.Data
 
-		case *ast.SForOf:
+		case *js_ast.SForOf:
 			s = current.Body.Data
 
-		case *ast.SWhile:
+		case *js_ast.SWhile:
 			s = current.Body.Data
 
-		case *ast.SWith:
+		case *js_ast.SWith:
 			s = current.Body.Data
 
 		default:
@@ -2226,15 +2226,15 @@ func wrapToAvoidAmbiguousElse(s ast.S) bool {
 	}
 }
 
-func (p *printer) printIf(s *ast.SIf) {
+func (p *printer) printIf(s *js_ast.SIf) {
 	p.printSpaceBeforeIdentifier()
 	p.print("if")
 	p.printSpace()
 	p.print("(")
-	p.printExpr(s.Test, ast.LLowest, 0)
+	p.printExpr(s.Test, js_ast.LLowest, 0)
 	p.print(")")
 
-	if yes, ok := s.Yes.Data.(*ast.SBlock); ok {
+	if yes, ok := s.Yes.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
 		p.printBlock(yes.Stmts)
 
@@ -2277,11 +2277,11 @@ func (p *printer) printIf(s *ast.SIf) {
 		p.printSpaceBeforeIdentifier()
 		p.print("else")
 
-		if no, ok := s.No.Data.(*ast.SBlock); ok {
+		if no, ok := s.No.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
 			p.printBlock(no.Stmts)
 			p.printNewline()
-		} else if no, ok := s.No.Data.(*ast.SIf); ok {
+		} else if no, ok := s.No.Data.(*js_ast.SIf); ok {
 			p.printIf(no)
 		} else {
 			p.printNewline()
@@ -2315,11 +2315,11 @@ func (p *printer) printIndentedComment(text string) {
 	}
 }
 
-func (p *printer) printStmt(stmt ast.Stmt) {
+func (p *printer) printStmt(stmt js_ast.Stmt) {
 	p.addSourceMapping(stmt.Loc)
 
 	switch s := stmt.Data.(type) {
-	case *ast.SComment:
+	case *js_ast.SComment:
 		text := s.Text
 		if p.options.ExtractComments {
 			if p.extractedComments == nil {
@@ -2330,7 +2330,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		}
 		p.printIndentedComment(text)
 
-	case *ast.SFunction:
+	case *js_ast.SFunction:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		if s.IsExport {
@@ -2348,7 +2348,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printFn(s.Fn)
 		p.printNewline()
 
-	case *ast.SClass:
+	case *js_ast.SClass:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		if s.IsExport {
@@ -2359,12 +2359,12 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printClass(s.Class)
 		p.printNewline()
 
-	case *ast.SEmpty:
+	case *js_ast.SEmpty:
 		p.printIndent()
 		p.print(";")
 		p.printNewline()
 
-	case *ast.SExportDefault:
+	case *js_ast.SExportDefault:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export default")
@@ -2374,13 +2374,13 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			// Functions and classes must be wrapped to avoid confusion with their statement forms
 			p.exportDefaultStart = len(p.js)
 
-			p.printExpr(*s.Value.Expr, ast.LComma, 0)
+			p.printExpr(*s.Value.Expr, js_ast.LComma, 0)
 			p.printSemicolonAfterStatement()
 			return
 		}
 
 		switch s2 := s.Value.Stmt.Data.(type) {
-		case *ast.SFunction:
+		case *js_ast.SFunction:
 			p.printSpaceBeforeIdentifier()
 			if s2.Fn.IsAsync {
 				p.print("async ")
@@ -2396,7 +2396,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			p.printFn(s2.Fn)
 			p.printNewline()
 
-		case *ast.SClass:
+		case *js_ast.SClass:
 			p.printSpaceBeforeIdentifier()
 			p.print("class")
 			if s2.Class.Name != nil {
@@ -2409,7 +2409,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			panic("Internal error")
 		}
 
-	case *ast.SExportStar:
+	case *js_ast.SExportStar:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
@@ -2429,7 +2429,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
 		p.printSemicolonAfterStatement()
 
-	case *ast.SExportClause:
+	case *js_ast.SExportClause:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
@@ -2469,7 +2469,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print("}")
 		p.printSemicolonAfterStatement()
 
-	case *ast.SExportFrom:
+	case *js_ast.SExportFrom:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
@@ -2512,25 +2512,25 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
 		p.printSemicolonAfterStatement()
 
-	case *ast.SLocal:
+	case *js_ast.SLocal:
 		switch s.Kind {
-		case ast.LocalConst:
+		case js_ast.LocalConst:
 			p.printDeclStmt(s.IsExport, "const", s.Decls)
-		case ast.LocalLet:
+		case js_ast.LocalLet:
 			p.printDeclStmt(s.IsExport, "let", s.Decls)
-		case ast.LocalVar:
+		case js_ast.LocalVar:
 			p.printDeclStmt(s.IsExport, "var", s.Decls)
 		}
 
-	case *ast.SIf:
+	case *js_ast.SIf:
 		p.printIndent()
 		p.printIf(s)
 
-	case *ast.SDoWhile:
+	case *js_ast.SDoWhile:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("do")
-		if block, ok := s.Body.Data.(*ast.SBlock); ok {
+		if block, ok := s.Body.Data.(*js_ast.SBlock); ok {
 			p.printSpace()
 			p.printBlock(block.Stmts)
 			p.printSpace()
@@ -2545,11 +2545,11 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print("while")
 		p.printSpace()
 		p.print("(")
-		p.printExpr(s.Test, ast.LLowest, 0)
+		p.printExpr(s.Test, js_ast.LLowest, 0)
 		p.print(")")
 		p.printSemicolonAfterStatement()
 
-	case *ast.SForIn:
+	case *js_ast.SForIn:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("for")
@@ -2560,11 +2560,11 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("in")
 		p.printSpace()
-		p.printExpr(s.Value, ast.LLowest, 0)
+		p.printExpr(s.Value, js_ast.LLowest, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
-	case *ast.SForOf:
+	case *js_ast.SForOf:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("for")
@@ -2578,37 +2578,37 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printSpaceBeforeIdentifier()
 		p.print("of")
 		p.printSpace()
-		p.printExpr(s.Value, ast.LComma, 0)
+		p.printExpr(s.Value, js_ast.LComma, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
-	case *ast.SWhile:
+	case *js_ast.SWhile:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("while")
 		p.printSpace()
 		p.print("(")
-		p.printExpr(s.Test, ast.LLowest, 0)
+		p.printExpr(s.Test, js_ast.LLowest, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
-	case *ast.SWith:
+	case *js_ast.SWith:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("with")
 		p.printSpace()
 		p.print("(")
-		p.printExpr(s.Value, ast.LLowest, 0)
+		p.printExpr(s.Value, js_ast.LLowest, 0)
 		p.print(")")
 		p.printBody(s.Body)
 
-	case *ast.SLabel:
+	case *js_ast.SLabel:
 		p.printIndent()
 		p.printSymbol(s.Name.Ref)
 		p.print(":")
 		p.printBody(s.Stmt)
 
-	case *ast.STry:
+	case *js_ast.STry:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("try")
@@ -2637,7 +2637,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 
 		p.printNewline()
 
-	case *ast.SFor:
+	case *js_ast.SFor:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("for")
@@ -2649,23 +2649,23 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print(";")
 		p.printSpace()
 		if s.Test != nil {
-			p.printExpr(*s.Test, ast.LLowest, 0)
+			p.printExpr(*s.Test, js_ast.LLowest, 0)
 		}
 		p.print(";")
 		p.printSpace()
 		if s.Update != nil {
-			p.printExpr(*s.Update, ast.LLowest, 0)
+			p.printExpr(*s.Update, js_ast.LLowest, 0)
 		}
 		p.print(")")
 		p.printBody(s.Body)
 
-	case *ast.SSwitch:
+	case *js_ast.SSwitch:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("switch")
 		p.printSpace()
 		p.print("(")
-		p.printExpr(s.Test, ast.LLowest, 0)
+		p.printExpr(s.Test, js_ast.LLowest, 0)
 		p.print(")")
 		p.printSpace()
 		p.print("{")
@@ -2679,14 +2679,14 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 			if c.Value != nil {
 				p.print("case")
 				p.printSpace()
-				p.printExpr(*c.Value, ast.LLogicalAnd, 0)
+				p.printExpr(*c.Value, js_ast.LLogicalAnd, 0)
 			} else {
 				p.print("default")
 			}
 			p.print(":")
 
 			if len(c.Body) == 1 {
-				if block, ok := c.Body[0].Data.(*ast.SBlock); ok {
+				if block, ok := c.Body[0].Data.(*js_ast.SBlock); ok {
 					p.printSpace()
 					p.printBlock(block.Stmts)
 					p.printNewline()
@@ -2709,7 +2709,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printNewline()
 		p.needsSemicolon = false
 
-	case *ast.SImport:
+	case *js_ast.SImport:
 		itemCount := 0
 
 		p.printIndent()
@@ -2785,18 +2785,18 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
 		p.printSemicolonAfterStatement()
 
-	case *ast.SBlock:
+	case *js_ast.SBlock:
 		p.printIndent()
 		p.printBlock(s.Stmts)
 		p.printNewline()
 
-	case *ast.SDebugger:
+	case *js_ast.SDebugger:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("debugger")
 		p.printSemicolonAfterStatement()
 
-	case *ast.SDirective:
+	case *js_ast.SDirective:
 		c := p.bestQuoteCharForString(s.Value, false /* allowBacktick */)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
@@ -2805,7 +2805,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		p.print(c)
 		p.printSemicolonAfterStatement()
 
-	case *ast.SBreak:
+	case *js_ast.SBreak:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("break")
@@ -2815,7 +2815,7 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		}
 		p.printSemicolonAfterStatement()
 
-	case *ast.SContinue:
+	case *js_ast.SContinue:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("continue")
@@ -2825,28 +2825,28 @@ func (p *printer) printStmt(stmt ast.Stmt) {
 		}
 		p.printSemicolonAfterStatement()
 
-	case *ast.SReturn:
+	case *js_ast.SReturn:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("return")
 		if s.Value != nil {
 			p.printSpace()
-			p.printExpr(*s.Value, ast.LLowest, 0)
+			p.printExpr(*s.Value, js_ast.LLowest, 0)
 		}
 		p.printSemicolonAfterStatement()
 
-	case *ast.SThrow:
+	case *js_ast.SThrow:
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("throw")
 		p.printSpace()
-		p.printExpr(s.Value, ast.LLowest, 0)
+		p.printExpr(s.Value, js_ast.LLowest, 0)
 		p.printSemicolonAfterStatement()
 
-	case *ast.SExpr:
+	case *js_ast.SExpr:
 		p.printIndent()
 		p.stmtStart = len(p.js)
-		p.printExpr(s.Value, ast.LLowest, 0)
+		p.printExpr(s.Value, js_ast.LLowest, 0)
 		p.printSemicolonAfterStatement()
 
 	default:
@@ -2869,7 +2869,7 @@ type PrintOptions struct {
 	MangleSyntax        bool
 	ExtractComments     bool
 	Indent              int
-	ToModuleRef         ast.Ref
+	ToModuleRef         js_ast.Ref
 	UnsupportedFeatures compat.Feature
 
 	// This contains the contents of the input file to map back to in the source
@@ -2912,9 +2912,9 @@ type SourceMapChunk struct {
 }
 
 func createPrinter(
-	symbols ast.SymbolMap,
+	symbols js_ast.SymbolMap,
 	r renamer.Renamer,
-	importRecords []ast.ImportRecord,
+	importRecords []js_ast.ImportRecord,
 	options PrintOptions,
 	approximateLineCount int32,
 ) *printer {
@@ -2965,7 +2965,7 @@ type PrintResult struct {
 	ExtractedComments map[string]bool
 }
 
-func Print(tree ast.AST, symbols ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
+func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
 	p := createPrinter(symbols, r, tree.ImportRecords, options, tree.ApproximateLineCount)
 
 	for _, part := range tree.Parts {
@@ -2990,10 +2990,10 @@ func Print(tree ast.AST, symbols ast.SymbolMap, r renamer.Renamer, options Print
 	}
 }
 
-func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
+func PrintExpr(expr js_ast.Expr, symbols js_ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
 	p := createPrinter(symbols, r, nil, options, 0)
 
-	p.printExpr(expr, ast.LLowest, 0)
+	p.printExpr(expr, js_ast.LLowest, 0)
 
 	p.updateGeneratedLineAndColumn()
 
@@ -3010,7 +3010,7 @@ func PrintExpr(expr ast.Expr, symbols ast.SymbolMap, r renamer.Renamer, options 
 	}
 }
 
-func quotedSources(tree *ast.AST, options *PrintOptions) []QuotedSource {
+func quotedSources(tree *js_ast.AST, options *PrintOptions) []QuotedSource {
 	if options.SourceForSourceMap == nil {
 		return nil
 	}

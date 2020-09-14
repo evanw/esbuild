@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -65,7 +65,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
@@ -90,7 +90,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
@@ -120,7 +120,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{
@@ -156,7 +156,7 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
@@ -202,7 +202,7 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
@@ -211,8 +211,8 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 }
 
 func TestBinOp(t *testing.T) {
-	for code, entry := range ast.OpTable {
-		opCode := ast.OpCode(code)
+	for code, entry := range js_ast.OpTable {
+		opCode := js_ast.OpCode(code)
 
 		if opCode.IsLeftAssociative() {
 			op := entry.Text
@@ -226,7 +226,7 @@ func TestBinOp(t *testing.T) {
 			expectPrinted(t, "a "+op+" b "+op+" c", "a "+op+" b "+op+" c;\n")
 
 			// Avoid errors about invalid assignment targets
-			if opCode.BinaryAssignTarget() == ast.AssignTargetNone {
+			if opCode.BinaryAssignTarget() == js_ast.AssignTargetNone {
 				expectPrinted(t, "(a "+op+" b) "+op+" c", "(a "+op+" b) "+op+" c;\n")
 			}
 

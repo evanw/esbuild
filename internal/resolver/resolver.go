@@ -7,9 +7,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
@@ -90,7 +90,7 @@ type ResolveResult struct {
 }
 
 type Resolver interface {
-	Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult
+	Resolve(sourceDir string, importPath string, kind js_ast.ImportKind) *ResolveResult
 	ResolveAbs(absPath string) *ResolveResult
 	PrettyPath(path logger.Path) string
 }
@@ -129,7 +129,7 @@ func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+func (r *resolver) Resolve(sourceDir string, importPath string, kind js_ast.ImportKind) *ResolveResult {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -190,7 +190,7 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 	return &result
 }
 
-func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind js_ast.ImportKind) *ResolveResult {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	var result PathPair
@@ -305,7 +305,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 	return &ResolveResult{PathPair: result}
 }
 
-func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool) {
+func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind js_ast.ImportKind) (PathPair, bool) {
 	if IsPackagePath(importPath) {
 		return r.loadNodeModules(importPath, kind, sourceDirInfo)
 	} else {
@@ -581,7 +581,7 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 				warnRange := tsConfigSource.RangeOfString(pathsKeyLoc)
 				r.log.AddRangeWarning(&tsConfigSource, warnRange,
 					"Cannot use the \"paths\" property without the \"baseUrl\" property")
-			} else if paths, ok := pathsJson.Data.(*ast.EObject); ok {
+			} else if paths, ok := pathsJson.Data.(*js_ast.EObject); ok {
 				result.paths = make(map[string][]string)
 				for _, prop := range paths.Properties {
 					if key, ok := getString(prop.Key); ok {
@@ -610,7 +610,7 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 						//
 						// Matching "folder1/file2" should first check "projectRoot/folder1/file2"
 						// and then, if that didn't work, also check "projectRoot/generated/folder1/file2".
-						if array, ok := prop.Value.Data.(*ast.EArray); ok {
+						if array, ok := prop.Value.Data.(*js_ast.EArray); ok {
 							for _, item := range array.Items {
 								if str, ok := getString(item); ok {
 									if isValidTSConfigPathPattern(str, r.log, tsConfigSource, item.Loc) {
@@ -819,7 +819,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 		//     "./dist/index.node.esm.js": "./dist/index.browser.esm.js"
 		//   },
 		//
-		if browser, ok := browserJson.Data.(*ast.EObject); ok {
+		if browser, ok := browserJson.Data.(*js_ast.EObject); ok {
 			// The value is an object
 			browserPackageMap := make(map[string]*string)
 			browserNonPackageMap := make(map[string]*string)
@@ -860,19 +860,19 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	// Read the "sideEffects" property
 	if sideEffectsJson, _, ok := getProperty(json, "sideEffects"); ok {
 		switch data := sideEffectsJson.Data.(type) {
-		case *ast.EBoolean:
+		case *js_ast.EBoolean:
 			if !data.Value {
 				// Make an empty map for "sideEffects: false", which indicates all
 				// files in this module can be considered to not have side effects.
 				packageJson.sideEffectsMap = make(map[string]bool)
 			}
 
-		case *ast.EArray:
+		case *js_ast.EArray:
 			// The "sideEffects: []" format means all files in this module but not in
 			// the array can be considered to not have side effects.
 			packageJson.sideEffectsMap = make(map[string]bool)
 			for _, itemJson := range data.Items {
-				if item, ok := itemJson.Data.(*ast.EString); ok && item.Value != nil {
+				if item, ok := itemJson.Data.(*js_ast.EString); ok && item.Value != nil {
 					absolute := r.fs.Join(path, js_lexer.UTF16ToString(item.Value))
 					packageJson.sideEffectsMap[absolute] = true
 				} else {
@@ -965,10 +965,10 @@ var parseErrorAlreadyLogged = errors.New("(error already logged)")
 
 // This may return "parseErrorAlreadyLogged" in which case there was a syntax
 // error, but it's already been reported. No further errors should be logged.
-func (r *resolver) parseJSON(path string, options js_parser.ParseJSONOptions) (ast.Expr, logger.Source, error) {
+func (r *resolver) parseJSON(path string, options js_parser.ParseJSONOptions) (js_ast.Expr, logger.Source, error) {
 	contents, err := r.fs.ReadFile(path)
 	if err != nil {
-		return ast.Expr{}, logger.Source{}, err
+		return js_ast.Expr{}, logger.Source{}, err
 	}
 	keyPath := logger.Path{Text: path, Namespace: "file"}
 	source := logger.Source{
@@ -978,38 +978,38 @@ func (r *resolver) parseJSON(path string, options js_parser.ParseJSONOptions) (a
 	}
 	result, ok := js_parser.ParseJSON(r.log, source, options)
 	if !ok {
-		return ast.Expr{}, logger.Source{}, parseErrorAlreadyLogged
+		return js_ast.Expr{}, logger.Source{}, parseErrorAlreadyLogged
 	}
 	return result, source, nil
 }
 
-func getProperty(json ast.Expr, name string) (ast.Expr, logger.Loc, bool) {
-	if obj, ok := json.Data.(*ast.EObject); ok {
+func getProperty(json js_ast.Expr, name string) (js_ast.Expr, logger.Loc, bool) {
+	if obj, ok := json.Data.(*js_ast.EObject); ok {
 		for _, prop := range obj.Properties {
-			if key, ok := prop.Key.Data.(*ast.EString); ok && key.Value != nil &&
+			if key, ok := prop.Key.Data.(*js_ast.EString); ok && key.Value != nil &&
 				len(key.Value) == len(name) && js_lexer.UTF16ToString(key.Value) == name {
 				return *prop.Value, prop.Key.Loc, true
 			}
 		}
 	}
-	return ast.Expr{}, logger.Loc{}, false
+	return js_ast.Expr{}, logger.Loc{}, false
 }
 
-func getString(json ast.Expr) (string, bool) {
-	if value, ok := json.Data.(*ast.EString); ok {
+func getString(json js_ast.Expr) (string, bool) {
+	if value, ok := json.Data.(*js_ast.EString); ok {
 		return js_lexer.UTF16ToString(value.Value), true
 	}
 	return "", false
 }
 
-func getBool(json ast.Expr) (bool, bool) {
-	if value, ok := json.Data.(*ast.EBoolean); ok {
+func getBool(json js_ast.Expr) (bool, bool) {
+	if value, ok := json.Data.(*js_ast.EBoolean); ok {
 		return value.Value, true
 	}
 	return false, false
 }
 
-func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool) {
+func (r *resolver) loadAsFileOrDirectory(path string, kind js_ast.ImportKind) (PathPair, bool) {
 	// Is this a file?
 	absolute, ok := r.loadAsFile(path)
 	if ok {
@@ -1047,7 +1047,7 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 						// for "require" and "module" if the path is for "import". If we're using
 						// "module", return enough information to be able to fall back to "main"
 						// later if that decision was incorrect.
-						if kind != ast.ImportRequire {
+						if kind != js_ast.ImportRequire {
 							return PathPair{
 								// This is the whole point of the path pair
 								Primary:   logger.Path{Text: absolute, Namespace: "file"},
@@ -1074,7 +1074,7 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 
 // This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
 // official TypeScript compiler
-func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, kind ast.ImportKind) (PathPair, bool) {
+func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, kind js_ast.ImportKind) (PathPair, bool) {
 	// Check for exact matches first
 	for key, originalPaths := range tsConfigJson.paths {
 		if key == path {
@@ -1140,7 +1140,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, k
 	return PathPair{}, false
 }
 
-func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool) {
+func (r *resolver) loadNodeModules(path string, kind js_ast.ImportKind, dirInfo *dirInfo) (PathPair, bool) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 	if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
 		// Try path substitutions first

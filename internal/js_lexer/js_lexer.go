@@ -21,7 +21,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -222,13 +222,13 @@ type Lexer struct {
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
 	PreserveAllCommentsBefore       bool
-	CommentsToPreserveBefore        []ast.Comment
+	CommentsToPreserveBefore        []js_ast.Comment
 	codePoint                       rune
 	StringLiteral                   []uint16
 	Identifier                      string
-	JSXFactoryPragmaComment         ast.Span
-	JSXFragmentPragmaComment        ast.Span
-	SourceMappingURL                ast.Span
+	JSXFactoryPragmaComment         js_ast.Span
+	JSXFragmentPragmaComment        js_ast.Span
+	SourceMappingURL                js_ast.Span
 	Number                          float64
 	rescanCloseBraceAsTemplateToken bool
 	json                            json
@@ -2316,25 +2316,25 @@ const (
 	pragmaSkipSpaceFirst
 )
 
-func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (ast.Span, bool) {
+func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (js_ast.Span, bool) {
 	text = text[len(pragma):]
 	start += len(pragma)
 
 	if text == "" {
-		return ast.Span{}, false
+		return js_ast.Span{}, false
 	}
 
 	// One or more whitespace characters
 	c, width := utf8.DecodeRuneInString(text)
 	if kind == pragmaSkipSpaceFirst {
 		if !IsWhitespace(c) {
-			return ast.Span{}, false
+			return js_ast.Span{}, false
 		}
 		for IsWhitespace(c) {
 			text = text[width:]
 			start += width
 			if text == "" {
-				return ast.Span{}, false
+				return js_ast.Span{}, false
 			}
 			c, width = utf8.DecodeRuneInString(text)
 		}
@@ -2353,7 +2353,7 @@ func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (as
 		}
 	}
 
-	return ast.Span{
+	return js_ast.Span{
 		Text: text[:i],
 		Range: logger.Range{
 			Loc: logger.Loc{Start: int32(start)},
@@ -2405,7 +2405,7 @@ func (lexer *Lexer) scanCommentText() {
 			text = removeMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
 		}
 
-		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, ast.Comment{
+		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, js_ast.Comment{
 			Loc:  logger.Loc{Start: int32(lexer.start)},
 			Text: text,
 		})
