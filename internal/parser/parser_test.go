@@ -239,8 +239,9 @@ func TestComments(t *testing.T) {
 	expectParseError(t, "throw //\n x", "<stdin>: error: Unexpected newline after \"throw\"\n")
 	expectParseError(t, "throw /**/\n x", "<stdin>: error: Unexpected newline after \"throw\"\n")
 	expectParseError(t, "throw <!--\n x",
-		"<stdin>: warning: Treating \"<!--\" as the start of a legacy HTML single-line comment\n"+
-			"<stdin>: error: Unexpected newline after \"throw\"\n")
+		`<stdin>: error: Unexpected newline after "throw"
+<stdin>: warning: Treating "<!--" as the start of a legacy HTML single-line comment
+`)
 	expectParseError(t, "throw -->\n x", "<stdin>: error: Unexpected \">\"\n")
 
 	expectPrinted(t, "return //\n x", "return;\nx;\n")

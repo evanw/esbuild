@@ -8,6 +8,7 @@ package logger
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -60,6 +61,73 @@ type Range struct {
 
 func (r Range) End() int32 {
 	return r.Loc.Start + r.Len
+}
+
+// This type is just so we can use Go's native sort function
+type msgsArray []Msg
+
+func (a msgsArray) Len() int          { return len(a) }
+func (a msgsArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a msgsArray) Less(i int, j int) bool {
+	ai := a[i]
+	aj := a[j]
+
+	li := ai.Location
+	lj := aj.Location
+
+	// Location
+	if li == nil && lj != nil {
+		return true
+	}
+	if li != nil && lj == nil {
+		return false
+	}
+
+	if li != nil && lj != nil {
+		// File
+		if li.File < lj.File {
+			return true
+		}
+		if li.File > lj.File {
+			return false
+		}
+
+		// Line
+		if li.Line < lj.Line {
+			return true
+		}
+		if li.Line > lj.Line {
+			return false
+		}
+
+		// Column
+		if li.Column < lj.Column {
+			return true
+		}
+		if li.Column > lj.Column {
+			return false
+		}
+
+		// Length
+		if li.Length < lj.Length {
+			return true
+		}
+		if li.Length > lj.Length {
+			return false
+		}
+	}
+
+	// Kind
+	if ai.Kind < aj.Kind {
+		return true
+	}
+	if ai.Kind > aj.Kind {
+		return false
+	}
+
+	// Text
+	return ai.Text < aj.Text
 }
 
 // This is used to represent both file system paths (Namespace == "file") and
@@ -181,7 +249,7 @@ type TerminalInfo struct {
 
 func NewStderrLog(options StderrOptions) Log {
 	var mutex sync.Mutex
-	var msgs []Msg
+	var msgs msgsArray
 	terminalInfo := GetTerminalInfo(os.Stderr)
 	errors := 0
 	warnings := 0
@@ -241,6 +309,7 @@ func NewStderrLog(options StderrOptions) Log {
 				writeStringWithColor(os.Stderr, fmt.Sprintf("%s\n", errorAndWarningSummary(errors, warnings)))
 			}
 
+			sort.Stable(msgs)
 			return msgs
 		},
 	}
@@ -276,7 +345,7 @@ func PrintMessageToStderr(osArgs []string, msg Msg) {
 }
 
 func NewDeferLog() Log {
-	var msgs []Msg
+	var msgs msgsArray
 	var mutex sync.Mutex
 	var hasErrors bool
 
@@ -297,6 +366,7 @@ func NewDeferLog() Log {
 		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
+			sort.Stable(msgs)
 			return msgs
 		},
 	}

@@ -2594,25 +2594,43 @@ func TestTopLevelAwaitNoBundleIIFE(t *testing.T) {
 func TestAssignToImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.js":                  `import "./bad0.js"`,
+			"/entry.js": `
+				import "./bad0.js"
+				import "./bad1.js"
+				import "./bad2.js"
+				import "./bad3.js"
+				import "./bad4.js"
+				import "./bad5.js"
+				import "./bad6.js"
+				import "./bad7.js"
+				import "./bad8.js"
+				import "./bad9.js"
+				import "./bad10.js"
+
+				import "./good0.js"
+				import "./good1.js"
+				import "./good2.js"
+				import "./good3.js"
+				import "./good4.js"
+			`,
 			"/node_modules/foo/index.js": ``,
 
-			"/bad0.js":  `import x from "foo"; x = 1; import "./bad1.js"`,
-			"/bad1.js":  `import x from "foo"; x++; import "./bad2.js"`,
-			"/bad2.js":  `import x from "foo"; ([x] = 1); import "./bad3.js"`,
-			"/bad3.js":  `import x from "foo"; ({x} = 1); import "./bad4.js"`,
-			"/bad4.js":  `import x from "foo"; ({y: x} = 1); import "./bad5.js"`,
-			"/bad5.js":  `import {x} from "foo"; x++; import "./bad6.js"`,
-			"/bad6.js":  `import * as x from "foo"; x++; import "./bad7.js"`,
-			"/bad7.js":  `import * as x from "foo"; x.y = 1; import "./bad8.js"`,
-			"/bad8.js":  `import * as x from "foo"; x[y] = 1; import "./bad9.js"`,
-			"/bad9.js":  `import * as x from "foo"; x['y'] = 1; import "./bad10.js"`,
-			"/bad10.js": `import * as x from "foo"; x['y z'] = 1; import "./good0.js"`,
+			"/bad0.js":  `import x from "foo"; x = 1`,
+			"/bad1.js":  `import x from "foo"; x++`,
+			"/bad2.js":  `import x from "foo"; ([x] = 1)`,
+			"/bad3.js":  `import x from "foo"; ({x} = 1)`,
+			"/bad4.js":  `import x from "foo"; ({y: x} = 1)`,
+			"/bad5.js":  `import {x} from "foo"; x++`,
+			"/bad6.js":  `import * as x from "foo"; x++`,
+			"/bad7.js":  `import * as x from "foo"; x.y = 1`,
+			"/bad8.js":  `import * as x from "foo"; x[y] = 1`,
+			"/bad9.js":  `import * as x from "foo"; x['y'] = 1`,
+			"/bad10.js": `import * as x from "foo"; x['y z'] = 1`,
 
-			"/good0.js": `import x from "foo"; ({y = x} = 1); import "./good1.js"`,
-			"/good1.js": `import x from "foo"; ({[x]: y} = 1); import "./good2.js"`,
-			"/good2.js": `import x from "foo"; x.y = 1; import "./good3.js"`,
-			"/good3.js": `import x from "foo"; x[y] = 1; import "./good4.js"`,
+			"/good0.js": `import x from "foo"; ({y = x} = 1)`,
+			"/good1.js": `import x from "foo"; ({[x]: y} = 1)`,
+			"/good2.js": `import x from "foo"; x.y = 1`,
+			"/good3.js": `import x from "foo"; x[y] = 1`,
 			"/good4.js": `import x from "foo"; x['y'] = 1`,
 			"/good5.js": `import x from "foo"; x['y z'] = 1`,
 		},
@@ -2623,6 +2641,7 @@ func TestAssignToImport(t *testing.T) {
 		},
 		expectedScanLog: `/bad0.js: error: Cannot assign to import "x"
 /bad1.js: error: Cannot assign to import "x"
+/bad10.js: error: Cannot assign to import "y z"
 /bad2.js: error: Cannot assign to import "x"
 /bad3.js: error: Cannot assign to import "x"
 /bad4.js: error: Cannot assign to import "x"
@@ -2631,7 +2650,6 @@ func TestAssignToImport(t *testing.T) {
 /bad7.js: error: Cannot assign to import "y"
 /bad8.js: error: Cannot assign to property on import "x"
 /bad9.js: error: Cannot assign to import "y"
-/bad10.js: error: Cannot assign to import "y z"
 `,
 	})
 }
