@@ -2,46 +2,46 @@
 // over type expressions as if they are whitespace and doesn't bother generating
 // an AST because nothing uses type information.
 
-package parser
+package js_parser
 
 import (
-	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
 func (p *parser) skipFlowBinding() {
 	switch p.lexer.Token {
-	case lexer.TIdentifier, lexer.TThis:
+	case js_lexer.TIdentifier, js_lexer.TThis:
 		p.lexer.Next()
 
-	case lexer.TOpenBracket:
+	case js_lexer.TOpenBracket:
 		p.lexer.Next()
 
 		// "[, , a]"
-		for p.lexer.Token == lexer.TComma {
+		for p.lexer.Token == js_lexer.TComma {
 			p.lexer.Next()
 		}
 
 		// "[a, b]"
-		for p.lexer.Token != lexer.TCloseBracket {
+		for p.lexer.Token != js_lexer.TCloseBracket {
 			p.skipFlowBinding()
-			if p.lexer.Token != lexer.TComma {
+			if p.lexer.Token != js_lexer.TComma {
 				break
 			}
 			p.lexer.Next()
 		}
 
-		p.lexer.Expect(lexer.TCloseBracket)
+		p.lexer.Expect(js_lexer.TCloseBracket)
 
-	case lexer.TOpenBrace:
+	case js_lexer.TOpenBrace:
 		p.lexer.Next()
 
-		for p.lexer.Token != lexer.TCloseBrace {
+		for p.lexer.Token != js_lexer.TCloseBrace {
 			foundIdentifier := false
 
 			switch p.lexer.Token {
-			case lexer.TIdentifier:
+			case js_lexer.TIdentifier:
 				// "{x}"
 				// "{x: y}"
 				foundIdentifier = true
@@ -49,7 +49,7 @@ func (p *parser) skipFlowBinding() {
 
 				// "{1: y}"
 				// "{'x': y}"
-			case lexer.TStringLiteral, lexer.TNumericLiteral:
+			case js_lexer.TStringLiteral, js_lexer.TNumericLiteral:
 				p.lexer.Next()
 
 			default:
@@ -61,18 +61,18 @@ func (p *parser) skipFlowBinding() {
 				}
 			}
 
-			if p.lexer.Token == lexer.TColon || !foundIdentifier {
-				p.lexer.Expect(lexer.TColon)
+			if p.lexer.Token == js_lexer.TColon || !foundIdentifier {
+				p.lexer.Expect(js_lexer.TColon)
 				p.skipFlowBinding()
 			}
 
-			if p.lexer.Token != lexer.TComma {
+			if p.lexer.Token != js_lexer.TComma {
 				break
 			}
 			p.lexer.Next()
 		}
 
-		p.lexer.Expect(lexer.TCloseBrace)
+		p.lexer.Expect(js_lexer.TCloseBrace)
 
 	default:
 		p.lexer.Unexpected()
@@ -80,35 +80,35 @@ func (p *parser) skipFlowBinding() {
 }
 
 func (p *parser) skipFlowFnArgs() {
-	p.lexer.Expect(lexer.TOpenParen)
+	p.lexer.Expect(js_lexer.TOpenParen)
 
-	for p.lexer.Token != lexer.TCloseParen {
+	for p.lexer.Token != js_lexer.TCloseParen {
 		// "(...a)"
-		if p.lexer.Token == lexer.TDotDotDot {
+		if p.lexer.Token == js_lexer.TDotDotDot {
 			p.lexer.Next()
 		}
 
 		p.skipFlowBinding()
 
 		// "(a?)"
-		if p.lexer.Token == lexer.TQuestion {
+		if p.lexer.Token == js_lexer.TQuestion {
 			p.lexer.Next()
 		}
 
 		// "(a: any)"
-		if p.lexer.Token == lexer.TColon {
+		if p.lexer.Token == js_lexer.TColon {
 			p.lexer.Next()
-			p.skipFlowType(ast.LLowest)
+			p.skipFlowType(js_ast.LLowest)
 		}
 
 		// "(a, b)"
-		if p.lexer.Token != lexer.TComma {
+		if p.lexer.Token != js_lexer.TComma {
 			break
 		}
 		p.lexer.Next()
 	}
 
-	p.lexer.Expect(lexer.TCloseParen)
+	p.lexer.Expect(js_lexer.TCloseParen)
 }
 
 // This is a spot where the TypeScript grammar is highly ambiguous. Here are
@@ -130,9 +130,9 @@ func (p *parser) skipFlowParenOrFnType() {
 	if p.trySkipFlowArrowArgsWithBacktracking() {
 		p.skipFlowReturnType()
 	} else {
-		p.lexer.Expect(lexer.TOpenParen)
-		p.skipFlowType(ast.LLowest)
-		p.lexer.Expect(lexer.TCloseParen)
+		p.lexer.Expect(js_lexer.TOpenParen)
+		p.skipFlowType(js_ast.LLowest)
+		p.lexer.Expect(js_lexer.TCloseParen)
 	}
 }
 
@@ -142,7 +142,7 @@ func (p *parser) skipFlowReturnType() {
 		p.lexer.Next()
 
 		// "function assert(x: boolean): asserts" is also valid
-		if p.lexer.Token != lexer.TIdentifier && p.lexer.Token != lexer.TThis {
+		if p.lexer.Token != js_lexer.TIdentifier && p.lexer.Token != js_lexer.TThis {
 			return
 		}
 		p.lexer.Next()
@@ -150,16 +150,16 @@ func (p *parser) skipFlowReturnType() {
 		// Continue on to the "is" check below to handle something like
 		// "function assert(x: any): asserts x is boolean"
 	} else {
-		p.skipFlowType(ast.LLowest)
+		p.skipFlowType(js_ast.LLowest)
 	}
 
 	if p.lexer.IsContextualKeyword("is") && !p.lexer.HasNewlineBefore {
 		p.lexer.Next()
-		p.skipFlowType(ast.LLowest)
+		p.skipFlowType(js_ast.LLowest)
 	}
 }
 
-func (p *parser) skipFlowType(level ast.L) {
+func (p *parser) skipFlowType(level js_ast.L) {
 	p.skipFlowTypePrefix()
 	p.skipFlowTypeSuffix(level)
 }
@@ -167,55 +167,55 @@ func (p *parser) skipFlowType(level ast.L) {
 // Modified from TypeScript
 func (p *parser) skipFlowTypePrefix() {
 	switch p.lexer.Token {
-	case lexer.TNumericLiteral, lexer.TBigIntegerLiteral, lexer.TStringLiteral,
-		lexer.TNoSubstitutionTemplateLiteral, lexer.TThis, lexer.TTrue, lexer.TFalse,
-		lexer.TNull, lexer.TVoid, lexer.TConst, lexer.TAsterisk: // Flow vs TS (Asterisk)
+	case js_lexer.TNumericLiteral, js_lexer.TBigIntegerLiteral, js_lexer.TStringLiteral,
+		js_lexer.TNoSubstitutionTemplateLiteral, js_lexer.TThis, js_lexer.TTrue, js_lexer.TFalse,
+		js_lexer.TNull, js_lexer.TVoid, js_lexer.TConst, js_lexer.TAsterisk: // Flow vs TS (Asterisk)
 		p.lexer.Next()
 
-	case lexer.TMinus:
+	case js_lexer.TMinus:
 		// "-123"
 		// "-123n"
 		p.lexer.Next()
-		if p.lexer.Token == lexer.TBigIntegerLiteral {
+		if p.lexer.Token == js_lexer.TBigIntegerLiteral {
 			p.lexer.Next()
 		} else {
-			p.lexer.Expect(lexer.TNumericLiteral)
+			p.lexer.Expect(js_lexer.TNumericLiteral)
 		}
 
-	case lexer.TAmpersand:
-	case lexer.TBar:
+	case js_lexer.TAmpersand:
+	case js_lexer.TBar:
 		// Support things like "type Foo = | A | B" and "type Foo = & A & B"
 		p.lexer.Next()
 		p.skipFlowTypePrefix()
 
-	case lexer.TImport:
+	case js_lexer.TImport:
 		// "import('fs')"
 		p.lexer.Next()
-		p.lexer.Expect(lexer.TOpenParen)
-		p.lexer.Expect(lexer.TStringLiteral)
-		p.lexer.Expect(lexer.TCloseParen)
+		p.lexer.Expect(js_lexer.TOpenParen)
+		p.lexer.Expect(js_lexer.TStringLiteral)
+		p.lexer.Expect(js_lexer.TCloseParen)
 
-	case lexer.TNew:
+	case js_lexer.TNew:
 		// "new () => Foo"
 		// "new <T>() => Foo<T>"
 		p.lexer.Next()
 		p.skipFlowTypeParameters()
 		p.skipFlowParenOrFnType()
 
-	case lexer.TLessThan:
+	case js_lexer.TLessThan:
 		// "<T>() => Foo<T>"
 		p.skipFlowTypeParameters()
 		p.skipFlowParenOrFnType()
 
-	case lexer.TOpenParen:
+	case js_lexer.TOpenParen:
 		// "(number | string)"
 		p.skipFlowParenOrFnType()
 
-	case lexer.TIdentifier:
+	case js_lexer.TIdentifier:
 		switch p.lexer.Identifier {
 		case "keyof", "readonly", "infer":
 			p.lexer.Next()
-			p.skipFlowType(ast.LPrefix)
+			p.skipFlowType(js_ast.LPrefix)
 
 		case "unique":
 			p.lexer.Next()
@@ -227,9 +227,9 @@ func (p *parser) skipFlowTypePrefix() {
 			p.lexer.Next()
 		}
 
-	case lexer.TTypeof:
+	case js_lexer.TTypeof:
 		p.lexer.Next()
-		if p.lexer.Token == lexer.TImport {
+		if p.lexer.Token == js_lexer.TImport {
 			// "typeof import('fs')"
 			p.skipFlowTypePrefix()
 		} else {
@@ -237,37 +237,37 @@ func (p *parser) skipFlowTypePrefix() {
 			// "typeof x.y"
 			for {
 				if !p.lexer.IsIdentifierOrKeyword() {
-					p.lexer.Expected(lexer.TIdentifier)
+					p.lexer.Expected(js_lexer.TIdentifier)
 				}
 				p.lexer.Next()
-				if p.lexer.Token != lexer.TDot {
+				if p.lexer.Token != js_lexer.TDot {
 					break
 				}
 				p.lexer.Next()
 			}
 		}
 
-	case lexer.TOpenBracket:
+	case js_lexer.TOpenBracket:
 		// "[number, string]"
 		// "[first: number, second: string]"
 		p.lexer.Next()
-		for p.lexer.Token != lexer.TCloseBracket {
-			if p.lexer.Token == lexer.TDotDotDot {
+		for p.lexer.Token != js_lexer.TCloseBracket {
+			if p.lexer.Token == js_lexer.TDotDotDot {
 				p.lexer.Next()
 			}
-			p.skipFlowType(ast.LLowest)
-			if p.lexer.Token == lexer.TColon {
+			p.skipFlowType(js_ast.LLowest)
+			if p.lexer.Token == js_lexer.TColon {
 				p.lexer.Next()
-				p.skipFlowType(ast.LLowest)
+				p.skipFlowType(js_ast.LLowest)
 			}
-			if p.lexer.Token != lexer.TComma {
+			if p.lexer.Token != js_lexer.TComma {
 				break
 			}
 			p.lexer.Next()
 		}
-		p.lexer.Expect(lexer.TCloseBracket)
+		p.lexer.Expect(js_lexer.TCloseBracket)
 
-	case lexer.TOpenBrace:
+	case js_lexer.TOpenBrace:
 		p.skipFlowObjectType()
 
 	default:
@@ -275,67 +275,67 @@ func (p *parser) skipFlowTypePrefix() {
 	}
 }
 
-func (p *parser) skipFlowTypeSuffix(level ast.L) {
+func (p *parser) skipFlowTypeSuffix(level js_ast.L) {
 	for {
 		switch p.lexer.Token {
-		case lexer.TBar:
-			if level >= ast.LBitwiseOr {
+		case js_lexer.TBar:
+			if level >= js_ast.LBitwiseOr {
 				return
 			}
 			p.lexer.Next()
-			p.skipFlowType(ast.LBitwiseOr)
+			p.skipFlowType(js_ast.LBitwiseOr)
 
-		case lexer.TAmpersand:
-			if level >= ast.LBitwiseAnd {
+		case js_lexer.TAmpersand:
+			if level >= js_ast.LBitwiseAnd {
 				return
 			}
 			p.lexer.Next()
-			p.skipFlowType(ast.LBitwiseAnd)
+			p.skipFlowType(js_ast.LBitwiseAnd)
 
-		case lexer.TDot:
+		case js_lexer.TDot:
 			p.lexer.Next()
 			if !p.lexer.IsIdentifierOrKeyword() {
-				p.lexer.Expect(lexer.TIdentifier)
+				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 			p.lexer.Next()
 
-		case lexer.TOpenBracket:
+		case js_lexer.TOpenBracket:
 			// "{ ['x']: string \n ['y']: string }" must not become a single type
 			if p.lexer.HasNewlineBefore {
 				return
 			}
 			p.lexer.Next()
-			if p.lexer.Token != lexer.TCloseBracket {
-				p.skipFlowType(ast.LLowest)
+			if p.lexer.Token != js_lexer.TCloseBracket {
+				p.skipFlowType(js_ast.LLowest)
 			}
-			p.lexer.Expect(lexer.TCloseBracket)
+			p.lexer.Expect(js_lexer.TCloseBracket)
 
-		case lexer.TLessThan, lexer.TLessThanEquals,
-			lexer.TLessThanLessThan, lexer.TLessThanLessThanEquals:
+		case js_lexer.TLessThan, js_lexer.TLessThanEquals,
+			js_lexer.TLessThanLessThan, js_lexer.TLessThanLessThanEquals:
 			// "let foo: any \n <number>foo" must not become a single type
 			if p.lexer.HasNewlineBefore {
 				return
 			}
 			p.lexer.ExpectLessThan(false /* isInsideJSXElement */)
 			for {
-				p.skipFlowType(ast.LLowest)
-				if p.lexer.Token != lexer.TComma {
+				p.skipFlowType(js_ast.LLowest)
+				if p.lexer.Token != js_lexer.TComma {
 					break
 				}
 				p.lexer.Next()
 			}
 			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
 
-		case lexer.TExtends:
+		case js_lexer.TExtends:
 			// "{ x: number \n extends: boolean }" must not become a single type
 			if p.lexer.HasNewlineBefore {
 				return
 			}
 			p.lexer.Next()
-			p.skipFlowType(ast.LCompare)
+			p.skipFlowType(js_ast.LCompare)
 
-		case lexer.TQuestion:
-			if level >= ast.LConditional {
+		case js_lexer.TQuestion:
+			if level >= js_ast.LConditional {
 				return
 			}
 			p.lexer.Next()
@@ -346,13 +346,13 @@ func (p *parser) skipFlowTypeSuffix(level ast.L) {
 			// "(a?, b?) => void"
 			// "(a?) => void"
 			// "[string?]"
-			case lexer.TColon, lexer.TComma, lexer.TCloseParen, lexer.TCloseBracket:
+			case js_lexer.TColon, js_lexer.TComma, js_lexer.TCloseParen, js_lexer.TCloseBracket:
 				return
 			}
 
-			p.skipFlowType(ast.LLowest)
-			p.lexer.Expect(lexer.TColon)
-			p.skipFlowType(ast.LLowest)
+			p.skipFlowType(js_ast.LLowest)
+			p.lexer.Expect(js_lexer.TColon)
+			p.skipFlowType(js_ast.LLowest)
 
 		default:
 			return
@@ -361,41 +361,41 @@ func (p *parser) skipFlowTypeSuffix(level ast.L) {
 }
 
 func (p *parser) skipFlowObjectType() {
-	p.lexer.Expect(lexer.TOpenBrace)
+	p.lexer.Expect(js_lexer.TOpenBrace)
 
-	for p.lexer.Token != lexer.TCloseBrace {
+	for p.lexer.Token != js_lexer.TCloseBrace {
 		// "{ -readonly [K in keyof T]: T[K] }"
 		// "{ +readonly [K in keyof T]: T[K] }"
-		if p.lexer.Token == lexer.TPlus || p.lexer.Token == lexer.TMinus {
+		if p.lexer.Token == js_lexer.TPlus || p.lexer.Token == js_lexer.TMinus {
 			p.lexer.Next()
 		}
 
 		// Skip over modifiers and the property identifier
 		foundKey := false
 		for p.lexer.IsIdentifierOrKeyword() ||
-			p.lexer.Token == lexer.TStringLiteral ||
-			p.lexer.Token == lexer.TNumericLiteral {
+			p.lexer.Token == js_lexer.TStringLiteral ||
+			p.lexer.Token == js_lexer.TNumericLiteral {
 			p.lexer.Next()
 			foundKey = true
 		}
 
-		if p.lexer.Token == lexer.TOpenBracket {
+		if p.lexer.Token == js_lexer.TOpenBracket {
 			// Index signature or computed property
 			p.lexer.Next()
-			p.skipFlowType(ast.LLowest)
+			p.skipFlowType(js_ast.LLowest)
 
 			// "{ [key: string]: number }"
 			// "{ readonly [K in keyof T]: T[K] }"
-			if p.lexer.Token == lexer.TColon || p.lexer.Token == lexer.TIn {
+			if p.lexer.Token == js_lexer.TColon || p.lexer.Token == js_lexer.TIn {
 				p.lexer.Next()
-				p.skipFlowType(ast.LLowest)
+				p.skipFlowType(js_ast.LLowest)
 			}
 
-			p.lexer.Expect(lexer.TCloseBracket)
+			p.lexer.Expect(js_lexer.TCloseBracket)
 
 			// "{ [K in keyof T]+?: T[K] }"
 			// "{ [K in keyof T]-?: T[K] }"
-			if p.lexer.Token == lexer.TPlus || p.lexer.Token == lexer.TMinus {
+			if p.lexer.Token == js_lexer.TPlus || p.lexer.Token == js_lexer.TMinus {
 				p.lexer.Next()
 			}
 
@@ -404,7 +404,7 @@ func (p *parser) skipFlowObjectType() {
 
 		// "?" indicates an optional property
 		// "!" indicates an initialization assertion
-		if foundKey && (p.lexer.Token == lexer.TQuestion || p.lexer.Token == lexer.TExclamation) {
+		if foundKey && (p.lexer.Token == js_lexer.TQuestion || p.lexer.Token == js_lexer.TExclamation) {
 			p.lexer.Next()
 		}
 
@@ -412,18 +412,18 @@ func (p *parser) skipFlowObjectType() {
 		p.skipFlowTypeParameters()
 
 		switch p.lexer.Token {
-		case lexer.TColon:
+		case js_lexer.TColon:
 			// Regular property
 			if !foundKey {
-				p.lexer.Expect(lexer.TIdentifier)
+				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 			p.lexer.Next()
-			p.skipFlowType(ast.LLowest)
+			p.skipFlowType(js_ast.LLowest)
 
-		case lexer.TOpenParen:
+		case js_lexer.TOpenParen:
 			// Method signature
 			p.skipFlowFnArgs()
-			if p.lexer.Token == lexer.TColon {
+			if p.lexer.Token == js_lexer.TColon {
 				p.lexer.Next()
 				p.skipFlowReturnType()
 			}
@@ -435,9 +435,9 @@ func (p *parser) skipFlowObjectType() {
 		}
 
 		switch p.lexer.Token {
-		case lexer.TCloseBrace:
+		case js_lexer.TCloseBrace:
 
-		case lexer.TComma, lexer.TSemicolon:
+		case js_lexer.TComma, js_lexer.TSemicolon:
 			p.lexer.Next()
 
 		default:
@@ -447,35 +447,35 @@ func (p *parser) skipFlowObjectType() {
 		}
 	}
 
-	p.lexer.Expect(lexer.TCloseBrace)
+	p.lexer.Expect(js_lexer.TCloseBrace)
 }
 
 // This is the type parameter declarations that go with other symbol
 // declarations (class, function, type, etc.)
 func (p *parser) skipFlowTypeParameters() {
-	if p.lexer.Token == lexer.TLessThan {
+	if p.lexer.Token == js_lexer.TLessThan {
 		p.lexer.Next()
 
 		for {
-			p.lexer.Expect(lexer.TIdentifier)
+			p.lexer.Expect(js_lexer.TIdentifier)
 
 			// "class Foo<T extends number> {}"
-			if p.lexer.Token == lexer.TExtends {
+			if p.lexer.Token == js_lexer.TExtends {
 				p.lexer.Next()
-				p.skipFlowType(ast.LLowest)
+				p.skipFlowType(js_ast.LLowest)
 			}
 
 			// "class Foo<T = void> {}"
-			if p.lexer.Token == lexer.TEquals {
+			if p.lexer.Token == js_lexer.TEquals {
 				p.lexer.Next()
-				p.skipFlowType(ast.LLowest)
+				p.skipFlowType(js_ast.LLowest)
 			}
 
-			if p.lexer.Token != lexer.TComma {
+			if p.lexer.Token != js_lexer.TComma {
 				break
 			}
 			p.lexer.Next()
-			if p.lexer.Token == lexer.TGreaterThan {
+			if p.lexer.Token == js_lexer.TGreaterThan {
 				break
 			}
 		}
@@ -485,15 +485,15 @@ func (p *parser) skipFlowTypeParameters() {
 }
 
 func (p *parser) skipFlowTypeArguments(isInsideJSXElement bool) bool {
-	if p.lexer.Token != lexer.TLessThan {
+	if p.lexer.Token != js_lexer.TLessThan {
 		return false
 	}
 
 	p.lexer.Next()
 
 	for {
-		p.skipFlowType(ast.LLowest)
-		if p.lexer.Token != lexer.TComma {
+		p.skipFlowType(js_ast.LLowest)
+		if p.lexer.Token != js_lexer.TComma {
 			break
 		}
 		p.lexer.Next()
@@ -511,7 +511,7 @@ func (p *parser) trySkipFlowTypeArgumentsWithBacktracking() bool {
 	// Implement backtracking by restoring the lexer's memory to its original state
 	defer func() {
 		r := recover()
-		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
 		} else if r != nil {
 			panic(r)
@@ -538,7 +538,7 @@ func (p *parser) trySkipFlowTypeParametersThenOpenParenWithBacktracking() bool {
 	// Implement backtracking by restoring the lexer's memory to its original state
 	defer func() {
 		r := recover()
-		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
 		} else if r != nil {
 			panic(r)
@@ -546,7 +546,7 @@ func (p *parser) trySkipFlowTypeParametersThenOpenParenWithBacktracking() bool {
 	}()
 
 	p.skipFlowTypeParameters()
-	if p.lexer.Token != lexer.TOpenParen {
+	if p.lexer.Token != js_lexer.TOpenParen {
 		p.lexer.Unexpected()
 	}
 
@@ -563,18 +563,18 @@ func (p *parser) trySkipFlowArrowReturnTypeWithBacktracking() bool {
 	// Implement backtracking by restoring the lexer's memory to its original state
 	defer func() {
 		r := recover()
-		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
 		} else if r != nil {
 			panic(r)
 		}
 	}()
 
-	p.lexer.Expect(lexer.TColon)
+	p.lexer.Expect(js_lexer.TColon)
 	p.skipFlowReturnType()
 
 	// Check the token after this and backtrack if it's the wrong one
-	if p.lexer.Token != lexer.TEqualsGreaterThan {
+	if p.lexer.Token != js_lexer.TEqualsGreaterThan {
 		p.lexer.Unexpected()
 	}
 
@@ -591,7 +591,7 @@ func (p *parser) trySkipFlowArrowArgsWithBacktracking() bool {
 	// Implement backtracking by restoring the lexer's memory to its original state
 	defer func() {
 		r := recover()
-		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
 		} else if r != nil {
 			panic(r)
@@ -599,7 +599,7 @@ func (p *parser) trySkipFlowArrowArgsWithBacktracking() bool {
 	}()
 
 	p.skipFlowFnArgs()
-	p.lexer.Expect(lexer.TEqualsGreaterThan)
+	p.lexer.Expect(js_lexer.TEqualsGreaterThan)
 
 	// Restore the log disabled flag. Note that we can't just set it back to false
 	// because it may have been true to start with.
@@ -614,41 +614,41 @@ func (p *parser) trySkipFlowArrowArgsWithBacktracking() bool {
 // 	case
 // 		// These are the only tokens can legally follow a type argument list. So we
 // 		// definitely want to treat them as type arg lists.
-// 		lexer.TOpenParen,                     // foo<x>(
-// 		lexer.TNoSubstitutionTemplateLiteral, // foo<T> `...`
-// 		lexer.TTemplateHead:                  // foo<T> `...${100}...`
+// 		js_lexer.TOpenParen,                     // foo<x>(
+// 		js_lexer.TNoSubstitutionTemplateLiteral, // foo<T> `...`
+// 		js_lexer.TTemplateHead:                  // foo<T> `...${100}...`
 // 		return true
 //
 // 	case
 // 		// These cases can't legally follow a type arg list. However, they're not
 // 		// legal expressions either. The user is probably in the middle of a
 // 		// generic type. So treat it as such.
-// 		lexer.TDot,                     // foo<x>.
-// 		lexer.TCloseParen,              // foo<x>)
-// 		lexer.TCloseBracket,            // foo<x>]
-// 		lexer.TColon,                   // foo<x>:
-// 		lexer.TSemicolon,               // foo<x>;
-// 		lexer.TQuestion,                // foo<x>?
-// 		lexer.TEqualsEquals,            // foo<x> ==
-// 		lexer.TEqualsEqualsEquals,      // foo<x> ===
-// 		lexer.TExclamationEquals,       // foo<x> !=
-// 		lexer.TExclamationEqualsEquals, // foo<x> !==
-// 		lexer.TAmpersandAmpersand,      // foo<x> &&
-// 		lexer.TBarBar,                  // foo<x> ||
-// 		lexer.TQuestionQuestion,        // foo<x> ??
-// 		lexer.TCaret,                   // foo<x> ^
-// 		lexer.TAmpersand,               // foo<x> &
-// 		lexer.TBar,                     // foo<x> |
-// 		lexer.TCloseBrace,              // foo<x> }
-// 		lexer.TEndOfFile:               // foo<x>
+// 		js_lexer.TDot,                     // foo<x>.
+// 		js_lexer.TCloseParen,              // foo<x>)
+// 		js_lexer.TCloseBracket,            // foo<x>]
+// 		js_lexer.TColon,                   // foo<x>:
+// 		js_lexer.TSemicolon,               // foo<x>;
+// 		js_lexer.TQuestion,                // foo<x>?
+// 		js_lexer.TEqualsEquals,            // foo<x> ==
+// 		js_lexer.TEqualsEqualsEquals,      // foo<x> ===
+// 		js_lexer.TExclamationEquals,       // foo<x> !=
+// 		js_lexer.TExclamationEqualsEquals, // foo<x> !==
+// 		js_lexer.TAmpersandAmpersand,      // foo<x> &&
+// 		js_lexer.TBarBar,                  // foo<x> ||
+// 		js_lexer.TQuestionQuestion,        // foo<x> ??
+// 		js_lexer.TCaret,                   // foo<x> ^
+// 		js_lexer.TAmpersand,               // foo<x> &
+// 		js_lexer.TBar,                     // foo<x> |
+// 		js_lexer.TCloseBrace,              // foo<x> }
+// 		js_lexer.TEndOfFile:               // foo<x>
 // 		return true
 //
 // 	case
 // 		// We don't want to treat these as type arguments. Otherwise we'll parse
 // 		// this as an invocation expression. Instead, we want to parse out the
 // 		// expression in isolation from the type arguments.
-// 		lexer.TComma,     // foo<x>,
-// 		lexer.TOpenBrace: // foo<x> {
+// 		js_lexer.TComma,     // foo<x>,
+// 		js_lexer.TOpenBrace: // foo<x> {
 // 		return false
 //
 // 	default:
@@ -659,7 +659,7 @@ func (p *parser) trySkipFlowArrowArgsWithBacktracking() bool {
 
 func (p *parser) skipFlowInterfaceStmt(opts parseStmtOpts) {
 	name := p.lexer.Identifier
-	p.lexer.Expect(lexer.TIdentifier)
+	p.lexer.Expect(js_lexer.TIdentifier)
 
 	if opts.isModuleScope {
 		p.localTypeNames[name] = true
@@ -667,11 +667,11 @@ func (p *parser) skipFlowInterfaceStmt(opts parseStmtOpts) {
 
 	p.skipFlowTypeParameters()
 
-	if p.lexer.Token == lexer.TExtends {
+	if p.lexer.Token == js_lexer.TExtends {
 		p.lexer.Next()
 		for {
-			p.skipFlowType(ast.LLowest)
-			if p.lexer.Token != lexer.TComma {
+			p.skipFlowType(js_ast.LLowest)
+			if p.lexer.Token != js_lexer.TComma {
 				break
 			}
 			p.lexer.Next()
@@ -681,8 +681,8 @@ func (p *parser) skipFlowInterfaceStmt(opts parseStmtOpts) {
 	if p.lexer.IsContextualKeyword("implements") {
 		p.lexer.Next()
 		for {
-			p.skipFlowType(ast.LLowest)
-			if p.lexer.Token != lexer.TComma {
+			p.skipFlowType(js_ast.LLowest)
+			if p.lexer.Token != js_lexer.TComma {
 				break
 			}
 			p.lexer.Next()
@@ -694,7 +694,7 @@ func (p *parser) skipFlowInterfaceStmt(opts parseStmtOpts) {
 
 // Modified from TypeScript
 func (p *parser) skipFlowTypeStmt(opts parseStmtOpts) {
-	if opts.isExport && p.lexer.Token == lexer.TOpenBrace {
+	if opts.isExport && p.lexer.Token == js_lexer.TOpenBrace {
 		// "export type {foo}"
 		// "export type {foo} from 'bar'"
 		p.parseExportClause()
@@ -707,7 +707,7 @@ func (p *parser) skipFlowTypeStmt(opts parseStmtOpts) {
 	}
 
 	// Addition for Flow (Flow vs TS)
-	if opts.isExport && p.lexer.Token == lexer.TAsterisk {
+	if opts.isExport && p.lexer.Token == js_lexer.TAsterisk {
 		// "export type * from 'bar'"
 		p.lexer.Next()
 		if !p.lexer.IsContextualKeyword("from") {
@@ -720,22 +720,22 @@ func (p *parser) skipFlowTypeStmt(opts parseStmtOpts) {
 	}
 
 	name := p.lexer.Identifier
-	p.lexer.Expect(lexer.TIdentifier)
+	p.lexer.Expect(js_lexer.TIdentifier)
 
 	if opts.isModuleScope {
 		p.localTypeNames[name] = true
 	}
 
 	p.skipFlowTypeParameters()
-	p.lexer.Expect(lexer.TEquals)
-	p.skipFlowType(ast.LLowest)
+	p.lexer.Expect(js_lexer.TEquals)
+	p.skipFlowType(js_ast.LLowest)
 	p.lexer.ExpectOrInsertSemicolon()
 }
 
-func (p *parser) parseFlowDecorators() []ast.Expr {
-	var tsDecorators []ast.Expr
+func (p *parser) parseFlowDecorators() []js_ast.Expr {
+	var tsDecorators []js_ast.Expr
 	if p.TS.Parse {
-		for p.lexer.Token == lexer.TAt {
+		for p.lexer.Token == js_lexer.TAt {
 			p.lexer.Next()
 
 			// Parse a new/call expression with "exprFlagTSDecorator" so we ignore
@@ -746,59 +746,59 @@ func (p *parser) parseFlowDecorators() []ast.Expr {
 			//   }
 			//
 			// This matches the behavior of the TypeScript compiler.
-			tsDecorators = append(tsDecorators, p.parseExprWithFlags(ast.LNew, exprFlagTSDecorator))
+			tsDecorators = append(tsDecorators, p.parseExprWithFlags(js_ast.LNew, exprFlagTSDecorator))
 		}
 	}
 	return tsDecorators
 }
 
-func (p *parser) parseFlowEnumStmt(loc logger.Loc, opts parseStmtOpts) ast.Stmt {
-	p.lexer.Expect(lexer.TEnum)
+func (p *parser) parseFlowEnumStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
+	p.lexer.Expect(js_lexer.TEnum)
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
-	p.lexer.Expect(lexer.TIdentifier)
-	name := ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
-	argRef := ast.InvalidRef
+	p.lexer.Expect(js_lexer.TIdentifier)
+	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
+	argRef := js_ast.InvalidRef
 	if !opts.isTypeScriptDeclare {
-		name.Ref = p.declareSymbol(ast.SymbolTSEnum, nameLoc, nameText)
-		p.pushScopeForParsePass(ast.ScopeEntry, loc)
-		argRef = p.declareSymbol(ast.SymbolHoisted, nameLoc, nameText)
+		name.Ref = p.declareSymbol(js_ast.SymbolTSEnum, nameLoc, nameText)
+		p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
+		argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
 	}
-	p.lexer.Expect(lexer.TOpenBrace)
+	p.lexer.Expect(js_lexer.TOpenBrace)
 
-	values := []ast.EnumValue{}
+	values := []js_ast.EnumValue{}
 
-	for p.lexer.Token != lexer.TCloseBrace {
-		value := ast.EnumValue{
+	for p.lexer.Token != js_lexer.TCloseBrace {
+		value := js_ast.EnumValue{
 			Loc: p.lexer.Loc(),
-			Ref: ast.InvalidRef,
+			Ref: js_ast.InvalidRef,
 		}
 
 		// Parse the name
-		if p.lexer.Token == lexer.TStringLiteral {
+		if p.lexer.Token == js_lexer.TStringLiteral {
 			value.Name = p.lexer.StringLiteral
 		} else if p.lexer.IsIdentifierOrKeyword() {
-			value.Name = lexer.StringToUTF16(p.lexer.Identifier)
+			value.Name = js_lexer.StringToUTF16(p.lexer.Identifier)
 		} else {
-			p.lexer.Expect(lexer.TIdentifier)
+			p.lexer.Expect(js_lexer.TIdentifier)
 		}
 		p.lexer.Next()
 
 		// Identifiers can be referenced by other values
-		if !opts.isTypeScriptDeclare && lexer.IsIdentifierUTF16(value.Name) {
-			value.Ref = p.declareSymbol(ast.SymbolOther, value.Loc, lexer.UTF16ToString(value.Name))
+		if !opts.isTypeScriptDeclare && js_lexer.IsIdentifierUTF16(value.Name) {
+			value.Ref = p.declareSymbol(js_ast.SymbolOther, value.Loc, js_lexer.UTF16ToString(value.Name))
 		}
 
 		// Parse the initializer
-		if p.lexer.Token == lexer.TEquals {
+		if p.lexer.Token == js_lexer.TEquals {
 			p.lexer.Next()
-			initializer := p.parseExpr(ast.LComma)
+			initializer := p.parseExpr(js_ast.LComma)
 			value.Value = &initializer
 		}
 
 		values = append(values, value)
 
-		if p.lexer.Token != lexer.TComma && p.lexer.Token != lexer.TSemicolon {
+		if p.lexer.Token != js_lexer.TComma && p.lexer.Token != js_lexer.TSemicolon {
 			break
 		}
 		p.lexer.Next()
@@ -811,8 +811,8 @@ func (p *parser) parseFlowEnumStmt(loc logger.Loc, opts parseStmtOpts) ast.Stmt 
 		}
 	}
 
-	p.lexer.Expect(lexer.TCloseBrace)
-	return ast.Stmt{Loc: loc, Data: &ast.SEnum{
+	p.lexer.Expect(js_lexer.TCloseBrace)
+	return js_ast.Stmt{Loc: loc, Data: &js_ast.SEnum{
 		Name:     name,
 		Arg:      argRef,
 		Values:   values,
@@ -820,37 +820,37 @@ func (p *parser) parseFlowEnumStmt(loc logger.Loc, opts parseStmtOpts) ast.Stmt 
 	}}
 }
 
-func (p *parser) parseFlowNamespaceStmt(loc logger.Loc, opts parseStmtOpts) ast.Stmt {
+func (p *parser) parseFlowNamespaceStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	// "namespace Foo {}"
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
 	p.lexer.Next()
 
-	name := ast.LocRef{Loc: nameLoc, Ref: ast.InvalidRef}
-	argRef := ast.InvalidRef
+	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
+	argRef := js_ast.InvalidRef
 
-	scopeIndex := p.pushScopeForParsePass(ast.ScopeEntry, loc)
+	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
 	oldEnclosingNamespaceRef := p.enclosingNamespaceRef
 	p.enclosingNamespaceRef = &name.Ref
 
 	if !opts.isTypeScriptDeclare {
-		argRef = p.declareSymbol(ast.SymbolHoistedFunction, nameLoc, nameText)
+		argRef = p.declareSymbol(js_ast.SymbolHoistedFunction, nameLoc, nameText)
 	}
 
-	var stmts []ast.Stmt
-	if p.lexer.Token == lexer.TDot {
+	var stmts []js_ast.Stmt
+	if p.lexer.Token == js_lexer.TDot {
 		dotLoc := p.lexer.Loc()
 		p.lexer.Next()
-		stmts = []ast.Stmt{p.parseFlowNamespaceStmt(dotLoc, parseStmtOpts{
+		stmts = []js_ast.Stmt{p.parseFlowNamespaceStmt(dotLoc, parseStmtOpts{
 			isExport:            true,
 			isNamespaceScope:    true,
 			isTypeScriptDeclare: opts.isTypeScriptDeclare,
 		})}
-	} else if opts.isTypeScriptDeclare && p.lexer.Token != lexer.TOpenBrace {
+	} else if opts.isTypeScriptDeclare && p.lexer.Token != js_lexer.TOpenBrace {
 		p.lexer.ExpectOrInsertSemicolon()
 	} else {
-		p.lexer.Expect(lexer.TOpenBrace)
-		stmts = p.parseStmtsUpTo(lexer.TCloseBrace, parseStmtOpts{
+		p.lexer.Expect(js_lexer.TOpenBrace)
+		stmts = p.parseStmtsUpTo(js_lexer.TCloseBrace, parseStmtOpts{
 			isNamespaceScope:    true,
 			isTypeScriptDeclare: opts.isTypeScriptDeclare,
 		})
@@ -865,7 +865,7 @@ func (p *parser) parseFlowNamespaceStmt(loc logger.Loc, opts parseStmtOpts) ast.
 	// to be considered empty and thus be removed.
 	importEqualsCount := 0
 	for _, stmt := range stmts {
-		if local, ok := stmt.Data.(*ast.SLocal); ok && local.WasTSImportEqualsInNamespace && !local.IsExport {
+		if local, ok := stmt.Data.(*js_ast.SLocal); ok && local.WasTSImportEqualsInNamespace && !local.IsExport {
 			importEqualsCount++
 		}
 	}
@@ -880,13 +880,13 @@ func (p *parser) parseFlowNamespaceStmt(loc logger.Loc, opts parseStmtOpts) ast.
 		if opts.isModuleScope {
 			p.localTypeNames[nameText] = true
 		}
-		return ast.Stmt{Loc: loc, Data: &ast.STypeScript{}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 	}
 
 	p.popScope()
 	if !opts.isTypeScriptDeclare {
 		_, alreadyExists := p.currentScope.Members[nameText]
-		name.Ref = p.declareSymbol(ast.SymbolTSNamespace, nameLoc, nameText)
+		name.Ref = p.declareSymbol(js_ast.SymbolTSNamespace, nameLoc, nameText)
 
 		// It's valid to have multiple exported namespace statements as long as
 		// each one has the "export" keyword. Make sure we don't record the same
@@ -896,7 +896,7 @@ func (p *parser) parseFlowNamespaceStmt(loc logger.Loc, opts parseStmtOpts) ast.
 			p.recordExport(nameLoc, nameText, name.Ref)
 		}
 	}
-	return ast.Stmt{Loc: loc, Data: &ast.SNamespace{
+	return js_ast.Stmt{Loc: loc, Data: &js_ast.SNamespace{
 		Name:     name,
 		Arg:      argRef,
 		Stmts:    stmts,
@@ -905,56 +905,56 @@ func (p *parser) parseFlowNamespaceStmt(loc logger.Loc, opts parseStmtOpts) ast.
 }
 
 func (p *parser) generateClosureForFlowNamespaceOrEnum(
-	stmts []ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
-	nameRef ast.Ref, argRef ast.Ref, stmtsInsideClosure []ast.Stmt,
-) []ast.Stmt {
+	stmts []js_ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
+	nameRef js_ast.Ref, argRef js_ast.Ref, stmtsInsideClosure []js_ast.Stmt,
+) []js_ast.Stmt {
 	// Follow the link chain in case symbols were merged
 	symbol := p.symbols[nameRef.InnerIndex]
-	for symbol.Link != ast.InvalidRef {
+	for symbol.Link != js_ast.InvalidRef {
 		nameRef = symbol.Link
 		symbol = p.symbols[nameRef.InnerIndex]
 	}
 
 	// Make sure to only emit a variable once for a given namespace, since there
 	// can be multiple namespace blocks for the same namespace
-	if (symbol.Kind == ast.SymbolTSNamespace || symbol.Kind == ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
+	if (symbol.Kind == js_ast.SymbolTSNamespace || symbol.Kind == js_ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
 		p.emittedNamespaceVars[nameRef] = true
 		if p.enclosingNamespaceRef == nil {
 			// Top-level namespace
-			stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SLocal{
-				Kind:     ast.LocalVar,
-				Decls:    []ast.Decl{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: nameRef}}}},
+			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
+				Kind:     js_ast.LocalVar,
+				Decls:    []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}},
 				IsExport: isExport,
 			}})
 		} else {
 			// Nested namespace
-			stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SLocal{
-				Kind:  ast.LocalLet,
-				Decls: []ast.Decl{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: nameRef}}}},
+			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
+				Kind:  js_ast.LocalLet,
+				Decls: []js_ast.Decl{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: nameRef}}}},
 			}})
 		}
 	}
 
-	var argExpr ast.Expr
+	var argExpr js_ast.Expr
 	if isExport && p.enclosingNamespaceRef != nil {
 		// "name = enclosing.name || (enclosing.name = {})"
 		name := p.symbols[nameRef.InnerIndex].OriginalName
-		argExpr = ast.Assign(
-			ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
-			ast.Expr{Loc: nameLoc, Data: &ast.EBinary{
-				Op: ast.BinOpLogicalOr,
-				Left: ast.Expr{Loc: nameLoc, Data: &ast.EDot{
-					Target:  ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+		argExpr = js_ast.Assign(
+			js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+			js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
+				Op: js_ast.BinOpLogicalOr,
+				Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
+					Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 					Name:    name,
 					NameLoc: nameLoc,
 				}},
-				Right: ast.Assign(
-					ast.Expr{Loc: nameLoc, Data: &ast.EDot{
-						Target:  ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+				Right: js_ast.Assign(
+					js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
+						Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
 						Name:    name,
 						NameLoc: nameLoc,
 					}},
-					ast.Expr{Loc: nameLoc, Data: &ast.EObject{}},
+					js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
 				),
 			}},
 		)
@@ -963,12 +963,12 @@ func (p *parser) generateClosureForFlowNamespaceOrEnum(
 		p.recordUsage(nameRef)
 	} else {
 		// "name || (name = {})"
-		argExpr = ast.Expr{Loc: nameLoc, Data: &ast.EBinary{
-			Op:   ast.BinOpLogicalOr,
-			Left: ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
-			Right: ast.Assign(
-				ast.Expr{Loc: nameLoc, Data: &ast.EIdentifier{Ref: nameRef}},
-				ast.Expr{Loc: nameLoc, Data: &ast.EObject{}},
+		argExpr = js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
+			Op:   js_ast.BinOpLogicalOr,
+			Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+			Right: js_ast.Assign(
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: nameRef}},
+				js_ast.Expr{Loc: nameLoc, Data: &js_ast.EObject{}},
 			),
 		}}
 		p.recordUsage(nameRef)
@@ -976,12 +976,12 @@ func (p *parser) generateClosureForFlowNamespaceOrEnum(
 	}
 
 	// Call the closure with the name object
-	stmts = append(stmts, ast.Stmt{Loc: stmtLoc, Data: &ast.SExpr{Value: ast.Expr{Loc: stmtLoc, Data: &ast.ECall{
-		Target: ast.Expr{Loc: stmtLoc, Data: &ast.EFunction{Fn: ast.Fn{
-			Args: []ast.Arg{{Binding: ast.Binding{Loc: nameLoc, Data: &ast.BIdentifier{Ref: argRef}}}},
-			Body: ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
+	stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.ECall{
+		Target: js_ast.Expr{Loc: stmtLoc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
+			Args: []js_ast.Arg{{Binding: js_ast.Binding{Loc: nameLoc, Data: &js_ast.BIdentifier{Ref: argRef}}}},
+			Body: js_ast.FnBody{Loc: stmtLoc, Stmts: stmtsInsideClosure},
 		}}},
-		Args: []ast.Expr{argExpr},
+		Args: []js_ast.Expr{argExpr},
 	}}}})
 
 	return stmts

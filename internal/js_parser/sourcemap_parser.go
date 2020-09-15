@@ -1,12 +1,12 @@
-package parser
+package js_parser
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
@@ -18,7 +18,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		return nil
 	}
 
-	obj, ok := expr.Data.(*ast.EObject)
+	obj, ok := expr.Data.(*js_ast.EObject)
 	if !ok {
 		log.AddError(&source, expr.Loc, "Invalid source map")
 		return nil
@@ -39,38 +39,38 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	for _, prop := range obj.Properties {
 		keyRange := source.RangeOfString(prop.Key.Loc)
 
-		switch lexer.UTF16ToString(prop.Key.Data.(*ast.EString).Value) {
+		switch js_lexer.UTF16ToString(prop.Key.Data.(*js_ast.EString).Value) {
 		case "sections":
 			log.AddRangeWarning(&source, keyRange, "Source maps with \"sections\" are not supported")
 			return nil
 
 		case "version":
-			if value, ok := prop.Value.Data.(*ast.ENumber); ok && value.Value == 3 {
+			if value, ok := prop.Value.Data.(*js_ast.ENumber); ok && value.Value == 3 {
 				hasVersion = true
 			}
 
 		case "mappings":
-			if value, ok := prop.Value.Data.(*ast.EString); ok {
+			if value, ok := prop.Value.Data.(*js_ast.EString); ok {
 				mappingsRaw = value.Value
 				mappingsStart = prop.Value.Loc.Start + 1
 			}
 
 		case "sources":
-			if value, ok := prop.Value.Data.(*ast.EArray); ok {
+			if value, ok := prop.Value.Data.(*js_ast.EArray); ok {
 				sources = nil
 				for _, item := range value.Items {
-					if element, ok := item.Data.(*ast.EString); ok {
-						sources = append(sources, sourcesPrefix+lexer.UTF16ToString(element.Value))
+					if element, ok := item.Data.(*js_ast.EString); ok {
+						sources = append(sources, sourcesPrefix+js_lexer.UTF16ToString(element.Value))
 					}
 				}
 			}
 
 		case "sourcesContent":
-			if value, ok := prop.Value.Data.(*ast.EArray); ok {
+			if value, ok := prop.Value.Data.(*js_ast.EArray); ok {
 				sourcesContent = nil
 				for _, item := range value.Items {
-					if element, ok := item.Data.(*ast.EString); ok {
-						str := lexer.UTF16ToString(element.Value)
+					if element, ok := item.Data.(*js_ast.EString); ok {
+						str := js_lexer.UTF16ToString(element.Value)
 						sourcesContent = append(sourcesContent, &str)
 					} else {
 						sourcesContent = append(sourcesContent, nil)
@@ -203,7 +203,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				current++
 			} else if c != ';' {
 				errorText = fmt.Sprintf("Invalid character after mapping: %q",
-					lexer.UTF16ToString(mappingsRaw[current:current+1]))
+					js_lexer.UTF16ToString(mappingsRaw[current:current+1]))
 				errorLen = 1
 				break
 			}

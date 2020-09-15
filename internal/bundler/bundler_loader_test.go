@@ -201,6 +201,42 @@ func TestLoaderJSONCommonJSAndES6(t *testing.T) {
 	})
 }
 
+func TestLoaderJSONInvalidIdentifierES6(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from './test.json'
+				import * as ns2 from './test2.json'
+				console.log(ns['invalid-identifier'], ns2)
+			`,
+			"/test.json":  `{"invalid-identifier": true}`,
+			"/test2.json": `{"invalid-identifier": true}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestLoaderJSONMissingES6(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {missing} from './test.json'
+			`,
+			"/test.json": `{"present": true}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: "/entry.js: error: No matching export for import \"missing\"\n",
+	})
+}
+
 func TestLoaderTextCommonJSAndES6(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -292,7 +328,7 @@ func TestLoaderFileCommonJSAndES6(t *testing.T) {
 func TestLoaderJSONNoBundle(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/test.json": `{"test": 123}`,
+			"/test.json": `{"test": 123, "invalid-identifier": true}`,
 		},
 		entryPaths: []string{"/test.json"},
 		options: config.Options{
@@ -304,7 +340,7 @@ func TestLoaderJSONNoBundle(t *testing.T) {
 func TestLoaderJSONNoBundleES6(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/test.json": `{"test": 123}`,
+			"/test.json": `{"test": 123, "invalid-identifier": true}`,
 		},
 		entryPaths: []string{"/test.json"},
 		options: config.Options{
@@ -318,7 +354,7 @@ func TestLoaderJSONNoBundleES6(t *testing.T) {
 func TestLoaderJSONNoBundleCommonJS(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/test.json": `{"test": 123}`,
+			"/test.json": `{"test": 123, "invalid-identifier": true}`,
 		},
 		entryPaths: []string{"/test.json"},
 		options: config.Options{
@@ -332,7 +368,7 @@ func TestLoaderJSONNoBundleCommonJS(t *testing.T) {
 func TestLoaderJSONNoBundleIIFE(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/test.json": `{"test": 123}`,
+			"/test.json": `{"test": 123, "invalid-identifier": true}`,
 		},
 		entryPaths: []string{"/test.json"},
 		options: config.Options{

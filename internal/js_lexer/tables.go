@@ -1,4 +1,4 @@
-package lexer
+package js_lexer
 
 var tokenToString = map[T]string{
 	TEndOfFile:   "end of file",

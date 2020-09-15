@@ -16,35 +16,53 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/js_lexer"
+	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/js_printer"
-	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/parser"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
+	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 type file struct {
-	source logger.Source
-	ast    ast.AST
-	loader config.Loader
+	source    logger.Source
+	ast       js_ast.AST
+	loader    config.Loader
+	sourceMap *sourcemap.SourceMap
+	meta      fileMeta
+
+	// The minimum number of links in the module graph to get from an entry point
+	// to this file
+	distanceFromEntryPoint uint32
+
+	// This holds all entry points that can reach this file. It will be used to
+	// assign the parts in this file to a chunk.
+	entryBits bitSet
+
+	// If "AbsMetadataFile" is present, this will be filled out with information
+	// about this file in JSON format. This is a partial JSON file that will be
+	// fully assembled later.
+	jsonMetadataChunk []byte
+
+	// The path of this entry point relative to the lowest common ancestor
+	// directory containing all entry points. Note: this must have OS-independent
+	// path separators (i.e. '/' not '\').
+	entryPointRelPath string
 
 	// If this file ends up being used in the bundle, this is an additional file
 	// that must be written to the output directory. It's used by the "file"
 	// loader.
 	additionalFile *OutputFile
 
+	isEntryPoint bool
+
 	// If true, this file was listed as not having side effects by a package.json
 	// file in one of our containing directories with a "sideEffects" field.
 	ignoreIfUnused bool
-
-	// If "AbsMetadataFile" is present, this will be filled out with information
-	// about this file in JSON format. This is a partial JSON file that will be
-	// fully assembled later.
-	jsonMetadataChunk []byte
 }
 
 type Bundle struct {
@@ -100,9 +118,9 @@ func parseFile(args parseArgs) {
 	// need to look at the parent directory. But make sure to not treat the key
 	// as a file system path if it's not marked as one.
 	if args.keyPath.Namespace == "file" {
-		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.keyPath.Text)
+		source.IdentifierName = js_ast.GenerateNonUniqueNameFromPath(args.keyPath.Text)
 	} else {
-		source.IdentifierName = ast.GenerateNonUniqueNameFromPath(args.baseName)
+		source.IdentifierName = js_ast.GenerateNonUniqueNameFromPath(args.baseName)
 	}
 
 	var loader config.Loader
@@ -159,42 +177,42 @@ func parseFile(args parseArgs) {
 
 	switch loader {
 	case config.LoaderJS:
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
+		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderJSX:
 		args.options.JSX.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
+		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderTS:
 		args.options.TS.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
+		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderTSX:
 		args.options.TS.Parse = true
 		args.options.JSX.Parse = true
-		result.file.ast, result.ok = parser.Parse(args.log, source, args.options)
+		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
 
 	case config.LoaderJSON:
-		var expr ast.Expr
-		expr, result.ok = parser.ParseJSON(args.log, source, parser.ParseJSONOptions{})
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		var expr js_ast.Expr
+		expr, result.ok = js_parser.ParseJSON(args.log, source, js_parser.ParseJSONOptions{})
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderText:
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(source.Contents)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderBinary:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(encoded)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderDataURL:
@@ -204,8 +222,8 @@ func parseFile(args parseArgs) {
 		}
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + strings.ReplaceAll(mimeType, "; ", ";") + ";base64," + encoded
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(url)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(url)}}
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 	case config.LoaderFile:
@@ -219,8 +237,8 @@ func parseFile(args parseArgs) {
 		targetFolder := args.options.AbsOutputDir
 
 		// Export the resulting relative path as a string
-		expr := ast.Expr{Data: &ast.EString{Value: lexer.StringToUTF16(baseName)}}
-		result.file.ast = parser.LazyExportAST(args.log, source, args.options, expr, "")
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(baseName)}}
+		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
 
 		// Optionally add metadata about the file
@@ -270,49 +288,53 @@ func parseFile(args parseArgs) {
 				sourceDir = args.fs.Cwd()
 			}
 
-			for _, part := range result.file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					// Don't try to resolve imports that are already resolved
-					record := &result.file.ast.ImportRecords[importRecordIndex]
-					if record.SourceIndex != nil {
-						continue
-					}
-
-					// Cache the path in case it's imported multiple times in this file
-					cache := cacheImport
-					if record.Kind == ast.ImportRequire {
-						cache = cacheRequire
-					}
-					if resolveResult, ok := cache[record.Path.Text]; ok {
-						result.resolveResults[importRecordIndex] = resolveResult
-						continue
-					}
-
-					// Run the resolver and log an error if the path couldn't be resolved
-					resolveResult := args.res.Resolve(sourceDir, record.Path.Text, record.Kind)
-					cache[record.Path.Text] = resolveResult
-
-					if resolveResult == nil {
-						// Failed imports inside a try/catch are silently turned into
-						// external imports instead of causing errors. This matches a common
-						// code pattern for conditionally importing a module with a graceful
-						// fallback.
-						if !record.IsInsideTryBody {
-							r := source.RangeOfString(record.Loc)
-							hint := ""
-							if args.options.Platform != config.PlatformNode {
-								if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
-									hint = " (set platform to \"node\" when building for node)"
-								}
-							}
-							args.log.AddRangeError(&source, r,
-								fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
-						}
-						continue
-					}
-
-					result.resolveResults[importRecordIndex] = resolveResult
+			for importRecordIndex := range result.file.ast.ImportRecords {
+				// Don't try to resolve imports that are already resolved
+				record := &result.file.ast.ImportRecords[importRecordIndex]
+				if record.SourceIndex != nil {
+					continue
 				}
+
+				// Ignore records that the js_parser has discarded. This is used to remove
+				// type-only imports in TypeScript files.
+				if record.IsUnused {
+					continue
+				}
+
+				// Cache the path in case it's imported multiple times in this file
+				cache := cacheImport
+				if record.Kind == js_ast.ImportRequire {
+					cache = cacheRequire
+				}
+				if resolveResult, ok := cache[record.Path.Text]; ok {
+					result.resolveResults[importRecordIndex] = resolveResult
+					continue
+				}
+
+				// Run the resolver and log an error if the path couldn't be resolved
+				resolveResult := args.res.Resolve(sourceDir, record.Path.Text, record.Kind)
+				cache[record.Path.Text] = resolveResult
+
+				if resolveResult == nil {
+					// Failed imports inside a try/catch are silently turned into
+					// external imports instead of causing errors. This matches a common
+					// code pattern for conditionally importing a module with a graceful
+					// fallback.
+					if !record.IsInsideTryBody {
+						r := source.RangeOfString(record.Loc)
+						hint := ""
+						if args.options.Platform != config.PlatformNode {
+							if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
+								hint = " (set platform to \"node\" when building for node)"
+							}
+						}
+						args.log.AddRangeError(&source, r,
+							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
+					}
+					continue
+				}
+
+				result.resolveResults[importRecordIndex] = resolveResult
 			}
 		}
 	}
@@ -320,7 +342,7 @@ func parseFile(args parseArgs) {
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
 		if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, result.file.ast.SourceMapComment); contents != nil {
-			result.file.ast.SourceMap = parser.ParseSourceMap(args.log, logger.Source{
+			result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
 				KeyPath:    path,
 				PrettyPath: args.res.PrettyPath(path),
 				Contents:   *contents,
@@ -331,7 +353,7 @@ func parseFile(args parseArgs) {
 	args.results <- result
 }
 
-func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment ast.Span) (logger.Path, *string) {
+func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment js_ast.Span) (logger.Path, *string) {
 	// Data URL
 	if strings.HasPrefix(comment.Text, "data:") {
 		if strings.HasPrefix(comment.Text, "data:application/json;") {
@@ -524,31 +546,29 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 		// Don't try to resolve paths if we're not bundling
 		if options.Mode == config.ModeBundle {
-			for _, part := range result.file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					record := &result.file.ast.ImportRecords[importRecordIndex]
+			for importRecordIndex := range result.file.ast.ImportRecords {
+				record := &result.file.ast.ImportRecords[importRecordIndex]
 
-					// Skip this import record if the previous resolver call failed
-					resolveResult := result.resolveResults[importRecordIndex]
-					if resolveResult == nil {
-						continue
-					}
+				// Skip this import record if the previous resolver call failed
+				resolveResult := result.resolveResults[importRecordIndex]
+				if resolveResult == nil {
+					continue
+				}
 
-					path := resolveResult.PathPair.Primary
-					if !resolveResult.IsExternal {
-						// Handle a path within the bundle
-						prettyPath := res.PrettyPath(path)
-						pathRange := result.file.source.RangeOfString(record.Loc)
-						sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, pathRange, "", inputKindNormal)
-						record.SourceIndex = &sourceIndex
-					} else {
-						// If the path to the external module is relative to the source
-						// file, rewrite the path to be relative to the working directory
-						if path.Namespace == "file" {
-							if relPath, ok := fs.Rel(options.AbsOutputDir, path.Text); ok {
-								// Prevent issues with path separators being different on Windows
-								record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
-							}
+				path := resolveResult.PathPair.Primary
+				if !resolveResult.IsExternal {
+					// Handle a path within the bundle
+					prettyPath := res.PrettyPath(path)
+					pathRange := result.file.source.RangeOfString(record.Loc)
+					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, pathRange, "", inputKindNormal)
+					record.SourceIndex = &sourceIndex
+				} else {
+					// If the path to the external module is relative to the source
+					// file, rewrite the path to be relative to the working directory
+					if path.Namespace == "file" {
+						if relPath, ok := fs.Rel(options.AbsOutputDir, path.Text); ok {
+							// Prevent issues with path separators being different on Windows
+							record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
 						}
 					}
 				}
@@ -576,46 +596,44 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 		// Don't try to resolve paths if we're not bundling
 		if options.Mode == config.ModeBundle {
-			for _, part := range result.file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					record := &result.file.ast.ImportRecords[importRecordIndex]
+			for importRecordIndex := range result.file.ast.ImportRecords {
+				record := &result.file.ast.ImportRecords[importRecordIndex]
 
-					// Skip this import record if the previous resolver call failed
-					resolveResult := result.resolveResults[importRecordIndex]
-					if resolveResult == nil || record.SourceIndex == nil {
-						continue
-					}
+				// Skip this import record if the previous resolver call failed
+				resolveResult := result.resolveResults[importRecordIndex]
+				if resolveResult == nil || record.SourceIndex == nil {
+					continue
+				}
 
-					// Now that all files have been scanned, look for packages that are imported
-					// both with "import" and "require". Rewrite any imports that reference the
-					// "module" package.json field to the "main" package.json field instead.
-					//
-					// This attempts to automatically avoid the "dual package hazard" where a
-					// package has both a CommonJS module version and an ECMAScript module
-					// version and exports a non-object in CommonJS (often a function). If we
-					// pick the "module" field and the package is imported with "require" then
-					// code expecting a function will crash.
-					if resolveResult.PathPair.HasSecondary() {
-						secondaryKey := resolveResult.PathPair.Secondary.Text
-						if resolveResult.PathPair.Secondary.Namespace == "file" {
-							secondaryKey = lowerCaseAbsPathForWindows(secondaryKey)
-						}
-						if secondarySourceIndex, ok := visited[secondaryKey]; ok {
-							record.SourceIndex = &secondarySourceIndex
-						}
+				// Now that all files have been scanned, look for packages that are imported
+				// both with "import" and "require". Rewrite any imports that reference the
+				// "module" package.json field to the "main" package.json field instead.
+				//
+				// This attempts to automatically avoid the "dual package hazard" where a
+				// package has both a CommonJS module version and an ECMAScript module
+				// version and exports a non-object in CommonJS (often a function). If we
+				// pick the "module" field and the package is imported with "require" then
+				// code expecting a function will crash.
+				if resolveResult.PathPair.HasSecondary() {
+					secondaryKey := resolveResult.PathPair.Secondary.Text
+					if resolveResult.PathPair.Secondary.Namespace == "file" {
+						secondaryKey = lowerCaseAbsPathForWindows(secondaryKey)
 					}
+					if secondarySourceIndex, ok := visited[secondaryKey]; ok {
+						record.SourceIndex = &secondarySourceIndex
+					}
+				}
 
-					// Generate metadata about each import
-					if options.AbsMetadataFile != "" {
-						if isFirstImport {
-							isFirstImport = false
-							j.AddString("\n        ")
-						} else {
-							j.AddString(",\n        ")
-						}
-						j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-							js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath)))
+				// Generate metadata about each import
+				if options.AbsMetadataFile != "" {
+					if isFirstImport {
+						isFirstImport = false
+						j.AddString("\n        ")
+					} else {
+						j.AddString(",\n        ")
 					}
+					j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
+						js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath)))
 				}
 			}
 		}
@@ -810,11 +828,9 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	if codeSplitting {
 		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
 			file := b.files[sourceIndex]
-			for _, part := range file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
-						isEntryPoint[*record.SourceIndex] = true
-					}
+			for importRecordIndex := range file.ast.ImportRecords {
+				if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == js_ast.ImportDynamic {
+					isEntryPoint[*record.SourceIndex] = true
 				}
 			}
 		}
@@ -926,7 +942,7 @@ type runtimeCacheKey struct {
 
 type runtimeCache struct {
 	astMutex sync.Mutex
-	astMap   map[runtimeCacheKey]ast.AST
+	astMap   map[runtimeCacheKey]js_ast.AST
 
 	definesMutex sync.Mutex
 	definesMap   map[config.Platform]*config.ProcessedDefines
@@ -934,7 +950,7 @@ type runtimeCache struct {
 
 var globalRuntimeCache runtimeCache
 
-func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.Source, runtimeAST ast.AST, ok bool) {
+func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.Source, runtimeAST js_ast.AST, ok bool) {
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
 		MangleSyntax:      options.MangleSyntax,
@@ -964,7 +980,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 
 	// Cache miss
 	log := logger.NewDeferLog()
-	runtimeAST, ok = parser.Parse(log, source, config.Options{
+	runtimeAST, ok = js_parser.Parse(log, source, config.Options{
 		// These configuration options must only depend on the key
 		MangleSyntax:      key.MangleSyntax,
 		MinifyIdentifiers: key.MinifyIdentifiers,
@@ -984,7 +1000,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		cache.astMutex.Lock()
 		defer cache.astMutex.Unlock()
 		if cache.astMap == nil {
-			cache.astMap = make(map[runtimeCacheKey]ast.AST)
+			cache.astMap = make(map[runtimeCacheKey]js_ast.AST)
 		}
 		cache.astMap[key] = runtimeAST
 	}
@@ -1016,8 +1032,8 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 	}
 	result := config.ProcessDefines(map[string]config.DefineData{
 		"__platform": config.DefineData{
-			DefineFunc: func(logger.Loc, config.FindSymbol) ast.E {
-				return &ast.EString{Value: lexer.StringToUTF16(platform)}
+			DefineFunc: func(logger.Loc, config.FindSymbol) js_ast.E {
+				return &js_ast.EString{Value: js_lexer.StringToUTF16(platform)}
 			},
 		},
 	})

@@ -1,10 +1,10 @@
-package parser
+package js_parser
 
 import (
 	"testing"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
@@ -49,7 +49,7 @@ func expectPrintedFlow(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS

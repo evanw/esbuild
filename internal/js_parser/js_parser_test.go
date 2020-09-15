@@ -1,14 +1,14 @@
-package parser
+package js_parser
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_printer"
-	"github.com/evanw/esbuild/internal/lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/test"
@@ -65,7 +65,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
@@ -90,7 +90,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
@@ -120,7 +120,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{
@@ -156,7 +156,7 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
@@ -202,7 +202,7 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := ast.NewSymbolMap(1)
+		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
@@ -211,8 +211,8 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 }
 
 func TestBinOp(t *testing.T) {
-	for code, entry := range ast.OpTable {
-		opCode := ast.OpCode(code)
+	for code, entry := range js_ast.OpTable {
+		opCode := js_ast.OpCode(code)
 
 		if opCode.IsLeftAssociative() {
 			op := entry.Text
@@ -226,7 +226,7 @@ func TestBinOp(t *testing.T) {
 			expectPrinted(t, "a "+op+" b "+op+" c", "a "+op+" b "+op+" c;\n")
 
 			// Avoid errors about invalid assignment targets
-			if opCode.BinaryAssignTarget() == ast.AssignTargetNone {
+			if opCode.BinaryAssignTarget() == js_ast.AssignTargetNone {
 				expectPrinted(t, "(a "+op+" b) "+op+" c", "(a "+op+" b) "+op+" c;\n")
 			}
 
@@ -239,8 +239,9 @@ func TestComments(t *testing.T) {
 	expectParseError(t, "throw //\n x", "<stdin>: error: Unexpected newline after \"throw\"\n")
 	expectParseError(t, "throw /**/\n x", "<stdin>: error: Unexpected newline after \"throw\"\n")
 	expectParseError(t, "throw <!--\n x",
-		"<stdin>: warning: Treating \"<!--\" as the start of a legacy HTML single-line comment\n"+
-			"<stdin>: error: Unexpected newline after \"throw\"\n")
+		`<stdin>: error: Unexpected newline after "throw"
+<stdin>: warning: Treating "<!--" as the start of a legacy HTML single-line comment
+`)
 	expectParseError(t, "throw -->\n x", "<stdin>: error: Unexpected \">\"\n")
 
 	expectPrinted(t, "return //\n x", "return;\nx;\n")
@@ -1424,7 +1425,8 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "import * as x from \"foo\"; x++", "import * as x from \"foo\";\nx++;\n")
 	expectPrinted(t, "import * as x from \"foo\"; x.y = 1", "import * as x from \"foo\";\nx.y = 1;\n")
 	expectPrinted(t, "import * as x from \"foo\"; x[y] = 1", "import * as x from \"foo\";\nx[y] = 1;\n")
-	expectPrinted(t, "import * as x from \"foo\"; x['y'] = 1", "import * as x from \"foo\";\nx[\"y\"] = 1;\n")
+	expectPrinted(t, "import * as x from \"foo\"; x['y'] = 1", "import * as x from \"foo\";\nx.y = 1;\n")
+	expectPrinted(t, "import * as x from \"foo\"; x['y z'] = 1", "import * as x from \"foo\";\nx[\"y z\"] = 1;\n")
 	expectPrinted(t, "import x from \"foo\"; ({y = x} = 1)", "import x from \"foo\";\n({y = x} = 1);\n")
 	expectPrinted(t, "import x from \"foo\"; ({[x]: y} = 1)", "import x from \"foo\";\n({[x]: y} = 1);\n")
 	expectPrinted(t, "import x from \"foo\"; x.y = 1", "import x from \"foo\";\nx.y = 1;\n")
@@ -2323,19 +2325,19 @@ func TestUnicodeWhitespace(t *testing.T) {
 		"\uFEFF", // zero width non-breaking space
 	}
 
-	// Test "lexer.Next()"
+	// Test "js_lexer.Next()"
 	expectParseError(t, "var\u0008x", "<stdin>: error: Expected identifier but found \"\\b\"\n")
 	for _, s := range whitespace {
 		expectPrinted(t, "var"+s+"x", "var x;\n")
 	}
 
-	// Test "lexer.NextInsideJSXElement()"
+	// Test "js_lexer.NextInsideJSXElement()"
 	expectParseErrorJSX(t, "<x\u0008y/>", "<stdin>: error: Expected \">\" but found \"\\b\"\n")
 	for _, s := range whitespace {
 		expectPrintedJSX(t, "<x"+s+"y/>", "/* @__PURE__ */ React.createElement(\"x\", {\n  y: true\n});\n")
 	}
 
-	// Test "lexer.NextJSXElementChild()"
+	// Test "js_lexer.NextJSXElementChild()"
 	expectPrintedJSX(t, "<x>\n\u0008\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"\\b\");\n")
 	for _, s := range whitespace {
 		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null);\n")
@@ -2351,19 +2353,19 @@ func TestUnicodeWhitespace(t *testing.T) {
 		"\u0085", // next line (nel)
 	}
 
-	// Test "lexer.Next()"
+	// Test "js_lexer.Next()"
 	for _, s := range invalidWhitespaceInJS {
-		r, _ := lexer.DecodeWTF8Rune(s)
+		r, _ := js_lexer.DecodeWTF8Rune(s)
 		expectParseError(t, "var"+s+"x", fmt.Sprintf("<stdin>: error: Expected identifier but found \"\\u%04x\"\n", r))
 	}
 
-	// Test "lexer.NextInsideJSXElement()"
+	// Test "js_lexer.NextInsideJSXElement()"
 	for _, s := range invalidWhitespaceInJS {
-		r, _ := lexer.DecodeWTF8Rune(s)
+		r, _ := js_lexer.DecodeWTF8Rune(s)
 		expectParseErrorJSX(t, "<x"+s+"y/>", fmt.Sprintf("<stdin>: error: Expected \">\" but found \"\\u%04x\"\n", r))
 	}
 
-	// Test "lexer.NextJSXElementChild()"
+	// Test "js_lexer.NextJSXElementChild()"
 	for _, s := range invalidWhitespaceInJS {
 		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \""+s+"\");\n")
 	}

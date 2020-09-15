@@ -1,23 +1,23 @@
-package parser
+package js_parser
 
 import (
 	"fmt"
 
-	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/lexer"
+	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
 type jsonParser struct {
 	log                 logger.Log
 	source              logger.Source
-	lexer               lexer.Lexer
+	lexer               js_lexer.Lexer
 	allowTrailingCommas bool
 }
 
-func (p *jsonParser) parseMaybeTrailingComma(closeToken lexer.T) bool {
+func (p *jsonParser) parseMaybeTrailingComma(closeToken js_lexer.T) bool {
 	commaRange := p.lexer.Range()
-	p.lexer.Expect(lexer.TComma)
+	p.lexer.Expect(js_lexer.TComma)
 
 	if p.lexer.Token == closeToken {
 		if !p.allowTrailingCommas {
@@ -29,49 +29,49 @@ func (p *jsonParser) parseMaybeTrailingComma(closeToken lexer.T) bool {
 	return true
 }
 
-func (p *jsonParser) parseExpr() ast.Expr {
+func (p *jsonParser) parseExpr() js_ast.Expr {
 	loc := p.lexer.Loc()
 
 	switch p.lexer.Token {
-	case lexer.TFalse:
+	case js_lexer.TFalse:
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: false}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: false}}
 
-	case lexer.TTrue:
+	case js_lexer.TTrue:
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.EBoolean{Value: true}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: true}}
 
-	case lexer.TNull:
+	case js_lexer.TNull:
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.ENull{}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}}
 
-	case lexer.TStringLiteral:
+	case js_lexer.TStringLiteral:
 		value := p.lexer.StringLiteral
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.EString{Value: value}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: value}}
 
-	case lexer.TNumericLiteral:
+	case js_lexer.TNumericLiteral:
 		value := p.lexer.Number
 		p.lexer.Next()
-		return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: value}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: value}}
 
-	case lexer.TMinus:
+	case js_lexer.TMinus:
 		p.lexer.Next()
 		value := p.lexer.Number
-		p.lexer.Expect(lexer.TNumericLiteral)
-		return ast.Expr{Loc: loc, Data: &ast.ENumber{Value: -value}}
+		p.lexer.Expect(js_lexer.TNumericLiteral)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: -value}}
 
-	case lexer.TOpenBracket:
+	case js_lexer.TOpenBracket:
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
-		items := []ast.Expr{}
+		items := []js_ast.Expr{}
 
-		for p.lexer.Token != lexer.TCloseBracket {
+		for p.lexer.Token != js_lexer.TCloseBracket {
 			if len(items) > 0 {
 				if p.lexer.HasNewlineBefore {
 					isSingleLine = false
 				}
-				if !p.parseMaybeTrailingComma(lexer.TCloseBracket) {
+				if !p.parseMaybeTrailingComma(js_lexer.TCloseBracket) {
 					break
 				}
 				if p.lexer.HasNewlineBefore {
@@ -86,24 +86,24 @@ func (p *jsonParser) parseExpr() ast.Expr {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
-		p.lexer.Expect(lexer.TCloseBracket)
-		return ast.Expr{Loc: loc, Data: &ast.EArray{
+		p.lexer.Expect(js_lexer.TCloseBracket)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EArray{
 			Items:        items,
 			IsSingleLine: isSingleLine,
 		}}
 
-	case lexer.TOpenBrace:
+	case js_lexer.TOpenBrace:
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
-		properties := []ast.Property{}
+		properties := []js_ast.Property{}
 		duplicates := make(map[string]bool)
 
-		for p.lexer.Token != lexer.TCloseBrace {
+		for p.lexer.Token != js_lexer.TCloseBrace {
 			if len(properties) > 0 {
 				if p.lexer.HasNewlineBefore {
 					isSingleLine = false
 				}
-				if !p.parseMaybeTrailingComma(lexer.TCloseBrace) {
+				if !p.parseMaybeTrailingComma(js_lexer.TCloseBrace) {
 					break
 				}
 				if p.lexer.HasNewlineBefore {
@@ -113,22 +113,22 @@ func (p *jsonParser) parseExpr() ast.Expr {
 
 			keyString := p.lexer.StringLiteral
 			keyRange := p.lexer.Range()
-			key := ast.Expr{Loc: keyRange.Loc, Data: &ast.EString{Value: keyString}}
-			p.lexer.Expect(lexer.TStringLiteral)
+			key := js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: keyString}}
+			p.lexer.Expect(js_lexer.TStringLiteral)
 
 			// Warn about duplicate keys
-			keyText := lexer.UTF16ToString(keyString)
+			keyText := js_lexer.UTF16ToString(keyString)
 			if duplicates[keyText] {
 				p.log.AddRangeWarning(&p.source, keyRange, fmt.Sprintf("Duplicate key: %q", keyText))
 			} else {
 				duplicates[keyText] = true
 			}
 
-			p.lexer.Expect(lexer.TColon)
+			p.lexer.Expect(js_lexer.TColon)
 			value := p.parseExpr()
 
-			property := ast.Property{
-				Kind:  ast.PropertyNormal,
+			property := js_ast.Property{
+				Kind:  js_ast.PropertyNormal,
 				Key:   key,
 				Value: &value,
 			}
@@ -138,15 +138,15 @@ func (p *jsonParser) parseExpr() ast.Expr {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
-		p.lexer.Expect(lexer.TCloseBrace)
-		return ast.Expr{Loc: loc, Data: &ast.EObject{
+		p.lexer.Expect(js_lexer.TCloseBrace)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
 			Properties:   properties,
 			IsSingleLine: isSingleLine,
 		}}
 
 	default:
 		p.lexer.Unexpected()
-		return ast.Expr{}
+		return js_ast.Expr{}
 	}
 }
 
@@ -155,11 +155,11 @@ type ParseJSONOptions struct {
 	AllowTrailingCommas bool
 }
 
-func ParseJSON(log logger.Log, source logger.Source, options ParseJSONOptions) (result ast.Expr, ok bool) {
+func ParseJSON(log logger.Log, source logger.Source, options ParseJSONOptions) (result js_ast.Expr, ok bool) {
 	ok = true
 	defer func() {
 		r := recover()
-		if _, isLexerPanic := r.(lexer.LexerPanic); isLexerPanic {
+		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			ok = false
 		} else if r != nil {
 			panic(r)
@@ -169,11 +169,11 @@ func ParseJSON(log logger.Log, source logger.Source, options ParseJSONOptions) (
 	p := &jsonParser{
 		log:                 log,
 		source:              source,
-		lexer:               lexer.NewLexerJSON(log, source, options.AllowComments),
+		lexer:               js_lexer.NewLexerJSON(log, source, options.AllowComments),
 		allowTrailingCommas: options.AllowTrailingCommas,
 	}
 
 	result = p.parseExpr()
-	p.lexer.Expect(lexer.TEndOfFile)
+	p.lexer.Expect(js_lexer.TEndOfFile)
 	return
 }

@@ -1,4 +1,4 @@
-package ast
+package js_ast
 
 import (
 	"sort"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 // Every module (i.e. file) is parsed into a separate AST data structure. For
@@ -1343,6 +1342,11 @@ type ImportRecord struct {
 	// nil for an external import (not included in the bundle)
 	SourceIndex *uint32
 
+	// Sometimes the parser creates an import record and decides it isn't needed.
+	// For example, TypeScript code may have import statements that later turn
+	// out to be type-only imports after analyzing the whole file.
+	IsUnused bool
+
 	// If this is true, the import doesn't actually use any imported values. The
 	// import is only used for its side effects.
 	DoesNotUseExports bool
@@ -1400,7 +1404,6 @@ type AST struct {
 	ExportStarImportRecords []uint32
 
 	SourceMapComment Span
-	SourceMap        *sourcemap.SourceMap
 }
 
 // This is a histogram of character frequencies for minification

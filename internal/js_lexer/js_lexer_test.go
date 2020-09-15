@@ -1,4 +1,4 @@
-package lexer
+package js_lexer
 
 import (
 	"fmt"
