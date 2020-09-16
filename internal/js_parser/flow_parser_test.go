@@ -79,6 +79,28 @@ func TestFlowImportTypeof(t *testing.T) {
 	expectParseErrorFlow(t, "import typeof foo, bar from 'pkg'", "<stdin>: error: Unexpected \"bar\"\n")
 	expectParseErrorFlow(t, "import typeof * as ns, bar from 'pkg'", "<stdin>: error: Expected \"from\" but found \",\"\n")
 	expectParseErrorFlow(t, "import typeof {foo}, bar from 'pkg'", "<stdin>: error: Expected \"from\" but found \",\"\n")
+	expectParseErrorFlow(t, "import typeof {foo bar} from 'pkg'", "<stdin>: error: Expected \"}\" but found \"bar\"\n")
+}
+
+func TestFlowImportTypeSpecifiers(t *testing.T) {
+	expectPrintedFlow(t, "import {type} from 'pkg'", "import {type} from \"pkg\";\n")
+	expectPrintedFlow(t, "import {type, foo} from 'pkg'", "import {type, foo} from \"pkg\";\n")
+	expectPrintedFlow(t, "import {type foo} from 'pkg'", "")
+	expectPrintedFlow(t, "import {type foo, bar} from 'pkg'", "import {bar} from \"pkg\";\n")
+	expectPrintedFlow(t, "import {type as} from 'pkg'", "")
+	expectPrintedFlow(t, "import {type as, bar} from 'pkg'", "import {bar} from \"pkg\";\n")
+	expectPrintedFlow(t, "import {type as foo, type bar} from 'pkg'", "import {type as foo} from \"pkg\";\n")
+	expectPrintedFlow(t, "import {type switch} from 'pkg'", "")
+	expectPrintedFlow(t, "import {type switch, foo} from 'pkg'", "import {foo} from \"pkg\";\n")
+
+	expectParseErrorFlow(t, "import {type foo bar} from 'pkg'", "<stdin>: error: Expected \"}\" but found \"bar\"\n")
+	expectParseErrorFlow(t, "import {type as foo bar} from 'pkg'", "<stdin>: error: Expected \"}\" but found \"bar\"\n")
+	expectParseErrorFlow(t, "import {type foo as switch} from 'pkg'", "<stdin>: error: Expected identifier but found \"switch\"\n")
+	expectParseErrorFlow(t, "import typeof {type foo} from 'pkg'", "<stdin>: error: Expected \"}\" but found \"foo\"\n")
+}
+
+func TestFlowImportType(t *testing.T) {
+	// expectPrintedFlow(t, "import type foo from 'pkg'", "")
 }
 
 func TestFlowTypeCastExpressions(t *testing.T) {

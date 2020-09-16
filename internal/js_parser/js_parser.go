@@ -3685,10 +3685,15 @@ func (p *parser) forbidInitializers(decls []js_ast.Decl, loopType string, isVar 
 	}
 }
 
-func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
+type parseImportClauseOpts struct {
+	allowTypeSpecifiers bool
+}
+
+func (p *parser) parseImportClause(opts parseImportClauseOpts) ([]js_ast.ClauseItem, bool, bool) {
 	items := []js_ast.ClauseItem{}
 	p.lexer.Expect(js_lexer.TOpenBrace)
 	isSingleLine := !p.lexer.HasNewlineBefore
+	hasTypeSpecifiers := false
 
 	for p.lexer.Token != js_lexer.TCloseBrace {
 		alias := p.lexer.Identifier
@@ -3696,12 +3701,32 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 		name := js_ast.LocRef{Loc: aliasLoc, Ref: p.storeNameInRef(alias)}
 		originalName := alias
 
+		isTypeSpecifier := false
+
 		// The alias may be a keyword
 		isIdentifier := p.lexer.Token == js_lexer.TIdentifier
 		if !p.lexer.IsIdentifierOrKeyword() {
 			p.lexer.Expect(js_lexer.TIdentifier)
 		}
 		p.lexer.Next()
+
+		if opts.allowTypeSpecifiers && alias == "type" {
+			if p.lexer.IsIdentifierOrKeyword() {
+				precedingAs := p.lexer.IsContextualKeyword("as")
+				p.lexer.Next()
+				if precedingAs {
+					if p.lexer.Token == js_lexer.TIdentifier {
+						originalName := p.lexer.Identifier
+						name = js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
+						p.lexer.Expect(js_lexer.TIdentifier)
+					} else {
+						isTypeSpecifier = true
+					}
+				} else {
+					isTypeSpecifier = true
+				}
+			}
+		}
 
 		if p.lexer.IsContextualKeyword("as") {
 			p.lexer.Next()
@@ -3713,12 +3738,16 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 			p.lexer.Unexpected()
 		}
 
-		items = append(items, js_ast.ClauseItem{
-			Alias:        alias,
-			AliasLoc:     aliasLoc,
-			Name:         name,
-			OriginalName: originalName,
-		})
+		if isTypeSpecifier {
+			hasTypeSpecifiers = true
+		} else {
+			items = append(items, js_ast.ClauseItem{
+				Alias:        alias,
+				AliasLoc:     aliasLoc,
+				Name:         name,
+				OriginalName: originalName,
+			})
+		}
 
 		if p.lexer.Token != js_lexer.TComma {
 			break
@@ -3736,7 +3765,7 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 		isSingleLine = false
 	}
 	p.lexer.Expect(js_lexer.TCloseBrace)
-	return items, isSingleLine
+	return items, isSingleLine, hasTypeSpecifiers
 }
 
 func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
@@ -5094,10 +5123,18 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				return js_ast.Stmt{}
 			}
 
-			items, isSingleLine := p.parseImportClause()
+			items, isSingleLine, hasTypeSpecifiers := p.parseImportClause(parseImportClauseOpts{allowTypeSpecifiers: p.Flow.Parse})
+
 			stmt.Items = &items
 			stmt.IsSingleLine = isSingleLine
 			p.lexer.ExpectContextualKeyword("from")
+
+			if hasTypeSpecifiers && len(items) == 0 {
+				// "import {type foo} from 'pkg'" should be pruned completely
+				p.parsePath()
+				p.lexer.ExpectOrInsertSemicolon()
+				return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+			}
 
 		case js_lexer.TTypeof:
 			// "import typeof foo from 'path';"
@@ -5122,7 +5159,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			case js_lexer.TOpenBrace:
 				// "import typeof {foo} from 'path';"
-				p.parseImportClause()
+				p.parseImportClause(parseImportClauseOpts{allowTypeSpecifiers: false})
 			}
 			if hasDefaultSpecifier && p.lexer.Token == js_lexer.TComma {
 				p.lexer.Next()
@@ -5135,7 +5172,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 				case js_lexer.TOpenBrace:
 					// "import typeof defaultItem, {item1, item2} from 'path'"
-					p.parseImportClause()
+					p.parseImportClause(parseImportClauseOpts{allowTypeSpecifiers: false})
 
 				default:
 					p.lexer.Unexpected()
@@ -5185,7 +5222,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 					case js_lexer.TOpenBrace:
 						// "import type {foo} from 'bar';"
-						p.parseImportClause()
+						p.parseImportClause(parseImportClauseOpts{allowTypeSpecifiers: false})
 						p.lexer.ExpectContextualKeyword("from")
 						p.parsePath()
 						p.lexer.ExpectOrInsertSemicolon()
@@ -5242,7 +5279,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 				case js_lexer.TOpenBrace:
 					// "import defaultItem, {item1, item2} from 'path'"
-					items, isSingleLine := p.parseImportClause()
+					items, isSingleLine, _ := p.parseImportClause(parseImportClauseOpts{allowTypeSpecifiers: p.Flow.Parse})
+
 					stmt.Items = &items
 					stmt.IsSingleLine = isSingleLine
 
