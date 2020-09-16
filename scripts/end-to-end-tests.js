@@ -1032,6 +1032,20 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
         )
       `,
     }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'],
+    {
+      'in.js': `
+        function nonArrowWrapper() {
+          return async (x, paramWithDefault = {}) => {
+            if (x !== 123) {
+              throw 'fail';
+            }
+            console.log(paramWithDefault);
+          };
+        }
+        exports.async = () => nonArrowWrapper()(123);
+      `,
+    }, { async: true }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
         exports.async = async () => {
