@@ -18,6 +18,7 @@ Usage:
   esbuild [options] [entry points]
 
 Options:
+  --analyse             Collect metadata about the source modules
   --bundle              Bundle all dependencies into the output files
   --define:K=V          Substitute K with V while parsing
   --external:M          Exclude module M from the bundle

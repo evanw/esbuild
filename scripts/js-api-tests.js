@@ -2113,6 +2113,71 @@ let transformTests = {
   asyncGenClassExprFn: ({ service }) => futureSyntax(service, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
+let analyseTests = {
+  async fileOutput({ esbuild, testDir }) {
+    const imported = path.join(testDir, 'imported.txt')
+    const entry = path.join(testDir, 'entry.js')
+    const output = path.join(testDir, 'dependencies.json')
+    await writeFileAsync(imported, 'some text')
+    await writeFileAsync(entry, 'import count from "./imported.txt"')
+    await esbuild.analyse({
+      entryPoints: [entry],
+      metafile: output,
+      loader: { '.txt': 'file' },
+    })
+    const metadata = JSON.parse(await readFileAsync(output, 'utf8'))
+    const projectDir = path.resolve(path.join(__dirname, '..'))
+    assert.deepStrictEqual(metadata, {
+      inputs: {
+        [path.relative(projectDir, imported).replace(/\\/g, '/')]: {
+          bytes: 9,
+          imports: []
+        },
+        [path.relative(projectDir, entry).replace(/\\/g, '/')]: {
+          bytes: 34,
+          imports: [
+            { path: path.relative(projectDir, imported).replace(/\\/g, '/') }
+          ]
+        }
+      }
+    })
+  },
+
+  // Test in-memory output files
+  async memoryOutput({ esbuild, testDir }) {
+    const imported = path.join(testDir, 'imported.js')
+    const entry = path.join(testDir, 'entry.js')
+    const output = path.join(testDir, 'dependencies.json')
+    await writeFileAsync(imported, 'export default 123')
+    await writeFileAsync(entry, 'import count from "./imported.js"')
+    const value = await esbuild.analyse({
+      entryPoints: [entry],
+      metafile: output,
+      write: false,
+    })
+    assert.strictEqual(await fs.existsSync(output), false)
+    assert.notStrictEqual(value.metadata, void 0)
+    assert.strictEqual(value.metadata.contents.constructor, Uint8Array)
+    const metadata = JSON.parse(Buffer.from(value.metadata.contents).toString())
+    assert.deepStrictEqual(JSON.parse(value.metadata.text), metadata)
+    const projectDir = path.resolve(path.join(__dirname, '..'))
+    assert.deepStrictEqual(metadata, {
+      inputs: {
+        [path.relative(projectDir, imported).replace(/\\/g, '/')]: {
+          bytes: 18,
+          imports: []
+        },
+        [path.relative(projectDir, entry).replace(/\\/g, '/')]: {
+          bytes: 33,
+          imports: [
+            { path: path.relative(projectDir, imported).replace(/\\/g, '/') }
+          ]
+        }
+      }
+    })
+  },
+}
+
 let syncTests = {
   async buildSync({ esbuild, testDir }) {
     const input = path.join(testDir, 'buildSync-in.js')
@@ -2128,6 +2193,31 @@ let syncTests = {
     const { code } = esbuild.transformSync(`console.log(1+2)`, {})
     assert.strictEqual(code, `console.log(1 + 2);\n`)
   },
+
+  async analyseSync({ esbuild, testDir }) {
+    const input1 = path.join(testDir, 'analyseSync-in1.js')
+    const input2 = path.join(testDir, 'analyseSync-in2.js')
+    const output = path.join(testDir, 'analyseSync-out.json')
+    await writeFileAsync(input1, 'export default 123')
+    await writeFileAsync(input2, 'import count from "./analyseSync-in1.js"')
+    esbuild.analyseSync({ entryPoints: [input2], metafile: output })
+    const result = JSON.parse(await readFileAsync(output, 'utf8'))
+    const projectDir = path.resolve(path.join(__dirname, '..'))
+    assert.deepStrictEqual(result, {
+      inputs: {
+        [path.relative(projectDir, input1).replace(/\\/g, '/')]: {
+          bytes: 18,
+          imports: []
+        },
+        [path.relative(projectDir, input2).replace(/\\/g, '/')]: {
+          bytes: 40,
+          imports: [
+            { path: path.relative(projectDir, input1).replace(/\\/g, '/') }
+          ]
+        }
+      }
+    })
+  }
 }
 
 async function assertSourceMap(jsSourceMap, source) {
@@ -2160,6 +2250,7 @@ async function main() {
     ...Object.entries(buildTests),
     ...Object.entries(serveTests),
     ...Object.entries(transformTests),
+    ...Object.entries(analyseTests),
     ...Object.entries(syncTests),
   ]
   const allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)

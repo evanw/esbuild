@@ -134,6 +134,22 @@ export interface OnLoadResponse {
   loader?: string;
 }
 
+export interface AnalyseRequest {
+  command: 'analyse';
+  key: number;
+  flags: string[];
+  write: boolean;
+  stdin: string | null;
+  resolveDir: string | null;
+  plugins?: BuildPlugin[];
+}
+
+export interface AnalyseResponse {
+  errors: types.Message[];
+  warnings: types.Message[];
+  metadata: Uint8Array;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 export interface Packet {

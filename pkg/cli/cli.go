@@ -46,7 +46,7 @@ func Run(osArgs []string) int {
 //
 func ParseBuildOptions(osArgs []string) (options api.BuildOptions, err error) {
 	options = newBuildOptions()
-	err = parseOptionsImpl(osArgs, &options, nil)
+	err = parseOptionsImpl(osArgs, &options, nil, nil)
 	return
 }
 
@@ -66,6 +66,26 @@ func ParseBuildOptions(osArgs []string) (options api.BuildOptions, err error) {
 //
 func ParseTransformOptions(osArgs []string) (options api.TransformOptions, err error) {
 	options = newTransformOptions()
-	err = parseOptionsImpl(osArgs, nil, &options)
+	err = parseOptionsImpl(osArgs, nil, &options, nil)
+	return
+}
+
+// This parses an array of strings into an options object suitable for passing
+// to "api.Analyse()". Use this if you need to reuse the same argument parsing
+// logic as the esbuild CLI.
+//
+// Example usage:
+//
+//     options, err := cli.ParseAnalyseOptions([]string{
+//         "input.js",
+//         "--analyse",
+//         "--metafile=...",
+//     })
+//
+//     result := api.Analyse(options)
+//
+func ParseAnalyseOptions(osArgs []string) (options api.AnalyseOptions, err error) {
+	options = newAnalyseOptions()
+	err = parseOptionsImpl(osArgs, nil, nil, &options)
 	return
 }

@@ -515,6 +515,14 @@
     }),
   )
 
+  // Test of anakyse
+  tests.push(
+    test(['--analyse', 'in.js', '--metafile=metadata.json'], {
+      'in.js': `import count from './foo'`,
+      'foo.js': `export default 123`,
+    }),
+  )
+
   // Test for format conversion without bundling
   tests.push(
     // ESM => ESM
@@ -2132,26 +2140,30 @@
           // use of "pathToFileURL" is a workaround for a problem where node
           // only supports absolute paths on Unix-style systems, not on Windows.
           // See https://github.com/nodejs/node/issues/31710 for more info.
-          const nodePath = path.join(thisTestDir, 'node')
-          let testExports
-          switch (format) {
-            case 'cjs':
-            case 'iife':
-              await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
-              testExports = (await import(url.pathToFileURL(`${nodePath}.js`))).default
-              break
+          if (args.includes('--analyse')) {
+            JSON.parse(await fs.readFile(path.join(thisTestDir, 'metadata.json'), 'utf8'))
+          } else {
+            const nodePath = path.join(thisTestDir, 'node')
+            let testExports
+            switch (format) {
+              case 'cjs':
+              case 'iife':
+                await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
+                testExports = (await import(url.pathToFileURL(`${nodePath}.js`))).default
+                break
 
-            case 'esm':
-              await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "module"}')
-              testExports = await import(url.pathToFileURL(`${nodePath}.js`))
-              break
-          }
+              case 'esm':
+                await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "module"}')
+                testExports = await import(url.pathToFileURL(`${nodePath}.js`))
+                break
+            }
 
-          // If this is an async test, run the async part
-          if (options && options.async) {
-            if (!(testExports.async instanceof Function))
-              throw new Error('Expected async instanceof Function')
-            await testExports.async()
+            // If this is an async test, run the async part
+            if (options && options.async) {
+              if (!(testExports.async instanceof Function))
+                throw new Error('Expected async instanceof Function')
+              await testExports.async()
+            }
           }
 
           // Clean up test output

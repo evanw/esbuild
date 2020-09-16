@@ -75,6 +75,36 @@
 //         os.Stdout.Write(result.Code)
 //     }
 //
+// Analyse API
+//
+// This function runs a module analysis operation. It takes an array of file
+// paths as entry points, parses them and all of their dependencies, and
+// collects the metadata of the modules and their dependencies. The available
+// options roughly correspond to esbuild's command-line flags.
+//
+// Example usage:
+//
+//     package main
+//
+//     import (
+//         "fmt"
+//         "io/ioutil"
+//
+//         "github.com/evanw/esbuild/pkg/api"
+//     )
+//
+//     func main() {
+//         result := api.Analyse(api.AnalyseOptions{
+//             EntryPoints: []string{"input.js"},
+//             Metafile:    "metadata.json",
+//             LogLevel:    api.LogLevelInfo,
+//         })
+//
+//         if len(result.Errors) > 0 {
+//             os.Exit(1)
+//         }
+//     }
+//
 package api
 
 type SourceMap uint8
@@ -318,6 +348,51 @@ type TransformResult struct {
 
 func Transform(input string, options TransformOptions) TransformResult {
 	return transformImpl(input, options)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Analyse API
+
+type AnalyseOptions struct {
+	Color      StderrColor
+	ErrorLimit int
+	LogLevel   LogLevel
+
+	Target  Target
+	Engines []Engine
+
+	JSXFactory  string
+	JSXFragment string
+
+	Define map[string]string
+	Pure   []string
+
+	GlobalName        string
+	Bundle            bool
+	Splitting         bool
+	Metafile          string
+	Platform          Platform
+	External          []string
+	MainFields        []string
+	Loader            map[string]Loader
+	ResolveExtensions []string
+	Tsconfig          string
+
+	EntryPoints []string
+	Stdin       *StdinOptions
+	Write       bool
+	Plugins     []Plugin
+}
+
+type AnalyseResult struct {
+	Errors   []Message
+	Warnings []Message
+
+	Metadata []byte
+}
+
+func Analyse(options AnalyseOptions) AnalyseResult {
+	return analyseImpl(options)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

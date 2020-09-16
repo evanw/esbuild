@@ -64,7 +64,7 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys): void {
   }
 }
 
-type CommonOptions = types.BuildOptions | types.TransformOptions;
+type CommonOptions = types.BuildOptions | types.TransformOptions | types.AnalyseOptions;
 
 function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
   let color = getFlag(options, keys, 'color', mustBeBoolean);
@@ -246,6 +246,70 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
   return flags;
 }
 
+function flagsForAnalyseOptions(options: types.AnalyseOptions, isTTY: boolean, logLevelDefault: types.LogLevel):
+  [string[], boolean, types.Plugin[] | undefined, string | null, string | null] {
+  let flags: string[] = ['--analyse']; // this is not a command line
+  let keys: OptionKeys = Object.create(null);
+  let stdinContents: string | null = null;
+  let stdinResolveDir: string | null = null;
+  pushLogFlags(flags, options, keys, isTTY, logLevelDefault);
+  pushCommonFlags(flags, options, keys);
+
+  let bundle = getFlag(options, keys, 'bundle', mustBeBoolean);
+  let splitting = getFlag(options, keys, 'splitting', mustBeBoolean);
+  let metafile = getFlag(options, keys, 'metafile', mustBeString);
+  let platform = getFlag(options, keys, 'platform', mustBeString);
+  let tsconfig = getFlag(options, keys, 'tsconfig', mustBeString);
+  let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
+  let mainFields = getFlag(options, keys, 'mainFields', mustBeArray);
+  let external = getFlag(options, keys, 'external', mustBeArray);
+  let loader = getFlag(options, keys, 'loader', mustBeObject);
+  let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
+  let stdin = getFlag(options, keys, 'stdin', mustBeObject);
+  let write = getFlag(options, keys, 'write', mustBeBoolean) !== false;
+  let plugins = getFlag(options, keys, 'plugins', mustBeArray);
+  checkForInvalidFlags(options, keys);
+
+  if (bundle) flags.push('--bundle');
+  if (splitting) flags.push('--splitting');
+  if (metafile) flags.push(`--metafile=${metafile}`);
+  if (platform) flags.push(`--platform=${platform}`);
+  if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
+  if (resolveExtensions) flags.push(`--resolve-extensions=${resolveExtensions.join(',')}`);
+  if (mainFields) flags.push(`--main-fields=${mainFields.join(',')}`);
+  if (external) for (let name of external) flags.push(`--external:${name}`);
+  if (loader) {
+    for (let ext in loader) {
+      if (ext.indexOf('=') >= 0) throw new Error(`Invalid extension: ${ext}`);
+      flags.push(`--loader:${ext}=${loader[ext]}`);
+    }
+  }
+
+  if (entryPoints) {
+    for (let entryPoint of entryPoints) {
+      entryPoint += '';
+      if (entryPoint.startsWith('-')) throw new Error(`Invalid entry point: ${entryPoint}`);
+      flags.push(entryPoint);
+    }
+  }
+
+  if (stdin) {
+    let stdinKeys: OptionKeys = Object.create(null);
+    let contents = getFlag(stdin, stdinKeys, 'contents', mustBeString);
+    let resolveDir = getFlag(stdin, stdinKeys, 'resolveDir', mustBeString);
+    let sourcefile = getFlag(stdin, stdinKeys, 'sourcefile', mustBeString);
+    let loader = getFlag(stdin, stdinKeys, 'loader', mustBeString);
+    checkForInvalidFlags(stdin, stdinKeys);
+
+    if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
+    if (loader) flags.push(`--loader=${loader}`);
+    if (resolveDir) stdinResolveDir = resolveDir + '';
+    stdinContents = contents ? contents + '' : '';
+  }
+
+  return [flags, write, plugins, stdinContents, stdinResolveDir];
+}
+
 export interface StreamIn {
   writeToStdin: (data: Uint8Array) => void;
   readFileSync?: (path: string, encoding: 'utf8') => string;
@@ -277,6 +341,12 @@ export interface StreamService {
     isTTY: boolean,
     fs: StreamFS,
     callback: (err: Error | null, res: types.TransformResult | null) => void,
+  ): void;
+
+  analyse(
+    options: types.AnalyseOptions,
+    isTTY: boolean,
+    callback: (err: Error | null, res: types.AnalyseResult | null) => void,
   ): void;
 }
 
@@ -431,7 +501,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number) => {
+  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest | protocol.AnalyseRequest, buildKey: number) => {
     if (streamIn.isSync) throw new Error('Cannot use plugins in synchronous API calls');
 
     let onResolveCallbacks: {
@@ -766,6 +836,32 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         }
         start(null);
       },
+
+      analyse(options, isTTY, callback) {
+        const logLevelDefault = 'info';
+        try {
+          let key = nextBuildKey++;
+          let [flags, write, plugins, stdin, resolveDir] = flagsForAnalyseOptions(options, isTTY, logLevelDefault);
+          let request: protocol.AnalyseRequest = { command: 'analyse', key, flags, write, stdin, resolveDir };
+          let pluginCleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
+          sendRequest<protocol.AnalyseRequest, protocol.AnalyseResponse>(request, (error, response) => {
+            if (pluginCleanup) pluginCleanup();
+            if (error) return callback(new Error(error), null);
+            let errors = response!.errors;
+            let warnings = response!.warnings;
+            if (errors.length > 0) return callback(failureErrorWithLog('Analyse failed', errors, warnings), null);
+            let result: types.AnalyseResult = { warnings };
+            if (!write) result.metadata = response!.metadata && convertOutput(response!.metadata);
+            callback(null, result);
+          });
+        } catch (e) {
+          let flags: string[] = [];
+          try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
+          sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn) }, () => {
+            callback(e, null);
+          });
+        }
+      },
     },
   };
 }
@@ -884,6 +980,17 @@ function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types
   let text: string | null = null;
   return {
     path,
+    contents,
+    get text() {
+      if (text === null) text = protocol.decodeUTF8(contents);
+      return text;
+    },
+  }
+}
+
+function convertOutput(contents: Uint8Array): types.Output {
+  let text: string | null = null;
+  return {
     contents,
     get text() {
       if (text === null) text = protocol.decodeUTF8(contents);

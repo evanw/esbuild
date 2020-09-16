@@ -209,8 +209,40 @@ export interface PartialMessage {
   location?: Partial<Location> | null;
 }
 
-// This is the type information for the "metafile" JSON format
-export interface Metadata {
+export interface AnalyseOptions extends CommonOptions {
+  bundle?: boolean;
+  splitting?: boolean;
+  metafile?: string;
+  platform?: Platform;
+  external?: string[];
+  loader?: { [ext: string]: Loader };
+  resolveExtensions?: string[];
+  mainFields?: string[];
+  write?: boolean;
+  tsconfig?: string;
+
+  entryPoints?: string[];
+  stdin?: StdinOptions;
+  plugins?: Plugin[];
+}
+
+export interface Output {
+  contents: Uint8Array; // "text" as bytes
+  text: string; // "contents" as text
+}
+
+export interface AnalyseResult {
+  warnings: Message[];
+  metadata?: Output; // Only when "write: false"
+}
+
+export interface AnalyseFailure extends Error {
+  errors: Message[];
+  warnings: Message[];
+}
+
+// This is the type information for the "metafile" JSON format from analyse
+export interface AnalyseMetadata {
   inputs: {
     [path: string]: {
       bytes: number
@@ -219,6 +251,10 @@ export interface Metadata {
       }[]
     }
   }
+}
+
+// This is the type information for the "metafile" JSON format from build
+export interface Metadata extends AnalyseMetadata {
   outputs: {
     [path: string]: {
       bytes: number
@@ -241,6 +277,7 @@ export interface Service {
   build(options: BuildOptions): Promise<BuildResult>;
   serve(serveOptions: ServeOptions, buildOptions: BuildOptions): Promise<ServeResult>;
   transform(input: string, options?: TransformOptions): Promise<TransformResult>;
+  analyse(options: AnalyseOptions): Promise<AnalyseResult>;
 
   // This stops the service, which kills the long-lived child process. Any
   // pending requests will be aborted.
@@ -273,6 +310,14 @@ export declare function serve(serveOptions: ServeOptions, buildOptions: BuildOpt
 // Works in browser: no
 export declare function transform(input: string, options?: TransformOptions): Promise<TransformResult>;
 
+// This function invokes the "esbuild" command-line tool for you with the option
+// `--analyse`. It returns a promise that either resolves with a "AnalyseResult"
+// object or rejects with a "AnalyseFailure" object.
+//
+// Works in node: yes
+// Works in browser: no
+export declare function analyse(options: AnalyseOptions): Promise<AnalyseResult>;
+
 // A synchronous version of "build".
 //
 // Works in node: yes
@@ -285,6 +330,12 @@ export declare function buildSync(options: BuildOptions): BuildResult;
 // Works in node: yes
 // Works in browser: no
 export declare function transformSync(input: string, options?: TransformOptions): TransformResult;
+
+// A synchronous version of "analyse".
+//
+// Works in node: yes
+// Works in browser: no
+export declare function analyseSync(options: AnalyseOptions): AnalyseResult;
 
 // This starts "esbuild" as a long-lived child process that is then reused, so
 // you can call methods on the service many times without the overhead of
