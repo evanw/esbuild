@@ -229,7 +229,7 @@ func (p *parser) lowerFunction(
 			// resulting promise, which needs more complex code to handle
 			couldThrowErrors := false
 			for _, arg := range *args {
-				if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || arg.Default != nil {
+				if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || (arg.Default != nil && couldPotentiallyThrow(arg.Default.Data)) {
 					couldThrowErrors = true
 					break
 				}
@@ -2083,4 +2083,12 @@ func (p *parser) maybeLowerSuperPropertyAccessInsideCall(call *js_ast.ECall) {
 	}
 	thisExpr := js_ast.Expr{Loc: call.Target.Loc, Data: &js_ast.EThis{}}
 	call.Args = append([]js_ast.Expr{thisExpr}, call.Args...)
+}
+
+func couldPotentiallyThrow(data js_ast.E) bool {
+	switch data.(type) {
+	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString, *js_ast.EFunction, *js_ast.EArrow:
+		return false
+	}
+	return true
 }
