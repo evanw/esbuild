@@ -2721,7 +2721,6 @@ func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo extends Bar {}", `class Foo extends Bar {
 }
 `)
-
 	expectPrintedTarget(t, 2015, "class Foo extends Bar { bar() {} constructor() { super() } }", `class Foo extends Bar {
   bar() {
   }
