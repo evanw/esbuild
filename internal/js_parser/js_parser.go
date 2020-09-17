@@ -8987,7 +8987,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, e.Body.Loc)
 		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts)
 		p.popScope()
-		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg)
+		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg, true)
 		p.popScope()
 
 		if p.MangleSyntax && len(e.Body.Stmts) == 1 {
@@ -9133,7 +9133,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, fn.Body.Loc)
 	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts)
 	p.popScope()
-	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg)
+	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg, false)
 	p.popScope()
 
 	p.fnOrArrowDataVisit = oldFnOrArrowData

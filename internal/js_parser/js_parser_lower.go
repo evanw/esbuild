@@ -139,6 +139,7 @@ func (p *parser) lowerFunction(
 	bodyStmts *[]js_ast.Stmt,
 	preferExpr *bool,
 	hasRestArg *bool,
+	isArrow bool,
 ) {
 	// Lower object rest binding patterns in function arguments
 	if p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
@@ -268,26 +269,35 @@ func (p *parser) lowerFunction(
 					*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: arg.Binding.Loc, Data: &js_ast.BIdentifier{Ref: argRef}}})
 				}
 
-				// If we need to forward more than the current number of arguments,
-				// add a rest argument to the set of forwarding variables
-				if usesArguments || fn.HasRestArg || len(*args) < len(fn.Args) {
-					argRef := p.newSymbol(js_ast.SymbolOther, fmt.Sprintf("_%d", len(*args)))
-					p.currentScope.Generated = append(p.currentScope.Generated, argRef)
-					*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}}})
-					*hasRestArg = true
-				}
+				// Forward all arguments from the outer function to the inner function
+				if !isArrow {
+					// Normal functions can just use "arguments" to forward everything
+					forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.argumentsRef}}
+				} else {
+					// Arrow functions can't use "arguments", so we need to forward
+					// the arguments manually
 
-				// Forward all of the arguments
-				items := make([]js_ast.Expr, 0, len(*args))
-				for i, arg := range *args {
-					id := arg.Binding.Data.(*js_ast.BIdentifier)
-					item := js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}}
-					if *hasRestArg && i+1 == len(*args) {
-						item.Data = &js_ast.ESpread{Value: item}
+					// If we need to forward more than the current number of arguments,
+					// add a rest argument to the set of forwarding variables
+					if usesArguments || fn.HasRestArg || len(*args) < len(fn.Args) {
+						argRef := p.newSymbol(js_ast.SymbolOther, fmt.Sprintf("_%d", len(*args)))
+						p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+						*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}}})
+						*hasRestArg = true
 					}
-					items = append(items, item)
+
+					// Forward all of the arguments
+					items := make([]js_ast.Expr, 0, len(*args))
+					for i, arg := range *args {
+						id := arg.Binding.Data.(*js_ast.BIdentifier)
+						item := js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}}
+						if *hasRestArg && i+1 == len(*args) {
+							item.Data = &js_ast.ESpread{Value: item}
+						}
+						items = append(items, item)
+					}
+					forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArray{Items: items, IsSingleLine: true}}
 				}
-				forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArray{Items: items, IsSingleLine: true}}
 			}
 		}
 
