@@ -132,6 +132,22 @@ func (p *parser) isPrivateUnsupported(private *js_ast.EPrivateIdentifier) bool {
 	return p.UnsupportedFeatures.Has(p.symbols[private.Ref.InnerIndex].Kind.Feature())
 }
 
+func (p *parser) captureThis() js_ast.Ref {
+	if p.fnOnlyDataVisit.thisCaptureRef == nil {
+		ref := p.newSymbol(js_ast.SymbolHoisted, "_this")
+		p.fnOnlyDataVisit.thisCaptureRef = &ref
+	}
+	return *p.fnOnlyDataVisit.thisCaptureRef
+}
+
+func (p *parser) captureArguments() js_ast.Ref {
+	if p.fnOnlyDataVisit.argumentsCaptureRef == nil {
+		ref := p.newSymbol(js_ast.SymbolHoisted, "_arguments")
+		p.fnOnlyDataVisit.argumentsCaptureRef = &ref
+	}
+	return *p.fnOnlyDataVisit.argumentsCaptureRef
+}
+
 func (p *parser) lowerFunction(
 	isAsync *bool,
 	args *[]js_ast.Arg,
@@ -218,23 +234,25 @@ func (p *parser) lowerFunction(
 		}
 		*bodyStmts = nil
 
+		// Errors thrown during argument evaluation must reject the
+		// resulting promise, which needs more complex code to handle
+		couldThrowErrors := false
+		for _, arg := range *args {
+			if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || (arg.Default != nil && couldPotentiallyThrow(arg.Default.Data)) {
+				couldThrowErrors = true
+				break
+			}
+		}
+
 		// Forward the arguments to the wrapper function
-		usesArguments := p.fnOnlyDataVisit.argumentsRef != nil && p.symbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
+		usesArgumentsRef := !isArrow && p.fnOnlyDataVisit.argumentsRef != nil && p.symbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
 		var forwardedArgs js_ast.Expr
-		if len(*args) == 0 && !usesArguments {
-			// Don't allocate anything if arguments aren't needed
+		if !couldThrowErrors && !usesArgumentsRef {
+			// Simple case: the arguments can stay on the outer function. It's
+			// worth separating out the simple case because it's the common case
+			// and it generates smaller code.
 			forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.ENull{}}
 		} else {
-			// Errors thrown during argument evaluation must reject the
-			// resulting promise, which needs more complex code to handle
-			couldThrowErrors := false
-			for _, arg := range *args {
-				if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || (arg.Default != nil && couldPotentiallyThrow(arg.Default.Data)) {
-					couldThrowErrors = true
-					break
-				}
-			}
-
 			// If code uses "arguments" then we must move the arguments to the inner
 			// function. This is because you can modify arguments by assigning to
 			// elements in the "arguments" object:
@@ -244,60 +262,77 @@ func (p *parser) lowerFunction(
 			//     // "x" must be 1 here
 			//   }
 			//
-			if !couldThrowErrors && !usesArguments {
-				// Simple case: the arguments can stay on the outer function. It's
-				// worth separating out the simple case because it's the common case
-				// and it generates smaller code.
-				forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.ENull{}}
+
+			// Complex case: the arguments must be moved to the inner function
+			fn.Args = *args
+			fn.HasRestArg = *hasRestArg
+			*args = nil
+			*hasRestArg = false
+
+			// Make sure to not change the value of the "length" property. This is
+			// done by generating dummy arguments for the outer function equal to
+			// the expected length of the function:
+			//
+			//   async function foo(a, b, c = d, ...e) {
+			//   }
+			//
+			// This turns into:
+			//
+			//   function foo(_0, _1) {
+			//     return __async(this, arguments, function* (a, b, c = d, ...e) {
+			//     });
+			//   }
+			//
+			// The "_0" and "_1" are dummy variables to ensure "foo.length" is 2.
+			for i, arg := range fn.Args {
+				if arg.Default != nil || fn.HasRestArg && i+1 == len(fn.Args) {
+					// Arguments from here on don't add to the "length"
+					break
+				}
+
+				// Generate a dummy variable
+				argRef := p.newSymbol(js_ast.SymbolOther, fmt.Sprintf("_%d", i))
+				p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+				*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: arg.Binding.Loc, Data: &js_ast.BIdentifier{Ref: argRef}}})
+			}
+
+			// Forward all arguments from the outer function to the inner function
+			if !isArrow {
+				// Normal functions can just use "arguments" to forward everything
+				forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.argumentsRef}}
 			} else {
-				// Complex case: the arguments must be moved to the inner function
-				fn.Args = *args
-				fn.HasRestArg = *hasRestArg
-				*args = nil
-				*hasRestArg = false
+				// Arrow functions can't use "arguments", so we need to forward
+				// the arguments manually.
+				//
+				// Note that if the arrow function references "arguments" in its body
+				// (even if it's inside another nested arrow function), that reference
+				// to "arguments" will have to be subsituted with a captured variable.
+				// This is because we're changing the arrow function into a generator
+				// function, which introduces a variable named "arguments". This is
+				// handled separately during symbol resolution instead of being handled
+				// here so we don't need to re-traverse the arrow function body.
 
-				// Make sure to not change the value of the "length" property
-				for i, arg := range fn.Args {
-					if arg.Default != nil || fn.HasRestArg && i+1 == len(fn.Args) {
-						// Arguments from here on don't add to the "length"
-						break
-					}
-
-					// Generate a dummy variable
-					argRef := p.newSymbol(js_ast.SymbolOther, fmt.Sprintf("_%d", i))
+				// If we need to forward more than the current number of arguments,
+				// add a rest argument to the set of forwarding variables. This is the
+				// case if the arrow function has rest or default arguments.
+				if len(*args) < len(fn.Args) {
+					argRef := p.newSymbol(js_ast.SymbolOther, fmt.Sprintf("_%d", len(*args)))
 					p.currentScope.Generated = append(p.currentScope.Generated, argRef)
-					*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: arg.Binding.Loc, Data: &js_ast.BIdentifier{Ref: argRef}}})
+					*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}}})
+					*hasRestArg = true
 				}
 
-				// Forward all arguments from the outer function to the inner function
-				if !isArrow {
-					// Normal functions can just use "arguments" to forward everything
-					forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.argumentsRef}}
-				} else {
-					// Arrow functions can't use "arguments", so we need to forward
-					// the arguments manually
-
-					// If we need to forward more than the current number of arguments,
-					// add a rest argument to the set of forwarding variables
-					if usesArguments || fn.HasRestArg || len(*args) < len(fn.Args) {
-						argRef := p.newSymbol(js_ast.SymbolOther, fmt.Sprintf("_%d", len(*args)))
-						p.currentScope.Generated = append(p.currentScope.Generated, argRef)
-						*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}}})
-						*hasRestArg = true
+				// Forward all of the arguments
+				items := make([]js_ast.Expr, 0, len(*args))
+				for i, arg := range *args {
+					id := arg.Binding.Data.(*js_ast.BIdentifier)
+					item := js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}}
+					if *hasRestArg && i+1 == len(*args) {
+						item.Data = &js_ast.ESpread{Value: item}
 					}
-
-					// Forward all of the arguments
-					items := make([]js_ast.Expr, 0, len(*args))
-					for i, arg := range *args {
-						id := arg.Binding.Data.(*js_ast.BIdentifier)
-						item := js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}}
-						if *hasRestArg && i+1 == len(*args) {
-							item.Data = &js_ast.ESpread{Value: item}
-						}
-						items = append(items, item)
-					}
-					forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArray{Items: items, IsSingleLine: true}}
+					items = append(items, item)
 				}
+				forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArray{Items: items, IsSingleLine: true}}
 			}
 		}
 
@@ -2087,7 +2122,8 @@ func (p *parser) maybeLowerSuperPropertyAccessInsideCall(call *js_ast.ECall) {
 
 func couldPotentiallyThrow(data js_ast.E) bool {
 	switch data.(type) {
-	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString, *js_ast.EFunction, *js_ast.EArrow:
+	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber,
+		*js_ast.EBigInt, *js_ast.EString, *js_ast.EFunction, *js_ast.EArrow:
 		return false
 	}
 	return true

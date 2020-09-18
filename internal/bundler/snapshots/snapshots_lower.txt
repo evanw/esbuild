@@ -51,9 +51,10 @@ export default [
     }
   },
   function() {
-    return (_0, ..._1) => __async(this, [_0, ..._1], function* (bar) {
+    var _arguments = arguments;
+    return (bar) => __async(this, null, function* () {
       yield bar;
-      return [this, arguments];
+      return [this, _arguments];
     });
   }
 ];

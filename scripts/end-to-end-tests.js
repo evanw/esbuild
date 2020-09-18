@@ -1032,20 +1032,6 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
         )
       `,
     }, { async: true }),
-    test(['in.js', '--outfile=node.js', '--target=es6'],
-    {
-      'in.js': `
-        function nonArrowWrapper() {
-          return async (x, paramWithDefault = {}) => {
-            if (x !== 123) {
-              throw 'fail';
-            }
-            console.log(paramWithDefault);
-          };
-        }
-        exports.async = () => nonArrowWrapper()(123);
-      `,
-    }, { async: true }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
         exports.async = async () => {
@@ -1055,6 +1041,46 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
           }
           let [t, a] = await foo.call(0, 1, 2, 3)
           if (t !== 0 || a.length !== 3 || a[0] !== 1 || a[1] !== 2 || a[2] !== 3) throw 'fail'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let couldThrow = () => 'b'
+        exports.async = async () => {
+          "use strict"
+          async function f0() {
+            let bar = async (x, y) => [x, y, this, arguments]
+            return await bar('a', 'b')
+          }
+          async function f1() {
+            let bar = async (x, ...y) => [x, y[0], this, arguments]
+            return await bar('a', 'b')
+          }
+          async function f2() {
+            let bar = async (x, y = 'b') => [x, y, this, arguments]
+            return await bar('a')
+          }
+          async function f3() {
+            let bar = async (x, y = couldThrow()) => [x, y, this, arguments]
+            return await bar('a')
+          }
+          async function f4() {
+            let bar = async (x, y = couldThrow()) => (() => [x, y, this, arguments])()
+            return await bar('a')
+          }
+          async function f5() {
+            let bar = () => async (x, y = couldThrow()) => [x, y, this, arguments]
+            return await bar()('a')
+          }
+          async function f6() {
+            let bar = async () => async (x, y = couldThrow()) => [x, y, this, arguments]
+            return await (await bar())('a')
+          }
+          for (let foo of [f0, f1, f2, f3, f4, f5, f6]) {
+            let [x, y, t, a] = await foo.call(0, 1, 2, 3)
+            if (x !== 'a' || y !== 'b' || t !== 0 || a.length !== 3 || a[0] !== 1 || a[1] !== 2 || a[2] !== 3) throw 'fail'
+          }
         }
       `,
     }, { async: true }),

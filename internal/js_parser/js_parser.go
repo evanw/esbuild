@@ -176,8 +176,13 @@ type parser struct {
 	typeofRequireEqualsFnTarget js_ast.E
 
 	// Temporary variables used for lowering
-	tempRefsToDeclare []js_ast.Ref
+	tempRefsToDeclare []tempRef
 	tempRefCount      int
+}
+
+type tempRef struct {
+	ref   js_ast.Ref
+	value *js_ast.Expr
 }
 
 const (
@@ -239,8 +244,35 @@ type fnOrArrowDataVisit struct {
 // restored on the call stack around code that parses nested functions (but not
 // nested arrow functions).
 type fnOnlyDataVisit struct {
-	isThisCaptured bool
-	argumentsRef   *js_ast.Ref
+	// This is a reference to the magic "arguments" variable that exists inside
+	// functions in JavaScript. It will be non-nil inside functions and nil
+	// otherwise.
+	argumentsRef *js_ast.Ref
+
+	// Arrow functions don't capture the value of "this" and "arguments". Instead,
+	// the values are inherited from the surrounding context. If arrow functions
+	// are turned into regular functions due to lowering, we will need to generate
+	// local variables to capture these values so they are preserved correctly.
+	thisCaptureRef      *js_ast.Ref
+	argumentsCaptureRef *js_ast.Ref
+
+	// If we're inside an async arrow function and async functions are not
+	// supported, then we will have to convert that arrow function to a generator
+	// function. That means references to "arguments" inside the arrow function
+	// will have to reference a captured variable instead of the real variable.
+	isInsideAsyncArrowFn bool
+
+	// If false, the value for "this" is the top-level module scope "this" value.
+	// That means it's "undefined" for ECMAScript modules and "exports" for
+	// CommonJS modules. We track this information so that we can substitute the
+	// correct value for these top-level "this" references at compile time instead
+	// of passing the "this" expression through to the output and leaving the
+	// interpretation up to the run-time behavior of the generated code.
+	//
+	// If true, the value for "this" is nested inside something (either a function
+	// or a class declaration). That means the top-level module scope "this" value
+	// has been shadowed and is now inaccessible.
+	isThisNested bool
 }
 
 const bloomFilterSize = 251
@@ -5559,7 +5591,7 @@ func (p *parser) generateTempRef(declare generateTempRefArg, optionalName string
 	}
 	ref := p.newSymbol(js_ast.SymbolOther, optionalName)
 	if declare == tempRefNeedsDeclare {
-		p.tempRefsToDeclare = append(p.tempRefsToDeclare, ref)
+		p.tempRefsToDeclare = append(p.tempRefsToDeclare, tempRef{ref: ref})
 	}
 	scope.Generated = append(scope.Generated, ref)
 	return ref
@@ -5709,20 +5741,45 @@ func shouldKeepStmtInDeadControlFlow(stmt js_ast.Stmt) bool {
 	}
 }
 
-func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt) []js_ast.Stmt {
+type prependTempRefsOpts struct {
+	fnBodyLoc *logger.Loc
+}
+
+func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependTempRefsOpts) []js_ast.Stmt {
 	oldTempRefs := p.tempRefsToDeclare
 	oldTempRefCount := p.tempRefCount
-	p.tempRefsToDeclare = []js_ast.Ref{}
+	p.tempRefsToDeclare = nil
 	p.tempRefCount = 0
 
 	stmts = p.visitStmts(stmts)
 
+	// Prepend values for "this" and "arguments"
+	if opts.fnBodyLoc != nil {
+		// Capture "this"
+		if ref := p.fnOnlyDataVisit.thisCaptureRef; ref != nil {
+			p.tempRefsToDeclare = append(p.tempRefsToDeclare, tempRef{
+				ref:   *ref,
+				value: &js_ast.Expr{Loc: *opts.fnBodyLoc, Data: &js_ast.EThis{}},
+			})
+			p.currentScope.Generated = append(p.currentScope.Generated, *ref)
+		}
+
+		// Capture "arguments"
+		if ref := p.fnOnlyDataVisit.argumentsCaptureRef; ref != nil {
+			p.tempRefsToDeclare = append(p.tempRefsToDeclare, tempRef{
+				ref:   *ref,
+				value: &js_ast.Expr{Loc: *opts.fnBodyLoc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.argumentsRef}},
+			})
+			p.currentScope.Generated = append(p.currentScope.Generated, *ref)
+		}
+	}
+
 	// Prepend the generated temporary variables to the beginning of the statement list
 	if len(p.tempRefsToDeclare) > 0 {
 		decls := []js_ast.Decl{}
-		for _, ref := range p.tempRefsToDeclare {
-			decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: ref}}})
-			p.recordDeclaredSymbol(ref)
+		for _, temp := range p.tempRefsToDeclare {
+			decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: temp.ref}}, Value: temp.value})
+			p.recordDeclaredSymbol(temp.ref)
 		}
 
 		// If the first statement is a super() call, make sure it stays that way
@@ -7151,7 +7208,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.enclosingNamespaceRef = &s.Arg
 		p.pushScopeForVisitPass(js_ast.ScopeEntry, stmt.Loc)
 		p.recordDeclaredSymbol(s.Arg)
-		stmtsInsideNamespace := p.visitStmtsAndPrependTempRefs(s.Stmts)
+		stmtsInsideNamespace := p.visitStmtsAndPrependTempRefs(s.Stmts, prependTempRefsOpts{})
 		p.popScope()
 		p.enclosingNamespaceRef = oldEnclosingNamespaceRef
 
@@ -7347,8 +7404,8 @@ func (p *parser) visitClass(class *js_ast.Class) {
 		*class.Extends = p.visitExpr(*class.Extends)
 	}
 
-	oldIsThisCaptured := p.fnOnlyDataVisit.isThisCaptured
-	p.fnOnlyDataVisit.isThisCaptured = true
+	oldIsThisCaptured := p.fnOnlyDataVisit.isThisNested
+	p.fnOnlyDataVisit.isThisNested = true
 
 	// A scope is needed for private identifiers
 	p.pushScopeForVisitPass(js_ast.ScopeClassBody, class.BodyLoc)
@@ -7371,7 +7428,7 @@ func (p *parser) visitClass(class *js_ast.Class) {
 		}
 	}
 
-	p.fnOnlyDataVisit.isThisCaptured = oldIsThisCaptured
+	p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
 }
 
 func (p *parser) visitArgs(args []js_ast.Arg) {
@@ -7763,7 +7820,7 @@ func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
 }
 
 func (p *parser) valueForThis(loc logger.Loc) (js_ast.Expr, bool) {
-	if p.Mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisCaptured {
+	if p.Mode != config.ModePassThrough && !p.fnOnlyDataVisit.isThisNested {
 		if p.hasES6ImportSyntax || p.hasES6ExportSyntax {
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
 			// doing this at runtime using "fn.call(undefined)", we do it at
@@ -8982,12 +9039,21 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			isAsync: e.IsAsync,
 		}
 
+		// Mark if we're inside an async arrow function. This value should be true
+		// even if we're inside multiple arrow functions and the closest inclosing
+		// arrow function isn't async, as long as at least one enclosing arrow
+		// function within the current enclosing function is async.
+		oldInsideAsyncArrowFn := p.fnOnlyDataVisit.isInsideAsyncArrowFn
+		if e.IsAsync {
+			p.fnOnlyDataVisit.isInsideAsyncArrowFn = true
+		}
+
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args)
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, e.Body.Loc)
-		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts)
+		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts, prependTempRefsOpts{})
 		p.popScope()
-		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg, true)
+		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg, true /* isArrow */)
 		p.popScope()
 
 		if p.MangleSyntax && len(e.Body.Stmts) == 1 {
@@ -9002,6 +9068,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		p.fnOnlyDataVisit.isInsideAsyncArrowFn = oldInsideAsyncArrowFn
 		p.fnOrArrowDataVisit = oldFnOrArrowData
 
 	case *js_ast.EFunction:
@@ -9046,6 +9113,13 @@ func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget
 
 func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarget, e *js_ast.EIdentifier) js_ast.Expr {
 	ref := e.Ref
+
+	// Capture the "arguments" variable if necessary
+	if p.fnOnlyDataVisit.isInsideAsyncArrowFn && p.UnsupportedFeatures.Has(compat.AsyncAwait) &&
+		p.fnOnlyDataVisit.argumentsRef != nil && ref == *p.fnOnlyDataVisit.argumentsRef {
+		ref = p.captureArguments()
+		e.Ref = ref
+	}
 
 	if p.Mode == config.ModeBundle && assignTarget != js_ast.AssignTargetNone {
 		if p.symbols[ref.InnerIndex].Kind == js_ast.SymbolImport {
@@ -9120,8 +9194,8 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 		isAsync: fn.IsAsync,
 	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{
-		isThisCaptured: true,
-		argumentsRef:   &fn.ArgumentsRef,
+		isThisNested: true,
+		argumentsRef: &fn.ArgumentsRef,
 	}
 
 	if fn.Name != nil {
@@ -9131,9 +9205,9 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, scopeLoc)
 	p.visitArgs(fn.Args)
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, fn.Body.Loc)
-	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts)
+	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc})
 	p.popScope()
-	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg, false)
+	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg, false /* isArrow */)
 	p.popScope()
 
 	p.fnOrArrowDataVisit = oldFnOrArrowData
@@ -9376,7 +9450,7 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 	p.importRecordsForCurrentPart = nil
 	p.scopesForCurrentPart = nil
 	part := js_ast.Part{
-		Stmts:      p.visitStmtsAndPrependTempRefs(stmts),
+		Stmts:      p.visitStmtsAndPrependTempRefs(stmts, prependTempRefsOpts{}),
 		SymbolUses: p.symbolUses,
 	}
 	if len(part.Stmts) > 0 {
