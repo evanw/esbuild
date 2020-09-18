@@ -139,6 +139,7 @@ func (p *parser) lowerFunction(
 	bodyStmts *[]js_ast.Stmt,
 	preferExpr *bool,
 	hasRestArg *bool,
+	isArrow bool,
 ) {
 	// Lower object rest binding patterns in function arguments
 	if p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
@@ -228,7 +229,7 @@ func (p *parser) lowerFunction(
 			// resulting promise, which needs more complex code to handle
 			couldThrowErrors := false
 			for _, arg := range *args {
-				if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || arg.Default != nil {
+				if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok || (arg.Default != nil && couldPotentiallyThrow(arg.Default.Data)) {
 					couldThrowErrors = true
 					break
 				}
@@ -269,7 +270,7 @@ func (p *parser) lowerFunction(
 				}
 
 				// Forward all arguments from the outer function to the inner function
-				if p.fnOnlyDataVisit.argumentsRef != nil {
+				if !isArrow {
 					// Normal functions can just use "arguments" to forward everything
 					forwardedArgs = js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.argumentsRef}}
 				} else {
@@ -2082,4 +2083,12 @@ func (p *parser) maybeLowerSuperPropertyAccessInsideCall(call *js_ast.ECall) {
 	}
 	thisExpr := js_ast.Expr{Loc: call.Target.Loc, Data: &js_ast.EThis{}}
 	call.Args = append([]js_ast.Expr{thisExpr}, call.Args...)
+}
+
+func couldPotentiallyThrow(data js_ast.E) bool {
+	switch data.(type) {
+	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString, *js_ast.EFunction, *js_ast.EArrow:
+		return false
+	}
+	return true
 }
