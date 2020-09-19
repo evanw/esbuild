@@ -24,10 +24,11 @@ Options:
   --sourcemap           Emit a source map
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
                         safari11, edge16, node10, default esnext)
-  --platform=...        Platform target (browser or node, default browser)
+  --platform=...        Platform target (browser | node, default browser)
   --external:M          Exclude module M from the bundle
-  --format=...          Output format (iife, cjs, esm, default iife when
-                        platform is browser and cjs when platform is node)
+  --format=...          Output format (iife | cjs | esm, no default when not
+                        bundling, otherwise default is iife when platform
+                        is browser and cjs when platform is node)
   --splitting           Enable code splitting (currently only for esm)
   --global-name=...     The name of the global for the IIFE format
 
@@ -40,8 +41,8 @@ Options:
   --jsx-factory=...     What to use instead of React.createElement
   --jsx-fragment=...    What to use instead of React.Fragment
   --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: js, jsx, ts, tsx, json, text, base64, file,
-                        dataurl, binary
+                        one of: js | jsx | ts | tsx | json | text | base64 |
+                        file | dataurl | binary
 
 Advanced options:
   --version                 Print the current version and exit (` + esbuildVersion + `)
@@ -49,19 +50,22 @@ Advanced options:
   --sourcemap=external      Do not link to the source map with a comment
   --sourcefile=...          Set the source file for the source map (for stdin)
   --error-limit=...         Maximum error count or 0 to disable (default 10)
-  --log-level=...           Disable logging (info, warning, error, silent,
+  --log-level=...           Disable logging (info | warning | error | silent,
                             default info)
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.json")
   --metafile=...            Write metadata about the build to a JSON file
   --strict                  Transforms handle edge cases but have more overhead
+                            (enable individually using --strict:X where X is
+                            one of: nullish-coalescing | optional-chaining |
+                            class-fields)
   --pure:N                  Mark the name N as a pure function for tree shaking
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
-  --color=...               Force use of color terminal escapes (true or false)
+  --color=...               Force use of color terminal escapes (true | false)
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
