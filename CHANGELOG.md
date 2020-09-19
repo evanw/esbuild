@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix compile error due to missing `unix.SYS_IOCTL` in the latest `golang.org/x/sys` ([#396](https://github.com/evanw/esbuild/pull/396))
+
+    The `unix.SYS_IOCTL` export was apparently removed from `golang.org/x/sys` recently, which affected code in esbuild that gets the width of the terminal. This code now uses another method of getting the terminal width. The fix was contributed by [@akayj](https://github.com/akayj).
+
 ## 0.7.2
 
 * Transform arrow functions to function expressions with `--target=es5` ([#182](https://github.com/evanw/esbuild/issues/182) and [#297](https://github.com/evanw/esbuild/issues/297))

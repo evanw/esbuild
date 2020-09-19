@@ -1,6 +1,6 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
-esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
+esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	go build "-ldflags=-s -w" ./cmd/esbuild
 
 npm/esbuild-wasm/esbuild.wasm: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
