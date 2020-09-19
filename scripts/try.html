@@ -61,6 +61,10 @@
       box-sizing: border-box;
     }
 
+    section p {
+      line-height: 26px;
+    }
+
     #input {
       left: 0;
       width: 50%;
@@ -74,7 +78,7 @@
     .outer {
       position: absolute;
       left: 20px;
-      top: 100px;
+      top: 120px;
       right: 20px;
       bottom: 20px;
     }
@@ -176,6 +180,15 @@
         </select>
       </label>
       &nbsp; &nbsp;
+      <label for="format">
+        Format: <select id="format">
+          <option selected>Preserve</option>
+          <option>IIFE</option>
+          <option>CJS</option>
+          <option>ESM</option>
+        </select>
+      </label>
+      <br>
       <label for="strict">
         <input id="strict" type="checkbox">
         Strict
@@ -197,6 +210,7 @@
     const input = document.querySelector('#input textarea')
     const target = document.querySelector('#target')
     const loader = document.querySelector('#loader')
+    const format = document.querySelector('#format')
     const minifySyntax = document.querySelector('#minify-syntax')
     const minifyIdents = document.querySelector('#minify-idents')
     const minifySpaces = document.querySelector('#minify-spaces')
@@ -235,6 +249,7 @@
 
     persistValue(target, 'target')
     persistValue(loader, 'loader')
+    persistValue(format, 'format')
     persistChecked(minifySyntax, 'minifySyntax')
     persistChecked(minifyIdents, 'minifyIdents')
     persistChecked(minifySpaces, 'minifySpaces')
@@ -273,6 +288,7 @@
         service.transform(input.value, {
           target: target.value.toLowerCase(),
           loader: loader.value.toLowerCase(),
+          format: format.value === 'Preserve' ? void 0 : format.value.toLowerCase(),
           minifySyntax: minifySyntax.checked,
           minifyIdentifiers: minifyIdents.checked,
           minifyWhitespace: minifySpaces.checked,
