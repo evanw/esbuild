@@ -5,6 +5,7 @@ package logger
 import (
 	"os"
 	"unsafe"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -28,7 +29,7 @@ func GetTerminalInfo(file *os.File) (info TerminalInfo) {
 
 		// Get the width of the window
 		w := new(winsize)
-		if _, _, err := unix.Syscall(unix.SYS_IOCTL, fd, unix.TIOCGWINSZ, uintptr(unsafe.Pointer(w))); err == 0 {
+		if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, fd, syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(w))); err == 0 {
 			info.Width = int(w.ws_col)
 		}
 	}
