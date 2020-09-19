@@ -936,7 +936,7 @@ func (p *printer) printFnArgs(args []js_ast.Arg, hasRestArg bool, isArrow bool) 
 }
 
 func (p *printer) printFn(fn js_ast.Fn) {
-	p.printFnArgs(fn.Args, fn.HasRestArg, false)
+	p.printFnArgs(fn.Args, fn.HasRestArg, false /* isArrow */)
 	p.printSpace()
 	p.printBlock(fn.Body.Stmts)
 }
@@ -1485,9 +1485,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 	case *js_ast.EArrow:
-		n := len(p.js)
-		useFunction := p.options.UnsupportedFeatures.Has(compat.Arrow)
-		wrap := level >= js_ast.LAssign || (useFunction && (p.stmtStart == n || p.exportDefaultStart == n))
+		wrap := level >= js_ast.LAssign
 
 		if wrap {
 			p.print("(")
@@ -1498,21 +1496,13 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			p.printSpace()
 		}
 
-		if useFunction {
-			p.printSpaceBeforeIdentifier()
-			p.print("function")
-		}
-
-		p.printFnArgs(e.Args, e.HasRestArg, !useFunction)
+		p.printFnArgs(e.Args, e.HasRestArg, true /* isArrow */)
+		p.printSpace()
+		p.print("=>")
 		p.printSpace()
 
-		if !useFunction {
-			p.print("=>")
-			p.printSpace()
-		}
-
 		wasPrinted := false
-		if len(e.Body.Stmts) == 1 && e.PreferExpr && !useFunction {
+		if len(e.Body.Stmts) == 1 && e.PreferExpr {
 			if s, ok := e.Body.Stmts[0].Data.(*js_ast.SReturn); ok && s.Value != nil {
 				p.arrowExprStart = len(p.js)
 				p.printExpr(*s.Value, js_ast.LComma, 0)

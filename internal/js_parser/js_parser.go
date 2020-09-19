@@ -220,6 +220,7 @@ type fnOrArrowDataParse struct {
 type fnOrArrowDataVisit struct {
 	superIndexRef *js_ast.Ref
 
+	isArrow        bool
 	isAsync        bool
 	isInsideLoop   bool
 	isInsideSwitch bool
@@ -1610,12 +1611,7 @@ func (p *parser) parseArrowBody(args []js_ast.Arg, data fnOrArrowDataParse) *js_
 		panic(js_lexer.LexerPanic{})
 	}
 
-	if p.lexer.Token == js_lexer.TEqualsGreaterThan {
-		p.markSyntaxFeature(compat.Arrow, p.lexer.Range())
-		p.lexer.Next()
-	} else {
-		p.lexer.Expected(js_lexer.TEqualsGreaterThan)
-	}
+	p.lexer.Expect(js_lexer.TEqualsGreaterThan)
 
 	for _, arg := range args {
 		p.declareBinding(js_ast.SymbolHoisted, arg.Binding, parseStmtOpts{})
@@ -7933,6 +7929,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			return value, exprOut{}
 		}
 
+		// Capture "this" inside arrow functions that will be lowered into normal
+		// function expressions for older language environments
+		if p.fnOrArrowDataVisit.isArrow && p.UnsupportedFeatures.Has(compat.Arrow) && p.fnOnlyDataVisit.isThisNested {
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.captureThis()}}, exprOut{}
+		}
+
 	case *js_ast.EImportMeta:
 		if p.importMetaRef != js_ast.InvalidRef {
 			// Replace "import.meta" with a reference to the symbol
@@ -9036,6 +9038,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EArrow:
 		oldFnOrArrowData := p.fnOrArrowDataVisit
 		p.fnOrArrowDataVisit = fnOrArrowDataVisit{
+			isArrow: true,
 			isAsync: e.IsAsync,
 		}
 
@@ -9070,6 +9073,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		p.fnOnlyDataVisit.isInsideAsyncArrowFn = oldInsideAsyncArrowFn
 		p.fnOrArrowDataVisit = oldFnOrArrowData
+
+		// Convert arrow functions to function expressions when lowering
+		if p.UnsupportedFeatures.Has(compat.Arrow) {
+			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
+				Args:         e.Args,
+				Body:         e.Body,
+				ArgumentsRef: js_ast.InvalidRef,
+				IsAsync:      e.IsAsync,
+				HasRestArg:   e.HasRestArg,
+			}}}, exprOut{}
+		}
 
 	case *js_ast.EFunction:
 		p.visitFn(&e.Fn, expr.Loc)
@@ -9115,10 +9129,12 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 	ref := e.Ref
 
 	// Capture the "arguments" variable if necessary
-	if p.fnOnlyDataVisit.isInsideAsyncArrowFn && p.UnsupportedFeatures.Has(compat.AsyncAwait) &&
-		p.fnOnlyDataVisit.argumentsRef != nil && ref == *p.fnOnlyDataVisit.argumentsRef {
-		ref = p.captureArguments()
-		e.Ref = ref
+	if p.fnOnlyDataVisit.argumentsRef != nil && ref == *p.fnOnlyDataVisit.argumentsRef {
+		isInsideUnsupportedArrow := p.fnOrArrowDataVisit.isArrow && p.UnsupportedFeatures.Has(compat.Arrow)
+		isInsideUnsupportedAsyncArrow := p.fnOnlyDataVisit.isInsideAsyncArrowFn && p.UnsupportedFeatures.Has(compat.AsyncAwait)
+		if isInsideUnsupportedArrow || isInsideUnsupportedAsyncArrow {
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.captureArguments()}}
+		}
 	}
 
 	if p.Mode == config.ModeBundle && assignTarget != js_ast.AssignTargetNone {

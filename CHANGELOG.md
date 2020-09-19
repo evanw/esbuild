@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+* Transform arrow functions to function expressions with `--target=es5` ([#182](https://github.com/evanw/esbuild/issues/182) and [#297](https://github.com/evanw/esbuild/issues/297))
+
+    Arrow functions are now transformed into function expressions when targeting `es5`. For example, this code:
+
+    ```js
+    function foo() {
+      var x = () => [this, arguments]
+      return x()
+    }
+    ```
+
+    is transformed into this code:
+
+    ```js
+    function foo() {
+      var _this = this, _arguments = arguments;
+      var x = function() {
+        return [_this, _arguments];
+      };
+      return x();
+    }
+    ```
+
 * Fix a bug where `module` was incorrectly minified for non-JavaScript loaders
 
     If you pass a non-JavaScript file such as a `.json` file to esbuild, it will by default generate `module.exports = {...}`. However, the `module` variable would incorrectly be minified when `--minify` is present. This issue has been fixed. This bug did not appear if `--format=cjs` was also present, only if no `--format` flag was specified.

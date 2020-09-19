@@ -71,9 +71,6 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r logger.Range) (didG
 	case compat.Let:
 		name = "let"
 
-	case compat.Arrow:
-		name = "arrow functions"
-
 	case compat.Class:
 		name = "class syntax"
 

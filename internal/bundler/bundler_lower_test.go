@@ -900,9 +900,7 @@ func TestLowerAsyncES5(t *testing.T) {
 			AbsOutputFile:       "/out.js",
 		},
 		expectedScanLog: `/arrow-1.js: error: Transforming async functions to the configured target environment is not supported yet
-/arrow-1.js: error: Transforming arrow functions to the configured target environment is not supported yet
 /arrow-2.js: error: Transforming async functions to the configured target environment is not supported yet
-/arrow-2.js: error: Transforming arrow functions to the configured target environment is not supported yet
 /export-def-1.js: error: Transforming async functions to the configured target environment is not supported yet
 /export-def-2.js: error: Transforming async functions to the configured target environment is not supported yet
 /fn-expr.js: error: Transforming async functions to the configured target environment is not supported yet
