@@ -3353,7 +3353,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 		default:
 			// Handle the TypeScript "as" operator
-			if p.TS.Parse && p.lexer.IsContextualKeyword("as") {
+			if p.TS.Parse && !p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
 				continue

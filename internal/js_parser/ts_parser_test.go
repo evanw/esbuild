@@ -167,6 +167,15 @@ func TestTSTypes(t *testing.T) {
 
 	expectPrintedTS(t, "let foo: any\n<x>y", "let foo;\ny;\n")
 	expectPrintedTSX(t, "let foo: any\n<x>y</x>", "let foo;\n/* @__PURE__ */ React.createElement(\"x\", null, \"y\");\n")
+	expectParseErrorTS(t, "let foo: (any\n<x>y)", "<stdin>: error: Expected \")\" but found \"<\"\n")
+
+	expectPrintedTS(t, "let foo = bar as (null)", "let foo = bar;\n")
+	expectPrintedTS(t, "let foo = bar\nas (null)", "let foo = bar;\nas(null);\n")
+	expectParseErrorTS(t, "let foo = (bar\nas (null))", "<stdin>: error: Expected \")\" but found \"as\"\n")
+
+	expectPrintedTS(t, "let foo: keyof Object = 'toString'", "let foo = \"toString\";\n")
+	expectPrintedTS(t, "let foo: keyof\nObject = 'toString'", "let foo = \"toString\";\n")
+	expectPrintedTS(t, "let foo: (keyof\nObject) = 'toString'", "let foo = \"toString\";\n")
 
 	expectPrintedTS(t, "type Foo = Array<<T>(x: T) => T>\n x", "x;\n")
 	expectPrintedTSX(t, "<Foo<<T>(x: T) => T>/>", "/* @__PURE__ */ React.createElement(Foo, null);\n")

@@ -33,6 +33,15 @@
     let foo: `${'a' | 'b'}-${'c' | 'd'}` = 'a-c'
     ```
 
+* Allow automatic semicolon insertion before the TypeScript `as` operator
+
+    The following code now correctly parses as two separate statements instead of one statement with a newline in the middle:
+
+    ```ts
+    let foo = bar
+    as (null);
+    ```
+
 * Fix a bug where `module` was incorrectly minified for non-JavaScript loaders
 
     If you pass a non-JavaScript file such as a `.json` file to esbuild, it will by default generate `module.exports = {...}`. However, the `module` variable would incorrectly be minified when `--minify` is present. This issue has been fixed. This bug did not appear if `--format=cjs` was also present, only if no `--format` flag was specified.
