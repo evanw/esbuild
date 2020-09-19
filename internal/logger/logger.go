@@ -180,6 +180,24 @@ func (s *Source) TextForRange(r Range) string {
 	return s.Contents[r.Loc.Start : r.Loc.Start+r.Len]
 }
 
+func (s *Source) RangeOfOperatorBefore(loc Loc, op string) Range {
+	text := s.Contents[:loc.Start]
+	index := strings.LastIndex(text, op)
+	if index >= 0 {
+		return Range{Loc: Loc{Start: int32(index)}, Len: int32(len(op))}
+	}
+	return Range{Loc: loc}
+}
+
+func (s *Source) RangeOfOperatorAfter(loc Loc, op string) Range {
+	text := s.Contents[loc.Start:]
+	index := strings.Index(text, op)
+	if index >= 0 {
+		return Range{Loc: Loc{Start: loc.Start + int32(index)}, Len: int32(len(op))}
+	}
+	return Range{Loc: loc}
+}
+
 func (s *Source) RangeOfString(loc Loc) Range {
 	text := s.Contents[loc.Start:]
 	if len(text) == 0 {

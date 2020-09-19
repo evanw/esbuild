@@ -311,8 +311,7 @@ func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
 			for _, c := range dc.cases {
 				if c.hash == hash {
 					if equals, couldBeIncorrect := duplicateCaseEquals(c.value, expr); equals {
-						index := strings.LastIndex(p.source.Contents[:expr.Loc.Start], "case")
-						r := js_lexer.RangeOfIdentifier(p.source, logger.Loc{Start: int32(index)})
+						r := p.source.RangeOfOperatorBefore(expr.Loc, "case")
 						if couldBeIncorrect {
 							p.log.AddRangeWarning(&p.source, r,
 								"This case clause may never be evaluated because it likely duplicates an earlier case clause")
@@ -1081,6 +1080,7 @@ type deferredErrors struct {
 	// These are errors for expressions
 	invalidExprDefaultValue  logger.Range
 	invalidExprAfterQuestion logger.Range
+	arraySpreadFeature       logger.Range
 
 	// These are errors for destructuring patterns
 	invalidBindingCommaAfterSpread logger.Range
@@ -1092,6 +1092,9 @@ func (from *deferredErrors) mergeInto(to *deferredErrors) {
 	}
 	if from.invalidExprAfterQuestion.Len > 0 {
 		to.invalidExprAfterQuestion = from.invalidExprAfterQuestion
+	}
+	if from.arraySpreadFeature.Len > 0 {
+		to.arraySpreadFeature = from.arraySpreadFeature
 	}
 	if from.invalidBindingCommaAfterSpread.Len > 0 {
 		to.invalidBindingCommaAfterSpread = from.invalidBindingCommaAfterSpread
@@ -1106,6 +1109,10 @@ func (p *parser) logExprErrors(errors *deferredErrors) {
 	if errors.invalidExprAfterQuestion.Len > 0 {
 		r := errors.invalidExprAfterQuestion
 		p.log.AddRangeError(&p.source, r, fmt.Sprintf("Unexpected %q", p.source.Contents[r.Loc.Start:r.Loc.Start+r.Len]))
+	}
+
+	if errors.arraySpreadFeature.Len > 0 {
+		p.markSyntaxFeature(compat.ArraySpread, errors.arraySpreadFeature)
 	}
 }
 
@@ -1778,6 +1785,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 
 		if isSpread {
 			spreadRange = p.lexer.Range()
+			p.markSyntaxFeature(compat.RestArgument, spreadRange)
 			p.lexer.Next()
 		}
 
@@ -1845,10 +1853,13 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 				isSpread = true
 			}
 			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog)
-			if initializer != nil && isSpread {
-				index := strings.LastIndex(p.source.Contents[:initializer.Loc.Start], "=")
-				r := logger.Range{Loc: logger.Loc{Start: int32(index)}, Len: 1}
-				p.log.AddRangeError(&p.source, r, "A rest argument cannot have a default initializer")
+			if initializer != nil {
+				equalsRange := p.source.RangeOfOperatorBefore(initializer.Loc, "=")
+				if isSpread {
+					p.log.AddRangeError(&p.source, equalsRange, "A rest argument cannot have a default initializer")
+				} else {
+					p.markSyntaxFeature(compat.DefaultArgument, equalsRange)
+				}
 			}
 			invalidLog = log
 			args = append(args, js_ast.Arg{Binding: binding, Default: initializer})
@@ -1944,12 +1955,16 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BIdentifier{Ref: e.Ref}}, invalidLog
 
 	case *js_ast.EArray:
+		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "["))
 		items := []js_ast.ArrayBinding{}
 		isSpread := false
 		for _, item := range e.Items {
 			if i, ok := item.Data.(*js_ast.ESpread); ok {
 				isSpread = true
 				item = i.Value
+				if _, ok := item.Data.(*js_ast.EIdentifier); !ok {
+					p.markSyntaxFeature(compat.NestedRestBinding, p.source.RangeOfOperatorAfter(item.Loc, "["))
+				}
 			}
 			binding, initializer, log := p.convertExprToBindingAndInitializer(item, invalidLog)
 			invalidLog = log
@@ -1962,6 +1977,7 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog []logger.Loc)
 		}}, invalidLog
 
 	case *js_ast.EObject:
+		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "{"))
 		properties := []js_ast.PropertyBinding{}
 		for _, item := range e.Properties {
 			if item.IsMethod || item.Kind == js_ast.PropertyGet || item.Kind == js_ast.PropertySet {
@@ -2389,7 +2405,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				items = append(items, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EMissing{}})
 
 			case js_lexer.TDotDotDot:
-				p.markSyntaxFeature(compat.ArraySpread, p.lexer.Range())
+				if errors != nil {
+					errors.arraySpreadFeature = p.lexer.Range()
+				} else {
+					p.markSyntaxFeature(compat.ArraySpread, p.lexer.Range())
+				}
 				dotsLoc := p.lexer.Loc()
 				p.lexer.Next()
 				item := p.parseExprOrBindings(js_ast.LComma, &selfErrors)
@@ -7541,13 +7561,11 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 
 		// "NaN === NaN" is false in JavaScript
 		if math.IsNaN(e.Value) {
-			index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
-			r := logger.Range{Loc: logger.Loc{Start: int32(index)}, Len: int32(len(op))}
 			text := fmt.Sprintf("Comparison with NaN using the %s operator here is always %v", op, op[0] == '!')
 			if op == "case" {
 				text = "This case clause will never be evaluated because equality with NaN is always false"
 			}
-			p.log.AddRangeWarning(&p.source, r, text)
+			p.log.AddRangeWarning(&p.source, p.source.RangeOfOperatorBefore(afterOpLoc, op), text)
 			return true
 		}
 
@@ -7557,13 +7575,11 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 		// cause string conversions. For example, "x == []" is true if x is the
 		// empty string.
 		if len(op) > 2 {
-			index := strings.LastIndex(p.source.Contents[:afterOpLoc.Start], op)
-			r := logger.Range{Loc: logger.Loc{Start: int32(index)}, Len: int32(len(op))}
 			text := fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!')
 			if op == "case" {
 				text = "This case clause will never be evaluated because the comparison is always false"
 			}
-			p.log.AddRangeWarning(&p.source, r, text)
+			p.log.AddRangeWarning(&p.source, p.source.RangeOfOperatorBefore(afterOpLoc, op), text)
 			return true
 		}
 	}

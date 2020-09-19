@@ -3164,9 +3164,13 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming default arguments to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "(function(x = 0) {})",
 		"<stdin>: error: Transforming default arguments to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(x = 0) => {}",
+		"<stdin>: error: Transforming default arguments to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "function foo(...x) {}",
 		"<stdin>: error: Transforming rest arguments to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "(function(...x) {})",
+		"<stdin>: error: Transforming rest arguments to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(...x) => {}",
 		"<stdin>: error: Transforming rest arguments to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "foo(...x)",
 		"<stdin>: error: Transforming rest arguments to the configured target environment is not supported yet\n")
@@ -3189,6 +3193,14 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "function foo({}) {}",
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(function([]) {})",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(function({}) {})",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "([]) => {}",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "({}) => {}",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "var [] = [];",
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "var {} = {};",
@@ -3201,6 +3213,29 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "for ({} in []);",
 		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "function foo([...x]) {}",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "(function([...x]) {})",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "([...x]) => {}",
+		"<stdin>: error: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "function foo([...[x]]) {}",
+		`<stdin>: error: Transforming destructuring to the configured target environment is not supported yet
+<stdin>: error: Transforming destructuring to the configured target environment is not supported yet
+<stdin>: error: Transforming non-identifier array rest patterns to the configured target environment is not supported yet
+`)
+	expectParseErrorTarget(t, 5, "(function([...[x]]) {})",
+		`<stdin>: error: Transforming destructuring to the configured target environment is not supported yet
+<stdin>: error: Transforming destructuring to the configured target environment is not supported yet
+<stdin>: error: Transforming non-identifier array rest patterns to the configured target environment is not supported yet
+`)
+	expectParseErrorTarget(t, 5, "([...[x]]) => {}",
+		`<stdin>: error: Transforming destructuring to the configured target environment is not supported yet
+<stdin>: error: Transforming destructuring to the configured target environment is not supported yet
+<stdin>: error: Transforming non-identifier array rest patterns to the configured target environment is not supported yet
+`)
+	expectParseErrorTarget(t, 5, "([...[x]])",
+		"<stdin>: error: Transforming array spread to the configured target environment is not supported yet\n")
 	expectPrintedTarget(t, 5, "`abc`;", "\"abc\";\n")
 	expectPrintedTarget(t, 5, "`a${b}`;", "\"a\" + b;\n")
 	expectPrintedTarget(t, 5, "`${a}b`;", "a + \"b\";\n")
