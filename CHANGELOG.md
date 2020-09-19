@@ -58,6 +58,10 @@
 
     This release contains correctness fixes for `async` arrow functions with regard to the `arguments` variable. This affected `async` arrow functions nested inside `function` expressions or statements. Part of this fix was contributed by [@rtsao](https://github.com/rtsao).
 
+* Fix `export` clause when converting to CommonJS in transform API calls ([#393](https://github.com/evanw/esbuild/issues/393))
+
+    This release fixes some bugs with the recently-released feature in version 0.6.32 where you can specify an output format even when bundling is disabled. This is the case when using the transform API call, for example. Previously esbuild could generate code that crashed at run time while trying to export something incorrectly. This only affected code with top-level `export` statements. This has been fixed and these cases now have test coverage.
+
 ## 0.7.1
 
 * Fix bug that forbids `undefined` values in the JavaScript API

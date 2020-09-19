@@ -2343,7 +2343,7 @@ func TestReExportDefaultInternal(t *testing.T) {
 	})
 }
 
-func TestReExportDefaultExternal(t *testing.T) {
+func TestReExportDefaultExternalES6(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2358,6 +2358,33 @@ func TestReExportDefaultExternal(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"foo": true,
+					"bar": true,
+				},
+			},
+		},
+	})
+}
+
+func TestReExportDefaultExternalCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {default as foo} from 'foo'
+				export {bar} from './bar'
+			`,
+			"/bar.js": `
+				export {default as bar} from 'bar'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatCommonJS,
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
 					"foo": true,
@@ -2378,6 +2405,40 @@ func TestReExportDefaultNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestReExportDefaultNoBundleES6(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {default as foo} from './foo'
+				export {default as bar} from './bar'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestReExportDefaultNoBundleCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export {default as foo} from './foo'
+				export {default as bar} from './bar'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 		},
 	})

@@ -1698,8 +1698,8 @@ func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited ma
 		// This file is CommonJS if the exported imports are from a file that is
 		// either CommonJS directly or transitively by itself having an export star
 		// from a CommonJS file.
-		if record.SourceIndex == nil || (*record.SourceIndex != sourceIndex &&
-			c.isCommonJSDueToExportStar(*record.SourceIndex, visited)) {
+		if (record.SourceIndex == nil && (!file.isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
+			(record.SourceIndex != nil && *record.SourceIndex != sourceIndex && c.isCommonJSDueToExportStar(*record.SourceIndex, visited)) {
 			file.meta.cjsStyleExports = true
 			return true
 		}
@@ -2176,8 +2176,9 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		record := &file.ast.ImportRecords[importRecordIndex]
 
 		// Is this export star evaluated at run time?
-		if record.SourceIndex == nil || (*record.SourceIndex != sourceIndex && c.files[*record.SourceIndex].meta.cjsStyleExports) {
-			record.IsExportStarRunTimeEval = true
+		if (record.SourceIndex == nil && (!file.isEntryPoint || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
+			(record.SourceIndex != nil && *record.SourceIndex != sourceIndex && c.files[*record.SourceIndex].meta.cjsStyleExports) {
+			record.CallsRunTimeExportStarFn = true
 			file.ast.UsesExportsRef = true
 			exportStarUses++
 		}
@@ -2397,7 +2398,8 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 
 func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtList, partStmts []js_ast.Stmt) {
 	shouldStripExports := c.options.Mode != config.ModePassThrough || sourceIndex == runtime.SourceIndex
-	shouldExtractES6StmtsForCJSWrap := c.files[sourceIndex].meta.cjsWrap
+	file := &c.files[sourceIndex]
+	shouldExtractES6StmtsForCJSWrap := file.meta.cjsWrap
 
 	for _, stmt := range partStmts {
 		switch s := stmt.Data.(type) {
@@ -2418,37 +2420,39 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			if s.Alias == nil {
 				// "export * from 'path'"
 				if shouldStripExports {
-					record := &c.files[sourceIndex].ast.ImportRecords[s.ImportRecordIndex]
+					record := &file.ast.ImportRecords[s.ImportRecordIndex]
 
 					// Is this export star evaluated at run time?
 					if record.SourceIndex == nil && c.options.OutputFormat.KeepES6ImportExportSyntax() {
-						// Turn this statement into "import * as ns from 'path'"
-						stmt.Data = &js_ast.SImport{
-							NamespaceRef:      s.NamespaceRef,
-							StarNameLoc:       &stmt.Loc,
-							ImportRecordIndex: s.ImportRecordIndex,
-						}
+						if record.CallsRunTimeExportStarFn {
+							// Turn this statement into "import * as ns from 'path'"
+							stmt.Data = &js_ast.SImport{
+								NamespaceRef:      s.NamespaceRef,
+								StarNameLoc:       &stmt.Loc,
+								ImportRecordIndex: s.ImportRecordIndex,
+							}
 
-						// Prefix this module with "__exportStar(exports, ns)"
-						exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"].Ref
-						stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
-							Loc: stmt.Loc,
-							Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
-								Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
-								Args: []js_ast.Expr{
-									{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: c.files[sourceIndex].ast.ExportsRef}},
-									{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: s.NamespaceRef}},
-								},
-							}}},
-						})
+							// Prefix this module with "__exportStar(exports, ns)"
+							exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"].Ref
+							stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
+								Loc: stmt.Loc,
+								Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
+									Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
+									Args: []js_ast.Expr{
+										{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: file.ast.ExportsRef}},
+										{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: s.NamespaceRef}},
+									},
+								}}},
+							})
 
-						// Make sure these don't end up in a CommonJS wrapper
-						if shouldExtractES6StmtsForCJSWrap {
-							stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
-							continue
+							// Make sure these don't end up in a CommonJS wrapper
+							if shouldExtractES6StmtsForCJSWrap {
+								stmtList.es6StmtsForCJSWrap = append(stmtList.es6StmtsForCJSWrap, stmt)
+								continue
+							}
 						}
 					} else {
-						if record.IsExportStarRunTimeEval {
+						if record.CallsRunTimeExportStarFn {
 							// Prefix this module with "__exportStar(exports, require(path))"
 							exportStarRef := c.files[runtime.SourceIndex].ast.ModuleScope.Members["__exportStar"].Ref
 							stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{

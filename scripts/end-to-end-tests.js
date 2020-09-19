@@ -204,6 +204,48 @@
       'foo.js': `export default 123`,
       'node.js': `import out from './out.js'; if (out !== 123) throw 'fail'`,
     }),
+
+    // External package
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--external:fs'], {
+      'foo.js': `import {exists} from "fs"; export {exists}`,
+      'node.js': `const out = require('./out'); if (!out.__esModule || out.exists !== require('fs').exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm', '--external:fs'], {
+      'foo.js': `import {exists} from "fs"; export {exists}`,
+      'node.js': `import {exists} from "./out.js"; import * as fs from "fs"; if (exists !== fs.exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--external:fs'], {
+      'foo.js': `import * as fs from "fs"; export let exists = fs.exists`,
+      'node.js': `const out = require('./out'); if (!out.__esModule || out.exists !== require('fs').exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm', '--external:fs'], {
+      'foo.js': `import * as fs from "fs"; export let exists = fs.exists`,
+      'node.js': `import {exists} from "./out.js"; import * as fs from "fs"; if (exists !== fs.exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--external:fs'], {
+      'foo.js': `export {exists} from "fs"`,
+      'node.js': `const out = require('./out'); if (!out.__esModule || out.exists !== require('fs').exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm', '--external:fs'], {
+      'foo.js': `export {exists} from "fs"`,
+      'node.js': `import {exists} from "./out.js"; import * as fs from "fs"; if (exists !== fs.exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--external:fs'], {
+      'foo.js': `export * from "fs"`,
+      'node.js': `const out = require('./out'); if (!out.__esModule || out.exists !== require('fs').exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm', '--external:fs'], {
+      'foo.js': `export * from "fs"`,
+      'node.js': `import {exists} from "./out.js"; import * as fs from "fs"; if (exists !== fs.exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--external:fs'], {
+      'foo.js': `export * as star from "fs"`,
+      'node.js': `const out = require('./out'); if (!out.__esModule || out.star.exists !== require('fs').exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm', '--external:fs'], {
+      'foo.js': `export * as star from "fs"`,
+      'node.js': `import {star} from "./out.js"; import * as fs from "fs"; if (star.exists !== fs.exists) throw 'fail'`,
+    }),
   )
 
   // ES6 export star of CommonJS module

@@ -7587,48 +7587,48 @@ func (p *parser) maybeRewritePropertyAccess(
 		// This lets us replace them easily in the printer to rebind them to
 		// something else without paying the cost of a whole-tree traversal during
 		// module linking just to rewrite these EDot expressions.
-		if importItems, ok := p.importItemsForNamespace[id.Ref]; ok {
-			// Cache translation so each property access resolves to the same import
-			item, ok := importItems[name]
-			if !ok {
-				// Generate a new import item symbol in the module scope
-				item = js_ast.LocRef{Loc: nameLoc, Ref: p.newSymbol(js_ast.SymbolImport, name)}
-				p.moduleScope.Generated = append(p.moduleScope.Generated, item.Ref)
+		if p.Mode == config.ModeBundle {
+			if importItems, ok := p.importItemsForNamespace[id.Ref]; ok {
+				// Cache translation so each property access resolves to the same import
+				item, ok := importItems[name]
+				if !ok {
+					// Generate a new import item symbol in the module scope
+					item = js_ast.LocRef{Loc: nameLoc, Ref: p.newSymbol(js_ast.SymbolImport, name)}
+					p.moduleScope.Generated = append(p.moduleScope.Generated, item.Ref)
 
-				// Link the namespace import and the import item together
-				importItems[name] = item
-				p.isImportItem[item.Ref] = true
+					// Link the namespace import and the import item together
+					importItems[name] = item
+					p.isImportItem[item.Ref] = true
 
-				symbol := &p.symbols[item.Ref.InnerIndex]
-				if p.Mode == config.ModePassThrough {
-					// Make sure the printer prints this as a property access
-					symbol.NamespaceAlias = &js_ast.NamespaceAlias{
-						NamespaceRef: id.Ref,
-						Alias:        name,
+					symbol := &p.symbols[item.Ref.InnerIndex]
+					if p.Mode == config.ModePassThrough {
+						// Make sure the printer prints this as a property access
+						symbol.NamespaceAlias = &js_ast.NamespaceAlias{
+							NamespaceRef: id.Ref,
+							Alias:        name,
+						}
+					} else {
+						// Mark this as generated in case it's missing. We don't want to
+						// generate errors for missing import items that are automatically
+						// generated.
+						symbol.ImportItemStatus = js_ast.ImportItemGenerated
 					}
-				} else {
-					// Mark this as generated in case it's missing. We don't want to
-					// generate errors for missing import items that are automatically
-					// generated.
-					symbol.ImportItemStatus = js_ast.ImportItemGenerated
 				}
-			}
 
-			// Undo the usage count for the namespace itself. This is used later
-			// to detect whether the namespace symbol has ever been "captured"
-			// or whether it has just been used to read properties off of.
-			//
-			// The benefit of doing this is that if both this module and the
-			// imported module end up in the same module group and the namespace
-			// symbol has never been captured, then we don't need to generate
-			// any code for the namespace at all.
-			if p.Mode != config.ModePassThrough {
+				// Undo the usage count for the namespace itself. This is used later
+				// to detect whether the namespace symbol has ever been "captured"
+				// or whether it has just been used to read properties off of.
+				//
+				// The benefit of doing this is that if both this module and the
+				// imported module end up in the same module group and the namespace
+				// symbol has never been captured, then we don't need to generate
+				// any code for the namespace at all.
 				p.ignoreUsage(id.Ref)
-			}
 
-			// Track how many times we've referenced this symbol
-			p.recordUsage(item.Ref)
-			return p.handleIdentifier(nameLoc, assignTarget, &js_ast.EIdentifier{Ref: item.Ref}), true
+				// Track how many times we've referenced this symbol
+				p.recordUsage(item.Ref)
+				return p.handleIdentifier(nameLoc, assignTarget, &js_ast.EIdentifier{Ref: item.Ref}), true
+			}
 		}
 
 		// If this is a known enum value, inline the value of the enum
@@ -9415,39 +9415,33 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 		case *js_ast.SExportStar:
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
-			// Only track import paths if we want dependencies
-			if p.Mode == config.ModeBundle {
-				if s.Alias != nil {
-					// "export * as ns from 'path'"
-					p.namedImports[s.NamespaceRef] = js_ast.NamedImport{
-						Alias:             "*",
-						AliasLoc:          s.Alias.Loc,
-						NamespaceRef:      js_ast.InvalidRef,
-						ImportRecordIndex: s.ImportRecordIndex,
-						IsExported:        true,
-					}
-				} else {
-					// "export * from 'path'"
-					p.exportStarImportRecords = append(p.exportStarImportRecords, s.ImportRecordIndex)
+			if s.Alias != nil {
+				// "export * as ns from 'path'"
+				p.namedImports[s.NamespaceRef] = js_ast.NamedImport{
+					Alias:             "*",
+					AliasLoc:          s.Alias.Loc,
+					NamespaceRef:      js_ast.InvalidRef,
+					ImportRecordIndex: s.ImportRecordIndex,
+					IsExported:        true,
 				}
+			} else {
+				// "export * from 'path'"
+				p.exportStarImportRecords = append(p.exportStarImportRecords, s.ImportRecordIndex)
 			}
 
 		case *js_ast.SExportFrom:
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
-			// Only track import paths if we want dependencies
-			if p.Mode == config.ModeBundle {
-				for _, item := range s.Items {
-					// Note that the imported alias is not item.Alias, which is the
-					// exported alias. This is somewhat confusing because each
-					// SExportFrom statement is basically SImport + SExportClause in one.
-					p.namedImports[item.Name.Ref] = js_ast.NamedImport{
-						Alias:             p.symbols[item.Name.Ref.InnerIndex].OriginalName,
-						AliasLoc:          item.Name.Loc,
-						NamespaceRef:      s.NamespaceRef,
-						ImportRecordIndex: s.ImportRecordIndex,
-						IsExported:        true,
-					}
+			for _, item := range s.Items {
+				// Note that the imported alias is not item.Alias, which is the
+				// exported alias. This is somewhat confusing because each
+				// SExportFrom statement is basically SImport + SExportClause in one.
+				p.namedImports[item.Name.Ref] = js_ast.NamedImport{
+					Alias:             p.symbols[item.Name.Ref.InnerIndex].OriginalName,
+					AliasLoc:          item.Name.Loc,
+					NamespaceRef:      s.NamespaceRef,
+					ImportRecordIndex: s.ImportRecordIndex,
+					IsExported:        true,
 				}
 			}
 		}

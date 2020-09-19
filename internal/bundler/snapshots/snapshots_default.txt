@@ -549,11 +549,7 @@ __exportStar(exports, __toModule(require("fs")));
 TestExportWildcardFSNodeES6
 ---------- /out.js ----------
 // /entry.js
-import * as fs_star from "fs";
-var require_entry = __commonJS((exports) => {
-  __exportStar(exports, fs_star);
-});
-export default require_entry();
+export * from "fs";
 
 ================================================================================
 TestExportsAndModuleFormatCommonJS
@@ -1330,7 +1326,20 @@ const bar = __toModule(require_bar());
 bar.default();
 
 ================================================================================
-TestReExportDefaultExternal
+TestReExportDefaultExternalCommonJS
+---------- /out.js ----------
+// /bar.js
+const bar = __toModule(require("bar"));
+
+// /entry.js
+__export(exports, {
+  bar: () => bar.default,
+  foo: () => foo.default
+});
+const foo = __toModule(require("foo"));
+
+================================================================================
+TestReExportDefaultExternalES6
 ---------- /out.js ----------
 // /bar.js
 import {default as default2} from "bar";
@@ -1362,6 +1371,26 @@ TestReExportDefaultNoBundle
 ---------- /out.js ----------
 export {default as foo} from "./foo";
 export {default as bar} from "./bar";
+
+================================================================================
+TestReExportDefaultNoBundleCommonJS
+---------- /out.js ----------
+__export(exports, {
+  bar: () => bar.default,
+  foo: () => foo.default
+});
+const foo = __toModule(require("./foo"));
+const bar = __toModule(require("./bar"));
+
+================================================================================
+TestReExportDefaultNoBundleES6
+---------- /out.js ----------
+import {default as default2} from "./foo";
+import {default as default3} from "./bar";
+export {
+  default3 as bar,
+  default2 as foo
+};
 
 ================================================================================
 TestReExportFSNode

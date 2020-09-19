@@ -504,6 +504,90 @@ let transformTests = {
     assert.strictEqual(js, `export const foo = 123;\n`)
   },
 
+  async es6_import_to_iife({ service }) {
+    const { js } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'iife' })
+    new Function('require', js)(require)
+  },
+
+  async es6_import_star_to_iife({ service }) {
+    const { js } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'iife' })
+    new Function('require', js)(require)
+  },
+
+  async es6_export_to_iife({ service }) {
+    const { js } = await service.transform(`export {exists} from "fs"`, { format: 'iife', globalName: 'out' })
+    const out = new Function('require', js + ';return out')(require)
+    if (out.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_export_star_to_iife({ service }) {
+    const { js } = await service.transform(`export * from "fs"`, { format: 'iife', globalName: 'out' })
+    const out = new Function('require', js + ';return out')(require)
+    if (out.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_export_star_as_to_iife({ service }) {
+    const { js } = await service.transform(`export * as fs from "fs"`, { format: 'iife', globalName: 'out' })
+    const out = new Function('require', js + ';return out')(require)
+    if (out.fs.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_import_to_cjs({ service }) {
+    const { js } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'cjs' })
+    new Function('require', js)(require)
+  },
+
+  async es6_import_star_to_cjs({ service }) {
+    const { js } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'cjs' })
+    new Function('require', js)(require)
+  },
+
+  async es6_export_to_cjs({ service }) {
+    const { js } = await service.transform(`export {exists} from "fs"`, { format: 'cjs' })
+    const exports = {}
+    new Function('require', 'exports', js)(require, exports)
+    if (exports.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_export_star_to_cjs({ service }) {
+    const { js } = await service.transform(`export * from "fs"`, { format: 'cjs' })
+    const exports = {}
+    new Function('require', 'exports', js)(require, exports)
+    if (exports.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_export_star_as_to_cjs({ service }) {
+    const { js } = await service.transform(`export * as fs from "fs"`, { format: 'cjs' })
+    const exports = {}
+    new Function('require', 'exports', js)(require, exports)
+    if (exports.fs.exists !== fs.exists) throw 'fail'
+  },
+
+  async es6_import_to_esm({ service }) {
+    const { js } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'esm' })
+    assert.strictEqual(js, `import {exists} from "fs";\nif (!exists)\n  throw "fail";\n`)
+  },
+
+  async es6_import_star_to_esm({ service }) {
+    const { js } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'esm' })
+    assert.strictEqual(js, `import * as fs from "fs";\nif (!fs.exists)\n  throw "fail";\n`)
+  },
+
+  async es6_export_to_esm({ service }) {
+    const { js } = await service.transform(`export {exists} from "fs"`, { format: 'esm' })
+    assert.strictEqual(js, `import {exists} from "fs";\nexport {\n  exists\n};\n`)
+  },
+
+  async es6_export_star_to_esm({ service }) {
+    const { js } = await service.transform(`export * from "fs"`, { format: 'esm' })
+    assert.strictEqual(js, `export * from "fs";\n`)
+  },
+
+  async es6_export_star_as_to_esm({ service }) {
+    const { js } = await service.transform(`export * as fs from "fs"`, { format: 'esm' })
+    assert.strictEqual(js, `import * as fs from "fs";\nexport {\n  fs\n};\n`)
+  },
+
   async jsx({ service }) {
     const { js } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
     assert.strictEqual(js, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)

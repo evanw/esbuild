@@ -690,3 +690,107 @@ export {
   foo,
   foo_exports as ns
 };
+
+================================================================================
+TestReExportStarAsCommonJSNoBundle
+---------- /out.js ----------
+__export(exports, {
+  out: () => out
+});
+const out = __toModule(require("foo"));
+
+================================================================================
+TestReExportStarAsES6NoBundle
+---------- /out.js ----------
+import * as out from "foo";
+export {
+  out
+};
+
+================================================================================
+TestReExportStarAsExternalCommonJS
+---------- /out.js ----------
+// /entry.js
+__export(exports, {
+  out: () => out
+});
+const out = __toModule(require("foo"));
+
+================================================================================
+TestReExportStarAsExternalES6
+---------- /out.js ----------
+// /entry.js
+import * as out from "foo";
+export {
+  out
+};
+
+================================================================================
+TestReExportStarAsExternalIIFE
+---------- /out.js ----------
+var mod = (() => {
+  // /entry.js
+  var require_entry = __commonJS((exports) => {
+    __export(exports, {
+      out: () => out
+    });
+    const out = __toModule(require("foo"));
+  });
+  return require_entry();
+})();
+
+================================================================================
+TestReExportStarAsIIFENoBundle
+---------- /out.js ----------
+var mod = (() => {
+  var require_entry = __commonJS((exports) => {
+    __export(exports, {
+      out: () => out
+    });
+    const out = __toModule(require("foo"));
+  });
+  return require_entry();
+})();
+
+================================================================================
+TestReExportStarCommonJSNoBundle
+---------- /out.js ----------
+__exportStar(exports, __toModule(require("foo")));
+
+================================================================================
+TestReExportStarES6NoBundle
+---------- /out.js ----------
+export * from "foo";
+
+================================================================================
+TestReExportStarExternalCommonJS
+---------- /out.js ----------
+// /entry.js
+__exportStar(exports, __toModule(require("foo")));
+
+================================================================================
+TestReExportStarExternalES6
+---------- /out.js ----------
+// /entry.js
+export * from "foo";
+
+================================================================================
+TestReExportStarExternalIIFE
+---------- /out.js ----------
+var mod = (() => {
+  // /entry.js
+  var require_entry = __commonJS((exports) => {
+    __exportStar(exports, __toModule(require("foo")));
+  });
+  return require_entry();
+})();
+
+================================================================================
+TestReExportStarIIFENoBundle
+---------- /out.js ----------
+var mod = (() => {
+  var require_entry = __commonJS((exports) => {
+    __exportStar(exports, __toModule(require("foo")));
+  });
+  return require_entry();
+})();
