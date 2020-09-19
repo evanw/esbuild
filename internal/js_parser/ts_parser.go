@@ -397,9 +397,17 @@ func (p *parser) skipTypeScriptObjectType() {
 
 			// "{ [key: string]: number }"
 			// "{ readonly [K in keyof T]: T[K] }"
-			if p.lexer.Token == js_lexer.TColon || p.lexer.Token == js_lexer.TIn {
+			if p.lexer.Token == js_lexer.TColon {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
+			} else if p.lexer.Token == js_lexer.TIn {
+				p.lexer.Next()
+				p.skipTypeScriptType(js_ast.LLowest)
+				if p.lexer.IsContextualKeyword("as") {
+					// "{ [K in keyof T as `get-${K}`]: T[K] }"
+					p.lexer.Next()
+					p.skipTypeScriptType(js_ast.LLowest)
+				}
 			}
 
 			p.lexer.Expect(js_lexer.TCloseBracket)

@@ -33,6 +33,14 @@
     let foo: `${'a' | 'b'}-${'c' | 'd'}` = 'a-c'
     ```
 
+* Parse key remapping in mapped types from TypeScript 4.1
+
+    TypeScript 4.1 includes a new feature called key remapping in mapped types. You can read [the announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-4-1-beta/#key-remapping-mapped-types) for more details. The following syntax can now be parsed correctly by esbuild:
+
+    ```ts
+    type RemoveField<T, F> = { [K in keyof T as Exclude<K, F>]: T[K] }
+    ```
+
 * Allow automatic semicolon insertion before the TypeScript `as` operator
 
     The following code now correctly parses as two separate statements instead of one statement with a newline in the middle:
