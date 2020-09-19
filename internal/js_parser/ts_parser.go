@@ -269,6 +269,18 @@ func (p *parser) skipTypeScriptTypePrefix() {
 	case js_lexer.TOpenBrace:
 		p.skipTypeScriptObjectType()
 
+	case js_lexer.TTemplateHead:
+		// "`${'a' | 'b'}-${'c' | 'd'}`"
+		for {
+			p.lexer.Next()
+			p.skipTypeScriptType(js_ast.LLowest)
+			p.lexer.RescanCloseBraceAsTemplateToken()
+			if p.lexer.Token == js_lexer.TTemplateTail {
+				p.lexer.Next()
+				break
+			}
+		}
+
 	default:
 		p.lexer.Unexpected()
 	}

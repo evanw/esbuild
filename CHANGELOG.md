@@ -25,6 +25,14 @@
     }
     ```
 
+* Parse template literal types from TypeScript 4.1
+
+    TypeScript 4.1 includes a new feature called template literal types. You can read [the announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-4-1-beta/#template-literal-types) for more details. The following syntax can now be parsed correctly by esbuild:
+
+    ```ts
+    let foo: `${'a' | 'b'}-${'c' | 'd'}` = 'a-c'
+    ```
+
 * Fix a bug where `module` was incorrectly minified for non-JavaScript loaders
 
     If you pass a non-JavaScript file such as a `.json` file to esbuild, it will by default generate `module.exports = {...}`. However, the `module` variable would incorrectly be minified when `--minify` is present. This issue has been fixed. This bug did not appear if `--format=cjs` was also present, only if no `--format` flag was specified.
