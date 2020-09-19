@@ -167,7 +167,7 @@ type fileMeta struct {
 	// This includes both named exports and re-exports.
 	//
 	// Named exports come from explicit export statements in the original file,
-	// and are copied from the "NamedExports" field in the js_AST.
+	// and are copied from the "NamedExports" field in the AST.
 	//
 	// Re-exports come from other files and are the result of resolving export
 	// star statements (i.e. "export * from 'foo'").
@@ -910,7 +910,7 @@ func (c *linkerContext) scanImportsAndExports() {
 					continue
 				}
 
-				// Make sure the js_printer can require() CommonJS modules
+				// Make sure the printer can require() CommonJS modules
 				otherFile := &c.files[*record.SourceIndex]
 				record.WrapperRef = otherFile.ast.WrapperRef
 

@@ -295,7 +295,7 @@ func parseFile(args parseArgs) {
 					continue
 				}
 
-				// Ignore records that the js_parser has discarded. This is used to remove
+				// Ignore records that the parser has discarded. This is used to remove
 				// type-only imports in TypeScript files.
 				if record.IsUnused {
 					continue

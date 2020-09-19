@@ -95,7 +95,7 @@ type parser struct {
 	// Then, when the second pass calls pushScopeForVisitPass() and popScope(),
 	// we consume entries from scopesInOrder and make sure they are in the same
 	// order. This way the second pass can efficiently use the same scope tree
-	// as the first pass without having to attach the scope tree to the js_AST.
+	// as the first pass without having to attach the scope tree to the AST.
 	//
 	// We need to split this into two passes because the pass that declares the
 	// symbols must be separate from the pass that binds identifiers to declared
@@ -9971,7 +9971,7 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		stmts = append(append(make([]js_ast.Stmt, 0, len(stmts)+1), importMetaStmt), stmts...)
 	}
 
-	// Bind symbols in a second pass over the js_AST. I started off doing this in a
+	// Bind symbols in a second pass over the AST. I started off doing this in a
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
