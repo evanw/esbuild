@@ -591,6 +591,12 @@ func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
 	if width < 1 {
 		width = 80
 	}
+	if loc.Column == endOfFirstLine {
+		// If the marker is at the very end of the line, the marker will be a "^"
+		// character that extends one column past the end of the line. In this case
+		// we should reserve a column at the end so the marker doesn't wrap.
+		width -= 1
+	}
 	if len(lineText) > width {
 		// Try to center the error
 		sliceStart := (markerStart + markerEnd - width) / 2
