@@ -4,8 +4,8 @@ package logger
 
 import (
 	"os"
-	"unsafe"
 	"syscall"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
