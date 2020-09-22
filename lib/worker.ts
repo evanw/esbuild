@@ -1,4 +1,7 @@
 // This file is part of the web worker source code
+
+declare const ESBUILD_VERSION: string;
+
 onmessage = ({ data: wasm }) => {
   let decoder = new TextDecoder()
   let fs = (global as any).fs
@@ -54,7 +57,7 @@ onmessage = ({ data: wasm }) => {
   }
 
   let go = new (global as any).Go()
-  go.argv = ['', '--service']
+  go.argv = ['', `--service=${ESBUILD_VERSION}`]
 
   WebAssembly.instantiate(wasm, go.importObject)
     .then(({ instance }) => go.run(instance))

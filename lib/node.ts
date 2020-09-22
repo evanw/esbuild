@@ -3,14 +3,15 @@ import * as common from "./common";
 import * as child_process from "child_process";
 import * as crypto from "crypto";
 import * as path from "path";
-import * as util from "util";
 import * as fs from "fs";
 import * as os from "os";
 import { isatty } from "tty";
 
+declare const ESBUILD_VERSION: string;
+
 // This file is used for both the "esbuild" package and the "esbuild-wasm"
 // package. "WASM" will be true for "esbuild-wasm" and false for "esbuild".
-declare let WASM: boolean;
+declare const WASM: boolean;
 
 let esbuildCommandAndArgs = (): [string, string[]] => {
   if (WASM) {
@@ -89,7 +90,7 @@ let startService: typeof types.startService = options => {
     if (options.worker) throw new Error(`The "worker" option only works in the browser`)
   }
   let [command, args] = esbuildCommandAndArgs();
-  let child = child_process.spawn(command, args.concat('--service'), {
+  let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`), {
     cwd: process.cwd(),
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -149,7 +150,7 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
     },
   });
   callback(service);
-  let stdout = child_process.execFileSync(command, args.concat('--service'), {
+  let stdout = child_process.execFileSync(command, args.concat(`--service=${ESBUILD_VERSION}`), {
     cwd: process.cwd(),
     windowsHide: true,
     input: stdin,

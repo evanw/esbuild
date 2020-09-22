@@ -99,7 +99,7 @@ func main() {
 
 		// Special-case the version flag here
 		case arg == "--version":
-			fmt.Fprintf(os.Stderr, "%s\n", esbuildVersion)
+			fmt.Printf("%s\n", esbuildVersion)
 			os.Exit(0)
 
 		case strings.HasPrefix(arg, "--heap="):
@@ -113,8 +113,23 @@ func main() {
 
 		// This flag turns the process into a long-running service that uses
 		// message passing with the host process over stdin/stdout
-		case arg == "--service":
+		case strings.HasPrefix(arg, "--service="):
+			hostVersion := arg[len("--service="):]
 			isRunningService = true
+
+			// Validate the host's version number to make sure esbuild was installed
+			// correctly. This check was added because some people have reported
+			// errors that appear to indicate an incorrect installation.
+			if hostVersion != esbuildVersion {
+				logger.PrintErrorToStderr(osArgs,
+					fmt.Sprintf("Cannot start service: Host version %q does not match binary version %q",
+						hostVersion, esbuildVersion))
+				os.Exit(1)
+			}
+
+		case arg == "--service":
+			logger.PrintErrorToStderr(osArgs, "Cannot start service: No version number from host")
+			os.Exit(1)
 
 		default:
 			// Strip any arguments that were handled above

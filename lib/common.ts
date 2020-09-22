@@ -1,6 +1,8 @@
 import * as types from "./types";
 import * as protocol from "./stdio_protocol";
 
+declare const ESBUILD_VERSION: string;
+
 function validateTarget(target: string): string {
   target += ''
   if (target.indexOf(',') >= 0) throw new Error(`Invalid target: ${target}`)
@@ -297,7 +299,23 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
+  let isFirstPacket = true;
+
   let handleIncomingPacket = (bytes: Uint8Array): void => {
+    // The first packet is a version check
+    if (isFirstPacket) {
+      isFirstPacket = false;
+
+      // Validate the binary's version number to make sure esbuild was installed
+      // correctly. This check was added because some people have reported
+      // errors that appear to indicate an incorrect installation.
+      let binaryVersion = String.fromCharCode(...bytes);
+      if (binaryVersion !== ESBUILD_VERSION) {
+        throw new Error(`Cannot start service: Host version "${ESBUILD_VERSION}" does not match binary version ${JSON.stringify(binaryVersion)}`);
+      }
+      return;
+    }
+
     let packet = protocol.decodePacket(bytes) as any;
 
     if (packet.isRequest) {

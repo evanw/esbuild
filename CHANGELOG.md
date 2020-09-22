@@ -6,6 +6,10 @@
 
     The `unix.SYS_IOCTL` export was apparently removed from `golang.org/x/sys` recently, which affected code in esbuild that gets the width of the terminal. This code now uses another method of getting the terminal width. The fix was contributed by [@akayj](https://github.com/akayj).
 
+* Validate that the versions of the host code and the binary executable match ([#407](https://github.com/evanw/esbuild/issues/407))
+
+    After the install script runs, the version of the downloaded binary should always match the version of the package being installed. I have added some additional checks to verify this in case this invariant is ever broken. Breaking this invariant is very bad because it means the code being run is a mix of code from different package versions.
+
 ## 0.7.2
 
 * Transform arrow functions to function expressions with `--target=es5` ([#182](https://github.com/evanw/esbuild/issues/182) and [#297](https://github.com/evanw/esbuild/issues/297))

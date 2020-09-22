@@ -5,7 +5,9 @@ import zlib = require('zlib');
 import https = require('https');
 import child_process = require('child_process');
 
-const version = require('./package.json').version;
+declare const ESBUILD_VERSION: string;
+
+const version = ESBUILD_VERSION;
 const binPath = path.join(__dirname, 'bin', 'esbuild');
 const stampPath = path.join(__dirname, 'stamp.txt');
 
@@ -24,6 +26,9 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
     // Copy from the cache
     fs.copyFileSync(cachePath, toPath);
     fs.chmodSync(toPath, 0o755);
+
+    // Verify that the binary is the correct version
+    validateBinaryVersion(toPath);
 
     // Mark the cache entry as used for LRU
     const now = new Date;
@@ -69,6 +74,15 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
   // Write out the binary executable that was extracted from the package
   fs.writeFileSync(toPath, buffer, { mode: 0o755 });
 
+  // Verify that the binary is the correct version
+  try {
+    validateBinaryVersion(toPath);
+  } catch (err) {
+    console.error(`The version of the downloaded binary is incorrect: ${err && err.message || err}`);
+    console.error(`Install unsuccessful`);
+    process.exit(1);
+  }
+
   // Mark the operation as successful so this script is idempotent
   fs.writeFileSync(stampPath, '');
 
@@ -81,6 +95,13 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
   }
 
   if (didFail) console.error(`Install successful`);
+}
+
+function validateBinaryVersion(binaryPath: string): void {
+  const stdout = child_process.execFileSync(binaryPath, ['--version']).toString().trim();
+  if (stdout !== version) {
+    throw new Error(`Expected ${JSON.stringify(version)} but got ${JSON.stringify(stdout)}`);
+  }
 }
 
 function getCachePath(name: string): string {

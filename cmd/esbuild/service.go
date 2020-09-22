@@ -42,22 +42,25 @@ func runService() {
 	buffer := make([]byte, 16*1024)
 	stream := []byte{}
 
-	// Write messages on a single goroutine so they aren't interleaved
+	// Write packets on a single goroutine so they aren't interleaved
 	waitGroup := &sync.WaitGroup{}
 	go func() {
 		for {
-			message, ok := <-service.outgoingPackets
+			packet, ok := <-service.outgoingPackets
 			if !ok {
-				break // No more messages
+				break // No more packets
 			}
-			os.Stdout.Write(message.bytes)
+			os.Stdout.Write(packet.bytes)
 
 			// Only signal that this request is done when it has actually been written
-			if message.isFinal {
+			if packet.isFinal {
 				waitGroup.Done()
 			}
 		}
 	}()
+
+	// The protocol always starts with the version
+	os.Stdout.Write(append(writeUint32(nil, uint32(len(esbuildVersion))), esbuildVersion...))
 
 	for {
 		// Read more data from stdin
@@ -70,20 +73,20 @@ func runService() {
 		}
 		stream = append(stream, buffer[:n]...)
 
-		// Process all complete (i.e. not partial) messages
+		// Process all complete (i.e. not partial) packets
 		bytes := stream
 		for {
-			message, afterMessage, ok := readLengthPrefixedSlice(bytes)
+			packet, afterPacket, ok := readLengthPrefixedSlice(bytes)
 			if !ok {
 				break
 			}
-			bytes = afterMessage
+			bytes = afterPacket
 
 			// Clone the input and run it on another goroutine
-			clone := append([]byte{}, message...)
+			clone := append([]byte{}, packet...)
 			waitGroup.Add(1)
 			go func() {
-				if result := service.handleIncomingMessage(clone); result != nil {
+				if result := service.handleIncomingPacket(clone); result != nil {
 					service.outgoingPackets <- outgoingPacket{bytes: result, isFinal: true}
 				} else {
 					waitGroup.Done()
@@ -91,7 +94,7 @@ func runService() {
 			}()
 		}
 
-		// Move the remaining partial message to the end to avoid reallocating
+		// Move the remaining partial packet to the end to avoid reallocating
 		stream = append(stream[:0], bytes...)
 	}
 
@@ -124,7 +127,7 @@ func (service *serviceType) sendRequest(request interface{}) interface{} {
 	return <-result
 }
 
-func (service *serviceType) handleIncomingMessage(bytes []byte) (result []byte) {
+func (service *serviceType) handleIncomingPacket(bytes []byte) (result []byte) {
 	p, ok := decodePacket(bytes)
 	if !ok {
 		return nil
