@@ -5,7 +5,7 @@ const fs = require('fs')
 
 const repoDir = path.dirname(__dirname)
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
-const version = require(path.join(npmDir, 'package.json')).version
+const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
 
 function buildNativeLib(esbuildPath) {
   const libDir = path.join(npmDir, 'lib')
