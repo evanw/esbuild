@@ -9,17 +9,8 @@ declare const ESBUILD_VERSION: string;
 
 const version = ESBUILD_VERSION;
 const binPath = path.join(__dirname, 'bin', 'esbuild');
-const stampPath = path.join(__dirname, 'stamp.txt');
 
 async function installBinaryFromPackage(name: string, fromPath: string, toPath: string): Promise<void> {
-  // It turns out that some package managers (e.g. yarn) sometimes re-run the
-  // postinstall script for this package after we have already been installed.
-  // That means this script must be idempotent. Let's skip the install if it's
-  // already happened.
-  if (fs.existsSync(stampPath)) {
-    return;
-  }
-
   // Try to install from the cache if possible
   const cachePath = getCachePath(name);
   try {
@@ -33,9 +24,6 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
     // Mark the cache entry as used for LRU
     const now = new Date;
     fs.utimesSync(cachePath, now, now);
-
-    // Mark the operation as successful so this script is idempotent
-    fs.writeFileSync(stampPath, '');
     return;
   } catch {
   }
@@ -82,9 +70,6 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
     console.error(`Install unsuccessful`);
     process.exit(1);
   }
-
-  // Mark the operation as successful so this script is idempotent
-  fs.writeFileSync(stampPath, '');
 
   // Also try to cache the file to speed up future installs
   try {
@@ -172,7 +157,7 @@ function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
 
 function installUsingNPM(name: string, file: string): Buffer {
   const installDir = path.join(__dirname, '.install');
-  fs.mkdirSync(installDir);
+  fs.mkdirSync(installDir, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
 
   // Erase "npm_config_global" so that "npm install --global esbuild" works.

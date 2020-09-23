@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Undo an earlier change to try to improve yarn compatibility ([#91](https://github.com/evanw/esbuild/pull/91) and [#407](https://github.com/evanw/esbuild/issues/407))
+
+    The [yarn package manager](https://github.com/yarnpkg/yarn) behaves differently from npm and is not compatible in many ways. While npm is the only officially supported package manager for esbuild, people have contributed fixes for other package managers including yarn. One such fix is PR [#91](https://github.com/evanw/esbuild/pull/91) which makes sure the install script only runs once for a given installation directory.
+
+    I suspect this fix is actually incorrect, and is the cause of issue [#407](https://github.com/evanw/esbuild/issues/407). The problem seems to be that if you change the version of a package using `yarn add esbuild@version`, yarn doesn't clear out the installation directory before reinstalling the package so the package ends up with a mix of files from both package versions. This is not how npm behaves and seems like a pretty severe bug in yarn. I am reverting PR [#91](https://github.com/evanw/esbuild/pull/91) in an attempt to fix this issue.
+
 ## 0.7.3
 
 * Fix compile error due to missing `unix.SYS_IOCTL` in the latest `golang.org/x/sys` ([#396](https://github.com/evanw/esbuild/pull/396))
