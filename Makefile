@@ -33,12 +33,15 @@ test-wasm:
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
 
 verify-source-map: | scripts/node_modules
+	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/verify-source-map.js
 
 end-to-end-tests: | scripts/node_modules
+	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/end-to-end-tests.js
 
 js-api-tests: | scripts/node_modules
+	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/js-api-tests.js
 
 update-version-go:
