@@ -563,3 +563,27 @@ func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
 		},
 	})
 }
+
+func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.tsx": `
+				import "./foo"
+				import "bar"
+			`,
+
+			"/Users/user/project/src/foo/tsconfig.json": `{ "extends": "extends for foo" }`,
+			"/Users/user/project/src/foo/index.js":      ``,
+
+			"/Users/user/project/src/node_modules/bar/tsconfig.json": `{ "extends": "extends for bar" }`,
+			"/Users/user/project/src/node_modules/bar/index.js":      ``,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `/Users/user/project/src/foo/tsconfig.json: warning: Cannot find base config file "extends for foo"
+`,
+	})
+}

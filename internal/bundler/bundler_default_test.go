@@ -2741,3 +2741,73 @@ func TestMinifyArguments(t *testing.T) {
 		},
 	})
 }
+
+func TestWarningsInsideNodeModules(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "./dup-case.js";        import "./node_modules/dup-case.js"
+				import "./not-in.js";          import "./node_modules/not-in.js"
+				import "./not-instanceof.js";  import "./node_modules/not-instanceof.js"
+				import "./return-asi.js";      import "./node_modules/return-asi.js"
+				import "./bad-typeof.js";      import "./node_modules/bad-typeof.js"
+				import "./equals-neg-zero.js"; import "./node_modules/equals-neg-zero.js"
+				import "./equals-nan.js";      import "./node_modules/equals-nan.js"
+				import "./equals-object.js";   import "./node_modules/equals-object.js"
+				import "./write-getter.js";    import "./node_modules/write-getter.js"
+				import "./read-setter.js";     import "./node_modules/read-setter.js"
+				import "./delete-super.js";    import "./node_modules/delete-super.js"
+			`,
+
+			"/dup-case.js":              "switch (x) { case 0: case 0: }",
+			"/node_modules/dup-case.js": "switch (x) { case 0: case 0: }",
+
+			"/not-in.js":              "!a in b",
+			"/node_modules/not-in.js": "!a in b",
+
+			"/not-instanceof.js":              "!a instanceof b",
+			"/node_modules/not-instanceof.js": "!a instanceof b",
+
+			"/return-asi.js":              "return\n123",
+			"/node_modules/return-asi.js": "return\n123",
+
+			"/bad-typeof.js":              "typeof x == 'null'",
+			"/node_modules/bad-typeof.js": "typeof x == 'null'",
+
+			"/equals-neg-zero.js":              "x === -0",
+			"/node_modules/equals-neg-zero.js": "x === -0",
+
+			"/equals-nan.js":              "x === NaN",
+			"/node_modules/equals-nan.js": "x === NaN",
+
+			"/equals-object.js":              "x === []",
+			"/node_modules/equals-object.js": "x === []",
+
+			"/write-getter.js":              "class Foo { get #foo() {} foo() { this.#foo = 123 } }",
+			"/node_modules/write-getter.js": "class Foo { get #foo() {} foo() { this.#foo = 123 } }",
+
+			"/read-setter.js":              "class Foo { set #foo(x) {} foo() { return this.#foo } }",
+			"/node_modules/read-setter.js": "class Foo { set #foo(x) {} foo() { return this.#foo } }",
+
+			"/delete-super.js":              "class Foo extends Bar { foo() { delete super.foo } }",
+			"/node_modules/delete-super.js": "class Foo extends Bar { foo() { delete super.foo } }",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/bad-typeof.js: warning: The "typeof" operator will never evaluate to "null"
+/delete-super.js: warning: Attempting to delete a property of "super" will throw a ReferenceError
+/dup-case.js: warning: This case clause will never be evaluated because it duplicates an earlier case clause
+/equals-nan.js: warning: Comparison with NaN using the "===" operator here is always false
+/equals-neg-zero.js: warning: Comparison with -0 using the "===" operator will also match 0
+/equals-object.js: warning: Comparison using the "===" operator here is always false
+/not-in.js: warning: Suspicious use of the "!" operator inside the "in" operator
+/not-instanceof.js: warning: Suspicious use of the "!" operator inside the "instanceof" operator
+/read-setter.js: warning: Reading from setter-only property "#foo" will throw
+/return-asi.js: warning: The following expression is not returned because of an automatically-inserted semicolon
+/write-getter.js: warning: Writing to getter-only property "#foo" will throw
+`,
+	})
+}

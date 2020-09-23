@@ -181,3 +181,12 @@ var require_util = __commonJS((exports, module) => {
 // /Users/user/project/src/app/entry.js
 const util = __toModule(require_util());
 console.log(util.default());
+
+================================================================================
+TestTsconfigWarningsInsideNodeModules
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/src/foo/index.js
+
+// /Users/user/project/src/node_modules/bar/index.js
+
+// /Users/user/project/src/entry.tsx

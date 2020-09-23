@@ -169,6 +169,18 @@ type Options struct {
 	MangleSyntax      bool
 	CodeSplitting     bool
 
+	// Setting this to true disables warnings about code that is very likely to
+	// be a bug. This is used to ignore issues inside "node_modules" directories.
+	// This has caught real issues in the past. However, it's not esbuild's job
+	// to find bugs in other libraries, and these warnings are problematic for
+	// people using these libraries with esbuild. The only fix is to either
+	// disable all esbuild warnings and not get warnings about your own code, or
+	// to try to get the warning fixed in the affected library. This is
+	// especially annoying if the warning is a false positive as was the case in
+	// https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings
+	// are now disabled for code inside "node_modules" directories.
+	SuppressWarningsAboutWeirdCode bool
+
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool
 

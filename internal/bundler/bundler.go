@@ -73,11 +73,8 @@ type Bundle struct {
 }
 
 type parseFlags struct {
-	jsxFactory        []string
-	jsxFragment       []string
-	isEntryPoint      bool
-	ignoreIfUnused    bool
-	strictClassFields bool
+	isEntryPoint   bool
+	ignoreIfUnused bool
 }
 
 type parseArgs struct {
@@ -153,17 +150,6 @@ func parseFile(args parseArgs) {
 	} else if source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
 		// Force disabled modules to be empty
 		loader = config.LoaderJS
-	}
-
-	// Allow certain properties to be overridden
-	if len(args.flags.jsxFactory) > 0 {
-		args.options.JSX.Factory = args.flags.jsxFactory
-	}
-	if len(args.flags.jsxFragment) > 0 {
-		args.options.JSX.Fragment = args.flags.jsxFragment
-	}
-	if args.flags.strictClassFields {
-		args.options.Strict.ClassFields = true
 	}
 
 	result := parseResult{
@@ -474,17 +460,27 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			visited[visitedKey] = sourceIndex
 			results = append(results, parseResult{})
 			flags := parseFlags{
-				isEntryPoint:      kind == inputKindEntryPoint,
-				ignoreIfUnused:    resolveResult.IgnoreIfUnused,
-				jsxFactory:        resolveResult.JSXFactory,
-				jsxFragment:       resolveResult.JSXFragment,
-				strictClassFields: resolveResult.StrictClassFields,
+				isEntryPoint:   kind == inputKindEntryPoint,
+				ignoreIfUnused: resolveResult.IgnoreIfUnused,
 			}
 			remaining++
 			optionsClone := options
 			if kind != inputKindStdin {
 				optionsClone.Stdin = nil
 			}
+			optionsClone.SuppressWarningsAboutWeirdCode = resolveResult.SuppressWarningsAboutWeirdCode
+
+			// Allow certain properties to be overridden
+			if len(resolveResult.JSXFactory) > 0 {
+				optionsClone.JSX.Factory = resolveResult.JSXFactory
+			}
+			if len(resolveResult.JSXFragment) > 0 {
+				optionsClone.JSX.Fragment = resolveResult.JSXFragment
+			}
+			if resolveResult.StrictClassFields {
+				optionsClone.Strict.ClassFields = true
+			}
+
 			go parseFile(parseArgs{
 				fs:              fs,
 				log:             log,

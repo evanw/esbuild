@@ -1542,44 +1542,44 @@ func TestCatch(t *testing.T) {
 }
 
 func TestWarningEqualsNegativeZero(t *testing.T) {
-	expectParseError(t, "x === -0", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
-	expectParseError(t, "x == -0", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
-	expectParseError(t, "x !== -0", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
-	expectParseError(t, "x != -0", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
+	expectParseError(t, "x === -0", "<stdin>: warning: Comparison with -0 using the \"===\" operator will also match 0\n")
+	expectParseError(t, "x == -0", "<stdin>: warning: Comparison with -0 using the \"==\" operator will also match 0\n")
+	expectParseError(t, "x !== -0", "<stdin>: warning: Comparison with -0 using the \"!==\" operator will also match 0\n")
+	expectParseError(t, "x != -0", "<stdin>: warning: Comparison with -0 using the \"!=\" operator will also match 0\n")
 	expectParseError(t, "switch (x) { case -0: }", "<stdin>: warning: Comparison with -0 using a case clause will also match 0\n")
 
-	expectParseError(t, "-0 === x", "<stdin>: warning: Comparison with -0 using the === operator will also match 0\n")
-	expectParseError(t, "-0 == x", "<stdin>: warning: Comparison with -0 using the == operator will also match 0\n")
-	expectParseError(t, "-0 !== x", "<stdin>: warning: Comparison with -0 using the !== operator will also match 0\n")
-	expectParseError(t, "-0 != x", "<stdin>: warning: Comparison with -0 using the != operator will also match 0\n")
+	expectParseError(t, "-0 === x", "<stdin>: warning: Comparison with -0 using the \"===\" operator will also match 0\n")
+	expectParseError(t, "-0 == x", "<stdin>: warning: Comparison with -0 using the \"==\" operator will also match 0\n")
+	expectParseError(t, "-0 !== x", "<stdin>: warning: Comparison with -0 using the \"!==\" operator will also match 0\n")
+	expectParseError(t, "-0 != x", "<stdin>: warning: Comparison with -0 using the \"!=\" operator will also match 0\n")
 	expectParseError(t, "switch (-0) { case x: }", "") // Don't bother to handle this case
 }
 
 func TestWarningEqualsNewObject(t *testing.T) {
-	expectParseError(t, "x === []", "<stdin>: warning: Comparison using the === operator here is always false\n")
-	expectParseError(t, "x !== []", "<stdin>: warning: Comparison using the !== operator here is always true\n")
+	expectParseError(t, "x === []", "<stdin>: warning: Comparison using the \"===\" operator here is always false\n")
+	expectParseError(t, "x !== []", "<stdin>: warning: Comparison using the \"!==\" operator here is always true\n")
 	expectParseError(t, "x == []", "")
 	expectParseError(t, "x != []", "")
 	expectParseError(t, "switch (x) { case []: }", "<stdin>: warning: This case clause will never be evaluated because the comparison is always false\n")
 
-	expectParseError(t, "[] === x", "<stdin>: warning: Comparison using the === operator here is always false\n")
-	expectParseError(t, "[] !== x", "<stdin>: warning: Comparison using the !== operator here is always true\n")
+	expectParseError(t, "[] === x", "<stdin>: warning: Comparison using the \"===\" operator here is always false\n")
+	expectParseError(t, "[] !== x", "<stdin>: warning: Comparison using the \"!==\" operator here is always true\n")
 	expectParseError(t, "[] == x", "")
 	expectParseError(t, "[] != x", "")
 	expectParseError(t, "switch ([]) { case x: }", "") // Don't bother to handle this case
 }
 
 func TestWarningEqualsNaN(t *testing.T) {
-	expectParseError(t, "x === NaN", "<stdin>: warning: Comparison with NaN using the === operator here is always false\n")
-	expectParseError(t, "x !== NaN", "<stdin>: warning: Comparison with NaN using the !== operator here is always true\n")
-	expectParseError(t, "x == NaN", "<stdin>: warning: Comparison with NaN using the == operator here is always false\n")
-	expectParseError(t, "x != NaN", "<stdin>: warning: Comparison with NaN using the != operator here is always true\n")
+	expectParseError(t, "x === NaN", "<stdin>: warning: Comparison with NaN using the \"===\" operator here is always false\n")
+	expectParseError(t, "x !== NaN", "<stdin>: warning: Comparison with NaN using the \"!==\" operator here is always true\n")
+	expectParseError(t, "x == NaN", "<stdin>: warning: Comparison with NaN using the \"==\" operator here is always false\n")
+	expectParseError(t, "x != NaN", "<stdin>: warning: Comparison with NaN using the \"!=\" operator here is always true\n")
 	expectParseError(t, "switch (x) { case NaN: }", "<stdin>: warning: This case clause will never be evaluated because equality with NaN is always false\n")
 
-	expectParseError(t, "NaN === x", "<stdin>: warning: Comparison with NaN using the === operator here is always false\n")
-	expectParseError(t, "NaN !== x", "<stdin>: warning: Comparison with NaN using the !== operator here is always true\n")
-	expectParseError(t, "NaN == x", "<stdin>: warning: Comparison with NaN using the == operator here is always false\n")
-	expectParseError(t, "NaN != x", "<stdin>: warning: Comparison with NaN using the != operator here is always true\n")
+	expectParseError(t, "NaN === x", "<stdin>: warning: Comparison with NaN using the \"===\" operator here is always false\n")
+	expectParseError(t, "NaN !== x", "<stdin>: warning: Comparison with NaN using the \"!==\" operator here is always true\n")
+	expectParseError(t, "NaN == x", "<stdin>: warning: Comparison with NaN using the \"==\" operator here is always false\n")
+	expectParseError(t, "NaN != x", "<stdin>: warning: Comparison with NaN using the \"!=\" operator here is always true\n")
 	expectParseError(t, "switch (NaN) { case x: }", "") // Don't bother to handle this case
 }
 

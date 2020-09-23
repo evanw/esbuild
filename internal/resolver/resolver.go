@@ -87,6 +87,9 @@ type ResolveResult struct {
 
 	// If true, the class field transform should use Object.defineProperty().
 	StrictClassFields bool
+
+	// This is true if the file is inside a "node_modules" directory
+	SuppressWarningsAboutWeirdCode bool
 }
 
 type Resolver interface {
@@ -150,11 +153,30 @@ func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 	return r.finalizeResolve(ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}})
 }
 
+func isInsideNodeModules(fs fs.FS, path string) bool {
+	dir := fs.Dir(path)
+	for {
+		if fs.Base(dir) == "node_modules" {
+			return true
+		}
+		parent := fs.Dir(dir)
+		if dir == parent {
+			return false
+		}
+		dir = parent
+	}
+}
+
 func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 	for _, path := range result.PathPair.iter() {
 		if path.Namespace == "file" {
 			if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
 				base := r.fs.Base(path.Text)
+
+				// Don't emit warnings for code inside a "node_modules" directory
+				if isInsideNodeModules(r.fs, path.Text) {
+					result.SuppressWarningsAboutWeirdCode = true
+				}
 
 				// Look up this file in the "sideEffects" map in the nearest enclosing
 				// directory with a "package.json" file
@@ -537,7 +559,8 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 				}
 			}
 
-			if !found {
+			// Suppress warnings about missing base config files inside "node_modules"
+			if !found && !isInsideNodeModules(r.fs, file) {
 				r.log.AddRangeWarning(&tsConfigSource, warnRange,
 					fmt.Sprintf("Cannot find base config file %q", extends))
 			}

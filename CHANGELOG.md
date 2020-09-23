@@ -8,6 +8,18 @@
 
     I suspect this fix is actually incorrect, and is the cause of issue [#407](https://github.com/evanw/esbuild/issues/407). The problem seems to be that if you change the version of a package using `yarn add esbuild@version`, yarn doesn't clear out the installation directory before reinstalling the package so the package ends up with a mix of files from both package versions. This is not how npm behaves and seems like a pretty severe bug in yarn. I am reverting PR [#91](https://github.com/evanw/esbuild/pull/91) in an attempt to fix this issue.
 
+* Disable some warnings for code inside `node_modules` directories ([#395](https://github.com/evanw/esbuild/issues/395) and [#402](https://github.com/evanw/esbuild/issues/402))
+
+    Using esbuild to build code with certain suspicious-looking syntax may generate a warning. These warnings don't fail the build (the build still succeeds) but they point out code that is very likely to not behave as intended. This has caught real bugs in the past:
+
+    * [rollup/rollup#3729](https://github.com/rollup/rollup/issues/3729): Invalid dead code removal for return statement due to ASI
+    * [aws/aws-sdk-js#3325](https://github.com/aws/aws-sdk-js/issues/3325): Array equality bug in the Node.js XML parser
+    * [olifolkerd/tabulator#2962](https://github.com/olifolkerd/tabulator/issues/2962): Nonsensical comparisons with typeof and "null"
+    * [mrdoob/three.js#11183](https://github.com/mrdoob/three.js/pull/11183): Comparison with -0 in Math.js
+    * [mrdoob/three.js#11182](https://github.com/mrdoob/three.js/pull/11182): Cperator precedence bug in WWOBJLoader2.js
+
+	However, it's not esbuild's job to find bugs in other libraries, and these warnings are problematic for people using these libraries with esbuild. The only fix is to either disable all esbuild warnings and not get warnings about your own code, or to try to get the warning fixed in the affected library. This is especially annoying if the warning is a false positive as was the case in https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings are now disabled for code inside `node_modules` directories.
+
 ## 0.7.3
 
 * Fix compile error due to missing `unix.SYS_IOCTL` in the latest `golang.org/x/sys` ([#396](https://github.com/evanw/esbuild/pull/396))

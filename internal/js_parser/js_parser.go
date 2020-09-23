@@ -301,6 +301,10 @@ func (dc *duplicateCaseChecker) reset() {
 }
 
 func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
+	if p.SuppressWarningsAboutWeirdCode {
+		return
+	}
+
 	if hash, ok := duplicateCaseHash(expr); ok {
 		bucket := hash % bloomFilterSize
 		entry := &dc.bloomFilter[bucket/8]
@@ -3349,9 +3353,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			}
 
 			// Warn about "!a in b" instead of "!(a in b)"
-			if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
-				p.log.AddWarning(&p.source, left.Loc,
-					"Suspicious use of the \"!\" operator inside the \"in\" operator")
+			if !p.SuppressWarningsAboutWeirdCode {
+				if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
+					p.log.AddWarning(&p.source, left.Loc,
+						"Suspicious use of the \"!\" operator inside the \"in\" operator")
+				}
 			}
 
 			p.lexer.Next()
@@ -3362,10 +3368,13 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				return left
 			}
 
-			// Warn about "!a instanceof b" instead of "!(a instanceof b)"
-			if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
-				p.log.AddWarning(&p.source, left.Loc,
-					"Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
+			// Warn about "!a instanceof b" instead of "!(a instanceof b)". Here's an
+			// example of code with this problem: https://github.com/mrdoob/three.js/pull/11182.
+			if !p.SuppressWarningsAboutWeirdCode {
+				if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
+					p.log.AddWarning(&p.source, left.Loc,
+						"Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
+				}
 			}
 
 			p.lexer.Next()
@@ -5572,17 +5581,20 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 
 		stmts = append(stmts, stmt)
 
-		// Warn about ASI and return statements
-		if s, ok := stmt.Data.(*js_ast.SReturn); ok && s.Value == nil && !p.latestReturnHadSemicolon {
-			returnWithoutSemicolonStart = stmt.Loc.Start
-		} else {
-			if returnWithoutSemicolonStart != -1 {
-				if _, ok := stmt.Data.(*js_ast.SExpr); ok {
-					p.log.AddWarning(&p.source, logger.Loc{Start: returnWithoutSemicolonStart + 6},
-						"The following expression is not returned because of an automatically-inserted semicolon")
+		// Warn about ASI and return statements. Here's an example of code with
+		// this problem: https://github.com/rollup/rollup/issues/3729
+		if !p.SuppressWarningsAboutWeirdCode {
+			if s, ok := stmt.Data.(*js_ast.SReturn); ok && s.Value == nil && !p.latestReturnHadSemicolon {
+				returnWithoutSemicolonStart = stmt.Loc.Start
+			} else {
+				if returnWithoutSemicolonStart != -1 {
+					if _, ok := stmt.Data.(*js_ast.SExpr); ok {
+						p.log.AddWarning(&p.source, logger.Loc{Start: returnWithoutSemicolonStart + 6},
+							"The following expression is not returned because of an automatically-inserted semicolon")
+					}
 				}
+				returnWithoutSemicolonStart = -1
 			}
-			returnWithoutSemicolonStart = -1
 		}
 	}
 
@@ -7532,8 +7544,13 @@ func (p *parser) checkForTypeofAndString(a js_ast.Expr, b js_ast.Expr) bool {
 			switch value {
 			case "undefined", "object", "boolean", "number", "bigint", "string", "symbol", "function", "unknown":
 			default:
-				r := p.source.RangeOfString(b.Loc)
-				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("The \"typeof\" operator will never evaluate to %q", value))
+				// Warn about typeof comparisons with values that will never be
+				// returned. Here's an example of code with this problem:
+				// https://github.com/olifolkerd/tabulator/issues/2962
+				if !p.SuppressWarningsAboutWeirdCode {
+					r := p.source.RangeOfString(b.Loc)
+					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("The \"typeof\" operator will never evaluate to %q", value))
+				}
 			}
 			return true
 		}
@@ -7542,16 +7559,21 @@ func (p *parser) checkForTypeofAndString(a js_ast.Expr, b js_ast.Expr) bool {
 }
 
 func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc logger.Loc) bool {
+	if p.SuppressWarningsAboutWeirdCode {
+		return false
+	}
+
 	switch e := value.Data.(type) {
 	case *js_ast.ENumber:
-		// "0 === -0" is true in JavaScript
+		// "0 === -0" is true in JavaScript. Here's an example of code with this
+		// problem: https://github.com/mrdoob/three.js/pull/11183
 		if e.Value == 0 && math.Signbit(e.Value) {
 			r := logger.Range{Loc: value.Loc, Len: 0}
 			if int(r.Loc.Start) < len(p.source.Contents) && p.source.Contents[r.Loc.Start] == '-' {
 				zeroRange := p.source.RangeOfNumber(logger.Loc{Start: r.Loc.Start + 1})
 				r.Len = zeroRange.Len + 1
 			}
-			text := fmt.Sprintf("Comparison with -0 using the %s operator will also match 0", op)
+			text := fmt.Sprintf("Comparison with -0 using the %q operator will also match 0", op)
 			if op == "case" {
 				text = "Comparison with -0 using a case clause will also match 0"
 			}
@@ -7561,7 +7583,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 
 		// "NaN === NaN" is false in JavaScript
 		if math.IsNaN(e.Value) {
-			text := fmt.Sprintf("Comparison with NaN using the %s operator here is always %v", op, op[0] == '!')
+			text := fmt.Sprintf("Comparison with NaN using the %q operator here is always %v", op, op[0] == '!')
 			if op == "case" {
 				text = "This case clause will never be evaluated because equality with NaN is always false"
 			}
@@ -7573,9 +7595,10 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 		*js_ast.EFunction, *js_ast.EObject, *js_ast.ERegExp:
 		// This warning only applies to strict equality because loose equality can
 		// cause string conversions. For example, "x == []" is true if x is the
-		// empty string.
+		// empty string. Here's an example of code with this problem:
+		// https://github.com/aws/aws-sdk-js/issues/3325
 		if len(op) > 2 {
-			text := fmt.Sprintf("Comparison using the %s operator here is always %v", op, op[0] == '!')
+			text := fmt.Sprintf("Comparison using the %q operator here is always %v", op, op[0] == '!')
 			if op == "case" {
 				text = "This case clause will never be evaluated because the comparison is always false"
 			}
@@ -8495,12 +8518,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !kind.IsPrivate() {
 				r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Private name %q must be declared in an enclosing class", name))
-			} else if in.assignTarget != js_ast.AssignTargetNone && (kind == js_ast.SymbolPrivateGet || kind == js_ast.SymbolPrivateStaticGet) {
-				r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
-				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to getter-only property %q will throw", name))
-			} else if in.assignTarget != js_ast.AssignTargetReplace && (kind == js_ast.SymbolPrivateSet || kind == js_ast.SymbolPrivateStaticSet) {
-				r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
-				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Reading from setter-only property %q will throw", name))
+			} else if !p.SuppressWarningsAboutWeirdCode {
+				if in.assignTarget != js_ast.AssignTargetNone && (kind == js_ast.SymbolPrivateGet || kind == js_ast.SymbolPrivateStaticGet) {
+					r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
+					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Writing to getter-only property %q will throw", name))
+				} else if in.assignTarget != js_ast.AssignTargetReplace && (kind == js_ast.SymbolPrivateSet || kind == js_ast.SymbolPrivateStaticSet) {
+					r := logger.Range{Loc: e.Index.Loc, Len: int32(len(name))}
+					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Reading from setter-only property %q will throw", name))
+				}
 			}
 
 			// Lower private member access only if we're sure the target isn't needed
@@ -8591,7 +8616,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					superPropLoc = e2.Target.Loc
 				}
 			}
-			if superPropLoc.Start != 0 {
+			if !p.SuppressWarningsAboutWeirdCode && superPropLoc.Start != 0 {
 				r := js_lexer.RangeOfIdentifier(p.source, superPropLoc)
 				p.log.AddRangeWarning(&p.source, r, "Attempting to delete a property of \"super\" will throw a ReferenceError")
 			}

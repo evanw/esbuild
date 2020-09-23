@@ -1985,6 +1985,121 @@ TestUseStrictDirectiveMinifyNoBundle
 "use strict";a,b;
 
 ================================================================================
+TestWarningsInsideNodeModules
+---------- /out.js ----------
+// /return-asi.js
+var require_return_asi = __commonJS(() => {
+  return;
+});
+
+// /node_modules/return-asi.js
+var require_return_asi2 = __commonJS(() => {
+  return;
+});
+
+// /dup-case.js
+switch (x) {
+  case 0:
+  case 0:
+}
+
+// /node_modules/dup-case.js
+switch (x) {
+  case 0:
+  case 0:
+}
+
+// /not-in.js
+!a in b;
+
+// /node_modules/not-in.js
+!a in b;
+
+// /not-instanceof.js
+!a instanceof b;
+
+// /node_modules/not-instanceof.js
+!a instanceof b;
+
+// /bad-typeof.js
+typeof x == "null";
+
+// /node_modules/bad-typeof.js
+typeof x == "null";
+
+// /equals-neg-zero.js
+x === -0;
+
+// /node_modules/equals-neg-zero.js
+x === -0;
+
+// /equals-nan.js
+x === NaN;
+
+// /node_modules/equals-nan.js
+x === NaN;
+
+// /equals-object.js
+x === [];
+
+// /node_modules/equals-object.js
+x === [];
+
+// /write-getter.js
+class Foo {
+  get #foo() {
+  }
+  foo() {
+    this.#foo = 123;
+  }
+}
+
+// /node_modules/write-getter.js
+class Foo2 {
+  get #foo() {
+  }
+  foo() {
+    this.#foo = 123;
+  }
+}
+
+// /read-setter.js
+class Foo3 {
+  set #foo(x2) {
+  }
+  foo() {
+    return this.#foo;
+  }
+}
+
+// /node_modules/read-setter.js
+class Foo4 {
+  set #foo(x2) {
+  }
+  foo() {
+    return this.#foo;
+  }
+}
+
+// /delete-super.js
+class Foo5 extends Bar {
+  foo() {
+    delete super.foo;
+  }
+}
+
+// /node_modules/delete-super.js
+class Foo6 extends Bar {
+  foo() {
+    delete super.foo;
+  }
+}
+
+// /entry.js
+const return_asi = __toModule(require_return_asi());
+const return_asi2 = __toModule(require_return_asi2());
+
+================================================================================
 TestWithStatementTaintingNoBundle
 ---------- /out.js ----------
 (() => {
