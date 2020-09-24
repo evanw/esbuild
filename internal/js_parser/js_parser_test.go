@@ -774,12 +774,15 @@ func TestLexicalDecl(t *testing.T) {
 	expectPrinted(t, "function f() {}", "function f() {\n}\n")
 	expectPrinted(t, "{function f() {}} let f", "{\n  function f() {\n  }\n}\nlet f;\n")
 	expectPrinted(t, "if (1) function f() {} let f", "if (1)\n  function f() {\n  }\nlet f;\n")
-	expectPrinted(t, "if (1) label: function f() {} let f", "if (1)\n  label:\n    function f() {\n    }\nlet f;\n")
-	expectPrinted(t, "if (1) label: label2: function f() {} let f", "if (1)\n  label:\n    label2:\n      function f() {\n      }\nlet f;\n")
 	expectPrinted(t, "if (0) ; else function f() {} let f", "if (0)\n  ;\nelse\n  function f() {\n  }\nlet f;\n")
 	expectPrinted(t, "x: function f() {}", "x:\n  function f() {\n  }\n")
 	expectPrinted(t, "{function* f() {}} let f", "{\n  function* f() {\n  }\n}\nlet f;\n")
 	expectPrinted(t, "{async function f() {}} let f", "{\n  async function f() {\n  }\n}\nlet f;\n")
+
+	expectParseError(t, "if (1) label: function f() {} let f", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "if (1) label: label2: function f() {} let f", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "if (0) ; else label: function f() {} let f", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectParseError(t, "if (0) ; else label: label2: function f() {} let f", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
 
 	expectParseError(t, "for (;;) function f() {}", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "for (x in y) function f() {}", "<stdin>: error: Cannot use a declaration in a single-statement context\n")

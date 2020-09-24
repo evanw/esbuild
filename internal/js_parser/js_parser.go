@@ -5386,7 +5386,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					p.lexer.Next()
 					name := js_ast.LocRef{Loc: expr.Loc, Ref: ident.Ref}
 					nestedOpts := parseStmtOpts{}
-					if opts.lexicalDecl != lexicalDeclForbid {
+					if opts.lexicalDecl == lexicalDeclAllowAll || opts.lexicalDecl == lexicalDeclAllowFnInsideLabel {
 						nestedOpts.lexicalDecl = lexicalDeclAllowFnInsideLabel
 					}
 					stmt := p.parseStmt(nestedOpts)
