@@ -5555,7 +5555,8 @@ func (p *parser) parseFnBody(data fnOrArrowDataParse) js_ast.FnBody {
 }
 
 func (p *parser) forbidLexicalDecl(loc logger.Loc) {
-	p.log.AddError(&p.source, loc, "Cannot use a declaration in a single-statement context")
+	r := js_lexer.RangeOfIdentifier(p.source, loc)
+	p.log.AddRangeError(&p.source, r, "Cannot use a declaration in a single-statement context")
 }
 
 func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stmt {

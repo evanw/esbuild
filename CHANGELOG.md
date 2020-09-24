@@ -20,6 +20,10 @@
 
     In this case, `let` should be considered a keyword instead. This has been fixed.
 
+* Fix some additional conformance tests
+
+    Some additional syntax edge cases are now forbidden including `let let`, `import {eval} from 'path'`, and `if (1) x: function f() {}`.
+
 ## 0.7.4
 
 * Undo an earlier change to try to improve yarn compatibility ([#91](https://github.com/evanw/esbuild/pull/91) and [#407](https://github.com/evanw/esbuild/issues/407))
