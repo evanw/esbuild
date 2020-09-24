@@ -610,6 +610,24 @@ func TestASI(t *testing.T) {
 	expectPrinted(t, "{do x;while(y)}", "{\n  do\n    x;\n  while (y);\n}\n")
 }
 
+func TestLocal(t *testing.T) {
+	expectPrinted(t, "var let = 0", "var let = 0;\n")
+	expectParseError(t, "let let = 0", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+	expectParseError(t, "const let = 0", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+
+	expectPrinted(t, "var\nlet = 0", "var let = 0;\n")
+	expectParseError(t, "let\nlet = 0", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+	expectParseError(t, "const\nlet = 0", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+
+	expectPrinted(t, "for (var let in x) ;", "for (var let in x)\n  ;\n")
+	expectParseError(t, "for (let let in x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+	expectParseError(t, "for (const let in x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+
+	expectPrinted(t, "for (var let of x) ;", "for (var let of x)\n  ;\n")
+	expectParseError(t, "for (let let of x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+	expectParseError(t, "for (const let of x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+}
+
 func TestArrays(t *testing.T) {
 	expectPrinted(t, "[]", "[];\n")
 	expectPrinted(t, "[,]", "[,];\n")

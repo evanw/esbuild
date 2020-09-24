@@ -3668,6 +3668,11 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 	decls := []js_ast.Decl{}
 
 	for {
+		// Forbid "let let" and "const let" but not "var let"
+		if kind == js_ast.SymbolOther && p.lexer.IsContextualKeyword("let") {
+			p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"let\" as an identifier here")
+		}
+
 		var value *js_ast.Expr
 		local := p.parseBinding()
 		p.declareBinding(kind, local, opts)
