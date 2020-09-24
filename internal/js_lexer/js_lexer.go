@@ -624,11 +624,11 @@ func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
 	c, width := utf8.DecodeRuneInString(text)
 	i += width
 
-	if IsIdentifierStart(c) {
+	if IsIdentifierStart(c) || c == '\\' {
 		// Search for the end of the identifier
 		for i < len(text) {
 			c2, width2 := utf8.DecodeRuneInString(text[i:])
-			if !IsIdentifierContinue(c2) {
+			if !IsIdentifierContinue(c2) && c2 != '\\' {
 				return logger.Range{Loc: loc, Len: int32(i)}
 			}
 			i += width2

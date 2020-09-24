@@ -3754,12 +3754,18 @@ func (p *parser) parseImportClause() ([]js_ast.ClauseItem, bool) {
 
 		if p.lexer.IsContextualKeyword("as") {
 			p.lexer.Next()
-			originalName := p.lexer.Identifier
+			originalName = p.lexer.Identifier
 			name = js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(originalName)}
 			p.lexer.Expect(js_lexer.TIdentifier)
 		} else if !isIdentifier {
 			// An import where the name is a keyword must have an alias
 			p.lexer.Unexpected()
+		}
+
+		// Reject forbidden names
+		if originalName == "eval" || originalName == "arguments" {
+			r := js_lexer.RangeOfIdentifier(p.source, name.Loc)
+			p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot use %q as an identifier here", originalName))
 		}
 
 		items = append(items, js_ast.ClauseItem{

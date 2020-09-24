@@ -1456,6 +1456,20 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "import x from \"foo\"; x.y = 1", "import x from \"foo\";\nx.y = 1;\n")
 	expectPrinted(t, "import x from \"foo\"; x[y] = 1", "import x from \"foo\";\nx[y] = 1;\n")
 	expectPrinted(t, "import x from \"foo\"; x['y'] = 1", "import x from \"foo\";\nx[\"y\"] = 1;\n")
+
+	// "eval" and "arguments" are forbidden import names
+	expectParseError(t, "import {eval} from 'foo'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
+	expectParseError(t, "import {ev\\u0061l} from 'foo'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
+	expectParseError(t, "import {x as eval} from 'foo'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
+	expectParseError(t, "import {x as ev\\u0061l} from 'foo'", "<stdin>: error: Cannot use \"eval\" as an identifier here\n")
+	expectPrinted(t, "import {eval as x} from 'foo'", "import {eval as x} from \"foo\";\n")
+	expectPrinted(t, "import {ev\\u0061l as x} from 'foo'", "import {eval as x} from \"foo\";\n")
+	expectParseError(t, "import {arguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
+	expectParseError(t, "import {\\u0061rguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
+	expectParseError(t, "import {x as arguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
+	expectParseError(t, "import {x as \\u0061rguments} from 'foo'", "<stdin>: error: Cannot use \"arguments\" as an identifier here\n")
+	expectPrinted(t, "import {arguments as x} from 'foo'", "import {arguments as x} from \"foo\";\n")
+	expectPrinted(t, "import {\\u0061rguments as x} from 'foo'", "import {arguments as x} from \"foo\";\n")
 }
 
 func TestExport(t *testing.T) {
