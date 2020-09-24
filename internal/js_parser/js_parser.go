@@ -3405,9 +3405,7 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stm
 
 	switch p.lexer.Token {
 	case js_lexer.TIdentifier, js_lexer.TOpenBracket, js_lexer.TOpenBrace:
-		if !p.lexer.HasNewlineBefore || p.lexer.Token == js_lexer.TOpenBracket ||
-			(p.fnOrArrowDataParse.allowAwait && p.lexer.IsContextualKeyword("await")) ||
-			(p.fnOrArrowDataParse.allowYield && p.lexer.IsContextualKeyword("yield")) {
+		if opts.lexicalDecl == lexicalDeclAllowAll || !p.lexer.HasNewlineBefore || p.lexer.Token == js_lexer.TOpenBracket {
 			if opts.lexicalDecl != lexicalDeclAllowAll {
 				p.forbidLexicalDecl(letRange.Loc)
 			}

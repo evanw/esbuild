@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Fix an issue with automatic semicolon insertion after `let` ([#409](https://github.com/evanw/esbuild/issues/409))
+
+    The character sequence `let` can be considered either a keyword or an identifier depending on the context. A fix was previously landed in version 0.6.31 to consider `let` as an identifier in code like this:
+
+    ```js
+    if (0) let
+    x = 0
+    ```
+
+    Handling this edge case is useless but the behavior is required by the specification. However, that fix also unintentionally caused `let` to be considered an identifier in code like this:
+
+    ```js
+    let
+    x = 0
+    ```
+
+    In this case, `let` should be considered a keyword instead. This has been fixed.
+
 ## 0.7.4
 
 * Undo an earlier change to try to improve yarn compatibility ([#91](https://github.com/evanw/esbuild/pull/91) and [#407](https://github.com/evanw/esbuild/issues/407))

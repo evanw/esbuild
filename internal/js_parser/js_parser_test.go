@@ -589,10 +589,16 @@ func TestASI(t *testing.T) {
 	expectParseError(t, "(async\n() => {})", "<stdin>: error: Expected \")\" but found \"=>\"\n")
 	expectParseError(t, "(async\nfunction foo() {})", "<stdin>: error: Expected \")\" but found \"function\"\n")
 
-	expectPrinted(t, "let\nx = 0", "let;\nx = 0;\n")
+	expectPrinted(t, "if (0) let\nx = 0", "if (0)\n  let;\nx = 0;\n")
+	expectPrinted(t, "if (0) let\n{x}", "if (0)\n  let;\n{\n  x;\n}\n")
+	expectParseError(t, "if (0) let\n{x} = 0", "<stdin>: error: Unexpected \"=\"\n")
+	expectParseError(t, "if (0) let\n[x] = 0", "<stdin>: error: Cannot use a declaration in a single-statement context\n")
+	expectPrinted(t, "function *foo() { if (0) let\nyield 0 }", "function* foo() {\n  if (0)\n    let;\n  yield 0;\n}\n")
+	expectPrinted(t, "async function foo() { if (0) let\nawait 0 }", "async function foo() {\n  if (0)\n    let;\n  await 0;\n}\n")
+
+	expectPrinted(t, "let\nx = 0", "let x = 0;\n")
+	expectPrinted(t, "let\n{x} = 0", "let {x} = 0;\n")
 	expectPrinted(t, "let\n[x] = 0", "let [x] = 0;\n")
-	expectPrinted(t, "let\n{x}", "let;\n{\n  x;\n}\n")
-	expectParseError(t, "let\n{x} = 0", "<stdin>: error: Unexpected \"=\"\n")
 	expectParseError(t, "function *foo() { let\nyield 0 }",
 		"<stdin>: error: Cannot use \"yield\" as an identifier here\n<stdin>: error: Expected \";\" but found \"0\"\n")
 	expectParseError(t, "async function foo() { let\nawait 0 }",
