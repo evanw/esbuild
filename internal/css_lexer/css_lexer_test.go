@@ -117,6 +117,7 @@ func TestComment(t *testing.T) {
 	test.AssertEqual(t, lexerError("/*"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n")
 	test.AssertEqual(t, lexerError("/*/"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n")
 	test.AssertEqual(t, lexerError("/**/"), "")
+	test.AssertEqual(t, lexerError("//"), "<stdin>: error: Comments in CSS use \"/* ... */\" instead of \"//\"\n")
 }
 
 func TestString(t *testing.T) {

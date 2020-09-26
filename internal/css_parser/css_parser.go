@@ -122,26 +122,29 @@ type ruleContext struct {
 func (p *parser) parseListOfRules(context ruleContext) []css_ast.R {
 	rules := []css_ast.R{}
 	for {
-		kind := p.current().Kind
-		switch {
-		case kind == css_lexer.TEndOfFile || kind == css_lexer.TCloseBrace:
+		switch p.current().Kind {
+		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			return rules
 
-		case kind == css_lexer.TWhitespace:
+		case css_lexer.TWhitespace:
 			p.advance()
+			continue
 
-		case kind == css_lexer.TAtKeyword:
+		case css_lexer.TAtKeyword:
 			rules = append(rules, p.parseAtRule(atRuleContext{}))
+			continue
 
-		case (kind == css_lexer.TCDO || kind == css_lexer.TCDC) && context.isTopLevel:
-			p.advance()
-
-		default:
-			if context.parseSelectors {
-				rules = append(rules, p.parseSelectorRule())
-			} else {
-				rules = append(rules, p.parseQualifiedRuleFrom(p.index))
+		case css_lexer.TCDO, css_lexer.TCDC:
+			if context.isTopLevel {
+				p.advance()
+				continue
 			}
+		}
+
+		if context.parseSelectors {
+			rules = append(rules, p.parseSelectorRule())
+		} else {
+			rules = append(rules, p.parseQualifiedRuleFrom(p.index))
 		}
 	}
 }

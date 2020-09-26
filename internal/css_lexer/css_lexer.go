@@ -153,9 +153,14 @@ func (lexer *lexer) next() {
 
 		case '/':
 			lexer.step()
-			if lexer.codePoint == '*' {
+			switch lexer.codePoint {
+			case '*':
 				lexer.step()
 				lexer.consumeToEndOfMultiLineComment()
+				continue
+			case '/':
+				lexer.step()
+				lexer.consumeToEndOfSingleLineComment()
 				continue
 			}
 			lexer.Token.Kind = TDelim
@@ -361,12 +366,19 @@ func (lexer *lexer) consumeToEndOfMultiLineComment() {
 	}
 }
 
+func (lexer *lexer) consumeToEndOfSingleLineComment() {
+	for !isNewline(lexer.codePoint) && lexer.codePoint != eof {
+		lexer.step()
+	}
+	lexer.log.AddRangeError(&lexer.source, lexer.Token.Range, "Comments in CSS use \"/* ... */\" instead of \"//\"")
+}
+
 func (lexer *lexer) isValidEscape() bool {
 	if lexer.codePoint != '\\' {
 		return false
 	}
 	c, _ := utf8.DecodeRuneInString(lexer.source.Contents[lexer.current:])
-	return c != '\n'
+	return !isNewline(c)
 }
 
 func (lexer *lexer) wouldStartIdentifier() bool {
@@ -381,7 +393,7 @@ func (lexer *lexer) wouldStartIdentifier() bool {
 		}
 		if c == '\\' {
 			c, _ = utf8.DecodeRuneInString(lexer.source.Contents[lexer.current+w:])
-			return c != '\n'
+			return !isNewline(c)
 		}
 		return false
 	}
@@ -654,6 +666,14 @@ func isNameContinue(c rune) bool {
 	return isNameStart(c) || (c >= '0' && c <= '9') || c == '-'
 }
 
+func isNewline(c rune) bool {
+	switch c {
+	case '\n', '\r', '\f':
+		return true
+	}
+	return false
+}
+
 func isWhitespace(c rune) bool {
 	switch c {
 	case ' ', '\t', '\n', '\r', '\f':
@@ -774,7 +794,7 @@ func QuoteForStringToken(text string) string {
 		c, width := utf8.DecodeRuneInString(text)
 		text = text[width:]
 
-		if c == '"' || c == '\\' || c == '\n' || c == '\r' || c == '\f' {
+		if c == '"' || c == '\\' || isNewline(c) {
 			sb.WriteRune('\\')
 		}
 
