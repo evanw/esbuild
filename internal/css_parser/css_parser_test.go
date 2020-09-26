@@ -152,6 +152,16 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { &[b] {} }", "a {\n  &[b] {\n  }\n}\n")
 }
 
+func TestAtRule(t *testing.T) {
+	expectPrinted(t, "@unknown;", "@unknown;\n")
+	expectPrinted(t, "@unknown{}", "@unknown{}\n")
+
+	expectParseError(t, "@unknown", "<stdin>: error: Expected \"{\" but found end of file\n")
+	expectParseError(t, "@", "<stdin>: error: Unexpected \"@\"\n<stdin>: error: Expected \"{\" but found end of file\n")
+	expectParseError(t, "@;", "<stdin>: error: Unexpected \"@\"\n<stdin>: error: Expected \"{\" but found end of file\n")
+	expectParseError(t, "@{}", "<stdin>: error: Unexpected \"@\"\n")
+}
+
 func TestAtCharset(t *testing.T) {
 	expectPrinted(t, "@charset \"UTF-8\";", "@charset \"UTF-8\";\n")
 	expectPrinted(t, "@charset 'UTF-8';", "@charset \"UTF-8\";\n")

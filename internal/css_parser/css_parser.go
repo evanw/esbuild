@@ -315,7 +315,7 @@ prelude:
 	case atRuleEmpty:
 		// Report an error for rules that shouldn't have blocks
 		p.expect(css_lexer.TSemicolon)
-		p.parseBlock(css_lexer.TCloseBrace)
+		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
 		block := p.tokens[blockStart:p.index]
 		return &css_ast.RUnknownAt{Name: name, Prelude: prelude, Block: block}
 
@@ -349,7 +349,7 @@ prelude:
 
 	default:
 		// Otherwise, parse an unknown rule
-		p.parseBlock(css_lexer.TCloseBrace)
+		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
 		block := p.tokens[blockStart:p.index]
 		return &css_ast.RUnknownAt{Name: name, Prelude: prelude, Block: block}
 	}
@@ -373,7 +373,7 @@ func (p *parser) parseSelectorRule() css_ast.R {
 }
 
 func (p *parser) parseQualifiedRuleFrom(preludeStart int) *css_ast.RQualified {
-	for !p.peek(css_lexer.TOpenBrace) {
+	for !p.peek(css_lexer.TOpenBrace) && !p.peek(css_lexer.TEndOfFile) {
 		p.parseComponentValue()
 	}
 	rule := css_ast.RQualified{
@@ -450,16 +450,16 @@ stop:
 func (p *parser) parseComponentValue() {
 	switch p.current().Kind {
 	case css_lexer.TFunction:
-		p.parseBlock(css_lexer.TCloseParen)
+		p.parseBlock(css_lexer.TFunction, css_lexer.TCloseParen)
 
 	case css_lexer.TOpenParen:
-		p.parseBlock(css_lexer.TCloseParen)
+		p.parseBlock(css_lexer.TOpenParen, css_lexer.TCloseParen)
 
 	case css_lexer.TOpenBrace:
-		p.parseBlock(css_lexer.TCloseBrace)
+		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
 
 	case css_lexer.TOpenBracket:
-		p.parseBlock(css_lexer.TCloseBracket)
+		p.parseBlock(css_lexer.TOpenBracket, css_lexer.TCloseBracket)
 
 	case css_lexer.TEndOfFile:
 		p.unexpected()
@@ -469,16 +469,16 @@ func (p *parser) parseComponentValue() {
 	}
 }
 
-func (p *parser) parseBlock(close css_lexer.T) {
-	p.advance()
+func (p *parser) parseBlock(open css_lexer.T, close css_lexer.T) {
+	if p.expect(open) {
+		for !p.eat(close) {
+			if p.peek(css_lexer.TEndOfFile) {
+				p.expect(close)
+				return
+			}
 
-	for !p.eat(close) {
-		if p.peek(css_lexer.TEndOfFile) {
-			p.expect(close)
-			return
+			p.parseComponentValue()
 		}
-
-		p.parseComponentValue()
 	}
 }
 
