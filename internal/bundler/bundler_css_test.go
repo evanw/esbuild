@@ -91,3 +91,23 @@ func TestCSSAtImport(t *testing.T) {
 		},
 	})
 }
+
+func TestCSSFromJSMissingImport(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {missing} from "./a.css";
+			`,
+			"/a.css": `
+				.a {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedCompileLog: `/entry.js: error: No matching export for import "missing"
+`,
+	})
+}
