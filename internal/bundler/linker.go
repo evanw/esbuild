@@ -423,11 +423,9 @@ func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			file := files[sourceIndex]
-			for _, part := range file.ast.Parts {
-				for _, importRecordIndex := range part.ImportRecordIndices {
-					if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil {
-						visit(*record.SourceIndex)
-					}
+			for _, record := range file.ast.ImportRecords {
+				if record.SourceIndex != nil {
+					visit(*record.SourceIndex)
 				}
 			}
 			sorted = append(sorted, indexAndPath{sourceIndex, files[sourceIndex].source.KeyPath})
@@ -901,77 +899,74 @@ func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[js_ast.Ref]bo
 func (c *linkerContext) scanImportsAndExports() {
 	// Step 1: Figure out what modules must be CommonJS
 	for _, sourceIndex := range c.reachableFiles {
-		file := &c.files[sourceIndex]
-		for _, part := range file.ast.Parts {
-			// Handle require() and import()
-			for _, importRecordIndex := range part.ImportRecordIndices {
-				record := &file.ast.ImportRecords[importRecordIndex]
-				if record.SourceIndex == nil {
-					continue
-				}
+		records := c.files[sourceIndex].ast.ImportRecords
+		for importRecordIndex := range records {
+			record := &records[importRecordIndex]
+			if record.SourceIndex == nil {
+				continue
+			}
 
-				// Make sure the printer can require() CommonJS modules
-				otherFile := &c.files[*record.SourceIndex]
-				record.WrapperRef = otherFile.ast.WrapperRef
+			// Make sure the printer can require() CommonJS modules
+			otherFile := &c.files[*record.SourceIndex]
+			record.WrapperRef = otherFile.ast.WrapperRef
 
-				switch record.Kind {
-				case js_ast.ImportStmt:
-					// Importing using ES6 syntax from a file without any ES6 syntax
-					// causes that module to be considered CommonJS-style, even if it
-					// doesn't have any CommonJS exports.
-					//
-					// That means the ES6 imports will silently become undefined instead
-					// of causing errors. This is for compatibility with older CommonJS-
-					// style bundlers.
-					//
-					// I've only come across a single case where this mattered, in the
-					// package https://github.com/megawac/MutationObserver.js. The library
-					// used to look like this:
-					//
-					//   this.MutationObserver = this.MutationObserver || (function() {
-					//     ...
-					//     return MutationObserver;
-					//   })();
-					//
-					// That is compatible with CommonJS since "this" is an alias for
-					// "exports". The code in question used the package like this:
-					//
-					//   import MutationObserver from '@sheerun/mutationobserver-shim';
-					//
-					// Then the library was updated to do this instead:
-					//
-					//   window.MutationObserver = window.MutationObserver || (function() {
-					//     ...
-					//     return MutationObserver;
-					//   })();
-					//
-					// The package was updated without the ES6 import being removed. The
-					// code still has the import but "MutationObserver" is now undefined:
-					//
-					//   import MutationObserver from '@sheerun/mutationobserver-shim';
-					//
-					if !record.DoesNotUseExports {
-						if !otherFile.ast.HasES6Syntax() && !otherFile.ast.HasLazyExport {
-							otherFile.meta.cjsStyleExports = true
-						}
-					}
-
-				case js_ast.ImportRequire:
-					// Files that are imported with require() must be CommonJS modules
-					otherFile.meta.cjsStyleExports = true
-
-				case js_ast.ImportDynamic:
-					if c.options.CodeSplitting {
-						// Files that are imported with import() must be entry points
-						if !otherFile.isEntryPoint {
-							c.entryPoints = append(c.entryPoints, *record.SourceIndex)
-							otherFile.isEntryPoint = true
-						}
-					} else {
-						// If we're not splitting, then import() is just a require() that
-						// returns a promise, so the imported file must be a CommonJS module
+			switch record.Kind {
+			case js_ast.ImportStmt:
+				// Importing using ES6 syntax from a file without any ES6 syntax
+				// causes that module to be considered CommonJS-style, even if it
+				// doesn't have any CommonJS exports.
+				//
+				// That means the ES6 imports will silently become undefined instead
+				// of causing errors. This is for compatibility with older CommonJS-
+				// style bundlers.
+				//
+				// I've only come across a single case where this mattered, in the
+				// package https://github.com/megawac/MutationObserver.js. The library
+				// used to look like this:
+				//
+				//   this.MutationObserver = this.MutationObserver || (function() {
+				//     ...
+				//     return MutationObserver;
+				//   })();
+				//
+				// That is compatible with CommonJS since "this" is an alias for
+				// "exports". The code in question used the package like this:
+				//
+				//   import MutationObserver from '@sheerun/mutationobserver-shim';
+				//
+				// Then the library was updated to do this instead:
+				//
+				//   window.MutationObserver = window.MutationObserver || (function() {
+				//     ...
+				//     return MutationObserver;
+				//   })();
+				//
+				// The package was updated without the ES6 import being removed. The
+				// code still has the import but "MutationObserver" is now undefined:
+				//
+				//   import MutationObserver from '@sheerun/mutationobserver-shim';
+				//
+				if !record.DoesNotUseExports {
+					if !otherFile.ast.HasES6Syntax() && !otherFile.ast.HasLazyExport {
 						otherFile.meta.cjsStyleExports = true
 					}
+				}
+
+			case js_ast.ImportRequire:
+				// Files that are imported with require() must be CommonJS modules
+				otherFile.meta.cjsStyleExports = true
+
+			case js_ast.ImportDynamic:
+				if c.options.CodeSplitting {
+					// Files that are imported with import() must be entry points
+					if !otherFile.isEntryPoint {
+						c.entryPoints = append(c.entryPoints, *record.SourceIndex)
+						otherFile.isEntryPoint = true
+					}
+				} else {
+					// If we're not splitting, then import() is just a require() that
+					// returns a promise, so the imported file must be a CommonJS module
+					otherFile.meta.cjsStyleExports = true
 				}
 			}
 		}
@@ -1007,13 +1002,11 @@ func (c *linkerContext) scanImportsAndExports() {
 		// method, whatever it is, will need to invoke the wrapper. Note that
 		// this can include entry points (e.g. an entry point that imports a file
 		// that imports that entry point).
-		for _, part := range file.ast.Parts {
-			for _, importRecordIndex := range part.ImportRecordIndices {
-				if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil {
-					otherFileMeta := &c.files[*record.SourceIndex].meta
-					if otherFileMeta.cjsStyleExports {
-						otherFileMeta.cjsWrap = true
-					}
+		for _, record := range file.ast.ImportRecords {
+			if record.SourceIndex != nil {
+				otherFileMeta := &c.files[*record.SourceIndex].meta
+				if otherFileMeta.cjsStyleExports {
+					otherFileMeta.cjsWrap = true
 				}
 			}
 		}
