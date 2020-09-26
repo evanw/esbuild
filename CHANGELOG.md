@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.6
 
 * Fix JSON files with multiple entry points ([#413](https://github.com/evanw/esbuild/issues/413))
 
