@@ -216,12 +216,15 @@ type atRuleKind uint8
 const (
 	atRuleUnknown atRuleKind = iota
 	atRuleQualifiedRules
+	atRuleDeclarations
 	atRuleInheritContext
 	atRuleEmpty
 )
 
 var specialAtRules = map[string]atRuleKind{
 	"@keyframes": atRuleQualifiedRules,
+
+	"@font-face": atRuleDeclarations,
 
 	"@document": atRuleInheritContext,
 	"@media":    atRuleInheritContext,
@@ -308,24 +311,30 @@ prelude:
 	prelude := p.tokens[preludeStart:p.index]
 	blockStart := p.index
 
-	// Report an error for rules that shouldn't have blocks
-	if kind == atRuleEmpty {
+	switch kind {
+	case atRuleEmpty:
+		// Report an error for rules that shouldn't have blocks
 		p.expect(css_lexer.TSemicolon)
 		p.parseBlock(css_lexer.TCloseBrace)
 		block := p.tokens[blockStart:p.index]
 		return &css_ast.RUnknownAt{Name: name, Prelude: prelude, Block: block}
-	}
 
-	// Parse known rules whose blocks consist of qualified rules
-	if kind == atRuleQualifiedRules {
+	case atRuleDeclarations:
+		// Parse known rules whose blocks consist of whatever the current context is
+		p.advance()
+		rules := p.parseListOfDeclarations()
+		p.expect(css_lexer.TCloseBrace)
+		return &css_ast.RKnownAt{Name: name, Prelude: prelude, Rules: rules}
+
+	case atRuleQualifiedRules:
+		// Parse known rules whose blocks consist of qualified rules
 		p.advance()
 		rules := p.parseListOfRules(ruleContext{})
 		p.expect(css_lexer.TCloseBrace)
 		return &css_ast.RKnownAt{Name: name, Prelude: prelude, Rules: rules}
-	}
 
-	// Parse known rules whose blocks consist of whatever the current context is
-	if kind == atRuleInheritContext {
+	case atRuleInheritContext:
+		// Parse known rules whose blocks consist of whatever the current context is
 		p.advance()
 		var rules []css_ast.R
 		if context.isDeclarationList {
@@ -337,12 +346,13 @@ prelude:
 		}
 		p.expect(css_lexer.TCloseBrace)
 		return &css_ast.RKnownAt{Name: name, Prelude: prelude, Rules: rules}
-	}
 
-	// Otherwise, parse an unknown rule
-	p.parseBlock(css_lexer.TCloseBrace)
-	block := p.tokens[blockStart:p.index]
-	return &css_ast.RUnknownAt{Name: name, Prelude: prelude, Block: block}
+	default:
+		// Otherwise, parse an unknown rule
+		p.parseBlock(css_lexer.TCloseBrace)
+		block := p.tokens[blockStart:p.index]
+		return &css_ast.RUnknownAt{Name: name, Prelude: prelude, Block: block}
+	}
 }
 
 func (p *parser) parseSelectorRule() css_ast.R {
