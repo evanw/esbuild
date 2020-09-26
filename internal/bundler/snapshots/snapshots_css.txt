@@ -1,0 +1,7 @@
+TestCSSEntryPoint
+---------- /out.css ----------
+// /entry.css
+body {
+  background: white;
+  color: black;
+}
