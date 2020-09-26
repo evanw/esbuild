@@ -7,13 +7,23 @@ import (
 	"github.com/evanw/esbuild/internal/test"
 )
 
-func lexToken(t *testing.T, contents string) T {
+func lexToken(contents string) T {
 	log := logger.NewDeferLog()
 	tokens := Tokenize(log, test.SourceForTest(contents))
 	if len(tokens) > 0 {
 		return tokens[0].Kind
 	}
 	return TEndOfFile
+}
+
+func lexerError(contents string) string {
+	log := logger.NewDeferLog()
+	Tokenize(log, test.SourceForTest(contents))
+	text := ""
+	for _, msg := range log.Done() {
+		text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+	}
+	return text
 }
 
 func TestTokens(t *testing.T) {
@@ -64,7 +74,7 @@ func TestTokens(t *testing.T) {
 		contents := it.contents
 		token := it.token
 		t.Run(contents, func(t *testing.T) {
-			test.AssertEqual(t, lexToken(t, contents), token)
+			test.AssertEqual(t, lexToken(contents), token)
 		})
 	}
 }
@@ -101,4 +111,19 @@ func TestStringQuoting(t *testing.T) {
 	test.AssertEqual(t, QuoteForStringToken("f\no"), "\"f\\\no\"")
 	test.AssertEqual(t, QuoteForStringToken("f\ro"), "\"f\\\ro\"")
 	test.AssertEqual(t, QuoteForStringToken("f\fo"), "\"f\\\fo\"")
+}
+
+func TestComment(t *testing.T) {
+	test.AssertEqual(t, lexerError("/*"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n")
+	test.AssertEqual(t, lexerError("/*/"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n")
+	test.AssertEqual(t, lexerError("/**/"), "")
+}
+
+func TestString(t *testing.T) {
+	test.AssertEqual(t, lexerError("'"), "<stdin>: error: Unterminated string token\n")
+	test.AssertEqual(t, lexerError("\""), "<stdin>: error: Unterminated string token\n")
+	test.AssertEqual(t, lexerError("'\\'"), "<stdin>: error: Unterminated string token\n")
+	test.AssertEqual(t, lexerError("\"\\\""), "<stdin>: error: Unterminated string token\n")
+	test.AssertEqual(t, lexerError("''"), "")
+	test.AssertEqual(t, lexerError("\"\""), "")
 }
