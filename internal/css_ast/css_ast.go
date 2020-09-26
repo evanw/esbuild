@@ -15,8 +15,17 @@ type R interface {
 	isRule()
 }
 
+type RAtCharset struct {
+	Encoding string
+}
+
+type RAtNamespace struct {
+	Prefix string
+	Path   string
+}
+
 type RAtImport struct {
-	PathText  string
+	Path      string
 	PathRange logger.Range
 }
 
@@ -52,6 +61,8 @@ type RBadDeclaration struct {
 	Tokens []css_lexer.Token
 }
 
+func (*RAtCharset) isRule()      {}
+func (*RAtNamespace) isRule()    {}
 func (*RAtImport) isRule()       {}
 func (*RKnownAt) isRule()        {}
 func (*RUnknownAt) isRule()      {}

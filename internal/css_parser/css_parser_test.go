@@ -151,3 +151,68 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { &a|b {} }", "a {\n  &a|b {\n  }\n}\n")
 	expectPrinted(t, "a { &[b] {} }", "a {\n  &[b] {\n  }\n}\n")
 }
+
+func TestAtCharset(t *testing.T) {
+	expectPrinted(t, "@charset \"UTF-8\";", "@charset \"UTF-8\";\n")
+	expectPrinted(t, "@charset 'UTF-8';", "@charset \"UTF-8\";\n")
+
+	expectParseError(t, "@charset;", "<stdin>: error: Expected whitespace but found \";\"\n")
+	expectParseError(t, "@charset ;", "<stdin>: error: Expected string token but found \";\"\n")
+	expectParseError(t, "@charset\"UTF-8\";", "<stdin>: error: Expected whitespace but found \"\\\"UTF-8\\\"\"\n")
+	expectParseError(t, "@charset \"UTF-8\"", "<stdin>: error: Expected \";\" but found end of file\n")
+	expectParseError(t, "@charset url(UTF-8);", "<stdin>: error: Expected string token but found \"url(UTF-8)\"\n")
+	expectParseError(t, "@charset url(\"UTF-8\");", "<stdin>: error: Expected string token but found \"url(\"\n")
+	expectParseError(t, "@charset \"UTF-8\" ", "<stdin>: error: Expected \";\" but found \" \"\n")
+	expectParseError(t, "@charset \"UTF-8\"{}", "<stdin>: error: Expected \";\" but found \"{\"\n")
+}
+
+func TestAtNamespace(t *testing.T) {
+	expectPrinted(t, "@namespace\"http://www.com\";", "@namespace \"http://www.com\";\n")
+	expectPrinted(t, "@namespace \"http://www.com\";", "@namespace \"http://www.com\";\n")
+	expectPrinted(t, "@namespace \"http://www.com\" ;", "@namespace \"http://www.com\";\n")
+	expectPrinted(t, "@namespace url();", "@namespace \"\";\n")
+	expectPrinted(t, "@namespace url(http://www.com);", "@namespace \"http://www.com\";\n")
+	expectPrinted(t, "@namespace url(http://www.com) ;", "@namespace \"http://www.com\";\n")
+	expectPrinted(t, "@namespace url(\"http://www.com\");", "@namespace \"http://www.com\";\n")
+	expectPrinted(t, "@namespace url(\"http://www.com\") ;", "@namespace \"http://www.com\";\n")
+
+	expectPrinted(t, "@namespace ns\"http://www.com\";", "@namespace ns \"http://www.com\";\n")
+	expectPrinted(t, "@namespace ns \"http://www.com\";", "@namespace ns \"http://www.com\";\n")
+	expectPrinted(t, "@namespace ns \"http://www.com\" ;", "@namespace ns \"http://www.com\";\n")
+	expectPrinted(t, "@namespace ns url();", "@namespace ns \"\";\n")
+	expectPrinted(t, "@namespace ns url(http://www.com);", "@namespace ns \"http://www.com\";\n")
+	expectPrinted(t, "@namespace ns url(http://www.com) ;", "@namespace ns \"http://www.com\";\n")
+	expectPrinted(t, "@namespace ns url(\"http://www.com\");", "@namespace ns \"http://www.com\";\n")
+	expectPrinted(t, "@namespace ns url(\"http://www.com\") ;", "@namespace ns \"http://www.com\";\n")
+
+	expectParseError(t, "@namespace;", "<stdin>: error: Expected URL token but found \";\"\n")
+	expectParseError(t, "@namespace \"http://www.com\"", "<stdin>: error: Expected \";\" but found end of file\n")
+	expectParseError(t, "@namespace url(\"http://www.com\";", "<stdin>: error: Expected \")\" but found \";\"\n")
+	expectParseError(t, "@namespace noturl(\"http://www.com\");", "<stdin>: error: Expected URL token but found \"noturl(\"\n")
+
+	expectParseError(t, "@namespace ns;", "<stdin>: error: Expected URL token but found \";\"\n")
+	expectParseError(t, "@namespace ns \"http://www.com\"", "<stdin>: error: Expected \";\" but found end of file\n")
+	expectParseError(t, "@namespace ns url(\"http://www.com\";", "<stdin>: error: Expected \")\" but found \";\"\n")
+	expectParseError(t, "@namespace ns noturl(\"http://www.com\");", "<stdin>: error: Expected URL token but found \"noturl(\"\n")
+
+	expectParseError(t, "@namespace \"http://www.com\" {}", "<stdin>: error: Expected \";\" but found \"{\"\n")
+}
+
+func TestAtImport(t *testing.T) {
+	expectPrinted(t, "@import\"foo.css\";", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import \"foo.css\";", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import \"foo.css\" ;", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import url();", "@import \"\";\n")
+	expectPrinted(t, "@import url(foo.css);", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import url(foo.css) ;", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import url(\"foo.css\");", "@import \"foo.css\";\n")
+	expectPrinted(t, "@import url(\"foo.css\") ;", "@import \"foo.css\";\n")
+
+	expectParseError(t, "@import;", "<stdin>: error: Expected URL token but found \";\"\n")
+	expectParseError(t, "@import ;", "<stdin>: error: Expected URL token but found \";\"\n")
+	expectParseError(t, "@import \"foo.css\"", "<stdin>: error: Expected \";\" but found end of file\n")
+	expectParseError(t, "@import url(\"foo.css\";", "<stdin>: error: Expected \")\" but found \";\"\n")
+	expectParseError(t, "@import noturl(\"foo.css\");", "<stdin>: error: Expected URL token but found \"noturl(\"\n")
+
+	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: error: Expected \";\" but found \"{\"\n")
+}

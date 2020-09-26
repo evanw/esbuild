@@ -170,26 +170,36 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 	}
 }
 
-func (p *parser) parseURLOrString(tokens []css_lexer.Token) (string, logger.Range, bool) {
-	if len(tokens) == 1 {
-		t := tokens[0]
-		switch t.Kind {
-		case css_lexer.TString:
-			return css_lexer.ContentsOfStringToken(t.Raw(p.source.Contents)), t.Range, true
-		case css_lexer.TURL:
-			return css_lexer.ContentsOfURLToken(t.Raw(p.source.Contents)), t.Range, true
-		}
-	}
+func (p *parser) parseURLOrString() (string, logger.Range, bool) {
+	t := p.current()
+	switch t.Kind {
+	case css_lexer.TString:
+		p.advance()
+		return css_lexer.ContentsOfStringToken(t.Raw(p.source.Contents)), t.Range, true
 
-	if len(tokens) == 3 {
-		a, b, c := tokens[0], tokens[1], tokens[2]
-		if a.Kind == css_lexer.TFunction && a.Raw(p.source.Contents) == "url(" &&
-			b.Kind == css_lexer.TString && c.Kind == css_lexer.TCloseParen {
-			return css_lexer.ContentsOfStringToken(b.Raw(p.source.Contents)), b.Range, true
+	case css_lexer.TURL:
+		p.advance()
+		return css_lexer.ContentsOfURLToken(t.Raw(p.source.Contents)), t.Range, true
+
+	case css_lexer.TFunction:
+		if t.Raw(p.source.Contents) == "url(" {
+			p.advance()
+			t = p.current()
+			if p.expect(css_lexer.TString) && p.expect(css_lexer.TCloseParen) {
+				return css_lexer.ContentsOfStringToken(t.Raw(p.source.Contents)), t.Range, true
+			}
 		}
 	}
 
 	return "", logger.Range{}, false
+}
+
+func (p *parser) expectURLOrString() (url string, r logger.Range, ok bool) {
+	url, r, ok = p.parseURLOrString()
+	if !ok {
+		p.expect(css_lexer.TURL)
+	}
+	return
 }
 
 type atRuleKind uint8
@@ -227,6 +237,41 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 
 	// Parse the prelude
 	preludeStart := p.index
+	switch text {
+	case "@charset":
+		p.expect(css_lexer.TWhitespace)
+		if p.peek(css_lexer.TString) {
+			encoding := css_lexer.ContentsOfStringToken(p.text())
+			p.advance()
+			p.expect(css_lexer.TSemicolon)
+			return &css_ast.RAtCharset{Encoding: encoding}
+		}
+		p.expect(css_lexer.TString)
+
+	case "@namespace":
+		p.eat(css_lexer.TWhitespace)
+		prefix := ""
+		if p.peek(css_lexer.TIdent) {
+			prefix = p.text()
+			p.advance()
+			p.eat(css_lexer.TWhitespace)
+		}
+		if path, _, ok := p.expectURLOrString(); ok {
+			p.eat(css_lexer.TWhitespace)
+			p.expect(css_lexer.TSemicolon)
+			return &css_ast.RAtNamespace{Prefix: prefix, Path: path}
+		}
+
+	case "@import":
+		p.eat(css_lexer.TWhitespace)
+		if path, r, ok := p.expectURLOrString(); ok {
+			p.eat(css_lexer.TWhitespace)
+			p.expect(css_lexer.TSemicolon)
+			return &css_ast.RAtImport{Path: path, PathRange: r}
+		}
+	}
+
+	// Parse an unknown prelude
 	for !p.peek(css_lexer.TOpenBrace) {
 		if p.peek(css_lexer.TSemicolon) || p.peek(css_lexer.TCloseBrace) {
 			prelude := p.tokens[preludeStart:p.index]
@@ -238,17 +283,9 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 				return &css_ast.RUnknownAt{Name: name, Prelude: prelude}
 			}
 
-			// Special-case certain rules
-			if text == "@import" {
-				tokens := trimWhitespace(prelude)
-				if path, r, ok := p.parseURLOrString(tokens); ok {
-					p.eat(css_lexer.TSemicolon)
-					return &css_ast.RAtImport{PathText: path, PathRange: r}
-				}
-			}
-
-			p.eat(css_lexer.TSemicolon)
-			return &css_ast.RKnownAt{Name: name, Prelude: prelude}
+			// Otherwise, parse an unknown at rule
+			p.expect(css_lexer.TSemicolon)
+			return &css_ast.RUnknownAt{Name: name, Prelude: prelude}
 		}
 
 		p.parseComponentValue()

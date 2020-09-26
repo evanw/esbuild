@@ -32,23 +32,37 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printIndent(indent)
 	}
 	switch r := rule.(type) {
+	case *css_ast.RAtCharset:
+		p.print("@charset ")
+		p.print(css_lexer.QuoteForStringToken(r.Encoding))
+		p.print(";")
+
+	case *css_ast.RAtNamespace:
+		if r.Prefix != "" {
+			p.print("@namespace ")
+			p.print(r.Prefix)
+		} else {
+			p.print("@namespace")
+		}
+		if !p.RemoveWhitespace {
+			p.print(" ")
+		}
+		p.print(css_lexer.QuoteForStringToken(r.Path))
+		p.print(";")
+
 	case *css_ast.RAtImport:
 		if p.RemoveWhitespace {
 			p.print("@import")
 		} else {
 			p.print("@import ")
 		}
-		p.print(css_lexer.QuoteForStringToken(r.PathText))
+		p.print(css_lexer.QuoteForStringToken(r.Path))
 		p.print(";")
 
 	case *css_ast.RKnownAt:
 		p.printToken(r.Name)
 		p.printTokens(r.Prelude)
-		if r.Rules == nil {
-			p.print(";")
-		} else {
-			p.printRuleBlock(r.Rules, indent)
-		}
+		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RUnknownAt:
 		p.printToken(r.Name)
