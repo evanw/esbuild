@@ -79,6 +79,9 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		}
 		p.printTokens(r.Value)
 		if r.Important {
+			if !p.RemoveWhitespace {
+				p.print(" ")
+			}
 			p.print("!important")
 		}
 		if !omitTrailingSemicolon {
@@ -132,6 +135,10 @@ func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, ind
 }
 
 func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bool) {
+	if sel.HasNestPrefix {
+		p.print("&")
+	}
+
 	if sel.Combinator != "" {
 		if !p.RemoveWhitespace {
 			p.print(" ")

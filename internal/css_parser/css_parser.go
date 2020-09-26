@@ -170,6 +170,28 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 	}
 }
 
+func (p *parser) parseURLOrString(tokens []css_lexer.Token) (string, logger.Range, bool) {
+	if len(tokens) == 1 {
+		t := tokens[0]
+		switch t.Kind {
+		case css_lexer.TString:
+			return css_lexer.ContentsOfStringToken(t.Raw(p.source.Contents)), t.Range, true
+		case css_lexer.TURL:
+			return css_lexer.ContentsOfURLToken(t.Raw(p.source.Contents)), t.Range, true
+		}
+	}
+
+	if len(tokens) == 3 {
+		a, b, c := tokens[0], tokens[1], tokens[2]
+		if a.Kind == css_lexer.TFunction && a.Raw(p.source.Contents) == "url(" &&
+			b.Kind == css_lexer.TString && c.Kind == css_lexer.TCloseParen {
+			return css_lexer.ContentsOfStringToken(b.Raw(p.source.Contents)), b.Range, true
+		}
+	}
+
+	return "", logger.Range{}, false
+}
+
 type atRuleKind uint8
 
 const (
@@ -219,19 +241,9 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			// Special-case certain rules
 			if text == "@import" {
 				tokens := trimWhitespace(prelude)
-				if len(tokens) == 1 {
-					t := tokens[0]
-					switch t.Kind {
-					case css_lexer.TString:
-						path := css_lexer.ContentsOfStringToken(t.Raw(p.source.Contents))
-						p.eat(css_lexer.TSemicolon)
-						return &css_ast.RAtImport{PathText: path, PathRange: t.Range}
-
-					case css_lexer.TURL:
-						path := css_lexer.ContentsOfURLToken(t.Raw(p.source.Contents))
-						p.eat(css_lexer.TSemicolon)
-						return &css_ast.RAtImport{PathText: path, PathRange: t.Range}
-					}
+				if path, r, ok := p.parseURLOrString(tokens); ok {
+					p.eat(css_lexer.TSemicolon)
+					return &css_ast.RAtImport{PathText: path, PathRange: r}
 				}
 			}
 
@@ -350,10 +362,19 @@ stop:
 
 	// Remove trailing "!important"
 	important := false
-	if i := len(value) - 2; i >= 0 && value[i].Kind == css_lexer.TDelimExclamation {
-		if t := value[i+1]; t.Kind == css_lexer.TIdent && strings.EqualFold(t.Raw(p.source.Contents), "important") {
-			value = value[:i]
-			important = true
+	if last := len(value) - 1; last >= 0 {
+		if t := value[last]; t.Kind == css_lexer.TIdent && strings.EqualFold(t.Raw(p.source.Contents), "important") {
+			i := len(value) - 2
+			if i >= 0 && value[i].Kind == css_lexer.TWhitespace {
+				i--
+			}
+			if i >= 0 && value[i].Kind == css_lexer.TDelimExclamation {
+				if i >= 1 && value[i-1].Kind == css_lexer.TWhitespace {
+					i--
+				}
+				value = value[:i]
+				important = true
+			}
 		}
 	}
 

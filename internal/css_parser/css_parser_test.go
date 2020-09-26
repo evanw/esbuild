@@ -99,6 +99,11 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "[b |= \"c\"] {}", "[b|=\"c\"] {\n}\n")
 	expectParseError(t, "[b ?= \"c\"] {}", "<stdin>: error: Expected \"]\" but found \"?\"\n")
 
+	expectPrinted(t, "[b = \"c\" i] {}", "[b=\"c\" i] {\n}\n")
+	expectPrinted(t, "[b = \"c\" I] {}", "[b=\"c\" I] {\n}\n")
+	expectParseError(t, "[b i] {}", "<stdin>: error: Expected \"]\" but found \"i\"\n<stdin>: error: Unexpected \"]\"\n")
+	expectParseError(t, "[b I] {}", "<stdin>: error: Expected \"]\" but found \"I\"\n<stdin>: error: Unexpected \"]\"\n")
+
 	expectPrinted(t, "|b {}", "|b {\n}\n")
 	expectPrinted(t, "|* {}", "|* {\n}\n")
 	expectPrinted(t, "a|b {}", "a|b {\n}\n")
@@ -128,5 +133,21 @@ func TestSelector(t *testing.T) {
 }
 
 func TestNestedSelector(t *testing.T) {
+	expectPrinted(t, "& {}", "& {\n}\n")
+	expectPrinted(t, "& b {}", "& b {\n}\n")
+	expectPrinted(t, "&:b {}", "&:b {\n}\n")
+	expectPrinted(t, "&* {}", "&* {\n}\n")
+	expectPrinted(t, "&|b {}", "&|b {\n}\n")
+	expectPrinted(t, "&*|b {}", "&*|b {\n}\n")
+	expectPrinted(t, "&a|b {}", "&a|b {\n}\n")
+	expectPrinted(t, "&[a] {}", "&[a] {\n}\n")
+
+	expectPrinted(t, "a { & {} }", "a {\n  & {\n  }\n}\n")
 	expectPrinted(t, "a { & b {} }", "a {\n  & b {\n  }\n}\n")
+	expectPrinted(t, "a { &:b {} }", "a {\n  &:b {\n  }\n}\n")
+	expectPrinted(t, "a { &* {} }", "a {\n  &* {\n  }\n}\n")
+	expectPrinted(t, "a { &|b {} }", "a {\n  &|b {\n  }\n}\n")
+	expectPrinted(t, "a { &*|b {} }", "a {\n  &*|b {\n  }\n}\n")
+	expectPrinted(t, "a { &a|b {} }", "a {\n  &a|b {\n  }\n}\n")
+	expectPrinted(t, "a { &[b] {} }", "a {\n  &[b] {\n  }\n}\n")
 }

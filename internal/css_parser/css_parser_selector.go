@@ -66,13 +66,13 @@ func (p *parser) parseComplexSelector() (result css_ast.ComplexSelector, ok bool
 }
 
 func (p *parser) parseCompoundSelector() (sel css_ast.CompoundSelector, ok bool) {
+	// This is an extension: https://drafts.csswg.org/css-nesting-1/
+	if p.eat(css_lexer.TDelimAmpersand) {
+		sel.HasNestPrefix = true
+	}
+
 	// Parse the type selector
 	switch p.current().Kind {
-	case css_lexer.TDelimAmpersand:
-		// This is an extension: https://drafts.csswg.org/css-nesting-1/
-		sel.TypeSelector = &css_ast.NamespacedName{Name: "&"}
-		p.advance()
-
 	case css_lexer.TDelimBar, css_lexer.TIdent, css_lexer.TDelimAsterisk:
 		nsName := css_ast.NamespacedName{}
 		if !p.peek(css_lexer.TDelimBar) {
@@ -139,7 +139,7 @@ subclassSelectors:
 	}
 
 	// The compound selector must be non-empty
-	if sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 && len(sel.PseudoClassSelectors) == 0 {
+	if !sel.HasNestPrefix && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 && len(sel.PseudoClassSelectors) == 0 {
 		p.unexpected()
 		return
 	}

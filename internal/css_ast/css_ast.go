@@ -65,6 +65,7 @@ type ComplexSelector struct {
 }
 
 type CompoundSelector struct {
+	HasNestPrefix        bool   // "&"
 	Combinator           string // Optional, may be ""
 	TypeSelector         *NamespacedName
 	SubclassSelectors    []SS
