@@ -593,6 +593,10 @@ type ERequire struct {
 	ImportRecordIndex uint32
 }
 
+type ERequireResolve struct {
+	ImportRecordIndex uint32
+}
+
 type EImport struct {
 	Expr              Expr
 	ImportRecordIndex *uint32
@@ -640,6 +644,7 @@ func (*EAwait) isExpr()             {}
 func (*EYield) isExpr()             {}
 func (*EIf) isExpr()                {}
 func (*ERequire) isExpr()           {}
+func (*ERequireResolve) isExpr()    {}
 func (*EImport) isExpr()            {}
 
 func Assign(a Expr, b Expr) Expr {
@@ -1327,6 +1332,9 @@ const (
 
 	// An "import()" expression with a string argument
 	ImportDynamic
+
+	// A call to "require.resolve()"
+	ImportRequireResolve
 )
 
 type ImportRecord struct {

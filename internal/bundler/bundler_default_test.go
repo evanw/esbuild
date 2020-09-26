@@ -906,7 +906,7 @@ func TestRequireWithoutCall(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 `,
 	})
 }
@@ -926,7 +926,7 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 `,
 	})
 }
@@ -1121,14 +1121,14 @@ func TestTypeofRequireBadPatterns(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled
-/entry.js: warning: Indirect calls to "require" will not be bundled
-/entry.js: warning: Indirect calls to "require" will not be bundled
-/entry.js: warning: Indirect calls to "require" will not be bundled
-/entry.js: warning: Indirect calls to "require" will not be bundled
-/entry.js: warning: Indirect calls to "require" will not be bundled
-/entry.js: warning: Indirect calls to "require" will not be bundled
-/entry.js: warning: Indirect calls to "require" will not be bundled
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 `,
 	})
 }
@@ -1883,12 +1883,12 @@ func TestExternalModuleExclusionScopedPackage(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `/index.js: error: Could not resolve "@a1-a2"
-/index.js: error: Could not resolve "@b1"
-/index.js: error: Could not resolve "@b1/b2-b3"
-/index.js: error: Could not resolve "@c1"
-/index.js: error: Could not resolve "@c1/c2"
-/index.js: error: Could not resolve "@c1/c2/c3-c4"
+		expectedScanLog: `/index.js: error: Could not resolve "@a1-a2" (mark it as external to exclude it from the bundle)
+/index.js: error: Could not resolve "@b1" (mark it as external to exclude it from the bundle)
+/index.js: error: Could not resolve "@b1/b2-b3" (mark it as external to exclude it from the bundle)
+/index.js: error: Could not resolve "@c1" (mark it as external to exclude it from the bundle)
+/index.js: error: Could not resolve "@c1/c2" (mark it as external to exclude it from the bundle)
+/index.js: error: Could not resolve "@c1/c2/c3-c4" (mark it as external to exclude it from the bundle)
 `,
 	})
 }
@@ -2808,6 +2808,57 @@ func TestWarningsInsideNodeModules(t *testing.T) {
 /read-setter.js: warning: Reading from setter-only property "#foo" will throw
 /return-asi.js: warning: The following expression is not returned because of an automatically-inserted semicolon
 /write-getter.js: warning: Writing to getter-only property "#foo" will throw
+`,
+	})
+}
+
+func TestRequireResolve(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(require.resolve)
+				console.log(require.resolve())
+				console.log(require.resolve(foo))
+				console.log(require.resolve('a', 'b'))
+				console.log(require.resolve('./present-file'))
+				console.log(require.resolve('./missing-file'))
+				console.log(require.resolve('./external-file'))
+				console.log(require.resolve('missing-pkg'))
+				console.log(require.resolve('external-pkg'))
+				console.log(require.resolve('@scope/missing-pkg'))
+				console.log(require.resolve('@scope/external-pkg'))
+				try {
+					console.log(require.resolve('inside-try'))
+				} catch (e) {
+				}
+				if (false) {
+					console.log(require.resolve('dead-code'))
+				}
+			`,
+			"/present-file.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExternalModules: config.ExternalModules{
+				AbsPaths: map[string]bool{
+					"/external-file": true,
+				},
+				NodeModules: map[string]bool{
+					"external-pkg":        true,
+					"@scope/external-pkg": true,
+				},
+			},
+		},
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+/entry.js: warning: "./present-file" should be marked as external for use with "require.resolve"
+/entry.js: warning: "./missing-file" should be marked as external for use with "require.resolve"
+/entry.js: warning: "missing-pkg" should be marked as external for use with "require.resolve"
+/entry.js: warning: "@scope/missing-pkg" should be marked as external for use with "require.resolve"
 `,
 	})
 }

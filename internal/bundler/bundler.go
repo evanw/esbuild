@@ -260,8 +260,7 @@ func parseFile(args parseArgs) {
 		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
 
 		if len(result.file.ast.ImportRecords) > 0 {
-			cacheRequire := make(map[string]*resolver.ResolveResult)
-			cacheImport := make(map[string]*resolver.ResolveResult)
+			resolverCache := make(map[js_ast.ImportKind]map[string]*resolver.ResolveResult)
 
 			// Resolve relative to the parent directory of the source file with the
 			// import path. Just use the current directory if the source file is virtual.
@@ -288,9 +287,10 @@ func parseFile(args parseArgs) {
 				}
 
 				// Cache the path in case it's imported multiple times in this file
-				cache := cacheImport
-				if record.Kind == js_ast.ImportRequire {
-					cache = cacheRequire
+				cache, ok := resolverCache[record.Kind]
+				if !ok {
+					cache = make(map[string]*resolver.ResolveResult)
+					resolverCache[record.Kind] = cache
 				}
 				if resolveResult, ok := cache[record.Path.Text]; ok {
 					result.resolveResults[importRecordIndex] = resolveResult
@@ -301,6 +301,16 @@ func parseFile(args parseArgs) {
 				resolveResult := args.res.Resolve(sourceDir, record.Path.Text, record.Kind)
 				cache[record.Path.Text] = resolveResult
 
+				// All "require.resolve()" imports should be external because we don't
+				// want to waste effort traversing into them
+				if record.Kind == js_ast.ImportRequireResolve {
+					if !record.IsInsideTryBody && (resolveResult == nil || !resolveResult.IsExternal) {
+						args.log.AddRangeWarning(&source, source.RangeOfString(record.Loc),
+							fmt.Sprintf("%q should be marked as external for use with \"require.resolve\"", record.Path.Text))
+					}
+					continue
+				}
+
 				if resolveResult == nil {
 					// Failed imports inside a try/catch are silently turned into
 					// external imports instead of causing errors. This matches a common
@@ -309,6 +319,9 @@ func parseFile(args parseArgs) {
 					if !record.IsInsideTryBody {
 						r := source.RangeOfString(record.Loc)
 						hint := ""
+						if resolver.IsPackagePath(record.Path.Text) {
+							hint = " (mark it as external to exclude it from the bundle)"
+						}
 						if args.options.Platform != config.PlatformNode {
 							if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {
 								hint = " (set platform to \"node\" when building for node)"

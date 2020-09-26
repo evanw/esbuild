@@ -266,7 +266,8 @@ func TestTSImportMissingFile(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: "/entry.ts: error: Could not resolve \"./doesNotExist.ts\"\n",
+		expectedScanLog: `/entry.ts: error: Could not resolve "./doesNotExist.ts"
+`,
 	})
 }
 

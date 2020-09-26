@@ -1373,6 +1373,19 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 			p.print(")")
 		}
 
+	case *js_ast.ERequireResolve:
+		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+		if wrap {
+			p.print("(")
+		}
+		p.printSpaceBeforeIdentifier()
+		p.print("require.resolve(")
+		p.printQuoted(p.importRecords[e.ImportRecordIndex].Path.Text)
+		p.print(")")
+		if wrap {
+			p.print(")")
+		}
+
 	case *js_ast.EImport:
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		if wrap {

@@ -175,6 +175,10 @@ type parser struct {
 	typeofRequireEqualsFn       js_ast.E
 	typeofRequireEqualsFnTarget js_ast.E
 
+	// This helps recognize calls to "require.resolve()" which may become
+	// ERequireResolve expressions.
+	resolveCallTarget js_ast.E
+
 	// Temporary variables used for lowering
 	tempRefsToDeclare []tempRef
 	tempRefCount      int
@@ -8957,6 +8961,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return thisArgFunc()
 			}
 		}
+
+		// Prepare to recognize "require.resolve()" calls
+		couldBeRequireResolve := false
+		if len(e.Args) == 1 && p.Mode != config.ModePassThrough {
+			if dot, ok := e.Target.Data.(*js_ast.EDot); ok && dot.OptionalChain == js_ast.OptionalChainNone && dot.Name == "resolve" {
+				if _, ok := e.Args[0].Data.(*js_ast.EString); ok {
+					p.resolveCallTarget = dot.Target.Data
+					couldBeRequireResolve = true
+				}
+			}
+		}
+
 		_, wasIdentifierBeforeVisit := e.Target.Data.(*js_ast.EIdentifier)
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent:                     e.OptionalChain == js_ast.OptionalChainContinue,
@@ -8970,6 +8986,30 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				hasSpread = true
 			}
 			e.Args[i] = arg
+		}
+
+		// Recognize "require.resolve()" calls
+		if couldBeRequireResolve {
+			if dot, ok := e.Target.Data.(*js_ast.EDot); ok {
+				if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
+					if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
+						// Ignore calls to require.resolve() if the control flow is provably
+						// dead here. We don't want to spend time scanning the required files
+						// if they will never be used.
+						if p.isControlFlowDead {
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}, exprOut{}
+						}
+
+						importRecordIndex := p.addImportRecord(js_ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value))
+						p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
+						p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+
+						// Create a new expression to represent the operation
+						p.ignoreUsage(p.requireRef)
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireResolve{ImportRecordIndex: importRecordIndex}}, exprOut{}
+					}
+				}
+			}
 		}
 
 		// "foo(1, ...[2, 3], 4)" => "foo(1, 2, 3, 4)"
@@ -9236,9 +9276,10 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 			if p.Platform == config.PlatformBrowser {
 				return js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: false}}
 			}
-		} else {
+		} else if e != p.resolveCallTarget {
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeWarning(&p.source, r, "Indirect calls to \"require\" will not be bundled")
+			p.log.AddRangeWarning(&p.source, r,
+				"Indirect calls to \"require\" will not be bundled (surround with a try/catch to silence this warning)")
 		}
 	}
 

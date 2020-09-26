@@ -6,6 +6,19 @@
 
     This release fixes an issue where a single build operation containing multiple entry points and a shared JSON file which is used by more than one of those entry points can generate incorrect code for the JSON file when code splitting is disabled. The problem was not cloning the AST representing the JSON file before mutating it.
 
+* Silence warnings about `require.resolve()` for external paths ([#410](https://github.com/evanw/esbuild/issues/410))
+
+    Bundling code containing a call to node's [`require.resolve()`](https://nodejs.org/api/modules.html#modules_require_resolve_request_options) function causes a warning because it's an unsupported use of `require` that does not end up being bundled. For example, the following code will likely have unexpected behavior if `foo` ends up being bundled because the `require()` call is evaluated at bundle time but the `require.resolve()` call is evaluated at run time:
+
+    ```js
+    let foo = {
+      path: require.resolve('foo'),
+      module: require('foo'),
+    };
+    ```
+
+    These warnings can already be disabled by surrounding the code with a `try`/`catch` statement. With this release, these warnings can now also be disabled by marking the path as external.
+
 ## 0.7.5
 
 * Fix an issue with automatic semicolon insertion after `let` ([#409](https://github.com/evanw/esbuild/issues/409))
