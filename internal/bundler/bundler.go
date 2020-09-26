@@ -356,7 +356,7 @@ func parseFile(args parseArgs) {
 				// want to waste effort traversing into them
 				if record.Kind == ast.ImportRequireResolve {
 					if !record.IsInsideTryBody && (resolveResult == nil || !resolveResult.IsExternal) {
-						args.log.AddRangeWarning(&source, source.RangeOfString(record.Loc),
+						args.log.AddRangeWarning(&source, record.Range,
 							fmt.Sprintf("%q should be marked as external for use with \"require.resolve\"", record.Path.Text))
 					}
 					continue
@@ -368,7 +368,6 @@ func parseFile(args parseArgs) {
 					// code pattern for conditionally importing a module with a graceful
 					// fallback.
 					if !record.IsInsideTryBody {
-						r := source.RangeOfString(record.Loc)
 						hint := ""
 						if resolver.IsPackagePath(record.Path.Text) {
 							hint = " (mark it as external to exclude it from the bundle)"
@@ -378,7 +377,7 @@ func parseFile(args parseArgs) {
 								hint = " (set platform to \"node\" when building for node)"
 							}
 						}
-						args.log.AddRangeError(&source, r,
+						args.log.AddRangeError(&source, record.Range,
 							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
 					}
 					continue
@@ -622,8 +621,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				if !resolveResult.IsExternal {
 					// Handle a path within the bundle
 					prettyPath := res.PrettyPath(path)
-					pathRange := result.file.source.RangeOfString(record.Loc)
-					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, pathRange, "", inputKindNormal)
+					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, "", inputKindNormal)
 					record.SourceIndex = &sourceIndex
 				} else {
 					// If the path to the external module is relative to the source

@@ -5532,9 +5532,9 @@ func extractDeclsForBinding(binding js_ast.Binding, decls []js_ast.Decl) []js_as
 func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
-		Kind: kind,
-		Loc:  loc,
-		Path: logger.Path{Text: text},
+		Kind:  kind,
+		Range: p.source.RangeOfString(loc),
+		Path:  logger.Path{Text: text},
 	})
 	return index
 }

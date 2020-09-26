@@ -190,10 +190,6 @@ type importToBind struct {
 type exportData struct {
 	ref js_ast.Ref
 
-	// The location of the path string for error messages. This is only from re-
-	// exports (i.e. "export * from 'foo'").
-	pathLoc *logger.Loc
-
 	// This is the file that the named export above came from. This will be
 	// different from the file that contains this object if this is a re-export.
 	sourceIndex uint32
@@ -1061,7 +1057,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		// Propagate exports for export star statements
 		if len(repr.ast.ExportStarImportRecords) > 0 {
 			visited := make(map[uint32]bool)
-			c.addExportsForExportStar(repr.meta.resolvedExports, sourceIndex, nil, visited)
+			c.addExportsForExportStar(repr.meta.resolvedExports, sourceIndex, visited)
 		}
 
 		// Add an empty part for the namespace export that we can fill in later
@@ -1772,7 +1768,6 @@ func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited ma
 func (c *linkerContext) addExportsForExportStar(
 	resolvedExports map[string]exportData,
 	sourceIndex uint32,
-	topLevelPathLoc *logger.Loc,
 	visited map[uint32]bool,
 ) {
 	// Avoid infinite loops due to cycles in the export star graph
@@ -1789,13 +1784,6 @@ func (c *linkerContext) addExportsForExportStar(
 			continue
 		}
 		otherSourceIndex := *record.SourceIndex
-
-		// We need a location for error messages, but it must be in the top-level
-		// file, not in any nested file. This will be passed to nested files.
-		pathLoc := record.Loc
-		if topLevelPathLoc != nil {
-			pathLoc = *topLevelPathLoc
-		}
 
 		// Export stars from a CommonJS module don't work because they can't be
 		// statically discovered. Just silently ignore them in this case.
@@ -1829,7 +1817,6 @@ func (c *linkerContext) addExportsForExportStar(
 				resolvedExports[name] = exportData{
 					ref:              ref,
 					sourceIndex:      otherSourceIndex,
-					pathLoc:          &pathLoc,
 					isFromExportStar: true,
 				}
 
@@ -1847,7 +1834,7 @@ func (c *linkerContext) addExportsForExportStar(
 		}
 
 		// Search further through this file's export stars
-		c.addExportsForExportStar(resolvedExports, otherSourceIndex, &pathLoc, visited)
+		c.addExportsForExportStar(resolvedExports, otherSourceIndex, visited)
 	}
 }
 
@@ -2508,7 +2495,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 		Loc: loc,
 		Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: []js_ast.Decl{{
 			Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
-			Value:   &js_ast.Expr{Loc: record.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
+			Value:   &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
 		}}},
 	})
 	return true
@@ -2579,7 +2566,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 									Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
 									Args: []js_ast.Expr{
 										{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}},
-										{Loc: record.Loc, Data: &js_ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}},
+										{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: s.ImportRecordIndex}},
 									},
 								}}},
 							})

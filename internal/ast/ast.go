@@ -19,8 +19,8 @@ const (
 )
 
 type ImportRecord struct {
-	Loc  logger.Loc
-	Path logger.Path
+	Range logger.Range
+	Path  logger.Path
 
 	// The resolved source index for an internal import (within the bundle) or
 	// nil for an external import (not included in the bundle)
