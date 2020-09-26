@@ -160,7 +160,12 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 
 		case *css_ast.SSAttribute:
 			p.print("[")
-			p.printNamespacedName(s.NamespacedName)
+			if s.NamespacedName.NamespacePrefix != nil && *s.NamespacedName.NamespacePrefix == "" {
+				// "[|attr]" is equivalent to "[attr]"
+				p.print(s.NamespacedName.Name)
+			} else {
+				p.printNamespacedName(s.NamespacedName)
+			}
 			p.print(s.MatcherOp)
 			p.print(s.MatcherValue)
 			if s.MatcherModifier != 0 {
@@ -185,11 +190,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 func (p *printer) printNamespacedName(nsName css_ast.NamespacedName) {
 	if nsName.NamespacePrefix != nil {
 		p.print(*nsName.NamespacePrefix)
-		if p.RemoveWhitespace {
-			p.print("|")
-		} else {
-			p.print(" | ")
-		}
+		p.print("|")
 	}
 	p.print(nsName.Name)
 }

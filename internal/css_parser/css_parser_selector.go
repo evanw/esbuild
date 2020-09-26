@@ -1,8 +1,6 @@
 package css_parser
 
 import (
-	"strings"
-
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
@@ -165,38 +163,33 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		if !p.expect(css_lexer.TDelimBar) {
 			return
 		}
-		if !p.peek(css_lexer.TIdent) {
-			p.expect(css_lexer.TIdent)
+		attr.NamespacedName.Name = p.text()
+		if !p.expect(css_lexer.TIdent) {
 			return
-		}
-		attr.NamespacedName.Name = p.text()
-		p.advance()
-
-	case css_lexer.TIdent:
-		// "[x]"
-		// "[x|y]"
-		attr.NamespacedName.Name = p.text()
-		p.advance()
-		if p.eat(css_lexer.TDelimBar) {
-			if !p.peek(css_lexer.TIdent) {
-				p.expect(css_lexer.TIdent)
-				return
-			}
-			prefix := attr.NamespacedName.Name
-			attr.NamespacedName.NamespacePrefix = &prefix
-			attr.NamespacedName.Name = p.text()
-			p.advance()
 		}
 
 	default:
-		p.expect(css_lexer.TIdent)
-		return
+		// "[x]"
+		// "[x|y]"
+		attr.NamespacedName.Name = p.text()
+		if !p.expect(css_lexer.TIdent) {
+			return
+		}
+		if p.next().Kind != css_lexer.TDelimEquals && p.eat(css_lexer.TDelimBar) {
+			prefix := attr.NamespacedName.Name
+			attr.NamespacedName.NamespacePrefix = &prefix
+			attr.NamespacedName.Name = p.text()
+			if !p.expect(css_lexer.TIdent) {
+				return
+			}
+		}
 	}
 
 	// Parse the optional matcher operator
+	p.eat(css_lexer.TWhitespace)
 	if p.eat(css_lexer.TDelimEquals) {
 		attr.MatcherOp = "="
-	} else if p.next().Kind == css_lexer.TDelimEquals {
+	} else {
 		switch p.current().Kind {
 		case css_lexer.TDelimTilde:
 			attr.MatcherOp = "~="
@@ -211,12 +204,13 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		}
 		if attr.MatcherOp != "" {
 			p.advance()
-			p.advance()
+			p.expect(css_lexer.TDelimEquals)
 		}
 	}
 
 	// Parse the optional matcher value
 	if attr.MatcherOp != "" {
+		p.eat(css_lexer.TWhitespace)
 		if !p.peek(css_lexer.TString) && !p.peek(css_lexer.TIdent) {
 			p.unexpected()
 		}
@@ -225,7 +219,7 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		p.eat(css_lexer.TWhitespace)
 		if p.peek(css_lexer.TIdent) {
 			if modifier := p.text(); len(modifier) == 1 {
-				if c := modifier[0]; strings.ContainsRune("iIsS", rune(c)) {
+				if c := modifier[0]; c == 'i' || c == 'I' {
 					attr.MatcherModifier = c
 					p.advance()
 				}
@@ -308,13 +302,6 @@ func (p *parser) parseCombinator() string {
 	case css_lexer.TDelimTilde:
 		p.advance()
 		return "~"
-
-	case css_lexer.TDelimBar:
-		if p.next().Kind == css_lexer.TDelimBar {
-			p.advance()
-			p.advance()
-		}
-		return "||"
 
 	default:
 		return ""
