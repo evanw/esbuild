@@ -73,7 +73,7 @@ type linkerContext struct {
 
 	// This maps from unstable source index to stable reachable file index. This
 	// is useful as a deterministic key for sorting if you need to sort something
-	// containing a source index (such as "ast.Ref" symbol references).
+	// containing a source index (such as "js_ast.Ref" symbol references).
 	stableSourceIndices []uint32
 
 	// We may need to refer to the CommonJS "module" symbol for exports
@@ -207,7 +207,7 @@ type exportData struct {
 	isAmbiguous bool
 }
 
-// This contains linker-specific metadata corresponding to an "ast.Part" struct
+// This contains linker-specific metadata corresponding to a "js_ast.Part" struct
 // from the initial scan phase of the bundler. It's separated out because it's
 // conceptually only used for a single linking operation and because multiple
 // linking operations may be happening in parallel with different metadata for
@@ -497,7 +497,7 @@ func (c *linkerContext) link() []OutputFile {
 	chunks := c.computeChunks()
 	c.computeCrossChunkDependencies(chunks)
 
-	// Make sure calls to "ast.FollowSymbols()" in parallel goroutines after this
+	// Make sure calls to "js_ast.FollowSymbols()" in parallel goroutines after this
 	// won't hit concurrent map mutation hazards
 	js_ast.FollowAllSymbols(c.symbols)
 
