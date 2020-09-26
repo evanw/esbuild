@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -74,7 +75,7 @@ type parser struct {
 	localTypeNames             map[string]bool
 
 	// Imports (both ES6 and CommonJS) are tracked at the top level
-	importRecords               []js_ast.ImportRecord
+	importRecords               []ast.ImportRecord
 	importRecordsForCurrentPart []uint32
 	exportStarImportRecords     []uint32
 
@@ -4681,7 +4682,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				name := js_ast.GenerateNonUniqueNameFromPath(pathText) + "_star"
 				namespaceRef = p.storeNameInRef(name)
 			}
-			importRecordIndex := p.addImportRecord(js_ast.ImportStmt, pathLoc, pathText)
+			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
 
 			p.lexer.ExpectOrInsertSemicolon()
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportStar{
@@ -4699,7 +4700,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			if p.lexer.IsContextualKeyword("from") {
 				p.lexer.Next()
 				pathLoc, pathText := p.parsePath()
-				importRecordIndex := p.addImportRecord(js_ast.ImportStmt, pathLoc, pathText)
+				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
 				name := js_ast.GenerateNonUniqueNameFromPath(pathText)
 				namespaceRef := p.storeNameInRef(name)
 				p.lexer.ExpectOrInsertSemicolon()
@@ -5265,7 +5266,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		}
 
 		pathLoc, pathText := p.parsePath()
-		stmt.ImportRecordIndex = p.addImportRecord(js_ast.ImportStmt, pathLoc, pathText)
+		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
 		p.lexer.ExpectOrInsertSemicolon()
 
 		if stmt.StarNameLoc != nil {
@@ -5528,13 +5529,12 @@ func extractDeclsForBinding(binding js_ast.Binding, decls []js_ast.Decl) []js_as
 	return decls
 }
 
-func (p *parser) addImportRecord(kind js_ast.ImportKind, loc logger.Loc, text string) uint32 {
+func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string) uint32 {
 	index := uint32(len(p.importRecords))
-	p.importRecords = append(p.importRecords, js_ast.ImportRecord{
-		Kind:       kind,
-		Loc:        loc,
-		Path:       logger.Path{Text: text},
-		WrapperRef: js_ast.InvalidRef,
+	p.importRecords = append(p.importRecords, ast.ImportRecord{
+		Kind: kind,
+		Loc:  loc,
+		Path: logger.Path{Text: text},
 	})
 	return index
 }
@@ -8937,7 +8937,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}, exprOut{}
 			}
 
-			importRecordIndex := p.addImportRecord(js_ast.ImportDynamic, e.Expr.Loc, js_lexer.UTF16ToString(str.Value))
+			importRecordIndex := p.addImportRecord(ast.ImportDynamic, e.Expr.Loc, js_lexer.UTF16ToString(str.Value))
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 			e.ImportRecordIndex = &importRecordIndex
@@ -9000,7 +9000,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}, exprOut{}
 						}
 
-						importRecordIndex := p.addImportRecord(js_ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value))
+						importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value))
 						p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
 						p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
@@ -9096,7 +9096,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}, exprOut{}
 							}
 
-							importRecordIndex := p.addImportRecord(js_ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value))
+							importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value))
 							p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
 							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
@@ -10271,7 +10271,7 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 		declaredSymbols := make([]js_ast.DeclaredSymbol, len(keys))
 		clauseItems := make([]js_ast.ClauseItem, len(keys))
-		importRecordIndex := p.addImportRecord(js_ast.ImportStmt, logger.Loc{}, "<runtime>")
+		importRecordIndex := p.addImportRecord(ast.ImportStmt, logger.Loc{}, "<runtime>")
 		sourceIndex := runtime.SourceIndex
 		p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
 

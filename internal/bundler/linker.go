@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_printer"
@@ -263,7 +264,7 @@ type chunkInfo struct {
 
 type chunkRepr interface {
 	fileExt() string
-	generate(c *linkerContext, chunk *chunkInfo) func(crossChunkImportRecords []js_ast.ImportRecord) []OutputFile
+	generate(c *linkerContext, chunk *chunkInfo) func(crossChunkImportRecords []ast.ImportRecord) []OutputFile
 }
 
 type chunkReprJS struct {
@@ -337,7 +338,7 @@ func newLinkerContext(
 			}
 
 			// Clone the import records
-			repr.ast.ImportRecords = append([]js_ast.ImportRecord{}, repr.ast.ImportRecords...)
+			repr.ast.ImportRecords = append([]ast.ImportRecord{}, repr.ast.ImportRecords...)
 
 			// Clone the import map
 			namedImports := make(map[js_ast.Ref]js_ast.NamedImport, len(repr.ast.NamedImports))
@@ -584,10 +585,10 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 			order.dependencies.Wait()
 
 			// Fill in the cross-chunk import records now that the paths are known
-			crossChunkImportRecords := make([]js_ast.ImportRecord, len(chunk.crossChunkImports))
+			crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
 			for i, otherChunkIndex := range chunk.crossChunkImports {
-				crossChunkImportRecords[i] = js_ast.ImportRecord{
-					Kind: js_ast.ImportStmt,
+				crossChunkImportRecords[i] = ast.ImportRecord{
+					Kind: ast.ImportStmt,
 					Path: logger.Path{Text: c.relativePathBetweenChunks(chunk.relDir, chunks[otherChunkIndex].relPath())},
 				}
 			}
@@ -950,10 +951,9 @@ func (c *linkerContext) scanImportsAndExports() {
 				// Make sure the printer can require() CommonJS modules
 				otherFile := &c.files[*record.SourceIndex]
 				otherRepr := otherFile.repr.(*reprJS)
-				record.WrapperRef = otherRepr.ast.WrapperRef
 
 				switch record.Kind {
-				case js_ast.ImportStmt:
+				case ast.ImportStmt:
 					// Importing using ES6 syntax from a file without any ES6 syntax
 					// causes that module to be considered CommonJS-style, even if it
 					// doesn't have any CommonJS exports.
@@ -994,11 +994,11 @@ func (c *linkerContext) scanImportsAndExports() {
 						}
 					}
 
-				case js_ast.ImportRequire:
+				case ast.ImportRequire:
 					// Files that are imported with require() must be CommonJS modules
 					otherRepr.meta.cjsStyleExports = true
 
-				case js_ast.ImportDynamic:
+				case ast.ImportDynamic:
 					if c.options.CodeSplitting {
 						// Files that are imported with import() must be entry points
 						if !otherFile.isEntryPoint {
@@ -2088,7 +2088,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 		// Also include any statement-level imports
 		for _, importRecordIndex := range part.ImportRecordIndices {
 			record := &repr.ast.ImportRecords[importRecordIndex]
-			if record.Kind != js_ast.ImportStmt {
+			if record.Kind != ast.ImportStmt {
 				continue
 			}
 
@@ -2172,8 +2172,8 @@ func (c *linkerContext) generateUseOfSymbolForInclude(
 	}
 }
 
-func (c *linkerContext) isExternalDynamicImport(record *js_ast.ImportRecord) bool {
-	return record.Kind == js_ast.ImportDynamic && c.files[*record.SourceIndex].isEntryPoint
+func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord) bool {
+	return record.Kind == ast.ImportDynamic && c.files[*record.SourceIndex].isEntryPoint
 }
 
 func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryPointBit uint, distanceFromEntryPoint uint32) {
@@ -2216,7 +2216,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 		if record.SourceIndex == nil || c.isExternalDynamicImport(record) {
 			// This is an external import, so it needs the "__toModule" wrapper as
 			// long as it's not a bare "require()"
-			if record.Kind != js_ast.ImportRequire && !c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			if record.Kind != ast.ImportRequire && !c.options.OutputFormat.KeepES6ImportExportSyntax() {
 				record.WrapWithToModule = true
 				toModuleUses++
 			}
@@ -2225,7 +2225,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 		otherSourceIndex := *record.SourceIndex
 		otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
-		if record.Kind == js_ast.ImportStmt && !otherRepr.meta.cjsStyleExports {
+		if record.Kind == ast.ImportStmt && !otherRepr.meta.cjsStyleExports {
 			// Skip this since it's not a require() import
 			continue
 		}
@@ -2239,7 +2239,7 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 
 		// This is an ES6 import of a CommonJS module, so it needs the
 		// "__toModule" wrapper as long as it's not a bare "require()"
-		if record.Kind != js_ast.ImportRequire {
+		if record.Kind != ast.ImportRequire {
 			record.WrapWithToModule = true
 			toModuleUses++
 		}
@@ -2436,7 +2436,7 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 				// Also traverse any files imported by this part
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &repr.ast.ImportRecords[importRecordIndex]
-					if record.SourceIndex != nil && (record.Kind == js_ast.ImportStmt || isPartInThisChunk) {
+					if record.SourceIndex != nil && (record.Kind == ast.ImportStmt || isPartInThisChunk) {
 						if c.isExternalDynamicImport(record) {
 							// Don't follow import() dependencies
 							continue
@@ -2906,6 +2906,9 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		UnsupportedFeatures: c.options.UnsupportedFeatures,
 		SourceForSourceMap:  sourceForSourceMap,
 		InputSourceMap:      file.sourceMap,
+		WrapperRefForSource: func(sourceIndex uint32) js_ast.Ref {
+			return c.files[sourceIndex].repr.(*reprJS).ast.WrapperRef
+		},
 	}
 	tree := repr.ast
 	tree.Parts = []js_ast.Part{{Stmts: stmts}}
@@ -3056,7 +3059,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	return r
 }
 
-func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]js_ast.ImportRecord) []OutputFile {
+func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
 	var results []OutputFile
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResultJS, 0, len(filesInChunkInOrder))
@@ -3095,7 +3098,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]js_
 	}
 
 	// Wait for cross-chunk import records before continuing
-	return func(crossChunkImportRecords []js_ast.ImportRecord) []OutputFile {
+	return func(crossChunkImportRecords []ast.ImportRecord) []OutputFile {
 		// Also generate the cross-chunk binding code
 		var crossChunkPrefix []byte
 		var crossChunkSuffix []byte
@@ -3386,7 +3389,7 @@ type compileResultCSS struct {
 	sourceIndex uint32
 }
 
-func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]js_ast.ImportRecord) []OutputFile {
+func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
 	var results []OutputFile
 	filesInChunkInOrder := c.chunkFileOrder(chunk)
 	compileResults := make([]compileResultCSS, 0, len(filesInChunkInOrder))
@@ -3425,7 +3428,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]js
 	}
 
 	// Wait for cross-chunk import records before continuing
-	return func(crossChunkImportRecords []js_ast.ImportRecord) []OutputFile {
+	return func(crossChunkImportRecords []ast.ImportRecord) []OutputFile {
 		waitGroup.Wait()
 		j := js_printer.Joiner{}
 

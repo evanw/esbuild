@@ -7,6 +7,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -93,7 +94,7 @@ type ResolveResult struct {
 }
 
 type Resolver interface {
-	Resolve(sourceDir string, importPath string, kind js_ast.ImportKind) *ResolveResult
+	Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult
 	ResolveAbs(absPath string) *ResolveResult
 	PrettyPath(path logger.Path) string
 }
@@ -132,7 +133,7 @@ func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
 	}
 }
 
-func (r *resolver) Resolve(sourceDir string, importPath string, kind js_ast.ImportKind) *ResolveResult {
+func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -212,7 +213,7 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 	return &result
 }
 
-func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind js_ast.ImportKind) *ResolveResult {
+func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	var result PathPair
@@ -327,7 +328,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 	return &ResolveResult{PathPair: result}
 }
 
-func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind js_ast.ImportKind) (PathPair, bool) {
+func (r *resolver) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPath string, kind ast.ImportKind) (PathPair, bool) {
 	if IsPackagePath(importPath) {
 		return r.loadNodeModules(importPath, kind, sourceDirInfo)
 	} else {
@@ -1032,7 +1033,7 @@ func getBool(json js_ast.Expr) (bool, bool) {
 	return false, false
 }
 
-func (r *resolver) loadAsFileOrDirectory(path string, kind js_ast.ImportKind) (PathPair, bool) {
+func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool) {
 	// Is this a file?
 	absolute, ok := r.loadAsFile(path)
 	if ok {
@@ -1070,7 +1071,7 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind js_ast.ImportKind) (P
 						// for "require" and "module" if the path is for "import". If we're using
 						// "module", return enough information to be able to fall back to "main"
 						// later if that decision was incorrect.
-						if kind != js_ast.ImportRequire {
+						if kind != ast.ImportRequire {
 							return PathPair{
 								// This is the whole point of the path pair
 								Primary:   logger.Path{Text: absolute, Namespace: "file"},
@@ -1097,7 +1098,7 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind js_ast.ImportKind) (P
 
 // This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
 // official TypeScript compiler
-func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, kind js_ast.ImportKind) (PathPair, bool) {
+func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, kind ast.ImportKind) (PathPair, bool) {
 	// Check for exact matches first
 	for key, originalPaths := range tsConfigJson.paths {
 		if key == path {
@@ -1163,7 +1164,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, k
 	return PathPair{}, false
 }
 
-func (r *resolver) loadNodeModules(path string, kind js_ast.ImportKind, dirInfo *dirInfo) (PathPair, bool) {
+func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 	if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
 		// Try path substitutions first

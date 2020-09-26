@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -406,7 +407,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 type printer struct {
 	symbols            js_ast.SymbolMap
 	renamer            renamer.Renamer
-	importRecords      []js_ast.ImportRecord
+	importRecords      []ast.ImportRecord
 	options            PrintOptions
 	extractedComments  map[string]bool
 	needsSemicolon     bool
@@ -1164,7 +1165,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 	p.printSpaceBeforeIdentifier()
 
 	// Preserve "import()" expressions that don't point inside the bundle
-	if record.SourceIndex == nil && record.Kind == js_ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
+	if record.SourceIndex == nil && record.Kind == ast.ImportDynamic && p.options.OutputFormat.KeepES6ImportExportSyntax() {
 		p.print("import(")
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
@@ -1185,7 +1186,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 	}
 
 	// Make sure "import()" expressions return promises
-	if record.Kind == js_ast.ImportDynamic {
+	if record.Kind == ast.ImportDynamic {
 		if p.options.RemoveWhitespace {
 			p.print("Promise.resolve().then(()=>")
 		} else {
@@ -1204,7 +1205,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 	// module's require function exists by this point. Otherwise, fall back to a
 	// bare "require()" call. Then it's up to the user to provide it.
 	if record.SourceIndex != nil {
-		p.printSymbol(record.WrapperRef)
+		p.printSymbol(p.options.WrapperRefForSource(*record.SourceIndex))
 		p.print("()")
 	} else {
 		p.print("require(")
@@ -1216,7 +1217,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		p.print(")")
 	}
 
-	if record.Kind == js_ast.ImportDynamic {
+	if record.Kind == ast.ImportDynamic {
 		p.print(")")
 	}
 }
@@ -2873,6 +2874,7 @@ type PrintOptions struct {
 	ExtractComments     bool
 	Indent              int
 	ToModuleRef         js_ast.Ref
+	WrapperRefForSource func(uint32) js_ast.Ref
 	UnsupportedFeatures compat.Feature
 
 	// This contains the contents of the input file to map back to in the source
@@ -2917,7 +2919,7 @@ type SourceMapChunk struct {
 func createPrinter(
 	symbols js_ast.SymbolMap,
 	r renamer.Renamer,
-	importRecords []js_ast.ImportRecord,
+	importRecords []ast.ImportRecord,
 	options PrintOptions,
 	approximateLineCount int32,
 ) *printer {

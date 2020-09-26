@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -1321,58 +1322,6 @@ func (sm SymbolMap) Get(ref Ref) *Symbol {
 	return &sm.Outer[ref.OuterIndex][ref.InnerIndex]
 }
 
-type ImportKind uint8
-
-const (
-	// An ES6 import or re-export statement
-	ImportStmt ImportKind = iota
-
-	// A call to "require()"
-	ImportRequire
-
-	// An "import()" expression with a string argument
-	ImportDynamic
-
-	// A call to "require.resolve()"
-	ImportRequireResolve
-)
-
-type ImportRecord struct {
-	Loc  logger.Loc
-	Path logger.Path
-
-	// If this is an internal CommonJS import, this is the symbol of a function
-	// that takes no arguments which, when called, implements require() for this
-	// import. This is a wrapper function returned by "__commonJS()".
-	WrapperRef Ref
-
-	// The resolved source index for an internal import (within the bundle) or
-	// nil for an external import (not included in the bundle)
-	SourceIndex *uint32
-
-	// Sometimes the parser creates an import record and decides it isn't needed.
-	// For example, TypeScript code may have import statements that later turn
-	// out to be type-only imports after analyzing the whole file.
-	IsUnused bool
-
-	// If this is true, the import doesn't actually use any imported values. The
-	// import is only used for its side effects.
-	DoesNotUseExports bool
-
-	// If true, this "export * from 'path'" statement is evaluated at run-time by
-	// calling the "__exportStar()" helper function
-	CallsRunTimeExportStarFn bool
-
-	// Tell the printer to wrap this call to "require()" in "__toModule(...)"
-	WrapWithToModule bool
-
-	// True for require calls like this: "try { require() } catch {}". In this
-	// case we shouldn't generate an error if the path could not be resolved.
-	IsInsideTryBody bool
-
-	Kind ImportKind
-}
-
 type AST struct {
 	ApproximateLineCount  int32
 	NestedScopeSlotCounts SlotCounts
@@ -1401,7 +1350,7 @@ type AST struct {
 
 	// These are stored at the AST level instead of on individual AST nodes so
 	// they can be manipulated efficiently without a full AST traversal
-	ImportRecords []ImportRecord
+	ImportRecords []ast.ImportRecord
 
 	// These are used when bundling. They are filled in during the parser pass
 	// since we already have to traverse the AST then anyway and the parser pass

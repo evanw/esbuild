@@ -16,6 +16,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_parser"
@@ -67,7 +68,7 @@ type file struct {
 }
 
 type fileRepr interface {
-	importRecords() []js_ast.ImportRecord
+	importRecords() []ast.ImportRecord
 }
 
 type reprJS struct {
@@ -75,7 +76,7 @@ type reprJS struct {
 	meta fileMeta
 }
 
-func (repr *reprJS) importRecords() []js_ast.ImportRecord {
+func (repr *reprJS) importRecords() []ast.ImportRecord {
 	return repr.ast.ImportRecords
 }
 
@@ -88,7 +89,7 @@ type reprCSS struct {
 	jsSourceIndex *uint32
 }
 
-func (repr *reprCSS) importRecords() []js_ast.ImportRecord {
+func (repr *reprCSS) importRecords() []ast.ImportRecord {
 	return nil
 }
 
@@ -310,7 +311,7 @@ func parseFile(args parseArgs) {
 		result.resolveResults = make([]*resolver.ResolveResult, len(records))
 
 		if len(records) > 0 {
-			resolverCache := make(map[js_ast.ImportKind]map[string]*resolver.ResolveResult)
+			resolverCache := make(map[ast.ImportKind]map[string]*resolver.ResolveResult)
 
 			// Resolve relative to the parent directory of the source file with the
 			// import path. Just use the current directory if the source file is virtual.
@@ -353,7 +354,7 @@ func parseFile(args parseArgs) {
 
 				// All "require.resolve()" imports should be external because we don't
 				// want to waste effort traversing into them
-				if record.Kind == js_ast.ImportRequireResolve {
+				if record.Kind == ast.ImportRequireResolve {
 					if !record.IsInsideTryBody && (resolveResult == nil || !resolveResult.IsExternal) {
 						args.log.AddRangeWarning(&source, source.RangeOfString(record.Loc),
 							fmt.Sprintf("%q should be marked as external for use with \"require.resolve\"", record.Path.Text))
@@ -902,7 +903,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
 			records := b.files[sourceIndex].repr.importRecords()
 			for importRecordIndex := range records {
-				if record := &records[importRecordIndex]; record.SourceIndex != nil && record.Kind == js_ast.ImportDynamic {
+				if record := &records[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
 					isEntryPoint[*record.SourceIndex] = true
 				}
 			}
