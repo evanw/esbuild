@@ -93,15 +93,19 @@ func TestStringParsing(t *testing.T) {
 }
 
 func TestURLParsing(t *testing.T) {
-	test.AssertEqual(t, ContentsOfURLToken("url(foo)"), "foo")
-	test.AssertEqual(t, ContentsOfURLToken("url(  foo\t\t)"), "foo")
-	test.AssertEqual(t, ContentsOfURLToken("url(f\\oo)"), "foo")
-	test.AssertEqual(t, ContentsOfURLToken("url(f\\\"o)"), "f\"o")
-	test.AssertEqual(t, ContentsOfURLToken("url(f\\'o)"), "f'o")
-	test.AssertEqual(t, ContentsOfURLToken("url(f\\)o)"), "f)o")
-	test.AssertEqual(t, ContentsOfURLToken("url(f\\6fo)"), "foo")
-	test.AssertEqual(t, ContentsOfURLToken("url(f\\6f o)"), "foo")
-	test.AssertEqual(t, ContentsOfURLToken("url(f\\6f  o)"), "fo o")
+	contentsOfURLToken := func(raw string) string {
+		text, _ := ContentsOfURLToken(raw)
+		return text
+	}
+	test.AssertEqual(t, contentsOfURLToken("url(foo)"), "foo")
+	test.AssertEqual(t, contentsOfURLToken("url(  foo\t\t)"), "foo")
+	test.AssertEqual(t, contentsOfURLToken("url(f\\oo)"), "foo")
+	test.AssertEqual(t, contentsOfURLToken("url(f\\\"o)"), "f\"o")
+	test.AssertEqual(t, contentsOfURLToken("url(f\\'o)"), "f'o")
+	test.AssertEqual(t, contentsOfURLToken("url(f\\)o)"), "f)o")
+	test.AssertEqual(t, contentsOfURLToken("url(f\\6fo)"), "foo")
+	test.AssertEqual(t, contentsOfURLToken("url(f\\6f o)"), "foo")
+	test.AssertEqual(t, contentsOfURLToken("url(f\\6f  o)"), "fo o")
 }
 
 func TestStringQuoting(t *testing.T) {

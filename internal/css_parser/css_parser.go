@@ -198,7 +198,9 @@ func (p *parser) parseURLOrString() (string, logger.Range, bool) {
 
 	case css_lexer.TURL:
 		p.advance()
-		return css_lexer.ContentsOfURLToken(t.Raw(p.source.Contents)), t.Range, true
+		text, r := css_lexer.ContentsOfURLToken(t.Raw(p.source.Contents))
+		r.Loc.Start += t.Range.Loc.Start
+		return text, r, true
 
 	case css_lexer.TFunction:
 		if t.Raw(p.source.Contents) == "url(" {

@@ -700,18 +700,20 @@ func isNonPrintable(c rune) bool {
 	return c <= 0x08 || c == 0x0B || (c >= 0x0E && c <= 0x1F) || c == 0x7F
 }
 
-func ContentsOfURLToken(raw string) string {
-	inner := raw[4 : len(raw)-1]
+func ContentsOfURLToken(raw string) (string, logger.Range) {
+	start := 4
+	end := len(raw) - 1
 
 	// Trim leading and trailing whitespace
-	for len(inner) > 0 && isWhitespace(rune(inner[0])) {
-		inner = inner[1:]
+	for start < end && isWhitespace(rune(raw[start])) {
+		start++
 	}
-	for len(inner) > 0 && isWhitespace(rune(inner[len(inner)-1])) {
-		inner = inner[:len(inner)-1]
+	for start < end && isWhitespace(rune(raw[end-1])) {
+		end--
 	}
 
-	return decodeEscapesInToken(inner)
+	r := logger.Range{Loc: logger.Loc{Start: int32(start)}, Len: int32(end - start)}
+	return decodeEscapesInToken(raw[start:end]), r
 }
 
 func ContentsOfStringToken(raw string) string {
