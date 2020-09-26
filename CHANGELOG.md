@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix JSON files with multiple entry points ([#413](https://github.com/evanw/esbuild/issues/413))
+
+    This release fixes an issue where a single build operation containing multiple entry points and a shared JSON file which is used by more than one of those entry points can generate incorrect code for the JSON file when code splitting is disabled. The problem was not cloning the AST representing the JSON file before mutating it.
+
 ## 0.7.5
 
 * Fix an issue with automatic semicolon insertion after `let` ([#409](https://github.com/evanw/esbuild/issues/409))

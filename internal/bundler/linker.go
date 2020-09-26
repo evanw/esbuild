@@ -1244,19 +1244,23 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32, file *file
 
 	// Unwrap JSON objects into separate top-level variables
 	var prevExports []prevExport
-	if object, ok := lazy.Value.Data.(*js_ast.EObject); ok {
-		for i, property := range object.Properties {
+	jsonValue := lazy.Value
+	if object, ok := jsonValue.Data.(*js_ast.EObject); ok {
+		clone := *object
+		clone.Properties = append(make([]js_ast.Property, 0, len(clone.Properties)), clone.Properties...)
+		for i, property := range clone.Properties {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok && (!file.isEntryPoint || js_lexer.IsIdentifierUTF16(str.Value)) {
 				name := js_lexer.UTF16ToString(str.Value)
 				export := generateExport(name, name, *property.Value, nil)
 				prevExports = append(prevExports, export)
-				object.Properties[i].Value = &js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: export.ref}}
+				clone.Properties[i].Value = &js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: export.ref}}
 			}
 		}
+		jsonValue.Data = &clone
 	}
 
 	// Generate the default export
-	generateExport(c.files[sourceIndex].source.IdentifierName+"_default", "default", lazy.Value, prevExports)
+	generateExport(c.files[sourceIndex].source.IdentifierName+"_default", "default", jsonValue, prevExports)
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {

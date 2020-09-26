@@ -378,3 +378,25 @@ func TestLoaderJSONNoBundleIIFE(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderJSONSharedWithMultipleEntriesIssue413(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import data from './data.json'
+				console.log('a:', data)
+			`,
+			"/b.js": `
+				import data from './data.json'
+				console.log('b:', data)
+			`,
+			"/data.json": `{"test": 123}`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatESModule,
+			AbsOutputDir: "/out",
+		},
+	})
+}

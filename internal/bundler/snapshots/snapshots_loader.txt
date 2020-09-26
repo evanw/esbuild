@@ -164,6 +164,24 @@ TestLoaderJSONNoBundleIIFE
 })();
 
 ================================================================================
+TestLoaderJSONSharedWithMultipleEntriesIssue413
+---------- /out/a.js ----------
+// /data.json
+var test = 123;
+var data_default = {test};
+
+// /a.js
+console.log("a:", data_default);
+
+---------- /out/b.js ----------
+// /data.json
+var test = 123;
+var data_default = {test};
+
+// /b.js
+console.log("b:", data_default);
+
+================================================================================
 TestLoaderTextCommonJSAndES6
 ---------- /out.js ----------
 // /x.txt
