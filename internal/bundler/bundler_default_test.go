@@ -1924,9 +1924,10 @@ func TestExternalModuleExclusionRelativePath(t *testing.T) {
 			`,
 			"/Users/user/project/src/nested/folder/test.js": `
 				import foo from './foo.js'
+				import out from '../../../out/in-out-dir.js'
 				import sha256 from '../../sha256.min.js'
 				import config from '/api/config?a=1&b=2'
-				console.log(foo, sha256, config)
+				console.log(foo, out, sha256, config)
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/index.js"},
@@ -1935,6 +1936,7 @@ func TestExternalModuleExclusionRelativePath(t *testing.T) {
 			AbsOutputDir: "/Users/user/project/out",
 			ExternalModules: config.ExternalModules{
 				AbsPaths: map[string]bool{
+					"/Users/user/project/out/in-out-dir.js":        true,
 					"/Users/user/project/src/nested/folder/foo.js": true,
 					"/Users/user/project/src/sha256.min.js":        true,
 					"/api/config?a=1&b=2":                          true,

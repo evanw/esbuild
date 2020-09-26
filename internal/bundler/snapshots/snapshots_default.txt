@@ -589,9 +589,10 @@ TestExternalModuleExclusionRelativePath
 ---------- /Users/user/project/out/index.js ----------
 // /Users/user/project/src/nested/folder/test.js
 import foo2 from "../src/nested/folder/foo.js";
+import out from "./in-out-dir.js";
 import sha256 from "../src/sha256.min.js";
 import config from "/api/config?a=1&b=2";
-console.log(foo2, sha256, config);
+console.log(foo2, out, sha256, config);
 
 // /Users/user/project/src/index.js
 

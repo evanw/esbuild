@@ -19,6 +19,10 @@
 
     These warnings can already be disabled by surrounding the code with a `try`/`catch` statement. With this release, these warnings can now also be disabled by marking the path as external.
 
+* Ensure external relative paths start with `./` or `../`
+
+    Individual file paths can be marked as external in addition to package paths. In that case, the path to the file is rewritten to be relative to the output directory. However, previously the relative path for files in the output directory itself did not start with `./`, meaning they could potentially be interpreted as a package path instead of a relative path. These paths are now prefixed with `./` to avoid this edge case.
+
 ## 0.7.5
 
 * Fix an issue with automatic semicolon insertion after `let` ([#409](https://github.com/evanw/esbuild/issues/409))

@@ -577,7 +577,11 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 					if path.Namespace == "file" {
 						if relPath, ok := fs.Rel(options.AbsOutputDir, path.Text); ok {
 							// Prevent issues with path separators being different on Windows
-							record.Path.Text = strings.ReplaceAll(relPath, "\\", "/")
+							relPath = strings.ReplaceAll(relPath, "\\", "/")
+							if resolver.IsPackagePath(relPath) {
+								relPath = "./" + relPath
+							}
+							record.Path.Text = relPath
 						}
 					}
 				}
