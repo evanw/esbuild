@@ -515,17 +515,18 @@ validURL:
 			return TURL
 
 		case eof:
-			lexer.log.AddError(&lexer.source, logger.Loc{Start: lexer.Token.Range.End()}, "Unterminated URL token")
-			return TURL
+			loc := logger.Loc{Start: lexer.Token.Range.End()}
+			lexer.log.AddError(&lexer.source, loc, "Expected \")\" to end URL token")
+			return TBadURL
 
 		case ' ', '\t', '\r', '\n', '\f':
 			lexer.step()
 			for isWhitespace(lexer.codePoint) {
 				lexer.step()
 			}
-			if lexer.codePoint != ')' && lexer.codePoint != eof {
-				r := logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}, Len: 1}
-				lexer.log.AddRangeError(&lexer.source, r, "Expected \")\" to end URL token")
+			if lexer.codePoint != ')' {
+				loc := logger.Loc{Start: lexer.Token.Range.End()}
+				lexer.log.AddError(&lexer.source, loc, "Expected \")\" to end URL token")
 				break validURL
 			}
 			lexer.step()

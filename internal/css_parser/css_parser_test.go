@@ -80,8 +80,8 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "[a|b|=\"c\"]{}", "[a|b|=\"c\"] {\n}\n")
 	expectPrinted(t, "[a|b |= \"c\"]{}", "[a|b|=\"c\"] {\n}\n")
 	expectParseError(t, "[a||b] {}", "<stdin>: error: Expected identifier but found \"|\"\n")
-	expectParseError(t, "[* | b] {}", "<stdin>: error: Expected \"|\" but found \" \"\n")
-	expectParseError(t, "[a | b] {}", "<stdin>: error: Expected \"=\" but found \" \"\n")
+	expectParseError(t, "[* | b] {}", "<stdin>: error: Expected \"|\" but found whitespace\n")
+	expectParseError(t, "[a | b] {}", "<stdin>: error: Expected \"=\" but found whitespace\n")
 
 	expectPrinted(t, "[b=\"c\"] {}", "[b=\"c\"] {\n}\n")
 	expectPrinted(t, "[b~=\"c\"] {}", "[b~=\"c\"] {\n}\n")
@@ -162,7 +162,7 @@ func TestAtCharset(t *testing.T) {
 	expectParseError(t, "@charset \"UTF-8\"", "<stdin>: error: Expected \";\" but found end of file\n")
 	expectParseError(t, "@charset url(UTF-8);", "<stdin>: error: Expected string token but found \"url(UTF-8)\"\n")
 	expectParseError(t, "@charset url(\"UTF-8\");", "<stdin>: error: Expected string token but found \"url(\"\n")
-	expectParseError(t, "@charset \"UTF-8\" ", "<stdin>: error: Expected \";\" but found \" \"\n")
+	expectParseError(t, "@charset \"UTF-8\" ", "<stdin>: error: Expected \";\" but found whitespace\n")
 	expectParseError(t, "@charset \"UTF-8\"{}", "<stdin>: error: Expected \";\" but found \"{\"\n")
 }
 
@@ -189,11 +189,19 @@ func TestAtNamespace(t *testing.T) {
 	expectParseError(t, "@namespace \"http://www.com\"", "<stdin>: error: Expected \";\" but found end of file\n")
 	expectParseError(t, "@namespace url(\"http://www.com\";", "<stdin>: error: Expected \")\" but found \";\"\n")
 	expectParseError(t, "@namespace noturl(\"http://www.com\");", "<stdin>: error: Expected URL token but found \"noturl(\"\n")
+	expectParseError(t, "@namespace url(", `<stdin>: error: Expected URL token but found bad URL token
+<stdin>: error: Expected ")" to end URL token
+<stdin>: error: Expected ";" but found end of file
+`)
 
 	expectParseError(t, "@namespace ns;", "<stdin>: error: Expected URL token but found \";\"\n")
 	expectParseError(t, "@namespace ns \"http://www.com\"", "<stdin>: error: Expected \";\" but found end of file\n")
 	expectParseError(t, "@namespace ns url(\"http://www.com\";", "<stdin>: error: Expected \")\" but found \";\"\n")
 	expectParseError(t, "@namespace ns noturl(\"http://www.com\");", "<stdin>: error: Expected URL token but found \"noturl(\"\n")
+	expectParseError(t, "@namespace ns url(", `<stdin>: error: Expected URL token but found bad URL token
+<stdin>: error: Expected ")" to end URL token
+<stdin>: error: Expected ";" but found end of file
+`)
 
 	expectParseError(t, "@namespace \"http://www.com\" {}", "<stdin>: error: Expected \";\" but found \"{\"\n")
 }
@@ -213,6 +221,10 @@ func TestAtImport(t *testing.T) {
 	expectParseError(t, "@import \"foo.css\"", "<stdin>: error: Expected \";\" but found end of file\n")
 	expectParseError(t, "@import url(\"foo.css\";", "<stdin>: error: Expected \")\" but found \";\"\n")
 	expectParseError(t, "@import noturl(\"foo.css\");", "<stdin>: error: Expected URL token but found \"noturl(\"\n")
+	expectParseError(t, "@import url(", `<stdin>: error: Expected URL token but found bad URL token
+<stdin>: error: Expected ")" to end URL token
+<stdin>: error: Expected ";" but found end of file
+`)
 
 	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: error: Expected \";\" but found \"{\"\n")
 }

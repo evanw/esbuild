@@ -86,31 +86,37 @@ func (p *parser) expect(kind css_lexer.T) bool {
 	if p.eat(kind) {
 		return true
 	}
-	var text string
-	if p.peek(css_lexer.TEndOfFile) {
-		text = fmt.Sprintf("Expected %s but found end of file", kind.String())
-	} else {
-		text = fmt.Sprintf("Expected %s but found %q", kind.String(), p.text())
-	}
-	r := p.current().Range
-	if r.Loc.Start > p.prevError.Start {
-		p.log.AddRangeError(&p.source, r, text)
-		p.prevError = r.Loc
+	if t := p.current(); t.Range.Loc.Start > p.prevError.Start {
+		var text string
+		switch t.Kind {
+		case css_lexer.TEndOfFile, css_lexer.TWhitespace:
+			text = fmt.Sprintf("Expected %s but found %s", kind.String(), t.Kind.String())
+			t.Range.Len = 0
+		case css_lexer.TBadURL, css_lexer.TBadString:
+			text = fmt.Sprintf("Expected %s but found %s", kind.String(), t.Kind.String())
+		default:
+			text = fmt.Sprintf("Expected %s but found %q", kind.String(), p.text())
+		}
+		p.log.AddRangeError(&p.source, t.Range, text)
+		p.prevError = t.Range.Loc
 	}
 	return false
 }
 
 func (p *parser) unexpected() {
-	var text string
-	if p.peek(css_lexer.TEndOfFile) {
-		text = "Unexpected end of file"
-	} else {
-		text = fmt.Sprintf("Unexpected %q", p.text())
-	}
-	r := p.current().Range
-	if r.Loc.Start > p.prevError.Start {
-		p.log.AddRangeError(&p.source, r, text)
-		p.prevError = r.Loc
+	if t := p.current(); t.Range.Loc.Start > p.prevError.Start {
+		var text string
+		switch t.Kind {
+		case css_lexer.TEndOfFile, css_lexer.TWhitespace:
+			text = fmt.Sprintf("Unexpected %s", t.Kind.String())
+			t.Range.Len = 0
+		case css_lexer.TBadURL, css_lexer.TBadString:
+			text = fmt.Sprintf("Unexpected %s", t.Kind.String())
+		default:
+			text = fmt.Sprintf("Unexpected %q", p.text())
+		}
+		p.log.AddRangeError(&p.source, t.Range, text)
+		p.prevError = t.Range.Loc
 	}
 }
 
@@ -275,8 +281,13 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 	}
 
 	// Parse an unknown prelude
-	for !p.peek(css_lexer.TOpenBrace) {
-		if p.peek(css_lexer.TSemicolon) || p.peek(css_lexer.TCloseBrace) {
+prelude:
+	for {
+		switch p.current().Kind {
+		case css_lexer.TOpenBrace, css_lexer.TEndOfFile:
+			break prelude
+
+		case css_lexer.TSemicolon, css_lexer.TCloseBrace:
 			prelude := p.tokens[preludeStart:p.index]
 
 			// Report an error for rules that should have blocks
@@ -289,9 +300,10 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			// Otherwise, parse an unknown at rule
 			p.expect(css_lexer.TSemicolon)
 			return &css_ast.RUnknownAt{Name: name, Prelude: prelude}
-		}
 
-		p.parseComponentValue()
+		default:
+			p.parseComponentValue()
+		}
 	}
 	prelude := p.tokens[preludeStart:p.index]
 	blockStart := p.index

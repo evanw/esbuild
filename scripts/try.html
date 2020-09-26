@@ -177,6 +177,12 @@
           <option>JSX</option>
           <option>TS</option>
           <option>TSX</option>
+          <option>CSS</option>
+          <option>JSON</option>
+          <option>Text</option>
+          <option>Base64</option>
+          <option>DataURL</option>
+          <option>Binary</option>
         </select>
       </label>
       &nbsp; &nbsp;
@@ -344,11 +350,12 @@
           html += `<span class="terminal-bold">${textToHTML(text)}</span><br>`
           if (location) {
             let indent = renderTabs(location.lineText.slice(0, location.column)).length
-            let underline = location.length > 1 ? '~'.repeat(location.length) : '^'
+            let length = renderTabs(location.lineText.slice(0, location.column + location.length)).length - indent
+            let underline = length > 1 ? '~'.repeat(length) : '^'
             let line = renderTabs(location.lineText)
             html += `<span class="terminal-subtle">${textToHTML(line.slice(0, indent))}</span>`
-            html += `<span class="terminal-underline">${line.slice(indent, indent + location.length)}</span>`
-            html += `<span class="terminal-subtle">${textToHTML(line.slice(indent + location.length))}</span>`
+            html += `<span class="terminal-underline">${line.slice(indent, indent + length)}</span>`
+            html += `<span class="terminal-subtle">${textToHTML(line.slice(indent + length))}</span>`
             html += `<br><span class="terminal-underline">${' '.repeat(indent)}${underline}</span><br>`
           }
           return html
