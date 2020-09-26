@@ -3448,7 +3448,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 				if newlineBeforeComment {
 					j.AddString("\n")
 				}
-				j.AddString(fmt.Sprintf("// %s\n", c.files[compileResult.sourceIndex].source.PrettyPath))
+				j.AddString(fmt.Sprintf("/* %s */\n", c.files[compileResult.sourceIndex].source.PrettyPath))
 			}
 			if len(compileResult.printedCSS) > 0 {
 				newlineBeforeComment = true
