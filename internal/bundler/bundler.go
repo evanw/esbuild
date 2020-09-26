@@ -90,7 +90,7 @@ type reprCSS struct {
 }
 
 func (repr *reprCSS) importRecords() []ast.ImportRecord {
-	return nil
+	return repr.ast.ImportRecords
 }
 
 type Bundle struct {

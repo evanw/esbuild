@@ -3,13 +3,15 @@ package css_printer
 import (
 	"strings"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
 type printer struct {
 	Options
-	sb strings.Builder
+	importRecords []ast.ImportRecord
+	sb            strings.Builder
 }
 
 type Options struct {
@@ -19,7 +21,8 @@ type Options struct {
 
 func Print(tree css_ast.AST, options Options) string {
 	p := printer{
-		Options: options,
+		Options:       options,
+		importRecords: tree.ImportRecords,
 	}
 	for _, rule := range tree.Rules {
 		p.printRule(rule, 0, false)
@@ -56,7 +59,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		} else {
 			p.print("@import ")
 		}
-		p.print(css_lexer.QuoteForStringToken(r.Path))
+		p.print(css_lexer.QuoteForStringToken(p.importRecords[r.ImportRecordIndex].Path.Text))
 		p.print(";")
 
 	case *css_ast.RKnownAt:

@@ -1,12 +1,13 @@
 package css_ast
 
 import (
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
-	"github.com/evanw/esbuild/internal/logger"
 )
 
 type AST struct {
-	Rules []R
+	ImportRecords []ast.ImportRecord
+	Rules         []R
 }
 
 // This interface is never called. Its purpose is to encode a variant type in
@@ -25,8 +26,7 @@ type RAtNamespace struct {
 }
 
 type RAtImport struct {
-	Path      string
-	PathRange logger.Range
+	ImportRecordIndex uint32
 }
 
 type RKnownAt struct {

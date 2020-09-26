@@ -4,19 +4,21 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
 type parser struct {
-	log       logger.Log
-	source    logger.Source
-	tokens    []css_lexer.Token
-	stack     []css_lexer.T
-	index     int
-	end       int
-	prevError logger.Loc
+	log           logger.Log
+	source        logger.Source
+	tokens        []css_lexer.Token
+	stack         []css_lexer.T
+	index         int
+	end           int
+	prevError     logger.Loc
+	importRecords []ast.ImportRecord
 }
 
 func Parse(log logger.Log, source logger.Source) css_ast.AST {
@@ -32,6 +34,7 @@ func Parse(log logger.Log, source logger.Source) css_ast.AST {
 		isTopLevel:     true,
 		parseSelectors: true,
 	})
+	tree.ImportRecords = p.importRecords
 	p.expect(css_lexer.TEndOfFile)
 	return tree
 }
@@ -279,7 +282,9 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		if path, r, ok := p.expectURLOrString(); ok {
 			p.eat(css_lexer.TWhitespace)
 			p.expect(css_lexer.TSemicolon)
-			return &css_ast.RAtImport{Path: path, PathRange: r}
+			importRecordIndex := uint32(len(p.importRecords))
+			p.importRecords = append(p.importRecords, ast.ImportRecord{Path: logger.Path{Text: path}, Range: r})
+			return &css_ast.RAtImport{ImportRecordIndex: importRecordIndex}
 		}
 	}
 
