@@ -213,7 +213,9 @@ func TestAtNamespace(t *testing.T) {
 <stdin>: error: Expected ";" but found end of file
 `)
 
-	expectParseError(t, "@namespace \"http://www.com\" {}", "<stdin>: error: Expected \";\" but found \"{\"\n")
+	expectParseError(t, "@namespace \"http://www.com\" {}", `<stdin>: error: Expected ";"
+<stdin>: error: Unexpected "{"
+`)
 }
 
 func TestAtImport(t *testing.T) {
@@ -236,5 +238,7 @@ func TestAtImport(t *testing.T) {
 <stdin>: error: Expected ";" but found end of file
 `)
 
-	expectParseError(t, "@import \"foo.css\" {}", "<stdin>: error: Expected \";\" but found \"{\"\n")
+	expectParseError(t, "@import \"foo.css\" {}", `<stdin>: error: Expected ";"
+<stdin>: error: Unexpected "{"
+`)
 }

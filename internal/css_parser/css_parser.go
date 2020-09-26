@@ -89,8 +89,13 @@ func (p *parser) expect(kind css_lexer.T) bool {
 	if p.eat(kind) {
 		return true
 	}
-	if t := p.current(); t.Range.Loc.Start > p.prevError.Start {
-		var text string
+	t := p.current()
+	var text string
+	if kind == css_lexer.TSemicolon && p.index > 0 && p.at(p.index-1).Kind == css_lexer.TWhitespace {
+		// Have a nice error message for forgetting a trailing semicolon
+		text = fmt.Sprintf("Expected \";\"")
+		t = p.at(p.index - 1)
+	} else {
 		switch t.Kind {
 		case css_lexer.TEndOfFile, css_lexer.TWhitespace:
 			text = fmt.Sprintf("Expected %s but found %s", kind.String(), t.Kind.String())
@@ -100,6 +105,8 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		default:
 			text = fmt.Sprintf("Expected %s but found %q", kind.String(), p.text())
 		}
+	}
+	if t.Range.Loc.Start > p.prevError.Start {
 		p.log.AddRangeError(&p.source, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
