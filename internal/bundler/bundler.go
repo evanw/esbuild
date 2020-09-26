@@ -17,6 +17,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/css_ast"
+	"github.com/evanw/esbuild/internal/css_parser"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -75,6 +77,19 @@ type reprJS struct {
 
 func (repr *reprJS) importRecords() []js_ast.ImportRecord {
 	return repr.ast.ImportRecords
+}
+
+type reprCSS struct {
+	ast css_ast.AST
+
+	// If present, this is the JavaScript stub corresponding to this CSS file.
+	// A JavaScript stub is automatically generated for a CSS file when it's
+	// imported from a JavaScript file.
+	jsSourceIndex *uint32
+}
+
+func (repr *reprCSS) importRecords() []js_ast.ImportRecord {
+	return nil
 }
 
 type Bundle struct {
@@ -196,6 +211,11 @@ func parseFile(args parseArgs) {
 		ast, ok := js_parser.Parse(args.log, source, args.options)
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
+
+	case config.LoaderCSS:
+		ast := css_parser.Parse(args.log, source)
+		result.file.repr = &reprCSS{ast: ast}
+		result.ok = true
 
 	case config.LoaderJSON:
 		expr, ok := js_parser.ParseJSON(args.log, source, js_parser.ParseJSONOptions{})
@@ -671,6 +691,31 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 					}
 				}
 
+				// If an import from a JavaScript file targets a CSS file, generate a
+				// JavaScript stub to ensure that JavaScript files only ever import
+				// other JavaScript files.
+				if _, ok := result.file.repr.(*reprJS); ok {
+					otherFile := &results[*record.SourceIndex].file
+					if css, ok := otherFile.repr.(*reprCSS); ok {
+						if css.jsSourceIndex == nil {
+							sourceIndex := uint32(len(files))
+							source := logger.Source{
+								Index:      sourceIndex,
+								PrettyPath: otherFile.source.PrettyPath,
+							}
+							ast := js_parser.LazyExportAST(log, source, options, js_ast.Expr{Data: &js_ast.EObject{}}, "")
+							f := file{
+								repr:   &reprJS{ast: ast},
+								source: source,
+							}
+							files = append(files, f)
+							results = append(results, parseResult{file: f})
+							css.jsSourceIndex = &sourceIndex
+						}
+						record.SourceIndex = css.jsSourceIndex
+					}
+				}
+
 				// Generate metadata about each import
 				if options.AbsMetadataFile != "" {
 					if isFirstImport {
@@ -713,6 +758,7 @@ func DefaultExtensionToLoaderMap() map[string]config.Loader {
 		".jsx":  config.LoaderJSX,
 		".ts":   config.LoaderTS,
 		".tsx":  config.LoaderTSX,
+		".css":  config.LoaderCSS,
 		".json": config.LoaderJSON,
 		".txt":  config.LoaderText,
 	}

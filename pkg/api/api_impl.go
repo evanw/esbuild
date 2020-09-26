@@ -118,6 +118,8 @@ func validateLoader(value Loader) config.Loader {
 		return config.LoaderFile
 	case LoaderBinary:
 		return config.LoaderBinary
+	case LoaderCSS:
+		return config.LoaderCSS
 	default:
 		panic("Invalid loader")
 	}
@@ -224,7 +226,7 @@ func isValidExtension(ext string) bool {
 
 func validateResolveExtensions(log logger.Log, order []string) []string {
 	if order == nil {
-		return []string{".tsx", ".ts", ".jsx", ".mjs", ".cjs", ".js", ".json"}
+		return []string{".tsx", ".ts", ".jsx", ".mjs", ".cjs", ".js", ".css", ".json"}
 	}
 	for _, ext := range order {
 		if !isValidExtension(ext) {

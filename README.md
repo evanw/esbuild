@@ -385,7 +385,7 @@ Advanced options:
   --log-level=...           Disable logging (info | warning | error | silent,
                             default info)
   --resolve-extensions=...  A comma-separated list of implicit extensions
-                            (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.json")
+                            (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
   --metafile=...            Write metadata about the build to a JSON file
   --strict                  Transforms handle edge cases but have more overhead
                             (enable individually using --strict:X where X is

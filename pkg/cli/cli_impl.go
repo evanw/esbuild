@@ -424,6 +424,8 @@ func parseLoader(text string) (api.Loader, error) {
 		return api.LoaderTS, nil
 	case "tsx":
 		return api.LoaderTSX, nil
+	case "css":
+		return api.LoaderCSS, nil
 	case "json":
 		return api.LoaderJSON, nil
 	case "text":
@@ -438,7 +440,7 @@ func parseLoader(text string) (api.Loader, error) {
 		return api.LoaderBinary, nil
 	default:
 		return 0, fmt.Errorf("Invalid loader: %q (valid: "+
-			"js, jsx, ts, tsx, json, text, base64, dataurl, file, binary)", text)
+			"js, jsx, ts, tsx, css, json, text, base64, dataurl, file, binary)", text)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/css_printer"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -274,6 +275,11 @@ type chunkReprJS struct {
 }
 
 func (*chunkReprJS) fileExt() string { return ".js" }
+
+type chunkReprCSS struct {
+}
+
+func (*chunkReprCSS) fileExt() string { return ".css" }
 
 // Returns the path of this chunk relative to the output directory. Note:
 // this must have OS-independent path separators (i.e. '/' not '\').
@@ -2274,6 +2280,8 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		switch file.repr.(type) {
 		case *reprJS:
 			repr = &chunkReprJS{}
+		case *reprCSS:
+			repr = &chunkReprCSS{}
 		}
 
 		if c.options.AbsOutputFile != "" {
@@ -2316,7 +2324,8 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 	// Figure out which files are in which chunk
 	for _, sourceIndex := range c.reachableFiles {
-		switch repr := c.files[sourceIndex].repr.(type) {
+		file := &c.files[sourceIndex]
+		switch repr := file.repr.(type) {
 		case *reprJS:
 			for _, partMeta := range repr.meta.partMeta {
 				key := string(partMeta.entryBits.entries)
@@ -2333,6 +2342,21 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 				}
 				chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 			}
+
+		case *reprCSS:
+			key := string(file.entryBits.entries)
+			if key == neverReachedKey {
+				// Ignore this file if it was never reached
+				continue
+			}
+			chunk, ok := chunks[key]
+			if !ok {
+				chunk.entryBits = file.entryBits
+				chunk.filesWithPartsInChunk = make(map[uint32]bool)
+				chunk.repr = &chunkReprJS{}
+				chunks[key] = chunk
+			}
+			chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
 		}
 	}
 
@@ -2434,6 +2458,11 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 				} else {
 					suffixOrder = append(suffixOrder, sourceIndex)
 				}
+			}
+
+		case *reprCSS:
+			if isFileInThisChunk {
+				suffixOrder = append(suffixOrder, sourceIndex)
 			}
 		}
 	}
@@ -3347,6 +3376,136 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]js_
 			Contents:          jsContents,
 			jsonMetadataChunk: jsonMetadataChunk,
 			IsExecutable:      isExecutable,
+		})
+		return results
+	}
+}
+
+type compileResultCSS struct {
+	printedCSS  string
+	sourceIndex uint32
+}
+
+func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]js_ast.ImportRecord) []OutputFile {
+	var results []OutputFile
+	filesInChunkInOrder := c.chunkFileOrder(chunk)
+	compileResults := make([]compileResultCSS, 0, len(filesInChunkInOrder))
+
+	// Generate CSS for each file in parallel
+	waitGroup := sync.WaitGroup{}
+	for _, sourceIndex := range filesInChunkInOrder {
+		// Skip the runtime in test output
+		if sourceIndex == runtime.SourceIndex && c.options.OmitRuntimeForTests {
+			continue
+		}
+
+		// Each file may optionally contain an additional file to be copied to the
+		// output directory. This is used by the "file" loader.
+		if additionalFile := c.files[sourceIndex].additionalFile; additionalFile != nil {
+			results = append(results, *additionalFile)
+		}
+
+		// Create a goroutine for this file
+		compileResults = append(compileResults, compileResultCSS{})
+		compileResult := &compileResults[len(compileResults)-1]
+		waitGroup.Add(1)
+		go func(sourceIndex uint32, compileResult *compileResultCSS) {
+			file := &c.files[sourceIndex]
+			repr := file.repr.(*reprCSS)
+			css := css_printer.Print(repr.ast, css_printer.Options{
+				Contents:         file.source.Contents,
+				RemoveWhitespace: c.options.RemoveWhitespace,
+			})
+			*compileResult = compileResultCSS{
+				printedCSS:  css,
+				sourceIndex: sourceIndex,
+			}
+			waitGroup.Done()
+		}(sourceIndex, compileResult)
+	}
+
+	// Wait for cross-chunk import records before continuing
+	return func(crossChunkImportRecords []js_ast.ImportRecord) []OutputFile {
+		waitGroup.Wait()
+		j := js_printer.Joiner{}
+
+		// Start the metadata
+		jMeta := js_printer.Joiner{}
+		if c.options.AbsMetadataFile != "" {
+			isFirstMeta := true
+			jMeta.AddString("{\n      \"imports\": [")
+			for _, record := range crossChunkImportRecords {
+				if isFirstMeta {
+					isFirstMeta = false
+				} else {
+					jMeta.AddString(",")
+				}
+				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
+				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
+					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}))))
+			}
+			if !isFirstMeta {
+				jMeta.AddString("\n      ")
+			}
+			jMeta.AddString("],\n      \"inputs\": {")
+		}
+		isFirstMeta := true
+
+		// Concatenate the generated CSS chunks together
+		newlineBeforeComment := false
+		for _, compileResult := range compileResults {
+			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
+				if newlineBeforeComment {
+					j.AddString("\n")
+				}
+				j.AddString(fmt.Sprintf("// %s\n", c.files[compileResult.sourceIndex].source.PrettyPath))
+			}
+			if len(compileResult.printedCSS) > 0 {
+				newlineBeforeComment = true
+			}
+			j.AddString(compileResult.printedCSS)
+
+			// Include this file in the metadata
+			if c.options.AbsMetadataFile != "" {
+				if isFirstMeta {
+					isFirstMeta = false
+				} else {
+					jMeta.AddString(",")
+				}
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath),
+					len(compileResult.printedCSS)))
+			}
+		}
+
+		// Make sure the file ends with a newline
+		if j.Length() > 0 && j.LastByte() != '\n' {
+			j.AddString("\n")
+		}
+
+		// The CSS contents are done now that the source map comment is in
+		cssContents := j.Done()
+
+		// Figure out the base name for this chunk now that the content hash is known
+		if chunk.baseNameOrEmpty == "" {
+			hash := hashForFileName(cssContents)
+			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionFor(".css")
+		}
+
+		// End the metadata
+		var jsonMetadataChunk []byte
+		if c.options.AbsMetadataFile != "" {
+			if !isFirstMeta {
+				jMeta.AddString("\n      ")
+			}
+			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", len(cssContents)))
+			jsonMetadataChunk = jMeta.Done()
+		}
+
+		results = append(results, OutputFile{
+			AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.relPath()),
+			Contents:          cssContents,
+			jsonMetadataChunk: jsonMetadataChunk,
 		})
 		return results
 	}

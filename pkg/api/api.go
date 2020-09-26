@@ -113,6 +113,7 @@ const (
 	LoaderDataURL
 	LoaderFile
 	LoaderBinary
+	LoaderCSS
 )
 
 type Platform uint8

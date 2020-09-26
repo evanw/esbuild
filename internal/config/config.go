@@ -77,6 +77,7 @@ const (
 	LoaderDataURL
 	LoaderFile
 	LoaderBinary
+	LoaderCSS
 )
 
 func (loader Loader) IsTypeScript() bool {
