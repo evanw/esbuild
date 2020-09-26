@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/css_ast"
+
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
@@ -377,6 +379,13 @@ func newLinkerContext(
 				isProbablyTypeScriptType: make(map[js_ast.Ref]bool),
 				importsToBind:            make(map[js_ast.Ref]importToBind),
 			}
+
+		case *reprCSS:
+			repr = &reprCSS{ast: repr.ast}
+			file.repr = repr
+
+			// Clone the import records
+			repr.ast.ImportRecords = append([]ast.ImportRecord{}, repr.ast.ImportRecords...)
 		}
 
 		// Update the file in our copy of the file array
@@ -2057,71 +2066,76 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 	}
 	file.entryBits.setBit(entryPointBit)
 
-	// Only follow dependencies for JavaScript files
-	repr, ok := file.repr.(*reprJS)
-	if !ok {
-		return
-	}
+	switch repr := file.repr.(type) {
+	case *reprJS:
+		for partIndex, part := range repr.ast.Parts {
+			canBeRemovedIfUnused := part.CanBeRemovedIfUnused
 
-	for partIndex, part := range repr.ast.Parts {
-		canBeRemovedIfUnused := part.CanBeRemovedIfUnused
-
-		// Don't include the entry point part if we're not the entry point
-		if repr.meta.entryPointExportPartIndex != nil && uint32(partIndex) == *repr.meta.entryPointExportPartIndex &&
-			sourceIndex != c.entryPoints[entryPointBit] {
-			continue
-		}
-
-		// Also include any statement-level imports
-		for _, importRecordIndex := range part.ImportRecordIndices {
-			record := &repr.ast.ImportRecords[importRecordIndex]
-			if record.Kind != ast.ImportStmt {
+			// Don't include the entry point part if we're not the entry point
+			if repr.meta.entryPointExportPartIndex != nil && uint32(partIndex) == *repr.meta.entryPointExportPartIndex &&
+				sourceIndex != c.entryPoints[entryPointBit] {
 				continue
 			}
 
-			if record.SourceIndex != nil {
-				otherSourceIndex := *record.SourceIndex
-
-				// Don't include this module for its side effects if it can be
-				// considered to have no side effects
-				if c.files[otherSourceIndex].ignoreIfUnused {
+			// Also include any statement-level imports
+			for _, importRecordIndex := range part.ImportRecordIndices {
+				record := &repr.ast.ImportRecords[importRecordIndex]
+				if record.Kind != ast.ImportStmt {
 					continue
 				}
 
-				// Otherwise, include this module for its side effects
-				c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
+				if record.SourceIndex != nil {
+					otherSourceIndex := *record.SourceIndex
+
+					// Don't include this module for its side effects if it can be
+					// considered to have no side effects
+					if c.files[otherSourceIndex].ignoreIfUnused {
+						continue
+					}
+
+					// Otherwise, include this module for its side effects
+					c.includeFile(otherSourceIndex, entryPointBit, distanceFromEntryPoint)
+				}
+
+				// If we get here then the import was included for its side effects, so
+				// we must also keep this part
+				canBeRemovedIfUnused = false
 			}
 
-			// If we get here then the import was included for its side effects, so
-			// we must also keep this part
-			canBeRemovedIfUnused = false
-		}
-
-		// Include all parts in this file with side effects, or just include
-		// everything if tree-shaking is disabled. Note that we still want to
-		// perform tree-shaking on the runtime even if tree-shaking is disabled.
-		if !canBeRemovedIfUnused || (!part.ForceTreeShaking && c.options.Mode != config.ModeBundle && sourceIndex != runtime.SourceIndex) {
-			c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
-		}
-	}
-
-	// If this is an entry point, include all exports
-	if file.isEntryPoint {
-		for _, alias := range repr.meta.sortedAndFilteredExportAliases {
-			export := repr.meta.resolvedExports[alias]
-			targetSourceIndex := export.sourceIndex
-			targetRef := export.ref
-
-			// If this is an import, then target what the import points to
-			targetRepr := c.files[targetSourceIndex].repr.(*reprJS)
-			if importToBind, ok := targetRepr.meta.importsToBind[targetRef]; ok {
-				targetSourceIndex = importToBind.sourceIndex
-				targetRef = importToBind.ref
+			// Include all parts in this file with side effects, or just include
+			// everything if tree-shaking is disabled. Note that we still want to
+			// perform tree-shaking on the runtime even if tree-shaking is disabled.
+			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && c.options.Mode != config.ModeBundle && sourceIndex != runtime.SourceIndex) {
+				c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
 			}
+		}
 
-			// Pull in all declarations of this symbol
-			for _, partIndex := range targetRepr.ast.TopLevelSymbolToParts[targetRef] {
-				c.includePart(targetSourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
+		// If this is an entry point, include all exports
+		if file.isEntryPoint {
+			for _, alias := range repr.meta.sortedAndFilteredExportAliases {
+				export := repr.meta.resolvedExports[alias]
+				targetSourceIndex := export.sourceIndex
+				targetRef := export.ref
+
+				// If this is an import, then target what the import points to
+				targetRepr := c.files[targetSourceIndex].repr.(*reprJS)
+				if importToBind, ok := targetRepr.meta.importsToBind[targetRef]; ok {
+					targetSourceIndex = importToBind.sourceIndex
+					targetRef = importToBind.ref
+				}
+
+				// Pull in all declarations of this symbol
+				for _, partIndex := range targetRepr.ast.TopLevelSymbolToParts[targetRef] {
+					c.includePart(targetSourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
+				}
+			}
+		}
+
+	case *reprCSS:
+		// Include all "@import" rules
+		for _, record := range repr.ast.ImportRecords {
+			if record.SourceIndex != nil {
+				c.includeFile(*record.SourceIndex, entryPointBit, distanceFromEntryPoint)
 			}
 		}
 	}
@@ -3401,8 +3415,21 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 		waitGroup.Add(1)
 		go func(sourceIndex uint32, compileResult *compileResultCSS) {
 			file := &c.files[sourceIndex]
-			repr := file.repr.(*reprCSS)
-			css := css_printer.Print(repr.ast, css_printer.Options{
+			ast := file.repr.(*reprCSS).ast
+
+			// Filter out internal "@import" rules
+			rules := make([]css_ast.R, 0, len(ast.Rules))
+			for _, rule := range ast.Rules {
+				if atImport, ok := rule.(*css_ast.RAtImport); ok {
+					if record := ast.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex != nil {
+						continue
+					}
+				}
+				rules = append(rules, rule)
+			}
+			ast.Rules = rules
+
+			css := css_printer.Print(ast, css_printer.Options{
 				Contents:         file.source.Contents,
 				RemoveWhitespace: c.options.RemoveWhitespace,
 			})

@@ -1,3 +1,28 @@
+TestCSSAtImport
+---------- /out.css ----------
+/* /a.css */
+.a {
+}
+
+/* /b.css */
+.b {
+}
+
+/* /entry.css */
+.entry {
+}
+
+/* /shared.css */
+.shared {
+}
+
+================================================================================
+TestCSSAtImportExternal
+---------- /out.css ----------
+/* /entry.css */
+@import "./external.css";
+
+================================================================================
 TestCSSEntryPoint
 ---------- /out.css ----------
 /* /entry.css */

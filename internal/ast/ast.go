@@ -16,6 +16,9 @@ const (
 
 	// A call to "require.resolve()"
 	ImportRequireResolve
+
+	// A CSS "@import" rule
+	AtImport
 )
 
 type ImportRecord struct {

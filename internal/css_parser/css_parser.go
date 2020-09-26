@@ -290,7 +290,11 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			p.eat(css_lexer.TWhitespace)
 			p.expect(css_lexer.TSemicolon)
 			importRecordIndex := uint32(len(p.importRecords))
-			p.importRecords = append(p.importRecords, ast.ImportRecord{Path: logger.Path{Text: path}, Range: r})
+			p.importRecords = append(p.importRecords, ast.ImportRecord{
+				Kind:  ast.AtImport,
+				Path:  logger.Path{Text: path},
+				Range: r,
+			})
 			return &css_ast.RAtImport{ImportRecordIndex: importRecordIndex}
 		}
 	}
