@@ -30,10 +30,9 @@ import (
 
 type file struct {
 	source    logger.Source
-	ast       js_ast.AST
+	repr      fileRepr
 	loader    config.Loader
 	sourceMap *sourcemap.SourceMap
-	meta      fileMeta
 
 	// The minimum number of links in the module graph to get from an entry point
 	// to this file
@@ -63,6 +62,19 @@ type file struct {
 	// If true, this file was listed as not having side effects by a package.json
 	// file in one of our containing directories with a "sideEffects" field.
 	ignoreIfUnused bool
+}
+
+type fileRepr interface {
+	importRecords() []js_ast.ImportRecord
+}
+
+type reprJS struct {
+	ast  js_ast.AST
+	meta fileMeta
+}
+
+func (repr *reprJS) importRecords() []js_ast.ImportRecord {
+	return repr.ast.ImportRecords
 }
 
 type Bundle struct {
@@ -158,48 +170,62 @@ func parseFile(args parseArgs) {
 			loader:         loader,
 			ignoreIfUnused: args.flags.ignoreIfUnused,
 		},
-		ok: true,
 	}
 
 	switch loader {
 	case config.LoaderJS:
-		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
+		ast, ok := js_parser.Parse(args.log, source, args.options)
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = ok
 
 	case config.LoaderJSX:
 		args.options.JSX.Parse = true
-		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
+		ast, ok := js_parser.Parse(args.log, source, args.options)
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = ok
 
 	case config.LoaderTS:
 		args.options.TS.Parse = true
-		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
+		ast, ok := js_parser.Parse(args.log, source, args.options)
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = ok
 
 	case config.LoaderTSX:
 		args.options.TS.Parse = true
 		args.options.JSX.Parse = true
-		result.file.ast, result.ok = js_parser.Parse(args.log, source, args.options)
+		ast, ok := js_parser.Parse(args.log, source, args.options)
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = ok
 
 	case config.LoaderJSON:
-		var expr js_ast.Expr
-		expr, result.ok = js_parser.ParseJSON(args.log, source, js_parser.ParseJSONOptions{})
-		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		expr, ok := js_parser.ParseJSON(args.log, source, js_parser.ParseJSONOptions{})
+		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = ok
 
 	case config.LoaderText:
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
-		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = true
 
 	case config.LoaderBase64:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
-		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = true
 
 	case config.LoaderBinary:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
-		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
+		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
 		result.file.ignoreIfUnused = true
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = true
 
 	case config.LoaderDataURL:
 		mimeType := mime.TypeByExtension(args.fs.Ext(args.baseName))
@@ -209,8 +235,10 @@ func parseFile(args parseArgs) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + strings.ReplaceAll(mimeType, "; ", ";") + ";base64," + encoded
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(url)}}
-		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = true
 
 	case config.LoaderFile:
 		// Add a hash to the file name to prevent multiple files with the same name
@@ -224,8 +252,10 @@ func parseFile(args parseArgs) {
 
 		// Export the resulting relative path as a string
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(baseName)}}
-		result.file.ast = js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
 		result.file.ignoreIfUnused = true
+		result.file.repr = &reprJS{ast: ast}
+		result.ok = true
 
 		// Optionally add metadata about the file
 		var jsonMetadataChunk []byte
@@ -243,7 +273,6 @@ func parseFile(args parseArgs) {
 		}
 
 	default:
-		result.ok = false
 		args.log.AddRangeError(args.importSource, args.importPathRange,
 			fmt.Sprintf("File extension not supported: %s", args.prettyPath))
 	}
@@ -257,9 +286,10 @@ func parseFile(args parseArgs) {
 	// Run the resolver on the parse thread so it's not run on the main thread.
 	// That way the main thread isn't blocked if the resolver takes a while.
 	if args.options.Mode == config.ModeBundle {
-		result.resolveResults = make([]*resolver.ResolveResult, len(result.file.ast.ImportRecords))
+		records := result.file.repr.importRecords()
+		result.resolveResults = make([]*resolver.ResolveResult, len(records))
 
-		if len(result.file.ast.ImportRecords) > 0 {
+		if len(records) > 0 {
 			resolverCache := make(map[js_ast.ImportKind]map[string]*resolver.ResolveResult)
 
 			// Resolve relative to the parent directory of the source file with the
@@ -273,9 +303,9 @@ func parseFile(args parseArgs) {
 				sourceDir = args.fs.Cwd()
 			}
 
-			for importRecordIndex := range result.file.ast.ImportRecords {
+			for importRecordIndex := range records {
 				// Don't try to resolve imports that are already resolved
-				record := &result.file.ast.ImportRecords[importRecordIndex]
+				record := &records[importRecordIndex]
 				if record.SourceIndex != nil {
 					continue
 				}
@@ -339,13 +369,15 @@ func parseFile(args parseArgs) {
 	}
 
 	// Attempt to parse the source map if present
-	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && result.file.ast.SourceMapComment.Text != "" {
-		if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, result.file.ast.SourceMapComment); contents != nil {
-			result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
-				KeyPath:    path,
-				PrettyPath: args.res.PrettyPath(path),
-				Contents:   *contents,
-			})
+	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone {
+		if repr, ok := result.file.repr.(*reprJS); ok && repr.ast.SourceMapComment.Text != "" {
+			if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, repr.ast.SourceMapComment); contents != nil {
+				result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
+					KeyPath:    path,
+					PrettyPath: args.res.PrettyPath(path),
+					Contents:   *contents,
+				})
+			}
 		}
 	}
 
@@ -442,7 +474,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		remaining++
 		go func() {
 			source, ast, ok := globalRuntimeCache.parseRuntime(&options)
-			resultChannel <- parseResult{file: file{source: source, ast: ast}, ok: ok}
+			resultChannel <- parseResult{file: file{source: source, repr: &reprJS{ast: ast}}, ok: ok}
 		}()
 	}
 
@@ -555,8 +587,9 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 		// Don't try to resolve paths if we're not bundling
 		if options.Mode == config.ModeBundle {
-			for importRecordIndex := range result.file.ast.ImportRecords {
-				record := &result.file.ast.ImportRecords[importRecordIndex]
+			records := result.file.repr.importRecords()
+			for importRecordIndex := range records {
+				record := &records[importRecordIndex]
 
 				// Skip this import record if the previous resolver call failed
 				resolveResult := result.resolveResults[importRecordIndex]
@@ -609,8 +642,9 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 		// Don't try to resolve paths if we're not bundling
 		if options.Mode == config.ModeBundle {
-			for importRecordIndex := range result.file.ast.ImportRecords {
-				record := &result.file.ast.ImportRecords[importRecordIndex]
+			records := result.file.repr.importRecords()
+			for importRecordIndex := range records {
+				record := &records[importRecordIndex]
 
 				// Skip this import record if the previous resolver call failed
 				resolveResult := result.resolveResults[importRecordIndex]
@@ -694,26 +728,6 @@ type OutputFile struct {
 	jsonMetadataChunk []byte
 
 	IsExecutable bool
-}
-
-type lineColumnOffset struct {
-	lines   int
-	columns int
-}
-
-type compileResult struct {
-	js_printer.PrintResult
-
-	// If this is an entry point, this is optional code to stick on the end of
-	// the chunk. This is used to for example trigger the lazily-evaluated
-	// CommonJS wrapper for the entry point.
-	entryPointTail *js_printer.PrintResult
-
-	sourceIndex uint32
-
-	// This is the line and column offset since the previous JavaScript string
-	// or the start of the file if this is the first JavaScript string.
-	generatedOffset lineColumnOffset
 }
 
 func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
@@ -840,9 +854,9 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	// If code splitting is enabled, also treat dynamic imports as entry points
 	if codeSplitting {
 		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
-			file := b.files[sourceIndex]
-			for importRecordIndex := range file.ast.ImportRecords {
-				if record := &file.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == js_ast.ImportDynamic {
+			records := b.files[sourceIndex].repr.importRecords()
+			for importRecordIndex := range records {
+				if record := &records[importRecordIndex]; record.SourceIndex != nil && record.Kind == js_ast.ImportDynamic {
 					isEntryPoint[*record.SourceIndex] = true
 				}
 			}
