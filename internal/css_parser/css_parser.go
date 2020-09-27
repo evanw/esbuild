@@ -269,6 +269,10 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		p.expect(css_lexer.TWhitespace)
 		if p.peek(css_lexer.TString) {
 			encoding := css_lexer.ContentsOfStringToken(p.text())
+			if encoding != "UTF-8" {
+				p.log.AddRangeWarning(&p.source, p.current().Range,
+					fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
+			}
 			p.advance()
 			p.expect(css_lexer.TSemicolon)
 			return &css_ast.RAtCharset{Encoding: encoding}

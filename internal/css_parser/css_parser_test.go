@@ -166,6 +166,7 @@ func TestAtCharset(t *testing.T) {
 	expectPrinted(t, "@charset \"UTF-8\";", "@charset \"UTF-8\";\n")
 	expectPrinted(t, "@charset 'UTF-8';", "@charset \"UTF-8\";\n")
 
+	expectParseError(t, "@charset \"US-ASCII\";", "<stdin>: warning: \"UTF-8\" will be used instead of unsupported charset \"US-ASCII\"\n")
 	expectParseError(t, "@charset;", "<stdin>: error: Expected whitespace but found \";\"\n")
 	expectParseError(t, "@charset ;", "<stdin>: error: Expected string token but found \";\"\n")
 	expectParseError(t, "@charset\"UTF-8\";", "<stdin>: error: Expected whitespace but found \"\\\"UTF-8\\\"\"\n")
