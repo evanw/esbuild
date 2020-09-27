@@ -247,6 +247,7 @@ type chunkInfo struct {
 	baseNameOrEmpty string
 
 	filesWithPartsInChunk map[uint32]bool
+	filesInChunkInOrder   []uint32
 	entryBits             bitSet
 
 	// This information is only useful if "isEntryPoint" is true
@@ -256,6 +257,7 @@ type chunkInfo struct {
 
 	// For code splitting
 	crossChunkImports []uint32
+
 	// This is the representation-specific information
 	repr chunkRepr
 }
@@ -317,8 +319,12 @@ func newLinkerContext(
 
 		switch repr := file.repr.(type) {
 		case *reprJS:
-			repr = &reprJS{ast: repr.ast}
-			file.repr = repr
+			// Clone the representation
+			{
+				clone := *repr
+				repr = &clone
+				file.repr = repr
+			}
 
 			// Clone the symbol map
 			fileSymbols := append([]js_ast.Symbol{}, repr.ast.Symbols...)
@@ -381,8 +387,12 @@ func newLinkerContext(
 			}
 
 		case *reprCSS:
-			repr = &reprCSS{ast: repr.ast}
-			file.repr = repr
+			// Clone the representation
+			{
+				clone := *repr
+				repr = &clone
+				file.repr = repr
+			}
 
 			// Clone the import records
 			repr.ast.ImportRecords = append([]ast.ImportRecord{}, repr.ast.ImportRecords...)
@@ -456,6 +466,9 @@ func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			file := &files[sourceIndex]
+			if repr, ok := file.repr.(*reprJS); ok && repr.cssSourceIndex != nil {
+				visit(*repr.cssSourceIndex)
+			}
 			for _, record := range file.repr.importRecords() {
 				if record.SourceIndex != nil {
 					visit(*record.SourceIndex)
@@ -536,6 +549,44 @@ func (c *linkerContext) link() []OutputFile {
 }
 
 func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFile {
+	// Determine the order of files within the chunk ahead of time. This may
+	// generate additional CSS chunks from JS chunks that import CSS files.
+	{
+		originalChunks := chunks
+		for i, chunk := range originalChunks {
+			js, css := c.chunkFileOrder(&chunk)
+			switch chunk.repr.(type) {
+			case *chunkReprJS:
+				chunks[i].filesInChunkInOrder = js
+
+				// If JS files include CSS files, make a sibling chunk for the CSS
+				if len(css) > 0 {
+					baseNameOrEmpty := chunk.baseNameOrEmpty
+					if baseNameOrEmpty != "" {
+						if js := c.options.OutputExtensionFor(".js"); strings.HasSuffix(baseNameOrEmpty, js) {
+							baseNameOrEmpty = baseNameOrEmpty[:len(baseNameOrEmpty)-len(js)]
+						}
+						baseNameOrEmpty += c.options.OutputExtensionFor(".css")
+					}
+					chunks = append(chunks, chunkInfo{
+						filesInChunkInOrder:   css,
+						entryBits:             chunk.entryBits,
+						isEntryPoint:          chunk.isEntryPoint,
+						sourceIndex:           chunk.sourceIndex,
+						entryPointBit:         chunk.entryPointBit,
+						relDir:                chunk.relDir,
+						baseNameOrEmpty:       baseNameOrEmpty,
+						filesWithPartsInChunk: make(map[uint32]bool),
+						repr:                  &chunkReprCSS{},
+					})
+				}
+
+			case *chunkReprCSS:
+				chunks[i].filesInChunkInOrder = css
+			}
+		}
+	}
+
 	// We want to process chunks with as much parallelism as possible. However,
 	// content hashing means chunks that import other chunks must be completed
 	// after the imported chunks are completed because the import paths contain
@@ -2068,6 +2119,11 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 
 	switch repr := file.repr.(type) {
 	case *reprJS:
+		// If the JavaScript stub for a CSS file is included, also include the CSS file
+		if repr.cssSourceIndex != nil {
+			c.includeFile(*repr.cssSourceIndex, entryPointBit, distanceFromEntryPoint)
+		}
+
 		for partIndex, part := range repr.ast.Parts {
 			canBeRemovedIfUnused := part.CanBeRemovedIfUnused
 
@@ -2392,7 +2448,7 @@ func (a chunkOrderArray) Less(i int, j int) bool {
 	return a[i].distance < a[j].distance || (a[i].distance == a[j].distance && a[i].path.ComesBeforeInSortedOrder(a[j].path))
 }
 
-func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
+func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, css []uint32) {
 	sorted := make(chunkOrderArray, 0, len(chunk.filesWithPartsInChunk))
 
 	// Attach information to the files for use with sorting
@@ -2411,8 +2467,7 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 	sort.Sort(sorted)
 
 	visited := make(map[uint32]bool)
-	prefixOrder := []uint32{}
-	suffixOrder := []uint32{}
+	jsSuffix := []uint32{}
 
 	// Traverse the graph using this stable order and linearize the files with
 	// dependencies before dependents
@@ -2455,15 +2510,15 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 			// before starting to evaluate them.
 			if isFileInThisChunk {
 				if sourceIndex == runtime.SourceIndex || repr.meta.cjsWrap {
-					prefixOrder = append(prefixOrder, sourceIndex)
+					js = append(js, sourceIndex)
 				} else {
-					suffixOrder = append(suffixOrder, sourceIndex)
+					jsSuffix = append(jsSuffix, sourceIndex)
 				}
 			}
 
 		case *reprCSS:
 			if isFileInThisChunk {
-				suffixOrder = append(suffixOrder, sourceIndex)
+				css = append(css, sourceIndex)
 			}
 		}
 	}
@@ -2473,7 +2528,8 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) []uint32 {
 	for _, data := range sorted {
 		visit(data.sourceIndex)
 	}
-	return append(prefixOrder, suffixOrder...)
+	js = append(js, jsSuffix...)
+	return
 }
 
 func (c *linkerContext) shouldRemoveImportExportStmt(
@@ -3062,16 +3118,15 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 
 func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
 	var results []OutputFile
-	filesInChunkInOrder := c.chunkFileOrder(chunk)
-	compileResults := make([]compileResultJS, 0, len(filesInChunkInOrder))
+	compileResults := make([]compileResultJS, 0, len(chunk.filesInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members
 	commonJSRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"].Ref)
-	r := c.renameSymbolsInChunk(chunk, filesInChunkInOrder)
+	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder)
 
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
-	for _, sourceIndex := range filesInChunkInOrder {
+	for _, sourceIndex := range chunk.filesInChunkInOrder {
 		// Skip the runtime in test output
 		if sourceIndex == runtime.SourceIndex && c.options.OmitRuntimeForTests {
 			continue
@@ -3392,23 +3447,11 @@ type compileResultCSS struct {
 
 func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
 	var results []OutputFile
-	filesInChunkInOrder := c.chunkFileOrder(chunk)
-	compileResults := make([]compileResultCSS, 0, len(filesInChunkInOrder))
+	compileResults := make([]compileResultCSS, 0, len(chunk.filesInChunkInOrder))
 
 	// Generate CSS for each file in parallel
 	waitGroup := sync.WaitGroup{}
-	for _, sourceIndex := range filesInChunkInOrder {
-		// Skip the runtime in test output
-		if sourceIndex == runtime.SourceIndex && c.options.OmitRuntimeForTests {
-			continue
-		}
-
-		// Each file may optionally contain an additional file to be copied to the
-		// output directory. This is used by the "file" loader.
-		if additionalFile := c.files[sourceIndex].additionalFile; additionalFile != nil {
-			results = append(results, *additionalFile)
-		}
-
+	for _, sourceIndex := range chunk.filesInChunkInOrder {
 		// Create a goroutine for this file
 		compileResults = append(compileResults, compileResultCSS{})
 		compileResult := &compileResults[len(compileResults)-1]

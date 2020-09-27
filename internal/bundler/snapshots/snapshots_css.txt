@@ -30,3 +30,27 @@ body {
   background: white;
   color: black;
 }
+
+================================================================================
+TestImportCSSFromJS
+---------- /out/entry.js ----------
+// /a.css
+
+// /a.js
+console.log("a");
+
+// /b.css
+
+// /b.js
+console.log("b");
+
+// /entry.js
+
+---------- /out/entry.css ----------
+/* /a.css */
+.a {
+}
+
+/* /b.css */
+.b {
+}

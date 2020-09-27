@@ -74,6 +74,11 @@ type fileRepr interface {
 type reprJS struct {
 	ast  js_ast.AST
 	meta fileMeta
+
+	// If present, this is the CSS file that this JavaScript stub corresponds to.
+	// A JavaScript stub is automatically generated for a CSS file when it's
+	// imported from a JavaScript file.
+	cssSourceIndex *uint32
 }
 
 func (repr *reprJS) importRecords() []ast.ImportRecord {
@@ -704,7 +709,10 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 							}
 							ast := js_parser.LazyExportAST(log, source, options, js_ast.Expr{Data: &js_ast.EObject{}}, "")
 							f := file{
-								repr:   &reprJS{ast: ast},
+								repr: &reprJS{
+									ast:            ast,
+									cssSourceIndex: record.SourceIndex,
+								},
 								source: source,
 							}
 							files = append(files, f)

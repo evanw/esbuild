@@ -111,3 +111,33 @@ func TestCSSFromJSMissingImport(t *testing.T) {
 `,
 	})
 }
+
+func TestImportCSSFromJS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "./a.js"
+				import "./b.js"
+			`,
+			"/a.js": `
+				import "./a.css";
+				console.log('a')
+			`,
+			"/a.css": `
+				.a {}
+			`,
+			"/b.js": `
+				import "./b.css";
+				console.log('b')
+			`,
+			"/b.css": `
+				.b {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
