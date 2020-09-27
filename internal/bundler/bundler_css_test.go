@@ -163,3 +163,23 @@ func TestImportCSSFromJS(t *testing.T) {
 		},
 	})
 }
+
+func TestImportCSSFromJSWriteToStdout(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "./entry.css"
+			`,
+			"/entry.css": `
+				.entry {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			WriteToStdout: true,
+		},
+		expectedScanLog: `/entry.js: error: Cannot import "/entry.css" from JavaScript without an output path configured
+`,
+	})
+}

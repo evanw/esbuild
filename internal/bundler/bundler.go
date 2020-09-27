@@ -701,7 +701,10 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				if _, ok := result.file.repr.(*reprJS); ok {
 					otherFile := &results[*record.SourceIndex].file
 					if css, ok := otherFile.repr.(*reprCSS); ok {
-						if css.jsSourceIndex == nil {
+						if options.WriteToStdout {
+							log.AddRangeError(&result.file.source, record.Range,
+								fmt.Sprintf("Cannot import %q from JavaScript without an output path configured", otherFile.source.PrettyPath))
+						} else if css.jsSourceIndex == nil {
 							sourceIndex := uint32(len(files))
 							source := logger.Source{
 								Index:      sourceIndex,
