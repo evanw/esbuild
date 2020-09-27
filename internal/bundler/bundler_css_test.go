@@ -51,10 +51,19 @@ func TestCSSAtImportExternal(t *testing.T) {
 				@import "./internal.css";
 				@import "./external1.css";
 				@import "./external2.css";
-				.after { color: blue }
+				@import "./charset1.css";
+				@import "./charset2.css";
 			`,
 			"/internal.css": `
 				.before { color: red }
+			`,
+			"/charset1.css": `
+				@charset "UTF-8";
+				.middle { color: green }
+			`,
+			"/charset2.css": `
+				@charset "UTF-8";
+				.after { color: blue }
 			`,
 		},
 		entryPaths: []string{"/entry.css"},

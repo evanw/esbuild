@@ -3455,6 +3455,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 type compileResultCSS struct {
 	printedCSS            string
 	sourceIndex           uint32
+	hasCharset            bool
 	externalImportRecords []ast.ImportRecord
 }
 
@@ -3476,8 +3477,12 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 			// Filter out "@import" rules
 			rules := make([]css_ast.R, 0, len(ast.Rules))
 			for _, rule := range ast.Rules {
-				if atImport, ok := rule.(*css_ast.RAtImport); ok {
-					if record := ast.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex == nil {
+				switch r := rule.(type) {
+				case *css_ast.RAtCharset:
+					compileResult.hasCharset = true
+					continue
+				case *css_ast.RAtImport:
+					if record := ast.ImportRecords[r.ImportRecordIndex]; record.SourceIndex == nil {
 						compileResult.externalImportRecords = append(compileResult.externalImportRecords, record)
 					}
 					continue
@@ -3501,16 +3506,27 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 		j := js_printer.Joiner{}
 		newlineBeforeComment := false
 
-		// Insert all external "@import" rules at the front. In CSS, all "@import"
-		// rules must come first or the browser will just ignore them.
+		// Generate any prefix rules now
 		{
 			ast := css_ast.AST{}
+
+			// "@charset" is the only thing that comes before "@import"
+			for _, compileResult := range compileResults {
+				if compileResult.hasCharset {
+					ast.Rules = append(ast.Rules, &css_ast.RAtCharset{Encoding: "UTF-8"})
+					break
+				}
+			}
+
+			// Insert all external "@import" rules at the front. In CSS, all "@import"
+			// rules must come first or the browser will just ignore them.
 			for _, compileResult := range compileResults {
 				for _, record := range compileResult.externalImportRecords {
 					ast.Rules = append(ast.Rules, &css_ast.RAtImport{ImportRecordIndex: uint32(len(ast.ImportRecords))})
 					ast.ImportRecords = append(ast.ImportRecords, record)
 				}
 			}
+
 			if len(ast.Rules) > 0 {
 				css := css_printer.Print(ast, css_printer.Options{
 					Contents:         "",

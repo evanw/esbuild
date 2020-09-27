@@ -23,6 +23,7 @@ TestCSSAtImport
 ================================================================================
 TestCSSAtImportExternal
 ---------- /out.css ----------
+@charset "UTF-8";
 @import "./external1.css";
 @import "./external2.css";
 
@@ -31,10 +32,17 @@ TestCSSAtImportExternal
   color: red;
 }
 
-/* /entry.css */
+/* /charset1.css */
+.middle {
+  color: green;
+}
+
+/* /charset2.css */
 .after {
   color: blue;
 }
+
+/* /entry.css */
 
 ================================================================================
 TestCSSEntryPoint
