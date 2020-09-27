@@ -96,7 +96,8 @@ func TestCSSFromJSMissingImport(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import {missing} from "./a.css";
+				import {missing} from "./a.css"
+				console.log(missing)
 			`,
 			"/a.css": `
 				.a {}
@@ -108,6 +109,27 @@ func TestCSSFromJSMissingImport(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expectedCompileLog: `/entry.js: error: No matching export for import "missing"
+`,
+	})
+}
+
+func TestCSSFromJSMissingStarImport(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as ns from "./a.css"
+				console.log(ns.missing)
+			`,
+			"/a.css": `
+				.a {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedCompileLog: `/entry.js: warning: No matching export for import "missing"
 `,
 	})
 }

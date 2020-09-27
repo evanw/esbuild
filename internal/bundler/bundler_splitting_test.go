@@ -272,6 +272,8 @@ func TestSplittingMissingLazyExport(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputDir:  "/out",
 		},
+		expectedCompileLog: `/common.js: warning: No matching export for import "missing"
+`,
 	})
 }
 

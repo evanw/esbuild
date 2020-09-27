@@ -906,6 +906,8 @@ func TestNamespaceImportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedCompileLog: `/entry.js: warning: No matching export for import "foo"
+`,
 	})
 }
 
@@ -966,6 +968,8 @@ func TestNamespaceImportUnusedMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedCompileLog: `/entry.js: warning: No matching export for import "foo"
+`,
 	})
 }
 
@@ -1120,6 +1124,8 @@ func TestNamespaceImportReExportStarMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedCompileLog: `/entry.js: warning: No matching export for import "foo"
+`,
 	})
 }
 
@@ -1142,6 +1148,8 @@ func TestNamespaceImportReExportStarUnusedMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedCompileLog: `/entry.js: warning: No matching export for import "foo"
+`,
 	})
 }
 

@@ -1746,14 +1746,16 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 			case importNoMatch:
 				symbol := c.symbols.Get(tracker.importRef)
+				source := c.files[tracker.sourceIndex].source
+				namedImport := c.files[tracker.sourceIndex].repr.(*reprJS).ast.NamedImports[tracker.importRef]
+				r := js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
+
+				// Report mismatched imports and exports
 				if symbol.ImportItemStatus == js_ast.ImportItemGenerated {
 					symbol.ImportItemStatus = js_ast.ImportItemMissing
+					c.log.AddRangeWarning(&source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 				} else {
-					// Report mismatched imports and exports
-					source := c.files[tracker.sourceIndex].source
-					namedImport := c.files[tracker.sourceIndex].repr.(*reprJS).ast.NamedImports[tracker.importRef]
-					c.addRangeError(source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
-						fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+					c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 				}
 
 			case importAmbiguous:
