@@ -77,18 +77,18 @@ func TestCSSAtImport(t *testing.T) {
 			"/entry.css": `
 				@import "./a.css";
 				@import "./b.css";
-				.entry {}
+				.entry { color: red }
 			`,
 			"/a.css": `
 				@import "./shared.css";
-				.a {}
+				.a { color: green }
 			`,
 			"/b.css": `
 				@import "./shared.css";
-				.b {}
+				.b { color: blue }
 			`,
 			"/shared.css": `
-				.shared {}
+				.shared { color: black }
 			`,
 		},
 		entryPaths: []string{"/entry.css"},
@@ -107,7 +107,7 @@ func TestCSSFromJSMissingImport(t *testing.T) {
 				console.log(missing)
 			`,
 			"/a.css": `
-				.a {}
+				.a { color: red }
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -128,7 +128,7 @@ func TestCSSFromJSMissingStarImport(t *testing.T) {
 				console.log(ns.missing)
 			`,
 			"/a.css": `
-				.a {}
+				.a { color: red }
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -153,14 +153,14 @@ func TestImportCSSFromJS(t *testing.T) {
 				console.log('a')
 			`,
 			"/a.css": `
-				.a {}
+				.a { color: red }
 			`,
 			"/b.js": `
 				import "./b.css";
 				console.log('b')
 			`,
 			"/b.css": `
-				.b {}
+				.b { color: blue }
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -178,7 +178,7 @@ func TestImportCSSFromJSWriteToStdout(t *testing.T) {
 				import "./entry.css"
 			`,
 			"/entry.css": `
-				.entry {}
+				.entry { color: red }
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
