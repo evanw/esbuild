@@ -6,6 +6,24 @@
 
     This release fixes a bug with the TypeScript transform for the `experimentalDecorators` setting. Previously the target object for all decorators was the class prototype, which was incorrect for static members. Static members now correctly use the class object itself as a target object.
 
+* Experimental support for CSS syntax ([#20](https://github.com/evanw/esbuild/issues/20))
+
+    This release introduces the new `css` loader, enabled by default for `.css` files. It has the following features:
+
+    * You can now use esbuild to process CSS files by passing a CSS file as an entry point. This means CSS is a new first-class file type and you can use it without involving any JavaScript code at all.
+
+    * When bundling is enabled, esbuild will bundle multiple CSS files together if they are referenced using the `@import "./file.css";` syntax. CSS files can be excluded from the bundle by marking them as external similar to JavaScript files.
+
+    * There is basic support for pretty-printing CSS, and for whitespace removal when the `--minify` flag is present. There isn't any support for CSS syntax compression yet. Note that pretty-printing and whitespace removal both rely on the CSS syntax being recognized. Currently esbuild only recognizes certain CSS syntax and passes through unrecognized syntax unchanged.
+
+    Some things to keep in mind:
+
+    * CSS support is a significant undertaking and this is the very first release. There are almost certainly going to be issues. This is an experimental release to land the code and get feedback.
+
+    * There is no support for CSS modules yet. Right now all class names are in the global namespace. Importing a CSS file into a JavaScript file will not result in any import names.
+
+    * There is currently no support for code splitting of CSS. I haven't tested multiple entry-point scenarios yet and code splitting will require additional changes to the AST format.
+
 ## 0.7.6
 
 * Fix JSON files with multiple entry points ([#413](https://github.com/evanw/esbuild/issues/413))
