@@ -36,6 +36,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 	}
 	switch r := rule.(type) {
 	case *css_ast.RAtCharset:
+		// Note: It's not valid to remove the space in between these two tokens
 		p.print("@charset ")
 		p.print(css_lexer.QuoteForStringToken(r.Encoding))
 		p.print(";")

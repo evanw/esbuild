@@ -10,6 +10,9 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
+// This is mostly a normal CSS parser with one exception: the addition of
+// support for parsing https://drafts.csswg.org/css-nesting-1/.
+
 type parser struct {
 	log           logger.Log
 	source        logger.Source

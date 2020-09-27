@@ -2,6 +2,10 @@ package ast
 
 import "github.com/evanw/esbuild/internal/logger"
 
+// This file contains data structures that are used with the AST packages for
+// both JavaScript and CSS. This helps the bundler treat both AST formats in
+// a somewhat format-agnostic manner.
+
 type ImportKind uint8
 
 const (

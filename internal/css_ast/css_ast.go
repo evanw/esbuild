@@ -5,6 +5,20 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
+// CSS syntax comes in two layers: a minimal syntax that generally accepts
+// anything that looks vaguely like CSS, and a large set of built-in rules
+// (the things browsers actually interpret). That way CSS parsers can read
+// unknown rules and skip over them without having to stop due to errors.
+//
+// This AST format is mostly just the minimal syntax. It parses unknown rules
+// into a tree with enough information that it can write them back out again.
+// There are some additional layers of syntax including selectors and @-rules
+// which allow for better pretty-printing and minification.
+//
+// Most of the AST just references ranges of the original file by keeping the
+// original "Token" values around from the lexer. This is a memory-efficient
+// representation that helps provide good parsing and printing performance.
+
 type AST struct {
 	ImportRecords []ast.ImportRecord
 	Rules         []R

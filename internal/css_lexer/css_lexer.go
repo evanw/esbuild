@@ -7,6 +7,11 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
+// The lexer converts a source file to a stream of tokens. Unlike esbuild's
+// JavaScript lexer, this CSS lexer runs to completion before the CSS parser
+// begins. This is done because the AST can reference slices of the whole-file
+// token array without having to allocate any intermediate token arrays.
+
 type T uint8
 
 const eof = -1
