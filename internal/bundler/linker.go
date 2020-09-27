@@ -376,7 +376,6 @@ func newLinkerContext(
 			}
 
 			// Also associate some default metadata with the file
-			file.distanceFromEntryPoint = ^uint32(0)
 			repr.meta = fileMeta{
 				cjsStyleExports: repr.ast.HasCommonJSFeatures() || (repr.ast.HasLazyExport && (c.options.Mode == config.ModePassThrough ||
 					(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax()))),
@@ -397,6 +396,9 @@ func newLinkerContext(
 			// Clone the import records
 			repr.ast.ImportRecords = append([]ast.ImportRecord{}, repr.ast.ImportRecords...)
 		}
+
+		// All files start off as far as possible from an entry point
+		file.distanceFromEntryPoint = ^uint32(0)
 
 		// Update the file in our copy of the file array
 		c.files[sourceIndex] = file
@@ -2520,6 +2522,14 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, css []uin
 
 		case *reprCSS:
 			if isFileInThisChunk {
+				// All imported files come first
+				for _, record := range repr.ast.ImportRecords {
+					if record.SourceIndex != nil {
+						visit(*record.SourceIndex)
+					}
+				}
+
+				// Then this file comes afterward
 				css = append(css, sourceIndex)
 			}
 		}

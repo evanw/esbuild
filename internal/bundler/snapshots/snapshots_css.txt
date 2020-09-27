@@ -1,5 +1,9 @@
 TestCSSAtImport
 ---------- /out.css ----------
+/* /shared.css */
+.shared {
+}
+
 /* /a.css */
 .a {
 }
@@ -10,10 +14,6 @@ TestCSSAtImport
 
 /* /entry.css */
 .entry {
-}
-
-/* /shared.css */
-.shared {
 }
 
 ================================================================================
