@@ -179,7 +179,47 @@ func TestImportCSSFromJSWriteToStdout(t *testing.T) {
 			Mode:          config.ModeBundle,
 			WriteToStdout: true,
 		},
-		expectedScanLog: `/entry.js: error: Cannot import "/entry.css" from JavaScript without an output path configured
+		expectedScanLog: `/entry.js: error: Cannot import "/entry.css" into a JavaScript file without an output path configured
+`,
+	})
+}
+
+func TestImportJSFromCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default 123
+			`,
+			"/entry.css": `
+				@import "./entry.js";
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `/entry.css: error: Cannot import "/entry.js" into a CSS file
+`,
+	})
+}
+
+func TestImportJSONFromCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.json": `
+				{}
+			`,
+			"/entry.css": `
+				@import "./entry.json";
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `/entry.css: error: Cannot import "/entry.json" into a CSS file
 `,
 	})
 }

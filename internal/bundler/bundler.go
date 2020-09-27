@@ -695,6 +695,15 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 					}
 				}
 
+				// Importing a JavaScript file from a CSS file is not allowed.
+				if _, ok := result.file.repr.(*reprCSS); ok {
+					otherFile := &results[*record.SourceIndex].file
+					if _, ok := otherFile.repr.(*reprJS); ok {
+						log.AddRangeError(&result.file.source, record.Range,
+							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.source.PrettyPath))
+					}
+				}
+
 				// If an import from a JavaScript file targets a CSS file, generate a
 				// JavaScript stub to ensure that JavaScript files only ever import
 				// other JavaScript files.
@@ -703,7 +712,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 					if css, ok := otherFile.repr.(*reprCSS); ok {
 						if options.WriteToStdout {
 							log.AddRangeError(&result.file.source, record.Range,
-								fmt.Sprintf("Cannot import %q from JavaScript without an output path configured", otherFile.source.PrettyPath))
+								fmt.Sprintf("Cannot import %q into a JavaScript file without an output path configured", otherFile.source.PrettyPath))
 						} else if css.jsSourceIndex == nil {
 							sourceIndex := uint32(len(files))
 							source := logger.Source{
