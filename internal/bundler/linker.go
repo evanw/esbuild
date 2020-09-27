@@ -3453,8 +3453,9 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 }
 
 type compileResultCSS struct {
-	printedCSS  string
-	sourceIndex uint32
+	printedCSS            string
+	sourceIndex           uint32
+	externalImportRecords []ast.ImportRecord
 }
 
 func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
@@ -3472,26 +3473,24 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 			file := &c.files[sourceIndex]
 			ast := file.repr.(*reprCSS).ast
 
-			// Filter out internal "@import" rules
+			// Filter out "@import" rules
 			rules := make([]css_ast.R, 0, len(ast.Rules))
 			for _, rule := range ast.Rules {
 				if atImport, ok := rule.(*css_ast.RAtImport); ok {
-					if record := ast.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex != nil {
-						continue
+					if record := ast.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex == nil {
+						compileResult.externalImportRecords = append(compileResult.externalImportRecords, record)
 					}
+					continue
 				}
 				rules = append(rules, rule)
 			}
 			ast.Rules = rules
 
-			css := css_printer.Print(ast, css_printer.Options{
+			compileResult.printedCSS = css_printer.Print(ast, css_printer.Options{
 				Contents:         file.source.Contents,
 				RemoveWhitespace: c.options.RemoveWhitespace,
 			})
-			*compileResult = compileResultCSS{
-				printedCSS:  css,
-				sourceIndex: sourceIndex,
-			}
+			compileResult.sourceIndex = sourceIndex
 			waitGroup.Done()
 		}(sourceIndex, compileResult)
 	}
@@ -3500,6 +3499,29 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 	return func(crossChunkImportRecords []ast.ImportRecord) []OutputFile {
 		waitGroup.Wait()
 		j := js_printer.Joiner{}
+		newlineBeforeComment := false
+
+		// Insert all external "@import" rules at the front. In CSS, all "@import"
+		// rules must come first or the browser will just ignore them.
+		{
+			ast := css_ast.AST{}
+			for _, compileResult := range compileResults {
+				for _, record := range compileResult.externalImportRecords {
+					ast.Rules = append(ast.Rules, &css_ast.RAtImport{ImportRecordIndex: uint32(len(ast.ImportRecords))})
+					ast.ImportRecords = append(ast.ImportRecords, record)
+				}
+			}
+			if len(ast.Rules) > 0 {
+				css := css_printer.Print(ast, css_printer.Options{
+					Contents:         "",
+					RemoveWhitespace: c.options.RemoveWhitespace,
+				})
+				if len(css) > 0 {
+					j.AddString(css)
+					newlineBeforeComment = true
+				}
+			}
+		}
 
 		// Start the metadata
 		jMeta := js_printer.Joiner{}
@@ -3524,7 +3546,6 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 		isFirstMeta := true
 
 		// Concatenate the generated CSS chunks together
-		newlineBeforeComment := false
 		for _, compileResult := range compileResults {
 			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace {
 				if newlineBeforeComment {

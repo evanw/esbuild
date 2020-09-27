@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Move external `@import` rules to the top
+
+    Bundling could cause `@import` rules for paths that have been marked as external to be inserted in the middle of the CSS file. This would cause them to become invalid and be ignored by the browser since all `@import` rules must come first at the top of the file. These `@import` rules are now always moved to the top of the file so they stay valid.
+
 ## 0.7.7
 
 * Fix TypeScript decorators on static members

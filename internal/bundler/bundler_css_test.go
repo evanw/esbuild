@@ -48,7 +48,13 @@ func TestCSSAtImportExternal(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
-				@import "./external.css";
+				@import "./internal.css";
+				@import "./external1.css";
+				@import "./external2.css";
+				.after { color: blue }
+			`,
+			"/internal.css": `
+				.before { color: red }
 			`,
 		},
 		entryPaths: []string{"/entry.css"},
@@ -57,7 +63,8 @@ func TestCSSAtImportExternal(t *testing.T) {
 			AbsOutputFile: "/out.css",
 			ExternalModules: config.ExternalModules{
 				AbsPaths: map[string]bool{
-					"/external.css": true,
+					"/external1.css": true,
+					"/external2.css": true,
 				},
 			},
 		},

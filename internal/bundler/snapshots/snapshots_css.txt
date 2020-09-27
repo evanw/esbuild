@@ -19,8 +19,18 @@ TestCSSAtImport
 ================================================================================
 TestCSSAtImportExternal
 ---------- /out.css ----------
+@import "./external1.css";
+@import "./external2.css";
+
+/* /internal.css */
+.before {
+  color: red;
+}
+
 /* /entry.css */
-@import "./external.css";
+.after {
+  color: blue;
+}
 
 ================================================================================
 TestCSSEntryPoint
