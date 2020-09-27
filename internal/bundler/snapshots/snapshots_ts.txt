@@ -310,11 +310,11 @@ __decorate([
 __decorate([
   x,
   y
-], Foo.prototype, "sUndef", 2);
+], Foo, "sUndef", 2);
 __decorate([
   x,
   y
-], Foo.prototype, "sDef", 2);
+], Foo, "sDef", 2);
 __decorate([
   x,
   y,
@@ -322,7 +322,7 @@ __decorate([
   __param(0, y0),
   __param(1, x1),
   __param(1, y1)
-], Foo.prototype, "sMethod", 1);
+], Foo, "sMethod", 1);
 Foo = __decorate([
   x.y(),
   new y.x()
@@ -364,11 +364,11 @@ __decorate([
 __decorate([
   x,
   y
-], Foo2.prototype, _f, 2);
+], Foo2, _f, 2);
 __decorate([
   x,
   y
-], Foo2.prototype, _g, 2);
+], Foo2, _g, 2);
 __decorate([
   x,
   y,
@@ -376,7 +376,7 @@ __decorate([
   __param(0, y0),
   __param(1, x1),
   __param(1, y1)
-], Foo2.prototype, _h, 1);
+], Foo2, _h, 1);
 Foo2 = __decorate([
   x?.[_ + "y"](),
   new y?.[_ + "x"]()

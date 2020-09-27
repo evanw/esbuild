@@ -1694,13 +1694,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 					descriptorKind = 2
 				}
 
+				// Instance properties use the prototype, static properties use the class
+				var target js_ast.Expr
+				if prop.IsStatic {
+					target = nameFunc()
+				} else {
+					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
+				}
+
 				decorator := p.callRuntime(loc, "__decorate", []js_ast.Expr{
 					{Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
-					{Loc: loc, Data: &js_ast.EDot{
-						Target:  nameFunc(),
-						Name:    "prototype",
-						NameLoc: loc,
-					}},
+					target,
 					descriptorKey,
 					{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
 				})

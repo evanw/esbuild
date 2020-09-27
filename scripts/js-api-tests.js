@@ -815,6 +815,40 @@ let transformTests = {
     assert.strictEqual(map.sourcesContent[0], input)
   },
 
+  async tsDecorators({ service }) {
+    const { js } = await service.transform(`
+      let observed = [];
+      let on = key => (...args) => {
+        observed.push({ key, args });
+      };
+
+      @on('class')
+      class Foo {
+        @on('field') field;
+        @on('method') method() { }
+        @on('staticField') static staticField;
+        @on('staticMethod') static staticMethod() { }
+        fn(@on('param') x) { }
+        static staticFn(@on('staticParam') x) { }
+      }
+
+      // This is what the TypeScript compiler itself generates
+      let expected = [
+        { key: 'field', args: [Foo.prototype, 'field', undefined] },
+        { key: 'method', args: [Foo.prototype, 'method', { value: Foo.prototype.method, writable: true, enumerable: false, configurable: true }] },
+        { key: 'param', args: [Foo.prototype, 'fn', 0] },
+        { key: 'staticField', args: [Foo, 'staticField', undefined] },
+        { key: 'staticMethod', args: [Foo, 'staticMethod', { value: Foo.staticMethod, writable: true, enumerable: false, configurable: true }] },
+        { key: 'staticParam', args: [Foo, 'staticFn', 0] },
+        { key: 'class', args: [Foo] }
+      ];
+
+      return {observed, expected};
+    `, { loader: 'ts' });
+    const { observed, expected } = new Function(js)();
+    assert.deepStrictEqual(observed, expected);
+  },
+
   async nullishCoalescingLoose({ service }) {
     const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: false })
     assert.strictEqual(js, `a != null ? a : b;\n`)

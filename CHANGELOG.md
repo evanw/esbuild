@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix TypeScript decorators on static members
+
+    This release fixes a bug with the TypeScript transform for the `experimentalDecorators` setting. Previously the target object for all decorators was the class prototype, which was incorrect for static members. Static members now correctly use the class object itself as a target object.
+
 ## 0.7.6
 
 * Fix JSON files with multiple entry points ([#413](https://github.com/evanw/esbuild/issues/413))
