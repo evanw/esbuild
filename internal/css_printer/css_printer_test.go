@@ -127,6 +127,18 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMinify(t, "a { & :b {} }", "a{& :b{}}")
 }
 
+func TestQualified(t *testing.T) {
+	expectPrinted(t, "$bad{ color: red }", "$bad {\n  color: red;\n}\n")
+	expectPrinted(t, "$bad { color: red }", "$bad {\n  color: red;\n}\n")
+	expectPrinted(t, "$bad foo{ color: red }", "$bad foo {\n  color: red;\n}\n")
+	expectPrinted(t, "$bad foo { color: red }", "$bad foo {\n  color: red;\n}\n")
+
+	expectPrintedMinify(t, "$bad{ color: red }", "$bad{color:red}")
+	expectPrintedMinify(t, "$bad { color: red }", "$bad{color:red}")
+	expectPrintedMinify(t, "$bad foo{ color: red }", "$bad foo{color:red}")
+	expectPrintedMinify(t, "$bad foo { color: red }", "$bad foo{color:red}")
+}
+
 func TestDeclaration(t *testing.T) {
 	expectPrinted(t, "* { unknown: x (a+b) }", "* {\n  unknown: x (a+b);\n}\n")
 	expectPrinted(t, "* { unknown: x (a-b) }", "* {\n  unknown: x (a-b);\n}\n")
@@ -148,6 +160,11 @@ func TestAtRule(t *testing.T) {
 	expectPrintedMinify(t, "@unknown x;", "@unknown x;")
 	expectPrintedMinify(t, "@unknown{}", "@unknown{}")
 	expectPrintedMinify(t, "@unknown{\na: b;\nc: d;\n}", "@unknown{a: b; c: d;}")
+
+	expectPrinted(t, "@unknown x{}", "@unknown x {}\n")
+	expectPrinted(t, "@unknown x {}", "@unknown x {}\n")
+	expectPrintedMinify(t, "@unknown x{}", "@unknown x{}")
+	expectPrintedMinify(t, "@unknown x {}", "@unknown x{}")
 
 	expectPrinted(t, "@unknown x ( a + b ) ;", "@unknown x (a + b);\n")
 	expectPrinted(t, "@unknown x ( a - b ) ;", "@unknown x (a - b);\n")

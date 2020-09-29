@@ -121,10 +121,13 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 
 	case *css_ast.RUnknownAt:
 		p.print(r.AtToken)
-		if len(r.Prelude) > 0 || (r.Block != nil && !p.RemoveWhitespace) {
+		if (!p.RemoveWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printTokens(r.Prelude)
+		if !p.RemoveWhitespace && r.Block != nil && len(r.Prelude) > 0 {
+			p.print(" ")
+		}
 		if r.Block == nil {
 			p.print(";")
 		} else {
@@ -140,6 +143,9 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 
 	case *css_ast.RQualified:
 		p.printTokens(r.Prelude)
+		if !p.RemoveWhitespace {
+			p.print(" ")
+		}
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RDeclaration:
