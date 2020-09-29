@@ -113,7 +113,7 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		}
 	}
 	if t.Range.Loc.Start > p.prevError.Start {
-		p.log.AddRangeError(&p.source, t.Range, text)
+		p.log.AddRangeWarning(&p.source, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 	return false
@@ -131,7 +131,7 @@ func (p *parser) unexpected() {
 		default:
 			text = fmt.Sprintf("Unexpected %q", p.text())
 		}
-		p.log.AddRangeError(&p.source, t.Range, text)
+		p.log.AddRangeWarning(&p.source, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
 }

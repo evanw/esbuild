@@ -377,7 +377,7 @@ func (lexer *lexer) consumeToEndOfSingleLineComment() {
 	for !isNewline(lexer.codePoint) && lexer.codePoint != eof {
 		lexer.step()
 	}
-	lexer.log.AddRangeError(&lexer.source, lexer.Token.Range, "Comments in CSS use \"/* ... */\" instead of \"//\"")
+	lexer.log.AddRangeWarning(&lexer.source, lexer.Token.Range, "Comments in CSS use \"/* ... */\" instead of \"//\"")
 }
 
 func (lexer *lexer) isValidEscape() bool {
