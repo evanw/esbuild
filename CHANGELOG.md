@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fixed panic when using a `url()` import in CSS with the `--metafile` option
+
+    This release fixes a crash that happens when `metafile` output is enabled and the `url()` syntax is used in a CSS file to import a successfully-resolved file.
+
 ## 0.7.8
 
 * Move external `@import` rules to the top

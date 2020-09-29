@@ -210,6 +210,55 @@ let buildTests = {
     assert.deepStrictEqual(json.outputs[makePath(chunk)].imports, [])
   },
 
+  async metafileCSS({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.css')
+    const imported = path.join(testDir, 'imported.css')
+    const image = path.join(testDir, 'example.png')
+    const output = path.join(testDir, 'out.css')
+    const meta = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry, `
+      @import "./imported";
+      body { background: url(https://example.com/external.png) }
+    `)
+    await writeFileAsync(imported, `
+      a { background: url(./example.png) }
+    `)
+    await writeFileAsync(image, 'an image')
+    await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      outfile: output,
+      metafile: meta,
+      sourcemap: true,
+      loader: { '.png': 'dataurl' },
+    })
+
+    const json = JSON.parse(await readFileAsync(meta))
+    assert.strictEqual(Object.keys(json.inputs).length, 3)
+    assert.strictEqual(Object.keys(json.outputs).length, 1)
+    const cwd = process.cwd()
+    const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
+
+    // Check inputs
+    assert.deepStrictEqual(json, {
+      inputs: {
+        [makePath(entry)]: { bytes: 98, imports: [{ path: makePath(imported) }] },
+        [makePath(image)]: { bytes: 8, imports: [] },
+        [makePath(imported)]: { bytes: 48, imports: [{ path: makePath(image) }] },
+      },
+      outputs: {
+        [makePath(output)]: {
+          bytes: 227,
+          imports: [],
+          inputs: {
+            [makePath(entry)]: { bytesInOutput: 62 },
+            [makePath(imported)]: { bytesInOutput: 61 },
+          },
+        },
+      },
+    })
+  },
+
   // Test in-memory output files
   async writeFalse({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')

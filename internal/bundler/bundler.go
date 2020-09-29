@@ -709,6 +709,18 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 					}
 				}
 
+				// Generate metadata about each import
+				if options.AbsMetadataFile != "" {
+					if isFirstImport {
+						isFirstImport = false
+						j.AddString("\n        ")
+					} else {
+						j.AddString(",\n        ")
+					}
+					j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
+						js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath)))
+				}
+
 				// Importing a JavaScript file from a CSS file is not allowed.
 				switch record.Kind {
 				case ast.AtImport:
@@ -770,18 +782,6 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 						}
 						record.SourceIndex = css.jsSourceIndex
 					}
-				}
-
-				// Generate metadata about each import
-				if options.AbsMetadataFile != "" {
-					if isFirstImport {
-						isFirstImport = false
-						j.AddString("\n        ")
-					} else {
-						j.AddString(",\n        ")
-					}
-					j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-						js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath)))
 				}
 			}
 		}
