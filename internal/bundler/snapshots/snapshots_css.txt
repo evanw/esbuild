@@ -102,11 +102,20 @@ div:after {
 
 ================================================================================
 TestFileImportURLInCSS
+---------- /out/example.RPS4CMHF.data ----------
+This is some data.
 ---------- /out/entry.css ----------
-/* /entry.css */
+/* /one.css */
 a {
-  background: url(example.JSXM4U43.png);
+  background: url(example.RPS4CMHF.data);
 }
+
+/* /two.css */
+b {
+  background: url(example.RPS4CMHF.data);
+}
+
+/* /entry.css */
 
 ================================================================================
 TestIgnoreURLsInAtRulePrelude

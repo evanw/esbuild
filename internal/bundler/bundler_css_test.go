@@ -405,19 +405,24 @@ func TestFileImportURLInCSS(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
-				a {
-					background: url(./example.png);
-				}
+				@import "./one.css";
+				@import "./two.css";
 			`,
-			"/example.png": "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
+			"/one.css": `
+				a { background: url(./example.data) }
+			`,
+			"/two.css": `
+				b { background: url(./example.data) }
+			`,
+			"/example.data": "This is some data.",
 		},
 		entryPaths: []string{"/entry.css"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 			ExtensionToLoader: map[string]config.Loader{
-				".css": config.LoaderCSS,
-				".png": config.LoaderFile,
+				".css":  config.LoaderCSS,
+				".data": config.LoaderFile,
 			},
 		},
 	})

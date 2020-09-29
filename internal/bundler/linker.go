@@ -3144,11 +3144,9 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 			continue
 		}
 
-		// Each file may optionally contain an additional file to be copied to the
+		// Each file may optionally contain additional files to be copied to the
 		// output directory. This is used by the "file" loader.
-		if additionalFile := c.files[sourceIndex].additionalFile; additionalFile != nil {
-			results = append(results, *additionalFile)
-		}
+		results = append(results, c.files[sourceIndex].additionalFiles...)
 
 		// Create a goroutine for this file
 		compileResults = append(compileResults, compileResultJS{})
@@ -3466,6 +3464,10 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 	// Generate CSS for each file in parallel
 	waitGroup := sync.WaitGroup{}
 	for _, sourceIndex := range chunk.filesInChunkInOrder {
+		// Each file may optionally contain additional files to be copied to the
+		// output directory. This is used by the "file" loader.
+		results = append(results, c.files[sourceIndex].additionalFiles...)
+
 		// Create a goroutine for this file
 		compileResults = append(compileResults, compileResultCSS{})
 		compileResult := &compileResults[len(compileResults)-1]

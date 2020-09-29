@@ -55,10 +55,10 @@ type file struct {
 	// path separators (i.e. '/' not '\').
 	entryPointRelPath string
 
-	// If this file ends up being used in the bundle, this is an additional file
+	// If this file ends up being used in the bundle, these are additional files
 	// that must be written to the output directory. It's used by the "file"
 	// loader.
-	additionalFile *OutputFile
+	additionalFiles []OutputFile
 
 	isEntryPoint bool
 
@@ -296,11 +296,11 @@ func parseFile(args parseArgs) {
 
 		// Copy the file using an additional file payload to make sure we only copy
 		// the file if the module isn't removed due to tree shaking.
-		result.file.additionalFile = &OutputFile{
+		result.file.additionalFiles = []OutputFile{{
 			AbsPath:           args.fs.Join(targetFolder, baseName),
 			Contents:          []byte(source.Contents),
 			jsonMetadataChunk: jsonMetadataChunk,
-		}
+		}}
 
 	default:
 		args.log.AddRangeError(args.importSource, args.importPathRange,
@@ -731,6 +731,9 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 							record.Path.Text = otherRepr.ast.URLForCSS
 							record.Path.Namespace = ""
 							record.SourceIndex = nil
+
+							// Copy the additional files to the output directory
+							result.file.additionalFiles = append(result.file.additionalFiles, otherFile.additionalFiles...)
 						} else {
 							log.AddRangeError(&result.file.source, record.Range,
 								fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
