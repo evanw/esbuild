@@ -38,18 +38,22 @@
 
     When bundling, the `url(...)` syntax in CSS now tries to resolve the URL as a path using the bundler's built in path resolution logic. The following loaders can be used with this syntax: `text`, `base64`, `file`, `dataurl`, and `binary`.
 
-* Ignore certain paths in CSS files
+* Automatically treat certain paths as external
 
-    The following URL forms are automatically considered external when used in CSS files:
+    The following path forms are now automatically considered external:
+
+    * `http://example.com/image.png`
+    * `https://example.com/image.png`
+    * `//example.com/image.png`
+    * `data:image/png;base64,iVBORw0KGgo=`
+
+    In addition, paths starting with `#` are considered external in CSS files, which allows the following syntax to continue to work:
 
     ```css
-    background: url(http://example.com/images/image.png);
-    background: url(https://example.com/images/image.png);
-    background: url(//example.com/images/image.png);
-    background: url(data:image/png;base64,iVBORw0KGgo=);
-
-    /* This can be useful with SVG DOM content */
-    fill: url(#filter);
+    path {
+      /* This can be useful with SVG DOM content */
+      fill: url(#filter);
+    }
     ```
 
 ## 0.7.7

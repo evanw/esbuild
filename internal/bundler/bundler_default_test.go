@@ -1946,6 +1946,25 @@ func TestExternalModuleExclusionRelativePath(t *testing.T) {
 	})
 }
 
+func TestAutoExternal(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// These URLs should be external automatically
+				import "http://example.com/code.js";
+				import "https://example.com/code.js";
+				import "//example.com/code.js";
+				import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 // This test case makes sure many entry points don't cause a crash
 func TestManyEntryPoints(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
