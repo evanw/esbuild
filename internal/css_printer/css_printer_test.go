@@ -127,7 +127,12 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMinify(t, "a { & :b {} }", "a{& :b{}}")
 }
 
-func TestQualified(t *testing.T) {
+func TestBadQualifiedRules(t *testing.T) {
+	expectPrinted(t, "$bad: rule;", "$bad: rule {\n}\n")
+	expectPrinted(t, "a { div.major { color: blue } color: red }", "a {\n  div.major { color: blue };\n  color: red;\n}\n")
+	expectPrinted(t, "a { div:hover { color: blue } color: red }", "a {\n  div: hover { color: blue };\n  color: red;\n}\n")
+	expectPrinted(t, "a { div:hover { color: blue }; color: red }", "a {\n  div: hover { color: blue };\n  color: red;\n}\n")
+
 	expectPrinted(t, "$bad{ color: red }", "$bad {\n  color: red;\n}\n")
 	expectPrinted(t, "$bad { color: red }", "$bad {\n  color: red;\n}\n")
 	expectPrinted(t, "$bad foo{ color: red }", "$bad foo {\n  color: red;\n}\n")

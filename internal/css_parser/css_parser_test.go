@@ -197,6 +197,15 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { &[b] {} }", "a {\n  &[b] {\n  }\n}\n")
 }
 
+func TestBadQualifiedRules(t *testing.T) {
+	expectParseError(t, "$bad: rule;", "<stdin>: warning: Unexpected \"$\"\n")
+	expectParseError(t, "$bad { color: red }", "<stdin>: warning: Unexpected \"$\"\n")
+	expectParseError(t, "a { div.major { color: blue } color: red }", "<stdin>: warning: Expected \":\" but found \".\"\n")
+	expectParseError(t, "a { div:hover { color: blue } color: red }", "<stdin>: warning: Expected \";\"\n")
+	expectParseError(t, "a { div:hover { color: blue }; color: red }", "")
+	expectParseError(t, "a { div:hover { color: blue } ; color: red }", "")
+}
+
 func TestAtRule(t *testing.T) {
 	expectPrinted(t, "@unknown;", "@unknown;\n")
 	expectPrinted(t, "@unknown{}", "@unknown {}\n")
@@ -204,8 +213,8 @@ func TestAtRule(t *testing.T) {
 	expectPrinted(t, "@unknown{\na: b;\nc: d;\n}", "@unknown { a: b; c: d; }\n")
 
 	expectParseError(t, "@unknown", "<stdin>: warning: \"@unknown\" is not a known rule name\n<stdin>: warning: Expected \"{\" but found end of file\n")
-	expectParseError(t, "@", "<stdin>: warning: Unexpected \"@\"\n<stdin>: warning: Expected \"{\" but found end of file\n")
-	expectParseError(t, "@;", "<stdin>: warning: Unexpected \"@\"\n<stdin>: warning: Expected \"{\" but found end of file\n")
+	expectParseError(t, "@", "<stdin>: warning: Unexpected \"@\"\n")
+	expectParseError(t, "@;", "<stdin>: warning: Unexpected \"@\"\n")
 	expectParseError(t, "@{}", "<stdin>: warning: Unexpected \"@\"\n")
 }
 
