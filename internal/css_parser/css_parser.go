@@ -313,7 +313,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		// Consider string names a syntax error even though they are allowed by
 		// the specification and they work in Firefox because they do not work in
 		// Chrome or Safari.
-		if p.expect(css_lexer.TIdent) || p.eat(css_lexer.TString) {
+		if p.expect(css_lexer.TIdent) || p.eat(css_lexer.TString) || p.peek(css_lexer.TOpenBrace) {
 			p.eat(css_lexer.TWhitespace)
 			if p.expect(css_lexer.TOpenBrace) {
 				var blocks []css_ast.KeyframeBlock
@@ -328,7 +328,11 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 					case css_lexer.TCloseBrace, css_lexer.TEndOfFile:
 						break blocks
 
-					case css_lexer.TIdent, css_lexer.TPercentage:
+					case css_lexer.TOpenBrace:
+						p.expect(css_lexer.TPercentage)
+						p.parseComponentValue()
+
+					default:
 						var selectors []string
 
 					selectors:
@@ -357,14 +361,15 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 								}
 								selectors = append(selectors, text)
 								p.advance()
-								p.eat(css_lexer.TWhitespace)
-								if !p.peek(css_lexer.TOpenBrace) {
-									p.expect(css_lexer.TComma)
-								}
 
 							default:
 								p.expect(css_lexer.TPercentage)
 								p.parseComponentValue()
+							}
+
+							p.eat(css_lexer.TWhitespace)
+							if t.Kind != css_lexer.TComma && !p.peek(css_lexer.TOpenBrace) {
+								p.expect(css_lexer.TComma)
 							}
 						}
 
@@ -376,10 +381,6 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 								Rules:     rules,
 							})
 						}
-
-					default:
-						p.expect(css_lexer.TPercentage)
-						p.parseComponentValue()
 					}
 				}
 

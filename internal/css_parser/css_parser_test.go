@@ -280,7 +280,13 @@ func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@-o-keyframes name {}", "@-o-keyframes name {\n}\n")
 
 	expectParseError(t, "@keyframes {}", "<stdin>: error: Expected identifier but found \"{\"\n")
-	expectParseError(t, "@keyframes name { 0% 100% {} }", "<stdin>: error: Expected \",\" but found \"100%\"\n")
 	expectParseError(t, "@keyframes 'name' {}", "<stdin>: error: Expected identifier but found \"'name'\"\n")
+	expectParseError(t, "@keyframes name { 0% 100% {} }", "<stdin>: error: Expected \",\" but found \"100%\"\n")
+	expectParseError(t, "@keyframes name { {} 0% {} }", "<stdin>: error: Expected percentage but found \"{\"\n")
+	expectParseError(t, "@keyframes name { 100 {} }", "<stdin>: error: Expected percentage but found \"100\"\n")
 	expectParseError(t, "@keyframes name { into {} }", "<stdin>: error: Expected percentage but found \"into\"\n")
+	expectParseError(t, "@keyframes name { 1,2 {} }", "<stdin>: error: Expected percentage but found \"1\"\n<stdin>: error: Expected percentage but found \"2\"\n")
+	expectParseError(t, "@keyframes name { 1, 2 {} }", "<stdin>: error: Expected percentage but found \"1\"\n<stdin>: error: Expected percentage but found \"2\"\n")
+	expectParseError(t, "@keyframes name { 1 ,2 {} }", "<stdin>: error: Expected percentage but found \"1\"\n<stdin>: error: Expected percentage but found \"2\"\n")
+	expectParseError(t, "@keyframes name { 1%,,2% {} }", "<stdin>: error: Expected percentage but found \",\"\n")
 }
