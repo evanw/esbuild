@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.8
 
 * Move external `@import` rules to the top
 
