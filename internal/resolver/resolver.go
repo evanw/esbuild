@@ -134,6 +134,30 @@ func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
 }
 
 func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+	// Certain types of URLs default to being external in CSS files
+	if kind.IsFromCSS() && (
+	// "fill: url(#filter);"
+	strings.HasPrefix(importPath, "#") ||
+
+		// "background: url(http://example.com/images/image.png);"
+		strings.HasPrefix(importPath, "http://") ||
+
+		// "background: url(https://example.com/images/image.png);"
+		strings.HasPrefix(importPath, "https://") ||
+
+		// "background: url(data:image/png;base64,iVBORw0KGgo=);"
+		strings.HasPrefix(importPath, "data:") ||
+
+		// "background: url(/images/image.png);"
+		// "background: url(//example.com/images/image.png);"
+		strings.HasPrefix(importPath, "/")) {
+
+		return &ResolveResult{
+			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal: true,
+		}
+	}
+
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 

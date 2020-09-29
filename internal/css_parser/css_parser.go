@@ -454,17 +454,22 @@ prelude:
 	default:
 		// Otherwise, parse an unknown rule
 		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
-		block := p.convertTokens(p.tokens[blockStart:p.index])
+		block := p.convertTokensWithImports(p.tokens[blockStart:p.index])
 		return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}
 	}
 }
 
 func (p *parser) convertTokens(tokens []css_lexer.Token) []css_ast.Token {
-	result, _ := p.convertTokensHelper(tokens, css_lexer.TEndOfFile)
+	result, _ := p.convertTokensHelper(tokens, css_lexer.TEndOfFile, false)
 	return result
 }
 
-func (p *parser) convertTokensHelper(tokens []css_lexer.Token, close css_lexer.T) ([]css_ast.Token, []css_lexer.Token) {
+func (p *parser) convertTokensWithImports(tokens []css_lexer.Token) []css_ast.Token {
+	result, _ := p.convertTokensHelper(tokens, css_lexer.TEndOfFile, true)
+	return result
+}
+
+func (p *parser) convertTokensHelper(tokens []css_lexer.Token, close css_lexer.T, allowImports bool) ([]css_ast.Token, []css_lexer.Token) {
 	var result []css_ast.Token
 loop:
 	for len(tokens) > 0 {
@@ -501,15 +506,16 @@ loop:
 			token.Text = ""
 			token.ImportRecordIndex = uint32(len(p.importRecords))
 			p.importRecords = append(p.importRecords, ast.ImportRecord{
-				Kind:  ast.URLToken,
-				Path:  logger.Path{Text: path},
-				Range: r,
+				Kind:     ast.URLToken,
+				Path:     logger.Path{Text: path},
+				Range:    r,
+				IsUnused: !allowImports,
 			})
 
 		case css_lexer.TFunction:
 			var nested []css_ast.Token
 			original := tokens
-			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen)
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, allowImports)
 			token.Children = &nested
 
 			switch token.Text {
@@ -522,9 +528,10 @@ loop:
 						token.Children = nil
 						token.ImportRecordIndex = uint32(len(p.importRecords))
 						p.importRecords = append(p.importRecords, ast.ImportRecord{
-							Kind:  ast.URLToken,
-							Path:  logger.Path{Text: arg.Text},
-							Range: original[0].Range,
+							Kind:     ast.URLToken,
+							Path:     logger.Path{Text: arg.Text},
+							Range:    original[0].Range,
+							IsUnused: !allowImports,
 						})
 					}
 				}
@@ -532,17 +539,17 @@ loop:
 
 		case css_lexer.TOpenParen:
 			var nested []css_ast.Token
-			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen)
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, allowImports)
 			token.Children = &nested
 
 		case css_lexer.TOpenBrace:
 			var nested []css_ast.Token
-			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBrace)
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBrace, allowImports)
 			token.Children = &nested
 
 		case css_lexer.TOpenBracket:
 			var nested []css_ast.Token
-			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBracket)
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBracket, allowImports)
 			token.Children = &nested
 
 		default:
@@ -643,7 +650,7 @@ stop:
 
 	return &css_ast.RDeclaration{
 		Key:       p.tokens[keyStart].Raw(p.source.Contents),
-		Value:     p.convertTokens(value),
+		Value:     p.convertTokensWithImports(value),
 		Important: important,
 	}
 }

@@ -109,6 +109,16 @@ a {
 }
 
 ================================================================================
+TestIgnoreURLsInAtRulePrelude
+---------- /out/entry.css ----------
+/* /entry.css */
+@supports (background: url(ignored.png)) {
+  a {
+    color: red;
+  }
+}
+
+================================================================================
 TestImportCSSFromJS
 ---------- /out/entry.js ----------
 // /a.css

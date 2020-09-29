@@ -28,6 +28,10 @@ const (
 	URLToken
 )
 
+func (kind ImportKind) IsFromCSS() bool {
+	return kind == AtImport || kind == URLToken
+}
+
 type ImportRecord struct {
 	Range logger.Range
 	Path  logger.Path

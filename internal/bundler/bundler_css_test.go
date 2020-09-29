@@ -422,3 +422,21 @@ func TestFileImportURLInCSS(t *testing.T) {
 		},
 	})
 }
+
+func TestIgnoreURLsInAtRulePrelude(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				/* This should not generate a path resolution error */
+				@supports (background: url(ignored.png)) {
+					a { color: red }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}

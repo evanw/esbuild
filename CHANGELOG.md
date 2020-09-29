@@ -18,6 +18,21 @@
 
     When bundling, the `url(...)` syntax in CSS now tries to resolve the URL as a path using the bundler's built in path resolution logic.
 
+* Ignore certain paths in CSS files
+
+    The following URL forms are automatically considered external when used in CSS files:
+
+    ```css
+    background: url(http://example.com/images/image.png);
+    background: url(https://example.com/images/image.png);
+    background: url(//example.com/images/image.png);
+    background: url(/images/image.png);
+    background: url(data:image/png;base64,iVBORw0KGgo=);
+
+    /* This can be useful with SVG DOM content */
+    fill: url(#filter);
+    ```
+
 ## 0.7.7
 
 * Fix TypeScript decorators on static members
