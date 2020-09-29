@@ -203,7 +203,7 @@ func TestAtRule(t *testing.T) {
 	expectPrinted(t, "@unknown x;", "@unknown x;\n")
 	expectPrinted(t, "@unknown{\na: b;\nc: d;\n}", "@unknown { a: b; c: d; }\n")
 
-	expectParseError(t, "@unknown", "<stdin>: error: Expected \"{\" but found end of file\n")
+	expectParseError(t, "@unknown", "<stdin>: warning: \"@unknown\" is not a known rule name\n<stdin>: error: Expected \"{\" but found end of file\n")
 	expectParseError(t, "@", "<stdin>: error: Unexpected \"@\"\n<stdin>: error: Expected \"{\" but found end of file\n")
 	expectParseError(t, "@;", "<stdin>: error: Unexpected \"@\"\n<stdin>: error: Expected \"{\" but found end of file\n")
 	expectParseError(t, "@{}", "<stdin>: error: Unexpected \"@\"\n")

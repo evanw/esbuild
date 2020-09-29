@@ -14,6 +14,10 @@
 
     Whitespace around commas in CSS will now be pretty-printed when not minifying and removed when minifying. So `a , b` becomes `a, b` when pretty-printed and `a,b` when minified.
 
+* Warn about unknown at-rules in CSS
+
+    Using an `@rule` in a CSS file that isn't known by esbuild now generates a warning. These rules will be passed through unmodified if they aren't known to esbuild, they are probably part of a CSS preprocessor syntax that should have been compiled away before giving the file to esbuild to parse.
+
 * Treat `url(...)` in CSS files as an import ([#415](https://github.com/evanw/esbuild/issues/415))
 
     When bundling, the `url(...)` syntax in CSS now tries to resolve the URL as a path using the bundler's built in path resolution logic.

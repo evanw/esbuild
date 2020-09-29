@@ -255,6 +255,7 @@ type atRuleContext struct {
 func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 	// Parse the name
 	atToken := p.text()
+	atRange := p.current().Range
 	kind := specialAtRules[atToken]
 	p.advance()
 
@@ -391,6 +392,18 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 					Blocks:  blocks,
 				}
 			}
+		}
+
+	default:
+		// Warn about unsupported at-rules since they will be passed through
+		// unmodified and may be part of a CSS preprocessor syntax that should
+		// have been compiled away but wasn't.
+		//
+		// The list of supported at-rules that esbuild draws from is here:
+		// https://developer.mozilla.org/en-US/docs/Web/CSS/At-rule. Deprecated
+		// and Firefox-only at-rules have been removed.
+		if kind == atRuleUnknown {
+			p.log.AddRangeWarning(&p.source, atRange, fmt.Sprintf("%q is not a known rule name", atToken))
 		}
 	}
 
