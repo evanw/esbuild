@@ -231,16 +231,20 @@ func parseFile(args parseArgs) {
 		result.ok = ok
 
 	case config.LoaderText:
+		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
 		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast.URLForCSS = "data:text/plain;base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = true
 
 	case config.LoaderBase64:
+		mimeType := guessMimeType(args.fs.Ext(args.baseName), source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
 		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast.URLForCSS = "data:" + mimeType + ";base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = true
@@ -249,19 +253,18 @@ func parseFile(args parseArgs) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
 		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
+		ast.URLForCSS = "data:application/octet-stream;base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = true
 
 	case config.LoaderDataURL:
-		mimeType := mime.TypeByExtension(args.fs.Ext(args.baseName))
-		if mimeType == "" {
-			mimeType = http.DetectContentType([]byte(source.Contents))
-		}
+		mimeType := guessMimeType(args.fs.Ext(args.baseName), source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		url := "data:" + strings.ReplaceAll(mimeType, "; ", ";") + ";base64," + encoded
+		url := "data:" + mimeType + ";base64," + encoded
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(url)}}
 		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast.URLForCSS = url
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = true
@@ -279,6 +282,7 @@ func parseFile(args parseArgs) {
 		// Export the resulting relative path as a string
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(baseName)}}
 		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast.URLForCSS = baseName
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = true
@@ -407,6 +411,16 @@ func parseFile(args parseArgs) {
 	}
 
 	args.results <- result
+}
+
+func guessMimeType(extension string, contents string) string {
+	mimeType := mime.TypeByExtension(extension)
+	if mimeType == "" {
+		mimeType = http.DetectContentType([]byte(contents))
+	}
+
+	// Turn "text/plain; charset=utf-8" into "text/plain;charset=utf-8"
+	return strings.ReplaceAll(mimeType, "; ", ";")
 }
 
 func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment js_ast.Span) (logger.Path, *string) {
@@ -696,11 +710,31 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				}
 
 				// Importing a JavaScript file from a CSS file is not allowed.
-				if _, ok := result.file.repr.(*reprCSS); ok {
+				switch record.Kind {
+				case ast.AtImport:
 					otherFile := &results[*record.SourceIndex].file
 					if _, ok := otherFile.repr.(*reprJS); ok {
 						log.AddRangeError(&result.file.source, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.source.PrettyPath))
+					}
+
+				case ast.URLToken:
+					otherFile := &results[*record.SourceIndex].file
+					switch otherRepr := otherFile.repr.(type) {
+					case *reprCSS:
+						log.AddRangeError(&result.file.source, record.Range,
+							fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
+
+					case *reprJS:
+						if otherRepr.ast.URLForCSS != "" {
+							// Inline the URL if the loader supports URLs
+							record.Path.Text = otherRepr.ast.URLForCSS
+							record.Path.Namespace = ""
+							record.SourceIndex = nil
+						} else {
+							log.AddRangeError(&result.file.source, record.Range,
+								fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
+						}
 					}
 				}
 

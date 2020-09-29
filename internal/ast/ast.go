@@ -23,6 +23,9 @@ const (
 
 	// A CSS "@import" rule
 	AtImport
+
+	// A CSS "url(...)" token
+	URLToken
 )
 
 type ImportRecord struct {

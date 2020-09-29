@@ -239,3 +239,186 @@ func TestImportJSONFromCSS(t *testing.T) {
 `,
 	})
 }
+
+func TestMissingImportURLInCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entry.css": `
+				a { background: url(./one.png); }
+				b { background: url("./two.png"); }
+			`,
+		},
+		entryPaths: []string{"/src/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `/src/entry.css: error: Could not resolve "./one.png"
+/src/entry.css: error: Could not resolve "./two.png"
+`,
+	})
+}
+
+func TestExternalImportURLInCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entry.css": `
+				div:after {
+					content: 'If this is recognized, the path should become "../src/external.png"';
+					background: url(./external.png);
+				}
+			`,
+		},
+		entryPaths: []string{"/src/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				AbsPaths: map[string]bool{
+					"/src/external.png": true,
+				},
+			},
+		},
+	})
+}
+
+func TestInvalidImportURLInCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a {
+					background: url(./js.js);
+					background: url("./jsx.jsx");
+					background: url(./ts.ts);
+					background: url('./tsx.tsx');
+					background: url(./json.json);
+					background: url(./css.css);
+				}
+			`,
+			"/js.js":     `export default 123`,
+			"/jsx.jsx":   `export default 123`,
+			"/ts.ts":     `export default 123`,
+			"/tsx.tsx":   `export default 123`,
+			"/json.json": `{ "test": true }`,
+			"/css.css":   `a { color: red }`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `/entry.css: error: Cannot use "/js.js" as a URL
+/entry.css: error: Cannot use "/jsx.jsx" as a URL
+/entry.css: error: Cannot use "/ts.ts" as a URL
+/entry.css: error: Cannot use "/tsx.tsx" as a URL
+/entry.css: error: Cannot use "/json.json" as a URL
+/entry.css: error: Cannot use "/css.css" as a URL
+`,
+	})
+}
+
+func TestTextImportURLInCSSText(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a {
+					background: url(./example.txt);
+				}
+			`,
+			"/example.txt": `This is some text.`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestDataURLImportURLInCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a {
+					background: url(./example.png);
+				}
+			`,
+			"/example.png": "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderDataURL,
+			},
+		},
+	})
+}
+
+func TestBinaryImportURLInCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a {
+					background: url(./example.png);
+				}
+			`,
+			"/example.png": "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderBinary,
+			},
+		},
+	})
+}
+
+func TestBase64ImportURLInCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a {
+					background: url(./example.png);
+				}
+			`,
+			"/example.png": "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderBase64,
+			},
+		},
+	})
+}
+
+func TestFileImportURLInCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a {
+					background: url(./example.png);
+				}
+			`,
+			"/example.png": "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderFile,
+			},
+		},
+	})
+}

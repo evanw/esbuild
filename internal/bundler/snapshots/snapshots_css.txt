@@ -1,3 +1,19 @@
+TestBase64ImportURLInCSS
+---------- /out/entry.css ----------
+/* /entry.css */
+a {
+  background: url(data:image/png;base64,iVBORw0KGgo=);
+}
+
+================================================================================
+TestBinaryImportURLInCSS
+---------- /out/entry.css ----------
+/* /entry.css */
+a {
+  background: url(data:application/octet-stream;base64,iVBORw0KGgo=);
+}
+
+================================================================================
 TestCSSAtImport
 ---------- /out.css ----------
 /* /shared.css */
@@ -68,6 +84,31 @@ console.log(void 0);
 }
 
 ================================================================================
+TestDataURLImportURLInCSS
+---------- /out/entry.css ----------
+/* /entry.css */
+a {
+  background: url(data:image/png;base64,iVBORw0KGgo=);
+}
+
+================================================================================
+TestExternalImportURLInCSS
+---------- /out/entry.css ----------
+/* /src/entry.css */
+div:after {
+  content: 'If this is recognized, the path should become "../src/external.png"';
+  background: url(../src/external.png);
+}
+
+================================================================================
+TestFileImportURLInCSS
+---------- /out/entry.css ----------
+/* /entry.css */
+a {
+  background: url(example.JSXM4U43.png);
+}
+
+================================================================================
 TestImportCSSFromJS
 ---------- /out/entry.js ----------
 // /a.css
@@ -91,4 +132,12 @@ console.log("b");
 /* /b.css */
 .b {
   color: blue;
+}
+
+================================================================================
+TestTextImportURLInCSSText
+---------- /out/entry.css ----------
+/* /entry.css */
+a {
+  background: url(data:text/plain;base64,VGhpcyBpcyBzb21lIHRleHQu);
 }

@@ -59,8 +59,9 @@ func TestStringQuote(t *testing.T) {
 	expectPrintedString(t, "", "\"\"")
 	expectPrintedString(t, "foo", "\"foo\"")
 	expectPrintedString(t, "f\"o", "'f\"o'")
-	expectPrintedString(t, "f'\"'o", "\"f'\\22'o\"")
-	expectPrintedString(t, "f\\o", "\"f\\5co\"")
+	expectPrintedString(t, "f'\"'o", "\"f'\\\"'o\"")
+	expectPrintedString(t, "f\"'\"o", "'f\"\\'\"o'")
+	expectPrintedString(t, "f\\o", "\"f\\\\o\"")
 	expectPrintedString(t, "f\ro", "\"f\\do\"")
 	expectPrintedString(t, "f\no", "\"f\\ao\"")
 	expectPrintedString(t, "f\fo", "\"f\\co\"")
@@ -76,6 +77,16 @@ func TestStringQuote(t *testing.T) {
 	expectPrintedString(t, "f\x00o", "\"f\\0o\"")
 	expectPrintedString(t, "f\x01o", "\"f\x01o\"")
 	expectPrintedString(t, "f\to", "\"f\to\"")
+}
+
+func TestURLQuote(t *testing.T) {
+	expectPrinted(t, "* { background: url('foo') }", "* {\n  background: url(foo);\n}\n")
+	expectPrinted(t, "* { background: url('f o') }", "* {\n  background: url(f\\ o);\n}\n")
+	expectPrinted(t, "* { background: url('f  o') }", "* {\n  background: url(\"f  o\");\n}\n")
+	expectPrinted(t, "* { background: url('foo)') }", "* {\n  background: url(foo\\));\n}\n")
+	expectPrinted(t, "* { background: url('(foo') }", "* {\n  background: url(\\(foo);\n}\n")
+	expectPrinted(t, "* { background: url('(foo)') }", "* {\n  background: url(\"(foo)\");\n}\n")
+	expectPrinted(t, "* { background: url('\"foo\"') }", "* {\n  background: url('\"foo\"');\n}\n")
 }
 
 func TestImportant(t *testing.T) {

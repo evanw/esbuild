@@ -468,11 +468,12 @@ func (p *parser) convertTokensHelper(tokens []css_lexer.Token, close css_lexer.T
 	var result []css_ast.Token
 loop:
 	for len(tokens) > 0 {
-		var children *[]css_ast.Token
 		t := tokens[0]
-		text := t.Raw(p.source.Contents)
 		tokens = tokens[1:]
-		hasWhitespaceAfter := false
+		token := css_ast.Token{
+			Kind: t.Kind,
+			Text: t.Raw(p.source.Contents),
+		}
 
 		switch t.Kind {
 		case css_lexer.TWhitespace:
@@ -489,30 +490,60 @@ loop:
 
 			// Assume whitespace can always be added after a comma (it will be
 			// automatically omitted by the printer if we're minifying)
-			hasWhitespaceAfter = true
+			token.HasWhitespaceAfter = true
 
 		case css_lexer.TString:
-			text = css_lexer.ContentsOfStringToken(text)
+			token.Text = css_lexer.ContentsOfStringToken(token.Text)
+
+		case css_lexer.TURL:
+			path, r := css_lexer.ContentsOfURLToken(token.Text)
+			r.Loc.Start += t.Range.Loc.Start
+			token.Text = ""
+			token.ImportRecordIndex = uint32(len(p.importRecords))
+			p.importRecords = append(p.importRecords, ast.ImportRecord{
+				Kind:  ast.URLToken,
+				Path:  logger.Path{Text: path},
+				Range: r,
+			})
 
 		case css_lexer.TFunction:
 			var nested []css_ast.Token
+			original := tokens
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen)
-			children = &nested
+			token.Children = &nested
+
+			switch token.Text {
+			case "url(":
+				// Treat a URL function call with a string just like a URL token
+				if len(nested) == 1 {
+					if arg := nested[0]; arg.Kind == css_lexer.TString {
+						token.Kind = css_lexer.TURL
+						token.Text = ""
+						token.Children = nil
+						token.ImportRecordIndex = uint32(len(p.importRecords))
+						p.importRecords = append(p.importRecords, ast.ImportRecord{
+							Kind:  ast.URLToken,
+							Path:  logger.Path{Text: arg.Text},
+							Range: original[0].Range,
+						})
+					}
+				}
+			}
 
 		case css_lexer.TOpenParen:
 			var nested []css_ast.Token
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen)
-			children = &nested
+			token.Children = &nested
 
 		case css_lexer.TOpenBrace:
 			var nested []css_ast.Token
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBrace)
-			children = &nested
+			token.Children = &nested
 
 		case css_lexer.TOpenBracket:
 			var nested []css_ast.Token
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBracket)
-			children = &nested
+			token.Children = &nested
 
 		default:
 			if t.Kind == close {
@@ -520,12 +551,7 @@ loop:
 			}
 		}
 
-		result = append(result, css_ast.Token{
-			Kind:               t.Kind,
-			Text:               text,
-			Children:           children,
-			HasWhitespaceAfter: hasWhitespaceAfter,
-		})
+		result = append(result, token)
 	}
 	return result, tokens
 }

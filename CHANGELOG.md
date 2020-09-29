@@ -14,6 +14,10 @@
 
     Whitespace around commas in CSS will now be pretty-printed when not minifying and removed when minifying. So `a , b` becomes `a, b` when pretty-printed and `a,b` when minified.
 
+* Treat `url(...)` in CSS files as an import ([#415](https://github.com/evanw/esbuild/issues/415))
+
+    When bundling, the `url(...)` syntax in CSS now tries to resolve the URL as a path using the bundler's built in path resolution logic.
+
 ## 0.7.7
 
 * Fix TypeScript decorators on static members

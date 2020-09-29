@@ -38,6 +38,10 @@ type Token struct {
 	// implicit and is not stored.
 	Children *[]Token // 8 bytes
 
+	// URL tokens have an associated import record at the top-level of the AST.
+	// This index points to that import record.
+	ImportRecordIndex uint32 // 4 bytes
+
 	// This will never be "TWhitespace" because whitespace isn't stored as a
 	// token directly. Instead it is stored in "HasWhitespaceAfter" on the
 	// previous token.

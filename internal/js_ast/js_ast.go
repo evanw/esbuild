@@ -1340,6 +1340,7 @@ type AST struct {
 
 	Hashbang    string
 	Directive   string
+	URLForCSS   string
 	Parts       []Part
 	Symbols     []Symbol
 	ModuleScope *Scope

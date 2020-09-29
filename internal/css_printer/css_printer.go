@@ -9,6 +9,8 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
+const noneQuote rune = -1
+
 type printer struct {
 	Options
 	importRecords []ast.ImportRecord
@@ -286,35 +288,56 @@ func (p *printer) print(text string) {
 	p.sb.WriteString(text)
 }
 
-func bestQuoteCharForString(text string) rune {
-	singleCost := 0
-	doubleCost := 0
+func bestQuoteCharForString(text string, allowNone bool) rune {
+	noneCost := 0
+	singleCost := 2
+	doubleCost := 2
 
 	for _, c := range text {
 		switch c {
 		case '\'':
+			noneCost++
 			singleCost++
+
 		case '"':
+			noneCost++
+			doubleCost++
+
+		case '(', ')', ' ', '\t':
+			noneCost++
+
+		case '\\', '\n', '\r', '\f':
+			noneCost++
+			singleCost++
 			doubleCost++
 		}
 	}
 
+	// Quotes can sometimes be omitted for URL tokens
+	if allowNone && noneCost < singleCost && noneCost < doubleCost {
+		return noneQuote
+	}
+
+	// Prefer double quotes to single quotes if there is no cost difference
 	if singleCost < doubleCost {
 		return '\''
 	}
+
 	return '"'
 }
 
 func (p *printer) printQuoted(text string) {
-	p.printQuotedWithQuote(text, bestQuoteCharForString(text))
+	p.printQuotedWithQuote(text, bestQuoteCharForString(text, false))
 }
 
 func (p *printer) printQuotedWithQuote(text string, quote rune) {
-	p.sb.WriteRune(quote)
+	if quote != noneQuote {
+		p.sb.WriteRune(quote)
+	}
 
 	for i, c := range text {
 		switch c {
-		case 0, '\\', '\r', '\n', '\f', quote:
+		case 0, '\r', '\n', '\f':
 			p.sb.WriteString(fmt.Sprintf("\\%x", c))
 
 			// Make sure the next character is not interpreted as part of the escape sequence
@@ -325,12 +348,25 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 				}
 			}
 
-		default:
-			p.sb.WriteRune(c)
+			// Don't print out the character being escaped itself
+			continue
+
+		case '\\', quote:
+			p.sb.WriteRune('\\')
+
+		case '(', ')', ' ', '\t', '"', '\'':
+			// These characters must be escaped in URL tokens
+			if quote == noneQuote {
+				p.sb.WriteRune('\\')
+			}
 		}
+
+		p.sb.WriteRune(c)
 	}
 
-	p.sb.WriteRune(quote)
+	if quote != noneQuote {
+		p.sb.WriteRune(quote)
+	}
 }
 
 func (p *printer) printIndent(indent int) {
@@ -344,6 +380,12 @@ func (p *printer) printTokens(tokens []css_ast.Token) {
 		switch t.Kind {
 		case css_lexer.TString:
 			p.printQuoted(t.Text)
+
+		case css_lexer.TURL:
+			text := p.importRecords[t.ImportRecordIndex].Path.Text
+			p.print("url(")
+			p.printQuotedWithQuote(text, bestQuoteCharForString(text, true))
+			p.print(")")
 
 		default:
 			p.print(t.Text)
