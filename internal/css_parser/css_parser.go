@@ -240,6 +240,7 @@ const (
 
 var specialAtRules = map[string]atRuleKind{
 	"@font-face": atRuleDeclarations,
+	"@page":      atRuleDeclarations,
 
 	"@document": atRuleInheritContext,
 	"@media":    atRuleInheritContext,
