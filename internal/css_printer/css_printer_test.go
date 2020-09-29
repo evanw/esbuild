@@ -154,3 +154,10 @@ func TestAtKeyframes(t *testing.T) {
 	expectPrintedMinify(t, "@keyframes name { from { color: red } to { color: blue } }",
 		"@keyframes name{from{color:red}to{color:blue}}")
 }
+
+func TestAtMedia(t *testing.T) {
+	expectPrinted(t, "@media screen { div { color: red } }", "@media screen {\n  div {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "@media screen{div{color:red}}", "@media screen {\n  div {\n    color: red;\n  }\n}\n")
+	expectPrintedMinify(t, "@media screen { div { color: red } }", "@media screen{div{color:red}}")
+	expectPrintedMinify(t, "@media screen{div{color:red}}", "@media screen{div{color:red}}")
+}

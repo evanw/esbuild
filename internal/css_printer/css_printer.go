@@ -110,6 +110,9 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 			p.print(" ")
 		}
 		p.printTokens(r.Prelude)
+		if !p.RemoveWhitespace {
+			p.print(" ")
+		}
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RUnknownAt:
