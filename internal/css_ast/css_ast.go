@@ -43,6 +43,17 @@ type RAtImport struct {
 	ImportRecordIndex uint32
 }
 
+type RAtKeyframes struct {
+	AtToken css_lexer.Token
+	Name    string
+	Blocks  []KeyframeBlock
+}
+
+type KeyframeBlock struct {
+	Selectors []css_lexer.Token
+	Rules     []R
+}
+
 type RKnownAt struct {
 	Name    css_lexer.Token
 	Prelude []css_lexer.Token
@@ -78,6 +89,7 @@ type RBadDeclaration struct {
 func (*RAtCharset) isRule()      {}
 func (*RAtNamespace) isRule()    {}
 func (*RAtImport) isRule()       {}
+func (*RAtKeyframes) isRule()    {}
 func (*RKnownAt) isRule()        {}
 func (*RUnknownAt) isRule()      {}
 func (*RSelector) isRule()       {}

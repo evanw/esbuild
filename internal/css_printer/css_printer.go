@@ -63,6 +63,47 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.print(css_lexer.QuoteForStringToken(p.importRecords[r.ImportRecordIndex].Path.Text))
 		p.print(";")
 
+	case *css_ast.RAtKeyframes:
+		p.printToken(r.AtToken)
+		p.print(" ")
+		p.print(r.Name)
+		if !p.RemoveWhitespace {
+			p.print(" ")
+		}
+		if p.RemoveWhitespace {
+			p.print("{")
+		} else {
+			p.print("{\n")
+		}
+		indent++
+		for _, block := range r.Blocks {
+			if !p.RemoveWhitespace {
+				p.printIndent(indent)
+			}
+			for i, sel := range block.Selectors {
+				if i > 0 {
+					if p.RemoveWhitespace {
+						p.print(",")
+					} else {
+						p.print(", ")
+					}
+				}
+				p.printToken(sel)
+			}
+			if !p.RemoveWhitespace {
+				p.print(" ")
+			}
+			p.printRuleBlock(block.Rules, indent)
+			if !p.RemoveWhitespace {
+				p.print("\n")
+			}
+		}
+		indent--
+		if !p.RemoveWhitespace {
+			p.printIndent(indent)
+		}
+		p.print("}")
+
 	case *css_ast.RKnownAt:
 		p.printToken(r.Name)
 		p.printTokens(r.Prelude)

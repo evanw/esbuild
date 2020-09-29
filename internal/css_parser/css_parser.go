@@ -230,15 +230,12 @@ type atRuleKind uint8
 
 const (
 	atRuleUnknown atRuleKind = iota
-	atRuleQualifiedRules
 	atRuleDeclarations
 	atRuleInheritContext
 	atRuleEmpty
 )
 
 var specialAtRules = map[string]atRuleKind{
-	"@keyframes": atRuleQualifiedRules,
-
 	"@font-face": atRuleDeclarations,
 
 	"@document": atRuleInheritContext,
@@ -306,6 +303,87 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			})
 			return &css_ast.RAtImport{ImportRecordIndex: importRecordIndex}
 		}
+
+	case "@keyframes", "@-webkit-keyframes", "@-moz-keyframes", "@-ms-keyframes", "@-o-keyframes":
+		p.eat(css_lexer.TWhitespace)
+		atToken := name
+		name = p.current()
+
+		// Consider string names a syntax error even though they are allowed by
+		// the specification and they work in Firefox because they do not work in
+		// Chrome or Safari.
+		if p.expect(css_lexer.TIdent) || p.eat(css_lexer.TString) {
+			p.eat(css_lexer.TWhitespace)
+			if p.expect(css_lexer.TOpenBrace) {
+				var blocks []css_ast.KeyframeBlock
+
+			blocks:
+				for {
+					switch p.current().Kind {
+					case css_lexer.TWhitespace:
+						p.advance()
+						continue
+
+					case css_lexer.TCloseBrace, css_lexer.TEndOfFile:
+						break blocks
+
+					case css_lexer.TIdent, css_lexer.TPercentage:
+						var selectors []css_lexer.Token
+
+					selectors:
+						for {
+							t := p.current()
+							switch t.Kind {
+							case css_lexer.TWhitespace:
+								p.advance()
+								continue
+
+							case css_lexer.TOpenBrace, css_lexer.TEndOfFile:
+								break selectors
+
+							case css_lexer.TIdent, css_lexer.TPercentage:
+								if t.Kind == css_lexer.TIdent {
+									text := t.Raw(p.source.Contents)
+									if text != "from" && text != "to" {
+										p.expect(css_lexer.TPercentage)
+									}
+								}
+								selectors = append(selectors, t)
+								p.advance()
+								p.eat(css_lexer.TWhitespace)
+								if !p.peek(css_lexer.TOpenBrace) {
+									p.expect(css_lexer.TComma)
+								}
+
+							default:
+								p.expect(css_lexer.TPercentage)
+								p.parseComponentValue()
+							}
+						}
+
+						if p.expect(css_lexer.TOpenBrace) {
+							rules := p.parseListOfDeclarations()
+							p.expect(css_lexer.TCloseBrace)
+							blocks = append(blocks, css_ast.KeyframeBlock{
+								Selectors: selectors,
+								Rules:     rules,
+							})
+						}
+
+					default:
+						p.expect(css_lexer.TPercentage)
+						p.parseComponentValue()
+					}
+				}
+
+				p.expect(css_lexer.TCloseBrace)
+				return &css_ast.RAtKeyframes{
+					AtToken: atToken,
+					Name:    name.Raw(p.source.Contents),
+					Blocks:  blocks,
+				}
+			}
+		}
 	}
 
 	// Parse an unknown prelude
@@ -348,13 +426,6 @@ prelude:
 		// Parse known rules whose blocks consist of whatever the current context is
 		p.advance()
 		rules := p.parseListOfDeclarations()
-		p.expect(css_lexer.TCloseBrace)
-		return &css_ast.RKnownAt{Name: name, Prelude: prelude, Rules: rules}
-
-	case atRuleQualifiedRules:
-		// Parse known rules whose blocks consist of qualified rules
-		p.advance()
-		rules := p.parseListOfRules(ruleContext{})
 		p.expect(css_lexer.TCloseBrace)
 		return &css_ast.RKnownAt{Name: name, Prelude: prelude, Rules: rules}
 

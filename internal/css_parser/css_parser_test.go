@@ -243,3 +243,26 @@ func TestAtImport(t *testing.T) {
 <stdin>: error: Unexpected "{"
 `)
 }
+
+func TestAtKeyframes(t *testing.T) {
+	expectPrinted(t, "@keyframes name{}", "@keyframes name {\n}\n")
+	expectPrinted(t, "@keyframes name {}", "@keyframes name {\n}\n")
+	expectPrinted(t, "@keyframes name{0%,50%{color:red}25%,75%{color:blue}}",
+		"@keyframes name {\n  0%, 50% {\n    color: red;\n  }\n  25%, 75% {\n    color: blue;\n  }\n}\n")
+	expectPrinted(t, "@keyframes name { 0%, 50% { color: red } 25%, 75% { color: blue } }",
+		"@keyframes name {\n  0%, 50% {\n    color: red;\n  }\n  25%, 75% {\n    color: blue;\n  }\n}\n")
+	expectPrinted(t, "@keyframes name{from{color:red}to{color:blue}}",
+		"@keyframes name {\n  from {\n    color: red;\n  }\n  to {\n    color: blue;\n  }\n}\n")
+	expectPrinted(t, "@keyframes name { from { color: red } to { color: blue } }",
+		"@keyframes name {\n  from {\n    color: red;\n  }\n  to {\n    color: blue;\n  }\n}\n")
+
+	expectPrinted(t, "@-webkit-keyframes name {}", "@-webkit-keyframes name {\n}\n")
+	expectPrinted(t, "@-moz-keyframes name {}", "@-moz-keyframes name {\n}\n")
+	expectPrinted(t, "@-ms-keyframes name {}", "@-ms-keyframes name {\n}\n")
+	expectPrinted(t, "@-o-keyframes name {}", "@-o-keyframes name {\n}\n")
+
+	expectParseError(t, "@keyframes {}", "<stdin>: error: Expected identifier but found \"{\"\n")
+	expectParseError(t, "@keyframes name { 0% 100% {} }", "<stdin>: error: Expected \",\" but found \"100%\"\n")
+	expectParseError(t, "@keyframes 'name' {}", "<stdin>: error: Expected identifier but found \"'name'\"\n")
+	expectParseError(t, "@keyframes name { into {} }", "<stdin>: error: Expected percentage but found \"into\"\n")
+}

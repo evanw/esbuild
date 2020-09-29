@@ -103,3 +103,10 @@ func TestAtImport(t *testing.T) {
 	expectPrintedMinify(t, "@import url(foo.css);", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import url(\"foo.css\");", "@import\"foo.css\";")
 }
+
+func TestAtKeyframes(t *testing.T) {
+	expectPrintedMinify(t, "@keyframes name { 0%, 50% { color: red } 25%, 75% { color: blue } }",
+		"@keyframes name{0%,50%{color:red}25%,75%{color:blue}}")
+	expectPrintedMinify(t, "@keyframes name { from { color: red } to { color: blue } }",
+		"@keyframes name{from{color:red}to{color:blue}}")
+}
