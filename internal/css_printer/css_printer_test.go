@@ -206,6 +206,13 @@ func TestAtMedia(t *testing.T) {
 	expectPrintedMinify(t, "@media screen{div{color:red}}", "@media screen{div{color:red}}")
 }
 
+func TestAtFontFace(t *testing.T) {
+	expectPrinted(t, "@font-face { font-family: 'Open Sans'; src: url('OpenSans.woff') format('woff') }",
+		"@font-face {\n  font-family: \"Open Sans\";\n  src: url(OpenSans.woff) format(\"woff\");\n}\n")
+	expectPrintedMinify(t, "@font-face { font-family: 'Open Sans'; src: url('OpenSans.woff') format('woff') }",
+		"@font-face{font-family:\"Open Sans\";src:url(OpenSans.woff) format(\"woff\")}")
+}
+
 func TestAtPage(t *testing.T) {
 	expectPrinted(t, "@page { margin: 1cm }", "@page {\n  margin: 1cm;\n}\n")
 	expectPrinted(t, "@page :first { margin: 1cm }", "@page :first {\n  margin: 1cm;\n}\n")
