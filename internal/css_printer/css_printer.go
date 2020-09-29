@@ -64,7 +64,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.print(";")
 
 	case *css_ast.RAtKeyframes:
-		p.printToken(r.AtToken)
+		p.print(r.AtToken)
 		p.print(" ")
 		p.print(r.Name)
 		if !p.RemoveWhitespace {
@@ -88,7 +88,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 						p.print(", ")
 					}
 				}
-				p.printToken(sel)
+				p.print(sel)
 			}
 			if !p.RemoveWhitespace {
 				p.print(" ")
@@ -105,12 +105,12 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.print("}")
 
 	case *css_ast.RKnownAt:
-		p.printToken(r.Name)
+		p.print(r.AtToken)
 		p.printTokens(r.Prelude)
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RUnknownAt:
-		p.printToken(r.Name)
+		p.print(r.AtToken)
 		p.printTokens(r.Prelude)
 		if r.Block == nil {
 			p.print(";")
@@ -130,7 +130,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RDeclaration:
-		p.printToken(r.Key)
+		p.print(r.Key)
 		if p.RemoveWhitespace {
 			p.print(":")
 		} else {
@@ -266,9 +266,7 @@ func (p *printer) printPseudoClassSelector(pseudo css_ast.SSPseudoClass) {
 	p.print(pseudo.Name)
 	if len(pseudo.Args) > 0 {
 		p.print("(")
-		for _, arg := range pseudo.Args {
-			p.printToken(arg)
-		}
+		p.printTokens(pseudo.Args)
 		p.print(")")
 	}
 }
@@ -291,8 +289,27 @@ func (p *printer) printToken(token css_lexer.Token) {
 	}
 }
 
-func (p *printer) printTokens(tokens []css_lexer.Token) {
+func (p *printer) printTokens(tokens []css_ast.Token) {
 	for _, t := range tokens {
-		p.printToken(t)
+		p.print(t.Text)
+
+		if t.Children != nil {
+			p.printTokens(*t.Children)
+
+			switch t.Kind {
+			case css_lexer.TFunction:
+				p.print(")")
+			case css_lexer.TOpenParen:
+				p.print(")")
+			case css_lexer.TOpenBrace:
+				p.print("}")
+			case css_lexer.TOpenBracket:
+				p.print("]")
+			}
+		}
+
+		if t.HasWhitespaceAfter {
+			p.print(" ")
+		}
 	}
 }

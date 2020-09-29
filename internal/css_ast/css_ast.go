@@ -24,6 +24,17 @@ type AST struct {
 	Rules         []R
 }
 
+// We create a lot of tokens, so make sure this layout is memory-efficient.
+// The layout here isn't optimal because it biases for convenience (e.g.
+// "string" could be shorter) but at least the ordering of fields was
+// deliberately chosen to minimize size.
+type Token struct {
+	Text               string      // 16 bytes
+	Children           *[]Token    // 8 bytes
+	Kind               css_lexer.T // 1 byte
+	HasWhitespaceAfter bool        // 1 byte
+}
+
 // This interface is never called. Its purpose is to encode a variant type in
 // Go's type system.
 type R interface {
@@ -44,26 +55,26 @@ type RAtImport struct {
 }
 
 type RAtKeyframes struct {
-	AtToken css_lexer.Token
+	AtToken string
 	Name    string
 	Blocks  []KeyframeBlock
 }
 
 type KeyframeBlock struct {
-	Selectors []css_lexer.Token
+	Selectors []string
 	Rules     []R
 }
 
 type RKnownAt struct {
-	Name    css_lexer.Token
-	Prelude []css_lexer.Token
+	AtToken string
+	Prelude []Token
 	Rules   []R
 }
 
 type RUnknownAt struct {
-	Name    css_lexer.Token
-	Prelude []css_lexer.Token
-	Block   []css_lexer.Token
+	AtToken string
+	Prelude []Token
+	Block   []Token
 }
 
 type RSelector struct {
@@ -72,18 +83,18 @@ type RSelector struct {
 }
 
 type RQualified struct {
-	Prelude []css_lexer.Token
+	Prelude []Token
 	Rules   []R
 }
 
 type RDeclaration struct {
-	Key       css_lexer.Token
-	Value     []css_lexer.Token
+	Key       string
+	Value     []Token
 	Important bool
 }
 
 type RBadDeclaration struct {
-	Tokens []css_lexer.Token
+	Tokens []Token
 }
 
 func (*RAtCharset) isRule()      {}
@@ -140,7 +151,7 @@ type SSAttribute struct {
 
 type SSPseudoClass struct {
 	Name string
-	Args []css_lexer.Token
+	Args []Token
 }
 
 func (*SSHash) isSubclassSelector()        {}

@@ -9,8 +9,7 @@ import (
 
 // The lexer converts a source file to a stream of tokens. Unlike esbuild's
 // JavaScript lexer, this CSS lexer runs to completion before the CSS parser
-// begins. This is done because the AST can reference slices of the whole-file
-// token array without having to allocate any intermediate token arrays.
+// begins, resulting in a single array of all tokens in the file.
 
 type T uint8
 
@@ -102,6 +101,9 @@ func (t T) String() string {
 	return tokenToString[t]
 }
 
+// This token struct is designed to be memory-efficient. It just references a
+// range in the input file instead of directly containing the substring of text
+// since a range takes up less memory than a string.
 type Token struct {
 	Kind  T
 	Range logger.Range

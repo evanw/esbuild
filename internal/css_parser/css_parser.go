@@ -254,14 +254,13 @@ type atRuleContext struct {
 
 func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 	// Parse the name
-	name := p.current()
-	text := p.text()
-	kind := specialAtRules[text]
+	atToken := p.text()
+	kind := specialAtRules[atToken]
 	p.advance()
 
 	// Parse the prelude
 	preludeStart := p.index
-	switch text {
+	switch atToken {
 	case "@charset":
 		p.expect(css_lexer.TWhitespace)
 		if p.peek(css_lexer.TString) {
@@ -306,8 +305,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 
 	case "@keyframes", "@-webkit-keyframes", "@-moz-keyframes", "@-ms-keyframes", "@-o-keyframes":
 		p.eat(css_lexer.TWhitespace)
-		atToken := name
-		name = p.current()
+		name := p.current()
 
 		// Consider string names a syntax error even though they are allowed by
 		// the specification and they work in Firefox because they do not work in
@@ -328,7 +326,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 						break blocks
 
 					case css_lexer.TIdent, css_lexer.TPercentage:
-						var selectors []css_lexer.Token
+						var selectors []string
 
 					selectors:
 						for {
@@ -342,13 +340,13 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 								break selectors
 
 							case css_lexer.TIdent, css_lexer.TPercentage:
+								text := t.Raw(p.source.Contents)
 								if t.Kind == css_lexer.TIdent {
-									text := t.Raw(p.source.Contents)
 									if text != "from" && text != "to" {
 										p.expect(css_lexer.TPercentage)
 									}
 								}
-								selectors = append(selectors, t)
+								selectors = append(selectors, text)
 								p.advance()
 								p.eat(css_lexer.TWhitespace)
 								if !p.peek(css_lexer.TOpenBrace) {
@@ -394,24 +392,24 @@ prelude:
 			break prelude
 
 		case css_lexer.TSemicolon, css_lexer.TCloseBrace:
-			prelude := p.tokens[preludeStart:p.index]
+			prelude := p.convertTokens(p.tokens[preludeStart:p.index])
 
 			// Report an error for rules that should have blocks
 			if kind != atRuleEmpty && kind != atRuleUnknown {
 				p.expect(css_lexer.TOpenBrace)
 				p.eat(css_lexer.TSemicolon)
-				return &css_ast.RUnknownAt{Name: name, Prelude: prelude}
+				return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}
 			}
 
 			// Otherwise, parse an unknown at rule
 			p.expect(css_lexer.TSemicolon)
-			return &css_ast.RUnknownAt{Name: name, Prelude: prelude}
+			return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude}
 
 		default:
 			p.parseComponentValue()
 		}
 	}
-	prelude := p.tokens[preludeStart:p.index]
+	prelude := p.convertTokens(p.tokens[preludeStart:p.index])
 	blockStart := p.index
 
 	switch kind {
@@ -419,15 +417,15 @@ prelude:
 		// Report an error for rules that shouldn't have blocks
 		p.expect(css_lexer.TSemicolon)
 		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
-		block := p.tokens[blockStart:p.index]
-		return &css_ast.RUnknownAt{Name: name, Prelude: prelude, Block: block}
+		block := p.convertTokens(p.tokens[blockStart:p.index])
+		return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}
 
 	case atRuleDeclarations:
 		// Parse known rules whose blocks consist of whatever the current context is
 		p.advance()
 		rules := p.parseListOfDeclarations()
 		p.expect(css_lexer.TCloseBrace)
-		return &css_ast.RKnownAt{Name: name, Prelude: prelude, Rules: rules}
+		return &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}
 
 	case atRuleInheritContext:
 		// Parse known rules whose blocks consist of whatever the current context is
@@ -441,14 +439,69 @@ prelude:
 			})
 		}
 		p.expect(css_lexer.TCloseBrace)
-		return &css_ast.RKnownAt{Name: name, Prelude: prelude, Rules: rules}
+		return &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}
 
 	default:
 		// Otherwise, parse an unknown rule
 		p.parseBlock(css_lexer.TOpenBrace, css_lexer.TCloseBrace)
-		block := p.tokens[blockStart:p.index]
-		return &css_ast.RUnknownAt{Name: name, Prelude: prelude, Block: block}
+		block := p.convertTokens(p.tokens[blockStart:p.index])
+		return &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}
 	}
+}
+
+func (p *parser) convertTokens(tokens []css_lexer.Token) []css_ast.Token {
+	result, _ := p.convertTokensHelper(tokens, css_lexer.TEndOfFile)
+	return result
+}
+
+func (p *parser) convertTokensHelper(tokens []css_lexer.Token, close css_lexer.T) ([]css_ast.Token, []css_lexer.Token) {
+	var result []css_ast.Token
+loop:
+	for len(tokens) > 0 {
+		var children *[]css_ast.Token
+		t := tokens[0]
+		tokens = tokens[1:]
+
+		switch t.Kind {
+		case css_lexer.TWhitespace:
+			if last := len(result) - 1; last >= 0 {
+				result[last].HasWhitespaceAfter = true
+			}
+			continue
+
+		case css_lexer.TFunction:
+			var nested []css_ast.Token
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen)
+			children = &nested
+
+		case css_lexer.TOpenParen:
+			var nested []css_ast.Token
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen)
+			children = &nested
+
+		case css_lexer.TOpenBrace:
+			var nested []css_ast.Token
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBrace)
+			children = &nested
+
+		case css_lexer.TOpenBracket:
+			var nested []css_ast.Token
+			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBracket)
+			children = &nested
+
+		default:
+			if t.Kind == close {
+				break loop
+			}
+		}
+
+		result = append(result, css_ast.Token{
+			Kind:     t.Kind,
+			Text:     t.Raw(p.source.Contents),
+			Children: children,
+		})
+	}
+	return result, tokens
 }
 
 func (p *parser) parseSelectorRule() css_ast.R {
@@ -473,7 +526,7 @@ func (p *parser) parseQualifiedRuleFrom(preludeStart int) *css_ast.RQualified {
 		p.parseComponentValue()
 	}
 	rule := css_ast.RQualified{
-		Prelude: p.tokens[preludeStart:p.index],
+		Prelude: p.convertTokens(p.tokens[preludeStart:p.index]),
 	}
 	if p.expect(css_lexer.TOpenBrace) {
 		rule.Rules = p.parseListOfDeclarations()
@@ -511,7 +564,7 @@ stop:
 	// Stop now if this is not a valid declaration
 	if !ok {
 		return &css_ast.RBadDeclaration{
-			Tokens: p.tokens[keyStart:p.index],
+			Tokens: p.convertTokens(p.tokens[keyStart:p.index]),
 		}
 	}
 
@@ -537,8 +590,8 @@ stop:
 	}
 
 	return &css_ast.RDeclaration{
-		Key:       p.tokens[keyStart],
-		Value:     value,
+		Key:       p.tokens[keyStart].Raw(p.source.Contents),
+		Value:     p.convertTokens(value),
 		Important: important,
 	}
 }

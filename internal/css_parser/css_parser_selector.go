@@ -238,7 +238,7 @@ func (p *parser) parsePseudoElementSelector() css_ast.SSPseudoClass {
 	if p.peek(css_lexer.TFunction) {
 		text := p.text()
 		p.advance()
-		args := p.parseAnyValue()
+		args := p.convertTokens(p.parseAnyValue())
 		p.expect(css_lexer.TCloseParen)
 		return css_ast.SSPseudoClass{Name: text[:len(text)-1], Args: args}
 	}
