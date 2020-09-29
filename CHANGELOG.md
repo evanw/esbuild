@@ -16,7 +16,7 @@
 
 * Warn about unknown at-rules in CSS
 
-    Using an `@rule` in a CSS file that isn't known by esbuild now generates a warning. These rules will be passed through unmodified if they aren't known to esbuild, they are probably part of a CSS preprocessor syntax that should have been compiled away before giving the file to esbuild to parse.
+    Using an `@rule` in a CSS file that isn't known by esbuild now generates a warning and these rules will be passed through unmodified. If they aren't known to esbuild, they are probably part of a CSS preprocessor syntax that should have been compiled away before giving the file to esbuild to parse.
 
 * Recoverable CSS syntax errors are now warnings
 
@@ -36,7 +36,7 @@
 
 * Treat `url(...)` in CSS files as an import ([#415](https://github.com/evanw/esbuild/issues/415))
 
-    When bundling, the `url(...)` syntax in CSS now tries to resolve the URL as a path using the bundler's built in path resolution logic.
+    When bundling, the `url(...)` syntax in CSS now tries to resolve the URL as a path using the bundler's built in path resolution logic. The following loaders can be used with this syntax: `text`, `base64`, `file`, `dataurl`, and `binary`.
 
 * Ignore certain paths in CSS files
 
@@ -46,7 +46,6 @@
     background: url(http://example.com/images/image.png);
     background: url(https://example.com/images/image.png);
     background: url(//example.com/images/image.png);
-    background: url(/images/image.png);
     background: url(data:image/png;base64,iVBORw0KGgo=);
 
     /* This can be useful with SVG DOM content */

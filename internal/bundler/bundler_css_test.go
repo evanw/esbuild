@@ -267,6 +267,13 @@ func TestExternalImportURLInCSS(t *testing.T) {
 					content: 'If this is recognized, the path should become "../src/external.png"';
 					background: url(./external.png);
 				}
+
+				/* These URLs should be external automatically */
+				a { background: url(http://example.com/images/image.png) }
+				b { background: url(https://example.com/images/image.png) }
+				c { background: url(//example.com/images/image.png) }
+				d { background: url(data:image/png;base64,iVBORw0KGgo=) }
+				path { fill: url(#filter) }
 			`,
 		},
 		entryPaths: []string{"/src/entry.css"},

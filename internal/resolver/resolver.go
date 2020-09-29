@@ -148,9 +148,8 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 		// "background: url(data:image/png;base64,iVBORw0KGgo=);"
 		strings.HasPrefix(importPath, "data:") ||
 
-		// "background: url(/images/image.png);"
 		// "background: url(//example.com/images/image.png);"
-		strings.HasPrefix(importPath, "/")) {
+		strings.HasPrefix(importPath, "//")) {
 
 		return &ResolveResult{
 			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
