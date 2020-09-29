@@ -106,11 +106,17 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 
 	case *css_ast.RKnownAt:
 		p.print(r.AtToken)
+		if !p.RemoveWhitespace || len(r.Prelude) > 0 {
+			p.print(" ")
+		}
 		p.printTokens(r.Prelude)
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RUnknownAt:
 		p.print(r.AtToken)
+		if len(r.Prelude) > 0 || (r.Block != nil && !p.RemoveWhitespace) {
+			p.print(" ")
+		}
 		p.printTokens(r.Prelude)
 		if r.Block == nil {
 			p.print(";")
@@ -290,11 +296,17 @@ func (p *printer) printToken(token css_lexer.Token) {
 }
 
 func (p *printer) printTokens(tokens []css_ast.Token) {
-	for _, t := range tokens {
+	for i, t := range tokens {
 		p.print(t.Text)
 
 		if t.Children != nil {
-			p.printTokens(*t.Children)
+			children := *t.Children
+
+			if t.Kind == css_lexer.TOpenBrace && !p.RemoveWhitespace && len(children) > 0 {
+				p.print(" ")
+			}
+
+			p.printTokens(children)
 
 			switch t.Kind {
 			case css_lexer.TFunction:
@@ -302,13 +314,16 @@ func (p *printer) printTokens(tokens []css_ast.Token) {
 			case css_lexer.TOpenParen:
 				p.print(")")
 			case css_lexer.TOpenBrace:
+				if !p.RemoveWhitespace && len(children) > 0 {
+					p.print(" ")
+				}
 				p.print("}")
 			case css_lexer.TOpenBracket:
 				p.print("]")
 			}
 		}
 
-		if t.HasWhitespaceAfter {
+		if t.HasWhitespaceAfter && i+1 != len(tokens) {
 			p.print(" ")
 		}
 	}

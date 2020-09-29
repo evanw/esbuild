@@ -67,6 +67,12 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMinify(t, "a { & :b {} }", "a{& :b{}}")
 }
 
+func TestAtRule(t *testing.T) {
+	expectPrintedMinify(t, "@unknown;", "@unknown;")
+	expectPrintedMinify(t, "@unknown{}", "@unknown{}")
+	expectPrintedMinify(t, "@unknown{\na: b;\nc: d;\n}", "@unknown{a: b; c: d;}")
+}
+
 func TestAtCharset(t *testing.T) {
 	expectPrinted(t, "@charset \"UTF-8\";", "@charset \"UTF-8\";\n")
 	expectPrintedMinify(t, "@charset \"UTF-8\";", "@charset \"UTF-8\";")
