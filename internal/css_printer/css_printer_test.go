@@ -160,3 +160,11 @@ func TestAtMedia(t *testing.T) {
 	expectPrintedMinify(t, "@media screen { div { color: red } }", "@media screen{div{color:red}}")
 	expectPrintedMinify(t, "@media screen{div{color:red}}", "@media screen{div{color:red}}")
 }
+
+func TestMsGridColumnsWhitespace(t *testing.T) {
+	// Must not insert a space between the "]" and the "("
+	expectPrinted(t, "div { -ms-grid-columns: (1fr)[3] }", "div {\n  -ms-grid-columns: (1fr)[3];\n}\n")
+	expectPrinted(t, "div { -ms-grid-columns: 1fr (20px 1fr)[3] }", "div {\n  -ms-grid-columns: 1fr (20px 1fr)[3];\n}\n")
+	expectPrintedMinify(t, "div { -ms-grid-columns: (1fr)[3] }", "div{-ms-grid-columns:(1fr)[3]}")
+	expectPrintedMinify(t, "div { -ms-grid-columns: 1fr (20px 1fr)[3] }", "div{-ms-grid-columns:1fr (20px 1fr)[3]}")
+}
