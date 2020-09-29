@@ -510,6 +510,31 @@ loop:
 			// automatically omitted by the printer if we're minifying)
 			token.HasWhitespaceAfter = true
 
+		case css_lexer.TNumber:
+			if p.options.MangleSyntax {
+				if text, ok := mangleNumber(token.Text); ok {
+					token.Text = text
+				}
+			}
+
+		case css_lexer.TPercentage:
+			if p.options.MangleSyntax {
+				if text, ok := mangleNumber(token.Text[:len(token.Text)-1]); ok {
+					token.Text = text + "%"
+				}
+			}
+
+		case css_lexer.TDimension:
+			if p.options.MangleSyntax {
+				i := len(token.Text)
+				for i > 0 && token.Text[i-1] != '.' && (token.Text[i-1] < '0' || token.Text[i-1] > '9') {
+					i--
+				}
+				if text, ok := mangleNumber(token.Text[:i]); ok {
+					token.Text = text + token.Text[i:]
+				}
+			}
+
 		case css_lexer.TString:
 			token.Text = css_lexer.ContentsOfStringToken(token.Text)
 
@@ -574,6 +599,31 @@ loop:
 		result = append(result, token)
 	}
 	return result, tokens
+}
+
+func mangleNumber(t string) (string, bool) {
+	original := t
+
+	if dot := strings.IndexByte(t, '.'); dot != -1 {
+		// Remove trailing zeros
+		for len(t) > 0 && t[len(t)-1] == '0' {
+			t = t[:len(t)-1]
+		}
+
+		// Remove the decimal point if it's unnecessary
+		if dot+1 == len(t) {
+			t = t[:dot]
+		} else {
+			// Remove a leading zero
+			if len(t) >= 3 && t[0] == '0' && t[1] == '.' && t[2] >= '0' && t[2] <= '9' {
+				t = t[1:]
+			} else if len(t) >= 4 && (t[0] == '+' || t[0] == '-') && t[1] == '0' && t[2] == '.' && t[3] >= '0' && t[3] <= '9' {
+				t = t[0:1] + t[2:]
+			}
+		}
+	}
+
+	return t, t != original
 }
 
 func (p *parser) parseSelectorRule() css_ast.R {

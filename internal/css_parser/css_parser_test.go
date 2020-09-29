@@ -31,9 +31,9 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	})
 }
 
-func expectPrintedCommon(t *testing.T, contents string, expected string, options config.Options) {
+func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options config.Options) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
+	t.Run(name, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
 		tree := Parse(log, test.SourceForTest(contents), options)
@@ -52,12 +52,12 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, expected, config.Options{})
+	expectPrintedCommon(t, contents, contents, expected, config.Options{})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, expected, config.Options{
+	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
 		MangleSyntax: true,
 	})
 }
@@ -92,6 +92,24 @@ func TestString(t *testing.T) {
 
 	expectPrinted(t, "a:after { content: '\\1010101' }", "a:after {\n  content: \"\U001010101\";\n}\n")
 	expectPrinted(t, "a:after { content: '\\invalid' }", "a:after {\n  content: \"invalid\";\n}\n")
+}
+
+func TestNumber(t *testing.T) {
+	for _, ext := range []string{"", "%", "px+"} {
+		expectPrinted(t, "a { width: 0."+ext+"; }", "a {\n  width: 0."+ext+";\n}\n")
+		expectPrinted(t, "a { width: 0.1"+ext+"; }", "a {\n  width: 0.1"+ext+";\n}\n")
+		expectPrinted(t, "a { width: +0."+ext+"; }", "a {\n  width: +0."+ext+";\n}\n")
+		expectPrinted(t, "a { width: +0.1"+ext+"; }", "a {\n  width: +0.1"+ext+";\n}\n")
+		expectPrinted(t, "a { width: -0."+ext+"; }", "a {\n  width: -0."+ext+";\n}\n")
+		expectPrinted(t, "a { width: -0.1"+ext+"; }", "a {\n  width: -0.1"+ext+";\n}\n")
+
+		expectPrintedMangle(t, "a { width: 0."+ext+"; }", "a {\n  width: 0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: 0.1"+ext+"; }", "a {\n  width: .1"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: +0."+ext+"; }", "a {\n  width: +0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: +0.1"+ext+"; }", "a {\n  width: +.1"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: -0."+ext+"; }", "a {\n  width: -0"+ext+";\n}\n")
+		expectPrintedMangle(t, "a { width: -0.1"+ext+"; }", "a {\n  width: -.1"+ext+";\n}\n")
+	}
 }
 
 func TestDeclaration(t *testing.T) {
