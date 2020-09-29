@@ -3492,7 +3492,6 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 			ast.Rules = rules
 
 			compileResult.printedCSS = css_printer.Print(ast, css_printer.Options{
-				Contents:         file.source.Contents,
 				RemoveWhitespace: c.options.RemoveWhitespace,
 			})
 			compileResult.sourceIndex = sourceIndex
@@ -3529,7 +3528,6 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 
 			if len(ast.Rules) > 0 {
 				css := css_printer.Print(ast, css_printer.Options{
-					Contents:         "",
 					RemoveWhitespace: c.options.RemoveWhitespace,
 				})
 				if len(css) > 0 {

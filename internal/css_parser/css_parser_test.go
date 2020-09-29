@@ -42,9 +42,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		assertEqual(t, text, "")
-		css := css_printer.Print(tree, css_printer.Options{
-			Contents: contents,
-		})
+		css := css_printer.Print(tree, css_printer.Options{})
 		assertEqual(t, string(css), expected)
 	})
 }

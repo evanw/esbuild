@@ -15,7 +15,6 @@ type printer struct {
 }
 
 type Options struct {
-	Contents         string
 	RemoveWhitespace bool
 }
 
@@ -287,14 +286,6 @@ func (p *printer) print(text string) {
 func (p *printer) printIndent(indent int) {
 	for i := 0; i < indent; i++ {
 		p.sb.WriteString("  ")
-	}
-}
-
-func (p *printer) printToken(token css_lexer.Token) {
-	if token.Kind == css_lexer.TWhitespace {
-		p.print(" ")
-	} else {
-		p.print(token.Raw(p.Contents))
 	}
 }
 

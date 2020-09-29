@@ -27,7 +27,6 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
 		}
 		assertEqual(t, text, "")
-		options.Contents = contents
 		css := Print(tree, options)
 		assertEqual(t, string(css), expected)
 	})
