@@ -246,10 +246,6 @@ var specialAtRules = map[string]atRuleKind{
 	"@media":    atRuleInheritContext,
 	"@scope":    atRuleInheritContext,
 	"@supports": atRuleInheritContext,
-
-	"@charset":   atRuleEmpty,
-	"@import":    atRuleEmpty,
-	"@namespace": atRuleEmpty,
 }
 
 type atRuleContext struct {
@@ -266,6 +262,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 	preludeStart := p.index
 	switch atToken {
 	case "@charset":
+		kind = atRuleEmpty
 		p.expect(css_lexer.TWhitespace)
 		if p.peek(css_lexer.TString) {
 			encoding := css_lexer.ContentsOfStringToken(p.text())
@@ -280,6 +277,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		p.expect(css_lexer.TString)
 
 	case "@namespace":
+		kind = atRuleEmpty
 		p.eat(css_lexer.TWhitespace)
 		prefix := ""
 		if p.peek(css_lexer.TIdent) {
@@ -294,6 +292,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		}
 
 	case "@import":
+		kind = atRuleEmpty
 		p.eat(css_lexer.TWhitespace)
 		if path, r, ok := p.expectURLOrString(); ok {
 			p.eat(css_lexer.TWhitespace)

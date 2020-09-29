@@ -40,7 +40,9 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+			if msg.Kind == logger.Error {
+				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+			}
 		}
 		assertEqual(t, text, "")
 		css := css_printer.Print(tree, css_printer.Options{})
