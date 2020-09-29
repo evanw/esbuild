@@ -3,6 +3,7 @@ package css_parser
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_printer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/test"
@@ -20,7 +21,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents))
+		Parse(log, test.SourceForTest(contents), config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -30,12 +31,12 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	})
 }
 
-func expectPrinted(t *testing.T, contents string, expected string) {
+func expectPrintedCommon(t *testing.T, contents string, expected string, options config.Options) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree := Parse(log, test.SourceForTest(contents))
+		tree := Parse(log, test.SourceForTest(contents), options)
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -44,6 +45,18 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 		assertEqual(t, text, "")
 		css := css_printer.Print(tree, css_printer.Options{})
 		assertEqual(t, string(css), expected)
+	})
+}
+
+func expectPrinted(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{})
+}
+
+func expectPrintedMangle(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		MangleSyntax: true,
 	})
 }
 
@@ -255,6 +268,11 @@ func TestAtKeyframes(t *testing.T) {
 		"@keyframes name {\n  from {\n    color: red;\n  }\n  to {\n    color: blue;\n  }\n}\n")
 	expectPrinted(t, "@keyframes name { from { color: red } to { color: blue } }",
 		"@keyframes name {\n  from {\n    color: red;\n  }\n  to {\n    color: blue;\n  }\n}\n")
+
+	expectPrinted(t, "@keyframes name { from { color: red } }", "@keyframes name {\n  from {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "@keyframes name { 100% { color: red } }", "@keyframes name {\n  100% {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@keyframes name { from { color: red } }", "@keyframes name {\n  0% {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@keyframes name { 100% { color: red } }", "@keyframes name {\n  to {\n    color: red;\n  }\n}\n")
 
 	expectPrinted(t, "@-webkit-keyframes name {}", "@-webkit-keyframes name {\n}\n")
 	expectPrinted(t, "@-moz-keyframes name {}", "@-moz-keyframes name {\n}\n")

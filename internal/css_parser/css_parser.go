@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -16,6 +17,7 @@ import (
 type parser struct {
 	log           logger.Log
 	source        logger.Source
+	options       config.Options
 	tokens        []css_lexer.Token
 	stack         []css_lexer.T
 	index         int
@@ -24,10 +26,11 @@ type parser struct {
 	importRecords []ast.ImportRecord
 }
 
-func Parse(log logger.Log, source logger.Source) css_ast.AST {
+func Parse(log logger.Log, source logger.Source, options config.Options) css_ast.AST {
 	p := parser{
 		log:       log,
 		source:    source,
+		options:   options,
 		tokens:    css_lexer.Tokenize(log, source),
 		prevError: logger.Loc{Start: -1},
 	}
@@ -342,9 +345,15 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 							case css_lexer.TIdent, css_lexer.TPercentage:
 								text := t.Raw(p.source.Contents)
 								if t.Kind == css_lexer.TIdent {
-									if text != "from" && text != "to" {
+									if text == "from" {
+										if p.options.MangleSyntax {
+											text = "0%" // "0%" is equivalent to but shorter than "from"
+										}
+									} else if text != "to" {
 										p.expect(css_lexer.TPercentage)
 									}
+								} else if p.options.MangleSyntax && text == "100%" {
+									text = "to" // "to" is equivalent to but shorter than "100%"
 								}
 								selectors = append(selectors, text)
 								p.advance()
