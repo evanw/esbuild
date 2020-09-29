@@ -10,6 +10,10 @@
 
     The parser now directly understands `@keyframes` rules, which means it can now format them more accurately and report more specific syntax errors.
 
+* Minify whitespace around commas in CSS
+
+    Whitespace around commas in CSS will now be pretty-printed when not minifying and removed when minifying. So `a , b` becomes `a, b` when pretty-printed and `a,b` when minified.
+
 ## 0.7.7
 
 * Fix TypeScript decorators on static members

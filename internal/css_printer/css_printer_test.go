@@ -59,6 +59,20 @@ func TestImportant(t *testing.T) {
 
 func TestSelector(t *testing.T) {
 	expectPrintedMinify(t, "a + b c > d ~ e{}", "a+b c>d~e{}")
+
+	expectPrinted(t, ":unknown( x (a+b), 'c' ) {}", ":unknown(x (a+b), 'c') {\n}\n")
+	expectPrinted(t, ":unknown( x (a-b), 'c' ) {}", ":unknown(x (a-b), 'c') {\n}\n")
+	expectPrinted(t, ":unknown( x (a,b), 'c' ) {}", ":unknown(x (a, b), 'c') {\n}\n")
+	expectPrinted(t, ":unknown( x ( a + b ), 'c' ) {}", ":unknown(x (a + b), 'c') {\n}\n")
+	expectPrinted(t, ":unknown( x ( a - b ), 'c' ) {}", ":unknown(x (a - b), 'c') {\n}\n")
+	expectPrinted(t, ":unknown( x ( a , b ), 'c' ) {}", ":unknown(x (a, b), 'c') {\n}\n")
+
+	expectPrintedMinify(t, ":unknown( x (a+b), 'c' ) {}", ":unknown(x (a+b),'c'){}")
+	expectPrintedMinify(t, ":unknown( x (a-b), 'c' ) {}", ":unknown(x (a-b),'c'){}")
+	expectPrintedMinify(t, ":unknown( x (a,b), 'c' ) {}", ":unknown(x (a,b),'c'){}")
+	expectPrintedMinify(t, ":unknown( x ( a + b ), 'c' ) {}", ":unknown(x (a + b),'c'){}")
+	expectPrintedMinify(t, ":unknown( x ( a - b ), 'c' ) {}", ":unknown(x (a - b),'c'){}")
+	expectPrintedMinify(t, ":unknown( x ( a , b ), 'c' ) {}", ":unknown(x (a,b),'c'){}")
 }
 
 func TestNestedSelector(t *testing.T) {
@@ -67,10 +81,34 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMinify(t, "a { & :b {} }", "a{& :b{}}")
 }
 
+func TestDeclaration(t *testing.T) {
+	expectPrinted(t, "* { unknown: x (a+b) }", "* {\n  unknown: x (a+b);\n}\n")
+	expectPrinted(t, "* { unknown: x (a-b) }", "* {\n  unknown: x (a-b);\n}\n")
+	expectPrinted(t, "* { unknown: x (a,b) }", "* {\n  unknown: x (a, b);\n}\n")
+	expectPrinted(t, "* { unknown: x ( a + b ) }", "* {\n  unknown: x (a + b);\n}\n")
+	expectPrinted(t, "* { unknown: x ( a - b ) }", "* {\n  unknown: x (a - b);\n}\n")
+	expectPrinted(t, "* { unknown: x ( a , b ) }", "* {\n  unknown: x (a, b);\n}\n")
+
+	expectPrintedMinify(t, "* { unknown: x (a+b) }", "*{unknown:x (a+b)}")
+	expectPrintedMinify(t, "* { unknown: x (a-b) }", "*{unknown:x (a-b)}")
+	expectPrintedMinify(t, "* { unknown: x (a,b) }", "*{unknown:x (a,b)}")
+	expectPrintedMinify(t, "* { unknown: x ( a + b ) }", "*{unknown:x (a + b)}")
+	expectPrintedMinify(t, "* { unknown: x ( a - b ) }", "*{unknown:x (a - b)}")
+	expectPrintedMinify(t, "* { unknown: x ( a , b ) }", "*{unknown:x (a,b)}")
+}
+
 func TestAtRule(t *testing.T) {
 	expectPrintedMinify(t, "@unknown;", "@unknown;")
+	expectPrintedMinify(t, "@unknown x;", "@unknown x;")
 	expectPrintedMinify(t, "@unknown{}", "@unknown{}")
 	expectPrintedMinify(t, "@unknown{\na: b;\nc: d;\n}", "@unknown{a: b; c: d;}")
+
+	expectPrinted(t, "@unknown x ( a + b ) ;", "@unknown x (a + b);\n")
+	expectPrinted(t, "@unknown x ( a - b ) ;", "@unknown x (a - b);\n")
+	expectPrinted(t, "@unknown x ( a , b ) ;", "@unknown x (a, b);\n")
+	expectPrintedMinify(t, "@unknown x ( a + b ) ;", "@unknown x (a + b);")
+	expectPrintedMinify(t, "@unknown x ( a - b ) ;", "@unknown x (a - b);")
+	expectPrintedMinify(t, "@unknown x ( a , b ) ;", "@unknown x (a,b);")
 }
 
 func TestAtCharset(t *testing.T) {

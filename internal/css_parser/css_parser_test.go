@@ -155,6 +155,7 @@ func TestNestedSelector(t *testing.T) {
 func TestAtRule(t *testing.T) {
 	expectPrinted(t, "@unknown;", "@unknown;\n")
 	expectPrinted(t, "@unknown{}", "@unknown {}\n")
+	expectPrinted(t, "@unknown x;", "@unknown x;\n")
 	expectPrinted(t, "@unknown{\na: b;\nc: d;\n}", "@unknown { a: b; c: d; }\n")
 
 	expectParseError(t, "@unknown", "<stdin>: error: Expected \"{\" but found end of file\n")

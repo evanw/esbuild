@@ -461,6 +461,7 @@ loop:
 		var children *[]css_ast.Token
 		t := tokens[0]
 		tokens = tokens[1:]
+		hasWhitespaceAfter := false
 
 		switch t.Kind {
 		case css_lexer.TWhitespace:
@@ -468,6 +469,16 @@ loop:
 				result[last].HasWhitespaceAfter = true
 			}
 			continue
+
+		case css_lexer.TComma:
+			// Assume that whitespace can always be removed before a comma
+			if last := len(result) - 1; last >= 0 {
+				result[last].HasWhitespaceAfter = false
+			}
+
+			// Assume whitespace can always be added after a comma (it will be
+			// automatically omitted by the printer if we're minifying)
+			hasWhitespaceAfter = true
 
 		case css_lexer.TFunction:
 			var nested []css_ast.Token
@@ -496,9 +507,10 @@ loop:
 		}
 
 		result = append(result, css_ast.Token{
-			Kind:     t.Kind,
-			Text:     t.Raw(p.source.Contents),
-			Children: children,
+			Kind:               t.Kind,
+			Text:               t.Raw(p.source.Contents),
+			Children:           children,
+			HasWhitespaceAfter: hasWhitespaceAfter,
 		})
 	}
 	return result, tokens

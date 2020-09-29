@@ -311,20 +311,27 @@ func (p *printer) printTokens(tokens []css_ast.Token) {
 			switch t.Kind {
 			case css_lexer.TFunction:
 				p.print(")")
+
 			case css_lexer.TOpenParen:
 				p.print(")")
+
 			case css_lexer.TOpenBrace:
 				if !p.RemoveWhitespace && len(children) > 0 {
 					p.print(" ")
 				}
 				p.print("}")
+
 			case css_lexer.TOpenBracket:
 				p.print("]")
 			}
 		}
 
 		if t.HasWhitespaceAfter && i+1 != len(tokens) {
-			p.print(" ")
+			if t.Kind == css_lexer.TComma && p.RemoveWhitespace {
+				// Assume that whitespace can always be removed after a comma
+			} else {
+				p.print(" ")
+			}
 		}
 	}
 }
