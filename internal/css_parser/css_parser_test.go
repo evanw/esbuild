@@ -60,6 +60,38 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	})
 }
 
+func TestString(t *testing.T) {
+	expectPrinted(t, "a:after { content: 'a\\\rb' }", "a:after {\n  content: \"ab\";\n}\n")
+	expectPrinted(t, "a:after { content: 'a\\\nb' }", "a:after {\n  content: \"ab\";\n}\n")
+	expectPrinted(t, "a:after { content: 'a\\\fb' }", "a:after {\n  content: \"ab\";\n}\n")
+	expectPrinted(t, "a:after { content: 'a\\\r\nb' }", "a:after {\n  content: \"ab\";\n}\n")
+	expectPrinted(t, "a:after { content: 'a\\62 c' }", "a:after {\n  content: \"abc\";\n}\n")
+
+	expectParseError(t, "a:after { content: '\r' }",
+		`<stdin>: error: Unterminated string token
+<stdin>: error: Expected "}" but found end of file
+<stdin>: error: Unterminated string token
+`)
+	expectParseError(t, "a:after { content: '\n' }",
+		`<stdin>: error: Unterminated string token
+<stdin>: error: Expected "}" but found end of file
+<stdin>: error: Unterminated string token
+`)
+	expectParseError(t, "a:after { content: '\f' }",
+		`<stdin>: error: Unterminated string token
+<stdin>: error: Expected "}" but found end of file
+<stdin>: error: Unterminated string token
+`)
+	expectParseError(t, "a:after { content: '\r\n' }",
+		`<stdin>: error: Unterminated string token
+<stdin>: error: Expected "}" but found end of file
+<stdin>: error: Unterminated string token
+`)
+
+	expectPrinted(t, "a:after { content: '\\1010101' }", "a:after {\n  content: \"\U001010101\";\n}\n")
+	expectPrinted(t, "a:after { content: '\\invalid' }", "a:after {\n  content: \"invalid\";\n}\n")
+}
+
 func TestDeclaration(t *testing.T) {
 	expectPrinted(t, ".decl {}", ".decl {\n}\n")
 	expectPrinted(t, ".decl { a: b }", ".decl {\n  a: b;\n}\n")

@@ -526,7 +526,7 @@ validURL:
 			lexer.log.AddError(&lexer.source, loc, "Expected \")\" to end URL token")
 			return TBadURL
 
-		case ' ', '\t', '\r', '\n', '\f':
+		case ' ', '\t', '\n', '\r', '\f':
 			lexer.step()
 			for isWhitespace(lexer.codePoint) {
 				lexer.step()
@@ -594,6 +594,8 @@ func (lexer *lexer) consumeString() T {
 				}
 				continue
 			}
+
+			// Otherwise, fall through to ignore the character after the backslash
 
 		case eof:
 			lexer.log.AddError(&lexer.source, logger.Loc{Start: lexer.Token.Range.End()}, "Unterminated string token")
@@ -764,10 +766,26 @@ func decodeEscapesInToken(inner string) string {
 		hex, ok := isHex(c)
 
 		if !ok {
+			if c == '\n' || c == '\f' {
+				continue
+			}
+
+			// Handle Windows CRLF
+			if c == '\r' {
+				c, width = utf8.DecodeRuneInString(inner)
+				if c == '\n' {
+					inner = inner[width:]
+				}
+				continue
+			}
+
+			// If we get here, this is not a valid escape. However, this is still
+			// allowed. In this case the backslash is just ignored.
 			sb.WriteRune(c)
 			continue
 		}
 
+		// Parse up to five additional hex characters (so six in total)
 		for i := 0; i < 5 && len(inner) > 0; i++ {
 			c, width = utf8.DecodeRuneInString(inner)
 			if next, ok := isHex(c); ok {
@@ -793,24 +811,5 @@ func decodeEscapesInToken(inner string) string {
 		sb.WriteRune(rune(hex))
 	}
 
-	return sb.String()
-}
-
-func QuoteForStringToken(text string) string {
-	sb := strings.Builder{}
-	sb.WriteRune('"')
-
-	for len(text) > 0 {
-		c, width := utf8.DecodeRuneInString(text)
-		text = text[width:]
-
-		if c == '"' || c == '\\' || isNewline(c) {
-			sb.WriteRune('\\')
-		}
-
-		sb.WriteRune(c)
-	}
-
-	sb.WriteRune('"')
 	return sb.String()
 }

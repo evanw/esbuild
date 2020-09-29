@@ -470,6 +470,7 @@ loop:
 	for len(tokens) > 0 {
 		var children *[]css_ast.Token
 		t := tokens[0]
+		text := t.Raw(p.source.Contents)
 		tokens = tokens[1:]
 		hasWhitespaceAfter := false
 
@@ -489,6 +490,9 @@ loop:
 			// Assume whitespace can always be added after a comma (it will be
 			// automatically omitted by the printer if we're minifying)
 			hasWhitespaceAfter = true
+
+		case css_lexer.TString:
+			text = css_lexer.ContentsOfStringToken(text)
 
 		case css_lexer.TFunction:
 			var nested []css_ast.Token
@@ -518,7 +522,7 @@ loop:
 
 		result = append(result, css_ast.Token{
 			Kind:               t.Kind,
-			Text:               t.Raw(p.source.Contents),
+			Text:               text,
 			Children:           children,
 			HasWhitespaceAfter: hasWhitespaceAfter,
 		})

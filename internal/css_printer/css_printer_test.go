@@ -45,6 +45,39 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedString(t *testing.T, stringValue string, expected string) {
+	t.Helper()
+	t.Run(stringValue, func(t *testing.T) {
+		t.Helper()
+		p := printer{}
+		p.printQuoted(stringValue)
+		assertEqual(t, p.sb.String(), expected)
+	})
+}
+
+func TestStringQuote(t *testing.T) {
+	expectPrintedString(t, "", "\"\"")
+	expectPrintedString(t, "foo", "\"foo\"")
+	expectPrintedString(t, "f\"o", "'f\"o'")
+	expectPrintedString(t, "f'\"'o", "\"f'\\22'o\"")
+	expectPrintedString(t, "f\\o", "\"f\\5co\"")
+	expectPrintedString(t, "f\ro", "\"f\\do\"")
+	expectPrintedString(t, "f\no", "\"f\\ao\"")
+	expectPrintedString(t, "f\fo", "\"f\\co\"")
+	expectPrintedString(t, "f\r\no", "\"f\\d\\ao\"")
+	expectPrintedString(t, "f\r0", "\"f\\d 0\"")
+	expectPrintedString(t, "f\n0", "\"f\\a 0\"")
+	expectPrintedString(t, "f\n ", "\"f\\a  \"")
+	expectPrintedString(t, "f\n\t", "\"f\\a \t\"")
+	expectPrintedString(t, "f\nf", "\"f\\a f\"")
+	expectPrintedString(t, "f\nF", "\"f\\a F\"")
+	expectPrintedString(t, "f\ng", "\"f\\ag\"")
+	expectPrintedString(t, "f\nG", "\"f\\aG\"")
+	expectPrintedString(t, "f\x00o", "\"f\\0o\"")
+	expectPrintedString(t, "f\x01o", "\"f\x01o\"")
+	expectPrintedString(t, "f\to", "\"f\to\"")
+}
+
 func TestImportant(t *testing.T) {
 	expectPrinted(t, "a { b: c!important }", "a {\n  b: c !important;\n}\n")
 	expectPrinted(t, "a { b: c!important; }", "a {\n  b: c !important;\n}\n")
@@ -60,19 +93,19 @@ func TestImportant(t *testing.T) {
 func TestSelector(t *testing.T) {
 	expectPrintedMinify(t, "a + b c > d ~ e{}", "a+b c>d~e{}")
 
-	expectPrinted(t, ":unknown( x (a+b), 'c' ) {}", ":unknown(x (a+b), 'c') {\n}\n")
-	expectPrinted(t, ":unknown( x (a-b), 'c' ) {}", ":unknown(x (a-b), 'c') {\n}\n")
-	expectPrinted(t, ":unknown( x (a,b), 'c' ) {}", ":unknown(x (a, b), 'c') {\n}\n")
-	expectPrinted(t, ":unknown( x ( a + b ), 'c' ) {}", ":unknown(x (a + b), 'c') {\n}\n")
-	expectPrinted(t, ":unknown( x ( a - b ), 'c' ) {}", ":unknown(x (a - b), 'c') {\n}\n")
-	expectPrinted(t, ":unknown( x ( a , b ), 'c' ) {}", ":unknown(x (a, b), 'c') {\n}\n")
+	expectPrinted(t, ":unknown( x (a+b), 'c' ) {}", ":unknown(x (a+b), \"c\") {\n}\n")
+	expectPrinted(t, ":unknown( x (a-b), 'c' ) {}", ":unknown(x (a-b), \"c\") {\n}\n")
+	expectPrinted(t, ":unknown( x (a,b), 'c' ) {}", ":unknown(x (a, b), \"c\") {\n}\n")
+	expectPrinted(t, ":unknown( x ( a + b ), 'c' ) {}", ":unknown(x (a + b), \"c\") {\n}\n")
+	expectPrinted(t, ":unknown( x ( a - b ), 'c' ) {}", ":unknown(x (a - b), \"c\") {\n}\n")
+	expectPrinted(t, ":unknown( x ( a , b ), 'c' ) {}", ":unknown(x (a, b), \"c\") {\n}\n")
 
-	expectPrintedMinify(t, ":unknown( x (a+b), 'c' ) {}", ":unknown(x (a+b),'c'){}")
-	expectPrintedMinify(t, ":unknown( x (a-b), 'c' ) {}", ":unknown(x (a-b),'c'){}")
-	expectPrintedMinify(t, ":unknown( x (a,b), 'c' ) {}", ":unknown(x (a,b),'c'){}")
-	expectPrintedMinify(t, ":unknown( x ( a + b ), 'c' ) {}", ":unknown(x (a + b),'c'){}")
-	expectPrintedMinify(t, ":unknown( x ( a - b ), 'c' ) {}", ":unknown(x (a - b),'c'){}")
-	expectPrintedMinify(t, ":unknown( x ( a , b ), 'c' ) {}", ":unknown(x (a,b),'c'){}")
+	expectPrintedMinify(t, ":unknown( x (a+b), 'c' ) {}", ":unknown(x (a+b),\"c\"){}")
+	expectPrintedMinify(t, ":unknown( x (a-b), 'c' ) {}", ":unknown(x (a-b),\"c\"){}")
+	expectPrintedMinify(t, ":unknown( x (a,b), 'c' ) {}", ":unknown(x (a,b),\"c\"){}")
+	expectPrintedMinify(t, ":unknown( x ( a + b ), 'c' ) {}", ":unknown(x (a + b),\"c\"){}")
+	expectPrintedMinify(t, ":unknown( x ( a - b ), 'c' ) {}", ":unknown(x (a - b),\"c\"){}")
+	expectPrintedMinify(t, ":unknown( x ( a , b ), 'c' ) {}", ":unknown(x (a,b),\"c\"){}")
 }
 
 func TestNestedSelector(t *testing.T) {

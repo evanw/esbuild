@@ -495,8 +495,12 @@ func computeLineAndColumn(contents string, offset int) (lineCount int, columnCou
 			if prevCodePoint != '\r' {
 				lineCount++
 			}
-		case '\r', '\u2028', '\u2029':
+		case '\r':
 			lineStart = i + 1
+			lineCount++
+		case '\u2028', '\u2029':
+			lineStart = i + 3 // These take three bytes to encode in UTF-8
+			lineCount++
 		}
 		prevCodePoint = codePoint
 	}

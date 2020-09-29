@@ -1,6 +1,7 @@
 package css_printer
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -35,9 +36,11 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 	}
 	switch r := rule.(type) {
 	case *css_ast.RAtCharset:
-		// Note: It's not valid to remove the space in between these two tokens
+		// It's not valid to remove the space in between these two tokens
 		p.print("@charset ")
-		p.print(css_lexer.QuoteForStringToken(r.Encoding))
+
+		// It's not valid to print the string with single quotes
+		p.printQuotedWithQuote(r.Encoding, '"')
 		p.print(";")
 
 	case *css_ast.RAtNamespace:
@@ -50,7 +53,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		if !p.RemoveWhitespace {
 			p.print(" ")
 		}
-		p.print(css_lexer.QuoteForStringToken(r.Path))
+		p.printQuoted(r.Path)
 		p.print(";")
 
 	case *css_ast.RAtImport:
@@ -59,7 +62,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		} else {
 			p.print("@import ")
 		}
-		p.print(css_lexer.QuoteForStringToken(p.importRecords[r.ImportRecordIndex].Path.Text))
+		p.printQuoted(p.importRecords[r.ImportRecordIndex].Path.Text)
 		p.print(";")
 
 	case *css_ast.RAtKeyframes:
@@ -283,6 +286,53 @@ func (p *printer) print(text string) {
 	p.sb.WriteString(text)
 }
 
+func bestQuoteCharForString(text string) rune {
+	singleCost := 0
+	doubleCost := 0
+
+	for _, c := range text {
+		switch c {
+		case '\'':
+			singleCost++
+		case '"':
+			doubleCost++
+		}
+	}
+
+	if singleCost < doubleCost {
+		return '\''
+	}
+	return '"'
+}
+
+func (p *printer) printQuoted(text string) {
+	p.printQuotedWithQuote(text, bestQuoteCharForString(text))
+}
+
+func (p *printer) printQuotedWithQuote(text string, quote rune) {
+	p.sb.WriteRune(quote)
+
+	for i, c := range text {
+		switch c {
+		case 0, '\\', '\r', '\n', '\f', quote:
+			p.sb.WriteString(fmt.Sprintf("\\%x", c))
+
+			// Make sure the next character is not interpreted as part of the escape sequence
+			if next := i + 1; next < len(text) {
+				c = rune(text[next])
+				if c == ' ' || c == '\t' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+					p.sb.WriteRune(' ')
+				}
+			}
+
+		default:
+			p.sb.WriteRune(c)
+		}
+	}
+
+	p.sb.WriteRune(quote)
+}
+
 func (p *printer) printIndent(indent int) {
 	for i := 0; i < indent; i++ {
 		p.sb.WriteString("  ")
@@ -291,7 +341,13 @@ func (p *printer) printIndent(indent int) {
 
 func (p *printer) printTokens(tokens []css_ast.Token) {
 	for i, t := range tokens {
-		p.print(t.Text)
+		switch t.Kind {
+		case css_lexer.TString:
+			p.printQuoted(t.Text)
+
+		default:
+			p.print(t.Text)
+		}
 
 		if t.Children != nil {
 			children := *t.Children

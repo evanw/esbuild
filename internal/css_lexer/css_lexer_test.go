@@ -84,12 +84,15 @@ func TestStringParsing(t *testing.T) {
 	test.AssertEqual(t, ContentsOfStringToken("\"f\\oo\""), "foo")
 	test.AssertEqual(t, ContentsOfStringToken("\"f\\\"o\""), "f\"o")
 	test.AssertEqual(t, ContentsOfStringToken("\"f\\\\o\""), "f\\o")
-	test.AssertEqual(t, ContentsOfStringToken("\"f\\\no\""), "f\no")
-	test.AssertEqual(t, ContentsOfStringToken("\"f\\\ro\""), "f\ro")
-	test.AssertEqual(t, ContentsOfStringToken("\"f\\\vo\""), "f\vo")
+	test.AssertEqual(t, ContentsOfStringToken("\"f\\\no\""), "fo")
+	test.AssertEqual(t, ContentsOfStringToken("\"f\\\ro\""), "fo")
+	test.AssertEqual(t, ContentsOfStringToken("\"f\\\r\no\""), "fo")
+	test.AssertEqual(t, ContentsOfStringToken("\"f\\\fo\""), "fo")
 	test.AssertEqual(t, ContentsOfStringToken("\"f\\6fo\""), "foo")
 	test.AssertEqual(t, ContentsOfStringToken("\"f\\6f o\""), "foo")
 	test.AssertEqual(t, ContentsOfStringToken("\"f\\6f  o\""), "fo o")
+	test.AssertEqual(t, ContentsOfStringToken("\"f\\fffffffo\""), "f\uFFFDfo")
+	test.AssertEqual(t, ContentsOfStringToken("\"f\\10abcdeo\""), "f\U0010ABCDeo")
 }
 
 func TestURLParsing(t *testing.T) {
@@ -106,15 +109,6 @@ func TestURLParsing(t *testing.T) {
 	test.AssertEqual(t, contentsOfURLToken("url(f\\6fo)"), "foo")
 	test.AssertEqual(t, contentsOfURLToken("url(f\\6f o)"), "foo")
 	test.AssertEqual(t, contentsOfURLToken("url(f\\6f  o)"), "fo o")
-}
-
-func TestStringQuoting(t *testing.T) {
-	test.AssertEqual(t, QuoteForStringToken("foo"), "\"foo\"")
-	test.AssertEqual(t, QuoteForStringToken("f\"o"), "\"f\\\"o\"")
-	test.AssertEqual(t, QuoteForStringToken("f\\o"), "\"f\\\\o\"")
-	test.AssertEqual(t, QuoteForStringToken("f\no"), "\"f\\\no\"")
-	test.AssertEqual(t, QuoteForStringToken("f\ro"), "\"f\\\ro\"")
-	test.AssertEqual(t, QuoteForStringToken("f\fo"), "\"f\\\fo\"")
 }
 
 func TestComment(t *testing.T) {
