@@ -134,7 +134,7 @@ func TestHexColor(t *testing.T) {
 	expectPrintedMangle(t, "a { color: #123f }", "a {\n  color: #123;\n}\n")
 	expectPrintedMangle(t, "a { color: #abcd }", "a {\n  color: #abcd;\n}\n")
 	expectPrintedMangle(t, "a { color: #abcf }", "a {\n  color: #abc;\n}\n")
-	expectPrintedMangle(t, "a { color: #ABCD }", "a {\n  color: #ABCD;\n}\n")
+	expectPrintedMangle(t, "a { color: #ABCD }", "a {\n  color: #abcd;\n}\n")
 	expectPrintedMangle(t, "a { color: #ABCF }", "a {\n  color: #abc;\n}\n")
 
 	// "#RRGGBB"
@@ -165,9 +165,9 @@ func TestHexColor(t *testing.T) {
 	expectPrinted(t, "a { color: #AABBCD }", "a {\n  color: #AABBCD;\n}\n")
 
 	expectPrintedMangle(t, "a { color: #AABBCC }", "a {\n  color: #abc;\n}\n")
-	expectPrintedMangle(t, "a { color: #ABBBCC }", "a {\n  color: #ABBBCC;\n}\n")
-	expectPrintedMangle(t, "a { color: #AABCCC }", "a {\n  color: #AABCCC;\n}\n")
-	expectPrintedMangle(t, "a { color: #AABBCD }", "a {\n  color: #AABBCD;\n}\n")
+	expectPrintedMangle(t, "a { color: #ABBBCC }", "a {\n  color: #abbbcc;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABCCC }", "a {\n  color: #aabccc;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCD }", "a {\n  color: #aabbcd;\n}\n")
 
 	// "#RRGGBBAA"
 
@@ -202,10 +202,10 @@ func TestHexColor(t *testing.T) {
 	expectPrinted(t, "a { color: #AABBCCDE }", "a {\n  color: #AABBCCDE;\n}\n")
 
 	expectPrintedMangle(t, "a { color: #AABBCCDD }", "a {\n  color: #abcd;\n}\n")
-	expectPrintedMangle(t, "a { color: #ABBBCCDD }", "a {\n  color: #ABBBCCDD;\n}\n")
-	expectPrintedMangle(t, "a { color: #AABCCCDD }", "a {\n  color: #AABCCCDD;\n}\n")
-	expectPrintedMangle(t, "a { color: #AABBCDDD }", "a {\n  color: #AABBCDDD;\n}\n")
-	expectPrintedMangle(t, "a { color: #AABBCCDE }", "a {\n  color: #AABBCCDE;\n}\n")
+	expectPrintedMangle(t, "a { color: #ABBBCCDD }", "a {\n  color: #abbbccdd;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABCCCDD }", "a {\n  color: #aabcccdd;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCDDD }", "a {\n  color: #aabbcddd;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCCDE }", "a {\n  color: #aabbccde;\n}\n")
 
 	// "#RRGGBBFF"
 
@@ -243,7 +243,7 @@ func TestHexColor(t *testing.T) {
 	expectPrintedMangle(t, "a { color: #ABBBCCFF }", "a {\n  color: #abbbcc;\n}\n")
 	expectPrintedMangle(t, "a { color: #AABCCCFF }", "a {\n  color: #aabccc;\n}\n")
 	expectPrintedMangle(t, "a { color: #AABBCDFF }", "a {\n  color: #aabbcd;\n}\n")
-	expectPrintedMangle(t, "a { color: #AABBCCEF }", "a {\n  color: #AABBCCEF;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCCEF }", "a {\n  color: #aabbccef;\n}\n")
 }
 
 func TestColorNames(t *testing.T) {

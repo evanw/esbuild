@@ -57,6 +57,10 @@ type Token struct {
 	HasWhitespaceAfter bool // 1 byte
 }
 
+func (t Token) PercentValue() string {
+	return t.Text[:len(t.Text)-1]
+}
+
 func (t Token) DimensionValue() string {
 	return t.Text[:t.UnitOffset]
 }

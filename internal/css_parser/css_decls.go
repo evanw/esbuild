@@ -52,144 +52,172 @@ var shortColorName = map[int]string{
 	0xfffff0: "ivory",
 }
 
-// These names are longer than their hex codes
-var shortColorHex = map[string]string{
-	"aliceblue":            "#f0f8ff",
-	"antiquewhite":         "#faebd7",
-	"aquamarine":           "#7fffd4",
-	"black":                "#000",
-	"blanchedalmond":       "#ffebcd",
-	"blueviolet":           "#8a2be2",
-	"burlywood":            "#deb887",
-	"cadetblue":            "#5f9ea0",
-	"chartreuse":           "#7fff00",
-	"chocolate":            "#d2691e",
-	"cornflowerblue":       "#6495ed",
-	"cornsilk":             "#fff8dc",
-	"darkblue":             "#00008b",
-	"darkcyan":             "#008b8b",
-	"darkgoldenrod":        "#b8860b",
-	"darkgray":             "#a9a9a9",
-	"darkgreen":            "#006400",
-	"darkgrey":             "#a9a9a9",
-	"darkkhaki":            "#bdb76b",
-	"darkmagenta":          "#8b008b",
-	"darkolivegreen":       "#556b2f",
-	"darkorange":           "#ff8c00",
-	"darkorchid":           "#9932cc",
-	"darksalmon":           "#e9967a",
-	"darkseagreen":         "#8fbc8f",
-	"darkslateblue":        "#483d8b",
-	"darkslategray":        "#2f4f4f",
-	"darkslategrey":        "#2f4f4f",
-	"darkturquoise":        "#00ced1",
-	"darkviolet":           "#9400d3",
-	"deeppink":             "#ff1493",
-	"deepskyblue":          "#00bfff",
-	"dodgerblue":           "#1e90ff",
-	"firebrick":            "#b22222",
-	"floralwhite":          "#fffaf0",
-	"forestgreen":          "#228b22",
-	"fuchsia":              "#f0f",
-	"gainsboro":            "#dcdcdc",
-	"ghostwhite":           "#f8f8ff",
-	"goldenrod":            "#daa520",
-	"greenyellow":          "#adff2f",
-	"honeydew":             "#f0fff0",
-	"indianred":            "#cd5c5c",
-	"lavender":             "#e6e6fa",
-	"lavenderblush":        "#fff0f5",
-	"lawngreen":            "#7cfc00",
-	"lemonchiffon":         "#fffacd",
-	"lightblue":            "#add8e6",
-	"lightcoral":           "#f08080",
-	"lightcyan":            "#e0ffff",
-	"lightgoldenrodyellow": "#fafad2",
-	"lightgray":            "#d3d3d3",
-	"lightgreen":           "#90ee90",
-	"lightgrey":            "#d3d3d3",
-	"lightpink":            "#ffb6c1",
-	"lightsalmon":          "#ffa07a",
-	"lightseagreen":        "#20b2aa",
-	"lightskyblue":         "#87cefa",
-	"lightslategray":       "#789",
-	"lightslategrey":       "#789",
-	"lightsteelblue":       "#b0c4de",
-	"lightyellow":          "#ffffe0",
-	"limegreen":            "#32cd32",
-	"magenta":              "#f0f",
-	"mediumaquamarine":     "#66cdaa",
-	"mediumblue":           "#0000cd",
-	"mediumorchid":         "#ba55d3",
-	"mediumpurple":         "#9370db",
-	"mediumseagreen":       "#3cb371",
-	"mediumslateblue":      "#7b68ee",
-	"mediumspringgreen":    "#00fa9a",
-	"mediumturquoise":      "#48d1cc",
-	"mediumvioletred":      "#c71585",
-	"midnightblue":         "#191970",
-	"mintcream":            "#f5fffa",
-	"mistyrose":            "#ffe4e1",
-	"moccasin":             "#ffe4b5",
-	"navajowhite":          "#ffdead",
-	"olivedrab":            "#6b8e23",
-	"orangered":            "#ff4500",
-	"palegoldenrod":        "#eee8aa",
-	"palegreen":            "#98fb98",
-	"paleturquoise":        "#afeeee",
-	"palevioletred":        "#db7093",
-	"papayawhip":           "#ffefd5",
-	"peachpuff":            "#ffdab9",
-	"powderblue":           "#b0e0e6",
-	"rebeccapurple":        "#663399",
-	"rosybrown":            "#bc8f8f",
-	"royalblue":            "#4169e1",
-	"saddlebrown":          "#8b4513",
-	"sandybrown":           "#f4a460",
-	"seagreen":             "#2e8b57",
-	"seashell":             "#fff5ee",
-	"slateblue":            "#6a5acd",
-	"slategray":            "#708090",
-	"slategrey":            "#708090",
-	"springgreen":          "#00ff7f",
-	"steelblue":            "#4682b4",
-	"turquoise":            "#40e0d0",
-	"white":                "#fff",
-	"whitesmoke":           "#f5f5f5",
-	"yellow":               "#ff0",
-	"yellowgreen":          "#9acd32",
+var colorNameToHex = map[string]uint32{
+	"black":                0x000000,
+	"silver":               0xc0c0c0,
+	"gray":                 0x808080,
+	"white":                0xffffff,
+	"maroon":               0x800000,
+	"red":                  0xff0000,
+	"purple":               0x800080,
+	"fuchsia":              0xff00ff,
+	"green":                0x008000,
+	"lime":                 0x00ff00,
+	"olive":                0x808000,
+	"yellow":               0xffff00,
+	"navy":                 0x000080,
+	"blue":                 0x0000ff,
+	"teal":                 0x008080,
+	"aqua":                 0x00ffff,
+	"orange":               0xffa500,
+	"aliceblue":            0xf0f8ff,
+	"antiquewhite":         0xfaebd7,
+	"aquamarine":           0x7fffd4,
+	"azure":                0xf0ffff,
+	"beige":                0xf5f5dc,
+	"bisque":               0xffe4c4,
+	"blanchedalmond":       0xffebcd,
+	"blueviolet":           0x8a2be2,
+	"brown":                0xa52a2a,
+	"burlywood":            0xdeb887,
+	"cadetblue":            0x5f9ea0,
+	"chartreuse":           0x7fff00,
+	"chocolate":            0xd2691e,
+	"coral":                0xff7f50,
+	"cornflowerblue":       0x6495ed,
+	"cornsilk":             0xfff8dc,
+	"crimson":              0xdc143c,
+	"cyan":                 0x00ffff,
+	"darkblue":             0x00008b,
+	"darkcyan":             0x008b8b,
+	"darkgoldenrod":        0xb8860b,
+	"darkgray":             0xa9a9a9,
+	"darkgreen":            0x006400,
+	"darkgrey":             0xa9a9a9,
+	"darkkhaki":            0xbdb76b,
+	"darkmagenta":          0x8b008b,
+	"darkolivegreen":       0x556b2f,
+	"darkorange":           0xff8c00,
+	"darkorchid":           0x9932cc,
+	"darkred":              0x8b0000,
+	"darksalmon":           0xe9967a,
+	"darkseagreen":         0x8fbc8f,
+	"darkslateblue":        0x483d8b,
+	"darkslategray":        0x2f4f4f,
+	"darkslategrey":        0x2f4f4f,
+	"darkturquoise":        0x00ced1,
+	"darkviolet":           0x9400d3,
+	"deeppink":             0xff1493,
+	"deepskyblue":          0x00bfff,
+	"dimgray":              0x696969,
+	"dimgrey":              0x696969,
+	"dodgerblue":           0x1e90ff,
+	"firebrick":            0xb22222,
+	"floralwhite":          0xfffaf0,
+	"forestgreen":          0x228b22,
+	"gainsboro":            0xdcdcdc,
+	"ghostwhite":           0xf8f8ff,
+	"gold":                 0xffd700,
+	"goldenrod":            0xdaa520,
+	"greenyellow":          0xadff2f,
+	"grey":                 0x808080,
+	"honeydew":             0xf0fff0,
+	"hotpink":              0xff69b4,
+	"indianred":            0xcd5c5c,
+	"indigo":               0x4b0082,
+	"ivory":                0xfffff0,
+	"khaki":                0xf0e68c,
+	"lavender":             0xe6e6fa,
+	"lavenderblush":        0xfff0f5,
+	"lawngreen":            0x7cfc00,
+	"lemonchiffon":         0xfffacd,
+	"lightblue":            0xadd8e6,
+	"lightcoral":           0xf08080,
+	"lightcyan":            0xe0ffff,
+	"lightgoldenrodyellow": 0xfafad2,
+	"lightgray":            0xd3d3d3,
+	"lightgreen":           0x90ee90,
+	"lightgrey":            0xd3d3d3,
+	"lightpink":            0xffb6c1,
+	"lightsalmon":          0xffa07a,
+	"lightseagreen":        0x20b2aa,
+	"lightskyblue":         0x87cefa,
+	"lightslategray":       0x778899,
+	"lightslategrey":       0x778899,
+	"lightsteelblue":       0xb0c4de,
+	"lightyellow":          0xffffe0,
+	"limegreen":            0x32cd32,
+	"linen":                0xfaf0e6,
+	"magenta":              0xff00ff,
+	"mediumaquamarine":     0x66cdaa,
+	"mediumblue":           0x0000cd,
+	"mediumorchid":         0xba55d3,
+	"mediumpurple":         0x9370db,
+	"mediumseagreen":       0x3cb371,
+	"mediumslateblue":      0x7b68ee,
+	"mediumspringgreen":    0x00fa9a,
+	"mediumturquoise":      0x48d1cc,
+	"mediumvioletred":      0xc71585,
+	"midnightblue":         0x191970,
+	"mintcream":            0xf5fffa,
+	"mistyrose":            0xffe4e1,
+	"moccasin":             0xffe4b5,
+	"navajowhite":          0xffdead,
+	"oldlace":              0xfdf5e6,
+	"olivedrab":            0x6b8e23,
+	"orangered":            0xff4500,
+	"orchid":               0xda70d6,
+	"palegoldenrod":        0xeee8aa,
+	"palegreen":            0x98fb98,
+	"paleturquoise":        0xafeeee,
+	"palevioletred":        0xdb7093,
+	"papayawhip":           0xffefd5,
+	"peachpuff":            0xffdab9,
+	"peru":                 0xcd853f,
+	"pink":                 0xffc0cb,
+	"plum":                 0xdda0dd,
+	"powderblue":           0xb0e0e6,
+	"rosybrown":            0xbc8f8f,
+	"royalblue":            0x4169e1,
+	"saddlebrown":          0x8b4513,
+	"salmon":               0xfa8072,
+	"sandybrown":           0xf4a460,
+	"seagreen":             0x2e8b57,
+	"seashell":             0xfff5ee,
+	"sienna":               0xa0522d,
+	"skyblue":              0x87ceeb,
+	"slateblue":            0x6a5acd,
+	"slategray":            0x708090,
+	"slategrey":            0x708090,
+	"snow":                 0xfffafa,
+	"springgreen":          0x00ff7f,
+	"steelblue":            0x4682b4,
+	"tan":                  0xd2b48c,
+	"thistle":              0xd8bfd8,
+	"tomato":               0xff6347,
+	"turquoise":            0x40e0d0,
+	"violet":               0xee82ee,
+	"wheat":                0xf5deb3,
+	"whitesmoke":           0xf5f5f5,
+	"yellowgreen":          0x9acd32,
+	"rebeccapurple":        0x66339,
 }
 
-func hex1(c int) int {
-	if c >= 'a' {
-		return c + (10 - 'a')
+func hex(c byte) (int, bool) {
+	if c >= '0' && c <= '9' {
+		return int(c) - '0', true
 	}
-	return c - '0'
+	if c >= 'a' && c <= 'f' {
+		return int(c) + (10 - 'a'), true
+	}
+	if c >= 'A' && c <= 'F' {
+		return int(c) + (10 - 'A'), true
+	}
+	return 0, false
 }
 
 func hex2(hi int, lo int) int {
-	return (hex1(hi) << 4) | hex1(lo)
-}
-
-func hex3(r int, g int, b int) int {
-	return hex6(r, r, g, g, b, b)
-}
-
-func hex6(r1 int, r2 int, g1 int, g2 int, b1 int, b2 int) int {
-	return (hex1(r1) << 20) | (hex1(r2) << 16) | (hex1(g1) << 12) | (hex1(g2) << 8) | (hex1(b1) << 4) | hex1(b2)
-}
-
-func toLowerHex(c byte) (int, bool) {
-	if c >= '0' && c <= '9' {
-		return int(c), true
-	}
-	if c >= 'a' && c <= 'f' {
-		return int(c), true
-	}
-	if c >= 'A' && c <= 'F' {
-		return int(c) + ('a' - 'A'), true
-	}
-	return 0, false
+	return (hi << 4) | lo
 }
 
 func floatToString(a float64) string {
@@ -241,45 +269,47 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 			switch len(text) {
 			case 5:
 				// "#1234" => "rgba(1, 2, 3, 0.004)"
-				r, r_ok := toLowerHex(text[1])
-				g, g_ok := toLowerHex(text[2])
-				b, b_ok := toLowerHex(text[3])
-				a, a_ok := toLowerHex(text[4])
-				if r_ok && g_ok && b_ok && a_ok {
-					token.Kind = css_lexer.TFunction
-					token.Text = "rgba("
-					token.Children = &[]css_ast.Token{
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(r, r))},
-						commaToken,
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(g, g))},
-						commaToken,
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(b, b))},
-						commaToken,
-						{Kind: css_lexer.TNumber, Text: floatToString(float64(hex2(a, a)) / 255.0)},
+				if r, ok := hex(text[1]); ok {
+					if g, ok := hex(text[2]); ok {
+						if b, ok := hex(text[3]); ok {
+							if a, ok := hex(text[4]); ok {
+								token.Kind = css_lexer.TFunction
+								token.Text = "rgba("
+								token.Children = &[]css_ast.Token{
+									{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(r, r))}, commaToken,
+									{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(g, g))}, commaToken,
+									{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(b, b))}, commaToken,
+									{Kind: css_lexer.TNumber, Text: floatToString(float64(hex2(a, a)) / 255)},
+								}
+							}
+						}
 					}
 				}
 
 			case 9:
 				// "#12345678" => "rgba(18, 52, 86, 0.47)"
-				r1, r1_ok := toLowerHex(text[1])
-				r2, r2_ok := toLowerHex(text[2])
-				g1, g1_ok := toLowerHex(text[3])
-				g2, g2_ok := toLowerHex(text[4])
-				b1, b1_ok := toLowerHex(text[5])
-				b2, b2_ok := toLowerHex(text[6])
-				a1, a1_ok := toLowerHex(text[7])
-				a2, a2_ok := toLowerHex(text[8])
-				if r1_ok && r2_ok && g1_ok && g2_ok && b1_ok && b2_ok && a1_ok && a2_ok {
-					token.Kind = css_lexer.TFunction
-					token.Text = "rgba("
-					token.Children = &[]css_ast.Token{
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(r1, r2))},
-						commaToken,
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(g1, g2))},
-						commaToken,
-						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(b1, b2))},
-						commaToken,
-						{Kind: css_lexer.TNumber, Text: floatToString(float64(hex2(a1, a2)) / 255.0)},
+				if r1, ok := hex(text[1]); ok {
+					if r2, ok := hex(text[2]); ok {
+						if g1, ok := hex(text[3]); ok {
+							if g2, ok := hex(text[4]); ok {
+								if b1, ok := hex(text[5]); ok {
+									if b2, ok := hex(text[6]); ok {
+										if a1, ok := hex(text[7]); ok {
+											if a2, ok := hex(text[8]); ok {
+												token.Kind = css_lexer.TFunction
+												token.Text = "rgba("
+												token.Children = &[]css_ast.Token{
+													{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(r1, r2))}, commaToken,
+													{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(g1, g2))}, commaToken,
+													{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(b1, b2))}, commaToken,
+													{Kind: css_lexer.TNumber, Text: floatToString(float64(hex2(a1, a2)) / 255)},
+												}
+											}
+										}
+									}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -372,87 +402,209 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 	return token
 }
 
+func parseColor(token css_ast.Token) (int, int, int, int, bool) {
+	text := token.Text
+
+	switch token.Kind {
+	case css_lexer.TIdent:
+		if hex, ok := colorNameToHex[strings.ToLower(text)]; ok {
+			return int(hex >> 16), int((hex >> 8) & 255), int(hex & 255), 255, true
+		}
+
+	case css_lexer.THash, css_lexer.THashID:
+		switch len(text) {
+		case 4:
+			// "#123"
+			if r, ok := hex(text[1]); ok {
+				if g, ok := hex(text[2]); ok {
+					if b, ok := hex(text[3]); ok {
+						return hex2(r, r), hex2(g, g), hex2(b, b), 255, true
+					}
+				}
+			}
+
+		case 5:
+			// "#1234"
+			if r, ok := hex(text[1]); ok {
+				if g, ok := hex(text[2]); ok {
+					if b, ok := hex(text[3]); ok {
+						if a, ok := hex(text[4]); ok {
+							return hex2(r, r), hex2(g, g), hex2(b, b), hex2(a, a), true
+						}
+					}
+				}
+			}
+
+		case 7:
+			// "#112233"
+			if r1, ok := hex(text[1]); ok {
+				if r2, ok := hex(text[2]); ok {
+					if g1, ok := hex(text[3]); ok {
+						if g2, ok := hex(text[4]); ok {
+							if b1, ok := hex(text[5]); ok {
+								if b2, ok := hex(text[6]); ok {
+									return hex2(r1, r2), hex2(g1, g2), hex2(b1, b2), 255, true
+								}
+							}
+						}
+					}
+				}
+			}
+
+		case 9:
+			// "#11223344"
+			if r1, ok := hex(text[1]); ok {
+				if r2, ok := hex(text[2]); ok {
+					if g1, ok := hex(text[3]); ok {
+						if g2, ok := hex(text[4]); ok {
+							if b1, ok := hex(text[5]); ok {
+								if b2, ok := hex(text[6]); ok {
+									if a1, ok := hex(text[7]); ok {
+										if a2, ok := hex(text[8]); ok {
+											return hex2(r1, r2), hex2(g1, g2), hex2(b1, b2), hex2(a1, a2), true
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+	case css_lexer.TFunction:
+		switch text {
+		case "rgb(", "rgba(":
+			args := *token.Children
+			var r, g, b, a css_ast.Token
+			var ok bool
+
+			switch len(args) {
+			case 3:
+				// "rgb(1 2 3)"
+				r = args[0]
+				g = args[1]
+				b = args[2]
+				ok = true
+
+			case 5:
+				// "rgba(1, 2, 3)"
+				if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma {
+					r = args[0]
+					g = args[2]
+					b = args[4]
+					ok = true
+					break
+				}
+
+				// "rgb(1 2 3 / 4%)"
+				if args[3].Kind == css_lexer.TDelimSlash {
+					r = args[0]
+					g = args[1]
+					b = args[2]
+					a = args[4]
+					ok = true
+				}
+
+			case 7:
+				// "rgb(1%, 2%, 3%, 4%)"
+				if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma && args[5].Kind == css_lexer.TComma {
+					r = args[0]
+					g = args[2]
+					b = args[4]
+					a = args[6]
+					ok = true
+				}
+			}
+
+			if ok {
+				if r, ok := parseColorByte(r); ok {
+					if g, ok := parseColorByte(g); ok {
+						if b, ok := parseColorByte(b); ok {
+							if a.Kind == css_lexer.T(0) {
+								return r, g, b, 255, true
+							} else if a, ok := parseColorByte(a); ok {
+								return r, g, b, a, true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return 0, 0, 0, 0, false
+}
+
+func parseColorByte(token css_ast.Token) (i int, ok bool) {
+	switch token.Kind {
+	case css_lexer.TNumber:
+		if f, err := strconv.ParseFloat(token.Text, 64); err == nil {
+			i = int(math.Round(f * 255))
+			ok = true
+		}
+
+	case css_lexer.TPercentage:
+		if f, err := strconv.ParseFloat(token.PercentValue(), 64); err == nil {
+			i = int(math.Round(f * (255.0 / 100.0)))
+			ok = true
+		}
+	}
+
+	if i < 0 {
+		i = 0
+	} else if i > 255 {
+		i = 255
+	}
+	return i, ok
+}
+
 func (p *parser) mangleColor(token css_ast.Token) css_ast.Token {
 	// Note: Do NOT remove color information from fully transparent colors.
 	// Safari behaves differently than other browsers for color interpolation:
 	// https://css-tricks.com/thing-know-gradients-transparent-black/
 
-	switch token.Kind {
-	case css_lexer.TIdent:
-		if hex, ok := shortColorHex[strings.ToLower(token.Text)]; ok {
-			token.Text = hex
-		}
-
-	case css_lexer.THash, css_lexer.THashID:
-		text := token.Text
-		switch len(text) {
-		case 4:
-			// "#ff0" => "red"
-			r, r_ok := toLowerHex(text[1])
-			g, g_ok := toLowerHex(text[2])
-			b, b_ok := toLowerHex(text[3])
-			if r_ok && g_ok && b_ok {
-				if name, ok := shortColorName[hex3(r, g, b)]; ok {
-					token.Kind = css_lexer.TIdent
-					token.Text = name
-				}
-			}
-
-		case 5:
-			// "#123f" => "#123"
-			r, r_ok := toLowerHex(text[1])
-			g, g_ok := toLowerHex(text[2])
-			b, b_ok := toLowerHex(text[3])
-			a, a_ok := toLowerHex(text[4])
-			if r_ok && g_ok && b_ok && a_ok && a == 'f' {
-				if name, ok := shortColorName[hex3(r, g, b)]; ok {
-					token.Kind = css_lexer.TIdent
-					token.Text = name
+	if r, g, b, a, ok := parseColor(token); ok {
+		rgba := (r << 24) | (g << 16) | (b << 8) | a
+		if a == 255 {
+			token.Children = nil
+			if name, ok := shortColorName[rgba>>8]; ok {
+				token.Kind = css_lexer.TIdent
+				token.Text = name
+			} else {
+				token.Kind = css_lexer.THash
+				if (r>>4) == (r&0xF) && (g>>4) == (g&0xF) && (b>>4) == (b&0xF) {
+					token.Text = fmt.Sprintf("#%03x", ((r>>4)<<8)|((g>>4)<<4)|(b>>4))
 				} else {
-					token.Text = fmt.Sprintf("#%c%c%c", r, g, b)
+					token.Text = fmt.Sprintf("#%06x", rgba>>8)
 				}
 			}
-
-		case 7:
-			// "#112233" => "#123"
-			r1, r1_ok := toLowerHex(text[1])
-			r2, r2_ok := toLowerHex(text[2])
-			g1, g1_ok := toLowerHex(text[3])
-			g2, g2_ok := toLowerHex(text[4])
-			b1, b1_ok := toLowerHex(text[5])
-			b2, b2_ok := toLowerHex(text[6])
-			if r1_ok && r2_ok && g1_ok && g2_ok && b1_ok && b2_ok {
-				if name, ok := shortColorName[hex6(r1, r2, g1, g2, b1, b2)]; ok {
-					token.Kind = css_lexer.TIdent
-					token.Text = name
-				} else if r1 == r2 && g1 == g2 && b1 == b2 {
-					token.Text = fmt.Sprintf("#%c%c%c", r1, g1, b1)
-				}
+		} else if !p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
+			token.Children = nil
+			token.Kind = css_lexer.THash
+			if (r>>4) == (r&0xF) && (g>>4) == (g&0xF) && (b>>4) == (b&0xF) && (a>>4) == (a&0xF) {
+				token.Text = fmt.Sprintf("#%04x", ((r>>4)<<12)|((g>>4)<<8)|((b>>4)<<4)|(a>>4))
+			} else {
+				token.Text = fmt.Sprintf("#%08x", rgba)
 			}
-
-		case 9:
-			// "#11223344" => "#1234"
-			r1, r1_ok := toLowerHex(text[1])
-			r2, r2_ok := toLowerHex(text[2])
-			g1, g1_ok := toLowerHex(text[3])
-			g2, g2_ok := toLowerHex(text[4])
-			b1, b1_ok := toLowerHex(text[5])
-			b2, b2_ok := toLowerHex(text[6])
-			a1, a1_ok := toLowerHex(text[7])
-			a2, a2_ok := toLowerHex(text[8])
-			if r1_ok && r2_ok && g1_ok && g2_ok && b1_ok && b2_ok && a1_ok && a2_ok && a1 == a2 {
-				if a1 == 'f' {
-					if name, ok := shortColorName[hex6(r1, r2, g1, g2, b1, b2)]; ok {
-						token.Kind = css_lexer.TIdent
-						token.Text = name
-					} else if r1 == r2 && g1 == g2 && b1 == b2 {
-						token.Text = fmt.Sprintf("#%c%c%c", r1, g1, b1)
-					} else {
-						token.Text = fmt.Sprintf("#%c%c%c%c%c%c", r1, r2, g1, g2, b1, b2)
-					}
-				} else if r1 == r2 && g1 == g2 && b1 == b2 {
-					token.Text = fmt.Sprintf("#%c%c%c%c", r1, g1, b1, a1)
-				}
+		} else if !p.options.UnsupportedCSSFeatures.Has(compat.Modern_RGB_HSL) {
+			token.Kind = css_lexer.TFunction
+			token.Text = "rgb("
+			token.Children = &[]css_ast.Token{
+				{Kind: css_lexer.TNumber, Text: strconv.Itoa(r), HasWhitespaceAfter: true},
+				{Kind: css_lexer.TNumber, Text: strconv.Itoa(g), HasWhitespaceAfter: true},
+				{Kind: css_lexer.TNumber, Text: strconv.Itoa(b), HasWhitespaceAfter: true},
+				{Kind: css_lexer.TDelimSlash, Text: "/", HasWhitespaceAfter: true},
+				{Kind: css_lexer.TNumber, Text: floatToString(float64(a) / 255)},
+			}
+		} else {
+			token.Kind = css_lexer.TFunction
+			token.Text = "rgba("
+			token.Children = &[]css_ast.Token{
+				{Kind: css_lexer.TNumber, Text: strconv.Itoa(r)}, commaToken,
+				{Kind: css_lexer.TNumber, Text: strconv.Itoa(g)}, commaToken,
+				{Kind: css_lexer.TNumber, Text: strconv.Itoa(b)}, commaToken,
+				{Kind: css_lexer.TNumber, Text: floatToString(float64(a) / 255)},
 			}
 		}
 	}

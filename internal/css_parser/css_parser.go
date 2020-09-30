@@ -520,7 +520,7 @@ loop:
 
 		case css_lexer.TPercentage:
 			if p.options.MangleSyntax {
-				if text, ok := mangleNumber(token.Text[:len(token.Text)-1]); ok {
+				if text, ok := mangleNumber(token.PercentValue()); ok {
 					token.Text = text + "%"
 				}
 			}
