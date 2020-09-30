@@ -2972,7 +2972,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		MangleSyntax:        c.options.MangleSyntax,
 		ToModuleRef:         toModuleRef,
 		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
-		UnsupportedFeatures: c.options.UnsupportedFeatures,
+		UnsupportedFeatures: c.options.UnsupportedJSFeatures,
 		SourceForSourceMap:  sourceForSourceMap,
 		InputSourceMap:      file.sourceMap,
 		WrapperRefForSource: func(sourceIndex uint32) js_ast.Ref {
@@ -3230,7 +3230,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		if c.options.OutputFormat == config.FormatIIFE {
 			var text string
 			indent = "  "
-			if c.options.UnsupportedFeatures.Has(compat.Arrow) {
+			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 				text = "(function()" + space + "{" + newline
 			} else {
 				text = "(()" + space + "=>" + space + "{" + newline

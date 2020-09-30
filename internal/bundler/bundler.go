@@ -1085,7 +1085,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		MangleSyntax:      options.MangleSyntax,
 		MinifyIdentifiers: options.MinifyIdentifiers,
 		Platform:          options.Platform,
-		ES6:               runtime.CanUseES6(options.UnsupportedFeatures),
+		ES6:               runtime.CanUseES6(options.UnsupportedJSFeatures),
 	}
 
 	// Determine which source to use

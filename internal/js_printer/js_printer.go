@@ -2875,7 +2875,7 @@ type PrintOptions struct {
 	Indent              int
 	ToModuleRef         js_ast.Ref
 	WrapperRefForSource func(uint32) js_ast.Ref
-	UnsupportedFeatures compat.Feature
+	UnsupportedFeatures compat.JSFeature
 
 	// This contains the contents of the input file to map back to in the source
 	// map. If it's nil that means we're not generating source maps.

@@ -25,8 +25,8 @@ func TestLowerOptionalCatchNameCollisionNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2018),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2018),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -53,8 +53,8 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.jsx"},
 		options: config.Options{
-			UnsupportedFeatures: es(2017),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2017),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -96,8 +96,8 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2015),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2015),
+			AbsOutputFile:         "/out.js",
 		},
 		expectedScanLog: "/entry.js: error: Big integer literals are not available in the configured target environment\n",
 	})
@@ -138,8 +138,8 @@ func TestLowerPrivateFieldAssignments2015NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2015),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2015),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -179,8 +179,8 @@ func TestLowerPrivateFieldAssignments2019NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2019),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2019),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -220,8 +220,8 @@ func TestLowerPrivateFieldAssignments2020NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -282,8 +282,8 @@ func TestLowerPrivateFieldOptionalChain2019NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2019),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2019),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -304,8 +304,8 @@ func TestLowerPrivateFieldOptionalChain2020NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -347,8 +347,8 @@ func TestTSLowerPrivateFieldOptionalChain2015NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			UnsupportedFeatures: es(2015),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2015),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -372,8 +372,8 @@ func TestTSLowerPrivateStaticMembers2015NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			UnsupportedFeatures: es(2015),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2015),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -392,9 +392,9 @@ func TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2015),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2015),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -443,9 +443,9 @@ func TestLowerPrivateGetterSetter2015(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2015),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2015),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -494,9 +494,9 @@ func TestLowerPrivateGetterSetter2019(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2019),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2019),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -545,9 +545,9 @@ func TestLowerPrivateGetterSetter2020(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -637,9 +637,9 @@ func TestLowerPrivateMethod2019(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2019),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2019),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -679,9 +679,9 @@ func TestLowerPrivateMethod2020(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -745,8 +745,8 @@ func TestLowerPrivateClassExpr2020NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -768,9 +768,9 @@ func TestLowerPrivateMethodWithModifiers2020(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -802,8 +802,8 @@ func TestLowerAsync2016NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2016),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -835,8 +835,8 @@ func TestLowerAsync2017NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2017),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2017),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -850,9 +850,9 @@ func TestLowerAsyncThis2016CommonJS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2016),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -866,9 +866,9 @@ func TestLowerAsyncThis2016ES6(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2016),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -895,9 +895,9 @@ func TestLowerAsyncES5(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(5),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(5),
+			AbsOutputFile:         "/out.js",
 		},
 		expectedScanLog: `/arrow-1.js: error: Transforming async functions to the configured target environment is not supported yet
 /arrow-2.js: error: Transforming async functions to the configured target environment is not supported yet
@@ -937,8 +937,8 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2016),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -961,7 +961,7 @@ func TestLowerClassFieldStrict2020NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2020),
+			UnsupportedJSFeatures: es(2020),
 			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
@@ -988,8 +988,8 @@ func TestLowerClassField2020NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -1061,7 +1061,7 @@ func TestTSLowerClassFieldStrict2020NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			UnsupportedFeatures: es(2020),
+			UnsupportedJSFeatures: es(2020),
 			Strict: config.StrictOptions{
 				ClassFields: true,
 			},
@@ -1088,8 +1088,8 @@ func TestTSLowerClassField2020NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -1178,9 +1178,9 @@ func TestLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(2020),
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -1220,8 +1220,8 @@ func TestTSLowerObjectRest2017NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			UnsupportedFeatures: es(2017),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2017),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -1261,8 +1261,8 @@ func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			UnsupportedFeatures: es(2018),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2018),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }
@@ -1287,8 +1287,8 @@ func TestClassSuperThisIssue242NoBundle(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			UnsupportedFeatures: es(2019),
-			AbsOutputFile:       "/out.js",
+			UnsupportedJSFeatures: es(2019),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }

@@ -399,9 +399,9 @@ func TestTSMinifyDerivedClass(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			MangleSyntax:        true,
-			UnsupportedFeatures: es(2015),
-			AbsOutputFile:       "/out.js",
+			MangleSyntax:          true,
+			UnsupportedJSFeatures: es(2015),
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }

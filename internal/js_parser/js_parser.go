@@ -1507,7 +1507,7 @@ func (p *parser) parseProperty(kind js_ast.PropertyKind, opts propertyOpts, erro
 				p.log.AddRangeError(&p.source, keyRange, fmt.Sprintf("Invalid method name %q", name))
 			}
 			private.Ref = p.declareSymbol(declare, key.Loc, name)
-			if p.UnsupportedFeatures.Has(declare.Feature()) {
+			if p.UnsupportedJSFeatures.Has(declare.Feature()) {
 				methodRef := p.newSymbol(js_ast.SymbolOther, name[1:]+suffix)
 				if kind == js_ast.PropertySet {
 					p.privateSetters[private.Ref] = methodRef
@@ -2213,7 +2213,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 	case js_lexer.TTemplateHead:
 		head := p.lexer.StringLiteral
 		parts := p.parseTemplateParts(false /* includeRaw */)
-		if p.UnsupportedFeatures.Has(compat.TemplateLiteral) {
+		if p.UnsupportedJSFeatures.Has(compat.TemplateLiteral) {
 			var value js_ast.Expr
 			if len(head) == 0 {
 				// "`${x}y`" => "x + 'y'"
@@ -2690,7 +2690,7 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 			r := p.lexer.Range()
 			p.lexer.Next()
 			p.hasImportMeta = true
-			if p.UnsupportedFeatures.Has(compat.ImportMeta) {
+			if p.UnsupportedJSFeatures.Has(compat.ImportMeta) {
 				r = logger.Range{Loc: loc, Len: r.End() - loc.Start}
 				p.markSyntaxFeature(compat.ImportMeta, r)
 			}
@@ -4945,7 +4945,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			// The catch binding is optional, and can be omitted
 			if p.lexer.Token == js_lexer.TOpenBrace {
-				if p.UnsupportedFeatures.Has(compat.OptionalCatchBinding) {
+				if p.UnsupportedJSFeatures.Has(compat.OptionalCatchBinding) {
 					// Generate a new symbol for the catch binding for older browsers
 					ref := p.newSymbol(js_ast.SymbolOther, "e")
 					p.currentScope.Generated = append(p.currentScope.Generated, ref)
@@ -6607,7 +6607,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	}
 
 	// Try using the "??" operator, but only if it's supported
-	if !p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
+	if !p.UnsupportedJSFeatures.Has(compat.NullishCoalescing) {
 		if binary, ok := e.Test.Data.(*js_ast.EBinary); ok {
 			switch binary.Op {
 			case js_ast.BinOpLooseEq:
@@ -7984,7 +7984,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Capture "this" inside arrow functions that will be lowered into normal
 		// function expressions for older language environments
-		if p.fnOrArrowDataVisit.isArrow && p.UnsupportedFeatures.Has(compat.Arrow) && p.fnOnlyDataVisit.isThisNested {
+		if p.fnOrArrowDataVisit.isArrow && p.UnsupportedJSFeatures.Has(compat.Arrow) && p.fnOnlyDataVisit.isThisNested {
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.captureThis()}}, exprOut{}
 		}
 
@@ -8237,7 +8237,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return e.Right, exprOut{}
 
 			default:
-				if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
+				if p.UnsupportedJSFeatures.Has(compat.NullishCoalescing) {
 					return p.lowerNullishCoalescing(expr.Loc, e.Left, e.Right), exprOut{}
 				}
 			}
@@ -8357,7 +8357,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			// Lower the exponentiation operator for browsers that don't support it
-			if p.UnsupportedFeatures.Has(compat.ExponentOperator) {
+			if p.UnsupportedJSFeatures.Has(compat.ExponentOperator) {
 				return p.callRuntime(expr.Loc, "__pow", []js_ast.Expr{e.Left, e.Right}), exprOut{}
 			}
 
@@ -8448,7 +8448,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		case js_ast.BinOpPowAssign:
 			// Lower the exponentiation operator for browsers that don't support it
-			if p.UnsupportedFeatures.Has(compat.ExponentOperator) {
+			if p.UnsupportedJSFeatures.Has(compat.ExponentOperator) {
 				return p.lowerExponentiationAssignmentOperator(expr.Loc, e), exprOut{}
 			}
 
@@ -8487,17 +8487,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpNullishCoalescingAssign:
-			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
+			if p.UnsupportedJSFeatures.Has(compat.LogicalAssignment) {
 				return p.lowerNullishCoalescingAssignmentOperator(expr.Loc, e), exprOut{}
 			}
 
 		case js_ast.BinOpLogicalAndAssign:
-			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
+			if p.UnsupportedJSFeatures.Has(compat.LogicalAssignment) {
 				return p.lowerLogicalAssignmentOperator(expr.Loc, e, js_ast.BinOpLogicalAnd), exprOut{}
 			}
 
 		case js_ast.BinOpLogicalOrAssign:
-			if p.UnsupportedFeatures.Has(compat.LogicalAssignment) {
+			if p.UnsupportedJSFeatures.Has(compat.LogicalAssignment) {
 				return p.lowerLogicalAssignmentOperator(expr.Loc, e, js_ast.BinOpLogicalOr), exprOut{}
 			}
 		}
@@ -8545,7 +8545,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Lower private member access only if we're sure the target isn't needed
 			// for the value of "this" for a call expression. All other cases will be
 			// taken care of by the enclosing call expression.
-			if p.UnsupportedFeatures.Has(kind.Feature()) && e.OptionalChain == js_ast.OptionalChainNone &&
+			if p.UnsupportedJSFeatures.Has(kind.Feature()) && e.OptionalChain == js_ast.OptionalChainNone &&
 				in.assignTarget == js_ast.AssignTargetNone && !isCallTarget {
 				// "foo.#bar" => "__privateGet(foo, #bar)"
 				return p.lowerPrivateGet(e.Target, e.Index.Loc, private), exprOut{}
@@ -8806,7 +8806,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Value = p.visitExpr(e.Value)
 
 		// "await" expressions turn into "yield" expressions when lowering
-		if p.UnsupportedFeatures.Has(compat.AsyncAwait) {
+		if p.UnsupportedJSFeatures.Has(compat.AsyncAwait) {
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EYield{Value: &e.Value}}, exprOut{}
 		}
 
@@ -9166,7 +9166,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.fnOrArrowDataVisit = oldFnOrArrowData
 
 		// Convert arrow functions to function expressions when lowering
-		if p.UnsupportedFeatures.Has(compat.Arrow) {
+		if p.UnsupportedJSFeatures.Has(compat.Arrow) {
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
 				Args:         e.Args,
 				Body:         e.Body,
@@ -9221,8 +9221,8 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 
 	// Capture the "arguments" variable if necessary
 	if p.fnOnlyDataVisit.argumentsRef != nil && ref == *p.fnOnlyDataVisit.argumentsRef {
-		isInsideUnsupportedArrow := p.fnOrArrowDataVisit.isArrow && p.UnsupportedFeatures.Has(compat.Arrow)
-		isInsideUnsupportedAsyncArrow := p.fnOnlyDataVisit.isInsideAsyncArrowFn && p.UnsupportedFeatures.Has(compat.AsyncAwait)
+		isInsideUnsupportedArrow := p.fnOrArrowDataVisit.isArrow && p.UnsupportedJSFeatures.Has(compat.Arrow)
+		isInsideUnsupportedAsyncArrow := p.fnOnlyDataVisit.isInsideAsyncArrowFn && p.UnsupportedJSFeatures.Has(compat.AsyncAwait)
 		if isInsideUnsupportedArrow || isInsideUnsupportedAsyncArrow {
 			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.captureArguments()}}
 		}
@@ -10157,7 +10157,7 @@ func (p *parser) prepareForVisitPass(options *config.Options) {
 	}
 
 	// Convert "import.meta" to a variable if it's not supported in the output format
-	if p.hasImportMeta && (p.UnsupportedFeatures.Has(compat.ImportMeta) || (p.Mode != config.ModePassThrough && !p.OutputFormat.KeepES6ImportExportSyntax())) {
+	if p.hasImportMeta && (p.UnsupportedJSFeatures.Has(compat.ImportMeta) || (p.Mode != config.ModePassThrough && !p.OutputFormat.KeepES6ImportExportSyntax())) {
 		p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
 		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
 	} else {

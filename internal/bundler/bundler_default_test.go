@@ -2542,10 +2542,10 @@ func TestIIFE_ES5(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                config.ModeBundle,
-			UnsupportedFeatures: es(5),
-			OutputFormat:        config.FormatIIFE,
-			AbsOutputFile:       "/out.js",
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(5),
+			OutputFormat:          config.FormatIIFE,
+			AbsOutputFile:         "/out.js",
 		},
 	})
 }

@@ -1088,7 +1088,7 @@ func (kind SymbolKind) IsPrivate() bool {
 	return kind >= SymbolPrivateField && kind <= SymbolPrivateStaticGetSetPair
 }
 
-func (kind SymbolKind) Feature() compat.Feature {
+func (kind SymbolKind) Feature() compat.JSFeature {
 	switch kind {
 	case SymbolPrivateField:
 		return compat.ClassPrivateField

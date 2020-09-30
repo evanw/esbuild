@@ -35,7 +35,7 @@ func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expect
 		t.Helper()
 		log := logger.NewDeferLog()
 		Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
 			}),
 		})
@@ -103,11 +103,11 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		unsupportedFeatures := compat.UnsupportedFeatures(map[compat.Engine][]int{
+		unsupportedFeatures := compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		})
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedFeatures: unsupportedFeatures,
+			UnsupportedJSFeatures: unsupportedFeatures,
 		})
 		msgs := log.Done()
 		text := ""
@@ -136,7 +136,7 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 		t.Helper()
 		log := logger.NewDeferLog()
 		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
 			}),
 			Strict: config.StrictOptions{

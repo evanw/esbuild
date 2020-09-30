@@ -146,7 +146,7 @@ func validateEngine(value EngineName) compat.Engine {
 
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
 
-func validateFeatures(log logger.Log, target Target, engines []Engine) compat.Feature {
+func validateFeatures(log logger.Log, target Target, engines []Engine) compat.JSFeature {
 	constraints := make(map[compat.Engine][]int)
 
 	switch target {
@@ -202,7 +202,7 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) compat.Fe
 		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid version: %q", engine.Version))
 	}
 
-	return compat.UnsupportedFeatures(constraints)
+	return compat.UnsupportedJSFeatures(constraints)
 }
 
 func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalModules {
@@ -410,8 +410,8 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	// Convert and validate the buildOpts
 	realFS := fs.RealFS()
 	options := config.Options{
-		UnsupportedFeatures: validateFeatures(log, buildOpts.Target, buildOpts.Engines),
-		Strict:              validateStrict(buildOpts.Strict),
+		UnsupportedJSFeatures: validateFeatures(log, buildOpts.Target, buildOpts.Engines),
+		Strict:                validateStrict(buildOpts.Strict),
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
@@ -604,8 +604,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Convert and validate the transformOpts
 	options := config.Options{
-		UnsupportedFeatures: validateFeatures(log, transformOpts.Target, transformOpts.Engines),
-		Strict:              validateStrict(transformOpts.Strict),
+		UnsupportedJSFeatures: validateFeatures(log, transformOpts.Target, transformOpts.Engines),
+		Strict:                validateStrict(transformOpts.Strict),
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),

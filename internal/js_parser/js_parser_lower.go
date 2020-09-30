@@ -14,10 +14,10 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-func (p *parser) markSyntaxFeature(feature compat.Feature, r logger.Range) (didGenerateError bool) {
+func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (didGenerateError bool) {
 	didGenerateError = true
 
-	if !p.UnsupportedFeatures.Has(feature) {
+	if !p.UnsupportedJSFeatures.Has(feature) {
 		if feature == compat.TopLevelAwait {
 			if p.Mode == config.ModeBundle {
 				p.log.AddRangeError(&p.source, r, "Top-level await is currently not supported when bundling")
@@ -119,14 +119,14 @@ func (p *parser) markSyntaxFeature(feature compat.Feature, r logger.Range) (didG
 
 // Mark the feature if "loweredFeature" is unsupported. This is used when one
 // feature is implemented in terms of another feature.
-func (p *parser) markLoweredSyntaxFeature(feature compat.Feature, r logger.Range, loweredFeature compat.Feature) {
-	if p.UnsupportedFeatures.Has(loweredFeature) {
+func (p *parser) markLoweredSyntaxFeature(feature compat.JSFeature, r logger.Range, loweredFeature compat.JSFeature) {
+	if p.UnsupportedJSFeatures.Has(loweredFeature) {
 		p.markSyntaxFeature(feature, r)
 	}
 }
 
 func (p *parser) isPrivateUnsupported(private *js_ast.EPrivateIdentifier) bool {
-	return p.UnsupportedFeatures.Has(p.symbols[private.Ref.InnerIndex].Kind.Feature())
+	return p.UnsupportedJSFeatures.Has(p.symbols[private.Ref.InnerIndex].Kind.Feature())
 }
 
 func (p *parser) captureThis() js_ast.Ref {
@@ -155,7 +155,7 @@ func (p *parser) lowerFunction(
 	isArrow bool,
 ) {
 	// Lower object rest binding patterns in function arguments
-	if p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
+	if p.UnsupportedJSFeatures.Has(compat.ObjectRestSpread) {
 		var prefixStmts []js_ast.Stmt
 
 		// Lower each argument individually instead of lowering all arguments
@@ -212,7 +212,7 @@ func (p *parser) lowerFunction(
 	}
 
 	// Lower async functions
-	if p.UnsupportedFeatures.Has(compat.AsyncAwait) && *isAsync {
+	if p.UnsupportedJSFeatures.Has(compat.AsyncAwait) && *isAsync {
 		// Use the shortened form if we're an arrow function
 		if preferExpr != nil {
 			*preferExpr = true
@@ -449,7 +449,7 @@ flatten:
 	// Don't lower this if we don't need to. This check must be done here instead
 	// of earlier so we can do the dead code elimination above when the target is
 	// null or undefined.
-	if !p.UnsupportedFeatures.Has(compat.OptionalChain) && !containsPrivateName {
+	if !p.UnsupportedJSFeatures.Has(compat.OptionalChain) && !containsPrivateName {
 		return originalExpr, exprOut{}
 	}
 
@@ -744,7 +744,7 @@ func (p *parser) lowerExponentiationAssignmentOperator(loc logger.Loc, e *js_ast
 
 func (p *parser) lowerNullishCoalescingAssignmentOperator(loc logger.Loc, e *js_ast.EBinary) js_ast.Expr {
 	if target, privateLoc, private := p.extractPrivateIndex(e.Left); private != nil {
-		if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
+		if p.UnsupportedJSFeatures.Has(compat.NullishCoalescing) {
 			// "a.#b ??= c" => "(_a = __privateGet(a, #b)) != null ? _a : __privateSet(a, #b, c)"
 			targetFunc, targetWrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, target)
 			left := p.lowerPrivateGet(targetFunc(), privateLoc, private)
@@ -762,7 +762,7 @@ func (p *parser) lowerNullishCoalescingAssignmentOperator(loc logger.Loc, e *js_
 	}
 
 	return p.lowerAssignmentOperator(e.Left, func(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
-		if p.UnsupportedFeatures.Has(compat.NullishCoalescing) {
+		if p.UnsupportedJSFeatures.Has(compat.NullishCoalescing) {
 			// "a ??= b" => "(_a = a) != null ? _a : a = b"
 			return p.lowerNullishCoalescing(loc, a, js_ast.Assign(b, e.Right))
 		}
@@ -864,7 +864,7 @@ func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right 
 func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Expr {
 	needsLowering := false
 
-	if p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
+	if p.UnsupportedJSFeatures.Has(compat.ObjectRestSpread) {
 		for _, property := range e.Properties {
 			if property.Kind == js_ast.PropertySpread {
 				needsLowering = true
@@ -1073,7 +1073,7 @@ func exprHasObjectRest(expr js_ast.Expr) bool {
 }
 
 func (p *parser) lowerObjectRestInDecls(decls []js_ast.Decl) []js_ast.Decl {
-	if !p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
+	if !p.UnsupportedJSFeatures.Has(compat.ObjectRestSpread) {
 		return decls
 	}
 
@@ -1101,7 +1101,7 @@ func (p *parser) lowerObjectRestInDecls(decls []js_ast.Decl) []js_ast.Decl {
 }
 
 func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stmt) {
-	if !p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
+	if !p.UnsupportedJSFeatures.Has(compat.ObjectRestSpread) {
 		return
 	}
 
@@ -1145,7 +1145,7 @@ func (p *parser) lowerObjectRestInForLoopInit(init js_ast.Stmt, body *js_ast.Stm
 }
 
 func (p *parser) lowerObjectRestInCatchBinding(catch *js_ast.Catch) {
-	if !p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
+	if !p.UnsupportedJSFeatures.Has(compat.ObjectRestSpread) {
 		return
 	}
 
@@ -1197,7 +1197,7 @@ func (p *parser) lowerObjectRestHelper(
 	assign func(js_ast.Expr, js_ast.Expr),
 	declare generateTempRefArg,
 ) bool {
-	if !p.UnsupportedFeatures.Has(compat.ObjectRestSpread) {
+	if !p.UnsupportedJSFeatures.Has(compat.ObjectRestSpread) {
 		return false
 	}
 
@@ -1526,7 +1526,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		compat.ClassPrivateField | compat.ClassPrivateStaticField |
 		compat.ClassPrivateMethod | compat.ClassPrivateStaticMethod |
 		compat.ClassPrivateAccessor | compat.ClassPrivateStaticAccessor
-	if !p.TS.Parse && !p.UnsupportedFeatures.Has(classFeatures) {
+	if !p.TS.Parse && !p.UnsupportedJSFeatures.Has(classFeatures) {
 		if kind == classKindExpr {
 			return nil, expr
 		} else {
@@ -1635,8 +1635,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 			!p.Strict.ClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
-		mustLowerField := !prop.IsMethod && (!prop.IsStatic && p.UnsupportedFeatures.Has(compat.ClassField) ||
-			(prop.IsStatic && p.UnsupportedFeatures.Has(compat.ClassStaticField)))
+		mustLowerField := !prop.IsMethod && (!prop.IsStatic && p.UnsupportedJSFeatures.Has(compat.ClassField) ||
+			(prop.IsStatic && p.UnsupportedJSFeatures.Has(compat.ClassStaticField)))
 
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
@@ -2070,7 +2070,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 }
 
 func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {
-	if p.fnOrArrowDataVisit.isAsync && p.UnsupportedFeatures.Has(compat.AsyncAwait) {
+	if p.fnOrArrowDataVisit.isAsync && p.UnsupportedJSFeatures.Has(compat.AsyncAwait) {
 		_, isSuper := expr.Data.(*js_ast.ESuper)
 		return isSuper
 	}

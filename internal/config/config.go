@@ -193,7 +193,7 @@ type Options struct {
 	JSX      JSXOptions
 	Platform Platform
 
-	UnsupportedFeatures compat.Feature
+	UnsupportedJSFeatures compat.JSFeature
 
 	ExtensionOrder  []string
 	MainFields      []string

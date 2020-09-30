@@ -24,8 +24,8 @@ import (
 	"github.com/kylelemons/godebug/diff"
 )
 
-func es(version int) compat.Feature {
-	return compat.UnsupportedFeatures(map[compat.Engine][]int{
+func es(version int) compat.JSFeature {
+	return compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 		compat.ES: {version},
 	})
 }

@@ -14,10 +14,10 @@ const (
 	Safari
 )
 
-type Feature uint64
+type JSFeature uint64
 
 const (
-	ArraySpread Feature = 1 << iota
+	ArraySpread JSFeature = 1 << iota
 	Arrow
 	AsyncAwait
 	AsyncGenerator
@@ -55,11 +55,11 @@ const (
 	TopLevelAwait
 )
 
-func (features Feature) Has(feature Feature) bool {
+func (features JSFeature) Has(feature JSFeature) bool {
 	return (features & feature) != 0
 }
 
-var Table = map[Feature]map[Engine][]int{
+var jsTable = map[JSFeature]map[Engine][]int{
 	ArraySpread: {
 		Chrome:  {46},
 		Edge:    {12},
@@ -351,8 +351,8 @@ func isVersionLessThan(a []int, b []int) bool {
 }
 
 // Return all features that are not available in at least one environment
-func UnsupportedFeatures(constraints map[Engine][]int) (unsupported Feature) {
-	for feature, engines := range Table {
+func UnsupportedJSFeatures(constraints map[Engine][]int) (unsupported JSFeature) {
+	for feature, engines := range jsTable {
 		for engine, version := range constraints {
 			if minVersion, ok := engines[engine]; !ok || isVersionLessThan(version, minVersion) {
 				unsupported |= feature

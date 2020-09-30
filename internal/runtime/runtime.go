@@ -15,7 +15,7 @@ import (
 // all code that references this index can be discovered easily.
 const SourceIndex = uint32(0)
 
-func CanUseES6(unsupportedFeatures compat.Feature) bool {
+func CanUseES6(unsupportedFeatures compat.JSFeature) bool {
 	return !unsupportedFeatures.Has(compat.Let) && !unsupportedFeatures.Has(compat.Arrow)
 }
 

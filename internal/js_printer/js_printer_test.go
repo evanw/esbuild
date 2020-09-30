@@ -25,7 +25,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		t.Helper()
 		log := logger.NewDeferLog()
 		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedFeatures: options.UnsupportedFeatures,
+			UnsupportedJSFeatures: options.UnsupportedFeatures,
 		})
 		msgs := log.Done()
 		text := ""
@@ -66,7 +66,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, contents, expected, PrintOptions{
-		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
 	})
@@ -75,7 +75,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
-		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
 		RemoveWhitespace: true,
@@ -85,7 +85,7 @@ func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, exp
 func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
-		UnsupportedFeatures: compat.UnsupportedFeatures(map[compat.Engine][]int{
+		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
 		MangleSyntax: true,
