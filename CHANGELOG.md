@@ -6,6 +6,10 @@
 
     This release fixes a crash that happens when `metafile` output is enabled and the `url()` syntax is used in a CSS file to import a successfully-resolved file.
 
+* Minify some CSS colors
+
+    The minifier can now reduce the size of some CSS colors. This is the initial work to start CSS minification in general beyond whitespace removal.
+
 ## 0.7.8
 
 * Move external `@import` rules to the top

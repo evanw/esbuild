@@ -112,6 +112,132 @@ func TestNumber(t *testing.T) {
 	}
 }
 
+func TestHexColor(t *testing.T) {
+	// "#RGBA"
+
+	expectPrinted(t, "a { color: #1234 }", "a {\n  color: #1234;\n}\n")
+	expectPrinted(t, "a { color: #123f }", "a {\n  color: #123f;\n}\n")
+	expectPrinted(t, "a { color: #abcd }", "a {\n  color: #abcd;\n}\n")
+	expectPrinted(t, "a { color: #abcf }", "a {\n  color: #abcf;\n}\n")
+	expectPrinted(t, "a { color: #ABCD }", "a {\n  color: #ABCD;\n}\n")
+	expectPrinted(t, "a { color: #ABCF }", "a {\n  color: #ABCF;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #1234 }", "a {\n  color: #1234;\n}\n")
+	expectPrintedMangle(t, "a { color: #123f }", "a {\n  color: #123;\n}\n")
+	expectPrintedMangle(t, "a { color: #abcd }", "a {\n  color: #abcd;\n}\n")
+	expectPrintedMangle(t, "a { color: #abcf }", "a {\n  color: #abc;\n}\n")
+	expectPrintedMangle(t, "a { color: #ABCD }", "a {\n  color: #ABCD;\n}\n")
+	expectPrintedMangle(t, "a { color: #ABCF }", "a {\n  color: #abc;\n}\n")
+
+	// "#RRGGBB"
+
+	expectPrinted(t, "a { color: #112233 }", "a {\n  color: #112233;\n}\n")
+	expectPrinted(t, "a { color: #122233 }", "a {\n  color: #122233;\n}\n")
+	expectPrinted(t, "a { color: #112333 }", "a {\n  color: #112333;\n}\n")
+	expectPrinted(t, "a { color: #112234 }", "a {\n  color: #112234;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #112233 }", "a {\n  color: #123;\n}\n")
+	expectPrintedMangle(t, "a { color: #122233 }", "a {\n  color: #122233;\n}\n")
+	expectPrintedMangle(t, "a { color: #112333 }", "a {\n  color: #112333;\n}\n")
+	expectPrintedMangle(t, "a { color: #112234 }", "a {\n  color: #112234;\n}\n")
+
+	expectPrinted(t, "a { color: #aabbcc }", "a {\n  color: #aabbcc;\n}\n")
+	expectPrinted(t, "a { color: #abbbcc }", "a {\n  color: #abbbcc;\n}\n")
+	expectPrinted(t, "a { color: #aabccc }", "a {\n  color: #aabccc;\n}\n")
+	expectPrinted(t, "a { color: #aabbcd }", "a {\n  color: #aabbcd;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #aabbcc }", "a {\n  color: #abc;\n}\n")
+	expectPrintedMangle(t, "a { color: #abbbcc }", "a {\n  color: #abbbcc;\n}\n")
+	expectPrintedMangle(t, "a { color: #aabccc }", "a {\n  color: #aabccc;\n}\n")
+	expectPrintedMangle(t, "a { color: #aabbcd }", "a {\n  color: #aabbcd;\n}\n")
+
+	expectPrinted(t, "a { color: #AABBCC }", "a {\n  color: #AABBCC;\n}\n")
+	expectPrinted(t, "a { color: #ABBBCC }", "a {\n  color: #ABBBCC;\n}\n")
+	expectPrinted(t, "a { color: #AABCCC }", "a {\n  color: #AABCCC;\n}\n")
+	expectPrinted(t, "a { color: #AABBCD }", "a {\n  color: #AABBCD;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #AABBCC }", "a {\n  color: #abc;\n}\n")
+	expectPrintedMangle(t, "a { color: #ABBBCC }", "a {\n  color: #ABBBCC;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABCCC }", "a {\n  color: #AABCCC;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCD }", "a {\n  color: #AABBCD;\n}\n")
+
+	// "#RRGGBBAA"
+
+	expectPrinted(t, "a { color: #11223344 }", "a {\n  color: #11223344;\n}\n")
+	expectPrinted(t, "a { color: #12223344 }", "a {\n  color: #12223344;\n}\n")
+	expectPrinted(t, "a { color: #11233344 }", "a {\n  color: #11233344;\n}\n")
+	expectPrinted(t, "a { color: #11223444 }", "a {\n  color: #11223444;\n}\n")
+	expectPrinted(t, "a { color: #11223345 }", "a {\n  color: #11223345;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #11223344 }", "a {\n  color: #1234;\n}\n")
+	expectPrintedMangle(t, "a { color: #12223344 }", "a {\n  color: #12223344;\n}\n")
+	expectPrintedMangle(t, "a { color: #11233344 }", "a {\n  color: #11233344;\n}\n")
+	expectPrintedMangle(t, "a { color: #11223444 }", "a {\n  color: #11223444;\n}\n")
+	expectPrintedMangle(t, "a { color: #11223345 }", "a {\n  color: #11223345;\n}\n")
+
+	expectPrinted(t, "a { color: #aabbccdd }", "a {\n  color: #aabbccdd;\n}\n")
+	expectPrinted(t, "a { color: #abbbccdd }", "a {\n  color: #abbbccdd;\n}\n")
+	expectPrinted(t, "a { color: #aabcccdd }", "a {\n  color: #aabcccdd;\n}\n")
+	expectPrinted(t, "a { color: #aabbcddd }", "a {\n  color: #aabbcddd;\n}\n")
+	expectPrinted(t, "a { color: #aabbccde }", "a {\n  color: #aabbccde;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #aabbccdd }", "a {\n  color: #abcd;\n}\n")
+	expectPrintedMangle(t, "a { color: #abbbccdd }", "a {\n  color: #abbbccdd;\n}\n")
+	expectPrintedMangle(t, "a { color: #aabcccdd }", "a {\n  color: #aabcccdd;\n}\n")
+	expectPrintedMangle(t, "a { color: #aabbcddd }", "a {\n  color: #aabbcddd;\n}\n")
+	expectPrintedMangle(t, "a { color: #aabbccde }", "a {\n  color: #aabbccde;\n}\n")
+
+	expectPrinted(t, "a { color: #AABBCCDD }", "a {\n  color: #AABBCCDD;\n}\n")
+	expectPrinted(t, "a { color: #ABBBCCDD }", "a {\n  color: #ABBBCCDD;\n}\n")
+	expectPrinted(t, "a { color: #AABCCCDD }", "a {\n  color: #AABCCCDD;\n}\n")
+	expectPrinted(t, "a { color: #AABBCDDD }", "a {\n  color: #AABBCDDD;\n}\n")
+	expectPrinted(t, "a { color: #AABBCCDE }", "a {\n  color: #AABBCCDE;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #AABBCCDD }", "a {\n  color: #abcd;\n}\n")
+	expectPrintedMangle(t, "a { color: #ABBBCCDD }", "a {\n  color: #ABBBCCDD;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABCCCDD }", "a {\n  color: #AABCCCDD;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCDDD }", "a {\n  color: #AABBCDDD;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCCDE }", "a {\n  color: #AABBCCDE;\n}\n")
+
+	// "#RRGGBBFF"
+
+	expectPrinted(t, "a { color: #112233ff }", "a {\n  color: #112233ff;\n}\n")
+	expectPrinted(t, "a { color: #122233ff }", "a {\n  color: #122233ff;\n}\n")
+	expectPrinted(t, "a { color: #112333ff }", "a {\n  color: #112333ff;\n}\n")
+	expectPrinted(t, "a { color: #112234ff }", "a {\n  color: #112234ff;\n}\n")
+	expectPrinted(t, "a { color: #112233ef }", "a {\n  color: #112233ef;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #112233ff }", "a {\n  color: #123;\n}\n")
+	expectPrintedMangle(t, "a { color: #122233ff }", "a {\n  color: #122233;\n}\n")
+	expectPrintedMangle(t, "a { color: #112333ff }", "a {\n  color: #112333;\n}\n")
+	expectPrintedMangle(t, "a { color: #112234ff }", "a {\n  color: #112234;\n}\n")
+	expectPrintedMangle(t, "a { color: #112233ef }", "a {\n  color: #112233ef;\n}\n")
+
+	expectPrinted(t, "a { color: #aabbccff }", "a {\n  color: #aabbccff;\n}\n")
+	expectPrinted(t, "a { color: #abbbccff }", "a {\n  color: #abbbccff;\n}\n")
+	expectPrinted(t, "a { color: #aabcccff }", "a {\n  color: #aabcccff;\n}\n")
+	expectPrinted(t, "a { color: #aabbcdff }", "a {\n  color: #aabbcdff;\n}\n")
+	expectPrinted(t, "a { color: #aabbccef }", "a {\n  color: #aabbccef;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #aabbccff }", "a {\n  color: #abc;\n}\n")
+	expectPrintedMangle(t, "a { color: #abbbccff }", "a {\n  color: #abbbcc;\n}\n")
+	expectPrintedMangle(t, "a { color: #aabcccff }", "a {\n  color: #aabccc;\n}\n")
+	expectPrintedMangle(t, "a { color: #aabbcdff }", "a {\n  color: #aabbcd;\n}\n")
+	expectPrintedMangle(t, "a { color: #aabbccef }", "a {\n  color: #aabbccef;\n}\n")
+
+	expectPrinted(t, "a { color: #AABBCCFF }", "a {\n  color: #AABBCCFF;\n}\n")
+	expectPrinted(t, "a { color: #ABBBCCFF }", "a {\n  color: #ABBBCCFF;\n}\n")
+	expectPrinted(t, "a { color: #AABCCCFF }", "a {\n  color: #AABCCCFF;\n}\n")
+	expectPrinted(t, "a { color: #AABBCDFF }", "a {\n  color: #AABBCDFF;\n}\n")
+	expectPrinted(t, "a { color: #AABBCCEF }", "a {\n  color: #AABBCCEF;\n}\n")
+
+	expectPrintedMangle(t, "a { color: #AABBCCFF }", "a {\n  color: #abc;\n}\n")
+	expectPrintedMangle(t, "a { color: #ABBBCCFF }", "a {\n  color: #abbbcc;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABCCCFF }", "a {\n  color: #aabccc;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCDFF }", "a {\n  color: #aabbcd;\n}\n")
+	expectPrintedMangle(t, "a { color: #AABBCCEF }", "a {\n  color: #AABBCCEF;\n}\n")
+}
+
 func TestDeclaration(t *testing.T) {
 	expectPrinted(t, ".decl {}", ".decl {\n}\n")
 	expectPrinted(t, ".decl { a: b }", ".decl {\n  a: b;\n}\n")

@@ -178,6 +178,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.R) {
 			p.advance()
 
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
+			p.processDeclarations(list)
 			return
 
 		case css_lexer.TAtKeyword:
@@ -741,8 +742,12 @@ stop:
 		}
 	}
 
+	keyToken := p.tokens[keyStart]
+	keyText := keyToken.Raw(p.source.Contents)
 	return &css_ast.RDeclaration{
-		Key:       p.tokens[keyStart].Raw(p.source.Contents),
+		Key:       css_ast.KnownDeclarations[keyText],
+		KeyText:   keyText,
+		KeyRange:  keyToken.Range,
 		Value:     p.convertTokensWithImports(value),
 		Important: important,
 	}

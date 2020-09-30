@@ -3,6 +3,7 @@ package css_ast
 import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 // CSS syntax comes in two layers: a minimal syntax that generally accepts
@@ -106,8 +107,10 @@ type RQualified struct {
 }
 
 type RDeclaration struct {
-	Key       string
+	KeyText   string
 	Value     []Token
+	KeyRange  logger.Range
+	Key       D // Compare using this instead of "Key" for speed
 	Important bool
 }
 

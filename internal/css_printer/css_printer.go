@@ -149,7 +149,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RDeclaration:
-		p.print(r.Key)
+		p.print(r.KeyText)
 		if p.RemoveWhitespace {
 			p.print(":")
 		} else {
