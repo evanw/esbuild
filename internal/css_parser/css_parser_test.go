@@ -3,6 +3,7 @@ package css_parser
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_printer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -53,6 +54,13 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, contents, expected, config.Options{})
+}
+
+func expectPrintedLower(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
+		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
+	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
@@ -259,6 +267,41 @@ func TestColorNames(t *testing.T) {
 
 	expectPrintedMangle(t, "a { color: white }", "a {\n  color: #fff;\n}\n")
 	expectPrintedMangle(t, "a { color: tUrQuOiSe }", "a {\n  color: #40e0d0;\n}\n")
+}
+
+func TestLowerColor(t *testing.T) {
+	expectPrintedLower(t, "a { color: rebeccapurple }", "a {\n  color: #663399;\n}\n")
+
+	expectPrintedLower(t, "a { color: #0123 }", "a {\n  color: rgba(0, 17, 34, 0.2);\n}\n")
+	expectPrintedLower(t, "a { color: #1230 }", "a {\n  color: rgba(17, 34, 51, 0);\n}\n")
+	expectPrintedLower(t, "a { color: #1234 }", "a {\n  color: rgba(17, 34, 51, 0.267);\n}\n")
+	expectPrintedLower(t, "a { color: #123f }", "a {\n  color: rgba(17, 34, 51, 1);\n}\n")
+	expectPrintedLower(t, "a { color: #12345678 }", "a {\n  color: rgba(18, 52, 86, 0.471);\n}\n")
+	expectPrintedLower(t, "a { color: #ff00007f }", "a {\n  color: rgba(255, 0, 0, 0.498);\n}\n")
+
+	expectPrintedLower(t, "a { color: rgb(1 2 3) }", "a {\n  color: rgb(1, 2, 3);\n}\n")
+	expectPrintedLower(t, "a { color: hsl(1 2% 3%) }", "a {\n  color: hsl(1, 2%, 3%);\n}\n")
+	expectPrintedLower(t, "a { color: rgba(1% 2% 3%) }", "a {\n  color: rgb(1%, 2%, 3%);\n}\n")
+	expectPrintedLower(t, "a { color: hsla(1deg 2% 3%) }", "a {\n  color: hsl(1, 2%, 3%);\n}\n")
+
+	expectPrintedLower(t, "a { color: hsla(200grad 2% 3%) }", "a {\n  color: hsl(180, 2%, 3%);\n}\n")
+	expectPrintedLower(t, "a { color: hsla(6.28319rad 2% 3%) }", "a {\n  color: hsl(360, 2%, 3%);\n}\n")
+	expectPrintedLower(t, "a { color: hsla(0.5turn 2% 3%) }", "a {\n  color: hsl(180, 2%, 3%);\n}\n")
+	expectPrintedLower(t, "a { color: hsla(+200grad 2% 3%) }", "a {\n  color: hsl(180, 2%, 3%);\n}\n")
+	expectPrintedLower(t, "a { color: hsla(-200grad 2% 3%) }", "a {\n  color: hsl(-180, 2%, 3%);\n}\n")
+
+	expectPrintedLower(t, "a { color: rgb(1 2 3 / 4) }", "a {\n  color: rgba(1, 2, 3, 4);\n}\n")
+	expectPrintedLower(t, "a { color: rgba(1% 2% 3% / 4%) }", "a {\n  color: rgba(1%, 2%, 3%, 0.04);\n}\n")
+	expectPrintedLower(t, "a { color: hsl(1 2% 3% / 4) }", "a {\n  color: hsla(1, 2%, 3%, 4);\n}\n")
+	expectPrintedLower(t, "a { color: hsla(1 2% 3% / 4%) }", "a {\n  color: hsla(1, 2%, 3%, 0.04);\n}\n")
+
+	expectPrintedLower(t, "a { color: rgb(1, 2, 3, 4) }", "a {\n  color: rgba(1, 2, 3, 4);\n}\n")
+	expectPrintedLower(t, "a { color: rgba(1%, 2%, 3%, 4%) }", "a {\n  color: rgba(1%, 2%, 3%, 0.04);\n}\n")
+	expectPrintedLower(t, "a { color: rgb(1%, 2%, 3%, 0.4%) }", "a {\n  color: rgba(1%, 2%, 3%, 0.004);\n}\n")
+
+	expectPrintedLower(t, "a { color: hsl(1, 2%, 3%, 4) }", "a {\n  color: hsla(1, 2%, 3%, 4);\n}\n")
+	expectPrintedLower(t, "a { color: hsla(1deg, 2%, 3%, 4%) }", "a {\n  color: hsla(1, 2%, 3%, 0.04);\n}\n")
+	expectPrintedLower(t, "a { color: hsl(1deg, 2%, 3%, 0.4%) }", "a {\n  color: hsla(1, 2%, 3%, 0.004);\n}\n")
 }
 
 func TestDeclaration(t *testing.T) {

@@ -10,6 +10,10 @@
 
     The minifier can now reduce the size of some CSS colors. This is the initial work to start CSS minification in general beyond whitespace removal.
 
+* Lower newer CSS syntax for older browsers
+
+    Newer color syntax such as `rgba(255 0 0 / 50%)` will be converted to older syntax (in this case `rgba(255, 0, 0, 0.5)`) when the target browser doesn't support the newer syntax. For example, this happens when using `--target=chrome60`.
+
 ## 0.7.8
 
 * Move external `@import` rules to the top

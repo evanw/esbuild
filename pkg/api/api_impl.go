@@ -146,7 +146,7 @@ func validateEngine(value EngineName) compat.Engine {
 
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
 
-func validateFeatures(log logger.Log, target Target, engines []Engine) compat.JSFeature {
+func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature) {
 	constraints := make(map[compat.Engine][]int)
 
 	switch target {
@@ -202,7 +202,7 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) compat.JS
 		log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid version: %q", engine.Version))
 	}
 
-	return compat.UnsupportedJSFeatures(constraints)
+	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints)
 }
 
 func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalModules {
@@ -409,9 +409,11 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 
 	// Convert and validate the buildOpts
 	realFS := fs.RealFS()
+	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	options := config.Options{
-		UnsupportedJSFeatures: validateFeatures(log, buildOpts.Target, buildOpts.Engines),
-		Strict:                validateStrict(buildOpts.Strict),
+		UnsupportedJSFeatures:  jsFeatures,
+		UnsupportedCSSFeatures: cssFeatures,
+		Strict:                 validateStrict(buildOpts.Strict),
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
@@ -603,9 +605,11 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Convert and validate the transformOpts
+	jsFeatures, cssFeatures := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	options := config.Options{
-		UnsupportedJSFeatures: validateFeatures(log, transformOpts.Target, transformOpts.Engines),
-		Strict:                validateStrict(transformOpts.Strict),
+		UnsupportedJSFeatures:  jsFeatures,
+		UnsupportedCSSFeatures: cssFeatures,
+		Strict:                 validateStrict(transformOpts.Strict),
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),

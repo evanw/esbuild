@@ -526,13 +526,12 @@ loop:
 			}
 
 		case css_lexer.TDimension:
+			token.UnitOffset = t.UnitOffset
+
 			if p.options.MangleSyntax {
-				i := len(token.Text)
-				for i > 0 && token.Text[i-1] != '.' && (token.Text[i-1] < '0' || token.Text[i-1] > '9') {
-					i--
-				}
-				if text, ok := mangleNumber(token.Text[:i]); ok {
-					token.Text = text + token.Text[i:]
+				if text, ok := mangleNumber(token.DimensionValue()); ok {
+					token.Text = text + token.DimensionUnit()
+					token.UnitOffset = uint16(len(text))
 				}
 			}
 

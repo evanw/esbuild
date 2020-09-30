@@ -2,11 +2,20 @@ package css_parser
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
+
+var commaToken = css_ast.Token{
+	Kind:               css_lexer.TComma,
+	Text:               ",",
+	HasWhitespaceAfter: true,
+}
 
 // These names are shorter than their hex codes
 var shortColorName = map[int]string{
@@ -158,6 +167,10 @@ func hex1(c int) int {
 	return c - '0'
 }
 
+func hex2(hi int, lo int) int {
+	return (hex1(hi) << 4) | hex1(lo)
+}
+
 func hex3(r int, g int, b int) int {
 	return hex6(r, r, g, g, b, b)
 }
@@ -177,6 +190,186 @@ func toLowerHex(c byte) (int, bool) {
 		return int(c) + ('a' - 'A'), true
 	}
 	return 0, false
+}
+
+func floatToString(a float64) string {
+	text := fmt.Sprintf("%.03f", a)
+	for text[len(text)-1] == '0' {
+		text = text[:len(text)-1]
+	}
+	if text[len(text)-1] == '.' {
+		text = text[:len(text)-1]
+	}
+	return text
+}
+
+func degreesForAngle(token css_ast.Token) (float64, bool) {
+	if token.Kind == css_lexer.TDimension {
+		if value, err := strconv.ParseFloat(token.DimensionValue(), 64); err == nil {
+			switch token.DimensionUnit() {
+			case "deg":
+				return value, true
+			case "grad":
+				return value * (360.0 / 400.0), true
+			case "rad":
+				return value * (180.0 / math.Pi), true
+			case "turn":
+				return value * 360.0, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func lowerAlphaPercentageToNumber(token css_ast.Token) css_ast.Token {
+	if token.Kind == css_lexer.TPercentage {
+		if value, err := strconv.ParseFloat(token.Text[:len(token.Text)-1], 64); err == nil {
+			token.Kind = css_lexer.TNumber
+			token.Text = floatToString(value / 100.0)
+		}
+	}
+	return token
+}
+
+// Convert newer color syntax to older color syntax for older browsers
+func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
+	text := token.Text
+
+	switch token.Kind {
+	case css_lexer.THash, css_lexer.THashID:
+		if p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
+			switch len(text) {
+			case 5:
+				// "#1234" => "rgba(1, 2, 3, 0.004)"
+				r, r_ok := toLowerHex(text[1])
+				g, g_ok := toLowerHex(text[2])
+				b, b_ok := toLowerHex(text[3])
+				a, a_ok := toLowerHex(text[4])
+				if r_ok && g_ok && b_ok && a_ok {
+					token.Kind = css_lexer.TFunction
+					token.Text = "rgba("
+					token.Children = &[]css_ast.Token{
+						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(r, r))},
+						commaToken,
+						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(g, g))},
+						commaToken,
+						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(b, b))},
+						commaToken,
+						{Kind: css_lexer.TNumber, Text: floatToString(float64(hex2(a, a)) / 255.0)},
+					}
+				}
+
+			case 9:
+				// "#12345678" => "rgba(18, 52, 86, 0.47)"
+				r1, r1_ok := toLowerHex(text[1])
+				r2, r2_ok := toLowerHex(text[2])
+				g1, g1_ok := toLowerHex(text[3])
+				g2, g2_ok := toLowerHex(text[4])
+				b1, b1_ok := toLowerHex(text[5])
+				b2, b2_ok := toLowerHex(text[6])
+				a1, a1_ok := toLowerHex(text[7])
+				a2, a2_ok := toLowerHex(text[8])
+				if r1_ok && r2_ok && g1_ok && g2_ok && b1_ok && b2_ok && a1_ok && a2_ok {
+					token.Kind = css_lexer.TFunction
+					token.Text = "rgba("
+					token.Children = &[]css_ast.Token{
+						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(r1, r2))},
+						commaToken,
+						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(g1, g2))},
+						commaToken,
+						{Kind: css_lexer.TNumber, Text: strconv.Itoa(hex2(b1, b2))},
+						commaToken,
+						{Kind: css_lexer.TNumber, Text: floatToString(float64(hex2(a1, a2)) / 255.0)},
+					}
+				}
+			}
+		}
+
+	case css_lexer.TIdent:
+		if text == "rebeccapurple" && p.options.UnsupportedCSSFeatures.Has(compat.RebeccaPurple) {
+			token.Kind = css_lexer.THash
+			token.Text = "#663399"
+		}
+
+	case css_lexer.TFunction:
+		switch text {
+		case "rgb(", "rgba(", "hsl(", "hsla(":
+			if p.options.UnsupportedCSSFeatures.Has(compat.Modern_RGB_HSL) {
+				args := *token.Children
+				removeAlpha := false
+				addAlpha := false
+
+				// "hsl(1deg, 2%, 3%)" => "hsl(1, 2%, 3%)"
+				if (text == "hsl(" || text == "hsla(") && len(args) > 0 {
+					if degrees, ok := degreesForAngle(args[0]); ok {
+						args[0].Kind = css_lexer.TNumber
+						args[0].Text = floatToString(degrees)
+					}
+				}
+
+				switch len(args) {
+				case 3:
+					// "rgba(1 2 3)" => "rgb(1, 2, 3)"
+					// "hsla(1 2% 3%)" => "rgb(1, 2%, 3%)"
+					removeAlpha = true
+					args[0].HasWhitespaceAfter = false
+					args[1].HasWhitespaceAfter = false
+					token.Children = &[]css_ast.Token{
+						args[0], commaToken,
+						args[1], commaToken,
+						args[2],
+					}
+
+				case 5:
+					// "rgba(1, 2, 3)" => "rgb(1, 2, 3)"
+					// "hsla(1, 2%, 3%)" => "hsl(1%, 2%, 3%)"
+					if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma {
+						removeAlpha = true
+						break
+					}
+
+					// "rgb(1 2 3 / 4%)" => "rgba(1, 2, 3, 0.04)"
+					// "hsl(1 2% 3% / 4%)" => "hsla(1, 2%, 3%, 0.04)"
+					if args[3].Kind == css_lexer.TDelimSlash {
+						addAlpha = true
+						args[0].HasWhitespaceAfter = false
+						args[1].HasWhitespaceAfter = false
+						args[2].HasWhitespaceAfter = false
+						token.Children = &[]css_ast.Token{
+							args[0], commaToken,
+							args[1], commaToken,
+							args[2], commaToken,
+							lowerAlphaPercentageToNumber(args[4]),
+						}
+					}
+
+				case 7:
+					// "rgb(1%, 2%, 3%, 4%)" => "rgba(1%, 2%, 3%, 0.04)"
+					// "hsl(1, 2%, 3%, 4%)" => "hsla(1, 2%, 3%, 0.04)"
+					if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma && args[5].Kind == css_lexer.TComma {
+						addAlpha = true
+						args[6] = lowerAlphaPercentageToNumber(args[6])
+					}
+				}
+
+				if removeAlpha {
+					if text == "rgba(" {
+						token.Text = "rgb("
+					} else if text == "hsla(" {
+						token.Text = "hsl("
+					}
+				} else if addAlpha {
+					if text == "rgb(" {
+						token.Text = "rgba("
+					} else if text == "hsl(" {
+						token.Text = "hsla("
+					}
+				}
+			}
+		}
+	}
+
+	return token
 }
 
 func (p *parser) mangleColor(token css_ast.Token) css_ast.Token {
@@ -295,8 +488,12 @@ func (p *parser) processDeclarations(rules []css_ast.R) {
 			css_ast.DTextDecorationColor,
 			css_ast.DTextEmphasisColor:
 
-			if p.options.MangleSyntax && len(decl.Value) == 1 {
-				decl.Value[0] = p.mangleColor(decl.Value[0])
+			if len(decl.Value) == 1 {
+				decl.Value[0] = p.lowerColor(decl.Value[0])
+
+				if p.options.MangleSyntax {
+					decl.Value[0] = p.mangleColor(decl.Value[0])
+				}
 			}
 		}
 	}

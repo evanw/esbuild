@@ -53,6 +53,7 @@ func TestTokens(t *testing.T) {
 		{"!", TDelimExclamation, "\"!\""},
 		{">", TDelimGreaterThan, "\">\""},
 		{"+", TDelimPlus, "\"+\""},
+		{"/", TDelimSlash, "\"/\""},
 		{"~", TDelimTilde, "\"~\""},
 		{"1px", TDimension, "dimension"},
 		{"max(", TFunction, "function token"},

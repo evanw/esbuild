@@ -40,6 +40,7 @@ const (
 	TDelimExclamation
 	TDelimGreaterThan
 	TDelimPlus
+	TDelimSlash
 	TDelimTilde
 	TDimension
 	TFunction
@@ -80,6 +81,7 @@ var tokenToString = []string{
 	"\"!\"",
 	"\">\"",
 	"\"+\"",
+	"\"/\"",
 	"\"~\"",
 	"dimension",
 	"function token",
@@ -105,8 +107,9 @@ func (t T) String() string {
 // range in the input file instead of directly containing the substring of text
 // since a range takes up less memory than a string.
 type Token struct {
-	Kind  T
-	Range logger.Range
+	Range      logger.Range // 8 bytes
+	UnitOffset uint16       // 2 bytes
+	Kind       T            // 1 byte
 }
 
 func (token Token) Raw(contents string) string {
@@ -170,7 +173,7 @@ func (lexer *lexer) next() {
 				lexer.consumeToEndOfSingleLineComment()
 				continue
 			}
-			lexer.Token.Kind = TDelim
+			lexer.Token.Kind = TDelimSlash
 
 		case ' ', '\t', '\n', '\r', '\f':
 			lexer.step()
@@ -658,6 +661,7 @@ func (lexer *lexer) consumeNumeric() T {
 
 	// Determine the numeric type
 	if lexer.wouldStartIdentifier() {
+		lexer.Token.UnitOffset = uint16(lexer.Token.Range.Len)
 		lexer.consumeName()
 		return TDimension
 	}
@@ -727,6 +731,14 @@ func ContentsOfURLToken(raw string) (string, logger.Range) {
 
 func ContentsOfStringToken(raw string) string {
 	return decodeEscapesInToken(raw[1 : len(raw)-1])
+}
+
+func ContentsOfDimensionToken(raw string) (string, string) {
+	i := len(raw)
+	for i > 0 && raw[i-1] != '.' && (raw[i-1] < '0' || raw[i-1] > '9') {
+		i--
+	}
+	return raw[:i], raw[i:]
 }
 
 func decodeEscapesInToken(inner string) string {
