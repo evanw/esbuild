@@ -253,6 +253,12 @@ func TestColorNames(t *testing.T) {
 	expectPrintedMangle(t, "a { color: #ffc0cb }", "a {\n  color: pink;\n}\n")
 	expectPrintedMangle(t, "a { color: #ffc0cbef }", "a {\n  color: #ffc0cbef;\n}\n")
 	expectPrintedMangle(t, "a { color: #ffc0cbff }", "a {\n  color: pink;\n}\n")
+
+	expectPrinted(t, "a { color: white }", "a {\n  color: white;\n}\n")
+	expectPrinted(t, "a { color: tUrQuOiSe }", "a {\n  color: tUrQuOiSe;\n}\n")
+
+	expectPrintedMangle(t, "a { color: white }", "a {\n  color: #fff;\n}\n")
+	expectPrintedMangle(t, "a { color: tUrQuOiSe }", "a {\n  color: #40e0d0;\n}\n")
 }
 
 func TestDeclaration(t *testing.T) {
