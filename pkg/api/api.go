@@ -17,8 +17,7 @@
 //     package main
 //
 //     import (
-//         "fmt"
-//         "io/ioutil"
+//         "os"
 //
 //         "github.com/evanw/esbuild/pkg/api"
 //     )
