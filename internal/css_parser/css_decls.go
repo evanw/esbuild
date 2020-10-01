@@ -248,7 +248,13 @@ func floatToString(a float64) string {
 }
 
 func degreesForAngle(token css_ast.Token) (float64, bool) {
-	if token.Kind == css_lexer.TDimension {
+	switch token.Kind {
+	case css_lexer.TNumber:
+		if value, err := strconv.ParseFloat(token.Text, 64); err == nil {
+			return value, true
+		}
+
+	case css_lexer.TDimension:
 		if value, err := strconv.ParseFloat(token.DimensionValue(), 64); err == nil {
 			switch token.DimensionUnit() {
 			case "deg":
@@ -468,11 +474,59 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 			if r, ok := parseColorByte(r, 1); ok {
 				if g, ok := parseColorByte(g, 1); ok {
 					if b, ok := parseColorByte(b, 1); ok {
-						hex := uint32((r << 24) | (g << 16) | (b << 8))
-						if a.Kind == css_lexer.T(0) {
-							return hex | 255, true
-						} else if a, ok := parseColorByte(a, 255); ok {
-							return hex | a, true
+						if a, ok := parseAlphaByte(a); ok {
+							return uint32((r << 24) | (g << 16) | (b << 8) | a), true
+						}
+					}
+				}
+			}
+
+		case "hsl(", "hsla(":
+			args := *token.Children
+			var h, s, l, a css_ast.Token
+
+			switch len(args) {
+			case 3:
+				// "hsl(1 2 3)"
+				h, s, l = args[0], args[1], args[2]
+
+			case 5:
+				// "hsla(1, 2, 3)"
+				if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma {
+					h, s, l = args[0], args[2], args[4]
+					break
+				}
+
+				// "hsl(1 2 3 / 4%)"
+				if args[3].Kind == css_lexer.TDelimSlash {
+					h, s, l, a = args[0], args[1], args[2], args[4]
+				}
+
+			case 7:
+				// "hsl(1%, 2%, 3%, 4%)"
+				if args[1].Kind == css_lexer.TComma && args[3].Kind == css_lexer.TComma && args[5].Kind == css_lexer.TComma {
+					h, s, l, a = args[0], args[2], args[4], args[6]
+				}
+			}
+
+			// Convert from HSL to RGB. The algorithm is from the section
+			// "Converting HSL colors to sRGB colors" in the specification.
+			if h, ok := degreesForAngle(h); ok {
+				if s, ok := fractionForPercentage(s); ok {
+					if l, ok := fractionForPercentage(l); ok {
+						if a, ok := parseAlphaByte(a); ok {
+							h /= 360.0
+							var t2 float64
+							if l <= 0.5 {
+								t2 = l * (s + 1)
+							} else {
+								t2 = l + s - (l * s)
+							}
+							t1 := l*2 - t2
+							r := hueToRgb(t1, t2, h+1.0/3.0)
+							g := hueToRgb(t1, t2, h)
+							b := hueToRgb(t1, t2, h-1.0/3.0)
+							return uint32((r << 24) | (g << 16) | (b << 8) | a), true
 						}
 					}
 				}
@@ -483,17 +537,64 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 	return 0, false
 }
 
-func parseColorByte(token css_ast.Token, scale float64) (i uint32, ok bool) {
+func hueToRgb(t1 float64, t2 float64, hue float64) uint32 {
+	hue -= math.Floor(hue)
+	hue *= 6.0
+	var f float64
+	if hue < 1 {
+		f = (t2-t1)*hue + t1
+	} else if hue < 3 {
+		f = t2
+	} else if hue < 4 {
+		f = (t2-t1)*(4-hue) + t1
+	} else {
+		f = t1
+	}
+	i := int(math.Round(f * 255))
+	if i < 0 {
+		i = 0
+	} else if i > 255 {
+		i = 255
+	}
+	return uint32(i)
+}
+
+func fractionForPercentage(token css_ast.Token) (float64, bool) {
+	if token.Kind == css_lexer.TPercentage {
+		if f, err := strconv.ParseFloat(token.PercentValue(), 64); err == nil {
+			if f < 0 {
+				return 0, true
+			}
+			if f > 100 {
+				return 1, true
+			}
+			return f / 100.0, true
+		}
+	}
+	return 0, false
+}
+
+func parseAlphaByte(token css_ast.Token) (uint32, bool) {
+	if token.Kind == css_lexer.T(0) {
+		return 255, true
+	}
+	return parseColorByte(token, 255)
+}
+
+func parseColorByte(token css_ast.Token, scale float64) (uint32, bool) {
+	var i int
+	var ok bool
+
 	switch token.Kind {
 	case css_lexer.TNumber:
 		if f, err := strconv.ParseFloat(token.Text, 64); err == nil {
-			i = uint32(math.Round(f * scale))
+			i = int(math.Round(f * scale))
 			ok = true
 		}
 
 	case css_lexer.TPercentage:
 		if f, err := strconv.ParseFloat(token.PercentValue(), 64); err == nil {
-			i = uint32(math.Round(f * (255.0 / 100.0)))
+			i = int(math.Round(f * (255.0 / 100.0)))
 			ok = true
 		}
 	}
@@ -503,7 +604,7 @@ func parseColorByte(token css_ast.Token, scale float64) (i uint32, ok bool) {
 	} else if i > 255 {
 		i = 255
 	}
-	return i, ok
+	return uint32(i), ok
 }
 
 func (p *parser) mangleColor(token css_ast.Token) css_ast.Token {

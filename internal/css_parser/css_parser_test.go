@@ -280,6 +280,20 @@ func TestColorRGBA(t *testing.T) {
 	expectPrintedMangle(t, "a { color: rgba(1%, 2%, 3%, 50%) }", "a {\n  color: #0305087f;\n}\n")
 }
 
+func TestColorHSLA(t *testing.T) {
+	expectPrintedMangle(t, ".red { color: hsl(0, 100%, 50%) }", ".red {\n  color: red;\n}\n")
+	expectPrintedMangle(t, ".orange { color: hsl(30deg, 100%, 50%) }", ".orange {\n  color: #ff8000;\n}\n")
+	expectPrintedMangle(t, ".yellow { color: hsl(60 100% 50%) }", ".yellow {\n  color: #ff0;\n}\n")
+	expectPrintedMangle(t, ".green { color: hsl(120, 100%, 50%) }", ".green {\n  color: #0f0;\n}\n")
+	expectPrintedMangle(t, ".cyan { color: hsl(200grad, 100%, 50%) }", ".cyan {\n  color: #0ff;\n}\n")
+	expectPrintedMangle(t, ".blue { color: hsl(240, 100%, 50%) }", ".blue {\n  color: #00f;\n}\n")
+	expectPrintedMangle(t, ".purple { color: hsl(0.75turn 100% 50%) }", ".purple {\n  color: #7f00ff;\n}\n")
+	expectPrintedMangle(t, ".magenta { color: hsl(300, 100%, 50%) }", ".magenta {\n  color: #f0f;\n}\n")
+
+	expectPrintedMangle(t, "a { color: hsl(30 25% 50% / 50%) }", "a {\n  color: #9f80607f;\n}\n")
+	expectPrintedMangle(t, "a { color: hsla(30 25% 50% / 50%) }", "a {\n  color: #9f80607f;\n}\n")
+}
+
 func TestLowerColor(t *testing.T) {
 	expectPrintedLower(t, "a { color: rebeccapurple }", "a {\n  color: #663399;\n}\n")
 

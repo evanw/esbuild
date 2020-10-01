@@ -8,7 +8,7 @@
 
 * Minify some CSS colors
 
-    The minifier can now reduce the size of some CSS colors. This is the initial work to start CSS minification in general beyond whitespace removal.
+    The minifier can now reduce the size of some CSS colors. This is the initial work to start CSS minification in general beyond whitespace removal. There is currently support for minifying hex, `rgb()/rgba()`, and `hsl()/hsla()` into hex or shorthand hex. The minification process respects the configured target browser and doesn't use any syntax that wouldn't be supported.
 
 * Lower newer CSS syntax for older browsers
 
