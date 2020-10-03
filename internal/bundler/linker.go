@@ -1101,6 +1101,15 @@ func (c *linkerContext) scanImportsAndExports() {
 			c.generateCodeForLazyExport(sourceIndex)
 		}
 
+		// If the output format doesn't have an implicit CommonJS wrapper, any file
+		// that uses CommonJS features will need to be wrapped, even though the
+		// resulting wrapper won't be invoked by other files.
+		if repr.meta.cjsStyleExports &&
+			(c.options.OutputFormat == config.FormatIIFE ||
+				c.options.OutputFormat == config.FormatESModule) {
+			repr.meta.cjsWrap = true
+		}
+
 		// Even if the output file is CommonJS-like, we may still need to wrap
 		// CommonJS-style files. Any file that imports a CommonJS-style file will
 		// cause that file to need to be wrapped. This is because the import
@@ -1149,15 +1158,6 @@ func (c *linkerContext) scanImportsAndExports() {
 
 		if len(repr.ast.NamedImports) > 0 {
 			c.matchImportsWithExportsForFile(uint32(sourceIndex))
-		}
-
-		// If the output format doesn't have an implicit CommonJS wrapper, any file
-		// that uses CommonJS features will need to be wrapped, even though the
-		// resulting wrapper won't be invoked by other files.
-		if !repr.meta.cjsWrap && repr.meta.cjsStyleExports &&
-			(c.options.OutputFormat == config.FormatIIFE ||
-				c.options.OutputFormat == config.FormatESModule) {
-			repr.meta.cjsWrap = true
 		}
 
 		// If we're exporting as CommonJS and this file doesn't need a wrapper,
