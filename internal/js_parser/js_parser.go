@@ -10073,6 +10073,7 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		parts = p.appendPart(parts, stmts)
 	} else {
 		// When bundling, each top-level statement is potentially a separate part
+		var before []js_ast.Part
 		var after []js_ast.Part
 		for _, stmt := range stmts {
 			switch s := stmt.Data.(type) {
@@ -10084,6 +10085,12 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 					parts = p.appendPart(parts, []js_ast.Stmt{{Loc: stmt.Loc, Data: &clone}})
 				}
 
+			case *js_ast.SImport, *js_ast.SExportFrom, *js_ast.SExportStar:
+				// Move imports (and import-like exports) to the top of the file to
+				// ensure that if they are converted to a require() call, the effects
+				// will take place before any other statements are evaluated.
+				before = p.appendPart(before, []js_ast.Stmt{stmt})
+
 			case *js_ast.SExportEquals:
 				// TypeScript "export = value;" becomes "module.exports = value;". This
 				// must happen at the end after everything is parsed because TypeScript
@@ -10094,7 +10101,7 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 				parts = p.appendPart(parts, []js_ast.Stmt{stmt})
 			}
 		}
-		parts = append(parts, after...)
+		parts = append(append(before, parts...), after...)
 	}
 
 	result = p.toAST(source, parts, hashbang, directive)

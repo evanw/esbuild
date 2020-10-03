@@ -33,13 +33,13 @@ var require_foo = __commonJS((exports2) => {
   exports2.foo = 123;
 });
 
-// /bar.js
-const foo = __toModule(require_foo());
-
 // /entry.js
 __export(exports, {
   y: () => foo.x
 });
+
+// /bar.js
+const foo = __toModule(require_foo());
 
 ================================================================================
 TestExportSelfAndImportSelfCommonJS
@@ -145,13 +145,13 @@ TestExportSelfIIFE
 ================================================================================
 TestExportStarDefaultExportCommonJS
 ---------- /out.js ----------
-// /foo.js
-let foo = "foo";
-
 // /entry.js
 __export(exports, {
   foo: () => foo
 });
+
+// /foo.js
+let foo = "foo";
 
 ================================================================================
 TestImportExportOtherAsNamespaceCommonJS
@@ -363,14 +363,14 @@ console.log(foo);
 ================================================================================
 TestImportStarExportStarCapture
 ---------- /out.js ----------
-// /foo.js
-const foo = 123;
-
 // /bar.js
 const bar_exports = {};
 __export(bar_exports, {
   foo: () => foo
 });
+
+// /foo.js
+const foo = 123;
 
 // /entry.js
 let foo2 = 234;
@@ -389,18 +389,18 @@ console.log(foo, foo, foo2);
 ================================================================================
 TestImportStarExportStarOmitAmbiguous
 ---------- /out.js ----------
-// /foo.js
-const x = 1;
-
-// /bar.js
-const z = 4;
-
 // /common.js
 const common_exports = {};
 __export(common_exports, {
   x: () => x,
   z: () => z
 });
+
+// /foo.js
+const x = 1;
+
+// /bar.js
+const z = 4;
 
 // /entry.js
 console.log(common_exports);
@@ -467,18 +467,18 @@ console.log(foo, foo, foo2);
 ================================================================================
 TestImportStarOfExportStarAs
 ---------- /out.js ----------
+// /foo.js
+const foo_exports = {};
+__export(foo_exports, {
+  bar_ns: () => bar_exports
+});
+
 // /bar.js
 const bar_exports = {};
 __export(bar_exports, {
   bar: () => bar
 });
 const bar = 123;
-
-// /foo.js
-const foo_exports = {};
-__export(foo_exports, {
-  bar_ns: () => bar_exports
-});
 
 // /entry.js
 console.log(foo_exports);
@@ -493,14 +493,14 @@ console.log(foo);
 ================================================================================
 TestIssue176
 ---------- /out.js ----------
-// /folders/child/foo.js
-const foo = () => "hi there";
-
 // /folders/index.js
 const folders_exports = {};
 __export(folders_exports, {
   foo: () => foo
 });
+
+// /folders/child/foo.js
+const foo = () => "hi there";
 
 // /entry.js
 console.log(JSON.stringify(folders_exports));
@@ -533,14 +533,14 @@ console.log(foo_exports, void 0);
 ================================================================================
 TestNamespaceImportReExportStarMissingES6
 ---------- /out.js ----------
-// /bar.js
-const x = 123;
-
 // /foo.js
 const foo_exports = {};
 __export(foo_exports, {
   x: () => x
 });
+
+// /bar.js
+const x = 123;
 
 // /entry.js
 console.log(foo_exports, void 0);

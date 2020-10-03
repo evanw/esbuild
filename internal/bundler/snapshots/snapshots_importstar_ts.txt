@@ -133,14 +133,14 @@ console.log(foo);
 ================================================================================
 TestTSImportStarExportStarCapture
 ---------- /out.js ----------
-// /foo.ts
-const foo = 123;
-
 // /bar.ts
 const bar_exports = {};
 __export(bar_exports, {
   foo: () => foo
 });
+
+// /foo.ts
+const foo = 123;
 
 // /entry.ts
 let foo2 = 234;

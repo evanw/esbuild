@@ -372,6 +372,9 @@ var require_h = __commonJS((exports) => {
   foo.prop = 123;
 });
 
+// /entry.js
+require_commonjs();
+
 // /a.js
 const abc = void 0;
 
@@ -383,7 +386,6 @@ __export(b_exports, {
 const xyz = null;
 
 // /entry.js
-require_commonjs();
 require_c();
 require_d();
 require_e();
@@ -1321,9 +1323,6 @@ bar.default();
 ================================================================================
 TestReExportDefaultExternalCommonJS
 ---------- /out.js ----------
-// /bar.js
-const bar = __toModule(require("bar"));
-
 // /entry.js
 __export(exports, {
   bar: () => bar.default,
@@ -1331,14 +1330,17 @@ __export(exports, {
 });
 const foo = __toModule(require("foo"));
 
+// /bar.js
+const bar = __toModule(require("bar"));
+
 ================================================================================
 TestReExportDefaultExternalES6
 ---------- /out.js ----------
-// /bar.js
-import {default as default2} from "bar";
-
 // /entry.js
 import {default as default3} from "foo";
+
+// /bar.js
+import {default as default2} from "bar";
 export {
   default2 as bar,
   default3 as foo
@@ -1809,6 +1811,9 @@ var require_es6_ns_export_abstract_class = __commonJS((exports) => {
   console.log(exports);
 });
 
+// /entry.js
+const cjs = __toModule(require_cjs());
+
 // /es6-import-stmt.js
 const dummy = __toModule(require_dummy());
 console.log(void 0);
@@ -1874,18 +1879,21 @@ console.log(void 0);
 const dummy2 = __toModule(require_dummy());
 console.log(void 0);
 
+// /entry.js
+const es6_export_star = __toModule(require_es6_export_star());
+
 // /es6-export-star-as.js
 const ns = __toModule(require_dummy());
 console.log(void 0);
+
+// /entry.js
+const es6_export_assign = __toModule(require_es6_export_assign());
 
 // /es6-export-import-assign.ts
 const x2 = require_dummy();
 console.log(void 0);
 
 // /entry.js
-const cjs = __toModule(require_cjs());
-const es6_export_star = __toModule(require_es6_export_star());
-const es6_export_assign = __toModule(require_es6_export_assign());
 const es6_ns_export_variable = __toModule(require_es6_ns_export_variable());
 const es6_ns_export_function = __toModule(require_es6_ns_export_function());
 const es6_ns_export_async_function = __toModule(require_es6_ns_export_async_function());
@@ -2010,6 +2018,10 @@ switch (x) {
 // /node_modules/not-instanceof.js
 !a instanceof b;
 
+// /entry.js
+const return_asi = __toModule(require_return_asi());
+const return_asi2 = __toModule(require_return_asi2());
+
 // /bad-typeof.js
 typeof x == "null";
 
@@ -2083,10 +2095,6 @@ class Foo6 extends Bar {
     delete super.foo;
   }
 }
-
-// /entry.js
-const return_asi = __toModule(require_return_asi());
-const return_asi2 = __toModule(require_return_asi2());
 
 ================================================================================
 TestWithStatementTaintingNoBundle

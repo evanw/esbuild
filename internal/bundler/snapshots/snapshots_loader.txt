@@ -59,10 +59,10 @@ console.log(require_test());
 
 ================================================================================
 TestLoaderFileCommonJSAndES6
----------- /x.CH3K3DWF.txt ----------
-x
 ---------- /y.SXFQX7JJ.txt ----------
 y
+---------- /x.CH3K3DWF.txt ----------
+x
 ---------- /out.js ----------
 // /x.txt
 var require_x = __commonJS((exports, module) => {

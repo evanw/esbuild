@@ -14,6 +14,52 @@
 
     Newer color syntax such as `rgba(255 0 0 / 50%)` will be converted to older syntax (in this case `rgba(255, 0, 0, 0.5)`) when the target browser doesn't support the newer syntax. For example, this happens when using `--target=chrome60`.
 
+* Fix an ordering issue with `import` statements ([#421](https://github.com/evanw/esbuild/issues/421))
+
+    Previously `import` statements that resolved to a CommonJS module turned into a call to `require()` inline. This was subtly incorrect when combined with tree shaking because it could sometimes cause imported modules to be reordered:
+
+    ```js
+    import {foo} from './cjs-file'
+    import {bar} from './esm-file'
+    console.log(foo, bar)
+    ```
+
+    That code was previously compiled into something like this, which is incorrect because the evaluation of `bar` may depend on side effects from importing `cjs-file.js`:
+
+    ```js
+    // ./cjs-file.js
+    var require_cjs_file = __commonJS(() => {
+      ...
+    })
+
+    // ./esm-file.js
+    let bar = ...;
+
+    // ./example.js
+    const cjs_file = __toModule(require_cjs_file())
+    console.log(cjs_file.foo, bar)
+    ```
+
+    That code is now compiled into something like this:
+
+    ```js
+    // ./cjs-file.js
+    var require_cjs_file = __commonJS(() => {
+      ...
+    })
+
+    // ./example.js
+    const cjs_file = __toModule(require_cjs_file())
+
+    // ./esm-file.js
+    let bar = ...;
+
+    // ./example.js
+    console.log(cjs_file.foo, bar)
+    ```
+
+    This now means that a single input file can end up in multiple discontiguous regions in the output file as is the case with `example.js` here, which wasn't the case before this bug fix.
+
 ## 0.7.8
 
 * Move external `@import` rules to the top

@@ -92,6 +92,28 @@
     )
   }
 
+  // Test internal import order (see https://github.com/evanw/esbuild/issues/421)
+  tests.push(
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `
+        import {foo} from './cjs'
+        import {bar} from './esm'
+        if (foo !== 1 || bar !== 2) throw 'fail'
+      `,
+      'cjs.js': `exports.foo = 1; global.internal_import_order_test1 = 2`,
+      'esm.js': `export let bar = global.internal_import_order_test1`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `
+        if (foo !== 3 || bar !== 4) throw 'fail'
+        import {foo} from './cjs'
+        import {bar} from './esm'
+      `,
+      'cjs.js': `exports.foo = 3; global.internal_import_order_test2 = 4`,
+      'esm.js': `export let bar = global.internal_import_order_test2`,
+    }),
+  )
+
   // Test internal CommonJS export
   tests.push(
     test(['--bundle', 'in.js', '--outfile=node.js'], {
