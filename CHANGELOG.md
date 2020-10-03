@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.9
 
 * Fixed panic when using a `url()` import in CSS with the `--metafile` option
 
