@@ -3277,6 +3277,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		var entryPointTail *js_printer.PrintResult
 		var commentList []string
 		commentSet := make(map[string]bool)
+		prevComment := uint32(0)
 		for _, compileResult := range compileResults {
 			isRuntime := compileResult.sourceIndex == runtime.SourceIndex
 			for text := range compileResult.ExtractedComments {
@@ -3292,8 +3293,8 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				entryPointTail = compileResult.entryPointTail
 			}
 
-			// Don't add a file name comment for the runtime
-			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && !isRuntime {
+			// Add a comment with the file path before the file contents
+			if c.options.Mode == config.ModeBundle && !c.options.RemoveWhitespace && prevComment != compileResult.sourceIndex && len(compileResult.JS) > 0 {
 				if newlineBeforeComment {
 					prevOffset.advanceString("\n")
 					j.AddString("\n")
@@ -3302,11 +3303,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				text := fmt.Sprintf("%s// %s\n", indent, c.files[compileResult.sourceIndex].source.PrettyPath)
 				prevOffset.advanceString(text)
 				j.AddString(text)
-			}
-
-			// Omit the trailing semicolon when minifying the last file in IIFE mode
-			if !isRuntime || len(compileResult.JS) > 0 {
-				newlineBeforeComment = true
+				prevComment = compileResult.sourceIndex
 			}
 
 			// Don't include the runtime in source maps
@@ -3341,6 +3338,11 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 						js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath),
 						len(compileResult.JS)))
 				}
+			}
+
+			// Put a newline before the next file path comment
+			if len(compileResult.JS) > 0 {
+				newlineBeforeComment = true
 			}
 		}
 

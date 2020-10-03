@@ -59,8 +59,6 @@ import {
   p,
   q
 } from "./chunk.4MSIEML2.js";
-
-// /a.js
 export {
   p,
   q
@@ -71,8 +69,6 @@ import {
   p,
   q
 } from "./chunk.4MSIEML2.js";
-
-// /b.js
 export {
   p,
   q
@@ -102,8 +98,6 @@ setValue(123);
 
 ---------- /out/b.js ----------
 import "./chunk.77LFXWQJ.js";
-
-// /b.js
 
 ---------- /out/chunk.77LFXWQJ.js ----------
 // /shared.js
@@ -234,8 +228,6 @@ import("./foo.js").then(({default: {bar: b}}) => console.log(foo.bar, b));
 import {
   require_foo
 } from "./chunk.FPKGPTVM.js";
-
-// /foo.js
 export default require_foo();
 
 ---------- /out/chunk.FPKGPTVM.js ----------
@@ -262,8 +254,6 @@ import("./foo.js").then(({bar: b}) => console.log(bar, b));
 import {
   bar
 } from "./chunk.T36DLUHD.js";
-
-// /foo.js
 export {
   bar
 };
@@ -332,7 +322,7 @@ console.log("imported");
 ================================================================================
 TestSplittingMissingLazyExport
 ---------- /out/a.js ----------
-import "./chunk.T3B3VZJH.js";
+import "./chunk.3I42H3S6.js";
 
 // /empty.js
 const empty_exports = {};
@@ -346,7 +336,7 @@ function foo() {
 console.log(foo());
 
 ---------- /out/b.js ----------
-import "./chunk.T3B3VZJH.js";
+import "./chunk.3I42H3S6.js";
 
 // /common.js
 function bar() {
@@ -356,10 +346,7 @@ function bar() {
 // /b.js
 console.log(bar());
 
----------- /out/chunk.T3B3VZJH.js ----------
-// /empty.js
-
-// /common.js
+---------- /out/chunk.3I42H3S6.js ----------
 
 ================================================================================
 TestSplittingNestedDirectories
@@ -393,8 +380,6 @@ TestSplittingReExportIssue273
 import {
   a
 } from "./chunk.FXMNXTQ2.js";
-
-// /a.js
 export {
   a
 };
@@ -403,8 +388,6 @@ export {
 import {
   a
 } from "./chunk.FXMNXTQ2.js";
-
-// /b.js
 export {
   a
 };

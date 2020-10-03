@@ -498,8 +498,6 @@ export {
     const result = await readFileAsync(output, 'utf8')
     assert.strictEqual(result, `// scripts/.js-api-tests/forceTsConfig/a/b/test-impl.js
 console.log("success");
-
-// scripts/.js-api-tests/forceTsConfig/a/b/c/in.js
 `)
   },
 }

@@ -192,8 +192,6 @@ statement();
 statement();
 const bar = 123;
 
-// /foo.js
-
 // /entry.js
 console.log(bar);
 
@@ -202,8 +200,6 @@ TestImportOfExportStarOfImport
 ---------- /out.js ----------
 // /baz.js
 const value = 123;
-
-// /bar.js
 
 // /foo.js
 statement();
@@ -304,8 +300,6 @@ __export(foo_exports, {
 });
 const foo = 123;
 
-// /bar.js
-
 // /entry.js
 let foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
@@ -320,8 +314,6 @@ __export(foo_exports, {
 });
 const foo = 123;
 
-// /bar.js
-
 // /entry.js
 let foo2 = 234;
 console.log(foo_exports.foo, foo_exports.foo, foo2);
@@ -329,10 +321,6 @@ console.log(foo_exports.foo, foo_exports.foo, foo2);
 ================================================================================
 TestImportStarExportImportStarUnused
 ---------- /out.js ----------
-// /foo.js
-
-// /bar.js
-
 // /entry.js
 let foo = 234;
 console.log(foo);
@@ -346,8 +334,6 @@ __export(foo_exports, {
   foo: () => foo
 });
 const foo = 123;
-
-// /bar.js
 
 // /entry.js
 let foo2 = 234;
@@ -363,8 +349,6 @@ __export(foo_exports, {
 });
 const foo = 123;
 
-// /bar.js
-
 // /entry.js
 let foo2 = 234;
 console.log(foo_exports.foo, foo_exports.foo, foo2);
@@ -372,10 +356,6 @@ console.log(foo_exports.foo, foo_exports.foo, foo2);
 ================================================================================
 TestImportStarExportStarAsUnused
 ---------- /out.js ----------
-// /foo.js
-
-// /bar.js
-
 // /entry.js
 let foo = 234;
 console.log(foo);
@@ -401,8 +381,6 @@ TestImportStarExportStarNoCapture
 ---------- /out.js ----------
 // /foo.js
 const foo = 123;
-
-// /bar.js
 
 // /entry.js
 let foo2 = 234;
@@ -430,10 +408,6 @@ console.log(common_exports);
 ================================================================================
 TestImportStarExportStarUnused
 ---------- /out.js ----------
-// /foo.js
-
-// /bar.js
-
 // /entry.js
 let foo = 234;
 console.log(foo);
@@ -512,8 +486,6 @@ console.log(foo_exports);
 ================================================================================
 TestImportStarUnused
 ---------- /out.js ----------
-// /foo.js
-
 // /entry.js
 let foo = 234;
 console.log(foo);
@@ -523,8 +495,6 @@ TestIssue176
 ---------- /out.js ----------
 // /folders/child/foo.js
 const foo = () => "hi there";
-
-// /folders/child/index.js
 
 // /folders/index.js
 const folders_exports = {};
@@ -578,10 +548,6 @@ console.log(foo_exports, void 0);
 ================================================================================
 TestNamespaceImportReExportStarUnusedMissingES6
 ---------- /out.js ----------
-// /bar.js
-
-// /foo.js
-
 // /entry.js
 console.log(void 0);
 
@@ -600,8 +566,6 @@ console.log(ns.foo);
 ================================================================================
 TestNamespaceImportUnusedMissingES6
 ---------- /out.js ----------
-// /foo.js
-
 // /entry.js
 console.log(void 0);
 
@@ -610,8 +574,6 @@ TestOtherFileExportSelfAsNamespaceUnusedES6
 ---------- /out.js ----------
 // /foo.js
 const foo = 123;
-
-// /entry.js
 export {
   foo
 };
@@ -621,8 +583,6 @@ TestOtherFileImportExportSelfAsNamespaceUnusedES6
 ---------- /out.js ----------
 // /foo.js
 const foo = 123;
-
-// /entry.js
 export {
   foo
 };
@@ -637,8 +597,6 @@ __export(bar_exports, {
 });
 const x = 123;
 
-// /foo.js
-
 // /entry.js
 console.log(bar_exports, bar_exports.foo);
 
@@ -651,8 +609,6 @@ __export(bar_exports, {
   x: () => x
 });
 const x = 123;
-
-// /foo.js
 
 // /entry.js
 console.log(bar_exports.foo);
@@ -667,8 +623,6 @@ __export(foo_exports, {
   ns: () => foo_exports
 });
 const foo = 123;
-
-// /entry.js
 export {
   foo,
   foo_exports as ns
@@ -684,8 +638,6 @@ __export(foo_exports, {
   ns: () => foo_exports
 });
 const foo = 123;
-
-// /entry.js
 export {
   foo,
   foo_exports as ns

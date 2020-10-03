@@ -259,10 +259,6 @@ TestExportChain
 ---------- /out.js ----------
 // /bar.js
 const c = 123;
-
-// /foo.js
-
-// /entry.js
 export {
   c as a
 };
@@ -520,8 +516,6 @@ __export(b_exports, {
 });
 let foo2 = 123;
 
-// /test.ts
-
 // /c.ts
 const c_exports = {};
 __export(c_exports, {
@@ -593,8 +587,6 @@ import out from "./in-out-dir.js";
 import sha256 from "../src/sha256.min.js";
 import config from "/api/config?a=1&b=2";
 console.log(foo2, out, sha256, config);
-
-// /Users/user/project/src/index.js
 
 ================================================================================
 TestFalseRequire
@@ -1360,8 +1352,6 @@ var foo_default = "foo";
 
 // /bar.js
 var bar_default = "bar";
-
-// /entry.js
 export {
   bar_default as bar,
   foo_default as foo
@@ -1399,8 +1389,6 @@ TestReExportFSNode
 // /foo.js
 import * as fs from "fs";
 import {readFileSync} from "fs";
-
-// /entry.js
 export {
   fs as f,
   readFileSync as rfs

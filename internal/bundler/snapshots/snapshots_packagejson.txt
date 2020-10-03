@@ -14,8 +14,6 @@ try {
   var index = require_component_indexof();
 }
 
-// /Users/user/project/src/entry.js
-
 ================================================================================
 TestPackageJsonBrowserMapModuleDisabled
 ---------- /Users/user/project/out.js ----------
@@ -239,8 +237,6 @@ console.log(require_main_browser());
 const demo_pkg = __toModule(require_main_browser());
 console.log(demo_pkg.default);
 
-// /Users/user/project/src/entry.js
-
 ================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain
 ---------- /Users/user/project/out.js ----------
@@ -258,8 +254,6 @@ console.log(require_module());
 // /Users/user/project/src/test-module.js
 const demo_pkg = __toModule(require_module());
 console.log(demo_pkg.default);
-
-// /Users/user/project/src/entry.js
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireSameFile
@@ -287,8 +281,6 @@ console.log(require_main());
 // /Users/user/project/src/test-module.js
 const demo_pkg = __toModule(require_main());
 console.log(demo_pkg.default);
-
-// /Users/user/project/src/entry.js
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportOnly

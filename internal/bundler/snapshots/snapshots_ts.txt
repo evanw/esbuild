@@ -143,8 +143,6 @@ console.log(b.default);
 ================================================================================
 TestTSExportMissingES6
 ---------- /out.js ----------
-// /bar.js
-
 // /foo.ts
 const foo_exports = {};
 
@@ -187,8 +185,6 @@ console.log("correct");
 
 // /order-jsx.ts
 console.log("correct");
-
-// /entry.ts
 
 ================================================================================
 TestTSImportEmptyNamespace

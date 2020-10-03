@@ -70,8 +70,6 @@ __export(foo_exports, {
 });
 const foo = 123;
 
-// /bar.ts
-
 // /entry.ts
 let foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
@@ -85,8 +83,6 @@ __export(foo_exports, {
   foo: () => foo
 });
 const foo = 123;
-
-// /bar.ts
 
 // /entry.ts
 let foo2 = 234;
@@ -109,8 +105,6 @@ __export(foo_exports, {
 });
 const foo = 123;
 
-// /bar.ts
-
 // /entry.ts
 let foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
@@ -124,8 +118,6 @@ __export(foo_exports, {
   foo: () => foo
 });
 const foo = 123;
-
-// /bar.ts
 
 // /entry.ts
 let foo2 = 234;
@@ -159,8 +151,6 @@ TestTSImportStarExportStarNoCapture
 ---------- /out.js ----------
 // /foo.ts
 const foo = 123;
-
-// /bar.ts
 
 // /entry.ts
 let foo2 = 234;

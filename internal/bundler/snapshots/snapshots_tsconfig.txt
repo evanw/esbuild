@@ -158,15 +158,11 @@ TestTsconfigJsonOverrideMissing
 // /Users/user/project/other/foo-good.ts
 console.log("good");
 
-// /Users/user/project/src/app/entry.ts
-
 ================================================================================
 TestTsconfigJsonOverrideNodeModules
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/other/foo-good.ts
 console.log("good");
-
-// /Users/user/project/src/app/entry.ts
 
 ================================================================================
 TestTsconfigJsonTrailingCommaAllowed
@@ -185,8 +181,3 @@ console.log(util.default());
 ================================================================================
 TestTsconfigWarningsInsideNodeModules
 ---------- /Users/user/project/out.js ----------
-// /Users/user/project/src/foo/index.js
-
-// /Users/user/project/src/node_modules/bar/index.js
-
-// /Users/user/project/src/entry.tsx

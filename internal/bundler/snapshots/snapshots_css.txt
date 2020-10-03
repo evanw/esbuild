@@ -81,8 +81,6 @@ body {
 ================================================================================
 TestCSSFromJSMissingStarImport
 ---------- /out/entry.js ----------
-// /a.css
-
 // /entry.js
 console.log(void 0);
 
@@ -154,17 +152,11 @@ TestIgnoreURLsInAtRulePrelude
 ================================================================================
 TestImportCSSFromJS
 ---------- /out/entry.js ----------
-// /a.css
-
 // /a.js
 console.log("a");
 
-// /b.css
-
 // /b.js
 console.log("b");
-
-// /entry.js
 
 ---------- /out/entry.css ----------
 /* /a.css */
