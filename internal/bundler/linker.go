@@ -536,7 +536,7 @@ func (c *linkerContext) link() []OutputFile {
 
 	if c.options.Mode == config.ModePassThrough {
 		for _, entryPoint := range c.entryPoints {
-			c.markExportsAsUnbound(entryPoint)
+			c.preventExportsFromBeingRenamed(entryPoint)
 		}
 	}
 
@@ -3642,21 +3642,21 @@ func (offset *lineColumnOffset) advanceString(text string) {
 	}
 }
 
-func markBindingAsUnbound(binding js_ast.Binding, symbols js_ast.SymbolMap) {
+func preventBindingsFromBeingRenamed(binding js_ast.Binding, symbols js_ast.SymbolMap) {
 	switch b := binding.Data.(type) {
 	case *js_ast.BMissing:
 
 	case *js_ast.BIdentifier:
-		symbols.Get(b.Ref).Kind = js_ast.SymbolUnbound
+		symbols.Get(b.Ref).MustNotBeRenamed = true
 
 	case *js_ast.BArray:
 		for _, i := range b.Items {
-			markBindingAsUnbound(i.Binding, symbols)
+			preventBindingsFromBeingRenamed(i.Binding, symbols)
 		}
 
 	case *js_ast.BObject:
 		for _, p := range b.Properties {
-			markBindingAsUnbound(p.Value, symbols)
+			preventBindingsFromBeingRenamed(p.Value, symbols)
 		}
 
 	default:
@@ -3667,7 +3667,7 @@ func markBindingAsUnbound(binding js_ast.Binding, symbols js_ast.SymbolMap) {
 // Marking a symbol as unbound prevents it from being renamed or minified.
 // This is only used when a module is compiled independently. We use a very
 // different way of handling exports and renaming/minifying when bundling.
-func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
+func (c *linkerContext) preventExportsFromBeingRenamed(sourceIndex uint32) {
 	repr, ok := c.files[sourceIndex].repr.(*reprJS)
 	if !ok {
 		return
@@ -3692,7 +3692,7 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 			case *js_ast.SLocal:
 				if s.IsExport {
 					for _, decl := range s.Decls {
-						markBindingAsUnbound(decl.Binding, c.symbols)
+						preventBindingsFromBeingRenamed(decl.Binding, c.symbols)
 					}
 					hasImportOrExport = true
 				}
@@ -3728,7 +3728,7 @@ func (c *linkerContext) markExportsAsUnbound(sourceIndex uint32) {
 	// <script> tag). All symbols in nested scopes are still minified.
 	if !hasImportOrExport {
 		for _, member := range repr.ast.ModuleScope.Members {
-			c.symbols.Get(member.Ref).Kind = js_ast.SymbolUnbound
+			c.symbols.Get(member.Ref).MustNotBeRenamed = true
 		}
 	}
 }
