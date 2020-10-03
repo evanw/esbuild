@@ -36,6 +36,32 @@ func TestPackageJsonMain(t *testing.T) {
 	})
 }
 
+func TestPackageJsonBadMain(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import fn from 'demo-pkg'
+				console.log(fn())
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "./does-not-exist.js"
+				}
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestPackageJsonSyntaxErrorComment(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{

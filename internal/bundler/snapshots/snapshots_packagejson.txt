@@ -1,3 +1,17 @@
+TestPackageJsonBadMain
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/node_modules/demo-pkg/index.js
+var require_demo_pkg = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_demo_pkg());
+console.log(demo_pkg.default());
+
+================================================================================
 TestPackageJsonBrowserMapAvoidMissing
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/node_modules/component-indexof/index.js

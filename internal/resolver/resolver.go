@@ -790,12 +790,9 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		info.tsConfigJson = parentInfo.tsConfigJson
 	}
 
-	// Are all main fields from "package.json" missing?
-	if info.packageJson == nil || info.packageJson.absMainFields == nil {
-		// Look for an "index" file with known extensions
-		if absolute, ok := r.loadAsIndex(path, entries); ok {
-			info.absPathIndex = &absolute
-		}
+	// Look for an "index" file with known extensions
+	if absolute, ok := r.loadAsIndex(path, entries); ok {
+		info.absPathIndex = &absolute
 	}
 
 	return info

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Recover from bad `main` field in `package.json` ([#423](https://github.com/evanw/esbuild/issues/423))
+
+    Some packages are published with invalid information in the `main` field of `package.json`. In that case, path resolution should fall back to searching for a file named `index.js` before giving up. This matters for the `simple-exiftool` package, for example.
+
 ## 0.7.9
 
 * Fixed panic when using a `url()` import in CSS with the `--metafile` option
