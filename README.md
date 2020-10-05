@@ -441,13 +441,13 @@ ReactDOM.render(
 );
 ```
 
-Use this for a development build:
+Use this for the development build:
 
 ```
 esbuild example.tsx --bundle '--define:process.env.NODE_ENV="development"' --outfile=out.js
 ```
 
-Use this for a production build:
+Use this for the production build:
 
 ```
 esbuild example.tsx --bundle '--define:process.env.NODE_ENV="production"' --minify --outfile=out.js
