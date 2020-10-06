@@ -4954,6 +4954,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			} else {
 				p.lexer.Expect(js_lexer.TOpenParen)
 				value := p.parseBinding()
+
+				// Skip over types
+				if p.TS.Parse && p.lexer.Token == js_lexer.TColon {
+					p.lexer.Expect(js_lexer.TColon)
+					p.skipTypeScriptType(js_ast.LLowest)
+				}
+
 				p.lexer.Expect(js_lexer.TCloseParen)
 
 				// Bare identifiers are a special case

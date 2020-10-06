@@ -6,6 +6,16 @@
 
     Some packages are published with invalid information in the `main` field of `package.json`. In that case, path resolution should fall back to searching for a file named `index.js` before giving up. This matters for the `simple-exiftool` package, for example.
 
+* Ignore TypeScript types on `catch` clause bindings ([435](https://github.com/evanw/esbuild/issues/435))
+
+    This fixes an issue where using a type annotation in a `catch` clause like this was a syntax error:
+
+    ```ts
+    try {
+    } catch (x: unknown) {
+    }
+    ```
+
 ## 0.7.9
 
 * Fixed panic when using a `url()` import in CSS with the `--metafile` option

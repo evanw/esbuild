@@ -1062,6 +1062,24 @@ func TestTSDecorator(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { @dec static async* #foo() {} }", "<stdin>: error: Expected identifier but found \"#foo\"\n")
 }
 
+func TestTSTry(t *testing.T) {
+	expectPrintedTS(t, "try {} catch (x: any) {}", "try {\n} catch (x) {\n}\n")
+	expectPrintedTS(t, "try {} catch (x: unknown) {}", "try {\n} catch (x) {\n}\n")
+	expectPrintedTS(t, "try {} catch (x: number) {}", "try {\n} catch (x) {\n}\n")
+
+	expectPrintedTS(t, "try {} catch ({x}: any) {}", "try {\n} catch ({x}) {\n}\n")
+	expectPrintedTS(t, "try {} catch ({x}: unknown) {}", "try {\n} catch ({x}) {\n}\n")
+	expectPrintedTS(t, "try {} catch ({x}: number) {}", "try {\n} catch ({x}) {\n}\n")
+
+	expectPrintedTS(t, "try {} catch ([x]: any) {}", "try {\n} catch ([x]) {\n}\n")
+	expectPrintedTS(t, "try {} catch ([x]: unknown) {}", "try {\n} catch ([x]) {\n}\n")
+	expectPrintedTS(t, "try {} catch ([x]: number) {}", "try {\n} catch ([x]) {\n}\n")
+
+	expectParseErrorTS(t, "try {} catch (x!) {}", "<stdin>: error: Expected \")\" but found \"!\"\n")
+	expectParseErrorTS(t, "try {} catch (x!: any) {}", "<stdin>: error: Expected \")\" but found \"!\"\n")
+	expectParseErrorTS(t, "try {} catch (x!: unknown) {}", "<stdin>: error: Expected \")\" but found \"!\"\n")
+}
+
 func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "(a?) => {}", "(a) => {\n};\n")
 	expectPrintedTS(t, "(a?: number) => {}", "(a) => {\n};\n")
