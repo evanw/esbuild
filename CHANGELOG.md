@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.10
 
 * Recover from bad `main` field in `package.json` ([#423](https://github.com/evanw/esbuild/issues/423))
 
