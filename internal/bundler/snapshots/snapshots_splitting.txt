@@ -320,6 +320,35 @@ import("../node_modules/package/index.js");
 console.log("imported");
 
 ================================================================================
+TestSplittingMinifyIdentifiersCrashIssue437
+---------- /out/a.js ----------
+import {
+  a as o
+} from "./chunk.Q6GOQWO2.js";
+
+// /a.js
+console.log(o);
+
+---------- /out/b.js ----------
+import {
+  a as o
+} from "./chunk.Q6GOQWO2.js";
+
+// /b.js
+console.log(o);
+
+---------- /out/chunk.Q6GOQWO2.js ----------
+// /shared.js
+function n(o) {
+}
+
+export {
+  n as a
+};
+
+---------- /out/c.js ----------
+
+================================================================================
 TestSplittingMissingLazyExport
 ---------- /out/a.js ----------
 import "./chunk.3I42H3S6.js";

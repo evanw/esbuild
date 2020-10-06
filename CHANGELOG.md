@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix regression in 0.7.9 when minifying with code splitting ([#437](https://github.com/evanw/esbuild/issues/437))
+
+    In certain specific cases, bundling and minifying with code splitting active can cause a crash. This is a regression that was introduced in version 0.7.9 due to the fix for issue [#421](https://github.com/evanw/esbuild/issues/421). The crash has been fixed and this case now has test coverage.
+
 ## 0.7.10
 
 * Recover from bad `main` field in `package.json` ([#423](https://github.com/evanw/esbuild/issues/423))

@@ -2537,9 +2537,8 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 			for partIndex, part := range repr.ast.Parts {
 				isPartInThisChunk := chunk.entryBits.equals(repr.meta.partMeta[partIndex].entryBits)
 				if isPartInThisChunk {
-					if !canFileBeSplit {
-						isFileInThisChunk = true
-					} else if uint32(partIndex) != repr.meta.nsExportPartIndex && c.shouldIncludePart(repr, part) {
+					isFileInThisChunk = true
+					if canFileBeSplit && uint32(partIndex) != repr.meta.nsExportPartIndex && c.shouldIncludePart(repr, part) {
 						if sourceIndex == runtime.SourceIndex {
 							jsPartsPrefix = appendOrExtendPartRange(jsPartsPrefix, sourceIndex, uint32(partIndex))
 						} else {

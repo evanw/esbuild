@@ -455,3 +455,32 @@ func TestSplittingDuplicateChunkCollision(t *testing.T) {
 		},
 	})
 }
+
+func TestSplittingMinifyIdentifiersCrashIssue437(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import {foo} from "./shared"
+				console.log(foo)
+			`,
+			"/b.js": `
+				import {foo} from "./shared"
+				console.log(foo)
+			`,
+			"/c.js": `
+				import "./shared"
+			`,
+			"/shared.js": `
+				export function foo(bar) {}
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js", "/c.js"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			CodeSplitting:     true,
+			MinifyIdentifiers: true,
+			OutputFormat:      config.FormatESModule,
+			AbsOutputDir:      "/out",
+		},
+	})
+}
