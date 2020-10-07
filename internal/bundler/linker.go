@@ -2536,16 +2536,6 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 
 			for partIndex, part := range repr.ast.Parts {
 				isPartInThisChunk := chunk.entryBits.equals(repr.meta.partMeta[partIndex].entryBits)
-				if isPartInThisChunk {
-					isFileInThisChunk = true
-					if canFileBeSplit && uint32(partIndex) != repr.meta.nsExportPartIndex && c.shouldIncludePart(repr, part) {
-						if sourceIndex == runtime.SourceIndex {
-							jsPartsPrefix = appendOrExtendPartRange(jsPartsPrefix, sourceIndex, uint32(partIndex))
-						} else {
-							jsParts = appendOrExtendPartRange(jsParts, sourceIndex, uint32(partIndex))
-						}
-					}
-				}
 
 				// Also traverse any files imported by this part
 				for _, importRecordIndex := range part.ImportRecordIndices {
@@ -2556,6 +2546,18 @@ func (c *linkerContext) chunkFileOrder(chunk *chunkInfo) (js []uint32, jsParts [
 							continue
 						}
 						visit(*record.SourceIndex)
+					}
+				}
+
+				// Then include this part after the files it imports
+				if isPartInThisChunk {
+					isFileInThisChunk = true
+					if canFileBeSplit && uint32(partIndex) != repr.meta.nsExportPartIndex && c.shouldIncludePart(repr, part) {
+						if sourceIndex == runtime.SourceIndex {
+							jsPartsPrefix = appendOrExtendPartRange(jsPartsPrefix, sourceIndex, uint32(partIndex))
+						} else {
+							jsParts = appendOrExtendPartRange(jsParts, sourceIndex, uint32(partIndex))
+						}
 					}
 				}
 			}

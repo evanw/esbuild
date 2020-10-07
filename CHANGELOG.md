@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix another subtle ordering issue with `import` statements
+
+    When importing a file while bundling, the import statement was ordered before the imported code. This could affect import execution order in complex scenarios involving nested hybrid ES6/CommonJS modules. The fix was to move the import statement to after the imported code instead. This issue affected the `@sentry/browser` package.
+
 ## 0.7.11
 
 * Fix regression in 0.7.9 when minifying with code splitting ([#437](https://github.com/evanw/esbuild/issues/437))

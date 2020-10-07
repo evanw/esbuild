@@ -372,9 +372,6 @@ var require_h = __commonJS((exports) => {
   foo.prop = 123;
 });
 
-// /entry.js
-require_commonjs();
-
 // /a.js
 const abc = void 0;
 
@@ -386,6 +383,7 @@ __export(b_exports, {
 const xyz = null;
 
 // /entry.js
+require_commonjs();
 require_c();
 require_d();
 require_e();
