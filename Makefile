@@ -32,22 +32,22 @@ fmt-go:
 test-wasm:
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
 
-verify-source-map: | scripts/node_modules
+verify-source-map: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/verify-source-map.js
 
-end-to-end-tests: | scripts/node_modules
+end-to-end-tests: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/end-to-end-tests.js
 
-js-api-tests: | scripts/node_modules
+js-api-tests: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/js-api-tests.js
 
-update-version-go:
+cmd/esbuild/version.go: version.txt
 	node -e 'console.log(`package main\n\nconst esbuildVersion = "$(ESBUILD_VERSION)"`)' > cmd/esbuild/version.go
 
-platform-all: update-version-go test-all
+platform-all: cmd/esbuild/version.go test-all
 	make -j11 \
 		platform-windows \
 		platform-windows-32 \
@@ -108,7 +108,7 @@ platform-neutral: esbuild | scripts/node_modules
 test-otp:
 	test -n "$(OTP)" && echo publish --otp="$(OTP)"
 
-publish-all: update-version-go test-all test-extra
+publish-all: cmd/esbuild/version.go test-all test-extra
 	rm -fr npm && git checkout npm
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j5 \

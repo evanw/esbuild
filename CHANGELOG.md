@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.11
 
 * Fix regression in 0.7.9 when minifying with code splitting ([#437](https://github.com/evanw/esbuild/issues/437))
 
