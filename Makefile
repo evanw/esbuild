@@ -202,7 +202,7 @@ require/webpack5/node_modules:
 require/rollup/node_modules:
 	mkdir -p require/rollup
 	echo '{}' > require/rollup/package.json
-	cd require/rollup && npm install rollup@2.10.9 rollup-plugin-terser@6.1.0
+	cd require/rollup && npm install rollup@2.29.0 rollup-plugin-terser@7.0.2
 
 require/parcel/node_modules:
 	mkdir -p require/parcel
