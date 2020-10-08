@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.12
 
 * Fix another subtle ordering issue with `import` statements
 
