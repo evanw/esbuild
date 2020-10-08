@@ -216,7 +216,7 @@ require/parcel/node_modules:
 require/fusebox/node_modules:
 	mkdir -p require/fusebox
 	echo '{}' > require/fusebox/package.json
-	cd require/fusebox && npm install fuse-box@4.0.0-next.435
+	cd require/fusebox && npm install fuse-box@4.0.0-next.444
 
 require/parcel2/node_modules:
 	mkdir -p require/parcel2
