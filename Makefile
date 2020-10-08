@@ -197,7 +197,7 @@ require/webpack/node_modules:
 require/webpack5/node_modules:
 	mkdir -p require/webpack5
 	echo '{}' > require/webpack5/package.json
-	cd require/webpack5 && npm install webpack@5.0.0-beta.25 webpack-cli@3.3.12
+	cd require/webpack5 && npm install webpack@5.0.0-rc.4 webpack-cli@4.0.0-rc.1
 
 require/rollup/node_modules:
 	mkdir -p require/rollup
@@ -445,7 +445,7 @@ demo-three-webpack5: | require/webpack5/node_modules demo/three
 	mkdir -p require/webpack5/demo/three demo/three/webpack5
 	ln -s ../../../../demo/three/src require/webpack5/demo/three/src
 	ln -s ../../../../demo/three/webpack5 require/webpack5/demo/three/out
-	cd require/webpack5/demo/three && time -p ../../node_modules/.bin/webpack src/Three.js $(THREE_WEBPACK5_FLAGS) -o out/Three.webpack5.js
+	cd require/webpack5/demo/three && time -p ../../node_modules/.bin/webpack ./src/Three.js $(THREE_WEBPACK5_FLAGS) -o out/Three.webpack5.js
 	du -h demo/three/webpack5/Three.webpack5.js*
 
 THREE_PARCEL_FLAGS += --global THREE
@@ -536,8 +536,7 @@ bench-three-webpack5: | require/webpack5/node_modules bench/three
 	mkdir -p require/webpack5/bench/three bench/three/webpack5
 	ln -s ../../../../bench/three/src require/webpack5/bench/three/src
 	ln -s ../../../../bench/three/webpack5 require/webpack5/bench/three/out
-	cd require/webpack5/bench/three && time -p node --max-old-space-size=8192 \
-		../../node_modules/.bin/webpack src/entry.js $(THREE_WEBPACK5_FLAGS) -o out/entry.webpack5.js
+	cd require/webpack5/bench/three && time -p ../../node_modules/.bin/webpack ./src/entry.js $(THREE_WEBPACK5_FLAGS) -o out/entry.webpack5.js
 	du -h bench/three/webpack5/entry.webpack5.js*
 
 bench-three-parcel: | require/parcel/node_modules bench/three
