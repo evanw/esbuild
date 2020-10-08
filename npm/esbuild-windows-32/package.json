@@ -1,6 +1,6 @@
 {
   "name": "esbuild-windows-32",
-  "version": "0.7.12",
+  "version": "0.7.13",
   "description": "The Windows 32-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",

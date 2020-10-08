@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.7.13
 
 * Fix `mainFields` in the JavaScript API ([#440](https://github.com/evanw/esbuild/issues/440) and [#441](https://github.com/evanw/esbuild/pull/441))
 
     It turns out the JavaScript bindings for the `mainFields` API option didn't work due to a copy/paste error. The fix for this was contributed by [@yoyo930021](https://github.com/yoyo930021).
+
+* The benchmarks have been updated
+
+    The benchmarks now include Parcel 2 and Webpack 5 (in addition to Parcel 1 and Webpack 4, which were already included). It looks like Parcel 2 is slightly faster than Parcel 1 and Webpack 5 is significantly slower than Webpack 4.
 
 ## 0.7.12
 
