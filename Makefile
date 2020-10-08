@@ -197,7 +197,7 @@ require/webpack/node_modules:
 require/webpack5/node_modules:
 	mkdir -p require/webpack5
 	echo '{}' > require/webpack5/package.json
-	cd require/webpack5 && npm install webpack@5.0.0-rc.4 webpack-cli@4.0.0-rc.1
+	cd require/webpack5 && npm install webpack@5.0.0-rc.4 webpack-cli@4.0.0-rc.1 ts-loader@8.0.4 typescript@4.0.3
 
 require/rollup/node_modules:
 	mkdir -p require/rollup
@@ -645,6 +645,29 @@ bench-rome-webpack: | require/webpack/node_modules bench/rome bench/rome-verify
 	cd require/webpack/bench/rome && time -p ../../node_modules/.bin/webpack
 	du -h bench/rome/webpack/rome.webpack.js*
 	cd bench/rome-verify && rm -fr webpack && ROME_CACHE=0 node ../rome/webpack/rome.webpack.js bundle packages/rome webpack
+
+ROME_WEBPACK5_CONFIG += module.exports = {
+ROME_WEBPACK5_CONFIG +=   entry: './src/entry.ts',
+ROME_WEBPACK5_CONFIG +=   mode: 'production',
+ROME_WEBPACK5_CONFIG +=   target: 'node',
+ROME_WEBPACK5_CONFIG +=   devtool: 'source-map',
+ROME_WEBPACK5_CONFIG +=   module: { rules: [{ test: /\.ts$$/, loader: 'ts-loader', options: { transpileOnly: true } }] },
+ROME_WEBPACK5_CONFIG +=   resolve: {
+ROME_WEBPACK5_CONFIG +=     extensions: ['.ts', '.js'],
+ROME_WEBPACK5_CONFIG +=     alias: { rome: __dirname + '/src/rome', '@romejs': __dirname + '/src/@romejs' },
+ROME_WEBPACK5_CONFIG +=   },
+ROME_WEBPACK5_CONFIG +=   output: { filename: 'rome.webpack.js', path: __dirname + '/out' },
+ROME_WEBPACK5_CONFIG += };
+
+bench-rome-webpack5: | require/webpack5/node_modules bench/rome bench/rome-verify
+	rm -fr require/webpack5/bench/rome bench/rome/webpack5
+	mkdir -p require/webpack5/bench/rome bench/rome/webpack5
+	echo "$(ROME_WEBPACK5_CONFIG)" > require/webpack5/bench/rome/webpack.config.js
+	ln -s ../../../../bench/rome/src require/webpack5/bench/rome/src
+	ln -s ../../../../bench/rome/webpack5 require/webpack5/bench/rome/out
+	cd require/webpack5/bench/rome && time -p ../../node_modules/.bin/webpack
+	du -h bench/rome/webpack5/rome.webpack.js*
+	cd bench/rome-verify && rm -fr webpack5 && ROME_CACHE=0 node ../rome/webpack5/rome.webpack.js bundle packages/rome webpack5
 
 ROME_PARCEL_FLAGS += --bundle-node-modules
 ROME_PARCEL_FLAGS += --no-autoinstall
