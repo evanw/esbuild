@@ -139,7 +139,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   if (platform) flags.push(`--platform=${platform}`);
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
   if (resolveExtensions) flags.push(`--resolve-extensions=${resolveExtensions.join(',')}`);
-  if (mainFields) flags.push(`--resolve-extensions=${mainFields.join(',')}`);
+  if (mainFields) flags.push(`--main-fields=${mainFields.join(',')}`);
   if (external) for (let name of external) flags.push(`--external:${name}`);
   if (loader) {
     for (let ext in loader) {
