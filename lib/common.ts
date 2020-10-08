@@ -357,7 +357,6 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
       transform(input, options, isTTY, fs, callback) {
         let flags = flagsForTransformOptions(options, isTTY);
-        input += '';
 
         // Ideally the "transform()" API would be faster than calling "build()"
         // since it doesn't need to touch the file system. However, performance
@@ -380,7 +379,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               command: 'transform',
               flags,
               inputFS: inputPath !== null,
-              input: inputPath !== null ? inputPath : input,
+              input: inputPath !== null ? inputPath : input + '',
             };
             sendRequest<protocol.TransformRequest, protocol.TransformResponse>(request, (error, response) => {
               if (error) return callback(new Error(error), null);
@@ -424,7 +423,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             });
           }
         };
-        if (input.length > 1024 * 1024) {
+        if (typeof input === 'string' && input.length > 1024 * 1024) {
           let next = start;
           start = () => fs.writeFile(input, next);
         }
