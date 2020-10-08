@@ -19,7 +19,7 @@ Why build another JavaScript build tool? The current build tools for the web are
 
 The use case I have in mind is packaging a large codebase for production. This includes minifying the code, which reduces network transfer time, and producing source maps, which are important for debugging errors in production. Ideally the build tool should also build quickly without having to warm up a cache first.
 
-I currently have two benchmarks that I'm using to measure esbuild performance. For these benchmarks, esbuild is at least **100x faster** than the other JavaScript bundlers I tested:
+I currently have two benchmarks that I'm using to measure esbuild performance. For these benchmarks, esbuild is at least **10-100x faster** than the other JavaScript bundlers I tested:
 
 ![](images/benchmark.png)
 
@@ -31,18 +31,21 @@ Here are the details about each benchmark:
 
     | Bundler            |    Time | Relative slowdown | Absolute speed | Output size |
     | :----------------- | ------: | ----------------: | -------------: | ----------: |
-    | esbuild            |   0.36s |                1x |  1520.7 kloc/s |      5.82mb |
-    | esbuild (1 thread) |   1.25s |                4x |   438.0 kloc/s |      5.82mb |
-    | rollup + terser    |  36.06s |              100x |    15.2 kloc/s |      5.80mb |
-    | webpack            |  44.74s |              124x |    12.2 kloc/s |      5.97mb |
-    | fuse-box@next      |  59.52s |              165x |     9.2 kloc/s |      6.34mb |
-    | parcel             | 121.18s |              337x |     4.5 kloc/s |      5.89mb |
+    | esbuild            |   0.37s |                1x |  1479.6 kloc/s |      5.81mb |
+    | esbuild (1 thread) |   1.54s |                4x |   355.5 kloc/s |      5.81mb |
+    | rollup + terser    |  36.00s |               97x |    15.2 kloc/s |      5.81mb |
+    | webpack 4          |  41.91s |              113x |    13.1 kloc/s |      5.97mb |
+    | fuse-box@next      |  53.10s |              144x |    10.3 kloc/s |      6.34mb |
+    | webpack 5          |  63.83s |              173x |     8.6 kloc/s |      5.84mb |
+    | parcel 2           | 108.66s |              294x |     5.0 kloc/s |      5.81mb |
+    | parcel 1           | 118.51s |              320x |     4.6 kloc/s |      5.89mb |
 
     Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap` (the single-threaded version uses `GOMAXPROCS=1`). I used the `rollup-plugin-terser` plugin because Rollup itself doesn't support minification. Webpack uses `--mode=production --devtool=sourcemap`. Parcel uses the default options. FuseBox is configured with `useSingleBundle: true`. Absolute speed is based on the total line count including comments and blank lines, which is currently 547,441. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
 
     Caveats:
 
     * Parcel: The bundle crashes at run time with `TypeError: Cannot redefine property: dynamic`
+    * Parcel 2: Must be given extra memory with `node --max-old-space-size` or it runs out of memory
     * FuseBox: The line numbers in source maps appear to be off by one
 
 * #### TypeScript benchmark
@@ -51,14 +54,15 @@ Here are the details about each benchmark:
 
     | Bundler            |    Time | Relative slowdown | Absolute speed | Output size |
     | :----------------- | ------: | ----------------: | -------------: | ----------: |
-    | esbuild            |   0.10s |                1x |  1287.5 kloc/s |      0.98mb |
-    | esbuild (1 thread) |   0.32s |                3x |   412.0 kloc/s |      0.98mb |
-    | parcel             |  16.77s |              168x |     7.9 kloc/s |      1.55mb |
-    | webpack            |  18.67s |              187x |     7.1 kloc/s |      1.26mb |
+    | esbuild            |   0.11s |                1x |  1198.5 kloc/s |      0.98mb |
+    | esbuild (1 thread) |   0.38s |                3x |   346.9 kloc/s |      0.98mb |
+    | parcel 1           |  15.43s |              140x |     8.5 kloc/s |      1.55mb |
+    | webpack 4          |  18.03s |              164x |     7.3 kloc/s |      1.26mb |
+    | webpack 5          |  23.85s |              217x |     5.5 kloc/s |      1.26mb |
 
     Each time reported is the best of three runs. I'm running esbuild with `--bundle --minify --sourcemap --platform=node` (the single-threaded version uses `GOMAXPROCS=1`). Webpack uses `ts-loader` with `transpileOnly: true` and `--mode=production --devtool=sourcemap`. Parcel uses `--target node --bundle-node-modules`. Absolute speed is based on the total line count including comments and blank lines, which is currently 131,836. The tests were done on a 6-core 2019 MacBook Pro with 16gb of RAM.
 
-    The results don't include Rollup because I couldn't get it to work. I tried `rollup-plugin-typescript`, `@rollup/plugin-typescript`, and `@rollup/plugin-sucrase` and they all didn't work for different reasons relating to TypeScript compilation. And I'm not familiar with FuseBox so I'm not sure how work around build failures due to the use of builtin node modules.
+    The results don't include Rollup because I couldn't get it to work. I tried `rollup-plugin-typescript`, `@rollup/plugin-typescript`, and `@rollup/plugin-sucrase` and they all didn't work for different reasons relating to TypeScript compilation. And I'm not familiar with FuseBox so I'm not sure how work around build failures due to the use of builtin node modules. Parcel 2 is excluded because it cannot currently build the benchmark.
 
 ## Why is it fast?
 
