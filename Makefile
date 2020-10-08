@@ -192,7 +192,7 @@ clean-all: clean
 require/webpack/node_modules:
 	mkdir -p require/webpack
 	echo '{}' > require/webpack/package.json
-	cd require/webpack && npm install webpack@4.43.0 webpack-cli@3.3.11 ts-loader@7.0.5 typescript@3.9.3
+	cd require/webpack && npm install webpack@4.44.2 webpack-cli@3.3.12 ts-loader@8.0.4 typescript@4.0.3
 
 require/webpack5/node_modules:
 	mkdir -p require/webpack5
