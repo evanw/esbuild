@@ -108,6 +108,23 @@ let buildTests = {
     assert.strictEqual(require(output).result, 123)
   },
 
+  async mainFields({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    const mainFieldsDir = path.join(testDir, 'node_modules', 'main-fields-test')
+    const mainFieldsA = path.join(mainFieldsDir, 'a.js')
+    const mainFieldsB = path.join(mainFieldsDir, 'b.js')
+    const mainFieldsPackage = path.join(mainFieldsDir, 'package.json')
+    await mkdirAsync(mainFieldsDir, { recursive: true })
+    await writeFileAsync(input, 'export * from "main-fields-test"')
+    await writeFileAsync(mainFieldsA, 'export let foo = "a"')
+    await writeFileAsync(mainFieldsB, 'export let foo = "b"')
+    await writeFileAsync(mainFieldsPackage, '{ "a": "./a.js", "b": "./b.js", "c": "./c.js" }')
+    await esbuild.build({ entryPoints: [input], outfile: output, bundle: true, format: 'cjs', mainFields: ['c', 'b', 'a'] })
+    const result = require(output)
+    assert.strictEqual(result.foo, 'b')
+  },
+
   async requireAbsolutePath({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const dependency = path.join(testDir, 'dep.js')
