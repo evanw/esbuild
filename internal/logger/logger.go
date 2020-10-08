@@ -26,6 +26,7 @@ const (
 	LevelInfo
 	LevelWarning
 	LevelError
+	LevelSilent
 )
 
 type MsgKind uint8
@@ -354,6 +355,8 @@ func PrintMessageToStderr(osArgs []string, msg Msg) {
 			options.LogLevel = LevelWarning
 		case "--log-level=error":
 			options.LogLevel = LevelError
+		case "--log-level=silent":
+			options.LogLevel = LevelSilent
 		}
 	}
 

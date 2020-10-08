@@ -16,7 +16,7 @@ const rootTestDir = path.join(repoDir, 'scripts', '.js-api-tests')
 let buildTests = {
   async errorIfEntryPointsNotArray({ esbuild }) {
     try {
-      await esbuild.build({ entryPoints: 'this is not an array' })
+      await esbuild.build({ entryPoints: 'this is not an array', logLevel: 'silent' })
       throw new Error('Expected build failure');
     } catch (e) {
       if (e.message !== '"entryPoints" must be an array') {

@@ -52,13 +52,20 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys): void {
   }
 }
 
-function pushCommonFlags(
-  flags: string[],
-  options: types.BuildOptions | types.TransformOptions,
-  keys: OptionKeys,
-  isTTY: boolean,
-  logLevelDefault: types.LogLevel,
-): void {
+type CommonOptions = types.BuildOptions | types.TransformOptions;
+
+function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
+  let color = getFlag(options, keys, 'color', mustBeBoolean);
+  let logLevel = getFlag(options, keys, 'logLevel', mustBeString);
+  let errorLimit = getFlag(options, keys, 'errorLimit', mustBeInteger);
+
+  if (color) flags.push(`--color=${color}`);
+  else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
+  flags.push(`--log-level=${logLevel || logLevelDefault}`);
+  flags.push(`--error-limit=${errorLimit || 0}`);
+}
+
+function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKeys): void {
   let target = getFlag(options, keys, 'target', mustBeStringOrArray);
   let format = getFlag(options, keys, 'format', mustBeString);
   let globalName = getFlag(options, keys, 'globalName', mustBeString);
@@ -71,9 +78,6 @@ function pushCommonFlags(
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
-  let color = getFlag(options, keys, 'color', mustBeBoolean);
-  let logLevel = getFlag(options, keys, 'logLevel', mustBeString);
-  let errorLimit = getFlag(options, keys, 'errorLimit', mustBeInteger);
 
   if (target) {
     if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)
@@ -98,19 +102,15 @@ function pushCommonFlags(
     }
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
-
-  if (color) flags.push(`--color=${color}`);
-  else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
-  flags.push(`--log-level=${logLevel || logLevelDefault}`);
-  flags.push(`--error-limit=${errorLimit || 0}`);
 }
 
-function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [string[], boolean, string | null, string | null] {
+function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel): [string[], boolean, string | null, string | null] {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   let stdinContents: string | null = null;
   let stdinResolveDir: string | null = null;
-  pushCommonFlags(flags, options, keys, isTTY, 'info');
+  pushLogFlags(flags, options, keys, isTTY, logLevelDefault);
+  pushCommonFlags(flags, options, keys);
 
   let sourcemap = getFlag(options, keys, 'sourcemap', mustBeStringOrBoolean);
   let bundle = getFlag(options, keys, 'bundle', mustBeBoolean);
@@ -179,10 +179,11 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean): [str
   return [flags, write, stdinContents, stdinResolveDir];
 }
 
-function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolean): string[] {
+function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolean, logLevelDefault: types.LogLevel): string[] {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
-  pushCommonFlags(flags, options, keys, isTTY, 'silent');
+  pushLogFlags(flags, options, keys, isTTY, logLevelDefault);
+  pushCommonFlags(flags, options, keys);
 
   let sourcemap = getFlag(options, keys, 'sourcemap', mustBeStringOrBoolean);
   let sourcefile = getFlag(options, keys, 'sourcefile', mustBeString);
@@ -336,8 +337,9 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
     service: {
       build(options, isTTY, callback) {
-        let [flags, write, stdin, resolveDir] = flagsForBuildOptions(options, isTTY);
+        const logLevelDefault = 'info';
         try {
+          let [flags, write, stdin, resolveDir] = flagsForBuildOptions(options, isTTY, logLevelDefault);
           let request: protocol.BuildRequest = { command: 'build', flags, write, stdin, resolveDir };
           sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
             if (error) return callback(new Error(error), null);
@@ -349,6 +351,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             callback(null, result);
           });
         } catch (e) {
+          let flags: string[] = [];
+          try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
           sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn) }, () => {
             callback(e, null);
           });
@@ -356,7 +360,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       },
 
       transform(input, options, isTTY, fs, callback) {
-        let flags = flagsForTransformOptions(options, isTTY);
+        const logLevelDefault = 'silent';
 
         // Ideally the "transform()" API would be faster than calling "build()"
         // since it doesn't need to touch the file system. However, performance
@@ -375,6 +379,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         // that doesn't work.
         let start = (inputPath: string | null) => {
           try {
+            let flags = flagsForTransformOptions(options, isTTY, logLevelDefault);
             let request: protocol.TransformRequest = {
               command: 'transform',
               flags,
@@ -418,6 +423,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               next();
             });
           } catch (e) {
+            let flags: string[] = [];
+            try { pushLogFlags(flags, options, {}, isTTY, logLevelDefault) } catch { }
             sendRequest({ command: 'error', flags, error: extractErrorMessageV8(e, streamIn) }, () => {
               callback(e, null);
             });

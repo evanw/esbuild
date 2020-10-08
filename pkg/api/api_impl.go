@@ -83,6 +83,8 @@ func validateLogLevel(value LogLevel) logger.LogLevel {
 		return logger.LevelWarning
 	case LogLevelError:
 		return logger.LevelError
+	case LogLevelSilent:
+		return logger.LevelSilent
 	default:
 		panic("Invalid log level")
 	}
@@ -395,17 +397,12 @@ func messagesOfKind(kind logger.MsgKind, msgs []logger.Msg) []Message {
 // Build API
 
 func buildImpl(buildOpts BuildOptions) BuildResult {
-	var log logger.Log
-	if buildOpts.LogLevel == LogLevelSilent {
-		log = logger.NewDeferLog()
-	} else {
-		log = logger.NewStderrLog(logger.StderrOptions{
-			IncludeSource: true,
-			ErrorLimit:    buildOpts.ErrorLimit,
-			Color:         validateColor(buildOpts.Color),
-			LogLevel:      validateLogLevel(buildOpts.LogLevel),
-		})
-	}
+	log := logger.NewStderrLog(logger.StderrOptions{
+		IncludeSource: true,
+		ErrorLimit:    buildOpts.ErrorLimit,
+		Color:         validateColor(buildOpts.Color),
+		LogLevel:      validateLogLevel(buildOpts.LogLevel),
+	})
 
 	// Convert and validate the buildOpts
 	realFS := fs.RealFS()
@@ -592,17 +589,12 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 // Transform API
 
 func transformImpl(input string, transformOpts TransformOptions) TransformResult {
-	var log logger.Log
-	if transformOpts.LogLevel == LogLevelSilent {
-		log = logger.NewDeferLog()
-	} else {
-		log = logger.NewStderrLog(logger.StderrOptions{
-			IncludeSource: true,
-			ErrorLimit:    transformOpts.ErrorLimit,
-			Color:         validateColor(transformOpts.Color),
-			LogLevel:      validateLogLevel(transformOpts.LogLevel),
-		})
-	}
+	log := logger.NewStderrLog(logger.StderrOptions{
+		IncludeSource: true,
+		ErrorLimit:    transformOpts.ErrorLimit,
+		Color:         validateColor(transformOpts.Color),
+		LogLevel:      validateLogLevel(transformOpts.LogLevel),
+	})
 
 	// Convert and validate the transformOpts
 	jsFeatures, cssFeatures := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
