@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+* Fix a bug with compound import statements ([#446](https://github.com/evanw/esbuild/issues/446))
+
+    Import statements can simultaneously contain both a default import and a namespace import like this:
+
+    ```js
+    import defVal, * as nsVal from 'path'
+    ```
+
+    These statements were previously miscompiled when bundling if the import path was marked as external, or when converting to a specific output format, and the namespace variable itself was used for something other than a property access. The generated code contained a syntax error because it generated a `{...}` import clause containing the default import.
+
+    This particular problem was caused by code that converts namespace imports into import clauses for more efficient bundling. This transformation should not be done if the namespace import cannot be completely removed:
+
+    ```js
+    // Can convert namespace to clause
+    import defVal, * as nsVal from 'path'
+    console.log(defVal, nsVal.prop)
+    ```
+
+    ```js
+    // Cannot convert namespace to clause
+    import defVal, * as nsVal from 'path'
+    console.log(defVal, nsVal)
+    ```
+
 ## 0.7.13
 
 * Fix `mainFields` in the JavaScript API ([#440](https://github.com/evanw/esbuild/issues/440) and [#441](https://github.com/evanw/esbuild/pull/441))

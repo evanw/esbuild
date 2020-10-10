@@ -154,6 +154,96 @@ __export(exports, {
 let foo = "foo";
 
 ================================================================================
+TestImportDefaultNamespaceComboIssue446
+---------- /out/external-default2.js ----------
+// /external-default2.js
+import def, {default as default2} from "external";
+console.log(def, default2);
+
+---------- /out/external-ns.js ----------
+// /external-ns.js
+import def, * as ns from "external";
+console.log(def, ns);
+
+---------- /out/external-ns-default.js ----------
+// /external-ns-default.js
+import def, * as ns from "external";
+console.log(def, ns, ns.default);
+
+---------- /out/external-ns-def.js ----------
+// /external-ns-def.js
+import def, * as ns from "external";
+console.log(def, ns, ns.def);
+
+---------- /out/external-default.js ----------
+// /external-default.js
+import def, {
+  default as default2
+} from "external";
+console.log(def, default2);
+
+---------- /out/external-def.js ----------
+// /external-def.js
+import def, {
+  def as def2
+} from "external";
+console.log(def, def2);
+
+---------- /out/internal-default2.js ----------
+// /internal.js
+var internal_default = 123;
+
+// /internal-default2.js
+console.log(internal_default, internal_default);
+
+---------- /out/internal-ns.js ----------
+// /internal.js
+const internal_exports = {};
+__export(internal_exports, {
+  default: () => internal_default
+});
+var internal_default = 123;
+
+// /internal-ns.js
+console.log(internal_default, internal_exports);
+
+---------- /out/internal-ns-default.js ----------
+// /internal.js
+const internal_exports = {};
+__export(internal_exports, {
+  default: () => internal_default
+});
+var internal_default = 123;
+
+// /internal-ns-default.js
+console.log(internal_default, internal_exports, internal_default);
+
+---------- /out/internal-ns-def.js ----------
+// /internal.js
+const internal_exports = {};
+__export(internal_exports, {
+  default: () => internal_default
+});
+var internal_default = 123;
+
+// /internal-ns-def.js
+console.log(internal_default, internal_exports, void 0);
+
+---------- /out/internal-default.js ----------
+// /internal.js
+var internal_default = 123;
+
+// /internal-default.js
+console.log(internal_default, internal_default);
+
+---------- /out/internal-def.js ----------
+// /internal.js
+var internal_default = 123;
+
+// /internal-def.js
+console.log(internal_default, void 0);
+
+================================================================================
 TestImportExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
 // /foo.js
@@ -261,8 +351,8 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.js
 const ns = __toModule(require_foo());
-let foo2 = 234;
-console.log(ns, ns.foo, foo2);
+let foo = 234;
+console.log(ns, ns.foo, foo);
 
 ================================================================================
 TestImportStarCommonJSNoCapture

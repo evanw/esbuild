@@ -5293,7 +5293,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			ref := p.declareSymbol(js_ast.SymbolImport, stmt.DefaultName.Loc, name)
 			p.isImportItem[ref] = true
 			stmt.DefaultName.Ref = ref
-			itemRefs["default"] = *stmt.DefaultName
 		}
 
 		// Link each import item to the namespace
@@ -9427,16 +9426,38 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 
 			if p.Mode != config.ModePassThrough {
 				if s.StarNameLoc != nil {
-					// If we're bundling a star import, add any import items we generated
-					// for this namespace while parsing as explicit import items instead.
+					// If we're bundling a star import and the namespace is only ever
+					// used for property accesses, then convert each unique property to
+					// a clause item in the import statement and remove the star import.
 					// That will cause the bundler to bundle them more efficiently when
 					// both this module and the imported module are in the same group.
-					if importItems, ok := p.importItemsForNamespace[s.NamespaceRef]; ok && len(importItems) > 0 {
-						items := s.Items
-						if items == nil {
-							items = &[]js_ast.ClauseItem{}
-						}
+					//
+					// Before:
+					//
+					//   import * as ns from 'foo'
+					//   console.log(ns.a, ns.b)
+					//
+					// After:
+					//
+					//   import {a, b} from 'foo'
+					//   console.log(a, b)
+					//
+					// This is not done if the namespace itself is used, because in that
+					// case the code for the namespace will have to be generated. This is
+					// determined by the symbol count because the parser only counts the
+					// star import as used if it was used for something other than a
+					// property access:
+					//
+					//   import * as ns from 'foo'
+					//   console.log(ns, ns.a, ns.b)
+					//
+					convertStarToClause := p.symbols[s.NamespaceRef.InnerIndex].UseCountEstimate == 0
+					if convertStarToClause {
+						s.StarNameLoc = nil
+					}
 
+					// "importItemsForNamespace" has property accesses off the namespace
+					if importItems, ok := p.importItemsForNamespace[s.NamespaceRef]; ok && len(importItems) > 0 {
 						// Sort keys for determinism
 						sorted := make([]string, 0, len(importItems))
 						for alias := range importItems {
@@ -9444,33 +9465,53 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 						}
 						sort.Strings(sorted)
 
-						for _, alias := range sorted {
-							name := importItems[alias]
-							originalName := p.symbols[name.Ref.InnerIndex].OriginalName
-							*items = append(*items, js_ast.ClauseItem{
-								Alias:        alias,
-								AliasLoc:     name.Loc,
-								Name:         name,
-								OriginalName: originalName,
-							})
-							p.declaredSymbols = append(p.declaredSymbols, js_ast.DeclaredSymbol{
-								Ref:        name.Ref,
-								IsTopLevel: true,
-							})
-						}
-						s.Items = items
-					}
+						if convertStarToClause {
+							// Create an import clause for these items. Named imports will be
+							// automatically created later on since there is now a clause.
+							items := make([]js_ast.ClauseItem, 0, len(importItems))
+							for _, alias := range sorted {
+								name := importItems[alias]
+								originalName := p.symbols[name.Ref.InnerIndex].OriginalName
+								items = append(items, js_ast.ClauseItem{
+									Alias:        alias,
+									AliasLoc:     name.Loc,
+									Name:         name,
+									OriginalName: originalName,
+								})
+								p.declaredSymbols = append(p.declaredSymbols, js_ast.DeclaredSymbol{
+									Ref:        name.Ref,
+									IsTopLevel: true,
+								})
+							}
+							if s.Items != nil {
+								// The syntax "import {x}, * as y from 'path'" isn't valid
+								panic("Internal error")
+							}
+							s.Items = &items
+						} else {
+							// If we aren't converting this star import to a clause, still
+							// create named imports for these property accesses. This will
+							// cause missing imports to generate useful warnings.
+							//
+							// It will also improve bundling efficiency for internal imports
+							// by still converting property accesses off the namespace into
+							// bare identifiers even if the namespace is still needed.
+							for _, alias := range sorted {
+								name := importItems[alias]
+								p.namedImports[name.Ref] = js_ast.NamedImport{
+									Alias:             alias,
+									AliasLoc:          name.Loc,
+									NamespaceRef:      s.NamespaceRef,
+									ImportRecordIndex: s.ImportRecordIndex,
+								}
 
-					// Remove the star import if it's not actually used. The parser only
-					// counts the star import as used if it was used for something other
-					// than a property access.
-					//
-					// That way if it's only used for property accesses, we can omit the
-					// code for the star import entirely and just merge the property
-					// accesses directly with the appropriate symbols instead (since both
-					// this module and the imported module are in the same group).
-					if p.symbols[s.NamespaceRef.InnerIndex].UseCountEstimate == 0 {
-						s.StarNameLoc = nil
+								// Make sure the printer prints this as a property access
+								p.symbols[name.Ref.InnerIndex].NamespaceAlias = &js_ast.NamespaceAlias{
+									NamespaceRef: s.NamespaceRef,
+									Alias:        alias,
+								}
+							}
+						}
 					}
 				}
 

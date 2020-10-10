@@ -1423,3 +1423,124 @@ func TestReExportStarAsCommonJSNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestImportDefaultNamespaceComboIssue446(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/external-default2.js": `
+				import def, {default as default2} from 'external'
+				console.log(def, default2)
+			`,
+			"/external-ns.js": `
+				import def, * as ns from 'external'
+				console.log(def, ns)
+			`,
+			"/external-ns-default.js": `
+				import def, * as ns from 'external'
+				console.log(def, ns, ns.default)
+			`,
+			"/external-ns-def.js": `
+				import def, * as ns from 'external'
+				console.log(def, ns, ns.def)
+			`,
+			"/external-default.js": `
+				import def, * as ns from 'external'
+				console.log(def, ns.default)
+			`,
+			"/external-def.js": `
+				import def, * as ns from 'external'
+				console.log(def, ns.def)
+			`,
+			"/internal-default2.js": `
+				import def, {default as default2} from './internal'
+				console.log(def, default2)
+			`,
+			"/internal-ns.js": `
+				import def, * as ns from './internal'
+				console.log(def, ns)
+			`,
+			"/internal-ns-default.js": `
+				import def, * as ns from './internal'
+				console.log(def, ns, ns.default)
+			`,
+			"/internal-ns-def.js": `
+				import def, * as ns from './internal'
+				console.log(def, ns, ns.def)
+			`,
+			"/internal-default.js": `
+				import def, * as ns from './internal'
+				console.log(def, ns.default)
+			`,
+			"/internal-def.js": `
+				import def, * as ns from './internal'
+				console.log(def, ns.def)
+			`,
+			"/internal.js": `
+				export default 123
+			`,
+		},
+		entryPaths: []string{
+			"/external-default2.js",
+			"/external-ns.js",
+			"/external-ns-default.js",
+			"/external-ns-def.js",
+			"/external-default.js",
+			"/external-def.js",
+			"/internal-default2.js",
+			"/internal-ns.js",
+			"/internal-ns-default.js",
+			"/internal-ns-def.js",
+			"/internal-default.js",
+			"/internal-def.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"external": true,
+				},
+			},
+		},
+		expectedCompileLog: `/internal-def.js: warning: No matching export for import "def"
+/internal-ns-def.js: warning: No matching export for import "def"
+`,
+	})
+}
+
+func TestImportDefaultNamespaceComboNoDefault(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry-default-ns-prop.js": `import def, * as ns from './foo'; console.log(def, ns, ns.default)`,
+			"/entry-default-ns.js":      `import def, * as ns from './foo'; console.log(def, ns)`,
+			"/entry-default-prop.js":    `import def, * as ns from './foo'; console.log(def, ns.default)`,
+			"/entry-default.js":         `import def from './foo'; console.log(def)`,
+			"/entry-prop.js":            `import * as ns from './foo'; console.log(ns.default)`,
+			"/foo.js":                   `export let foo = 123`,
+		},
+		entryPaths: []string{
+			"/entry-default-ns-prop.js",
+			"/entry-default-ns.js",
+			"/entry-default-prop.js",
+			"/entry-default.js",
+			"/entry-prop.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"external": true,
+				},
+			},
+		},
+		expectedCompileLog: `/entry-default-ns-prop.js: error: No matching export for import "default"
+/entry-default-ns-prop.js: warning: No matching export for import "default"
+/entry-default-ns.js: error: No matching export for import "default"
+/entry-default-prop.js: error: No matching export for import "default"
+/entry-default-prop.js: warning: No matching export for import "default"
+/entry-default.js: error: No matching export for import "default"
+/entry-prop.js: warning: No matching export for import "default"
+`,
+	})
+}
