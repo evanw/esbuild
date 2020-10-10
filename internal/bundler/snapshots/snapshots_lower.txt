@@ -228,6 +228,30 @@ class strict_default {
 console.log(loose_default, strict_default);
 
 ================================================================================
+TestLowerExportStarAsNameCollision
+---------- /out.js ----------
+// /nested.js
+import * as foo from "path2";
+let foo2 = 123;
+
+// /entry.js
+import * as ns from "path1";
+console.log(foo, foo2);
+let ns2 = 123;
+export {
+  ns,
+  ns2 as sn
+};
+
+================================================================================
+TestLowerExportStarAsNameCollisionNoBundle
+---------- /out.js ----------
+import * as ns from "path";
+export {ns};
+let ns2 = 123;
+export {ns2 as sn};
+
+================================================================================
 TestLowerObjectSpreadNoBundle
 ---------- /out.js ----------
 let tests = [

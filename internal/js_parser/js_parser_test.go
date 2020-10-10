@@ -3091,6 +3091,11 @@ func TestLowerOptionalCatchBinding(t *testing.T) {
 	expectPrintedTarget(t, 2018, "try {} catch {}", "try {\n} catch (e) {\n}\n")
 }
 
+func TestLowerExportStarAs(t *testing.T) {
+	expectPrintedTarget(t, 2020, "export * as ns from 'path'", "export * as ns from \"path\";\n")
+	expectPrintedTarget(t, 2019, "export * as ns from 'path'", "import * as ns from \"path\";\nexport {ns};\n")
+}
+
 func TestPrivateIdentifiers(t *testing.T) {
 	expectParseError(t, "#foo", "<stdin>: error: Unexpected \"#foo\"\n")
 	expectParseError(t, "this.#foo", "<stdin>: error: Expected identifier but found \"#foo\"\n")

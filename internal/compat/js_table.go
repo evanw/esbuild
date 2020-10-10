@@ -35,6 +35,7 @@ const (
 	DefaultArgument
 	Destructuring
 	ExponentOperator
+	ExportStarAs
 	ForAwait
 	ForOf
 	Generator
@@ -187,6 +188,13 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		IOS:     {10, 3},
 		Node:    {7},
 		Safari:  {10, 1},
+	},
+	ExportStarAs: {
+		Chrome:  {72},
+		Edge:    {79},
+		ES:      {2020},
+		Firefox: {80},
+		Node:    {12},
 	},
 	ForAwait: {
 		Chrome:  {63},

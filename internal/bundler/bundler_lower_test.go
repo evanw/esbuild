@@ -1292,3 +1292,51 @@ func TestClassSuperThisIssue242NoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerExportStarAsNameCollisionNoBundle(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * as ns from 'path'
+				let ns = 123
+				export {ns as sn}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			UnsupportedJSFeatures: es(2019),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLowerExportStarAsNameCollision(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as test from './nested'
+				console.log(test.foo, test.oof)
+				export * as ns from 'path1'
+				let ns = 123
+				export {ns as sn}
+			`,
+			"/nested.js": `
+				export * as foo from 'path2'
+				let foo = 123
+				export {foo as oof}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2019),
+			AbsOutputFile:         "/out.js",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"path1": true,
+					"path2": true,
+				},
+			},
+		},
+	})
+}

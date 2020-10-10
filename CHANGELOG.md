@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Lower `export * as` syntax for ES2019 and below
+
+    The `export * from 'path'` syntax was added in ES2015 but the `export * as name from 'path'` syntax was added more recently in ES2020. This is a shorthand for an import followed by an export:
+
+    ```js
+    // ES2020
+    export * as name from 'path'
+
+    // ES2019
+    import * as name from 'path'
+    export {name}
+    ```
+
+    With this release, esbuild will now undo this shorthand syntax when using `--target=es2019` or below.
+
 ## 0.7.14
 
 * Fix a bug with compound import statements ([#446](https://github.com/evanw/esbuild/issues/446))

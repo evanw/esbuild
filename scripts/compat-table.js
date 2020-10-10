@@ -133,6 +133,15 @@ mergeVersions('NullishCoalescing', { es2020: true })
 mergeVersions('OptionalChain', { es2020: true })
 mergeVersions('TopLevelAwait', {})
 
+// Manually copied from https://caniuse.com/?search=export%20*%20as
+mergeVersions('ExportStarAs', {
+  chrome72: true,
+  edge79: true,
+  es2020: true,
+  firefox80: true,
+  node12: true, // From https://developer.mozilla.org/en-US/docs/web/javascript/reference/statements/export
+})
+
 // Manually copied from https://caniuse.com/#search=import.meta
 mergeVersions('ImportMeta', {
   chrome64: true,

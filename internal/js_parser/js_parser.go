@@ -6734,6 +6734,28 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// "export * as ns from 'path'"
 		if s.Alias != nil {
 			p.recordExport(s.Alias.Loc, s.Alias.Name, s.NamespaceRef)
+
+			// "import * as ns from 'path'"
+			// "export {ns}"
+			if p.UnsupportedJSFeatures.Has(compat.ExportStarAs) {
+				p.recordUsage(s.NamespaceRef)
+				return append(stmts,
+					js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SImport{
+						NamespaceRef:      s.NamespaceRef,
+						StarNameLoc:       &s.Alias.Loc,
+						ImportRecordIndex: s.ImportRecordIndex,
+					}},
+					js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExportClause{
+						Items: []js_ast.ClauseItem{{
+							Alias:        s.Alias.Name,
+							OriginalName: s.Alias.Name,
+							AliasLoc:     s.Alias.Loc,
+							Name:         js_ast.LocRef{Loc: s.Alias.Loc, Ref: s.NamespaceRef},
+						}},
+						IsSingleLine: true,
+					}},
+				)
+			}
 		}
 
 	case *js_ast.SExportDefault:
