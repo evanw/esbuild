@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.14
 
 * Fix a bug with compound import statements ([#446](https://github.com/evanw/esbuild/issues/446))
 
