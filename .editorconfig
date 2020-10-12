@@ -1,3 +1,7 @@
 [*]
 indent_style = tab
 indent_size = 2
+
+[*.js]
+indent_style = space
+indent_size = 2
