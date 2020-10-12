@@ -9569,9 +9569,8 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
-			// This is true for import statements without imports like "import 'foo'"
-			if s.DefaultName == nil && s.StarNameLoc == nil && s.Items == nil {
-				p.importRecords[s.ImportRecordIndex].DoesNotUseExports = true
+			if s.StarNameLoc != nil {
+				p.importRecords[s.ImportRecordIndex].ContainsImportStar = true
 			}
 
 		case *js_ast.SExportStar:

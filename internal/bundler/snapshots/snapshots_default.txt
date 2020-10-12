@@ -707,16 +707,51 @@ console.log(foo.default(foo.x, foo.y));
 
 ================================================================================
 TestImportMissingNeitherES6NorCommonJS
----------- /out.js ----------
+---------- /out/named.js ----------
+// /foo.js
+console.log("no exports here");
+
+// /named.js
+console.log((void 0)(void 0, void 0));
+
+---------- /out/star.js ----------
+// /foo.js
+console.log("no exports here");
+
+// /star.js
+console.log((void 0)(void 0, void 0));
+
+---------- /out/star-capture.js ----------
 // /foo.js
 var require_foo = __commonJS(() => {
   console.log("no exports here");
 });
 
-// /entry.js
-const foo = __toModule(require_foo());
+// /star-capture.js
 const ns = __toModule(require_foo());
-console.log(foo.default(foo.x, foo.y));
+console.log(ns);
+
+---------- /out/bare.js ----------
+// /foo.js
+console.log("no exports here");
+
+---------- /out/require.js ----------
+// /foo.js
+var require_foo = __commonJS(() => {
+  console.log("no exports here");
+});
+
+// /require.js
+console.log(require_foo());
+
+---------- /out/import.js ----------
+// /foo.js
+var require_foo = __commonJS(() => {
+  console.log("no exports here");
+});
+
+// /import.js
+console.log(Promise.resolve().then(() => __toModule(require_foo())));
 
 ================================================================================
 TestImportReExportES6Issue149

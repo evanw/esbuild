@@ -219,3 +219,21 @@ TestTSImportStarUnused
 // /entry.ts
 let foo = 234;
 console.log(foo);
+
+================================================================================
+TestTSReExportTypeOnlyFileES6
+---------- /out.js ----------
+// /types1.ts
+console.log("some code");
+
+// /types2.ts
+console.log("some code");
+
+// /types3.ts
+console.log("some code");
+
+// /values.ts
+let foo = 123;
+
+// /entry.ts
+console.log(foo);

@@ -17,6 +17,27 @@
 
     With this release, esbuild will now undo this shorthand syntax when using `--target=es2019` or below.
 
+* Better code generation for TypeScript files with type-only exports ([#447](https://github.com/evanw/esbuild/issues/447))
+
+    Previously TypeScript files could have an unnecessary CommonJS wrapper in certain situations. The specific situation is bundling a file that re-exports something from another file without any exports. This happens because esbuild automatically considers a module to be a CommonJS module if there is no ES6 `import`/`export` syntax.
+
+    This behavior is undesirable because the CommonJS wrapper is usually unnecessary. It's especially undesirable for cases where the re-export uses `export * from` because then the re-exporting module is also converted to a CommonJS wrapper (since re-exporting everything from a CommonJS module must be done at run-time). That can also impact the bundle's exports itself if the entry point does this and the format is `esm`.
+
+    It is generally equivalent to avoid the CommonJS wrapper and just rewrite the imports to an `undefined` literal instead:
+
+    ```js
+    import {name} from './empty-file'
+    console.log(name)
+    ```
+
+    This can be rewritten to this instead (with a warning generated about `name` being missing):
+
+    ```js
+    console.log(void 0)
+    ```
+
+    With this release, this is now how cases like these are handled. The only case where this can't be done is when the import uses the `import * as` syntax. In that case a CommonJS wrapper is still necessary because the namespace cannot be rewritten to `undefined`.
+
 ## 0.7.14
 
 * Fix a bug with compound import statements ([#446](https://github.com/evanw/esbuild/issues/446))

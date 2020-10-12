@@ -45,9 +45,10 @@ type ImportRecord struct {
 	// out to be type-only imports after analyzing the whole file.
 	IsUnused bool
 
-	// If this is true, the import doesn't actually use any imported values. The
-	// import is only used for its side effects.
-	DoesNotUseExports bool
+	// If this is true, the import contains syntax like "* as ns". This is used
+	// to determine whether modules that have no exports need to be wrapped in a
+	// CommonJS wrapper or not.
+	ContainsImportStar bool
 
 	// If true, this "export * from 'path'" statement is evaluated at run-time by
 	// calling the "__exportStar()" helper function

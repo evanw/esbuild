@@ -676,23 +676,49 @@ func TestImportMissingCommonJS(t *testing.T) {
 func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.js": `
+			"/named.js": `
 				import fn, {x as a, y as b} from './foo'
-				import * as ns from './foo'
 				console.log(fn(a, b))
+			`,
+			"/star.js": `
+				import * as ns from './foo'
+				console.log(ns.default(ns.x, ns.y))
+			`,
+			"/star-capture.js": `
+				import * as ns from './foo'
+				console.log(ns)
+			`,
+			"/bare.js": `
+				import './foo'
+			`,
+			"/require.js": `
+				console.log(require('./foo'))
+			`,
+			"/import.js": `
+				console.log(import('./foo'))
 			`,
 			"/foo.js": `
 				console.log('no exports here')
 			`,
 		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+		entryPaths: []string{
+			"/named.js",
+			"/star.js",
+			"/star-capture.js",
+			"/bare.js",
+			"/require.js",
+			"/import.js",
 		},
-		expectedCompileLog: `/entry.js: warning: Import "default" will always be undefined
-/entry.js: warning: Import "x" will always be undefined
-/entry.js: warning: Import "y" will always be undefined
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedCompileLog: `/named.js: warning: Import "default" will always be undefined
+/named.js: warning: Import "x" will always be undefined
+/named.js: warning: Import "y" will always be undefined
+/star.js: warning: Import "default" will always be undefined
+/star.js: warning: Import "x" will always be undefined
+/star.js: warning: Import "y" will always be undefined
 `,
 	})
 }

@@ -458,3 +458,45 @@ func TestTSImportStarMangleNoBundleNoCapture(t *testing.T) {
 		},
 	})
 }
+
+func TestTSReExportTypeOnlyFileES6(t *testing.T) {
+	importstar_ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import * as ns from './re-export'
+				console.log(ns.foo)
+			`,
+			"/re-export.ts": `
+				export * from './types1'
+				export * from './types2'
+				export * from './types3'
+				export * from './values'
+			`,
+			"/types1.ts": `
+				export interface Foo {}
+				export type Bar = number
+				console.log('some code')
+			`,
+			"/types2.ts": `
+				import {Foo} from "./type"
+				export {Foo}
+				console.log('some code')
+			`,
+			"/types3.ts": `
+				export {Foo} from "./type"
+				console.log('some code')
+			`,
+			"/values.ts": `
+				export let foo = 123
+			`,
+			"/type.ts": `
+				export type Foo = number
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

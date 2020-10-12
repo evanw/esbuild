@@ -1024,40 +1024,22 @@ func (c *linkerContext) scanImportsAndExports() {
 					// causes that module to be considered CommonJS-style, even if it
 					// doesn't have any CommonJS exports.
 					//
-					// That means the ES6 imports will silently become undefined instead
-					// of causing errors. This is for compatibility with older CommonJS-
+					// That means the ES6 imports will become undefined instead of
+					// causing errors. This is for compatibility with older CommonJS-
 					// style bundlers.
 					//
-					// I've only come across a single case where this mattered, in the
-					// package https://github.com/megawac/MutationObserver.js. The library
-					// used to look like this:
+					// We emit a warning in this case but try to avoid turning the module
+					// into a CommonJS module if possible. This is possible with named
+					// imports (the module stays an ECMAScript module but the imports are
+					// rewritten with undefined) but is not possible with star imports:
 					//
-					//   this.MutationObserver = this.MutationObserver || (function() {
-					//     ...
-					//     return MutationObserver;
-					//   })();
+					//   import * as ns from './empty-file'
+					//   console.log(ns)
 					//
-					// That is compatible with CommonJS since "this" is an alias for
-					// "exports". The code in question used the package like this:
-					//
-					//   import MutationObserver from '@sheerun/mutationobserver-shim';
-					//
-					// Then the library was updated to do this instead:
-					//
-					//   window.MutationObserver = window.MutationObserver || (function() {
-					//     ...
-					//     return MutationObserver;
-					//   })();
-					//
-					// The package was updated without the ES6 import being removed. The
-					// code still has the import but "MutationObserver" is now undefined:
-					//
-					//   import MutationObserver from '@sheerun/mutationobserver-shim';
-					//
-					if !record.DoesNotUseExports {
-						if !otherRepr.ast.HasES6Syntax() && !otherRepr.ast.HasLazyExport {
-							otherRepr.meta.cjsStyleExports = true
-						}
+					// In that case the module *is* considered a CommonJS module because
+					// the namespace object must be created.
+					if record.ContainsImportStar && !otherRepr.ast.HasES6Syntax() && !otherRepr.ast.HasLazyExport {
+						otherRepr.meta.cjsStyleExports = true
 					}
 
 				case ast.ImportRequire:
@@ -1750,6 +1732,8 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				// Warn about importing from a file that is known to not have any exports
 				if status == importCommonJSWithoutExports {
 					source := c.files[tracker.sourceIndex].source
+					symbol := c.symbols.Get(tracker.importRef)
+					symbol.ImportItemStatus = js_ast.ImportItemMissing
 					c.log.AddRangeWarning(&source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
 						fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
 				}
@@ -1762,6 +1746,13 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 				// Report mismatched imports and exports
 				if symbol.ImportItemStatus == js_ast.ImportItemGenerated {
+					// This is a warning instead of an error because although it appears
+					// to be a named import, it's actually an automatically-generated
+					// named import that was originally a property access on an import
+					// star namespace object. Normally this property access would just
+					// resolve to undefined at run-time instead of failing at binding-
+					// time, so we emit a warning and rewrite the value to the literal
+					// "undefined" instead of emitting an error.
 					symbol.ImportItemStatus = js_ast.ImportItemMissing
 					c.log.AddRangeWarning(&source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 				} else {
@@ -1927,7 +1918,7 @@ const (
 	// The imported file is CommonJS and has unknown exports
 	importCommonJS
 
-	// The imported file was treated as CommonJS but is known to have no exports
+	// The import was treated as a CommonJS import but the file is known to have no exports
 	importCommonJSWithoutExports
 
 	// The imported file was disabled by mapping it to false in the "browser"
@@ -1961,12 +1952,15 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		return importTracker{}, importDisabled
 	}
 
-	// Is this a CommonJS file?
+	// Is this a named import of a file without any exports?
 	otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
+	if namedImport.Alias != "*" && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasES6Syntax() && !otherRepr.ast.HasLazyExport {
+		// Just warn about it and replace the import with "undefined"
+		return importTracker{}, importCommonJSWithoutExports
+	}
+
+	// Is this a CommonJS file?
 	if otherRepr.meta.cjsStyleExports {
-		if !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasES6Syntax() {
-			return importTracker{}, importCommonJSWithoutExports
-		}
 		return importTracker{}, importCommonJS
 	}
 
