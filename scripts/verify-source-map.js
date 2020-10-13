@@ -314,7 +314,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       const out2JsMap = await readFileAsync(path.join(tempDir, 'out2.js.map'), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2JsMap)
-      checkMap(out2Js, out2Map, path.relative(testDir, tempDir))
+      checkMap(out2Js, out2Map, path.join(path.relative(tempDir, testDir), path.basename(tempDir)))
     }
 
     if (!failed) rimraf.sync(tempDir, { disableGlob: true })

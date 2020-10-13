@@ -3436,7 +3436,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		}
 
 		if c.options.SourceMap != config.SourceMapNone {
-			sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
+			sourceMap := c.generateSourceMapForChunk(chunk.relDir, compileResultsForSourceMap)
 
 			// Store the generated source map
 			switch c.options.SourceMap {
@@ -3789,7 +3789,7 @@ func (c *linkerContext) preventExportsFromBeingRenamed(sourceIndex uint32) {
 	}
 }
 
-func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []byte {
+func (c *linkerContext) generateSourceMapForChunk(relDir string, results []compileResultJS) []byte {
 	j := js_printer.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
@@ -3807,6 +3807,14 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []b
 		}
 	}
 	j.AddString("]")
+
+	// Write the sourceRoot
+	j.AddString(",\n  \"sourceRoot\": \"")
+	if rel, ok := c.fs.Rel(c.fs.Join(c.options.AbsOutputDir, relDir), c.fs.Cwd()); ok {
+		// Replace Windows backward slashes with standard forward slashes.
+		j.AddString(strings.ReplaceAll(rel, "\\", "/"))
+	}
+	j.AddString("\"")
 
 	// Write the sourcesContent
 	j.AddString(",\n  \"sourcesContent\": [")
