@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.15
 
 * Lower `export * as` syntax for ES2019 and below
 
