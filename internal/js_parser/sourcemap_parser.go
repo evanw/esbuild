@@ -3,7 +3,6 @@ package js_parser
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -30,12 +29,6 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	var mappingsStart int32
 	hasVersion := false
 
-	// Treat the paths in the source map as relative to the directory containing the source map
-	var sourcesPrefix string
-	if slash := strings.LastIndexAny(source.PrettyPath, "/\\"); slash != -1 {
-		sourcesPrefix = source.PrettyPath[:slash+1]
-	}
-
 	for _, prop := range obj.Properties {
 		keyRange := source.RangeOfString(prop.Key.Loc)
 
@@ -60,7 +53,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				sources = nil
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
-						sources = append(sources, sourcesPrefix+js_lexer.UTF16ToString(element.Value))
+						sources = append(sources, js_lexer.UTF16ToString(element.Value))
 					}
 				}
 			}

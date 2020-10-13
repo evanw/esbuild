@@ -22,6 +22,7 @@ import (
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
+	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
 type bitSet struct {
@@ -2915,6 +2916,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	waitGroup *sync.WaitGroup,
 	partRange partRange,
 	entryBits bitSet,
+	chunkAbsDir string,
 	commonJSRef js_ast.Ref,
 	toModuleRef js_ast.Ref,
 	result *compileResultJS,
@@ -3005,9 +3007,40 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	}
 
 	// Only generate a source map if needed
-	sourceForSourceMap := &c.files[partRange.sourceIndex].source
-	if !file.loader.CanHaveSourceMap() || c.options.SourceMap == config.SourceMapNone {
-		sourceForSourceMap = nil
+	var sourceForSourceMap *logger.Source
+	var inputSourceMap *sourcemap.SourceMap
+	if file.loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
+		sourceClone := file.source
+		sourceForSourceMap = &sourceClone
+
+		if file.sourceMap != nil {
+			sourceMapClone := *file.sourceMap
+			inputSourceMap = &sourceMapClone
+
+			// Modify the paths to the original files to be relative to the directory
+			// containing the output file
+			if sourceClone.KeyPath.Namespace == "file" {
+				// Clone the array to avoid modifying the original array
+				sourceMapClone.Sources = append([]string{}, sourceMapClone.Sources...)
+				sourceAbsDir := c.fs.Dir(sourceClone.KeyPath.Text)
+
+				// Remap each path in the "sources" array in the source map
+				for i, oldRelPath := range sourceMapClone.Sources {
+					absPath := c.fs.Join(sourceAbsDir, oldRelPath)
+					if relPath, ok := c.fs.Rel(chunkAbsDir, absPath); ok {
+						sourceMapClone.Sources[i] = relPath
+					}
+				}
+			}
+		}
+
+		// Modify the path to the original file to be relative to the directory
+		// containing the output file
+		if sourceClone.KeyPath.Namespace == "file" {
+			if relPath, ok := c.fs.Rel(chunkAbsDir, sourceClone.KeyPath.Text); ok {
+				sourceClone.PrettyPath = relPath
+			}
+		}
 	}
 
 	// Indent the file if everything is wrapped in an IIFE
@@ -3026,7 +3059,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
 		UnsupportedFeatures: c.options.UnsupportedJSFeatures,
 		SourceForSourceMap:  sourceForSourceMap,
-		InputSourceMap:      file.sourceMap,
+		InputSourceMap:      inputSourceMap,
 		WrapperRefForSource: func(sourceIndex uint32) js_ast.Ref {
 			return c.files[sourceIndex].repr.(*reprJS).ast.WrapperRef
 		},
@@ -3187,6 +3220,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 	commonJSRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__commonJS"].Ref)
 	toModuleRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder)
+	chunkAbsDir := c.fs.Join(c.options.AbsOutputDir, chunk.relDir)
 
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
@@ -3205,6 +3239,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 			&waitGroup,
 			partRange,
 			chunk.entryBits,
+			chunkAbsDir,
 			commonJSRef,
 			toModuleRef,
 			compileResult,
@@ -3436,7 +3471,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		}
 
 		if c.options.SourceMap != config.SourceMapNone {
-			sourceMap := c.generateSourceMapForChunk(chunk.relDir, compileResultsForSourceMap)
+			sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
 
 			// Store the generated source map
 			switch c.options.SourceMap {
@@ -3789,7 +3824,7 @@ func (c *linkerContext) preventExportsFromBeingRenamed(sourceIndex uint32) {
 	}
 }
 
-func (c *linkerContext) generateSourceMapForChunk(relDir string, results []compileResultJS) []byte {
+func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []byte {
 	j := js_printer.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
@@ -3807,15 +3842,6 @@ func (c *linkerContext) generateSourceMapForChunk(relDir string, results []compi
 		}
 	}
 	j.AddString("]")
-
-	// Write the sourceRoot
-	sourceRoot := ""
-	if rel, ok := c.fs.Rel(c.fs.Join(c.options.AbsOutputDir, relDir), c.fs.Cwd()); ok {
-		// Replace Windows backward slashes with standard forward slashes.
-		sourceRoot = strings.ReplaceAll(rel, "\\", "/")
-	}
-	j.AddString(",\n  \"sourceRoot\": ")
-	j.AddBytes(js_printer.QuoteForJSON(sourceRoot))
 
 	// Write the sourcesContent
 	j.AddString(",\n  \"sourcesContent\": [")
