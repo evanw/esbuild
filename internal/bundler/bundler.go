@@ -564,6 +564,9 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			if resolveResult.StrictClassFields {
 				optionsClone.Strict.ClassFields = true
 			}
+			if resolveResult.PreserveUnusedImportsTS {
+				optionsClone.PreserveUnusedImportsTS = true
+			}
 
 			go parseFile(parseArgs{
 				fs:              fs,

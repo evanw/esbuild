@@ -185,7 +185,8 @@ type Options struct {
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool
 
-	OmitRuntimeForTests bool
+	OmitRuntimeForTests     bool
+	PreserveUnusedImportsTS bool
 
 	Strict   StrictOptions
 	Defines  *ProcessedDefines

@@ -179,5 +179,18 @@ const util = __toModule(require_util());
 console.log(util.default());
 
 ================================================================================
+TestTsconfigPreserveTypeImports
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/src/entry.ts
+import "./src/foo";
+console.log(1);
+
+================================================================================
+TestTsconfigRemoveTypeImports
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/src/entry.ts
+console.log(1);
+
+================================================================================
 TestTsconfigWarningsInsideNodeModules
 ---------- /Users/user/project/out.js ----------

@@ -587,3 +587,50 @@ func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
 `,
 	})
 }
+
+func TestTsconfigRemoveTypeImports(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import {x, y} from "./foo"
+				console.log(1 as x)
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"importsNotUsedAsValues": "remove"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsconfigPreserveTypeImports(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import {x, y} from "./foo"
+				console.log(1 as x)
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"importsNotUsedAsValues": "preserve"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			ExternalModules: config.ExternalModules{
+				AbsPaths: map[string]bool{
+					"/Users/user/project/src/foo": true,
+				},
+			},
+		},
+	})
+}
