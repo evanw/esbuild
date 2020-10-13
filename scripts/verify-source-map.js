@@ -1,15 +1,12 @@
 const { SourceMapConsumer } = require('source-map')
 const { buildBinary } = require('./esbuild')
 const childProcess = require('child_process')
-const mkdirp = require('mkdirp')
 const rimraf = require('rimraf')
 const path = require('path')
 const util = require('util')
-const fs = require('fs')
+const fs = require('fs').promises
 
 const execFileAsync = util.promisify(childProcess.execFile)
-const readFileAsync = util.promisify(fs.readFile)
-const writeFileAsync = util.promisify(fs.writeFile)
 
 const esbuildPath = buildBinary()
 const testDir = path.join(__dirname, '.verify-source-map')
@@ -206,15 +203,15 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
     }
 
     const tempDir = path.join(testDir, '' + tempDirCount++)
-    mkdirp.sync(tempDir)
+    await fs.mkdir(tempDir, { recursive: true })
 
     for (const name in testCase) {
       if (name !== '<stdin>') {
         const tempPath = path.join(tempDir, name)
         let code = testCase[name]
-        mkdirp.sync(path.dirname(tempPath))
+        await fs.mkdir(path.dirname(tempPath), { recursive: true })
         if (crlf) code = code.replace(/\n/g, '\r\n')
-        await writeFileAsync(tempPath, code)
+        await fs.writeFile(tempPath, code)
       }
     }
 
@@ -243,9 +240,9 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
     }
 
     else {
-      outJs = await readFileAsync(path.join(tempDir, 'out.js'), 'utf8')
+      outJs = await fs.readFile(path.join(tempDir, 'out.js'), 'utf8')
       recordCheck(outJs.includes(`//# sourceMappingURL=out.js.map\n`), `.js file links to .js.map`)
-      outJsMap = await readFileAsync(path.join(tempDir, 'out.js.map'), 'utf8')
+      outJsMap = await fs.readFile(path.join(tempDir, 'out.js.map'), 'utf8')
     }
 
     // Check the mapping of various key locations back to the original source
@@ -302,17 +299,17 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
     for (let order of [0, 1, 2]) {
       const fileToTest = isStdin ? 'stdout.js' : 'out.js'
       const nestedEntry = path.join(tempDir, 'nested-entry.js')
-      if (isStdin) await writeFileAsync(path.join(tempDir, fileToTest), outJs)
-      await writeFileAsync(path.join(tempDir, 'extra.js'), `console.log('extra')`)
-      await writeFileAsync(nestedEntry,
+      if (isStdin) await fs.writeFile(path.join(tempDir, fileToTest), outJs)
+      await fs.writeFile(path.join(tempDir, 'extra.js'), `console.log('extra')`)
+      await fs.writeFile(nestedEntry,
         order === 1 ? `import './${fileToTest}'; import './extra.js'` :
           order === 2 ? `import './extra.js'; import './${fileToTest}'` :
             `import './${fileToTest}'`)
       await execFileAsync(esbuildPath, [nestedEntry, '--bundle', '--outfile=' + path.join(tempDir, 'out2.js'), '--sourcemap'], { cwd: testDir })
 
-      const out2Js = await readFileAsync(path.join(tempDir, 'out2.js'), 'utf8')
+      const out2Js = await fs.readFile(path.join(tempDir, 'out2.js'), 'utf8')
       recordCheck(out2Js.includes(`//# sourceMappingURL=out2.js.map\n`), `.js file links to .js.map`)
-      const out2JsMap = await readFileAsync(path.join(tempDir, 'out2.js.map'), 'utf8')
+      const out2JsMap = await fs.readFile(path.join(tempDir, 'out2.js.map'), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2JsMap)
       checkMap(out2Js, out2Map, tempDir)

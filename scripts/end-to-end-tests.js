@@ -14,16 +14,13 @@
 
   const childProcess = await import('child_process')
   const { default: { buildBinary, dirname } } = await import('./esbuild.js')
-  const { default: mkdirp } = await import('mkdirp')
   const { default: rimraf } = await import('rimraf')
   const assert = await import('assert')
   const path = await import('path')
   const util = await import('util')
   const url = await import('url')
-  const fs = await import('fs')
+  const fs = (await import('fs')).promises
 
-  const symlinkAsync = util.promisify(fs.symlink)
-  const writeFileAsync = util.promisify(fs.writeFile)
   const execFileAsync = util.promisify(childProcess.execFile)
 
   const testDir = path.join(dirname, '.end-to-end-tests')
@@ -1599,11 +1596,11 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
           for (const file in files) {
             const filePath = path.join(thisTestDir, file)
             const contents = files[file]
-            mkdirp.sync(path.dirname(filePath))
+            await fs.mkdir(path.dirname(filePath), { recursive: true })
 
             // Optionally symlink the file if the test requests it
-            if (contents.symlink) await symlinkAsync(contents.symlink.replace('TEST_DIR_ABS_PATH', thisTestDir), filePath)
-            else await writeFileAsync(filePath, contents)
+            if (contents.symlink) await fs.symlink(contents.symlink.replace('TEST_DIR_ABS_PATH', thisTestDir), filePath)
+            else await fs.writeFile(filePath, contents)
           }
 
           // Run esbuild
@@ -1620,12 +1617,12 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
           switch (format) {
             case 'cjs':
             case 'iife':
-              await writeFileAsync(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
+              await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "commonjs"}')
               testExports = (await import(url.pathToFileURL(`${nodePath}.js`))).default
               break
 
             case 'esm':
-              await writeFileAsync(path.join(thisTestDir, 'package.json'), '{"type": "module"}')
+              await fs.writeFile(path.join(thisTestDir, 'package.json'), '{"type": "module"}')
               testExports = await import(url.pathToFileURL(`${nodePath}.js`))
               break
           }
@@ -1672,9 +1669,9 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
       const thisTestDir = path.join(testDir, '' + testCount++)
 
       try {
-        mkdirp.sync(thisTestDir)
+        await fs.mkdir(thisTestDir, { recursive: true })
         const inputFile = path.join(thisTestDir, 'example.js')
-        await writeFileAsync(inputFile, input)
+        await fs.writeFile(inputFile, input)
 
         // Run whatever check the caller is doing
         await callback(async () => {
@@ -1697,7 +1694,7 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
 
   // Create a fresh test directory
   rimraf.sync(testDir, { disableGlob: true })
-  fs.mkdirSync(testDir)
+  await fs.mkdir(testDir, { recursive: true })
 
   // Run all tests concurrently
   const allTestsPassed = (await Promise.all(tests.map(test => test()))).every(success => success)
