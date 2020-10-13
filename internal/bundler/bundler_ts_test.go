@@ -829,7 +829,7 @@ func TestTSImplicitExtensionsMissing(t *testing.T) {
 }
 
 func TestExportTypeIssue379(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import * as A from './a'

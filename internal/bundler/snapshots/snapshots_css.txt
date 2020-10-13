@@ -1,12 +1,3 @@
-TestAutoExternal
----------- /out/entry.js ----------
-// /entry.js
-import "http://example.com/code.js";
-import "https://example.com/code.js";
-import "//example.com/code.js";
-import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
-
-================================================================================
 TestBase64ImportURLInCSS
 ---------- /out/entry.css ----------
 /* /entry.css */

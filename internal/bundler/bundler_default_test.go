@@ -1973,7 +1973,7 @@ func TestExternalModuleExclusionRelativePath(t *testing.T) {
 }
 
 func TestAutoExternal(t *testing.T) {
-	css_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				// These URLs should be external automatically
@@ -2860,7 +2860,7 @@ func TestWarningsInsideNodeModules(t *testing.T) {
 }
 
 func TestRequireResolve(t *testing.T) {
-	splitting_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				console.log(require.resolve)
