@@ -3809,12 +3809,13 @@ func (c *linkerContext) generateSourceMapForChunk(relDir string, results []compi
 	j.AddString("]")
 
 	// Write the sourceRoot
-	j.AddString(",\n  \"sourceRoot\": \"")
+	sourceRoot := ""
 	if rel, ok := c.fs.Rel(c.fs.Join(c.options.AbsOutputDir, relDir), c.fs.Cwd()); ok {
 		// Replace Windows backward slashes with standard forward slashes.
-		j.AddString(strings.ReplaceAll(rel, "\\", "/"))
+		sourceRoot = strings.ReplaceAll(rel, "\\", "/")
 	}
-	j.AddString("\"")
+	j.AddString(",\n  \"sourceRoot\": ")
+	j.AddBytes(js_printer.QuoteForJSON(sourceRoot))
 
 	// Write the sourcesContent
 	j.AddString(",\n  \"sourcesContent\": [")

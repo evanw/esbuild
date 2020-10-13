@@ -42,6 +42,14 @@
 
     The `importsNotUsedAsValues` field in `tsconfig.json` is now respected. Setting it to `"preserve"` means esbuild will no longer remove unused imports in TypeScript files. This field was added in TypeScript 3.8.
 
+* Fix relative paths in generated source maps ([#444](https://github.com/evanw/esbuild/issues/444))
+
+    Currently paths in generated source map files don't necessarily correspond to real file system paths. They are really only meant to be human-readable when debugging in the browser.
+
+    However, the Visual Studio Code debugger expects these paths to point back to the original files on the file system. With this release, it should now always be possible to get back to the original source file by joining the directory containing the source map file with the relative path in the source map.
+
+    This fix was contributed by [@yoyo930021](https://github.com/yoyo930021).
+
 ## 0.7.14
 
 * Fix a bug with compound import statements ([#446](https://github.com/evanw/esbuild/issues/446))

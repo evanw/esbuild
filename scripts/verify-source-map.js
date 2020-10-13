@@ -260,7 +260,8 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
 
         const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
         const expectedSource = path.join(relativeTo, inSource).replace(/\\/g, '/')
-        recordCheck(source === expectedSource, `expected: ${expectedSource} observed: ${source}`)
+        const observedSource = path.join(relativeTo, source).replace(/\\/g, '/')
+        recordCheck(observedSource === expectedSource, `expected: ${expectedSource} observed: ${observedSource}`)
 
         const inJs = map.sourceContentFor(source)
         const inIndex = inJs.indexOf(`"${id}"`)
@@ -314,7 +315,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       const out2JsMap = await readFileAsync(path.join(tempDir, 'out2.js.map'), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2JsMap)
-      checkMap(out2Js, out2Map, path.join(path.relative(tempDir, testDir), path.basename(tempDir)))
+      checkMap(out2Js, out2Map, tempDir)
     }
 
     if (!failed) rimraf.sync(tempDir, { disableGlob: true })
