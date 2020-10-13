@@ -10072,7 +10072,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 	return p
 }
 
-func Parse(log logger.Log, source logger.Source, options config.Options) (result js_ast.AST, ok bool) {
+func Parse(log logger.Log, source logger.Source, options *config.Options) (result js_ast.AST, ok bool) {
 	ok = true
 	defer func() {
 		r := recover()
@@ -10091,7 +10091,7 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		options.JSX.Fragment = []string{"React", "Fragment"}
 	}
 
-	p := newParser(log, source, js_lexer.NewLexer(log, source), &options)
+	p := newParser(log, source, js_lexer.NewLexer(log, source), options)
 
 	// Consume a leading hashbang comment
 	hashbang := ""
@@ -10106,7 +10106,7 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 
 	// Parse the file in the first pass, but do not bind symbols
 	stmts := p.parseStmtsUpTo(js_lexer.TEndOfFile, parseStmtOpts{isModuleScope: true})
-	p.prepareForVisitPass(&options)
+	p.prepareForVisitPass(options)
 
 	// Strip off a leading "use strict" directive when not bundling
 	directive := ""
@@ -10178,12 +10178,12 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 	return
 }
 
-func LazyExportAST(log logger.Log, source logger.Source, options config.Options, expr js_ast.Expr, apiCall string) js_ast.AST {
+func LazyExportAST(log logger.Log, source logger.Source, options *config.Options, expr js_ast.Expr, apiCall string) js_ast.AST {
 	// Don't create a new lexer using js_lexer.NewLexer() here since that will
 	// actually attempt to parse the first token, which might cause a syntax
 	// error.
-	p := newParser(log, source, js_lexer.Lexer{}, &options)
-	p.prepareForVisitPass(&options)
+	p := newParser(log, source, js_lexer.Lexer{}, options)
+	p.prepareForVisitPass(options)
 
 	// Optionally call a runtime API function to transform the expression
 	if apiCall != "" {

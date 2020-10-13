@@ -107,7 +107,7 @@ type Resolver interface {
 type resolver struct {
 	fs      fs.FS
 	log     logger.Log
-	options config.Options
+	options *config.Options
 	mutex   sync.Mutex
 
 	// This cache maps a directory path to information about that directory and
@@ -115,7 +115,7 @@ type resolver struct {
 	dirCache map[string]*dirInfo
 }
 
-func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
+func NewResolver(fs fs.FS, log logger.Log, options *config.Options) Resolver {
 	// Bundling for node implies allowing node's builtin modules
 	if options.Platform == config.PlatformNode {
 		externalNodeModules := make(map[string]bool)

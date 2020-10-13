@@ -19,7 +19,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{})
+		Parse(log, test.SourceForTest(contents), &config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -34,7 +34,7 @@ func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expect
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{
+		Parse(log, test.SourceForTest(contents), &config.Options{
 			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
 			}),
@@ -53,7 +53,7 @@ func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{})
+		tree, ok := Parse(log, test.SourceForTest(contents), &config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -78,7 +78,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), &config.Options{
 			MangleSyntax: true,
 		})
 		msgs := log.Done()
@@ -106,7 +106,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		unsupportedFeatures := compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		})
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), &config.Options{
 			UnsupportedJSFeatures: unsupportedFeatures,
 		})
 		msgs := log.Done()
@@ -135,7 +135,7 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), &config.Options{
 			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 				compat.ES: {esVersion},
 			}),
@@ -169,7 +169,7 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{
+		Parse(log, test.SourceForTest(contents), &config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
 			},
@@ -188,7 +188,7 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), &config.Options{
 			JSX: config.JSXOptions{
 				Parse: true,
 			},

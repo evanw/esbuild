@@ -514,13 +514,13 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	// Stop now if there were errors
 	if !log.HasErrors() {
 		// Scan over the bundle
-		resolver := resolver.NewResolver(realFS, log, options)
-		bundle := bundler.ScanBundle(log, realFS, resolver, entryPaths, options)
+		resolver := resolver.NewResolver(realFS, log, &options)
+		bundle := bundler.ScanBundle(log, realFS, resolver, entryPaths, &options)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results := bundle.Compile(log, options)
+			results := bundle.Compile(log, &options)
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
@@ -640,13 +640,13 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	if !log.HasErrors() {
 		// Scan over the bundle
 		mockFS := fs.MockFS(make(map[string]string))
-		resolver := resolver.NewResolver(mockFS, log, options)
-		bundle := bundler.ScanBundle(log, mockFS, resolver, nil, options)
+		resolver := resolver.NewResolver(mockFS, log, &options)
+		bundle := bundler.ScanBundle(log, mockFS, resolver, nil, &options)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results = bundle.Compile(log, options)
+			results = bundle.Compile(log, &options)
 		}
 	}
 

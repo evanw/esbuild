@@ -88,8 +88,8 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
 		}
 		log := logger.NewDeferLog()
-		resolver := resolver.NewResolver(fs, log, args.options)
-		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.options)
+		resolver := resolver.NewResolver(fs, log, &args.options)
+		bundle := ScanBundle(log, fs, resolver, args.entryPaths, &args.options)
 		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 
@@ -100,7 +100,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 
 		log = logger.NewDeferLog()
 		args.options.OmitRuntimeForTests = true
-		results := bundle.Compile(log, args.options)
+		results := bundle.Compile(log, &args.options)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 

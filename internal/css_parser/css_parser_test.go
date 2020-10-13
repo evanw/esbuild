@@ -22,7 +22,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{})
+		Parse(log, test.SourceForTest(contents), &config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -32,7 +32,7 @@ func expectParseError(t *testing.T, contents string, expected string) {
 	})
 }
 
-func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options config.Options) {
+func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options *config.Options) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
@@ -53,19 +53,19 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, contents, expected, config.Options{})
+	expectPrintedCommon(t, contents, contents, expected, &config.Options{})
 }
 
 func expectPrintedLower(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
+	expectPrintedCommon(t, contents+" [mangle]", contents, expected, &config.Options{
 		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
 	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangle]", contents, expected, config.Options{
+	expectPrintedCommon(t, contents+" [mangle]", contents, expected, &config.Options{
 		MangleSyntax: true,
 	})
 }

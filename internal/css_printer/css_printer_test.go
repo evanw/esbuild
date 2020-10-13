@@ -21,7 +21,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree := css_parser.Parse(log, test.SourceForTest(contents), config.Options{})
+		tree := css_parser.Parse(log, test.SourceForTest(contents), &config.Options{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {

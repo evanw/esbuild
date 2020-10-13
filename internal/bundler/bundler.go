@@ -121,7 +121,7 @@ type parseArgs struct {
 	importSource    *logger.Source
 	flags           parseFlags
 	importPathRange logger.Range
-	options         config.Options
+	options         *config.Options
 	results         chan parseResult
 
 	// If non-empty, this provides a fallback directory to resolve imports
@@ -497,7 +497,7 @@ func hashForFileName(bytes []byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes[:])[:8]
 }
 
-func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
+func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options *config.Options) Bundle {
 	results := []parseResult{}
 	visited := make(map[string]uint32)
 	resultChannel := make(chan parseResult)
@@ -512,7 +512,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		results = append(results, parseResult{})
 		remaining++
 		go func() {
-			source, ast, ok := globalRuntimeCache.parseRuntime(&options)
+			source, ast, ok := globalRuntimeCache.parseRuntime(options)
 			resultChannel <- parseResult{file: file{source: source, repr: &reprJS{ast: ast}}, ok: ok}
 		}()
 	}
@@ -835,7 +835,7 @@ type OutputFile struct {
 	IsExecutable bool
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
+func (b *Bundle) Compile(log logger.Log, options *config.Options) []OutputFile {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
@@ -856,7 +856,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	var resultGroups []linkGroup
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints, lcaAbsPath)
+		c := newLinkerContext(options, log, b.fs, b.res, b.files, b.entryPoints, lcaAbsPath)
 		resultGroups = []linkGroup{{
 			outputFiles:    c.link(),
 			reachableFiles: c.reachableFiles,
@@ -868,7 +868,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint uint32) {
-				c := newLinkerContext(&options, log, b.fs, b.res, b.files, []uint32{entryPoint}, lcaAbsPath)
+				c := newLinkerContext(options, log, b.fs, b.res, b.files, []uint32{entryPoint}, lcaAbsPath)
 				resultGroups[i] = linkGroup{
 					outputFiles:    c.link(),
 					reachableFiles: c.reachableFiles,
@@ -1112,7 +1112,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 
 	// Cache miss
 	log := logger.NewDeferLog()
-	runtimeAST, ok = js_parser.Parse(log, source, config.Options{
+	runtimeAST, ok = js_parser.Parse(log, source, &config.Options{
 		// These configuration options must only depend on the key
 		MangleSyntax:      key.MangleSyntax,
 		MinifyIdentifiers: key.MinifyIdentifiers,

@@ -17,7 +17,7 @@ import (
 type parser struct {
 	log           logger.Log
 	source        logger.Source
-	options       config.Options
+	options       *config.Options
 	tokens        []css_lexer.Token
 	stack         []css_lexer.T
 	index         int
@@ -26,7 +26,7 @@ type parser struct {
 	importRecords []ast.ImportRecord
 }
 
-func Parse(log logger.Log, source logger.Source, options config.Options) css_ast.AST {
+func Parse(log logger.Log, source logger.Source, options *config.Options) css_ast.AST {
 	p := parser{
 		log:       log,
 		source:    source,
