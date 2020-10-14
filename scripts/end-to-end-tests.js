@@ -111,6 +111,15 @@
     }),
   )
 
+  // Test CommonJS "module.require" bypassing the bundler's require
+  tests.push(
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `export {foo} from './foo'`,
+      'foo.js': `exports.foo = module.require('fs').exists`,
+      'node.js': `if (require('./out').foo !== require('fs').exists) throw 'fail'`,
+    }),
+  )
+
   // Test internal CommonJS export
   tests.push(
     test(['--bundle', 'in.js', '--outfile=node.js'], {
