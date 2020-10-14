@@ -6,6 +6,12 @@
 
     The relative path fix in the previous release caused a regression where paths in source maps contained `\` instead of `/` on Windows. That is incorrect because source map paths are URLs, not file system paths. This release replaces `\` with `/` for consistency on Windows.
 
+* `module.require()` is now an alias for `require()` ([#455](https://github.com/evanw/esbuild/issues/455))
+
+    Some packages such as [apollo-server](https://github.com/apollographql/apollo-server) use `module.require()` instead of `require()` with the intent of bypassing the bundler's `require` and calling the underlying function from `node` instead. Unfortunately that doesn't actually work because CommonJS module semantics means `module` is a variable local to that file's CommonJS closure instead of the host's `module` object.
+
+    This wasn't an issue when using `apollo-server` with Webpack because the literal expression `module.require()` is automatically rewritten to `require()` by Webpack: [webpack/webpack#7750](https://github.com/webpack/webpack/pull/7750). To get this package to work, esbuild now matches Webpack's behavior here. Calls to `module.require()` will become external calls to `require()` as long as the required path has been marked as external.
+
 ## 0.7.15
 
 * Lower `export * as` syntax for ES2019 and below

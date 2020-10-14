@@ -7562,7 +7562,7 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, as
 		if i+1 == len(parts) {
 			targetIfLast = assignTarget
 		}
-		if expr, ok := p.maybeRewritePropertyAccess(loc, targetIfLast, js_ast.OptionalChainNone, value, parts[i], loc); ok {
+		if expr, ok := p.maybeRewritePropertyAccess(loc, targetIfLast, js_ast.OptionalChainNone, value, parts[i], loc, false); ok {
 			value = expr
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -7662,6 +7662,7 @@ func (p *parser) maybeRewritePropertyAccess(
 	target js_ast.Expr,
 	name string,
 	nameLoc logger.Loc,
+	isCallTarget bool,
 ) (js_ast.Expr, bool) {
 	if id, ok := target.Data.(*js_ast.EIdentifier); ok {
 		// Rewrite property accesses on explicit namespace imports as an identifier.
@@ -7709,6 +7710,14 @@ func (p *parser) maybeRewritePropertyAccess(
 				// Track how many times we've referenced this symbol
 				p.recordUsage(item.Ref)
 				return p.handleIdentifier(nameLoc, assignTarget, &js_ast.EIdentifier{Ref: item.Ref}), true
+			}
+
+			// Rewrite "module.require()" to "require()" for Webpack compatibility.
+			// See https://github.com/webpack/webpack/pull/7750 for more info.
+			if isCallTarget && id.Ref == p.moduleRef && name == "require" {
+				p.ignoreUsage(p.moduleRef)
+				p.recordUsage(p.requireRef)
+				return js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: p.requireRef}}, true
 			}
 		}
 
@@ -8597,7 +8606,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		out = exprOut{childContainsOptionalChain: containsOptionalChain}
 		if str, ok := e.Index.Data.(*js_ast.EString); ok {
 			name := js_lexer.UTF16ToString(str.Value)
-			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, e.OptionalChain, e.Target, name, e.Index.Loc); ok {
+			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, e.OptionalChain, e.Target, name, e.Index.Loc, isCallTarget); ok {
 				return value, out
 			}
 		}
@@ -8794,7 +8803,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Potentially rewrite this property access
 		out = exprOut{childContainsOptionalChain: containsOptionalChain}
-		if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, e.OptionalChain, e.Target, e.Name, e.NameLoc); ok {
+		if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, e.OptionalChain, e.Target, e.Name, e.NameLoc, isCallTarget); ok {
 			return value, out
 		}
 		return js_ast.Expr{Loc: expr.Loc, Data: e}, out

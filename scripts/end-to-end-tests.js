@@ -111,6 +111,57 @@
     }),
   )
 
+  // Test CommonJS semantics
+  tests.push(
+    // "module.require" should work with internal modules
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `export {foo, req} from './foo'`,
+      'foo.js': `exports.req = module.require; exports.foo = module.require('./bar')`,
+      'bar.js': `exports.bar = 123`,
+      'node.js': `if (require('./out').foo.bar !== 123 || require('./out').req !== undefined) throw 'fail'`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `export {foo, req} from './foo'`,
+      'foo.js': `exports.req = module['require']; exports.foo = module['require']('./bar')`,
+      'bar.js': `exports.bar = 123`,
+      'node.js': `if (require('./out').foo.bar !== 123 || require('./out').req !== undefined) throw 'fail'`,
+    }),
+
+    // "module.require" should work with external modules
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs', '--external:fs'], {
+      'in.js': `export {foo} from './foo'`,
+      'foo.js': `exports.foo = module.require('fs').exists`,
+      'node.js': `if (require('./out').foo !== require('fs').exists) throw 'fail'`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `export {foo} from './foo'`,
+      'foo.js': `let fn = (m, p) => m.require(p); exports.foo = fn(module, 'fs').exists`,
+      'node.js': `try { require('./out') } catch (e) { return } throw 'fail'`,
+    }),
+
+    // "module.exports" should behave like a normal property
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `export {foo} from './foo'`,
+      'foo.js': `exports.foo = module.exports`,
+      'node.js': `if (require('./out').foo !== require('./out').foo.foo) throw 'fail'`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `export {default} from './foo'`,
+      'foo.js': `module.exports = 123`,
+      'node.js': `if (require('./out').default !== 123) throw 'fail'`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `export {default} from './foo'`,
+      'foo.js': `let m = module; m.exports = 123`,
+      'node.js': `if (require('./out').default !== 123) throw 'fail'`,
+    }),
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=cjs'], {
+      'in.js': `export {default} from './foo'`,
+      'foo.js': `let fn = (m, x) => m.exports = x; fn(module, 123)`,
+      'node.js': `if (require('./out').default !== 123) throw 'fail'`,
+    }),
+  )
+
   // Test internal CommonJS export
   tests.push(
     test(['--bundle', 'in.js', '--outfile=node.js'], {
