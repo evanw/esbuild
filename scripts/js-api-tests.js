@@ -3,12 +3,11 @@ const { SourceMapConsumer } = require('source-map')
 const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
-const util = require('util')
 const fs = require('fs')
 
-const readFileAsync = util.promisify(fs.readFile)
-const writeFileAsync = util.promisify(fs.writeFile)
-const mkdirAsync = util.promisify(fs.mkdir)
+const readFileAsync = fs.promises.readFile
+const writeFileAsync = fs.promises.writeFile
+const mkdirAsync = fs.promises.mkdir
 
 const repoDir = path.dirname(__dirname)
 const rootTestDir = path.join(repoDir, 'scripts', '.js-api-tests')
@@ -294,7 +293,7 @@ let buildTests = {
       write: false,
     })
 
-    assert.strictEqual(await fs.existsSync(output), false)
+    assert.strictEqual(fs.existsSync(output), false)
     assert.notStrictEqual(value.outputFiles, void 0)
     assert.strictEqual(value.outputFiles.length, 3)
     assert.strictEqual(value.outputFiles[0].path, output + '.map')
