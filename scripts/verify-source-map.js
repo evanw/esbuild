@@ -256,9 +256,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
         const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
 
         const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
-        const expectedSource = path.relative(__dirname, path.join(relativeTo, inSource).replace(/\\/g, '/'))
-        const observedSource = path.relative(__dirname, path.join(relativeTo, source).replace(/\\/g, '/'))
-        recordCheck(observedSource === expectedSource, `expected: ${expectedSource} observed: ${observedSource}`)
+        recordCheck(source === inSource, `expected: ${inSource} observed: ${source}`)
 
         const inJs = map.sourceContentFor(source)
         const inIndex = inJs.indexOf(`"${id}"`)

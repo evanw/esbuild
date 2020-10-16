@@ -3028,7 +3028,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				for i, oldRelPath := range sourceMapClone.Sources {
 					absPath := c.fs.Join(sourceAbsDir, oldRelPath)
 					if relPath, ok := c.fs.Rel(chunkAbsDir, absPath); ok {
-						sourceMapClone.Sources[i] = relPath
+						// Make sure to always use forward slashes, even on Windows
+						sourceMapClone.Sources[i] = strings.ReplaceAll(relPath, "\\", "/")
 					}
 				}
 			}
@@ -3038,7 +3039,8 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		// containing the output file
 		if sourceClone.KeyPath.Namespace == "file" {
 			if relPath, ok := c.fs.Rel(chunkAbsDir, sourceClone.KeyPath.Text); ok {
-				sourceClone.PrettyPath = relPath
+				// Make sure to always use forward slashes, even on Windows
+				sourceClone.PrettyPath = strings.ReplaceAll(relPath, "\\", "/")
 			}
 		}
 	}

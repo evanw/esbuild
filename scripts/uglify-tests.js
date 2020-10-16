@@ -156,7 +156,7 @@ async function test_case(service, test) {
     ].join("\n"), {
       input: input_formatted,
       output: output,
-      error: ex,
+      error: ex && ex.stack || ex,
     });
   }
 

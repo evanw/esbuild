@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix backward slashes in source maps on Windows ([#463](https://github.com/evanw/esbuild/issues/463))
+
+    The relative path fix in the previous release caused a regression where paths in source maps contained `\` instead of `/` on Windows. That is incorrect because source map paths are URLs, not file system paths. This release replaces `\` with `/` for consistency on Windows.
+
 ## 0.7.15
 
 * Lower `export * as` syntax for ES2019 and below
