@@ -1008,14 +1008,36 @@ func (c *linkerContext) sortedCrossChunkExportItems(exportRefs map[js_ast.Ref]bo
 func (c *linkerContext) scanImportsAndExports() {
 	// Step 1: Figure out what modules must be CommonJS
 	for _, sourceIndex := range c.reachableFiles {
-		if repr, ok := c.files[sourceIndex].repr.(*reprJS); ok {
+		file := &c.files[sourceIndex]
+		switch repr := file.repr.(type) {
+		case *reprCSS:
+			// We shouldn't need to clone this because it should be empty for CSS files
+			if file.additionalFiles != nil {
+				panic("Internal error")
+			}
+
+			// Inline URLs for non-CSS files into the CSS file
+			for importRecordIndex := range repr.ast.ImportRecords {
+				if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil {
+					otherFile := &c.files[*record.SourceIndex]
+					if otherRepr, ok := otherFile.repr.(*reprJS); ok {
+						record.Path.Text = otherRepr.ast.URLForCSS
+						record.Path.Namespace = ""
+						record.SourceIndex = nil
+
+						// Copy the additional files to the output directory
+						file.additionalFiles = append(file.additionalFiles, otherFile.additionalFiles...)
+					}
+				}
+			}
+
+		case *reprJS:
 			for importRecordIndex := range repr.ast.ImportRecords {
 				record := &repr.ast.ImportRecords[importRecordIndex]
 				if record.SourceIndex == nil {
 					continue
 				}
 
-				// Make sure the printer can require() CommonJS modules
 				otherFile := &c.files[*record.SourceIndex]
 				otherRepr := otherFile.repr.(*reprJS)
 

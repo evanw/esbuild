@@ -741,15 +741,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 							fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
 
 					case *reprJS:
-						if otherRepr.ast.URLForCSS != "" {
-							// Inline the URL if the loader supports URLs
-							record.Path.Text = otherRepr.ast.URLForCSS
-							record.Path.Namespace = ""
-							record.SourceIndex = nil
-
-							// Copy the additional files to the output directory
-							result.file.additionalFiles = append(result.file.additionalFiles, otherFile.additionalFiles...)
-						} else {
+						if otherRepr.ast.URLForCSS == "" {
 							log.AddRangeError(&result.file.source, record.Range,
 								fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
 						}
