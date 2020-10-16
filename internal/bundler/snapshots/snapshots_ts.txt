@@ -270,7 +270,7 @@ console.log(a, b, c, d, e, real);
 ================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
-var t=r(n=>{n.foo=function(){return 123}});var s=r((l,u)=>{u.exports={test:!0}});const{foo:f}=t();console.log(f(),s());
+var n=e(r=>{r.foo=function(){return 123}});var u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
 
 ================================================================================
 TestTSMinifiedBundleES6

@@ -46,14 +46,10 @@ func code(isES6 bool) string {
 			return target
 		}
 
-		// Some libraries such as "apollo-server" use "module.require" to bypass
-		// the bundler and get at the underlying "require" function from node
-		export var __require = path => require(path)
-
 		// Wraps a CommonJS closure and returns a require() function
 		export var __commonJS = (callback, module) => () => {
 			if (!module) {
-				module = {exports: {}, require: __require}
+				module = {exports: {}}
 				callback(module.exports, module)
 			}
 			return module.exports

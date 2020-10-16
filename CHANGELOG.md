@@ -1,13 +1,5 @@
 # Changelog
 
-## Unreleased
-
-* `module.require` forwards to the host's `require` ([#455](https://github.com/evanw/esbuild/issues/455))
-
-    Some packages such as [apollo-server](https://github.com/apollographql/apollo-server) use `module.require` with the intent of bypassing the bundler's `require` and calling the underlying function from `node` instead. Unfortunately that doesn't work because esbuild recognizes CommonJS module syntax and `module` has special meaning for CommonJS modules.
-
-    To get this package to work, `module.require` now forwards to `require` in the host environment. This will be the underlying `require` function in node and will be `window.require` in the browser, which will crash unless you provide a polyfill yourself.
-
 ## 0.7.15
 
 * Lower `export * as` syntax for ES2019 and below
