@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.16
 
 * Fix backward slashes in source maps on Windows ([#463](https://github.com/evanw/esbuild/issues/463))
 
