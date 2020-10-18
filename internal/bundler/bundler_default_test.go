@@ -3133,3 +3133,38 @@ func TestInjectImportTS(t *testing.T) {
 		},
 	})
 }
+
+func TestInjectImportOrder(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import 'third'
+				console.log('third')
+			`,
+			"/inject-1.js": `
+				import 'first'
+				console.log('first')
+			`,
+			"/inject-2.js": `
+				import 'second'
+				console.log('second')
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectAbsPaths: []string{
+				"/inject-1.js",
+				"/inject-2.js",
+			},
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"first":  true,
+					"second": true,
+					"third":  true,
+				},
+			},
+		},
+	})
+}

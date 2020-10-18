@@ -770,6 +770,21 @@ console.log(collide);
 console.log(external_pkg.re_export);
 
 ================================================================================
+TestInjectImportOrder
+---------- /out.js ----------
+// /inject-1.js
+import "first";
+console.log("first");
+
+// /inject-2.js
+import "second";
+console.log("second");
+
+// /entry.ts
+import "third";
+console.log("third");
+
+================================================================================
 TestInjectImportTS
 ---------- /out.js ----------
 console.log("must be present");

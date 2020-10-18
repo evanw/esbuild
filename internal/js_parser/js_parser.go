@@ -10165,8 +10165,11 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		stmts = append(append(make([]js_ast.Stmt, 0, len(stmts)+1), importMetaStmt), stmts...)
 	}
 
+	var before []js_ast.Part
+	var parts []js_ast.Part
+	var after []js_ast.Part
+
 	// Insert any injected import statements now that symbols have been declared
-	parts := []js_ast.Part{}
 	for _, file := range p.InjectedFiles {
 		exportsNoConflict := make([]string, 0, len(file.Exports))
 		symbols := make(map[string]js_ast.Ref)
@@ -10178,7 +10181,7 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 				exportsNoConflict = append(exportsNoConflict, alias)
 			}
 		}
-		parts = p.generateImportStmt(file.Path, exportsNoConflict, file.SourceIndex, parts, symbols)
+		before = p.generateImportStmt(file.Path, exportsNoConflict, file.SourceIndex, before, symbols)
 	}
 
 	// Bind symbols in a second pass over the AST. I started off doing this in a
@@ -10190,8 +10193,6 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		parts = p.appendPart(parts, stmts)
 	} else {
 		// When bundling, each top-level statement is potentially a separate part
-		var before []js_ast.Part
-		var after []js_ast.Part
 		for _, stmt := range stmts {
 			switch s := stmt.Data.(type) {
 			case *js_ast.SLocal:
@@ -10218,9 +10219,9 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 				parts = p.appendPart(parts, []js_ast.Stmt{stmt})
 			}
 		}
-		parts = append(append(before, parts...), after...)
 	}
 
+	parts = append(append(before, parts...), after...)
 	result = p.toAST(source, parts, hashbang, directive)
 	result.SourceMapComment = p.lexer.SourceMappingURL
 	return
