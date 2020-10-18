@@ -1026,6 +1026,7 @@ func (p *parser) callRuntime(loc logger.Loc, name string, args []js_ast.Expr) js
 	ref, ok := p.runtimeImports[name]
 	if !ok {
 		ref = p.newSymbol(js_ast.SymbolOther, name)
+		p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
 		p.runtimeImports[name] = ref
 	}
 	p.recordUsage(ref)
@@ -7543,6 +7544,25 @@ func (p *parser) isDotDefineMatch(expr js_ast.Expr, parts []string) bool {
 }
 
 func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, assignTarget js_ast.AssignTarget) js_ast.Expr {
+	// Check both user-specified defines and known globals
+	if defines, ok := p.Defines.DotDefines[parts[len(parts)-1]]; ok {
+	next:
+		for _, define := range defines {
+			if len(define.Parts) == len(parts) {
+				for i := range parts {
+					if parts[i] != define.Parts[i] {
+						continue next
+					}
+				}
+			}
+
+			// Substitute user-specified defines
+			if define.Data.DefineFunc != nil {
+				return p.valueForDefine(loc, js_ast.AssignTargetNone, define.Data.DefineFunc)
+			}
+		}
+	}
+
 	// Generate an identifier for the first part
 	ref := p.findSymbol(loc, parts[0]).ref
 	targetIfLast := js_ast.AssignTargetNone
@@ -9450,8 +9470,12 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 				// We do not want to do this culling in JavaScript though because the
 				// module may have side effects even if all imports are unused.
 				if p.TS.Parse && foundImports && isUnusedInTypeScript && !p.PreserveUnusedImportsTS {
-					p.importRecords[s.ImportRecordIndex].IsUnused = true
-					continue
+					// Ignore import records with a pre-filled source index. These are
+					// for injected files and we definitely do not want to trim these.
+					if record := &p.importRecords[s.ImportRecordIndex]; record.SourceIndex == nil {
+						record.IsUnused = true
+						continue
+					}
 				}
 			}
 
@@ -10141,11 +10165,26 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		stmts = append(append(make([]js_ast.Stmt, 0, len(stmts)+1), importMetaStmt), stmts...)
 	}
 
+	// Insert any injected import statements now that symbols have been declared
+	parts := []js_ast.Part{}
+	for _, file := range p.InjectedFiles {
+		exportsNoConflict := make([]string, 0, len(file.Exports))
+		symbols := make(map[string]js_ast.Ref)
+		for _, alias := range file.Exports {
+			if _, ok := p.moduleScope.Members[alias]; !ok {
+				ref := p.newSymbol(js_ast.SymbolOther, alias)
+				p.moduleScope.Members[alias] = js_ast.ScopeMember{Ref: ref}
+				symbols[alias] = ref
+				exportsNoConflict = append(exportsNoConflict, alias)
+			}
+		}
+		parts = p.generateImportStmt(file.Path, exportsNoConflict, file.SourceIndex, parts, symbols)
+	}
+
 	// Bind symbols in a second pass over the AST. I started off doing this in a
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
-	parts := []js_ast.Part{}
 	if p.Mode != config.ModeBundle {
 		// When not bundling, everything comes in a single part
 		parts = p.appendPart(parts, stmts)
@@ -10342,6 +10381,46 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 	return charFreq
 }
 
+func (p *parser) generateImportStmt(
+	path string,
+	imports []string,
+	sourceIndex uint32,
+	parts []js_ast.Part,
+	symbols map[string]js_ast.Ref,
+) []js_ast.Part {
+	namespaceRef := p.newSymbol(js_ast.SymbolOther, js_ast.GenerateNonUniqueNameFromPath(path))
+	p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
+	declaredSymbols := make([]js_ast.DeclaredSymbol, len(imports))
+	clauseItems := make([]js_ast.ClauseItem, len(imports))
+	importRecordIndex := p.addImportRecord(ast.ImportStmt, logger.Loc{}, path)
+	p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
+
+	// Create per-import information
+	for i, alias := range imports {
+		ref := symbols[alias]
+		declaredSymbols[i] = js_ast.DeclaredSymbol{Ref: ref, IsTopLevel: true}
+		clauseItems[i] = js_ast.ClauseItem{Alias: alias, Name: js_ast.LocRef{Ref: ref}}
+		p.isImportItem[ref] = true
+		p.namedImports[ref] = js_ast.NamedImport{
+			Alias:             alias,
+			NamespaceRef:      namespaceRef,
+			ImportRecordIndex: importRecordIndex,
+		}
+	}
+
+	// Append a single import to the end of the file (ES6 imports are hoisted
+	// so we don't need to worry about where the import statement goes)
+	return append(parts, js_ast.Part{
+		DeclaredSymbols:     declaredSymbols,
+		ImportRecordIndices: []uint32{importRecordIndex},
+		Stmts: []js_ast.Stmt{{Data: &js_ast.SImport{
+			NamespaceRef:      namespaceRef,
+			Items:             &clauseItems,
+			ImportRecordIndex: importRecordIndex,
+		}}},
+	})
+}
+
 func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang string, directive string) js_ast.AST {
 	// Insert an import statement for any runtime imports we generated
 	if len(p.runtimeImports) > 0 {
@@ -10351,38 +10430,7 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
-
-		namespaceRef := p.newSymbol(js_ast.SymbolOther, "runtime")
-		p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
-		declaredSymbols := make([]js_ast.DeclaredSymbol, len(keys))
-		clauseItems := make([]js_ast.ClauseItem, len(keys))
-		importRecordIndex := p.addImportRecord(ast.ImportStmt, logger.Loc{}, "<runtime>")
-		sourceIndex := runtime.SourceIndex
-		p.importRecords[importRecordIndex].SourceIndex = &sourceIndex
-
-		// Create per-import information
-		for i, key := range keys {
-			ref := p.runtimeImports[key]
-			declaredSymbols[i] = js_ast.DeclaredSymbol{Ref: ref, IsTopLevel: true}
-			clauseItems[i] = js_ast.ClauseItem{Alias: key, Name: js_ast.LocRef{Ref: ref}}
-			p.namedImports[ref] = js_ast.NamedImport{
-				Alias:             key,
-				NamespaceRef:      namespaceRef,
-				ImportRecordIndex: importRecordIndex,
-			}
-		}
-
-		// Append a single import to the end of the file (ES6 imports are hoisted
-		// so we don't need to worry about where the import statement goes)
-		parts = append(parts, js_ast.Part{
-			DeclaredSymbols:     declaredSymbols,
-			ImportRecordIndices: []uint32{importRecordIndex},
-			Stmts: []js_ast.Stmt{{Data: &js_ast.SImport{
-				NamespaceRef:      namespaceRef,
-				Items:             &clauseItems,
-				ImportRecordIndex: importRecordIndex,
-			}}},
-		})
+		parts = p.generateImportStmt("<runtime>", keys, runtime.SourceIndex, parts, p.runtimeImports)
 	}
 
 	// Handle import paths after the whole file has been visited because we need

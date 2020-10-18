@@ -209,12 +209,20 @@ type Options struct {
 	ExtensionToLoader map[string]Loader
 	OutputFormat      Format
 	PublicPath        string
+	InjectAbsPaths    []string
+	InjectedFiles     []InjectedFile
 
 	// If present, metadata about the bundle is written as JSON here
 	AbsMetadataFile string
 
 	SourceMap SourceMap
 	Stdin     *StdinInfo
+}
+
+type InjectedFile struct {
+	Path        string
+	SourceIndex uint32
+	Exports     []string
 }
 
 func (options *Options) OutputExtensionFor(key string) string {

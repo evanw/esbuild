@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 var default_suite = suite{
@@ -2907,5 +2909,227 @@ func TestRequireResolve(t *testing.T) {
 /entry.js: warning: "missing-pkg" should be marked as external for use with "require.resolve"
 /entry.js: warning: "@scope/missing-pkg" should be marked as external for use with "require.resolve"
 `,
+	})
+}
+
+func TestInjectMissing(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectAbsPaths: []string{
+				"/inject.js",
+			},
+		},
+		expectedScanLog: `error: Could not read from file: /inject.js
+`,
+	})
+}
+
+func TestInjectDuplicate(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":  ``,
+			"/inject.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectAbsPaths: []string{
+				"/inject.js",
+				"/inject.js",
+			},
+		},
+		expectedScanLog: `error: Duplicate injected file "/inject.js"
+`,
+	})
+}
+
+func TestInject(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"chain.prop": config.DefineData{
+			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
+				return &js_ast.EIdentifier{Ref: findSymbol(loc, "replace")}
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let sideEffects = console.log('this should be renamed')
+				let collide = 123
+				console.log(obj.prop)
+				console.log(chain.prop.test)
+				console.log(collide)
+				console.log(re_export)
+			`,
+			"/inject.js": `
+				export let obj = {}
+				export let sideEffects = console.log('side effects')
+				export let noSideEffects = /* @__PURE__ */ console.log('side effects')
+			`,
+			"/node_modules/unused/index.js": `
+				console.log('This is unused but still has side effects')
+			`,
+			"/node_modules/sideEffects-false/index.js": `
+				console.log('This is unused and has no side effects')
+			`,
+			"/node_modules/sideEffects-false/package.json": `{
+				"sideEffects": false
+			}`,
+			"/replacement.js": `
+				export let replace = {
+					test() {}
+				}
+			`,
+			"/collision.js": `
+				export let collide = 123
+			`,
+			"/re-export.js": `
+				export {re_export} from 'external-pkg'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
+			OutputFormat:  config.FormatCommonJS,
+			InjectAbsPaths: []string{
+				"/inject.js",
+				"/node_modules/unused/index.js",
+				"/node_modules/sideEffects-false/index.js",
+				"/replacement.js",
+				"/collision.js",
+				"/re-export.js",
+			},
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"external-pkg": true,
+				},
+			},
+		},
+	})
+}
+
+func TestInjectNoBundle(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"chain.prop": config.DefineData{
+			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
+				return &js_ast.EIdentifier{Ref: findSymbol(loc, "replace")}
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let sideEffects = console.log('this should be renamed')
+				let collide = 123
+				console.log(obj.prop)
+				console.log(chain.prop.test)
+				console.log(collide)
+				console.log(re_export)
+			`,
+			"/inject.js": `
+				export let obj = {}
+				export let sideEffects = console.log('side effects')
+				export let noSideEffects = /* @__PURE__ */ console.log('side effects')
+			`,
+			"/node_modules/unused/index.js": `
+				console.log('This is unused but still has side effects')
+			`,
+			"/node_modules/sideEffects-false/index.js": `
+				console.log('This is unused and has no side effects')
+			`,
+			"/node_modules/sideEffects-false/package.json": `{
+				"sideEffects": false
+			}`,
+			"/replacement.js": `
+				export let replace = {
+					test() {}
+				}
+			`,
+			"/collision.js": `
+				export let collide = 123
+			`,
+			"/re-export.js": `
+				export {re_export} from 'external-pkg'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
+			InjectAbsPaths: []string{
+				"/inject.js",
+				"/node_modules/unused/index.js",
+				"/node_modules/sideEffects-false/index.js",
+				"/replacement.js",
+				"/collision.js",
+				"/re-export.js",
+			},
+		},
+	})
+}
+
+func TestInjectJSX(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"React.createElement": config.DefineData{
+			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
+				return &js_ast.EIdentifier{Ref: findSymbol(loc, "el")}
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				console.log(<div/>)
+			`,
+			"/inject.js": `
+				export function el() {}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
+			InjectAbsPaths: []string{
+				"/inject.js",
+			},
+		},
+	})
+}
+
+func TestInjectImportTS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				console.log('here')
+			`,
+			"/inject.js": `
+				// Unused imports are automatically removed in TypeScript files (this
+				// is a mis-feature of the TypeScript language). However, injected
+				// imports are an esbuild feature so we get to decide what the
+				// semantics are. We do not want injected imports to disappear unless
+				// they have been explicitly marked as having no side effects.
+				console.log('must be present')
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+			InjectAbsPaths: []string{
+				"/inject.js",
+			},
+		},
 	})
 }

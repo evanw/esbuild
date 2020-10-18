@@ -434,6 +434,10 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		TsConfigOverride:  validatePath(log, realFS, buildOpts.Tsconfig),
 		MainFields:        buildOpts.MainFields,
 		PublicPath:        buildOpts.PublicPath,
+		InjectAbsPaths:    make([]string, len(buildOpts.Inject)),
+	}
+	for i, path := range buildOpts.Inject {
+		options.InjectAbsPaths[i] = validatePath(log, realFS, path)
 	}
 	if options.PublicPath != "" && !strings.HasSuffix(options.PublicPath, "/") && !strings.HasSuffix(options.PublicPath, "\\") {
 		options.PublicPath += "/"

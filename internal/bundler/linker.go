@@ -2190,7 +2190,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 			// Include all parts in this file with side effects, or just include
 			// everything if tree-shaking is disabled. Note that we still want to
 			// perform tree-shaking on the runtime even if tree-shaking is disabled.
-			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && c.options.Mode != config.ModeBundle && sourceIndex != runtime.SourceIndex) {
+			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && c.options.Mode != config.ModeBundle && file.isEntryPoint) {
 				c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
 			}
 		}
@@ -2656,8 +2656,9 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 }
 
 func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtList, partStmts []js_ast.Stmt) {
-	shouldStripExports := c.options.Mode != config.ModePassThrough || sourceIndex == runtime.SourceIndex
-	repr := c.files[sourceIndex].repr.(*reprJS)
+	file := &c.files[sourceIndex]
+	shouldStripExports := c.options.Mode != config.ModePassThrough || !file.isEntryPoint
+	repr := file.repr.(*reprJS)
 	shouldExtractES6StmtsForCJSWrap := repr.meta.cjsWrap
 
 	for _, stmt := range partStmts {

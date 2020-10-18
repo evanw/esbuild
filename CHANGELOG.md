@@ -16,6 +16,71 @@
 
     The new public path setting configures the path prefix. So for example setting it to `https://www.example.com/v1` would change the output text for this example to `https://www.example.com/v1/image.L3XDQOAT.png`.
 
+* Add `--inject:` for polyfills ([#451](https://github.com/evanw/esbuild/issues/451))
+
+    It's now possible to replace global variables with imports from a file with `--inject:file.js`. Note that `file.js` must export symbols using the `export` keyword for this to work. This can be used to polyfill a global variable in code you don't control. For example:
+
+    ```js
+    // process.js
+    export let process = {cwd() {}}
+    ```
+
+    ```js
+    // entry.js
+    console.log(process.cwd())
+    ```
+
+    Building this with `esbuild entry.js --inject:process.js` gives this:
+
+    ```js
+    let process = {cwd() {
+    }};
+    console.log(process.cwd());
+    ```
+
+    You can also combine this with the existing `--define` feature to be more selective about what you import. For example:
+
+    ```js
+    // process.js
+    export function dummy_process_cwd() {}
+    ```
+
+    ```js
+    // entry.js
+    console.log(process.cwd())
+    ```
+
+    Building this with `esbuild entry.js --inject:process.js --define:process.cwd=dummy_process_cwd` gives this:
+
+    ```js
+    function dummy_process_cwd() {
+    }
+    console.log(dummy_process_cwd());
+    ```
+
+    Note that this means you can use `--inject` to provide the implementation for JSX expressions (e.g. auto-import the `react` package):
+
+    ```js
+    // shim.js
+    export * as React from 'react'
+    ```
+
+    ```jsx
+    // entry.jsx
+    console.log(<div/>)
+    ```
+
+    Building this with `esbuild entry.js --inject:shim.js --format=esm` gives this:
+
+    ```js
+    import * as React from "react";
+    console.log(/* @__PURE__ */ React.createElement("div", null));
+    ```
+
+    You can also use `--inject:file.js` with files that have no exports. In that case the injected file just comes first before the rest of the output as if every input file contained `import "./file.js"`. Because of the way ECMAScript modules work, this injection is still "hygienic" in that symbols with the same name in different files are renamed so they don't collide with each other.
+
+    If you want to _conditionally_ import a file only if the export is actually used, you should mark the injected file as not having side effects by putting it in a package and adding `"sideEffects": false` in that package's `package.json` file. This setting is a [convention from Webpack](https://webpack.js.org/guides/tree-shaking/#mark-the-file-as-side-effect-free) that esbuild respects for any imported file, not just files used with `--inject`.
+
 ## 0.7.16
 
 * Fix backward slashes in source maps on Windows ([#463](https://github.com/evanw/esbuild/issues/463))

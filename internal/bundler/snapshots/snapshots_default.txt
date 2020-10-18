@@ -743,6 +743,67 @@ const App = () => /* @__PURE__ */ h(p, null, " ", /* @__PURE__ */ h(Internal, nu
 render(/* @__PURE__ */ h(App, null), document.getElementById("app"));
 
 ================================================================================
+TestInject
+---------- /out.js ----------
+// /inject.js
+let obj = {};
+let sideEffects = console.log("side effects");
+
+// /node_modules/unused/index.js
+console.log("This is unused but still has side effects");
+
+// /replacement.js
+let replace = {
+  test() {
+  }
+};
+
+// /re-export.js
+const external_pkg = __toModule(require("external-pkg"));
+
+// /entry.js
+let sideEffects2 = console.log("this should be renamed");
+let collide = 123;
+console.log(obj.prop);
+console.log(replace.test);
+console.log(collide);
+console.log(external_pkg.re_export);
+
+================================================================================
+TestInjectImportTS
+---------- /out.js ----------
+console.log("must be present");
+console.log("here");
+
+================================================================================
+TestInjectJSX
+---------- /out.js ----------
+// /inject.js
+function el() {
+}
+
+// /entry.jsx
+console.log(/* @__PURE__ */ el("div", null));
+
+================================================================================
+TestInjectNoBundle
+---------- /out.js ----------
+let obj = {};
+let sideEffects = console.log("side effects");
+console.log("This is unused but still has side effects");
+let replace = {
+  test() {
+  }
+};
+import {re_export} from "external-pkg";
+let sideEffects2 = console.log("this should be renamed");
+let collide = 123;
+console.log(obj.prop);
+console.log(replace.test);
+console.log(collide);
+console.log(re_export);
+
+================================================================================
 TestJSXImportsCommonJS
 ---------- /out.js ----------
 // /custom-react.js

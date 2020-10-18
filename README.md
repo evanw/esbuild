@@ -396,6 +396,8 @@ Advanced options:
                             one of: nullish-coalescing | optional-chaining |
                             class-fields)
   --pure:N                  Mark the name N as a pure function for tree shaking
+  --inject:F                Import the file F into all input files and
+                            automatically replace matching globals with imports
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
   --main-fields=...         Override the main file order in package.json

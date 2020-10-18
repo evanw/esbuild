@@ -276,6 +276,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:
 			buildOpts.Externals = append(buildOpts.Externals, arg[len("--external:"):])
 
+		case strings.HasPrefix(arg, "--inject:") && buildOpts != nil:
+			buildOpts.Inject = append(buildOpts.Inject, arg[len("--inject:"):])
+
 		case strings.HasPrefix(arg, "--jsx-factory="):
 			value := arg[len("--jsx-factory="):]
 			if buildOpts != nil {

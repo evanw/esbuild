@@ -123,6 +123,8 @@ type parseArgs struct {
 	importPathRange logger.Range
 	options         config.Options
 	results         chan parseResult
+	inject          chan config.InjectedFile
+	skipResolve     bool
 
 	// If non-empty, this provides a fallback directory to resolve imports
 	// against for virtual source files (i.e. those with no file system path).
@@ -175,6 +177,11 @@ func parseFile(args parseArgs) {
 			} else {
 				args.log.AddRangeError(args.importSource, args.importPathRange,
 					fmt.Sprintf("Cannot read file %q: %s", args.res.PrettyPath(args.keyPath), err.Error()))
+			}
+			if args.inject != nil {
+				args.inject <- config.InjectedFile{
+					SourceIndex: source.Index,
+				}
 			}
 			args.results <- parseResult{}
 			return
@@ -308,6 +315,23 @@ func parseFile(args parseArgs) {
 			fmt.Sprintf("File extension not supported: %s", args.prettyPath))
 	}
 
+	// This must come before we send on the "results" channel to avoid deadlock
+	if args.inject != nil {
+		var exports []string
+		if repr, ok := result.file.repr.(*reprJS); ok {
+			exports = make([]string, 0, len(repr.ast.NamedExports))
+			for alias := range repr.ast.NamedExports {
+				exports = append(exports, alias)
+			}
+			sort.Strings(exports) // Sort for determinism
+		}
+		args.inject <- config.InjectedFile{
+			Path:        source.PrettyPath,
+			SourceIndex: source.Index,
+			Exports:     exports,
+		}
+	}
+
 	// Stop now if parsing failed
 	if !result.ok {
 		args.results <- result
@@ -316,7 +340,7 @@ func parseFile(args parseArgs) {
 
 	// Run the resolver on the parse thread so it's not run on the main thread.
 	// That way the main thread isn't blocked if the resolver takes a while.
-	if args.options.Mode == config.ModeBundle {
+	if args.options.Mode == config.ModeBundle && !args.skipResolve {
 		records := result.file.repr.importRecords()
 		result.resolveResults = make([]*resolver.ResolveResult, len(records))
 
@@ -533,6 +557,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		importPathRange logger.Range,
 		absResolveDir string,
 		kind inputKind,
+		inject chan config.InjectedFile,
 	) uint32 {
 		path := resolveResult.PathPair.Primary
 		visitedKey := path.Text
@@ -569,6 +594,17 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				optionsClone.PreserveUnusedImportsTS = true
 			}
 
+			// Enable bundling for injected files so we always do tree shaking. We
+			// never want to include unnecessary code from injected files since they
+			// are essentially bundled. However, if we do this we should skip the
+			// resolving step when we're not bundling. It'd be strange to get
+			// resolution errors when the top-level bundling controls are disabled.
+			skipResolve := false
+			if inject != nil && optionsClone.Mode != config.ModeBundle {
+				optionsClone.Mode = config.ModeBundle
+				skipResolve = true
+			}
+
 			go parseFile(parseArgs{
 				fs:              fs,
 				log:             log,
@@ -583,10 +619,48 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				options:         optionsClone,
 				results:         resultChannel,
 				absResolveDir:   absResolveDir,
+				inject:          inject,
+				skipResolve:     skipResolve,
 			})
 		}
 		return sourceIndex
 	}
+
+	// Pre-process the injected files
+	injectedFiles := make([]config.InjectedFile, 0, len(options.InjectAbsPaths))
+	duplicateInjectedFiles := make(map[string]bool)
+	injectWaitGroup := sync.WaitGroup{}
+	for _, absPath := range options.InjectAbsPaths {
+		prettyPath := res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
+		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
+
+		if duplicateInjectedFiles[lowerAbsPath] {
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate injected file %q", prettyPath))
+			continue
+		}
+
+		duplicateInjectedFiles[lowerAbsPath] = true
+		resolveResult := res.ResolveAbs(absPath)
+
+		if resolveResult == nil {
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
+			continue
+		}
+
+		i := len(injectedFiles)
+		injectedFiles = append(injectedFiles, config.InjectedFile{})
+		channel := make(chan config.InjectedFile)
+		maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, "", inputKindNormal, channel)
+
+		// Wait for the results in parallel
+		injectWaitGroup.Add(1)
+		go func(i int, prettyPath string, resolveResult *resolver.ResolveResult) {
+			injectedFiles[i] = <-channel
+			injectWaitGroup.Done()
+		}(i, prettyPath, resolveResult)
+	}
+	injectWaitGroup.Wait()
+	options.InjectedFiles = injectedFiles
 
 	entryPoints := []uint32{}
 	duplicateEntryPoints := make(map[string]bool)
@@ -594,7 +668,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 	// Treat stdin as an extra entry point
 	if options.Stdin != nil {
 		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: logger.Path{Text: "<stdin>"}}}
-		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, options.Stdin.AbsResolveDir, inputKindStdin)
+		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, options.Stdin.AbsResolveDir, inputKindStdin, nil)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -616,7 +690,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			continue
 		}
 
-		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, "", inputKindEntryPoint)
+		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, "", inputKindEntryPoint, nil)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -644,7 +718,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				if !resolveResult.IsExternal {
 					// Handle a path within the bundle
 					prettyPath := res.PrettyPath(path)
-					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, "", inputKindNormal)
+					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, "", inputKindNormal, nil)
 					record.SourceIndex = &sourceIndex
 				} else {
 					// If the path to the external module is relative to the source

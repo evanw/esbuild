@@ -221,6 +221,7 @@ type BuildOptions struct {
 	Tsconfig          string
 	OutExtensions     map[string]string
 	PublicPath        string
+	Inject            []string
 
 	EntryPoints []string
 	Stdin       *StdinOptions

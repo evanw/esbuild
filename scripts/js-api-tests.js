@@ -107,6 +107,22 @@ let buildTests = {
     assert.strictEqual(require(output).result, 123)
   },
 
+  async inject({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js');
+    const inject = path.join(testDir, 'inject.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'export default foo * 10 + 4')
+    await writeFileAsync(inject, 'export let foo = 123')
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      format: 'cjs',
+      bundle: true,
+      inject: [inject],
+    })
+    assert.strictEqual(require(output).default, 1234)
+  },
+
   async mainFields({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
