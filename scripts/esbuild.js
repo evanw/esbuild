@@ -95,6 +95,16 @@ function buildWasmLib(esbuildPath) {
     '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmExecMinCode + workerMinCode),
   ], { cwd: repoDir }).toString()
   fs.writeFileSync(path.join(libDir, 'browser.js'), umdPrefix + browserJs.trim() + umdSuffix)
+
+  // Generate "npm/esbuild-wasm/browser.mjs"
+  const browserMjs = childProcess.execFileSync(esbuildPath, [
+    path.join(repoDir, 'lib', 'browser.ts'),
+    '--bundle',
+    '--target=es2020',
+    '--format=esm',
+    '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmExecMinCode + workerMinCode),
+  ], { cwd: repoDir }).toString()
+  fs.writeFileSync(path.join(libDir, 'browser.mjs'), browserMjs.trim())
 }
 
 exports.buildBinary = () => {

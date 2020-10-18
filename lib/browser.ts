@@ -3,23 +3,23 @@ import * as common from "./common"
 
 declare let WEB_WORKER_SOURCE_CODE: string
 
-let build: typeof types.build = options => {
+export const build: typeof types.build = options => {
   throw new Error(`The "build" API only works in node`);
 };
 
-let transform: typeof types.transform = (input, options) => {
+export const transform: typeof types.transform = (input, options) => {
   throw new Error(`The "transform" API only works in node`);
 };
 
-let buildSync: typeof types.buildSync = options => {
+export const buildSync: typeof types.buildSync = options => {
   throw new Error(`The "buildSync" API only works in node`);
 };
 
-let transformSync: typeof types.transformSync = (input, options) => {
+export const transformSync: typeof types.transformSync = (input, options) => {
   throw new Error(`The "transformSync" API only works in node`);
 };
 
-let startService: typeof types.startService = options => {
+export const startService: typeof types.startService = options => {
   if (!options) throw new Error('Must provide an options object to "startService"');
   if (!options.wasmURL) throw new Error('Must provide the "wasmURL" option');
   return fetch(options.wasmURL).then(r => r.arrayBuffer()).then(wasm => {
@@ -87,4 +87,4 @@ let api: typeof types = {
   startService,
 };
 
-module.exports = api;
+export default api
