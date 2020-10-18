@@ -1359,6 +1359,16 @@ const demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 
 ================================================================================
+TestOutbase
+---------- /out/a/b/c.js ----------
+// /a/b/c.js
+console.log("c");
+
+---------- /out/a/b/d.js ----------
+// /a/b/d.js
+console.log("d");
+
+================================================================================
 TestOutputExtensionRemappingDir
 ---------- /out/entry.notjs ----------
 // /entry.js

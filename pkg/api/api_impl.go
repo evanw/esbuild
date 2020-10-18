@@ -426,6 +426,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		OutputFormat:      validateFormat(buildOpts.Format),
 		AbsOutputFile:     validatePath(log, realFS, buildOpts.Outfile),
 		AbsOutputDir:      validatePath(log, realFS, buildOpts.Outdir),
+		AbsOutputBase:     validatePath(log, realFS, buildOpts.Outbase),
 		AbsMetadataFile:   validatePath(log, realFS, buildOpts.Metafile),
 		OutputExtensions:  validateOutputExtensions(log, buildOpts.OutExtensions),
 		ExtensionToLoader: validateLoaders(log, buildOpts.Loaders),

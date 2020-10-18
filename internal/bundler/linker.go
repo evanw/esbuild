@@ -64,7 +64,7 @@ type linkerContext struct {
 	entryPoints []uint32
 	files       []file
 	hasErrors   bool
-	lcaAbsPath  string
+	baseAbsPath string
 
 	// We should avoid traversing all files in the bundle, because the linker
 	// should be able to run a linking operation on a large bundle where only
@@ -305,7 +305,7 @@ func newLinkerContext(
 	res resolver.Resolver,
 	files []file,
 	entryPoints []uint32,
-	lcaAbsPath string,
+	baseAbsPath string,
 ) linkerContext {
 	// Clone information about symbols and files so we don't mutate the input data
 	c := linkerContext{
@@ -317,7 +317,7 @@ func newLinkerContext(
 		files:          make([]file, len(files)),
 		symbols:        js_ast.NewSymbolMap(len(files)),
 		reachableFiles: findReachableFiles(files, entryPoints),
-		lcaAbsPath:     lcaAbsPath,
+		baseAbsPath:    baseAbsPath,
 	}
 
 	// Clone various things since we may mutate them later
@@ -2376,7 +2376,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			source := file.source
 			if source.KeyPath.Namespace != "file" {
 				baseName = source.IdentifierName
-			} else if relPath, ok := c.fs.Rel(c.lcaAbsPath, source.KeyPath.Text); ok {
+			} else if relPath, ok := c.fs.Rel(c.baseAbsPath, source.KeyPath.Text); ok {
 				relDir = c.fs.Dir(relPath)
 				baseName = c.fs.Base(relPath)
 			} else {
