@@ -275,14 +275,15 @@ func parseFile(args parseArgs) {
 		hash := hashForFileName([]byte(source.Contents))
 		ext := path.Ext(args.baseName)
 		baseName := args.baseName[:len(args.baseName)-len(ext)] + "." + hash + ext
+		publicPath := args.options.PublicPath + baseName
 
 		// Determine the destination folder
 		targetFolder := args.options.AbsOutputDir
 
 		// Export the resulting relative path as a string
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(baseName)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(publicPath)}}
 		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
-		ast.URLForCSS = baseName
+		ast.URLForCSS = publicPath
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = true

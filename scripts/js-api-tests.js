@@ -137,6 +137,66 @@ let buildTests = {
     assert.strictEqual(result.__esModule, true)
   },
 
+  async fileLoader({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const data = path.join(testDir, 'data.bin')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `export {default as value} from ${JSON.stringify(data)}`)
+    await writeFileAsync(data, `stuff`)
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+    })
+    assert.strictEqual(value.outputFiles, void 0)
+    const result = require(output)
+    assert.strictEqual(result.value, 'data.L3XDQOAT.bin')
+    assert.strictEqual(result.__esModule, true)
+  },
+
+  async fileLoaderPublicPath({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const data = path.join(testDir, 'data.bin')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `export {default as value} from ${JSON.stringify(data)}`)
+    await writeFileAsync(data, `stuff`)
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+      publicPath: 'https://www.example.com/assets',
+    })
+    assert.strictEqual(value.outputFiles, void 0)
+    const result = require(output)
+    assert.strictEqual(result.value, 'https://www.example.com/assets/data.L3XDQOAT.bin')
+    assert.strictEqual(result.__esModule, true)
+  },
+
+  async fileLoaderCSS({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.css')
+    const data = path.join(testDir, 'data.bin')
+    const output = path.join(testDir, 'out.css')
+    await writeFileAsync(input, `body { background: url(${JSON.stringify(data)}) }`)
+    await writeFileAsync(data, `stuff`)
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      loader: { '.bin': 'file' },
+      publicPath: 'https://www.example.com/assets',
+    })
+    assert.strictEqual(value.outputFiles, void 0)
+    assert.strictEqual(await readFileAsync(output, 'utf8'), `/* scripts/.js-api-tests/fileLoaderCSS/in.css */
+body {
+  background: url(https://www.example.com/assets/data.L3XDQOAT.bin);
+}
+`)
+  },
+
   async metafile({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const imported = path.join(testDir, 'imported.js')

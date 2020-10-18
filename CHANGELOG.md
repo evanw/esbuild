@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+* Add `--public-path=` for the `file` loader ([#459](https://github.com/evanw/esbuild/issues/459))
+
+    The `file` loader causes importing a file to cause that file to be copied into the output directory. The name of the file is exported as the default export:
+
+    ```js
+    // Assume ".png" is set to the "file" loader
+    import name from 'images/image.png'
+
+    // This prints something like "image.L3XDQOAT.png"
+    console.log(name)
+    ```
+
+    The new public path setting configures the path prefix. So for example setting it to `https://www.example.com/v1` would change the output text for this example to `https://www.example.com/v1/image.L3XDQOAT.png`.
+
 ## 0.7.16
 
 * Fix backward slashes in source maps on Windows ([#463](https://github.com/evanw/esbuild/issues/463))

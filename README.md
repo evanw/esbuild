@@ -401,6 +401,7 @@ Advanced options:
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
+  --public-path=...         Set the base URL for the "file" loader
   --color=...               Force use of color terminal escapes (true | false)
 
 Examples:

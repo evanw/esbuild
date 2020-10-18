@@ -433,6 +433,10 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		ExternalModules:   validateExternals(log, realFS, buildOpts.Externals),
 		TsConfigOverride:  validatePath(log, realFS, buildOpts.Tsconfig),
 		MainFields:        buildOpts.MainFields,
+		PublicPath:        buildOpts.PublicPath,
+	}
+	if options.PublicPath != "" && !strings.HasSuffix(options.PublicPath, "/") && !strings.HasSuffix(options.PublicPath, "\\") {
+		options.PublicPath += "/"
 	}
 	entryPaths := make([]string, len(buildOpts.EntryPoints))
 	for i, entryPoint := range buildOpts.EntryPoints {

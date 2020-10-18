@@ -41,6 +41,7 @@ export interface BuildOptions extends CommonOptions {
   write?: boolean;
   tsconfig?: string;
   outExtension?: { [ext: string]: string };
+  publicPath?: string;
 
   entryPoints?: string[];
   stdin?: StdinOptions;

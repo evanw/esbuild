@@ -208,6 +208,7 @@ type Options struct {
 	TsConfigOverride  string
 	ExtensionToLoader map[string]Loader
 	OutputFormat      Format
+	PublicPath        string
 
 	// If present, metadata about the bundle is written as JSON here
 	AbsMetadataFile string

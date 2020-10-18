@@ -125,6 +125,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   let external = getFlag(options, keys, 'external', mustBeArray);
   let loader = getFlag(options, keys, 'loader', mustBeObject);
   let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
+  let publicPath = getFlag(options, keys, 'publicPath', mustBeString);
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) !== false;
@@ -139,6 +140,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   if (platform) flags.push(`--platform=${platform}`);
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
   if (resolveExtensions) flags.push(`--resolve-extensions=${resolveExtensions.join(',')}`);
+  if (publicPath) flags.push(`--public-path=${publicPath}`);
   if (mainFields) flags.push(`--main-fields=${mainFields.join(',')}`);
   if (external) for (let name of external) flags.push(`--external:${name}`);
   if (loader) {

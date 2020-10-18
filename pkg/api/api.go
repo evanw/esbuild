@@ -220,6 +220,7 @@ type BuildOptions struct {
 	ResolveExtensions []string
 	Tsconfig          string
 	OutExtensions     map[string]string
+	PublicPath        string
 
 	EntryPoints []string
 	Stdin       *StdinOptions
