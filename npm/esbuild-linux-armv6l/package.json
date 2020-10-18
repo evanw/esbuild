@@ -1,0 +1,16 @@
+{
+	"name": "esbuild-linux-armv6l",
+	"version": "0.7.16",
+	"description": "The Linux armv6l binary for esbuild, a JavaScript bundler.",
+	"repository": "https://github.com/evanw/esbuild",
+	"license": "MIT",
+	"os": [
+		"linux"
+	],
+	"cpu": [
+		"arm"
+	],
+	"directories": {
+		"bin": "bin"
+	}
+}

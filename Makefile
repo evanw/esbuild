@@ -57,6 +57,7 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-linux \
 		platform-linux-32 \
 		platform-linux-arm64 \
+		platform-linux-armv6l \
 		platform-linux-ppc64le \
 		platform-wasm \
 		platform-neutral
@@ -73,7 +74,7 @@ platform-unixlike:
 	test -n "$(GOOS)" && test -n "$(GOARCH)" && test -n "$(NPMDIR)"
 	mkdir -p "$(NPMDIR)/bin"
 	cd "$(NPMDIR)" && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build "-ldflags=-s -w" -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+	GOOS="$(GOOS)" GOARCH="$(GOARCH)" GOARM="$(GOARM)" go build "-ldflags=-s -w" -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
 
 platform-darwin:
 	make GOOS=darwin GOARCH=amd64 NPMDIR=npm/esbuild-darwin-64 platform-unixlike
@@ -92,6 +93,9 @@ platform-linux-32:
 
 platform-linux-arm64:
 	make GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
+
+platform-linux-armv6l:
+	make GOOS=linux GOARCH=arm GOARM=6 NPMDIR=npm/esbuild-linux-armv6l platform-unixlike
 
 platform-linux-ppc64le:
 	make GOOS=linux GOARCH=ppc64le NPMDIR=npm/esbuild-linux-ppc64le platform-unixlike
@@ -127,6 +131,9 @@ publish-all: cmd/esbuild/version.go test-all test-extra
 		publish-linux-arm64 \
 		publish-linux-ppc64le \
 		publish-wasm
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" make -j5 \
+		publish-linux-armv6l
 	make publish-neutral # Do this after to avoid race conditions
 	git commit -am "publish $(ESBUILD_VERSION) to npm"
 	git tag "v$(ESBUILD_VERSION)"
@@ -156,6 +163,9 @@ publish-linux-32: platform-linux-32
 publish-linux-arm64: platform-linux-arm64
 	test -n "$(OTP)" && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
 
+publish-linux-armv6l: platform-linux-armv6l
+	test -n "$(OTP)" && cd npm/esbuild-linux-armv6l && npm publish --otp="$(OTP)"
+
 publish-linux-ppc64le: platform-linux-ppc64le
 	test -n "$(OTP)" && cd npm/esbuild-linux-ppc64le && npm publish --otp="$(OTP)"
 
@@ -175,6 +185,7 @@ clean:
 	rm -rf npm/esbuild-linux-32/bin
 	rm -rf npm/esbuild-linux-64/bin
 	rm -rf npm/esbuild-linux-arm64/bin
+	rm -rf npm/esbuild-linux-armv6l/bin
 	rm -rf npm/esbuild-linux-ppc64le/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js
 	rm -rf npm/esbuild/lib
