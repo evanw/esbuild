@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.17
 
 * Add `--public-path=` for the `file` loader ([#459](https://github.com/evanw/esbuild/issues/459))
 
