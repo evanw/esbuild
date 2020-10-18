@@ -9,17 +9,6 @@
   },
   "main": "lib/main.js",
   "browser": "lib/browser.js",
-  "module": "lib/browser.mjs",
-  "exports": {
-    ".": {
-      "browser": {
-        "module": "./lib/browser.mjs",
-        "script": "./lib/browser.js"
-      },
-      "node": "./lib/main.js"
-    },
-    "./": "./"
-  },
   "types": "lib/main.d.ts",
   "directories": {
     "bin": "bin"

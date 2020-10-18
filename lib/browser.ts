@@ -78,13 +78,3 @@ export const startService: typeof types.startService = options => {
     }
   })
 }
-
-let api: typeof types = {
-  build,
-  buildSync,
-  transform,
-  transformSync,
-  startService,
-};
-
-export default api

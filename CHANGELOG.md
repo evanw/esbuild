@@ -81,6 +81,36 @@
 
     If you want to _conditionally_ import a file only if the export is actually used, you should mark the injected file as not having side effects by putting it in a package and adding `"sideEffects": false` in that package's `package.json` file. This setting is a [convention from Webpack](https://webpack.js.org/guides/tree-shaking/#mark-the-file-as-side-effect-free) that esbuild respects for any imported file, not just files used with `--inject`.
 
+* Add an ECMAScript module build for the browser ([#342](https://github.com/evanw/esbuild/pull/342))
+
+    The [current browser API](https://github.com/evanw/esbuild/blob/cfaedaeeb35ae6e8b42921ab98ad98f75375d39f/docs/js-api.md#browser-api) lets you use esbuild in the browser via the `esbuild-wasm` package and a script tag:
+
+    ```html
+    <script src="node_modules/esbuild-wasm/lib/browser.js"></script>
+    <script>
+      esbuild.startService({
+        wasmURL: 'node_modules/esbuild-wasm/esbuild.wasm',
+      }).then(service => {
+        // Use service
+      })
+    </script>
+    ```
+
+    In addition to this approach, you can now also use esbuild in the browser from a module-type script (note the use of `esm/browser.js` instead of `lib/browser.js`):
+
+    ```html
+    <script type="module">
+      import * as esbuild from 'node_modules/esbuild-wasm/esm/browser.js'
+      esbuild.startService({
+        wasmURL: 'node_modules/esbuild-wasm/esbuild.wasm',
+      }).then(service => {
+        // Use service
+      })
+    </script>
+    ```
+
+    Part of this fix was contributed by [@calebeby](https://github.com/calebeby).
+
 ## 0.7.16
 
 * Fix backward slashes in source maps on Windows ([#463](https://github.com/evanw/esbuild/issues/463))
