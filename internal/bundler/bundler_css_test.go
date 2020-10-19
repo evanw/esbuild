@@ -452,3 +452,28 @@ func TestIgnoreURLsInAtRulePrelude(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageURLsInCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a { background: url(a/1.png); }
+				b { background: url(b/2.png); }
+				c { background: url(c/3.png); }
+			`,
+			"/a/1.png":              `a-1`,
+			"/node_modules/b/2.png": `b-2-node_modules`,
+			"/c/3.png":              `c-3`,
+			"/node_modules/c/3.png": `c-3-node_modules`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderBase64,
+			},
+		},
+	})
+}

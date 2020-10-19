@@ -301,7 +301,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			p.expect(css_lexer.TSemicolon)
 			importRecordIndex := uint32(len(p.importRecords))
 			p.importRecords = append(p.importRecords, ast.ImportRecord{
-				Kind:  ast.AtImport,
+				Kind:  ast.ImportAt,
 				Path:  logger.Path{Text: path},
 				Range: r,
 			})
@@ -544,7 +544,7 @@ loop:
 			token.Text = ""
 			token.ImportRecordIndex = uint32(len(p.importRecords))
 			p.importRecords = append(p.importRecords, ast.ImportRecord{
-				Kind:     ast.URLToken,
+				Kind:     ast.ImportURL,
 				Path:     logger.Path{Text: path},
 				Range:    r,
 				IsUnused: !allowImports,
@@ -566,7 +566,7 @@ loop:
 						token.Children = nil
 						token.ImportRecordIndex = uint32(len(p.importRecords))
 						p.importRecords = append(p.importRecords, ast.ImportRecord{
-							Kind:     ast.URLToken,
+							Kind:     ast.ImportURL,
 							Path:     logger.Path{Text: arg.Text},
 							Range:    original[0].Range,
 							IsUnused: !allowImports,

@@ -260,7 +260,13 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: "file"}}}
 	}
 
-	if !IsPackagePath(importPath) {
+	// Check both relative and package paths for CSS URL tokens, with relative
+	// paths taking precedence over package paths to match Webpack behavior.
+	isPackagePath := IsPackagePath(importPath)
+	checkRelative := !isPackagePath || kind == ast.ImportURL
+	checkPackage := isPackagePath
+
+	if checkRelative {
 		absPath := r.fs.Join(sourceDir, importPath)
 
 		// Check for external packages first
@@ -269,11 +275,14 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		}
 
 		if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
+			checkPackage = false
 			result = absolute
-		} else {
+		} else if !checkPackage {
 			return nil
 		}
-	} else {
+	}
+
+	if checkPackage {
 		// Check for external packages first
 		if r.options.ExternalModules.NodeModules != nil {
 			query := importPath

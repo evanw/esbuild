@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Treat paths in CSS without a `./` or `../` prefix as relative ([#469](https://github.com/evanw/esbuild/issues/469))
+
+    JavaScript paths starting with `./` or `../` are considered relative paths, while other JavaScript paths are considered package paths and are looked up in that package's `node_modules` directory. Currently `url()` paths in CSS files use that same logic, so `url(images/image.png)` checks for a file named `image.png` in the `image` package.
+
+    This release changes this behavior. Now `url(images/image.png)` first checks for `./images/image.png`, then checks for a file named `image.png` in the `image` package. This behavior should match the behavior of Webpack's standard `css-loader` package.
+
 ## 0.7.17
 
 * Add `--public-path=` for the `file` loader ([#459](https://github.com/evanw/esbuild/issues/459))
@@ -1140,7 +1148,7 @@
 
 * Fixed ordering between `node_modules` and a force-overridden `tsconfig.json` ([#278](https://github.com/evanw/esbuild/issues/278))
 
-    When the `tsconfig.json` settings have been force-overridden using the new `--tsconfig` flag, the path resolution behavior behaved subtly differently than if esbuild naturally discovers the `tsconfig.json` file without the flag. The difference caused package paths present in a `node_modules` folder to incorrectly take precedence over custom path aliases configured in `tsconfig.json`. The ordering has been corrected such that custom path aliases always take place over `node_modules`.
+    When the `tsconfig.json` settings have been force-overridden using the new `--tsconfig` flag, the path resolution behavior behaved subtly differently than if esbuild naturally discovers the `tsconfig.json` file without the flag. The difference caused package paths present in a `node_modules` directory to incorrectly take precedence over custom path aliases configured in `tsconfig.json`. The ordering has been corrected such that custom path aliases always take place over `node_modules`.
 
 * Add the `--out-extension` flag for custom output extensions ([#281](https://github.com/evanw/esbuild/issues/281))
 
@@ -1981,7 +1989,7 @@ Note that you can also just use `--strict` to enable strictness for all transfor
 
 * Add the `file` loader ([#14](https://github.com/evanw/esbuild/issues/14) and [#135](https://github.com/evanw/esbuild/pull/135))
 
-    The `file` loader copies the input file to the output folder and exports the path of the file as a string to any modules that import the file. For example, `--loader:.png=file` enables this loader for all imported `.png` files. This was contributed by [@viankakrisna](https://github.com/viankakrisna).
+    The `file` loader copies the input file to the output directory and exports the path of the file as a string to any modules that import the file. For example, `--loader:.png=file` enables this loader for all imported `.png` files. This was contributed by [@viankakrisna](https://github.com/viankakrisna).
 
 * Add the `--resolve-extensions` flag ([#142](https://github.com/evanw/esbuild/pull/142))
 

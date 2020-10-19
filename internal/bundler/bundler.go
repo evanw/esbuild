@@ -801,14 +801,14 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 				// Importing a JavaScript file from a CSS file is not allowed.
 				switch record.Kind {
-				case ast.AtImport:
+				case ast.ImportAt:
 					otherFile := &results[*record.SourceIndex].file
 					if _, ok := otherFile.repr.(*reprJS); ok {
 						log.AddRangeError(&result.file.source, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.source.PrettyPath))
 					}
 
-				case ast.URLToken:
+				case ast.ImportURL:
 					otherFile := &results[*record.SourceIndex].file
 					switch otherRepr := otherFile.repr.(type) {
 					case *reprCSS:
