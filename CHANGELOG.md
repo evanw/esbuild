@@ -8,6 +8,26 @@
 
     This release changes this behavior. Now `url(images/image.png)` first checks for `./images/image.png`, then checks for a file named `image.png` in the `image` package. This behavior should match the behavior of Webpack's standard `css-loader` package.
 
+* Import non-enumerable properties from CommonJS modules ([#472](https://github.com/evanw/esbuild/issues/472))
+
+    You can now import non-enumerable properties from CommonJS modules using an ES6 `import` statement. Here's an example of a situation where that might matter:
+
+    ```js
+    // example.js
+    module.exports = class {
+      static method() {}
+    }
+    ```
+
+    ```js
+    import { method } from './example.js'
+    method()
+    ```
+
+    Previously that didn't work because the `method` property is non-enumerable. This should now work correctly.
+
+    A minor consequence of this change is that re-exporting from a file using `export * from` will no longer re-export properties inherited from the prototype of the object assigned to `module.exports`. This is because run-time property copying has been changed from a for-in loop to `Object.getOwnPropertyNames`. This change should be inconsequential because as far as I can tell this isn't something any other bundler supports either.
+
 * Remove arrow functions in runtime with `--target=es5`
 
     The `--target=es5` flag is intended to prevent esbuild from introducing any ES6+ syntax into the generated output file. For example, esbuild usually shortens `{x: x}` into `{x}` since it's shorter, except that requires ES6 support. This release fixes a bug where `=>` arrow expressions in esbuild's runtime of helper functions were not converted to `function` expressions when `--target=es5` was present.

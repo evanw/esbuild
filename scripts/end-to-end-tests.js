@@ -392,6 +392,24 @@
     }),
   )
 
+  // Test imports not being able to access the namespace object
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import {foo} from './esm'
+        if (foo !== 123) throw 'fail'
+      `,
+      'esm.js': `Object.defineProperty(exports, 'foo', {value: 123, enumerable: false})`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from './esm'
+        if (ns[Math.random() < 2 && 'foo'] !== 123) throw 'fail'
+      `,
+      'esm.js': `Object.defineProperty(exports, 'foo', {value: 123, enumerable: false})`,
+    }),
+  )
+
   // Test imports of properties from the prototype chain of "module.exports" for Webpack compatibility
   tests.push(
     // Imports
@@ -444,7 +462,8 @@
       'in.js': `
         import * as test from './reexport'
         // Note: the specification says to ignore default exports in "export * from"
-        if (test.default || test.prop !== 123) throw 'fail'
+        // Note: re-exporting prototype properties using "export * from" is not supported
+        if (test.default || test.prop !== void 0) throw 'fail'
       `,
       'reexport.js': `
         export * from './cjs-proto'
