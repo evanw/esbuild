@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.18
 
 * Treat paths in CSS without a `./` or `../` prefix as relative ([#469](https://github.com/evanw/esbuild/issues/469))
 
