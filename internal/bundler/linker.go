@@ -1484,8 +1484,12 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				//     export_foo as foo
 				//   };
 				//
+				kind := js_ast.LocalConst
+				if c.options.UnsupportedJSFeatures.Has(compat.Const) {
+					kind = js_ast.LocalVar
+				}
 				entryPointExportStmts = append(entryPointExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{
-					Kind: js_ast.LocalConst,
+					Kind: kind,
 					Decls: []js_ast.Decl{{
 						Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: tempRef}},
 						Value:   &js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.ref}},
@@ -1560,11 +1564,15 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 	}
 
-	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
+	// Prefix this part with "const exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
 	if !repr.meta.cjsStyleExports {
-		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: []js_ast.Decl{{
+		kind := js_ast.LocalConst
+		if c.options.UnsupportedJSFeatures.Has(compat.Const) {
+			kind = js_ast.LocalVar
+		}
+		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Kind: kind, Decls: []js_ast.Decl{{
 			Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ExportsRef}},
 			Value:   &js_ast.Expr{Data: &js_ast.EObject{}},
 		}}}})
@@ -2649,9 +2657,13 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 	}
 
 	// Replace the statement with a call to "require()"
+	kind := js_ast.LocalConst
+	if c.options.UnsupportedJSFeatures.Has(compat.Const) {
+		kind = js_ast.LocalVar
+	}
 	stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
 		Loc: loc,
-		Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: []js_ast.Decl{{
+		Data: &js_ast.SLocal{Kind: kind, Decls: []js_ast.Decl{{
 			Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
 			Value:   &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
 		}}},
