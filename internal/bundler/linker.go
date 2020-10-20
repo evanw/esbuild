@@ -2945,6 +2945,12 @@ type compileResultJS struct {
 
 	sourceIndex uint32
 
+	// This is used during minification to merge local declarations across files
+	startsWithLocal         *js_ast.LocalKind
+	endsWithLocal           *js_ast.LocalKind
+	shouldMergeLocalsBefore bool
+	shouldMergeLocalsAfter  bool
+
 	// This is the line and column offset since the previous JavaScript string
 	// or the start of the file if this is the first JavaScript string.
 	generatedOffset lineColumnOffset
@@ -3118,6 +3124,14 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	*result = compileResultJS{
 		PrintResult: js_printer.Print(tree, c.symbols, r, printOptions),
 		sourceIndex: partRange.sourceIndex,
+	}
+	if len(stmts) > 0 {
+		if local, ok := stmts[0].Data.(*js_ast.SLocal); ok {
+			result.startsWithLocal = &local.Kind
+		}
+		if local, ok := stmts[len(stmts)-1].Data.(*js_ast.SLocal); ok {
+			result.endsWithLocal = &local.Kind
+		}
 	}
 
 	// Write this separately as the entry point tail so it can be split off
@@ -3416,7 +3430,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		var commentList []string
 		commentSet := make(map[string]bool)
 		prevComment := uint32(0)
-		for _, compileResult := range compileResults {
+		for i, compileResult := range compileResults {
 			isRuntime := compileResult.sourceIndex == runtime.SourceIndex
 			for text := range compileResult.ExtractedComments {
 				if !commentSet[text] {
@@ -3444,18 +3458,53 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				prevComment = compileResult.sourceIndex
 			}
 
+			js := compileResult.JS
+
+			// Merge leading and trailing local declarations together. So a file
+			// ending in "var a=1;" followed by a file starting with "var b=2;" would
+			// become "var a=1,b=2;" for better minification.
+			if c.options.MangleSyntax && compileResult.endsWithLocal != nil && i+1 < len(compileResults) {
+				if next := compileResults[i+1]; next.startsWithLocal != nil && *compileResult.endsWithLocal == *next.startsWithLocal {
+					compileResult.shouldMergeLocalsAfter = true
+					if n := len(js); js[n-1] == ';' {
+						js = js[:n-1]
+					} else if js[n-1] == '\n' && js[n-2] == ';' {
+						js[n-2] = '\n'
+						js = js[:n-1]
+					} else {
+						panic("Internal error")
+					}
+				}
+			}
+			if c.options.MangleSyntax && compileResult.startsWithLocal != nil && i > 0 {
+				if prev := compileResults[i-1]; prev.endsWithLocal != nil && *compileResult.startsWithLocal == *prev.endsWithLocal {
+					compileResult.shouldMergeLocalsBefore = true
+					bytes := make([]byte, 0, compileResult.FirstDeclByteOffset)
+					for js[len(bytes)] == ' ' {
+						bytes = append(bytes, ' ')
+					}
+					bytes = append(bytes, ',')
+					if !c.options.RemoveWhitespace {
+						bytes = append(bytes, ' ')
+					}
+					prevOffset.advanceBytes(bytes)
+					j.AddBytes(bytes)
+					js = js[compileResult.FirstDeclByteOffset:]
+				}
+			}
+
 			// Don't include the runtime in source maps
 			if isRuntime {
-				prevOffset.advanceString(string(compileResult.JS))
-				j.AddBytes(compileResult.JS)
+				prevOffset.advanceString(string(js))
+				j.AddBytes(js)
 			} else {
 				// Save the offset to the start of the stored JavaScript
 				compileResult.generatedOffset = prevOffset
-				j.AddBytes(compileResult.JS)
+				j.AddBytes(js)
 
 				// Ignore empty source map chunks
 				if compileResult.SourceMapChunk.ShouldIgnore {
-					prevOffset.advanceBytes(compileResult.JS)
+					prevOffset.advanceBytes(js)
 				} else {
 					prevOffset = lineColumnOffset{}
 
@@ -3474,7 +3523,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 					}
 					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
 						js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath),
-						len(compileResult.JS)))
+						len(js)))
 				}
 			}
 
@@ -3937,13 +3986,27 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []b
 			startState.GeneratedColumn += prevColumnOffset
 		}
 
+		buffer := chunk.Buffer
+
+		// Adjust the source map if we stripped off the leading variable
+		// declaration keyword (i.e. var/let/const) to splice files together
+		if result.shouldMergeLocalsBefore {
+			buffer = js_printer.RemovePrefixFromSourceMapChunk(buffer, int(result.FirstDeclSourceMapOffset))
+		}
+
 		// Append the precomputed source map chunk
-		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
+		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, buffer)
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
 		prevEndState.SourceIndex += sourceMapIndex
 		prevColumnOffset = chunk.FinalGeneratedColumn
+
+		// Adjust the source map if we stripped off the trailing semicolon
+		// after the last variable declaration statement when splicing
+		if result.shouldMergeLocalsAfter {
+			prevColumnOffset = chunk.FinalLocalSemi
+		}
 
 		// If this was all one line, include the column offset from the start
 		if prevEndState.GeneratedLine == 0 {

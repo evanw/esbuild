@@ -32,6 +32,12 @@
 
     The `--target=es5` flag is intended to prevent esbuild from introducing any ES6+ syntax into the generated output file. For example, esbuild usually shortens `{x: x}` into `{x}` since it's shorter, except that requires ES6 support. This release fixes a bug where `=>` arrow expressions in esbuild's runtime of helper functions were not converted to `function` expressions when `--target=es5` was present.
 
+* Merge local variable declarations across files when minifying
+
+    Currently files are minified in parallel and then concatenated together for maximum performance. However, that means certain constructs are not optimally minified if they span multiple files. For example, a bundle containing two files `var a = 1` and `var b = 2` should ideally become `var a=1,b=2;` after minification but it currently becomes `var a=0;var b=2;` instead due to parallelism.
+
+    With this release, esbuild will generate `var a=1,b=2;` in this scenario. This is achieved by splicing the two files together to remove the trailing `;` and the leading `var `, which is more complicated than it sounds when you consider rewriting the source maps.
+
 ## 0.7.17
 
 * Add `--public-path=` for the `file` loader ([#459](https://github.com/evanw/esbuild/issues/459))

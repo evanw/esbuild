@@ -1127,7 +1127,7 @@ console.log(shared_default);
 ================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
-var n=e(r=>{r.foo=function(){return 123}});var u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
+var n=e(r=>{r.foo=function(){return 123}}),u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
 
 ================================================================================
 TestMinifiedBundleES6

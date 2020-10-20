@@ -78,12 +78,57 @@ func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState Sou
 	// where all chunks have already been generated.
 	startState.SourceIndex += sourceIndex
 	startState.GeneratedColumn += generatedColumn
-	startState.OriginalLine = originalLine
-	startState.OriginalColumn = originalColumn
+	startState.OriginalLine += originalLine
+	startState.OriginalColumn += originalColumn
 	j.AddBytes(appendMapping(nil, j.lastByte, prevEndState, startState))
 
 	// Then append everything after that without modification.
 	j.AddBytes(sourceMap)
+}
+
+// Rewrite the source map to remove everything before "offset" and have the
+// generated position start from (0, 0) at that point. This is used when
+// erasing the variable declaration keyword from the start of a file.
+func RemovePrefixFromSourceMapChunk(buffer []byte, offset int) []byte {
+	state := SourceMapState{}
+	i := 0
+
+	// Accumulate mappings before the break point
+	for i < offset {
+		if buffer[i] == ';' {
+			i++
+			continue
+		}
+
+		var si, ol, oc int
+		_, i = sourcemap.DecodeVLQ(buffer, i)
+		si, i = sourcemap.DecodeVLQ(buffer, i)
+		ol, i = sourcemap.DecodeVLQ(buffer, i)
+		oc, i = sourcemap.DecodeVLQ(buffer, i)
+		state.SourceIndex += si
+		state.OriginalLine += ol
+		state.OriginalColumn += oc
+
+		if i < len(buffer) && buffer[i] == ',' {
+			i++
+		}
+	}
+
+	// Rewrite the mapping at the break point
+	var si, ol, oc int
+	_, i = sourcemap.DecodeVLQ(buffer, i)
+	si, i = sourcemap.DecodeVLQ(buffer, i)
+	ol, i = sourcemap.DecodeVLQ(buffer, i)
+	oc, i = sourcemap.DecodeVLQ(buffer, i)
+	state.SourceIndex += si
+	state.OriginalLine += ol
+	state.OriginalColumn += oc
+
+	// Splice it in front of the buffer assuming it's big enough
+	first := appendMapping(nil, 0, SourceMapState{}, state)
+	buffer = buffer[i-len(first):]
+	copy(buffer, first)
+	return buffer
 }
 
 func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
@@ -430,6 +475,12 @@ type printer struct {
 	hasPrevState        bool
 	lineOffsetTables    []lineOffsetTable
 
+	// For splicing adjacent files together
+	finalLocalSemi           int
+	firstDeclByteOffset      uint32
+	firstDeclSourceMapOffset uint32
+	hasDecl                  bool
+
 	// This is a workaround for a bug in the popular "source-map" library:
 	// https://github.com/mozilla/source-map/issues/261. The library will
 	// sometimes return null when querying a source map unless every line
@@ -704,16 +755,27 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.print(p.renamer.NameForSymbol(ref))
 }
 
-func (p *printer) printBinding(binding js_ast.Binding) {
-	p.addSourceMapping(binding.Loc)
+func (p *printer) addSourceMappingForDecl(loc logger.Loc) {
+	if !p.hasDecl {
+		p.hasDecl = true
+		p.firstDeclByteOffset = uint32(len(p.js))
+		p.firstDeclSourceMapOffset = uint32(len(p.sourceMap))
+		p.prevLoc.Start = -1 // Force a new source mapping to be generated
+		p.addSourceMapping(loc)
+	}
+}
 
+func (p *printer) printBinding(binding js_ast.Binding) {
 	switch b := binding.Data.(type) {
 	case *js_ast.BMissing:
 
 	case *js_ast.BIdentifier:
+		p.printSpaceBeforeIdentifier()
+		p.addSourceMappingForDecl(binding.Loc)
 		p.printSymbol(b.Ref)
 
 	case *js_ast.BArray:
+		p.addSourceMappingForDecl(binding.Loc)
 		p.print("[")
 		if len(b.Items) > 0 {
 			if !b.IsSingleLine {
@@ -758,6 +820,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 		p.print("]")
 
 	case *js_ast.BObject:
+		p.addSourceMappingForDecl(binding.Loc)
 		p.print("{")
 		if len(b.Properties) > 0 {
 			if !b.IsSingleLine {
@@ -2130,6 +2193,8 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []js_ast.De
 		p.print("export ")
 	}
 	p.printDecls(keyword, decls, 0)
+	p.updateGeneratedLineAndColumn()
+	p.finalLocalSemi = p.generatedColumn
 	p.printSemicolonAfterStatement()
 }
 
@@ -2913,6 +2978,10 @@ type SourceMapChunk struct {
 	// we'll need to know how many characters were in the last line we generated.
 	FinalGeneratedColumn int
 
+	// Like "FinalGeneratedColumn" but for the generated column of the last
+	// semicolon for a "SLocal" statement.
+	FinalLocalSemi int
+
 	ShouldIgnore bool
 }
 
@@ -2968,6 +3037,10 @@ type PrintResult struct {
 	SourceMapChunk SourceMapChunk
 
 	ExtractedComments map[string]bool
+
+	// These are used when stripping off the leading variable declaration
+	FirstDeclByteOffset      uint32
+	FirstDeclSourceMapOffset uint32
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
@@ -2990,8 +3063,11 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 			QuotedSources:        quotedSources(&tree, &options),
 			EndState:             p.prevState,
 			FinalGeneratedColumn: p.generatedColumn,
+			FinalLocalSemi:       p.finalLocalSemi,
 			ShouldIgnore:         p.shouldIgnoreSourceMap(),
 		},
+		FirstDeclByteOffset:      p.firstDeclByteOffset,
+		FirstDeclSourceMapOffset: p.firstDeclSourceMapOffset,
 	}
 }
 
