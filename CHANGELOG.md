@@ -8,6 +8,10 @@
 
     This release changes this behavior. Now `url(images/image.png)` first checks for `./images/image.png`, then checks for a file named `image.png` in the `image` package. This behavior should match the behavior of Webpack's standard `css-loader` package.
 
+* Remove arrow functions in runtime with `--target=es5`
+
+    The `--target=es5` flag is intended to prevent esbuild from introducing any ES6+ syntax into the generated output file. For example, esbuild usually shortens `{x: x}` into `{x}` since it's shorter, except that requires ES6 support. This release fixes a bug where `=>` arrow expressions in esbuild's runtime of helper functions were not converted to `function` expressions when `--target=es5` was present.
+
 ## 0.7.17
 
 * Add `--public-path=` for the `file` loader ([#459](https://github.com/evanw/esbuild/issues/459))

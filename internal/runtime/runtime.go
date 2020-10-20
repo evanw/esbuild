@@ -40,9 +40,24 @@ func code(isES6 bool) string {
 				if (__hasOwnProperty.call(source, prop) && exclude.indexOf(prop) < 0)
 					target[prop] = source[prop]
 			if (source != null && __getOwnPropertySymbols)
-				for (var prop of __getOwnPropertySymbols(source))
+	`
+
+	// Avoid "of" when not using ES6
+	if isES6 {
+		text += `
+				for (var prop of __getOwnPropertySymbols(source)) {
+		`
+	} else {
+		text += `
+				for (var props = __getOwnPropertySymbols(source), i = 0, n = props.length, prop; i < n; i++) {
+					prop = props[i]
+		`
+	}
+
+	text += `
 					if (exclude.indexOf(prop) < 0 && __propertyIsEnumerable.call(source, prop))
 						target[prop] = source[prop]
+				}
 			return target
 		}
 

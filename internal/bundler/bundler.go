@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_parser"
@@ -1178,6 +1179,12 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	}
 
 	// Cache miss
+	var constraint int
+	if key.ES6 {
+		constraint = 2015
+	} else {
+		constraint = 5
+	}
 	log := logger.NewDeferLog()
 	runtimeAST, ok = js_parser.Parse(log, source, config.Options{
 		// These configuration options must only depend on the key
@@ -1185,13 +1192,19 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		MinifyIdentifiers: key.MinifyIdentifiers,
 		Platform:          key.Platform,
 		Defines:           cache.processedDefines(key.Platform),
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(
+			map[compat.Engine][]int{compat.ES: []int{constraint}}),
 
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code
 		Mode: config.ModeBundle,
 	})
 	if log.HasErrors() {
-		panic("Internal error: failed to parse runtime")
+		msgs := "Internal error: failed to parse runtime:\n"
+		for _, msg := range log.Done() {
+			msgs += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+		}
+		panic(msgs[:len(msgs)-1])
 	}
 
 	// Cache for next time

@@ -1532,12 +1532,16 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 
 		// Add a getter property
+		var getter js_ast.Expr
+		body := js_ast.FnBody{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+			getter = js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
+		} else {
+			getter = js_ast.Expr{Data: &js_ast.EArrow{PreferExpr: true, Body: body}}
+		}
 		properties = append(properties, js_ast.Property{
-			Key: js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
-			Value: &js_ast.Expr{Data: &js_ast.EArrow{
-				PreferExpr: true,
-				Body:       js_ast.FnBody{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{Value: &value}}}},
-			}},
+			Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
+			Value: &getter,
 		})
 		nsExportSymbolUses[export.ref] = js_ast.SymbolUse{CountEstimate: 1}
 		if file.isEntryPoint {
@@ -3015,10 +3019,18 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		}
 
 		// "__commonJS((exports, module) => { ... })"
-		value := js_ast.Expr{Data: &js_ast.ECall{
-			Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
-			Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
-		}}
+		var value js_ast.Expr
+		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+			value = js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
+				Args:   []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}},
+			}}
+		} else {
+			value = js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
+				Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
+			}}
+		}
 
 		// "var require_foo = __commonJS((exports, module) => { ... });"
 		stmts = append(stmtList.es6StmtsForCJSWrap, js_ast.Stmt{Data: &js_ast.SLocal{

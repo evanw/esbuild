@@ -592,6 +592,21 @@ export {
 console.log("success");
 `)
   },
+
+  async es5({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const nested = path.join(testDir, 'nested.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'export {foo} from "./nested"')
+    await writeFileAsync(nested, 'exports.foo = 123')
+    const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', target: 'es5' })
+    assert.strictEqual(value.outputFiles, void 0)
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    assert.strictEqual(result.__esModule, true)
+    const contents = await readFileAsync(output, 'utf8')
+    assert.strictEqual(contents.indexOf('=>'), -1)
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {
