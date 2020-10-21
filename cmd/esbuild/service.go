@@ -204,9 +204,20 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseBuildOptions(flags)
+
+	// Normally when "write" is true and there is no output file/directory then
+	// the output is written to stdout instead. However, we're currently using
+	// stdout as a communication channel and writing the build output to stdout
+	// would corrupt our protocol.
+	//
+	// While we could channel this back to the host process and write it to
+	// stdout there, the public Go API we're about to call doesn't have an option
+	// for "write to stdout but don't actually write" and I don't think it should.
+	// For now let's just forbid this case because it's not even that useful.
 	if err == nil && write && options.Outfile == "" && options.Outdir == "" {
 		err = errors.New("Either provide \"outfile\" or set \"write\" to false")
 	}
+
 	if err != nil {
 		return encodeErrorPacket(id, err)
 	}

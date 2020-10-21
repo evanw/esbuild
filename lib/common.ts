@@ -131,7 +131,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   let inject = getFlag(options, keys, 'inject', mustBeArray);
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
-  let write = getFlag(options, keys, 'write', mustBeBoolean) !== false;
+  let write = getFlag(options, keys, 'write', mustBeBoolean) !== false; // Default to true if not specified
   checkForInvalidFlags(options, keys);
 
   if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
