@@ -146,6 +146,18 @@ import "//example.com/code.js";
 import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
 
 ================================================================================
+TestAvoidTDZNoBundle
+---------- /out.js ----------
+var Foo = class Foo {
+  static foo = new Foo();
+};
+var foo = Foo.foo;
+console.log(foo);
+export var Bar = class Bar {
+};
+export var bar = 123;
+
+================================================================================
 TestCommonJSFromES6
 ---------- /out.js ----------
 // /foo.js

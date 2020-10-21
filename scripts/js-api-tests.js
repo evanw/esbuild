@@ -645,6 +645,49 @@ let transformTests = {
     }
   },
 
+  async avoidTDZ({ service }) {
+    for (const avoidTDZ of [false, true]) {
+      var { js } = await service.transform(`
+        class Foo {
+          // The above line will be transformed into "var". However, the
+          // symbol "Foo" must still be defined before the class body ends.
+          static foo = new Foo
+        }
+        if (!(Foo.foo instanceof Foo))
+          throw 'fail: avoidTDZ=${avoidTDZ}'
+      `, {
+        avoidTDZ,
+      })
+      new Function(js)()
+    }
+  },
+
+  async tsAvoidTDZ({ service }) {
+    for (const avoidTDZ of [false, true]) {
+      var { js } = await service.transform(`
+        class Bar {}
+        var oldFoo
+        function swap(target) {
+          oldFoo = target
+          return Bar
+        }
+        @swap
+        class Foo {
+          bar() { return new Foo }
+          static foo = new Foo
+        }
+        if (!(oldFoo.foo instanceof oldFoo))
+          throw 'fail: foo, avoidTDZ=${avoidTDZ}'
+        if (!(oldFoo.foo.bar() instanceof Bar))
+          throw 'fail: bar, avoidTDZ=${avoidTDZ}'
+      `, {
+        avoidTDZ,
+        loader: 'ts',
+      })
+      new Function(js)()
+    }
+  },
+
   async cjs_require({ service }) {
     const { js } = await service.transform(`const {foo} = require('path')`, {})
     assert.strictEqual(js, `const {foo} = require("path");\n`)

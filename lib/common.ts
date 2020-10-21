@@ -78,6 +78,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
+  let avoidTDZ = getFlag(options, keys, 'avoidTDZ', mustBeBoolean);
 
   if (target) {
     if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)
@@ -102,6 +103,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
     }
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
+  if (avoidTDZ) flags.push(`--avoid-tdz`);
 }
 
 function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel): [string[], boolean, string | null, string | null] {

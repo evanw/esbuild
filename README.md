@@ -405,6 +405,7 @@ Advanced options:
                             browser and "main,module" when platform is node)
   --public-path=...         Set the base URL for the "file" loader
   --color=...               Force use of color terminal escapes (true | false)
+  --avoid-tdz               An optimization for large bundles in Safari
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map

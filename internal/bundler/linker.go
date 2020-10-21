@@ -1485,7 +1485,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				//   };
 				//
 				kind := js_ast.LocalConst
-				if c.options.UnsupportedJSFeatures.Has(compat.Const) {
+				if c.options.AvoidTDZ || c.options.UnsupportedJSFeatures.Has(compat.Const) {
 					kind = js_ast.LocalVar
 				}
 				entryPointExportStmts = append(entryPointExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{
@@ -1569,7 +1569,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	var nsExportStmts []js_ast.Stmt
 	if !repr.meta.cjsStyleExports {
 		kind := js_ast.LocalConst
-		if c.options.UnsupportedJSFeatures.Has(compat.Const) {
+		if c.options.AvoidTDZ || c.options.UnsupportedJSFeatures.Has(compat.Const) {
 			kind = js_ast.LocalVar
 		}
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Kind: kind, Decls: []js_ast.Decl{{
@@ -2658,7 +2658,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 
 	// Replace the statement with a call to "require()"
 	kind := js_ast.LocalConst
-	if c.options.UnsupportedJSFeatures.Has(compat.Const) {
+	if c.options.AvoidTDZ || c.options.UnsupportedJSFeatures.Has(compat.Const) {
 		kind = js_ast.LocalVar
 	}
 	stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
@@ -2816,8 +2816,15 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 		case *js_ast.SClass:
-			// Strip the "export" keyword while bundling
-			if shouldStripExports && s.IsExport {
+			if c.options.AvoidTDZ {
+				stmt.Data = &js_ast.SLocal{
+					IsExport: s.IsExport && !shouldStripExports,
+					Decls: []js_ast.Decl{{
+						Binding: js_ast.Binding{Loc: s.Class.Name.Loc, Data: &js_ast.BIdentifier{Ref: s.Class.Name.Ref}},
+						Value:   &js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EClass{Class: s.Class}},
+					}},
+				}
+			} else if shouldStripExports && s.IsExport {
 				// Be careful to not modify the original statement
 				clone := *s
 				clone.IsExport = false
@@ -2825,11 +2832,17 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 		case *js_ast.SLocal:
-			// Strip the "export" keyword while bundling
-			if shouldStripExports && s.IsExport {
+			stripExport := shouldStripExports && s.IsExport
+			avoidTDZ := c.options.AvoidTDZ && s.Kind != js_ast.LocalVar
+			if stripExport || avoidTDZ {
 				// Be careful to not modify the original statement
 				clone := *s
-				clone.IsExport = false
+				if stripExport {
+					clone.IsExport = false
+				}
+				if avoidTDZ {
+					clone.Kind = js_ast.LocalVar
+				}
 				stmt.Data = &clone
 			}
 

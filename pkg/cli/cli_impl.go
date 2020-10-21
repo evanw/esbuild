@@ -69,6 +69,13 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.MinifyIdentifiers = true
 			}
 
+		case arg == "--avoid-tdz":
+			if buildOpts != nil {
+				buildOpts.AvoidTDZ = true
+			} else {
+				transformOpts.AvoidTDZ = true
+			}
+
 		case arg == "--sourcemap":
 			if buildOpts != nil {
 				buildOpts.Sourcemap = api.SourceMapLinked

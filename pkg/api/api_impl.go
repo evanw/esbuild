@@ -434,6 +434,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		TsConfigOverride:  validatePath(log, realFS, buildOpts.Tsconfig),
 		MainFields:        buildOpts.MainFields,
 		PublicPath:        buildOpts.PublicPath,
+		AvoidTDZ:          buildOpts.AvoidTDZ,
 		InjectAbsPaths:    make([]string, len(buildOpts.Inject)),
 	}
 	for i, path := range buildOpts.Inject {
@@ -622,6 +623,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		RemoveWhitespace:  transformOpts.MinifyWhitespace,
 		MinifyIdentifiers: transformOpts.MinifyIdentifiers,
 		AbsOutputFile:     transformOpts.Sourcefile + "-out",
+		AvoidTDZ:          transformOpts.AvoidTDZ,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,

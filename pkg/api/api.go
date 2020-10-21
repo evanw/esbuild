@@ -205,6 +205,7 @@ type BuildOptions struct {
 
 	Defines       map[string]string
 	PureFunctions []string
+	AvoidTDZ      bool
 
 	GlobalName        string
 	Bundle            bool
@@ -275,6 +276,7 @@ type TransformOptions struct {
 
 	Defines       map[string]string
 	PureFunctions []string
+	AvoidTDZ      bool
 
 	Sourcefile string
 	Loader     Loader

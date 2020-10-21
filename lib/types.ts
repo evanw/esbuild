@@ -20,6 +20,7 @@ interface CommonOptions {
   jsxFragment?: string;
   define?: { [key: string]: string };
   pure?: string[];
+  avoidTDZ?: boolean;
 
   color?: boolean;
   logLevel?: LogLevel;

@@ -187,6 +187,7 @@ type Options struct {
 
 	OmitRuntimeForTests     bool
 	PreserveUnusedImportsTS bool
+	AvoidTDZ                bool
 
 	Strict   StrictOptions
 	Defines  *ProcessedDefines
