@@ -90,6 +90,14 @@ func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState Sou
 // generated position start from (0, 0) at that point. This is used when
 // erasing the variable declaration keyword from the start of a file.
 func RemovePrefixFromSourceMapChunk(buffer []byte, offset int) []byte {
+	// Avoid an out-of-bounds array access if the offset is 0. This doesn't
+	// happen normally but can happen if a source is remapped from another
+	// source map that is missing mappings. This is the case with some file
+	// in the "ant-design" project.
+	if offset == 0 {
+		return buffer
+	}
+
 	state := SourceMapState{}
 	i := 0
 
