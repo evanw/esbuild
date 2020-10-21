@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.19
 
 * Add the `--avoid-tdz` option for large bundles in Safari ([#478](https://github.com/evanw/esbuild/issues/478))
 
