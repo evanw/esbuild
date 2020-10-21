@@ -1077,6 +1077,9 @@ const (
 	// the module. Presumably this is because the imports may be type-only.
 	SymbolImport
 
+	// Assigning to a "const" symbol will throw a TypeError at runtime
+	SymbolConst
+
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther
 

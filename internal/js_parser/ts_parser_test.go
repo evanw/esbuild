@@ -650,15 +650,12 @@ func TestTSNamespaceExports(t *testing.T) {
 		namespace A {
 			export namespace B {
 				export const foo = 1
-				foo += foo
 			}
 			namespace C {
 				export const foo = 1
-				foo += foo
 			}
 			namespace D {
 				const foo = 1
-				foo += foo
 			}
 		}
 	`, `var A;
@@ -666,17 +663,14 @@ func TestTSNamespaceExports(t *testing.T) {
   let B;
   (function(B) {
     B.foo = 1;
-    B.foo += B.foo;
   })(B = A.B || (A.B = {}));
   let C;
   (function(C) {
     C.foo = 1;
-    C.foo += C.foo;
   })(C || (C = {}));
   let D;
   (function(D) {
     const foo = 1;
-    foo += foo;
   })(D || (D = {}));
 })(A || (A = {}));
 `)

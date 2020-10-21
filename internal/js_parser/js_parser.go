@@ -3675,7 +3675,7 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 
 	for {
 		// Forbid "let let" and "const let" but not "var let"
-		if kind == js_ast.SymbolOther && p.lexer.IsContextualKeyword("let") {
+		if (kind == js_ast.SymbolOther || kind == js_ast.SymbolConst) && p.lexer.IsContextualKeyword("let") {
 			p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"let\" as an identifier here")
 		}
 
@@ -4809,7 +4809,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			return p.parseTypeScriptEnumStmt(loc, opts)
 		}
 
-		decls := p.parseAndDeclareDecls(js_ast.SymbolOther, opts)
+		decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
 		p.lexer.ExpectOrInsertSemicolon()
 		if !opts.isTypeScriptDeclare {
 			p.requireInitializers(decls)
@@ -8059,6 +8059,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		name := p.loadNameFromRef(e.Ref)
 		result := p.findSymbol(expr.Loc, name)
 		e.Ref = result.ref
+
+		// Warn about assigning to a constant
+		if in.assignTarget != js_ast.AssignTargetNone && p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolConst {
+			r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
+			p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("This assignment will throw because %q is a constant", name))
+		}
 
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == js_ast.SymbolUnbound && !result.isInsideWithScope && e != p.deleteTarget {
