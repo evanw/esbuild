@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Support `.css` with the `--out-extension` option
+
+    The `--out-extension` option was added so you could generate `.mjs` and `.cjs` files for node like this: `--out-extension:.js=.mjs`. However, now that CSS is a first-class content type in esbuild, this should also be available for `.css` files. I'm not sure why you would want to do this, but you can now do `--out-extension:.css=.something` too.
+
 ## 0.7.19
 
 * Add the `--avoid-tdz` option for large bundles in Safari ([#478](https://github.com/evanw/esbuild/issues/478))

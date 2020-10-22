@@ -356,8 +356,8 @@ func validatePath(log logger.Log, fs fs.FS, relPath string) string {
 func validateOutputExtensions(log logger.Log, outExtensions map[string]string) map[string]string {
 	result := make(map[string]string)
 	for key, value := range outExtensions {
-		if key != ".js" {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .js)", key))
+		if key != ".js" && key != ".css" {
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .css, .js)", key))
 		}
 		if !isValidExtension(value) {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q", value))
