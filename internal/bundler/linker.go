@@ -3123,6 +3123,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		OutputFormat:        c.options.OutputFormat,
 		RemoveWhitespace:    c.options.RemoveWhitespace,
 		MangleSyntax:        c.options.MangleSyntax,
+		ASCIIOnly:           c.options.ASCIIOnly,
 		ToModuleRef:         toModuleRef,
 		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
 		UnsupportedFeatures: c.options.UnsupportedJSFeatures,
@@ -3384,7 +3385,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 
 			// Add the top-level directive if present
 			if repr.ast.Directive != "" {
-				quoted := string(js_printer.QuoteForJSON(repr.ast.Directive)) + ";" + newline
+				quoted := string(js_printer.QuoteForJSON(repr.ast.Directive, c.options.ASCIIOnly)) + ";" + newline
 				prevOffset.advanceString(quoted)
 				j.AddString(quoted)
 				newlineBeforeComment = true
@@ -3428,7 +3429,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				}
 				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}))))
+					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
@@ -3535,7 +3536,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 						jMeta.AddString(",")
 					}
 					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-						js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath),
+						js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
 						len(js)))
 				}
 			}
@@ -3697,6 +3698,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 
 			compileResult.printedCSS = css_printer.Print(ast, css_printer.Options{
 				RemoveWhitespace: c.options.RemoveWhitespace,
+				ASCIIOnly:        c.options.ASCIIOnly,
 			})
 			compileResult.sourceIndex = sourceIndex
 			waitGroup.Done()
@@ -3754,7 +3756,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 				}
 				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}))))
+					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
@@ -3784,7 +3786,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 					jMeta.AddString(",")
 				}
 				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath),
+					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
 					len(compileResult.printedCSS)))
 			}
 		}

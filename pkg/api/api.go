@@ -199,6 +199,7 @@ type BuildOptions struct {
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
+	ASCIIOnly         bool
 
 	JSXFactory  string
 	JSXFragment string
@@ -270,6 +271,7 @@ type TransformOptions struct {
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
+	ASCIIOnly         bool
 
 	JSXFactory  string
 	JSXFragment string

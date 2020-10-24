@@ -69,6 +69,13 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.MinifyIdentifiers = true
 			}
 
+		case arg == "--ascii-only":
+			if buildOpts != nil {
+				buildOpts.ASCIIOnly = true
+			} else {
+				transformOpts.ASCIIOnly = true
+			}
+
 		case arg == "--avoid-tdz":
 			if buildOpts != nil {
 				buildOpts.AvoidTDZ = true

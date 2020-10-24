@@ -221,18 +221,20 @@ func (j *Joiner) Done() []byte {
 }
 
 const hexChars = "0123456789ABCDEF"
+const firstASCII = 0x20
+const lastASCII = 0x7E
 
-func QuoteForJSON(text string) []byte {
+func QuoteForJSON(text string, asciiOnly bool) []byte {
 	// Estimate the required length
 	lenEstimate := 2
 	for _, c := range text {
-		if c >= 0x20 && c <= 0x7E {
+		if c >= firstASCII && c <= lastASCII {
 			if c != '\\' && c != '"' {
 				lenEstimate++
 			} else {
 				lenEstimate += 2
 			}
-		} else {
+		} else if asciiOnly || c > lastASCII {
 			switch c {
 			case '\b', '\f', '\n', '\r', '\t', '\\', '"':
 				lenEstimate += 2
@@ -250,10 +252,10 @@ func QuoteForJSON(text string) []byte {
 	bytes := make([]byte, 0, lenEstimate)
 
 	// Fill the array
-	return quoteImpl(bytes, text, true)
+	return quoteImpl(bytes, text, true, asciiOnly)
 }
 
-func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
+func quoteImpl(bytes []byte, text string, forJSON bool, asciiOnly bool) []byte {
 	i := 0
 	n := len(text)
 	bytes = append(bytes, '"')
@@ -262,12 +264,12 @@ func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
 		c := text[i]
 
 		// Fast path: a run of characters that don't need escaping
-		if c >= 0x20 && c <= 0x7E && c != '\\' && c != '"' {
+		if (c >= firstASCII && c <= lastASCII && c != '\\' && c != '"') || (!asciiOnly && c > lastASCII) {
 			start := i
 			i += 1
 			for i < n {
 				c = text[i]
-				if c < 0x20 || c > 0x7E || c == '\\' || c == '"' {
+				if !((c >= firstASCII && c <= lastASCII && c != '\\' && c != '"') || (!asciiOnly && c > lastASCII)) {
 					break
 				}
 				i += 1
@@ -419,6 +421,23 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 			js = append(js, "\\u2029"...)
 
 		default:
+			if p.options.ASCIIOnly {
+				if c >= firstASCII && c <= lastASCII {
+					js = append(js, byte(c))
+				} else if c <= 0xFF {
+					js = append(
+						js,
+						'\\', 'x', hexChars[c>>4], hexChars[c&15],
+					)
+				} else {
+					js = append(
+						js,
+						'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
+					)
+				}
+				continue
+			}
+
 			switch {
 			// Is this a high surrogate?
 			case c >= 0xD800 && c <= 0xDBFF:
@@ -535,7 +554,7 @@ func (p *printer) printUTF16(text []uint16) {
 }
 
 func (p *printer) printQuoted(text string) {
-	p.js = quoteImpl(p.js, text, false)
+	p.js = quoteImpl(p.js, text, false, p.options.ASCIIOnly)
 }
 
 func (p *printer) addSourceMapping(loc logger.Loc) {
@@ -760,7 +779,47 @@ func (p *printer) printIndent() {
 
 func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printSpaceBeforeIdentifier()
-	p.print(p.renamer.NameForSymbol(ref))
+	name := p.renamer.NameForSymbol(ref)
+
+	if p.options.ASCIIOnly {
+		isASCII := false
+		asciiStart := 0
+		for i, c := range name {
+			if c >= firstASCII && c <= lastASCII {
+				// Fast path: a run of ASCII characters
+				if !isASCII {
+					isASCII = true
+					asciiStart = i
+				}
+			} else {
+				// Slow path: escape non-ACSII characters
+				if isASCII {
+					p.print(name[asciiStart:i])
+					isASCII = false
+				}
+				if c <= 0xFFFF {
+					p.printBytes([]byte{
+						'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
+					})
+				} else {
+					c -= 0x10000
+					lo := 0xD800 + ((c >> 10) & 0x3FF)
+					hi := 0xDC00 + (c & 0x3FF)
+					p.printBytes([]byte{
+						'\\', 'u', hexChars[lo>>12], hexChars[(lo>>8)&15], hexChars[(lo>>4)&15], hexChars[lo&15],
+						'\\', 'u', hexChars[hi>>12], hexChars[(hi>>8)&15], hexChars[(hi>>4)&15], hexChars[hi&15],
+					})
+				}
+			}
+		}
+		if isASCII {
+			// Print one final run of ASCII characters
+			p.print(name[asciiStart:])
+		}
+		return
+	}
+
+	p.print(name)
 }
 
 func (p *printer) addSourceMappingForDecl(loc logger.Loc) {
@@ -2944,6 +3003,7 @@ type PrintOptions struct {
 	OutputFormat        config.Format
 	RemoveWhitespace    bool
 	MangleSyntax        bool
+	ASCIIOnly           bool
 	ExtractComments     bool
 	Indent              int
 	ToModuleRef         js_ast.Ref
@@ -3110,11 +3170,11 @@ func quotedSources(tree *js_ast.AST, options *PrintOptions) []QuotedSource {
 			contents := []byte("null")
 			if i < len(sm.SourcesContent) {
 				if value := sm.SourcesContent[i]; value != nil {
-					contents = QuoteForJSON(*value)
+					contents = QuoteForJSON(*value, options.ASCIIOnly)
 				}
 			}
 			results[i] = QuotedSource{
-				QuotedPath:     QuoteForJSON(source),
+				QuotedPath:     QuoteForJSON(source, options.ASCIIOnly),
 				QuotedContents: contents,
 			}
 		}
@@ -3122,7 +3182,7 @@ func quotedSources(tree *js_ast.AST, options *PrintOptions) []QuotedSource {
 	}
 
 	return []QuotedSource{{
-		QuotedPath:     QuoteForJSON(options.SourceForSourceMap.PrettyPath),
-		QuotedContents: QuoteForJSON(options.SourceForSourceMap.Contents),
+		QuotedPath:     QuoteForJSON(options.SourceForSourceMap.PrettyPath, options.ASCIIOnly),
+		QuotedContents: QuoteForJSON(options.SourceForSourceMap.Contents, options.ASCIIOnly),
 	}}
 }

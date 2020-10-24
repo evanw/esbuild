@@ -421,6 +421,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		MangleSyntax:      buildOpts.MinifySyntax,
 		RemoveWhitespace:  buildOpts.MinifyWhitespace,
 		MinifyIdentifiers: buildOpts.MinifyIdentifiers,
+		ASCIIOnly:         buildOpts.ASCIIOnly,
 		ModuleName:        buildOpts.GlobalName,
 		CodeSplitting:     buildOpts.Splitting,
 		OutputFormat:      validateFormat(buildOpts.Format),
@@ -622,6 +623,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		MangleSyntax:      transformOpts.MinifySyntax,
 		RemoveWhitespace:  transformOpts.MinifyWhitespace,
 		MinifyIdentifiers: transformOpts.MinifyIdentifiers,
+		ASCIIOnly:         transformOpts.ASCIIOnly,
 		AbsOutputFile:     transformOpts.Sourcefile + "-out",
 		AvoidTDZ:          transformOpts.AvoidTDZ,
 		Stdin: &config.StdinInfo{

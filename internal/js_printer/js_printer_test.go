@@ -92,6 +92,13 @@ func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, exp
 	})
 }
 
+func expectPrintedASCII(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, contents, expected, PrintOptions{
+		ASCIIOnly: true,
+	})
+}
+
 func TestNumber(t *testing.T) {
 	// Check "1eN"
 	expectPrinted(t, "1e-100", "1e-100;\n")
@@ -726,4 +733,20 @@ func TestES5(t *testing.T) {
 
 	expectPrintedTargetMinify(t, 5, "() => {}", "(function(){});")
 	expectPrintedTargetMinify(t, 2015, "() => {}", "()=>{};")
+}
+
+func TestASCIIOnly(t *testing.T) {
+	expectPrinted(t, "let π = 'π'", "let π = \"π\";\n")
+	expectPrinted(t, "let π_ = 'π'", "let π_ = \"π\";\n")
+	expectPrinted(t, "let _π = 'π'", "let _π = \"π\";\n")
+	expectPrintedASCII(t, "let π = 'π'", "let \\u03C0 = \"\\u03C0\";\n")
+	expectPrintedASCII(t, "let π_ = 'π'", "let \\u03C0_ = \"\\u03C0\";\n")
+	expectPrintedASCII(t, "let _π = 'π'", "let _\\u03C0 = \"\\u03C0\";\n")
+
+	expectPrinted(t, "let 貓 = '🐈'", "let 貓 = \"🐈\";\n")
+	expectPrinted(t, "let 貓abc = '🐈'", "let 貓abc = \"🐈\";\n")
+	expectPrinted(t, "let abc貓 = '🐈'", "let abc貓 = \"🐈\";\n")
+	expectPrintedASCII(t, "let 貓 = '🐈'", "let \\u8C93 = \"\\uD83D\\uDC08\";\n")
+	expectPrintedASCII(t, "let 貓abc = '🐈'", "let \\u8C93abc = \"\\uD83D\\uDC08\";\n")
+	expectPrintedASCII(t, "let abc貓 = '🐈'", "let abc\\u8C93 = \"\\uD83D\\uDC08\";\n")
 }

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+* Add the `--ascii-only` flag ([#70](https://github.com/evanw/esbuild/issues/70))
+
+    While esbuild's output is encoded using UTF-8 encoding, there are many other character encodings in the wild (e.g. [Windows-1250](https://en.wikipedia.org/wiki/Windows-1250)). You can explicitly mark the output files as UTF-8 by adding `<meta charset="utf-8">` to your HTML page or by including `charset=utf-8` in the `Content-Type` header sent by your server. This is probably a good idea regardless of the contents of esbuild's output since information being displayed to users is probably also encoded using UTF-8.
+
+    However, sometimes it's not possible to guarantee that your users will be running your code as UTF-8. For example, you may not control the server response or the contents of the HTML page that loads your script. Also, if your code needs to run in IE, there are [certain cases](https://docs.microsoft.com/en-us/troubleshoot/browsers/wrong-character-set-for-html-page) where IE may ignore the `<meta charset="utf-8">` tag and make up another encoding instead.
+
+    In that case, you can now enable esbuild's ASCII-only output mode using the `--ascii-only` flag. This escapes all Unicode code points in identifiers and strings that are outside of the printable ASCII range (`\x20-\x7E` inclusive).
+
+    Further details:
+
+    * This does not yet escape non-ASCII characters embedded in regular expressions. This is because esbuild does not currently parse the contents of regular expressions at all. The flag was added despite this limitation because it's still useful for code that doesn't contain cases like this.
+
+    * This flag does not apply to comments. I believe preserving non-ASCII data in comments should be fine because even if the encoding is wrong, the run time environment should completely ignore the contents of all comments.
+
+    * This ASCII-only flag simultaneously applies to all output file types (JavaScript, CSS, and JSON).
+
 * Interpret escape sequences in CSS tokens
 
     Escape sequences in CSS tokens are now interpreted. This was already the case for string and URL tokens before, but this is now the case for all identifier-like tokens as well. For example, `c\6flor: #\66 00` is now correctly recognized as `color: #f00`.

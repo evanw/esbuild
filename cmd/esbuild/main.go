@@ -69,6 +69,7 @@ Advanced options:
                             browser and "main,module" when platform is node)
   --public-path=...         Set the base URL for the "file" loader
   --color=...               Force use of color terminal escapes (true | false)
+  --ascii-only              Escape all non-ASCII characters (makes code bigger)
   --avoid-tdz               An optimization for large bundles in Safari
 
 Examples:

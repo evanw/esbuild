@@ -753,7 +753,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 
 		// Begin the metadata chunk
 		if options.AbsMetadataFile != "" {
-			j.AddBytes(js_printer.QuoteForJSON(result.file.source.PrettyPath))
+			j.AddBytes(js_printer.QuoteForJSON(result.file.source.PrettyPath, options.ASCIIOnly))
 			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.source.Contents)))
 		}
 
@@ -797,7 +797,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 						j.AddString(",\n        ")
 					}
 					j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-						js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath)))
+						js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath, options.ASCIIOnly)))
 				}
 
 				// Importing a JavaScript file from a CSS file is not allowed.
@@ -957,7 +957,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	if options.AbsMetadataFile != "" {
 		outputFiles = append(outputFiles, OutputFile{
 			AbsPath:  options.AbsMetadataFile,
-			Contents: b.generateMetadataJSON(outputFiles),
+			Contents: b.generateMetadataJSON(outputFiles, options.ASCIIOnly),
 		})
 	}
 
@@ -1088,7 +1088,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	return lowestAbsDir
 }
 
-func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
+func (b *Bundle) generateMetadataJSON(results []OutputFile, asciiOnly bool) []byte {
 	// Sort files by key path for determinism
 	sorted := make(indexAndPathArray, 0, len(b.files))
 	for sourceIndex, file := range b.files {
@@ -1124,7 +1124,7 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile) []byte {
 				j.AddString(",\n    ")
 			}
 			j.AddString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(b.res.PrettyPath(
-				logger.Path{Text: result.AbsPath, Namespace: "file"}))))
+				logger.Path{Text: result.AbsPath, Namespace: "file"}), asciiOnly)))
 			j.AddBytes(result.jsonMetadataChunk)
 		}
 	}

@@ -15,6 +15,7 @@ interface CommonOptions {
   minifyWhitespace?: boolean;
   minifyIdentifiers?: boolean;
   minifySyntax?: boolean;
+  asciiOnly?: boolean;
 
   jsxFactory?: string;
   jsxFragment?: string;
