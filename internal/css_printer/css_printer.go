@@ -3,13 +3,14 @@ package css_printer
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
-const noneQuote rune = -1
+const quoteForURL rune = -1
 
 type printer struct {
 	Options
@@ -48,7 +49,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 	case *css_ast.RAtNamespace:
 		if r.Prefix != "" {
 			p.print("@namespace ")
-			p.print(r.Prefix)
+			p.printIdent(r.Prefix, identNormal)
 		} else {
 			p.print("@namespace")
 		}
@@ -68,9 +69,14 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.print(";")
 
 	case *css_ast.RAtKeyframes:
-		p.print(r.AtToken)
+		p.print("@")
+		p.printIdent(r.AtToken, identNormal)
 		p.print(" ")
-		p.print(r.Name)
+		if r.Name == "" {
+			p.print("\"\"")
+		} else {
+			p.printIdent(r.Name, identNormal)
+		}
 		if !p.RemoveWhitespace {
 			p.print(" ")
 		}
@@ -109,7 +115,8 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.print("}")
 
 	case *css_ast.RKnownAt:
-		p.print(r.AtToken)
+		p.print("@")
+		p.printIdent(r.AtToken, identNormal)
 		if !p.RemoveWhitespace || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
@@ -120,7 +127,8 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RUnknownAt:
-		p.print(r.AtToken)
+		p.print("@")
+		p.printIdent(r.AtToken, identNormal)
 		if (!p.RemoveWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
@@ -149,7 +157,7 @@ func (p *printer) printRule(rule css_ast.R, indent int, omitTrailingSemicolon bo
 		p.printRuleBlock(r.Rules, indent)
 
 	case *css_ast.RDeclaration:
-		p.print(r.KeyText)
+		p.printIdent(r.KeyText, identNormal)
 		if p.RemoveWhitespace {
 			p.print(":")
 		} else {
@@ -237,22 +245,39 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		switch s := sub.(type) {
 		case *css_ast.SSHash:
 			p.print("#")
-			p.print(s.Name)
+
+			// This deliberately does not use identHash. From the specification:
+			// "In <id-selector>, the <hash-token>'s value must be an identifier."
+			p.printIdent(s.Name, identNormal)
 
 		case *css_ast.SSClass:
 			p.print(".")
-			p.print(s.Name)
+			p.printIdent(s.Name, identNormal)
 
 		case *css_ast.SSAttribute:
 			p.print("[")
-			if s.NamespacedName.NamespacePrefix != nil && *s.NamespacedName.NamespacePrefix == "" {
-				// "[|attr]" is equivalent to "[attr]"
-				p.print(s.NamespacedName.Name)
-			} else {
-				p.printNamespacedName(s.NamespacedName)
+			p.printNamespacedName(s.NamespacedName)
+			if s.MatcherOp != "" {
+				p.print(s.MatcherOp)
+				printAsIdent := false
+
+				// Print the value as an identifier if it's possible
+				if css_lexer.WouldStartIdentifierWithoutEscapes(s.MatcherValue) {
+					printAsIdent = true
+					for _, c := range s.MatcherValue {
+						if !css_lexer.IsNameContinue(c) {
+							printAsIdent = false
+							break
+						}
+					}
+				}
+
+				if printAsIdent {
+					p.printIdent(s.MatcherValue, identNormal)
+				} else {
+					p.printQuoted(s.MatcherValue)
+				}
 			}
-			p.print(s.MatcherOp)
-			p.print(s.MatcherValue)
 			if s.MatcherModifier != 0 {
 				p.print(" ")
 				p.print(string(rune(s.MatcherModifier)))
@@ -274,15 +299,34 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 
 func (p *printer) printNamespacedName(nsName css_ast.NamespacedName) {
 	if nsName.NamespacePrefix != nil {
-		p.print(*nsName.NamespacePrefix)
+		switch nsName.NamespacePrefix.Kind {
+		case css_lexer.TIdent:
+			p.printIdent(nsName.NamespacePrefix.Text, identNormal)
+		case css_lexer.TDelimAsterisk:
+			p.print("*")
+		default:
+			panic("Internal error")
+		}
+
 		p.print("|")
 	}
-	p.print(nsName.Name)
+
+	switch nsName.Name.Kind {
+	case css_lexer.TIdent:
+		p.printIdent(nsName.Name.Text, identNormal)
+	case css_lexer.TDelimAsterisk:
+		p.print("*")
+	case css_lexer.TDelimAmpersand:
+		p.print("&")
+	default:
+		panic("Internal error")
+	}
 }
 
 func (p *printer) printPseudoClassSelector(pseudo css_ast.SSPseudoClass) {
 	p.print(":")
-	p.print(pseudo.Name)
+	p.printIdent(pseudo.Name, identNormal)
+
 	if len(pseudo.Args) > 0 {
 		p.print("(")
 		p.printTokens(pseudo.Args)
@@ -294,34 +338,34 @@ func (p *printer) print(text string) {
 	p.sb.WriteString(text)
 }
 
-func bestQuoteCharForString(text string, allowNone bool) rune {
-	noneCost := 0
+func bestQuoteCharForString(text string, forURL bool) rune {
+	forURLCost := 0
 	singleCost := 2
 	doubleCost := 2
 
 	for _, c := range text {
 		switch c {
 		case '\'':
-			noneCost++
+			forURLCost++
 			singleCost++
 
 		case '"':
-			noneCost++
+			forURLCost++
 			doubleCost++
 
 		case '(', ')', ' ', '\t':
-			noneCost++
+			forURLCost++
 
 		case '\\', '\n', '\r', '\f':
-			noneCost++
+			forURLCost++
 			singleCost++
 			doubleCost++
 		}
 	}
 
 	// Quotes can sometimes be omitted for URL tokens
-	if allowNone && noneCost < singleCost && noneCost < doubleCost {
-		return noneQuote
+	if forURL && forURLCost < singleCost && forURLCost < doubleCost {
+		return quoteForURL
 	}
 
 	// Prefer double quotes to single quotes if there is no cost difference
@@ -336,42 +380,121 @@ func (p *printer) printQuoted(text string) {
 	p.printQuotedWithQuote(text, bestQuoteCharForString(text, false))
 }
 
+type escapeKind uint8
+
+const (
+	escapeNone escapeKind = iota
+	escapeBackslash
+	escapeHex
+)
+
+func (p *printer) printWithEscape(c rune, escape escapeKind, remainingText string) {
+	if escape == escapeBackslash && ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+		// Hexadecimal characters cannot use a plain backslash escape
+		escape = escapeHex
+	}
+
+	switch escape {
+	case escapeNone:
+		p.sb.WriteRune(c)
+
+	case escapeBackslash:
+		p.sb.WriteRune('\\')
+		p.sb.WriteRune(c)
+
+	case escapeHex:
+		p.sb.WriteString(fmt.Sprintf("\\%x", c))
+
+		// Make sure the next character is not interpreted as part of the escape sequence
+		if next := utf8.RuneLen(c); next < len(remainingText) {
+			c = rune(remainingText[next])
+			if c == ' ' || c == '\t' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+				p.sb.WriteRune(' ')
+			}
+		}
+	}
+}
+
 func (p *printer) printQuotedWithQuote(text string, quote rune) {
-	if quote != noneQuote {
+	if quote != quoteForURL {
 		p.sb.WriteRune(quote)
 	}
 
 	for i, c := range text {
+		escape := escapeNone
+
 		switch c {
 		case 0, '\r', '\n', '\f':
-			p.sb.WriteString(fmt.Sprintf("\\%x", c))
-
-			// Make sure the next character is not interpreted as part of the escape sequence
-			if next := i + 1; next < len(text) {
-				c = rune(text[next])
-				if c == ' ' || c == '\t' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
-					p.sb.WriteRune(' ')
-				}
-			}
-
-			// Don't print out the character being escaped itself
-			continue
+			// Use a hexadecimal escape for characters that would be invalid escapes
+			escape = escapeHex
 
 		case '\\', quote:
-			p.sb.WriteRune('\\')
+			escape = escapeBackslash
 
 		case '(', ')', ' ', '\t', '"', '\'':
 			// These characters must be escaped in URL tokens
-			if quote == noneQuote {
-				p.sb.WriteRune('\\')
+			if quote == quoteForURL {
+				escape = escapeBackslash
 			}
 		}
 
-		p.sb.WriteRune(c)
+		p.printWithEscape(c, escape, text[i:])
 	}
 
-	if quote != noneQuote {
+	if quote != quoteForURL {
 		p.sb.WriteRune(quote)
+	}
+}
+
+type identMode uint8
+
+const (
+	identNormal identMode = iota
+	identHash
+	identDimensionUnit
+)
+
+func (p *printer) printIdent(text string, mode identMode) {
+	for i, c := range text {
+		escape := escapeNone
+
+		if c == 0 || c == '\r' || c == '\n' || c == '\f' {
+			// Use a hexadecimal escape for characters that would be invalid escapes
+			escape = escapeHex
+		} else {
+			// Escape non-identifier characters
+			if !css_lexer.IsNameContinue(c) {
+				escape = escapeBackslash
+			}
+
+			// Special escape behavior for the first character
+			if i == 0 {
+				switch mode {
+				case identNormal:
+					if !css_lexer.WouldStartIdentifierWithoutEscapes(text) {
+						escape = escapeBackslash
+					}
+
+				case identDimensionUnit:
+					if !css_lexer.WouldStartIdentifierWithoutEscapes(text) {
+						escape = escapeBackslash
+					} else if c >= '0' && c <= '9' {
+						// Unit: "2x"
+						escape = escapeHex
+					} else if c == 'e' || c == 'E' {
+						if len(text) >= 2 && text[1] >= '0' && text[1] <= '9' {
+							// Unit: "e2x"
+							escape = escapeBackslash
+						} else if len(text) >= 3 && text[1] == '-' && text[2] >= '0' && text[2] <= '9' {
+							// Unit: "e-2x"
+							escape = escapeBackslash
+						}
+					}
+				}
+			}
+		}
+
+		p.printWithEscape(c, escape, text[i:])
 	}
 }
 
@@ -384,6 +507,25 @@ func (p *printer) printIndent(indent int) {
 func (p *printer) printTokens(tokens []css_ast.Token) {
 	for i, t := range tokens {
 		switch t.Kind {
+		case css_lexer.TIdent:
+			p.printIdent(t.Text, identNormal)
+
+		case css_lexer.TFunction:
+			p.printIdent(t.Text, identNormal)
+			p.print("(")
+
+		case css_lexer.TDimension:
+			p.print(t.DimensionValue())
+			p.printIdent(t.DimensionUnit(), identDimensionUnit)
+
+		case css_lexer.TAtKeyword:
+			p.print("@")
+			p.printIdent(t.Text, identNormal)
+
+		case css_lexer.THash, css_lexer.THashID:
+			p.print("#")
+			p.printIdent(t.Text, identHash)
+
 		case css_lexer.TString:
 			p.printQuoted(t.Text)
 

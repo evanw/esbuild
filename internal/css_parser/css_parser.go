@@ -75,8 +75,13 @@ func (p *parser) next() css_lexer.Token {
 	return p.at(p.index + 1)
 }
 
-func (p *parser) text() string {
-	return p.current().Raw(p.source.Contents)
+func (p *parser) raw() string {
+	t := p.current()
+	return p.source.Contents[t.Range.Loc.Start:t.Range.End()]
+}
+
+func (p *parser) decoded() string {
+	return p.current().DecodedText(p.source.Contents)
 }
 
 func (p *parser) peek(kind css_lexer.T) bool {
@@ -109,7 +114,7 @@ func (p *parser) expect(kind css_lexer.T) bool {
 		case css_lexer.TBadURL, css_lexer.TBadString:
 			text = fmt.Sprintf("Expected %s but found %s", kind.String(), t.Kind.String())
 		default:
-			text = fmt.Sprintf("Expected %s but found %q", kind.String(), p.text())
+			text = fmt.Sprintf("Expected %s but found %q", kind.String(), p.raw())
 		}
 	}
 	if t.Range.Loc.Start > p.prevError.Start {
@@ -129,7 +134,7 @@ func (p *parser) unexpected() {
 		case css_lexer.TBadURL, css_lexer.TBadString:
 			text = fmt.Sprintf("Unexpected %s", t.Kind.String())
 		default:
-			text = fmt.Sprintf("Unexpected %q", p.text())
+			text = fmt.Sprintf("Unexpected %q", p.raw())
 		}
 		p.log.AddRangeWarning(&p.source, t.Range, text)
 		p.prevError = t.Range.Loc
@@ -200,21 +205,22 @@ func (p *parser) parseURLOrString() (string, logger.Range, bool) {
 	t := p.current()
 	switch t.Kind {
 	case css_lexer.TString:
+		text := p.decoded()
 		p.advance()
-		return css_lexer.ContentsOfStringToken(t.Raw(p.source.Contents)), t.Range, true
+		return text, t.Range, true
 
 	case css_lexer.TURL:
+		text := p.decoded()
 		p.advance()
-		text, r := css_lexer.ContentsOfURLToken(t.Raw(p.source.Contents))
-		r.Loc.Start += t.Range.Loc.Start
-		return text, r, true
+		return text, t.Range, true
 
 	case css_lexer.TFunction:
-		if t.Raw(p.source.Contents) == "url(" {
+		if p.decoded() == "url" {
 			p.advance()
 			t = p.current()
+			text := p.decoded()
 			if p.expect(css_lexer.TString) && p.expect(css_lexer.TCloseParen) {
-				return css_lexer.ContentsOfStringToken(t.Raw(p.source.Contents)), t.Range, true
+				return text, t.Range, true
 			}
 		}
 	}
@@ -240,13 +246,13 @@ const (
 )
 
 var specialAtRules = map[string]atRuleKind{
-	"@font-face": atRuleDeclarations,
-	"@page":      atRuleDeclarations,
+	"font-face": atRuleDeclarations,
+	"page":      atRuleDeclarations,
 
-	"@document": atRuleInheritContext,
-	"@media":    atRuleInheritContext,
-	"@scope":    atRuleInheritContext,
-	"@supports": atRuleInheritContext,
+	"document": atRuleInheritContext,
+	"media":    atRuleInheritContext,
+	"scope":    atRuleInheritContext,
+	"supports": atRuleInheritContext,
 }
 
 type atRuleContext struct {
@@ -255,7 +261,7 @@ type atRuleContext struct {
 
 func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 	// Parse the name
-	atToken := p.text()
+	atToken := p.decoded()
 	atRange := p.current().Range
 	kind := specialAtRules[atToken]
 	p.advance()
@@ -263,11 +269,11 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 	// Parse the prelude
 	preludeStart := p.index
 	switch atToken {
-	case "@charset":
+	case "charset":
 		kind = atRuleEmpty
 		p.expect(css_lexer.TWhitespace)
 		if p.peek(css_lexer.TString) {
-			encoding := css_lexer.ContentsOfStringToken(p.text())
+			encoding := p.decoded()
 			if encoding != "UTF-8" {
 				p.log.AddRangeWarning(&p.source, p.current().Range,
 					fmt.Sprintf("\"UTF-8\" will be used instead of unsupported charset %q", encoding))
@@ -278,12 +284,12 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		}
 		p.expect(css_lexer.TString)
 
-	case "@namespace":
+	case "namespace":
 		kind = atRuleEmpty
 		p.eat(css_lexer.TWhitespace)
 		prefix := ""
 		if p.peek(css_lexer.TIdent) {
-			prefix = p.text()
+			prefix = p.decoded()
 			p.advance()
 			p.eat(css_lexer.TWhitespace)
 		}
@@ -293,7 +299,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			return &css_ast.RAtNamespace{Prefix: prefix, Path: path}
 		}
 
-	case "@import":
+	case "import":
 		kind = atRuleEmpty
 		p.eat(css_lexer.TWhitespace)
 		if path, r, ok := p.expectURLOrString(); ok {
@@ -308,90 +314,95 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 			return &css_ast.RAtImport{ImportRecordIndex: importRecordIndex}
 		}
 
-	case "@keyframes", "@-webkit-keyframes", "@-moz-keyframes", "@-ms-keyframes", "@-o-keyframes":
+	case "keyframes", "-webkit-keyframes", "-moz-keyframes", "-ms-keyframes", "-o-keyframes":
 		p.eat(css_lexer.TWhitespace)
-		name := p.current()
+		var name string
 
-		// Consider string names a syntax error even though they are allowed by
-		// the specification and they work in Firefox because they do not work in
-		// Chrome or Safari.
-		if p.expect(css_lexer.TIdent) || p.eat(css_lexer.TString) || p.peek(css_lexer.TOpenBrace) {
-			p.eat(css_lexer.TWhitespace)
-			if p.expect(css_lexer.TOpenBrace) {
-				var blocks []css_ast.KeyframeBlock
+		if p.peek(css_lexer.TIdent) {
+			name = p.decoded()
+			p.advance()
+		} else if !p.expect(css_lexer.TIdent) && !p.eat(css_lexer.TString) && !p.peek(css_lexer.TOpenBrace) {
+			// Consider string names a syntax error even though they are allowed by
+			// the specification and they work in Firefox because they do not work in
+			// Chrome or Safari.
+			break
+		}
 
-			blocks:
-				for {
-					switch p.current().Kind {
-					case css_lexer.TWhitespace:
-						p.advance()
-						continue
+		p.eat(css_lexer.TWhitespace)
+		if p.expect(css_lexer.TOpenBrace) {
+			var blocks []css_ast.KeyframeBlock
 
-					case css_lexer.TCloseBrace, css_lexer.TEndOfFile:
-						break blocks
+		blocks:
+			for {
+				switch p.current().Kind {
+				case css_lexer.TWhitespace:
+					p.advance()
+					continue
 
-					case css_lexer.TOpenBrace:
-						p.expect(css_lexer.TPercentage)
-						p.parseComponentValue()
+				case css_lexer.TCloseBrace, css_lexer.TEndOfFile:
+					break blocks
 
-					default:
-						var selectors []string
+				case css_lexer.TOpenBrace:
+					p.expect(css_lexer.TPercentage)
+					p.parseComponentValue()
 
-					selectors:
-						for {
-							t := p.current()
-							switch t.Kind {
-							case css_lexer.TWhitespace:
-								p.advance()
-								continue
+				default:
+					var selectors []string
 
-							case css_lexer.TOpenBrace, css_lexer.TEndOfFile:
-								break selectors
+				selectors:
+					for {
+						t := p.current()
+						switch t.Kind {
+						case css_lexer.TWhitespace:
+							p.advance()
+							continue
 
-							case css_lexer.TIdent, css_lexer.TPercentage:
-								text := t.Raw(p.source.Contents)
-								if t.Kind == css_lexer.TIdent {
-									if text == "from" {
-										if p.options.MangleSyntax {
-											text = "0%" // "0%" is equivalent to but shorter than "from"
-										}
-									} else if text != "to" {
-										p.expect(css_lexer.TPercentage)
+						case css_lexer.TOpenBrace, css_lexer.TEndOfFile:
+							break selectors
+
+						case css_lexer.TIdent, css_lexer.TPercentage:
+							text := p.decoded()
+							if t.Kind == css_lexer.TIdent {
+								if text == "from" {
+									if p.options.MangleSyntax {
+										text = "0%" // "0%" is equivalent to but shorter than "from"
 									}
-								} else if p.options.MangleSyntax && text == "100%" {
-									text = "to" // "to" is equivalent to but shorter than "100%"
+								} else if text != "to" {
+									p.expect(css_lexer.TPercentage)
 								}
-								selectors = append(selectors, text)
-								p.advance()
-
-							default:
-								p.expect(css_lexer.TPercentage)
-								p.parseComponentValue()
+							} else if p.options.MangleSyntax && text == "100%" {
+								text = "to" // "to" is equivalent to but shorter than "100%"
 							}
+							selectors = append(selectors, text)
+							p.advance()
 
-							p.eat(css_lexer.TWhitespace)
-							if t.Kind != css_lexer.TComma && !p.peek(css_lexer.TOpenBrace) {
-								p.expect(css_lexer.TComma)
-							}
+						default:
+							p.expect(css_lexer.TPercentage)
+							p.parseComponentValue()
 						}
 
-						if p.expect(css_lexer.TOpenBrace) {
-							rules := p.parseListOfDeclarations()
-							p.expect(css_lexer.TCloseBrace)
-							blocks = append(blocks, css_ast.KeyframeBlock{
-								Selectors: selectors,
-								Rules:     rules,
-							})
+						p.eat(css_lexer.TWhitespace)
+						if t.Kind != css_lexer.TComma && !p.peek(css_lexer.TOpenBrace) {
+							p.expect(css_lexer.TComma)
 						}
 					}
-				}
 
-				p.expect(css_lexer.TCloseBrace)
-				return &css_ast.RAtKeyframes{
-					AtToken: atToken,
-					Name:    name.Raw(p.source.Contents),
-					Blocks:  blocks,
+					if p.expect(css_lexer.TOpenBrace) {
+						rules := p.parseListOfDeclarations()
+						p.expect(css_lexer.TCloseBrace)
+						blocks = append(blocks, css_ast.KeyframeBlock{
+							Selectors: selectors,
+							Rules:     rules,
+						})
+					}
 				}
+			}
+
+			p.expect(css_lexer.TCloseBrace)
+			return &css_ast.RAtKeyframes{
+				AtToken: atToken,
+				Name:    name,
+				Blocks:  blocks,
 			}
 		}
 
@@ -404,7 +415,7 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.R {
 		// https://developer.mozilla.org/en-US/docs/Web/CSS/At-rule. Deprecated
 		// and Firefox-only at-rules have been removed.
 		if kind == atRuleUnknown {
-			p.log.AddRangeWarning(&p.source, atRange, fmt.Sprintf("%q is not a known rule name", atToken))
+			p.log.AddRangeWarning(&p.source, atRange, fmt.Sprintf("%q is not a known rule name", "@"+atToken))
 		}
 	}
 
@@ -491,7 +502,7 @@ loop:
 		tokens = tokens[1:]
 		token := css_ast.Token{
 			Kind: t.Kind,
-			Text: t.Raw(p.source.Contents),
+			Text: t.DecodedText(p.source.Contents),
 		}
 
 		switch t.Kind {
@@ -535,20 +546,15 @@ loop:
 				}
 			}
 
-		case css_lexer.TString:
-			token.Text = css_lexer.ContentsOfStringToken(token.Text)
-
 		case css_lexer.TURL:
-			path, r := css_lexer.ContentsOfURLToken(token.Text)
-			r.Loc.Start += t.Range.Loc.Start
-			token.Text = ""
 			token.ImportRecordIndex = uint32(len(p.importRecords))
 			p.importRecords = append(p.importRecords, ast.ImportRecord{
 				Kind:     ast.ImportURL,
-				Path:     logger.Path{Text: path},
-				Range:    r,
+				Path:     logger.Path{Text: token.Text},
+				Range:    t.Range,
 				IsUnused: !allowImports,
 			})
+			token.Text = ""
 
 		case css_lexer.TFunction:
 			var nested []css_ast.Token
@@ -556,23 +562,18 @@ loop:
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, allowImports)
 			token.Children = &nested
 
-			switch token.Text {
-			case "url(":
-				// Treat a URL function call with a string just like a URL token
-				if len(nested) == 1 {
-					if arg := nested[0]; arg.Kind == css_lexer.TString {
-						token.Kind = css_lexer.TURL
-						token.Text = ""
-						token.Children = nil
-						token.ImportRecordIndex = uint32(len(p.importRecords))
-						p.importRecords = append(p.importRecords, ast.ImportRecord{
-							Kind:     ast.ImportURL,
-							Path:     logger.Path{Text: arg.Text},
-							Range:    original[0].Range,
-							IsUnused: !allowImports,
-						})
-					}
-				}
+			// Treat a URL function call with a string just like a URL token
+			if token.Text == "url" && len(nested) == 1 && nested[0].Kind == css_lexer.TString {
+				token.Kind = css_lexer.TURL
+				token.Text = ""
+				token.Children = nil
+				token.ImportRecordIndex = uint32(len(p.importRecords))
+				p.importRecords = append(p.importRecords, ast.ImportRecord{
+					Kind:     ast.ImportURL,
+					Path:     logger.Path{Text: nested[0].Text},
+					Range:    original[0].Range,
+					IsUnused: !allowImports,
+				})
 			}
 
 		case css_lexer.TOpenParen:
@@ -726,7 +727,7 @@ stop:
 	// Remove trailing "!important"
 	important := false
 	if last := len(value) - 1; last >= 0 {
-		if t := value[last]; t.Kind == css_lexer.TIdent && strings.EqualFold(t.Raw(p.source.Contents), "important") {
+		if t := value[last]; t.Kind == css_lexer.TIdent && strings.EqualFold(t.DecodedText(p.source.Contents), "important") {
 			i := len(value) - 2
 			if i >= 0 && value[i].Kind == css_lexer.TWhitespace {
 				i--
@@ -742,7 +743,7 @@ stop:
 	}
 
 	keyToken := p.tokens[keyStart]
-	keyText := keyToken.Raw(p.source.Contents)
+	keyText := keyToken.DecodedText(p.source.Contents)
 	return &css_ast.RDeclaration{
 		Key:       css_ast.KnownDeclarations[keyText],
 		KeyText:   keyText,
