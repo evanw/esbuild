@@ -200,6 +200,11 @@
         Strict
       </label>
       &nbsp; &nbsp;
+      <label for="ascii">
+        <input id="ascii" type="checkbox">
+        ASCII
+      </label>
+      &nbsp; &nbsp;
       Minify:
       <label for="minify-syntax"><input id="minify-syntax" type="checkbox"> Syntax</label>
       <label for="minify-idents"><input id="minify-idents" type="checkbox"> Identifiers</label>
@@ -221,6 +226,7 @@
     const minifyIdents = document.querySelector('#minify-idents')
     const minifySpaces = document.querySelector('#minify-spaces')
     const strict = document.querySelector('#strict')
+    const ascii = document.querySelector('#ascii')
     let runIfIdle
 
     function persistValue(el, key) {
@@ -260,6 +266,7 @@
     persistChecked(minifyIdents, 'minifyIdents')
     persistChecked(minifySpaces, 'minifySpaces')
     persistChecked(strict, 'strict')
+    persistChecked(ascii, 'ascii')
 
     try {
       const old = sessionStorage.getItem('input')
@@ -299,6 +306,7 @@
           minifyIdentifiers: minifyIdents.checked,
           minifyWhitespace: minifySpaces.checked,
           strict: strict.checked,
+          asciiOnly: ascii.checked,
         }).then(({ js, warnings }) => {
           let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
           js = textToHTML(js);

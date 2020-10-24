@@ -485,12 +485,28 @@ func TestDeclaration(t *testing.T) {
 	expectPrinted(t, ".decl { a: b; c: d; }", ".decl {\n  a: b;\n  c: d;\n}\n")
 	expectParseError(t, ".decl { a { b: c; } }", "<stdin>: warning: Expected \":\" but found \"{\"\n")
 	expectPrinted(t, ".decl { & a { b: c; } }", ".decl {\n  & a {\n    b: c;\n  }\n}\n")
+
+	// See http://browserhacks.com/
+	expectPrinted(t, ".selector { (;property: value;); }", ".selector {\n  (;property: value;);\n}\n")
+	expectPrinted(t, ".selector { [;property: value;]; }", ".selector {\n  [;property: value;];\n}\n")
+	expectPrinted(t, ".selector, {}", ".selector, {\n}\n")
+	expectPrinted(t, ".selector\\ {}", ".selector\\  {\n}\n")
+	expectPrinted(t, ".selector { property: value\\9; }", ".selector {\n  property: value\\\t;\n}\n")
+	expectPrinted(t, "@media \\0screen\\,screen\\9 {}", "@media \uFFFDscreen\\,screen\\\t {\n}\n")
 }
 
 func TestSelector(t *testing.T) {
 	expectPrinted(t, "a{}", "a {\n}\n")
 	expectPrinted(t, "a {}", "a {\n}\n")
 	expectPrinted(t, "a b {}", "a b {\n}\n")
+
+	expectPrinted(t, "a/**/b {}", "a b {\n}\n")
+	expectPrinted(t, "a/**/.b {}", "a.b {\n}\n")
+	expectPrinted(t, "a/**/:b {}", "a:b {\n}\n")
+	expectPrinted(t, "a/**/[b] {}", "a[b] {\n}\n")
+	expectPrinted(t, "a>/**/b {}", "a > b {\n}\n")
+	expectPrinted(t, "a+/**/b {}", "a + b {\n}\n")
+	expectPrinted(t, "a~/**/b {}", "a ~ b {\n}\n")
 
 	expectPrinted(t, "[b]{}", "[b] {\n}\n")
 	expectPrinted(t, "[b] {}", "[b] {\n}\n")

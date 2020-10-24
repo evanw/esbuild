@@ -462,7 +462,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 		escape := escapeNone
 
 		switch c {
-		case 0, '\r', '\n', '\f':
+		case '\r', '\n', '\f':
 			// Use a hexadecimal escape for characters that would be invalid escapes
 			escape = escapeHex
 
@@ -510,7 +510,7 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 
 		if p.ASCIIOnly && c >= 0x80 {
 			escape = escapeHex
-		} else if c == 0 || c == '\r' || c == '\n' || c == '\f' {
+		} else if c == '\r' || c == '\n' || c == '\f' {
 			// Use a hexadecimal escape for characters that would be invalid escapes
 			escape = escapeHex
 		} else {

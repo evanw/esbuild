@@ -83,7 +83,6 @@ func TestStringQuote(t *testing.T) {
 	expectPrintedString(t, "f\nF", "\"f\\a F\"")
 	expectPrintedString(t, "f\ng", "\"f\\ag\"")
 	expectPrintedString(t, "f\nG", "\"f\\aG\"")
-	expectPrintedString(t, "f\x00o", "\"f\\0o\"")
 	expectPrintedString(t, "f\x01o", "\"f\x01o\"")
 	expectPrintedString(t, "f\to", "\"f\to\"")
 }

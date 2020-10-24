@@ -688,8 +688,6 @@ func (p *parser) parseDeclaration() css_ast.R {
 		if p.expect(css_lexer.TColon) {
 			ok = true
 		}
-	} else {
-		p.advance()
 	}
 
 	// Parse the value
