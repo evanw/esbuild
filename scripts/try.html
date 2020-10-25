@@ -306,7 +306,7 @@
           minifyIdentifiers: minifyIdents.checked,
           minifyWhitespace: minifySpaces.checked,
           strict: strict.checked,
-          asciiOnly: ascii.checked,
+          charset: ascii.checked ? 'ascii' : 'utf8',
         }).then(({ js, warnings }) => {
           let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
           js = textToHTML(js);
