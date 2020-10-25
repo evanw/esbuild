@@ -14,12 +14,12 @@ import (
 	"github.com/evanw/esbuild/internal/test"
 )
 
-func expectParseError(t *testing.T, contents string, expected string) {
+func expectParseErrorCommon(t *testing.T, contents string, expected string, options config.Options) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{})
+		Parse(log, test.SourceForTest(contents), options)
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -27,88 +27,28 @@ func expectParseError(t *testing.T, contents string, expected string) {
 		}
 		test.AssertEqual(t, text, expected)
 	})
+}
+
+func expectParseError(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{})
 }
 
 func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-				compat.ES: {esVersion},
-			}),
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, expected)
-	})
-}
-
-func expectPrinted(t *testing.T, contents string, expected string) {
-	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			if msg.Kind != logger.Warning {
-				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-			}
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
-		test.AssertEqual(t, string(js), expected)
-	})
-}
-
-func expectPrintedMangle(t *testing.T, contents string, expected string) {
-	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			MangleSyntax: true,
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
-		test.AssertEqual(t, string(js), expected)
-	})
-}
-
-func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
-	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		unsupportedFeatures := compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
-		})
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedJSFeatures: unsupportedFeatures,
-		})
+		}),
+	})
+}
+
+func expectPrintedCommon(t *testing.T, contents string, expected string, options config.Options) {
+	t.Helper()
+	t.Run(contents, func(t *testing.T) {
+		t.Helper()
+		log := logger.NewDeferLog()
+		tree, ok := Parse(log, test.SourceForTest(contents), options)
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -124,89 +64,62 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{
-			UnsupportedFeatures: unsupportedFeatures,
+			UnsupportedFeatures: options.UnsupportedJSFeatures,
 		}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
 
+func expectPrinted(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{})
+}
+
+func expectPrintedMangle(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		MangleSyntax: true,
+	})
+}
+
+func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+	})
+}
+
 func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-				compat.ES: {esVersion},
-			}),
-			Strict: config.StrictOptions{
-				NullishCoalescing: true,
-				OptionalChaining:  true,
-				ClassFields:       true,
-			},
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			if msg.Kind != logger.Warning {
-				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-			}
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
-		test.AssertEqual(t, string(js), expected)
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		Strict: config.StrictOptions{
+			NullishCoalescing: true,
+			OptionalChaining:  true,
+			ClassFields:       true,
+		},
 	})
 }
 
 func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{
-			JSX: config.JSXOptions{
-				Parse: true,
-			},
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, expected)
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
 	})
 }
 
 func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			JSX: config.JSXOptions{
-				Parse: true,
-			},
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
-		test.AssertEqual(t, string(js), expected)
+	expectPrintedCommon(t, contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
 	})
 }
 
