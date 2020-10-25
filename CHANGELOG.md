@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.20
 
 * Default to ASCII-only output ([#70](https://github.com/evanw/esbuild/issues/70), [#485](https://github.com/evanw/esbuild/issues/485))
 
