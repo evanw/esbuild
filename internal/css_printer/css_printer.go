@@ -436,19 +436,22 @@ func (p *printer) printWithEscape(c rune, escape escapeKind, remainingText strin
 		p.sb.WriteRune(c)
 
 	case escapeHex:
-		p.sb.WriteString(fmt.Sprintf("\\%x", c))
+		text := fmt.Sprintf("\\%x", c)
+		p.sb.WriteString(text)
 
 		// Make sure the next character is not interpreted as part of the escape sequence
-		if next := utf8.RuneLen(c); next < len(remainingText) {
-			c = rune(remainingText[next])
-			if c == ' ' || c == '\t' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+		if len(text) < 1+6 {
+			if next := utf8.RuneLen(c); next < len(remainingText) {
+				c = rune(remainingText[next])
+				if c == ' ' || c == '\t' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+					p.sb.WriteRune(' ')
+				}
+			} else if mayNeedWhitespaceAfter {
+				// If the last character is a hexadecimal escape, print a space afterwards
+				// for the escape sequence to consume. That way we're sure it won't
+				// accidentally consume a semantically significant space afterward.
 				p.sb.WriteRune(' ')
 			}
-		} else if mayNeedWhitespaceAfter {
-			// If the last character is a hexadecimal escape, print a space afterwards
-			// for the escape sequence to consume. That way we're sure it won't
-			// accidentally consume a semantically significant space afterward.
-			p.sb.WriteRune(' ')
 		}
 	}
 }
@@ -476,7 +479,7 @@ func (p *printer) printQuotedWithQuote(text string, quote rune) {
 			}
 
 		default:
-			if p.ASCIIOnly && c >= 0x80 {
+			if p.ASCIIOnly && c >= 0x80 || c == '\uFEFF' {
 				escape = escapeHex
 			}
 		}
@@ -510,7 +513,7 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 
 		if p.ASCIIOnly && c >= 0x80 {
 			escape = escapeHex
-		} else if c == '\r' || c == '\n' || c == '\f' {
+		} else if c == '\r' || c == '\n' || c == '\f' || c == '\uFEFF' {
 			// Use a hexadecimal escape for characters that would be invalid escapes
 			escape = escapeHex
 		} else {

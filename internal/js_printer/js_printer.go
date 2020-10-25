@@ -223,18 +223,26 @@ func (j *Joiner) Done() []byte {
 const hexChars = "0123456789ABCDEF"
 const firstASCII = 0x20
 const lastASCII = 0x7E
+const firstHighSurrogate = 0xD800
+const lastHighSurrogate = 0xDBFF
+const firstLowSurrogate = 0xDC00
+const lastLowSurrogate = 0xDFFF
+
+func canPrintWithoutEscape(c rune, asciiOnly bool) bool {
+	if c <= lastASCII {
+		return c >= firstASCII && c != '\\' && c != '"'
+	} else {
+		return !asciiOnly && c != '\uFEFF' && (c < firstHighSurrogate || c > lastLowSurrogate)
+	}
+}
 
 func QuoteForJSON(text string, asciiOnly bool) []byte {
 	// Estimate the required length
 	lenEstimate := 2
 	for _, c := range text {
-		if c >= firstASCII && c <= lastASCII {
-			if c != '\\' && c != '"' {
-				lenEstimate++
-			} else {
-				lenEstimate += 2
-			}
-		} else if asciiOnly || c > lastASCII {
+		if canPrintWithoutEscape(c, asciiOnly) {
+			lenEstimate += utf8.RuneLen(c)
+		} else {
 			switch c {
 			case '\b', '\f', '\n', '\r', '\t', '\\', '"':
 				lenEstimate += 2
@@ -250,29 +258,23 @@ func QuoteForJSON(text string, asciiOnly bool) []byte {
 
 	// Preallocate the array
 	bytes := make([]byte, 0, lenEstimate)
-
-	// Fill the array
-	return quoteImpl(bytes, text, true, asciiOnly)
-}
-
-func quoteImpl(bytes []byte, text string, forJSON bool, asciiOnly bool) []byte {
 	i := 0
 	n := len(text)
 	bytes = append(bytes, '"')
 
 	for i < n {
-		c := text[i]
+		c, width := js_lexer.DecodeWTF8Rune(text[i:])
 
 		// Fast path: a run of characters that don't need escaping
-		if (c >= firstASCII && c <= lastASCII && c != '\\' && c != '"') || (!asciiOnly && c > lastASCII) {
+		if canPrintWithoutEscape(c, asciiOnly) {
 			start := i
-			i += 1
+			i += width
 			for i < n {
-				c = text[i]
-				if !((c >= firstASCII && c <= lastASCII && c != '\\' && c != '"') || (!asciiOnly && c > lastASCII)) {
+				c, width = js_lexer.DecodeWTF8Rune(text[i:])
+				if !canPrintWithoutEscape(c, asciiOnly) {
 					break
 				}
-				i += 1
+				i += width
 			}
 			bytes = append(bytes, text[start:i]...)
 			continue
@@ -308,26 +310,16 @@ func quoteImpl(bytes []byte, text string, forJSON bool, asciiOnly bool) []byte {
 			i++
 
 		default:
-			r, width := js_lexer.DecodeWTF8Rune(text[i:])
 			i += width
-			if r <= 0xFF && !forJSON {
-				if r == '\v' {
-					bytes = append(bytes, "\\v"...)
-				} else {
-					bytes = append(
-						bytes,
-						'\\', 'x', hexChars[r>>4], hexChars[r&15],
-					)
-				}
-			} else if r <= 0xFFFF {
+			if c <= 0xFFFF {
 				bytes = append(
 					bytes,
-					'\\', 'u', hexChars[r>>12], hexChars[(r>>8)&15], hexChars[(r>>4)&15], hexChars[r&15],
+					'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
 				)
 			} else {
-				r -= 0x10000
-				lo := 0xD800 + ((r >> 10) & 0x3FF)
-				hi := 0xDC00 + (r & 0x3FF)
+				c -= 0x10000
+				lo := firstHighSurrogate + ((c >> 10) & 0x3FF)
+				hi := firstLowSurrogate + (c & 0x3FF)
 				bytes = append(
 					bytes,
 					'\\', 'u', hexChars[lo>>12], hexChars[(lo>>8)&15], hexChars[(lo>>4)&15], hexChars[lo&15],
@@ -420,6 +412,9 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 		case '\u2029':
 			js = append(js, "\\u2029"...)
 
+		case '\uFEFF':
+			js = append(js, "\\uFEFF"...)
+
 		default:
 			if p.options.ASCIIOnly {
 				if c >= firstASCII && c <= lastASCII {
@@ -440,15 +435,15 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 
 			switch {
 			// Is this a high surrogate?
-			case c >= 0xD800 && c <= 0xDBFF:
+			case c >= firstHighSurrogate && c <= lastHighSurrogate:
 				// Is there a next character?
 				if i < n {
 					c2 := text[i]
 
 					// Is it a low surrogate?
-					if c2 >= 0xDC00 && c2 <= 0xDFFF {
+					if c2 >= firstLowSurrogate && c2 <= lastLowSurrogate {
 						i++
-						width := utf8.EncodeRune(temp, (rune(c)<<10)+rune(c2)+(0x10000-(0xD800<<10)-0xDC00))
+						width := utf8.EncodeRune(temp, (rune(c)<<10)+rune(c2)+(0x10000-(firstHighSurrogate<<10)-firstLowSurrogate))
 						js = append(js, temp[:width]...)
 						continue
 					}
@@ -458,7 +453,7 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
 
 			// Is this a low surrogate?
-			case c >= 0xDC00 && c <= 0xDFFF:
+			case c >= firstLowSurrogate && c <= lastLowSurrogate:
 				// Write an escaped character
 				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
 
@@ -553,8 +548,12 @@ func (p *printer) printUTF16(text []uint16) {
 	p.js = js_lexer.AppendUTF16ToBytes(p.js, text)
 }
 
-func (p *printer) printQuoted(text string) {
-	p.js = quoteImpl(p.js, text, false, p.options.ASCIIOnly)
+func (p *printer) printQuotedUTF8(text string, allowBacktick bool) {
+	value := js_lexer.StringToUTF16(text)
+	c := p.bestQuoteCharForString(value, allowBacktick)
+	p.print(c)
+	p.printQuotedUTF16(value, rune(c[0]))
+	p.print(c)
 }
 
 func (p *printer) addSourceMapping(loc logger.Loc) {
@@ -803,8 +802,8 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 					})
 				} else {
 					c -= 0x10000
-					lo := 0xD800 + ((c >> 10) & 0x3FF)
-					hi := 0xDC00 + (c & 0x3FF)
+					lo := firstHighSurrogate + ((c >> 10) & 0x3FF)
+					hi := firstLowSurrogate + (c & 0x3FF)
 					p.printBytes([]byte{
 						'\\', 'u', hexChars[lo>>12], hexChars[(lo>>8)&15], hexChars[(lo>>4)&15], hexChars[lo&15],
 						'\\', 'u', hexChars[hi>>12], hexChars[(hi>>8)&15], hexChars[(hi>>4)&15], hexChars[hi&15],
@@ -1305,7 +1304,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			}
 			p.printIndent()
 		}
-		p.printQuoted(record.Path.Text)
+		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
@@ -1339,7 +1338,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		p.print("()")
 	} else {
 		p.print("require(")
-		p.printQuoted(record.Path.Text)
+		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		p.print(")")
 	}
 
@@ -1511,7 +1510,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 		p.printSpaceBeforeIdentifier()
 		p.print("require.resolve(")
-		p.printQuoted(p.importRecords[e.ImportRecordIndex].Path.Text)
+		p.printQuotedUTF8(p.importRecords[e.ImportRecordIndex].Path.Text, true /* allowBacktick */)
 		p.print(")")
 		if wrap {
 			p.print(")")
@@ -1919,7 +1918,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 				p.print(alias)
 			} else {
 				p.print("[")
-				p.printQuoted(alias)
+				p.printQuotedUTF8(alias, true /* allowBacktick */)
 				p.print("]")
 			}
 		} else {
@@ -2562,7 +2561,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		}
 		p.print("from")
 		p.printSpace()
-		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
+		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SExportClause:
@@ -2645,7 +2644,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSpace()
 		p.print("from")
 		p.printSpace()
-		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
+		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SLocal:
@@ -2918,7 +2917,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.printSpace()
 		}
 
-		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
+		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBlock:

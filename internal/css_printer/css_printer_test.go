@@ -295,4 +295,14 @@ func TestASCII(t *testing.T) {
 	expectPrintedASCII(t, "[🐈] {}", "[\\1f408] {\n}\n")
 	expectPrintedASCII(t, "[🐈=🐈] {}", "[\\1f408=\\1f408] {\n}\n")
 	expectPrintedASCII(t, "[🐈|🐈=🐈] {}", "[\\1f408|\\1f408=\\1f408] {\n}\n")
+
+	// A space must be consumed after an escaped code point even with six digits
+	expectPrintedASCII(t, ".\\10FFF abc:after { content: '\\10FFF abc' }", ".\\10fff abc:after {\n  content: \"\\10fff abc\";\n}\n")
+	expectPrintedASCII(t, ".\U00010FFFabc:after { content: '\U00010FFFabc' }", ".\\10fff abc:after {\n  content: \"\\10fff abc\";\n}\n")
+	expectPrintedASCII(t, ".\\10FFFFabc:after { content: '\\10FFFFabc' }", ".\\10ffffabc:after {\n  content: \"\\10ffffabc\";\n}\n")
+	expectPrintedASCII(t, ".\\10FFFF abc:after { content: '\\10FFFF abc' }", ".\\10ffffabc:after {\n  content: \"\\10ffffabc\";\n}\n")
+	expectPrintedASCII(t, ".\U0010FFFFabc:after { content: '\U0010FFFFabc' }", ".\\10ffffabc:after {\n  content: \"\\10ffffabc\";\n}\n")
+
+	// This character should always be escaped
+	expectPrinted(t, ".\\FEFF:after { content: '\uFEFF' }", ".\\feff:after {\n  content: \"\\feff\";\n}\n")
 }

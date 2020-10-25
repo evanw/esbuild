@@ -749,4 +749,9 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedASCII(t, "let 貓 = '🐈'", "let \\u8C93 = \"\\uD83D\\uDC08\";\n")
 	expectPrintedASCII(t, "let 貓abc = '🐈'", "let \\u8C93abc = \"\\uD83D\\uDC08\";\n")
 	expectPrintedASCII(t, "let abc貓 = '🐈'", "let abc\\u8C93 = \"\\uD83D\\uDC08\";\n")
+
+	// These characters should always be escaped
+	expectPrinted(t, "let x = '\u2028'", "let x = \"\\u2028\";\n")
+	expectPrinted(t, "let x = '\u2029'", "let x = \"\\u2029\";\n")
+	expectPrinted(t, "let x = '\uFEFF'", "let x = \"\\uFEFF\";\n")
 }
