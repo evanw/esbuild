@@ -3301,12 +3301,26 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedTargetASCII(t, 5, "x.π", "x.\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
 
+	expectPrinted(t, "x?.π", "x?.π;\n")
+	expectPrinted(t, "x?.𐀀", "x?.𐀀;\n")
+	expectPrintedASCII(t, "x?.π", "x?.\\u03C0;\n")
+	expectPrintedASCII(t, "x?.𐀀", "x?.\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "x?.π", "x == null ? void 0 : x.\\u03C0;\n")
+	expectPrintedTargetASCII(t, 5, "x?.𐀀", "x == null ? void 0 : x[\"\\uD800\\uDC00\"];\n")
+
 	expectPrinted(t, "0 .π", "0 .π;\n")
 	expectPrinted(t, "0 .𐀀", "0 .𐀀;\n")
 	expectPrintedASCII(t, "0 .π", "0 .\\u03C0;\n")
 	expectPrintedASCII(t, "0 .𐀀", "0 .\\u{10000};\n")
 	expectPrintedTargetASCII(t, 5, "0 .π", "0 .\\u03C0;\n")
 	expectPrintedTargetASCII(t, 5, "0 .𐀀", "0[\"\\uD800\\uDC00\"];\n")
+
+	expectPrinted(t, "0?.π", "0?.π;\n")
+	expectPrinted(t, "0?.𐀀", "0?.𐀀;\n")
+	expectPrintedASCII(t, "0?.π", "0?.\\u03C0;\n")
+	expectPrintedASCII(t, "0?.𐀀", "0?.\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "0?.π", "0 == null ? void 0 : 0 .\\u03C0;\n")
+	expectPrintedTargetASCII(t, 5, "0?.𐀀", "0 == null ? void 0 : 0[\"\\uD800\\uDC00\"];\n")
 
 	expectPrinted(t, "import 'π'", "import \"π\";\n")
 	expectPrinted(t, "import '𐀀'", "import \"𐀀\";\n")

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.21
 
 * Use bracketed escape codes for non-BMP characters
 
