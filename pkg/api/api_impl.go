@@ -98,6 +98,17 @@ func validateStrict(value StrictOptions) config.StrictOptions {
 	}
 }
 
+func validateASCIIOnly(value Charset) bool {
+	switch value {
+	case CharsetDefault, CharsetASCII:
+		return true
+	case CharsetUTF8:
+		return false
+	default:
+		panic("Invalid charset")
+	}
+}
+
 func validateLoader(value Loader) config.Loader {
 	switch value {
 	case LoaderJS:
@@ -421,7 +432,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		MangleSyntax:      buildOpts.MinifySyntax,
 		RemoveWhitespace:  buildOpts.MinifyWhitespace,
 		MinifyIdentifiers: buildOpts.MinifyIdentifiers,
-		ASCIIOnly:         buildOpts.ASCIIOnly,
+		ASCIIOnly:         validateASCIIOnly(buildOpts.Charset),
 		ModuleName:        buildOpts.GlobalName,
 		CodeSplitting:     buildOpts.Splitting,
 		OutputFormat:      validateFormat(buildOpts.Format),
@@ -623,7 +634,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		MangleSyntax:      transformOpts.MinifySyntax,
 		RemoveWhitespace:  transformOpts.MinifyWhitespace,
 		MinifyIdentifiers: transformOpts.MinifyIdentifiers,
-		ASCIIOnly:         transformOpts.ASCIIOnly,
+		ASCIIOnly:         validateASCIIOnly(transformOpts.Charset),
 		AbsOutputFile:     transformOpts.Sourcefile + "-out",
 		AvoidTDZ:          transformOpts.AvoidTDZ,
 		Stdin: &config.StdinInfo{

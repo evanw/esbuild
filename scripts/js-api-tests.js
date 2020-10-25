@@ -706,6 +706,36 @@ let transformTests = {
     }
   },
 
+  async jsCharsetDefault({ service }) {
+    const { js } = await service.transform(`let π = 'π'`, {})
+    assert.strictEqual(js, `let \\u03C0 = "\\u03C0";\n`)
+  },
+
+  async jsCharsetASCII({ service }) {
+    const { js } = await service.transform(`let π = 'π'`, { charset: 'ascii' })
+    assert.strictEqual(js, `let \\u03C0 = "\\u03C0";\n`)
+  },
+
+  async jsCharsetUTF8({ service }) {
+    const { js } = await service.transform(`let π = 'π'`, { charset: 'utf8' })
+    assert.strictEqual(js, `let π = "π";\n`)
+  },
+
+  async cssCharsetDefault({ service }) {
+    const { js } = await service.transform(`.π:after { content: 'π' }`, { loader: 'css' })
+    assert.strictEqual(js, `.\\3c0:after {\n  content: "\\3c0";\n}\n`)
+  },
+
+  async cssCharsetASCII({ service }) {
+    const { js } = await service.transform(`.π:after { content: 'π' }`, { loader: 'css', charset: 'ascii' })
+    assert.strictEqual(js, `.\\3c0:after {\n  content: "\\3c0";\n}\n`)
+  },
+
+  async cssCharsetUTF8({ service }) {
+    const { js } = await service.transform(`.π:after { content: 'π' }`, { loader: 'css', charset: 'utf8' })
+    assert.strictEqual(js, `.π:after {\n  content: "π";\n}\n`)
+  },
+
   async cjs_require({ service }) {
     const { js } = await service.transform(`const {foo} = require('path')`, {})
     assert.strictEqual(js, `const {foo} = require("path");\n`)

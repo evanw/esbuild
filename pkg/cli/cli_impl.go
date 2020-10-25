@@ -69,11 +69,21 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.MinifyIdentifiers = true
 			}
 
-		case arg == "--ascii-only":
+		case strings.HasPrefix(arg, "--charset="):
+			var value *api.Charset
 			if buildOpts != nil {
-				buildOpts.ASCIIOnly = true
+				value = &buildOpts.Charset
 			} else {
-				transformOpts.ASCIIOnly = true
+				value = &transformOpts.Charset
+			}
+			name := arg[len("--charset="):]
+			switch name {
+			case "ascii":
+				*value = api.CharsetASCII
+			case "utf8":
+				*value = api.CharsetUTF8
+			default:
+				return fmt.Errorf("Invalid charset value: %q (valid: ascii, utf8)", name)
 			}
 
 		case arg == "--avoid-tdz":

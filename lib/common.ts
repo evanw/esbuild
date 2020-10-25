@@ -74,7 +74,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let minifySyntax = getFlag(options, keys, 'minifySyntax', mustBeBoolean);
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean);
   let minifyIdentifiers = getFlag(options, keys, 'minifyIdentifiers', mustBeBoolean);
-  let asciiOnly = getFlag(options, keys, 'asciiOnly', mustBeBoolean);
+  let charset = getFlag(options, keys, 'charset', mustBeString);
   let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
@@ -94,7 +94,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (minifySyntax) flags.push('--minify-syntax');
   if (minifyWhitespace) flags.push('--minify-whitespace');
   if (minifyIdentifiers) flags.push('--minify-identifiers');
-  if (asciiOnly) flags.push('--ascii-only');
+  if (charset) flags.push(`--charset=${charset}`);
 
   if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`);
   if (jsxFragment) flags.push(`--jsx-fragment=${jsxFragment}`);

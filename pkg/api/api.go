@@ -183,6 +183,14 @@ type StrictOptions struct {
 	ClassFields       bool
 }
 
+type Charset uint8
+
+const (
+	CharsetDefault Charset = iota
+	CharsetASCII
+	CharsetUTF8
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -199,7 +207,7 @@ type BuildOptions struct {
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
-	ASCIIOnly         bool
+	Charset           Charset
 
 	JSXFactory  string
 	JSXFragment string
@@ -271,7 +279,7 @@ type TransformOptions struct {
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
-	ASCIIOnly         bool
+	Charset           Charset
 
 	JSXFactory  string
 	JSXFragment string
