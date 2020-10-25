@@ -65,6 +65,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{
 			UnsupportedFeatures: options.UnsupportedJSFeatures,
+			ASCIIOnly:           options.ASCIIOnly,
 		}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
@@ -102,6 +103,33 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 			OptionalChaining:  true,
 			ClassFields:       true,
 		},
+	})
+}
+
+func expectPrintedASCII(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		ASCIIOnly: true,
+	})
+}
+
+func expectPrintedTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		ASCIIOnly: true,
+	})
+}
+
+func expectParseErrorTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		ASCIIOnly: true,
 	})
 }
 
@@ -3235,4 +3263,139 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming generator functions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "(function* () {});",
 		"<stdin>: error: Transforming generator functions to the configured target environment is not supported yet\n")
+}
+
+func TestASCIIOnly(t *testing.T) {
+	es5 := "<stdin>: error: \"𐀀\" cannot be escaped in the target environment " +
+		"(consider setting the charset to \"utf8\" or changing the target)\n"
+
+	// Some context: "π" is in the BMP (i.e. has a code point ≤0xFFFF) and "𐀀" is
+	// not in the BMP (i.e. has a code point >0xFFFF). This distinction matters
+	// because it's impossible to escape non-BMP characters before ES6.
+
+	expectPrinted(t, "π", "π;\n")
+	expectPrinted(t, "𐀀", "𐀀;\n")
+	expectPrintedASCII(t, "π", "\\u03C0;\n")
+	expectPrintedASCII(t, "𐀀", "\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "π", "\\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "𐀀", es5)
+
+	expectPrinted(t, "var π", "var π;\n")
+	expectPrinted(t, "var 𐀀", "var 𐀀;\n")
+	expectPrintedASCII(t, "var π", "var \\u03C0;\n")
+	expectPrintedASCII(t, "var 𐀀", "var \\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "var π", "var \\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "var 𐀀", es5)
+
+	expectPrinted(t, "'π'", "\"π\";\n")
+	expectPrinted(t, "'𐀀'", "\"𐀀\";\n")
+	expectPrintedASCII(t, "'π'", "\"\\u03C0\";\n")
+	expectPrintedASCII(t, "'𐀀'", "\"\\u{10000}\";\n")
+	expectPrintedTargetASCII(t, 5, "'π'", "\"\\u03C0\";\n")
+	expectPrintedTargetASCII(t, 5, "'𐀀'", "\"\\uD800\\uDC00\";\n")
+
+	expectPrinted(t, "x.π", "x.π;\n")
+	expectPrinted(t, "x.𐀀", "x.𐀀;\n")
+	expectPrintedASCII(t, "x.π", "x.\\u03C0;\n")
+	expectPrintedASCII(t, "x.𐀀", "x.\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "x.π", "x.\\u03C0;\n")
+	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
+
+	expectPrinted(t, "0 .π", "0 .π;\n")
+	expectPrinted(t, "0 .𐀀", "0 .𐀀;\n")
+	expectPrintedASCII(t, "0 .π", "0 .\\u03C0;\n")
+	expectPrintedASCII(t, "0 .𐀀", "0 .\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "0 .π", "0 .\\u03C0;\n")
+	expectPrintedTargetASCII(t, 5, "0 .𐀀", "0[\"\\uD800\\uDC00\"];\n")
+
+	expectPrinted(t, "import 'π'", "import \"π\";\n")
+	expectPrinted(t, "import '𐀀'", "import \"𐀀\";\n")
+	expectPrintedASCII(t, "import 'π'", "import \"\\u03C0\";\n")
+	expectPrintedASCII(t, "import '𐀀'", "import \"\\u{10000}\";\n")
+	expectPrintedTargetASCII(t, 5, "import 'π'", "import \"\\u03C0\";\n")
+	expectPrintedTargetASCII(t, 5, "import '𐀀'", "import \"\\uD800\\uDC00\";\n")
+
+	expectPrinted(t, "({π: 0})", "({π: 0});\n")
+	expectPrinted(t, "({𐀀: 0})", "({𐀀: 0});\n")
+	expectPrintedASCII(t, "({π: 0})", "({\\u03C0: 0});\n")
+	expectPrintedASCII(t, "({𐀀: 0})", "({\\u{10000}: 0});\n")
+	expectPrintedTargetASCII(t, 5, "({π: 0})", "({\\u03C0: 0});\n")
+	expectPrintedTargetASCII(t, 5, "({𐀀: 0})", "({\"\\uD800\\uDC00\": 0});\n")
+
+	expectPrinted(t, "({π})", "({π});\n")
+	expectPrinted(t, "({𐀀})", "({𐀀});\n")
+	expectPrintedASCII(t, "({π})", "({\\u03C0});\n")
+	expectPrintedASCII(t, "({𐀀})", "({\\u{10000}});\n")
+	expectPrintedTargetASCII(t, 5, "({π})", "({\\u03C0: \\u03C0});\n")
+	expectParseErrorTargetASCII(t, 5, "({𐀀})", es5)
+
+	expectPrinted(t, "import * as π from 'path'; π", "import * as π from \"path\";\nπ;\n")
+	expectPrinted(t, "import * as 𐀀 from 'path'; 𐀀", "import * as 𐀀 from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "import * as π from 'path'; π", "import * as \\u03C0 from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "import * as 𐀀 from 'path'; 𐀀", "import * as \\u{10000} from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "import * as π from 'path'; π", "import * as \\u03C0 from \"path\";\n\\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "import * as 𐀀 from 'path'", es5)
+
+	expectPrinted(t, "import {π} from 'path'; π", "import {π} from \"path\";\nπ;\n")
+	expectPrinted(t, "import {𐀀} from 'path'; 𐀀", "import {𐀀} from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "import {π} from 'path'; π", "import {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "import {𐀀} from 'path'; 𐀀", "import {\\u{10000}} from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "import {π} from 'path'; π", "import {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "import {𐀀} from 'path'", es5)
+
+	expectPrinted(t, "import {π as x} from 'path'", "import {π as x} from \"path\";\n")
+	expectPrinted(t, "import {𐀀 as x} from 'path'", "import {𐀀 as x} from \"path\";\n")
+	expectPrintedASCII(t, "import {π as x} from 'path'", "import {\\u03C0 as x} from \"path\";\n")
+	expectPrintedASCII(t, "import {𐀀 as x} from 'path'", "import {\\u{10000} as x} from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "import {π as x} from 'path'", "import {\\u03C0 as x} from \"path\";\n")
+	expectParseErrorTargetASCII(t, 5, "import {𐀀 as x} from 'path'", es5)
+
+	expectPrinted(t, "import {x as π} from 'path'", "import {x as π} from \"path\";\n")
+	expectPrinted(t, "import {x as 𐀀} from 'path'", "import {x as 𐀀} from \"path\";\n")
+	expectPrintedASCII(t, "import {x as π} from 'path'", "import {x as \\u03C0} from \"path\";\n")
+	expectPrintedASCII(t, "import {x as 𐀀} from 'path'", "import {x as \\u{10000}} from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "import {x as π} from 'path'", "import {x as \\u03C0} from \"path\";\n")
+	expectParseErrorTargetASCII(t, 5, "import {x as 𐀀} from 'path'", es5)
+
+	expectPrinted(t, "export * as π from 'path'; π", "export * as π from \"path\";\nπ;\n")
+	expectPrinted(t, "export * as 𐀀 from 'path'; 𐀀", "export * as 𐀀 from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "export * as π from 'path'; π", "export * as \\u03C0 from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "export * as 𐀀 from 'path'; 𐀀", "export * as \\u{10000} from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export * as π from 'path'", "import * as \\u03C0 from \"path\";\nexport {\\u03C0};\n")
+	expectParseErrorTargetASCII(t, 5, "export * as 𐀀 from 'path'", es5)
+
+	expectPrinted(t, "export {π} from 'path'; π", "export {π} from \"path\";\nπ;\n")
+	expectPrinted(t, "export {𐀀} from 'path'; 𐀀", "export {𐀀} from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "export {π} from 'path'; π", "export {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "export {𐀀} from 'path'; 𐀀", "export {\\u{10000}} from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export {π} from 'path'; π", "export {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "export {𐀀} from 'path'", es5)
+
+	expectPrinted(t, "export {π as x} from 'path'", "export {π as x} from \"path\";\n")
+	expectPrinted(t, "export {𐀀 as x} from 'path'", "export {𐀀 as x} from \"path\";\n")
+	expectPrintedASCII(t, "export {π as x} from 'path'", "export {\\u03C0 as x} from \"path\";\n")
+	expectPrintedASCII(t, "export {𐀀 as x} from 'path'", "export {\\u{10000} as x} from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "export {π as x} from 'path'", "export {\\u03C0 as x} from \"path\";\n")
+	expectParseErrorTargetASCII(t, 5, "export {𐀀 as x} from 'path'", es5)
+
+	expectPrinted(t, "export {x as π} from 'path'", "export {x as π} from \"path\";\n")
+	expectPrinted(t, "export {x as 𐀀} from 'path'", "export {x as 𐀀} from \"path\";\n")
+	expectPrintedASCII(t, "export {x as π} from 'path'", "export {x as \\u03C0} from \"path\";\n")
+	expectPrintedASCII(t, "export {x as 𐀀} from 'path'", "export {x as \\u{10000}} from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "export {x as π} from 'path'", "export {x as \\u03C0} from \"path\";\n")
+	expectParseErrorTargetASCII(t, 5, "export {x as 𐀀} from 'path'", es5)
+
+	expectPrinted(t, "export {π}; var π", "export {π};\nvar π;\n")
+	expectPrinted(t, "export {𐀀}; var 𐀀", "export {𐀀};\nvar 𐀀;\n")
+	expectPrintedASCII(t, "export {π}; var π", "export {\\u03C0};\nvar \\u03C0;\n")
+	expectPrintedASCII(t, "export {𐀀}; var 𐀀", "export {\\u{10000}};\nvar \\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export {π}; var π", "export {\\u03C0};\nvar \\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "export {𐀀}; var 𐀀", es5)
+
+	expectPrinted(t, "export var π", "export var π;\n")
+	expectPrinted(t, "export var 𐀀", "export var 𐀀;\n")
+	expectPrintedASCII(t, "export var π", "export var \\u03C0;\n")
+	expectPrintedASCII(t, "export var 𐀀", "export var \\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export var π", "export var \\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "export var 𐀀", es5)
 }

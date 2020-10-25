@@ -54,6 +54,7 @@ const (
 	RestArgument
 	TemplateLiteral
 	TopLevelAwait
+	UnicodeEscapes
 )
 
 func (features JSFeature) Has(feature JSFeature) bool {
@@ -344,6 +345,15 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		Safari:  {9},
 	},
 	TopLevelAwait: {},
+	UnicodeEscapes: {
+		Chrome:  {44},
+		Edge:    {12},
+		ES:      {2015},
+		Firefox: {40},
+		IOS:     {9},
+		Node:    {4},
+		Safari:  {9},
+	},
 }
 
 func isVersionLessThan(a []int, b []int) bool {

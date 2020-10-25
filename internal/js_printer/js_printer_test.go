@@ -58,8 +58,23 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [mangled]", contents, expected, PrintOptions{
 		MangleSyntax: true,
+	})
+}
+
+func expectPrintedASCII(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, PrintOptions{
+		ASCIIOnly: true,
+	})
+}
+
+func expectPrintedMinifyASCII(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, PrintOptions{
+		RemoveWhitespace: true,
+		ASCIIOnly:        true,
 	})
 }
 
@@ -84,7 +99,7 @@ func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, exp
 
 func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [mangled]", contents, expected, PrintOptions{
 		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
@@ -92,9 +107,12 @@ func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, exp
 	})
 }
 
-func expectPrintedASCII(t *testing.T, contents string, expected string) {
+func expectPrintedTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, PrintOptions{
+		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
 		ASCIIOnly: true,
 	})
 }
@@ -746,12 +764,32 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrinted(t, "let 貓 = '🐈'", "let 貓 = \"🐈\";\n")
 	expectPrinted(t, "let 貓abc = '🐈'", "let 貓abc = \"🐈\";\n")
 	expectPrinted(t, "let abc貓 = '🐈'", "let abc貓 = \"🐈\";\n")
-	expectPrintedASCII(t, "let 貓 = '🐈'", "let \\u8C93 = \"\\uD83D\\uDC08\";\n")
-	expectPrintedASCII(t, "let 貓abc = '🐈'", "let \\u8C93abc = \"\\uD83D\\uDC08\";\n")
-	expectPrintedASCII(t, "let abc貓 = '🐈'", "let abc\\u8C93 = \"\\uD83D\\uDC08\";\n")
+	expectPrintedASCII(t, "let 貓 = '🐈'", "let \\u8C93 = \"\\u{1F408}\";\n")
+	expectPrintedASCII(t, "let 貓abc = '🐈'", "let \\u8C93abc = \"\\u{1F408}\";\n")
+	expectPrintedASCII(t, "let abc貓 = '🐈'", "let abc\\u8C93 = \"\\u{1F408}\";\n")
+
+	// Test a character outside the BMP
+	expectPrinted(t, "var 𐀀", "var 𐀀;\n")
+	expectPrinted(t, "var \\u{10000}", "var 𐀀;\n")
+	expectPrintedASCII(t, "var 𐀀", "var \\u{10000};\n")
+	expectPrintedASCII(t, "var \\u{10000}", "var \\u{10000};\n")
+	expectPrintedTargetASCII(t, 2015, "'𐀀'", "\"\\u{10000}\";\n")
+	expectPrintedTargetASCII(t, 5, "'𐀀'", "\"\\uD800\\uDC00\";\n")
+	expectPrintedTargetASCII(t, 2015, "x.𐀀", "x.\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
+
+	// Escapes should use consistent case
+	expectPrintedASCII(t, "var \\u{100a} = {\\u100A: '\\u100A'}", "var \\u100A = {\\u100A: \"\\u100A\"};\n")
+	expectPrintedASCII(t, "var \\u{1000a} = {\\u{1000A}: '\\u{1000A}'}", "var \\u{1000A} = {\\u{1000A}: \"\\u{1000A}\"};\n")
 
 	// These characters should always be escaped
 	expectPrinted(t, "let x = '\u2028'", "let x = \"\\u2028\";\n")
 	expectPrinted(t, "let x = '\u2029'", "let x = \"\\u2029\";\n")
 	expectPrinted(t, "let x = '\uFEFF'", "let x = \"\\uFEFF\";\n")
+
+	// There should still be a space before "extends"
+	expectPrintedASCII(t, "class 𐀀 extends π {}", "class \\u{10000} extends \\u03C0 {\n}\n")
+	expectPrintedASCII(t, "(class 𐀀 extends π {})", "(class \\u{10000} extends \\u03C0 {\n});\n")
+	expectPrintedMinifyASCII(t, "class 𐀀 extends π {}", "class \\u{10000} extends \\u03C0{}")
+	expectPrintedMinifyASCII(t, "(class 𐀀 extends π {})", "(class \\u{10000} extends \\u03C0{});")
 }

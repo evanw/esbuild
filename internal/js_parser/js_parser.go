@@ -59,6 +59,7 @@ type parser struct {
 	declaredSymbols          []js_ast.DeclaredSymbol
 	runtimeImports           map[string]js_ast.Ref
 	duplicateCaseChecker     duplicateCaseChecker
+	nonBMPIdentifiers        map[string]bool
 
 	// For lowering private methods
 	weakMapRef     js_ast.Ref
@@ -846,6 +847,8 @@ func (p *parser) canMergeSymbols(existing js_ast.SymbolKind, new js_ast.SymbolKi
 }
 
 func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name string) js_ast.Ref {
+	p.checkForNonBMPCodePoint(loc, name)
+
 	// Allocate a new symbol
 	ref := p.newSymbol(kind, name)
 
@@ -3830,6 +3833,7 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 				firstKeywordItemLoc = p.lexer.Loc()
 			}
 		}
+		p.checkForNonBMPCodePoint(aliasLoc, alias)
 		p.lexer.Next()
 
 		if p.lexer.IsContextualKeyword("as") {
@@ -3841,6 +3845,7 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 			if !p.lexer.IsIdentifierOrKeyword() {
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
+			p.checkForNonBMPCodePoint(aliasLoc, alias)
 			p.lexer.Next()
 		}
 
@@ -4673,6 +4678,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				if !p.lexer.IsIdentifierOrKeyword() {
 					p.lexer.Expect(js_lexer.TIdentifier)
 				}
+				p.checkForNonBMPCodePoint(alias.Loc, alias.Name)
 				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("from")
 				pathLoc, pathText = p.parsePath()
@@ -5301,6 +5307,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			for i, item := range *stmt.Items {
 				name := p.loadNameFromRef(item.Name.Ref)
 				ref := p.declareSymbol(js_ast.SymbolImport, item.Name.Loc, name)
+				p.checkForNonBMPCodePoint(item.AliasLoc, item.Alias)
 				p.isImportItem[ref] = true
 				(*stmt.Items)[i].Name.Ref = ref
 				itemRefs[item.Alias] = js_ast.LocRef{Loc: item.Name.Loc, Ref: ref}
@@ -5691,6 +5698,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 		s = s.Parent
 		if s == nil {
 			// Allocate an "unbound" symbol
+			p.checkForNonBMPCodePoint(loc, name)
 			ref = p.newSymbol(js_ast.SymbolUnbound, name)
 			p.moduleScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: logger.Loc{Start: -1}}
 			break
@@ -7597,6 +7605,16 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, as
 	}
 
 	return value
+}
+
+func (p *parser) checkForNonBMPCodePoint(loc logger.Loc, name string) {
+	if p.ASCIIOnly && p.UnsupportedJSFeatures.Has(compat.UnicodeEscapes) &&
+		js_lexer.ContainsNonBMPCodePoint(name) && !p.nonBMPIdentifiers[name] {
+		p.nonBMPIdentifiers[name] = true
+		r := js_lexer.RangeOfIdentifier(p.source, loc)
+		p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q cannot be escaped in the target environment ("+
+			"consider setting the charset to \"utf8\" or changing the target)", name))
+	}
 }
 
 func (p *parser) checkForTypeofAndString(a js_ast.Expr, b js_ast.Expr) bool {
@@ -10085,6 +10103,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		Options:            *options,
 		fnOrArrowDataParse: fnOrArrowDataParse{isOutsideFn: true},
 		runtimeImports:     make(map[string]js_ast.Ref),
+		nonBMPIdentifiers:  make(map[string]bool),
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,

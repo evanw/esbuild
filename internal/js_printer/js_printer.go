@@ -416,24 +416,11 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 			js = append(js, "\\uFEFF"...)
 
 		default:
-			if p.options.ASCIIOnly {
-				if c >= firstASCII && c <= lastASCII {
-					js = append(js, byte(c))
-				} else if c <= 0xFF {
-					js = append(
-						js,
-						'\\', 'x', hexChars[c>>4], hexChars[c&15],
-					)
-				} else {
-					js = append(
-						js,
-						'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
-					)
-				}
-				continue
-			}
-
 			switch {
+			// Common case: just append a single byte
+			case c <= lastASCII:
+				js = append(js, byte(c))
+
 			// Is this a high surrogate?
 			case c >= firstHighSurrogate && c <= lastHighSurrogate:
 				// Is there a next character?
@@ -442,28 +429,44 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 
 					// Is it a low surrogate?
 					if c2 >= firstLowSurrogate && c2 <= lastLowSurrogate {
+						r := (rune(c) << 10) + rune(c2) + (0x10000 - (firstHighSurrogate << 10) - firstLowSurrogate)
 						i++
-						width := utf8.EncodeRune(temp, (rune(c)<<10)+rune(c2)+(0x10000-(firstHighSurrogate<<10)-firstLowSurrogate))
+
+						// Escape this character if UTF-8 isn't allowed
+						if p.options.ASCIIOnly {
+							if !p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) {
+								js = append(js, fmt.Sprintf("\\u{%X}", r)...)
+							} else {
+								js = append(js,
+									'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
+									'\\', 'u', hexChars[c2>>12], hexChars[(c2>>8)&15], hexChars[(c2>>4)&15], hexChars[c2&15],
+								)
+							}
+							continue
+						}
+
+						// Otherwise, encode to UTF-8
+						width := utf8.EncodeRune(temp, r)
 						js = append(js, temp[:width]...)
 						continue
 					}
 				}
 
-				// Write an escaped character
+				// Write an unpaired high surrogate
 				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
 
-			// Is this a low surrogate?
-			case c >= firstLowSurrogate && c <= lastLowSurrogate:
-				// Write an escaped character
+			// Is this an unpaired low surrogate or four-digit hex escape?
+			case (c >= firstLowSurrogate && c <= lastLowSurrogate) || (p.options.ASCIIOnly && c > 0xFF):
 				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
 
+			// Can this be a two-digit hex escape?
+			case p.options.ASCIIOnly:
+				js = append(js, '\\', 'x', hexChars[c>>4], hexChars[c&15])
+
+			// Otherwise, just encode to UTF-8
 			default:
-				if c < utf8.RuneSelf {
-					js = append(js, byte(c))
-				} else {
-					width := utf8.EncodeRune(temp, rune(c))
-					js = append(js, temp[:width]...)
-				}
+				width := utf8.EncodeRune(temp, rune(c))
+				js = append(js, temp[:width]...)
 			}
 		}
 	}
@@ -540,12 +543,6 @@ func (p *printer) print(text string) {
 // allocations
 func (p *printer) printBytes(bytes []byte) {
 	p.js = append(p.js, bytes...)
-}
-
-// This is the same as "print(js_lexer.UTF16ToString(text))" without any
-// unnecessary temporary allocations
-func (p *printer) printUTF16(text []uint16) {
-	p.js = js_lexer.AppendUTF16ToBytes(p.js, text)
 }
 
 func (p *printer) printQuotedUTF8(text string, allowBacktick bool) {
@@ -778,8 +775,22 @@ func (p *printer) printIndent() {
 
 func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printSpaceBeforeIdentifier()
-	name := p.renamer.NameForSymbol(ref)
+	p.printIdentifier(p.renamer.NameForSymbol(ref))
+}
 
+func (p *printer) canPrintIdentifier(name string) bool {
+	return js_lexer.IsIdentifier(name) && (!p.options.ASCIIOnly ||
+		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
+		!js_lexer.ContainsNonBMPCodePoint(name))
+}
+
+func (p *printer) canPrintIdentifierUTF16(name []uint16) bool {
+	return js_lexer.IsIdentifierUTF16(name) && (!p.options.ASCIIOnly ||
+		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
+		!js_lexer.ContainsNonBMPCodePointUTF16(name))
+}
+
+func (p *printer) printIdentifier(name string) {
 	if p.options.ASCIIOnly {
 		isASCII := false
 		asciiStart := 0
@@ -797,17 +808,11 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 					isASCII = false
 				}
 				if c <= 0xFFFF {
-					p.printBytes([]byte{
-						'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
-					})
+					p.js = append(p.js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
+				} else if !p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) {
+					p.print(fmt.Sprintf("\\u{%X}", c))
 				} else {
-					c -= 0x10000
-					lo := firstHighSurrogate + ((c >> 10) & 0x3FF)
-					hi := firstLowSurrogate + (c & 0x3FF)
-					p.printBytes([]byte{
-						'\\', 'u', hexChars[lo>>12], hexChars[(lo>>8)&15], hexChars[(lo>>4)&15], hexChars[lo&15],
-						'\\', 'u', hexChars[hi>>12], hexChars[(hi>>8)&15], hexChars[(hi>>4)&15], hexChars[hi&15],
-					})
+					panic("Internal error: Cannot encode identifier: Unicode escapes are unsupported")
 				}
 			}
 		}
@@ -819,6 +824,38 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 	}
 
 	p.print(name)
+}
+
+// This is the same as "printIdentifier(StringToUTF16(bytes))" without any
+// unnecessary temporary allocations
+func (p *printer) printIdentifierUTF16(name []uint16) {
+	temp := make([]byte, utf8.UTFMax)
+	n := len(name)
+
+	for i := 0; i < n; i++ {
+		c := rune(name[i])
+
+		if c >= firstHighSurrogate && c <= lastHighSurrogate && i+1 < n {
+			if c2 := rune(name[i+1]); c2 >= firstLowSurrogate && c2 <= lastLowSurrogate {
+				c = (c << 10) + c2 + (0x10000 - (firstHighSurrogate << 10) - firstLowSurrogate)
+				i++
+			}
+		}
+
+		if p.options.ASCIIOnly && c > lastASCII {
+			if c <= 0xFFFF {
+				p.js = append(p.js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
+			} else if !p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) {
+				p.js = append(p.js, fmt.Sprintf("\\u{%X}", c)...)
+			} else {
+				panic("Internal error: Cannot encode identifier: Unicode escapes are unsupported")
+			}
+			continue
+		}
+
+		width := utf8.EncodeRune(temp, c)
+		p.js = append(p.js, temp[:width]...)
+	}
 }
 
 func (p *printer) addSourceMappingForDecl(loc logger.Loc) {
@@ -925,10 +962,10 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 					}
 
 					if str, ok := property.Key.Data.(*js_ast.EString); ok {
-						if js_lexer.IsIdentifierUTF16(str.Value) {
+						if p.canPrintIdentifierUTF16(str.Value) {
 							p.addSourceMapping(property.Key.Loc)
 							p.printSpaceBeforeIdentifier()
-							p.printUTF16(str.Value)
+							p.printIdentifierUTF16(str.Value)
 
 							// Use a shorthand property if the names are the same
 							if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
@@ -1170,9 +1207,9 @@ func (p *printer) printProperty(item js_ast.Property) {
 
 	case *js_ast.EString:
 		p.addSourceMapping(item.Key.Loc)
-		if js_lexer.IsIdentifierUTF16(key.Value) {
+		if p.canPrintIdentifierUTF16(key.Value) {
 			p.printSpaceBeforeIdentifier()
-			p.printUTF16(key.Value)
+			p.printIdentifierUTF16(key.Value)
 
 			// Use a shorthand property if the names are the same
 			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.Value != nil {
@@ -1568,13 +1605,21 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		p.printExpr(e.Target, js_ast.LPostfix, flags)
 		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?")
-		} else if p.prevNumEnd == len(p.js) {
-			// "1.toString" is a syntax error, so print "1 .toString" instead
-			p.print(" ")
 		}
-		p.print(".")
-		p.addSourceMapping(e.NameLoc)
-		p.print(e.Name)
+		if p.canPrintIdentifier(e.Name) {
+			if e.OptionalChain != js_ast.OptionalChainStart && p.prevNumEnd == len(p.js) {
+				// "1.toString" is a syntax error, so print "1 .toString" instead
+				p.print(" ")
+			}
+			p.print(".")
+			p.addSourceMapping(e.NameLoc)
+			p.printIdentifier(e.Name)
+		} else {
+			p.print("[")
+			p.addSourceMapping(e.NameLoc)
+			p.printQuotedUTF8(e.Name, true /* allowBacktick */)
+			p.print("]")
+		}
 		if wrap {
 			p.print(")")
 		}
@@ -1913,17 +1958,16 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		} else if symbol.NamespaceAlias != nil {
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			alias := symbol.NamespaceAlias.Alias
-			if js_lexer.IsIdentifier(alias) {
+			if p.canPrintIdentifier(alias) {
 				p.print(".")
-				p.print(alias)
+				p.printIdentifier(alias)
 			} else {
 				p.print("[")
 				p.printQuotedUTF8(alias, true /* allowBacktick */)
 				p.print("]")
 			}
 		} else {
-			p.printSpaceBeforeIdentifier()
-			p.print(p.renamer.NameForSymbol(e.Ref))
+			p.printSymbol(e.Ref)
 		}
 
 	case *js_ast.EAwait:
@@ -2555,7 +2599,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.print("as")
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
-			p.print(s.Alias.Name)
+			p.printIdentifier(s.Alias.Name)
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
 		}
@@ -2588,10 +2632,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.printIndent()
 			}
 			name := p.renamer.NameForSymbol(item.Name.Ref)
-			p.print(name)
+			p.printIdentifier(name)
 			if name != item.Alias {
 				p.print(" as ")
-				p.print(item.Alias)
+				p.printIdentifier(item.Alias)
 			}
 		}
 
@@ -2627,10 +2671,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.printNewline()
 				p.printIndent()
 			}
-			p.print(item.OriginalName)
+			p.printIdentifier(item.OriginalName)
 			if item.OriginalName != item.Alias {
 				p.print(" as ")
-				p.print(item.Alias)
+				p.printIdentifier(item.Alias)
 			}
 		}
 
@@ -2880,11 +2924,11 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 					p.printNewline()
 					p.printIndent()
 				}
-				p.print(item.Alias)
+				p.printIdentifier(item.Alias)
 				name := p.renamer.NameForSymbol(item.Name.Ref)
 				if name != item.Alias {
 					p.print(" as ")
-					p.print(name)
+					p.printIdentifier(name)
 				}
 			}
 
