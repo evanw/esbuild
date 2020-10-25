@@ -101,8 +101,8 @@ export interface TransformOptions extends CommonOptions {
 }
 
 export interface TransformResult {
-  js: string;
-  jsSourceMap: string;
+  code: string;
+  map: string;
   warnings: Message[];
 }
 

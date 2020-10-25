@@ -31,11 +31,11 @@ export interface TransformResponse {
   errors: types.Message[];
   warnings: types.Message[];
 
-  js: string;
-  jsFS: boolean;
+  code: string;
+  codeFS: boolean;
 
-  jsSourceMap: string;
-  jsSourceMapFS: boolean;
+  map: string;
+  mapFS: boolean;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

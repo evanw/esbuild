@@ -111,7 +111,7 @@ async function test_case(service, test) {
 
   // Run esbuild as a minifier
   try {
-    var { js: output } = await service.transform(input_code, {
+    var { code: output } = await service.transform(input_code, {
       minify: true,
       target: 'es5',
     });

@@ -297,8 +297,8 @@ type TransformResult struct {
 	Errors   []Message
 	Warnings []Message
 
-	JS          []byte
-	JSSourceMap []byte
+	Code []byte
+	Map  []byte
 }
 
 func Transform(input string, options TransformOptions) TransformResult {

@@ -276,25 +276,25 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 	}
 
 	result := api.Transform(transformInput, options)
-	jsFS := false
-	jsSourceMapFS := false
+	codeFS := false
+	mapFS := false
 
-	if inputFS && len(result.JS) > 0 {
-		file := input + ".js"
+	if inputFS && len(result.Code) > 0 {
+		file := input + ".code"
 		fs.BeforeFileOpen()
-		if err := ioutil.WriteFile(file, result.JS, 0644); err == nil {
-			result.JS = []byte(file)
-			jsFS = true
+		if err := ioutil.WriteFile(file, result.Code, 0644); err == nil {
+			result.Code = []byte(file)
+			codeFS = true
 		}
 		fs.AfterFileClose()
 	}
 
-	if inputFS && len(result.JSSourceMap) > 0 {
+	if inputFS && len(result.Map) > 0 {
 		file := input + ".map"
 		fs.BeforeFileOpen()
-		if err := ioutil.WriteFile(file, result.JSSourceMap, 0644); err == nil {
-			result.JSSourceMap = []byte(file)
-			jsSourceMapFS = true
+		if err := ioutil.WriteFile(file, result.Map, 0644); err == nil {
+			result.Map = []byte(file)
+			mapFS = true
 		}
 		fs.AfterFileClose()
 	}
@@ -305,11 +305,11 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 			"errors":   encodeMessages(result.Errors),
 			"warnings": encodeMessages(result.Warnings),
 
-			"jsFS": jsFS,
-			"js":   string(result.JS),
+			"codeFS": codeFS,
+			"code":   string(result.Code),
 
-			"jsSourceMapFS": jsSourceMapFS,
-			"jsSourceMap":   string(result.JSSourceMap),
+			"mapFS": mapFS,
+			"map":   string(result.Map),
 		},
 	})
 }

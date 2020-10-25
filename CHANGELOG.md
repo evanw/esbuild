@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/misc/semver)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `^0.7.0`. See the documentation about [semver](https://docs.npmjs.com/misc/semver) for more information.
+
+The breaking changes are as follows:
+
+* Changed the transform API result object
+
+    For the transform API, the return values `js` and `jsSourceMap` have been renamed to `code` and `map` respectively. This is because esbuild now supports CSS as a first-class content type, and returning CSS code in a variable called `js` made no sense.
+
 ## 0.7.22
 
 * Add `tsconfigRaw` to the transform API ([#483](https://github.com/evanw/esbuild/issues/483))

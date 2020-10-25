@@ -711,26 +711,26 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Return the results
-	var js []byte
-	var jsSourceMap []byte
+	var code []byte
+	var sourceMap []byte
 
 	// Unpack the JavaScript file and the source map file
 	if len(results) == 1 {
-		js = results[0].Contents
+		code = results[0].Contents
 	} else if len(results) == 2 {
 		a, b := results[0], results[1]
 		if a.AbsPath == b.AbsPath+".map" {
-			jsSourceMap, js = a.Contents, b.Contents
+			sourceMap, code = a.Contents, b.Contents
 		} else if a.AbsPath+".map" == b.AbsPath {
-			js, jsSourceMap = a.Contents, b.Contents
+			code, sourceMap = a.Contents, b.Contents
 		}
 	}
 
 	msgs := log.Done()
 	return TransformResult{
-		Errors:      messagesOfKind(logger.Error, msgs),
-		Warnings:    messagesOfKind(logger.Warning, msgs),
-		JS:          js,
-		JSSourceMap: jsSourceMap,
+		Errors:   messagesOfKind(logger.Error, msgs),
+		Warnings: messagesOfKind(logger.Warning, msgs),
+		Code:     code,
+		Map:      sourceMap,
 	}
 }

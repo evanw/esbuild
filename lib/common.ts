@@ -404,30 +404,30 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               let errors = response!.errors;
               let warnings = response!.warnings;
               let outstanding = 1;
-              let next = () => --outstanding === 0 && callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
+              let next = () => --outstanding === 0 && callback(null, { warnings, code: response!.code, map: response!.map });
               if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
 
               // Read the JavaScript file from the file system
-              if (response!.jsFS) {
+              if (response!.codeFS) {
                 outstanding++;
-                fs.readFile(response!.js, (err, contents) => {
+                fs.readFile(response!.code, (err, contents) => {
                   if (err !== null) {
                     callback(err, null);
                   } else {
-                    response!.js = contents!;
+                    response!.code = contents!;
                     next();
                   }
                 });
               }
 
               // Read the source map file from the file system
-              if (response!.jsSourceMapFS) {
+              if (response!.mapFS) {
                 outstanding++;
-                fs.readFile(response!.jsSourceMap, (err, contents) => {
+                fs.readFile(response!.map, (err, contents) => {
                   if (err !== null) {
                     callback(err, null);
                   } else {
-                    response!.jsSourceMap = contents!;
+                    response!.map = contents!;
                     next();
                   }
                 });
