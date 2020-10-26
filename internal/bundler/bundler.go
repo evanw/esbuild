@@ -303,7 +303,7 @@ func parseFile(args parseArgs) {
 
 	default:
 		args.log.AddRangeError(args.importSource, args.importPathRange,
-			fmt.Sprintf("File extension not supported: %s", args.prettyPath))
+			fmt.Sprintf("File could not be loaded: %s", args.prettyPath))
 	}
 
 	// This must come before we send on the "results" channel to avoid deadlock
