@@ -641,7 +641,14 @@ func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsCon
 		// Parse "importsNotUsedAsValues"
 		if importsNotUsedAsValuesJson, _, ok := getProperty(compilerOptionsJson, "importsNotUsedAsValues"); ok {
 			if importsNotUsedAsValues, ok := getString(importsNotUsedAsValuesJson); ok {
-				result.preserveImportsNotUsedAsValues = importsNotUsedAsValues != "remove"
+				switch importsNotUsedAsValues {
+				case "preserve", "error":
+					result.preserveImportsNotUsedAsValues = true
+				case "remove":
+				default:
+					r.log.AddRangeWarning(&tsConfigSource, tsConfigSource.RangeOfString(importsNotUsedAsValuesJson.Loc),
+						fmt.Sprintf("Invalid value %q for \"importsNotUsedAsValues\"", importsNotUsedAsValues))
+				}
 			}
 		}
 
