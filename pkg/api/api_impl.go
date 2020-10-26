@@ -421,7 +421,11 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	options := config.Options{
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
-		Strict:                 validateStrict(buildOpts.Strict),
+		Strict: config.StrictOptions{
+			NullishCoalescing: buildOpts.Strict.NullishCoalescing,
+			OptionalChaining:  buildOpts.Strict.OptionalChaining,
+			ClassFields:       buildOpts.Strict.ClassFields,
+		},
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
@@ -617,26 +621,59 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		LogLevel:      validateLogLevel(transformOpts.LogLevel),
 	})
 
+	// Settings from the user come first
+	preserveUnusedImportsTS := false
+	jsx := config.JSXOptions{
+		Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
+		Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
+	}
+	strict := config.StrictOptions{
+		NullishCoalescing: transformOpts.Strict.NullishCoalescing,
+		OptionalChaining:  transformOpts.Strict.OptionalChaining,
+		ClassFields:       transformOpts.Strict.ClassFields,
+	}
+
+	// Settings from "tsconfig.json" override those
+	if transformOpts.TsconfigRaw != "" {
+		source := logger.Source{
+			KeyPath:    logger.Path{Text: "tsconfig.json"},
+			PrettyPath: "tsconfig.json",
+			Contents:   transformOpts.TsconfigRaw,
+		}
+		if result := resolver.ParseTSConfigJSON(log, source, nil); result != nil {
+			if len(result.JSXFactory) > 0 {
+				jsx.Factory = result.JSXFactory
+			}
+			if len(result.JSXFragmentFactory) > 0 {
+				jsx.Fragment = result.JSXFragmentFactory
+			}
+			if result.UseDefineForClassFields {
+				strict.ClassFields = true
+			}
+			if result.PreserveImportsNotUsedAsValues {
+				preserveUnusedImportsTS = true
+			}
+		}
+	}
+
 	// Convert and validate the transformOpts
 	jsFeatures, cssFeatures := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	options := config.Options{
-		UnsupportedJSFeatures:  jsFeatures,
-		UnsupportedCSSFeatures: cssFeatures,
-		Strict:                 validateStrict(transformOpts.Strict),
-		JSX: config.JSXOptions{
-			Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
-			Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
-		},
-		Defines:           validateDefines(log, transformOpts.Defines, transformOpts.PureFunctions),
-		SourceMap:         validateSourceMap(transformOpts.Sourcemap),
-		OutputFormat:      validateFormat(transformOpts.Format),
-		ModuleName:        transformOpts.GlobalName,
-		MangleSyntax:      transformOpts.MinifySyntax,
-		RemoveWhitespace:  transformOpts.MinifyWhitespace,
-		MinifyIdentifiers: transformOpts.MinifyIdentifiers,
-		ASCIIOnly:         validateASCIIOnly(transformOpts.Charset),
-		AbsOutputFile:     transformOpts.Sourcefile + "-out",
-		AvoidTDZ:          transformOpts.AvoidTDZ,
+		UnsupportedJSFeatures:   jsFeatures,
+		UnsupportedCSSFeatures:  cssFeatures,
+		Strict:                  strict,
+		JSX:                     jsx,
+		Defines:                 validateDefines(log, transformOpts.Defines, transformOpts.PureFunctions),
+		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
+		OutputFormat:            validateFormat(transformOpts.Format),
+		ModuleName:              transformOpts.GlobalName,
+		MangleSyntax:            transformOpts.MinifySyntax,
+		RemoveWhitespace:        transformOpts.MinifyWhitespace,
+		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,
+		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
+		AbsOutputFile:           transformOpts.Sourcefile + "-out",
+		AvoidTDZ:                transformOpts.AvoidTDZ,
+		PreserveUnusedImportsTS: preserveUnusedImportsTS,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,

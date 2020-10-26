@@ -87,6 +87,15 @@ export interface BuildFailure extends Error {
 }
 
 export interface TransformOptions extends CommonOptions {
+  tsconfigRaw?: string | {
+    compilerOptions?: {
+      jsxFactory?: string,
+      jsxFragmentFactory?: string,
+      useDefineForClassFields?: boolean,
+      importsNotUsedAsValues?: 'remove' | 'preserve' | 'error',
+    },
+  };
+
   sourcefile?: string;
   loader?: Loader;
 }

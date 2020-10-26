@@ -155,6 +155,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case strings.HasPrefix(arg, "--tsconfig=") && buildOpts != nil:
 			buildOpts.Tsconfig = arg[len("--tsconfig="):]
 
+		case strings.HasPrefix(arg, "--tsconfig-raw=") && transformOpts != nil:
+			transformOpts.TsconfigRaw = arg[len("--tsconfig-raw="):]
+
 		case strings.HasPrefix(arg, "--define:"):
 			value := arg[len("--define:"):]
 			equals := strings.IndexByte(value, '=')

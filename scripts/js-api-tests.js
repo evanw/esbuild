@@ -711,6 +711,39 @@ let transformTests = {
     }
   },
 
+  async tsconfigRaw({ service }) {
+    const { js: js1 } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'remove',
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(js1, ``)
+
+    const { js: js2 } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'preserve',
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(js2, `import "path";\n`)
+
+    // Can use a string, which allows weird TypeScript pseudo-JSON with comments and trailing commas
+    const { js: js3 } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: `{
+        "compilerOptions": {
+          "importsNotUsedAsValues": "preserve", // there is a trailing comment here
+        },
+      }`,
+      loader: 'ts',
+    })
+    assert.strictEqual(js3, `import "path";\n`)
+  },
+
   async jsCharsetDefault({ service }) {
     const { js } = await service.transform(`let π = 'π'`, {})
     assert.strictEqual(js, `let \\u03C0 = "\\u03C0";\n`)

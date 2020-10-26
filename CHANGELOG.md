@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+* Add `tsconfigRaw` to the transform API ([#483](https://github.com/evanw/esbuild/issues/483))
+
+    The `build` API uses access to the file system and doesn't run in the browser, but the `transform` API doesn't access the file system and can run in the browser. Previously you could only use the build API for certain scenarios involving TypeScript code and `tsconfig.json` files, such as configuring the `importsNotUsedAsValues` setting.
+
+    You can now use `tsconfig.json` with the transform API by passing in the raw contents of that file:
+
+    ```js
+    let result = esbuild.transformSync(ts, {
+      loader: 'ts',
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'preserve',
+        },
+      },
+    })
+    ```
+
+    Right now four values are supported with the transform API: `jsxFactory`, `jsxFragmentFactory`, `useDefineForClassFields`, and `importsNotUsedAsValues`. The values `extends`, `baseUrl`, and `paths` are not supported because they require access to the file system and the transform API deliberately does not access the file system.
+
+    You can also pass the `tsconfig.json` file as a string instead of a JSON object if you prefer. This can be useful because `tsconfig.json` files actually use a weird pseudo-JSON syntax that allows comments and trailing commas, which means it can't be parsed with `JSON.parse()`.
+
 ## 0.7.21
 
 * Use bracketed escape codes for non-BMP characters

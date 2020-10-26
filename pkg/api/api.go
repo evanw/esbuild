@@ -283,6 +283,7 @@ type TransformOptions struct {
 
 	JSXFactory  string
 	JSXFragment string
+	TsconfigRaw string
 
 	Defines       map[string]string
 	PureFunctions []string

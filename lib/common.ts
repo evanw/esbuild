@@ -27,6 +27,9 @@ let mustBeObject = (value: Object | undefined): string | null =>
 let mustBeStringOrBoolean = (value: string | boolean | undefined): string | null =>
   typeof value === 'string' || typeof value === 'boolean' ? null : 'a string or a boolean';
 
+let mustBeStringOrObject = (value: string | Object | undefined): string | null =>
+  typeof value === 'string' || typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'a string or an object';
+
 let mustBeStringOrArray = (value: string | string[] | undefined): string | null =>
   typeof value === 'string' || Array.isArray(value) ? null : 'a string or an array';
 
@@ -194,11 +197,13 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
   pushCommonFlags(flags, options, keys);
 
   let sourcemap = getFlag(options, keys, 'sourcemap', mustBeStringOrBoolean);
+  let tsconfigRaw = getFlag(options, keys, 'tsconfigRaw', mustBeStringOrObject);
   let sourcefile = getFlag(options, keys, 'sourcefile', mustBeString);
   let loader = getFlag(options, keys, 'loader', mustBeString);
   checkForInvalidFlags(options, keys);
 
   if (sourcemap) flags.push(`--sourcemap=${sourcemap === true ? 'external' : sourcemap}`);
+  if (tsconfigRaw) flags.push(`--tsconfig-raw=${typeof tsconfigRaw === 'string' ? tsconfigRaw : JSON.stringify(tsconfigRaw)}`);
   if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
   if (loader) flags.push(`--loader=${loader}`);
 
