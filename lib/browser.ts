@@ -1,7 +1,10 @@
 import * as types from "./types"
 import * as common from "./common"
 
+declare const ESBUILD_VERSION: string;
 declare let WEB_WORKER_SOURCE_CODE: string
+
+export let version = ESBUILD_VERSION;
 
 export const build: typeof types.build = options => {
   throw new Error(`The "build" API only works in node`);

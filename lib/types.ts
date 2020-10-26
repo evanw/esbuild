@@ -183,3 +183,5 @@ export interface ServiceOptions {
   // to false.
   worker?: boolean
 }
+
+export let version: string;

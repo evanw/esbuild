@@ -646,6 +646,11 @@ async function futureSyntax(service, js, targetBelow, targetAbove) {
 }
 
 let transformTests = {
+  async version({ esbuild }) {
+    const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
+    assert.strictEqual(esbuild.version, version);
+  },
+
   async ignoreUndefinedOptions({ service }) {
     // This should not throw
     await service.transform(``, { jsxFactory: void 0 })
