@@ -181,7 +181,7 @@ class Foo {
     _foo.set(this, 123);
     _bar.set(this, void 0);
     __publicField(this, "foo", 123);
-    __publicField(this, "bar", void 0);
+    __publicField(this, "bar");
   }
 }
 _foo = new WeakMap();
@@ -191,7 +191,7 @@ _s_bar = new WeakMap();
 _s_foo.set(Foo, 123);
 _s_bar.set(Foo, void 0);
 __publicField(Foo, "s_foo", 123);
-__publicField(Foo, "s_bar", void 0);
+__publicField(Foo, "s_bar");
 
 ================================================================================
 TestLowerClassFieldStrictNextNoBundle
@@ -220,7 +220,7 @@ class loose_default {
 // /strict/index.js
 class strict_default {
   constructor() {
-    __publicField(this, "foo", void 0);
+    __publicField(this, "foo");
   }
 }
 
@@ -907,7 +907,7 @@ class Foo {
     _foo.set(this, 123);
     _bar.set(this, void 0);
     __publicField(this, "foo", 123);
-    __publicField(this, "bar", void 0);
+    __publicField(this, "bar");
   }
 }
 _foo = new WeakMap();
@@ -917,7 +917,7 @@ _s_bar = new WeakMap();
 _s_foo.set(Foo, 123);
 _s_bar.set(Foo, void 0);
 __publicField(Foo, "s_foo", 123);
-__publicField(Foo, "s_bar", void 0);
+__publicField(Foo, "s_bar");
 
 ================================================================================
 TestTSLowerClassPrivateFieldNextNoBundle

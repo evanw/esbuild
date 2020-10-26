@@ -1777,11 +1777,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 					}}
 					p.recordUsage(ref)
 				} else if private == nil && p.Strict.ClassFields {
-					expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{
-						target,
-						prop.Key,
-						init,
-					})
+					if _, ok := init.Data.(*js_ast.EUndefined); ok {
+						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key})
+					} else {
+						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key, init})
+					}
 				} else {
 					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.IsComputed {
 						target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
