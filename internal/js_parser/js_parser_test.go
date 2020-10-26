@@ -48,6 +48,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
+		options.OmitRuntimeForTests = true
 		tree, ok := Parse(log, test.SourceForTest(contents), options)
 		msgs := log.Done()
 		text := ""
@@ -2652,17 +2653,11 @@ func TestLowerAsyncFunctions(t *testing.T) {
     console.log(a, b);
   });
 }
-import {
-  __async
-} from "<runtime>";
 `)
 	// Skip forwarding altogether when parameter evaluation obviously cannot throw
 	expectPrintedTarget(t, 2015, "async (a, b = 123) => {console.log(a, b);}", `(a, b = 123) => __async(this, null, function* () {
   console.log(a, b);
 });
-import {
-  __async
-} from "<runtime>";
 `)
 }
 

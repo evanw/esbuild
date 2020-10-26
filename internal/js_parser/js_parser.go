@@ -10449,7 +10449,7 @@ func (p *parser) generateImportStmt(
 
 func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang string, directive string) js_ast.AST {
 	// Insert an import statement for any runtime imports we generated
-	if len(p.runtimeImports) > 0 {
+	if len(p.runtimeImports) > 0 && !p.OmitRuntimeForTests {
 		// Sort the imports for determinism
 		keys := make([]string, 0, len(p.runtimeImports))
 		for key := range p.runtimeImports {
