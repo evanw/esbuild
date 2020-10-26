@@ -55,9 +55,6 @@ Advanced options:
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
   --metafile=...            Write metadata about the build to a JSON file
-  --strict                  Transforms handle edge cases but have more overhead
-                            (enable individually using --strict:X where X is
-                            one of: class-fields)
   --pure:N                  Mark the name N as a pure function for tree shaking
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports

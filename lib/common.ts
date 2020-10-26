@@ -33,9 +33,6 @@ let mustBeStringOrObject = (value: string | Object | undefined): string | null =
 let mustBeStringOrArray = (value: string | string[] | undefined): string | null =>
   typeof value === 'string' || Array.isArray(value) ? null : 'a string or an array';
 
-let mustBeBooleanOrArray = (value: boolean | string[] | undefined): string | null =>
-  typeof value === 'boolean' || Array.isArray(value) ? null : 'a boolean or an array';
-
 type OptionKeys = { [key: string]: boolean };
 
 function getFlag<T, K extends keyof T>(object: T, keys: OptionKeys, key: K, mustBeFn: (value: T[K]) => string | null): T[K] | undefined {
@@ -72,7 +69,6 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let target = getFlag(options, keys, 'target', mustBeStringOrArray);
   let format = getFlag(options, keys, 'format', mustBeString);
   let globalName = getFlag(options, keys, 'globalName', mustBeString);
-  let strict = getFlag(options, keys, 'strict', mustBeBooleanOrArray);
   let minify = getFlag(options, keys, 'minify', mustBeBoolean);
   let minifySyntax = getFlag(options, keys, 'minifySyntax', mustBeBoolean);
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean);
@@ -90,8 +86,6 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   }
   if (format) flags.push(`--format=${format}`);
   if (globalName) flags.push(`--global-name=${globalName}`);
-  if (strict === true) flags.push(`--strict`);
-  else if (strict) for (let key of strict) flags.push(`--strict:${key}`);
 
   if (minify) flags.push('--minify');
   if (minifySyntax) flags.push('--minify-syntax');

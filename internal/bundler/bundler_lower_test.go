@@ -943,33 +943,6 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 	})
 }
 
-func TestLowerClassFieldStrict2020NoBundle(t *testing.T) {
-	lower_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				class Foo {
-					#foo = 123
-					#bar
-					foo = 123
-					bar
-					static #s_foo = 123
-					static #s_bar
-					static s_foo = 123
-					static s_bar
-				}
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			UnsupportedJSFeatures: es(2020),
-			Strict: config.StrictOptions{
-				ClassFields: true,
-			},
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
 func TestLowerClassField2020NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -990,32 +963,6 @@ func TestLowerClassField2020NoBundle(t *testing.T) {
 		options: config.Options{
 			UnsupportedJSFeatures: es(2020),
 			AbsOutputFile:         "/out.js",
-		},
-	})
-}
-
-func TestLowerClassFieldStrictNextNoBundle(t *testing.T) {
-	lower_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.js": `
-				class Foo {
-					#foo = 123
-					#bar
-					foo = 123
-					bar
-					static #s_foo = 123
-					static #s_bar
-					static s_foo = 123
-					static s_bar
-				}
-			`,
-		},
-		entryPaths: []string{"/entry.js"},
-		options: config.Options{
-			Strict: config.StrictOptions{
-				ClassFields: true,
-			},
-			AbsOutputFile: "/out.js",
 		},
 	})
 }
@@ -1043,33 +990,6 @@ func TestLowerClassFieldNextNoBundle(t *testing.T) {
 	})
 }
 
-func TestTSLowerClassFieldStrict2020NoBundle(t *testing.T) {
-	lower_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.ts": `
-				class Foo {
-					#foo = 123
-					#bar
-					foo = 123
-					bar
-					static #s_foo = 123
-					static #s_bar
-					static s_foo = 123
-					static s_bar
-				}
-			`,
-		},
-		entryPaths: []string{"/entry.ts"},
-		options: config.Options{
-			UnsupportedJSFeatures: es(2020),
-			Strict: config.StrictOptions{
-				ClassFields: true,
-			},
-			AbsOutputFile: "/out.js",
-		},
-	})
-}
-
 func TestTSLowerClassField2020NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1090,32 +1010,6 @@ func TestTSLowerClassField2020NoBundle(t *testing.T) {
 		options: config.Options{
 			UnsupportedJSFeatures: es(2020),
 			AbsOutputFile:         "/out.js",
-		},
-	})
-}
-
-func TestTSLowerClassPrivateFieldStrictNextNoBundle(t *testing.T) {
-	lower_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/entry.ts": `
-				class Foo {
-					#foo = 123
-					#bar
-					foo = 123
-					bar
-					static #s_foo = 123
-					static #s_bar
-					static s_foo = 123
-					static s_bar
-				}
-			`,
-		},
-		entryPaths: []string{"/entry.ts"},
-		options: config.Options{
-			Strict: config.StrictOptions{
-				ClassFields: true,
-			},
-			AbsOutputFile: "/out.js",
 		},
 	})
 }
@@ -1164,6 +1058,48 @@ func TestLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
 				}
 			`,
 			"/strict/index.js": `
+				export default class {
+					foo
+				}
+			`,
+			"/strict/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"useDefineForClassFields": true
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2020),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestTSLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import loose from './loose'
+				import strict from './strict'
+				console.log(loose, strict)
+			`,
+			"/loose/index.ts": `
+				export default class {
+					foo
+				}
+			`,
+			"/loose/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"useDefineForClassFields": false
+					}
+				}
+			`,
+			"/strict/index.ts": `
 				export default class {
 					foo
 				}

@@ -157,48 +157,10 @@ These syntax features are conditionally transformed for older browsers depending
 
     The expression `a?.b` is transformed into `a == null ? void 0 : a.b`, which works because `a == null` is only true if `a` is neither `null` nor `undefined`. However, there's exactly one obscure edge case where this doesn't work. For legacy reasons, the value of `document.all` is special-cased such that `document.all == null` is true. It is assumed that if you are using the `?.` syntax, your code is new enough that it doesn't need to manipulate `document.all`.
 
-* **Class field correctness**
-
-    Class fields look like this:
-
-    ```js
-    class Foo {
-      foo = 123
-    }
-    ```
-
-    By default, the transform for class fields uses a normal assignment for initialization. That looks like this:
-
-    ```js
-    class Foo {
-      constructor() {
-        this.foo = 123;
-      }
-    }
-    ```
-
-    This doesn't increase code size by much and stays on the heavily-optimized path for modern JavaScript JITs. It also matches the default behavior of the TypeScript compiler. However, this doesn't exactly follow the initialization behavior in the JavaScript specification. For example, it can cause a setter to be called if one exists with that property name, which isn't supposed to happen. A more accurate transformation would be to use `Object.defineProperty()` instead like this:
-
-    ```js
-    class Foo {
-      constructor() {
-        Object.defineProperty(this, "foo", {
-          enumerable: true,
-          configurable: true,
-          writable: true,
-          value: 123
-        });
-      }
-    }
-    ```
-
-    This increases code size and decreases performance, but follows the JavaScript specification more accurately. If you need this accuracy, you should either enable the `--strict:class-fields` option or add the `useDefineForClassFields` flag to your `tsconfig.json` file.
-
 * **Private member performance**
 
     This transform uses `WeakMap` and `WeakSet` to preserve the privacy properties of this feature, similar to the corresponding transforms in the Babel and TypeScript compilers. Most modern JavaScript engines (V8, JavaScriptCore, and SpiderMonkey but not ChakraCore) may not have good performance characteristics for large `WeakMap` and `WeakSet` objects. Creating many instances of classes with private fields or private methods with this syntax transform active may cause a lot of overhead for the garbage collector. This is because modern engines (other than ChakraCore) store weak values in an actual map object instead of as hidden properties on the keys themselves, and large map objects can cause performance issues with garbage collection. See [this reference](https://github.com/tc39/ecma262/issues/1657#issuecomment-518916579) for more information.
 
-Note that if you want to enable strictness for all transforms, you can just pass `--strict` instead of using `--strict:...` for each transform.
 </details>
 
 These syntax features are currently always passed through un-transformed:
@@ -391,9 +353,6 @@ Advanced options:
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
   --metafile=...            Write metadata about the build to a JSON file
-  --strict                  Transforms handle edge cases but have more overhead
-                            (enable individually using --strict:X where X is
-                            one of: class-fields)
   --pure:N                  Mark the name N as a pure function for tree shaking
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports

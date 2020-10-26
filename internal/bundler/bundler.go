@@ -567,8 +567,8 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			if len(resolveResult.JSXFragment) > 0 {
 				optionsClone.JSX.Fragment = resolveResult.JSXFragment
 			}
-			if resolveResult.StrictClassFields {
-				optionsClone.Strict.ClassFields = true
+			if resolveResult.UseDefineForClassFieldsTS {
+				optionsClone.UseDefineForClassFields = true
 			}
 			if resolveResult.PreserveUnusedImportsTS {
 				optionsClone.PreserveUnusedImportsTS = true

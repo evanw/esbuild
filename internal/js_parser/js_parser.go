@@ -10173,6 +10173,11 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		options.JSX.Fragment = []string{"React", "Fragment"}
 	}
 
+	// Non-TypeScript files get the real JavaScript class field behavior
+	if !options.TS.Parse {
+		options.UseDefineForClassFields = true
+	}
+
 	p := newParser(log, source, js_lexer.NewLexer(log, source), &options)
 
 	// Consume a leading hashbang comment

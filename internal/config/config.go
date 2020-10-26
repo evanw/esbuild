@@ -167,10 +167,10 @@ type Options struct {
 
 	OmitRuntimeForTests     bool
 	PreserveUnusedImportsTS bool
+	UseDefineForClassFields bool
 	AvoidTDZ                bool
 	ASCIIOnly               bool
 
-	Strict   StrictOptions
 	Defines  *ProcessedDefines
 	TS       TSOptions
 	JSX      JSXOptions

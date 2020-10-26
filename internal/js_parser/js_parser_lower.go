@@ -1587,7 +1587,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
 		mustLowerPrivate := private != nil && p.isPrivateUnsupported(private)
 		shouldOmitFieldInitializer := p.TS.Parse && !prop.IsMethod && prop.Initializer == nil &&
-			!p.Strict.ClassFields && !mustLowerPrivate
+			!p.UseDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
 		mustLowerField := !prop.IsMethod && (!prop.IsStatic && p.UnsupportedJSFeatures.Has(compat.ClassField) ||
@@ -1677,7 +1677,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		// TypeScript feature. Move their initializers from the class body to
 		// either the constructor (instance fields) or after the class (static
 		// fields).
-		if !prop.IsMethod && (mustLowerField || (p.TS.Parse && !p.Strict.ClassFields && (!prop.IsStatic || private == nil))) {
+		if !prop.IsMethod && (mustLowerField || (p.TS.Parse && !p.UseDefineForClassFields && (!prop.IsStatic || private == nil))) {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
@@ -1731,7 +1731,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 						},
 					}}
 					p.recordUsage(ref)
-				} else if private == nil && p.Strict.ClassFields {
+				} else if private == nil && p.UseDefineForClassFields {
 					if _, ok := init.Data.(*js_ast.EUndefined); ok {
 						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key})
 					} else {

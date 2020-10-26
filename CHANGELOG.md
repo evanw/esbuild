@@ -10,6 +10,30 @@ The breaking changes are as follows:
 
     For the transform API, the return values `js` and `jsSourceMap` have been renamed to `code` and `map` respectively. This is because esbuild now supports CSS as a first-class content type, and returning CSS code in a variable called `js` made no sense.
 
+* The class field transform is now more accurate
+
+    Class fields look like this:
+
+    ```js
+    class Foo {
+      foo = 123
+    }
+    ```
+
+    Previously the transform for class fields used a normal assignment for initialization:
+
+    ```js
+    class Foo {
+      constructor() {
+        this.foo = 123;
+      }
+    }
+    ```
+
+    However, this doesn't exactly follow the initialization behavior in the JavaScript specification. For example, it can cause a setter to be called if one exists with that property name, which isn't supposed to happen. A more accurate transform that used `Object.defineProperty()` instead was available under the `--strict:class-fields` option.
+
+    This release removes the `--strict:class-fields` option and makes that the default behavior. There is no longer a way to compile class fields to normal assignments instead, since that doesn't follow JavaScript semantics. Note that for legacy reasons, TypeScript code will still compile class fields to normal assignments unless `useDefineForClassFields` is enabled in `tsconfig.json` just like the official TypeScript compiler.
+
 * When bundling stdin using the API, `resolveDir` is now required to resolve imports
 
     The `resolveDir` option specifies the directory to resolve relative imports against. Previously it defaulted to the current working directory. Now it no longer does, so you must explicitly specify it if you need it:

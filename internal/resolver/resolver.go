@@ -87,7 +87,7 @@ type ResolveResult struct {
 	IgnoreIfUnused bool
 
 	// If true, the class field transform should use Object.defineProperty().
-	StrictClassFields bool
+	UseDefineForClassFieldsTS bool
 
 	// If true, unused imports are retained in TypeScript code. This matches the
 	// behavior of the "importsNotUsedAsValues" field in "tsconfig.json" when the
@@ -222,7 +222,7 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 				if path == &result.PathPair.Primary && dirInfo.tsConfigJSON != nil {
 					result.JSXFactory = dirInfo.tsConfigJSON.JSXFactory
 					result.JSXFragment = dirInfo.tsConfigJSON.JSXFragmentFactory
-					result.StrictClassFields = dirInfo.tsConfigJSON.UseDefineForClassFields
+					result.UseDefineForClassFieldsTS = dirInfo.tsConfigJSON.UseDefineForClassFields
 					result.PreserveUnusedImportsTS = dirInfo.tsConfigJSON.PreserveImportsNotUsedAsValues
 				}
 

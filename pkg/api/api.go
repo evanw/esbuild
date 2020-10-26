@@ -177,10 +177,6 @@ const (
 	LogLevelError
 )
 
-type StrictOptions struct {
-	ClassFields bool
-}
-
 type Charset uint8
 
 const (
@@ -200,7 +196,6 @@ type BuildOptions struct {
 	Sourcemap SourceMap
 	Target    Target
 	Engines   []Engine
-	Strict    StrictOptions
 
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
@@ -272,7 +267,6 @@ type TransformOptions struct {
 	Format     Format
 	GlobalName string
 	Engines    []Engine
-	Strict     StrictOptions
 
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool

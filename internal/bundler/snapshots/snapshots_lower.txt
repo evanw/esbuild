@@ -145,41 +145,6 @@ class Foo {
   constructor() {
     _foo.set(this, 123);
     _bar.set(this, void 0);
-    this.foo = 123;
-    this.bar = void 0;
-  }
-}
-_foo = new WeakMap();
-_bar = new WeakMap();
-_s_foo = new WeakMap();
-_s_bar = new WeakMap();
-_s_foo.set(Foo, 123);
-_s_bar.set(Foo, void 0);
-Foo.s_foo = 123;
-Foo.s_bar = void 0;
-
-================================================================================
-TestLowerClassFieldNextNoBundle
----------- /out.js ----------
-class Foo {
-  #foo = 123;
-  #bar;
-  foo = 123;
-  bar;
-  static #s_foo = 123;
-  static #s_bar;
-  static s_foo = 123;
-  static s_bar;
-}
-
-================================================================================
-TestLowerClassFieldStrict2020NoBundle
----------- /out.js ----------
-var _foo, _bar, _s_foo, _s_bar;
-class Foo {
-  constructor() {
-    _foo.set(this, 123);
-    _bar.set(this, void 0);
     __publicField(this, "foo", 123);
     __publicField(this, "bar");
   }
@@ -194,7 +159,7 @@ __publicField(Foo, "s_foo", 123);
 __publicField(Foo, "s_bar");
 
 ================================================================================
-TestLowerClassFieldStrictNextNoBundle
+TestLowerClassFieldNextNoBundle
 ---------- /out.js ----------
 class Foo {
   #foo = 123;
@@ -213,7 +178,7 @@ TestLowerClassFieldStrictTsconfigJson2020
 // /loose/index.js
 class loose_default {
   constructor() {
-    this.foo = void 0;
+    __publicField(this, "foo");
   }
 }
 
@@ -899,25 +864,21 @@ _s_bar.set(Foo, void 0);
 Foo.s_foo = 123;
 
 ================================================================================
-TestTSLowerClassFieldStrict2020NoBundle
+TestTSLowerClassFieldStrictTsconfigJson2020
 ---------- /out.js ----------
-var _foo, _bar, _s_foo, _s_bar;
-class Foo {
+// /loose/index.ts
+class loose_default {
+}
+
+// /strict/index.ts
+class strict_default {
   constructor() {
-    _foo.set(this, 123);
-    _bar.set(this, void 0);
-    __publicField(this, "foo", 123);
-    __publicField(this, "bar");
+    __publicField(this, "foo");
   }
 }
-_foo = new WeakMap();
-_bar = new WeakMap();
-_s_foo = new WeakMap();
-_s_bar = new WeakMap();
-_s_foo.set(Foo, 123);
-_s_bar.set(Foo, void 0);
-__publicField(Foo, "s_foo", 123);
-__publicField(Foo, "s_bar");
+
+// /entry.js
+console.log(loose_default, strict_default);
 
 ================================================================================
 TestTSLowerClassPrivateFieldNextNoBundle
@@ -933,20 +894,6 @@ class Foo {
   static #s_bar;
 }
 Foo.s_foo = 123;
-
-================================================================================
-TestTSLowerClassPrivateFieldStrictNextNoBundle
----------- /out.js ----------
-class Foo {
-  #foo = 123;
-  #bar;
-  foo = 123;
-  bar;
-  static #s_foo = 123;
-  static #s_bar;
-  static s_foo = 123;
-  static s_bar;
-}
 
 ================================================================================
 TestTSLowerObjectRest2017NoBundle

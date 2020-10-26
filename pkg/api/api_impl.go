@@ -90,12 +90,6 @@ func validateLogLevel(value LogLevel) logger.LogLevel {
 	}
 }
 
-func validateStrict(value StrictOptions) config.StrictOptions {
-	return config.StrictOptions{
-		ClassFields: value.ClassFields,
-	}
-}
-
 func validateASCIIOnly(value Charset) bool {
 	switch value {
 	case CharsetDefault, CharsetASCII:
@@ -419,9 +413,6 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	options := config.Options{
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
-		Strict: config.StrictOptions{
-			ClassFields: buildOpts.Strict.ClassFields,
-		},
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
@@ -619,12 +610,10 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Settings from the user come first
 	preserveUnusedImportsTS := false
+	useDefineForClassFieldsTS := false
 	jsx := config.JSXOptions{
 		Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
 		Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
-	}
-	strict := config.StrictOptions{
-		ClassFields: transformOpts.Strict.ClassFields,
 	}
 
 	// Settings from "tsconfig.json" override those
@@ -642,7 +631,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 				jsx.Fragment = result.JSXFragmentFactory
 			}
 			if result.UseDefineForClassFields {
-				strict.ClassFields = true
+				useDefineForClassFieldsTS = true
 			}
 			if result.PreserveImportsNotUsedAsValues {
 				preserveUnusedImportsTS = true
@@ -655,7 +644,6 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	options := config.Options{
 		UnsupportedJSFeatures:   jsFeatures,
 		UnsupportedCSSFeatures:  cssFeatures,
-		Strict:                  strict,
 		JSX:                     jsx,
 		Defines:                 validateDefines(log, transformOpts.Define, transformOpts.Pure),
 		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
@@ -667,6 +655,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
 		AbsOutputFile:           transformOpts.Sourcefile + "-out",
 		AvoidTDZ:                transformOpts.AvoidTDZ,
+		UseDefineForClassFields: useDefineForClassFieldsTS,
 		PreserveUnusedImportsTS: preserveUnusedImportsTS,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),

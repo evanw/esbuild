@@ -93,18 +93,6 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 	})
 }
 
-func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, expected string) {
-	t.Helper()
-	expectPrintedCommon(t, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
-		}),
-		Strict: config.StrictOptions{
-			ClassFields: true,
-		},
-	})
-}
-
 func expectPrintedASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
@@ -2572,7 +2560,7 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 		test("a()?.b", "((_a) => (_a = a()) == null ? void 0 : _a.b)()")
 		test("a?.b?.()", "((_a) => (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.call(a))()")
 		test("a.b.c?.()", "((_a) => ((_b) => (_b = (_a = a.b).c) == null ? void 0 : _b.call(_a))())()")
-		test("class { static a }", "((_a) => (_a = class {\n}, _a.a = void 0, _a))()")
+		test("class { static a }", "((_a) => (_a = class {\n}, __publicField(_a, \"a\"), _a))()")
 	}
 }
 
@@ -2663,9 +2651,9 @@ func TestLowerClassSideEffectOrder(t *testing.T) {
 `, `var _a, _b, _c, _d, _e;
 class Foo {
   constructor() {
-    this[_a] = void 0;
-    this[_b] = 1;
-    this[_e] = void 0;
+    __publicField(this, _a);
+    __publicField(this, _b, 1);
+    __publicField(this, _e);
   }
   [a()]() {
   }
@@ -2675,27 +2663,27 @@ class Foo {
   }
 }
 _e = h();
-Foo[_c] = void 0;
-Foo[_d] = 1;
+__publicField(Foo, _c);
+__publicField(Foo, _d, 1);
 `)
 }
 
 func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo {}", "class Foo {\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { foo }", "class Foo {\n  constructor() {\n    this.foo = void 0;\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { foo = null }", "class Foo {\n  constructor() {\n    this.foo = null;\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { 123 }", "class Foo {\n  constructor() {\n    this[123] = void 0;\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { 123 = null }", "class Foo {\n  constructor() {\n    this[123] = null;\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { [foo] }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = void 0;\n  }\n}\n_a = foo;\n")
-	expectPrintedTarget(t, 2015, "class Foo { [foo] = null }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = null;\n  }\n}\n_a = foo;\n")
+	expectPrintedTarget(t, 2015, "class Foo { foo }", "class Foo {\n  constructor() {\n    __publicField(this, \"foo\");\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { foo = null }", "class Foo {\n  constructor() {\n    __publicField(this, \"foo\", null);\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { 123 }", "class Foo {\n  constructor() {\n    __publicField(this, 123);\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { 123 = null }", "class Foo {\n  constructor() {\n    __publicField(this, 123, null);\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { [foo] }", "var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n}\n_a = foo;\n")
+	expectPrintedTarget(t, 2015, "class Foo { [foo] = null }", "var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a, null);\n  }\n}\n_a = foo;\n")
 
 	expectPrintedTarget(t, 2015, "(class {})", "(class {\n});\n")
-	expectPrintedTarget(t, 2015, "(class { foo })", "(class {\n  constructor() {\n    this.foo = void 0;\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { foo = null })", "(class {\n  constructor() {\n    this.foo = null;\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { 123 })", "(class {\n  constructor() {\n    this[123] = void 0;\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { 123 = null })", "(class {\n  constructor() {\n    this[123] = null;\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { [foo] })", "var _a, _b;\n_b = class {\n  constructor() {\n    this[_a] = void 0;\n  }\n}, _a = foo, _b;\n")
-	expectPrintedTarget(t, 2015, "(class { [foo] = null })", "var _a, _b;\n_b = class {\n  constructor() {\n    this[_a] = null;\n  }\n}, _a = foo, _b;\n")
+	expectPrintedTarget(t, 2015, "(class { foo })", "(class {\n  constructor() {\n    __publicField(this, \"foo\");\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "(class { foo = null })", "(class {\n  constructor() {\n    __publicField(this, \"foo\", null);\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "(class { 123 })", "(class {\n  constructor() {\n    __publicField(this, 123);\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "(class { 123 = null })", "(class {\n  constructor() {\n    __publicField(this, 123, null);\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "(class { [foo] })", "var _a, _b;\n_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = foo, _b;\n")
+	expectPrintedTarget(t, 2015, "(class { [foo] = null })", "var _a, _b;\n_b = class {\n  constructor() {\n    __publicField(this, _a, null);\n  }\n}, _a = foo, _b;\n")
 
 	expectPrintedTarget(t, 2015, "class Foo extends Bar {}", `class Foo extends Bar {
 }
@@ -2711,7 +2699,7 @@ func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo extends Bar { bar() {} foo }", `class Foo extends Bar {
   constructor() {
     super(...arguments);
-    this.foo = void 0;
+    __publicField(this, "foo");
   }
   bar() {
   }
@@ -2720,7 +2708,7 @@ func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo extends Bar { bar() {} foo; constructor() { super() } }", `class Foo extends Bar {
   constructor() {
     super();
-    this.foo = void 0;
+    __publicField(this, "foo");
   }
   bar() {
   }
@@ -2729,88 +2717,88 @@ func TestLowerClassInstance(t *testing.T) {
 }
 
 func TestLowerClassStatic(t *testing.T) {
-	expectPrintedTarget(t, 2015, "class Foo { static foo }", "class Foo {\n}\nFoo.foo = void 0;\n")
-	expectPrintedTarget(t, 2015, "class Foo { static foo = null }", "class Foo {\n}\nFoo.foo = null;\n")
+	expectPrintedTarget(t, 2015, "class Foo { static foo }", "class Foo {\n}\n__publicField(Foo, \"foo\");\n")
+	expectPrintedTarget(t, 2015, "class Foo { static foo = null }", "class Foo {\n}\n__publicField(Foo, \"foo\", null);\n")
 	expectPrintedTarget(t, 2015, "class Foo { static foo(a, b) {} }", "class Foo {\n  static foo(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static get foo() {} }", "class Foo {\n  static get foo() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static set foo(a) {} }", "class Foo {\n  static set foo(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { static 123 }", "class Foo {\n}\nFoo[123] = void 0;\n")
-	expectPrintedTarget(t, 2015, "class Foo { static 123 = null }", "class Foo {\n}\nFoo[123] = null;\n")
+	expectPrintedTarget(t, 2015, "class Foo { static 123 }", "class Foo {\n}\n__publicField(Foo, 123);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static 123 = null }", "class Foo {\n}\n__publicField(Foo, 123, null);\n")
 	expectPrintedTarget(t, 2015, "class Foo { static 123(a, b) {} }", "class Foo {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static get 123() {} }", "class Foo {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static set 123(a) {} }", "class Foo {\n  static set 123(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { static [foo] }", "var _a;\nclass Foo {\n}\n_a = foo;\nFoo[_a] = void 0;\n")
-	expectPrintedTarget(t, 2015, "class Foo { static [foo] = null }", "var _a;\nclass Foo {\n}\n_a = foo;\nFoo[_a] = null;\n")
+	expectPrintedTarget(t, 2015, "class Foo { static [foo] }", "var _a;\nclass Foo {\n}\n_a = foo;\n__publicField(Foo, _a);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static [foo] = null }", "var _a;\nclass Foo {\n}\n_a = foo;\n__publicField(Foo, _a, null);\n")
 	expectPrintedTarget(t, 2015, "class Foo { static [foo](a, b) {} }", "class Foo {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static get [foo]() {} }", "class Foo {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static set [foo](a) {} }", "class Foo {\n  static set [foo](a) {\n  }\n}\n")
 
-	expectPrintedTarget(t, 2015, "export default class Foo { static foo }", "export default class Foo {\n}\nFoo.foo = void 0;\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static foo = null }", "export default class Foo {\n}\nFoo.foo = null;\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static foo }", "export default class Foo {\n}\n__publicField(Foo, \"foo\");\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static foo = null }", "export default class Foo {\n}\n__publicField(Foo, \"foo\", null);\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static foo(a, b) {} }", "export default class Foo {\n  static foo(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static get foo() {} }", "export default class Foo {\n  static get foo() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static set foo(a) {} }", "export default class Foo {\n  static set foo(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static 123 }", "export default class Foo {\n}\nFoo[123] = void 0;\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static 123 = null }", "export default class Foo {\n}\nFoo[123] = null;\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static 123 }", "export default class Foo {\n}\n__publicField(Foo, 123);\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static 123 = null }", "export default class Foo {\n}\n__publicField(Foo, 123, null);\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static 123(a, b) {} }", "export default class Foo {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static get 123() {} }", "export default class Foo {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static set 123(a) {} }", "export default class Foo {\n  static set 123(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] }", "var _a;\nexport default class Foo {\n}\n_a = foo;\nFoo[_a] = void 0;\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] = null }", "var _a;\nexport default class Foo {\n}\n_a = foo;\nFoo[_a] = null;\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] }", "var _a;\nexport default class Foo {\n}\n_a = foo;\n__publicField(Foo, _a);\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] = null }", "var _a;\nexport default class Foo {\n}\n_a = foo;\n__publicField(Foo, _a, null);\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static [foo](a, b) {} }", "export default class Foo {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static get [foo]() {} }", "export default class Foo {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static set [foo](a) {} }", "export default class Foo {\n  static set [foo](a) {\n  }\n}\n")
 
 	expectPrintedTarget(t, 2015, "export default class { static foo }",
-		"export default class stdin_default {\n}\nstdin_default.foo = void 0;\n")
+		"export default class stdin_default {\n}\n__publicField(stdin_default, \"foo\");\n")
 	expectPrintedTarget(t, 2015, "export default class { static foo = null }",
-		"export default class stdin_default {\n}\nstdin_default.foo = null;\n")
+		"export default class stdin_default {\n}\n__publicField(stdin_default, \"foo\", null);\n")
 	expectPrintedTarget(t, 2015, "export default class { static foo(a, b) {} }", "export default class {\n  static foo(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static get foo() {} }", "export default class {\n  static get foo() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static set foo(a) {} }", "export default class {\n  static set foo(a) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static 123 }",
-		"export default class stdin_default {\n}\nstdin_default[123] = void 0;\n")
+		"export default class stdin_default {\n}\n__publicField(stdin_default, 123);\n")
 	expectPrintedTarget(t, 2015, "export default class { static 123 = null }",
-		"export default class stdin_default {\n}\nstdin_default[123] = null;\n")
+		"export default class stdin_default {\n}\n__publicField(stdin_default, 123, null);\n")
 	expectPrintedTarget(t, 2015, "export default class { static 123(a, b) {} }", "export default class {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static get 123() {} }", "export default class {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static set 123(a) {} }", "export default class {\n  static set 123(a) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo] }",
-		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\nstdin_default[_a] = void 0;\n")
+		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\n__publicField(stdin_default, _a);\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo] = null }",
-		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\nstdin_default[_a] = null;\n")
+		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\n__publicField(stdin_default, _a, null);\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo](a, b) {} }", "export default class {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static get [foo]() {} }", "export default class {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static set [foo](a) {} }", "export default class {\n  static set [foo](a) {\n  }\n}\n")
 
-	expectPrintedTarget(t, 2015, "(class Foo { static foo })", "var _a;\n_a = class {\n}, _a.foo = void 0, _a;\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static foo = null })", "var _a;\n_a = class {\n}, _a.foo = null, _a;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static foo })", "var _a;\n_a = class {\n}, __publicField(_a, \"foo\"), _a;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static foo = null })", "var _a;\n_a = class {\n}, __publicField(_a, \"foo\", null), _a;\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static foo(a, b) {} })", "(class Foo {\n  static foo(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static get foo() {} })", "(class Foo {\n  static get foo() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static set foo(a) {} })", "(class Foo {\n  static set foo(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static 123 })", "var _a;\n_a = class {\n}, _a[123] = void 0, _a;\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static 123 = null })", "var _a;\n_a = class {\n}, _a[123] = null, _a;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static 123 })", "var _a;\n_a = class {\n}, __publicField(_a, 123), _a;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static 123 = null })", "var _a;\n_a = class {\n}, __publicField(_a, 123, null), _a;\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static 123(a, b) {} })", "(class Foo {\n  static 123(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static get 123() {} })", "(class Foo {\n  static get 123() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static set 123(a) {} })", "(class Foo {\n  static set 123(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, _b[_a] = void 0, _b;\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, _b[_a] = null, _b;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a), _b;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a, null), _b;\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static [foo](a, b) {} })", "(class Foo {\n  static [foo](a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static get [foo]() {} })", "(class Foo {\n  static get [foo]() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static set [foo](a) {} })", "(class Foo {\n  static set [foo](a) {\n  }\n});\n")
 
-	expectPrintedTarget(t, 2015, "(class { static foo })", "var _a;\n_a = class {\n}, _a.foo = void 0, _a;\n")
-	expectPrintedTarget(t, 2015, "(class { static foo = null })", "var _a;\n_a = class {\n}, _a.foo = null, _a;\n")
+	expectPrintedTarget(t, 2015, "(class { static foo })", "var _a;\n_a = class {\n}, __publicField(_a, \"foo\"), _a;\n")
+	expectPrintedTarget(t, 2015, "(class { static foo = null })", "var _a;\n_a = class {\n}, __publicField(_a, \"foo\", null), _a;\n")
 	expectPrintedTarget(t, 2015, "(class { static foo(a, b) {} })", "(class {\n  static foo(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static get foo() {} })", "(class {\n  static get foo() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static set foo(a) {} })", "(class {\n  static set foo(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { static 123 })", "var _a;\n_a = class {\n}, _a[123] = void 0, _a;\n")
-	expectPrintedTarget(t, 2015, "(class { static 123 = null })", "var _a;\n_a = class {\n}, _a[123] = null, _a;\n")
+	expectPrintedTarget(t, 2015, "(class { static 123 })", "var _a;\n_a = class {\n}, __publicField(_a, 123), _a;\n")
+	expectPrintedTarget(t, 2015, "(class { static 123 = null })", "var _a;\n_a = class {\n}, __publicField(_a, 123, null), _a;\n")
 	expectPrintedTarget(t, 2015, "(class { static 123(a, b) {} })", "(class {\n  static 123(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static get 123() {} })", "(class {\n  static get 123() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static set 123(a) {} })", "(class {\n  static set 123(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, _b[_a] = void 0, _b;\n")
-	expectPrintedTarget(t, 2015, "(class { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, _b[_a] = null, _b;\n")
+	expectPrintedTarget(t, 2015, "(class { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a), _b;\n")
+	expectPrintedTarget(t, 2015, "(class { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a, null), _b;\n")
 	expectPrintedTarget(t, 2015, "(class { static [foo](a, b) {} })", "(class {\n  static [foo](a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static get [foo]() {} })", "(class {\n  static get [foo]() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static set [foo](a) {} })", "(class {\n  static set [foo](a) {\n  }\n});\n")
@@ -2828,7 +2816,7 @@ func TestLowerClassStatic(t *testing.T) {
 		}
 	`, `var _a;
 let Bar = (_a = class {
-}, _a.foo = 123, _a.bar = _a.foo, _a);
+}, __publicField(_a, "foo", 123), __publicField(_a, "bar", _a.foo), _a);
 `)
 }
 

@@ -233,31 +233,6 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 			buildOpts.OutExtensions[value[:equals]] = value[equals+1:]
 
-		case arg == "--strict":
-			value := api.StrictOptions{
-				ClassFields: true,
-			}
-			if buildOpts != nil {
-				buildOpts.Strict = value
-			} else {
-				transformOpts.Strict = value
-			}
-
-		case strings.HasPrefix(arg, "--strict:"):
-			var value *api.StrictOptions
-			if buildOpts != nil {
-				value = &buildOpts.Strict
-			} else {
-				value = &transformOpts.Strict
-			}
-			name := arg[len("--strict:"):]
-			switch name {
-			case "class-fields":
-				value.ClassFields = true
-			default:
-				return fmt.Errorf("Invalid strict value: %q (valid: class-fields)", name)
-			}
-
 		case strings.HasPrefix(arg, "--platform=") && buildOpts != nil:
 			value := arg[len("--platform="):]
 			switch value {

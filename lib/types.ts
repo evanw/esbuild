@@ -2,7 +2,6 @@ export type Platform = 'browser' | 'node';
 export type Format = 'iife' | 'cjs' | 'esm';
 export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary';
 export type LogLevel = 'info' | 'warning' | 'error' | 'silent';
-export type Strict = 'class-fields';
 export type Charset = 'ascii' | 'utf8';
 
 interface CommonOptions {
@@ -10,7 +9,6 @@ interface CommonOptions {
   format?: Format;
   globalName?: string;
   target?: string | string[];
-  strict?: boolean | Strict[];
 
   minify?: boolean;
   minifyWhitespace?: boolean;

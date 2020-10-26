@@ -195,11 +195,6 @@
         </select>
       </label>
       <br>
-      <label for="strict">
-        <input id="strict" type="checkbox">
-        Strict
-      </label>
-      &nbsp; &nbsp;
       <label for="ascii">
         <input id="ascii" type="checkbox">
         ASCII
@@ -225,7 +220,6 @@
     const minifySyntax = document.querySelector('#minify-syntax')
     const minifyIdents = document.querySelector('#minify-idents')
     const minifySpaces = document.querySelector('#minify-spaces')
-    const strict = document.querySelector('#strict')
     const ascii = document.querySelector('#ascii')
     let runIfIdle
 
@@ -265,7 +259,6 @@
     persistChecked(minifySyntax, 'minifySyntax')
     persistChecked(minifyIdents, 'minifyIdents')
     persistChecked(minifySpaces, 'minifySpaces')
-    persistChecked(strict, 'strict')
     persistChecked(ascii, 'ascii')
 
     try {
@@ -305,7 +298,6 @@
           minifySyntax: minifySyntax.checked,
           minifyIdentifiers: minifyIdents.checked,
           minifyWhitespace: minifySpaces.checked,
-          strict: strict.checked,
           charset: ascii.checked ? 'ascii' : 'utf8',
         }).then(({ code, warnings }) => {
           let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
