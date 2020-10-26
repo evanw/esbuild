@@ -29,6 +29,15 @@ The breaking changes are as follows:
 
     In addition, it is now possible for esbuild to discover input source maps linked via `//# sourceMappingURL=` comments relative to the `resolveDir` for stdin. This previously only worked for files with a real path on the file system.
 
+* Made names in the Go API consistent
+
+    Previously some of the names in the Go API were unnecessarily different than the corresponding names in the CLI and JavaScript APIs. This made it harder to write documentation and examples for these APIs that work consistently across all three API surfaces. These different names in the Go API have been fixed:
+
+    * `Defines` → `Define`
+    * `Externals` → `External`
+    * `Loaders` → `Loader`
+    * `PureFunctions` → `Pure`
+
 ## 0.7.22
 
 * Add `tsconfigRaw` to the transform API ([#483](https://github.com/evanw/esbuild/issues/483))

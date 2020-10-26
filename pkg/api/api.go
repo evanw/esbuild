@@ -212,9 +212,9 @@ type BuildOptions struct {
 	JSXFactory  string
 	JSXFragment string
 
-	Defines       map[string]string
-	PureFunctions []string
-	AvoidTDZ      bool
+	Define   map[string]string
+	Pure     []string
+	AvoidTDZ bool
 
 	GlobalName        string
 	Bundle            bool
@@ -224,9 +224,9 @@ type BuildOptions struct {
 	Outdir            string
 	Platform          Platform
 	Format            Format
-	Externals         []string
+	External          []string
 	MainFields        []string
-	Loaders           map[string]Loader
+	Loader            map[string]Loader
 	ResolveExtensions []string
 	Tsconfig          string
 	OutExtensions     map[string]string
@@ -285,9 +285,9 @@ type TransformOptions struct {
 	JSXFragment string
 	TsconfigRaw string
 
-	Defines       map[string]string
-	PureFunctions []string
-	AvoidTDZ      bool
+	Define   map[string]string
+	Pure     []string
+	AvoidTDZ bool
 
 	Sourcefile string
 	Loader     Loader

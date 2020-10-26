@@ -14,14 +14,14 @@ import (
 
 func newBuildOptions() api.BuildOptions {
 	return api.BuildOptions{
-		Loaders: make(map[string]api.Loader),
-		Defines: make(map[string]string),
+		Loader: make(map[string]api.Loader),
+		Define: make(map[string]string),
 	}
 }
 
 func newTransformOptions() api.TransformOptions {
 	return api.TransformOptions{
-		Defines: make(map[string]string),
+		Define: make(map[string]string),
 	}
 }
 
@@ -165,17 +165,17 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				return fmt.Errorf("Missing \"=\": %q", value)
 			}
 			if buildOpts != nil {
-				buildOpts.Defines[value[:equals]] = value[equals+1:]
+				buildOpts.Define[value[:equals]] = value[equals+1:]
 			} else {
-				transformOpts.Defines[value[:equals]] = value[equals+1:]
+				transformOpts.Define[value[:equals]] = value[equals+1:]
 			}
 
 		case strings.HasPrefix(arg, "--pure:"):
 			value := arg[len("--pure:"):]
 			if buildOpts != nil {
-				buildOpts.PureFunctions = append(buildOpts.PureFunctions, value)
+				buildOpts.Pure = append(buildOpts.Pure, value)
 			} else {
-				transformOpts.PureFunctions = append(transformOpts.PureFunctions, value)
+				transformOpts.Pure = append(transformOpts.Pure, value)
 			}
 
 		case strings.HasPrefix(arg, "--loader:") && buildOpts != nil:
@@ -189,7 +189,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			if err != nil {
 				return err
 			}
-			buildOpts.Loaders[ext] = loader
+			buildOpts.Loader[ext] = loader
 
 		case strings.HasPrefix(arg, "--loader="):
 			value := arg[len("--loader="):]
@@ -301,7 +301,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:
-			buildOpts.Externals = append(buildOpts.Externals, arg[len("--external:"):])
+			buildOpts.External = append(buildOpts.External, arg[len("--external:"):])
 
 		case strings.HasPrefix(arg, "--inject:") && buildOpts != nil:
 			buildOpts.Inject = append(buildOpts.Inject, arg[len("--inject:"):])
