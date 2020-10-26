@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
-	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -117,7 +116,6 @@ type parseArgs struct {
 	res             resolver.Resolver
 	keyPath         logger.Path
 	prettyPath      string
-	baseName        string
 	sourceIndex     uint32
 	importSource    *logger.Source
 	flags           parseFlags
@@ -142,24 +140,15 @@ type parseResult struct {
 
 func parseFile(args parseArgs) {
 	source := logger.Source{
-		Index:      args.sourceIndex,
-		KeyPath:    args.keyPath,
-		PrettyPath: args.prettyPath,
-	}
-
-	// Try to determine the identifier name by the absolute path, since it may
-	// need to look at the parent directory. But make sure to not treat the key
-	// as a file system path if it's not marked as one.
-	if args.keyPath.Namespace == "file" {
-		source.IdentifierName = js_ast.GenerateNonUniqueNameFromPath(args.keyPath.Text)
-	} else {
-		source.IdentifierName = js_ast.GenerateNonUniqueNameFromPath(args.baseName)
+		Index:          args.sourceIndex,
+		KeyPath:        args.keyPath,
+		PrettyPath:     args.prettyPath,
+		IdentifierName: js_ast.GenerateNonUniqueNameFromPath(args.keyPath.Text),
 	}
 
 	var loader config.Loader
-	stdin := args.options.Stdin
 
-	if stdin != nil {
+	if stdin := args.options.Stdin; stdin != nil {
 		// Special-case stdin
 		source.Contents = stdin.Contents
 		source.PrettyPath = "<stdin>"
@@ -187,11 +176,13 @@ func parseFile(args parseArgs) {
 			args.results <- parseResult{}
 			return
 		}
-		loader = loaderFromFileExtension(args.options.ExtensionToLoader, args.baseName)
+		loader = loaderFromFileExtension(args.options.ExtensionToLoader, args.fs.Base(args.keyPath.Text))
 	} else if source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
 		// Force disabled modules to be empty
 		loader = config.LoaderJS
 	}
+
+	_, base, ext := js_ast.PlatformIndependentPathDirBaseExt(source.KeyPath.Text)
 
 	result := parseResult{
 		file: file{
@@ -248,7 +239,7 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 	case config.LoaderBase64:
-		mimeType := guessMimeType(args.fs.Ext(args.baseName), source.Contents)
+		mimeType := guessMimeType(ext, source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
 		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
@@ -267,7 +258,7 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 	case config.LoaderDataURL:
-		mimeType := guessMimeType(args.fs.Ext(args.baseName), source.Contents)
+		mimeType := guessMimeType(ext, source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(url)}}
@@ -281,9 +272,8 @@ func parseFile(args parseArgs) {
 		// Add a hash to the file name to prevent multiple files with the same name
 		// but different contents from colliding
 		hash := hashForFileName([]byte(source.Contents))
-		ext := path.Ext(args.baseName)
-		baseName := args.baseName[:len(args.baseName)-len(ext)] + "." + hash + ext
-		publicPath := args.options.PublicPath + baseName
+		additionalFileName := base + "." + hash + ext
+		publicPath := args.options.PublicPath + additionalFileName
 
 		// Determine the destination folder
 		targetFolder := args.options.AbsOutputDir
@@ -306,7 +296,7 @@ func parseFile(args parseArgs) {
 		// Copy the file using an additional file payload to make sure we only copy
 		// the file if the module isn't removed due to tree shaking.
 		result.file.additionalFiles = []OutputFile{{
-			AbsPath:           args.fs.Join(targetFolder, baseName),
+			AbsPath:           args.fs.Join(targetFolder, additionalFileName),
 			Contents:          []byte(source.Contents),
 			jsonMetadataChunk: jsonMetadataChunk,
 		}}
@@ -612,7 +602,6 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				res:             res,
 				keyPath:         path,
 				prettyPath:      prettyPath,
-				baseName:        fs.Base(path.Text),
 				sourceIndex:     sourceIndex,
 				importSource:    importSource,
 				flags:           flags,
