@@ -134,8 +134,9 @@ func code(isES6 bool) string {
 
 		// For class members
 		export var __publicField = (obj, key, value) => {
+			if (typeof key !== 'symbol') key += ''
 			if (key in obj) return __defProp(obj, key, {enumerable: true, configurable: true, writable: true, value})
-			else return obj[key] = value
+			return obj[key] = value
 		}
 		var __accessCheck = (obj, member, msg) => {
 			if (!member.has(obj)) throw TypeError('Cannot ' + msg)

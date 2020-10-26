@@ -1143,13 +1143,78 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
     }),
     test(['in.js', '--outfile=node.js', '--target=es6', '--strict'], {
       'in.js': `
-        let called = false
+        let setterCalls = 0
         class Foo {
-          foo
-          set foo(x) { called = true }
+          key
+          set key(x) { setterCalls++ }
         }
-        new Foo()
-        if (called) throw 'fail'
+        let foo = new Foo()
+        if (setterCalls !== 0 || !foo.hasOwnProperty('key') || foo.key !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6', '--strict'], {
+      'in.js': `
+        let setterCalls = 0
+        class Foo {
+          key = 123
+          set key(x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || !foo.hasOwnProperty('key') || foo.key !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6', '--strict'], {
+      'in.js': `
+        let toStringCalls = 0
+        let setterCalls = 0
+        class Foo {
+          [{toString() {
+            toStringCalls++
+            return 'key'
+          }}]
+          set key(x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || toStringCalls !== 1 || !foo.hasOwnProperty('key') || foo.key !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6', '--strict'], {
+      'in.js': `
+        let toStringCalls = 0
+        let setterCalls = 0
+        class Foo {
+          [{toString() {
+            toStringCalls++
+            return 'key'
+          }}] = 123
+          set key(x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || toStringCalls !== 1 || !foo.hasOwnProperty('key') || foo.key !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6', '--strict'], {
+      'in.js': `
+        let key = Symbol('key')
+        let setterCalls = 0
+        class Foo {
+          [key]
+          set [key](x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || !foo.hasOwnProperty(key) || foo[key] !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6', '--strict'], {
+      'in.js': `
+        let key = Symbol('key')
+        let setterCalls = 0
+        class Foo {
+          [key] = 123
+          set [key](x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || !foo.hasOwnProperty(key) || foo[key] !== 123) throw 'fail'
       `,
     }),
   )
