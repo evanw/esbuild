@@ -1185,36 +1185,6 @@ let transformTests = {
     assert.deepStrictEqual(observed, expected);
   },
 
-  async nullishCoalescingLoose({ service }) {
-    const { code } = await service.transform(`a ?? b`, { target: 'es2019', strict: false })
-    assert.strictEqual(code, `a != null ? a : b;\n`)
-  },
-
-  async nullishCoalescingStrict({ service }) {
-    const { code } = await service.transform(`a ?? b`, { target: 'es2019', strict: true })
-    assert.strictEqual(code, `a !== null && a !== void 0 ? a : b;\n`)
-  },
-
-  async nullishCoalescingStrictExplicit({ service }) {
-    const { code } = await service.transform(`a ?? b`, { target: 'es2019', strict: ['nullish-coalescing'] })
-    assert.strictEqual(code, `a !== null && a !== void 0 ? a : b;\n`)
-  },
-
-  async optionalChainingLoose({ service }) {
-    const { code } = await service.transform(`a?.b`, { target: 'es2019', strict: false })
-    assert.strictEqual(code, `a == null ? void 0 : a.b;\n`)
-  },
-
-  async optionalChainingStrict({ service }) {
-    const { code } = await service.transform(`a?.b`, { target: 'es2019', strict: true })
-    assert.strictEqual(code, `a === null || a === void 0 ? void 0 : a.b;\n`)
-  },
-
-  async optionalChainingStrictExplicit({ service }) {
-    const { code } = await service.transform(`a?.b`, { target: 'es2019', strict: ['optional-chaining'] })
-    assert.strictEqual(code, `a === null || a === void 0 ? void 0 : a.b;\n`)
-  },
-
   async pureCallPrint({ service }) {
     const { code: code1 } = await service.transform(`print(123, foo)`, { minifySyntax: true, pure: [] })
     assert.strictEqual(code1, `print(123, foo);\n`)

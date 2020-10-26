@@ -151,11 +151,11 @@ These syntax features are conditionally transformed for older browsers depending
 
 * **Nullish coalescing correctness**
 
-    By default `a ?? b` is transformed into `a != null ? a : b`, which works because `a != null` is only false if `a` is `null` or `undefined`. However, there's exactly one obscure edge case where this doesn't work. For legacy reasons, the value of `document.all` is special-cased such that `document.all != null` is false. If you need to use this value with the nullish coalescing operator, you should enable `--strict:nullish-coalescing` transforms so `a ?? b` becomes `a !== null && a !== void 0 ? a : b` instead, which works correctly with `document.all`. The strict transform isn't done by default because it causes code bloat for an obscure edge case that shouldn't matter in modern code.
+    The expression `a ?? b` is transformed into `a != null ? a : b`, which works because `a != null` is only false if `a` is `null` or `undefined`. However, there's exactly one obscure edge case where this doesn't work. For legacy reasons, the value of `document.all` is special-cased such that `document.all != null` is false. It is assumed that if you are using the `??` syntax, your code is new enough that it doesn't need to manipulate `document.all`.
 
 * **Optional chaining correctness**
 
-    By default `a?.b` is transformed into `a == null ? void 0 : a.b`, which works because `a == null` is only true if `a` is neither `null` nor `undefined`. However, there's exactly one obscure edge case where this doesn't work. For legacy reasons, the value of `document.all` is special-cased such that `document.all == null` is true. If you need to use this value with optional chaining, you should enable `--strict:optional-chaining` transforms so `a?.b` becomes `a === null || a === void 0 ? void 0 : a.b` instead, which works correctly with `document.all`. The strict transform isn't done by default because it causes code bloat for an obscure edge case that shouldn't matter in modern code.
+    The expression `a?.b` is transformed into `a == null ? void 0 : a.b`, which works because `a == null` is only true if `a` is neither `null` nor `undefined`. However, there's exactly one obscure edge case where this doesn't work. For legacy reasons, the value of `document.all` is special-cased such that `document.all == null` is true. It is assumed that if you are using the `?.` syntax, your code is new enough that it doesn't need to manipulate `document.all`.
 
 * **Class field correctness**
 
@@ -393,8 +393,7 @@ Advanced options:
   --metafile=...            Write metadata about the build to a JSON file
   --strict                  Transforms handle edge cases but have more overhead
                             (enable individually using --strict:X where X is
-                            one of: nullish-coalescing | optional-chaining |
-                            class-fields)
+                            one of: class-fields)
   --pure:N                  Mark the name N as a pure function for tree shaking
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports

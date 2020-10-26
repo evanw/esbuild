@@ -100,9 +100,7 @@ func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, exp
 			compat.ES: {esVersion},
 		}),
 		Strict: config.StrictOptions{
-			NullishCoalescing: true,
-			OptionalChaining:  true,
-			ClassFields:       true,
+			ClassFields: true,
 		},
 	})
 }
@@ -2593,17 +2591,12 @@ func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrinted(t, "a || b, b ?? c", "a || b, b ?? c;\n")
 
 	expectPrintedTarget(t, 2020, "a ?? b", "a ?? b;\n")
-	expectPrintedTargetStrict(t, 2020, "a ?? b", "a ?? b;\n")
-
 	expectPrintedTarget(t, 2019, "a ?? b", "a != null ? a : b;\n")
 	expectPrintedTarget(t, 2019, "a() ?? b()", "var _a;\n(_a = a()) != null ? _a : b();\n")
 	expectPrintedTarget(t, 2019, "function foo() { if (x) { a() ?? b() ?? c() } }",
 		"function foo() {\n  var _a, _b;\n  if (x) {\n    (_b = (_a = a()) != null ? _a : b()) != null ? _b : c();\n  }\n}\n")
 	expectPrintedTarget(t, 2019, "() => a ?? b", "() => a != null ? a : b;\n")
 	expectPrintedTarget(t, 2019, "() => a() ?? b()", "() => {\n  var _a;\n  return (_a = a()) != null ? _a : b();\n};\n")
-
-	expectPrintedTargetStrict(t, 2019, "a ?? b", "a !== null && a !== void 0 ? a : b;\n")
-	expectPrintedTargetStrict(t, 2019, "a() ?? b()", "var _a;\n(_a = a()) !== null && _a !== void 0 ? _a : b();\n")
 }
 
 func TestLowerNullishCoalescingAssign(t *testing.T) {
@@ -2615,17 +2608,11 @@ func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, 2019, "a[b] ??= c", "var _a;\n(_a = a[b]) != null ? _a : a[b] = c;\n")
 	expectPrintedTarget(t, 2019, "a()[b()] ??= c", "var _a, _b, _c;\n(_c = (_a = a())[_b = b()]) != null ? _c : _a[_b] = c;\n")
 
-	expectPrintedTargetStrict(t, 2019, "a ??= b", "a !== null && a !== void 0 ? a : a = b;\n")
-	expectPrintedTargetStrict(t, 2019, "a.b ??= c", "var _a;\n(_a = a.b) !== null && _a !== void 0 ? _a : a.b = c;\n")
-
 	expectPrintedTarget(t, 2020, "a ??= b", "a ?? (a = b);\n")
 	expectPrintedTarget(t, 2020, "a.b ??= c", "a.b ?? (a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a().b ??= c", "var _a;\n(_a = a()).b ?? (_a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a[b] ??= c", "a[b] ?? (a[b] = c);\n")
 	expectPrintedTarget(t, 2020, "a()[b()] ??= c", "var _a, _b;\n(_a = a())[_b = b()] ?? (_a[_b] = c);\n")
-
-	expectPrintedTargetStrict(t, 2020, "a ??= b", "a ?? (a = b);\n")
-	expectPrintedTargetStrict(t, 2020, "a.b ??= c", "a.b ?? (a.b = c);\n")
 }
 
 func TestLowerLogicalAssign(t *testing.T) {
@@ -2930,7 +2917,7 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2020, "undefined?.[x]", "void 0;\n")
 	expectPrintedTarget(t, 2020, "undefined?.(x)", "void 0;\n")
 
-	// Check multiple levels of nesting (loose)
+	// Check multiple levels of nesting
 	expectPrintedTarget(t, 2019, "a?.b?.c?.d", `var _a, _b;
 (_b = (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.c) == null ? void 0 : _b.d;
 `)
@@ -2941,18 +2928,7 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a == null ? void 0 : a(b)) == null ? void 0 : _a(c)) == null ? void 0 : _b(d);
 `)
 
-	// Check multiple levels of nesting (strict)
-	expectPrintedTargetStrict(t, 2019, "a?.b?.c?.d", `var _a, _b;
-(_b = (_a = a === null || a === void 0 ? void 0 : a.b) === null || _a === void 0 ? void 0 : _a.c) === null || _b === void 0 ? void 0 : _b.d;
-`)
-	expectPrintedTargetStrict(t, 2019, "a?.[b]?.[c]?.[d]", `var _a, _b;
-(_b = (_a = a === null || a === void 0 ? void 0 : a[b]) === null || _a === void 0 ? void 0 : _a[c]) === null || _b === void 0 ? void 0 : _b[d];
-`)
-	expectPrintedTargetStrict(t, 2019, "a?.(b)?.(c)?.(d)", `var _a, _b;
-(_b = (_a = a === null || a === void 0 ? void 0 : a(b)) === null || _a === void 0 ? void 0 : _a(c)) === null || _b === void 0 ? void 0 : _b(d);
-`)
-
-	// Check the need to use ".call()" (loose)
+	// Check the need to use ".call()"
 	expectPrintedTarget(t, 2019, "a.b?.(c)", `var _a;
 (_a = a.b) == null ? void 0 : _a.call(a, c);
 `)
@@ -2972,31 +2948,11 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
 `)
 
-	// Check the need to use ".call()" (strict)
-	expectPrintedTargetStrict(t, 2019, "a.b?.(c)", `var _a;
-(_a = a.b) === null || _a === void 0 ? void 0 : _a.call(a, c);
-`)
-	expectPrintedTargetStrict(t, 2019, "a[b]?.(c)", `var _a;
-(_a = a[b]) === null || _a === void 0 ? void 0 : _a.call(a, c);
-`)
-	expectPrintedTargetStrict(t, 2019, "a?.[b]?.(c)", `var _a;
-(_a = a === null || a === void 0 ? void 0 : a[b]) === null || _a === void 0 ? void 0 : _a.call(a, c);
-`)
-	expectPrintedTargetStrict(t, 2019, "123?.[b]?.(c)", `var _a;
-(_a = 123 === null || 123 === void 0 ? void 0 : 123[b]) === null || _a === void 0 ? void 0 : _a.call(123, c);
-`)
-	expectPrintedTargetStrict(t, 2019, "a?.[b][c]?.(d)", `var _a, _b;
-(_b = a === null || a === void 0 ? void 0 : (_a = a[b])[c]) === null || _b === void 0 ? void 0 : _b.call(_a, d);
-`)
-	expectPrintedTargetStrict(t, 2019, "a[b][c]?.(d)", `var _a, _b;
-(_b = (_a = a[b])[c]) === null || _b === void 0 ? void 0 : _b.call(_a, d);
-`)
-
 	// Check that direct eval status is propagated through optional chaining
 	expectPrintedTarget(t, 2019, "eval?.(x)", "eval == null ? void 0 : eval(x);\n")
 	expectPrintedTarget(t, 2019, "(1 ? eval : 0)?.(x)", "eval == null ? void 0 : (0, eval)(x);\n")
 
-	// Check super property access (loose)
+	// Check super property access
 	expectPrintedTarget(t, 2019, "class Foo extends Bar { foo() { super.bar?.() } }", `class Foo extends Bar {
   foo() {
     var _a;
@@ -3008,22 +2964,6 @@ func TestLowerOptionalChain(t *testing.T) {
   foo() {
     var _a;
     (_a = super["bar"]) == null ? void 0 : _a.call(this);
-  }
-}
-`)
-
-	// Check super property access (strict)
-	expectPrintedTargetStrict(t, 2019, "class Foo extends Bar { foo() { super.bar?.() } }", `class Foo extends Bar {
-  foo() {
-    var _a;
-    (_a = super.bar) === null || _a === void 0 ? void 0 : _a.call(this);
-  }
-}
-`)
-	expectPrintedTargetStrict(t, 2019, "class Foo extends Bar { foo() { super['bar']?.() } }", `class Foo extends Bar {
-  foo() {
-    var _a;
-    (_a = super["bar"]) === null || _a === void 0 ? void 0 : _a.call(this);
   }
 }
 `)

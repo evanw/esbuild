@@ -235,9 +235,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 
 		case arg == "--strict":
 			value := api.StrictOptions{
-				NullishCoalescing: true,
-				OptionalChaining:  true,
-				ClassFields:       true,
+				ClassFields: true,
 			}
 			if buildOpts != nil {
 				buildOpts.Strict = value
@@ -254,14 +252,10 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 			name := arg[len("--strict:"):]
 			switch name {
-			case "nullish-coalescing":
-				value.NullishCoalescing = true
-			case "optional-chaining":
-				value.OptionalChaining = true
 			case "class-fields":
 				value.ClassFields = true
 			default:
-				return fmt.Errorf("Invalid strict value: %q (valid: nullish-coalescing, optional-chaining, class-fields)", name)
+				return fmt.Errorf("Invalid strict value: %q (valid: class-fields)", name)
 			}
 
 		case strings.HasPrefix(arg, "--platform=") && buildOpts != nil:

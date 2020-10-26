@@ -38,6 +38,10 @@ The breaking changes are as follows:
     * `Loaders` → `Loader`
     * `PureFunctions` → `Pure`
 
+* Removed the workaround for `document.all` with nullish coalescing and optional chaining
+
+    The `--strict:nullish-coalescing` and `--strict:optional-chaining` options have been removed. They only existed to address a theoretical problem where modern code that uses the new `??` and `?.` operators interacted with the legacy [`document.all` object](https://developer.mozilla.org/en-US/docs/Web/API/Document/all) that has been deprecated for a long time. Realistically this case is extremely unlikely to come up in practice, so these obscure options were removed to simplify the API and reduce code complexity. For what it's worth this behavior also matches [Terser](https://github.com/terser/terser), a commonly-used JavaScript minifier.
+
 ## 0.7.22
 
 * Add `tsconfigRaw` to the transform API ([#483](https://github.com/evanw/esbuild/issues/483))

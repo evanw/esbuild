@@ -635,39 +635,17 @@ flatten:
 	// Step 5: Wrap it all in a conditional that returns the chain or the default
 	// value if the initial value is null/undefined. The default value is usually
 	// "undefined" but is "true" if the chain ends in a "delete" operator.
-	if p.Strict.OptionalChaining {
-		// "x?.y" => "x === null || x === void 0 ? void 0 : x.y"
-		// "x()?.y()" => "(_a = x()) === null || _a === void 0 ? void 0 : _a.y()"
-		result = js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
-			Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op: js_ast.BinOpLogicalOr,
-				Left: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpStrictEq,
-					Left:  expr,
-					Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
-				}},
-				Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpStrictEq,
-					Left:  exprFunc(),
-					Right: js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}},
-				}},
-			}},
-			Yes: valueWhenUndefined,
-			No:  result,
-		}}
-	} else {
-		// "x?.y" => "x == null ? void 0 : x.y"
-		// "x()?.y()" => "(_a = x()) == null ? void 0 : _a.y()"
-		result = js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
-			Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op:    js_ast.BinOpLooseEq,
-				Left:  expr,
-				Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
-			}},
-			Yes: valueWhenUndefined,
-			No:  result,
-		}}
-	}
+	// "x?.y" => "x == null ? void 0 : x.y"
+	// "x()?.y()" => "(_a = x()) == null ? void 0 : _a.y()"
+	result = js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
+		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+			Op:    js_ast.BinOpLooseEq,
+			Left:  expr,
+			Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
+		}},
+		Yes: valueWhenUndefined,
+		No:  result,
+	}}
 	if exprWrapFunc != nil {
 		result = exprWrapFunc(result)
 	}
@@ -800,29 +778,6 @@ func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinar
 }
 
 func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right js_ast.Expr) js_ast.Expr {
-	if p.Strict.NullishCoalescing {
-		// "x ?? y" => "x !== null && x !== void 0 ? x : y"
-		// "x() ?? y()" => "_a = x(), _a !== null && _a !== void 0 ? _a : y"
-		leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 3, left)
-		return wrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
-			Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op: js_ast.BinOpLogicalAnd,
-				Left: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpStrictNe,
-					Left:  leftFunc(),
-					Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
-				}},
-				Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpStrictNe,
-					Left:  leftFunc(),
-					Right: js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}},
-				}},
-			}},
-			Yes: leftFunc(),
-			No:  right,
-		}})
-	}
-
 	// "x ?? y" => "x != null ? x : y"
 	// "x() ?? y()" => "_a = x(), _a != null ? _a : y"
 	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left)

@@ -92,9 +92,7 @@ func validateLogLevel(value LogLevel) logger.LogLevel {
 
 func validateStrict(value StrictOptions) config.StrictOptions {
 	return config.StrictOptions{
-		NullishCoalescing: value.NullishCoalescing,
-		OptionalChaining:  value.OptionalChaining,
-		ClassFields:       value.ClassFields,
+		ClassFields: value.ClassFields,
 	}
 }
 
@@ -422,9 +420,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
 		Strict: config.StrictOptions{
-			NullishCoalescing: buildOpts.Strict.NullishCoalescing,
-			OptionalChaining:  buildOpts.Strict.OptionalChaining,
-			ClassFields:       buildOpts.Strict.ClassFields,
+			ClassFields: buildOpts.Strict.ClassFields,
 		},
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
@@ -628,9 +624,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
 	}
 	strict := config.StrictOptions{
-		NullishCoalescing: transformOpts.Strict.NullishCoalescing,
-		OptionalChaining:  transformOpts.Strict.OptionalChaining,
-		ClassFields:       transformOpts.Strict.ClassFields,
+		ClassFields: transformOpts.Strict.ClassFields,
 	}
 
 	// Settings from "tsconfig.json" override those
