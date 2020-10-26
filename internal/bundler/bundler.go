@@ -124,11 +124,6 @@ type parseArgs struct {
 	results         chan parseResult
 	inject          chan config.InjectedFile
 	skipResolve     bool
-
-	// If non-empty, this provides a fallback directory to resolve imports
-	// against for virtual source files (i.e. those with no file system path).
-	// This is used for stdin, for example.
-	absResolveDir string
 }
 
 type parseResult struct {
@@ -147,6 +142,7 @@ func parseFile(args parseArgs) {
 	}
 
 	var loader config.Loader
+	var absResolveDir string
 
 	if stdin := args.options.Stdin; stdin != nil {
 		// Special-case stdin
@@ -156,6 +152,7 @@ func parseFile(args parseArgs) {
 			source.PrettyPath = stdin.SourceFile
 		}
 		loader = stdin.Loader
+		absResolveDir = stdin.AbsResolveDir
 	} else if args.keyPath.Namespace == "file" {
 		// Read normal modules from disk
 		var err error
@@ -177,6 +174,7 @@ func parseFile(args parseArgs) {
 			return
 		}
 		loader = loaderFromFileExtension(args.options.ExtensionToLoader, args.fs.Base(args.keyPath.Text))
+		absResolveDir = args.fs.Dir(args.keyPath.Text)
 	} else if source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
 		// Force disabled modules to be empty
 		loader = config.LoaderJS
@@ -338,17 +336,6 @@ func parseFile(args parseArgs) {
 		if len(records) > 0 {
 			resolverCache := make(map[ast.ImportKind]map[string]*resolver.ResolveResult)
 
-			// Resolve relative to the parent directory of the source file with the
-			// import path. Just use the current directory if the source file is virtual.
-			var sourceDir string
-			if source.KeyPath.Namespace == "file" {
-				sourceDir = args.fs.Dir(source.KeyPath.Text)
-			} else if args.absResolveDir != "" {
-				sourceDir = args.absResolveDir
-			} else {
-				sourceDir = args.fs.Cwd()
-			}
-
 			for importRecordIndex := range records {
 				// Don't try to resolve imports that are already resolved
 				record := &records[importRecordIndex]
@@ -374,7 +361,10 @@ func parseFile(args parseArgs) {
 				}
 
 				// Run the resolver and log an error if the path couldn't be resolved
-				resolveResult := args.res.Resolve(sourceDir, record.Path.Text, record.Kind)
+				var resolveResult *resolver.ResolveResult
+				if absResolveDir != "" {
+					resolveResult = args.res.Resolve(absResolveDir, record.Path.Text, record.Kind)
+				}
 				cache[record.Path.Text] = resolveResult
 
 				// All "require.resolve()" imports should be external because we don't
@@ -416,7 +406,7 @@ func parseFile(args parseArgs) {
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone {
 		if repr, ok := result.file.repr.(*reprJS); ok && repr.ast.SourceMapComment.Text != "" {
-			if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, repr.ast.SourceMapComment); contents != nil {
+			if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, repr.ast.SourceMapComment, absResolveDir); contents != nil {
 				result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
 					KeyPath:    path,
 					PrettyPath: args.res.PrettyPath(path),
@@ -439,7 +429,7 @@ func guessMimeType(extension string, contents string) string {
 	return strings.ReplaceAll(mimeType, "; ", ";")
 }
 
-func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment js_ast.Span) (logger.Path, *string) {
+func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment js_ast.Span, absResolveDir string) (logger.Path, *string) {
 	// Data URL
 	if strings.HasPrefix(comment.Text, "data:") {
 		if strings.HasPrefix(comment.Text, "data:application/json;") {
@@ -464,8 +454,8 @@ func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver
 	}
 
 	// Relative path in a file with an absolute path
-	if source.KeyPath.Namespace == "file" {
-		absPath := fs.Join(fs.Dir(source.KeyPath.Text), comment.Text)
+	if absResolveDir != "" {
+		absPath := fs.Join(absResolveDir, comment.Text)
 		path := logger.Path{Text: absPath, Namespace: "file"}
 		contents, err := fs.ReadFile(absPath)
 		if err != nil {
@@ -546,7 +536,6 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		prettyPath string,
 		importSource *logger.Source,
 		importPathRange logger.Range,
-		absResolveDir string,
 		kind inputKind,
 		inject chan config.InjectedFile,
 	) uint32 {
@@ -608,7 +597,6 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				importPathRange: importPathRange,
 				options:         optionsClone,
 				results:         resultChannel,
-				absResolveDir:   absResolveDir,
 				inject:          inject,
 				skipResolve:     skipResolve,
 			})
@@ -640,7 +628,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		i := len(injectedFiles)
 		injectedFiles = append(injectedFiles, config.InjectedFile{})
 		channel := make(chan config.InjectedFile)
-		maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, "", inputKindNormal, channel)
+		maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindNormal, channel)
 
 		// Wait for the results in parallel
 		injectWaitGroup.Add(1)
@@ -658,7 +646,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 	// Treat stdin as an extra entry point
 	if options.Stdin != nil {
 		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: logger.Path{Text: "<stdin>"}}}
-		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, options.Stdin.AbsResolveDir, inputKindStdin, nil)
+		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, inputKindStdin, nil)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -680,7 +668,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			continue
 		}
 
-		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, "", inputKindEntryPoint, nil)
+		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindEntryPoint, nil)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
@@ -708,7 +696,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				if !resolveResult.IsExternal {
 					// Handle a path within the bundle
 					prettyPath := res.PrettyPath(path)
-					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, "", inputKindNormal, nil)
+					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, inputKindNormal, nil)
 					record.SourceIndex = &sourceIndex
 				} else {
 					// If the path to the external module is relative to the source

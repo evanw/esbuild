@@ -556,9 +556,11 @@ export {
   },
 
   async stdinAndEntryBundle({ esbuild, testDir }) {
-    const entry = path.join(testDir, 'entry.js')
-    const auxiliary = path.join(testDir, 'auxiliary.js')
+    const srcDir = path.join(testDir, 'src')
+    const entry = path.join(srcDir, 'entry.js')
+    const auxiliary = path.join(srcDir, 'auxiliary.js')
     const outdir = path.join(testDir, 'out')
+    await mkdirAsync(srcDir)
     await writeFileAsync(auxiliary, 'export default 123')
     await writeFileAsync(entry, `
       import x from './auxiliary.js'
@@ -568,10 +570,10 @@ export {
       entryPoints: [entry],
       stdin: {
         contents: `
-          import x from './${path.relative(process.cwd(), auxiliary).replace(/\\/g, '/')}'
+          import x from './src/auxiliary.js'
           export {x as fromStdin}
         `,
-        sourcefile: 'der',
+        resolveDir: testDir,
       },
       bundle: true,
       outdir,

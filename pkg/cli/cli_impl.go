@@ -531,6 +531,7 @@ func runImpl(osArgs []string) int {
 				return 1
 			}
 			buildOptions.Stdin.Contents = string(bytes)
+			buildOptions.Stdin.ResolveDir, _ = os.Getwd()
 		} else if buildOptions.Stdin != nil {
 			if buildOptions.Stdin.Sourcefile != "" {
 				logger.PrintErrorToStderr(osArgs,

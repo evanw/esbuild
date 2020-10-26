@@ -10,6 +10,25 @@ The breaking changes are as follows:
 
     For the transform API, the return values `js` and `jsSourceMap` have been renamed to `code` and `map` respectively. This is because esbuild now supports CSS as a first-class content type, and returning CSS code in a variable called `js` made no sense.
 
+* When bundling stdin using the API, `resolveDir` is now required to resolve imports
+
+    The `resolveDir` option specifies the directory to resolve relative imports against. Previously it defaulted to the current working directory. Now it no longer does, so you must explicitly specify it if you need it:
+
+    ```js
+    const result = await esbuild.build({
+      stdin: {
+        contents,
+        resolveDir,
+      },
+      bundle: true,
+      outdir,
+    })
+    ```
+
+    This was changed because the original behavior was unintentional, and because being explicit seems better in this case. Note that this only affects the JavaScript and Go APIs. The resolution directory for stdin passed using the command-line API still defaults to the current working directory.
+
+    In addition, it is now possible for esbuild to discover input source maps linked via `//# sourceMappingURL=` comments relative to the `resolveDir` for stdin. This previously only worked for files with a real path on the file system.
+
 ## 0.7.22
 
 * Add `tsconfigRaw` to the transform API ([#483](https://github.com/evanw/esbuild/issues/483))
