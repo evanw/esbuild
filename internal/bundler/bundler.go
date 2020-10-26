@@ -525,7 +525,7 @@ func hashForFileName(bytes []byte) string {
 
 func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
 	results := []parseResult{}
-	visited := make(map[string]uint32)
+	visited := make(map[logger.Path]uint32)
 	resultChannel := make(chan parseResult)
 	remaining := 0
 
@@ -561,9 +561,9 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 		inject chan config.InjectedFile,
 	) uint32 {
 		path := resolveResult.PathPair.Primary
-		visitedKey := path.Text
-		if path.Namespace == "file" {
-			visitedKey = lowerCaseAbsPathForWindows(visitedKey)
+		visitedKey := path
+		if visitedKey.Namespace == "file" {
+			visitedKey.Text = lowerCaseAbsPathForWindows(visitedKey.Text)
 		}
 		sourceIndex, ok := visited[visitedKey]
 		if !ok {
@@ -779,9 +779,9 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				// pick the "module" field and the package is imported with "require" then
 				// code expecting a function will crash.
 				if resolveResult.PathPair.HasSecondary() {
-					secondaryKey := resolveResult.PathPair.Secondary.Text
-					if resolveResult.PathPair.Secondary.Namespace == "file" {
-						secondaryKey = lowerCaseAbsPathForWindows(secondaryKey)
+					secondaryKey := resolveResult.PathPair.Secondary
+					if secondaryKey.Namespace == "file" {
+						secondaryKey.Text = lowerCaseAbsPathForWindows(secondaryKey.Text)
 					}
 					if secondarySourceIndex, ok := visited[secondaryKey]; ok {
 						record.SourceIndex = &secondarySourceIndex
