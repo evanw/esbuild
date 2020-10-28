@@ -72,7 +72,7 @@
 //         fmt.Printf("%d errors and %d warnings\n",
 //             len(result.Errors), len(result.Warnings))
 //
-//         os.Stdout.Write(result.JS)
+//         os.Stdout.Write(result.Code)
 //     }
 //
 package api
