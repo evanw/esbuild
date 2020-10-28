@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.22
 
 * Add `tsconfigRaw` to the transform API ([#483](https://github.com/evanw/esbuild/issues/483))
 
