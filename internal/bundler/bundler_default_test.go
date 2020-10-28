@@ -3192,3 +3192,77 @@ func TestAvoidTDZNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestProcessEnvNodeEnvWarning(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(
+					process.env.NODE_ENV,
+					process.env.NODE_ENV,
+				)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: warning: Define "process.env.NODE_ENV" when bundling for the browser
+`,
+	})
+}
+
+func TestProcessEnvNodeEnvWarningNode(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(process.env.NODE_ENV)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Platform:      config.PlatformNode,
+		},
+	})
+}
+
+func TestProcessEnvNodeEnvWarningDefine(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"process.env.NODE_ENV": config.DefineData{
+			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
+				return &js_ast.ENull{}
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(process.env.NODE_ENV)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
+		},
+	})
+}
+
+func TestProcessEnvNodeEnvWarningNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(process.env.NODE_ENV)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

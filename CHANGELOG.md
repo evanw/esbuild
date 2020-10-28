@@ -23,6 +23,10 @@
 
     You can also pass the `tsconfig.json` file as a string instead of a JSON object if you prefer. This can be useful because `tsconfig.json` files actually use a weird pseudo-JSON syntax that allows comments and trailing commas, which means it can't be parsed with `JSON.parse()`.
 
+* Warn about `process.env.NODE_ENV`
+
+    Some popular browser-oriented libraries such as React use `process.env.NODE_ENV` even though this is not an API provided by the browser. While esbuild makes it easy to replace this at compile time using the `--define` feature, you must still do this manually and it's easy to forget. Now esbuild will warn you if you're bundling code containing `process.env.NODE_ENV` for the browser and you haven't configured it to be replaced by something.
+
 ## 0.7.21
 
 * Use bracketed escape codes for non-BMP characters

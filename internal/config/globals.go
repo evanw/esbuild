@@ -118,16 +118,30 @@ type DefineFunc func(logger.Loc, FindSymbol) js_ast.E
 type DefineData struct {
 	DefineFunc DefineFunc
 
+	// True if accessing this value is known to not have any side effects. For
+	// example, a bare reference to "Object.create" can be removed because it
+	// does not have any observable side effects.
+	CanBeRemovedIfUnused bool
+
 	// True if a call to this value is known to not have any side effects. For
 	// example, a bare call to "Object()" can be removed because it does not
 	// have any observable side effects.
 	CallCanBeUnwrappedIfUnused bool
+
+	// Set to true to warn users that this should be defined if it's not already.
+	WarnAboutLackOfDefine bool
 }
 
 func mergeDefineData(old DefineData, new DefineData) DefineData {
+	if old.CanBeRemovedIfUnused {
+		new.CanBeRemovedIfUnused = true
+	}
 	if old.CallCanBeUnwrappedIfUnused {
 		new.CallCanBeUnwrappedIfUnused = true
 	}
+
+	// Don't warn if the user defined this
+	new.WarnAboutLackOfDefine = false
 	return new
 }
 
@@ -171,9 +185,9 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	for _, parts := range knownGlobals {
 		tail := parts[len(parts)-1]
 		if len(parts) == 1 {
-			result.IdentifierDefines[tail] = DefineData{}
+			result.IdentifierDefines[tail] = DefineData{CanBeRemovedIfUnused: true}
 		} else {
-			result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts})
+			result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts, Data: DefineData{CanBeRemovedIfUnused: true}})
 		}
 	}
 
@@ -187,6 +201,12 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	result.IdentifierDefines["Infinity"] = DefineData{
 		DefineFunc: func(logger.Loc, FindSymbol) js_ast.E { return &js_ast.ENumber{Value: math.Inf(1)} },
 	}
+
+	// Warn about use of this without a define
+	result.DotDefines["NODE_ENV"] = []DotDefine{{
+		Parts: []string{"process", "env", "NODE_ENV"},
+		Data:  DefineData{WarnAboutLackOfDefine: true},
+	}}
 
 	// Then copy the user-specified defines in afterwards, which will overwrite
 	// any known globals above.

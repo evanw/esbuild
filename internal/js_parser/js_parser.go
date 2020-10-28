@@ -60,6 +60,7 @@ type parser struct {
 	runtimeImports           map[string]js_ast.Ref
 	duplicateCaseChecker     duplicateCaseChecker
 	nonBMPIdentifiers        map[string]bool
+	lackOfDefineWarnings     map[string]bool
 
 	// For lowering private methods
 	weakMapRef     js_ast.Ref
@@ -7609,11 +7610,16 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, as
 
 func (p *parser) checkForNonBMPCodePoint(loc logger.Loc, name string) {
 	if p.ASCIIOnly && p.UnsupportedJSFeatures.Has(compat.UnicodeEscapes) &&
-		js_lexer.ContainsNonBMPCodePoint(name) && !p.nonBMPIdentifiers[name] {
-		p.nonBMPIdentifiers[name] = true
-		r := js_lexer.RangeOfIdentifier(p.source, loc)
-		p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q cannot be escaped in the target environment ("+
-			"consider setting the charset to \"utf8\" or changing the target)", name))
+		js_lexer.ContainsNonBMPCodePoint(name) {
+		if p.nonBMPIdentifiers == nil {
+			p.nonBMPIdentifiers = make(map[string]bool)
+		}
+		if !p.nonBMPIdentifiers[name] {
+			p.nonBMPIdentifiers[name] = true
+			r := js_lexer.RangeOfIdentifier(p.source, loc)
+			p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q cannot be escaped in the target environment ("+
+				"consider setting the charset to \"utf8\" or changing the target)", name))
+		}
 	}
 }
 
@@ -7688,6 +7694,19 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 	}
 
 	return false
+}
+
+func (p *parser) warnAboutLackOfDefine(name string, r logger.Range) {
+	if p.Mode == config.ModeBundle && p.Platform == config.PlatformBrowser {
+		if p.lackOfDefineWarnings == nil {
+			p.lackOfDefineWarnings = make(map[string]bool)
+		}
+		if !p.lackOfDefineWarnings[name] {
+			p.lackOfDefineWarnings[name] = true
+			p.log.AddRangeWarning(&p.source, r,
+				fmt.Sprintf("Define %q when bundling for the browser", name))
+		}
+	}
 }
 
 // EDot nodes represent a property access. This function may return an
@@ -8097,14 +8116,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 				}
 
-				// Copy the call side effect flag over in case this expression is called
+				// Copy the side effect flags over in case this expression is unused
+				if data.CanBeRemovedIfUnused {
+					e.CanBeRemovedIfUnused = true
+				}
 				if data.CallCanBeUnwrappedIfUnused {
 					e.CallCanBeUnwrappedIfUnused = true
 				}
-
-				// All identifier defines that don't have user-specified replacements
-				// are known to be side-effect free. Mark them as such if we get here.
-				e.CanBeRemovedIfUnused = true
+				if data.WarnAboutLackOfDefine {
+					p.warnAboutLackOfDefine(name, js_lexer.RangeOfIdentifier(p.source, expr.Loc))
+				}
 			}
 		}
 
@@ -8814,14 +8835,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						return p.valueForDefine(expr.Loc, in.assignTarget, define.Data.DefineFunc), exprOut{}
 					}
 
-					// Copy the call side effect flag over in case this expression is called
+					// Copy the side effect flags over in case this expression is unused
+					if define.Data.CanBeRemovedIfUnused {
+						e.CanBeRemovedIfUnused = true
+					}
 					if define.Data.CallCanBeUnwrappedIfUnused {
 						e.CallCanBeUnwrappedIfUnused = true
 					}
-
-					// All dot defines that don't have user-specified replacements are
-					// known to be side-effect free. Mark them as such if we get here.
-					e.CanBeRemovedIfUnused = true
+					if define.Data.WarnAboutLackOfDefine {
+						r := js_lexer.RangeOfIdentifier(p.source, e.NameLoc)
+						r = logger.Range{Loc: expr.Loc, Len: r.End() - expr.Loc.Start}
+						p.warnAboutLackOfDefine(strings.Join(define.Parts, "."), r)
+					}
 					break
 				}
 			}
@@ -10103,7 +10128,6 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		Options:            *options,
 		fnOrArrowDataParse: fnOrArrowDataParse{isOutsideFn: true},
 		runtimeImports:     make(map[string]js_ast.Ref),
-		nonBMPIdentifiers:  make(map[string]bool),
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,
