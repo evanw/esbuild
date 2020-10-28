@@ -28,7 +28,7 @@ func code(isES6 bool) string {
 		var __getProtoOf = Object.getPrototypeOf
 		var __hasOwnProp = Object.prototype.hasOwnProperty
 		var __getOwnPropNames = Object.getOwnPropertyNames
-		var __getOwnPropDesc = Object.getOwnPropertyDescriptor
+		var __getOwnPropDesc = Object.getOwnPropertyDescriptor // Note: can return "undefined" due to a Safari bug
 		var __getOwnPropSymbols = Object.getOwnPropertySymbols
 		var __propIsEnum = Object.prototype.propertyIsEnumerable
 
@@ -82,7 +82,7 @@ func code(isES6 bool) string {
 			for (var name in all)
 				__defProp(target, name, { get: all[name], enumerable: true })
 		}
-		export var __exportStar = (target, module) => {
+		export var __exportStar = (target, module, desc) => {
 			__markAsModule(target)
 			if (typeof module === 'object' || typeof module === 'function')
 	`
@@ -92,14 +92,14 @@ func code(isES6 bool) string {
 		text += `
 				for (let key of __getOwnPropNames(module))
 					if (!__hasOwnProp.call(target, key) && key !== 'default')
-						__defProp(target, key, { get: () => module[key], enumerable: __getOwnPropDesc(module, key).enumerable })
+						__defProp(target, key, { get: () => module[key], enumerable: !(desc = __getOwnPropDesc(module, key)) || desc.enumerable })
 		`
 	} else {
 		text += `
 				for (var keys = __getOwnPropNames(module), i = 0, n = keys.length, key; i < n; i++) {
 					key = keys[i]
 					if (!__hasOwnProp.call(target, key) && key !== 'default')
-						__defProp(target, key, { get: (k => module[k]).bind(null, key), enumerable: __getOwnPropDesc(module, key).enumerable })
+						__defProp(target, key, { get: (k => module[k]).bind(null, key), enumerable: !(desc = __getOwnPropDesc(module, key)) || desc.enumerable })
 				}
 		`
 	}

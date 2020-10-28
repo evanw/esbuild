@@ -27,6 +27,10 @@
 
     Some popular browser-oriented libraries such as React use `process.env.NODE_ENV` even though this is not an API provided by the browser. While esbuild makes it easy to replace this at compile time using the `--define` feature, you must still do this manually and it's easy to forget. Now esbuild will warn you if you're bundling code containing `process.env.NODE_ENV` for the browser and you haven't configured it to be replaced by something.
 
+* Work around a bug in Safari for the run-time code ([#489](https://github.com/evanw/esbuild/issues/489))
+
+    The `Object.getOwnPropertyDescriptor` function in Safari is broken for numeric properties. It incorrectly returns `undefined`, which crashes the run-time code esbuild uses to bind modules together. This release contains code to avoid a crash in this case.
+
 ## 0.7.21
 
 * Use bracketed escape codes for non-BMP characters
