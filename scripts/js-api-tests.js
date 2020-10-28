@@ -4,6 +4,7 @@ const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
 const fs = require('fs')
+const vm = require('vm')
 
 const readFileAsync = fs.promises.readFile
 const writeFileAsync = fs.promises.writeFile
@@ -922,6 +923,55 @@ let transformTests = {
   async es6_export_star_as_to_esm({ service }) {
     const { code } = await service.transform(`export * as fs from "fs"`, { format: 'esm' })
     assert.strictEqual(code, `import * as fs from "fs";\nexport {\n  fs\n};\n`)
+  },
+
+  async iifeGlobalName({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'testName' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.testName.default, 123)
+  },
+
+  async iifeGlobalNameCompound({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'test.name' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.test.name.default, 123)
+  },
+
+  async iifeGlobalNameString({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'test["some text"]' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.test['some text'].default, 123)
+  },
+
+  async iifeGlobalNameUnicodeEscape({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var \\u03C0 = \\u03C0 || {};
+\\u03C0["\\u03C0 \\uD800\\uDC00"] = \\u03C0["\\u03C0 \\uD800\\uDC00"] || {};
+\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000} = \\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000} || {};
+\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000}["\\uD800\\uDC00 \\u03C0"] = `)
+  },
+
+  async iifeGlobalNameUnicodeNoEscape({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', charset: 'utf8' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')),
+      `var π = π || {};
+π["π 𐀀"] = π["π 𐀀"] || {};
+π["π 𐀀"].𐀀 = π["π 𐀀"].𐀀 || {};
+π["π 𐀀"].𐀀["𐀀 π"] = `)
   },
 
   async jsx({ service }) {

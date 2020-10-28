@@ -231,6 +231,7 @@ type Lexer struct {
 	SourceMappingURL                js_ast.Span
 	Number                          float64
 	rescanCloseBraceAsTemplateToken bool
+	forGlobalName                   bool
 	json                            json
 
 	// The log is disabled during speculative scans that may backtrack
@@ -243,6 +244,17 @@ func NewLexer(log logger.Log, source logger.Source) Lexer {
 	lexer := Lexer{
 		log:    log,
 		source: source,
+	}
+	lexer.step()
+	lexer.Next()
+	return lexer
+}
+
+func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
+	lexer := Lexer{
+		log:           log,
+		source:        source,
+		forGlobalName: true,
 	}
 	lexer.step()
 	lexer.Next()
@@ -1173,6 +1185,10 @@ func (lexer *Lexer) Next() {
 		case '/':
 			// '/' or '/=' or '//' or '/* ... */'
 			lexer.step()
+			if lexer.forGlobalName {
+				lexer.Token = TSlash
+				break
+			}
 			switch lexer.codePoint {
 			case '=':
 				lexer.step()
@@ -1374,7 +1390,8 @@ func (lexer *Lexer) Next() {
 					}
 
 				case -1: // This indicates the end of the file
-					lexer.SyntaxError()
+					lexer.addError(logger.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
+					panic(LexerPanic{})
 
 				case '\r':
 					if quote != '`' {

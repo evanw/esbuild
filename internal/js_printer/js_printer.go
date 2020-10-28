@@ -332,6 +332,38 @@ func QuoteForJSON(text string, asciiOnly bool) []byte {
 	return append(bytes, '"')
 }
 
+func QuoteIdentifier(js []byte, name string, unsupportedFeatures compat.JSFeature) []byte {
+	isASCII := false
+	asciiStart := 0
+	for i, c := range name {
+		if c >= firstASCII && c <= lastASCII {
+			// Fast path: a run of ASCII characters
+			if !isASCII {
+				isASCII = true
+				asciiStart = i
+			}
+		} else {
+			// Slow path: escape non-ACSII characters
+			if isASCII {
+				js = append(js, name[asciiStart:i]...)
+				isASCII = false
+			}
+			if c <= 0xFFFF {
+				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
+			} else if !unsupportedFeatures.Has(compat.UnicodeEscapes) {
+				js = append(js, fmt.Sprintf("\\u{%X}", c)...)
+			} else {
+				panic("Internal error: Cannot encode identifier: Unicode escapes are unsupported")
+			}
+		}
+	}
+	if isASCII {
+		// Print one final run of ASCII characters
+		js = append(js, name[asciiStart:]...)
+	}
+	return js
+}
+
 func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 	temp := make([]byte, utf8.UTFMax)
 	js := p.js
@@ -792,38 +824,10 @@ func (p *printer) canPrintIdentifierUTF16(name []uint16) bool {
 
 func (p *printer) printIdentifier(name string) {
 	if p.options.ASCIIOnly {
-		isASCII := false
-		asciiStart := 0
-		for i, c := range name {
-			if c >= firstASCII && c <= lastASCII {
-				// Fast path: a run of ASCII characters
-				if !isASCII {
-					isASCII = true
-					asciiStart = i
-				}
-			} else {
-				// Slow path: escape non-ACSII characters
-				if isASCII {
-					p.print(name[asciiStart:i])
-					isASCII = false
-				}
-				if c <= 0xFFFF {
-					p.js = append(p.js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
-				} else if !p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) {
-					p.print(fmt.Sprintf("\\u{%X}", c))
-				} else {
-					panic("Internal error: Cannot encode identifier: Unicode escapes are unsupported")
-				}
-			}
-		}
-		if isASCII {
-			// Print one final run of ASCII characters
-			p.print(name[asciiStart:])
-		}
-		return
+		p.js = QuoteIdentifier(p.js, name, p.options.UnsupportedFeatures)
+	} else {
+		p.print(name)
 	}
-
-	p.print(name)
 }
 
 // This is the same as "printIdentifier(StringToUTF16(bytes))" without any

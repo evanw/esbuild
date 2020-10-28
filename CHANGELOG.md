@@ -62,6 +62,42 @@ The breaking changes are as follows:
     * `Loaders` → `Loader`
     * `PureFunctions` → `Pure`
 
+* The global name parameter now takes a JavaScript expression ([#293](https://github.com/evanw/esbuild/issues/293))
+
+    The global name parameter determines the name of the global variable created for exports with the IIFE output format. For example, a global name of `abc` would generate the following IIFE:
+
+    ```js
+    var abc = (() => {
+      ...
+    })();
+    ```
+
+    Previously this name was injected into the source code verbatim without any validation. This meant a global name of `abc.def` would generate this code, which is a syntax error:
+
+    ```js
+    var abc.def = (() => {
+      ...
+    })();
+    ```
+
+    With this release, a global name of `abc.def` will now generate the following code instead:
+
+    ```js
+    var abc = abc || {};
+    abc.def = (() => {
+      ...
+    })();
+    ```
+
+    The full syntax is an identifier followed by one or more property accesses. If you need to include a `.` character in your property name, you can use an index expression instead. For example, the global name `versions['1.0']` will generate the following code:
+
+    ```js
+    var versions = versions || {};
+    versions["1.0"] = (() => {
+      ...
+    })();
+    ```
+
 * Removed the workaround for `document.all` with nullish coalescing and optional chaining
 
     The `--strict:nullish-coalescing` and `--strict:optional-chaining` options have been removed. They only existed to address a theoretical problem where modern code that uses the new `??` and `?.` operators interacted with the legacy [`document.all` object](https://developer.mozilla.org/en-US/docs/Web/API/Document/all) that has been deprecated for a long time. Realistically this case is extremely unlikely to come up in practice, so these obscure options were removed to simplify the API and reduce code complexity. For what it's worth this behavior also matches [Terser](https://github.com/terser/terser), a commonly-used JavaScript minifier.

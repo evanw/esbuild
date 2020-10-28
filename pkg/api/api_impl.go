@@ -210,6 +210,22 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints)
 }
 
+func validateGlobalName(log logger.Log, text string) []string {
+	if text != "" {
+		source := logger.Source{
+			KeyPath:    logger.Path{Text: "(global path)"},
+			PrettyPath: "(global name)",
+			Contents:   text,
+		}
+
+		if result, ok := js_parser.ParseGlobalName(log, source); ok {
+			return result
+		}
+	}
+
+	return nil
+}
+
 func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalModules {
 	result := config.ExternalModules{
 		NodeModules: make(map[string]bool),
@@ -424,7 +440,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		RemoveWhitespace:  buildOpts.MinifyWhitespace,
 		MinifyIdentifiers: buildOpts.MinifyIdentifiers,
 		ASCIIOnly:         validateASCIIOnly(buildOpts.Charset),
-		ModuleName:        buildOpts.GlobalName,
+		ModuleName:        validateGlobalName(log, buildOpts.GlobalName),
 		CodeSplitting:     buildOpts.Splitting,
 		OutputFormat:      validateFormat(buildOpts.Format),
 		AbsOutputFile:     validatePath(log, realFS, buildOpts.Outfile),
@@ -648,7 +664,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		Defines:                 validateDefines(log, transformOpts.Define, transformOpts.Pure),
 		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
 		OutputFormat:            validateFormat(transformOpts.Format),
-		ModuleName:              transformOpts.GlobalName,
+		ModuleName:              validateGlobalName(log, transformOpts.GlobalName),
 		MangleSyntax:            transformOpts.MinifySyntax,
 		RemoveWhitespace:        transformOpts.MinifyWhitespace,
 		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,

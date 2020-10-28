@@ -229,7 +229,7 @@ func TestExportFormsIIFE(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatIIFE,
-			ModuleName:    "moduleName",
+			ModuleName:    []string{"moduleName"},
 			AbsOutputFile: "/out.js",
 		},
 	})

@@ -1653,7 +1653,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			}}}}
 
 		case config.FormatIIFE:
-			if c.options.ModuleName != "" {
+			if len(c.options.ModuleName) > 0 {
 				// "return require_foo();"
 				cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
@@ -3396,13 +3396,13 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		if c.options.OutputFormat == config.FormatIIFE {
 			var text string
 			indent = "  "
-			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
-				text = "(function()" + space + "{" + newline
-			} else {
-				text = "(()" + space + "=>" + space + "{" + newline
+			if len(c.options.ModuleName) > 0 {
+				text = generateModuleNamePrefix(c.options)
 			}
-			if c.options.ModuleName != "" {
-				text = "var " + c.options.ModuleName + space + "=" + space + text
+			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+				text += "(function()" + space + "{" + newline
+			} else {
+				text += "(()" + space + "=>" + space + "{" + newline
 			}
 			prevOffset.advanceString(text)
 			j.AddString(text)
@@ -3651,6 +3651,43 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		})
 		return results
 	}
+}
+
+func generateModuleNamePrefix(options *config.Options) string {
+	var text string
+	prefix := options.ModuleName[0]
+	space := " "
+	join := ";\n"
+
+	if options.RemoveWhitespace {
+		space = ""
+		join = ";"
+	}
+
+	if js_lexer.IsIdentifier(prefix) {
+		if options.ASCIIOnly {
+			prefix = string(js_printer.QuoteIdentifier(nil, prefix, options.UnsupportedJSFeatures))
+		}
+		text = fmt.Sprintf("var %s%s=%s", prefix, space, space)
+	} else {
+		prefix = fmt.Sprintf("this[%s]", js_printer.QuoteForJSON(prefix, options.ASCIIOnly))
+		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
+	}
+
+	for _, name := range options.ModuleName[1:] {
+		oldPrefix := prefix
+		if js_lexer.IsIdentifier(name) {
+			if options.ASCIIOnly {
+				name = string(js_printer.QuoteIdentifier(nil, name, options.UnsupportedJSFeatures))
+			}
+			prefix = fmt.Sprintf("%s.%s", prefix, name)
+		} else {
+			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, options.ASCIIOnly))
+		}
+		text += fmt.Sprintf("%s%s||%s{}%s%s%s=%s", oldPrefix, space, space, join, prefix, space, space)
+	}
+
+	return text
 }
 
 type compileResultCSS struct {

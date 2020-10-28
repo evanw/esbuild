@@ -114,7 +114,7 @@ func TestJSONString(t *testing.T) {
 	expectPrintedJSON(t, "\"\\uDC00\"", "\"\\uDC00\"")
 
 	// Invalid escapes
-	expectParseErrorJSON(t, "\"\\", "<stdin>: error: Unexpected end of file\n")
+	expectParseErrorJSON(t, "\"\\", "<stdin>: error: Unterminated string literal\n")
 	expectParseErrorJSON(t, "\"\\0\"", "<stdin>: error: Syntax error \"0\"\n")
 	expectParseErrorJSON(t, "\"\\1\"", "<stdin>: error: Syntax error \"1\"\n")
 	expectParseErrorJSON(t, "\"\\'\"", "<stdin>: error: Syntax error \"'\"\n")
