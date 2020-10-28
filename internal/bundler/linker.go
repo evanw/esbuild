@@ -3664,7 +3664,7 @@ func generateModuleNamePrefix(options *config.Options) string {
 		join = ";"
 	}
 
-	if js_lexer.IsIdentifier(prefix) {
+	if js_printer.CanQuoteIdentifier(prefix, options) {
 		if options.ASCIIOnly {
 			prefix = string(js_printer.QuoteIdentifier(nil, prefix, options.UnsupportedJSFeatures))
 		}
@@ -3676,7 +3676,7 @@ func generateModuleNamePrefix(options *config.Options) string {
 
 	for _, name := range options.ModuleName[1:] {
 		oldPrefix := prefix
-		if js_lexer.IsIdentifier(name) {
+		if js_printer.CanQuoteIdentifier(name, options) {
 			if options.ASCIIOnly {
 				name = string(js_printer.QuoteIdentifier(nil, name, options.UnsupportedJSFeatures))
 			}

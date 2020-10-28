@@ -810,6 +810,12 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printIdentifier(p.renamer.NameForSymbol(ref))
 }
 
+func CanQuoteIdentifier(name string, options *config.Options) bool {
+	return js_lexer.IsIdentifier(name) && (!options.ASCIIOnly ||
+		!options.UnsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
+		!js_lexer.ContainsNonBMPCodePoint(name))
+}
+
 func (p *printer) canPrintIdentifier(name string) bool {
 	return js_lexer.IsIdentifier(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
