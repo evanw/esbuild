@@ -711,7 +711,7 @@ let transformTests = {
     }
   },
 
-  async tsconfigRaw({ service }) {
+  async tsconfigRawImportsNotUsedAsValues({ service }) {
     const { js: js1 } = await service.transform(`import {T} from 'path'`, {
       tsconfigRaw: {
         compilerOptions: {
@@ -742,6 +742,50 @@ let transformTests = {
       loader: 'ts',
     })
     assert.strictEqual(js3, `import "path";\n`)
+  },
+
+  async tsconfigRawImportsNotUsedAsValues({ service }) {
+    const { js: js1 } = await service.transform(`class Foo { foo }`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          useDefineForClassFields: false,
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(js1, `class Foo {\n}\n`)
+
+    const { js: js2 } = await service.transform(`class Foo { foo }`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          useDefineForClassFields: true,
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(js2, `class Foo {\n  foo;\n}\n`)
+  },
+
+  async tsconfigRawJSX({ service }) {
+    const { js: js1 } = await service.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(js1, `/* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null));\n`)
+
+    const { js: js2 } = await service.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          jsxFactory: 'factory',
+          jsxFragmentFactory: 'fragment',
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(js2, `/* @__PURE__ */ factory(fragment, null, /* @__PURE__ */ factory("div", null));\n`)
   },
 
   async jsCharsetDefault({ service }) {
