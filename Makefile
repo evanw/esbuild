@@ -197,7 +197,7 @@ require/webpack/node_modules:
 require/webpack5/node_modules:
 	mkdir -p require/webpack5
 	echo '{}' > require/webpack5/package.json
-	cd require/webpack5 && npm install webpack@5.0.0-rc.4 webpack-cli@4.0.0-rc.1 ts-loader@8.0.4 typescript@4.0.3
+	cd require/webpack5 && npm install webpack@5.3.1 webpack-cli@4.1.0 ts-loader@8.0.7 typescript@4.0.3
 
 require/rollup/node_modules:
 	mkdir -p require/rollup
@@ -499,7 +499,7 @@ bench/three: | github/three
 	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/src/entry.js; done
 	echo 'Line count:' && find bench/three/src -name '*.js' | xargs wc -l | tail -n 1
 
-bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-webpack5 bench-three-parcel bench-three-fusebox
+bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-webpack5 bench-three-webpack5-cache bench-three-parcel bench-three-fusebox
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
@@ -537,6 +537,18 @@ bench-three-webpack5: | require/webpack5/node_modules bench/three
 	ln -s ../../../../bench/three/src require/webpack5/bench/three/src
 	ln -s ../../../../bench/three/webpack5 require/webpack5/bench/three/out
 	cd require/webpack5/bench/three && time -p ../../node_modules/.bin/webpack ./src/entry.js $(THREE_WEBPACK5_FLAGS) -o out/entry.webpack5.js
+	du -h bench/three/webpack5/entry.webpack5.js*
+
+bench-three-webpack5-cache: | require/webpack5/node_modules bench/three
+	rm -fr require/webpack5/bench/three bench/three/webpack5
+	mkdir -p require/webpack5/bench/three bench/three/webpack5
+	ln -s ../../../../bench/three/src require/webpack5/bench/three/src
+	ln -s ../../../../bench/three/webpack5 require/webpack5/bench/three/out
+	rm -rf require/webpack5/node_modules/.cache
+	# First run - No cache
+	cd require/webpack5/bench/three && time -p ../../node_modules/.bin/webpack ./src/entry.js $(THREE_WEBPACK5_FLAGS) -o out/entry.webpack5.js --cache-type=filesystem
+	# Second run - With cache
+	cd require/webpack5/bench/three && time -p ../../node_modules/.bin/webpack ./src/entry.js $(THREE_WEBPACK5_FLAGS) -o out/entry.webpack5.js --cache-type=filesystem
 	du -h bench/three/webpack5/entry.webpack5.js*
 
 bench-three-parcel: | require/parcel/node_modules bench/three
