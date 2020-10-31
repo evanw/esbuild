@@ -845,6 +845,42 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 
 		repr.exportsToOtherChunks = make(map[js_ast.Ref]string)
 		switch c.options.OutputFormat {
+		case config.FormatCommonJS:
+			r := renamer.ExportRenamer{}
+			items := []js_ast.Property{
+				{
+					Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16("__esModule")}},
+					Value: &js_ast.Expr{Data: &js_ast.EBoolean{Value: true}},
+				},
+			}
+			for _, export := range c.sortedCrossChunkExportItems(chunkMetas[chunkIndex].exports) {
+				var alias string
+				if c.options.MinifyIdentifiers {
+					alias = r.NextMinifiedName()
+				} else {
+					alias = r.NextRenamedName(c.symbols.Get(export.ref).OriginalName)
+				}
+				items = append(items, js_ast.Property{
+					Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
+					Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: export.ref}},
+				})
+				repr.exportsToOtherChunks[export.ref] = alias
+			}
+
+			if len(items) > 1 {
+				repr.crossChunkSuffixStmts = []js_ast.Stmt{
+					{Data: &js_ast.SExpr{
+						Value: js_ast.Assign(
+							js_ast.Expr{Data: &js_ast.EDot{
+								Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+								Name:   "exports",
+							}},
+							js_ast.Expr{Data: &js_ast.EObject{Properties: items}},
+						),
+					}},
+				}
+			}
+
 		case config.FormatESModule:
 			r := renamer.ExportRenamer{}
 			var items []js_ast.ClauseItem
@@ -884,6 +920,34 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 
 		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, repr.importsFromOtherChunks) {
 			switch c.options.OutputFormat {
+			case config.FormatCommonJS:
+				var items []js_ast.PropertyBinding
+				for _, item := range crossChunkImport.sortedImportItems {
+					items = append(items, js_ast.PropertyBinding{
+						Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(item.exportAlias)}},
+						Value: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: item.ref}},
+					})
+				}
+				importRecordIndex := uint32(len(crossChunkImports))
+				crossChunkImports = append(crossChunkImports, crossChunkImport.chunkIndex)
+				if len(items) > 0 {
+					crossChunkPrefixStmts = append(crossChunkPrefixStmts, js_ast.Stmt{Data: &js_ast.SLocal{
+						Kind: js_ast.LocalVar,
+						Decls: []js_ast.Decl{{
+							Binding: js_ast.Binding{Data: &js_ast.BObject{
+								Properties: items,
+							}},
+							Value: &js_ast.Expr{
+								Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex},
+							},
+						}},
+					}})
+				} else {
+					crossChunkPrefixStmts = append(crossChunkPrefixStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{
+						Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex},
+					}}})
+				}
+
 			case config.FormatESModule:
 				var items []js_ast.ClauseItem
 				for _, item := range crossChunkImport.sortedImportItems {
@@ -1395,6 +1459,12 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// for other files within this method or you will create a data race.
 	////////////////////////////////////////////////////////////////////////////////
 
+	entryPointCJSExportItems := []js_ast.Property{
+		{
+			Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16("__esModule")}},
+			Value: &js_ast.Expr{Data: &js_ast.EBoolean{Value: true}},
+		},
+	}
 	var entryPointES6ExportItems []js_ast.ClauseItem
 	var entryPointExportStmts []js_ast.Stmt
 	file := &c.files[sourceIndex]
@@ -1405,8 +1475,9 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// entry point is a CommonJS-style module, since that would generate an ES6
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
-	needsEntryPointES6ExportPart := file.isEntryPoint && !repr.meta.cjsWrap &&
-		c.options.OutputFormat == config.FormatESModule && len(repr.meta.sortedAndFilteredExportAliases) > 0
+	needsEntryPointExportPart := file.isEntryPoint && !repr.meta.cjsWrap &&
+		(c.options.OutputFormat == config.FormatESModule || c.options.OutputFormat == config.FormatCommonJS) &&
+		len(repr.meta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
 	properties := []js_ast.Property{}
@@ -1435,7 +1506,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			// Imported identifiers must be assigned to a local variable to be
 			// exported using an ES6 export clause. The import needs to be an
 			// EImportIdentifier in case it's imported from a CommonJS module.
-			if needsEntryPointES6ExportPart {
+			if needsEntryPointExportPart {
 				// Generate a temporary variable
 				inner := &c.symbols.Outer[sourceIndex]
 				tempRef := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(len(*inner))}
@@ -1495,16 +1566,30 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 						Value:   &js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.ref}},
 					}},
 				}})
-				entryPointES6ExportItems = append(entryPointES6ExportItems, js_ast.ClauseItem{
-					Name:  js_ast.LocRef{Ref: tempRef},
-					Alias: alias,
-				})
+
+				switch c.options.OutputFormat {
+				case config.FormatCommonJS:
+					entryPointCJSExportItems = append(entryPointCJSExportItems, js_ast.Property{
+						Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
+						Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: tempRef}},
+					})
+
+				case config.FormatESModule:
+					entryPointES6ExportItems = append(entryPointES6ExportItems, js_ast.ClauseItem{
+						Name:  js_ast.LocRef{Ref: tempRef},
+						Alias: alias,
+					})
+
+				default:
+					panic("Internal error")
+				}
+
 				entryPointExportSymbolUses[tempRef] = js_ast.SymbolUse{CountEstimate: 2}
 			}
 		} else {
 			value = js_ast.Expr{Data: &js_ast.EIdentifier{Ref: export.ref}}
 
-			if needsEntryPointES6ExportPart {
+			if needsEntryPointExportPart {
 				// Local identifiers can be exported using an export clause. This is done
 				// this way instead of leaving the "export" keyword on the local declaration
 				// itself both because it lets the local identifier be minified and because
@@ -1528,10 +1613,22 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				//     foo
 				//   };
 				//
-				entryPointES6ExportItems = append(entryPointES6ExportItems, js_ast.ClauseItem{
-					Name:  js_ast.LocRef{Ref: export.ref},
-					Alias: alias,
-				})
+				switch c.options.OutputFormat {
+				case config.FormatCommonJS:
+					entryPointCJSExportItems = append(entryPointCJSExportItems, js_ast.Property{
+						Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
+						Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: export.ref}},
+					})
+
+				case config.FormatESModule:
+					entryPointES6ExportItems = append(entryPointES6ExportItems, js_ast.ClauseItem{
+						Name:  js_ast.LocRef{Ref: export.ref},
+						Alias: alias,
+					})
+
+				default:
+					panic("Internal error")
+				}
 			}
 		}
 
@@ -1633,6 +1730,21 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		// Pull in the "__export" symbol if it was used
 		if exportRef != js_ast.InvalidRef {
 			repr.meta.needsExportSymbolFromRuntime = true
+		}
+	}
+
+	if len(entryPointCJSExportItems) > 1 {
+		if !repr.meta.cjsStyleExports {
+			entryPointExportStmts = append(entryPointExportStmts,
+				js_ast.Stmt{Data: &js_ast.SExpr{
+					Value: js_ast.Assign(
+						js_ast.Expr{Data: &js_ast.EDot{
+							Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+							Name:   "exports",
+						}},
+						js_ast.Expr{Data: &js_ast.EObject{Properties: entryPointCJSExportItems}},
+					),
+				}})
 		}
 	}
 

@@ -532,9 +532,10 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		options.Mode = config.ModeConvertFormat
 	}
 
-	// Code splitting is experimental and currently only enabled for ES6 modules
-	if options.CodeSplitting && options.OutputFormat != config.FormatESModule {
-		log.AddError(nil, logger.Loc{}, "Splitting currently only works with the \"esm\" format")
+	// Code splitting is experimental and currently only enabled for ES6 and CJS modules
+	if options.CodeSplitting && (options.OutputFormat != config.FormatESModule &&
+		options.OutputFormat != config.FormatCommonJS) {
+		log.AddError(nil, logger.Loc{}, "Splitting currently only works with the \"esm\" and \"cjs\" formats")
 	}
 
 	var outputFiles []OutputFile
