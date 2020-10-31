@@ -1476,7 +1476,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// export statement that's not top-level. Instead, we will export the CommonJS
 	// exports as a default export later on.
 	needsEntryPointExportPart := file.isEntryPoint && !repr.meta.cjsWrap &&
-		(c.options.OutputFormat == config.FormatESModule || c.options.OutputFormat == config.FormatCommonJS) &&
+		(c.options.OutputFormat == config.FormatESModule || (c.options.OutputFormat == config.FormatCommonJS && !repr.meta.cjsStyleExports)) &&
 		len(repr.meta.sortedAndFilteredExportAliases) > 0
 
 	// Generate a getter per export
@@ -1734,18 +1734,16 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	}
 
 	if len(entryPointCJSExportItems) > 1 {
-		if !repr.meta.cjsStyleExports {
-			entryPointExportStmts = append(entryPointExportStmts,
-				js_ast.Stmt{Data: &js_ast.SExpr{
-					Value: js_ast.Assign(
-						js_ast.Expr{Data: &js_ast.EDot{
-							Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
-							Name:   "exports",
-						}},
-						js_ast.Expr{Data: &js_ast.EObject{Properties: entryPointCJSExportItems}},
-					),
-				}})
-		}
+		entryPointExportStmts = append(entryPointExportStmts,
+			js_ast.Stmt{Data: &js_ast.SExpr{
+				Value: js_ast.Assign(
+					js_ast.Expr{Data: &js_ast.EDot{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+						Name:   "exports",
+					}},
+					js_ast.Expr{Data: &js_ast.EObject{Properties: entryPointCJSExportItems}},
+				),
+			}})
 	}
 
 	if len(entryPointES6ExportItems) > 0 {
