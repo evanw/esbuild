@@ -231,6 +231,7 @@ type Lexer struct {
 	SourceMappingURL                js_ast.Span
 	Number                          float64
 	rescanCloseBraceAsTemplateToken bool
+	forGlobalName                   bool
 	json                            json
 
 	// The log is disabled during speculative scans that may backtrack
@@ -243,6 +244,17 @@ func NewLexer(log logger.Log, source logger.Source) Lexer {
 	lexer := Lexer{
 		log:    log,
 		source: source,
+	}
+	lexer.step()
+	lexer.Next()
+	return lexer
+}
+
+func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
+	lexer := Lexer{
+		log:           log,
+		source:        source,
+		forGlobalName: true,
 	}
 	lexer.step()
 	lexer.Next()
@@ -520,10 +532,11 @@ func IsIdentifierUTF16(text []uint16) bool {
 	}
 	for i := 0; i < n; i++ {
 		r1 := rune(text[i])
-		if utf16.IsSurrogate(r1) && i+1 < n {
-			r2 := rune(text[i+1])
-			r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
-			i++
+		if r1 >= 0xD800 && r1 <= 0xDBFF && i+1 < n {
+			if r2 := rune(text[i+1]); r2 >= 0xDC00 && r2 <= 0xDFFF {
+				r1 = (r1 << 10) + r2 + (0x10000 - (0xD800 << 10) - 0xDC00)
+				i++
+			}
 		}
 		if i == 0 {
 			if !IsIdentifierStart(r1) {
@@ -620,18 +633,30 @@ func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
 		return logger.Range{Loc: loc, Len: 0}
 	}
 
-	i := 0
-	c, width := utf8.DecodeRuneInString(text)
-	i += width
-
-	if IsIdentifierStart(c) || c == '\\' {
+	if c, _ := utf8.DecodeRuneInString(text); IsIdentifierStart(c) || c == '\\' {
 		// Search for the end of the identifier
+		i := 0
 		for i < len(text) {
 			c2, width2 := utf8.DecodeRuneInString(text[i:])
-			if !IsIdentifierContinue(c2) && c2 != '\\' {
+			if c2 == '\\' {
+				i += width2
+
+				// Skip over bracketed unicode escapes such as "\u{10000}"
+				if i+2 < len(text) && text[i] == 'u' && text[i+1] == '{' {
+					i += 2
+					for i < len(text) {
+						if text[i] == '}' {
+							i++
+							break
+						}
+						i++
+					}
+				}
+			} else if !IsIdentifierContinue(c2) {
 				return logger.Range{Loc: loc, Len: int32(i)}
+			} else {
+				i += width2
 			}
-			i += width2
 		}
 	}
 
@@ -1160,6 +1185,10 @@ func (lexer *Lexer) Next() {
 		case '/':
 			// '/' or '/=' or '//' or '/* ... */'
 			lexer.step()
+			if lexer.forGlobalName {
+				lexer.Token = TSlash
+				break
+			}
 			switch lexer.codePoint {
 			case '=':
 				lexer.step()
@@ -1361,7 +1390,8 @@ func (lexer *Lexer) Next() {
 					}
 
 				case -1: // This indicates the end of the file
-					lexer.SyntaxError()
+					lexer.addError(logger.Loc{Start: int32(lexer.end)}, "Unterminated string literal")
+					panic(LexerPanic{})
 
 				case '\r':
 					if quote != '`' {
@@ -2474,6 +2504,31 @@ seekBackwardToNewline:
 	return strings.Join(lines, "\n")
 }
 
+func ContainsNonBMPCodePoint(text string) bool {
+	for _, c := range text {
+		if c > 0xFFFF {
+			return true
+		}
+	}
+	return false
+}
+
+// This does "ContainsNonBMPCodePoint(UTF16ToString(text))" without any allocations
+func ContainsNonBMPCodePointUTF16(text []uint16) bool {
+	if n := len(text); n > 0 {
+		for i, c := range text[:n-1] {
+			// Check for a high surrogate
+			if c >= 0xD800 && c <= 0xDBFF {
+				// Check for a low surrogate
+				if c2 := text[i+1]; c2 >= 0xDC00 && c2 <= 0xDFFF {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func StringToUTF16(text string) []uint16 {
 	decoded := []uint16{}
 	for _, c := range text {
@@ -2544,23 +2599,6 @@ func UTF16EqualsUTF16(a []uint16, b []uint16) bool {
 		return true
 	}
 	return false
-}
-
-// Does "append(bytes, UTF16ToString(text))" without a temporary allocation
-func AppendUTF16ToBytes(bytes []byte, text []uint16) []byte {
-	temp := make([]byte, utf8.UTFMax)
-	n := len(text)
-	for i := 0; i < n; i++ {
-		r1 := rune(text[i])
-		if utf16.IsSurrogate(r1) && i+1 < n {
-			r2 := rune(text[i+1])
-			r1 = (r1-0xD800)<<10 | (r2 - 0xDC00) + 0x10000
-			i++
-		}
-		width := encodeWTF8Rune(temp, r1)
-		bytes = append(bytes, temp[:width]...)
-	}
-	return bytes
 }
 
 // This is a clone of "utf8.EncodeRune" that has been modified to encode using

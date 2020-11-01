@@ -4,6 +4,7 @@ const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
 const fs = require('fs')
+const vm = require('vm')
 
 const readFileAsync = fs.promises.readFile
 const writeFileAsync = fs.promises.writeFile
@@ -44,6 +45,24 @@ let buildTests = {
     const result = require(output)
     assert.strictEqual(result.default, 123)
     assert.strictEqual(result.__esModule, true)
+  },
+
+  async outExtensionJS({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'in.mjs')
+    await writeFileAsync(input, 'console.log("test")')
+    await esbuild.build({ entryPoints: [input], outdir: testDir, outExtension: { '.js': '.mjs' } })
+    const mjs = await readFileAsync(output, 'utf8')
+    assert.strictEqual(mjs, 'console.log("test");\n')
+  },
+
+  async outExtensionCSS({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.css')
+    const output = path.join(testDir, 'in.notcss')
+    await writeFileAsync(input, 'body {}')
+    await esbuild.build({ entryPoints: [input], outdir: testDir, outExtension: { '.css': '.notcss' } })
+    const notcss = await readFileAsync(output, 'utf8')
+    assert.strictEqual(notcss, 'body {\n}\n')
   },
 
   async sourceMap({ esbuild, testDir }) {
@@ -538,9 +557,11 @@ export {
   },
 
   async stdinAndEntryBundle({ esbuild, testDir }) {
-    const entry = path.join(testDir, 'entry.js')
-    const auxiliary = path.join(testDir, 'auxiliary.js')
+    const srcDir = path.join(testDir, 'src')
+    const entry = path.join(srcDir, 'entry.js')
+    const auxiliary = path.join(srcDir, 'auxiliary.js')
     const outdir = path.join(testDir, 'out')
+    await mkdirAsync(srcDir)
     await writeFileAsync(auxiliary, 'export default 123')
     await writeFileAsync(entry, `
       import x from './auxiliary.js'
@@ -550,10 +571,10 @@ export {
       entryPoints: [entry],
       stdin: {
         contents: `
-          import x from './${path.relative(process.cwd(), auxiliary).replace(/\\/g, '/')}'
+          import x from './src/auxiliary.js'
           export {x as fromStdin}
         `,
-        sourcefile: 'der',
+        resolveDir: testDir,
       },
       bundle: true,
       outdir,
@@ -592,6 +613,28 @@ export {
 console.log("success");
 `)
   },
+
+  async es5({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const cjs = path.join(testDir, 'cjs.js')
+    const esm = path.join(testDir, 'esm.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `
+      export {foo} from "./cjs"
+      export * as bar from "./esm"
+    `)
+    await writeFileAsync(cjs, 'exports.foo = 123')
+    await writeFileAsync(esm, 'export var foo = 123')
+    const value = await esbuild.build({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', target: 'es5' })
+    assert.strictEqual(value.outputFiles, void 0)
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    assert.strictEqual(result.bar.foo, 123)
+    assert.strictEqual(result.__esModule, true)
+    const contents = await readFileAsync(output, 'utf8')
+    assert.strictEqual(contents.indexOf('=>'), -1)
+    assert.strictEqual(contents.indexOf('const'), -1)
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {
@@ -606,6 +649,11 @@ async function futureSyntax(service, js, targetBelow, targetAbove) {
 }
 
 let transformTests = {
+  async version({ esbuild }) {
+    const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
+    assert.strictEqual(esbuild.version, version);
+  },
+
   async ignoreUndefinedOptions({ service }) {
     // This should not throw
     await service.transform(``, { jsxFactory: void 0 })
@@ -623,197 +671,396 @@ let transformTests = {
     }
   },
 
+  async avoidTDZ({ service }) {
+    for (const avoidTDZ of [false, true]) {
+      var { code } = await service.transform(`
+        class Foo {
+          // The above line will be transformed into "var". However, the
+          // symbol "Foo" must still be defined before the class body ends.
+          static foo = new Foo
+        }
+        if (!(Foo.foo instanceof Foo))
+          throw 'fail: avoidTDZ=${avoidTDZ}'
+      `, {
+        avoidTDZ,
+      })
+      new Function(code)()
+    }
+  },
+
+  async tsAvoidTDZ({ service }) {
+    for (const avoidTDZ of [false, true]) {
+      var { code } = await service.transform(`
+        class Bar {}
+        var oldFoo
+        function swap(target) {
+          oldFoo = target
+          return Bar
+        }
+        @swap
+        class Foo {
+          bar() { return new Foo }
+          static foo = new Foo
+        }
+        if (!(oldFoo.foo instanceof oldFoo))
+          throw 'fail: foo, avoidTDZ=${avoidTDZ}'
+        if (!(oldFoo.foo.bar() instanceof Bar))
+          throw 'fail: bar, avoidTDZ=${avoidTDZ}'
+      `, {
+        avoidTDZ,
+        loader: 'ts',
+      })
+      new Function(code)()
+    }
+  },
+
+  async tsconfigRaw({ service }) {
+    const { code: code1 } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'remove',
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code1, ``)
+
+    const { code: code2 } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'preserve',
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code2, `import "path";\n`)
+
+    // Can use a string, which allows weird TypeScript pseudo-JSON with comments and trailing commas
+    const { code: code3 } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: `{
+        "compilerOptions": {
+          "importsNotUsedAsValues": "preserve", // there is a trailing comment here
+        },
+      }`,
+      loader: 'ts',
+    })
+    assert.strictEqual(code3, `import "path";\n`)
+  },
+
+  async tsconfigRawImportsNotUsedAsValues({ service }) {
+    const { code: code1 } = await service.transform(`class Foo { foo }`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          useDefineForClassFields: false,
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code1, `class Foo {\n}\n`)
+
+    const { code: code2 } = await service.transform(`class Foo { foo }`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          useDefineForClassFields: true,
+        },
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code2, `class Foo {\n  foo;\n}\n`)
+  },
+
+  async tsconfigRawJSX({ service }) {
+    const { code: code1 } = await service.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(code1, `/* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null));\n`)
+
+    const { code: code2 } = await service.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          jsxFactory: 'factory',
+          jsxFragmentFactory: 'fragment',
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(code2, `/* @__PURE__ */ factory(fragment, null, /* @__PURE__ */ factory("div", null));\n`)
+  },
+
+  async jsCharsetDefault({ service }) {
+    const { code } = await service.transform(`let π = 'π'`, {})
+    assert.strictEqual(code, `let \\u03C0 = "\\u03C0";\n`)
+  },
+
+  async jsCharsetASCII({ service }) {
+    const { code } = await service.transform(`let π = 'π'`, { charset: 'ascii' })
+    assert.strictEqual(code, `let \\u03C0 = "\\u03C0";\n`)
+  },
+
+  async jsCharsetUTF8({ service }) {
+    const { code } = await service.transform(`let π = 'π'`, { charset: 'utf8' })
+    assert.strictEqual(code, `let π = "π";\n`)
+  },
+
+  async cssCharsetDefault({ service }) {
+    const { code } = await service.transform(`.π:after { content: 'π' }`, { loader: 'css' })
+    assert.strictEqual(code, `.\\3c0:after {\n  content: "\\3c0";\n}\n`)
+  },
+
+  async cssCharsetASCII({ service }) {
+    const { code } = await service.transform(`.π:after { content: 'π' }`, { loader: 'css', charset: 'ascii' })
+    assert.strictEqual(code, `.\\3c0:after {\n  content: "\\3c0";\n}\n`)
+  },
+
+  async cssCharsetUTF8({ service }) {
+    const { code } = await service.transform(`.π:after { content: 'π' }`, { loader: 'css', charset: 'utf8' })
+    assert.strictEqual(code, `.π:after {\n  content: "π";\n}\n`)
+  },
+
   async cjs_require({ service }) {
-    const { js } = await service.transform(`const {foo} = require('path')`, {})
-    assert.strictEqual(js, `const {foo} = require("path");\n`)
+    const { code } = await service.transform(`const {foo} = require('path')`, {})
+    assert.strictEqual(code, `const {foo} = require("path");\n`)
   },
 
   async cjs_exports({ service }) {
-    const { js } = await service.transform(`exports.foo = 123`, {})
-    assert.strictEqual(js, `exports.foo = 123;\n`)
+    const { code } = await service.transform(`exports.foo = 123`, {})
+    assert.strictEqual(code, `exports.foo = 123;\n`)
   },
 
   async es6_import({ service }) {
-    const { js } = await service.transform(`import {foo} from 'path'`, {})
-    assert.strictEqual(js, `import {foo} from "path";\n`)
+    const { code } = await service.transform(`import {foo} from 'path'`, {})
+    assert.strictEqual(code, `import {foo} from "path";\n`)
   },
 
   async es6_export({ service }) {
-    const { js } = await service.transform(`export const foo = 123`, {})
-    assert.strictEqual(js, `export const foo = 123;\n`)
+    const { code } = await service.transform(`export const foo = 123`, {})
+    assert.strictEqual(code, `export const foo = 123;\n`)
   },
 
   async es6_import_to_iife({ service }) {
-    const { js } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'iife' })
-    new Function('require', js)(require)
+    const { code } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'iife' })
+    new Function('require', code)(require)
   },
 
   async es6_import_star_to_iife({ service }) {
-    const { js } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'iife' })
-    new Function('require', js)(require)
+    const { code } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'iife' })
+    new Function('require', code)(require)
   },
 
   async es6_export_to_iife({ service }) {
-    const { js } = await service.transform(`export {exists} from "fs"`, { format: 'iife', globalName: 'out' })
-    const out = new Function('require', js + ';return out')(require)
+    const { code } = await service.transform(`export {exists} from "fs"`, { format: 'iife', globalName: 'out' })
+    const out = new Function('require', code + ';return out')(require)
     if (out.exists !== fs.exists) throw 'fail'
   },
 
   async es6_export_star_to_iife({ service }) {
-    const { js } = await service.transform(`export * from "fs"`, { format: 'iife', globalName: 'out' })
-    const out = new Function('require', js + ';return out')(require)
+    const { code } = await service.transform(`export * from "fs"`, { format: 'iife', globalName: 'out' })
+    const out = new Function('require', code + ';return out')(require)
     if (out.exists !== fs.exists) throw 'fail'
   },
 
   async es6_export_star_as_to_iife({ service }) {
-    const { js } = await service.transform(`export * as fs from "fs"`, { format: 'iife', globalName: 'out' })
-    const out = new Function('require', js + ';return out')(require)
+    const { code } = await service.transform(`export * as fs from "fs"`, { format: 'iife', globalName: 'out' })
+    const out = new Function('require', code + ';return out')(require)
     if (out.fs.exists !== fs.exists) throw 'fail'
   },
 
   async es6_import_to_cjs({ service }) {
-    const { js } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'cjs' })
-    new Function('require', js)(require)
+    const { code } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'cjs' })
+    new Function('require', code)(require)
   },
 
   async es6_import_star_to_cjs({ service }) {
-    const { js } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'cjs' })
-    new Function('require', js)(require)
+    const { code } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'cjs' })
+    new Function('require', code)(require)
   },
 
   async es6_export_to_cjs({ service }) {
-    const { js } = await service.transform(`export {exists} from "fs"`, { format: 'cjs' })
+    const { code } = await service.transform(`export {exists} from "fs"`, { format: 'cjs' })
     const exports = {}
-    new Function('require', 'exports', js)(require, exports)
+    new Function('require', 'exports', code)(require, exports)
     if (exports.exists !== fs.exists) throw 'fail'
   },
 
   async es6_export_star_to_cjs({ service }) {
-    const { js } = await service.transform(`export * from "fs"`, { format: 'cjs' })
+    const { code } = await service.transform(`export * from "fs"`, { format: 'cjs' })
     const exports = {}
-    new Function('require', 'exports', js)(require, exports)
+    new Function('require', 'exports', code)(require, exports)
     if (exports.exists !== fs.exists) throw 'fail'
   },
 
   async es6_export_star_as_to_cjs({ service }) {
-    const { js } = await service.transform(`export * as fs from "fs"`, { format: 'cjs' })
+    const { code } = await service.transform(`export * as fs from "fs"`, { format: 'cjs' })
     const exports = {}
-    new Function('require', 'exports', js)(require, exports)
+    new Function('require', 'exports', code)(require, exports)
     if (exports.fs.exists !== fs.exists) throw 'fail'
   },
 
   async es6_import_to_esm({ service }) {
-    const { js } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'esm' })
-    assert.strictEqual(js, `import {exists} from "fs";\nif (!exists)\n  throw "fail";\n`)
+    const { code } = await service.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'esm' })
+    assert.strictEqual(code, `import {exists} from "fs";\nif (!exists)\n  throw "fail";\n`)
   },
 
   async es6_import_star_to_esm({ service }) {
-    const { js } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'esm' })
-    assert.strictEqual(js, `import * as fs from "fs";\nif (!fs.exists)\n  throw "fail";\n`)
+    const { code } = await service.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'esm' })
+    assert.strictEqual(code, `import * as fs from "fs";\nif (!fs.exists)\n  throw "fail";\n`)
   },
 
   async es6_export_to_esm({ service }) {
-    const { js } = await service.transform(`export {exists} from "fs"`, { format: 'esm' })
-    assert.strictEqual(js, `import {exists} from "fs";\nexport {\n  exists\n};\n`)
+    const { code } = await service.transform(`export {exists} from "fs"`, { format: 'esm' })
+    assert.strictEqual(code, `import {exists} from "fs";\nexport {\n  exists\n};\n`)
   },
 
   async es6_export_star_to_esm({ service }) {
-    const { js } = await service.transform(`export * from "fs"`, { format: 'esm' })
-    assert.strictEqual(js, `export * from "fs";\n`)
+    const { code } = await service.transform(`export * from "fs"`, { format: 'esm' })
+    assert.strictEqual(code, `export * from "fs";\n`)
   },
 
   async es6_export_star_as_to_esm({ service }) {
-    const { js } = await service.transform(`export * as fs from "fs"`, { format: 'esm' })
-    assert.strictEqual(js, `import * as fs from "fs";\nexport {\n  fs\n};\n`)
+    const { code } = await service.transform(`export * as fs from "fs"`, { format: 'esm' })
+    assert.strictEqual(code, `import * as fs from "fs";\nexport {\n  fs\n};\n`)
+  },
+
+  async iifeGlobalName({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'testName' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.testName.default, 123)
+  },
+
+  async iifeGlobalNameCompound({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'test.name' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.test.name.default, 123)
+  },
+
+  async iifeGlobalNameString({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'test["some text"]' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.test['some text'].default, 123)
+  },
+
+  async iifeGlobalNameUnicodeEscape({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var \\u03C0 = \\u03C0 || {};
+\\u03C0["\\u03C0 \\uD800\\uDC00"] = \\u03C0["\\u03C0 \\uD800\\uDC00"] || {};
+\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000} = \\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000} || {};
+\\u03C0["\\u03C0 \\uD800\\uDC00"].\\u{10000}["\\uD800\\uDC00 \\u03C0"] = `)
+  },
+
+  async iifeGlobalNameUnicodeNoEscape({ service }) {
+    const { code } = await service.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', charset: 'utf8' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')),
+      `var π = π || {};
+π["π 𐀀"] = π["π 𐀀"] || {};
+π["π 𐀀"].𐀀 = π["π 𐀀"].𐀀 || {};
+π["π 𐀀"].𐀀["𐀀 π"] = `)
   },
 
   async jsx({ service }) {
-    const { js } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
-    assert.strictEqual(js, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
+    const { code } = await service.transform(`console.log(<div/>)`, { loader: 'jsx' })
+    assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
   },
 
   async ts({ service }) {
-    const { js } = await service.transform(`enum Foo { FOO }`, { loader: 'ts' })
-    assert.strictEqual(js, `var Foo;\n(function(Foo2) {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n})(Foo || (Foo = {}));\n`)
+    const { code } = await service.transform(`enum Foo { FOO }`, { loader: 'ts' })
+    assert.strictEqual(code, `var Foo;\n(function(Foo2) {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n})(Foo || (Foo = {}));\n`)
   },
 
   async tsx({ service }) {
-    const { js } = await service.transform(`console.log(<Foo<T>/>)`, { loader: 'tsx' })
-    assert.strictEqual(js, `console.log(/* @__PURE__ */ React.createElement(Foo, null));\n`)
+    const { code } = await service.transform(`console.log(<Foo<T>/>)`, { loader: 'tsx' })
+    assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement(Foo, null));\n`)
   },
 
   async minify({ service }) {
-    const { js } = await service.transform(`console.log("a" + "b" + c)`, { minify: true })
-    assert.strictEqual(js, `console.log("ab"+c);\n`)
+    const { code } = await service.transform(`console.log("a" + "b" + c)`, { minify: true })
+    assert.strictEqual(code, `console.log("ab"+c);\n`)
   },
 
   async define({ service }) {
     const define = { 'process.env.NODE_ENV': '"production"' }
-    const { js } = await service.transform(`console.log(process.env.NODE_ENV)`, { define })
-    assert.strictEqual(js, `console.log("production");\n`)
+    const { code } = await service.transform(`console.log(process.env.NODE_ENV)`, { define })
+    assert.strictEqual(code, `console.log("production");\n`)
   },
 
   async json({ service }) {
-    const { js } = await service.transform(`{ "x": "y" }`, { loader: 'json' })
-    assert.strictEqual(js, `module.exports = {x: "y"};\n`)
+    const { code } = await service.transform(`{ "x": "y" }`, { loader: 'json' })
+    assert.strictEqual(code, `module.exports = {x: "y"};\n`)
   },
 
   async jsonMinified({ service }) {
-    const { js } = await service.transform(`{ "x": "y" }`, { loader: 'json', minify: true })
+    const { code } = await service.transform(`{ "x": "y" }`, { loader: 'json', minify: true })
     const module = {}
-    new Function('module', js)(module)
+    new Function('module', code)(module)
     assert.deepStrictEqual(module.exports, { x: 'y' })
   },
 
   async jsonESM({ service }) {
-    const { js } = await service.transform(`{ "x": "y" }`, { loader: 'json', format: 'esm' })
-    assert.strictEqual(js, `var x = "y";\nvar stdin_default = {x};\nexport {\n  stdin_default as default,\n  x\n};\n`)
+    const { code } = await service.transform(`{ "x": "y" }`, { loader: 'json', format: 'esm' })
+    assert.strictEqual(code, `var x = "y";\nvar stdin_default = {x};\nexport {\n  stdin_default as default,\n  x\n};\n`)
   },
 
   async text({ service }) {
-    const { js } = await service.transform(`This is some text`, { loader: 'text' })
-    assert.strictEqual(js, `module.exports = "This is some text";\n`)
+    const { code } = await service.transform(`This is some text`, { loader: 'text' })
+    assert.strictEqual(code, `module.exports = "This is some text";\n`)
   },
 
   async textESM({ service }) {
-    const { js } = await service.transform(`This is some text`, { loader: 'text', format: 'esm' })
-    assert.strictEqual(js, `var stdin_default = "This is some text";\nexport {\n  stdin_default as default\n};\n`)
+    const { code } = await service.transform(`This is some text`, { loader: 'text', format: 'esm' })
+    assert.strictEqual(code, `var stdin_default = "This is some text";\nexport {\n  stdin_default as default\n};\n`)
   },
 
   async base64({ service }) {
-    const { js } = await service.transform(`\x00\x01\x02`, { loader: 'base64' })
-    assert.strictEqual(js, `module.exports = "AAEC";\n`)
+    const { code } = await service.transform(`\x00\x01\x02`, { loader: 'base64' })
+    assert.strictEqual(code, `module.exports = "AAEC";\n`)
   },
 
   async dataurl({ service }) {
-    const { js } = await service.transform(`\x00\x01\x02`, { loader: 'dataurl' })
-    assert.strictEqual(js, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
+    const { code } = await service.transform(`\x00\x01\x02`, { loader: 'dataurl' })
+    assert.strictEqual(code, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
   },
 
   async sourceMapWithName({ service }) {
-    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js' })
-    assert.strictEqual(js, `let x;\n`)
-    await assertSourceMap(jsSourceMap, 'afile.js')
+    const { code, map } = await service.transform(`let       x`, { sourcemap: true, sourcefile: 'afile.js' })
+    assert.strictEqual(code, `let x;\n`)
+    await assertSourceMap(map, 'afile.js')
   },
 
   async sourceMapExternalWithName({ service }) {
-    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'external', sourcefile: 'afile.js' })
-    assert.strictEqual(js, `let x;\n`)
-    await assertSourceMap(jsSourceMap, 'afile.js')
+    const { code, map } = await service.transform(`let       x`, { sourcemap: 'external', sourcefile: 'afile.js' })
+    assert.strictEqual(code, `let x;\n`)
+    await assertSourceMap(map, 'afile.js')
   },
 
   async sourceMapInlineWithName({ service }) {
-    const { js, jsSourceMap } = await service.transform(`let       x`, { sourcemap: 'inline', sourcefile: 'afile.js' })
-    assert(js.startsWith(`let x;\n//# sourceMappingURL=`))
-    assert.strictEqual(jsSourceMap, '')
-    const base64 = js.slice(js.indexOf('base64,') + 'base64,'.length)
+    const { code, map } = await service.transform(`let       x`, { sourcemap: 'inline', sourcefile: 'afile.js' })
+    assert(code.startsWith(`let x;\n//# sourceMappingURL=`))
+    assert.strictEqual(map, '')
+    const base64 = code.slice(code.indexOf('base64,') + 'base64,'.length)
     await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
   },
 
   async numericLiteralPrinting({ service }) {
     async function checkLiteral(text) {
-      const { js } = await service.transform(`return ${text}`, { minify: true })
-      assert.strictEqual(+text, new Function(js)())
+      const { code } = await service.transform(`return ${text}`, { minify: true })
+      assert.strictEqual(+text, new Function(code)())
     }
     const promises = []
     for (let i = 0; i < 10; i++) {
@@ -844,7 +1091,7 @@ let transformTests = {
       if (x !== 1) throw 'fail'
     `;
     new Function(code)(); // Verify that the code itself is correct
-    new Function((await service.transform(code)).js)();
+    new Function((await service.transform(code)).code)();
   },
 
   async nestedFunctionHoist({ service }) {
@@ -862,7 +1109,7 @@ let transformTests = {
       x()
     `;
     new Function(code)(); // Verify that the code itself is correct
-    new Function((await service.transform(code)).js)();
+    new Function((await service.transform(code)).code)();
   },
 
   async nestedFunctionHoistBefore({ service }) {
@@ -881,7 +1128,7 @@ let transformTests = {
       x()
     `;
     new Function(code)(); // Verify that the code itself is correct
-    new Function((await service.transform(code)).js)();
+    new Function((await service.transform(code)).code)();
   },
 
   async nestedFunctionHoistAfter({ service }) {
@@ -900,7 +1147,7 @@ let transformTests = {
       var x = 1
     `;
     new Function(code)(); // Verify that the code itself is correct
-    new Function((await service.transform(code)).js)();
+    new Function((await service.transform(code)).code)();
   },
 
   async nestedFunctionShadowBefore({ service }) {
@@ -919,7 +1166,7 @@ let transformTests = {
       if (x !== 1) throw 'fail'
     `;
     new Function(code)(); // Verify that the code itself is correct
-    new Function((await service.transform(code)).js)();
+    new Function((await service.transform(code)).code)();
   },
 
   async nestedFunctionShadowAfter({ service }) {
@@ -938,24 +1185,24 @@ let transformTests = {
       let x = 1
     `;
     new Function(code)(); // Verify that the code itself is correct
-    new Function((await service.transform(code)).js)();
+    new Function((await service.transform(code)).code)();
   },
 
   async sourceMapControlCharacterEscapes({ service }) {
-    let code = ''
-    for (let i = 0; i < 32; i++) code += String.fromCharCode(i);
-    const input = `return \`${code}\``;
-    const { js, jsSourceMap } = await service.transform(input, { sourcemap: true, sourcefile: 'afile.js' })
-    const fn = new Function(js)
-    assert.strictEqual(fn(), code.replace('\r', '\n'))
-    const map = JSON.parse(jsSourceMap)
-    assert.strictEqual(map.version, 3)
-    assert.strictEqual(map.sourcesContent.length, 1)
-    assert.strictEqual(map.sourcesContent[0], input)
+    let chars = ''
+    for (let i = 0; i < 32; i++) chars += String.fromCharCode(i);
+    const input = `return \`${chars}\``;
+    const { code, map } = await service.transform(input, { sourcemap: true, sourcefile: 'afile.code' })
+    const fn = new Function(code)
+    assert.strictEqual(fn(), chars.replace('\r', '\n'))
+    const json = JSON.parse(map)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sourcesContent.length, 1)
+    assert.strictEqual(json.sourcesContent[0], input)
   },
 
   async tsDecorators({ service }) {
-    const { js } = await service.transform(`
+    const { code } = await service.transform(`
       let observed = [];
       let on = key => (...args) => {
         observed.push({ key, args });
@@ -984,59 +1231,29 @@ let transformTests = {
 
       return {observed, expected};
     `, { loader: 'ts' });
-    const { observed, expected } = new Function(js)();
+    const { observed, expected } = new Function(code)();
     assert.deepStrictEqual(observed, expected);
   },
 
-  async nullishCoalescingLoose({ service }) {
-    const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: false })
-    assert.strictEqual(js, `a != null ? a : b;\n`)
-  },
-
-  async nullishCoalescingStrict({ service }) {
-    const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: true })
-    assert.strictEqual(js, `a !== null && a !== void 0 ? a : b;\n`)
-  },
-
-  async nullishCoalescingStrictExplicit({ service }) {
-    const { js } = await service.transform(`a ?? b`, { target: 'es2019', strict: ['nullish-coalescing'] })
-    assert.strictEqual(js, `a !== null && a !== void 0 ? a : b;\n`)
-  },
-
-  async optionalChainingLoose({ service }) {
-    const { js } = await service.transform(`a?.b`, { target: 'es2019', strict: false })
-    assert.strictEqual(js, `a == null ? void 0 : a.b;\n`)
-  },
-
-  async optionalChainingStrict({ service }) {
-    const { js } = await service.transform(`a?.b`, { target: 'es2019', strict: true })
-    assert.strictEqual(js, `a === null || a === void 0 ? void 0 : a.b;\n`)
-  },
-
-  async optionalChainingStrictExplicit({ service }) {
-    const { js } = await service.transform(`a?.b`, { target: 'es2019', strict: ['optional-chaining'] })
-    assert.strictEqual(js, `a === null || a === void 0 ? void 0 : a.b;\n`)
-  },
-
   async pureCallPrint({ service }) {
-    const { js: js1 } = await service.transform(`print(123, foo)`, { minifySyntax: true, pure: [] })
-    assert.strictEqual(js1, `print(123, foo);\n`)
+    const { code: code1 } = await service.transform(`print(123, foo)`, { minifySyntax: true, pure: [] })
+    assert.strictEqual(code1, `print(123, foo);\n`)
 
-    const { js: js2 } = await service.transform(`print(123, foo)`, { minifySyntax: true, pure: ['print'] })
-    assert.strictEqual(js2, `foo;\n`)
+    const { code: code2 } = await service.transform(`print(123, foo)`, { minifySyntax: true, pure: ['print'] })
+    assert.strictEqual(code2, `foo;\n`)
   },
 
   async pureCallConsoleLog({ service }) {
-    const { js: js1 } = await service.transform(`console.log(123, foo)`, { minifySyntax: true, pure: [] })
-    assert.strictEqual(js1, `console.log(123, foo);\n`)
+    const { code: code1 } = await service.transform(`console.log(123, foo)`, { minifySyntax: true, pure: [] })
+    assert.strictEqual(code1, `console.log(123, foo);\n`)
 
-    const { js: js2 } = await service.transform(`console.log(123, foo)`, { minifySyntax: true, pure: ['console.log'] })
-    assert.strictEqual(js2, `foo;\n`)
+    const { code: code2 } = await service.transform(`console.log(123, foo)`, { minifySyntax: true, pure: ['console.log'] })
+    assert.strictEqual(code2, `foo;\n`)
   },
 
   async multipleEngineTargets({ service }) {
     const check = async (target, expected) =>
-      assert.strictEqual((await service.transform(`foo(a ?? b)`, { target })).js, expected)
+      assert.strictEqual((await service.transform(`foo(a ?? b)`, { target })).code, expected)
     await Promise.all([
       check('es2020', `foo(a ?? b);\n`),
       check('es2019', `foo(a != null ? a : b);\n`),
@@ -1079,8 +1296,8 @@ let syncTests = {
   },
 
   async transformSync({ esbuild }) {
-    const { js } = esbuild.transformSync(`console.log(1+2)`, {})
-    assert.strictEqual(js, `console.log(1 + 2);\n`)
+    const { code } = esbuild.transformSync(`console.log(1+2)`, {})
+    assert.strictEqual(code, `console.log(1 + 2);\n`)
   },
 }
 

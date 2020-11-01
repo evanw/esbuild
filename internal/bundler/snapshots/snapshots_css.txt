@@ -161,6 +161,20 @@ console.log("b");
 }
 
 ================================================================================
+TestPackageURLsInCSS
+---------- /out/entry.css ----------
+/* /entry.css */
+a {
+  background: url(data:image/png;base64,YS0x);
+}
+b {
+  background: url(data:image/png;base64,Yi0yLW5vZGVfbW9kdWxlcw==);
+}
+c {
+  background: url(data:image/png;base64,Yy0z);
+}
+
+================================================================================
 TestTextImportURLInCSSText
 ---------- /out/entry.css ----------
 /* /entry.css */

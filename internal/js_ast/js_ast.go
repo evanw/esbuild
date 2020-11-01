@@ -1077,6 +1077,9 @@ const (
 	// the module. Presumably this is because the imports may be type-only.
 	SymbolImport
 
+	// Assigning to a "const" symbol will throw a TypeError at runtime
+	SymbolConst
+
 	// This annotates all other symbols that don't have special behavior.
 	SymbolOther
 
@@ -1601,7 +1604,7 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 // This has a custom implementation instead of using "filepath.Dir/Base/Ext"
 // because it should work the same on Unix and Windows. These names end up in
 // the generated output and the generated output should not depend on the OS.
-func platformIndependentPathDirBaseExt(path string) (dir string, base string, ext string) {
+func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ext string) {
 	for {
 		i := strings.LastIndexAny(path, "/\\")
 
@@ -1642,20 +1645,22 @@ func platformIndependentPathDirBaseExt(path string) (dir string, base string, ex
 // collisions.
 func GenerateNonUniqueNameFromPath(path string) string {
 	// Get the file name without the extension
-	dir, base, _ := platformIndependentPathDirBaseExt(path)
+	dir, base, _ := PlatformIndependentPathDirBaseExt(path)
 
 	// If the name is "index", use the directory name instead. This is because
 	// many packages in npm use the file name "index.js" because it triggers
 	// node's implicit module resolution rules that allows you to import it by
 	// just naming the directory.
 	if base == "index" {
-		_, dirBase, _ := platformIndependentPathDirBaseExt(dir)
+		_, dirBase, _ := PlatformIndependentPathDirBaseExt(dir)
 		if dirBase != "" {
 			base = dirBase
 		}
 	}
 
-	// Convert it to an ASCII identifier
+	// Convert it to an ASCII identifier. Note: If you change this to a non-ASCII
+	// identifier, you're going to potentially cause trouble with non-BMP code
+	// points in target environments that don't support bracketed Unicode escapes.
 	bytes := []byte{}
 	needsGap := false
 	for _, c := range base {

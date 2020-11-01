@@ -65,6 +65,13 @@ func (p *parser) parseComplexSelector() (result css_ast.ComplexSelector, ok bool
 	return
 }
 
+func (p *parser) nameToken() css_ast.NameToken {
+	return css_ast.NameToken{
+		Kind: p.current().Kind,
+		Text: p.decoded(),
+	}
+}
+
 func (p *parser) parseCompoundSelector() (sel css_ast.CompoundSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
 	if p.eat(css_lexer.TDelimAmpersand) {
@@ -76,8 +83,11 @@ func (p *parser) parseCompoundSelector() (sel css_ast.CompoundSelector, ok bool)
 	case css_lexer.TDelimBar, css_lexer.TIdent, css_lexer.TDelimAsterisk:
 		nsName := css_ast.NamespacedName{}
 		if !p.peek(css_lexer.TDelimBar) {
-			nsName.Name = p.text()
+			nsName.Name = p.nameToken()
 			p.advance()
+		} else {
+			// Hack: Create an empty "identifier" to represent this
+			nsName.Name.Kind = css_lexer.TIdent
 		}
 		if p.eat(css_lexer.TDelimBar) {
 			if !p.peek(css_lexer.TIdent) && !p.peek(css_lexer.TDelimAsterisk) {
@@ -86,7 +96,7 @@ func (p *parser) parseCompoundSelector() (sel css_ast.CompoundSelector, ok bool)
 			}
 			prefix := nsName.Name
 			nsName.NamespacePrefix = &prefix
-			nsName.Name = p.text()
+			nsName.Name = p.nameToken()
 			p.advance()
 		}
 		sel.TypeSelector = &nsName
@@ -97,13 +107,13 @@ subclassSelectors:
 	for {
 		switch p.current().Kind {
 		case css_lexer.THashID:
-			name := p.text()[1:]
+			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSHash{Name: name})
 			p.advance()
 
 		case css_lexer.TDelimDot:
 			p.advance()
-			name := p.text()
+			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSClass{Name: name})
 			p.expect(css_lexer.TIdent)
 
@@ -154,16 +164,21 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 	case css_lexer.TDelimBar, css_lexer.TDelimAsterisk:
 		// "[|x]"
 		// "[*|x]"
-		prefix := ""
 		if p.peek(css_lexer.TDelimAsterisk) {
-			prefix = "*"
+			prefix := p.nameToken()
 			p.advance()
+			attr.NamespacedName.NamespacePrefix = &prefix
+		} else {
+			// "[|attr]" is equivalent to "[attr]". From the specification:
+			// "In keeping with the Namespaces in the XML recommendation, default
+			// namespaces do not apply to attributes, therefore attribute selectors
+			// without a namespace component apply only to attributes that have no
+			// namespace (equivalent to |attr)."
 		}
-		attr.NamespacedName.NamespacePrefix = &prefix
 		if !p.expect(css_lexer.TDelimBar) {
 			return
 		}
-		attr.NamespacedName.Name = p.text()
+		attr.NamespacedName.Name = p.nameToken()
 		if !p.expect(css_lexer.TIdent) {
 			return
 		}
@@ -171,14 +186,14 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 	default:
 		// "[x]"
 		// "[x|y]"
-		attr.NamespacedName.Name = p.text()
+		attr.NamespacedName.Name = p.nameToken()
 		if !p.expect(css_lexer.TIdent) {
 			return
 		}
 		if p.next().Kind != css_lexer.TDelimEquals && p.eat(css_lexer.TDelimBar) {
 			prefix := attr.NamespacedName.Name
 			attr.NamespacedName.NamespacePrefix = &prefix
-			attr.NamespacedName.Name = p.text()
+			attr.NamespacedName.Name = p.nameToken()
 			if !p.expect(css_lexer.TIdent) {
 				return
 			}
@@ -214,11 +229,11 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		if !p.peek(css_lexer.TString) && !p.peek(css_lexer.TIdent) {
 			p.unexpected()
 		}
-		attr.MatcherValue = p.text()
+		attr.MatcherValue = p.decoded()
 		p.advance()
 		p.eat(css_lexer.TWhitespace)
 		if p.peek(css_lexer.TIdent) {
-			if modifier := p.text(); len(modifier) == 1 {
+			if modifier := p.decoded(); len(modifier) == 1 {
 				if c := modifier[0]; c == 'i' || c == 'I' {
 					attr.MatcherModifier = c
 					p.advance()
@@ -236,15 +251,18 @@ func (p *parser) parsePseudoElementSelector() css_ast.SSPseudoClass {
 	p.advance()
 
 	if p.peek(css_lexer.TFunction) {
-		text := p.text()
+		text := p.decoded()
 		p.advance()
 		args := p.convertTokens(p.parseAnyValue())
 		p.expect(css_lexer.TCloseParen)
-		return css_ast.SSPseudoClass{Name: text[:len(text)-1], Args: args}
+		return css_ast.SSPseudoClass{Name: text, Args: args}
 	}
 
-	sel := css_ast.SSPseudoClass{Name: p.text()}
-	p.expect(css_lexer.TIdent)
+	name := p.decoded()
+	sel := css_ast.SSPseudoClass{}
+	if p.expect(css_lexer.TIdent) {
+		sel.Name = name
+	}
 	return sel
 }
 

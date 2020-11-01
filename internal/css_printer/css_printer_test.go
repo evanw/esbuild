@@ -47,6 +47,13 @@ func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedASCII(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
+		ASCIIOnly: true,
+	})
+}
+
 func expectPrintedString(t *testing.T, stringValue string, expected string) {
 	t.Helper()
 	t.Run(stringValue, func(t *testing.T) {
@@ -76,7 +83,6 @@ func TestStringQuote(t *testing.T) {
 	expectPrintedString(t, "f\nF", "\"f\\a F\"")
 	expectPrintedString(t, "f\ng", "\"f\\ag\"")
 	expectPrintedString(t, "f\nG", "\"f\\aG\"")
-	expectPrintedString(t, "f\x00o", "\"f\\0o\"")
 	expectPrintedString(t, "f\x01o", "\"f\x01o\"")
 	expectPrintedString(t, "f\to", "\"f\to\"")
 }
@@ -250,4 +256,53 @@ func TestMsGridColumnsWhitespace(t *testing.T) {
 	expectPrinted(t, "div { -ms-grid-columns: 1fr (20px 1fr)[3] }", "div {\n  -ms-grid-columns: 1fr (20px 1fr)[3];\n}\n")
 	expectPrintedMinify(t, "div { -ms-grid-columns: (1fr)[3] }", "div{-ms-grid-columns:(1fr)[3]}")
 	expectPrintedMinify(t, "div { -ms-grid-columns: 1fr (20px 1fr)[3] }", "div{-ms-grid-columns:1fr (20px 1fr)[3]}")
+}
+
+func TestASCII(t *testing.T) {
+	expectPrintedASCII(t, "* { background: url(🐈) }", "* {\n  background: url(\\1f408);\n}\n")
+	expectPrintedASCII(t, "* { background: url(🐈6) }", "* {\n  background: url(\\1f408 6);\n}\n")
+	expectPrintedASCII(t, "* { background: url('🐈') }", "* {\n  background: url(\\1f408);\n}\n")
+	expectPrintedASCII(t, "* { background: url('🐈6') }", "* {\n  background: url(\\1f408 6);\n}\n")
+	expectPrintedASCII(t, "* { background: url('(🐈)') }", "* {\n  background: url(\"(\\1f408)\");\n}\n")
+	expectPrintedASCII(t, "* { background: url('(🐈6)') }", "* {\n  background: url(\"(\\1f408 6)\");\n}\n")
+
+	expectPrintedASCII(t, "div { 🐈: 🐈('🐈') }", "div {\n  \\1f408: \\1f408(\"\\1f408\");\n}\n")
+	expectPrintedASCII(t, "div { 🐈 : 🐈 ('🐈 ') }", "div {\n  \\1f408: \\1f408  (\"\\1f408  \");\n}\n")
+	expectPrintedASCII(t, "div { 🐈6: 🐈6('🐈6') }", "div {\n  \\1f408 6: \\1f408 6(\"\\1f408 6\");\n}\n")
+
+	expectPrintedASCII(t, "@🐈;", "@\\1f408;\n")
+	expectPrintedASCII(t, "@🐈 {}", "@\\1f408 {}\n")
+	expectPrintedASCII(t, "@🐈 x {}", "@\\1f408  x {}\n")
+
+	expectPrintedASCII(t, "#🐈#x {}", "#\\1f408#x {\n}\n")
+	expectPrintedASCII(t, "#🐈 #x {}", "#\\1f408  #x {\n}\n")
+	expectPrintedASCII(t, "#🐈::x {}", "#\\1f408::x {\n}\n")
+	expectPrintedASCII(t, "#🐈 ::x {}", "#\\1f408  ::x {\n}\n")
+
+	expectPrintedASCII(t, ".🐈.x {}", ".\\1f408.x {\n}\n")
+	expectPrintedASCII(t, ".🐈 .x {}", ".\\1f408  .x {\n}\n")
+	expectPrintedASCII(t, ".🐈::x {}", ".\\1f408::x {\n}\n")
+	expectPrintedASCII(t, ".🐈 ::x {}", ".\\1f408  ::x {\n}\n")
+
+	expectPrintedASCII(t, "🐈|🐈.x {}", "\\1f408|\\1f408.x {\n}\n")
+	expectPrintedASCII(t, "🐈|🐈 .x {}", "\\1f408|\\1f408  .x {\n}\n")
+	expectPrintedASCII(t, "🐈|🐈::x {}", "\\1f408|\\1f408::x {\n}\n")
+	expectPrintedASCII(t, "🐈|🐈 ::x {}", "\\1f408|\\1f408  ::x {\n}\n")
+
+	expectPrintedASCII(t, "::🐈:x {}", "::\\1f408:x {\n}\n")
+	expectPrintedASCII(t, "::🐈 :x {}", "::\\1f408  :x {\n}\n")
+
+	expectPrintedASCII(t, "[🐈] {}", "[\\1f408] {\n}\n")
+	expectPrintedASCII(t, "[🐈=🐈] {}", "[\\1f408=\\1f408] {\n}\n")
+	expectPrintedASCII(t, "[🐈|🐈=🐈] {}", "[\\1f408|\\1f408=\\1f408] {\n}\n")
+
+	// A space must be consumed after an escaped code point even with six digits
+	expectPrintedASCII(t, ".\\10FFF abc:after { content: '\\10FFF abc' }", ".\\10fff abc:after {\n  content: \"\\10fff abc\";\n}\n")
+	expectPrintedASCII(t, ".\U00010FFFabc:after { content: '\U00010FFFabc' }", ".\\10fff abc:after {\n  content: \"\\10fff abc\";\n}\n")
+	expectPrintedASCII(t, ".\\10FFFFabc:after { content: '\\10FFFFabc' }", ".\\10ffffabc:after {\n  content: \"\\10ffffabc\";\n}\n")
+	expectPrintedASCII(t, ".\\10FFFF abc:after { content: '\\10FFFF abc' }", ".\\10ffffabc:after {\n  content: \"\\10ffffabc\";\n}\n")
+	expectPrintedASCII(t, ".\U0010FFFFabc:after { content: '\U0010FFFFabc' }", ".\\10ffffabc:after {\n  content: \"\\10ffffabc\";\n}\n")
+
+	// This character should always be escaped
+	expectPrinted(t, ".\\FEFF:after { content: '\uFEFF' }", ".\\feff:after {\n  content: \"\\feff\";\n}\n")
 }

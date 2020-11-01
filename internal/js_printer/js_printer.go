@@ -78,12 +78,65 @@ func AppendSourceMapChunk(j *Joiner, prevEndState SourceMapState, startState Sou
 	// where all chunks have already been generated.
 	startState.SourceIndex += sourceIndex
 	startState.GeneratedColumn += generatedColumn
-	startState.OriginalLine = originalLine
-	startState.OriginalColumn = originalColumn
+	startState.OriginalLine += originalLine
+	startState.OriginalColumn += originalColumn
 	j.AddBytes(appendMapping(nil, j.lastByte, prevEndState, startState))
 
 	// Then append everything after that without modification.
 	j.AddBytes(sourceMap)
+}
+
+// Rewrite the source map to remove everything before "offset" and have the
+// generated position start from (0, 0) at that point. This is used when
+// erasing the variable declaration keyword from the start of a file.
+func RemovePrefixFromSourceMapChunk(buffer []byte, offset int) []byte {
+	// Avoid an out-of-bounds array access if the offset is 0. This doesn't
+	// happen normally but can happen if a source is remapped from another
+	// source map that is missing mappings. This is the case with some file
+	// in the "ant-design" project.
+	if offset == 0 {
+		return buffer
+	}
+
+	state := SourceMapState{}
+	i := 0
+
+	// Accumulate mappings before the break point
+	for i < offset {
+		if buffer[i] == ';' {
+			i++
+			continue
+		}
+
+		var si, ol, oc int
+		_, i = sourcemap.DecodeVLQ(buffer, i)
+		si, i = sourcemap.DecodeVLQ(buffer, i)
+		ol, i = sourcemap.DecodeVLQ(buffer, i)
+		oc, i = sourcemap.DecodeVLQ(buffer, i)
+		state.SourceIndex += si
+		state.OriginalLine += ol
+		state.OriginalColumn += oc
+
+		if i < len(buffer) && buffer[i] == ',' {
+			i++
+		}
+	}
+
+	// Rewrite the mapping at the break point
+	var si, ol, oc int
+	_, i = sourcemap.DecodeVLQ(buffer, i)
+	si, i = sourcemap.DecodeVLQ(buffer, i)
+	ol, i = sourcemap.DecodeVLQ(buffer, i)
+	oc, i = sourcemap.DecodeVLQ(buffer, i)
+	state.SourceIndex += si
+	state.OriginalLine += ol
+	state.OriginalColumn += oc
+
+	// Splice it in front of the buffer assuming it's big enough
+	first := appendMapping(nil, 0, SourceMapState{}, state)
+	buffer = buffer[i-len(first):]
+	copy(buffer, first)
+	return buffer
 }
 
 func appendMapping(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
@@ -168,17 +221,27 @@ func (j *Joiner) Done() []byte {
 }
 
 const hexChars = "0123456789ABCDEF"
+const firstASCII = 0x20
+const lastASCII = 0x7E
+const firstHighSurrogate = 0xD800
+const lastHighSurrogate = 0xDBFF
+const firstLowSurrogate = 0xDC00
+const lastLowSurrogate = 0xDFFF
 
-func QuoteForJSON(text string) []byte {
+func canPrintWithoutEscape(c rune, asciiOnly bool) bool {
+	if c <= lastASCII {
+		return c >= firstASCII && c != '\\' && c != '"'
+	} else {
+		return !asciiOnly && c != '\uFEFF' && (c < firstHighSurrogate || c > lastLowSurrogate)
+	}
+}
+
+func QuoteForJSON(text string, asciiOnly bool) []byte {
 	// Estimate the required length
 	lenEstimate := 2
 	for _, c := range text {
-		if c >= 0x20 && c <= 0x7E {
-			if c != '\\' && c != '"' {
-				lenEstimate++
-			} else {
-				lenEstimate += 2
-			}
+		if canPrintWithoutEscape(c, asciiOnly) {
+			lenEstimate += utf8.RuneLen(c)
 		} else {
 			switch c {
 			case '\b', '\f', '\n', '\r', '\t', '\\', '"':
@@ -195,29 +258,23 @@ func QuoteForJSON(text string) []byte {
 
 	// Preallocate the array
 	bytes := make([]byte, 0, lenEstimate)
-
-	// Fill the array
-	return quoteImpl(bytes, text, true)
-}
-
-func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
 	i := 0
 	n := len(text)
 	bytes = append(bytes, '"')
 
 	for i < n {
-		c := text[i]
+		c, width := js_lexer.DecodeWTF8Rune(text[i:])
 
 		// Fast path: a run of characters that don't need escaping
-		if c >= 0x20 && c <= 0x7E && c != '\\' && c != '"' {
+		if canPrintWithoutEscape(c, asciiOnly) {
 			start := i
-			i += 1
+			i += width
 			for i < n {
-				c = text[i]
-				if c < 0x20 || c > 0x7E || c == '\\' || c == '"' {
+				c, width = js_lexer.DecodeWTF8Rune(text[i:])
+				if !canPrintWithoutEscape(c, asciiOnly) {
 					break
 				}
-				i += 1
+				i += width
 			}
 			bytes = append(bytes, text[start:i]...)
 			continue
@@ -253,26 +310,16 @@ func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
 			i++
 
 		default:
-			r, width := js_lexer.DecodeWTF8Rune(text[i:])
 			i += width
-			if r <= 0xFF && !forJSON {
-				if r == '\v' {
-					bytes = append(bytes, "\\v"...)
-				} else {
-					bytes = append(
-						bytes,
-						'\\', 'x', hexChars[r>>4], hexChars[r&15],
-					)
-				}
-			} else if r <= 0xFFFF {
+			if c <= 0xFFFF {
 				bytes = append(
 					bytes,
-					'\\', 'u', hexChars[r>>12], hexChars[(r>>8)&15], hexChars[(r>>4)&15], hexChars[r&15],
+					'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
 				)
 			} else {
-				r -= 0x10000
-				lo := 0xD800 + ((r >> 10) & 0x3FF)
-				hi := 0xDC00 + (r & 0x3FF)
+				c -= 0x10000
+				lo := firstHighSurrogate + ((c >> 10) & 0x3FF)
+				hi := firstLowSurrogate + (c & 0x3FF)
 				bytes = append(
 					bytes,
 					'\\', 'u', hexChars[lo>>12], hexChars[(lo>>8)&15], hexChars[(lo>>4)&15], hexChars[lo&15],
@@ -283,6 +330,38 @@ func quoteImpl(bytes []byte, text string, forJSON bool) []byte {
 	}
 
 	return append(bytes, '"')
+}
+
+func QuoteIdentifier(js []byte, name string, unsupportedFeatures compat.JSFeature) []byte {
+	isASCII := false
+	asciiStart := 0
+	for i, c := range name {
+		if c >= firstASCII && c <= lastASCII {
+			// Fast path: a run of ASCII characters
+			if !isASCII {
+				isASCII = true
+				asciiStart = i
+			}
+		} else {
+			// Slow path: escape non-ACSII characters
+			if isASCII {
+				js = append(js, name[asciiStart:i]...)
+				isASCII = false
+			}
+			if c <= 0xFFFF {
+				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
+			} else if !unsupportedFeatures.Has(compat.UnicodeEscapes) {
+				js = append(js, fmt.Sprintf("\\u{%X}", c)...)
+			} else {
+				panic("Internal error: Cannot encode identifier: Unicode escapes are unsupported")
+			}
+		}
+	}
+	if isASCII {
+		// Print one final run of ASCII characters
+		js = append(js, name[asciiStart:]...)
+	}
+	return js
 }
 
 func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
@@ -365,38 +444,61 @@ func (p *printer) printQuotedUTF16(text []uint16, quote rune) {
 		case '\u2029':
 			js = append(js, "\\u2029"...)
 
+		case '\uFEFF':
+			js = append(js, "\\uFEFF"...)
+
 		default:
 			switch {
+			// Common case: just append a single byte
+			case c <= lastASCII:
+				js = append(js, byte(c))
+
 			// Is this a high surrogate?
-			case c >= 0xD800 && c <= 0xDBFF:
+			case c >= firstHighSurrogate && c <= lastHighSurrogate:
 				// Is there a next character?
 				if i < n {
 					c2 := text[i]
 
 					// Is it a low surrogate?
-					if c2 >= 0xDC00 && c2 <= 0xDFFF {
+					if c2 >= firstLowSurrogate && c2 <= lastLowSurrogate {
+						r := (rune(c) << 10) + rune(c2) + (0x10000 - (firstHighSurrogate << 10) - firstLowSurrogate)
 						i++
-						width := utf8.EncodeRune(temp, (rune(c)<<10)+rune(c2)+(0x10000-(0xD800<<10)-0xDC00))
+
+						// Escape this character if UTF-8 isn't allowed
+						if p.options.ASCIIOnly {
+							if !p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) {
+								js = append(js, fmt.Sprintf("\\u{%X}", r)...)
+							} else {
+								js = append(js,
+									'\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15],
+									'\\', 'u', hexChars[c2>>12], hexChars[(c2>>8)&15], hexChars[(c2>>4)&15], hexChars[c2&15],
+								)
+							}
+							continue
+						}
+
+						// Otherwise, encode to UTF-8
+						width := utf8.EncodeRune(temp, r)
 						js = append(js, temp[:width]...)
 						continue
 					}
 				}
 
-				// Write an escaped character
+				// Write an unpaired high surrogate
 				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
 
-			// Is this a low surrogate?
-			case c >= 0xDC00 && c <= 0xDFFF:
-				// Write an escaped character
+			// Is this an unpaired low surrogate or four-digit hex escape?
+			case (c >= firstLowSurrogate && c <= lastLowSurrogate) || (p.options.ASCIIOnly && c > 0xFF):
 				js = append(js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
 
+			// Can this be a two-digit hex escape?
+			case p.options.ASCIIOnly:
+				js = append(js, '\\', 'x', hexChars[c>>4], hexChars[c&15])
+
+			// Otherwise, just encode to UTF-8
 			default:
-				if c < utf8.RuneSelf {
-					js = append(js, byte(c))
-				} else {
-					width := utf8.EncodeRune(temp, rune(c))
-					js = append(js, temp[:width]...)
-				}
+				width := utf8.EncodeRune(temp, rune(c))
+				js = append(js, temp[:width]...)
 			}
 		}
 	}
@@ -429,6 +531,12 @@ type printer struct {
 	generatedColumn     int
 	hasPrevState        bool
 	lineOffsetTables    []lineOffsetTable
+
+	// For splicing adjacent files together
+	finalLocalSemi           int
+	firstDeclByteOffset      uint32
+	firstDeclSourceMapOffset uint32
+	hasDecl                  bool
 
 	// This is a workaround for a bug in the popular "source-map" library:
 	// https://github.com/mozilla/source-map/issues/261. The library will
@@ -469,14 +577,12 @@ func (p *printer) printBytes(bytes []byte) {
 	p.js = append(p.js, bytes...)
 }
 
-// This is the same as "print(js_lexer.UTF16ToString(text))" without any
-// unnecessary temporary allocations
-func (p *printer) printUTF16(text []uint16) {
-	p.js = js_lexer.AppendUTF16ToBytes(p.js, text)
-}
-
-func (p *printer) printQuoted(text string) {
-	p.js = quoteImpl(p.js, text, false)
+func (p *printer) printQuotedUTF8(text string, allowBacktick bool) {
+	value := js_lexer.StringToUTF16(text)
+	c := p.bestQuoteCharForString(value, allowBacktick)
+	p.print(c)
+	p.printQuotedUTF16(value, rune(c[0]))
+	p.print(c)
 }
 
 func (p *printer) addSourceMapping(loc logger.Loc) {
@@ -701,19 +807,88 @@ func (p *printer) printIndent() {
 
 func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printSpaceBeforeIdentifier()
-	p.print(p.renamer.NameForSymbol(ref))
+	p.printIdentifier(p.renamer.NameForSymbol(ref))
+}
+
+func CanQuoteIdentifier(name string, options *config.Options) bool {
+	return js_lexer.IsIdentifier(name) && (!options.ASCIIOnly ||
+		!options.UnsupportedJSFeatures.Has(compat.UnicodeEscapes) ||
+		!js_lexer.ContainsNonBMPCodePoint(name))
+}
+
+func (p *printer) canPrintIdentifier(name string) bool {
+	return js_lexer.IsIdentifier(name) && (!p.options.ASCIIOnly ||
+		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
+		!js_lexer.ContainsNonBMPCodePoint(name))
+}
+
+func (p *printer) canPrintIdentifierUTF16(name []uint16) bool {
+	return js_lexer.IsIdentifierUTF16(name) && (!p.options.ASCIIOnly ||
+		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
+		!js_lexer.ContainsNonBMPCodePointUTF16(name))
+}
+
+func (p *printer) printIdentifier(name string) {
+	if p.options.ASCIIOnly {
+		p.js = QuoteIdentifier(p.js, name, p.options.UnsupportedFeatures)
+	} else {
+		p.print(name)
+	}
+}
+
+// This is the same as "printIdentifier(StringToUTF16(bytes))" without any
+// unnecessary temporary allocations
+func (p *printer) printIdentifierUTF16(name []uint16) {
+	temp := make([]byte, utf8.UTFMax)
+	n := len(name)
+
+	for i := 0; i < n; i++ {
+		c := rune(name[i])
+
+		if c >= firstHighSurrogate && c <= lastHighSurrogate && i+1 < n {
+			if c2 := rune(name[i+1]); c2 >= firstLowSurrogate && c2 <= lastLowSurrogate {
+				c = (c << 10) + c2 + (0x10000 - (firstHighSurrogate << 10) - firstLowSurrogate)
+				i++
+			}
+		}
+
+		if p.options.ASCIIOnly && c > lastASCII {
+			if c <= 0xFFFF {
+				p.js = append(p.js, '\\', 'u', hexChars[c>>12], hexChars[(c>>8)&15], hexChars[(c>>4)&15], hexChars[c&15])
+			} else if !p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) {
+				p.js = append(p.js, fmt.Sprintf("\\u{%X}", c)...)
+			} else {
+				panic("Internal error: Cannot encode identifier: Unicode escapes are unsupported")
+			}
+			continue
+		}
+
+		width := utf8.EncodeRune(temp, c)
+		p.js = append(p.js, temp[:width]...)
+	}
+}
+
+func (p *printer) addSourceMappingForDecl(loc logger.Loc) {
+	if !p.hasDecl {
+		p.hasDecl = true
+		p.firstDeclByteOffset = uint32(len(p.js))
+		p.firstDeclSourceMapOffset = uint32(len(p.sourceMap))
+		p.prevLoc.Start = -1 // Force a new source mapping to be generated
+		p.addSourceMapping(loc)
+	}
 }
 
 func (p *printer) printBinding(binding js_ast.Binding) {
-	p.addSourceMapping(binding.Loc)
-
 	switch b := binding.Data.(type) {
 	case *js_ast.BMissing:
 
 	case *js_ast.BIdentifier:
+		p.printSpaceBeforeIdentifier()
+		p.addSourceMappingForDecl(binding.Loc)
 		p.printSymbol(b.Ref)
 
 	case *js_ast.BArray:
+		p.addSourceMappingForDecl(binding.Loc)
 		p.print("[")
 		if len(b.Items) > 0 {
 			if !b.IsSingleLine {
@@ -758,6 +933,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 		p.print("]")
 
 	case *js_ast.BObject:
+		p.addSourceMappingForDecl(binding.Loc)
 		p.print("{")
 		if len(b.Properties) > 0 {
 			if !b.IsSingleLine {
@@ -796,10 +972,10 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 					}
 
 					if str, ok := property.Key.Data.(*js_ast.EString); ok {
-						if js_lexer.IsIdentifierUTF16(str.Value) {
+						if p.canPrintIdentifierUTF16(str.Value) {
 							p.addSourceMapping(property.Key.Loc)
 							p.printSpaceBeforeIdentifier()
-							p.printUTF16(str.Value)
+							p.printIdentifierUTF16(str.Value)
 
 							// Use a shorthand property if the names are the same
 							if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok && js_lexer.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(id.Ref)) {
@@ -1041,9 +1217,9 @@ func (p *printer) printProperty(item js_ast.Property) {
 
 	case *js_ast.EString:
 		p.addSourceMapping(item.Key.Loc)
-		if js_lexer.IsIdentifierUTF16(key.Value) {
+		if p.canPrintIdentifierUTF16(key.Value) {
 			p.printSpaceBeforeIdentifier()
-			p.printUTF16(key.Value)
+			p.printIdentifierUTF16(key.Value)
 
 			// Use a shorthand property if the names are the same
 			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && item.Value != nil {
@@ -1175,7 +1351,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 			}
 			p.printIndent()
 		}
-		p.printQuoted(record.Path.Text)
+		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		if len(leadingInteriorComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
@@ -1209,7 +1385,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 		p.print("()")
 	} else {
 		p.print("require(")
-		p.printQuoted(record.Path.Text)
+		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
 		p.print(")")
 	}
 
@@ -1381,7 +1557,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 		p.printSpaceBeforeIdentifier()
 		p.print("require.resolve(")
-		p.printQuoted(p.importRecords[e.ImportRecordIndex].Path.Text)
+		p.printQuotedUTF8(p.importRecords[e.ImportRecordIndex].Path.Text, true /* allowBacktick */)
 		p.print(")")
 		if wrap {
 			p.print(")")
@@ -1439,13 +1615,21 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		p.printExpr(e.Target, js_ast.LPostfix, flags)
 		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?")
-		} else if p.prevNumEnd == len(p.js) {
-			// "1.toString" is a syntax error, so print "1 .toString" instead
-			p.print(" ")
 		}
-		p.print(".")
-		p.addSourceMapping(e.NameLoc)
-		p.print(e.Name)
+		if p.canPrintIdentifier(e.Name) {
+			if e.OptionalChain != js_ast.OptionalChainStart && p.prevNumEnd == len(p.js) {
+				// "1.toString" is a syntax error, so print "1 .toString" instead
+				p.print(" ")
+			}
+			p.print(".")
+			p.addSourceMapping(e.NameLoc)
+			p.printIdentifier(e.Name)
+		} else {
+			p.print("[")
+			p.addSourceMapping(e.NameLoc)
+			p.printQuotedUTF8(e.Name, true /* allowBacktick */)
+			p.print("]")
+		}
 		if wrap {
 			p.print(")")
 		}
@@ -1784,17 +1968,16 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		} else if symbol.NamespaceAlias != nil {
 			p.printSymbol(symbol.NamespaceAlias.NamespaceRef)
 			alias := symbol.NamespaceAlias.Alias
-			if js_lexer.IsIdentifier(alias) {
+			if p.canPrintIdentifier(alias) {
 				p.print(".")
-				p.print(alias)
+				p.printIdentifier(alias)
 			} else {
 				p.print("[")
-				p.printQuoted(alias)
+				p.printQuotedUTF8(alias, true /* allowBacktick */)
 				p.print("]")
 			}
 		} else {
-			p.printSpaceBeforeIdentifier()
-			p.print(p.renamer.NameForSymbol(e.Ref))
+			p.printSymbol(e.Ref)
 		}
 
 	case *js_ast.EAwait:
@@ -2130,6 +2313,8 @@ func (p *printer) printDeclStmt(isExport bool, keyword string, decls []js_ast.De
 		p.print("export ")
 	}
 	p.printDecls(keyword, decls, 0)
+	p.updateGeneratedLineAndColumn()
+	p.finalLocalSemi = p.generatedColumn
 	p.printSemicolonAfterStatement()
 }
 
@@ -2424,13 +2609,13 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.print("as")
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
-			p.print(s.Alias.Name)
+			p.printIdentifier(s.Alias.Name)
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
 		}
 		p.print("from")
 		p.printSpace()
-		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
+		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SExportClause:
@@ -2457,10 +2642,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.printIndent()
 			}
 			name := p.renamer.NameForSymbol(item.Name.Ref)
-			p.print(name)
+			p.printIdentifier(name)
 			if name != item.Alias {
 				p.print(" as ")
-				p.print(item.Alias)
+				p.printIdentifier(item.Alias)
 			}
 		}
 
@@ -2496,10 +2681,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 				p.printNewline()
 				p.printIndent()
 			}
-			p.print(item.OriginalName)
+			p.printIdentifier(item.OriginalName)
 			if item.OriginalName != item.Alias {
 				p.print(" as ")
-				p.print(item.Alias)
+				p.printIdentifier(item.Alias)
 			}
 		}
 
@@ -2513,7 +2698,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSpace()
 		p.print("from")
 		p.printSpace()
-		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
+		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SLocal:
@@ -2749,11 +2934,11 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 					p.printNewline()
 					p.printIndent()
 				}
-				p.print(item.Alias)
+				p.printIdentifier(item.Alias)
 				name := p.renamer.NameForSymbol(item.Name.Ref)
 				if name != item.Alias {
 					p.print(" as ")
-					p.print(name)
+					p.printIdentifier(name)
 				}
 			}
 
@@ -2786,7 +2971,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.printSpace()
 		}
 
-		p.printQuoted(p.importRecords[s.ImportRecordIndex].Path.Text)
+		p.printQuotedUTF8(p.importRecords[s.ImportRecordIndex].Path.Text, false /* allowBacktick */)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBlock:
@@ -2871,6 +3056,7 @@ type PrintOptions struct {
 	OutputFormat        config.Format
 	RemoveWhitespace    bool
 	MangleSyntax        bool
+	ASCIIOnly           bool
 	ExtractComments     bool
 	Indent              int
 	ToModuleRef         js_ast.Ref
@@ -2912,6 +3098,10 @@ type SourceMapChunk struct {
 	// there be) but if we're appending another source map chunk after this one,
 	// we'll need to know how many characters were in the last line we generated.
 	FinalGeneratedColumn int
+
+	// Like "FinalGeneratedColumn" but for the generated column of the last
+	// semicolon for a "SLocal" statement.
+	FinalLocalSemi int
 
 	ShouldIgnore bool
 }
@@ -2968,6 +3158,10 @@ type PrintResult struct {
 	SourceMapChunk SourceMapChunk
 
 	ExtractedComments map[string]bool
+
+	// These are used when stripping off the leading variable declaration
+	FirstDeclByteOffset      uint32
+	FirstDeclSourceMapOffset uint32
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
@@ -2990,8 +3184,11 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 			QuotedSources:        quotedSources(&tree, &options),
 			EndState:             p.prevState,
 			FinalGeneratedColumn: p.generatedColumn,
+			FinalLocalSemi:       p.finalLocalSemi,
 			ShouldIgnore:         p.shouldIgnoreSourceMap(),
 		},
+		FirstDeclByteOffset:      p.firstDeclByteOffset,
+		FirstDeclSourceMapOffset: p.firstDeclSourceMapOffset,
 	}
 }
 
@@ -3026,11 +3223,11 @@ func quotedSources(tree *js_ast.AST, options *PrintOptions) []QuotedSource {
 			contents := []byte("null")
 			if i < len(sm.SourcesContent) {
 				if value := sm.SourcesContent[i]; value != nil {
-					contents = QuoteForJSON(*value)
+					contents = QuoteForJSON(*value, options.ASCIIOnly)
 				}
 			}
 			results[i] = QuotedSource{
-				QuotedPath:     QuoteForJSON(source),
+				QuotedPath:     QuoteForJSON(source, options.ASCIIOnly),
 				QuotedContents: contents,
 			}
 		}
@@ -3038,7 +3235,7 @@ func quotedSources(tree *js_ast.AST, options *PrintOptions) []QuotedSource {
 	}
 
 	return []QuotedSource{{
-		QuotedPath:     QuoteForJSON(options.SourceForSourceMap.PrettyPath),
-		QuotedContents: QuoteForJSON(options.SourceForSourceMap.Contents),
+		QuotedPath:     QuoteForJSON(options.SourceForSourceMap.PrettyPath, options.ASCIIOnly),
+		QuotedContents: QuoteForJSON(options.SourceForSourceMap.Contents, options.ASCIIOnly),
 	}}
 }

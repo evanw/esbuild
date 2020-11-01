@@ -1484,8 +1484,12 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				//     export_foo as foo
 				//   };
 				//
+				kind := js_ast.LocalConst
+				if c.options.AvoidTDZ || c.options.UnsupportedJSFeatures.Has(compat.Const) {
+					kind = js_ast.LocalVar
+				}
 				entryPointExportStmts = append(entryPointExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{
-					Kind: js_ast.LocalConst,
+					Kind: kind,
 					Decls: []js_ast.Decl{{
 						Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: tempRef}},
 						Value:   &js_ast.Expr{Data: &js_ast.EImportIdentifier{Ref: export.ref}},
@@ -1532,12 +1536,16 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 
 		// Add a getter property
+		var getter js_ast.Expr
+		body := js_ast.FnBody{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+			getter = js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
+		} else {
+			getter = js_ast.Expr{Data: &js_ast.EArrow{PreferExpr: true, Body: body}}
+		}
 		properties = append(properties, js_ast.Property{
-			Key: js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
-			Value: &js_ast.Expr{Data: &js_ast.EArrow{
-				PreferExpr: true,
-				Body:       js_ast.FnBody{Stmts: []js_ast.Stmt{{Loc: value.Loc, Data: &js_ast.SReturn{Value: &value}}}},
-			}},
+			Key:   js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(alias)}},
+			Value: &getter,
 		})
 		nsExportSymbolUses[export.ref] = js_ast.SymbolUse{CountEstimate: 1}
 		if file.isEntryPoint {
@@ -1556,11 +1564,15 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 		}
 	}
 
-	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
+	// Prefix this part with "const exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
 	if !repr.meta.cjsStyleExports {
-		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: []js_ast.Decl{{
+		kind := js_ast.LocalConst
+		if c.options.AvoidTDZ || c.options.UnsupportedJSFeatures.Has(compat.Const) {
+			kind = js_ast.LocalVar
+		}
+		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Kind: kind, Decls: []js_ast.Decl{{
 			Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ExportsRef}},
 			Value:   &js_ast.Expr{Data: &js_ast.EObject{}},
 		}}}})
@@ -1641,7 +1653,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			}}}}
 
 		case config.FormatIIFE:
-			if c.options.ModuleName != "" {
+			if len(c.options.ModuleName) > 0 {
 				// "return require_foo();"
 				cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
@@ -2645,9 +2657,13 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 	}
 
 	// Replace the statement with a call to "require()"
+	kind := js_ast.LocalConst
+	if c.options.AvoidTDZ || c.options.UnsupportedJSFeatures.Has(compat.Const) {
+		kind = js_ast.LocalVar
+	}
 	stmtList.prefixStmts = append(stmtList.prefixStmts, js_ast.Stmt{
 		Loc: loc,
-		Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: []js_ast.Decl{{
+		Data: &js_ast.SLocal{Kind: kind, Decls: []js_ast.Decl{{
 			Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
 			Value:   &js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}},
 		}}},
@@ -2800,8 +2816,15 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 		case *js_ast.SClass:
-			// Strip the "export" keyword while bundling
-			if shouldStripExports && s.IsExport {
+			if c.options.AvoidTDZ {
+				stmt.Data = &js_ast.SLocal{
+					IsExport: s.IsExport && !shouldStripExports,
+					Decls: []js_ast.Decl{{
+						Binding: js_ast.Binding{Loc: s.Class.Name.Loc, Data: &js_ast.BIdentifier{Ref: s.Class.Name.Ref}},
+						Value:   &js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EClass{Class: s.Class}},
+					}},
+				}
+			} else if shouldStripExports && s.IsExport {
 				// Be careful to not modify the original statement
 				clone := *s
 				clone.IsExport = false
@@ -2809,11 +2832,17 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 		case *js_ast.SLocal:
-			// Strip the "export" keyword while bundling
-			if shouldStripExports && s.IsExport {
+			stripExport := shouldStripExports && s.IsExport
+			avoidTDZ := c.options.AvoidTDZ && s.Kind != js_ast.LocalVar
+			if stripExport || avoidTDZ {
 				// Be careful to not modify the original statement
 				clone := *s
-				clone.IsExport = false
+				if stripExport {
+					clone.IsExport = false
+				}
+				if avoidTDZ {
+					clone.Kind = js_ast.LocalVar
+				}
 				stmt.Data = &clone
 			}
 
@@ -2929,6 +2958,12 @@ type compileResultJS struct {
 
 	sourceIndex uint32
 
+	// This is used during minification to merge local declarations across files
+	startsWithLocal         *js_ast.LocalKind
+	endsWithLocal           *js_ast.LocalKind
+	shouldMergeLocalsBefore bool
+	shouldMergeLocalsAfter  bool
+
 	// This is the line and column offset since the previous JavaScript string
 	// or the start of the file if this is the first JavaScript string.
 	generatedOffset lineColumnOffset
@@ -3015,10 +3050,18 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		}
 
 		// "__commonJS((exports, module) => { ... })"
-		value := js_ast.Expr{Data: &js_ast.ECall{
-			Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
-			Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
-		}}
+		var value js_ast.Expr
+		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+			value = js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
+				Args:   []js_ast.Expr{{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}}},
+			}}
+		} else {
+			value = js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: commonJSRef}},
+				Args:   []js_ast.Expr{{Data: &js_ast.EArrow{Args: args, Body: js_ast.FnBody{Stmts: stmts}}}},
+			}}
+		}
 
 		// "var require_foo = __commonJS((exports, module) => { ... });"
 		stmts = append(stmtList.es6StmtsForCJSWrap, js_ast.Stmt{Data: &js_ast.SLocal{
@@ -3080,6 +3123,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		OutputFormat:        c.options.OutputFormat,
 		RemoveWhitespace:    c.options.RemoveWhitespace,
 		MangleSyntax:        c.options.MangleSyntax,
+		ASCIIOnly:           c.options.ASCIIOnly,
 		ToModuleRef:         toModuleRef,
 		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
 		UnsupportedFeatures: c.options.UnsupportedJSFeatures,
@@ -3094,6 +3138,14 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	*result = compileResultJS{
 		PrintResult: js_printer.Print(tree, c.symbols, r, printOptions),
 		sourceIndex: partRange.sourceIndex,
+	}
+	if len(stmts) > 0 {
+		if local, ok := stmts[0].Data.(*js_ast.SLocal); ok {
+			result.startsWithLocal = &local.Kind
+		}
+		if local, ok := stmts[len(stmts)-1].Data.(*js_ast.SLocal); ok {
+			result.endsWithLocal = &local.Kind
+		}
 	}
 
 	// Write this separately as the entry point tail so it can be split off
@@ -3333,7 +3385,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 
 			// Add the top-level directive if present
 			if repr.ast.Directive != "" {
-				quoted := string(js_printer.QuoteForJSON(repr.ast.Directive)) + ";" + newline
+				quoted := string(js_printer.QuoteForJSON(repr.ast.Directive, c.options.ASCIIOnly)) + ";" + newline
 				prevOffset.advanceString(quoted)
 				j.AddString(quoted)
 				newlineBeforeComment = true
@@ -3344,13 +3396,13 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		if c.options.OutputFormat == config.FormatIIFE {
 			var text string
 			indent = "  "
-			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
-				text = "(function()" + space + "{" + newline
-			} else {
-				text = "(()" + space + "=>" + space + "{" + newline
+			if len(c.options.ModuleName) > 0 {
+				text = generateModuleNamePrefix(c.options)
 			}
-			if c.options.ModuleName != "" {
-				text = "var " + c.options.ModuleName + space + "=" + space + text
+			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+				text += "(function()" + space + "{" + newline
+			} else {
+				text += "(()" + space + "=>" + space + "{" + newline
 			}
 			prevOffset.advanceString(text)
 			j.AddString(text)
@@ -3377,7 +3429,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				}
 				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}))))
+					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
@@ -3392,7 +3444,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		var commentList []string
 		commentSet := make(map[string]bool)
 		prevComment := uint32(0)
-		for _, compileResult := range compileResults {
+		for i, compileResult := range compileResults {
 			isRuntime := compileResult.sourceIndex == runtime.SourceIndex
 			for text := range compileResult.ExtractedComments {
 				if !commentSet[text] {
@@ -3420,18 +3472,53 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				prevComment = compileResult.sourceIndex
 			}
 
+			js := compileResult.JS
+
+			// Merge leading and trailing local declarations together. So a file
+			// ending in "var a=1;" followed by a file starting with "var b=2;" would
+			// become "var a=1,b=2;" for better minification.
+			if c.options.MangleSyntax && compileResult.endsWithLocal != nil && i+1 < len(compileResults) {
+				if next := compileResults[i+1]; next.startsWithLocal != nil && *compileResult.endsWithLocal == *next.startsWithLocal {
+					compileResult.shouldMergeLocalsAfter = true
+					if n := len(js); js[n-1] == ';' {
+						js = js[:n-1]
+					} else if js[n-1] == '\n' && js[n-2] == ';' {
+						js[n-2] = '\n'
+						js = js[:n-1]
+					} else {
+						panic("Internal error")
+					}
+				}
+			}
+			if c.options.MangleSyntax && compileResult.startsWithLocal != nil && i > 0 {
+				if prev := compileResults[i-1]; prev.endsWithLocal != nil && *compileResult.startsWithLocal == *prev.endsWithLocal {
+					compileResult.shouldMergeLocalsBefore = true
+					bytes := make([]byte, 0, compileResult.FirstDeclByteOffset)
+					for js[len(bytes)] == ' ' {
+						bytes = append(bytes, ' ')
+					}
+					bytes = append(bytes, ',')
+					if !c.options.RemoveWhitespace {
+						bytes = append(bytes, ' ')
+					}
+					prevOffset.advanceBytes(bytes)
+					j.AddBytes(bytes)
+					js = js[compileResult.FirstDeclByteOffset:]
+				}
+			}
+
 			// Don't include the runtime in source maps
 			if isRuntime {
-				prevOffset.advanceString(string(compileResult.JS))
-				j.AddBytes(compileResult.JS)
+				prevOffset.advanceString(string(js))
+				j.AddBytes(js)
 			} else {
 				// Save the offset to the start of the stored JavaScript
 				compileResult.generatedOffset = prevOffset
-				j.AddBytes(compileResult.JS)
+				j.AddBytes(js)
 
 				// Ignore empty source map chunks
 				if compileResult.SourceMapChunk.ShouldIgnore {
-					prevOffset.advanceBytes(compileResult.JS)
+					prevOffset.advanceBytes(js)
 				} else {
 					prevOffset = lineColumnOffset{}
 
@@ -3449,8 +3536,8 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 						jMeta.AddString(",")
 					}
 					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-						js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath),
-						len(compileResult.JS)))
+						js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
+						len(js)))
 				}
 			}
 
@@ -3566,6 +3653,43 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 	}
 }
 
+func generateModuleNamePrefix(options *config.Options) string {
+	var text string
+	prefix := options.ModuleName[0]
+	space := " "
+	join := ";\n"
+
+	if options.RemoveWhitespace {
+		space = ""
+		join = ";"
+	}
+
+	if js_printer.CanQuoteIdentifier(prefix, options) {
+		if options.ASCIIOnly {
+			prefix = string(js_printer.QuoteIdentifier(nil, prefix, options.UnsupportedJSFeatures))
+		}
+		text = fmt.Sprintf("var %s%s=%s", prefix, space, space)
+	} else {
+		prefix = fmt.Sprintf("this[%s]", js_printer.QuoteForJSON(prefix, options.ASCIIOnly))
+		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
+	}
+
+	for _, name := range options.ModuleName[1:] {
+		oldPrefix := prefix
+		if js_printer.CanQuoteIdentifier(name, options) {
+			if options.ASCIIOnly {
+				name = string(js_printer.QuoteIdentifier(nil, name, options.UnsupportedJSFeatures))
+			}
+			prefix = fmt.Sprintf("%s.%s", prefix, name)
+		} else {
+			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, options.ASCIIOnly))
+		}
+		text += fmt.Sprintf("%s%s||%s{}%s%s%s=%s", oldPrefix, space, space, join, prefix, space, space)
+	}
+
+	return text
+}
+
 type compileResultCSS struct {
 	printedCSS            string
 	sourceIndex           uint32
@@ -3611,6 +3735,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 
 			compileResult.printedCSS = css_printer.Print(ast, css_printer.Options{
 				RemoveWhitespace: c.options.RemoveWhitespace,
+				ASCIIOnly:        c.options.ASCIIOnly,
 			})
 			compileResult.sourceIndex = sourceIndex
 			waitGroup.Done()
@@ -3668,7 +3793,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 				}
 				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}))))
+					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
@@ -3698,7 +3823,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 					jMeta.AddString(",")
 				}
 				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath),
+					js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
 					len(compileResult.printedCSS)))
 			}
 		}
@@ -3913,13 +4038,27 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []b
 			startState.GeneratedColumn += prevColumnOffset
 		}
 
+		buffer := chunk.Buffer
+
+		// Adjust the source map if we stripped off the leading variable
+		// declaration keyword (i.e. var/let/const) to splice files together
+		if result.shouldMergeLocalsBefore {
+			buffer = js_printer.RemovePrefixFromSourceMapChunk(buffer, int(result.FirstDeclSourceMapOffset))
+		}
+
 		// Append the precomputed source map chunk
-		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
+		js_printer.AppendSourceMapChunk(&j, prevEndState, startState, buffer)
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
 		prevEndState.SourceIndex += sourceMapIndex
 		prevColumnOffset = chunk.FinalGeneratedColumn
+
+		// Adjust the source map if we stripped off the trailing semicolon
+		// after the last variable declaration statement when splicing
+		if result.shouldMergeLocalsAfter {
+			prevColumnOffset = chunk.FinalLocalSemi
+		}
 
 		// If this was all one line, include the column offset from the start
 		if prevEndState.GeneratedLine == 0 {

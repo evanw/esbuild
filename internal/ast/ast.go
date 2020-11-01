@@ -22,14 +22,14 @@ const (
 	ImportRequireResolve
 
 	// A CSS "@import" rule
-	AtImport
+	ImportAt
 
 	// A CSS "url(...)" token
-	URLToken
+	ImportURL
 )
 
 func (kind ImportKind) IsFromCSS() bool {
-	return kind == AtImport || kind == URLToken
+	return kind == ImportAt || kind == ImportURL
 }
 
 type ImportRecord struct {

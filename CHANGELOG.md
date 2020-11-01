@@ -1,5 +1,230 @@
 # Changelog
 
+## 0.8.0
+
+**This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/misc/semver)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `^0.7.0`. See the documentation about [semver](https://docs.npmjs.com/misc/semver) for more information.
+
+The breaking changes are as follows:
+
+* Changed the transform API result object
+
+    For the transform API, the return values `js` and `jsSourceMap` have been renamed to `code` and `map` respectively. This is because esbuild now supports CSS as a first-class content type, and returning CSS code in a variable called `js` made no sense.
+
+* The class field transform is now more accurate
+
+    Class fields look like this:
+
+    ```js
+    class Foo {
+      foo = 123
+    }
+    ```
+
+    Previously the transform for class fields used a normal assignment for initialization:
+
+    ```js
+    class Foo {
+      constructor() {
+        this.foo = 123;
+      }
+    }
+    ```
+
+    However, this doesn't exactly follow the initialization behavior in the JavaScript specification. For example, it can cause a setter to be called if one exists with that property name, which isn't supposed to happen. A more accurate transform that used `Object.defineProperty()` instead was available under the `--strict:class-fields` option.
+
+    This release removes the `--strict:class-fields` option and makes that the default behavior. There is no longer a way to compile class fields to normal assignments instead, since that doesn't follow JavaScript semantics. Note that for legacy reasons, TypeScript code will still compile class fields to normal assignments unless `useDefineForClassFields` is enabled in `tsconfig.json` just like the official TypeScript compiler.
+
+* When bundling stdin using the API, `resolveDir` is now required to resolve imports
+
+    The `resolveDir` option specifies the directory to resolve relative imports against. Previously it defaulted to the current working directory. Now it no longer does, so you must explicitly specify it if you need it:
+
+    ```js
+    const result = await esbuild.build({
+      stdin: {
+        contents,
+        resolveDir,
+      },
+      bundle: true,
+      outdir,
+    })
+    ```
+
+    This was changed because the original behavior was unintentional, and because being explicit seems better in this case. Note that this only affects the JavaScript and Go APIs. The resolution directory for stdin passed using the command-line API still defaults to the current working directory.
+
+    In addition, it is now possible for esbuild to discover input source maps linked via `//# sourceMappingURL=` comments relative to the `resolveDir` for stdin. This previously only worked for files with a real path on the file system.
+
+* Made names in the Go API consistent
+
+    Previously some of the names in the Go API were unnecessarily different than the corresponding names in the CLI and JavaScript APIs. This made it harder to write documentation and examples for these APIs that work consistently across all three API surfaces. These different names in the Go API have been fixed:
+
+    * `Defines` → `Define`
+    * `Externals` → `External`
+    * `Loaders` → `Loader`
+    * `PureFunctions` → `Pure`
+
+* The global name parameter now takes a JavaScript expression ([#293](https://github.com/evanw/esbuild/issues/293))
+
+    The global name parameter determines the name of the global variable created for exports with the IIFE output format. For example, a global name of `abc` would generate the following IIFE:
+
+    ```js
+    var abc = (() => {
+      ...
+    })();
+    ```
+
+    Previously this name was injected into the source code verbatim without any validation. This meant a global name of `abc.def` would generate this code, which is a syntax error:
+
+    ```js
+    var abc.def = (() => {
+      ...
+    })();
+    ```
+
+    With this release, a global name of `abc.def` will now generate the following code instead:
+
+    ```js
+    var abc = abc || {};
+    abc.def = (() => {
+      ...
+    })();
+    ```
+
+    The full syntax is an identifier followed by one or more property accesses. If you need to include a `.` character in your property name, you can use an index expression instead. For example, the global name `versions['1.0']` will generate the following code:
+
+    ```js
+    var versions = versions || {};
+    versions["1.0"] = (() => {
+      ...
+    })();
+    ```
+
+* Removed the workaround for `document.all` with nullish coalescing and optional chaining
+
+    The `--strict:nullish-coalescing` and `--strict:optional-chaining` options have been removed. They only existed to address a theoretical problem where modern code that uses the new `??` and `?.` operators interacted with the legacy [`document.all` object](https://developer.mozilla.org/en-US/docs/Web/API/Document/all) that has been deprecated for a long time. Realistically this case is extremely unlikely to come up in practice, so these obscure options were removed to simplify the API and reduce code complexity. For what it's worth this behavior also matches [Terser](https://github.com/terser/terser), a commonly-used JavaScript minifier.
+
+## 0.7.22
+
+* Add `tsconfigRaw` to the transform API ([#483](https://github.com/evanw/esbuild/issues/483))
+
+    The `build` API uses access to the file system and doesn't run in the browser, but the `transform` API doesn't access the file system and can run in the browser. Previously you could only use the build API for certain scenarios involving TypeScript code and `tsconfig.json` files, such as configuring the `importsNotUsedAsValues` setting.
+
+    You can now use `tsconfig.json` with the transform API by passing in the raw contents of that file:
+
+    ```js
+    let result = esbuild.transformSync(ts, {
+      loader: 'ts',
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'preserve',
+        },
+      },
+    })
+    ```
+
+    Right now four values are supported with the transform API: `jsxFactory`, `jsxFragmentFactory`, `useDefineForClassFields`, and `importsNotUsedAsValues`. The values `extends`, `baseUrl`, and `paths` are not supported because they require access to the file system and the transform API deliberately does not access the file system.
+
+    You can also pass the `tsconfig.json` file as a string instead of a JSON object if you prefer. This can be useful because `tsconfig.json` files actually use a weird pseudo-JSON syntax that allows comments and trailing commas, which means it can't be parsed with `JSON.parse()`.
+
+* Warn about `process.env.NODE_ENV`
+
+    Some popular browser-oriented libraries such as React use `process.env.NODE_ENV` even though this is not an API provided by the browser. While esbuild makes it easy to replace this at compile time using the `--define` feature, you must still do this manually and it's easy to forget. Now esbuild will warn you if you're bundling code containing `process.env.NODE_ENV` for the browser and you haven't configured it to be replaced by something.
+
+* Work around a bug in Safari for the run-time code ([#489](https://github.com/evanw/esbuild/issues/489))
+
+    The `Object.getOwnPropertyDescriptor` function in Safari is broken for numeric properties. It incorrectly returns `undefined`, which crashes the run-time code esbuild uses to bind modules together. This release contains code to avoid a crash in this case.
+
+## 0.7.21
+
+* Use bracketed escape codes for non-BMP characters
+
+    The previous release introduced code that escapes non-ASCII characters using ASCII escape sequences. Since JavaScript uses UCS-2/UTF-16 internally, a non-[BMP](https://en.wikipedia.org/wiki/Plane_(Unicode)#Basic_Multilingual_Plane) character such as `𐀀` ended up being encoded using a [surrogate pair](https://en.wikipedia.org/wiki/Universal_Character_Set_characters#Surrogates): `\uD800\uDC00`. This is fine when the character is contained in a string, but it causes a syntax error when that character is used as an identifier.
+
+    This release fixes this issue by using the newer bracketed escape code instead: `\u{10000}`. One complication with doing this is that this escape code won't work in older environments without ES6 support. Because of this, using identifiers containing non-BMP characters is now an error if the configured target environment doesn't support bracketed escape codes.
+
+* Escape non-ASCII characters in properties
+
+    The previous release overlooked the need to escape non-ASCII characters in properties in various places in the grammar (e.g. object literals, property accesses, import and export aliases). This resulted in output containing non-ASCII characters even with `--charset=ascii`. These characters should now always be escaped, even in properties.
+
+## 0.7.20
+
+* Default to ASCII-only output ([#70](https://github.com/evanw/esbuild/issues/70), [#485](https://github.com/evanw/esbuild/issues/485))
+
+    While esbuild's output is encoded using UTF-8 encoding, there are many other character encodings in the wild (e.g. [Windows-1250](https://en.wikipedia.org/wiki/Windows-1250)). You can explicitly mark the output files as UTF-8 by adding `<meta charset="utf-8">` to your HTML page or by including `charset=utf-8` in the `Content-Type` header sent by your server. This is probably a good idea regardless of the contents of esbuild's output since information being displayed to users is probably also encoded using UTF-8.
+
+    However, sometimes it's not possible to guarantee that your users will be running your code as UTF-8. For example, you may not control the server response or the contents of the HTML page that loads your script. Also, if your code needs to run in IE, there are [certain cases](https://docs.microsoft.com/en-us/troubleshoot/browsers/wrong-character-set-for-html-page) where IE may ignore the `<meta charset="utf-8">` tag and make up another encoding instead.
+
+    Also content encoded using UTF-8 may be parsed up to 1.7x slower by the browser than ASCII-only content, at least according to this blog post from the V8 team: https://v8.dev/blog/scanner. The official recommendation is to "avoid non-ASCII identifiers where possible" to improve parsing performance.
+
+    For these reasons, esbuild's default output has been changed to ASCII-only. All Unicode code points in identifiers and strings that are outside of the printable ASCII range (`\x20-\x7E` inclusive) are escaped using backslash escape sequences. If you would like to use raw UTF-8 encoding instead, you can pass the `--charset=utf8` flag to esbuild.
+
+    Further details:
+
+    * This does not yet escape non-ASCII characters embedded in regular expressions. This is because esbuild does not currently parse the contents of regular expressions at all. The flag was added despite this limitation because it's still useful for code that doesn't contain cases like this.
+
+    * This flag does not apply to comments. I believe preserving non-ASCII data in comments should be fine because even if the encoding is wrong, the run time environment should completely ignore the contents of all comments. For example, the [V8 blog post](https://v8.dev/blog/scanner) mentions an optimization that avoids decoding comment contents completely. And all comments other than license-related comments are stripped out by esbuild anyway.
+
+    * This new `--charset` flag simultaneously applies to all output file types (JavaScript, CSS, and JSON). So if you configure your server to send the correct `Content-Type` header and want to use `--charset=utf8`, make sure your server is configured to treat both `.js` and `.css` files as UTF-8.
+
+* Interpret escape sequences in CSS tokens
+
+    Escape sequences in CSS tokens are now interpreted. This was already the case for string and URL tokens before, but this is now the case for all identifier-like tokens as well. For example, `c\6flor: #\66 00` is now correctly recognized as `color: #f00`.
+
+* Support `.css` with the `--out-extension` option
+
+    The `--out-extension` option was added so you could generate `.mjs` and `.cjs` files for node like this: `--out-extension:.js=.mjs`. However, now that CSS is a first-class content type in esbuild, this should also be available for `.css` files. I'm not sure why you would want to do this, but you can now do `--out-extension:.css=.something` too.
+
+## 0.7.19
+
+* Add the `--avoid-tdz` option for large bundles in Safari ([#478](https://github.com/evanw/esbuild/issues/478))
+
+    This is a workaround for a performance issue with certain large JavaScript files in Safari.
+
+    First, some background. In JavaScript the `var` statement is "hoisted" meaning the variable is declared immediately in the closest surrounding function, module, or global scope. Accessing one of these variables before its declaration has been evaluated results in the value `undefined`. In ES6 the `const`, `let`, and `class` statements introduce what's called a "temporal dead zone" or TDZ. This means that, unlike `var` statements, accessing one of these variable before its declaration has been evaluated results in a `ReferenceError` being thrown. It's called a "temporal dead zone" because it's a zone of time in which the variable is inaccessible.
+
+    According to [this WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=199866), there's a severe performance issue with the tracking of TDZ checks in JavaScriptCore, the JavaScript JIT compiler used by WebKit. In a large private code base I have access to, the initialization phase of the bundle produced by esbuild runs 10x faster in Safari if top-level `const`, `let`, and `class` are replaced with `var`. It's a difference between a loading time of about 2sec vs. about 200ms. This transformation is not enabled by default because it changes the semantics of the code (it removes the TDZ and `const` assignment checks). However, this change in semantics may be acceptable for you given the performance trade-off. You can enable it with the `--avoid-tdz` flag.
+
+* Warn about assignment to `const` symbols
+
+    Now that some `const` symbols may be converted to `var` due to `--avoid-tdz`, it seems like a good idea to at least warn when an assignment to a `const` symbol is detected during bundling. Otherwise accidental assignments to `const` symbols could go unnoticed if there isn't other tooling in place such as TypeScript or a linter.
+
+## 0.7.18
+
+* Treat paths in CSS without a `./` or `../` prefix as relative ([#469](https://github.com/evanw/esbuild/issues/469))
+
+    JavaScript paths starting with `./` or `../` are considered relative paths, while other JavaScript paths are considered package paths and are looked up in that package's `node_modules` directory. Currently `url()` paths in CSS files use that same logic, so `url(images/image.png)` checks for a file named `image.png` in the `image` package.
+
+    This release changes this behavior. Now `url(images/image.png)` first checks for `./images/image.png`, then checks for a file named `image.png` in the `image` package. This behavior should match the behavior of Webpack's standard `css-loader` package.
+
+* Import non-enumerable properties from CommonJS modules ([#472](https://github.com/evanw/esbuild/issues/472))
+
+    You can now import non-enumerable properties from CommonJS modules using an ES6 `import` statement. Here's an example of a situation where that might matter:
+
+    ```js
+    // example.js
+    module.exports = class {
+      static method() {}
+    }
+    ```
+
+    ```js
+    import { method } from './example.js'
+    method()
+    ```
+
+    Previously that didn't work because the `method` property is non-enumerable. This should now work correctly.
+
+    A minor consequence of this change is that re-exporting from a file using `export * from` will no longer re-export properties inherited from the prototype of the object assigned to `module.exports`. This is because run-time property copying has been changed from a for-in loop to `Object.getOwnPropertyNames`. This change should be inconsequential because as far as I can tell this isn't something any other bundler supports either.
+
+* Remove arrow functions in runtime with `--target=es5`
+
+    The `--target=es5` flag is intended to prevent esbuild from introducing any ES6+ syntax into the generated output file. For example, esbuild usually shortens `{x: x}` into `{x}` since it's shorter, except that requires ES6 support. This release fixes a bug where `=>` arrow expressions in esbuild's runtime of helper functions were not converted to `function` expressions when `--target=es5` was present.
+
+* Merge local variable declarations across files when minifying
+
+    Currently files are minified in parallel and then concatenated together for maximum performance. However, that means certain constructs are not optimally minified if they span multiple files. For example, a bundle containing two files `var a = 1` and `var b = 2` should ideally become `var a=1,b=2;` after minification but it currently becomes `var a=0;var b=2;` instead due to parallelism.
+
+    With this release, esbuild will generate `var a=1,b=2;` in this scenario. This is achieved by splicing the two files together to remove the trailing `;` and the leading `var `, which is more complicated than it sounds when you consider rewriting the source maps.
+
 ## 0.7.17
 
 * Add `--public-path=` for the `file` loader ([#459](https://github.com/evanw/esbuild/issues/459))
@@ -1140,7 +1365,7 @@
 
 * Fixed ordering between `node_modules` and a force-overridden `tsconfig.json` ([#278](https://github.com/evanw/esbuild/issues/278))
 
-    When the `tsconfig.json` settings have been force-overridden using the new `--tsconfig` flag, the path resolution behavior behaved subtly differently than if esbuild naturally discovers the `tsconfig.json` file without the flag. The difference caused package paths present in a `node_modules` folder to incorrectly take precedence over custom path aliases configured in `tsconfig.json`. The ordering has been corrected such that custom path aliases always take place over `node_modules`.
+    When the `tsconfig.json` settings have been force-overridden using the new `--tsconfig` flag, the path resolution behavior behaved subtly differently than if esbuild naturally discovers the `tsconfig.json` file without the flag. The difference caused package paths present in a `node_modules` directory to incorrectly take precedence over custom path aliases configured in `tsconfig.json`. The ordering has been corrected such that custom path aliases always take place over `node_modules`.
 
 * Add the `--out-extension` flag for custom output extensions ([#281](https://github.com/evanw/esbuild/issues/281))
 
@@ -1981,7 +2206,7 @@ Note that you can also just use `--strict` to enable strictness for all transfor
 
 * Add the `file` loader ([#14](https://github.com/evanw/esbuild/issues/14) and [#135](https://github.com/evanw/esbuild/pull/135))
 
-    The `file` loader copies the input file to the output folder and exports the path of the file as a string to any modules that import the file. For example, `--loader:.png=file` enables this loader for all imported `.png` files. This was contributed by [@viankakrisna](https://github.com/viankakrisna).
+    The `file` loader copies the input file to the output directory and exports the path of the file as a string to any modules that import the file. For example, `--loader:.png=file` enables this loader for all imported `.png` files. This was contributed by [@viankakrisna](https://github.com/viankakrisna).
 
 * Add the `--resolve-extensions` flag ([#142](https://github.com/evanw/esbuild/pull/142))
 

@@ -635,39 +635,17 @@ flatten:
 	// Step 5: Wrap it all in a conditional that returns the chain or the default
 	// value if the initial value is null/undefined. The default value is usually
 	// "undefined" but is "true" if the chain ends in a "delete" operator.
-	if p.Strict.OptionalChaining {
-		// "x?.y" => "x === null || x === void 0 ? void 0 : x.y"
-		// "x()?.y()" => "(_a = x()) === null || _a === void 0 ? void 0 : _a.y()"
-		result = js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
-			Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op: js_ast.BinOpLogicalOr,
-				Left: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpStrictEq,
-					Left:  expr,
-					Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
-				}},
-				Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpStrictEq,
-					Left:  exprFunc(),
-					Right: js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}},
-				}},
-			}},
-			Yes: valueWhenUndefined,
-			No:  result,
-		}}
-	} else {
-		// "x?.y" => "x == null ? void 0 : x.y"
-		// "x()?.y()" => "(_a = x()) == null ? void 0 : _a.y()"
-		result = js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
-			Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op:    js_ast.BinOpLooseEq,
-				Left:  expr,
-				Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
-			}},
-			Yes: valueWhenUndefined,
-			No:  result,
-		}}
-	}
+	// "x?.y" => "x == null ? void 0 : x.y"
+	// "x()?.y()" => "(_a = x()) == null ? void 0 : _a.y()"
+	result = js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
+		Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+			Op:    js_ast.BinOpLooseEq,
+			Left:  expr,
+			Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
+		}},
+		Yes: valueWhenUndefined,
+		No:  result,
+	}}
 	if exprWrapFunc != nil {
 		result = exprWrapFunc(result)
 	}
@@ -800,29 +778,6 @@ func (p *parser) lowerLogicalAssignmentOperator(loc logger.Loc, e *js_ast.EBinar
 }
 
 func (p *parser) lowerNullishCoalescing(loc logger.Loc, left js_ast.Expr, right js_ast.Expr) js_ast.Expr {
-	if p.Strict.NullishCoalescing {
-		// "x ?? y" => "x !== null && x !== void 0 ? x : y"
-		// "x() ?? y()" => "_a = x(), _a !== null && _a !== void 0 ? _a : y"
-		leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 3, left)
-		return wrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EIf{
-			Test: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op: js_ast.BinOpLogicalAnd,
-				Left: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpStrictNe,
-					Left:  leftFunc(),
-					Right: js_ast.Expr{Loc: loc, Data: &js_ast.ENull{}},
-				}},
-				Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpStrictNe,
-					Left:  leftFunc(),
-					Right: js_ast.Expr{Loc: loc, Data: &js_ast.EUndefined{}},
-				}},
-			}},
-			Yes: leftFunc(),
-			No:  right,
-		}})
-	}
-
 	// "x ?? y" => "x != null ? x : y"
 	// "x() ?? y()" => "_a = x(), _a != null ? _a : y"
 	leftFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, left)
@@ -1632,7 +1587,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
 		mustLowerPrivate := private != nil && p.isPrivateUnsupported(private)
 		shouldOmitFieldInitializer := p.TS.Parse && !prop.IsMethod && prop.Initializer == nil &&
-			!p.Strict.ClassFields && !mustLowerPrivate
+			!p.UseDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
 		mustLowerField := !prop.IsMethod && (!prop.IsStatic && p.UnsupportedJSFeatures.Has(compat.ClassField) ||
@@ -1722,7 +1677,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		// TypeScript feature. Move their initializers from the class body to
 		// either the constructor (instance fields) or after the class (static
 		// fields).
-		if !prop.IsMethod && (mustLowerField || (p.TS.Parse && !p.Strict.ClassFields && (!prop.IsStatic || private == nil))) {
+		if !prop.IsMethod && (mustLowerField || (p.TS.Parse && !p.UseDefineForClassFields && (!prop.IsStatic || private == nil))) {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
@@ -1776,12 +1731,12 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 						},
 					}}
 					p.recordUsage(ref)
-				} else if private == nil && p.Strict.ClassFields {
-					expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{
-						target,
-						prop.Key,
-						init,
-					})
+				} else if private == nil && p.UseDefineForClassFields {
+					if _, ok := init.Data.(*js_ast.EUndefined); ok {
+						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key})
+					} else {
+						expr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key, init})
+					}
 				} else {
 					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.IsComputed {
 						target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{

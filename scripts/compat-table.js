@@ -36,6 +36,7 @@ const features = {
   'arrow functions': { target: 'Arrow' },
   'class': { target: 'Class' },
   'generators': { target: 'Generator' },
+  'Unicode code point escapes': { target: 'UnicodeEscapes' },
 
   // >ES6 features
   'exponentiation (**) operator': { target: 'ExponentOperator' },
@@ -118,6 +119,7 @@ mergeVersions('NewTarget', { es2015: true })
 mergeVersions('ObjectExtensions', { es2015: true })
 mergeVersions('RestArgument', { es2015: true })
 mergeVersions('TemplateLiteral', { es2015: true })
+mergeVersions('UnicodeEscapes', { es2015: true })
 
 // >ES6 features
 mergeVersions('ExponentOperator', { es2016: true })

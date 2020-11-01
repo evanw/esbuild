@@ -87,7 +87,7 @@ type ResolveResult struct {
 	IgnoreIfUnused bool
 
 	// If true, the class field transform should use Object.defineProperty().
-	StrictClassFields bool
+	UseDefineForClassFieldsTS bool
 
 	// If true, unused imports are retained in TypeScript code. This matches the
 	// behavior of the "importsNotUsedAsValues" field in "tsconfig.json" when the
@@ -210,20 +210,20 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 				// Look up this file in the "sideEffects" map in the nearest enclosing
 				// directory with a "package.json" file
 				for info := dirInfo; info != nil; info = info.parent {
-					if info.packageJson != nil {
-						if info.packageJson.sideEffectsMap != nil {
-							result.IgnoreIfUnused = !info.packageJson.sideEffectsMap[path.Text]
+					if info.packageJSON != nil {
+						if info.packageJSON.sideEffectsMap != nil {
+							result.IgnoreIfUnused = !info.packageJSON.sideEffectsMap[path.Text]
 						}
 						break
 					}
 				}
 
 				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-				if path == &result.PathPair.Primary && dirInfo.tsConfigJson != nil {
-					result.JSXFactory = dirInfo.tsConfigJson.jsxFactory
-					result.JSXFragment = dirInfo.tsConfigJson.jsxFragmentFactory
-					result.StrictClassFields = dirInfo.tsConfigJson.useDefineForClassFields
-					result.PreserveUnusedImportsTS = dirInfo.tsConfigJson.preserveImportsNotUsedAsValues
+				if path == &result.PathPair.Primary && dirInfo.tsConfigJSON != nil {
+					result.JSXFactory = dirInfo.tsConfigJSON.JSXFactory
+					result.JSXFragment = dirInfo.tsConfigJSON.JSXFragmentFactory
+					result.UseDefineForClassFieldsTS = dirInfo.tsConfigJSON.UseDefineForClassFields
+					result.PreserveUnusedImportsTS = dirInfo.tsConfigJSON.PreserveImportsNotUsedAsValues
 				}
 
 				if entry, ok := dirInfo.entries[base]; ok {
@@ -260,7 +260,13 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: importPath, Namespace: "file"}}}
 	}
 
-	if !IsPackagePath(importPath) {
+	// Check both relative and package paths for CSS URL tokens, with relative
+	// paths taking precedence over package paths to match Webpack behavior.
+	isPackagePath := IsPackagePath(importPath)
+	checkRelative := !isPackagePath || kind == ast.ImportURL
+	checkPackage := isPackagePath
+
+	if checkRelative {
 		absPath := r.fs.Join(sourceDir, importPath)
 
 		// Check for external packages first
@@ -269,11 +275,14 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 		}
 
 		if absolute, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
+			checkPackage = false
 			result = absolute
-		} else {
+		} else if !checkPackage {
 			return nil
 		}
-	} else {
+	}
+
+	if checkPackage {
 		// Check for external packages first
 		if r.options.ExternalModules.NodeModules != nil {
 			query := importPath
@@ -300,9 +309,9 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 
 		// Support remapping one package path to another via the "browser" field
 		if sourceDirInfo.enclosingBrowserScope != nil {
-			packageJson := sourceDirInfo.enclosingBrowserScope.packageJson
-			if packageJson.browserPackageMap != nil {
-				if remapped, ok := packageJson.browserPackageMap[importPath]; ok {
+			packageJSON := sourceDirInfo.enclosingBrowserScope.packageJSON
+			if packageJSON.browserPackageMap != nil {
+				if remapped, ok := packageJSON.browserPackageMap[importPath]; ok {
 					if remapped == nil {
 						// "browser": {"module": false}
 						if absolute, ok := r.loadNodeModules(importPath, kind, sourceDirInfo); ok {
@@ -339,9 +348,9 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 
 		// Support remapping one non-module path to another via the "browser" field
 		if resultDirInfo != nil && resultDirInfo.enclosingBrowserScope != nil {
-			packageJson := resultDirInfo.enclosingBrowserScope.packageJson
-			if packageJson.browserNonPackageMap != nil {
-				if remapped, ok := packageJson.browserNonPackageMap[path.Text]; ok {
+			packageJSON := resultDirInfo.enclosingBrowserScope.packageJSON
+			if packageJSON.browserNonPackageMap != nil {
+				if remapped, ok := packageJSON.browserNonPackageMap[path.Text]; ok {
 					if remapped == nil {
 						path.Namespace = BrowserFalseNamespace
 					} else if remappedResult, ok := r.resolveWithoutRemapping(resultDirInfo.enclosingBrowserScope, *remapped, kind); ok {
@@ -388,7 +397,7 @@ func (r *resolver) PrettyPath(path logger.Path) string {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type packageJson struct {
+type packageJSON struct {
 	absMainFields map[string]string
 
 	// Present if the "browser" field is present. This field is intended to be
@@ -420,25 +429,6 @@ type packageJson struct {
 	sideEffectsMap map[string]bool
 }
 
-type tsConfigJson struct {
-	// The absolute path of "compilerOptions.baseUrl"
-	absPathBaseUrl *string
-
-	// The verbatim values of "compilerOptions.paths". The keys are patterns to
-	// match and the values are arrays of fallback paths to search. Each key and
-	// each fallback path can optionally have a single "*" wildcard character.
-	// If both the key and the value have a wildcard, the substring matched by
-	// the wildcard is substituted into the fallback path. The keys represent
-	// module-style path names and the fallback paths are relative to the
-	// "baseUrl" value in the "tsconfig.json" file.
-	paths map[string][]string
-
-	jsxFactory                     []string
-	jsxFragmentFactory             []string
-	useDefineForClassFields        bool
-	preserveImportsNotUsedAsValues bool
-}
-
 type dirInfo struct {
 	// These objects are immutable, so we can just point to the parent directory
 	// and avoid having to lock the cache again
@@ -453,8 +443,8 @@ type dirInfo struct {
 	entries        map[string]*fs.Entry
 	hasNodeModules bool          // Is there a "node_modules" subdirectory?
 	absPathIndex   *string       // Is there an "index.js" file?
-	packageJson    *packageJson  // Is there a "package.json" file?
-	tsConfigJson   *tsConfigJson // Is there a "tsconfig.json" file in this directory or a parent directory?
+	packageJSON    *packageJSON  // Is there a "package.json" file?
+	tsConfigJSON   *TSConfigJSON // Is there a "tsconfig.json" file in this directory or a parent directory?
 	absRealPath    string        // If non-empty, this is the real absolute path resolving any symlinks
 }
 
@@ -476,237 +466,111 @@ func (r *resolver) dirInfoCached(path string) *dirInfo {
 	return info
 }
 
-func (r *resolver) parseMemberExpressionForJSX(source logger.Source, loc logger.Loc, text string) []string {
-	if text == "" {
-		return nil
-	}
-	parts := strings.Split(text, ".")
-	for _, part := range parts {
-		if !js_lexer.IsIdentifier(part) {
-			warnRange := source.RangeOfString(loc)
-			r.log.AddRangeWarning(&source, warnRange, fmt.Sprintf("Invalid JSX member expression: %q", text))
-			return nil
-		}
-	}
-	return parts
-}
-
 var parseErrorImportCycle = errors.New("(import cycle)")
+var parseErrorAlreadyLogged = errors.New("(error already logged)")
 
 // This may return "parseErrorAlreadyLogged" in which case there was a syntax
 // error, but it's already been reported. No further errors should be logged.
 //
 // Nested calls may also return "parseErrorImportCycle". In that case the
 // caller is responsible for logging an appropriate error message.
-func (r *resolver) parseJsTsConfig(file string, visited map[string]bool) (*tsConfigJson, error) {
+func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfigJSON, error) {
 	// Don't infinite loop if a series of "extends" links forms a cycle
 	if visited[file] {
 		return nil, parseErrorImportCycle
 	}
 	visited[file] = true
-	filePath := r.fs.Dir(file)
 
-	// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
-	// format that appears to be defined by the implementation details of the
-	// TypeScript compiler.
-	//
-	// Attempt to parse it anyway by modifying the JSON parser, but just for
-	// these particular files. This is likely not a completely accurate
-	// emulation of what the TypeScript compiler does (e.g. string escape
-	// behavior may also be different).
-	json, tsConfigSource, err := r.parseJSON(file, js_parser.ParseJSONOptions{
-		AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
-		AllowTrailingCommas: true,
-	})
+	contents, err := r.fs.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 
-	var result tsConfigJson
+	keyPath := logger.Path{Text: file, Namespace: "file"}
+	source := logger.Source{
+		KeyPath:    keyPath,
+		PrettyPath: r.PrettyPath(keyPath),
+		Contents:   contents,
+	}
+	fileDir := r.fs.Dir(file)
 
-	// Parse "extends"
-	if extendsJson, _, ok := getProperty(json, "extends"); ok {
-		if extends, ok := getString(extendsJson); ok {
-			warnRange := tsConfigSource.RangeOfString(extendsJson.Loc)
-			found := false
-
-			if IsPackagePath(extends) {
-				// If this is a package path, try to resolve it to a "node_modules"
-				// folder. This doesn't use the normal node module resolution algorithm
-				// both because it's different (e.g. we don't want to match a directory)
-				// and because it would deadlock since we're currently in the middle of
-				// populating the directory info cache.
-				current := filePath
-				for !found {
-					// Skip "node_modules" folders
-					if r.fs.Base(current) != "node_modules" {
-						join := r.fs.Join(current, "node_modules", extends)
-						filesToCheck := []string{r.fs.Join(join, "tsconfig.json"), join, join + ".json"}
-						for _, fileToCheck := range filesToCheck {
-							base, err := r.parseJsTsConfig(fileToCheck, visited)
-							if err == nil {
-								result = *base
-							} else if err == syscall.ENOENT {
-								continue
-							} else if err == parseErrorImportCycle {
-								r.log.AddRangeWarning(&tsConfigSource, warnRange,
-									fmt.Sprintf("Base config file %q forms cycle", extends))
-							} else if err != parseErrorAlreadyLogged {
-								r.log.AddRangeError(&tsConfigSource, warnRange,
-									fmt.Sprintf("Cannot read file %q: %s",
-										r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
-							}
-							found = true
-							break
+	result := ParseTSConfigJSON(r.log, source, func(extends string, extendsRange logger.Range) *TSConfigJSON {
+		if IsPackagePath(extends) {
+			// If this is a package path, try to resolve it to a "node_modules"
+			// folder. This doesn't use the normal node module resolution algorithm
+			// both because it's different (e.g. we don't want to match a directory)
+			// and because it would deadlock since we're currently in the middle of
+			// populating the directory info cache.
+			current := fileDir
+			for {
+				// Skip "node_modules" folders
+				if r.fs.Base(current) != "node_modules" {
+					join := r.fs.Join(current, "node_modules", extends)
+					filesToCheck := []string{r.fs.Join(join, "tsconfig.json"), join, join + ".json"}
+					for _, fileToCheck := range filesToCheck {
+						base, err := r.parseTSConfig(fileToCheck, visited)
+						if err == nil {
+							return base
+						} else if err == syscall.ENOENT {
+							continue
+						} else if err == parseErrorImportCycle {
+							r.log.AddRangeWarning(&source, extendsRange,
+								fmt.Sprintf("Base config file %q forms cycle", extends))
+						} else if err != parseErrorAlreadyLogged {
+							r.log.AddRangeError(&source, extendsRange,
+								fmt.Sprintf("Cannot read file %q: %s",
+									r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
 						}
+						return nil
 					}
-
-					// Go to the parent directory, stopping at the file system root
-					next := r.fs.Dir(current)
-					if current == next {
-						break
-					}
-					current = next
 				}
-			} else {
-				// If this is a regular path, search relative to the enclosing directory
-				extendsFile := r.fs.Join(filePath, extends)
-				for _, fileToCheck := range []string{extendsFile, extendsFile + ".json"} {
-					base, err := r.parseJsTsConfig(fileToCheck, visited)
-					if err == nil {
-						result = *base
-					} else if err == syscall.ENOENT {
-						continue
-					} else if err == parseErrorImportCycle {
-						r.log.AddRangeWarning(&tsConfigSource, warnRange,
-							fmt.Sprintf("Base config file %q forms cycle", extends))
-					} else if err != parseErrorAlreadyLogged {
-						r.log.AddRangeError(&tsConfigSource, warnRange,
-							fmt.Sprintf("Cannot read file %q: %s",
-								r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
-					}
-					found = true
+
+				// Go to the parent directory, stopping at the file system root
+				next := r.fs.Dir(current)
+				if current == next {
 					break
 				}
+				current = next
 			}
-
-			// Suppress warnings about missing base config files inside "node_modules"
-			if !found && !isInsideNodeModules(r.fs, file) {
-				r.log.AddRangeWarning(&tsConfigSource, warnRange,
-					fmt.Sprintf("Cannot find base config file %q", extends))
-			}
-		}
-	}
-
-	// Parse "compilerOptions"
-	if compilerOptionsJson, _, ok := getProperty(json, "compilerOptions"); ok {
-		// Parse "baseUrl"
-		if baseUrlJson, _, ok := getProperty(compilerOptionsJson, "baseUrl"); ok {
-			if baseUrl, ok := getString(baseUrlJson); ok {
-				baseUrl = r.fs.Join(filePath, baseUrl)
-				result.absPathBaseUrl = &baseUrl
-			}
-		}
-
-		// Parse "jsxFactory"
-		if jsxFactoryJson, _, ok := getProperty(compilerOptionsJson, "jsxFactory"); ok {
-			if jsxFactory, ok := getString(jsxFactoryJson); ok {
-				result.jsxFactory = r.parseMemberExpressionForJSX(tsConfigSource, jsxFactoryJson.Loc, jsxFactory)
-			}
-		}
-
-		// Parse "jsxFragmentFactory"
-		if jsxFragmentFactoryJson, _, ok := getProperty(compilerOptionsJson, "jsxFragmentFactory"); ok {
-			if jsxFragmentFactory, ok := getString(jsxFragmentFactoryJson); ok {
-				result.jsxFragmentFactory = r.parseMemberExpressionForJSX(tsConfigSource, jsxFragmentFactoryJson.Loc, jsxFragmentFactory)
-			}
-		}
-
-		// Parse "useDefineForClassFields"
-		if useDefineForClassFieldsJson, _, ok := getProperty(compilerOptionsJson, "useDefineForClassFields"); ok {
-			if useDefineForClassFields, ok := getBool(useDefineForClassFieldsJson); ok {
-				result.useDefineForClassFields = useDefineForClassFields
-			}
-		}
-
-		// Parse "importsNotUsedAsValues"
-		if importsNotUsedAsValuesJson, _, ok := getProperty(compilerOptionsJson, "importsNotUsedAsValues"); ok {
-			if importsNotUsedAsValues, ok := getString(importsNotUsedAsValuesJson); ok {
-				result.preserveImportsNotUsedAsValues = importsNotUsedAsValues != "remove"
-			}
-		}
-
-		// Parse "paths"
-		if pathsJson, pathsKeyLoc, ok := getProperty(compilerOptionsJson, "paths"); ok {
-			if result.absPathBaseUrl == nil {
-				warnRange := tsConfigSource.RangeOfString(pathsKeyLoc)
-				r.log.AddRangeWarning(&tsConfigSource, warnRange,
-					"Cannot use the \"paths\" property without the \"baseUrl\" property")
-			} else if paths, ok := pathsJson.Data.(*js_ast.EObject); ok {
-				result.paths = make(map[string][]string)
-				for _, prop := range paths.Properties {
-					if key, ok := getString(prop.Key); ok {
-						if !isValidTSConfigPathPattern(key, r.log, tsConfigSource, prop.Key.Loc) {
-							continue
-						}
-
-						// The "paths" field is an object which maps a pattern to an
-						// array of remapping patterns to try, in priority order. See
-						// the documentation for examples of how this is used:
-						// https://www.typescriptlang.org/docs/handbook/module-resolution.html#path-mapping.
-						//
-						// One particular example:
-						//
-						//   {
-						//     "compilerOptions": {
-						//       "baseUrl": "projectRoot",
-						//       "paths": {
-						//         "*": [
-						//           "*",
-						//           "generated/*"
-						//         ]
-						//       }
-						//     }
-						//   }
-						//
-						// Matching "folder1/file2" should first check "projectRoot/folder1/file2"
-						// and then, if that didn't work, also check "projectRoot/generated/folder1/file2".
-						if array, ok := prop.Value.Data.(*js_ast.EArray); ok {
-							for _, item := range array.Items {
-								if str, ok := getString(item); ok {
-									if isValidTSConfigPathPattern(str, r.log, tsConfigSource, item.Loc) {
-										result.paths[key] = append(result.paths[key], str)
-									}
-								}
-							}
-						} else {
-							warnRange := tsConfigSource.RangeOfString(prop.Value.Loc)
-							r.log.AddRangeWarning(&tsConfigSource, warnRange, fmt.Sprintf(
-								"Substitutions for pattern %q should be an array", key))
-						}
-					}
+		} else {
+			// If this is a regular path, search relative to the enclosing directory
+			extendsFile := r.fs.Join(fileDir, extends)
+			for _, fileToCheck := range []string{extendsFile, extendsFile + ".json"} {
+				base, err := r.parseTSConfig(fileToCheck, visited)
+				if err == nil {
+					return base
+				} else if err == syscall.ENOENT {
+					continue
+				} else if err == parseErrorImportCycle {
+					r.log.AddRangeWarning(&source, extendsRange,
+						fmt.Sprintf("Base config file %q forms cycle", extends))
+				} else if err != parseErrorAlreadyLogged {
+					r.log.AddRangeError(&source, extendsRange,
+						fmt.Sprintf("Cannot read file %q: %s",
+							r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
 				}
+				return nil
 			}
 		}
-	}
 
-	return &result, nil
-}
-
-func isValidTSConfigPathPattern(text string, log logger.Log, source logger.Source, loc logger.Loc) bool {
-	foundAsterisk := false
-	for i := 0; i < len(text); i++ {
-		if text[i] == '*' {
-			if foundAsterisk {
-				r := source.RangeOfString(loc)
-				log.AddRangeWarning(&source, r, fmt.Sprintf(
-					"Invalid pattern %q, must have at most one \"*\" character", text))
-				return false
-			}
-			foundAsterisk = true
+		// Suppress warnings about missing base config files inside "node_modules"
+		if !isInsideNodeModules(r.fs, file) {
+			r.log.AddRangeWarning(&source, extendsRange,
+				fmt.Sprintf("Cannot find base config file %q", extends))
 		}
+
+		return nil
+	})
+
+	if result == nil {
+		return nil, parseErrorAlreadyLogged
 	}
-	return true
+
+	if result.BaseURL != nil {
+		*result.BaseURL = r.fs.Join(fileDir, *result.BaseURL)
+	}
+
+	return result, nil
 }
 
 func (r *resolver) dirInfoUncached(path string) *dirInfo {
@@ -762,10 +626,10 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 	// Record if this directory has a package.json file
 	if entry, ok := entries["package.json"]; ok && entry.Kind() == fs.FileEntry {
-		info.packageJson = r.parsePackageJSON(path)
+		info.packageJSON = r.parsePackageJSON(path)
 
 		// Propagate this browser scope into child directories
-		if info.packageJson != nil && (info.packageJson.browserPackageMap != nil || info.packageJson.browserNonPackageMap != nil) {
+		if info.packageJSON != nil && (info.packageJSON.browserPackageMap != nil || info.packageJSON.browserNonPackageMap != nil) {
 			info.enclosingBrowserScope = info
 		}
 	}
@@ -785,7 +649,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 		}
 		if tsConfigPath != "" {
 			var err error
-			info.tsConfigJson, err = r.parseJsTsConfig(tsConfigPath, make(map[string]bool))
+			info.tsConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
 			if err != nil {
 				if err == syscall.ENOENT {
 					r.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Cannot find tsconfig file %q",
@@ -800,8 +664,8 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	}
 
 	// Propagate the enclosing tsconfig.json from the parent directory
-	if info.tsConfigJson == nil && parentInfo != nil {
-		info.tsConfigJson = parentInfo.tsConfigJson
+	if info.tsConfigJSON == nil && parentInfo != nil {
+		info.tsConfigJSON = parentInfo.tsConfigJSON
 	}
 
 	// Look for an "index" file with known extensions
@@ -812,15 +676,25 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 	return info
 }
 
-func (r *resolver) parsePackageJSON(path string) *packageJson {
+func (r *resolver) parsePackageJSON(path string) *packageJSON {
 	packageJsonPath := r.fs.Join(path, "package.json")
-	json, jsonSource, err := r.parseJSON(packageJsonPath, js_parser.ParseJSONOptions{})
+	contents, err := r.fs.ReadFile(packageJsonPath)
 	if err != nil {
-		if err != parseErrorAlreadyLogged {
-			r.log.AddError(nil, logger.Loc{},
-				fmt.Sprintf("Cannot read file %q: %s",
-					r.PrettyPath(logger.Path{Text: packageJsonPath, Namespace: "file"}), err.Error()))
-		}
+		r.log.AddError(nil, logger.Loc{},
+			fmt.Sprintf("Cannot read file %q: %s",
+				r.PrettyPath(logger.Path{Text: packageJsonPath, Namespace: "file"}), err.Error()))
+		return nil
+	}
+
+	keyPath := logger.Path{Text: packageJsonPath, Namespace: "file"}
+	jsonSource := logger.Source{
+		KeyPath:    keyPath,
+		PrettyPath: r.PrettyPath(keyPath),
+		Contents:   contents,
+	}
+
+	json, ok := js_parser.ParseJSON(r.log, jsonSource, js_parser.ParseJSONOptions{})
+	if !ok {
 		return nil
 	}
 
@@ -844,7 +718,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 		return nil
 	}
 
-	packageJson := &packageJson{}
+	packageJSON := &packageJSON{}
 
 	// Read the "main" fields
 	mainFields := r.options.MainFields
@@ -854,11 +728,11 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 	for _, field := range mainFields {
 		if mainJson, _, ok := getProperty(json, field); ok {
 			if main, ok := getString(mainJson); ok {
-				if packageJson.absMainFields == nil {
-					packageJson.absMainFields = make(map[string]string)
+				if packageJSON.absMainFields == nil {
+					packageJSON.absMainFields = make(map[string]string)
 				}
 				if absPath := toAbsPath(r.fs.Join(path, main), jsonSource.RangeOfString(mainJson.Loc)); absPath != nil {
-					packageJson.absMainFields[field] = *absPath
+					packageJSON.absMainFields[field] = *absPath
 				}
 			}
 		}
@@ -910,8 +784,8 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 				}
 			}
 
-			packageJson.browserPackageMap = browserPackageMap
-			packageJson.browserNonPackageMap = browserNonPackageMap
+			packageJSON.browserPackageMap = browserPackageMap
+			packageJSON.browserNonPackageMap = browserNonPackageMap
 		}
 	}
 
@@ -922,17 +796,17 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 			if !data.Value {
 				// Make an empty map for "sideEffects: false", which indicates all
 				// files in this module can be considered to not have side effects.
-				packageJson.sideEffectsMap = make(map[string]bool)
+				packageJSON.sideEffectsMap = make(map[string]bool)
 			}
 
 		case *js_ast.EArray:
 			// The "sideEffects: []" format means all files in this module but not in
 			// the array can be considered to not have side effects.
-			packageJson.sideEffectsMap = make(map[string]bool)
+			packageJSON.sideEffectsMap = make(map[string]bool)
 			for _, itemJson := range data.Items {
 				if item, ok := itemJson.Data.(*js_ast.EString); ok && item.Value != nil {
 					absolute := r.fs.Join(path, js_lexer.UTF16ToString(item.Value))
-					packageJson.sideEffectsMap[absolute] = true
+					packageJSON.sideEffectsMap[absolute] = true
 				} else {
 					r.log.AddWarning(&jsonSource, itemJson.Loc,
 						"Expected string in array for \"sideEffects\"")
@@ -945,7 +819,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJson {
 		}
 	}
 
-	return packageJson
+	return packageJSON
 }
 
 func (r *resolver) loadAsFile(path string) (string, bool) {
@@ -1019,28 +893,6 @@ func (r *resolver) loadAsIndex(path string, entries map[string]*fs.Entry) (strin
 	return "", false
 }
 
-var parseErrorAlreadyLogged = errors.New("(error already logged)")
-
-// This may return "parseErrorAlreadyLogged" in which case there was a syntax
-// error, but it's already been reported. No further errors should be logged.
-func (r *resolver) parseJSON(path string, options js_parser.ParseJSONOptions) (js_ast.Expr, logger.Source, error) {
-	contents, err := r.fs.ReadFile(path)
-	if err != nil {
-		return js_ast.Expr{}, logger.Source{}, err
-	}
-	keyPath := logger.Path{Text: path, Namespace: "file"}
-	source := logger.Source{
-		KeyPath:    keyPath,
-		PrettyPath: r.PrettyPath(keyPath),
-		Contents:   contents,
-	}
-	result, ok := js_parser.ParseJSON(r.log, source, options)
-	if !ok {
-		return js_ast.Expr{}, logger.Source{}, parseErrorAlreadyLogged
-	}
-	return result, source, nil
-}
-
 func getProperty(json js_ast.Expr, name string) (js_ast.Expr, logger.Loc, bool) {
 	if obj, ok := json.Data.(*js_ast.EObject); ok {
 		for _, prop := range obj.Properties {
@@ -1081,8 +933,8 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 	}
 
 	// Try using the main field(s) from "package.json"
-	if dirInfo.packageJson != nil && dirInfo.packageJson.absMainFields != nil {
-		absMainFields := dirInfo.packageJson.absMainFields
+	if dirInfo.packageJSON != nil && dirInfo.packageJSON.absMainFields != nil {
+		absMainFields := dirInfo.packageJSON.absMainFields
 		mainFields := r.options.MainFields
 		autoMain := false
 
@@ -1132,13 +984,13 @@ func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (Path
 
 // This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
 // official TypeScript compiler
-func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, kind ast.ImportKind) (PathPair, bool) {
+func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, kind ast.ImportKind) (PathPair, bool) {
 	// Check for exact matches first
-	for key, originalPaths := range tsConfigJson.paths {
+	for key, originalPaths := range tsConfigJSON.Paths {
 		if key == path {
 			for _, originalPath := range originalPaths {
 				// Load the original path relative to the "baseUrl" from tsconfig.json
-				absoluteOriginalPath := r.fs.Join(*tsConfigJson.absPathBaseUrl, originalPath)
+				absoluteOriginalPath := r.fs.Join(*tsConfigJSON.BaseURL, originalPath)
 				if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 					return absolute, true
 				}
@@ -1157,7 +1009,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, k
 	longestMatchPrefixLength := -1
 	longestMatchSuffixLength := -1
 	var longestMatch match
-	for key, originalPaths := range tsConfigJson.paths {
+	for key, originalPaths := range tsConfigJSON.Paths {
 		if starIndex := strings.IndexByte(key, '*'); starIndex != -1 {
 			prefix, suffix := key[:starIndex], key[starIndex+1:]
 
@@ -1188,7 +1040,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, k
 			originalPath = strings.Replace(originalPath, "*", matchedText, 1)
 
 			// Load the original path relative to the "baseUrl" from tsconfig.json
-			absoluteOriginalPath := r.fs.Join(*tsConfigJson.absPathBaseUrl, originalPath)
+			absoluteOriginalPath := r.fs.Join(*tsConfigJSON.BaseURL, originalPath)
 			if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 				return absolute, true
 			}
@@ -1200,16 +1052,16 @@ func (r *resolver) matchTSConfigPaths(tsConfigJson *tsConfigJson, path string, k
 
 func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-	if dirInfo.tsConfigJson != nil && dirInfo.tsConfigJson.absPathBaseUrl != nil {
+	if dirInfo.tsConfigJSON != nil && dirInfo.tsConfigJSON.BaseURL != nil {
 		// Try path substitutions first
-		if dirInfo.tsConfigJson.paths != nil {
-			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJson, path, kind); ok {
+		if dirInfo.tsConfigJSON.Paths != nil {
+			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJSON, path, kind); ok {
 				return absolute, true
 			}
 		}
 
 		// Try looking up the path relative to the base URL
-		basePath := r.fs.Join(*dirInfo.tsConfigJson.absPathBaseUrl, path)
+		basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, path)
 		if absolute, ok := r.loadAsFileOrDirectory(basePath, kind); ok {
 			return absolute, true
 		}

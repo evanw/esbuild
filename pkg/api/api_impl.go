@@ -90,11 +90,14 @@ func validateLogLevel(value LogLevel) logger.LogLevel {
 	}
 }
 
-func validateStrict(value StrictOptions) config.StrictOptions {
-	return config.StrictOptions{
-		NullishCoalescing: value.NullishCoalescing,
-		OptionalChaining:  value.OptionalChaining,
-		ClassFields:       value.ClassFields,
+func validateASCIIOnly(value Charset) bool {
+	switch value {
+	case CharsetDefault, CharsetASCII:
+		return true
+	case CharsetUTF8:
+		return false
+	default:
+		panic("Invalid charset")
 	}
 }
 
@@ -205,6 +208,22 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 	}
 
 	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints)
+}
+
+func validateGlobalName(log logger.Log, text string) []string {
+	if text != "" {
+		source := logger.Source{
+			KeyPath:    logger.Path{Text: "(global path)"},
+			PrettyPath: "(global name)",
+			Contents:   text,
+		}
+
+		if result, ok := js_parser.ParseGlobalName(log, source); ok {
+			return result
+		}
+	}
+
+	return nil
 }
 
 func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalModules {
@@ -356,8 +375,8 @@ func validatePath(log logger.Log, fs fs.FS, relPath string) string {
 func validateOutputExtensions(log logger.Log, outExtensions map[string]string) map[string]string {
 	result := make(map[string]string)
 	for key, value := range outExtensions {
-		if key != ".js" {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .js)", key))
+		if key != ".js" && key != ".css" {
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .css, .js)", key))
 		}
 		if !isValidExtension(value) {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q", value))
@@ -410,18 +429,18 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	options := config.Options{
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
-		Strict:                 validateStrict(buildOpts.Strict),
 		JSX: config.JSXOptions{
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
 		},
-		Defines:           validateDefines(log, buildOpts.Defines, buildOpts.PureFunctions),
+		Defines:           validateDefines(log, buildOpts.Define, buildOpts.Pure),
 		Platform:          validatePlatform(buildOpts.Platform),
 		SourceMap:         validateSourceMap(buildOpts.Sourcemap),
 		MangleSyntax:      buildOpts.MinifySyntax,
 		RemoveWhitespace:  buildOpts.MinifyWhitespace,
 		MinifyIdentifiers: buildOpts.MinifyIdentifiers,
-		ModuleName:        buildOpts.GlobalName,
+		ASCIIOnly:         validateASCIIOnly(buildOpts.Charset),
+		ModuleName:        validateGlobalName(log, buildOpts.GlobalName),
 		CodeSplitting:     buildOpts.Splitting,
 		OutputFormat:      validateFormat(buildOpts.Format),
 		AbsOutputFile:     validatePath(log, realFS, buildOpts.Outfile),
@@ -429,12 +448,13 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		AbsOutputBase:     validatePath(log, realFS, buildOpts.Outbase),
 		AbsMetadataFile:   validatePath(log, realFS, buildOpts.Metafile),
 		OutputExtensions:  validateOutputExtensions(log, buildOpts.OutExtensions),
-		ExtensionToLoader: validateLoaders(log, buildOpts.Loaders),
+		ExtensionToLoader: validateLoaders(log, buildOpts.Loader),
 		ExtensionOrder:    validateResolveExtensions(log, buildOpts.ResolveExtensions),
-		ExternalModules:   validateExternals(log, realFS, buildOpts.Externals),
+		ExternalModules:   validateExternals(log, realFS, buildOpts.External),
 		TsConfigOverride:  validatePath(log, realFS, buildOpts.Tsconfig),
 		MainFields:        buildOpts.MainFields,
 		PublicPath:        buildOpts.PublicPath,
+		AvoidTDZ:          buildOpts.AvoidTDZ,
 		InjectAbsPaths:    make([]string, len(buildOpts.Inject)),
 	}
 	for i, path := range buildOpts.Inject {
@@ -605,24 +625,55 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		LogLevel:      validateLogLevel(transformOpts.LogLevel),
 	})
 
+	// Settings from the user come first
+	preserveUnusedImportsTS := false
+	useDefineForClassFieldsTS := false
+	jsx := config.JSXOptions{
+		Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
+		Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
+	}
+
+	// Settings from "tsconfig.json" override those
+	if transformOpts.TsconfigRaw != "" {
+		source := logger.Source{
+			KeyPath:    logger.Path{Text: "tsconfig.json"},
+			PrettyPath: "tsconfig.json",
+			Contents:   transformOpts.TsconfigRaw,
+		}
+		if result := resolver.ParseTSConfigJSON(log, source, nil); result != nil {
+			if len(result.JSXFactory) > 0 {
+				jsx.Factory = result.JSXFactory
+			}
+			if len(result.JSXFragmentFactory) > 0 {
+				jsx.Fragment = result.JSXFragmentFactory
+			}
+			if result.UseDefineForClassFields {
+				useDefineForClassFieldsTS = true
+			}
+			if result.PreserveImportsNotUsedAsValues {
+				preserveUnusedImportsTS = true
+			}
+		}
+	}
+
 	// Convert and validate the transformOpts
 	jsFeatures, cssFeatures := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	options := config.Options{
-		UnsupportedJSFeatures:  jsFeatures,
-		UnsupportedCSSFeatures: cssFeatures,
-		Strict:                 validateStrict(transformOpts.Strict),
-		JSX: config.JSXOptions{
-			Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
-			Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
-		},
-		Defines:           validateDefines(log, transformOpts.Defines, transformOpts.PureFunctions),
-		SourceMap:         validateSourceMap(transformOpts.Sourcemap),
-		OutputFormat:      validateFormat(transformOpts.Format),
-		ModuleName:        transformOpts.GlobalName,
-		MangleSyntax:      transformOpts.MinifySyntax,
-		RemoveWhitespace:  transformOpts.MinifyWhitespace,
-		MinifyIdentifiers: transformOpts.MinifyIdentifiers,
-		AbsOutputFile:     transformOpts.Sourcefile + "-out",
+		UnsupportedJSFeatures:   jsFeatures,
+		UnsupportedCSSFeatures:  cssFeatures,
+		JSX:                     jsx,
+		Defines:                 validateDefines(log, transformOpts.Define, transformOpts.Pure),
+		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
+		OutputFormat:            validateFormat(transformOpts.Format),
+		ModuleName:              validateGlobalName(log, transformOpts.GlobalName),
+		MangleSyntax:            transformOpts.MinifySyntax,
+		RemoveWhitespace:        transformOpts.MinifyWhitespace,
+		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,
+		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
+		AbsOutputFile:           transformOpts.Sourcefile + "-out",
+		AvoidTDZ:                transformOpts.AvoidTDZ,
+		UseDefineForClassFields: useDefineForClassFieldsTS,
+		PreserveUnusedImportsTS: preserveUnusedImportsTS,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,
@@ -660,26 +711,26 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Return the results
-	var js []byte
-	var jsSourceMap []byte
+	var code []byte
+	var sourceMap []byte
 
 	// Unpack the JavaScript file and the source map file
 	if len(results) == 1 {
-		js = results[0].Contents
+		code = results[0].Contents
 	} else if len(results) == 2 {
 		a, b := results[0], results[1]
 		if a.AbsPath == b.AbsPath+".map" {
-			jsSourceMap, js = a.Contents, b.Contents
+			sourceMap, code = a.Contents, b.Contents
 		} else if a.AbsPath+".map" == b.AbsPath {
-			js, jsSourceMap = a.Contents, b.Contents
+			code, sourceMap = a.Contents, b.Contents
 		}
 	}
 
 	msgs := log.Done()
 	return TransformResult{
-		Errors:      messagesOfKind(logger.Error, msgs),
-		Warnings:    messagesOfKind(logger.Warning, msgs),
-		JS:          js,
-		JSSourceMap: jsSourceMap,
+		Errors:   messagesOfKind(logger.Error, msgs),
+		Warnings: messagesOfKind(logger.Warning, msgs),
+		Code:     code,
+		Map:      sourceMap,
 	}
 }

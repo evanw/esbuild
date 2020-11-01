@@ -146,6 +146,18 @@ import "//example.com/code.js";
 import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
 
 ================================================================================
+TestAvoidTDZNoBundle
+---------- /out.js ----------
+var Foo = class Foo {
+  static foo = new Foo();
+};
+var foo = Foo.foo;
+console.log(foo);
+export var Bar = class Bar {
+};
+export var bar = 123;
+
+================================================================================
 TestCommonJSFromES6
 ---------- /out.js ----------
 // /foo.js
@@ -1127,7 +1139,7 @@ console.log(shared_default);
 ================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
-var n=e(r=>{r.foo=function(){return 123}});var u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
+var n=e(r=>{r.foo=function(){return 123}}),u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
 
 ================================================================================
 TestMinifiedBundleES6
@@ -1379,6 +1391,29 @@ TestOutputExtensionRemappingFile
 ---------- /out.js ----------
 // /entry.js
 console.log("test");
+
+================================================================================
+TestProcessEnvNodeEnvWarning
+---------- /out.js ----------
+// /entry.js
+console.log(process.env.NODE_ENV, process.env.NODE_ENV);
+
+================================================================================
+TestProcessEnvNodeEnvWarningDefine
+---------- /out.js ----------
+// /entry.js
+console.log(null);
+
+================================================================================
+TestProcessEnvNodeEnvWarningNoBundle
+---------- /out.js ----------
+console.log(process.env.NODE_ENV);
+
+================================================================================
+TestProcessEnvNodeEnvWarningNode
+---------- /out.js ----------
+// /entry.js
+console.log(process.env.NODE_ENV);
 
 ================================================================================
 TestReExportCommonJSAsES6

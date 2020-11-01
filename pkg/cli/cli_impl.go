@@ -14,14 +14,14 @@ import (
 
 func newBuildOptions() api.BuildOptions {
 	return api.BuildOptions{
-		Loaders: make(map[string]api.Loader),
-		Defines: make(map[string]string),
+		Loader: make(map[string]api.Loader),
+		Define: make(map[string]string),
 	}
 }
 
 func newTransformOptions() api.TransformOptions {
 	return api.TransformOptions{
-		Defines: make(map[string]string),
+		Define: make(map[string]string),
 	}
 }
 
@@ -67,6 +67,30 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				buildOpts.MinifyIdentifiers = true
 			} else {
 				transformOpts.MinifyIdentifiers = true
+			}
+
+		case strings.HasPrefix(arg, "--charset="):
+			var value *api.Charset
+			if buildOpts != nil {
+				value = &buildOpts.Charset
+			} else {
+				value = &transformOpts.Charset
+			}
+			name := arg[len("--charset="):]
+			switch name {
+			case "ascii":
+				*value = api.CharsetASCII
+			case "utf8":
+				*value = api.CharsetUTF8
+			default:
+				return fmt.Errorf("Invalid charset value: %q (valid: ascii, utf8)", name)
+			}
+
+		case arg == "--avoid-tdz":
+			if buildOpts != nil {
+				buildOpts.AvoidTDZ = true
+			} else {
+				transformOpts.AvoidTDZ = true
 			}
 
 		case arg == "--sourcemap":
@@ -134,6 +158,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 		case strings.HasPrefix(arg, "--tsconfig=") && buildOpts != nil:
 			buildOpts.Tsconfig = arg[len("--tsconfig="):]
 
+		case strings.HasPrefix(arg, "--tsconfig-raw=") && transformOpts != nil:
+			transformOpts.TsconfigRaw = arg[len("--tsconfig-raw="):]
+
 		case strings.HasPrefix(arg, "--define:"):
 			value := arg[len("--define:"):]
 			equals := strings.IndexByte(value, '=')
@@ -141,17 +168,17 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				return fmt.Errorf("Missing \"=\": %q", value)
 			}
 			if buildOpts != nil {
-				buildOpts.Defines[value[:equals]] = value[equals+1:]
+				buildOpts.Define[value[:equals]] = value[equals+1:]
 			} else {
-				transformOpts.Defines[value[:equals]] = value[equals+1:]
+				transformOpts.Define[value[:equals]] = value[equals+1:]
 			}
 
 		case strings.HasPrefix(arg, "--pure:"):
 			value := arg[len("--pure:"):]
 			if buildOpts != nil {
-				buildOpts.PureFunctions = append(buildOpts.PureFunctions, value)
+				buildOpts.Pure = append(buildOpts.Pure, value)
 			} else {
-				transformOpts.PureFunctions = append(transformOpts.PureFunctions, value)
+				transformOpts.Pure = append(transformOpts.Pure, value)
 			}
 
 		case strings.HasPrefix(arg, "--loader:") && buildOpts != nil:
@@ -165,7 +192,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			if err != nil {
 				return err
 			}
-			buildOpts.Loaders[ext] = loader
+			buildOpts.Loader[ext] = loader
 
 		case strings.HasPrefix(arg, "--loader="):
 			value := arg[len("--loader="):]
@@ -209,37 +236,6 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 			buildOpts.OutExtensions[value[:equals]] = value[equals+1:]
 
-		case arg == "--strict":
-			value := api.StrictOptions{
-				NullishCoalescing: true,
-				OptionalChaining:  true,
-				ClassFields:       true,
-			}
-			if buildOpts != nil {
-				buildOpts.Strict = value
-			} else {
-				transformOpts.Strict = value
-			}
-
-		case strings.HasPrefix(arg, "--strict:"):
-			var value *api.StrictOptions
-			if buildOpts != nil {
-				value = &buildOpts.Strict
-			} else {
-				value = &transformOpts.Strict
-			}
-			name := arg[len("--strict:"):]
-			switch name {
-			case "nullish-coalescing":
-				value.NullishCoalescing = true
-			case "optional-chaining":
-				value.OptionalChaining = true
-			case "class-fields":
-				value.ClassFields = true
-			default:
-				return fmt.Errorf("Invalid strict value: %q (valid: nullish-coalescing, optional-chaining, class-fields)", name)
-			}
-
 		case strings.HasPrefix(arg, "--platform=") && buildOpts != nil:
 			value := arg[len("--platform="):]
 			switch value {
@@ -277,7 +273,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:
-			buildOpts.Externals = append(buildOpts.Externals, arg[len("--external:"):])
+			buildOpts.External = append(buildOpts.External, arg[len("--external:"):])
 
 		case strings.HasPrefix(arg, "--inject:") && buildOpts != nil:
 			buildOpts.Inject = append(buildOpts.Inject, arg[len("--inject:"):])
@@ -507,6 +503,7 @@ func runImpl(osArgs []string) int {
 				return 1
 			}
 			buildOptions.Stdin.Contents = string(bytes)
+			buildOptions.Stdin.ResolveDir, _ = os.Getwd()
 		} else if buildOptions.Stdin != nil {
 			if buildOptions.Stdin.Sourcefile != "" {
 				logger.PrintErrorToStderr(osArgs,
@@ -540,7 +537,7 @@ func runImpl(osArgs []string) int {
 		}
 
 		// Write the output to stdout
-		os.Stdout.Write(result.JS)
+		os.Stdout.Write(result.Code)
 
 	case err != nil:
 		logger.PrintErrorToStderr(osArgs, err.Error())

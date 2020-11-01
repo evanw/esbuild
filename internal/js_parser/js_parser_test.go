@@ -14,12 +14,12 @@ import (
 	"github.com/evanw/esbuild/internal/test"
 )
 
-func expectParseError(t *testing.T, contents string, expected string) {
+func expectParseErrorCommon(t *testing.T, contents string, expected string, options config.Options) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{})
+		Parse(log, test.SourceForTest(contents), options)
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -27,88 +27,29 @@ func expectParseError(t *testing.T, contents string, expected string) {
 		}
 		test.AssertEqual(t, text, expected)
 	})
+}
+
+func expectParseError(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{})
 }
 
 func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-				compat.ES: {esVersion},
-			}),
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, expected)
-	})
-}
-
-func expectPrinted(t *testing.T, contents string, expected string) {
-	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			if msg.Kind != logger.Warning {
-				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-			}
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
-		test.AssertEqual(t, string(js), expected)
-	})
-}
-
-func expectPrintedMangle(t *testing.T, contents string, expected string) {
-	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			MangleSyntax: true,
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
-		test.AssertEqual(t, string(js), expected)
-	})
-}
-
-func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
-	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		unsupportedFeatures := compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
-		})
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedJSFeatures: unsupportedFeatures,
-		})
+		}),
+	})
+}
+
+func expectPrintedCommon(t *testing.T, contents string, expected string, options config.Options) {
+	t.Helper()
+	t.Run(contents, func(t *testing.T) {
+		t.Helper()
+		log := logger.NewDeferLog()
+		options.OmitRuntimeForTests = true
+		tree, ok := Parse(log, test.SourceForTest(contents), options)
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -124,89 +65,76 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{
-			UnsupportedFeatures: unsupportedFeatures,
+			UnsupportedFeatures: options.UnsupportedJSFeatures,
+			ASCIIOnly:           options.ASCIIOnly,
 		}).JS
 		test.AssertEqual(t, string(js), expected)
 	})
 }
 
-func expectPrintedTargetStrict(t *testing.T, esVersion int, contents string, expected string) {
+func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-				compat.ES: {esVersion},
-			}),
-			Strict: config.StrictOptions{
-				NullishCoalescing: true,
-				OptionalChaining:  true,
-				ClassFields:       true,
-			},
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			if msg.Kind != logger.Warning {
-				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-			}
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
-		test.AssertEqual(t, string(js), expected)
+	expectPrintedCommon(t, contents, expected, config.Options{})
+}
+
+func expectPrintedMangle(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		MangleSyntax: true,
+	})
+}
+
+func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+	})
+}
+
+func expectPrintedASCII(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		ASCIIOnly: true,
+	})
+}
+
+func expectPrintedTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		ASCIIOnly: true,
+	})
+}
+
+func expectParseErrorTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+		ASCIIOnly: true,
 	})
 }
 
 func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{
-			JSX: config.JSXOptions{
-				Parse: true,
-			},
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, expected)
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
 	})
 }
 
 func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
-			JSX: config.JSXOptions{
-				Parse: true,
-			},
-		})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		symbols := js_ast.NewSymbolMap(1)
-		symbols.Outer[0] = tree.Symbols
-		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{}).JS
-		test.AssertEqual(t, string(js), expected)
+	expectPrintedCommon(t, contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
 	})
 }
 
@@ -626,6 +554,13 @@ func TestLocal(t *testing.T) {
 	expectPrinted(t, "for (var let of x) ;", "for (var let of x)\n  ;\n")
 	expectParseError(t, "for (let let of x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
 	expectParseError(t, "for (const let of x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
+
+	expectParseError(t, "var x = 0; x = 1", "")
+	expectParseError(t, "let x = 0; x = 1", "")
+	expectParseError(t, "const x = 0; x = 1", "<stdin>: warning: This assignment will throw because \"x\" is a constant\n")
+	expectParseError(t, "var x = 0; x++", "")
+	expectParseError(t, "let x = 0; x++", "")
+	expectParseError(t, "const x = 0; x++", "<stdin>: warning: This assignment will throw because \"x\" is a constant\n")
 }
 
 func TestArrays(t *testing.T) {
@@ -2625,7 +2560,7 @@ func TestLowerFunctionArgumentScope(t *testing.T) {
 		test("a()?.b", "((_a) => (_a = a()) == null ? void 0 : _a.b)()")
 		test("a?.b?.()", "((_a) => (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.call(a))()")
 		test("a.b.c?.()", "((_a) => ((_b) => (_b = (_a = a.b).c) == null ? void 0 : _b.call(_a))())()")
-		test("class { static a }", "((_a) => (_a = class {\n}, _a.a = void 0, _a))()")
+		test("class { static a }", "((_a) => (_a = class {\n}, __publicField(_a, \"a\"), _a))()")
 	}
 }
 
@@ -2644,17 +2579,12 @@ func TestLowerNullishCoalescing(t *testing.T) {
 	expectPrinted(t, "a || b, b ?? c", "a || b, b ?? c;\n")
 
 	expectPrintedTarget(t, 2020, "a ?? b", "a ?? b;\n")
-	expectPrintedTargetStrict(t, 2020, "a ?? b", "a ?? b;\n")
-
 	expectPrintedTarget(t, 2019, "a ?? b", "a != null ? a : b;\n")
 	expectPrintedTarget(t, 2019, "a() ?? b()", "var _a;\n(_a = a()) != null ? _a : b();\n")
 	expectPrintedTarget(t, 2019, "function foo() { if (x) { a() ?? b() ?? c() } }",
 		"function foo() {\n  var _a, _b;\n  if (x) {\n    (_b = (_a = a()) != null ? _a : b()) != null ? _b : c();\n  }\n}\n")
 	expectPrintedTarget(t, 2019, "() => a ?? b", "() => a != null ? a : b;\n")
 	expectPrintedTarget(t, 2019, "() => a() ?? b()", "() => {\n  var _a;\n  return (_a = a()) != null ? _a : b();\n};\n")
-
-	expectPrintedTargetStrict(t, 2019, "a ?? b", "a !== null && a !== void 0 ? a : b;\n")
-	expectPrintedTargetStrict(t, 2019, "a() ?? b()", "var _a;\n(_a = a()) !== null && _a !== void 0 ? _a : b();\n")
 }
 
 func TestLowerNullishCoalescingAssign(t *testing.T) {
@@ -2666,17 +2596,11 @@ func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, 2019, "a[b] ??= c", "var _a;\n(_a = a[b]) != null ? _a : a[b] = c;\n")
 	expectPrintedTarget(t, 2019, "a()[b()] ??= c", "var _a, _b, _c;\n(_c = (_a = a())[_b = b()]) != null ? _c : _a[_b] = c;\n")
 
-	expectPrintedTargetStrict(t, 2019, "a ??= b", "a !== null && a !== void 0 ? a : a = b;\n")
-	expectPrintedTargetStrict(t, 2019, "a.b ??= c", "var _a;\n(_a = a.b) !== null && _a !== void 0 ? _a : a.b = c;\n")
-
 	expectPrintedTarget(t, 2020, "a ??= b", "a ?? (a = b);\n")
 	expectPrintedTarget(t, 2020, "a.b ??= c", "a.b ?? (a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a().b ??= c", "var _a;\n(_a = a()).b ?? (_a.b = c);\n")
 	expectPrintedTarget(t, 2020, "a[b] ??= c", "a[b] ?? (a[b] = c);\n")
 	expectPrintedTarget(t, 2020, "a()[b()] ??= c", "var _a, _b;\n(_a = a())[_b = b()] ?? (_a[_b] = c);\n")
-
-	expectPrintedTargetStrict(t, 2020, "a ??= b", "a ?? (a = b);\n")
-	expectPrintedTargetStrict(t, 2020, "a.b ??= c", "a.b ?? (a.b = c);\n")
 }
 
 func TestLowerLogicalAssign(t *testing.T) {
@@ -2704,17 +2628,11 @@ func TestLowerAsyncFunctions(t *testing.T) {
     console.log(a, b);
   });
 }
-import {
-  __async
-} from "<runtime>";
 `)
 	// Skip forwarding altogether when parameter evaluation obviously cannot throw
 	expectPrintedTarget(t, 2015, "async (a, b = 123) => {console.log(a, b);}", `(a, b = 123) => __async(this, null, function* () {
   console.log(a, b);
 });
-import {
-  __async
-} from "<runtime>";
 `)
 }
 
@@ -2733,9 +2651,9 @@ func TestLowerClassSideEffectOrder(t *testing.T) {
 `, `var _a, _b, _c, _d, _e;
 class Foo {
   constructor() {
-    this[_a] = void 0;
-    this[_b] = 1;
-    this[_e] = void 0;
+    __publicField(this, _a);
+    __publicField(this, _b, 1);
+    __publicField(this, _e);
   }
   [a()]() {
   }
@@ -2745,27 +2663,27 @@ class Foo {
   }
 }
 _e = h();
-Foo[_c] = void 0;
-Foo[_d] = 1;
+__publicField(Foo, _c);
+__publicField(Foo, _d, 1);
 `)
 }
 
 func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo {}", "class Foo {\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { foo }", "class Foo {\n  constructor() {\n    this.foo = void 0;\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { foo = null }", "class Foo {\n  constructor() {\n    this.foo = null;\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { 123 }", "class Foo {\n  constructor() {\n    this[123] = void 0;\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { 123 = null }", "class Foo {\n  constructor() {\n    this[123] = null;\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { [foo] }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = void 0;\n  }\n}\n_a = foo;\n")
-	expectPrintedTarget(t, 2015, "class Foo { [foo] = null }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = null;\n  }\n}\n_a = foo;\n")
+	expectPrintedTarget(t, 2015, "class Foo { foo }", "class Foo {\n  constructor() {\n    __publicField(this, \"foo\");\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { foo = null }", "class Foo {\n  constructor() {\n    __publicField(this, \"foo\", null);\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { 123 }", "class Foo {\n  constructor() {\n    __publicField(this, 123);\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { 123 = null }", "class Foo {\n  constructor() {\n    __publicField(this, 123, null);\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { [foo] }", "var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n}\n_a = foo;\n")
+	expectPrintedTarget(t, 2015, "class Foo { [foo] = null }", "var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a, null);\n  }\n}\n_a = foo;\n")
 
 	expectPrintedTarget(t, 2015, "(class {})", "(class {\n});\n")
-	expectPrintedTarget(t, 2015, "(class { foo })", "(class {\n  constructor() {\n    this.foo = void 0;\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { foo = null })", "(class {\n  constructor() {\n    this.foo = null;\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { 123 })", "(class {\n  constructor() {\n    this[123] = void 0;\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { 123 = null })", "(class {\n  constructor() {\n    this[123] = null;\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { [foo] })", "var _a, _b;\n_b = class {\n  constructor() {\n    this[_a] = void 0;\n  }\n}, _a = foo, _b;\n")
-	expectPrintedTarget(t, 2015, "(class { [foo] = null })", "var _a, _b;\n_b = class {\n  constructor() {\n    this[_a] = null;\n  }\n}, _a = foo, _b;\n")
+	expectPrintedTarget(t, 2015, "(class { foo })", "(class {\n  constructor() {\n    __publicField(this, \"foo\");\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "(class { foo = null })", "(class {\n  constructor() {\n    __publicField(this, \"foo\", null);\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "(class { 123 })", "(class {\n  constructor() {\n    __publicField(this, 123);\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "(class { 123 = null })", "(class {\n  constructor() {\n    __publicField(this, 123, null);\n  }\n});\n")
+	expectPrintedTarget(t, 2015, "(class { [foo] })", "var _a, _b;\n_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = foo, _b;\n")
+	expectPrintedTarget(t, 2015, "(class { [foo] = null })", "var _a, _b;\n_b = class {\n  constructor() {\n    __publicField(this, _a, null);\n  }\n}, _a = foo, _b;\n")
 
 	expectPrintedTarget(t, 2015, "class Foo extends Bar {}", `class Foo extends Bar {
 }
@@ -2781,7 +2699,7 @@ func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo extends Bar { bar() {} foo }", `class Foo extends Bar {
   constructor() {
     super(...arguments);
-    this.foo = void 0;
+    __publicField(this, "foo");
   }
   bar() {
   }
@@ -2790,7 +2708,7 @@ func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo extends Bar { bar() {} foo; constructor() { super() } }", `class Foo extends Bar {
   constructor() {
     super();
-    this.foo = void 0;
+    __publicField(this, "foo");
   }
   bar() {
   }
@@ -2799,88 +2717,88 @@ func TestLowerClassInstance(t *testing.T) {
 }
 
 func TestLowerClassStatic(t *testing.T) {
-	expectPrintedTarget(t, 2015, "class Foo { static foo }", "class Foo {\n}\nFoo.foo = void 0;\n")
-	expectPrintedTarget(t, 2015, "class Foo { static foo = null }", "class Foo {\n}\nFoo.foo = null;\n")
+	expectPrintedTarget(t, 2015, "class Foo { static foo }", "class Foo {\n}\n__publicField(Foo, \"foo\");\n")
+	expectPrintedTarget(t, 2015, "class Foo { static foo = null }", "class Foo {\n}\n__publicField(Foo, \"foo\", null);\n")
 	expectPrintedTarget(t, 2015, "class Foo { static foo(a, b) {} }", "class Foo {\n  static foo(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static get foo() {} }", "class Foo {\n  static get foo() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static set foo(a) {} }", "class Foo {\n  static set foo(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { static 123 }", "class Foo {\n}\nFoo[123] = void 0;\n")
-	expectPrintedTarget(t, 2015, "class Foo { static 123 = null }", "class Foo {\n}\nFoo[123] = null;\n")
+	expectPrintedTarget(t, 2015, "class Foo { static 123 }", "class Foo {\n}\n__publicField(Foo, 123);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static 123 = null }", "class Foo {\n}\n__publicField(Foo, 123, null);\n")
 	expectPrintedTarget(t, 2015, "class Foo { static 123(a, b) {} }", "class Foo {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static get 123() {} }", "class Foo {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static set 123(a) {} }", "class Foo {\n  static set 123(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { static [foo] }", "var _a;\nclass Foo {\n}\n_a = foo;\nFoo[_a] = void 0;\n")
-	expectPrintedTarget(t, 2015, "class Foo { static [foo] = null }", "var _a;\nclass Foo {\n}\n_a = foo;\nFoo[_a] = null;\n")
+	expectPrintedTarget(t, 2015, "class Foo { static [foo] }", "var _a;\nclass Foo {\n}\n_a = foo;\n__publicField(Foo, _a);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static [foo] = null }", "var _a;\nclass Foo {\n}\n_a = foo;\n__publicField(Foo, _a, null);\n")
 	expectPrintedTarget(t, 2015, "class Foo { static [foo](a, b) {} }", "class Foo {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static get [foo]() {} }", "class Foo {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static set [foo](a) {} }", "class Foo {\n  static set [foo](a) {\n  }\n}\n")
 
-	expectPrintedTarget(t, 2015, "export default class Foo { static foo }", "export default class Foo {\n}\nFoo.foo = void 0;\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static foo = null }", "export default class Foo {\n}\nFoo.foo = null;\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static foo }", "export default class Foo {\n}\n__publicField(Foo, \"foo\");\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static foo = null }", "export default class Foo {\n}\n__publicField(Foo, \"foo\", null);\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static foo(a, b) {} }", "export default class Foo {\n  static foo(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static get foo() {} }", "export default class Foo {\n  static get foo() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static set foo(a) {} }", "export default class Foo {\n  static set foo(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static 123 }", "export default class Foo {\n}\nFoo[123] = void 0;\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static 123 = null }", "export default class Foo {\n}\nFoo[123] = null;\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static 123 }", "export default class Foo {\n}\n__publicField(Foo, 123);\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static 123 = null }", "export default class Foo {\n}\n__publicField(Foo, 123, null);\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static 123(a, b) {} }", "export default class Foo {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static get 123() {} }", "export default class Foo {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static set 123(a) {} }", "export default class Foo {\n  static set 123(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] }", "var _a;\nexport default class Foo {\n}\n_a = foo;\nFoo[_a] = void 0;\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] = null }", "var _a;\nexport default class Foo {\n}\n_a = foo;\nFoo[_a] = null;\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] }", "var _a;\nexport default class Foo {\n}\n_a = foo;\n__publicField(Foo, _a);\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] = null }", "var _a;\nexport default class Foo {\n}\n_a = foo;\n__publicField(Foo, _a, null);\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static [foo](a, b) {} }", "export default class Foo {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static get [foo]() {} }", "export default class Foo {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static set [foo](a) {} }", "export default class Foo {\n  static set [foo](a) {\n  }\n}\n")
 
 	expectPrintedTarget(t, 2015, "export default class { static foo }",
-		"export default class stdin_default {\n}\nstdin_default.foo = void 0;\n")
+		"export default class stdin_default {\n}\n__publicField(stdin_default, \"foo\");\n")
 	expectPrintedTarget(t, 2015, "export default class { static foo = null }",
-		"export default class stdin_default {\n}\nstdin_default.foo = null;\n")
+		"export default class stdin_default {\n}\n__publicField(stdin_default, \"foo\", null);\n")
 	expectPrintedTarget(t, 2015, "export default class { static foo(a, b) {} }", "export default class {\n  static foo(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static get foo() {} }", "export default class {\n  static get foo() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static set foo(a) {} }", "export default class {\n  static set foo(a) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static 123 }",
-		"export default class stdin_default {\n}\nstdin_default[123] = void 0;\n")
+		"export default class stdin_default {\n}\n__publicField(stdin_default, 123);\n")
 	expectPrintedTarget(t, 2015, "export default class { static 123 = null }",
-		"export default class stdin_default {\n}\nstdin_default[123] = null;\n")
+		"export default class stdin_default {\n}\n__publicField(stdin_default, 123, null);\n")
 	expectPrintedTarget(t, 2015, "export default class { static 123(a, b) {} }", "export default class {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static get 123() {} }", "export default class {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static set 123(a) {} }", "export default class {\n  static set 123(a) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo] }",
-		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\nstdin_default[_a] = void 0;\n")
+		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\n__publicField(stdin_default, _a);\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo] = null }",
-		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\nstdin_default[_a] = null;\n")
+		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\n__publicField(stdin_default, _a, null);\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo](a, b) {} }", "export default class {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static get [foo]() {} }", "export default class {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static set [foo](a) {} }", "export default class {\n  static set [foo](a) {\n  }\n}\n")
 
-	expectPrintedTarget(t, 2015, "(class Foo { static foo })", "var _a;\n_a = class {\n}, _a.foo = void 0, _a;\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static foo = null })", "var _a;\n_a = class {\n}, _a.foo = null, _a;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static foo })", "var _a;\n_a = class {\n}, __publicField(_a, \"foo\"), _a;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static foo = null })", "var _a;\n_a = class {\n}, __publicField(_a, \"foo\", null), _a;\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static foo(a, b) {} })", "(class Foo {\n  static foo(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static get foo() {} })", "(class Foo {\n  static get foo() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static set foo(a) {} })", "(class Foo {\n  static set foo(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static 123 })", "var _a;\n_a = class {\n}, _a[123] = void 0, _a;\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static 123 = null })", "var _a;\n_a = class {\n}, _a[123] = null, _a;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static 123 })", "var _a;\n_a = class {\n}, __publicField(_a, 123), _a;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static 123 = null })", "var _a;\n_a = class {\n}, __publicField(_a, 123, null), _a;\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static 123(a, b) {} })", "(class Foo {\n  static 123(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static get 123() {} })", "(class Foo {\n  static get 123() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static set 123(a) {} })", "(class Foo {\n  static set 123(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, _b[_a] = void 0, _b;\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, _b[_a] = null, _b;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a), _b;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a, null), _b;\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static [foo](a, b) {} })", "(class Foo {\n  static [foo](a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static get [foo]() {} })", "(class Foo {\n  static get [foo]() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static set [foo](a) {} })", "(class Foo {\n  static set [foo](a) {\n  }\n});\n")
 
-	expectPrintedTarget(t, 2015, "(class { static foo })", "var _a;\n_a = class {\n}, _a.foo = void 0, _a;\n")
-	expectPrintedTarget(t, 2015, "(class { static foo = null })", "var _a;\n_a = class {\n}, _a.foo = null, _a;\n")
+	expectPrintedTarget(t, 2015, "(class { static foo })", "var _a;\n_a = class {\n}, __publicField(_a, \"foo\"), _a;\n")
+	expectPrintedTarget(t, 2015, "(class { static foo = null })", "var _a;\n_a = class {\n}, __publicField(_a, \"foo\", null), _a;\n")
 	expectPrintedTarget(t, 2015, "(class { static foo(a, b) {} })", "(class {\n  static foo(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static get foo() {} })", "(class {\n  static get foo() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static set foo(a) {} })", "(class {\n  static set foo(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { static 123 })", "var _a;\n_a = class {\n}, _a[123] = void 0, _a;\n")
-	expectPrintedTarget(t, 2015, "(class { static 123 = null })", "var _a;\n_a = class {\n}, _a[123] = null, _a;\n")
+	expectPrintedTarget(t, 2015, "(class { static 123 })", "var _a;\n_a = class {\n}, __publicField(_a, 123), _a;\n")
+	expectPrintedTarget(t, 2015, "(class { static 123 = null })", "var _a;\n_a = class {\n}, __publicField(_a, 123, null), _a;\n")
 	expectPrintedTarget(t, 2015, "(class { static 123(a, b) {} })", "(class {\n  static 123(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static get 123() {} })", "(class {\n  static get 123() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static set 123(a) {} })", "(class {\n  static set 123(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, _b[_a] = void 0, _b;\n")
-	expectPrintedTarget(t, 2015, "(class { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, _b[_a] = null, _b;\n")
+	expectPrintedTarget(t, 2015, "(class { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a), _b;\n")
+	expectPrintedTarget(t, 2015, "(class { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a, null), _b;\n")
 	expectPrintedTarget(t, 2015, "(class { static [foo](a, b) {} })", "(class {\n  static [foo](a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static get [foo]() {} })", "(class {\n  static get [foo]() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static set [foo](a) {} })", "(class {\n  static set [foo](a) {\n  }\n});\n")
@@ -2898,7 +2816,7 @@ func TestLowerClassStatic(t *testing.T) {
 		}
 	`, `var _a;
 let Bar = (_a = class {
-}, _a.foo = 123, _a.bar = _a.foo, _a);
+}, __publicField(_a, "foo", 123), __publicField(_a, "bar", _a.foo), _a);
 `)
 }
 
@@ -2987,7 +2905,7 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2020, "undefined?.[x]", "void 0;\n")
 	expectPrintedTarget(t, 2020, "undefined?.(x)", "void 0;\n")
 
-	// Check multiple levels of nesting (loose)
+	// Check multiple levels of nesting
 	expectPrintedTarget(t, 2019, "a?.b?.c?.d", `var _a, _b;
 (_b = (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.c) == null ? void 0 : _b.d;
 `)
@@ -2998,18 +2916,7 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a == null ? void 0 : a(b)) == null ? void 0 : _a(c)) == null ? void 0 : _b(d);
 `)
 
-	// Check multiple levels of nesting (strict)
-	expectPrintedTargetStrict(t, 2019, "a?.b?.c?.d", `var _a, _b;
-(_b = (_a = a === null || a === void 0 ? void 0 : a.b) === null || _a === void 0 ? void 0 : _a.c) === null || _b === void 0 ? void 0 : _b.d;
-`)
-	expectPrintedTargetStrict(t, 2019, "a?.[b]?.[c]?.[d]", `var _a, _b;
-(_b = (_a = a === null || a === void 0 ? void 0 : a[b]) === null || _a === void 0 ? void 0 : _a[c]) === null || _b === void 0 ? void 0 : _b[d];
-`)
-	expectPrintedTargetStrict(t, 2019, "a?.(b)?.(c)?.(d)", `var _a, _b;
-(_b = (_a = a === null || a === void 0 ? void 0 : a(b)) === null || _a === void 0 ? void 0 : _a(c)) === null || _b === void 0 ? void 0 : _b(d);
-`)
-
-	// Check the need to use ".call()" (loose)
+	// Check the need to use ".call()"
 	expectPrintedTarget(t, 2019, "a.b?.(c)", `var _a;
 (_a = a.b) == null ? void 0 : _a.call(a, c);
 `)
@@ -3029,31 +2936,11 @@ func TestLowerOptionalChain(t *testing.T) {
 (_b = (_a = a[b])[c]) == null ? void 0 : _b.call(_a, d);
 `)
 
-	// Check the need to use ".call()" (strict)
-	expectPrintedTargetStrict(t, 2019, "a.b?.(c)", `var _a;
-(_a = a.b) === null || _a === void 0 ? void 0 : _a.call(a, c);
-`)
-	expectPrintedTargetStrict(t, 2019, "a[b]?.(c)", `var _a;
-(_a = a[b]) === null || _a === void 0 ? void 0 : _a.call(a, c);
-`)
-	expectPrintedTargetStrict(t, 2019, "a?.[b]?.(c)", `var _a;
-(_a = a === null || a === void 0 ? void 0 : a[b]) === null || _a === void 0 ? void 0 : _a.call(a, c);
-`)
-	expectPrintedTargetStrict(t, 2019, "123?.[b]?.(c)", `var _a;
-(_a = 123 === null || 123 === void 0 ? void 0 : 123[b]) === null || _a === void 0 ? void 0 : _a.call(123, c);
-`)
-	expectPrintedTargetStrict(t, 2019, "a?.[b][c]?.(d)", `var _a, _b;
-(_b = a === null || a === void 0 ? void 0 : (_a = a[b])[c]) === null || _b === void 0 ? void 0 : _b.call(_a, d);
-`)
-	expectPrintedTargetStrict(t, 2019, "a[b][c]?.(d)", `var _a, _b;
-(_b = (_a = a[b])[c]) === null || _b === void 0 ? void 0 : _b.call(_a, d);
-`)
-
 	// Check that direct eval status is propagated through optional chaining
 	expectPrintedTarget(t, 2019, "eval?.(x)", "eval == null ? void 0 : eval(x);\n")
 	expectPrintedTarget(t, 2019, "(1 ? eval : 0)?.(x)", "eval == null ? void 0 : (0, eval)(x);\n")
 
-	// Check super property access (loose)
+	// Check super property access
 	expectPrintedTarget(t, 2019, "class Foo extends Bar { foo() { super.bar?.() } }", `class Foo extends Bar {
   foo() {
     var _a;
@@ -3065,22 +2952,6 @@ func TestLowerOptionalChain(t *testing.T) {
   foo() {
     var _a;
     (_a = super["bar"]) == null ? void 0 : _a.call(this);
-  }
-}
-`)
-
-	// Check super property access (strict)
-	expectPrintedTargetStrict(t, 2019, "class Foo extends Bar { foo() { super.bar?.() } }", `class Foo extends Bar {
-  foo() {
-    var _a;
-    (_a = super.bar) === null || _a === void 0 ? void 0 : _a.call(this);
-  }
-}
-`)
-	expectPrintedTargetStrict(t, 2019, "class Foo extends Bar { foo() { super['bar']?.() } }", `class Foo extends Bar {
-  foo() {
-    var _a;
-    (_a = super["bar"]) === null || _a === void 0 ? void 0 : _a.call(this);
   }
 }
 `)
@@ -3315,4 +3186,153 @@ func TestES5(t *testing.T) {
 		"<stdin>: error: Transforming generator functions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "(function* () {});",
 		"<stdin>: error: Transforming generator functions to the configured target environment is not supported yet\n")
+}
+
+func TestASCIIOnly(t *testing.T) {
+	es5 := "<stdin>: error: \"𐀀\" cannot be escaped in the target environment " +
+		"(consider setting the charset to \"utf8\" or changing the target)\n"
+
+	// Some context: "π" is in the BMP (i.e. has a code point ≤0xFFFF) and "𐀀" is
+	// not in the BMP (i.e. has a code point >0xFFFF). This distinction matters
+	// because it's impossible to escape non-BMP characters before ES6.
+
+	expectPrinted(t, "π", "π;\n")
+	expectPrinted(t, "𐀀", "𐀀;\n")
+	expectPrintedASCII(t, "π", "\\u03C0;\n")
+	expectPrintedASCII(t, "𐀀", "\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "π", "\\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "𐀀", es5)
+
+	expectPrinted(t, "var π", "var π;\n")
+	expectPrinted(t, "var 𐀀", "var 𐀀;\n")
+	expectPrintedASCII(t, "var π", "var \\u03C0;\n")
+	expectPrintedASCII(t, "var 𐀀", "var \\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "var π", "var \\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "var 𐀀", es5)
+
+	expectPrinted(t, "'π'", "\"π\";\n")
+	expectPrinted(t, "'𐀀'", "\"𐀀\";\n")
+	expectPrintedASCII(t, "'π'", "\"\\u03C0\";\n")
+	expectPrintedASCII(t, "'𐀀'", "\"\\u{10000}\";\n")
+	expectPrintedTargetASCII(t, 5, "'π'", "\"\\u03C0\";\n")
+	expectPrintedTargetASCII(t, 5, "'𐀀'", "\"\\uD800\\uDC00\";\n")
+
+	expectPrinted(t, "x.π", "x.π;\n")
+	expectPrinted(t, "x.𐀀", "x.𐀀;\n")
+	expectPrintedASCII(t, "x.π", "x.\\u03C0;\n")
+	expectPrintedASCII(t, "x.𐀀", "x.\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "x.π", "x.\\u03C0;\n")
+	expectPrintedTargetASCII(t, 5, "x.𐀀", "x[\"\\uD800\\uDC00\"];\n")
+
+	expectPrinted(t, "x?.π", "x?.π;\n")
+	expectPrinted(t, "x?.𐀀", "x?.𐀀;\n")
+	expectPrintedASCII(t, "x?.π", "x?.\\u03C0;\n")
+	expectPrintedASCII(t, "x?.𐀀", "x?.\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "x?.π", "x == null ? void 0 : x.\\u03C0;\n")
+	expectPrintedTargetASCII(t, 5, "x?.𐀀", "x == null ? void 0 : x[\"\\uD800\\uDC00\"];\n")
+
+	expectPrinted(t, "0 .π", "0 .π;\n")
+	expectPrinted(t, "0 .𐀀", "0 .𐀀;\n")
+	expectPrintedASCII(t, "0 .π", "0 .\\u03C0;\n")
+	expectPrintedASCII(t, "0 .𐀀", "0 .\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "0 .π", "0 .\\u03C0;\n")
+	expectPrintedTargetASCII(t, 5, "0 .𐀀", "0[\"\\uD800\\uDC00\"];\n")
+
+	expectPrinted(t, "0?.π", "0?.π;\n")
+	expectPrinted(t, "0?.𐀀", "0?.𐀀;\n")
+	expectPrintedASCII(t, "0?.π", "0?.\\u03C0;\n")
+	expectPrintedASCII(t, "0?.𐀀", "0?.\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "0?.π", "0 == null ? void 0 : 0 .\\u03C0;\n")
+	expectPrintedTargetASCII(t, 5, "0?.𐀀", "0 == null ? void 0 : 0[\"\\uD800\\uDC00\"];\n")
+
+	expectPrinted(t, "import 'π'", "import \"π\";\n")
+	expectPrinted(t, "import '𐀀'", "import \"𐀀\";\n")
+	expectPrintedASCII(t, "import 'π'", "import \"\\u03C0\";\n")
+	expectPrintedASCII(t, "import '𐀀'", "import \"\\u{10000}\";\n")
+	expectPrintedTargetASCII(t, 5, "import 'π'", "import \"\\u03C0\";\n")
+	expectPrintedTargetASCII(t, 5, "import '𐀀'", "import \"\\uD800\\uDC00\";\n")
+
+	expectPrinted(t, "({π: 0})", "({π: 0});\n")
+	expectPrinted(t, "({𐀀: 0})", "({𐀀: 0});\n")
+	expectPrintedASCII(t, "({π: 0})", "({\\u03C0: 0});\n")
+	expectPrintedASCII(t, "({𐀀: 0})", "({\\u{10000}: 0});\n")
+	expectPrintedTargetASCII(t, 5, "({π: 0})", "({\\u03C0: 0});\n")
+	expectPrintedTargetASCII(t, 5, "({𐀀: 0})", "({\"\\uD800\\uDC00\": 0});\n")
+
+	expectPrinted(t, "({π})", "({π});\n")
+	expectPrinted(t, "({𐀀})", "({𐀀});\n")
+	expectPrintedASCII(t, "({π})", "({\\u03C0});\n")
+	expectPrintedASCII(t, "({𐀀})", "({\\u{10000}});\n")
+	expectPrintedTargetASCII(t, 5, "({π})", "({\\u03C0: \\u03C0});\n")
+	expectParseErrorTargetASCII(t, 5, "({𐀀})", es5)
+
+	expectPrinted(t, "import * as π from 'path'; π", "import * as π from \"path\";\nπ;\n")
+	expectPrinted(t, "import * as 𐀀 from 'path'; 𐀀", "import * as 𐀀 from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "import * as π from 'path'; π", "import * as \\u03C0 from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "import * as 𐀀 from 'path'; 𐀀", "import * as \\u{10000} from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "import * as π from 'path'; π", "import * as \\u03C0 from \"path\";\n\\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "import * as 𐀀 from 'path'", es5)
+
+	expectPrinted(t, "import {π} from 'path'; π", "import {π} from \"path\";\nπ;\n")
+	expectPrinted(t, "import {𐀀} from 'path'; 𐀀", "import {𐀀} from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "import {π} from 'path'; π", "import {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "import {𐀀} from 'path'; 𐀀", "import {\\u{10000}} from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "import {π} from 'path'; π", "import {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "import {𐀀} from 'path'", es5)
+
+	expectPrinted(t, "import {π as x} from 'path'", "import {π as x} from \"path\";\n")
+	expectPrinted(t, "import {𐀀 as x} from 'path'", "import {𐀀 as x} from \"path\";\n")
+	expectPrintedASCII(t, "import {π as x} from 'path'", "import {\\u03C0 as x} from \"path\";\n")
+	expectPrintedASCII(t, "import {𐀀 as x} from 'path'", "import {\\u{10000} as x} from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "import {π as x} from 'path'", "import {\\u03C0 as x} from \"path\";\n")
+	expectParseErrorTargetASCII(t, 5, "import {𐀀 as x} from 'path'", es5)
+
+	expectPrinted(t, "import {x as π} from 'path'", "import {x as π} from \"path\";\n")
+	expectPrinted(t, "import {x as 𐀀} from 'path'", "import {x as 𐀀} from \"path\";\n")
+	expectPrintedASCII(t, "import {x as π} from 'path'", "import {x as \\u03C0} from \"path\";\n")
+	expectPrintedASCII(t, "import {x as 𐀀} from 'path'", "import {x as \\u{10000}} from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "import {x as π} from 'path'", "import {x as \\u03C0} from \"path\";\n")
+	expectParseErrorTargetASCII(t, 5, "import {x as 𐀀} from 'path'", es5)
+
+	expectPrinted(t, "export * as π from 'path'; π", "export * as π from \"path\";\nπ;\n")
+	expectPrinted(t, "export * as 𐀀 from 'path'; 𐀀", "export * as 𐀀 from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "export * as π from 'path'; π", "export * as \\u03C0 from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "export * as 𐀀 from 'path'; 𐀀", "export * as \\u{10000} from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export * as π from 'path'", "import * as \\u03C0 from \"path\";\nexport {\\u03C0};\n")
+	expectParseErrorTargetASCII(t, 5, "export * as 𐀀 from 'path'", es5)
+
+	expectPrinted(t, "export {π} from 'path'; π", "export {π} from \"path\";\nπ;\n")
+	expectPrinted(t, "export {𐀀} from 'path'; 𐀀", "export {𐀀} from \"path\";\n𐀀;\n")
+	expectPrintedASCII(t, "export {π} from 'path'; π", "export {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectPrintedASCII(t, "export {𐀀} from 'path'; 𐀀", "export {\\u{10000}} from \"path\";\n\\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export {π} from 'path'; π", "export {\\u03C0} from \"path\";\n\\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "export {𐀀} from 'path'", es5)
+
+	expectPrinted(t, "export {π as x} from 'path'", "export {π as x} from \"path\";\n")
+	expectPrinted(t, "export {𐀀 as x} from 'path'", "export {𐀀 as x} from \"path\";\n")
+	expectPrintedASCII(t, "export {π as x} from 'path'", "export {\\u03C0 as x} from \"path\";\n")
+	expectPrintedASCII(t, "export {𐀀 as x} from 'path'", "export {\\u{10000} as x} from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "export {π as x} from 'path'", "export {\\u03C0 as x} from \"path\";\n")
+	expectParseErrorTargetASCII(t, 5, "export {𐀀 as x} from 'path'", es5)
+
+	expectPrinted(t, "export {x as π} from 'path'", "export {x as π} from \"path\";\n")
+	expectPrinted(t, "export {x as 𐀀} from 'path'", "export {x as 𐀀} from \"path\";\n")
+	expectPrintedASCII(t, "export {x as π} from 'path'", "export {x as \\u03C0} from \"path\";\n")
+	expectPrintedASCII(t, "export {x as 𐀀} from 'path'", "export {x as \\u{10000}} from \"path\";\n")
+	expectPrintedTargetASCII(t, 5, "export {x as π} from 'path'", "export {x as \\u03C0} from \"path\";\n")
+	expectParseErrorTargetASCII(t, 5, "export {x as 𐀀} from 'path'", es5)
+
+	expectPrinted(t, "export {π}; var π", "export {π};\nvar π;\n")
+	expectPrinted(t, "export {𐀀}; var 𐀀", "export {𐀀};\nvar 𐀀;\n")
+	expectPrintedASCII(t, "export {π}; var π", "export {\\u03C0};\nvar \\u03C0;\n")
+	expectPrintedASCII(t, "export {𐀀}; var 𐀀", "export {\\u{10000}};\nvar \\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export {π}; var π", "export {\\u03C0};\nvar \\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "export {𐀀}; var 𐀀", es5)
+
+	expectPrinted(t, "export var π", "export var π;\n")
+	expectPrinted(t, "export var 𐀀", "export var 𐀀;\n")
+	expectPrintedASCII(t, "export var π", "export var \\u03C0;\n")
+	expectPrintedASCII(t, "export var 𐀀", "export var \\u{10000};\n")
+	expectPrintedTargetASCII(t, 5, "export var π", "export var \\u03C0;\n")
+	expectParseErrorTargetASCII(t, 5, "export var 𐀀", es5)
 }

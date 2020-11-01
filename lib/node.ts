@@ -28,7 +28,9 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
 // Return true if stderr is a TTY
 let isTTY = () => isatty(2);
 
-let build: typeof types.build = options => {
+export let version = ESBUILD_VERSION;
+
+export let build: typeof types.build = options => {
   return startService().then(service => {
     let promise = service.build(options);
     promise.then(service.stop, service.stop); // Kill the service afterwards
@@ -36,7 +38,7 @@ let build: typeof types.build = options => {
   });
 };
 
-let transform: typeof types.transform = (input, options) => {
+export let transform: typeof types.transform = (input, options) => {
   return startService().then(service => {
     let promise = service.transform(input, options);
     promise.then(service.stop, service.stop); // Kill the service afterwards
@@ -44,7 +46,7 @@ let transform: typeof types.transform = (input, options) => {
   });
 };
 
-let buildSync: typeof types.buildSync = options => {
+export let buildSync: typeof types.buildSync = options => {
   let result: types.BuildResult;
   runServiceSync(service => service.build(options, isTTY(), (err, res) => {
     if (err) throw err;
@@ -53,7 +55,7 @@ let buildSync: typeof types.buildSync = options => {
   return result!;
 };
 
-let transformSync: typeof types.transformSync = (input, options) => {
+export let transformSync: typeof types.transformSync = (input, options) => {
   let result: types.TransformResult;
   runServiceSync(service => service.transform(input, options || {}, isTTY(), {
     readFile(tempFile, callback) {
@@ -84,7 +86,7 @@ let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
-let startService: typeof types.startService = options => {
+export let startService: typeof types.startService = options => {
   if (options) {
     if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
     if (options.worker) throw new Error(`The "worker" option only works in the browser`)
@@ -168,13 +170,3 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
 let randomFileName = () => {
   return path.join(os.tmpdir(), `esbuild-${crypto.randomBytes(32).toString('hex')}`);
 };
-
-let api: typeof types = {
-  build,
-  buildSync,
-  transform,
-  transformSync,
-  startService,
-};
-
-module.exports = api;

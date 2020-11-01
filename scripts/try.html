@@ -195,9 +195,9 @@
         </select>
       </label>
       <br>
-      <label for="strict">
-        <input id="strict" type="checkbox">
-        Strict
+      <label for="ascii">
+        <input id="ascii" type="checkbox">
+        ASCII
       </label>
       &nbsp; &nbsp;
       Minify:
@@ -220,7 +220,7 @@
     const minifySyntax = document.querySelector('#minify-syntax')
     const minifyIdents = document.querySelector('#minify-idents')
     const minifySpaces = document.querySelector('#minify-spaces')
-    const strict = document.querySelector('#strict')
+    const ascii = document.querySelector('#ascii')
     let runIfIdle
 
     function persistValue(el, key) {
@@ -259,7 +259,7 @@
     persistChecked(minifySyntax, 'minifySyntax')
     persistChecked(minifyIdents, 'minifyIdents')
     persistChecked(minifySpaces, 'minifySpaces')
-    persistChecked(strict, 'strict')
+    persistChecked(ascii, 'ascii')
 
     try {
       const old = sessionStorage.getItem('input')
@@ -298,12 +298,12 @@
           minifySyntax: minifySyntax.checked,
           minifyIdentifiers: minifyIdents.checked,
           minifyWhitespace: minifySpaces.checked,
-          strict: strict.checked,
-        }).then(({ js, warnings }) => {
+          charset: ascii.checked ? 'ascii' : 'utf8',
+        }).then(({ code, warnings }) => {
           let html = messagesToHTML(addKindToMessages(warnings, 'warning'))
-          js = textToHTML(js);
-          if (minifySpaces.checked) js = `<span class="minified">${js}</span>`;
-          output.innerHTML = (html && html + '<hr>') + js;
+          code = textToHTML(code);
+          if (minifySpaces.checked) code = `<span class="minified">${code}</span>`;
+          output.innerHTML = (html && html + '<hr>') + code;
         }, error => {
           let { errors, warnings } = error
           if (errors && warnings) output.innerHTML = messagesToHTML(

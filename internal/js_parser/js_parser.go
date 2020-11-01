@@ -59,6 +59,8 @@ type parser struct {
 	declaredSymbols          []js_ast.DeclaredSymbol
 	runtimeImports           map[string]js_ast.Ref
 	duplicateCaseChecker     duplicateCaseChecker
+	nonBMPIdentifiers        map[string]bool
+	lackOfDefineWarnings     map[string]bool
 
 	// For lowering private methods
 	weakMapRef     js_ast.Ref
@@ -846,6 +848,8 @@ func (p *parser) canMergeSymbols(existing js_ast.SymbolKind, new js_ast.SymbolKi
 }
 
 func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name string) js_ast.Ref {
+	p.checkForNonBMPCodePoint(loc, name)
+
 	// Allocate a new symbol
 	ref := p.newSymbol(kind, name)
 
@@ -3675,7 +3679,7 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 
 	for {
 		// Forbid "let let" and "const let" but not "var let"
-		if kind == js_ast.SymbolOther && p.lexer.IsContextualKeyword("let") {
+		if (kind == js_ast.SymbolOther || kind == js_ast.SymbolConst) && p.lexer.IsContextualKeyword("let") {
 			p.log.AddRangeError(&p.source, p.lexer.Range(), "Cannot use \"let\" as an identifier here")
 		}
 
@@ -3830,6 +3834,7 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 				firstKeywordItemLoc = p.lexer.Loc()
 			}
 		}
+		p.checkForNonBMPCodePoint(aliasLoc, alias)
 		p.lexer.Next()
 
 		if p.lexer.IsContextualKeyword("as") {
@@ -3841,6 +3846,7 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 			if !p.lexer.IsIdentifierOrKeyword() {
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
+			p.checkForNonBMPCodePoint(aliasLoc, alias)
 			p.lexer.Next()
 		}
 
@@ -4673,6 +4679,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				if !p.lexer.IsIdentifierOrKeyword() {
 					p.lexer.Expect(js_lexer.TIdentifier)
 				}
+				p.checkForNonBMPCodePoint(alias.Loc, alias.Name)
 				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("from")
 				pathLoc, pathText = p.parsePath()
@@ -4809,7 +4816,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			return p.parseTypeScriptEnumStmt(loc, opts)
 		}
 
-		decls := p.parseAndDeclareDecls(js_ast.SymbolOther, opts)
+		decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
 		p.lexer.ExpectOrInsertSemicolon()
 		if !opts.isTypeScriptDeclare {
 			p.requireInitializers(decls)
@@ -5301,6 +5308,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			for i, item := range *stmt.Items {
 				name := p.loadNameFromRef(item.Name.Ref)
 				ref := p.declareSymbol(js_ast.SymbolImport, item.Name.Loc, name)
+				p.checkForNonBMPCodePoint(item.AliasLoc, item.Alias)
 				p.isImportItem[ref] = true
 				(*stmt.Items)[i].Name.Ref = ref
 				itemRefs[item.Alias] = js_ast.LocRef{Loc: item.Name.Loc, Ref: ref}
@@ -5691,6 +5699,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 		s = s.Parent
 		if s == nil {
 			// Allocate an "unbound" symbol
+			p.checkForNonBMPCodePoint(loc, name)
 			ref = p.newSymbol(js_ast.SymbolUnbound, name)
 			p.moduleScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: logger.Loc{Start: -1}}
 			break
@@ -7599,6 +7608,21 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, as
 	return value
 }
 
+func (p *parser) checkForNonBMPCodePoint(loc logger.Loc, name string) {
+	if p.ASCIIOnly && p.UnsupportedJSFeatures.Has(compat.UnicodeEscapes) &&
+		js_lexer.ContainsNonBMPCodePoint(name) {
+		if p.nonBMPIdentifiers == nil {
+			p.nonBMPIdentifiers = make(map[string]bool)
+		}
+		if !p.nonBMPIdentifiers[name] {
+			p.nonBMPIdentifiers[name] = true
+			r := js_lexer.RangeOfIdentifier(p.source, loc)
+			p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q cannot be escaped in the target environment ("+
+				"consider setting the charset to \"utf8\" or changing the target)", name))
+		}
+	}
+}
+
 func (p *parser) checkForTypeofAndString(a js_ast.Expr, b js_ast.Expr) bool {
 	if typeof, ok := a.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
 		if str, ok := b.Data.(*js_ast.EString); ok {
@@ -7670,6 +7694,19 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 	}
 
 	return false
+}
+
+func (p *parser) warnAboutLackOfDefine(name string, r logger.Range) {
+	if p.Mode == config.ModeBundle && p.Platform == config.PlatformBrowser {
+		if p.lackOfDefineWarnings == nil {
+			p.lackOfDefineWarnings = make(map[string]bool)
+		}
+		if !p.lackOfDefineWarnings[name] {
+			p.lackOfDefineWarnings[name] = true
+			p.log.AddRangeWarning(&p.source, r,
+				fmt.Sprintf("Define %q when bundling for the browser", name))
+		}
+	}
 }
 
 // EDot nodes represent a property access. This function may return an
@@ -8060,6 +8097,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		result := p.findSymbol(expr.Loc, name)
 		e.Ref = result.ref
 
+		// Warn about assigning to a constant
+		if in.assignTarget != js_ast.AssignTargetNone && p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolConst {
+			r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
+			p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("This assignment will throw because %q is a constant", name))
+		}
+
 		// Substitute user-specified defines for unbound symbols
 		if p.symbols[e.Ref.InnerIndex].Kind == js_ast.SymbolUnbound && !result.isInsideWithScope && e != p.deleteTarget {
 			if data, ok := p.Defines.IdentifierDefines[name]; ok {
@@ -8073,14 +8116,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 				}
 
-				// Copy the call side effect flag over in case this expression is called
+				// Copy the side effect flags over in case this expression is unused
+				if data.CanBeRemovedIfUnused {
+					e.CanBeRemovedIfUnused = true
+				}
 				if data.CallCanBeUnwrappedIfUnused {
 					e.CallCanBeUnwrappedIfUnused = true
 				}
-
-				// All identifier defines that don't have user-specified replacements
-				// are known to be side-effect free. Mark them as such if we get here.
-				e.CanBeRemovedIfUnused = true
+				if data.WarnAboutLackOfDefine {
+					p.warnAboutLackOfDefine(name, js_lexer.RangeOfIdentifier(p.source, expr.Loc))
+				}
 			}
 		}
 
@@ -8790,14 +8835,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						return p.valueForDefine(expr.Loc, in.assignTarget, define.Data.DefineFunc), exprOut{}
 					}
 
-					// Copy the call side effect flag over in case this expression is called
+					// Copy the side effect flags over in case this expression is unused
+					if define.Data.CanBeRemovedIfUnused {
+						e.CanBeRemovedIfUnused = true
+					}
 					if define.Data.CallCanBeUnwrappedIfUnused {
 						e.CallCanBeUnwrappedIfUnused = true
 					}
-
-					// All dot defines that don't have user-specified replacements are
-					// known to be side-effect free. Mark them as such if we get here.
-					e.CanBeRemovedIfUnused = true
+					if define.Data.WarnAboutLackOfDefine {
+						r := js_lexer.RangeOfIdentifier(p.source, e.NameLoc)
+						r = logger.Range{Loc: expr.Loc, Len: r.End() - expr.Loc.Start}
+						p.warnAboutLackOfDefine(strings.Join(define.Parts, "."), r)
+					}
 					break
 				}
 			}
@@ -10124,6 +10173,11 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		options.JSX.Fragment = []string{"React", "Fragment"}
 	}
 
+	// Non-TypeScript files get the real JavaScript class field behavior
+	if !options.TS.Parse {
+		options.UseDefineForClassFields = true
+	}
+
 	p := newParser(log, source, js_lexer.NewLexer(log, source), &options)
 
 	// Consume a leading hashbang comment
@@ -10424,7 +10478,7 @@ func (p *parser) generateImportStmt(
 
 func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang string, directive string) js_ast.AST {
 	// Insert an import statement for any runtime imports we generated
-	if len(p.runtimeImports) > 0 {
+	if len(p.runtimeImports) > 0 && !p.OmitRuntimeForTests {
 		// Sort the imports for determinism
 		keys := make([]string, 0, len(p.runtimeImports))
 		for key := range p.runtimeImports {

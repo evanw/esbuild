@@ -392,6 +392,24 @@
     }),
   )
 
+  // Test imports not being able to access the namespace object
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import {foo} from './esm'
+        if (foo !== 123) throw 'fail'
+      `,
+      'esm.js': `Object.defineProperty(exports, 'foo', {value: 123, enumerable: false})`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        import * as ns from './esm'
+        if (ns[Math.random() < 2 && 'foo'] !== 123) throw 'fail'
+      `,
+      'esm.js': `Object.defineProperty(exports, 'foo', {value: 123, enumerable: false})`,
+    }),
+  )
+
   // Test imports of properties from the prototype chain of "module.exports" for Webpack compatibility
   tests.push(
     // Imports
@@ -444,7 +462,8 @@
       'in.js': `
         import * as test from './reexport'
         // Note: the specification says to ignore default exports in "export * from"
-        if (test.default || test.prop !== 123) throw 'fail'
+        // Note: re-exporting prototype properties using "export * from" is not supported
+        if (test.default || test.prop !== void 0) throw 'fail'
       `,
       'reexport.js': `
         export * from './cjs-proto'
@@ -1113,24 +1132,78 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
     }),
     test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
-        let called = false
+        let setterCalls = 0
         class Foo {
-          foo
-          set foo(x) { called = true }
+          key
+          set key(x) { setterCalls++ }
         }
-        new Foo()
-        if (!called) throw 'fail'
+        let foo = new Foo()
+        if (setterCalls !== 0 || !foo.hasOwnProperty('key') || foo.key !== void 0) throw 'fail'
       `,
     }),
-    test(['in.js', '--outfile=node.js', '--target=es6', '--strict'], {
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
       'in.js': `
-        let called = false
+        let setterCalls = 0
         class Foo {
-          foo
-          set foo(x) { called = true }
+          key = 123
+          set key(x) { setterCalls++ }
         }
-        new Foo()
-        if (called) throw 'fail'
+        let foo = new Foo()
+        if (setterCalls !== 0 || !foo.hasOwnProperty('key') || foo.key !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let toStringCalls = 0
+        let setterCalls = 0
+        class Foo {
+          [{toString() {
+            toStringCalls++
+            return 'key'
+          }}]
+          set key(x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || toStringCalls !== 1 || !foo.hasOwnProperty('key') || foo.key !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let toStringCalls = 0
+        let setterCalls = 0
+        class Foo {
+          [{toString() {
+            toStringCalls++
+            return 'key'
+          }}] = 123
+          set key(x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || toStringCalls !== 1 || !foo.hasOwnProperty('key') || foo.key !== 123) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let key = Symbol('key')
+        let setterCalls = 0
+        class Foo {
+          [key]
+          set [key](x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || !foo.hasOwnProperty(key) || foo[key] !== void 0) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let key = Symbol('key')
+        let setterCalls = 0
+        class Foo {
+          [key] = 123
+          set [key](x) { setterCalls++ }
+        }
+        let foo = new Foo()
+        if (setterCalls !== 0 || !foo.hasOwnProperty(key) || foo[key] !== 123) throw 'fail'
       `,
     }),
   )

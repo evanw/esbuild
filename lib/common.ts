@@ -27,11 +27,11 @@ let mustBeObject = (value: Object | undefined): string | null =>
 let mustBeStringOrBoolean = (value: string | boolean | undefined): string | null =>
   typeof value === 'string' || typeof value === 'boolean' ? null : 'a string or a boolean';
 
+let mustBeStringOrObject = (value: string | Object | undefined): string | null =>
+  typeof value === 'string' || typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'a string or an object';
+
 let mustBeStringOrArray = (value: string | string[] | undefined): string | null =>
   typeof value === 'string' || Array.isArray(value) ? null : 'a string or an array';
-
-let mustBeBooleanOrArray = (value: boolean | string[] | undefined): string | null =>
-  typeof value === 'boolean' || Array.isArray(value) ? null : 'a boolean or an array';
 
 type OptionKeys = { [key: string]: boolean };
 
@@ -69,15 +69,16 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let target = getFlag(options, keys, 'target', mustBeStringOrArray);
   let format = getFlag(options, keys, 'format', mustBeString);
   let globalName = getFlag(options, keys, 'globalName', mustBeString);
-  let strict = getFlag(options, keys, 'strict', mustBeBooleanOrArray);
   let minify = getFlag(options, keys, 'minify', mustBeBoolean);
   let minifySyntax = getFlag(options, keys, 'minifySyntax', mustBeBoolean);
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean);
   let minifyIdentifiers = getFlag(options, keys, 'minifyIdentifiers', mustBeBoolean);
+  let charset = getFlag(options, keys, 'charset', mustBeString);
   let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
+  let avoidTDZ = getFlag(options, keys, 'avoidTDZ', mustBeBoolean);
 
   if (target) {
     if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)
@@ -85,13 +86,12 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   }
   if (format) flags.push(`--format=${format}`);
   if (globalName) flags.push(`--global-name=${globalName}`);
-  if (strict === true) flags.push(`--strict`);
-  else if (strict) for (let key of strict) flags.push(`--strict:${key}`);
 
   if (minify) flags.push('--minify');
   if (minifySyntax) flags.push('--minify-syntax');
   if (minifyWhitespace) flags.push('--minify-whitespace');
   if (minifyIdentifiers) flags.push('--minify-identifiers');
+  if (charset) flags.push(`--charset=${charset}`);
 
   if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`);
   if (jsxFragment) flags.push(`--jsx-fragment=${jsxFragment}`);
@@ -102,6 +102,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
     }
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
+  if (avoidTDZ) flags.push(`--avoid-tdz`);
 }
 
 function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel): [string[], boolean, string | null, string | null] {
@@ -129,7 +130,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   let inject = getFlag(options, keys, 'inject', mustBeArray);
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
-  let write = getFlag(options, keys, 'write', mustBeBoolean) !== false;
+  let write = getFlag(options, keys, 'write', mustBeBoolean) !== false; // Default to true if not specified
   checkForInvalidFlags(options, keys);
 
   if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
@@ -190,11 +191,13 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
   pushCommonFlags(flags, options, keys);
 
   let sourcemap = getFlag(options, keys, 'sourcemap', mustBeStringOrBoolean);
+  let tsconfigRaw = getFlag(options, keys, 'tsconfigRaw', mustBeStringOrObject);
   let sourcefile = getFlag(options, keys, 'sourcefile', mustBeString);
   let loader = getFlag(options, keys, 'loader', mustBeString);
   checkForInvalidFlags(options, keys);
 
   if (sourcemap) flags.push(`--sourcemap=${sourcemap === true ? 'external' : sourcemap}`);
+  if (tsconfigRaw) flags.push(`--tsconfig-raw=${typeof tsconfigRaw === 'string' ? tsconfigRaw : JSON.stringify(tsconfigRaw)}`);
   if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
   if (loader) flags.push(`--loader=${loader}`);
 
@@ -395,30 +398,30 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               let errors = response!.errors;
               let warnings = response!.warnings;
               let outstanding = 1;
-              let next = () => --outstanding === 0 && callback(null, { warnings, js: response!.js, jsSourceMap: response!.jsSourceMap });
+              let next = () => --outstanding === 0 && callback(null, { warnings, code: response!.code, map: response!.map });
               if (errors.length > 0) return callback(failureErrorWithLog('Transform failed', errors, warnings), null);
 
               // Read the JavaScript file from the file system
-              if (response!.jsFS) {
+              if (response!.codeFS) {
                 outstanding++;
-                fs.readFile(response!.js, (err, contents) => {
+                fs.readFile(response!.code, (err, contents) => {
                   if (err !== null) {
                     callback(err, null);
                   } else {
-                    response!.js = contents!;
+                    response!.code = contents!;
                     next();
                   }
                 });
               }
 
               // Read the source map file from the file system
-              if (response!.jsSourceMapFS) {
+              if (response!.mapFS) {
                 outstanding++;
-                fs.readFile(response!.jsSourceMap, (err, contents) => {
+                fs.readFile(response!.map, (err, contents) => {
                   if (err !== null) {
                     callback(err, null);
                   } else {
-                    response!.jsSourceMap = contents!;
+                    response!.map = contents!;
                     next();
                   }
                 });

@@ -112,8 +112,38 @@ type Token struct {
 	Kind       T            // 1 byte
 }
 
-func (token Token) Raw(contents string) string {
-	return contents[token.Range.Loc.Start:token.Range.End()]
+func (token Token) DecodedText(contents string) string {
+	raw := contents[token.Range.Loc.Start:token.Range.End()]
+
+	switch token.Kind {
+	case TIdent, TDimension:
+		return decodeEscapesInToken(raw)
+
+	case TAtKeyword, THash, THashID:
+		return decodeEscapesInToken(raw[1:])
+
+	case TFunction:
+		return decodeEscapesInToken(raw[:len(raw)-1])
+
+	case TString:
+		return decodeEscapesInToken(raw[1 : len(raw)-1])
+
+	case TURL:
+		start := 4
+		end := len(raw) - 1
+
+		// Trim leading and trailing whitespace
+		for start < end && isWhitespace(rune(raw[start])) {
+			start++
+		}
+		for start < end && isWhitespace(rune(raw[end-1])) {
+			end--
+		}
+
+		return decodeEscapesInToken(raw[start:end])
+	}
+
+	return raw
 }
 
 type lexer struct {
@@ -195,7 +225,7 @@ func (lexer *lexer) next() {
 
 		case '#':
 			lexer.step()
-			if isNameContinue(lexer.codePoint) || lexer.isValidEscape() {
+			if IsNameContinue(lexer.codePoint) || lexer.isValidEscape() {
 				if lexer.wouldStartIdentifier() {
 					lexer.Token.Kind = THashID
 				} else {
@@ -344,7 +374,7 @@ func (lexer *lexer) next() {
 			lexer.Token.Kind = TDelimDollar
 
 		default:
-			if isNameStart(lexer.codePoint) {
+			if IsNameStart(lexer.codePoint) {
 				lexer.Token.Kind = lexer.consumeIdentLike()
 			} else {
 				lexer.step()
@@ -392,13 +422,13 @@ func (lexer *lexer) isValidEscape() bool {
 }
 
 func (lexer *lexer) wouldStartIdentifier() bool {
-	if isNameStart(lexer.codePoint) {
+	if IsNameStart(lexer.codePoint) {
 		return true
 	}
 
 	if lexer.codePoint == '-' {
 		c, w := utf8.DecodeRuneInString(lexer.source.Contents[lexer.current:])
-		if isNameStart(c) || c == '-' {
+		if IsNameStart(c) || c == '-' {
 			return true
 		}
 		if c == '\\' {
@@ -409,6 +439,20 @@ func (lexer *lexer) wouldStartIdentifier() bool {
 	}
 
 	return lexer.isValidEscape()
+}
+
+func WouldStartIdentifierWithoutEscapes(text string) bool {
+	if len(text) > 0 {
+		c, width := utf8.DecodeRuneInString(text)
+		if IsNameStart(c) {
+			return true
+		} else if c == '-' {
+			if c, _ := utf8.DecodeRuneInString(text[width:]); IsNameStart(c) || c == '-' {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (lexer *lexer) wouldStartNumber() bool {
@@ -439,19 +483,20 @@ func (lexer *lexer) wouldStartNumber() bool {
 
 func (lexer *lexer) consumeName() string {
 	// Common case: no escapes, identifier is a substring of the input
-	for isNameContinue(lexer.codePoint) {
+	for IsNameContinue(lexer.codePoint) {
 		lexer.step()
 	}
+	raw := lexer.source.Contents[lexer.Token.Range.Loc.Start:lexer.Token.Range.End()]
 	if !lexer.isValidEscape() {
-		return lexer.Token.Raw(lexer.source.Contents)
+		return raw
 	}
 
 	// Uncommon case: escapes, identifier is allocated
 	sb := strings.Builder{}
-	sb.WriteString(lexer.Token.Raw(lexer.source.Contents))
+	sb.WriteString(raw)
 	sb.WriteRune(lexer.consumeEscape())
 	for {
-		if isNameContinue(lexer.codePoint) {
+		if IsNameContinue(lexer.codePoint) {
 			sb.WriteRune(lexer.codePoint)
 			lexer.step()
 		} else if lexer.isValidEscape() {
@@ -672,12 +717,12 @@ func (lexer *lexer) consumeNumeric() T {
 	return TNumber
 }
 
-func isNameStart(c rune) bool {
+func IsNameStart(c rune) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c >= 0x80
 }
 
-func isNameContinue(c rune) bool {
-	return isNameStart(c) || (c >= '0' && c <= '9') || c == '-'
+func IsNameContinue(c rune) bool {
+	return IsNameStart(c) || (c >= '0' && c <= '9') || c == '-'
 }
 
 func isNewline(c rune) bool {
@@ -711,34 +756,6 @@ func isHex(c rune) (int, bool) {
 
 func isNonPrintable(c rune) bool {
 	return c <= 0x08 || c == 0x0B || (c >= 0x0E && c <= 0x1F) || c == 0x7F
-}
-
-func ContentsOfURLToken(raw string) (string, logger.Range) {
-	start := 4
-	end := len(raw) - 1
-
-	// Trim leading and trailing whitespace
-	for start < end && isWhitespace(rune(raw[start])) {
-		start++
-	}
-	for start < end && isWhitespace(rune(raw[end-1])) {
-		end--
-	}
-
-	r := logger.Range{Loc: logger.Loc{Start: int32(start)}, Len: int32(end - start)}
-	return decodeEscapesInToken(raw[start:end]), r
-}
-
-func ContentsOfStringToken(raw string) string {
-	return decodeEscapesInToken(raw[1 : len(raw)-1])
-}
-
-func ContentsOfDimensionToken(raw string) (string, string) {
-	i := len(raw)
-	for i > 0 && raw[i-1] != '.' && (raw[i-1] < '0' || raw[i-1] > '9') {
-		i--
-	}
-	return raw[:i], raw[i:]
 }
 
 func decodeEscapesInToken(inner string) string {

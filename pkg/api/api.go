@@ -72,7 +72,7 @@
 //         fmt.Printf("%d errors and %d warnings\n",
 //             len(result.Errors), len(result.Warnings))
 //
-//         os.Stdout.Write(result.JS)
+//         os.Stdout.Write(result.Code)
 //     }
 //
 package api
@@ -177,11 +177,13 @@ const (
 	LogLevelError
 )
 
-type StrictOptions struct {
-	NullishCoalescing bool
-	OptionalChaining  bool
-	ClassFields       bool
-}
+type Charset uint8
+
+const (
+	CharsetDefault Charset = iota
+	CharsetASCII
+	CharsetUTF8
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
@@ -194,17 +196,18 @@ type BuildOptions struct {
 	Sourcemap SourceMap
 	Target    Target
 	Engines   []Engine
-	Strict    StrictOptions
 
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
+	Charset           Charset
 
 	JSXFactory  string
 	JSXFragment string
 
-	Defines       map[string]string
-	PureFunctions []string
+	Define   map[string]string
+	Pure     []string
+	AvoidTDZ bool
 
 	GlobalName        string
 	Bundle            bool
@@ -215,9 +218,9 @@ type BuildOptions struct {
 	Outbase           string
 	Platform          Platform
 	Format            Format
-	Externals         []string
+	External          []string
 	MainFields        []string
-	Loaders           map[string]Loader
+	Loader            map[string]Loader
 	ResolveExtensions []string
 	Tsconfig          string
 	OutExtensions     map[string]string
@@ -265,17 +268,19 @@ type TransformOptions struct {
 	Format     Format
 	GlobalName string
 	Engines    []Engine
-	Strict     StrictOptions
 
 	MinifyWhitespace  bool
 	MinifyIdentifiers bool
 	MinifySyntax      bool
+	Charset           Charset
 
 	JSXFactory  string
 	JSXFragment string
+	TsconfigRaw string
 
-	Defines       map[string]string
-	PureFunctions []string
+	Define   map[string]string
+	Pure     []string
+	AvoidTDZ bool
 
 	Sourcefile string
 	Loader     Loader
@@ -285,8 +290,8 @@ type TransformResult struct {
 	Errors   []Message
 	Warnings []Message
 
-	JS          []byte
-	JSSourceMap []byte
+	Code []byte
+	Map  []byte
 }
 
 func Transform(input string, options TransformOptions) TransformResult {

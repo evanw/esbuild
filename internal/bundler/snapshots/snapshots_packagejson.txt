@@ -32,12 +32,12 @@ try {
 TestPackageJsonBrowserMapModuleDisabled
 ---------- /Users/user/project/out.js ----------
 // empty:/Users/user/project/node_modules/node-pkg/index.js
-var require_index = __commonJS(() => {
+var require_node_pkg = __commonJS(() => {
 });
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fn2 = require_index();
+  const fn2 = require_node_pkg();
   module.exports = function() {
     return fn2();
   };

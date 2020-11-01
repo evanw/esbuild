@@ -115,7 +115,7 @@ async function test_case(service, test) {
 
   // Run esbuild as a minifier
   try {
-    var { js: output } = await service.transform(ast_as_string, { minify: true });
+    var { code: output } = await service.transform(ast_as_string, { minify: true });
   } catch (e) {
     const formatError = ({ text, location }) => {
       if (!location) return `\nerror: ${text}`;

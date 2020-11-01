@@ -156,12 +156,17 @@ type CompoundSelector struct {
 	PseudoClassSelectors []SSPseudoClass // If present, these follow a ":" character
 }
 
+type NameToken struct {
+	Kind css_lexer.T
+	Text string
+}
+
 type NamespacedName struct {
-	// If present, this is an identifier or "*" or "" and is followed by a "|" character
-	NamespacePrefix *string
+	// If present, this is an identifier or "*" and is followed by a "|" character
+	NamespacePrefix *NameToken
 
 	// This is an identifier or "*" or "&"
-	Name string
+	Name NameToken
 }
 
 // This interface is never called. Its purpose is to encode a variant type in
