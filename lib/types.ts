@@ -33,6 +33,7 @@ export interface BuildOptions extends CommonOptions {
   outfile?: string;
   metafile?: string;
   outdir?: string;
+  outbase?: string;
   platform?: Platform;
   color?: boolean;
   external?: string[];

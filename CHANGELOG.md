@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix the omission of `outbase` in the JavaScript API ([#471](https://github.com/evanw/esbuild/pull/471))
+
+    The original PR for the `outbase` setting added it to the CLI and Go APIs but not the JavaScript API. This release adds it to the JavaScript API too.
+
 ## 0.8.1
 
 * The initial version of the plugin API ([#111](https://github.com/evanw/esbuild/pull/111))

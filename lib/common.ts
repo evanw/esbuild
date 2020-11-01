@@ -129,6 +129,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   let metafile = getFlag(options, keys, 'metafile', mustBeString);
   let outfile = getFlag(options, keys, 'outfile', mustBeString);
   let outdir = getFlag(options, keys, 'outdir', mustBeString);
+  let outbase = getFlag(options, keys, 'outbase', mustBeString);
   let platform = getFlag(options, keys, 'platform', mustBeString);
   let tsconfig = getFlag(options, keys, 'tsconfig', mustBeString);
   let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
@@ -150,6 +151,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   if (metafile) flags.push(`--metafile=${metafile}`);
   if (outfile) flags.push(`--outfile=${outfile}`);
   if (outdir) flags.push(`--outdir=${outdir}`);
+  if (outbase) flags.push(`--outbase=${outbase}`);
   if (platform) flags.push(`--platform=${platform}`);
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
   if (resolveExtensions) flags.push(`--resolve-extensions=${resolveExtensions.join(',')}`);
