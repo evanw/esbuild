@@ -241,7 +241,7 @@ async function main() {
     files.push(input)
   }
 
-  const tsc = path.join(__dirname, 'node_modules', '.bin', 'tsc')
+  const tsc = path.join(__dirname, 'node_modules', 'typescript', 'lib', 'tsc.js')
   const allTestsPassed = await new Promise(resolve => {
     const child = child_process.spawn('node', [tsc, '--project', '.'], { cwd: testDir, stdio: 'inherit' })
     child.on('close', exitCode => resolve(exitCode === 0))
