@@ -523,7 +523,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           let key = nextBuildKey++;
           let [flags, write, plugins, stdin, resolveDir] = flagsForBuildOptions(options, isTTY, logLevelDefault);
           let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir };
-          let cleanup = plugins && handlePlugins(plugins, request, key);
+          let cleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
           sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
             if (cleanup) cleanup();
             if (error) return callback(new Error(error), null);
