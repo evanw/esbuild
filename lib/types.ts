@@ -48,7 +48,7 @@ export interface BuildOptions extends CommonOptions {
 
   entryPoints?: string[];
   stdin?: StdinOptions;
-  plugins: Plugin[];
+  plugins?: Plugin[];
 }
 
 export interface StdinOptions {
