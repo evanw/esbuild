@@ -6,6 +6,10 @@
 
     The original PR for the `outbase` setting added it to the CLI and Go APIs but not the JavaScript API. This release adds it to the JavaScript API too.
 
+* Fix the TypeScript type definitions ([#499](https://github.com/evanw/esbuild/pull/499))
+
+    The newly-released `plugins` option in the TypeScript type definitions was incorrectly marked as non-optional. It is now optional. This fix was contributed by [@remorses](https://github.com/remorses).
+
 ## 0.8.1
 
 * The initial version of the plugin API ([#111](https://github.com/evanw/esbuild/pull/111))
