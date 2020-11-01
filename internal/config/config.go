@@ -185,6 +185,7 @@ type Options struct {
 
 	AbsOutputFile     string
 	AbsOutputDir      string
+	AbsOutputBase     string
 	OutputExtensions  map[string]string
 	ModuleName        []string
 	TsConfigOverride  string

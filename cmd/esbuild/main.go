@@ -21,6 +21,7 @@ Options:
   --bundle              Bundle all dependencies into the output files
   --outfile=...         The output file (for one entry point)
   --outdir=...          The output directory (for multiple entry points)
+  --outbase=...         The base path used to determine entry point output paths (for multiple entry points)
   --sourcemap           Emit a source map
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
                         safari11, edge16, node10, default esnext)

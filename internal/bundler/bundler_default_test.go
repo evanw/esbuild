@@ -3169,6 +3169,25 @@ func TestInjectImportOrder(t *testing.T) {
 	})
 }
 
+func TestOutbase(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a/b/c.js": `
+				console.log('c')
+			`,
+			"/a/b/d.js": `
+				console.log('d')
+			`,
+		},
+		entryPaths: []string{"/a/b/c.js", "/a/b/d.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputDir:  "/out",
+			AbsOutputBase: "/",
+		},
+	})
+}
+
 func TestAvoidTDZNoBundle(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
