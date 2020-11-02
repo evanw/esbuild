@@ -46,6 +46,8 @@ Options:
 
 Advanced options:
   --version                 Print the current version and exit (` + esbuildVersion + `)
+  --outbase=...             The base path used to determine entry point output
+                            paths (for multiple entry points)
   --sourcemap=inline        Emit the source map with an inline data URL
   --sourcemap=external      Do not link to the source map with a comment
   --sourcefile=...          Set the source file for the source map (for stdin)

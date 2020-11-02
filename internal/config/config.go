@@ -1,7 +1,12 @@
 package config
 
 import (
+	"fmt"
+	"regexp"
+	"sync"
+
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 type LanguageTarget int8
@@ -58,6 +63,7 @@ const (
 	LoaderFile
 	LoaderBinary
 	LoaderCSS
+	LoaderDefault
 )
 
 func (loader Loader) IsTypeScript() bool {
@@ -185,6 +191,7 @@ type Options struct {
 
 	AbsOutputFile     string
 	AbsOutputDir      string
+	AbsOutputBase     string
 	OutputExtensions  map[string]string
 	ModuleName        []string
 	TsConfigOverride  string
@@ -193,6 +200,8 @@ type Options struct {
 	PublicPath        string
 	InjectAbsPaths    []string
 	InjectedFiles     []InjectedFile
+
+	Plugins []Plugin
 
 	// If present, metadata about the bundle is written as JSON here
 	AbsMetadataFile string
@@ -212,4 +221,114 @@ func (options *Options) OutputExtensionFor(key string) string {
 		return ext
 	}
 	return key
+}
+
+var filterMutex sync.Mutex
+var filterCache map[string]*regexp.Regexp
+
+func compileFilter(filter string) (result *regexp.Regexp) {
+	if filter == "" {
+		// Must provide a filter
+		return nil
+	}
+	ok := false
+
+	// Cache hit?
+	(func() {
+		filterMutex.Lock()
+		defer filterMutex.Unlock()
+		if filterCache != nil {
+			result, ok = filterCache[filter]
+		}
+	})()
+	if ok {
+		return
+	}
+
+	// Cache miss
+	result, err := regexp.Compile(filter)
+	if err != nil {
+		return nil
+	}
+
+	// Cache for next time
+	filterMutex.Lock()
+	defer filterMutex.Unlock()
+	if filterCache == nil {
+		filterCache = make(map[string]*regexp.Regexp)
+	}
+	filterCache[filter] = result
+	return
+}
+
+func CompileFilterForPlugin(pluginName string, kind string, filter string) (*regexp.Regexp, error) {
+	if filter == "" {
+		return nil, fmt.Errorf("[%s] %q is missing a filter", pluginName, kind)
+	}
+
+	result := compileFilter(filter)
+	if result == nil {
+		return nil, fmt.Errorf("[%s] %q filter is not a valid regular expression: %q", pluginName, kind, filter)
+	}
+
+	return result, nil
+}
+
+func PluginAppliesToPath(path logger.Path, filter *regexp.Regexp, namespace string) bool {
+	return (namespace == "" || path.Namespace == namespace) && filter.MatchString(path.Text)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Plugin API
+
+type Plugin struct {
+	Name      string
+	OnResolve []OnResolve
+	OnLoad    []OnLoad
+}
+
+type OnResolve struct {
+	Name      string
+	Filter    *regexp.Regexp
+	Namespace string
+	Callback  func(OnResolveArgs) OnResolveResult
+}
+
+type OnResolveArgs struct {
+	Path       string
+	Importer   logger.Path
+	ResolveDir string
+}
+
+type OnResolveResult struct {
+	PluginName string
+
+	Path      logger.Path
+	External  bool
+	Namespace string
+
+	Msgs        []logger.Msg
+	ThrownError error
+}
+
+type OnLoad struct {
+	Name      string
+	Filter    *regexp.Regexp
+	Namespace string
+	Callback  func(OnLoadArgs) OnLoadResult
+}
+
+type OnLoadArgs struct {
+	Path logger.Path
+}
+
+type OnLoadResult struct {
+	PluginName string
+
+	Contents      *string
+	AbsResolveDir string
+	Loader        Loader
+
+	Msgs        []logger.Msg
+	ThrownError error
 }
