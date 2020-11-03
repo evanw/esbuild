@@ -744,6 +744,50 @@ func TestTSNamespaceExports(t *testing.T) {
   console.log(N);
 })(ns || (ns = {}));
 `)
+
+	expectPrintedTS(t, `
+		namespace a { export var a = 123; log(a) }
+		namespace b { export let b = 123; log(b) }
+		namespace c { export enum c {} log(c) }
+		namespace d { export class d {} log(d) }
+		namespace e { export namespace e {} log(e) }
+		namespace f { export function f() {} log(f) }
+	`, `var a;
+(function(_a) {
+  _a.a = 123;
+  log(_a.a);
+})(a || (a = {}));
+var b;
+(function(_b) {
+  _b.b = 123;
+  log(_b.b);
+})(b || (b = {}));
+var c;
+(function(_c) {
+  let c;
+  (function(c) {
+  })(c = _c.c || (_c.c = {}));
+  log(c);
+})(c || (c = {}));
+var d;
+(function(_d) {
+  class d {
+  }
+  _d.d = d;
+  log(d);
+})(d || (d = {}));
+var e;
+(function(e) {
+  log(e);
+})(e || (e = {}));
+var f;
+(function(_f) {
+  function f() {
+  }
+  _f.f = f;
+  log(f);
+})(f || (f = {}));
+`)
 }
 
 func TestTSNamespaceDestructuring(t *testing.T) {

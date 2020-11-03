@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+* Fix name collision with TypeScript namespaces containing their own name
+
+    This fixes a bug where TypeScript namespaces containing a declaration that re-uses the name of the enclosing namespace incorrectly failed the build with a duplicate declaration error. Here is an example:
+
+    ```ts
+    namespace foo {
+      export let foo
+    }
+    ```
+
+    This happened because esbuild compiles that code into something like this:
+
+    ```ts
+    var foo;
+    (function (foo) {
+      foo.foo = 123;
+      console.log(foo.foo);
+    })(foo || (foo = {}));
+    ```
+
+    The exported name `foo` was colliding with the automatically-declared function argument also named `foo`, which normally must be declared in that scope to shadow the outer namespace variable. This release fixes the problem by not declaring the function argument in the scope if there is already a declaration with that name in that scope.
+
 ## 0.8.2
 
 * Fix the omission of `outbase` in the JavaScript API ([#471](https://github.com/evanw/esbuild/pull/471))

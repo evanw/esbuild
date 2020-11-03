@@ -832,15 +832,10 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	p.lexer.Next()
 
 	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
-	argRef := js_ast.InvalidRef
 
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
 	oldEnclosingNamespaceRef := p.enclosingNamespaceRef
 	p.enclosingNamespaceRef = &name.Ref
-
-	if !opts.isTypeScriptDeclare {
-		argRef = p.declareSymbol(js_ast.SymbolHoistedFunction, nameLoc, nameText)
-	}
 
 	var stmts []js_ast.Stmt
 	if p.lexer.Token == js_lexer.TDot {
@@ -886,6 +881,35 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 			p.localTypeNames[nameText] = true
 		}
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+	}
+
+	argRef := js_ast.InvalidRef
+	if !opts.isTypeScriptDeclare {
+		// Avoid a collision with the namespace closure argument variable if the
+		// namespace exports a symbol with the same name as the namespace itself:
+		//
+		//   namespace foo {
+		//     export let foo = 123
+		//     console.log(foo)
+		//   }
+		//
+		// TypeScript generates the following code in this case:
+		//
+		//   var foo;
+		//   (function (foo_1) {
+		//     foo_1.foo = 123;
+		//     console.log(foo_1.foo);
+		//   })(foo || (foo = {}));
+		//
+		if _, ok := p.currentScope.Members[nameText]; ok {
+			// Add a "_" to make tests easier to read, since non-bundler tests don't
+			// run the renamer. For external-facing things the renamer will avoid
+			// collisions automatically so this isn't important for correctness.
+			argRef = p.newSymbol(js_ast.SymbolHoisted, "_"+nameText)
+			p.currentScope.Generated = append(p.currentScope.Generated, argRef)
+		} else {
+			argRef = p.declareSymbol(js_ast.SymbolHoisted, nameLoc, nameText)
+		}
 	}
 
 	p.popScope()
