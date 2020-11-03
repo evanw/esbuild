@@ -7552,7 +7552,7 @@ func (p *parser) isDotDefineMatch(expr js_ast.Expr, parts []string) bool {
 	return p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolUnbound
 }
 
-func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, assignTarget js_ast.AssignTarget) js_ast.Expr {
+func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string) js_ast.Expr {
 	// Check both user-specified defines and known globals
 	if defines, ok := p.Defines.DotDefines[parts[len(parts)-1]]; ok {
 	next:
@@ -7567,18 +7567,14 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, as
 
 			// Substitute user-specified defines
 			if define.Data.DefineFunc != nil {
-				return p.valueForDefine(loc, js_ast.AssignTargetNone, define.Data.DefineFunc)
+				return p.valueForDefine(loc, js_ast.AssignTargetNone, false, define.Data.DefineFunc)
 			}
 		}
 	}
 
 	// Generate an identifier for the first part
 	ref := p.findSymbol(loc, parts[0]).ref
-	targetIfLast := js_ast.AssignTargetNone
-	if len(parts) == 1 {
-		targetIfLast = assignTarget
-	}
-	value := p.handleIdentifier(loc, targetIfLast, &js_ast.EIdentifier{
+	value := p.handleIdentifier(loc, js_ast.AssignTargetNone, false, &js_ast.EIdentifier{
 		Ref: ref,
 
 		// Enable tree shaking
@@ -7587,11 +7583,7 @@ func (p *parser) jsxStringsToMemberExpression(loc logger.Loc, parts []string, as
 
 	// Build up a chain of property access expressions for subsequent parts
 	for i := 1; i < len(parts); i++ {
-		targetIfLast = js_ast.AssignTargetNone
-		if i+1 == len(parts) {
-			targetIfLast = assignTarget
-		}
-		if expr, ok := p.maybeRewritePropertyAccess(loc, targetIfLast, js_ast.OptionalChainNone, value, parts[i], loc, false); ok {
+		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, js_ast.OptionalChainNone, value, parts[i], loc, false); ok {
 			value = expr
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -7715,6 +7707,7 @@ func (p *parser) warnAboutLackOfDefine(name string, r logger.Range) {
 func (p *parser) maybeRewritePropertyAccess(
 	loc logger.Loc,
 	assignTarget js_ast.AssignTarget,
+	isDeleteTarget bool,
 	optionalChain js_ast.OptionalChain,
 	target js_ast.Expr,
 	name string,
@@ -7766,7 +7759,7 @@ func (p *parser) maybeRewritePropertyAccess(
 
 				// Track how many times we've referenced this symbol
 				p.recordUsage(item.Ref)
-				return p.handleIdentifier(nameLoc, assignTarget, &js_ast.EIdentifier{Ref: item.Ref}), true
+				return p.handleIdentifier(nameLoc, assignTarget, isDeleteTarget, &js_ast.EIdentifier{Ref: item.Ref}), true
 			}
 
 			// Rewrite "module.require()" to "require()" for Webpack compatibility.
@@ -8093,6 +8086,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Value = p.visitExpr(e.Value)
 
 	case *js_ast.EIdentifier:
+		isDeleteTarget := e == p.deleteTarget
 		name := p.loadNameFromRef(e.Ref)
 		result := p.findSymbol(expr.Loc, name)
 		e.Ref = result.ref
@@ -8107,7 +8101,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if p.symbols[e.Ref.InnerIndex].Kind == js_ast.SymbolUnbound && !result.isInsideWithScope && e != p.deleteTarget {
 			if data, ok := p.Defines.IdentifierDefines[name]; ok {
 				if data.DefineFunc != nil {
-					new := p.valueForDefine(expr.Loc, in.assignTarget, data.DefineFunc)
+					new := p.valueForDefine(expr.Loc, in.assignTarget, isDeleteTarget, data.DefineFunc)
 
 					// Don't substitute an identifier for a non-identifier if this is an
 					// assignment target, since it'll cause a syntax error
@@ -8129,7 +8123,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		return p.handleIdentifier(expr.Loc, in.assignTarget, e), exprOut{}
+		return p.handleIdentifier(expr.Loc, in.assignTarget, isDeleteTarget, e), exprOut{}
 
 	case *js_ast.EPrivateIdentifier:
 		// We should never get here
@@ -8139,7 +8133,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// A missing tag is a fragment
 		tag := e.Tag
 		if tag == nil {
-			value := p.jsxStringsToMemberExpression(expr.Loc, p.JSX.Fragment, in.assignTarget)
+			value := p.jsxStringsToMemberExpression(expr.Loc, p.JSX.Fragment)
 			tag = &value
 		} else {
 			*tag = p.visitExpr(*tag)
@@ -8176,7 +8170,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Call createElement()
 		return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-			Target: p.jsxStringsToMemberExpression(expr.Loc, p.JSX.Factory, in.assignTarget),
+			Target: p.jsxStringsToMemberExpression(expr.Loc, p.JSX.Factory),
 			Args:   args,
 
 			// Enable tree shaking
@@ -8618,6 +8612,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		isCallTarget := e == p.callTarget
+		isDeleteTarget := e == p.deleteTarget
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
 		})
@@ -8671,7 +8666,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		out = exprOut{childContainsOptionalChain: containsOptionalChain}
 		if str, ok := e.Index.Data.(*js_ast.EString); ok {
 			name := js_lexer.UTF16ToString(str.Value)
-			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, e.OptionalChain, e.Target, name, e.Index.Loc, isCallTarget); ok {
+			if value, ok := p.maybeRewritePropertyAccess(
+				expr.Loc, in.assignTarget, isDeleteTarget, e.OptionalChain, e.Target, name, e.Index.Loc, isCallTarget); ok {
 				return value, out
 			}
 		}
@@ -8680,7 +8676,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// though this is a run-time error, we make it a compile-time error when
 		// bundling because scope hoisting means these will no longer be run-time
 		// errors.
-		if p.Mode == config.ModeBundle && in.assignTarget != js_ast.AssignTargetNone {
+		if p.Mode == config.ModeBundle && (in.assignTarget != js_ast.AssignTargetNone || isDeleteTarget) {
 			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Kind == js_ast.SymbolImport {
 				r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot assign to property on import %q", p.symbols[id.Ref.InnerIndex].OriginalName))
@@ -8826,13 +8822,15 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EDot:
+		isDeleteTarget := e == p.deleteTarget
+
 		// Check both user-specified defines and known globals
 		if defines, ok := p.Defines.DotDefines[e.Name]; ok {
 			for _, define := range defines {
 				if p.isDotDefineMatch(expr, define.Parts) {
 					// Substitute user-specified defines
 					if define.Data.DefineFunc != nil {
-						return p.valueForDefine(expr.Loc, in.assignTarget, define.Data.DefineFunc), exprOut{}
+						return p.valueForDefine(expr.Loc, in.assignTarget, isDeleteTarget, define.Data.DefineFunc), exprOut{}
 					}
 
 					// Copy the side effect flags over in case this expression is unused
@@ -8872,7 +8870,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Potentially rewrite this property access
 		out = exprOut{childContainsOptionalChain: containsOptionalChain}
-		if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, e.OptionalChain, e.Target, e.Name, e.NameLoc, isCallTarget); ok {
+		if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget, e.OptionalChain, e.Target, e.Name, e.NameLoc, isCallTarget); ok {
 			return value, out
 		}
 		return js_ast.Expr{Loc: expr.Loc, Data: e}, out
@@ -9314,15 +9312,15 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	return expr, exprOut{}
 }
 
-func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget, defineFunc config.DefineFunc) js_ast.Expr {
+func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget, isDeleteTarget bool, defineFunc config.DefineFunc) js_ast.Expr {
 	expr := js_ast.Expr{Loc: loc, Data: defineFunc(loc, p.findSymbolHelper)}
 	if id, ok := expr.Data.(*js_ast.EIdentifier); ok {
-		return p.handleIdentifier(loc, assignTarget, id)
+		return p.handleIdentifier(loc, assignTarget, isDeleteTarget, id)
 	}
 	return expr
 }
 
-func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarget, e *js_ast.EIdentifier) js_ast.Expr {
+func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarget, isDeleteTarget bool, e *js_ast.EIdentifier) js_ast.Expr {
 	ref := e.Ref
 
 	// Capture the "arguments" variable if necessary
@@ -9334,7 +9332,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 		}
 	}
 
-	if p.Mode == config.ModeBundle && assignTarget != js_ast.AssignTargetNone {
+	if p.Mode == config.ModeBundle && (assignTarget != js_ast.AssignTargetNone || isDeleteTarget) {
 		if p.symbols[ref.InnerIndex].Kind == js_ast.SymbolImport {
 			// Create an error for assigning to an import namespace
 			r := js_lexer.RangeOfIdentifier(p.source, loc)

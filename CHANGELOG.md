@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Using `delete` on an import namespace object is now an error
+
+    This release makes the following code forbidden when bundling is active:
+
+    ```js
+    import * as ns from './some-file';
+    delete ns.prop;
+    ```
+
+    Doing this does not delete the property because properties on ECMAScript module objects are not mutable. Assigning to a property of an import namespace object is already an error and not including the `delete` operator as an assignment was an oversight. This release just makes `delete` assignment consistent with other forms of assignment.
+
 ## 0.8.3
 
 * Fix name collision with TypeScript namespaces containing their own name

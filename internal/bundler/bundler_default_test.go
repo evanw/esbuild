@@ -2716,6 +2716,11 @@ func TestAssignToImport(t *testing.T) {
 				import "./bad8.js"
 				import "./bad9.js"
 				import "./bad10.js"
+				import "./bad11.js"
+				import "./bad12.js"
+				import "./bad13.js"
+				import "./bad14.js"
+				import "./bad15.js"
 
 				import "./good0.js"
 				import "./good1.js"
@@ -2736,6 +2741,11 @@ func TestAssignToImport(t *testing.T) {
 			"/bad8.js":  `import * as x from "foo"; x[y] = 1`,
 			"/bad9.js":  `import * as x from "foo"; x['y'] = 1`,
 			"/bad10.js": `import * as x from "foo"; x['y z'] = 1`,
+			"/bad11.js": `import x from "foo"; delete x`,
+			"/bad12.js": `import {x} from "foo"; delete x`,
+			"/bad13.js": `import * as x from "foo"; delete x.y`,
+			"/bad14.js": `import * as x from "foo"; delete x['y']`,
+			"/bad15.js": `import * as x from "foo"; delete x[y]`,
 
 			"/good0.js": `import x from "foo"; ({y = x} = 1)`,
 			"/good1.js": `import x from "foo"; ({[x]: y} = 1)`,
@@ -2752,6 +2762,11 @@ func TestAssignToImport(t *testing.T) {
 		expectedScanLog: `/bad0.js: error: Cannot assign to import "x"
 /bad1.js: error: Cannot assign to import "x"
 /bad10.js: error: Cannot assign to import "y z"
+/bad11.js: error: Cannot assign to import "x"
+/bad12.js: error: Cannot assign to import "x"
+/bad13.js: error: Cannot assign to import "y"
+/bad14.js: error: Cannot assign to import "y"
+/bad15.js: error: Cannot assign to property on import "x"
 /bad2.js: error: Cannot assign to import "x"
 /bad3.js: error: Cannot assign to import "x"
 /bad4.js: error: Cannot assign to import "x"
