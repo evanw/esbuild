@@ -53,6 +53,9 @@ var foo_default2 = "test4-success";
 // /Users/user/project/baseurl_dot/test5-second/foo.ts
 var foo_default3 = "test5-success";
 
+// /Users/user/project/baseurl_dot/actual/test.ts
+var test_default = "absolute-success";
+
 // /Users/user/project/baseurl_dot/index.ts
 var baseurl_dot_default = {
   test0: test0_success_default,
@@ -60,7 +63,8 @@ var baseurl_dot_default = {
   test2: foo_default,
   test3: test3_success_default,
   test4: foo_default2,
-  test5: foo_default3
+  test5: foo_default3,
+  absolute: test_default
 };
 
 // /Users/user/project/baseurl_nested/nested/test0-success.ts
@@ -81,6 +85,9 @@ var foo_default5 = "test4-success";
 // /Users/user/project/baseurl_nested/nested/test5-second/foo.ts
 var foo_default6 = "test5-success";
 
+// /Users/user/project/baseurl_nested/nested/actual/test.ts
+var test_default2 = "absolute-success";
+
 // /Users/user/project/baseurl_nested/index.ts
 var baseurl_nested_default = {
   test0: test0_success_default2,
@@ -88,7 +95,8 @@ var baseurl_nested_default = {
   test2: foo_default4,
   test3: test3_success_default2,
   test4: foo_default5,
-  test5: foo_default6
+  test5: foo_default6,
+  absolute: test_default2
 };
 
 // /Users/user/project/entry.ts

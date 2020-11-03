@@ -283,6 +283,14 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 
 	// Return early if this is already an absolute path
 	if r.fs.IsAbs(importPath) {
+		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
+		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.tsConfigJSON != nil &&
+			dirInfo.tsConfigJSON.BaseURL != nil && dirInfo.tsConfigJSON.Paths != nil {
+			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
+				return &ResolveResult{PathPair: absolute}
+			}
+		}
+
 		if r.options.ExternalModules.AbsPaths != nil && r.options.ExternalModules.AbsPaths[importPath] {
 			// If the string literal in the source text is an absolute path and has
 			// been marked as an external module, mark it as *not* an absolute path.

@@ -27,6 +27,7 @@ func TestTsConfigPaths(t *testing.T) {
 				import test3 from 'test3/foo'
 				import test4 from 'test4/foo'
 				import test5 from 'test5/foo'
+				import absolute from './absolute'
 				export default {
 					test0,
 					test1,
@@ -34,6 +35,7 @@ func TestTsConfigPaths(t *testing.T) {
 					test3,
 					test4,
 					test5,
+					absolute,
 				}
 			`,
 			"/Users/user/project/baseurl_dot/tsconfig.json": `
@@ -47,6 +49,7 @@ func TestTsConfigPaths(t *testing.T) {
 							"t*t3/foo": ["./test3-succ*s.ts"],
 							"test4/*": ["./test4-first/*", "./test4-second/*"],
 							"test5/*": ["./test5-first/*", "./test5-second/*"],
+							"/virtual/*": ["./actual/*"],
 						}
 					}
 				}
@@ -69,6 +72,12 @@ func TestTsConfigPaths(t *testing.T) {
 			"/Users/user/project/baseurl_dot/test5-second/foo.ts": `
 				export default 'test5-success'
 			`,
+			"/Users/user/project/baseurl_dot/absolute.ts": `
+				export {default} from '/virtual/test'
+			`,
+			"/Users/user/project/baseurl_dot/actual/test.ts": `
+				export default 'absolute-success'
+			`,
 
 			// Tests with "baseUrl": "nested"
 			"/Users/user/project/baseurl_nested/index.ts": `
@@ -78,6 +87,7 @@ func TestTsConfigPaths(t *testing.T) {
 				import test3 from 'test3/foo'
 				import test4 from 'test4/foo'
 				import test5 from 'test5/foo'
+				import absolute from './absolute'
 				export default {
 					test0,
 					test1,
@@ -85,6 +95,7 @@ func TestTsConfigPaths(t *testing.T) {
 					test3,
 					test4,
 					test5,
+					absolute,
 				}
 			`,
 			"/Users/user/project/baseurl_nested/tsconfig.json": `
@@ -98,6 +109,7 @@ func TestTsConfigPaths(t *testing.T) {
 							"t*t3/foo": ["./test3-succ*s.ts"],
 							"test4/*": ["./test4-first/*", "./test4-second/*"],
 							"test5/*": ["./test5-first/*", "./test5-second/*"],
+							"/virtual/*": ["./actual/*"],
 						}
 					}
 				}
@@ -119,6 +131,12 @@ func TestTsConfigPaths(t *testing.T) {
 			`,
 			"/Users/user/project/baseurl_nested/nested/test5-second/foo.ts": `
 				export default 'test5-success'
+			`,
+			"/Users/user/project/baseurl_nested/absolute.ts": `
+				export {default} from '/virtual/test'
+			`,
+			"/Users/user/project/baseurl_nested/nested/actual/test.ts": `
+				export default 'absolute-success'
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/entry.ts"},

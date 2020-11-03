@@ -30,6 +30,10 @@
 
     This release changes the behavior to use a different order of extensions for `@import` statements in CSS files. The order is the list given by `--resolve-extensions` with all extensions removed that have `.js`-related loaders configured. In this case the filtered list would just be `.css` since all other default resolve extensions have JavaScript loaders, but if you also configure another resolve extension to use the `css` loader that will also qualify for implicit extension support with `@import` statements in CSS.
 
+* Add support for `paths` in `tsconfig.json` for absolute paths
+
+    Previously it wasn't possible to use `paths` in `tsconfig.json` to remap paths starting with `/` on systems that considered that an absolute path (so not Windows). This is because absolute paths are handled before normal path resolution logic. Now this should work correctly.
+
 ## 0.8.2
 
 * Fix the omission of `outbase` in the JavaScript API ([#471](https://github.com/evanw/esbuild/pull/471))
