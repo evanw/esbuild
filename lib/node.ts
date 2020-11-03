@@ -38,8 +38,7 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
   // If it exists, we can infer that we are running within Yarn 2 and the
   // JavaScript API should invoke the binary here instead to avoid a slowdown.
   // This is a performance improvement of about 0.1 seconds for Yarn 2 on my
-  // machine. Of course Yarn 2 still takes a whole 0.5 seconds to just run the
-  // code in the first place, but that's not esbuild's fault.
+  // machine.
   let pathForYarn2 = path.join(__dirname, 'esbuild');
   if (fs.existsSync(pathForYarn2)) {
     return [pathForYarn2, []];
