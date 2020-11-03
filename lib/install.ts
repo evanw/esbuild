@@ -187,7 +187,18 @@ function removeRecursive(dir: string): void {
   fs.rmdirSync(dir);
 }
 
-function installOnUnix(name: string): void {
+function isYarnBerryOrNewer(): boolean {
+  const { npm_config_user_agent } = process.env;
+  if (npm_config_user_agent) {
+    const match = npm_config_user_agent.match(/yarn\/(\d+)/);
+    if (match && match[1]) {
+      return parseInt(match[1], 10) >= 2;
+    }
+  }
+  return false;
+}
+
+function installDirectly(name: string) {
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.unlinkSync(binPath);
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
@@ -197,22 +208,35 @@ function installOnUnix(name: string): void {
   }
 }
 
-function installOnWindows(name: string): void {
+function installWithWrapper(name: string, wrapper_filename: string): void {
   fs.writeFileSync(
     binPath,
     `#!/usr/bin/env node
 const path = require('path');
-const esbuild_exe = path.join(__dirname, '..', 'esbuild.exe');
+const esbuild_exe = path.join(__dirname, '..', ${JSON.stringify(wrapper_filename)});
 const child_process = require('child_process');
-child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' });
+const { status } = child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' });
+process.exitCode = status === null ? 1 : status;
 `);
-  const exePath = path.join(__dirname, 'esbuild.exe');
+  const exePath = path.join(__dirname, wrapper_filename);
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.copyFileSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
   } else {
-    installBinaryFromPackage(name, 'esbuild.exe', exePath)
+    installBinaryFromPackage(name, wrapper_filename, exePath)
       .catch(e => setImmediate(() => { throw e; }));
   }
+}
+
+function installOnUnix(name: string): void {
+  if (isYarnBerryOrNewer()) {
+    installWithWrapper(name, "esbuild");
+  } else {
+    installDirectly(name);
+  }
+}
+
+function installOnWindows(name: string): void {
+  installWithWrapper(name, "esbuild.exe");
 }
 
 const key = `${process.platform} ${os.arch()} ${os.endianness()}`;
