@@ -1,6 +1,6 @@
 {
   "name": "esbuild-linux-64",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "The Linux 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",

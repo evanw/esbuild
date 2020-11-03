@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.3
 
 * Fix name collision with TypeScript namespaces containing their own name
 
