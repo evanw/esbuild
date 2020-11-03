@@ -110,6 +110,30 @@ type resolver struct {
 	options config.Options
 	mutex   sync.Mutex
 
+	// A special filtered import order for CSS "@import" imports.
+	//
+	// The "resolve extensions" setting determines the order of implicit
+	// extensions to try when resolving imports with the extension omitted.
+	// Sometimes people create a JavaScript/TypeScript file and a CSS file with
+	// the same name when they create a component. At a high level, users expect
+	// implicit extensions to resolve to the JS file when being imported from JS
+	// and to resolve to the CSS file when being imported from CSS.
+	//
+	// Different bundlers handle this in different ways. Parcel handles this by
+	// having the resolver prefer the same extension as the importing file in
+	// front of the configured "resolve extensions" order. Webpack's "css-loader"
+	// plugin just explicitly configures a special "resolve extensions" order
+	// consisting of only ".css" for CSS files.
+	//
+	// It's unclear what behavior is best here. What we currently do is to create
+	// a special filtered version of the configured "resolve extensions" order
+	// for CSS files that filters out any extension that has been explicitly
+	// configured with a non-CSS loader. This still gives users control over the
+	// order but avoids the scenario where we match an import in a CSS file to a
+	// JavaScript-related file. It's probably not perfect with plugins in the
+	// picture but it's better than some alternatives and probably pretty good.
+	atImportExtensionOrder []string
+
 	// This cache maps a directory path to information about that directory and
 	// all parent directories
 	dirCache map[string]*dirInfo
@@ -130,11 +154,21 @@ func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
 		options.ExternalModules.NodeModules = externalNodeModules
 	}
 
+	// Filter out non-CSS extensions for CSS "@import" imports
+	atImportExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
+	for _, ext := range options.ExtensionOrder {
+		if loader, ok := options.ExtensionToLoader[ext]; ok && loader != config.LoaderCSS {
+			continue
+		}
+		atImportExtensionOrder = append(atImportExtensionOrder, ext)
+	}
+
 	return &resolver{
-		fs:       fs,
-		log:      log,
-		options:  options,
-		dirCache: make(map[string]*dirInfo),
+		fs:                     fs,
+		log:                    log,
+		options:                options,
+		dirCache:               make(map[string]*dirInfo),
+		atImportExtensionOrder: atImportExtensionOrder,
 	}
 }
 
@@ -700,7 +734,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 
 	toAbsPath := func(pathText string, pathRange logger.Range) *string {
 		// Is it a file?
-		if absolute, ok := r.loadAsFile(pathText); ok {
+		if absolute, ok := r.loadAsFile(pathText, r.options.ExtensionOrder); ok {
 			return &absolute
 		}
 
@@ -822,7 +856,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 	return packageJSON
 }
 
-func (r *resolver) loadAsFile(path string) (string, bool) {
+func (r *resolver) loadAsFile(path string, extensionOrder []string) (string, bool) {
 	// Read the directory entries once to minimize locking
 	dirPath := r.fs.Dir(path)
 	entries, err := r.fs.ReadDirectory(dirPath)
@@ -843,7 +877,7 @@ func (r *resolver) loadAsFile(path string) (string, bool) {
 	}
 
 	// Try the path with extensions
-	for _, ext := range r.options.ExtensionOrder {
+	for _, ext := range extensionOrder {
 		if entry, ok := entries[base+ext]; ok && entry.Kind() == fs.FileEntry {
 			return path + ext, true
 		}
@@ -920,8 +954,14 @@ func getBool(json js_ast.Expr) (bool, bool) {
 }
 
 func (r *resolver) loadAsFileOrDirectory(path string, kind ast.ImportKind) (PathPair, bool) {
+	// Use a special import order for CSS "@import" imports
+	extensionOrder := r.options.ExtensionOrder
+	if kind == ast.ImportAt {
+		extensionOrder = r.atImportExtensionOrder
+	}
+
 	// Is this a file?
-	absolute, ok := r.loadAsFile(path)
+	absolute, ok := r.loadAsFile(path, extensionOrder)
 	if ok {
 		return PathPair{Primary: logger.Path{Text: absolute, Namespace: "file"}}, true
 	}

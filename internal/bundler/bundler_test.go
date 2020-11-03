@@ -83,7 +83,9 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 	t.Run("", func(t *testing.T) {
 		t.Helper()
 		fs := fs.MockFS(args.files)
-		args.options.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".json"}
+		if args.options.ExtensionOrder == nil {
+			args.options.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".css", ".json"}
+		}
 		if args.options.AbsOutputFile != "" {
 			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
 		}

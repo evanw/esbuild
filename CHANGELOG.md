@@ -24,6 +24,12 @@
 
     The exported name `foo` was colliding with the automatically-declared function argument also named `foo`, which normally must be declared in that scope to shadow the outer namespace variable. This release fixes the problem by not declaring the function argument in the scope if there is already a declaration with that name in that scope.
 
+* Prefer `.css` files for `@import` in CSS
+
+    People sometimes create a `.js`-related file and an adjacent `.css` file with the same name when creating a component (e.g. `button.tsx` and `button.css`). They also sometimes use `@import "./button"` in CSS and omit the file extension. Currently esbuild uses a single global order of extensions to try when an extension is omitted. This is configured with `--resolve-extensions` and defaults to `.tsx, .ts, .jsx, .mjs, .cjs, .js, .css, .json`. This means the `.tsx` file will be matched because `.tsx` comes before `.css` in the order.
+
+    This release changes the behavior to use a different order of extensions for `@import` statements in CSS files. The order is the list given by `--resolve-extensions` with all extensions removed that have `.js`-related loaders configured. In this case the filtered list would just be `.css` since all other default resolve extensions have JavaScript loaders, but if you also configure another resolve extension to use the `css` loader that will also qualify for implicit extension support with `@import` statements in CSS.
+
 ## 0.8.2
 
 * Fix the omission of `outbase` in the JavaScript API ([#471](https://github.com/evanw/esbuild/pull/471))

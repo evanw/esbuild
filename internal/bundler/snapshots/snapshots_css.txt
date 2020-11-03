@@ -37,6 +37,16 @@ TestCSSAtImport
 }
 
 ================================================================================
+TestCSSAtImportExtensionOrderCollision
+---------- /out.css ----------
+/* /test.css */
+.css {
+  color: red;
+}
+
+/* /entry.css */
+
+================================================================================
 TestCSSAtImportExternal
 ---------- /out.css ----------
 @charset "UTF-8";

@@ -477,3 +477,47 @@ func TestPackageURLsInCSS(t *testing.T) {
 		},
 	})
 }
+
+func TestCSSAtImportExtensionOrderCollision(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// This should avoid picking ".js" because it's explicitly configured as non-CSS
+			"/entry.css": `@import "./test";`,
+			"/test.js":   `console.log('js')`,
+			"/test.css":  `.css { color: red }`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:           config.ModeBundle,
+			AbsOutputFile:  "/out.css",
+			ExtensionOrder: []string{".js", ".css"},
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderCSS,
+			},
+		},
+	})
+}
+
+func TestCSSAtImportExtensionOrderCollisionUnsupported(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// This still shouldn't pick ".js" even though ".sass" isn't ".css"
+			"/entry.css": `@import "./test";`,
+			"/test.js":   `console.log('js')`,
+			"/test.sass": `// some code`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:           config.ModeBundle,
+			AbsOutputFile:  "/out.css",
+			ExtensionOrder: []string{".js", ".sass"},
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderCSS,
+			},
+		},
+		expectedScanLog: `/entry.css: error: File could not be loaded: /test.sass
+`,
+	})
+}
