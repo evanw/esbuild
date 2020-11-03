@@ -22,6 +22,29 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
     return [path.join(__dirname, '..', 'esbuild.exe'), []];
   }
 
+  // Yarn 2 is deliberately incompatible with binary modules because the
+  // developers of Yarn 2 don't think they should be used. See this thread for
+  // details: https://github.com/yarnpkg/berry/issues/882.
+  //
+  // As a compatibility hack we replace the binary with a wrapper script only
+  // for Yarn 2. The wrapper script is avoided for other platforms because
+  // running the binary directly without going through node first is faster.
+  // However, this will make using the JavaScript API with Yarn 2 unnecessarily
+  // slow because the wrapper means running the binary will now start another
+  // nested node process just to call "spawnSync" and run the actual binary.
+  //
+  // To work around this workaround, we query for the place the binary is moved
+  // to if the original location is replaced by our Yarn 2 compatibility hack.
+  // If it exists, we can infer that we are running within Yarn 2 and the
+  // JavaScript API should invoke the binary here instead to avoid a slowdown.
+  // This is a performance improvement of about 0.1 seconds for Yarn 2 on my
+  // machine. Of course Yarn 2 still takes a whole 0.5 seconds to just run the
+  // code in the first place, but that's not esbuild's fault.
+  let pathForYarn2 = path.join(__dirname, 'esbuild');
+  if (fs.existsSync(pathForYarn2)) {
+    return [pathForYarn2, []];
+  }
+
   return [path.join(__dirname, '..', 'bin', 'esbuild'), []];
 };
 

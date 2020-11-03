@@ -228,6 +228,15 @@ process.exitCode = status === null ? 1 : status;
 }
 
 function installOnUnix(name: string): void {
+  // Yarn 2 is deliberately incompatible with binary modules because the
+  // developers of Yarn 2 don't think they should be used. See this thread for
+  // details: https://github.com/yarnpkg/berry/issues/882.
+  //
+  // We want to avoid slowing down esbuild for everyone just because of this
+  // decision by the Yarn 2 developers, so we explicitly detect if esbuild is
+  // being installed using Yarn 2 and install a compatability shim only for
+  // Yarn 2. Normal package managers can just run the binary directly for
+  // maximum speed.
   if (isYarnBerryOrNewer()) {
     installWithWrapper(name, "esbuild");
   } else {

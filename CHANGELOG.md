@@ -34,6 +34,14 @@
 
     Previously it wasn't possible to use `paths` in `tsconfig.json` to remap paths starting with `/` on systems that considered that an absolute path (so not Windows). This is because absolute paths are handled before normal path resolution logic. Now this should work correctly.
 
+* Hack around lack of support for binary packages in Yarn 2 ([#467](https://github.com/evanw/esbuild/issues/467))
+
+    The Yarn 2 package manager is deliberately incompatible with binary modules because the Yarn 2 developers don't think they should be used. See [yarnpkg/berry#882](https://github.com/yarnpkg/berry/issues/882) for details. This means running esbuild with Yarn 2 currently doesn't work (Yarn 2 tries to load the esbuild binary as a JavaScript file).
+
+    The suggested workaround from the Yarn 2 team is to replace the binary with a JavaScript file wrapper that invokes the esbuild binary using node's `child_process` module. However, doing that would slow down esbuild for everyone. The `esbuild` command that is exported from the main package is intentionally a native executable instead of a JavaScript wrapper script because starting up a new node process just to invoke a native binary is unnecessary additional overhead.
+
+    The hack added in this release is to detect whether esbuild is being installed with Yarn 2 during the install script and only install a JavaScript file wrapper for Yarn 2 users. Doing this should make it possible to run the esbuild command from Yarn 2 without slowing down esbuild for everyone. This change was contributed by [@rtsao](https://github.com/rtsao).
+
 ## 0.8.2
 
 * Fix the omission of `outbase` in the JavaScript API ([#471](https://github.com/evanw/esbuild/pull/471))
