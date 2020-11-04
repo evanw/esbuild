@@ -1303,19 +1303,26 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, asciiOnly bool) []by
 	j.AddString("{\n  \"inputs\": {")
 
 	// Write inputs
-	for i, item := range sorted {
-		if i > 0 {
-			j.AddString(",\n    ")
-		} else {
-			j.AddString("\n    ")
+	isFirst := true
+	for _, item := range sorted {
+		file := b.files[item.sourceIndex]
+		// Do not include this file if it is a js stub for a css file.
+		if repr, ok := file.repr.(*reprJS); ok && repr.cssSourceIndex != nil {
+			continue
 		}
-		j.AddBytes(b.files[item.sourceIndex].jsonMetadataChunk)
+		if isFirst {
+			isFirst = false
+			j.AddString("\n    ")
+		} else {
+			j.AddString(",\n    ")
+		}
+		j.AddBytes(file.jsonMetadataChunk)
 	}
 
 	j.AddString("\n  },\n  \"outputs\": {")
 
 	// Write outputs
-	isFirst := true
+	isFirst = true
 	for _, result := range results {
 		if len(result.jsonMetadataChunk) > 0 {
 			if isFirst {
