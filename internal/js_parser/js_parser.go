@@ -4106,12 +4106,12 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 			value := p.parseExpr(js_ast.LComma)
 			defaultValue = &value
 		}
-
+		argType := p.newSymbol(js_ast.SymbolHoisted, p.lexer.Identifier)
 		fn.Args = append(fn.Args, js_ast.Arg{
 			TSDecorators: tsDecorators,
 			Binding:      arg,
 			Default:      defaultValue,
-
+			Type:         argType,
 			// We need to track this because it affects code generation
 			IsTypeScriptCtorField: isTypeScriptCtorField,
 		})

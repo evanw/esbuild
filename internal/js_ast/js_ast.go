@@ -294,7 +294,7 @@ type Arg struct {
 	TSDecorators []Expr
 	Binding      Binding
 	Default      *Expr
-
+	Type         Ref
 	// "constructor(public x: boolean) {}"
 	IsTypeScriptCtorField bool
 }
@@ -1290,12 +1290,13 @@ type ScopeMember struct {
 }
 
 type Scope struct {
-	Kind      ScopeKind
-	Parent    *Scope
-	Children  []*Scope
-	Members   map[string]ScopeMember
-	Generated []Ref
-
+	Kind        ScopeKind
+	Parent      *Scope
+	Children    []*Scope
+	Members     map[string]ScopeMember
+	Identifiers map[string]string
+	Generated   []Ref
+	// ArgsIdentifier map[string]string
 	// This is used to store the ref of the label symbol for ScopeLabel scopes.
 	LabelRef        Ref
 	LabelStmtIsLoop bool

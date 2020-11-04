@@ -3,6 +3,7 @@
 /esbuild
 /esbuild.exe
 /github/
+/.devcontainer/
 /npm/esbuild-darwin-64/bin/esbuild
 /npm/esbuild-freebsd-64/bin/esbuild
 /npm/esbuild-freebsd-arm64/bin/esbuild

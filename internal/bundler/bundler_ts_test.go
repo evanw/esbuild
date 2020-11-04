@@ -870,3 +870,79 @@ func TestExportTypeIssue379(t *testing.T) {
 		},
 	})
 }
+
+func TestTypeScriptDecoratorsMetadata(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import * as AF from './af'
+				console.log(AF)
+			`,
+			"/af.ts": `
+				export function aaa(aa:AA1):void{
+					const b:string = "1" 
+					const {a} = aa;
+				}
+				export function bbb(bb:BB1):boolean{
+					const {b} = bb
+				}
+				
+			`,
+			"/test.ts": `
+				export type Test = Element
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+
+		options: config.Options{
+			Mode: config.ModeBundle,
+			// OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+			// UseRefleatMetaData
+		},
+	})
+}
+
+func TestTypeScriptDecoratorsMetadataClass(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import * as AF from './af'
+				console.log(AF)
+			`,
+			"/af.ts": `
+				class Abc1{}
+				
+				@Injectable
+				export default class Action {
+					constructor(
+						public readonly str:String="str",
+						public readonly middleware: MiddlewareFactory,
+						public readonly abc: Abc1,
+						public readonly def: DEF 
+					) {
+						// super(reducer, api, middleware);
+					}
+					@loading()
+					@param()
+					public fetchList(aa:string){}
+				}
+				
+			`,
+			"/metadata.ts": `
+				export const __metadata=function(){}
+			`,
+			"/test.ts": `
+				export type Test = Element
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+
+		options: config.Options{
+			Mode: config.ModeBundle,
+			// OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+			// UseRefleatMetaData
+		},
+	})
+}
