@@ -468,29 +468,30 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 			Factory:  validateJSX(log, buildOpts.JSXFactory, "factory"),
 			Fragment: validateJSX(log, buildOpts.JSXFragment, "fragment"),
 		},
-		Defines:           validateDefines(log, buildOpts.Define, buildOpts.Pure),
-		Platform:          validatePlatform(buildOpts.Platform),
-		SourceMap:         validateSourceMap(buildOpts.Sourcemap),
-		MangleSyntax:      buildOpts.MinifySyntax,
-		RemoveWhitespace:  buildOpts.MinifyWhitespace,
-		MinifyIdentifiers: buildOpts.MinifyIdentifiers,
-		ASCIIOnly:         validateASCIIOnly(buildOpts.Charset),
-		ModuleName:        validateGlobalName(log, buildOpts.GlobalName),
-		CodeSplitting:     buildOpts.Splitting,
-		OutputFormat:      validateFormat(buildOpts.Format),
-		AbsOutputFile:     validatePath(log, realFS, buildOpts.Outfile),
-		AbsOutputDir:      validatePath(log, realFS, buildOpts.Outdir),
-		AbsOutputBase:     validatePath(log, realFS, buildOpts.Outbase),
-		AbsMetadataFile:   validatePath(log, realFS, buildOpts.Metafile),
-		OutputExtensions:  validateOutputExtensions(log, buildOpts.OutExtensions),
-		ExtensionToLoader: validateLoaders(log, buildOpts.Loader),
-		ExtensionOrder:    validateResolveExtensions(log, buildOpts.ResolveExtensions),
-		ExternalModules:   validateExternals(log, realFS, buildOpts.External),
-		TsConfigOverride:  validatePath(log, realFS, buildOpts.Tsconfig),
-		MainFields:        buildOpts.MainFields,
-		PublicPath:        buildOpts.PublicPath,
-		AvoidTDZ:          buildOpts.AvoidTDZ,
-		InjectAbsPaths:    make([]string, len(buildOpts.Inject)),
+		Defines:              validateDefines(log, buildOpts.Define, buildOpts.Pure),
+		Platform:             validatePlatform(buildOpts.Platform),
+		SourceMap:            validateSourceMap(buildOpts.Sourcemap),
+		MangleSyntax:         buildOpts.MinifySyntax,
+		RemoveWhitespace:     buildOpts.MinifyWhitespace,
+		MinifyIdentifiers:    buildOpts.MinifyIdentifiers,
+		ASCIIOnly:            validateASCIIOnly(buildOpts.Charset),
+		ModuleName:           validateGlobalName(log, buildOpts.GlobalName),
+		CodeSplitting:        buildOpts.Splitting,
+		OutputFormat:         validateFormat(buildOpts.Format),
+		AbsOutputFile:        validatePath(log, realFS, buildOpts.Outfile),
+		AbsOutputDir:         validatePath(log, realFS, buildOpts.Outdir),
+		AbsOutputBase:        validatePath(log, realFS, buildOpts.Outbase),
+		AbsMetadataFile:      validatePath(log, realFS, buildOpts.Metafile),
+		OutputExtensions:     validateOutputExtensions(log, buildOpts.OutExtensions),
+		ExtensionToLoader:    validateLoaders(log, buildOpts.Loader),
+		ExtensionOrder:       validateResolveExtensions(log, buildOpts.ResolveExtensions),
+		ExternalModules:      validateExternals(log, realFS, buildOpts.External),
+		TsConfigOverride:     validatePath(log, realFS, buildOpts.Tsconfig),
+		MainFields:           buildOpts.MainFields,
+		UseDecoratorMetadata: buildOpts.Metadata,
+		PublicPath:           buildOpts.PublicPath,
+		AvoidTDZ:             buildOpts.AvoidTDZ,
+		InjectAbsPaths:       make([]string, len(buildOpts.Inject)),
 	}
 	for i, path := range buildOpts.Inject {
 		options.InjectAbsPaths[i] = validatePath(log, realFS, path)
@@ -687,7 +688,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 				jsx.Fragment = result.JSXFragmentFactory
 			}
 			if result.UseDecoratorMetadata {
-				useDecoratorMetadata = true
+				useDecoratorMetadata = result.UseDecoratorMetadata
 			}
 			if result.UseDefineForClassFields {
 				useDefineForClassFieldsTS = true

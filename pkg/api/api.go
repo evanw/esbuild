@@ -229,11 +229,11 @@ type BuildOptions struct {
 	OutExtensions     map[string]string
 	PublicPath        string
 	Inject            []string
-
-	EntryPoints []string
-	Stdin       *StdinOptions
-	Write       bool
-	Plugins     []Plugin
+	Metadata          bool
+	EntryPoints       []string
+	Stdin             *StdinOptions
+	Write             bool
+	Plugins           []Plugin
 }
 
 type StdinOptions struct {

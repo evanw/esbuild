@@ -917,15 +917,18 @@ func TestTypeScriptDecoratorsMetadataClass(t *testing.T) {
 				export default class Action {
 					constructor(
 						public readonly str:String="str",
-						public readonly middleware: MiddlewareFactory,
+						public readonly middleware1: AA.MiddlewareFactory,
 						public readonly abc: Abc1,
 						public readonly def: DEF 
-					) {
+					):void {
 						// super(reducer, api, middleware);
 					}
 					@loading()
 					@param()
-					public fetchList(aa:string){}
+					async fetchList(aa:string):Promise{
+						// await aa
+						return aa
+					}
 				}
 				
 			`,
@@ -940,8 +943,10 @@ func TestTypeScriptDecoratorsMetadataClass(t *testing.T) {
 
 		options: config.Options{
 			Mode: config.ModeBundle,
+
 			// OutputFormat:  config.FormatCommonJS,
-			AbsOutputFile: "/out.js",
+			AbsOutputFile:        "/out.js",
+			UseDecoratorMetadata: true,
 			// UseRefleatMetaData
 		},
 	})

@@ -346,7 +346,10 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			} else {
 				transformOpts.LogLevel = logLevel
 			}
-
+		case strings.HasPrefix(arg, "--metadata"):
+			if buildOpts != nil {
+				buildOpts.Metadata = true
+			}
 		case !strings.HasPrefix(arg, "-") && buildOpts != nil:
 			buildOpts.EntryPoints = append(buildOpts.EntryPoints, arg)
 
