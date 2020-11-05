@@ -13,6 +13,10 @@
 
     Doing this does not delete the property because properties on ECMAScript module objects are not mutable. Assigning to a property of an import namespace object is already an error and not including the `delete` operator as an assignment was an oversight. This release just makes `delete` assignment consistent with other forms of assignment.
 
+* Mark dead code inside branching expressions
+
+    Code inside branching expressions where the branch is statically determined to never be taken is now marked as dead code. Previously this was only the case for statements, not expressions. This change means `false && require('pkg')` will no longer generate an error about `pkg` being missing even if it is indeed missing. This change affects the `||`, `&&`, `??`, and `?:` operators.
+
 ## 0.8.3
 
 * Fix name collision with TypeScript namespaces containing their own name

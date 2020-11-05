@@ -2898,6 +2898,11 @@ func TestRequireResolve(t *testing.T) {
 				if (false) {
 					console.log(require.resolve('dead-code'))
 				}
+				console.log(false ? require.resolve('dead-if') : 0)
+				console.log(true ? 0 : require.resolve('dead-if'))
+				console.log(false && require.resolve('dead-and'))
+				console.log(true || require.resolve('dead-or'))
+				console.log(true ?? require.resolve('dead-nullish'))
 			`,
 			"/present-file.js": ``,
 		},

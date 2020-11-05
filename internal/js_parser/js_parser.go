@@ -465,6 +465,20 @@ func isPrimitiveToReorder(e js_ast.E) bool {
 	return false
 }
 
+func toNullOrUndefinedWithoutSideEffects(data js_ast.E) (bool, bool) {
+	switch data.(type) {
+	case *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EString, *js_ast.ERegExp,
+		*js_ast.EObject, *js_ast.EArray, *js_ast.EFunction, *js_ast.EArrow, *js_ast.EClass:
+		return false, true
+
+	case *js_ast.ENull, *js_ast.EUndefined:
+		return true, true
+
+	default:
+		return false, false
+	}
+}
+
 func toBooleanWithoutSideEffects(data js_ast.E) (bool, bool) {
 	switch e := data.(type) {
 	case *js_ast.ENull, *js_ast.EUndefined:
@@ -8213,7 +8227,44 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.typeofRequireEqualsFnTarget = e.Right.Data
 		}
 
-		e.Right = p.visitExpr(e.Right)
+		// Mark the control flow as dead if the branch is never taken
+		switch e.Op {
+		case js_ast.BinOpLogicalOr:
+			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok && boolean {
+				// "true || dead"
+				old := p.isControlFlowDead
+				p.isControlFlowDead = true
+				e.Right = p.visitExpr(e.Right)
+				p.isControlFlowDead = old
+			} else {
+				e.Right = p.visitExpr(e.Right)
+			}
+
+		case js_ast.BinOpLogicalAnd:
+			if boolean, ok := toBooleanWithoutSideEffects(e.Left.Data); ok && !boolean {
+				// "false && dead"
+				old := p.isControlFlowDead
+				p.isControlFlowDead = true
+				e.Right = p.visitExpr(e.Right)
+				p.isControlFlowDead = old
+			} else {
+				e.Right = p.visitExpr(e.Right)
+			}
+
+		case js_ast.BinOpNullishCoalescing:
+			if isNullOrUndefined, ok := toNullOrUndefinedWithoutSideEffects(e.Left.Data); ok && !isNullOrUndefined {
+				// "notNullOrUndefined ?? dead"
+				old := p.isControlFlowDead
+				p.isControlFlowDead = true
+				e.Right = p.visitExpr(e.Right)
+				p.isControlFlowDead = old
+			} else {
+				e.Right = p.visitExpr(e.Right)
+			}
+
+		default:
+			e.Right = p.visitExpr(e.Right)
+		}
 
 		// Always put constants on the right for equality comparisons to help
 		// reduce the number of cases we have to check during pattern matching. We
@@ -8318,24 +8369,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpNullishCoalescing:
-			switch e.Left.Data.(type) {
-			case *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EString, *js_ast.ERegExp,
-				*js_ast.EObject, *js_ast.EArray, *js_ast.EFunction, *js_ast.EArrow, *js_ast.EClass:
-				return e.Left, exprOut{}
+			if isNullOrUndefined, ok := toNullOrUndefinedWithoutSideEffects(e.Left.Data); ok {
+				if !isNullOrUndefined {
+					return e.Left, exprOut{}
+				}
 
-			case *js_ast.ENull, *js_ast.EUndefined:
 				// "(null ?? fn)()" => "fn()"
 				// "(null ?? this.fn)" => "this.fn"
 				// "(null ?? this.fn)()" => "(0, this.fn)()"
 				if isCallTarget && hasValueForThisInCall(e.Right) {
 					return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 				}
-				return e.Right, exprOut{}
 
-			default:
-				if p.UnsupportedJSFeatures.Has(compat.NullishCoalescing) {
-					return p.lowerNullishCoalescing(expr.Loc, e.Left, e.Right), exprOut{}
-				}
+				return e.Right, exprOut{}
+			}
+
+			if p.UnsupportedJSFeatures.Has(compat.NullishCoalescing) {
+				return p.lowerNullishCoalescing(expr.Loc, e.Left, e.Right), exprOut{}
 			}
 
 		case js_ast.BinOpLogicalOr:
@@ -8878,12 +8928,21 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EIf:
 		isCallTarget := e == p.callTarget
 		e.Test = p.visitBooleanExpr(e.Test)
-		e.Yes = p.visitExpr(e.Yes)
-		e.No = p.visitExpr(e.No)
 
 		// Fold constants
-		if boolean, ok := toBooleanWithoutSideEffects(e.Test.Data); ok {
+		if boolean, ok := toBooleanWithoutSideEffects(e.Test.Data); !ok {
+			e.Yes = p.visitExpr(e.Yes)
+			e.No = p.visitExpr(e.No)
+		} else {
+			// Mark the control flow as dead if the branch is never taken
 			if boolean {
+				// "true ? live : dead"
+				e.Yes = p.visitExpr(e.Yes)
+				old := p.isControlFlowDead
+				p.isControlFlowDead = true
+				e.No = p.visitExpr(e.No)
+				p.isControlFlowDead = old
+
 				// "(1 ? fn : 2)()" => "fn()"
 				// "(1 ? this.fn : 2)" => "this.fn"
 				// "(1 ? this.fn : 2)()" => "(0, this.fn)()"
@@ -8892,6 +8951,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 				return e.Yes, exprOut{}
 			} else {
+				// "false ? dead : live"
+				old := p.isControlFlowDead
+				p.isControlFlowDead = true
+				e.Yes = p.visitExpr(e.Yes)
+				p.isControlFlowDead = old
+				e.No = p.visitExpr(e.No)
+
 				// "(0 ? 1 : fn)()" => "fn()"
 				// "(0 ? 1 : this.fn)" => "this.fn"
 				// "(0 ? 1 : this.fn)()" => "(0, this.fn)()"
