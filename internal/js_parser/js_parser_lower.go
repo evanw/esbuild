@@ -1629,25 +1629,29 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 			// Generate a single call to "__decorate()" for this property
 			if len(prop.TSDecorators) > 0 {
 				loc := prop.Key.Loc
-				prop.TSDecorators = append(prop.TSDecorators,
-					p.callRuntime(loc, "__metadata", []js_ast.Expr{
-						{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:type")}},
-						{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.newSymbol(js_ast.SymbolHoisted, "Function")}},
-					}),
-					p.callRuntime(loc, "__metadata", []js_ast.Expr{
-						{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:paramtypes")}},
-						{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.newSymbol(js_ast.SymbolHoisted, "[Object]")}},
-						// {Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
-					}),
-				)
-				fn := prop.Value.Data.(*js_ast.EFunction)
-				if fn.Fn.ResultType.InnerIndex != 0 {
+				if p.Options.UseDecoratorMetadata {
+
 					prop.TSDecorators = append(prop.TSDecorators,
 						p.callRuntime(loc, "__metadata", []js_ast.Expr{
-							{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:returntype")}},
-							{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: fn.Fn.ResultType}},
+							{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:type")}},
+							{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.newSymbol(js_ast.SymbolHoisted, "Function")}},
+						}),
+						p.callRuntime(loc, "__metadata", []js_ast.Expr{
+							{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:paramtypes")}},
+							{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.newSymbol(js_ast.SymbolHoisted, "[Object]")}},
+							// {Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
 						}),
 					)
+					fn := prop.Value.Data.(*js_ast.EFunction)
+					if fn.Fn.ResultType.InnerIndex != 0 {
+						prop.TSDecorators = append(prop.TSDecorators,
+							p.callRuntime(loc, "__metadata", []js_ast.Expr{
+								{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:returntype")}},
+								{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: fn.Fn.ResultType}},
+							}),
+						)
+					}
+
 				}
 
 				// Clone the key for the property descriptor
@@ -1664,10 +1668,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 				}
 
 				// This code tells "__decorate()" if the descriptor should be undefined
-				// descriptorKind := float64(1)
-				// if !prop.IsMethod {
-				// 	descriptorKind = 2
-				// }
+				descriptorKind := float64(1)
+				if !prop.IsMethod {
+					descriptorKind = 2
+				}
 
 				// Instance properties use the prototype, static properties use the class
 				var target js_ast.Expr
@@ -1677,12 +1681,22 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
 				}
 				// println(descriptorKey)
-				decorator := p.callRuntime(loc, "__decorate", []js_ast.Expr{
-					{Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
-					target,
-					descriptorKey,
-					{Loc: loc, Data: &js_ast.ENull{}},
-				})
+				var decorator js_ast.Expr
+				if p.Options.UseDecoratorMetadata {
+					decorator = p.callRuntime(loc, "__decorate", []js_ast.Expr{
+						{Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
+						target,
+						descriptorKey,
+						{Loc: loc, Data: &js_ast.ENull{}},
+					})
+				} else {
+					decorator = p.callRuntime(loc, "__decorate", []js_ast.Expr{
+						{Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
+						target,
+						descriptorKey,
+						{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
+					})
+				}
 
 				// Static decorators are grouped after instance decorators
 				if prop.IsStatic {
@@ -1878,10 +1892,12 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 								}
 							}
 						}
-						class.TSDecorators = append(class.TSDecorators, p.callRuntime(classLoc, "__metadata", []js_ast.Expr{
-							{Loc: classLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:paramtypes")}},
-							{Loc: classLoc, Data: &js_ast.EArray{Items: exprs}},
-						}))
+						if p.Options.UseDecoratorMetadata {
+							class.TSDecorators = append(class.TSDecorators, p.callRuntime(classLoc, "__metadata", []js_ast.Expr{
+								{Loc: classLoc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:paramtypes")}},
+								{Loc: classLoc, Data: &js_ast.EArray{Items: exprs}},
+							}))
+						}
 					}
 				}
 			}

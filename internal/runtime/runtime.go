@@ -7,6 +7,7 @@ package runtime
 
 import (
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -19,7 +20,7 @@ func CanUseES6(unsupportedFeatures compat.JSFeature) bool {
 	return !unsupportedFeatures.Has(compat.Let) && !unsupportedFeatures.Has(compat.Arrow)
 }
 
-func code(isES6 bool) string {
+func code(isES6 bool, options *config.Options) string {
 	// Note: The "__rest" function has a for-of loop which requires ES6, but
 	// transforming destructuring to ES5 isn't even supported so it's ok.
 	text := `
@@ -115,23 +116,29 @@ func code(isES6 bool) string {
 			return __exportStar(
 				__defProp(__create(__getProtoOf(module)), 'default', { value: module, enumerable: true }),
 				module)
-		}
+		}`
+	if !options.UseDecoratorMetadata {
 
+		text += `
 		// For TypeScript decorators
 		// - kind === undefined: class
 		// - kind === 1: method, parameter
 		// - kind === 2: field
-		// export var __decorate = (decorators, target, key, kind) => {
-		// 	var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target
-		// 	for (var i = decorators.length - 1, decorator; i >= 0; i--)
-		// 		if (decorator = decorators[i])
-		// 			result = (kind ? decorator(target, key, result) : decorator(result)) || result
-		// 	if (kind && result)
-		// 		__defProp(target, key, result)
-		// 	return result
-		// }
-		// export var __param = (index, decorator) => (target, key) => decorator(target, key, index)
-		
+		export var __decorate = (decorators, target, key, kind) => {
+			var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target
+			for (var i = decorators.length - 1, decorator; i >= 0; i--)
+				if (decorator = decorators[i])
+					result = (kind ? decorator(target, key, result) : decorator(result)) || result
+			if (kind && result)
+				__defProp(target, key, result)
+			return result
+		}
+		export var __param = (index, decorator) => (target, key) => decorator(target, key, index)
+		`
+
+	} else {
+
+		text += `	
 		export var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
 			var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 			if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -141,8 +148,9 @@ func code(isES6 bool) string {
 
 		export var __metadata = (this && this.__param) || function (k, v) {
 			if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-		};
-
+		};`
+	}
+	text += `
 		// For class members
 		export var __publicField = (obj, key, value) => {
 			if (typeof key !== 'symbol') key += ''
@@ -213,20 +221,24 @@ func code(isES6 bool) string {
 	return text
 }
 
-var ES6Source = logger.Source{
-	Index:          SourceIndex,
-	KeyPath:        logger.Path{Text: "<runtime>"},
-	PrettyPath:     "<runtime>",
-	IdentifierName: "runtime",
-	Contents:       code(true /* isES6 */),
+func ES6Source(options *config.Options) logger.Source {
+	return logger.Source{
+		Index:          SourceIndex,
+		KeyPath:        logger.Path{Text: "<runtime>"},
+		PrettyPath:     "<runtime>",
+		IdentifierName: "runtime",
+		Contents:       code(true /* isES6 */, options),
+	}
 }
 
-var ES5Source = logger.Source{
-	Index:          SourceIndex,
-	KeyPath:        logger.Path{Text: "<runtime>"},
-	PrettyPath:     "<runtime>",
-	IdentifierName: "runtime",
-	Contents:       code(false /* isES6 */),
+func ES5Source(options *config.Options) logger.Source {
+	return logger.Source{
+		Index:          SourceIndex,
+		KeyPath:        logger.Path{Text: "<runtime>"},
+		PrettyPath:     "<runtime>",
+		IdentifierName: "runtime",
+		Contents:       code(false /* isES6 */, options),
+	}
 }
 
 // The TypeScript decorator transform behaves similar to the official

@@ -1335,10 +1335,11 @@ func (b *Bundle) generateMetadataJSON(results []OutputFile, asciiOnly bool) []by
 }
 
 type runtimeCacheKey struct {
-	MangleSyntax      bool
-	MinifyIdentifiers bool
-	ES6               bool
-	Platform          config.Platform
+	MangleSyntax         bool
+	MinifyIdentifiers    bool
+	ES6                  bool
+	UseDecoratorMetadata bool
+	Platform             config.Platform
 }
 
 type runtimeCache struct {
@@ -1354,17 +1355,18 @@ var globalRuntimeCache runtimeCache
 func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.Source, runtimeAST js_ast.AST, ok bool) {
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
-		MangleSyntax:      options.MangleSyntax,
-		MinifyIdentifiers: options.MinifyIdentifiers,
-		Platform:          options.Platform,
-		ES6:               runtime.CanUseES6(options.UnsupportedJSFeatures),
+		MangleSyntax:         options.MangleSyntax,
+		MinifyIdentifiers:    options.MinifyIdentifiers,
+		Platform:             options.Platform,
+		UseDecoratorMetadata: options.UseDecoratorMetadata,
+		ES6:                  runtime.CanUseES6(options.UnsupportedJSFeatures),
 	}
 
 	// Determine which source to use
 	if key.ES6 {
-		source = runtime.ES6Source
+		source = runtime.ES6Source(options)
 	} else {
-		source = runtime.ES5Source
+		source = runtime.ES5Source(options)
 	}
 
 	// Cache hit?

@@ -44,7 +44,7 @@ export interface BuildOptions extends CommonOptions {
   outExtension?: { [ext: string]: string };
   publicPath?: string;
   inject?: string[];
-
+  useMetadata?: boolean;
   entryPoints?: string[];
   stdin?: StdinOptions;
   plugins?: Plugin[];

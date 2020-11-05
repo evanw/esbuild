@@ -89,6 +89,9 @@ type ResolveResult struct {
 	// If true, the class field transform should use Object.defineProperty().
 	UseDefineForClassFieldsTS bool
 
+	// If true, the Decorator field transform should use refeact-metadata.
+	useDecoratorMetadata bool
+
 	// If true, unused imports are retained in TypeScript code. This matches the
 	// behavior of the "importsNotUsedAsValues" field in "tsconfig.json" when the
 	// value is not "remove".

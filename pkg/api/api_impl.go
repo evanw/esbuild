@@ -665,6 +665,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	// Settings from the user come first
 	preserveUnusedImportsTS := false
 	useDefineForClassFieldsTS := false
+	useDecoratorMetadata := false
+
 	jsx := config.JSXOptions{
 		Factory:  validateJSX(log, transformOpts.JSXFactory, "factory"),
 		Fragment: validateJSX(log, transformOpts.JSXFragment, "fragment"),
@@ -683,6 +685,9 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			}
 			if len(result.JSXFragmentFactory) > 0 {
 				jsx.Fragment = result.JSXFragmentFactory
+			}
+			if result.UseDecoratorMetadata {
+				useDecoratorMetadata = true
 			}
 			if result.UseDefineForClassFields {
 				useDefineForClassFieldsTS = true
@@ -718,6 +723,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		AbsOutputFile:           transformOpts.Sourcefile + "-out",
 		AvoidTDZ:                transformOpts.AvoidTDZ,
 		UseDefineForClassFields: useDefineForClassFieldsTS,
+		UseDecoratorMetadata:    useDecoratorMetadata,
 		PreserveUnusedImportsTS: preserveUnusedImportsTS,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),

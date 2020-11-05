@@ -174,6 +174,7 @@ type Options struct {
 	OmitRuntimeForTests     bool
 	PreserveUnusedImportsTS bool
 	UseDefineForClassFields bool
+	UseDecoratorMetadata    bool
 	AvoidTDZ                bool
 	ASCIIOnly               bool
 

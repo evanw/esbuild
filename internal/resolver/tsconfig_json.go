@@ -27,6 +27,7 @@ type TSConfigJSON struct {
 	JSXFragmentFactory             []string
 	UseDefineForClassFields        bool
 	PreserveImportsNotUsedAsValues bool
+	UseDecoratorMetadata           bool
 }
 
 func ParseTSConfigJSON(
@@ -90,6 +91,13 @@ func ParseTSConfigJSON(
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "useDefineForClassFields"); ok {
 			if value, ok := getBool(valueJSON); ok {
 				result.UseDefineForClassFields = value
+			}
+		}
+
+		// Parse "useDecoratorMetadata"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "emitDecoratorMetadata"); ok {
+			if value, ok := getBool(valueJSON); ok {
+				result.UseDecoratorMetadata = value
 			}
 		}
 
