@@ -236,15 +236,18 @@ body {
     const entry = path.join(testDir, 'entry.js')
     const imported = path.join(testDir, 'imported.js')
     const text = path.join(testDir, 'text.txt')
+    const css = path.join(testDir, 'example.css')
     const output = path.join(testDir, 'out.js')
     const meta = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `
       import x from "./imported"
       import y from "./text.txt"
-      console.log(x, y)
+      import * as z from "./example.css"
+      console.log(x, y, z)
     `)
     await writeFileAsync(imported, 'export default 123')
     await writeFileAsync(text, 'some text')
+    await writeFileAsync(css, 'body { some: css; }')
     await esbuild.build({
       entryPoints: [entry],
       bundle: true,
@@ -255,21 +258,24 @@ body {
     })
 
     const json = JSON.parse(await readFileAsync(meta))
-    assert.strictEqual(Object.keys(json.inputs).length, 3)
-    assert.strictEqual(Object.keys(json.outputs).length, 3)
+    assert.strictEqual(Object.keys(json.inputs).length, 4)
+    assert.strictEqual(Object.keys(json.outputs).length, 4)
     const cwd = process.cwd()
     const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
 
     // Check inputs
-    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 95)
+    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 139)
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
       { path: makePath(imported) },
       { path: makePath(text) },
+      { path: makePath(css) },
     ])
     assert.deepStrictEqual(json.inputs[makePath(imported)].bytes, 18)
     assert.deepStrictEqual(json.inputs[makePath(imported)].imports, [])
     assert.deepStrictEqual(json.inputs[makePath(text)].bytes, 9)
     assert.deepStrictEqual(json.inputs[makePath(text)].imports, [])
+    assert.deepStrictEqual(json.inputs[makePath(css)].bytes, 19)
+    assert.deepStrictEqual(json.inputs[makePath(css)].imports, [])
 
     // Check outputs
     assert.strictEqual(typeof json.outputs[makePath(output)].bytes, 'number')
@@ -278,10 +284,11 @@ body {
 
     // Check inputs for main output
     const outputInputs = json.outputs[makePath(output)].inputs
-    assert.strictEqual(Object.keys(outputInputs).length, 3)
+    assert.strictEqual(Object.keys(outputInputs).length, 4)
     assert.strictEqual(typeof outputInputs[makePath(entry)].bytesInOutput, 'number')
     assert.strictEqual(typeof outputInputs[makePath(imported)].bytesInOutput, 'number')
     assert.strictEqual(typeof outputInputs[makePath(text)].bytesInOutput, 'number')
+    assert.strictEqual(typeof outputInputs[makePath(css)].bytesInOutput, 'number')
   },
 
   async metafileSplitting({ esbuild, testDir }) {
