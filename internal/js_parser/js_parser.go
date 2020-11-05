@@ -4141,6 +4141,10 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 	if p.TS.Parse && p.lexer.Token == js_lexer.TColon {
 		p.lexer.Next()
 		p.skipTypeScriptReturnType()
+		println(p.lexer.Identifier)
+		if p.lexer.Identifier != "" {
+			fn.ResultType = p.newSymbol(js_ast.SymbolHoisted, p.lexer.Identifier)
+		}
 	}
 
 	// "function foo(): any;"

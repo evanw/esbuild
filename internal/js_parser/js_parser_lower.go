@@ -1639,11 +1639,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 						{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.newSymbol(js_ast.SymbolHoisted, "[Object]")}},
 						// {Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
 					}),
-					p.callRuntime(loc, "__metadata", []js_ast.Expr{
-						{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:returntype")}},
-						{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.newSymbol(js_ast.SymbolHoisted, "Promise")}},
-					}),
 				)
+				fn := prop.Value.Data.(*js_ast.EFunction)
+				if fn.Fn.ResultType.InnerIndex != 0 {
+					prop.TSDecorators = append(prop.TSDecorators,
+						p.callRuntime(loc, "__metadata", []js_ast.Expr{
+							{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16("design:returntype")}},
+							{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: fn.Fn.ResultType}},
+						}),
+					)
+				}
+
 				// Clone the key for the property descriptor
 				var descriptorKey js_ast.Expr
 				switch k := keyExprNoSideEffects.Data.(type) {

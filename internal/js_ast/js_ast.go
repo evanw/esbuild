@@ -305,11 +305,11 @@ type Fn struct {
 	Args         []Arg
 	Body         FnBody
 	ArgumentsRef Ref
-
-	IsAsync     bool
-	IsGenerator bool
-	HasRestArg  bool
-	HasIfScope  bool
+	ResultType   Ref
+	IsAsync      bool
+	IsGenerator  bool
+	HasRestArg   bool
+	HasIfScope   bool
 }
 
 type FnBody struct {
