@@ -17,6 +17,10 @@
 
     Code inside branching expressions where the branch is statically determined to never be taken is now marked as dead code. Previously this was only the case for statements, not expressions. This change means `false && require('pkg')` will no longer generate an error about `pkg` being missing even if it is indeed missing. This change affects the `||`, `&&`, `??`, and `?:` operators.
 
+* Fix downloads for Yarn 2 ([#505](https://github.com/evanw/esbuild/pull/505))
+
+    The change related to Yarn 2 in the previous release had a bug that prevented downloads from succeeding when installing esbuild with Yarn 2. This issue has been fixed.
+
 ## 0.8.3
 
 * Fix name collision with TypeScript namespaces containing their own name

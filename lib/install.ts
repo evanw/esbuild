@@ -208,21 +208,21 @@ function installDirectly(name: string) {
   }
 }
 
-function installWithWrapper(name: string, wrapper_filename: string): void {
+function installWithWrapper(name: string, fromPath: string, toPath: string): void {
   fs.writeFileSync(
     binPath,
     `#!/usr/bin/env node
 const path = require('path');
-const esbuild_exe = path.join(__dirname, '..', ${JSON.stringify(wrapper_filename)});
+const esbuild_exe = path.join(__dirname, '..', ${JSON.stringify(toPath)});
 const child_process = require('child_process');
 const { status } = child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' });
 process.exitCode = status === null ? 1 : status;
 `);
-  const exePath = path.join(__dirname, wrapper_filename);
+  const absToPath = path.join(__dirname, toPath);
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
-    fs.copyFileSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, exePath);
+    fs.copyFileSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, absToPath);
   } else {
-    installBinaryFromPackage(name, wrapper_filename, exePath)
+    installBinaryFromPackage(name, fromPath, absToPath)
       .catch(e => setImmediate(() => { throw e; }));
   }
 }
@@ -238,14 +238,14 @@ function installOnUnix(name: string): void {
   // Yarn 2. Normal package managers can just run the binary directly for
   // maximum speed.
   if (isYarnBerryOrNewer()) {
-    installWithWrapper(name, "bin/esbuild");
+    installWithWrapper(name, "bin/esbuild", "esbuild");
   } else {
     installDirectly(name);
   }
 }
 
 function installOnWindows(name: string): void {
-  installWithWrapper(name, "esbuild.exe");
+  installWithWrapper(name, "esbuild.exe", "esbuild.exe");
 }
 
 const key = `${process.platform} ${os.arch()} ${os.endianness()}`;
