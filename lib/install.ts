@@ -238,7 +238,7 @@ function installOnUnix(name: string): void {
   // Yarn 2. Normal package managers can just run the binary directly for
   // maximum speed.
   if (isYarnBerryOrNewer()) {
-    installWithWrapper(name, "esbuild");
+    installWithWrapper(name, "bin/esbuild");
   } else {
     installDirectly(name);
   }
