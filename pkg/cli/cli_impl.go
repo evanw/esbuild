@@ -346,7 +346,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			} else {
 				transformOpts.LogLevel = logLevel
 			}
-		case strings.HasPrefix(arg, "--metadata"):
+		case strings.HasPrefix(arg, "--reflect-metadata"):
 			if buildOpts != nil {
 				buildOpts.Metadata = true
 			}

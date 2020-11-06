@@ -69,7 +69,7 @@ Advanced options:
   --color=...               Force use of color terminal escapes (true | false)
   --charset=utf8            Do not escape UTF-8 code points
   --avoid-tdz               An optimization for large bundles in Safari
-  --metadata                support tsconfig emitDecoratorMetadata
+  --reflect-metadata                support tsconfig emitDecoratorMetadata
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
