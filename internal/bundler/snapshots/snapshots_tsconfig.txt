@@ -95,6 +95,13 @@ var baseurl_nested_default = {
 console.log(baseurl_dot_default, baseurl_nested_default);
 
 ================================================================================
+TestTsconfigEmitDecoratorMetadata
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/src/entry.ts
+import "./src/foo";
+console.log(1);
+
+================================================================================
 TestTsconfigJsonBaseUrl
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/src/lib/util.js

@@ -538,3 +538,63 @@ __decorate([
 
 // /entry.js
 console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default);
+
+================================================================================
+TestTypeScriptDecoratorsMetadata
+---------- /out.js ----------
+// /af.ts
+const af_exports = {};
+__export(af_exports, {
+  aaa: () => aaa,
+  bbb: () => bbb
+});
+function aaa(aa) {
+  const b = "1";
+  const {a} = aa;
+}
+function bbb(bb) {
+  const {b} = bb;
+}
+
+// /entry.ts
+console.log(af_exports);
+
+================================================================================
+TestTypeScriptDecoratorsMetadataClass
+---------- /out.js ----------
+// /af.ts
+const af_exports = {};
+__export(af_exports, {
+  default: () => af_default
+});
+let Action = class {
+  constructor(str = "str", middleware1, abc, def) {
+    this.str = str;
+    this.middleware1 = middleware1;
+    this.abc = abc;
+    this.def = def;
+  }
+  async fetchList(aa) {
+    return aa;
+  }
+};
+__decorate([
+  loading(),
+  param(),
+  __metadata("design:type", Function),
+  __metadata("design:paramtypes", [Object]),
+  __metadata("design:returntype", Promise)
+], Action.prototype, "fetchList", null);
+Action = __decorate([
+  Injectable,
+  __metadata("design:paramtypes", [
+    String,
+    MiddlewareFactory,
+    Abc1,
+    DEF
+  ])
+], Action);
+var af_default = Action;
+
+// /entry.ts
+console.log(af_exports);
