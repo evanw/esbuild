@@ -737,6 +737,16 @@ let transformTests = {
     }
   },
 
+  async transformDirectEval({ service }) {
+    var { code } = await service.transform(`
+      export let abc = 123
+      eval('console.log(abc)')
+    `, {
+      minify: true,
+    })
+    assert.strictEqual(code, `export let abc=123;eval("console.log(abc)");\n`)
+  },
+
   async tsconfigRaw({ service }) {
     const { code: code1 } = await service.transform(`import {T} from 'path'`, {
       tsconfigRaw: {

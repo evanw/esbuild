@@ -384,8 +384,10 @@ func newLinkerContext(
 
 			// Also associate some default metadata with the file
 			repr.meta = fileMeta{
-				cjsStyleExports: repr.ast.HasCommonJSFeatures() || (repr.ast.HasLazyExport && (c.options.Mode == config.ModePassThrough ||
-					(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax()))),
+				cjsStyleExports: repr.ast.HasCommonJSFeatures() ||
+					(options.Mode == config.ModeBundle && repr.ast.ModuleScope.ContainsDirectEval) ||
+					(repr.ast.HasLazyExport && (c.options.Mode == config.ModePassThrough ||
+						(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax()))),
 				partMeta:                 make([]partMeta, len(repr.ast.Parts)),
 				resolvedExports:          resolvedExports,
 				isProbablyTypeScriptType: make(map[js_ast.Ref]bool),
