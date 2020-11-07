@@ -1466,7 +1466,7 @@ func (minifier *NameMinifier) NumberToMinifiedName(i int) string {
 }
 
 func (ast *AST) HasCommonJSFeatures() bool {
-	return ast.HasTopLevelReturn || ast.UsesExportsRef || ast.UsesModuleRef
+	return ast.UsesCommonJSExports() || ast.HasTopLevelReturn || ast.ModuleScope.ContainsDirectEval
 }
 
 func (ast *AST) UsesCommonJSExports() bool {

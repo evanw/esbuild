@@ -775,6 +775,32 @@
     }),
   )
 
+  // Tests for "eval" scope issues
+  tests.push(
+    test(['in.js', '--bundle', '--outfile=node.js', '--minify-syntax', '--minify-identifiers'], {
+      'in.js': `
+        import a from './a'
+        import b, {Button} from './b'
+        import c from './c'
+        if (a[0] !== a[1]) throw 'fail'
+        if (b !== Button) throw 'fail'
+        if (!(new c instanceof c)) throw 'fail'
+      `,
+      'a.js': `
+        class Button {}
+        export default [Button, eval('Button')]
+      `,
+      'b.js': `
+        export class Button {}
+        export default eval('Button')
+      `,
+      'c.js': `
+        class Button {}
+        export default eval('Button')
+      `,
+    }),
+  )
+
   // Tests for "arguments" scope issues
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Direct `eval()` now causes the module to be considered CommonJS ([#175](https://github.com/evanw/esbuild/pull/175))
+
+    Code containing a direct call to `eval()` can potentially access any name in the current scope or in any parent scope. Therefore all symbols in all of these scopes must not be renamed or minified. This was already the case for all non-top-level symbols, but it accidentally wasn't the case for top-level symbols.
+
+    Preventing top-level symbols from being renamed is problematic because they may be merged in with symbols from other files due to the scope hoisting optimization that applies to files in the ECMAScript module format. That could potentially cause the names to collide and cause a syntax error if they aren't renamed. This problem is now avoided by treating files containing direct `eval()` as CommonJS modules instead, which causes these files to each be wrapped in their own closure with a separate scope.
+
+    Note that this change means that tree shaking is disabled for these files. There is rarely a reason to use direct `eval()` and it is almost always a mistake. You likely want to use a form of indirect eval such as `(0, eval)('code')` instead. That also has the benefit of not disabling symbol minification for that file.
+
 ## 0.8.4
 
 * Using `delete` on an import namespace object is now an error

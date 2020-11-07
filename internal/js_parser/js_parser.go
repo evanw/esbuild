@@ -10339,6 +10339,9 @@ func Parse(log logger.Log, source logger.Source, options config.Options) (result
 		}
 	}
 
+	// Pop the module scope to apply the "ContainsDirectEval" rules
+	p.popScope()
+
 	parts = append(append(before, parts...), after...)
 	result = p.toAST(source, parts, hashbang, directive)
 	result.SourceMapComment = p.lexer.SourceMappingURL
@@ -10563,6 +10566,12 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
 		part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
 		if len(part.Stmts) > 0 {
+			if p.moduleScope.ContainsDirectEval && len(part.DeclaredSymbols) > 0 {
+				// If this file contains a direct call to "eval()", all parts that
+				// declare top-level symbols must be kept since the eval'd code may
+				// reference those symbols.
+				part.CanBeRemovedIfUnused = false
+			}
 			parts[partsEnd] = part
 			partsEnd++
 		}
