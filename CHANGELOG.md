@@ -10,6 +10,12 @@
 
     Note that this change means that tree shaking is disabled for these files. There is rarely a reason to use direct `eval()` and it is almost always a mistake. You likely want to use a form of indirect eval such as `(0, eval)('code')` instead. That also has the benefit of not disabling symbol minification for that file.
 
+* Add a `text` property to output files in build results ([#496](https://github.com/evanw/esbuild/issues/496))
+
+    If you pass `write: false` to the JavaScript `build` API, the output files that would have been written to the file system are instead returned as an array of objects. Each object has a `Uint8Array` property called `contents` with the bytes of the file. It does not contain a string because the bytes of the file may not be valid UTF-8 (e.g. a PNG image) and it's not safe to decode output files as UTF-8 text in all cases.
+
+    This release adds a convenience property called `text` that lazily evaluates and returns `new TextDecoder().decode(contents)` the first time it's accessed. You should only use this in cases where you are sure the contents of the file are encoded using UTF-8 encoding. Invalid code point sequences will be replaced by the U+FFFD replacement character.
+
 ## 0.8.4
 
 * Using `delete` on an import namespace object is now an error

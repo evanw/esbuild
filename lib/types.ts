@@ -73,7 +73,8 @@ export interface Location {
 
 export interface OutputFile {
   path: string;
-  contents: Uint8Array;
+  contents: Uint8Array; // "text" as bytes
+  text: string; // "contents" as text
 }
 
 export interface BuildResult {

@@ -25,7 +25,12 @@ export interface BuildPlugin {
 export interface BuildResponse {
   errors: types.Message[];
   warnings: types.Message[];
-  outputFiles: types.OutputFile[];
+  outputFiles: BuildOutputFile[];
+}
+
+export interface BuildOutputFile {
+  path: string;
+  contents: Uint8Array;
 }
 
 export interface TransformRequest {

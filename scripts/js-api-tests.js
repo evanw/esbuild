@@ -232,6 +232,37 @@ body {
 `)
   },
 
+  async fileLoaderBinaryVsText({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const valid = path.join(testDir, 'valid.bin')
+    const invalid = path.join(testDir, 'invalid.bin')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `
+      import valid from ${JSON.stringify(valid)}
+      import invalid from ${JSON.stringify(invalid)}
+      console.log(valid, invalid)
+    `)
+    await writeFileAsync(valid, Buffer.from([0xCF, 0x80]))
+    await writeFileAsync(invalid, Buffer.from([0x80, 0xCF]))
+    const value = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      loader: { '.bin': 'file' },
+      write: false,
+    })
+    assert.strictEqual(value.outputFiles.length, 3)
+
+    // Valid UTF-8 should decode correctly
+    assert.deepEqual(value.outputFiles[0].contents, new Uint8Array([207, 128]))
+    assert.strictEqual(value.outputFiles[0].text, 'π')
+
+    // Invalid UTF-8 should be preserved as bytes but should be replaced by the U+FFFD replacement character when decoded
+    assert.deepEqual(value.outputFiles[1].contents, new Uint8Array([128, 207]))
+    assert.strictEqual(value.outputFiles[1].text, '\uFFFD\uFFFD')
+  },
+
   async metafile({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const imported = path.join(testDir, 'imported.js')

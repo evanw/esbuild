@@ -531,7 +531,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             let warnings = response!.warnings;
             if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
             let result: types.BuildResult = { warnings };
-            if (!write) result.outputFiles = response!.outputFiles;
+            if (!write) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
             callback(null, result);
           });
         } catch (e) {
@@ -732,4 +732,16 @@ function sanitizeMessages(messages: types.PartialMessage[]): types.Message[] {
   }
 
   return messagesClone;
+}
+
+function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types.OutputFile {
+  let text: string | null = null;
+  return {
+    path,
+    contents,
+    get text() {
+      if (text === null) text = protocol.decodeUTF8(contents);
+      return text;
+    },
+  }
 }
