@@ -268,7 +268,7 @@ func CompileFilterForPlugin(pluginName string, kind string, filter string) (*reg
 
 	result := compileFilter(filter)
 	if result == nil {
-		return nil, fmt.Errorf("[%s] %q filter is not a valid regular expression: %q", pluginName, kind, filter)
+		return nil, fmt.Errorf("[%s] %q filter is not a valid Go regular expression: %q", pluginName, kind, filter)
 	}
 
 	return result, nil

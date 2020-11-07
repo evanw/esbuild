@@ -49,6 +49,40 @@ let pluginTests = {
     assert.strictEqual(result.default, 123)
   },
 
+  async invalidRegExp({ esbuild }) {
+    for (const filter of [/x(?=y)/, /x(?!y)/, /x(?<=y)/, /x(?<!y)/, /(x)\1/]) {
+      // onResolve
+      try {
+        await esbuild.build({
+          entryPoints: ['invalid.js'], write: false, plugins: [{
+            name: 'name',
+            setup(build) {
+              build.onResolve({ filter }, () => { })
+            },
+          }],
+        })
+        throw new Error(`Expected filter ${filter} to fail`)
+      } catch (e) {
+        assert.strictEqual(e.message, `[name] "onResolve" filter is not a valid Go regular expression: ${JSON.stringify(filter.source)}`)
+      }
+
+      // onLoad
+      try {
+        await esbuild.build({
+          entryPoints: ['invalid.js'], write: false, plugins: [{
+            name: 'name',
+            setup(build) {
+              build.onLoad({ filter }, () => { })
+            },
+          }],
+        })
+        throw new Error(`Expected filter ${filter} to fail`)
+      } catch (e) {
+        assert.strictEqual(e.message, `[name] "onLoad" filter is not a valid Go regular expression: ${JSON.stringify(filter.source)}`)
+      }
+    }
+  },
+
   async basicLoader({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const custom = path.join(testDir, 'example.custom')
