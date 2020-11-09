@@ -243,7 +243,7 @@ func link(
 			// when the global name is present, since that's the only way the exports
 			// can actually be observed externally.
 			if repr.AST.ExportKeyword.Len > 0 && (options.OutputFormat == config.FormatCommonJS ||
-				(options.OutputFormat == config.FormatIIFE && len(options.GlobalName) > 0)) {
+				((options.OutputFormat == config.FormatIIFE || options.OutputFormat == config.FormatUMD) && len(options.GlobalName) > 0)) {
 				repr.AST.UsesExportsRef = true
 				repr.Meta.ForceIncludeExportsForEntryPoint = true
 			}
@@ -1160,7 +1160,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			// resulting wrapper won't be invoked by other files. An exception is made
 			// for entry point files in CommonJS format (or when in pass-through mode).
 			if repr.AST.ExportsKind == js_ast.ExportsCommonJS && (!file.IsEntryPoint() ||
-				c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
+				c.options.OutputFormat == config.FormatUMD || c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatESModule) {
 				repr.Meta.Wrap = graph.WrapCJS
 			}
 		}
@@ -3716,9 +3716,9 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		lineOffsetTables = dataForSourceMaps[partRange.sourceIndex].lineOffsetTables
 	}
 
-	// Indent the file if everything is wrapped in an IIFE
+	// Indent the file if everything is wrapped in an IIFE or UMD
 	indent := 0
-	if c.options.OutputFormat == config.FormatIIFE {
+	if c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatUMD {
 		indent++
 	}
 
@@ -4345,7 +4345,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	{
 		// Indent the file if everything is wrapped in an IIFE
 		indent := 0
-		if c.options.OutputFormat == config.FormatIIFE {
+		if c.options.OutputFormat == config.FormatIIFE || c.options.OutputFormat == config.FormatUMD {
 			indent++
 		}
 		printOptions := js_printer.Options{
@@ -4437,6 +4437,37 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			text += "(function()" + space + "{" + newline
 		} else {
 			text += "(()" + space + "=>" + space + "{" + newline
+		}
+		prevOffset.AdvanceString(text)
+		j.AddString(text)
+		newlineBeforeComment = false
+	} else if c.options.OutputFormat == config.FormatUMD {
+		var text string
+		var prefix string
+		indent = "  "
+		if len(c.options.GlobalName) > 0 {
+			prefix = generateModuleNameAssignment(c.options)
+		}
+		if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+			text = "(function(root," + space + "factory)" + space + "{" + newline +
+				space + space + "if" + space + "(typeof define" + space + "===" + space + "\"function\"" + space + "&&" + space + "define.amd)" + space + "{" + newline +
+				space + space + space + space + "define(factory);" + newline +
+				space + space + "}" + space + "else if" + space + "(typeof module" + space + "===" + space + "\"object\"" + space + "&&" + space + "module.exports)" + space + "{" + newline +
+				space + space + space + space + "module.exports" + space + "=" + space + "factory();" + newline +
+				space + space + "}" + space + "else" + space + "{" + newline +
+				space + space + space + space + prefix + "factory();" + newline +
+				space + space + "}" + newline +
+				"}(typeof self" + space + "!==" + space + "\"undefined\"" + space + "?" + space + "self" + space + ":" + space + "this," + space + "function()" + space + "{" + newline
+		} else {
+			text = "(function(root," + space + "factory)" + space + "{" + newline +
+				space + space + "if" + space + "(typeof define" + space + "===" + space + "\"function\"" + space + "&&" + space + "define.amd)" + space + "{" + newline +
+				space + space + space + space + "define(factory);" + newline +
+				space + space + "}" + space + "else if" + space + "(typeof module" + space + "===" + space + "\"object\"" + space + "&&" + space + "module.exports)" + space + "{" + newline +
+				space + space + space + space + "module.exports" + space + "=" + space + "factory();" + newline +
+				space + space + "}" + space + "else" + space + "{" + newline +
+				space + space + space + space + prefix + "factory();" + newline +
+				space + space + "}" + newline +
+				"}(typeof self" + space + "!==" + space + "\"undefined\"" + space + "?" + space + "self" + space + ":" + space + "this," + space + "()" + space + "=>" + space + "{" + newline
 		}
 		prevOffset.AdvanceString(text)
 		j.AddString(text)
@@ -4613,6 +4644,8 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	// Optionally wrap with an IIFE
 	if c.options.OutputFormat == config.FormatIIFE {
 		j.AddString("})();" + newline)
+	} else if c.options.OutputFormat == config.FormatUMD {
+		j.AddString("}));" + newline)
 	}
 
 	// Make sure the file ends with a newline
@@ -4720,6 +4753,44 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
 		}
 		text += fmt.Sprintf("%s%s||%s{}%s%s%s=%s", oldPrefix, space, space, join, prefix, space, space)
+	}
+
+	return text
+}
+
+func generateModuleNameAssignment(options *config.Options) string {
+	var text string
+	prefix := options.GlobalName[0]
+	space := " "
+	join := ";\n"
+
+	if options.RemoveWhitespace {
+		space = ""
+		join = ";"
+	}
+
+	if js_printer.CanQuoteIdentifier(prefix, options.UnsupportedJSFeatures, options.ASCIIOnly) {
+		if options.ASCIIOnly {
+			prefix = string(js_printer.QuoteIdentifier(nil, prefix, options.UnsupportedJSFeatures))
+		}
+		prefix = "root." + prefix
+		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
+	} else {
+		prefix = fmt.Sprintf("root[%s]", js_printer.QuoteForJSON(prefix, options.ASCIIOnly))
+		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
+	}
+
+	for _, name := range options.GlobalName[1:] {
+		oldPrefix := prefix
+		if js_printer.CanQuoteIdentifier(name, options.UnsupportedJSFeatures, options.ASCIIOnly) {
+			if options.ASCIIOnly {
+				name = string(js_printer.QuoteIdentifier(nil, name, options.UnsupportedJSFeatures))
+			}
+			prefix = fmt.Sprintf("%s.%s", prefix, name)
+		} else {
+			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, options.ASCIIOnly))
+		}
+		text += fmt.Sprintf("%s%s||%s{}%s%s%s%s%s%s%s=%s", oldPrefix, space, space, join, space, space, space, space, prefix, space, space)
 	}
 
 	return text

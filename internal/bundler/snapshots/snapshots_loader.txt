@@ -194,6 +194,24 @@ TestLoaderJSONNoBundleIIFE
 })();
 
 ================================================================================
+TestLoaderJSONNoBundleUMD
+---------- /out.js ----------
+(function(root, factory) {
+  if (typeof define === "function" && define.amd) {
+    define(factory);
+  } else if (typeof module === "object" && module.exports) {
+    module.exports = factory();
+  } else {
+    factory();
+  }
+}(typeof self !== "undefined" ? self : this, () => {
+  var require_test = __commonJS((exports, module) => {
+    module.exports = {test: 123, "invalid-identifier": true};
+  });
+  return require_test();
+}));
+
+================================================================================
 TestLoaderJSONSharedWithMultipleEntriesIssue413
 ---------- /out/a.js ----------
 // data.json

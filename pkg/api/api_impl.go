@@ -112,6 +112,8 @@ func validateFormat(value Format) config.Format {
 		return config.FormatIIFE
 	case FormatCommonJS:
 		return config.FormatCommonJS
+	case FormatUMD:
+		return config.FormatUMD
 	case FormatESModule:
 		return config.FormatESModule
 	default:

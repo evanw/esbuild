@@ -239,6 +239,33 @@ func TestExportFormsIIFE(t *testing.T) {
 	})
 }
 
+func TestExportFormsUMD(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default 123
+				export var v = 234
+				export let l = 234
+				export const c = 234
+				export {Class as C}
+				export function Fn() {}
+				export class Class {}
+				export * from './a'
+				export * as b from './b'
+			`,
+			"/a.js": "export const abc = undefined",
+			"/b.js": "export const xyz = null",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatUMD,
+			GlobalName:    []string{"moduleName"},
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3068,6 +3095,24 @@ func TestIIFE_ES5(t *testing.T) {
 	})
 }
 
+// The UMD should not be an arrow function when targeting ES5
+func TestUMD_ES5(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log('test');
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(5),
+			OutputFormat:          config.FormatUMD,
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
 func TestOutputExtensionRemappingFile(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3326,6 +3371,26 @@ func TestTopLevelAwaitAllowedImportWithSplitting(t *testing.T) {
 			CodeSplitting: true,
 			AbsOutputDir:  "/out",
 		},
+	})
+}
+
+func TestTopLevelAwaitNoBundleUMD(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				await foo;
+				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			OutputFormat:  config.FormatUMD,
+			Mode:          config.ModeConvertFormat,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "umd" output format
+entry.js: error: Top-level await is currently not supported with the "umd" output format
+`,
 	})
 }
 

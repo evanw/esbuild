@@ -130,6 +130,21 @@ const (
 	//
 	FormatCommonJS
 
+	// The UMD format without external dependencies looks like this:
+	//
+	// (function(root, factory) {
+	//   if (typeof define === 'function' && define.amd) {
+	//     define(factory);
+	//   } else if (typeof module === 'object' && module.exports) {
+	//     module.exports = factory();
+	//   } else {
+	//     root.returnExports = factory();
+	//   }
+	// }(typeof self !== 'undefined' ? self : this, function() {
+	//   ... bundled code ...
+	// }));
+	FormatUMD
+
 	// The ES module format looks like this:
 	//
 	//   ... bundled code ...
@@ -148,6 +163,8 @@ func (f Format) String() string {
 		return "iife"
 	case FormatCommonJS:
 		return "cjs"
+	case FormatUMD:
+		return "umd"
 	case FormatESModule:
 		return "esm"
 	}

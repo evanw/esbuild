@@ -374,6 +374,12 @@ func parseOptionsImpl(
 				} else {
 					transformOpts.Format = api.FormatCommonJS
 				}
+			case "umd":
+				if buildOpts != nil {
+					buildOpts.Format = api.FormatUMD
+				} else {
+					transformOpts.Format = api.FormatUMD
+				}
 			case "esm":
 				if buildOpts != nil {
 					buildOpts.Format = api.FormatESModule
@@ -381,7 +387,7 @@ func parseOptionsImpl(
 					transformOpts.Format = api.FormatESModule
 				}
 			default:
-				return fmt.Errorf("Invalid format: %q (valid: iife, cjs, esm)", value), nil
+				return fmt.Errorf("Invalid format: %q (valid: iife, cjs, umd, esm)", value), nil
 			}
 
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:

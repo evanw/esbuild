@@ -396,6 +396,20 @@ func TestLoaderJSONNoBundleIIFE(t *testing.T) {
 	})
 }
 
+func TestLoaderJSONNoBundleUMD(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/test.json": `{"test": 123, "invalid-identifier": true}`,
+		},
+		entryPaths: []string{"/test.json"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatUMD,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestLoaderJSONSharedWithMultipleEntriesIssue413(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
