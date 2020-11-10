@@ -1219,8 +1219,11 @@ func TestTSImport(t *testing.T) {
 func TestTSImportEquals(t *testing.T) {
 	expectPrintedTS(t, "import x = require('foo'); x()", "const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "import x = require('foo')\nx()", "const x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "import x = require\nx()", "var x = require;\nx();\n")
 	expectPrintedTS(t, "import x = foo.bar; x()", "var x = foo.bar;\nx();\n")
 	expectPrintedTS(t, "import x = foo.bar\nx()", "var x = foo.bar;\nx();\n")
+	expectParseErrorTS(t, "import x = foo()", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseErrorTS(t, "import x = foo<T>.bar", "<stdin>: error: Expected \";\" but found \"<\"\n")
 	expectParseErrorTS(t, "{ import x = foo.bar }", "<stdin>: error: Unexpected \"x\"\n")
 
 	expectPrintedTS(t, "export import x = require('foo'); x()", "export const x = require(\"foo\");\nx();\n")
