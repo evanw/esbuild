@@ -971,9 +971,6 @@ func (p *parser) declareBinding(kind js_ast.SymbolKind, binding js_ast.Binding, 
 		name := p.loadNameFromRef(b.Ref)
 		if !opts.isTypeScriptDeclare || (opts.isNamespaceScope && opts.isExport) {
 			b.Ref = p.declareSymbol(kind, binding.Loc, name)
-			if opts.isExport {
-				p.recordExport(binding.Loc, name, b.Ref)
-			}
 		}
 
 	case *js_ast.BArray:
@@ -988,19 +985,6 @@ func (p *parser) declareBinding(kind js_ast.SymbolKind, binding js_ast.Binding, 
 
 	default:
 		panic("Internal error")
-	}
-}
-
-func (p *parser) recordExport(loc logger.Loc, alias string, ref js_ast.Ref) {
-	// This is only an ES6 export if we're not inside a TypeScript namespace
-	if p.enclosingNamespaceRef == nil {
-		if _, ok := p.namedExports[alias]; ok {
-			// Warn about duplicate exports
-			p.log.AddRangeError(&p.source, js_lexer.RangeOfIdentifier(p.source, loc),
-				fmt.Sprintf("Multiple exports with the same name %q", alias))
-		} else {
-			p.namedExports[alias] = ref
-		}
 	}
 }
 
@@ -4189,9 +4173,6 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 		name = &js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
 		if !opts.isTypeScriptDeclare {
 			name.Ref = p.declareSymbol(js_ast.SymbolClass, nameLoc, nameText)
-			if opts.isExport {
-				p.recordExport(nameLoc, nameText, name.Ref)
-			}
 		}
 	}
 
@@ -4412,9 +4393,6 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 			kind = js_ast.SymbolGeneratorOrAsyncFunction
 		}
 		name.Ref = p.declareSymbol(kind, name.Loc, nameText)
-		if opts.isExport {
-			p.recordExport(name.Loc, nameText, name.Ref)
-		}
 	}
 
 	// Balance the fake block scope introduced above
@@ -4599,12 +4577,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						defaultName = createDefaultName()
 					}
 
-					p.recordExport(defaultLoc, "default", defaultName.Ref)
 					return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 
 				defaultName := createDefaultName()
-				p.recordExport(defaultLoc, "default", defaultName.Ref)
 				expr := p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange), js_ast.LComma, nil, 0)
 				p.lexer.ExpectOrInsertSemicolon()
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Expr: &expr}}}
@@ -4639,7 +4615,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					defaultName = createDefaultName()
 				}
 
-				p.recordExport(defaultLoc, "default", defaultName.Ref)
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Stmt: &stmt}}}
 			}
 
@@ -4663,14 +4638,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						defaultName = createDefaultName()
 					}
 
-					p.recordExport(defaultLoc, "default", defaultName.Ref)
 					return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Stmt: &stmt}}}
 				}
 			}
 
 			p.lexer.ExpectOrInsertSemicolon()
 			defaultName := createDefaultName()
-			p.recordExport(defaultLoc, "default", defaultName.Ref)
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Expr: &expr}}}
 
 		case js_lexer.TAsterisk:
@@ -6692,7 +6665,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			item.Name.Ref = ref
 			s.Items[end] = item
 			end++
-			p.recordExport(item.AliasLoc, item.Alias, ref)
 		}
 		if end == 0 {
 			// Remove empty export statements entirely
@@ -6715,7 +6687,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			p.currentScope.Generated = append(p.currentScope.Generated, ref)
 			p.recordDeclaredSymbol(ref)
 			s.Items[i].Name.Ref = ref
-			p.recordExport(item.AliasLoc, item.Alias, ref)
 		}
 
 	case *js_ast.SExportStar:
@@ -6728,8 +6699,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// "export * as ns from 'path'"
 		if s.Alias != nil {
-			p.recordExport(s.Alias.Loc, s.Alias.OriginalName, s.NamespaceRef)
-
 			// "import * as ns from 'path'"
 			// "export {ns}"
 			if p.UnsupportedJSFeatures.Has(compat.ExportStarAs) {
@@ -9463,6 +9432,37 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	p.fnOnlyDataVisit = oldFnOnlyData
 }
 
+func (p *parser) recordExport(loc logger.Loc, alias string, ref js_ast.Ref) {
+	if _, ok := p.namedExports[alias]; ok {
+		// Duplicate exports are an error
+		p.log.AddRangeError(&p.source, js_lexer.RangeOfIdentifier(p.source, loc),
+			fmt.Sprintf("Multiple exports with the same name %q", alias))
+	} else {
+		p.namedExports[alias] = ref
+	}
+}
+
+func (p *parser) recordExportedBinding(binding js_ast.Binding) {
+	switch b := binding.Data.(type) {
+	case *js_ast.BMissing:
+
+	case *js_ast.BIdentifier:
+		p.recordExport(binding.Loc, p.symbols[b.Ref.InnerIndex].OriginalName, b.Ref)
+
+	case *js_ast.BArray:
+		for _, item := range b.Items {
+			p.recordExportedBinding(item.Binding)
+		}
+
+	case *js_ast.BObject:
+		for _, item := range b.Properties {
+			p.recordExportedBinding(item.Value)
+		}
+	default:
+		panic("Internal error")
+	}
+}
+
 func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 	stmtsEnd := 0
 
@@ -9690,6 +9690,31 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 				p.importRecords[s.ImportRecordIndex].ContainsImportStar = true
 			}
 
+		case *js_ast.SFunction:
+			if s.IsExport {
+				p.recordExport(s.Fn.Name.Loc, p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName, s.Fn.Name.Ref)
+			}
+
+		case *js_ast.SClass:
+			if s.IsExport {
+				p.recordExport(s.Class.Name.Loc, p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName, s.Class.Name.Ref)
+			}
+
+		case *js_ast.SLocal:
+			if s.IsExport {
+				for _, decl := range s.Decls {
+					p.recordExportedBinding(decl.Binding)
+				}
+			}
+
+		case *js_ast.SExportDefault:
+			p.recordExport(s.DefaultName.Loc, "default", s.DefaultName.Ref)
+
+		case *js_ast.SExportClause:
+			for _, item := range s.Items {
+				p.recordExport(item.AliasLoc, item.Alias, item.Name.Ref)
+			}
+
 		case *js_ast.SExportStar:
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, s.ImportRecordIndex)
 
@@ -9702,6 +9727,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 					ImportRecordIndex: s.ImportRecordIndex,
 					IsExported:        true,
 				}
+				p.recordExport(s.Alias.Loc, s.Alias.OriginalName, s.NamespaceRef)
 			} else {
 				// "export * from 'path'"
 				p.exportStarImportRecords = append(p.exportStarImportRecords, s.ImportRecordIndex)
@@ -9715,12 +9741,13 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 				// exported alias. This is somewhat confusing because each
 				// SExportFrom statement is basically SImport + SExportClause in one.
 				p.namedImports[item.Name.Ref] = js_ast.NamedImport{
-					Alias:             p.symbols[item.Name.Ref.InnerIndex].OriginalName,
+					Alias:             item.OriginalName,
 					AliasLoc:          item.Name.Loc,
 					NamespaceRef:      s.NamespaceRef,
 					ImportRecordIndex: s.ImportRecordIndex,
 					IsExported:        true,
 				}
+				p.recordExport(item.Name.Loc, item.Alias, item.Name.Ref)
 			}
 		}
 

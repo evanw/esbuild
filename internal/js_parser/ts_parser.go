@@ -811,9 +811,6 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 	if !opts.isTypeScriptDeclare {
 		p.popScope()
-		if opts.isExport {
-			p.recordExport(nameLoc, nameText, name.Ref)
-		}
 	}
 
 	p.lexer.Expect(js_lexer.TCloseBrace)
@@ -865,9 +862,6 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 		Binding: js_ast.Binding{Loc: defaultNameLoc, Data: &js_ast.BIdentifier{Ref: ref}},
 		Value:   &value,
 	}}
-	if opts.isExport {
-		p.recordExport(defaultNameLoc, defaultName, ref)
-	}
 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
 		Kind:                         kind,
@@ -966,16 +960,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 
 	p.popScope()
 	if !opts.isTypeScriptDeclare {
-		_, alreadyExists := p.currentScope.Members[nameText]
 		name.Ref = p.declareSymbol(js_ast.SymbolTSNamespace, nameLoc, nameText)
-
-		// It's valid to have multiple exported namespace statements as long as
-		// each one has the "export" keyword. Make sure we don't record the same
-		// export more than once, because then we will incorrectly detect duplicate
-		// exports.
-		if opts.isExport && !alreadyExists {
-			p.recordExport(nameLoc, nameText, name.Ref)
-		}
 	}
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SNamespace{
 		Name:     name,

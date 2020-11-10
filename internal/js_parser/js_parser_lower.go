@@ -2010,7 +2010,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 			// we don't want it to accidentally use the same variable as the class and
 			// cause a name collision.
 			defaultRef := p.generateTempRef(tempRefNoDeclare, p.source.IdentifierName+"_default")
-			p.namedExports["default"] = defaultRef
 			p.recordDeclaredSymbol(defaultRef)
 
 			name := nameFunc()

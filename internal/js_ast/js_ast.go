@@ -993,9 +993,14 @@ type ClauseItem struct {
 	AliasLoc logger.Loc
 	Name     LocRef
 
-	// This is needed for "export {foo as bar} from 'path'" statements. This case
-	// is a re-export and "foo" and "bar" are both aliases. We need to preserve
-	// both aliases in case the symbol is renamed.
+	// This is the original name of the symbol stored in "Name". It's needed for
+	// "SExportClause" statements such as this:
+	//
+	//   export {foo as bar} from 'path'
+	//
+	// In this case both "foo" and "bar" are aliases because it's a re-export.
+	// We need to preserve both aliases in case the symbol is renamed. In this
+	// example, "foo" is "OriginalName" and "bar" is "Alias".
 	OriginalName string
 }
 
