@@ -2609,7 +2609,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 			p.print("as")
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
-			p.printIdentifier(s.Alias.Name)
+			p.printIdentifier(s.Alias.OriginalName)
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
 		}

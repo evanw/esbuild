@@ -748,8 +748,12 @@ type SExportDefault struct {
 }
 
 type ExportStarAlias struct {
-	Loc  logger.Loc
-	Name string
+	Loc logger.Loc
+
+	// Although this alias name starts off as being the same as the statement's
+	// namespace symbol, it may diverge if the namespace symbol name is minified.
+	// The original alias name is preserved here to avoid this scenario.
+	OriginalName string
 }
 
 type SExportStar struct {

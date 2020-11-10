@@ -4689,11 +4689,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.lexer.Next()
 				name := p.lexer.Identifier
 				namespaceRef = p.storeNameInRef(name)
-				alias = &js_ast.ExportStarAlias{Loc: p.lexer.Loc(), Name: name}
+				alias = &js_ast.ExportStarAlias{Loc: p.lexer.Loc(), OriginalName: name}
 				if !p.lexer.IsIdentifierOrKeyword() {
 					p.lexer.Expect(js_lexer.TIdentifier)
 				}
-				p.checkForNonBMPCodePoint(alias.Loc, alias.Name)
+				p.checkForNonBMPCodePoint(alias.Loc, name)
 				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("from")
 				pathLoc, pathText = p.parsePath()
@@ -6728,7 +6728,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// "export * as ns from 'path'"
 		if s.Alias != nil {
-			p.recordExport(s.Alias.Loc, s.Alias.Name, s.NamespaceRef)
+			p.recordExport(s.Alias.Loc, s.Alias.OriginalName, s.NamespaceRef)
 
 			// "import * as ns from 'path'"
 			// "export {ns}"
@@ -6742,8 +6742,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					}},
 					js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExportClause{
 						Items: []js_ast.ClauseItem{{
-							Alias:        s.Alias.Name,
-							OriginalName: s.Alias.Name,
+							Alias:        s.Alias.OriginalName,
+							OriginalName: s.Alias.OriginalName,
 							AliasLoc:     s.Alias.Loc,
 							Name:         js_ast.LocRef{Loc: s.Alias.Loc, Ref: s.NamespaceRef},
 						}},
