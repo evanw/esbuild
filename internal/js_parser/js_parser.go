@@ -70,11 +70,26 @@ type parser struct {
 
 	// These are for TypeScript
 	shouldFoldNumericConstants bool
-	enclosingNamespaceRef      *js_ast.Ref
 	emittedNamespaceVars       map[js_ast.Ref]bool
 	isExportedInsideNamespace  map[js_ast.Ref]js_ast.Ref
 	knownEnumValues            map[js_ast.Ref]map[string]float64
 	localTypeNames             map[string]bool
+
+	// This is the reference to the generated function argument for the namespace,
+	// which is different than the reference to the namespace itself:
+	//
+	//   namespace ns {
+	//   }
+	//
+	// The code above is transformed into something like this:
+	//
+	//   var ns1;
+	//   (function(ns2) {
+	//   })(ns1 || (ns1 = {}));
+	//
+	// This variable is "ns2" not "ns1". It is only used during the second
+	// "visit" pass.
+	enclosingNamespaceArgRef *js_ast.Ref
 
 	// Imports (both ES6 and CommonJS) are tracked at the top level
 	importRecords               []ast.ImportRecord
@@ -6835,11 +6850,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		// Handle being exported inside a namespace
-		if s.IsExport && p.enclosingNamespaceRef != nil {
+		if s.IsExport && p.enclosingNamespaceArgRef != nil {
 			wrapIdentifier := func(loc logger.Loc, ref js_ast.Ref) js_ast.Expr {
-				p.recordUsage(*p.enclosingNamespaceRef)
+				p.recordUsage(*p.enclosingNamespaceArgRef)
 				return js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-					Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+					Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
 					Name:    p.symbols[ref.InnerIndex].OriginalName,
 					NameLoc: loc,
 				}}
@@ -7063,11 +7078,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.visitFn(&s.Fn, s.Fn.OpenParenLoc)
 
 		// Handle exporting this function from a namespace
-		if s.IsExport && p.enclosingNamespaceRef != nil {
+		if s.IsExport && p.enclosingNamespaceArgRef != nil {
 			s.IsExport = false
 			stmts = append(stmts, stmt, js_ast.AssignStmt(
 				js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EDot{
-					Target:  js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+					Target:  js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
 					Name:    p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName,
 					NameLoc: s.Fn.Name.Loc,
 				}},
@@ -7080,7 +7095,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.visitClass(&s.Class)
 
 		// Remove the export flag inside a namespace
-		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceRef != nil
+		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
 		if wasExportInsideNamespace {
 			s.IsExport = false
 		}
@@ -7093,7 +7108,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		if wasExportInsideNamespace {
 			stmts = append(stmts, js_ast.AssignStmt(
 				js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EDot{
-					Target:  js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+					Target:  js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
 					Name:    p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName,
 					NameLoc: s.Class.Name.Loc,
 				}},
@@ -7238,13 +7253,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
-		oldEnclosingNamespaceRef := p.enclosingNamespaceRef
-		p.enclosingNamespaceRef = &s.Arg
+		oldEnclosingNamespaceArgRef := p.enclosingNamespaceArgRef
+		p.enclosingNamespaceArgRef = &s.Arg
 		p.pushScopeForVisitPass(js_ast.ScopeEntry, stmt.Loc)
 		p.recordDeclaredSymbol(s.Arg)
 		stmtsInsideNamespace := p.visitStmtsAndPrependTempRefs(s.Stmts, prependTempRefsOpts{})
 		p.popScope()
-		p.enclosingNamespaceRef = oldEnclosingNamespaceRef
+		p.enclosingNamespaceArgRef = oldEnclosingNamespaceArgRef
 
 		// Generate a closure for this namespace
 		stmts = p.generateClosureForTypeScriptNamespaceOrEnum(

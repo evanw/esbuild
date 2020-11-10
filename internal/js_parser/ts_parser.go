@@ -878,10 +878,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	p.lexer.Next()
 
 	name := js_ast.LocRef{Loc: nameLoc, Ref: js_ast.InvalidRef}
-
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
-	oldEnclosingNamespaceRef := p.enclosingNamespaceRef
-	p.enclosingNamespaceRef = &name.Ref
 
 	var stmts []js_ast.Stmt
 	if p.lexer.Token == js_lexer.TDot {
@@ -902,8 +899,6 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		})
 		p.lexer.Next()
 	}
-
-	p.enclosingNamespaceRef = oldEnclosingNamespaceRef
 
 	// Import assignments may be only used in type expressions, not value
 	// expressions. If this is the case, the TypeScript compiler removes
@@ -985,7 +980,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	// can be multiple namespace blocks for the same namespace
 	if (symbol.Kind == js_ast.SymbolTSNamespace || symbol.Kind == js_ast.SymbolTSEnum) && !p.emittedNamespaceVars[nameRef] {
 		p.emittedNamespaceVars[nameRef] = true
-		if p.enclosingNamespaceRef == nil {
+		if p.enclosingNamespaceArgRef == nil {
 			// Top-level namespace
 			stmts = append(stmts, js_ast.Stmt{Loc: stmtLoc, Data: &js_ast.SLocal{
 				Kind:     js_ast.LocalVar,
@@ -1002,7 +997,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 	}
 
 	var argExpr js_ast.Expr
-	if isExport && p.enclosingNamespaceRef != nil {
+	if isExport && p.enclosingNamespaceArgRef != nil {
 		// "name = enclosing.name || (enclosing.name = {})"
 		name := p.symbols[nameRef.InnerIndex].OriginalName
 		argExpr = js_ast.Assign(
@@ -1010,13 +1005,13 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 			js_ast.Expr{Loc: nameLoc, Data: &js_ast.EBinary{
 				Op: js_ast.BinOpLogicalOr,
 				Left: js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
-					Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+					Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
 					Name:    name,
 					NameLoc: nameLoc,
 				}},
 				Right: js_ast.Assign(
 					js_ast.Expr{Loc: nameLoc, Data: &js_ast.EDot{
-						Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceRef}},
+						Target:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
 						Name:    name,
 						NameLoc: nameLoc,
 					}},
@@ -1024,8 +1019,8 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 				),
 			}},
 		)
-		p.recordUsage(*p.enclosingNamespaceRef)
-		p.recordUsage(*p.enclosingNamespaceRef)
+		p.recordUsage(*p.enclosingNamespaceArgRef)
+		p.recordUsage(*p.enclosingNamespaceArgRef)
 		p.recordUsage(nameRef)
 	} else {
 		// "name || (name = {})"
