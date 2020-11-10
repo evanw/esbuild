@@ -825,6 +825,40 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	}}
 }
 
+// This assumes the caller has already parsed the "import" token
+func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtOpts, defaultNameLoc logger.Loc, defaultName string) js_ast.Stmt {
+	p.lexer.Expect(js_lexer.TEquals)
+	value := p.parseExpr(js_ast.LComma)
+	p.lexer.ExpectOrInsertSemicolon()
+	ref := p.declareSymbol(js_ast.SymbolOther, defaultNameLoc, defaultName)
+	decls := []js_ast.Decl{{
+		Binding: js_ast.Binding{Loc: defaultNameLoc, Data: &js_ast.BIdentifier{Ref: ref}},
+		Value:   &value,
+	}}
+	if opts.isExport {
+		p.recordExport(defaultNameLoc, defaultName, ref)
+	}
+
+	// The kind of statement depends on the expression
+	if _, ok := value.Data.(*js_ast.ECall); ok {
+		// "import ns = require('x')"
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
+			Kind:                         js_ast.LocalConst,
+			Decls:                        decls,
+			IsExport:                     opts.isExport,
+			WasTSImportEqualsInNamespace: opts.isNamespaceScope,
+		}}
+	} else {
+		// "import Foo = Bar"
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
+			Kind:                         js_ast.LocalVar,
+			Decls:                        decls,
+			IsExport:                     opts.isExport,
+			WasTSImportEqualsInNamespace: opts.isNamespaceScope,
+		}}
+	}
+}
+
 func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	// "namespace Foo {}"
 	nameLoc := p.lexer.Loc()
