@@ -21,6 +21,7 @@ interface CommonOptions {
   define?: { [key: string]: string };
   pure?: string[];
   avoidTDZ?: boolean;
+  keepNames?: boolean;
 
   color?: boolean;
   logLevel?: LogLevel;

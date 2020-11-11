@@ -176,6 +176,7 @@ type Options struct {
 	UseDefineForClassFields bool
 	AvoidTDZ                bool
 	ASCIIOnly               bool
+	KeepNames               bool
 
 	Defines  *ProcessedDefines
 	TS       TSOptions

@@ -10,6 +10,23 @@
 
     This release no longer reports warnings about un-bundled calls to `require()` if they are within a `try` block statement. Presumably the try/catch statement is there to handle the potential run-time error from the unbundled `require()` call failing, so the potential failure is expected and not worth warning about.
 
+* Add the `--keep-names` option ([#510](https://github.com/evanw/esbuild/issues/510))
+
+    In JavaScript the `name` property on functions and classes defaults to a nearby identifier in the source code. These syntax forms all set the `name` property of the function to `'fn'`:
+
+    ```js
+    function fn() {}
+    let fn = function() {};
+    obj.fn = function() {};
+    fn = function() {};
+    let [fn = function() {}] = [];
+    let {fn = function() {}} = {};
+    [fn = function() {}] = [];
+    ({fn = function() {}} = {});
+    ```
+
+    However, minification renames symbols to reduce code size. That changes value of the `name` property for many of these cases. This is usually fine because the `name` property is normally only used for debugging. However, some frameworks rely on the `name` property for registration and binding purposes. If this is the case, you can now enable `--keep-names` to preserve the original `name` values even in minified code.
+
 * Validate that on-resolve plugins return absolute paths in the `file` namespace
 
     The default path namespace for on-resolve plugins is the `file` namespace. Paths in this namespace are expected to be absolute paths. This is now enforced. If the returned path is not supposed to be a file system path, you should set a namespace other than `file` so esbuild doesn't treat it as a file system path.

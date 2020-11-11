@@ -94,6 +94,13 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.AvoidTDZ = true
 			}
 
+		case arg == "--keep-names":
+			if buildOpts != nil {
+				buildOpts.KeepNames = true
+			} else {
+				transformOpts.KeepNames = true
+			}
+
 		case arg == "--sourcemap":
 			if buildOpts != nil {
 				buildOpts.Sourcemap = api.SourceMapLinked

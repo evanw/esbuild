@@ -490,6 +490,7 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		MainFields:        buildOpts.MainFields,
 		PublicPath:        buildOpts.PublicPath,
 		AvoidTDZ:          buildOpts.AvoidTDZ,
+		KeepNames:         buildOpts.KeepNames,
 		InjectAbsPaths:    make([]string, len(buildOpts.Inject)),
 	}
 	for i, path := range buildOpts.Inject {
@@ -717,6 +718,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
 		AbsOutputFile:           transformOpts.Sourcefile + "-out",
 		AvoidTDZ:                transformOpts.AvoidTDZ,
+		KeepNames:               transformOpts.KeepNames,
 		UseDefineForClassFields: useDefineForClassFieldsTS,
 		PreserveUnusedImportsTS: preserveUnusedImportsTS,
 		Stdin: &config.StdinInfo{

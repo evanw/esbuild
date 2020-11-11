@@ -653,7 +653,7 @@ func Assign(a Expr, b Expr) Expr {
 }
 
 func AssignStmt(a Expr, b Expr) Stmt {
-	return Stmt{a.Loc, &SExpr{Expr{a.Loc, &EBinary{BinOpAssign, a, b}}}}
+	return Stmt{a.Loc, &SExpr{Value: Assign(a, b)}}
 }
 
 func Not(a Expr) Expr {
@@ -775,6 +775,11 @@ type SLazyExport struct {
 
 type SExpr struct {
 	Value Expr
+
+	// This is set to true for automatically-generated expressions that should
+	// not affect tree shaking. For example, calling a function from the runtime
+	// that doesn't have externally-visible side effects.
+	DoesNotAffectTreeShaking bool
 }
 
 type EnumValue struct {

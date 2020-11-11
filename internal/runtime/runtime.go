@@ -38,6 +38,9 @@ func code(isES6 bool) string {
 		// Tells importing modules that this can be considered an ES6 module
 		var __markAsModule = target => __defProp(target, '__esModule', { value: true })
 
+		// Tells importing modules that this can be considered an ES6 module
+		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
+
 		// For object rest patterns
 		export var __restKey = key => typeof key === 'symbol' ? key : key + ''
 		export var __rest = (source, exclude) => {

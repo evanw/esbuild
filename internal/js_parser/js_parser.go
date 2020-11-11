@@ -5901,6 +5901,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
 					prevS.Value = js_ast.JoinWithComma(prevS.Value, s.Value)
+					prevS.DoesNotAffectTreeShaking = prevS.DoesNotAffectTreeShaking && s.DoesNotAffectTreeShaking
 					continue
 				}
 			}
@@ -6217,6 +6218,11 @@ func (p *parser) visitBinding(binding js_ast.Binding) {
 			p.visitBinding(item.Binding)
 			if item.DefaultValue != nil {
 				*item.DefaultValue = p.visitExpr(*item.DefaultValue)
+
+				// Optionally preserve the name
+				if id, ok := item.Binding.Data.(*js_ast.BIdentifier); ok {
+					*item.DefaultValue = p.maybeKeepExprSymbolName(*item.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName)
+				}
 			}
 		}
 
@@ -6228,6 +6234,11 @@ func (p *parser) visitBinding(binding js_ast.Binding) {
 			p.visitBinding(property.Value)
 			if property.DefaultValue != nil {
 				*property.DefaultValue = p.visitExpr(*property.DefaultValue)
+
+				// Optionally preserve the name
+				if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok {
+					*property.DefaultValue = p.maybeKeepExprSymbolName(*property.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName)
+				}
 			}
 			b.Properties[i] = property
 		}
@@ -6637,6 +6648,39 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
+func (p *parser) maybeKeepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr {
+	if p.KeepNames {
+		switch value.Data.(type) {
+		case *js_ast.EArrow, *js_ast.EFunction, *js_ast.EClass:
+			return p.keepExprSymbolName(value, name)
+		}
+	}
+	return value
+}
+
+func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr {
+	value = p.callRuntime(value.Loc, "__name", []js_ast.Expr{value,
+		{Loc: value.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
+	})
+
+	// Make sure tree shaking removes this if the function is never used
+	value.Data.(*js_ast.ECall).CanBeUnwrappedIfUnused = true
+	return value
+}
+
+func (p *parser) keepStmtSymbolName(stmts []js_ast.Stmt, loc logger.Loc, ref js_ast.Ref, name string) []js_ast.Stmt {
+	stmts = append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
+			{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+			{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
+		}),
+
+		// Make sure tree shaking removes this if the function is never used
+		DoesNotAffectTreeShaking: true,
+	}})
+	return stmts
+}
+
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
 	switch s := stmt.Data.(type) {
 	case *js_ast.SDebugger, *js_ast.SEmpty, *js_ast.SDirective, *js_ast.SComment:
@@ -6744,6 +6788,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		case s.Value.Expr != nil:
 			*s.Value.Expr = p.visitExpr(*s.Value.Expr)
 
+			// Optionally preserve the name
+			*s.Value.Expr = p.maybeKeepExprSymbolName(*s.Value.Expr, "default")
+
 			// Discard type-only export default statements
 			if p.TS.Parse {
 				if id, ok := (*s.Value.Expr).Data.(*js_ast.EIdentifier); ok {
@@ -6757,14 +6804,53 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		case s.Value.Stmt != nil:
 			switch s2 := s.Value.Stmt.Data.(type) {
 			case *js_ast.SFunction:
+				// If we need to preserve the name but there is no name, generate a name
+				var name string
+				if p.KeepNames {
+					if s2.Fn.Name == nil {
+						clone := s.DefaultName
+						s2.Fn.Name = &clone
+						name = "default"
+					} else {
+						name = p.symbols[s2.Fn.Name.Ref.InnerIndex].OriginalName
+					}
+				}
+
 				p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc)
+				stmts = append(stmts, stmt)
+
+				// Optionally preserve the name
+				if p.KeepNames && s2.Fn.Name != nil {
+					stmts = p.keepStmtSymbolName(stmts, s2.Fn.Name.Loc, s2.Fn.Name.Ref, name)
+				}
+
+				return stmts
 
 			case *js_ast.SClass:
+				// If we need to preserve the name but there is no name, generate a name
+				var name string
+				if p.KeepNames {
+					if s2.Class.Name == nil {
+						clone := s.DefaultName
+						s2.Class.Name = &clone
+						name = "default"
+					} else {
+						name = p.symbols[s2.Class.Name.Ref.InnerIndex].OriginalName
+					}
+				}
+
 				p.visitClass(&s2.Class)
 
 				// Lower class field syntax for browsers that don't support it
 				classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
-				return append(stmts, classStmts...)
+				stmts = append(stmts, classStmts...)
+
+				// Optionally preserve the name
+				if p.KeepNames && s2.Class.Name != nil {
+					stmts = p.keepStmtSymbolName(stmts, s2.Class.Name.Loc, s2.Class.Name.Ref, name)
+				}
+
+				return stmts
 
 			default:
 				panic("Internal error")
@@ -6825,6 +6911,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			p.visitBinding(d.Binding)
 			if d.Value != nil {
 				*d.Value = p.visitExpr(*d.Value)
+
+				// Optionally preserve the name
+				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+					*d.Value = p.maybeKeepExprSymbolName(*d.Value, p.symbols[id.Ref.InnerIndex].OriginalName)
+				}
 
 				// Initializing to undefined is implicit, but be careful to not
 				// accidentally cause a syntax error or behavior change by removing
@@ -7088,8 +7179,15 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}},
 				js_ast.Expr{Loc: s.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Fn.Name.Ref}},
 			))
-			return stmts
+		} else {
+			stmts = append(stmts, stmt)
 		}
+
+		// Optionally preserve the name
+		if p.KeepNames {
+			stmts = p.keepStmtSymbolName(stmts, s.Fn.Name.Loc, s.Fn.Name.Ref, p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName)
+		}
+		return stmts
 
 	case *js_ast.SClass:
 		p.visitClass(&s.Class)
@@ -7104,6 +7202,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
 		stmts = append(stmts, classStmts...)
 
+		// Optionally preserve the name
+		if p.KeepNames {
+			stmts = p.keepStmtSymbolName(stmts, s.Class.Name.Loc, s.Class.Name.Ref, p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName)
+		}
+
 		// Handle exporting this class from a namespace
 		if wasExportInsideNamespace {
 			stmts = append(stmts, js_ast.AssignStmt(
@@ -7114,7 +7217,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}},
 				js_ast.Expr{Loc: s.Class.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Class.Name.Ref}},
 			))
-			return stmts
 		}
 
 		return stmts
@@ -8508,6 +8610,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// All assignment operators below here
 
 		case js_ast.BinOpAssign:
+			// Optionally preserve the name
+			if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
+				e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName)
+			}
+
 			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
 				return p.lowerPrivateSet(target, loc, private, e.Right), exprOut{}
 			}
@@ -8955,6 +9062,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if in.assignTarget != js_ast.AssignTargetNone && e2.Op == js_ast.BinOpAssign {
 					e2.Left, _ = p.visitExprInOut(e2.Left, exprIn{assignTarget: js_ast.AssignTargetReplace})
 					e2.Right = p.visitExpr(e2.Right)
+
+					// Optionally preserve the name
+					if id, ok := e2.Left.Data.(*js_ast.EIdentifier); ok {
+						e2.Right = p.maybeKeepExprSymbolName(e2.Right, p.symbols[id.Ref.InnerIndex].OriginalName)
+					}
 				} else {
 					item, _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
 				}
@@ -9009,6 +9121,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 			if property.Initializer != nil {
 				*property.Initializer = p.visitExpr(*property.Initializer)
+
+				// Optionally preserve the name
+				if property.Value != nil {
+					if id, ok := property.Value.Data.(*js_ast.EIdentifier); ok {
+						*property.Initializer = p.maybeKeepExprSymbolName(*property.Initializer, p.symbols[id.Ref.InnerIndex].OriginalName)
+					}
+				}
 			}
 		}
 
@@ -9310,28 +9429,40 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EFunction:
 		p.visitFn(&e.Fn, expr.Loc)
+		name := e.Fn.Name
 
 		// Remove unused function names when minifying
-		if p.MangleSyntax && e.Fn.Name != nil && p.symbols[e.Fn.Name.Ref.InnerIndex].UseCountEstimate == 0 {
+		if p.MangleSyntax && name != nil && p.symbols[name.Ref.InnerIndex].UseCountEstimate == 0 {
 			e.Fn.Name = nil
 		}
 
+		// Optionally preserve the name
+		if p.KeepNames && name != nil {
+			expr = p.keepExprSymbolName(expr, p.symbols[name.Ref.InnerIndex].OriginalName)
+		}
+
 	case *js_ast.EClass:
-		if e.Class.Name != nil {
+		name := e.Class.Name
+		if name != nil {
 			p.pushScopeForVisitPass(js_ast.ScopeClassName, expr.Loc)
 		}
 		p.visitClass(&e.Class)
-		if e.Class.Name != nil {
+		if name != nil {
 			p.popScope()
 		}
 
 		// Remove unused class names when minifying
-		if p.MangleSyntax && e.Class.Name != nil && p.symbols[e.Class.Name.Ref.InnerIndex].UseCountEstimate == 0 {
+		if p.MangleSyntax && name != nil && p.symbols[name.Ref.InnerIndex].UseCountEstimate == 0 {
 			e.Class.Name = nil
 		}
 
 		// Lower class field syntax for browsers that don't support it
 		_, expr = p.lowerClass(js_ast.Stmt{}, expr)
+
+		// Optionally preserve the name
+		if p.KeepNames && name != nil {
+			expr = p.keepExprSymbolName(expr, p.symbols[name.Ref.InnerIndex].OriginalName)
+		}
 
 	default:
 		panic("Internal error")
@@ -9818,6 +9949,12 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 			}
 
 		case *js_ast.SExpr:
+			if s.DoesNotAffectTreeShaking {
+				// Expressions marked with this are automatically generated and have
+				// no side effects by construction.
+				break
+			}
+
 			if !p.exprCanBeRemovedIfUnused(s.Value) {
 				return false
 			}

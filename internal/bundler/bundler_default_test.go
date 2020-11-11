@@ -3323,3 +3323,34 @@ func TestProcessEnvNodeEnvWarningNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestKeepNamesTreeShaking(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function fnStmtRemove() {}
+				function fnStmtKeep() {}
+				fnStmtKeep()
+
+				let fnExprRemove = function remove() {}
+				let fnExprKeep = function keep() {}
+				fnExprKeep()
+
+				class clsStmtRemove {}
+				class clsStmtKeep {}
+				new clsStmtKeep()
+
+				let clsExprRemove = class remove {}
+				let clsExprKeep = class keep {}
+				new clsExprKeep()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			KeepNames:     true,
+			MangleSyntax:  true,
+		},
+	})
+}

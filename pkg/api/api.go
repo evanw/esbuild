@@ -208,9 +208,10 @@ type BuildOptions struct {
 	JSXFactory  string
 	JSXFragment string
 
-	Define   map[string]string
-	Pure     []string
-	AvoidTDZ bool
+	Define    map[string]string
+	Pure      []string
+	AvoidTDZ  bool
+	KeepNames bool
 
 	GlobalName        string
 	Bundle            bool
@@ -282,9 +283,10 @@ type TransformOptions struct {
 	JSXFragment string
 	TsconfigRaw string
 
-	Define   map[string]string
-	Pure     []string
-	AvoidTDZ bool
+	Define    map[string]string
+	Pure      []string
+	AvoidTDZ  bool
+	KeepNames bool
 
 	Sourcefile string
 	Loader     Loader

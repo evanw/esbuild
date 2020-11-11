@@ -855,6 +855,25 @@ function frag() {
 console.log(/* @__PURE__ */ elem("div", null), /* @__PURE__ */ elem(frag, null, "fragment"));
 
 ================================================================================
+TestKeepNamesTreeShaking
+---------- /out.js ----------
+// /entry.js
+function fnStmtKeep() {
+}
+__name(fnStmtKeep, "fnStmtKeep");
+fnStmtKeep();
+let fnExprKeep = /* @__PURE__ */ __name(function() {
+}, "keep");
+fnExprKeep();
+class clsStmtKeep {
+}
+__name(clsStmtKeep, "clsStmtKeep");
+new clsStmtKeep();
+let clsExprKeep = /* @__PURE__ */ __name(class {
+}, "keep");
+new clsExprKeep();
+
+================================================================================
 TestManyEntryPoints
 ---------- /out/e00.js ----------
 // /shared.js

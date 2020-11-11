@@ -69,6 +69,7 @@ Advanced options:
   --color=...               Force use of color terminal escapes (true | false)
   --charset=utf8            Do not escape UTF-8 code points
   --avoid-tdz               An optimization for large bundles in Safari
+  --keep-names              Preserve "name" on functions and classes
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
