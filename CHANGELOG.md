@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.6
 
 * Changes to TypeScript's `import name =` syntax
 
