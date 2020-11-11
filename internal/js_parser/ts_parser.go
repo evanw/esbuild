@@ -864,10 +864,10 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 	}}
 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
-		Kind:                         kind,
-		Decls:                        decls,
-		IsExport:                     opts.isExport,
-		WasTSImportEqualsInNamespace: opts.isNamespaceScope,
+		Kind:              kind,
+		Decls:             decls,
+		IsExport:          opts.isExport,
+		WasTSImportEquals: true,
 	}}
 }
 
@@ -906,7 +906,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 	// to be considered empty and thus be removed.
 	importEqualsCount := 0
 	for _, stmt := range stmts {
-		if local, ok := stmt.Data.(*js_ast.SLocal); ok && local.WasTSImportEqualsInNamespace && !local.IsExport {
+		if local, ok := stmt.Data.(*js_ast.SLocal); ok && local.WasTSImportEquals && !local.IsExport {
 			importEqualsCount++
 		}
 	}

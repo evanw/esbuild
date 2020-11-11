@@ -936,8 +936,8 @@ type SLocal struct {
 	IsExport bool
 
 	// The TypeScript compiler doesn't generate code for "import foo = bar"
-	// statements inside namespaces where the import is never used.
-	WasTSImportEqualsInNamespace bool
+	// statements where the import is never used.
+	WasTSImportEquals bool
 }
 
 type SBreak struct {

@@ -9616,7 +9616,13 @@ func (p *parser) recordExportedBinding(binding js_ast.Binding) {
 	}
 }
 
-func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
+type scanForImportsAndExportsResult struct {
+	stmts               []js_ast.Stmt
+	keptImportEquals    bool
+	removedImportEquals bool
+}
+
+func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForImportsAndExportsResult) {
 	stmtsEnd := 0
 
 	for _, stmt := range stmts {
@@ -9860,6 +9866,40 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 				}
 			}
 
+			// Remove unused import-equals statements, since those likely
+			// correspond to types instead of values
+			if s.WasTSImportEquals && !s.IsExport {
+				decl := s.Decls[0]
+
+				// Skip to the underlying reference
+				value := *s.Decls[0].Value
+				for {
+					if dot, ok := value.Data.(*js_ast.EDot); ok {
+						value = dot.Target
+					} else {
+						break
+					}
+				}
+
+				// Is this an identifier reference and not a require() call?
+				if id, ok := value.Data.(*js_ast.EIdentifier); ok {
+					// Is this import statement unused?
+					if ref := decl.Binding.Data.(*js_ast.BIdentifier).Ref; p.symbols[ref.InnerIndex].UseCountEstimate == 0 {
+						// Also don't count the referenced identifier
+						p.ignoreUsage(id.Ref)
+
+						// Import-equals statements can come in any order. Removing one
+						// could potentially cause another one to be removable too.
+						// Continue iterating until a fixed point has been reached to make
+						// sure we get them all.
+						result.removedImportEquals = true
+						continue
+					} else {
+						result.keptImportEquals = true
+					}
+				}
+			}
+
 		case *js_ast.SExportDefault:
 			p.recordExport(s.DefaultName.Loc, "default", s.DefaultName.Ref)
 
@@ -9909,7 +9949,8 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) []js_ast.Stmt {
 		stmtsEnd++
 	}
 
-	return stmts[:stmtsEnd]
+	result.stmts = stmts[:stmtsEnd]
+	return
 }
 
 func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.Part {
@@ -10715,25 +10756,44 @@ func (p *parser) toAST(source logger.Source, parts []js_ast.Part, hashbang strin
 	// Handle import paths after the whole file has been visited because we need
 	// symbol usage counts to be able to remove unused type-only imports in
 	// TypeScript code.
-	partsEnd := 0
-	for _, part := range parts {
-		p.importRecordsForCurrentPart = nil
-		p.declaredSymbols = nil
-		part.Stmts = p.scanForImportsAndExports(part.Stmts)
-		part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
-		part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
-		if len(part.Stmts) > 0 {
-			if p.moduleScope.ContainsDirectEval && len(part.DeclaredSymbols) > 0 {
-				// If this file contains a direct call to "eval()", all parts that
-				// declare top-level symbols must be kept since the eval'd code may
-				// reference those symbols.
-				part.CanBeRemovedIfUnused = false
+	for {
+		keptImportEquals := false
+		removedImportEquals := false
+
+		// Potentially remove some statements, then filter out parts to remove any
+		// with no statements
+		partsEnd := 0
+		for _, part := range parts {
+			p.importRecordsForCurrentPart = nil
+			p.declaredSymbols = nil
+
+			result := p.scanForImportsAndExports(part.Stmts)
+			part.Stmts = result.stmts
+			keptImportEquals = keptImportEquals || result.keptImportEquals
+			removedImportEquals = removedImportEquals || result.removedImportEquals
+
+			part.ImportRecordIndices = append(part.ImportRecordIndices, p.importRecordsForCurrentPart...)
+			part.DeclaredSymbols = append(part.DeclaredSymbols, p.declaredSymbols...)
+
+			if len(part.Stmts) > 0 {
+				if p.moduleScope.ContainsDirectEval && len(part.DeclaredSymbols) > 0 {
+					// If this file contains a direct call to "eval()", all parts that
+					// declare top-level symbols must be kept since the eval'd code may
+					// reference those symbols.
+					part.CanBeRemovedIfUnused = false
+				}
+				parts[partsEnd] = part
+				partsEnd++
 			}
-			parts[partsEnd] = part
-			partsEnd++
+		}
+		parts = parts[:partsEnd]
+
+		// We need to iterate multiple times if an import-equals statement was
+		// removed and there are more import-equals statements that may be removed
+		if !keptImportEquals || !removedImportEquals {
+			break
 		}
 	}
-	parts = parts[:partsEnd]
 
 	// Do a second pass for exported items now that imported items are filled out
 	for _, part := range parts {

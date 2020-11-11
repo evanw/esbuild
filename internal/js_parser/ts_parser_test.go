@@ -1275,8 +1275,15 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'; x", "x;\n")
 	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'\nx", "x;\n")
 
-	expectPrintedTS(t, "import type = bar", "var type = bar;\n")
+	expectPrintedTS(t, "import type = bar; type", "var type = bar;\ntype;\n")
+	expectPrintedTS(t, "import type = foo.bar; type", "var type = foo.bar;\ntype;\n")
+	expectPrintedTS(t, "import type = require('type'); type", "const type = require(\"type\");\ntype;\n")
 	expectPrintedTS(t, "import type from 'bar'; type", "import type from \"bar\";\ntype;\n")
+
+	expectPrintedTS(t, "import a = b; import c = a.c", "")
+	expectPrintedTS(t, "import c = a.c; import a = b", "")
+	expectPrintedTS(t, "import a = b; import c = a.c; c()", "var a = b;\nvar c = a.c;\nc();\n")
+	expectPrintedTS(t, "import c = a.c; import a = b; c()", "var c = a.c;\nvar a = b;\nc();\n")
 
 	expectParseErrorTS(t, "import type", "<stdin>: error: Expected \"from\" but found end of file\n")
 	expectParseErrorTS(t, "import type * foo", "<stdin>: error: Expected \"as\" but found \"foo\"\n")

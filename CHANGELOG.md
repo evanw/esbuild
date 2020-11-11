@@ -27,6 +27,12 @@
 
     However, minification renames symbols to reduce code size. That changes value of the `name` property for many of these cases. This is usually fine because the `name` property is normally only used for debugging. However, some frameworks rely on the `name` property for registration and binding purposes. If this is the case, you can now enable `--keep-names` to preserve the original `name` values even in minified code.
 
+* Omit unused TypeScript import assignment aliases ([#474](https://github.com/evanw/esbuild/issues/474))
+
+    In TypeScript, `import x = y` is an alias statement that works for both values and types and can reach across files. Because esbuild doesn't replicate TypeScript's type system and because esbuild converts each file from TypeScript to JavaScript independently, it's not clear to esbuild if the alias refers to a value and should be kept as JavaScript or if the alias refers to a type and should be removed.
+
+    Previously all import aliases were kept in the generated JavaScript. This could lead to problems if the alias actually referred to a type. Now import aliases are only kept if they are used as values. This way import aliases that are only used as types will be automatically removed. This doesn't exactly match what the TypeScript compiler does in complex scenarios but it should work for many real-world cases.
+
 * Validate that on-resolve plugins return absolute paths in the `file` namespace
 
     The default path namespace for on-resolve plugins is the `file` namespace. Paths in this namespace are expected to be absolute paths. This is now enforced. If the returned path is not supposed to be a file system path, you should set a namespace other than `file` so esbuild doesn't treat it as a file system path.
