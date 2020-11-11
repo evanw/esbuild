@@ -1586,6 +1586,13 @@ require(tag`./b`);
 require(`./${b}`);
 import(tag`./b`);
 import(`./${b}`);
+try {
+  require(tag`./b`);
+  require(`./${b}`);
+  import(tag`./b`);
+  import(`./${b}`);
+} catch {
+}
 
 ================================================================================
 TestRequireBadArgumentCount
@@ -1593,6 +1600,11 @@ TestRequireBadArgumentCount
 // /entry.js
 require();
 require("a", "b");
+try {
+  require();
+  require("a", "b");
+} catch {
+}
 
 ================================================================================
 TestRequireChildDirCommonJS

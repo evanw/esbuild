@@ -815,6 +815,15 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 				require(` + "`./${b}`" + `)
 				import(tag` + "`./b`" + `)
 				import(` + "`./${b}`" + `)
+
+				// Try/catch should silence this warning for require()
+				try {
+					require(tag` + "`./b`" + `)
+					require(` + "`./${b}`" + `)
+					import(tag` + "`./b`" + `)
+					import(` + "`./${b}`" + `)
+				} catch {
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -824,6 +833,8 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 		},
 		expectedScanLog: `/entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal
 /entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal
+/entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+/entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
 /entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
 /entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
 `,
@@ -836,6 +847,13 @@ func TestRequireBadArgumentCount(t *testing.T) {
 			"/entry.js": `
 				require()
 				require("a", "b")
+
+				// Try/catch should silence this warning
+				try {
+					require()
+					require("a", "b")
+				} catch {
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},

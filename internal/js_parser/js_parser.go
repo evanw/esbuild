@@ -9203,13 +9203,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Track calls to require() so we can use them while bundling
 		if p.Mode != config.ModePassThrough {
 			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
+				// Heuristic: omit warnings inside try/catch blocks because presumably
+				// the try/catch statement is there to handle the potential run-time
+				// error from the unbundled require() call failing.
+				omitWarnings := p.fnOrArrowDataVisit.tryBodyCount != 0
+
 				if p.Mode == config.ModeBundle {
 					// There must be one argument
-					if len(e.Args) != 1 {
-						r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-						p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
-							"This call to \"require\" will not be bundled because it has %d arguments", len(e.Args)))
-					} else {
+					if len(e.Args) == 1 {
 						arg := e.Args[0]
 
 						// The argument must be a string
@@ -9230,11 +9231,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}, exprOut{}
 						}
 
+						if !omitWarnings {
+							r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+							p.log.AddRangeWarning(&p.source, r,
+								"This call to \"require\" will not be bundled because the argument is not a string literal")
+						}
+					} else if !omitWarnings {
 						r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-						p.log.AddRangeWarning(&p.source, r,
-							"This call to \"require\" will not be bundled because the argument is not a string literal")
+						p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
+							"This call to \"require\" will not be bundled because it has %d arguments", len(e.Args)))
 					}
-				} else if p.OutputFormat == config.FormatESModule {
+				} else if p.OutputFormat == config.FormatESModule && !omitWarnings {
 					r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 					p.log.AddRangeWarning(&p.source, r, "Converting \"require\" to \"esm\" is currently not supported")
 				}
