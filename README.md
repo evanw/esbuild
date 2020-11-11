@@ -21,5 +21,6 @@ Major features:
 * [TypeScript](https://esbuild.github.io/content-types/#typescript) and [JSX](https://esbuild.github.io/content-types/#jsx) syntax
 * [Source maps](https://esbuild.github.io/api/#sourcemap)
 * [Minification](https://esbuild.github.io/api/#minify)
+* [Plugins](https://esbuild.github.io/plugins/)
 
 Check out the [getting started](https://esbuild.github.io/getting-started/) instructions if you want to give esbuild a try.
