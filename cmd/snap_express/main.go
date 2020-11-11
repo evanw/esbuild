@@ -1,26 +1,54 @@
 package main
 
 import (
+	"fmt"
 	"github.com/evanw/esbuild/internal/snap_api"
 	"github.com/evanw/esbuild/pkg/api"
 )
 
 func main() {
-	snap_api.SnapCmd(nodeJavaScript)
+	snap_api.SnapCmd(nodeExpress)
 }
 
-func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
+/* Manually determined
+var deferModules = []string{
+	"./node_modules/debug/src/index.js",         // tty
+	"./node_modules/safer-buffer/safer.js",      // buffer
+	"./node_modules/iconv-lite/lib/index.js",    // stream
+	"./node_modules/send/index.js",              // stream
+	"./node_modules/depd/index.js",              // process function (cwd)
+	"./node_modules/body-parser/index.js",       // depd
+	"./node_modules/express/lib/request.js",     // http
+	"./node_modules/express/lib/response.js",    // http
+	"./node_modules/express/lib/application.js", // depd
+}
+*/
+
+// Determined via doctor + depd with body-parser force added
+var deferModules = []string{
+	"./node_modules/depd/index.js",
+	"./node_modules/body-parser/index.js",
+	"./node_modules/send/index.js",
+	"./node_modules/express/lib/request.js",
+	"./node_modules/express/lib/router/route.js",
+	"./node_modules/express/lib/response.js",
+	"./node_modules/express/lib/router/index.js",
+	"./node_modules/express/lib/application.js",
+}
+
+func shouldReplaceRequire(mdl string) bool {
+	for _, m := range deferModules {
+		if m == mdl {
+			fmt.Println(mdl)
+			return true
+		}
+	}
+	return false
+}
+
+func nodeExpress(args *snap_api.SnapCmdArgs) api.BuildResult {
 	platform := api.PlatformNode
 	var external []string
-
-	shouldReplaceRequire := func(mdl string) bool {
-		for _, m := range args.Deferred {
-			if m == mdl {
-				return true
-			}
-		}
-		return false
-	}
 
 	return api.Build(api.BuildOptions{
 		// https://esbuild.github.io/api/#log-level
