@@ -10,6 +10,14 @@
 
     This release no longer reports warnings about un-bundled calls to `require()` if they are within a `try` block statement. Presumably the try/catch statement is there to handle the potential run-time error from the unbundled `require()` call failing, so the potential failure is expected and not worth warning about.
 
+* Validate that on-resolve plugins return absolute paths in the `file` namespace
+
+    The default path namespace for on-resolve plugins is the `file` namespace. Paths in this namespace are expected to be absolute paths. This is now enforced. If the returned path is not supposed to be a file system path, you should set a namespace other than `file` so esbuild doesn't treat it as a file system path.
+
+* External paths returned by a plugin do not default to the `file` namespace
+
+    The `file` namespace is normally implied if it's not specified. However, that probably does not match the intent of the plugin for paths that have been marked as external. Such paths will now have an empty namespace instead of the namespace `file`. You now have to explicitly specify the `file` namespace in your plugin if you want it for external paths.
+
 ## 0.8.5
 
 * Direct `eval()` now causes the module to be considered CommonJS ([#175](https://github.com/evanw/esbuild/pull/175))

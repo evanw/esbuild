@@ -578,6 +578,14 @@ func runOnResolvePlugins(
 				return nil, true
 			}
 
+			// The "file" namespace is the default for non-external paths, but not
+			// for external paths. External paths must explicitly specify the "file"
+			// namespace.
+			nsFromPlugin := result.Path.Namespace
+			if result.Path.Namespace == "" && !result.External {
+				result.Path.Namespace = "file"
+			}
+
 			// Otherwise, continue on to the next resolver if this loader didn't succeed
 			if result.Path.Text == "" {
 				if result.External {
@@ -585,6 +593,18 @@ func runOnResolvePlugins(
 				} else {
 					continue
 				}
+			}
+
+			// Paths in the file namespace must be absolute paths
+			if result.Path.Namespace == "file" && !fs.IsAbs(result.Path.Text) {
+				if nsFromPlugin == "file" {
+					log.AddRangeError(importSource, importPathRange,
+						fmt.Sprintf("Plugin %q returned a path in the \"file\" namespace that is not an absolute path: %s", pluginName, result.Path.Text))
+				} else {
+					log.AddRangeError(importSource, importPathRange,
+						fmt.Sprintf("Plugin %q returned a non-absolute path: %s (set a namespace if this is not a file path)", pluginName, result.Path.Text))
+				}
+				return nil, true
 			}
 
 			return &resolver.ResolveResult{
@@ -926,6 +946,8 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 								relPath = "./" + relPath
 							}
 							record.Path.Text = relPath
+						} else {
+							record.Path = path
 						}
 					} else {
 						record.Path = path

@@ -814,9 +814,6 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 				return
 			}
 
-			if response.Namespace == "" {
-				response.Namespace = "file"
-			}
 			result.Path = logger.Path{Text: response.Path, Namespace: response.Namespace}
 			result.External = response.External
 

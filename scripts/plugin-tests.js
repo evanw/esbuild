@@ -323,7 +323,7 @@ let pluginTests = {
     assert.strictEqual(result.default, 123)
   },
 
-  async rewriteExternal({ esbuild, testDir }) {
+  async rewriteExternalWithNamespace({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, `
@@ -341,6 +341,58 @@ let pluginTests = {
       }],
     })
     const result = require(output)
+    assert.strictEqual(result.default, fs.exists)
+  },
+
+  async rewriteExternalWithoutNamespace({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `
+      import {exists} from 'extern'
+      export default exists
+    `)
+    await esbuild.build({
+      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /^extern$/ }, () => {
+            return { path: 'fs', external: true }
+          })
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, fs.exists)
+  },
+
+  async rewriteExternalWithFileNamespace({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const outdir = path.join(testDir, 'out')
+    const outdir2 = path.join(testDir, 'out2')
+    const target = path.join(outdir2, 'target.js')
+    await writeFileAsync(input, `
+      import {exists} from 'extern'
+      export default exists
+    `)
+    await mkdirAsync(outdir2, { recursive: true })
+    await writeFileAsync(target, `
+      module.exports = require('fs')
+    `)
+    await esbuild.build({
+      entryPoints: [input], bundle: true, outdir, format: 'cjs', plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /^extern$/ }, () => {
+            return { path: path.join(outdir, 'target'), external: true, namespace: 'file' }
+          })
+        },
+      }],
+    })
+
+    // Move the file to show that the output has a relative path
+    await fs.promises.rename(path.join(outdir, 'in.js'), path.join(outdir2, 'in.js'))
+
+    const result = require(path.join(outdir2, 'in.js'))
     assert.strictEqual(result.default, fs.exists)
   },
 
