@@ -361,6 +361,10 @@ type InjectedDefine struct {
 	Source logger.Source
 	Data   js_ast.E
 	Name   string
+
+	// Snapshot
+	CreateSnapshot     bool
+	SnapshotAbsBaseDir string
 }
 
 type InjectedFile struct {

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -455,22 +456,50 @@ func parseFile(args parseArgs) {
 					result.resolveResults[importRecordIndex] = resolveResult
 					continue
 				}
+				var resolveResult *resolver.ResolveResult
+				var didLogError bool
+				var debug resolver.DebugMeta
 
-				// Run the resolver and log an error if the path couldn't be resolved
-				resolveResult, didLogError, debug := runOnResolvePlugins(
-					args.options.Plugins,
-					args.res,
-					args.log,
-					args.fs,
-					&args.caches.FSCache,
-					&source,
-					record.Range,
-					source.KeyPath.Namespace,
-					record.Path.Text,
-					record.Kind,
-					absResolveDir,
-					pluginData,
-				)
+				if args.options.CreateSnapshot && strings.HasSuffix(record.Path.Text, ".node") {
+					fullParentFile := result.file.source.KeyPath.Text
+					fullParentDir := filepath.Dir(fullParentFile)
+					fullRecordFile := filepath.Join(fullParentDir, record.Path.Text)
+					relPath, err := filepath.Rel(args.options.SnapshotAbsBaseDir, fullRecordFile)
+					if err != nil {
+						panic(fmt.Sprintf(
+							"Failed to resolve %s from %s.\n%v\n",
+							record.Path.Text, fullRecordFile, err),
+						)
+					}
+					resolveResult = &resolver.ResolveResult{
+						PathPair: resolver.PathPair{
+							Primary: logger.Path{
+								Text: fmt.Sprintf("./%s", relPath),
+								// Setting to 'native' instead of 'file' prevents further rewrites of this
+								// path, see scanAllDependencies
+								Namespace: "native",
+							},
+						},
+					}
+					didLogError = false
+					debug = resolver.DebugMeta{}
+				} else {
+					// Run the resolver and log an error if the path couldn't be resolved
+					resolveResult, didLogError, debug = runOnResolvePlugins(
+						args.options.Plugins,
+						args.res,
+						args.log,
+						args.fs,
+						&args.caches.FSCache,
+						&source,
+						record.Range,
+						source.KeyPath.Namespace,
+						record.Path.Text,
+						record.Kind,
+						absResolveDir,
+						pluginData,
+					)
+				}
 				cache[record.Path.Text] = resolveResult
 
 				// All "require.resolve()" imports should be external because we don't
@@ -506,8 +535,14 @@ func parseFile(args parseArgs) {
 						if absResolveDir == "" && pluginName != "" {
 							hint = fmt.Sprintf(" (the plugin %q didn't set a resolve directory)", pluginName)
 						}
-						args.log.AddRangeErrorWithNotes(&source, record.Range,
-							fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint), debug.Notes(&source, record.Range))
+						if args.options.CreateSnapshot {
+							args.log.AddRangeWarning(&source, record.Range,
+								fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint))
+						} else {
+
+							args.log.AddRangeErrorWithNotes(&source, record.Range,
+								fmt.Sprintf("Could not resolve %q%s", record.Path.Text, hint), debug.Notes(&source, record.Range))
+						}
 					}
 					continue
 				}
@@ -1537,7 +1572,7 @@ func (s *scanner) scanAllDependencies() {
 				}
 
 				path := resolveResult.PathPair.Primary
-				if !resolveResult.IsExternal {
+				if !resolveResult.IsExternal && !pathIsAlwaysExternal(s.options, path) {
 					// Handle a path within the bundle
 					sourceIndex := s.maybeParseFile(*resolveResult, s.res.PrettyPath(path),
 						&result.file.source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
@@ -1580,7 +1615,7 @@ func (s *scanner) processScannedFiles() []file {
 		// Begin the metadata chunk
 		if s.options.NeedsMetafile {
 			sb.Write(js_printer.QuoteForJSON(result.file.source.PrettyPath, s.options.ASCIIOnly))
-			sb.WriteString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.source.Contents)))
+			sb.WriteString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"fileInfo\": %s,\n     \"imports\": [", len(result.file.source.Contents), fileInfoJSON(&result.file)))
 		}
 
 		// Don't try to resolve paths if we're not bundling
@@ -1889,7 +1924,7 @@ func applyOptionDefaults(options *config.Options) {
 	}
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, string) {
+func (b *Bundle) Compile(log logger.Log, options config.Options, printAST PrintAST) ([]OutputFile, string) {
 	start := time.Now()
 	if log.Debug {
 		log.AddDebug(nil, logger.Loc{}, "Started the compile phase")
@@ -1911,7 +1946,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 	var resultGroups [][]OutputFile
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints, allReachableFiles, dataForSourceMaps)
+		c := newLinkerContext(&options, printAST, log, b.fs, b.res, b.files, b.entryPoints, allReachableFiles, dataForSourceMaps)
 		resultGroups = [][]OutputFile{c.link()}
 	} else {
 		// Otherwise, link each entry point with the runtime file separately
@@ -1922,7 +1957,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 			go func(i int, entryPoint entryMeta) {
 				entryPoints := []entryMeta{entryPoint}
 				reachableFiles := findReachableFiles(b.files, entryPoints)
-				c := newLinkerContext(&options, log, b.fs, b.res, b.files, entryPoints, reachableFiles, dataForSourceMaps)
+				c := newLinkerContext(&options, printAST, log, b.fs, b.res, b.files, entryPoints, reachableFiles, dataForSourceMaps)
 				resultGroups[i] = c.link()
 				waitGroup.Done()
 			}(i, entryPoint)
@@ -1952,10 +1987,14 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) ([]OutputFile, 
 				sourceAbsPaths[lowerAbsPath] = sourceIndex
 			}
 		}
-		for _, outputFile := range outputFiles {
-			lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
-			if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
-				log.AddError(nil, logger.Loc{}, "Refusing to overwrite input file: "+b.files[sourceIndex].source.PrettyPath)
+		// On Windows for unknown reasons we encounter the error condition at times.
+		// Since we never actually write the outputFile when snapshotting we can safely ignore this check.
+		if !options.CreateSnapshot {
+			for _, outputFile := range outputFiles {
+				lowerAbsPath := lowerCaseAbsPathForWindows(outputFile.AbsPath)
+				if sourceIndex, ok := sourceAbsPaths[lowerAbsPath]; ok {
+					log.AddError(nil, logger.Loc{}, "Refusing to overwrite input file: "+b.files[sourceIndex].source.PrettyPath)
+				}
 			}
 		}
 
@@ -2182,10 +2221,14 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	}
 
 	// Determine which source to use
-	if key.ES6 {
-		source = runtime.ES6Source
+	if options.CreateSnapshot {
+		source = runtime.SnapshotSource
 	} else {
-		source = runtime.ES5Source
+		if key.ES6 {
+			source = runtime.ES6Source
+		} else {
+			source = runtime.ES5Source
+		}
 	}
 
 	// Cache hit?

@@ -20,6 +20,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/test"
@@ -109,7 +110,7 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 
 		log = logger.NewDeferLog()
 		args.options.OmitRuntimeForTests = true
-		results, _ := bundle.Compile(log, args.options)
+		results, _ := bundle.Compile(log, args.options, js_printer.Print)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 
