@@ -751,13 +751,19 @@ func rebuildImpl(
 	isRebuild bool,
 ) internalBuildResult {
 	// Convert and validate the buildOpts
-	realFS, err := fs.RealFS(fs.RealFSOptions{
-		AbsWorkingDir: buildOpts.AbsWorkingDir,
-		WantWatchData: buildOpts.Watch != nil,
-	})
-	if err != nil {
-		// This should already have been checked above
-		panic(err.Error())
+	var realFS fs.FS
+	var err error
+	if buildOpts.FS != nil {
+		realFS = buildOpts.FS
+	} else {
+		realFS, err = fs.RealFS(fs.RealFSOptions{
+			AbsWorkingDir: buildOpts.AbsWorkingDir,
+			WantWatchData: buildOpts.Watch != nil,
+		})
+		if err != nil {
+			// This should already have been checked above
+			panic(err.Error())
+		}
 	}
 	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
@@ -817,6 +823,8 @@ func rebuildImpl(
 	if options.MainFields != nil {
 		options.MainFields = append([]string{}, options.MainFields...)
 	}
+	addSnapshotOpts(&buildOpts, &options)
+
 	for i, path := range buildOpts.Inject {
 		options.InjectAbsPaths[i] = validatePath(log, realFS, path, "inject path")
 	}
@@ -900,6 +908,11 @@ func rebuildImpl(
 		log.AddError(nil, logger.Loc{}, "Splitting currently only works with the \"esm\" format")
 	}
 
+	// Default to not generating snapshot output if it is not set at all
+	if buildOpts.Snapshot == nil {
+		buildOpts.Snapshot = &SnapshotOptions{CreateSnapshot: false}
+	}
+
 	var outputFiles []OutputFile
 	var metafileJSON string
 	var watchData fs.WatchData
@@ -914,7 +927,7 @@ func rebuildImpl(
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, metafile := bundle.Compile(log, options)
+			results, metafile := bundle.Compile(log, options, createPrintAST(buildOpts.Snapshot, &log))
 			metafileJSON = metafile
 
 			// Stop now if there were errors
@@ -1222,6 +1235,10 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	if transformOpts.Loader == LoaderNone {
 		transformOpts.Loader = LoaderJS
 	}
+	// Default to not generating snapshot output if it is not set at all
+	if transformOpts.Snapshot == nil {
+		transformOpts.Snapshot = &SnapshotOptions{CreateSnapshot: false}
+	}
 
 	// Convert and validate the transformOpts
 	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
@@ -1286,7 +1303,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, _ = bundle.Compile(log, options)
+			results, _ = bundle.Compile(log, options, createPrintAST(transformOpts.Snapshot, &log))
 		}
 	}
 
