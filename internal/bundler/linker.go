@@ -658,7 +658,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 			for i, otherChunkIndex := range chunk.crossChunkImports {
 				crossChunkImportRecords[i] = ast.ImportRecord{
 					Kind: ast.ImportStmt,
-					Path: logger.Path{Text: c.relativePathBetweenChunks(chunk.relDir, chunks[otherChunkIndex].relPath())},
+					Path: logger.Path{Text: c.pathBetweenChunks(chunk.relDir, chunks[otherChunkIndex].relPath())},
 				}
 			}
 
@@ -682,7 +682,13 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 	return outputFiles
 }
 
-func (c *linkerContext) relativePathBetweenChunks(fromRelDir string, toRelPath string) string {
+func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) string {
+	// Return an absolute path if a public path has been configured
+	if c.options.PublicPath != "" {
+		return c.options.PublicPath + toRelPath
+	}
+
+	// Otherwise, return a relative path
 	relPath, ok := c.fs.Rel(fromRelDir, toRelPath)
 	if !ok {
 		c.log.AddError(nil, logger.Loc{},
@@ -740,7 +746,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 						for _, importRecordIndex := range part.ImportRecordIndices {
 							record := &repr.ast.ImportRecords[importRecordIndex]
 							if record.SourceIndex != nil && c.isExternalDynamicImport(record) {
-								record.Path.Text = c.relativePathBetweenChunks(chunk.relDir, c.files[*record.SourceIndex].entryPointRelPath)
+								record.Path.Text = c.pathBetweenChunks(chunk.relDir, c.files[*record.SourceIndex].entryPointRelPath)
 								record.SourceIndex = nil
 							}
 						}

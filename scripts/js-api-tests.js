@@ -191,6 +191,55 @@ let buildTests = {
     assert.strictEqual(result.__esModule, true)
   },
 
+  async splittingPublicPath({ esbuild, testDir }) {
+    const input1 = path.join(testDir, 'a', 'in1.js')
+    const input2 = path.join(testDir, 'b', 'in2.js')
+    const shared = path.join(testDir, 'c', 'shared.js')
+    const outdir = path.join(testDir, 'out')
+    await mkdirAsync(path.dirname(input1), { recursive: true })
+    await mkdirAsync(path.dirname(input2), { recursive: true })
+    await mkdirAsync(path.dirname(shared), { recursive: true })
+    await writeFileAsync(input1, `export {default as input1} from ${JSON.stringify(shared)}`)
+    await writeFileAsync(input2, `export {default as input2} from ${JSON.stringify(shared)}`)
+    await writeFileAsync(shared, `export default function foo() { return 123 }`)
+    const value = await esbuild.build({
+      entryPoints: [input1, input2],
+      bundle: true,
+      outdir,
+      format: 'esm',
+      splitting: true,
+      publicPath: 'https://www.example.com/assets',
+      write: false,
+    })
+    assert.deepStrictEqual(value.outputFiles.length, 3)
+    assert.deepStrictEqual(value.outputFiles[0].path, path.join(outdir, 'a', 'in1.js'))
+    assert.deepStrictEqual(value.outputFiles[1].path, path.join(outdir, 'b', 'in2.js'))
+    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk.F3VMEPVO.js'))
+    assert.deepStrictEqual(value.outputFiles[0].text, `import {
+  foo
+} from "https://www.example.com/assets/chunk.F3VMEPVO.js";
+export {
+  foo as input1
+};
+`)
+    assert.deepStrictEqual(value.outputFiles[1].text, `import {
+  foo
+} from "https://www.example.com/assets/chunk.F3VMEPVO.js";
+export {
+  foo as input2
+};
+`)
+    assert.deepStrictEqual(value.outputFiles[2].text, `// scripts/.js-api-tests/splittingPublicPath/c/shared.js
+function foo() {
+  return 123;
+}
+
+export {
+  foo
+};
+`)
+  },
+
   async fileLoaderPublicPath({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const data = path.join(testDir, 'data.bin')
