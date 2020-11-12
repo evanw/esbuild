@@ -1,11 +1,12 @@
 import * as types from "./types";
 import * as common from "./common";
-import * as child_process from "child_process";
-import * as crypto from "crypto";
-import * as path from "path";
-import * as fs from "fs";
-import * as os from "os";
-import { isatty } from "tty";
+
+import child_process = require('child_process');
+import crypto = require('crypto');
+import path = require('path');
+import fs = require('fs');
+import os = require('os');
+import tty = require('tty');
 
 declare const ESBUILD_VERSION: string;
 
@@ -48,7 +49,7 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
 };
 
 // Return true if stderr is a TTY
-let isTTY = () => isatty(2);
+let isTTY = () => tty.isatty(2);
 
 export let version = ESBUILD_VERSION;
 
