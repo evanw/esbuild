@@ -117,7 +117,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
 }
 
 function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel):
-  [string[], boolean, types.Plugin[] | undefined, string | null, string | null] {
+  [string[], boolean, types.Plugin[] | undefined, string | null, string | null, string | undefined] {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   let stdinContents: string | null = null;
@@ -145,6 +145,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) !== false; // Default to true if not specified
   let plugins = getFlag(options, keys, 'plugins', mustBeArray);
+  let cacheDir = getFlag(options, keys, 'cacheDir', mustBeString);
   checkForInvalidFlags(options, keys);
 
   if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
@@ -196,7 +197,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
     stdinContents = contents ? contents + '' : '';
   }
 
-  return [flags, write, plugins, stdinContents, stdinResolveDir];
+  return [flags, write, plugins, stdinContents, stdinResolveDir, cacheDir];
 }
 
 function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolean, logLevelDefault: types.LogLevel): string[] {
@@ -219,9 +220,16 @@ function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolea
   return flags;
 }
 
+export type OnResolveCallback = (args: types.OnResolveArgs) =>
+  (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>)
+
+export type OnLoadCallback = (args: types.OnLoadArgs) =>
+  (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>)
+
 export interface StreamIn {
   writeToStdin: (data: Uint8Array) => void;
   readFileSync?: (path: string, encoding: 'utf8') => string;
+  cache?: (cacheDir: string) => (key: (string | Uint8Array)[], fallback: () => any) => Promise<any>;
   isSync: boolean;
 }
 
@@ -372,20 +380,16 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number) => {
+  let handlePlugins = (plugins: types.Plugin[], request: protocol.BuildRequest, buildKey: number, userCacheDir: string | undefined) => {
     if (streamIn.isSync) throw new Error('Cannot use plugins in synchronous API calls');
 
-    let onResolveCallbacks: {
-      [id: number]: (args: types.OnResolveArgs) =>
-        (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>)
-    } = {};
-    let onLoadCallbacks: {
-      [id: number]: (args: types.OnLoadArgs) =>
-        (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>)
-    } = {};
+    let onResolveCallbacks: { [id: number]: OnResolveCallback } = {};
+    let onLoadCallbacks: { [id: number]: OnLoadCallback } = {};
     let nextCallbackID = 0;
     let i = 0;
 
+    let cacheDir = userCacheDir || require('path').join(process.cwd(), '.cache', 'esbuild');
+    let cache = streamIn.cache && streamIn.cache(cacheDir);
     request.plugins = [];
 
     for (let item of plugins) {
@@ -422,6 +426,15 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           onLoadCallbacks[id] = callback;
           plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
         },
+
+        cache(options, fallback) {
+          let keys: OptionKeys = {};
+          let key = getFlag(options, keys, 'key', mustBeArray);
+          checkForInvalidFlags(options, keys);
+          if (!cache) throw new Error(`[${plugin.name}] "cache" is currently unavailable`);
+          if (!key) throw new Error(`[${plugin.name}] "cache" is missing a key`);
+          return cache([plugin.name, ...key], fallback);
+        },
       });
 
       request.plugins.push(plugin);
@@ -442,7 +455,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               });
 
               if (result != null) {
-                if (typeof result !== 'object') throw new Error('Expected resolver plugin to return an object');
+                if (typeof result !== 'object') throw new Error('Expected on-resolve plugin to return an object');
                 let keys: OptionKeys = {};
                 let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
                 let path = getFlag(result, keys, 'path', mustBeString);
@@ -479,7 +492,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               });
 
               if (result != null) {
-                if (typeof result !== 'object') throw new Error('Expected loader plugin to return an object');
+                if (typeof result !== 'object') throw new Error('Expected on-load plugin to return an object');
                 let keys: OptionKeys = {};
                 let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
                 let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
@@ -523,9 +536,9 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         const logLevelDefault = 'info';
         try {
           let key = nextBuildKey++;
-          let [flags, write, plugins, stdin, resolveDir] = flagsForBuildOptions(options, isTTY, logLevelDefault);
+          let [flags, write, plugins, stdin, resolveDir, cacheDir] = flagsForBuildOptions(options, isTTY, logLevelDefault);
           let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir };
-          let cleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
+          let cleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key, cacheDir);
           sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
             if (cleanup) cleanup();
             if (error) return callback(new Error(error), null);

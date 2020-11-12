@@ -607,6 +607,63 @@ let pluginTests = {
     const result = require(output)
     assert.strictEqual(result.default, 123)
   },
+
+  async secondBuildIsCached({ esbuild, testDir }) {
+    const cacheDir = path.join(testDir, '.cache')
+    const output = path.join(testDir, 'out.js')
+
+    let cacheHits = 0
+    let cacheMisses = 0
+    const plugin = {
+      name: 'name',
+      setup(build) {
+        build.onResolve({ filter: /.*/ }, args => {
+          return { path: args.path, namespace: 'ns' }
+        })
+        build.onLoad({ filter: /.*/, namespace: 'ns' }, args => {
+          cacheHits++
+          return build.cache({ key: [args.path] }, () => {
+            cacheHits--
+            cacheMisses++
+            if (args.path === 'z') return Promise.resolve({ contents: `export default 1` })
+            return {
+              contents: `
+              import value from "${String.fromCharCode(args.path[0].charCodeAt(0) + 1)}"
+              export default value + 1
+            `,
+            }
+          })
+        })
+      },
+    }
+
+    // First build: not cached
+    await esbuild.build({
+      stdin: { contents: `export {default} from "a"` },
+      cacheDir,
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [plugin],
+    })
+    assert.strictEqual(cacheHits, 0)
+    assert.strictEqual(cacheMisses, 26)
+
+    // Second build: cached
+    await esbuild.build({
+      stdin: { contents: `export {default} from "a"` },
+      cacheDir,
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [plugin],
+    })
+    assert.strictEqual(cacheHits, 26)
+    assert.strictEqual(cacheMisses, 26)
+
+    const result = require(output)
+    assert.strictEqual(result.default, 26)
+  },
 }
 
 async function main() {

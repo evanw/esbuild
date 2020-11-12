@@ -1,5 +1,56 @@
 # Changelog
 
+## Unreleased
+
+* Add a file system cache API for JavaScript plugins
+
+    This release contains a cache API for JavaScript plugins that stores cached results on the file system. If a plugin compiles each file in isolation without looking at other files, this cache can be a quick and powerful way to speed up slow JavaScript libraries during repeated builds. Note that caching data on the file system this way has some overhead and is only a performance win for slow tasks.
+
+    Although esbuild already has built-in TypeScript support, imagine that this wasn't the case and you wanted to add support for TypeScript using a plugin. This can be done by calling TypeScript's public compiler API. However, the API is notoriously slow, so it's a good idea to cache the translation operation to avoid doing it if it's already in the cache. That might look something like this:
+
+    ```js
+    let typescriptPlugin = {
+      name: 'typescript',
+      setup(build) {
+        // Make sure the cache is invalidated
+        // when the TypeScript version changes
+        let version = require('typescript/package.json').version
+
+        // Only handle paths in the "file" namespace
+        // because this needs to read the file contents
+        build.onLoad({ filter: /\.ts$/, namespace: 'file' }, async (args) => {
+          // Read the contents of the file as a string
+          let code = await require('fs').promises.readFile(args.path, 'utf8')
+
+          // The key must include all information that might
+          // invalidate the cached results (note that the
+          // plugin name is automatically included)
+          let tsOptions = { fileName: args.path, compilerOptions: {} }
+          let key = [version, JSON.stringify(tsOptions), code]
+
+          // Check for a cache hit first and if there
+          // is one, just return the cached value
+          return build.cache({ key }, () => {
+            // Load this lazily for speed in case it's not used
+            let ts = require('typescript')
+
+            // Handle a cache miss (the returned value
+            // will be saved in the cache for next time)
+            return { contents: ts.transpileModule(code, tsOptions).outputText }
+          })
+        })
+      },
+    }
+    ```
+
+    Note that the information that goes into the cache key is very important for correctness. If you change the cache miss handler, you will probably also want to change the cache key to ensure that existing cached values are invalidated. One way to do this is to publish your plugin as a package on npm and then include the package's version number in the cache key (in addition to the version numbers of any packages your plugin uses).
+
+    If your plugin involves reading information from multiple files (for example, calling a library such as [`postcss-import`](https://www.npmjs.com/package/postcss-import) that processes CSS imports), your plugin will not be correct if the cache key only contains the root file but not the imported files. It's tempting to omit the imported files because discovering the imported files involves running the library, which is the slow thing that caching tries to avoid. But doing this will lead to the cache not being invalidated when it should have been. It's possible to still cache things in this scenario but doing so is significantly more complex (e.g. you need to re-running all previous import path resolutions among other things) and support for this is not included in esbuild.
+
+    By default the cache is stored under `.cache/esbuild` in the current directory, although this can be changed with the `cacheDir` option. Data in the cache is evicted in least-recently-used order. There is currently a maximum of 16,384 entries.
+
+    There isn't anything special about this cache that an esbuild plugin couldn't implement itself from scratch. However, including the cache as part of esbuild's API means that plugins are more likely to use it, and that plugins can all use a shared cache directory which can be configured by the user.
+
 ## 0.8.6
 
 * Changes to TypeScript's `import name =` syntax

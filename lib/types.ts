@@ -45,6 +45,7 @@ export interface BuildOptions extends CommonOptions {
   outExtension?: { [ext: string]: string };
   publicPath?: string;
   inject?: string[];
+  cacheDir?: string;
 
   entryPoints?: string[];
   stdin?: StdinOptions;
@@ -123,6 +124,11 @@ export interface PluginBuild {
     (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
     (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): void;
+  cache<T>(options: CacheOptions, fallback: () => T): Promise<T>;
+}
+
+export interface CacheOptions {
+  key: (string | Uint8Array)[];
 }
 
 export interface OnResolveOptions {

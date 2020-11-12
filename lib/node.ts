@@ -1,5 +1,6 @@
 import * as types from "./types";
 import * as common from "./common";
+import { fsCache } from "./cache";
 
 import child_process = require('child_process');
 import crypto = require('crypto');
@@ -125,6 +126,7 @@ export let startService: typeof types.startService = options => {
       child.stdin.write(bytes);
     },
     readFileSync: fs.readFileSync,
+    cache: fsCache,
     isSync: false,
   });
   child.stdout.on('data', readFromStdout);
