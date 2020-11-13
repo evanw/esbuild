@@ -3427,6 +3427,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		// Start the metadata
 		jMeta := js_printer.Joiner{}
 		if c.options.AbsMetadataFile != "" {
+			// Print imports
 			isFirstMeta := true
 			jMeta.AddString("{\n      \"imports\": [")
 			for _, record := range crossChunkImportRecords {
@@ -3438,6 +3439,44 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
 					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
+			}
+			if !isFirstMeta {
+				jMeta.AddString("\n      ")
+			}
+
+			// Print exports
+			jMeta.AddString("],\n      \"exports\": [")
+			var aliases []string
+			if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+				if chunk.isEntryPoint {
+					if fileRepr := c.files[chunk.sourceIndex].repr.(*reprJS); fileRepr.meta.cjsWrap {
+						aliases = []string{"default"}
+					} else {
+						resolvedExports := fileRepr.meta.resolvedExports
+						aliases = make([]string, 0, len(resolvedExports))
+						for alias := range resolvedExports {
+							if alias != "*" {
+								aliases = append(aliases, alias)
+							}
+						}
+					}
+				} else {
+					aliases = make([]string, 0, len(repr.exportsToOtherChunks))
+					for _, alias := range repr.exportsToOtherChunks {
+						aliases = append(aliases, alias)
+					}
+				}
+			}
+			isFirstMeta = true
+			sort.Strings(aliases) // Sort for determinism
+			for _, alias := range aliases {
+				if isFirstMeta {
+					isFirstMeta = false
+				} else {
+					jMeta.AddString(",")
+				}
+				jMeta.AddString(fmt.Sprintf("\n        %s",
+					js_printer.QuoteForJSON(alias, c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")

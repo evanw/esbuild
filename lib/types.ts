@@ -195,6 +195,7 @@ export interface Metadata {
       imports: {
         path: string
       }[]
+      exports: string[]
     }
   }
 }

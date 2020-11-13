@@ -385,7 +385,7 @@ body {
     await writeFileAsync(entry2, `
       import x, {f2} from "./${path.basename(imported)}"
       console.log('entry 2', x, f2())
-      export {x}
+      export {x as y}
     `)
     await writeFileAsync(imported, `
       export default 123
@@ -419,16 +419,176 @@ body {
     const outChunk = makeOutPath(chunk);
 
     assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported }] })
-    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 102, imports: [{ path: inImported }] })
+    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported }] })
     assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
 
     assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk) }])
     assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk) }])
     assert.deepStrictEqual(json.outputs[outChunk].imports, [])
 
+    assert.deepStrictEqual(json.outputs[outEntry1].exports, ['x'])
+    assert.deepStrictEqual(json.outputs[outEntry2].exports, ['y'])
+    assert.deepStrictEqual(json.outputs[outChunk].exports, ['imported_default'])
+
     assert.deepStrictEqual(json.outputs[outEntry1].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry1]: { bytesInOutput: 40 } })
     assert.deepStrictEqual(json.outputs[outEntry2].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry2]: { bytesInOutput: 48 } })
     assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 51 } })
+  },
+
+  async metafileCJSInFormatIIFE({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const outfile = path.join(testDir, 'out.js')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry, `module.exports = {}`)
+    await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      metafile,
+      format: 'iife',
+    })
+    const cwd = process.cwd()
+    const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
+  },
+
+  async metafileCJSInFormatCJS({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const outfile = path.join(testDir, 'out.js')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry, `module.exports = {}`)
+    await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      metafile,
+      format: 'cjs',
+    })
+    const cwd = process.cwd()
+    const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
+  },
+
+  async metafileCJSInFormatESM({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const outfile = path.join(testDir, 'out.js')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry, `module.exports = {}`)
+    await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      metafile,
+      format: 'esm',
+    })
+    const cwd = process.cwd()
+    const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, ['default'])
+  },
+
+  async metafileESMInFormatIIFE({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const outfile = path.join(testDir, 'out.js')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry, `export let a = 1, b = 2`)
+    await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      metafile,
+      format: 'iife',
+    })
+    const cwd = process.cwd()
+    const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
+  },
+
+  async metafileESMInFormatCJS({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const outfile = path.join(testDir, 'out.js')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry, `export let a = 1, b = 2`)
+    await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      metafile,
+      format: 'cjs',
+    })
+    const cwd = process.cwd()
+    const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, [])
+  },
+
+  async metafileESMInFormatESM({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const outfile = path.join(testDir, 'out.js')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry, `export let a = 1, b = 2`)
+    await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      metafile,
+      format: 'esm',
+    })
+    const cwd = process.cwd()
+    const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, ['a', 'b'])
+  },
+
+  async metafileNestedExportNames({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const nested1 = path.join(testDir, 'nested1.js')
+    const nested2 = path.join(testDir, 'nested2.js')
+    const nested3 = path.join(testDir, 'nested3.js')
+    const outfile = path.join(testDir, 'out.js')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry, `
+      export {nested1} from ${JSON.stringify(nested1)}
+      export * from ${JSON.stringify(nested2)}
+      export let topLevel = 0
+    `)
+    await writeFileAsync(nested1, `
+      import {nested3} from ${JSON.stringify(nested3)}
+      export default 1
+      export let nested1 = nested3
+    `)
+    await writeFileAsync(nested2, `
+      export default 'nested2'
+      export let nested2 = 2
+    `)
+    await writeFileAsync(nested3, `
+      export let nested3 = 3
+    `)
+    await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      outfile,
+      metafile,
+      format: 'esm',
+    })
+    const cwd = process.cwd()
+    const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [{ path: makePath(nested1) }, { path: makePath(nested2) }])
+    assert.deepStrictEqual(json.inputs[makePath(nested1)].imports, [{ path: makePath(nested3) }])
+    assert.deepStrictEqual(json.inputs[makePath(nested2)].imports, [])
+    assert.deepStrictEqual(json.inputs[makePath(nested3)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
+    assert.deepStrictEqual(json.outputs[makePath(outfile)].exports, ['nested1', 'nested2', 'topLevel'])
   },
 
   async metafileCSS({ esbuild, testDir }) {
