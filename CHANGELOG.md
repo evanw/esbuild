@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.7
 
 * `--public-path` now affects code splitting chunk imports ([#524](https://github.com/evanw/esbuild/issues/524))
 
