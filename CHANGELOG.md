@@ -37,6 +37,10 @@
 
     This is problematic because duplicate keys are allowed in JSON and overwrite the previous key. The fix in this release is to accumulate the `bytesInOutput` values for all parts of a file and then only write out the accumulated values at the end.
 
+* Avoid arrow functions when `import()` is converted to `require()` for `es5`
+
+    Setting the target to `es5` is supposed to remove arrow functions, since they are only supported in `es6` and above. However, arrow functions would still be generated if an `import()` expression pointed to an external module and the output format was `iife` or `cjs`. Now these arrow functions are replaced by function expressions instead.
+
 ## 0.8.6
 
 * Changes to TypeScript's `import name =` syntax

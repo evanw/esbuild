@@ -240,6 +240,18 @@ const _ = __toModule(require_index());
 console.log(_.x);
 
 ================================================================================
+TestDynamicImportWithExpressionCJS
+---------- /out.js ----------
+Promise.resolve().then(() => __toModule(require("foo")));
+
+================================================================================
+TestDynamicImportWithExpressionCJSAndES5
+---------- /out.js ----------
+Promise.resolve().then(function() {
+  return __toModule(require("foo"));
+});
+
+================================================================================
 TestDynamicImportWithTemplateIIFE
 ---------- /out.js ----------
 (() => {
@@ -1169,6 +1181,16 @@ function o(){return 123}o();console.log(o());
 TestMinifiedBundleEndingWithImportantSemicolon
 ---------- /out.js ----------
 (()=>{while(foo());})();
+
+================================================================================
+TestMinifiedDynamicImportWithExpressionCJS
+---------- /out.js ----------
+Promise.resolve().then(()=>__toModule(require("foo")));
+
+================================================================================
+TestMinifiedDynamicImportWithExpressionCJSAndES5
+---------- /out.js ----------
+Promise.resolve().then(function(){return __toModule(require("foo"))});
 
 ================================================================================
 TestMinifiedExportsAndModuleFormatCommonJS

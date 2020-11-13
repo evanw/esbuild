@@ -1363,10 +1363,20 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 
 	// Make sure "import()" expressions return promises
 	if record.Kind == ast.ImportDynamic {
-		if p.options.RemoveWhitespace {
-			p.print("Promise.resolve().then(()=>")
+		if p.options.UnsupportedFeatures.Has(compat.Arrow) {
+			p.print("Promise.resolve().then(function()")
+			p.printSpace()
+			p.print("{")
+			p.printNewline()
+			p.options.Indent++
+			p.printIndent()
+			p.print("return ")
 		} else {
-			p.print("Promise.resolve().then(() => ")
+			if p.options.RemoveWhitespace {
+				p.print("Promise.resolve().then(()=>")
+			} else {
+				p.print("Promise.resolve().then(() => ")
+			}
 		}
 	}
 
@@ -1394,7 +1404,17 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, leadingInte
 	}
 
 	if record.Kind == ast.ImportDynamic {
-		p.print(")")
+		if p.options.UnsupportedFeatures.Has(compat.Arrow) {
+			if !p.options.RemoveWhitespace {
+				p.print(";")
+			}
+			p.printNewline()
+			p.options.Indent--
+			p.printIndent()
+			p.print("})")
+		} else {
+			p.print(")")
+		}
 	}
 }
 

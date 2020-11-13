@@ -841,6 +841,74 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 	})
 }
 
+func TestDynamicImportWithExpressionCJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import('foo')
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestDynamicImportWithExpressionCJSAndES5(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import('foo')
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		options: config.Options{
+			Mode:                  config.ModeConvertFormat,
+			OutputFormat:          config.FormatCommonJS,
+			UnsupportedJSFeatures: es(5),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import('foo')
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		options: config.Options{
+			Mode:             config.ModeConvertFormat,
+			OutputFormat:     config.FormatCommonJS,
+			AbsOutputFile:    "/out.js",
+			RemoveWhitespace: true,
+		},
+	})
+}
+
+func TestMinifiedDynamicImportWithExpressionCJSAndES5(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import('foo')
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		options: config.Options{
+			Mode:                  config.ModeConvertFormat,
+			OutputFormat:          config.FormatCommonJS,
+			UnsupportedJSFeatures: es(5),
+			AbsOutputFile:         "/out.js",
+			RemoveWhitespace:      true,
+		},
+	})
+}
+
 func TestRequireBadArgumentCount(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
