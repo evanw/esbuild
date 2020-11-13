@@ -846,6 +846,7 @@ func TestDynamicImportWithExpressionCJS(t *testing.T) {
 		files: map[string]string{
 			"/a.js": `
 				import('foo')
+				import(foo())
 			`,
 		},
 		entryPaths: []string{"/a.js"},
@@ -862,6 +863,7 @@ func TestDynamicImportWithExpressionCJSAndES5(t *testing.T) {
 		files: map[string]string{
 			"/a.js": `
 				import('foo')
+				import(foo())
 			`,
 		},
 		entryPaths: []string{"/a.js"},
@@ -879,6 +881,7 @@ func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 		files: map[string]string{
 			"/a.js": `
 				import('foo')
+				import(foo())
 			`,
 		},
 		entryPaths: []string{"/a.js"},
@@ -896,6 +899,7 @@ func TestMinifiedDynamicImportWithExpressionCJSAndES5(t *testing.T) {
 		files: map[string]string{
 			"/a.js": `
 				import('foo')
+				import(foo())
 			`,
 		},
 		entryPaths: []string{"/a.js"},

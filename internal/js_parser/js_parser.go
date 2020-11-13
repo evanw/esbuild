@@ -9185,10 +9185,55 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 			e.ImportRecordIndex = &importRecordIndex
-		} else if p.Mode == config.ModeBundle {
-			r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-			p.log.AddRangeWarning(&p.source, r,
-				"This dynamic import will not be bundled because the argument is not a string literal")
+		} else {
+			if p.Mode == config.ModeBundle {
+				r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
+				p.log.AddRangeWarning(&p.source, r,
+					"This dynamic import will not be bundled because the argument is not a string literal")
+			}
+
+			// We need to convert this into a call to "require()" if ES6 syntax is
+			// not supported in the current output format. The full conversion:
+			//
+			//   Before:
+			//     import(foo)
+			//
+			//   After:
+			//     Promise.resolve().then(() => require(foo))
+			//
+			// This is normally done by the printer since we don't know during the
+			// parsing stage whether this module is external or not. However, it's
+			// guaranteed to be external if the argument isn't a string. We handle
+			// this case here instead of in the printer because both the printer
+			// and the linker currently need an import record to handle this case
+			// correctly, and you need a string literal to get an import record.
+			if !p.OutputFormat.KeepES6ImportExportSyntax() {
+				var arg js_ast.Expr
+				value := p.callRuntime(e.Expr.Loc, "__toModule", []js_ast.Expr{{Loc: e.Expr.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: e.Expr.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
+					Args:   []js_ast.Expr{e.Expr},
+				}}})
+				body := js_ast.FnBody{Loc: e.Expr.Loc, Stmts: []js_ast.Stmt{{Loc: e.Expr.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+				if p.UnsupportedJSFeatures.Has(compat.Arrow) {
+					arg = js_ast.Expr{Loc: e.Expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
+				} else {
+					arg = js_ast.Expr{Loc: e.Expr.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
+				}
+				expr.Data = &js_ast.ECall{
+					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+						Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+								Target:  js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.findSymbol(expr.Loc, "Promise").ref}},
+								Name:    "resolve",
+								NameLoc: expr.Loc,
+							}},
+						}},
+						Name:    "then",
+						NameLoc: expr.Loc,
+					}},
+					Args: []js_ast.Expr{arg},
+				}
+			}
 		}
 
 	case *js_ast.ECall:

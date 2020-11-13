@@ -41,6 +41,10 @@
 
     Setting the target to `es5` is supposed to remove arrow functions, since they are only supported in `es6` and above. However, arrow functions would still be generated if an `import()` expression pointed to an external module and the output format was `iife` or `cjs`. Now these arrow functions are replaced by function expressions instead.
 
+* Convert `import()` to `require()` even if the argument isn't a string literal
+
+    The `import()` syntax is supposed to be converted to `require()` if the target is `cjs` instead of `esm`. However, this was previously only done if the argument was a string literal. This is now done for all `import()` expressions regardless of what the argument looks like.
+
 ## 0.8.6
 
 * Changes to TypeScript's `import name =` syntax
