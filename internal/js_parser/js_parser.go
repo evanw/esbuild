@@ -54,6 +54,7 @@ type parser struct {
 	requireRef               js_ast.Ref
 	moduleRef                js_ast.Ref
 	importMetaRef            js_ast.Ref
+	promiseRef               js_ast.Ref
 	findSymbolHelper         config.FindSymbol
 	symbolUses               map[js_ast.Ref]js_ast.SymbolUse
 	declaredSymbols          []js_ast.DeclaredSymbol
@@ -1051,6 +1052,13 @@ func (p *parser) callRuntime(loc logger.Loc, name string, args []js_ast.Expr) js
 		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
 		Args:   args,
 	}}
+}
+
+func (p *parser) makePromiseRef() js_ast.Ref {
+	if p.promiseRef == js_ast.InvalidRef {
+		p.promiseRef = p.newSymbol(js_ast.SymbolUnbound, "Promise")
+	}
+	return p.promiseRef
 }
 
 // The name is temporarily stored in the ref until the scope traversal pass
@@ -7404,6 +7412,15 @@ func (p *parser) markExportedBindingInsideNamespace(nsRef js_ast.Ref, binding js
 	}
 }
 
+func (p *parser) maybeTransposeIfExprChain(expr js_ast.Expr, visit func(js_ast.Expr) js_ast.Expr) js_ast.Expr {
+	if e, ok := expr.Data.(*js_ast.EIf); ok {
+		e.Yes = p.maybeTransposeIfExprChain(e.Yes, visit)
+		e.No = p.maybeTransposeIfExprChain(e.No, visit)
+		return expr
+	}
+	return visit(expr)
+}
+
 func maybeJoinWithComma(a js_ast.Expr, b js_ast.Expr) js_ast.Expr {
 	if a.Data == nil {
 		return b
@@ -9172,20 +9189,25 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EImport:
 		e.Expr = p.visitExpr(e.Expr)
 
-		// The argument must be a string
-		if str, ok := e.Expr.Data.(*js_ast.EString); ok {
-			// Ignore calls to import() if the control flow is provably dead here.
-			// We don't want to spend time scanning the required files if they will
-			// never be used.
-			if p.isControlFlowDead {
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}, exprOut{}
+		return p.maybeTransposeIfExprChain(e.Expr, func(arg js_ast.Expr) js_ast.Expr {
+			// The argument must be a string
+			if str, ok := arg.Data.(*js_ast.EString); ok {
+				// Ignore calls to import() if the control flow is provably dead here.
+				// We don't want to spend time scanning the required files if they will
+				// never be used.
+				if p.isControlFlowDead {
+					return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+				}
+
+				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, js_lexer.UTF16ToString(str.Value))
+				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+				return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EImport{
+					Expr:                    arg,
+					ImportRecordIndex:       &importRecordIndex,
+					LeadingInteriorComments: e.LeadingInteriorComments,
+				}}
 			}
 
-			importRecordIndex := p.addImportRecord(ast.ImportDynamic, e.Expr.Loc, js_lexer.UTF16ToString(str.Value))
-			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-
-			e.ImportRecordIndex = &importRecordIndex
-		} else {
 			if p.Mode == config.ModeBundle {
 				r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
 				p.log.AddRangeWarning(&p.source, r,
@@ -9208,33 +9230,38 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// and the linker currently need an import record to handle this case
 			// correctly, and you need a string literal to get an import record.
 			if !p.OutputFormat.KeepES6ImportExportSyntax() {
-				var arg js_ast.Expr
-				value := p.callRuntime(e.Expr.Loc, "__toModule", []js_ast.Expr{{Loc: e.Expr.Loc, Data: &js_ast.ECall{
-					Target: js_ast.Expr{Loc: e.Expr.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
-					Args:   []js_ast.Expr{e.Expr},
+				var then js_ast.Expr
+				value := p.callRuntime(arg.Loc, "__toModule", []js_ast.Expr{{Loc: arg.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EIdentifier{Ref: p.requireRef}},
+					Args:   []js_ast.Expr{arg},
 				}}})
-				body := js_ast.FnBody{Loc: e.Expr.Loc, Stmts: []js_ast.Stmt{{Loc: e.Expr.Loc, Data: &js_ast.SReturn{Value: &value}}}}
+				body := js_ast.FnBody{Loc: arg.Loc, Stmts: []js_ast.Stmt{{Loc: arg.Loc, Data: &js_ast.SReturn{Value: &value}}}}
 				if p.UnsupportedJSFeatures.Has(compat.Arrow) {
-					arg = js_ast.Expr{Loc: e.Expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
+					then = js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
 				} else {
-					arg = js_ast.Expr{Loc: e.Expr.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
+					then = js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EArrow{Body: body, PreferExpr: true}}
 				}
-				expr.Data = &js_ast.ECall{
-					Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
-						Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-							Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
-								Target:  js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: p.findSymbol(expr.Loc, "Promise").ref}},
+				return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+					Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EDot{
+						Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EDot{
+								Target:  js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EIdentifier{Ref: p.makePromiseRef()}},
 								Name:    "resolve",
-								NameLoc: expr.Loc,
+								NameLoc: arg.Loc,
 							}},
 						}},
 						Name:    "then",
-						NameLoc: expr.Loc,
+						NameLoc: arg.Loc,
 					}},
-					Args: []js_ast.Expr{arg},
-				}
+					Args: []js_ast.Expr{then},
+				}}
 			}
-		}
+
+			return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.EImport{
+				Expr:                    arg,
+				LeadingInteriorComments: e.LeadingInteriorComments,
+			}}
+		}), exprOut{}
 
 	case *js_ast.ECall:
 		var storeThisArg func(js_ast.Expr) js_ast.Expr
@@ -9255,10 +9282,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		couldBeRequireResolve := false
 		if len(e.Args) == 1 && p.Mode != config.ModePassThrough {
 			if dot, ok := e.Target.Data.(*js_ast.EDot); ok && dot.OptionalChain == js_ast.OptionalChainNone && dot.Name == "resolve" {
-				if _, ok := e.Args[0].Data.(*js_ast.EString); ok {
-					p.resolveCallTarget = dot.Target.Data
-					couldBeRequireResolve = true
-				}
+				p.resolveCallTarget = dot.Target.Data
+				couldBeRequireResolve = true
 			}
 		}
 
@@ -9281,22 +9306,34 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if couldBeRequireResolve {
 			if dot, ok := e.Target.Data.(*js_ast.EDot); ok {
 				if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
-					if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
-						// Ignore calls to require.resolve() if the control flow is provably
-						// dead here. We don't want to spend time scanning the required files
-						// if they will never be used.
-						if p.isControlFlowDead {
-							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}, exprOut{}
+					return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
+						if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
+							// Ignore calls to require.resolve() if the control flow is provably
+							// dead here. We don't want to spend time scanning the required files
+							// if they will never be used.
+							if p.isControlFlowDead {
+								return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+							}
+
+							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value))
+							p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
+							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+
+							// Create a new expression to represent the operation
+							p.ignoreUsage(p.requireRef)
+							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolve{ImportRecordIndex: importRecordIndex}}
 						}
 
-						importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, js_lexer.UTF16ToString(str.Value))
-						p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
-						p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-
-						// Create a new expression to represent the operation
-						p.ignoreUsage(p.requireRef)
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireResolve{ImportRecordIndex: importRecordIndex}}, exprOut{}
-					}
+						// Otherwise just return a clone of the "require.resolve()" call
+						return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+							Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EDot{
+								Target:  js_ast.Expr{Loc: dot.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+								Name:    dot.Name,
+								NameLoc: dot.NameLoc,
+							}},
+							Args: []js_ast.Expr{arg},
+						}}
+					}), exprOut{}
 				}
 			}
 		}
@@ -9365,7 +9402,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Track calls to require() so we can use them while bundling
-		if p.Mode != config.ModePassThrough {
+		if p.Mode != config.ModePassThrough && e.OptionalChain == js_ast.OptionalChainNone {
 			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
 				// Heuristic: omit warnings inside try/catch blocks because presumably
 				// the try/catch statement is there to handle the potential run-time
@@ -9375,31 +9412,37 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if p.Mode == config.ModeBundle {
 					// There must be one argument
 					if len(e.Args) == 1 {
-						arg := e.Args[0]
+						return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
+							// The argument must be a string
+							if str, ok := arg.Data.(*js_ast.EString); ok {
+								// Ignore calls to require() if the control flow is provably dead here.
+								// We don't want to spend time scanning the required files if they will
+								// never be used.
+								if p.isControlFlowDead {
+									return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ENull{}}
+								}
 
-						// The argument must be a string
-						if str, ok := arg.Data.(*js_ast.EString); ok {
-							// Ignore calls to require() if the control flow is provably dead here.
-							// We don't want to spend time scanning the required files if they will
-							// never be used.
-							if p.isControlFlowDead {
-								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENull{}}, exprOut{}
+								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value))
+								p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
+								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+
+								// Create a new expression to represent the operation
+								p.ignoreUsage(p.requireRef)
+								return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}
 							}
 
-							importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, js_lexer.UTF16ToString(str.Value))
-							p.importRecords[importRecordIndex].IsInsideTryBody = p.fnOrArrowDataVisit.tryBodyCount != 0
-							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+							if !omitWarnings {
+								r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+								p.log.AddRangeWarning(&p.source, r,
+									"This call to \"require\" will not be bundled because the argument is not a string literal")
+							}
 
-							// Create a new expression to represent the operation
-							p.ignoreUsage(p.requireRef)
-							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequire{ImportRecordIndex: importRecordIndex}}, exprOut{}
-						}
-
-						if !omitWarnings {
-							r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
-							p.log.AddRangeWarning(&p.source, r,
-								"This call to \"require\" will not be bundled because the argument is not a string literal")
-						}
+							// Otherwise just return a clone of the "require()" call
+							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+								Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+								Args:   []js_ast.Expr{arg},
+							}}
+						}), exprOut{}
 					} else if !omitWarnings {
 						r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 						p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
@@ -10435,6 +10478,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		Options:            *options,
 		fnOrArrowDataParse: fnOrArrowDataParse{isOutsideFn: true},
 		runtimeImports:     make(map[string]js_ast.Ref),
+		promiseRef:         js_ast.InvalidRef,
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,

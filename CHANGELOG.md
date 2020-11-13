@@ -45,6 +45,10 @@
 
     The `import()` syntax is supposed to be converted to `require()` if the target is `cjs` instead of `esm`. However, this was previously only done if the argument was a string literal. This is now done for all `import()` expressions regardless of what the argument looks like.
 
+* Transpose `require(a ? 'b' : 'c')` into `a ? require('b') : require('c')`
+
+    The reverse transformation is sometimes done by JavaScript minifiers such as [Terser](https://github.com/terser/terser) even if the original source code used the form `a ? require('b') : require('c')`. This messes up esbuild's import resolution which needs `require()` to take a single string as an argument. The transformation done here is a simple way to make sure esbuild still works on minified code. This transformation is also performed on `import()` and `require.resolve()`.
+
 ## 0.8.6
 
 * Changes to TypeScript's `import name =` syntax

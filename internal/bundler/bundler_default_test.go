@@ -913,6 +913,83 @@ func TestMinifiedDynamicImportWithExpressionCJSAndES5(t *testing.T) {
 	})
 }
 
+func TestConditionalRequireResolve(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				require.resolve(x ? 'a' : y ? 'b' : 'c')
+				require.resolve(x ? y ? 'a' : 'b' : c)
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"a": true,
+					"b": true,
+					"c": true,
+				},
+			},
+		},
+	})
+}
+
+func TestConditionalRequire(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				require(x ? 'a' : y ? './b' : 'c')
+				require(x ? y ? 'a' : './b' : c)
+			`,
+			"/b.js": `
+				exports.foo = 213
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"a": true,
+					"c": true,
+				},
+			},
+		},
+		expectedScanLog: `/a.js: warning: This call to "require" will not be bundled because the argument is not a string literal
+`,
+	})
+}
+
+func TestConditionalImport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import(x ? 'a' : y ? './b' : 'c')
+				import(x ? y ? 'a' : './b' : c)
+			`,
+			"/b.js": `
+				exports.foo = 213
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"a": true,
+					"c": true,
+				},
+			},
+		},
+		expectedScanLog: `/a.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+`,
+	})
+}
+
 func TestRequireBadArgumentCount(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3011,7 +3088,6 @@ func TestRequireResolve(t *testing.T) {
 			},
 		},
 		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 /entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 /entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 /entry.js: warning: "./present-file" should be marked as external for use with "require.resolve"

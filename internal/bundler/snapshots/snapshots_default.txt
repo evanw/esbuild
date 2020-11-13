@@ -186,6 +186,37 @@ console.log(foo(), bar());
 const {bar} = require_bar();
 
 ================================================================================
+TestConditionalImport
+---------- /out.js ----------
+// /b.js
+var require_b = __commonJS((exports) => {
+  exports.foo = 213;
+});
+
+// /a.js
+x ? import("a") : y ? Promise.resolve().then(() => __toModule(require_b())) : import("c");
+x ? y ? import("a") : Promise.resolve().then(() => __toModule(require_b())) : import(c);
+
+================================================================================
+TestConditionalRequire
+---------- /out.js ----------
+// /b.js
+var require_b = __commonJS((exports) => {
+  exports.foo = 213;
+});
+
+// /a.js
+x ? require("a") : y ? require_b() : require("c");
+x ? y ? require("a") : require_b() : require(c);
+
+================================================================================
+TestConditionalRequireResolve
+---------- /out.js ----------
+// /a.js
+x ? require.resolve("a") : y ? require.resolve("b") : require.resolve("c");
+x ? y ? require.resolve("a") : require.resolve("b") : require.resolve(c);
+
+================================================================================
 TestDeduplicateCommentsInBundle
 ---------- /out.js ----------
 console.log("in a");console.log("in b");console.log("in c");
