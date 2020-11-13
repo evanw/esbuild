@@ -378,14 +378,21 @@ body {
     const outdir = path.join(testDir, 'out')
     const metafile = path.join(testDir, 'meta.json')
     await writeFileAsync(entry1, `
-      import x from "./${path.basename(imported)}"
-      console.log(1, x)
+      import x, {f1} from "./${path.basename(imported)}"
+      console.log(1, x, f1())
+      export {x}
     `)
     await writeFileAsync(entry2, `
-      import x from "./${path.basename(imported)}"
-      console.log(2, x)
+      import x, {f2} from "./${path.basename(imported)}"
+      console.log('entry 2', x, f2())
+      export {x}
     `)
-    await writeFileAsync(imported, 'export default 123')
+    await writeFileAsync(imported, `
+      export default 123
+      export function f1() {}
+      export function f2() {}
+      console.log('shared')
+    `)
     await esbuild.build({
       entryPoints: [entry1, entry2],
       bundle: true,
@@ -399,13 +406,29 @@ body {
     assert.strictEqual(Object.keys(json.inputs).length, 3)
     assert.strictEqual(Object.keys(json.outputs).length, 3)
     const cwd = process.cwd()
-    const makePath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
+    const makeOutPath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
+    const makeInPath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
 
-    // Check outputs
-    const chunk = 'chunk.ZSFI65PB.js';
-    assert.deepStrictEqual(json.outputs[makePath(path.basename(entry1))].imports, [{ path: makePath(chunk) }])
-    assert.deepStrictEqual(json.outputs[makePath(path.basename(entry2))].imports, [{ path: makePath(chunk) }])
-    assert.deepStrictEqual(json.outputs[makePath(chunk)].imports, [])
+    // Check metafile
+    const inEntry1 = makeInPath(entry1);
+    const inEntry2 = makeInPath(entry2);
+    const inImported = makeInPath(imported);
+    const chunk = 'chunk.F5FFNMME.js';
+    const outEntry1 = makeOutPath(path.basename(entry1));
+    const outEntry2 = makeOutPath(path.basename(entry2));
+    const outChunk = makeOutPath(chunk);
+
+    assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported }] })
+    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 102, imports: [{ path: inImported }] })
+    assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
+
+    assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outChunk].imports, [])
+
+    assert.deepStrictEqual(json.outputs[outEntry1].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry1]: { bytesInOutput: 40 } })
+    assert.deepStrictEqual(json.outputs[outEntry2].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry2]: { bytesInOutput: 48 } })
+    assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 51 } })
   },
 
   async metafileCSS({ esbuild, testDir }) {

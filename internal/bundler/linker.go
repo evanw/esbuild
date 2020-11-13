@@ -3444,14 +3444,19 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 			}
 			jMeta.AddString("],\n      \"inputs\": {")
 		}
-		isFirstMeta := true
 
 		// Concatenate the generated JavaScript chunks together
 		var compileResultsForSourceMap []compileResultJS
 		var entryPointTail *js_printer.PrintResult
 		var commentList []string
+		var metaOrder []string
+		var metaByteCount map[string]int
 		commentSet := make(map[string]bool)
 		prevComment := uint32(0)
+		if c.options.AbsMetadataFile != "" {
+			metaOrder = make([]string, 0, len(compileResults))
+			metaByteCount = make(map[string]int, len(compileResults))
+		}
 		for i, compileResult := range compileResults {
 			isRuntime := compileResult.sourceIndex == runtime.SourceIndex
 			for text := range compileResult.ExtractedComments {
@@ -3538,14 +3543,14 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 
 				// Include this file in the metadata
 				if c.options.AbsMetadataFile != "" {
-					if isFirstMeta {
-						isFirstMeta = false
+					// Accumulate file sizes since a given file may be split into multiple parts
+					path := c.files[compileResult.sourceIndex].source.PrettyPath
+					if count, ok := metaByteCount[path]; ok {
+						metaByteCount[path] = count + len(js)
 					} else {
-						jMeta.AddString(",")
+						metaOrder = append(metaOrder, path)
+						metaByteCount[path] = len(js)
 					}
-					jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-						js_printer.QuoteForJSON(c.files[compileResult.sourceIndex].source.PrettyPath, c.options.ASCIIOnly),
-						len(js)))
 				}
 			}
 
@@ -3644,6 +3649,16 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		// End the metadata
 		var jsonMetadataChunk []byte
 		if c.options.AbsMetadataFile != "" {
+			isFirstMeta := true
+			for _, path := range metaOrder {
+				if isFirstMeta {
+					isFirstMeta = false
+				} else {
+					jMeta.AddString(",")
+				}
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+					js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path]))
+			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
 			}
