@@ -1,9 +1,9 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 
-esbuild: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
+esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	go build "-ldflags=-s -w" ./cmd/esbuild
 
-npm/esbuild-wasm/esbuild.wasm: cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
+npm/esbuild-wasm/esbuild.wasm: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 
