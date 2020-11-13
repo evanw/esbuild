@@ -8,15 +8,18 @@ npm/esbuild-wasm/esbuild.wasm: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.g
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 
 # These tests are for development
-test:
+test: check-go-version
 	make -j6 test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests ts-type-tests
 
 # These tests are for release ("test-wasm" is not included in "test" because it's pretty slow)
-test-all:
+test-all: check-go-version
 	make -j7 test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests ts-type-tests test-wasm
 
 # This includes tests of some 3rd-party libraries, which can be very slow
-test-extra: test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
+test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
+
+check-go-version:
+	@go version | grep 'go1\.15\.' || (echo 'Please install Go version 1.15.x' && false)
 
 test-go:
 	go test ./internal/...
@@ -113,7 +116,7 @@ platform-neutral: esbuild | scripts/node_modules
 test-otp:
 	test -n "$(OTP)" && echo publish --otp="$(OTP)"
 
-publish-all: cmd/esbuild/version.go test-all test-extra
+publish-all: cmd/esbuild/version.go test-prepublish
 	@test master = "`git rev-parse --abbrev-ref HEAD`" || (echo "Refusing to publish from non-master branch `git rev-parse --abbrev-ref HEAD`" && false)
 	@echo "Checking for unpushed commits..." && git fetch
 	@test "" = "`git cherry`" || (echo "Refusing to publish with unpushed commits" && false)
