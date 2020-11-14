@@ -106,7 +106,10 @@ func (p *parser) parseCompoundSelector() (sel css_ast.CompoundSelector, ok bool)
 subclassSelectors:
 	for {
 		switch p.current().Kind {
-		case css_lexer.THashID:
+		case css_lexer.THash:
+			if !p.current().IsID {
+				break subclassSelectors
+			}
 			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSHash{Name: name})
 			p.advance()

@@ -587,7 +587,7 @@ func (p *printer) printTokens(tokens []css_ast.Token) {
 			p.print("@")
 			p.printIdent(t.Text, identNormal, whitespace)
 
-		case css_lexer.THash, css_lexer.THashID:
+		case css_lexer.THash:
 			p.print("#")
 			p.printIdent(t.Text, identHash, whitespace)
 

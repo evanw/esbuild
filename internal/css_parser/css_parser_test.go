@@ -577,6 +577,19 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "a:b:c {}", "a:b:c {\n}\n")
 	expectPrinted(t, "a:b(:c) {}", "a:b(:c) {\n}\n")
 	expectPrinted(t, "a: b {}", "a: b {\n}\n")
+
+	expectPrinted(t, "#id {}", "#id {\n}\n")
+	expectPrinted(t, "#--0 {}", "#--0 {\n}\n")
+	expectPrinted(t, "#\\-0 {}", "#\\-0 {\n}\n")
+	expectPrinted(t, "#\\30 {}", "#\\30  {\n}\n")
+	expectPrinted(t, "div#id {}", "div#id {\n}\n")
+	expectPrinted(t, "div#--0 {}", "div#--0 {\n}\n")
+	expectPrinted(t, "div#\\-0 {}", "div#\\-0 {\n}\n")
+	expectPrinted(t, "div#\\30 {}", "div#\\30  {\n}\n")
+	expectParseError(t, "#0 {}", "<stdin>: warning: Unexpected \"#0\"\n")
+	expectParseError(t, "#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
+	expectParseError(t, "div#0 {}", "<stdin>: warning: Unexpected \"#0\"\n")
+	expectParseError(t, "div#-0 {}", "<stdin>: warning: Unexpected \"#-0\"\n")
 }
 
 func TestNestedSelector(t *testing.T) {

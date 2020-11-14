@@ -45,7 +45,6 @@ const (
 	TDimension
 	TFunction
 	THash
-	THashID
 	TIdent
 	TNumber
 	TOpenBrace
@@ -86,7 +85,6 @@ var tokenToString = []string{
 	"dimension",
 	"function token",
 	"hash token",
-	"hash token",
 	"identifier",
 	"number",
 	"\"{\"",
@@ -110,6 +108,7 @@ type Token struct {
 	Range      logger.Range // 8 bytes
 	UnitOffset uint16       // 2 bytes
 	Kind       T            // 1 byte
+	IsID       bool         // 1 byte
 }
 
 func (token Token) DecodedText(contents string) string {
@@ -119,7 +118,7 @@ func (token Token) DecodedText(contents string) string {
 	case TIdent, TDimension:
 		return decodeEscapesInToken(raw)
 
-	case TAtKeyword, THash, THashID:
+	case TAtKeyword, THash:
 		return decodeEscapesInToken(raw[1:])
 
 	case TFunction:
@@ -185,7 +184,7 @@ func (lexer *lexer) next() {
 	// Reference: https://www.w3.org/TR/css-syntax-3/
 
 	for {
-		lexer.Token.Range = logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}}
+		lexer.Token = Token{Range: logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}}}
 
 		switch lexer.codePoint {
 		case eof:
@@ -226,10 +225,9 @@ func (lexer *lexer) next() {
 		case '#':
 			lexer.step()
 			if IsNameContinue(lexer.codePoint) || lexer.isValidEscape() {
+				lexer.Token.Kind = THash
 				if lexer.wouldStartIdentifier() {
-					lexer.Token.Kind = THashID
-				} else {
-					lexer.Token.Kind = THash
+					lexer.Token.IsID = true
 				}
 				lexer.consumeName()
 			} else {

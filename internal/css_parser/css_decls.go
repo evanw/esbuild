@@ -286,7 +286,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 	text := token.Text
 
 	switch token.Kind {
-	case css_lexer.THash, css_lexer.THashID:
+	case css_lexer.THash:
 		if p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
 			switch len(text) {
 			case 4:
@@ -414,7 +414,7 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 			return hex, true
 		}
 
-	case css_lexer.THash, css_lexer.THashID:
+	case css_lexer.THash:
 		switch len(text) {
 		case 3:
 			// "#123"
