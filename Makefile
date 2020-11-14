@@ -8,18 +8,18 @@ npm/esbuild-wasm/esbuild.wasm: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.g
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 
 # These tests are for development
-test: check-go-version
+test:
 	make -j6 test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests ts-type-tests
 
 # These tests are for release ("test-wasm" is not included in "test" because it's pretty slow)
-test-all: check-go-version
+test-all:
 	make -j7 test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests ts-type-tests test-wasm
 
 # This includes tests of some 3rd-party libraries, which can be very slow
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
 
 check-go-version:
-	@go version | grep 'go1\.15\b' || (echo 'Please install Go version 1.15' && false)
+	@go version | grep 'go1\.15\.5' || (echo 'Please install Go version 1.15.5' && false)
 
 test-go:
 	go test ./internal/...
