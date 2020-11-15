@@ -307,6 +307,12 @@ var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||(e.Bar={}))})(Foo||(
 export var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
 
 ================================================================================
+TestTSValidConstEnum
+---------- /out.js ----------
+// entry.ts
+var usage = bar(1, 2, 3, "stringsWorkToo", Foo.E);
+
+================================================================================
 TestTypeScriptDecorators
 ---------- /out.js ----------
 // all.ts

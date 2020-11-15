@@ -130,6 +130,63 @@ func TestTSDeclareNamespace(t *testing.T) {
 	})
 }
 
+func TestTSInvalidConstEnum(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const enum Foo {
+					A = 1,
+					B = A * 2,
+					C,
+					D = 'stringsWorkToo',
+					E,
+					F = {},
+					G = someIdentifier,
+					H = function () { }
+				}
+
+				let usage = bar(Foo.A, Foo.B, Foo.H, Foo.X)
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.ts: error: Enum member must have initializer
+entry.ts: error: const enum member initializers can only contain literal values and other computed enum values
+entry.ts: error: const enum member initializers can only contain literal values and other computed enum values
+entry.ts: error: const enum member initializers can only contain literal values and other computed enum values
+entry.ts: warning: Unknown member H on enum Foo
+entry.ts: warning: Unknown member X on enum Foo
+`,
+	})
+}
+
+func TestTSValidConstEnum(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const enum Foo {
+					A = 1,
+					B = A * 2,
+					C,
+					D = 'stringsWorkToo',
+				}
+				
+				let usage = bar(Foo.A, Foo.B, Foo.C, Foo.D, Foo.E)
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.ts: warning: Unknown member E on enum Foo
+`,
+	})
+}
+
 func TestTSDeclareEnum(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

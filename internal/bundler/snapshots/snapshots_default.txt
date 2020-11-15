@@ -2512,9 +2512,9 @@ var require_es6_ns_export_async_function = __commonJS((exports) => {
 var require_es6_ns_export_enum = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    let Foo3;
-    (function(Foo4) {
-    })(Foo3 = ns3.Foo || (ns3.Foo = {}));
+    let Foo2;
+    (function(Foo3) {
+    })(Foo2 = ns3.Foo || (ns3.Foo = {}));
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -2523,9 +2523,6 @@ var require_es6_ns_export_enum = __commonJS((exports) => {
 var require_es6_ns_export_const_enum = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    let Foo3;
-    (function(Foo4) {
-    })(Foo3 = ns3.Foo || (ns3.Foo = {}));
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -2544,9 +2541,9 @@ var require_es6_ns_export_namespace = __commonJS((exports) => {
 var require_es6_ns_export_class = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    class Foo3 {
+    class Foo2 {
     }
-    ns3.Foo = Foo3;
+    ns3.Foo = Foo2;
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -2555,9 +2552,9 @@ var require_es6_ns_export_class = __commonJS((exports) => {
 var require_es6_ns_export_abstract_class = __commonJS((exports) => {
   var ns2;
   (function(ns3) {
-    class Foo3 {
+    class Foo2 {
     }
-    ns3.Foo = Foo3;
+    ns3.Foo = Foo2;
   })(ns2 || (ns2 = {}));
   console.log(exports);
 });
@@ -2593,14 +2590,11 @@ console.log(void 0);
 
 // es6-export-enum.ts
 var Foo;
-(function(Foo3) {
+(function(Foo2) {
 })(Foo || (Foo = {}));
 console.log(void 0);
 
 // es6-export-const-enum.ts
-var Foo2;
-(function(Foo3) {
-})(Foo2 || (Foo2 = {}));
 console.log(void 0);
 
 // es6-export-module.ts
