@@ -1374,7 +1374,7 @@ type AST struct {
 	// since we already have to traverse the AST then anyway and the parser pass
 	// is conveniently fully parallelized.
 	NamedImports            map[Ref]NamedImport
-	NamedExports            map[string]Ref
+	NamedExports            map[string]NamedExport
 	TopLevelSymbolToParts   map[Ref][]uint32
 	ExportStarImportRecords []uint32
 
@@ -1503,6 +1503,11 @@ type NamedImport struct {
 	// It's useful to flag exported imports because if they are in a TypeScript
 	// file, we can't tell if they are a type or a value.
 	IsExported bool
+}
+
+type NamedExport struct {
+	Ref      Ref
+	AliasLoc logger.Loc
 }
 
 // Each file is made up of multiple parts, and each part consists of one or

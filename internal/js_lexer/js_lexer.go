@@ -633,9 +633,17 @@ func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
 		return logger.Range{Loc: loc, Len: 0}
 	}
 
-	if c, _ := utf8.DecodeRuneInString(text); IsIdentifierStart(c) || c == '\\' {
+	i := 0
+	c, _ := utf8.DecodeRuneInString(text[i:])
+
+	// Handle private names
+	if c == '#' {
+		i++
+		c, _ = utf8.DecodeRuneInString(text[i:])
+	}
+
+	if IsIdentifierStart(c) || c == '\\' {
 		// Search for the end of the identifier
-		i := 0
 		for i < len(text) {
 			c2, width2 := utf8.DecodeRuneInString(text[i:])
 			if c2 == '\\' {

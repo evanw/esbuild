@@ -360,9 +360,9 @@ func newLinkerContext(
 
 			// Clone the export map
 			resolvedExports := make(map[string]exportData)
-			for alias, ref := range repr.ast.NamedExports {
+			for alias, name := range repr.ast.NamedExports {
 				resolvedExports[alias] = exportData{
-					ref:         ref,
+					ref:         name.Ref,
 					sourceIndex: sourceIndex,
 				}
 			}
@@ -1905,13 +1905,13 @@ func (c *linkerContext) addExportsForExportStar(
 		}
 
 		// Accumulate this file's exports
-		for name, ref := range otherRepr.ast.NamedExports {
+		for alias, name := range otherRepr.ast.NamedExports {
 			// ES6 export star statements ignore exports named "default"
-			if name == "default" {
+			if alias == "default" {
 				continue
 			}
 
-			existing, ok := resolvedExports[name]
+			existing, ok := resolvedExports[alias]
 
 			// Don't overwrite real exports, which shadow export stars
 			if ok && !existing.isFromExportStar {
@@ -1920,22 +1920,22 @@ func (c *linkerContext) addExportsForExportStar(
 
 			if !ok {
 				// Initialize the re-export
-				resolvedExports[name] = exportData{
-					ref:              ref,
+				resolvedExports[alias] = exportData{
+					ref:              name.Ref,
 					sourceIndex:      otherSourceIndex,
 					isFromExportStar: true,
 				}
 
 				// Make sure the symbol is marked as imported so that code splitting
 				// imports it correctly if it ends up being shared with another chunk
-				repr.meta.importsToBind[ref] = importToBind{
-					ref:         ref,
+				repr.meta.importsToBind[name.Ref] = importToBind{
+					ref:         name.Ref,
 					sourceIndex: otherSourceIndex,
 				}
 			} else if existing.sourceIndex != otherSourceIndex {
 				// Two different re-exports colliding makes it ambiguous
 				existing.isAmbiguous = true
-				resolvedExports[name] = existing
+				resolvedExports[alias] = existing
 			}
 		}
 
@@ -2057,7 +2057,7 @@ func (c *linkerContext) markPartsReachableFromEntryPoints() {
 			// of it.
 			if repr.meta.cjsWrap {
 				runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
-				commonJSRef := runtimeRepr.ast.NamedExports["__commonJS"]
+				commonJSRef := runtimeRepr.ast.NamedExports["__commonJS"].Ref
 				commonJSParts := runtimeRepr.ast.TopLevelSymbolToParts[commonJSRef]
 
 				// Generate the dummy part
@@ -2252,7 +2252,7 @@ func (c *linkerContext) includePartsForRuntimeSymbol(
 ) {
 	if useCount > 0 {
 		runtimeRepr := c.files[runtime.SourceIndex].repr.(*reprJS)
-		ref := runtimeRepr.ast.NamedExports[name]
+		ref := runtimeRepr.ast.NamedExports[name].Ref
 
 		// Depend on the symbol from the runtime
 		c.generateUseOfSymbolForInclude(part, fileMeta, useCount, ref, runtime.SourceIndex)

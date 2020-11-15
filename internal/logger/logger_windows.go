@@ -82,6 +82,10 @@ func writeStringWithColor(file *os.File, text string) {
 			i += len(colorMagenta)
 			attributes = FOREGROUND_RED | FOREGROUND_BLUE
 
+		case strings.HasPrefix(text[i:], colorResetDim):
+			i += len(colorResetDim)
+			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+
 		case strings.HasPrefix(text[i:], colorBold):
 			i += len(colorBold)
 			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY

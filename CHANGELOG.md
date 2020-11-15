@@ -11,6 +11,29 @@
     * The TypeScript-specific `export as namespace name;` syntax is now ignored inside `declare module`.
     * A trailing comma after a rest argument is disallowed in JavaScript but is allowed in TypeScript if you use `declare function`
 
+* Log output to stderr has been overhauled
+
+    The formatting is now slightly different. Line numbers are now displayed to the left of the source text and source text is now dimmed to make the log messages themselves stand out more. And log messages now support "notes" which are additional messages with different attached locations.
+
+    Before:
+
+    ```
+    example.ts:13:6: error: "test" has already been declared
+    class test extends BaseTest {
+          ~~~~
+    ```
+
+    After:
+
+    ```
+     > example.ts: error: "test" has already been declared
+        13 │ class test extends BaseTest {
+           ╵       ~~~~
+          example.ts: note: "test" was originally declared here
+         4 │ function test(name: string, callback: () => void) {
+           ╵          ~~~~
+    ```
+
 ## 0.8.7
 
 * `--public-path` now affects code splitting chunk imports ([#524](https://github.com/evanw/esbuild/issues/524))

@@ -728,9 +728,10 @@
       `,
     }, {
       async: true,
-      expectedStderr: `in.js:2:25: warning: Converting "require" to "esm" is currently not supported
-        const {exists} = require('fs')
-                         ~~~~~~~
+      expectedStderr: ` > in.js: warning: Converting "require" to "esm" is currently not supported
+    2 │         const {exists} = require('fs')
+      ╵                          ~~~~~~~
+
 1 warning
 `,
     }),
@@ -749,9 +750,10 @@
       `,
     }, {
       async: true,
-      expectedStderr: `in.js:2:19: warning: Converting "require" to "esm" is currently not supported
-        const fs = require('fs')
-                   ~~~~~~~
+      expectedStderr: ` > in.js: warning: Converting "require" to "esm" is currently not supported
+    2 │         const fs = require('fs')
+      ╵                    ~~~~~~~
+
 1 warning
 `,
     }),
@@ -1268,12 +1270,14 @@
         new Foo().bar()
       `,
     }, {
-      expectedStderr: `in.js:23:30: warning: Reading from setter-only property "#setter" will throw
-            expect(() => this.#setter, 'member.get is not a function')
-                              ~~~~~~~
-in.js:24:30: warning: Writing to getter-only property "#getter" will throw
-            expect(() => this.#getter = 1, 'member.set is not a function')
-                              ~~~~~~~
+      expectedStderr: ` > in.js: warning: Reading from setter-only property "#setter" will throw
+    23 │             expect(() => this.#setter, 'member.get is not a function')
+       ╵                               ~~~~~~~
+
+ > in.js: warning: Writing to getter-only property "#getter" will throw
+    24 │             expect(() => this.#getter = 1, 'member.set is not a func...
+       ╵                               ~~~~~~~
+
 2 warnings
 `,
     }),
@@ -1753,16 +1757,18 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
       `,
         'src/entry.js.map/x': ``,
       }, {
-        expectedStderr: `src/entry.js:2:29: error: Cannot read file "src/entry.js.map": ${errorText}
-        //# sourceMappingURL=entry.js.map
-                             ~~~~~~~~~~~~
+        expectedStderr: ` > src/entry.js: error: Cannot read file "src/entry.js.map": ${errorText}
+    2 │         //# sourceMappingURL=entry.js.map
+      ╵                              ~~~~~~~~~~~~
+
 1 error
 ` ,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
         'src/entry.js/x': ``,
       }, {
-        expectedStderr: `error: Cannot read file "src/entry.js": ${errorText}
+        expectedStderr: ` > error: Cannot read file "src/entry.js": ${errorText}
+
 1 error
 `,
       }),
@@ -1771,9 +1777,10 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
         'src/tsconfig.json': `{"extends": "./base.json"}`,
         'src/base.json/x': ``,
       }, {
-        expectedStderr: `src/tsconfig.json:1:12: error: Cannot read file "src/base.json": ${errorText}
-{"extends": "./base.json"}
-            ~~~~~~~~~~~~~
+        expectedStderr: ` > src/tsconfig.json: error: Cannot read file "src/base.json": ${errorText}
+    1 │ {"extends": "./base.json"}
+      ╵             ~~~~~~~~~~~~~
+
 1 error
 `,
       }),
@@ -1782,9 +1789,10 @@ in.js:24:30: warning: Writing to getter-only property "#getter" will throw
         'src/tsconfig.json': `{"extends": "foo"}`,
         'node_modules/foo/tsconfig.json/x': ``,
       }, {
-        expectedStderr: `src/tsconfig.json:1:12: error: Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
-{"extends": "foo"}
-            ~~~~~
+        expectedStderr: ` > src/tsconfig.json: error: Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
+    1 │ {"extends": "foo"}
+      ╵             ~~~~~
+
 1 error
 `,
       }),

@@ -34,10 +34,29 @@ type MsgKind uint8
 const (
 	Error MsgKind = iota
 	Warning
+	Note
 )
 
+func (kind MsgKind) String() string {
+	switch kind {
+	case Error:
+		return "error"
+	case Warning:
+		return "warning"
+	case Note:
+		return "note"
+	default:
+		panic("Internal error")
+	}
+}
+
 type Msg struct {
-	Kind     MsgKind
+	Kind  MsgKind
+	Data  MsgData
+	Notes []MsgData
+}
+
+type MsgData struct {
 	Text     string
 	Location *MsgLocation
 }
@@ -66,70 +85,32 @@ func (r Range) End() int32 {
 }
 
 // This type is just so we can use Go's native sort function
-type msgsArray []Msg
+type SortableMsgs []Msg
 
-func (a msgsArray) Len() int          { return len(a) }
-func (a msgsArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+func (a SortableMsgs) Len() int          { return len(a) }
+func (a SortableMsgs) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 
-func (a msgsArray) Less(i int, j int) bool {
+func (a SortableMsgs) Less(i int, j int) bool {
 	ai := a[i]
 	aj := a[j]
-
-	li := ai.Location
-	lj := aj.Location
-
-	// Location
-	if li == nil && lj != nil {
-		return true
+	aiLoc := ai.Data.Location
+	ajLoc := aj.Data.Location
+	if aiLoc == nil || ajLoc == nil {
+		return aiLoc == nil && ajLoc != nil
 	}
-	if li != nil && lj == nil {
-		return false
+	if aiLoc.File != ajLoc.File {
+		return aiLoc.File < ajLoc.File
 	}
-
-	if li != nil && lj != nil {
-		// File
-		if li.File < lj.File {
-			return true
-		}
-		if li.File > lj.File {
-			return false
-		}
-
-		// Line
-		if li.Line < lj.Line {
-			return true
-		}
-		if li.Line > lj.Line {
-			return false
-		}
-
-		// Column
-		if li.Column < lj.Column {
-			return true
-		}
-		if li.Column > lj.Column {
-			return false
-		}
-
-		// Length
-		if li.Length < lj.Length {
-			return true
-		}
-		if li.Length > lj.Length {
-			return false
-		}
+	if aiLoc.Line != ajLoc.Line {
+		return aiLoc.Line < ajLoc.Line
 	}
-
-	// Kind
-	if ai.Kind < aj.Kind {
-		return true
+	if aiLoc.Column != ajLoc.Column {
+		return aiLoc.Column < ajLoc.Column
 	}
-	if ai.Kind > aj.Kind {
-		return false
+	if ai.Kind != aj.Kind {
+		return ai.Kind < aj.Kind
 	}
-
-	// Text
-	return ai.Text < aj.Text
+	return ai.Data.Text < aj.Data.Text
 }
 
 // This is used to represent both file system paths (Namespace == "file") and
@@ -269,7 +250,7 @@ type TerminalInfo struct {
 
 func NewStderrLog(options StderrOptions) Log {
 	var mutex sync.Mutex
-	var msgs msgsArray
+	var msgs SortableMsgs
 	terminalInfo := GetTerminalInfo(os.Stderr)
 	errors := 0
 	warnings := 0
@@ -336,7 +317,7 @@ func NewStderrLog(options StderrOptions) Log {
 }
 
 func PrintErrorToStderr(osArgs []string, text string) {
-	PrintMessageToStderr(osArgs, Msg{Kind: Error, Text: text})
+	PrintMessageToStderr(osArgs, Msg{Kind: Error, Data: MsgData{Text: text}})
 }
 
 func PrintMessageToStderr(osArgs []string, msg Msg) {
@@ -367,7 +348,7 @@ func PrintMessageToStderr(osArgs []string, msg Msg) {
 }
 
 func NewDeferLog() Log {
-	var msgs msgsArray
+	var msgs SortableMsgs
 	var mutex sync.Mutex
 	var hasErrors bool
 
@@ -398,6 +379,7 @@ const colorReset = "\033[0m"
 const colorRed = "\033[31m"
 const colorGreen = "\033[32m"
 const colorMagenta = "\033[35m"
+const colorResetDim = "\033[0;37m"
 const colorBold = "\033[1m"
 const colorResetBold = "\033[0;1m"
 
@@ -417,64 +399,124 @@ type StderrOptions struct {
 }
 
 func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
-	kind := "error"
-	kindColor := colorRed
-
-	if msg.Kind == Warning {
-		kind = "warning"
-		kindColor = colorMagenta
+	// Compute the maximum margin
+	maxMargin := 0
+	if options.IncludeSource {
+		if msg.Data.Location != nil {
+			maxMargin = len(fmt.Sprintf("%d", msg.Data.Location.Line))
+		}
+		for _, note := range msg.Notes {
+			if note.Location != nil {
+				margin := len(fmt.Sprintf("%d", note.Location.Line))
+				if margin > maxMargin {
+					maxMargin = margin
+				}
+			}
+		}
 	}
 
-	if msg.Location == nil {
+	// Format the messages
+	text := msgString(options, terminalInfo, msg.Kind, msg.Data, maxMargin)
+	for _, note := range msg.Notes {
+		text += msgString(options, terminalInfo, Note, note, maxMargin)
+	}
+
+	// Add extra spacing between messages if source code is present
+	if options.IncludeSource {
+		text += "\n"
+	}
+	return text
+}
+
+// The number of margin characters in addition to the line number
+const extraMarginChars = 7
+
+func marginWithLineText(maxMargin int, line int) string {
+	number := fmt.Sprintf("%d", line)
+	return fmt.Sprintf("    %s%s │ ", strings.Repeat(" ", maxMargin-len(number)), number)
+}
+
+func emptyMarginText(maxMargin int) string {
+	return fmt.Sprintf("    %s ╵ ", strings.Repeat(" ", maxMargin))
+}
+
+func msgString(options StderrOptions, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
+	var kindColor string
+	textColor := colorBold
+	textResetColor := colorResetBold
+	textIndent := ""
+
+	if options.IncludeSource {
+		textIndent = " > "
+	}
+
+	switch kind {
+	case Error:
+		kindColor = colorRed
+
+	case Warning:
+		kindColor = colorMagenta
+
+	case Note:
+		textColor = colorReset
+		kindColor = colorResetBold
+		textResetColor = colorReset
+		if options.IncludeSource {
+			textIndent = strings.Repeat(" ", maxMargin+extraMarginChars-3)
+		}
+
+	default:
+		panic("Internal error")
+	}
+
+	if data.Location == nil {
 		if terminalInfo.UseColorEscapes {
-			return fmt.Sprintf("%s%s%s: %s%s%s\n",
-				colorBold, kindColor, kind,
-				colorResetBold, msg.Text,
+			return fmt.Sprintf("%s%s%s%s: %s%s%s\n",
+				textColor, textIndent, kindColor, kind.String(),
+				textResetColor, data.Text,
 				colorReset)
 		}
 
-		return fmt.Sprintf("%s: %s\n", kind, msg.Text)
+		return fmt.Sprintf("%s%s: %s\n", textIndent, kind.String(), data.Text)
 	}
 
 	if !options.IncludeSource {
 		if terminalInfo.UseColorEscapes {
-			return fmt.Sprintf("%s%s: %s%s: %s%s%s\n",
-				colorBold, msg.Location.File,
-				kindColor, kind,
-				colorResetBold, msg.Text,
+			return fmt.Sprintf("%s%s%s: %s%s: %s%s%s\n",
+				textColor, textIndent, data.Location.File,
+				kindColor, kind.String(),
+				textResetColor, data.Text,
 				colorReset)
 		}
 
-		return fmt.Sprintf("%s: %s: %s\n", msg.Location.File, kind, msg.Text)
+		return fmt.Sprintf("%s%s: %s: %s\n",
+			textIndent, data.Location.File, kind.String(), data.Text)
 	}
 
-	d := detailStruct(msg, terminalInfo)
+	d := detailStruct(data, terminalInfo, maxMargin)
 
 	if terminalInfo.UseColorEscapes {
-		return fmt.Sprintf("%s%s:%d:%d: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s\n",
-			colorBold, d.Path,
-			d.Line,
-			d.Column,
-			kindColor, d.Kind,
-			colorResetBold, d.Message,
-			colorReset, d.SourceBefore, colorGreen, d.SourceMarked, colorReset, d.SourceAfter,
-			colorGreen, d.Indent, d.Marker,
-			colorReset, d.ContentAfter)
+		return fmt.Sprintf("%s%s%s: %s%s: %s%s\n%s%s%s%s%s%s\n%s%s%s%s%s%s\n",
+			textColor, textIndent, d.Path,
+			kindColor, kind.String(),
+			textResetColor, d.Message,
+			colorResetDim, d.SourceBefore, colorGreen, d.SourceMarked, colorResetDim, d.SourceAfter,
+			d.Indent, colorGreen, d.Marker,
+			colorResetDim, d.ContentAfter, colorReset)
 	}
 
-	return fmt.Sprintf("%s:%d:%d: %s: %s\n%s\n%s%s%s\n",
-		d.Path, d.Line, d.Column, d.Kind, d.Message, d.Source, d.Indent, d.Marker, d.ContentAfter)
+	return fmt.Sprintf("%s%s: %s: %s\n%s%s%s\n%s%s%s\n",
+		textIndent, d.Path, kind.String(), d.Message,
+		d.SourceBefore, d.SourceMarked, d.SourceAfter,
+		d.Indent, d.Marker, d.ContentAfter)
 }
 
 type MsgDetail struct {
 	Path    string
 	Line    int
 	Column  int
-	Kind    string
 	Message string
 
-	// Source == SourceBefore + SourceMarked + SourceAfter
-	Source       string
 	SourceBefore string
 	SourceMarked string
 	SourceAfter  string
@@ -541,9 +583,9 @@ func LocationOrNil(source *Source, r Range) *MsgLocation {
 	}
 }
 
-func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
+func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDetail {
 	// Only highlight the first line of the line text
-	loc := *msg.Location
+	loc := *data.Location
 	endOfFirstLine := len(loc.LineText)
 	for i, c := range loc.LineText {
 		if c == '\r' || c == '\n' || c == '\u2028' || c == '\u2029' {
@@ -598,6 +640,10 @@ func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
 	width := terminalInfo.Width
 	if width < 1 {
 		width = 80
+	}
+	width -= maxMargin + extraMarginChars
+	if width < 1 {
+		width = 1
 	}
 	if loc.Column == endOfFirstLine {
 		// If the marker is at the very end of the line, the marker will be a "^"
@@ -657,24 +703,20 @@ func detailStruct(msg Msg, terminalInfo TerminalInfo) MsgDetail {
 		marker = strings.Repeat("~", markerEnd-markerStart)
 	}
 
-	kind := "error"
-	if msg.Kind == Warning {
-		kind = "warning"
-	}
+	// Put a margin before the marker indent
+	margin := marginWithLineText(maxMargin, loc.Line)
 
 	return MsgDetail{
 		Path:    loc.File,
 		Line:    loc.Line,
 		Column:  loc.Column,
-		Kind:    kind,
-		Message: msg.Text,
+		Message: data.Text,
 
-		Source:       lineText,
-		SourceBefore: lineText[:markerStart],
+		SourceBefore: margin + lineText[:markerStart],
 		SourceMarked: lineText[markerStart:markerEnd],
 		SourceAfter:  lineText[markerEnd:],
 
-		Indent: indent,
+		Indent: emptyMarginText(maxMargin) + indent,
 		Marker: marker,
 
 		ContentAfter: afterFirstLine,
@@ -707,32 +749,51 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 
 func (log Log) AddError(source *Source, loc Loc, text string) {
 	log.AddMsg(Msg{
-		Kind:     Error,
-		Text:     text,
-		Location: LocationOrNil(source, Range{Loc: loc}),
+		Kind: Error,
+		Data: RangeData(source, Range{Loc: loc}, text),
 	})
 }
 
 func (log Log) AddWarning(source *Source, loc Loc, text string) {
 	log.AddMsg(Msg{
-		Kind:     Warning,
-		Text:     text,
-		Location: LocationOrNil(source, Range{Loc: loc}),
+		Kind: Warning,
+		Data: RangeData(source, Range{Loc: loc}, text),
 	})
 }
 
 func (log Log) AddRangeError(source *Source, r Range, text string) {
 	log.AddMsg(Msg{
-		Kind:     Error,
-		Text:     text,
-		Location: LocationOrNil(source, r),
+		Kind: Error,
+		Data: RangeData(source, r, text),
 	})
 }
 
 func (log Log) AddRangeWarning(source *Source, r Range, text string) {
 	log.AddMsg(Msg{
-		Kind:     Warning,
+		Kind: Warning,
+		Data: RangeData(source, r, text),
+	})
+}
+
+func (log Log) AddRangeErrorWithNotes(source *Source, r Range, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Error,
+		Data:  RangeData(source, r, text),
+		Notes: notes,
+	})
+}
+
+func (log Log) AddRangeWarningWithNotes(source *Source, r Range, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Warning,
+		Data:  RangeData(source, r, text),
+		Notes: notes,
+	})
+}
+
+func RangeData(source *Source, r Range, text string) MsgData {
+	return MsgData{
 		Text:     text,
 		Location: LocationOrNil(source, r),
-	})
+	}
 }

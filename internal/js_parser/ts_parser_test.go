@@ -351,13 +351,17 @@ export let x;
 })(x || (x = {}));
 `)
 
+	errorText := `<stdin>: error: "foo" has already been declared
+<stdin>: note: "foo" was originally declared here
+`
+
 	// Namespaces with values are not allowed to merge
-	expectParseErrorTS(t, "var foo; namespace foo { 0 }", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "let foo; namespace foo { 0 }", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "const foo = 0; namespace foo { 0 }", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "namespace foo { 0 } var foo", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "namespace foo { 0 } let foo", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "namespace foo { 0 } const foo = 0", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "var foo; namespace foo { 0 }", errorText)
+	expectParseErrorTS(t, "let foo; namespace foo { 0 }", errorText)
+	expectParseErrorTS(t, "const foo = 0; namespace foo { 0 }", errorText)
+	expectParseErrorTS(t, "namespace foo { 0 } var foo", errorText)
+	expectParseErrorTS(t, "namespace foo { 0 } let foo", errorText)
+	expectParseErrorTS(t, "namespace foo { 0 } const foo = 0", errorText)
 
 	// Namespaces without values are allowed to merge
 	expectPrintedTS(t, "var foo; namespace foo {}", "var foo;\n")
@@ -413,10 +417,10 @@ export let x;
   0;
 })(foo || (foo = {}));
 `)
-	expectParseErrorTS(t, "namespace foo { 0 } function foo() {}", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "namespace foo { 0 } function* foo() {}", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "namespace foo { 0 } async function foo() {}", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "namespace foo { 0 } function foo() {}", errorText)
+	expectParseErrorTS(t, "namespace foo { 0 } function* foo() {}", errorText)
+	expectParseErrorTS(t, "namespace foo { 0 } async function foo() {}", errorText)
+	expectParseErrorTS(t, "namespace foo { 0 } class foo {}", errorText)
 	expectPrintedTS(t, "namespace foo { 0 } enum foo { a }", `var foo;
 (function(foo) {
   0;
@@ -464,11 +468,11 @@ async function foo() {
 `)
 
 	// Namespace merging shouldn't allow for other merging
-	expectParseErrorTS(t, "class foo {} namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "class foo {} namespace foo { 0 } enum foo {}", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "enum foo {} namespace foo { 0 } class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "namespace foo { 0 } namespace foo { 0 } let foo", "<stdin>: error: \"foo\" has already been declared\n")
-	expectParseErrorTS(t, "namespace foo { 0 } enum foo {} class foo {}", "<stdin>: error: \"foo\" has already been declared\n")
+	expectParseErrorTS(t, "class foo {} namespace foo { 0 } class foo {}", errorText)
+	expectParseErrorTS(t, "class foo {} namespace foo { 0 } enum foo {}", errorText)
+	expectParseErrorTS(t, "enum foo {} namespace foo { 0 } class foo {}", errorText)
+	expectParseErrorTS(t, "namespace foo { 0 } namespace foo { 0 } let foo", errorText)
+	expectParseErrorTS(t, "namespace foo { 0 } enum foo {} class foo {}", errorText)
 
 	// Test dot nested namespace syntax
 	expectPrintedTS(t, "namespace foo.bar { foo(bar) }", `var foo;
@@ -1265,7 +1269,9 @@ func TestTSImportEquals(t *testing.T) {
 	expectParseErrorTS(t, "export import {foo} from 'bar'", "<stdin>: error: Expected identifier but found \"{\"\n")
 	expectParseErrorTS(t, "export import foo from 'bar'", "<stdin>: error: Expected \"=\" but found \"from\"\n")
 	expectParseErrorTS(t, "export import foo = bar; var x; export {x as foo}",
-		"<stdin>: error: Multiple exports with the same name \"foo\"\n")
+		`<stdin>: error: Multiple exports with the same name "foo"
+<stdin>: note: "foo" was originally exported here
+`)
 	expectParseErrorTS(t, "{ export import foo = bar }", "<stdin>: error: Unexpected \"export\"\n")
 }
 

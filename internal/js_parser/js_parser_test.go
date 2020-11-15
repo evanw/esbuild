@@ -416,38 +416,42 @@ func TestFor(t *testing.T) {
 }
 
 func TestScope(t *testing.T) {
+	errorText := `<stdin>: error: "x" has already been declared
+<stdin>: note: "x" was originally declared here
+`
+
 	expectParseError(t, "var x; var y", "")
 	expectParseError(t, "var x; let y", "")
 	expectParseError(t, "let x; var y", "")
 	expectParseError(t, "let x; let y", "")
 
 	expectParseError(t, "var x; var x", "")
-	expectParseError(t, "var x; let x", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "let x; var x", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "let x; let x", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "function x() {} let x", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "let x; function x() {}", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "var x; let x", errorText)
+	expectParseError(t, "let x; var x", errorText)
+	expectParseError(t, "let x; let x", errorText)
+	expectParseError(t, "function x() {} let x", errorText)
+	expectParseError(t, "let x; function x() {}", errorText)
 
 	expectParseError(t, "var x; {var x}", "")
 	expectParseError(t, "var x; {let x}", "")
-	expectParseError(t, "let x; {var x}", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "let x; {var x}", errorText)
 	expectParseError(t, "let x; {let x}", "")
 	expectParseError(t, "let x; {function x() {}}", "")
 
 	expectParseError(t, "{var x} var x", "")
-	expectParseError(t, "{var x} let x", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "{var x} let x", errorText)
 	expectParseError(t, "{let x} var x", "")
 	expectParseError(t, "{let x} let x", "")
 	expectParseError(t, "{function x() {}} let x", "")
 
 	expectParseError(t, "{var x; {var x}}", "")
 	expectParseError(t, "{var x; {let x}}", "")
-	expectParseError(t, "{let x; {var x}}", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "{let x; {var x}}", errorText)
 	expectParseError(t, "{let x; {let x}}", "")
 	expectParseError(t, "{let x; {function x() {}}}", "")
 
 	expectParseError(t, "{{var x} var x}", "")
-	expectParseError(t, "{{var x} let x}", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "{{var x} let x}", errorText)
 	expectParseError(t, "{{let x} var x}", "")
 	expectParseError(t, "{{let x} let x}", "")
 	expectParseError(t, "{{function x() {}} let x}", "")
@@ -460,19 +464,19 @@ func TestScope(t *testing.T) {
 	expectParseError(t, "{function x() {}} {let x}", "")
 
 	expectParseError(t, "var x=1, x=2", "")
-	expectParseError(t, "let x=1, x=2", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "const x=1, x=2", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "let x=1, x=2", errorText)
+	expectParseError(t, "const x=1, x=2", errorText)
 
 	expectParseError(t, "function foo(x) { var x }", "")
-	expectParseError(t, "function foo(x) { let x }", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "function foo(x) { const x = 0 }", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "function foo(x) { let x }", errorText)
+	expectParseError(t, "function foo(x) { const x = 0 }", errorText)
 	expectParseError(t, "function foo() { var foo }", "")
 	expectParseError(t, "function foo() { let foo }", "")
 	expectParseError(t, "function foo() { const foo = 0 }", "")
 
 	expectParseError(t, "(function foo(x) { var x })", "")
-	expectParseError(t, "(function foo(x) { let x })", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "(function foo(x) { const x = 0 })", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "(function foo(x) { let x })", errorText)
+	expectParseError(t, "(function foo(x) { const x = 0 })", errorText)
 	expectParseError(t, "(function foo() { var foo })", "")
 	expectParseError(t, "(function foo() { let foo })", "")
 	expectParseError(t, "(function foo() { const foo = 0 })", "")
@@ -480,18 +484,18 @@ func TestScope(t *testing.T) {
 	expectParseError(t, "var x; function x() {}", "")
 	expectParseError(t, "var x; function *x() {}", "")
 	expectParseError(t, "var x; async function x() {}", "")
-	expectParseError(t, "let x; function x() {}", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "let x; function x() {}", errorText)
 	expectParseError(t, "function x() {} var x", "")
 	expectParseError(t, "function* x() {} var x", "")
 	expectParseError(t, "async function x() {} var x", "")
-	expectParseError(t, "function x() {} let x", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "function x() {} let x", errorText)
 	expectParseError(t, "function x() {} function x() {}", "")
 
-	expectParseError(t, "var x; class x {}", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "let x; class x {}", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "class x {} var x", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "class x {} let x", "<stdin>: error: \"x\" has already been declared\n")
-	expectParseError(t, "class x {} class x {}", "<stdin>: error: \"x\" has already been declared\n")
+	expectParseError(t, "var x; class x {}", errorText)
+	expectParseError(t, "let x; class x {}", errorText)
+	expectParseError(t, "class x {} var x", errorText)
+	expectParseError(t, "class x {} let x", errorText)
+	expectParseError(t, "class x {} class x {}", errorText)
 }
 
 func TestASI(t *testing.T) {
@@ -1447,21 +1451,30 @@ func TestExportDuplicates(t *testing.T) {
 	expectPrinted(t, "export {x};export default function x() {}", "export {x};\nexport default function x() {\n}\n")
 	expectPrinted(t, "export {x};export default class x {}", "export {x};\nexport default class x {\n}\n")
 
-	expectParseError(t, "export {x, x};let x", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x, y as x};let x, y", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x};export function x() {}", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x};export class x {}", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x};export const x = 0", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x};export let x", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x};export var x", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x};let x;export {x} from 'foo'", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x};let x;export {y as x} from 'foo'", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x};let x;export * as x from 'foo'", "<stdin>: error: Multiple exports with the same name \"x\"\n")
-	expectParseError(t, "export {x as default};let x;export default 0", "<stdin>: error: Multiple exports with the same name \"default\"\n")
-	expectParseError(t, "export {x as default};let x;export default function() {}", "<stdin>: error: Multiple exports with the same name \"default\"\n")
-	expectParseError(t, "export {x as default};let x;export default class {}", "<stdin>: error: Multiple exports with the same name \"default\"\n")
-	expectParseError(t, "export {x as default};export default function x() {}", "<stdin>: error: Multiple exports with the same name \"default\"\n")
-	expectParseError(t, "export {x as default};export default class x {}", "<stdin>: error: Multiple exports with the same name \"default\"\n")
+	errorTextX := `<stdin>: error: Multiple exports with the same name "x"
+<stdin>: note: "x" was originally exported here
+`
+
+	expectParseError(t, "export {x, x};let x", errorTextX)
+	expectParseError(t, "export {x, y as x};let x, y", errorTextX)
+	expectParseError(t, "export {x};export function x() {}", errorTextX)
+	expectParseError(t, "export {x};export class x {}", errorTextX)
+	expectParseError(t, "export {x};export const x = 0", errorTextX)
+	expectParseError(t, "export {x};export let x", errorTextX)
+	expectParseError(t, "export {x};export var x", errorTextX)
+	expectParseError(t, "export {x};let x;export {x} from 'foo'", errorTextX)
+	expectParseError(t, "export {x};let x;export {y as x} from 'foo'", errorTextX)
+	expectParseError(t, "export {x};let x;export * as x from 'foo'", errorTextX)
+
+	errorTextDefault := `<stdin>: error: Multiple exports with the same name "default"
+<stdin>: note: "default" was originally exported here
+`
+
+	expectParseError(t, "export {x as default};let x;export default 0", errorTextDefault)
+	expectParseError(t, "export {x as default};let x;export default function() {}", errorTextDefault)
+	expectParseError(t, "export {x as default};let x;export default class {}", errorTextDefault)
+	expectParseError(t, "export {x as default};export default function x() {}", errorTextDefault)
+	expectParseError(t, "export {x as default};export default class x {}", errorTextDefault)
 }
 
 func TestExportDefault(t *testing.T) {
@@ -1514,11 +1527,15 @@ func TestCatch(t *testing.T) {
 	expectPrinted(t, "try {} catch (e) { if (1) function e() {} }", "try {\n} catch (e) {\n  if (1)\n    function e() {\n    }\n}\n")
 	expectPrinted(t, "try {} catch (e) { if (0) ; else function e() {} }", "try {\n} catch (e) {\n  if (0)\n    ;\n  else\n    function e() {\n    }\n}\n")
 
-	expectParseError(t, "try {} catch (e) { function e() {} }", "<stdin>: error: \"e\" has already been declared\n")
-	expectParseError(t, "try {} catch ({e}) { var e }", "<stdin>: error: \"e\" has already been declared\n")
-	expectParseError(t, "try {} catch ({e}) { function e() {} }", "<stdin>: error: \"e\" has already been declared\n")
-	expectParseError(t, "try {} catch (e) { let e }", "<stdin>: error: \"e\" has already been declared\n")
-	expectParseError(t, "try {} catch (e) { const e = 0 }", "<stdin>: error: \"e\" has already been declared\n")
+	errorText := `<stdin>: error: "e" has already been declared
+<stdin>: note: "e" was originally declared here
+`
+
+	expectParseError(t, "try {} catch (e) { function e() {} }", errorText)
+	expectParseError(t, "try {} catch ({e}) { var e }", errorText)
+	expectParseError(t, "try {} catch ({e}) { function e() {} }", errorText)
+	expectParseError(t, "try {} catch (e) { let e }", errorText)
+	expectParseError(t, "try {} catch (e) { const e = 0 }", errorText)
 }
 
 func TestWarningEqualsNegativeZero(t *testing.T) {
@@ -3011,20 +3028,24 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectParseError(t, "class Foo { #\\u0020oo }", "<stdin>: error: Invalid identifier: \"# oo\"\n")
 	expectParseError(t, "class Foo { #fo\\u0020 }", "<stdin>: error: Invalid identifier: \"#fo \"\n")
 
+	errorText := `<stdin>: error: "#foo" has already been declared
+<stdin>: note: "#foo" was originally declared here
+`
+
 	// Scope tests
-	expectParseError(t, "class Foo { #foo; #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { #foo; static #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { static #foo; #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { #foo; #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { #foo; get #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { #foo; set #foo(x) {} }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { get #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { set #foo(x) {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { get #foo() {} get #foo() {} }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { set #foo(x) {} set #foo(x) {} }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { get #foo() {} set #foo(x) {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
-	expectParseError(t, "class Foo { set #foo(x) {} get #foo() {} #foo }", "<stdin>: error: \"#foo\" has already been declared\n")
+	expectParseError(t, "class Foo { #foo; #foo }", errorText)
+	expectParseError(t, "class Foo { #foo; static #foo }", errorText)
+	expectParseError(t, "class Foo { static #foo; #foo }", errorText)
+	expectParseError(t, "class Foo { #foo; #foo() {} }", errorText)
+	expectParseError(t, "class Foo { #foo; get #foo() {} }", errorText)
+	expectParseError(t, "class Foo { #foo; set #foo(x) {} }", errorText)
+	expectParseError(t, "class Foo { #foo() {} #foo }", errorText)
+	expectParseError(t, "class Foo { get #foo() {} #foo }", errorText)
+	expectParseError(t, "class Foo { set #foo(x) {} #foo }", errorText)
+	expectParseError(t, "class Foo { get #foo() {} get #foo() {} }", errorText)
+	expectParseError(t, "class Foo { set #foo(x) {} set #foo(x) {} }", errorText)
+	expectParseError(t, "class Foo { get #foo() {} set #foo(x) {} #foo }", errorText)
+	expectParseError(t, "class Foo { set #foo(x) {} get #foo() {} #foo }", errorText)
 	expectPrinted(t, "class Foo { get #foo() {} set #foo(x) { this.#foo } }",
 		"class Foo {\n  get #foo() {\n  }\n  set #foo(x) {\n    this.#foo;\n  }\n}\n")
 	expectPrinted(t, "class Foo { set #foo(x) { this.#foo } get #foo() {} }",

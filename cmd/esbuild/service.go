@@ -566,7 +566,7 @@ func decodeMessages(values []interface{}) []api.Message {
 }
 
 func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
-	msg := logger.Msg{Text: obj["text"].(string)}
+	msg := logger.Msg{Data: logger.MsgData{Text: obj["text"].(string)}}
 
 	// Some messages won't have a location
 	loc := obj["location"]
@@ -576,7 +576,7 @@ func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
 		if namespace == "" {
 			namespace = "file"
 		}
-		msg.Location = &logger.MsgLocation{
+		msg.Data.Location = &logger.MsgLocation{
 			File:      loc["file"].(string),
 			Namespace: namespace,
 			Line:      loc["line"].(int),

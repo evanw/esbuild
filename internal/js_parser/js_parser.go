@@ -103,7 +103,7 @@ type parser struct {
 	importItemsForNamespace map[js_ast.Ref]map[string]js_ast.LocRef
 	isImportItem            map[js_ast.Ref]bool
 	namedImports            map[js_ast.Ref]js_ast.NamedImport
-	namedExports            map[string]js_ast.Ref
+	namedExports            map[string]js_ast.NamedExport
 	topLevelSymbolToParts   map[js_ast.Ref][]uint32
 
 	// The parser does two passes and we need to pass the scope tree information
@@ -891,7 +891,9 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 		switch p.canMergeSymbols(symbol.Kind, kind) {
 		case mergeForbidden:
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", name))
+			p.log.AddRangeErrorWithNotes(&p.source, r, fmt.Sprintf("%q has already been declared", name),
+				[]logger.MsgData{logger.RangeData(&p.source, js_lexer.RangeOfIdentifier(p.source, existing.Loc),
+					fmt.Sprintf("%q was originally declared here", name))})
 			return existing.Ref
 
 		case mergeKeepExisting:
@@ -959,7 +961,9 @@ nextMember:
 						// declaration can both silently shadow another hoisted symbol
 						if symbol.Kind != js_ast.SymbolCatchIdentifier && symbol.Kind != js_ast.SymbolHoistedFunction {
 							r := js_lexer.RangeOfIdentifier(p.source, member.Loc)
-							p.log.AddRangeError(&p.source, r, fmt.Sprintf("%q has already been declared", symbol.OriginalName))
+							p.log.AddRangeErrorWithNotes(&p.source, r, fmt.Sprintf("%q has already been declared", symbol.OriginalName),
+								[]logger.MsgData{logger.RangeData(&p.source, js_lexer.RangeOfIdentifier(p.source, existingMember.Loc),
+									fmt.Sprintf("%q was originally declared here", symbol.OriginalName))})
 						}
 						continue nextMember
 					}
@@ -9705,12 +9709,14 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 }
 
 func (p *parser) recordExport(loc logger.Loc, alias string, ref js_ast.Ref) {
-	if _, ok := p.namedExports[alias]; ok {
+	if name, ok := p.namedExports[alias]; ok {
 		// Duplicate exports are an error
-		p.log.AddRangeError(&p.source, js_lexer.RangeOfIdentifier(p.source, loc),
-			fmt.Sprintf("Multiple exports with the same name %q", alias))
+		p.log.AddRangeErrorWithNotes(&p.source, js_lexer.RangeOfIdentifier(p.source, loc),
+			fmt.Sprintf("Multiple exports with the same name %q", alias),
+			[]logger.MsgData{logger.RangeData(&p.source, js_lexer.RangeOfIdentifier(p.source, name.AliasLoc),
+				fmt.Sprintf("%q was originally exported here", alias))})
 	} else {
-		p.namedExports[alias] = ref
+		p.namedExports[alias] = js_ast.NamedExport{AliasLoc: loc, Ref: ref}
 	}
 }
 
@@ -10527,7 +10533,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		importItemsForNamespace: make(map[js_ast.Ref]map[string]js_ast.LocRef),
 		isImportItem:            make(map[js_ast.Ref]bool),
 		namedImports:            make(map[js_ast.Ref]js_ast.NamedImport),
-		namedExports:            make(map[string]js_ast.Ref),
+		namedExports:            make(map[string]js_ast.NamedExport),
 	}
 
 	p.findSymbolHelper = func(loc logger.Loc, name string) js_ast.Ref { return p.findSymbol(loc, name).ref }

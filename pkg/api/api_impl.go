@@ -396,7 +396,7 @@ func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
 	for _, msg := range msgs {
 		if msg.Kind == kind {
 			var location *Location
-			loc := msg.Location
+			loc := msg.Data.Location
 
 			if loc != nil {
 				location = &Location{
@@ -410,7 +410,7 @@ func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
 			}
 
 			filtered = append(filtered, Message{
-				Text:     msg.Text,
+				Text:     msg.Data.Text,
 				Location: location,
 			})
 		}
@@ -439,9 +439,11 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 		}
 
 		msgs = append(msgs, logger.Msg{
-			Kind:     kind,
-			Text:     message.Text,
-			Location: location,
+			Kind: kind,
+			Data: logger.MsgData{
+				Text:     message.Text,
+				Location: location,
+			},
 		})
 	}
 	return msgs
@@ -821,10 +823,10 @@ func (impl *pluginImpl) OnResolve(options OnResolveOptions, callback func(OnReso
 
 			// Convert log messages
 			if len(response.Errors)+len(response.Warnings) > 0 {
-				msgs := make(sortableMsgs, 0, len(response.Errors)+len(response.Warnings))
+				msgs := make(logger.SortableMsgs, 0, len(response.Errors)+len(response.Warnings))
 				msgs = convertMessagesToInternal(msgs, logger.Error, response.Errors)
 				msgs = convertMessagesToInternal(msgs, logger.Warning, response.Warnings)
-				sort.Sort(msgs)
+				sort.Stable(msgs)
 				result.Msgs = msgs
 			}
 			return
@@ -862,39 +864,15 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 
 			// Convert log messages
 			if len(response.Errors)+len(response.Warnings) > 0 {
-				msgs := make(sortableMsgs, 0, len(response.Errors)+len(response.Warnings))
+				msgs := make(logger.SortableMsgs, 0, len(response.Errors)+len(response.Warnings))
 				msgs = convertMessagesToInternal(msgs, logger.Error, response.Errors)
 				msgs = convertMessagesToInternal(msgs, logger.Warning, response.Warnings)
-				sort.Sort(msgs)
+				sort.Stable(msgs)
 				result.Msgs = msgs
 			}
 			return
 		},
 	})
-}
-
-// This type is just so we can use Go's native sort function
-type sortableMsgs []logger.Msg
-
-func (a sortableMsgs) Len() int          { return len(a) }
-func (a sortableMsgs) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
-
-func (a sortableMsgs) Less(i int, j int) bool {
-	ai := a[i].Location
-	aj := a[j].Location
-	if ai == nil || aj == nil {
-		return ai == nil && aj != nil
-	}
-	if ai.File != aj.File {
-		return ai.File < aj.File
-	}
-	if ai.Line != aj.Line {
-		return ai.Line < aj.Line
-	}
-	if ai.Column != aj.Column {
-		return ai.Column < aj.Column
-	}
-	return a[i].Text < a[j].Text
 }
 
 func loadPlugins(options *config.Options, fs fs.FS, log logger.Log, plugins []Plugin) {
