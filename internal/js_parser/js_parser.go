@@ -3540,7 +3540,7 @@ func (p *parser) parseJSXTag() (logger.Range, string, *js_ast.Expr) {
 
 func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	// Parse the tag
-	_, startText, startTag := p.parseJSXTag()
+	startRange, startText, startTag := p.parseJSXTag()
 
 	// The tag may have TypeScript type arguments: "<Foo<T>/>"
 	if p.TS.Parse {
@@ -3665,7 +3665,8 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			p.lexer.NextInsideJSXElement()
 			endRange, endText, _ := p.parseJSXTag()
 			if startText != endText {
-				p.log.AddRangeError(&p.source, endRange, fmt.Sprintf("Expected closing tag %q to match opening tag %q", endText, startText))
+				p.log.AddRangeErrorWithNotes(&p.source, endRange, fmt.Sprintf("Expected closing tag %q to match opening tag %q", endText, startText),
+					[]logger.MsgData{logger.RangeData(&p.source, startRange, fmt.Sprintf("The opening tag %q is here", startText))})
 			}
 			if p.lexer.Token != js_lexer.TGreaterThan {
 				p.lexer.Expected(js_lexer.TGreaterThan)

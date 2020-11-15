@@ -2511,8 +2511,11 @@ func TestJSX(t *testing.T) {
 
 	expectParseErrorJSX(t, "<a b=true/>", "<stdin>: error: Expected \"{\" but found \"true\"\n")
 	expectParseErrorJSX(t, "</a>", "<stdin>: error: Expected identifier but found \"/\"\n")
-	expectParseErrorJSX(t, "<a></b>", "<stdin>: error: Expected closing tag \"b\" to match opening tag \"a\"\n")
-	expectParseErrorJSX(t, "<\na\n.\nb\n>\n<\n/\nc\n.\nd\n>", "<stdin>: error: Expected closing tag \"c.d\" to match opening tag \"a.b\"\n")
+	expectParseErrorJSX(t, "<></b>", "<stdin>: error: Expected closing tag \"b\" to match opening tag \"\"\n<stdin>: note: The opening tag \"\" is here\n")
+	expectParseErrorJSX(t, "<a></>", "<stdin>: error: Expected closing tag \"\" to match opening tag \"a\"\n<stdin>: note: The opening tag \"a\" is here\n")
+	expectParseErrorJSX(t, "<a></b>", "<stdin>: error: Expected closing tag \"b\" to match opening tag \"a\"\n<stdin>: note: The opening tag \"a\" is here\n")
+	expectParseErrorJSX(t, "<\na\n.\nb\n>\n<\n/\nc\n.\nd\n>",
+		"<stdin>: error: Expected closing tag \"c.d\" to match opening tag \"a.b\"\n<stdin>: note: The opening tag \"a.b\" is here\n")
 	expectParseErrorJSX(t, "<a-b.c>", "<stdin>: error: Expected \">\" but found \".\"\n")
 	expectParseErrorJSX(t, "<a.b-c>", "<stdin>: error: Unexpected \"-\"\n")
 	expectParseErrorJSX(t, "<a:b>", "<stdin>: error: Expected \">\" but found \":\"\n")
