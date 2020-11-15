@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+* Be more permissive inside TypeScript `declare` contexts
+
+    These cases are now allowed by esbuild:
+
+    * TypeScript supports a special `global { ... }` block inside `declare module`
+    * TypeScript allows arbitrary import and export statements inside `declare module`
+    * The TypeScript-specific `export as namespace name;` syntax is now ignored inside `declare module`.
+    * A trailing comma after a rest argument is disallowed in JavaScript but is allowed in TypeScript if you use `declare function`
+
 ## 0.8.7
 
 * `--public-path` now affects code splitting chunk imports ([#524](https://github.com/evanw/esbuild/issues/524))

@@ -221,14 +221,15 @@ type scopeOrder struct {
 // restored on the call stack around code that parses nested functions and
 // arrow expressions.
 type fnOrArrowDataParse struct {
-	asyncRange     logger.Range
-	arrowArgErrors *deferredArrowArgErrors
-	isOutsideFn    bool
-	allowAwait     bool
-	allowYield     bool
-	allowSuperCall bool
-	isTopLevel     bool
-	isConstructor  bool
+	asyncRange          logger.Range
+	arrowArgErrors      *deferredArrowArgErrors
+	isOutsideFn         bool
+	allowAwait          bool
+	allowYield          bool
+	allowSuperCall      bool
+	isTopLevel          bool
+	isConstructor       bool
+	isTypeScriptDeclare bool
 
 	// In TypeScript, forward declarations of functions have no bodies
 	allowMissingBodyForTypeScript bool
@@ -4145,7 +4146,14 @@ func (p *parser) parseFn(name *js_ast.LocRef, data fnOrArrowDataParse) (fn js_as
 			break
 		}
 		if fn.HasRestArg {
-			p.lexer.Expect(js_lexer.TCloseParen)
+			// JavaScript does not allow a comma after a rest argument
+			if data.isTypeScriptDeclare {
+				// TypeScript does allow a comma after a rest argument in a "declare" context
+				p.lexer.Next()
+			} else {
+				p.lexer.Expect(js_lexer.TCloseParen)
+			}
+			break
 		}
 		p.lexer.Next()
 	}
@@ -4386,9 +4394,10 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, p.lexer.Loc())
 
 	fn, hadBody := p.parseFn(name, fnOrArrowDataParse{
-		asyncRange: asyncRange,
-		allowAwait: isAsync,
-		allowYield: isGenerator,
+		asyncRange:          asyncRange,
+		allowAwait:          isAsync,
+		allowYield:          isGenerator,
+		isTypeScriptDeclare: opts.isTypeScriptDeclare,
 
 		// Only allow omitting the body if we're parsing TypeScript
 		allowMissingBodyForTypeScript: p.TS.Parse,
@@ -4514,6 +4523,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				return p.parseStmt(opts)
 			}
 
+			if opts.isTypeScriptDeclare && p.lexer.IsContextualKeyword("as") {
+				// "export as namespace ns;"
+				p.lexer.Next()
+				p.lexer.ExpectContextualKeyword("namespace")
+				p.lexer.Expect(js_lexer.TIdentifier)
+				p.lexer.ExpectOrInsertSemicolon()
+				return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+			}
+
 			if p.lexer.IsContextualKeyword("async") {
 				// "export async function foo() {}"
 				asyncRange := p.lexer.Range()
@@ -4561,7 +4579,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			return js_ast.Stmt{}
 
 		case js_lexer.TDefault:
-			if !opts.isModuleScope {
+			if !opts.isModuleScope && (!opts.isNamespaceScope || !opts.isTypeScriptDeclare) {
 				p.lexer.Unexpected()
 			}
 
@@ -4674,7 +4692,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Expr: &expr}}}
 
 		case js_lexer.TAsterisk:
-			if !opts.isModuleScope {
+			if !opts.isModuleScope && (!opts.isNamespaceScope || !opts.isTypeScriptDeclare) {
 				p.lexer.Unexpected()
 			}
 
@@ -4714,7 +4732,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			}}
 
 		case js_lexer.TOpenBrace:
-			if !opts.isModuleScope {
+			if !opts.isModuleScope && (!opts.isNamespaceScope || !opts.isTypeScriptDeclare) {
 				p.lexer.Unexpected()
 			}
 
@@ -5137,7 +5155,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		// "export import foo = bar"
 		// "import foo = bar" in a namespace
-		if (opts.isExport || opts.isNamespaceScope) && p.lexer.Token != js_lexer.TIdentifier {
+		if (opts.isExport || (opts.isNamespaceScope && !opts.isTypeScriptDeclare)) && p.lexer.Token != js_lexer.TIdentifier {
 			p.lexer.Expected(js_lexer.TIdentifier)
 		}
 
@@ -5151,14 +5169,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		case js_lexer.TStringLiteral, js_lexer.TNoSubstitutionTemplateLiteral:
 			// "import 'path'"
-			if !opts.isModuleScope {
+			if !opts.isModuleScope && (!opts.isNamespaceScope || !opts.isTypeScriptDeclare) {
 				p.lexer.Unexpected()
 				return js_ast.Stmt{}
 			}
 
 		case js_lexer.TAsterisk:
 			// "import * as ns from 'path'"
-			if !opts.isModuleScope {
+			if !opts.isModuleScope && (!opts.isNamespaceScope || !opts.isTypeScriptDeclare) {
 				p.lexer.Unexpected()
 				return js_ast.Stmt{}
 			}
@@ -5173,7 +5191,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		case js_lexer.TOpenBrace:
 			// "import {item1, item2} from 'path'"
-			if !opts.isModuleScope {
+			if !opts.isModuleScope && (!opts.isNamespaceScope || !opts.isTypeScriptDeclare) {
 				p.lexer.Unexpected()
 				return js_ast.Stmt{}
 			}
@@ -5230,7 +5248,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				}
 
 				// Parse TypeScript import assignment statements
-				if p.lexer.Token == js_lexer.TEquals || opts.isExport || opts.isNamespaceScope {
+				if p.lexer.Token == js_lexer.TEquals || opts.isExport || (opts.isNamespaceScope && !opts.isTypeScriptDeclare) {
 					return p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName)
 				}
 			}
@@ -5425,6 +5443,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					case "abstract":
 						if p.lexer.Token == js_lexer.TClass || opts.tsDecorators != nil {
 							return p.parseClassStmt(loc, opts)
+						}
+
+					case "global":
+						// "declare module 'fs' { global { namespace NodeJS {} } }"
+						if opts.isNamespaceScope && opts.isTypeScriptDeclare && p.lexer.Token == js_lexer.TOpenBrace {
+							p.lexer.Next()
+							p.parseStmtsUpTo(js_lexer.TCloseBrace, opts)
+							p.lexer.Next()
+							return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 						}
 
 					case "declare":
