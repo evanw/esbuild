@@ -195,7 +195,7 @@ func (lexer *lexer) next() {
 			switch lexer.codePoint {
 			case '*':
 				lexer.step()
-				lexer.consumeToEndOfMultiLineComment()
+				lexer.consumeToEndOfMultiLineComment(lexer.Token.Range)
 				continue
 			case '/':
 				lexer.step()
@@ -210,9 +210,10 @@ func (lexer *lexer) next() {
 				if isWhitespace(lexer.codePoint) {
 					lexer.step()
 				} else if lexer.codePoint == '/' && lexer.current < len(lexer.source.Contents) && lexer.source.Contents[lexer.current] == '*' {
+					startRange := logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}, Len: 2}
 					lexer.step()
 					lexer.step()
-					lexer.consumeToEndOfMultiLineComment()
+					lexer.consumeToEndOfMultiLineComment(startRange)
 				} else {
 					break
 				}
@@ -384,7 +385,7 @@ func (lexer *lexer) next() {
 	}
 }
 
-func (lexer *lexer) consumeToEndOfMultiLineComment() {
+func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 	for {
 		switch lexer.codePoint {
 		case '*':
@@ -395,7 +396,8 @@ func (lexer *lexer) consumeToEndOfMultiLineComment() {
 			}
 
 		case eof: // This indicates the end of the file
-			lexer.log.AddError(&lexer.source, logger.Loc{Start: lexer.Token.Range.End()}, "Expected \"*/\" to terminate multi-line comment")
+			lexer.log.AddErrorWithNotes(&lexer.source, logger.Loc{Start: lexer.Token.Range.End()}, "Expected \"*/\" to terminate multi-line comment",
+				[]logger.MsgData{logger.RangeData(&lexer.source, startRange, "The multi-line comment starts here")})
 			return
 
 		default:

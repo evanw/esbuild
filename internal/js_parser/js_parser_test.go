@@ -2542,6 +2542,20 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<\U00020000/>", "/* @__PURE__ */ React.createElement(\U00020000, null);\n")
 	expectPrintedJSX(t, "<a>\U00020000</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"\U00020000\");\n")
 	expectPrintedJSX(t, "<a \U00020000={0}/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  \U00020000: 0\n});\n")
+
+	// Comment tests
+	expectParseErrorJSX(t, "<a /* />", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
+	expectParseErrorJSX(t, "<a /*/ />", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
+	expectParseErrorJSX(t, "<a // />", "<stdin>: error: Expected \">\" but found end of file\n")
+	expectParseErrorJSX(t, "<a /**/>", "<stdin>: error: Unexpected end of file\n")
+	expectParseErrorJSX(t, "<a /**/ />", "")
+	expectParseErrorJSX(t, "<a // \n />", "")
+	expectParseErrorJSX(t, "<a b/* />", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
+	expectParseErrorJSX(t, "<a b/*/ />", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
+	expectParseErrorJSX(t, "<a b// />", "<stdin>: error: Expected \">\" but found end of file\n")
+	expectParseErrorJSX(t, "<a b/**/>", "<stdin>: error: Unexpected end of file\n")
+	expectParseErrorJSX(t, "<a b/**/ />", "")
+	expectParseErrorJSX(t, "<a b// \n />", "")
 }
 
 func TestJSXPragmas(t *testing.T) {

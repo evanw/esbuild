@@ -122,8 +122,8 @@ func TestURLParsing(t *testing.T) {
 }
 
 func TestComment(t *testing.T) {
-	test.AssertEqual(t, lexerError("/*"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n")
-	test.AssertEqual(t, lexerError("/*/"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n")
+	test.AssertEqual(t, lexerError("/*"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
+	test.AssertEqual(t, lexerError("/*/"), "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
 	test.AssertEqual(t, lexerError("/**/"), "")
 	test.AssertEqual(t, lexerError("//"), "<stdin>: warning: Comments in CSS use \"/* ... */\" instead of \"//\"\n")
 }

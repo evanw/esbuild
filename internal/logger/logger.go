@@ -754,6 +754,14 @@ func (log Log) AddError(source *Source, loc Loc, text string) {
 	})
 }
 
+func (log Log) AddErrorWithNotes(source *Source, loc Loc, text string, notes []MsgData) {
+	log.AddMsg(Msg{
+		Kind:  Error,
+		Data:  RangeData(source, Range{Loc: loc}, text),
+		Notes: notes,
+	})
+}
+
 func (log Log) AddWarning(source *Source, loc Loc, text string) {
 	log.AddMsg(Msg{
 		Kind: Warning,

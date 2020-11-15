@@ -825,6 +825,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 
 			case '*':
 				lexer.step()
+				startRange := lexer.Range()
 			multiLineComment:
 				for {
 					switch lexer.codePoint {
@@ -841,7 +842,8 @@ func (lexer *Lexer) NextInsideJSXElement() {
 
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
-						lexer.addError(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment")
+						lexer.addErrorWithNotes(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment",
+							[]logger.MsgData{logger.RangeData(&lexer.source, startRange, "The multi-line comment starts here")})
 						panic(LexerPanic{})
 
 					default:
@@ -1223,6 +1225,7 @@ func (lexer *Lexer) Next() {
 
 			case '*':
 				lexer.step()
+				startRange := lexer.Range()
 			multiLineComment:
 				for {
 					switch lexer.codePoint {
@@ -1239,7 +1242,8 @@ func (lexer *Lexer) Next() {
 
 					case -1: // This indicates the end of the file
 						lexer.start = lexer.end
-						lexer.addError(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment")
+						lexer.addErrorWithNotes(lexer.Loc(), "Expected \"*/\" to terminate multi-line comment",
+							[]logger.MsgData{logger.RangeData(&lexer.source, startRange, "The multi-line comment starts here")})
 						panic(LexerPanic{})
 
 					default:
@@ -2323,6 +2327,12 @@ func (lexer *Lexer) step() {
 func (lexer *Lexer) addError(loc logger.Loc, text string) {
 	if !lexer.IsLogDisabled {
 		lexer.log.AddError(&lexer.source, loc, text)
+	}
+}
+
+func (lexer *Lexer) addErrorWithNotes(loc logger.Loc, text string, notes []logger.MsgData) {
+	if !lexer.IsLogDisabled {
+		lexer.log.AddErrorWithNotes(&lexer.source, loc, text, notes)
 	}
 }
 

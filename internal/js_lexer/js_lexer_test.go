@@ -59,6 +59,13 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 	})
 }
 
+func TestComment(t *testing.T) {
+	expectLexerError(t, "/*", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
+	expectLexerError(t, "/*/", "<stdin>: error: Expected \"*/\" to terminate multi-line comment\n<stdin>: note: The multi-line comment starts here\n")
+	expectLexerError(t, "/**/", "")
+	expectLexerError(t, "//", "")
+}
+
 func expectHashbang(t *testing.T, contents string, expected string) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
