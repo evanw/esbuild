@@ -9491,8 +9491,11 @@ func (p *parser) maybeRewritePropertyAccess(
 		// If this is a known enum value, inline the value of the enum
 		if p.options.ts.Parse && optionalChain == js_ast.OptionalChainNone {
 			if enumValueMap, ok := p.knownEnumValues[id.Ref]; ok {
-				if number, ok := enumValueMap[name]; ok {
-					return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: number}}, true
+				if enumValue, ok := enumValueMap[name]; ok {
+					return js_ast.Expr{Loc: loc, Data: enumValue}, true
+				} else {
+					r := js_lexer.RangeOfIdentifier(p.source, loc)
+					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Unknown member %s on enum %s", name, p.symbols[id.Ref.InnerIndex].OriginalName))
 				}
 			}
 		}
@@ -11603,8 +11606,11 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 
 			// If this is a known enum value, inline the value of the enum
 			if enumValueMap, ok := p.knownEnumValues[nsRef]; ok {
-				if number, ok := enumValueMap[name]; ok {
-					return js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: number}}
+				if enumValue, ok := enumValueMap[name]; ok {
+					return js_ast.Expr{Loc: loc, Data: enumValue}
+				} else {
+					r := js_lexer.RangeOfIdentifier(p.source, loc)
+					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Unknown member %s on enum %s", name, p.symbols[nsRef.InnerIndex].OriginalName))
 				}
 			}
 
