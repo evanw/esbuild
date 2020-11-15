@@ -81,7 +81,7 @@ type parser struct {
 	shouldFoldNumericConstants bool
 	emittedNamespaceVars       map[js_ast.Ref]bool
 	isExportedInsideNamespace  map[js_ast.Ref]js_ast.Ref
-	knownEnumValues            map[js_ast.Ref]map[string]float64
+	knownEnumValues            map[js_ast.Ref]map[string]js_ast.E
 	localTypeNames             map[string]bool
 
 	// This is the reference to the generated function argument for the namespace,
@@ -8588,7 +8588,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Track values so they can be used by constant folding. We need to follow
 		// links here in case the enum was merged with a preceding namespace.
-		valuesSoFar := make(map[string]float64)
+		valuesSoFar := make(map[string]js_ast.E)
 		p.knownEnumValues[s.Name.Ref] = valuesSoFar
 		p.knownEnumValues[s.Arg] = valuesSoFar
 
@@ -8609,11 +8609,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				hasNumericValue = false
 				switch e := value.Value.Data.(type) {
 				case *js_ast.ENumber:
-					valuesSoFar[name] = e.Value
+					valuesSoFar[name] = e
 					hasNumericValue = true
 					nextNumericValue = e.Value + 1
 				case *js_ast.EString:
 					hasStringValue = true
+					if s.IsConst {
+						valuesSoFar[name] = e
+					}
 				default:
 					if s.IsConst {
 						r := js_lexer.RangeOfIdentifier(p.source, value.Value.Loc)
@@ -8621,7 +8624,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					}
 				}
 			} else if hasNumericValue {
-				valuesSoFar[name] = nextNumericValue
+				valuesSoFar[name] = &js_ast.ENumber{Value: nextNumericValue}
 				value.Value = &js_ast.Expr{Loc: value.Loc, Data: &js_ast.ENumber{Value: nextNumericValue}}
 				nextNumericValue++
 			} else {
@@ -12672,7 +12675,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		// These are for TypeScript
 		emittedNamespaceVars:      make(map[js_ast.Ref]bool),
 		isExportedInsideNamespace: make(map[js_ast.Ref]js_ast.Ref),
-		knownEnumValues:           make(map[js_ast.Ref]map[string]float64),
+		knownEnumValues:           make(map[js_ast.Ref]map[string]js_ast.E),
 		localTypeNames:            make(map[string]bool),
 
 		// These are for handling ES6 imports and exports
