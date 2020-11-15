@@ -264,10 +264,14 @@ func TestDecls(t *testing.T) {
 
 	expectParseError(t, "var x", "")
 	expectParseError(t, "let x", "")
-	expectParseError(t, "const x", "<stdin>: error: This constant must be initialized\n")
+	expectParseError(t, "const x", "<stdin>: error: The constant \"x\" must be initialized\n")
+	expectParseError(t, "const {}", "<stdin>: error: This constant must be initialized\n")
+	expectParseError(t, "const []", "<stdin>: error: This constant must be initialized\n")
 	expectParseError(t, "for (var x;;) ;", "")
 	expectParseError(t, "for (let x;;) ;", "")
-	expectParseError(t, "for (const x;;) ;", "<stdin>: error: This constant must be initialized\n")
+	expectParseError(t, "for (const x;;) ;", "<stdin>: error: The constant \"x\" must be initialized\n")
+	expectParseError(t, "for (const {};;) ;", "<stdin>: error: This constant must be initialized\n")
+	expectParseError(t, "for (const [];;) ;", "<stdin>: error: This constant must be initialized\n")
 
 	// Make sure bindings are visited during parsing
 	expectPrinted(t, "var {[x]: y} = {}", "var {[x]: y} = {};\n")

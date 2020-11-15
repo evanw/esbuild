@@ -3743,7 +3743,11 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 func (p *parser) requireInitializers(decls []js_ast.Decl) {
 	for _, d := range decls {
 		if d.Value == nil {
-			if _, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+			if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+				r := js_lexer.RangeOfIdentifier(p.source, d.Binding.Loc)
+				p.log.AddRangeError(&p.source, r, fmt.Sprintf("The constant %q must be initialized",
+					p.symbols[id.Ref.InnerIndex].OriginalName))
+			} else {
 				p.log.AddError(&p.source, d.Binding.Loc, "This constant must be initialized")
 			}
 		}
