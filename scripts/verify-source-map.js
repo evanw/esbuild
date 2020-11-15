@@ -376,6 +376,11 @@ async function main() {
           entryPoints: ['entry.js'],
           crlf,
         }),
+        check('banner-footer' + suffix, testCaseES6, toSearchBundle, {
+          flags: flags.concat('--outfile=out.js', '--bundle', '--banner="/* LICENSE abc */"', '--footer="/* end of file banner */"'),
+          entryPoints: ['a.js'],
+          crlf,
+        }),
       )
     }
   }

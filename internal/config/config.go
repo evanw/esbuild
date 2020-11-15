@@ -201,6 +201,8 @@ type Options struct {
 	PublicPath        string
 	InjectAbsPaths    []string
 	InjectedFiles     []InjectedFile
+	Banner            string
+	Footer            string
 
 	Plugins []Plugin
 

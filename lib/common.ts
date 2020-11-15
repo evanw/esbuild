@@ -89,6 +89,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let avoidTDZ = getFlag(options, keys, 'avoidTDZ', mustBeBoolean);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
+  let banner = getFlag(options, keys, 'banner', mustBeString);
+  let footer = getFlag(options, keys, 'footer', mustBeString);
 
   if (target) {
     if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)
@@ -114,6 +116,9 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
   if (avoidTDZ) flags.push(`--avoid-tdz`);
   if (keepNames) flags.push(`--keep-names`);
+
+  if (banner) flags.push(`--banner=${banner}`);
+  if (footer) flags.push(`--footer=${footer}`);
 }
 
 function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel):

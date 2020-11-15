@@ -3400,6 +3400,13 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 			}
 		}
 
+		if len(c.options.Banner) > 0 {
+			prevOffset.advanceString(c.options.Banner)
+			prevOffset.advanceString("\n")
+			j.AddString(c.options.Banner)
+			j.AddString("\n")
+		}
+
 		// Optionally wrap with an IIFE
 		if c.options.OutputFormat == config.FormatIIFE {
 			var text string
@@ -3631,6 +3638,11 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		sort.Strings(commentList)
 		for _, text := range commentList {
 			j.AddString(text)
+			j.AddString("\n")
+		}
+
+		if len(c.options.Footer) > 0 {
+			j.AddString(c.options.Footer)
 			j.AddString("\n")
 		}
 

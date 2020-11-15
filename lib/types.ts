@@ -22,6 +22,8 @@ interface CommonOptions {
   pure?: string[];
   avoidTDZ?: boolean;
   keepNames?: boolean;
+  banner?: string;
+  footer?: string;
 
   color?: boolean;
   logLevel?: LogLevel;
