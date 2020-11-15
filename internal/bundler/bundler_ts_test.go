@@ -187,6 +187,29 @@ func TestTSValidConstEnum(t *testing.T) {
 	})
 }
 
+func TestTSImportConstEnum(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/common.ts": `
+				export const enum Foo {
+					A = 1,
+					B = 'a',
+				}
+			`,
+			"/entry.ts": `
+				import { Foo } from './common';
+				
+				let usage = bar(Foo.A, Foo.B)
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTSDeclareEnum(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
