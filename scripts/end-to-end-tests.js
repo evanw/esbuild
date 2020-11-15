@@ -1808,6 +1808,32 @@
     )
   }
 
+  // Test injecting banner and footer
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--banner=const bannerDefined = true;'], {
+      'in.js': `if (!bannerDefined) throw 'fail'`
+    }),
+    test(['in.js', '--outfile=node.js', '--footer=function footer() { }'], {
+      'in.js': `footer()`
+    }),
+    test(['a.js', 'b.js', '--outdir=out', '--bundle', '--format=cjs', '--banner=const bannerDefined = true;', '--footer=function footer() { }'], {
+      'a.js': `
+        module.exports = { banner: bannerDefined, footer };
+      `,
+      'b.js': `
+        module.exports = { banner: bannerDefined, footer };
+      `,
+      'node.js': `
+        const a = require('./out/a');
+        const b = require('./out/b');
+
+        if (!a.banner || !b.banner) throw 'fail';
+        a.footer();
+        b.footer();
+      `
+    }),
+  )
+
   // Test writing to stdout
   tests.push(
     // These should succeed

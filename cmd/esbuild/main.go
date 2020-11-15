@@ -31,6 +31,8 @@ Options:
                         is browser and cjs when platform is node)
   --splitting           Enable code splitting (currently only for esm)
   --global-name=...     The name of the global for the IIFE format
+	--banner=...          Text to be prepended to each output file
+	--footer=...          Text to be appended to each output file
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace

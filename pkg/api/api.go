@@ -230,6 +230,8 @@ type BuildOptions struct {
 	OutExtensions     map[string]string
 	PublicPath        string
 	Inject            []string
+	Banner            string
+	Footer            string
 
 	EntryPoints []string
 	Stdin       *StdinOptions
@@ -282,6 +284,8 @@ type TransformOptions struct {
 	JSXFactory  string
 	JSXFragment string
 	TsconfigRaw string
+	Footer      string
+	Banner      string
 
 	Define    map[string]string
 	Pure      []string
