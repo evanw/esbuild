@@ -5342,7 +5342,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		if !p.options.ts.Parse {
 			p.lexer.Unexpected()
 		}
-		return p.parseTypeScriptEnumStmt(loc, opts)
+		return p.parseTypeScriptEnumStmt(loc, opts, false /* isConst */)
 
 	case js_lexer.TAt:
 		// Parse decorators before class statements, which are potentially exported
@@ -5409,7 +5409,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.Next()
 
 		if p.options.ts.Parse && p.lexer.Token == js_lexer.TEnum {
-			return p.parseTypeScriptEnumStmt(loc, opts)
+			return p.parseTypeScriptEnumStmt(loc, opts, true /* isConst */)
 		}
 
 		decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
@@ -8614,12 +8614,22 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					nextNumericValue = e.Value + 1
 				case *js_ast.EString:
 					hasStringValue = true
+				default:
+					if s.IsConst {
+						r := js_lexer.RangeOfIdentifier(p.source, value.Value.Loc)
+						p.log.AddRangeError(&p.source, r, "const enum member initializers can only contain literal values and other computed enum values")
+					}
 				}
 			} else if hasNumericValue {
 				valuesSoFar[name] = nextNumericValue
 				value.Value = &js_ast.Expr{Loc: value.Loc, Data: &js_ast.ENumber{Value: nextNumericValue}}
 				nextNumericValue++
 			} else {
+				if s.IsConst {
+					r := js_lexer.RangeOfIdentifier(p.source, value.Loc)
+					p.log.AddRangeError(&p.source, r, "Enum member must have initializer")
+				}
+
 				value.Value = &js_ast.Expr{Loc: value.Loc, Data: &js_ast.EUndefined{}}
 			}
 
@@ -8663,23 +8673,26 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
 
-		// Generate statements from expressions
-		valueStmts := []js_ast.Stmt{}
-		if len(valueExprs) > 0 {
-			if p.options.mangleSyntax {
-				// "a; b; c;" => "a, b, c;"
-				joined := js_ast.JoinAllWithComma(valueExprs)
-				valueStmts = append(valueStmts, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SExpr{Value: joined}})
-			} else {
-				for _, expr := range valueExprs {
-					valueStmts = append(valueStmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+		if !s.IsConst {
+			// Generate statements from expressions
+			valueStmts := []js_ast.Stmt{}
+			if len(valueExprs) > 0 {
+				if p.options.mangleSyntax {
+					// "a; b; c;" => "a, b, c;"
+					joined := js_ast.JoinAllWithComma(valueExprs)
+					valueStmts = append(valueStmts, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SExpr{Value: joined}})
+				} else {
+					for _, expr := range valueExprs {
+						valueStmts = append(valueStmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+					}
 				}
 			}
+
+			// Wrap this enum definition in a closure
+			stmts = p.generateClosureForTypeScriptNamespaceOrEnum(
+				stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueStmts)
 		}
 
-		// Wrap this enum definition in a closure
-		stmts = p.generateClosureForTypeScriptNamespaceOrEnum(
-			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueStmts)
 		return stmts
 
 	case *js_ast.SNamespace:

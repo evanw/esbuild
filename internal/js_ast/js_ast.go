@@ -1006,6 +1006,7 @@ type SEnum struct {
 	Arg      Ref
 	Values   []EnumValue
 	IsExport bool
+	IsConst  bool
 }
 
 type SNamespace struct {

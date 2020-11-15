@@ -764,7 +764,7 @@ func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
 	return tsDecorators
 }
 
-func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
+func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts, isConst bool) js_ast.Stmt {
 	p.lexer.Expect(js_lexer.TEnum)
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier
@@ -826,6 +826,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		Arg:      argRef,
 		Values:   values,
 		IsExport: opts.isExport,
+		IsConst:  isConst,
 	}}
 }
 
