@@ -19,59 +19,57 @@ Usage:
 
 Options:
   --bundle              Bundle all dependencies into the output files
-  --outfile=...         The output file (for one entry point)
-  --outdir=...          The output directory (for multiple entry points)
-  --sourcemap           Emit a source map
-  --target=...          Environment target (e.g. es2017, chrome58, firefox57,
-                        safari11, edge16, node10, default esnext)
-  --platform=...        Platform target (browser | node, default browser)
+  --define:K=V          Substitute K with V while parsing
   --external:M          Exclude module M from the bundle
   --format=...          Output format (iife | cjs | esm, no default when not
                         bundling, otherwise default is iife when platform
                         is browser and cjs when platform is node)
-  --splitting           Enable code splitting (currently only for esm)
   --global-name=...     The name of the global for the IIFE format
-
-  --minify              Sets all --minify-* flags
-  --minify-whitespace   Remove whitespace
-  --minify-identifiers  Shorten identifiers
-  --minify-syntax       Use equivalent but shorter syntax
-
-  --define:K=V          Substitute K with V while parsing
   --jsx-factory=...     What to use instead of React.createElement
   --jsx-fragment=...    What to use instead of React.Fragment
   --loader:X=L          Use loader L to load file extension X, where L is
                         one of: js | jsx | ts | tsx | json | text | base64 |
                         file | dataurl | binary
+  --minify              Sets all --minify-* flags
+  --minify-whitespace   Remove whitespace
+  --minify-identifiers  Shorten identifiers
+  --minify-syntax       Use equivalent but shorter syntax
+  --outdir=...          The output directory (for multiple entry points)
+  --outfile=...         The output file (for one entry point)
+  --platform=...        Platform target (browser | node, default browser)
+  --sourcemap           Emit a source map
+  --splitting           Enable code splitting (currently only for esm)
+  --target=...          Environment target (e.g. es2017, chrome58, firefox57,
+                        safari11, edge16, node10, default esnext)
 
 Advanced options:
-  --version                 Print the current version and exit (` + esbuildVersion + `)
+  --avoid-tdz               An optimization for large bundles in Safari
   --banner=...              Text to be prepended to each output file
-  --footer=...              Text to be appended to each output file
-  --outbase=...             The base path used to determine entry point output
-                            paths (for multiple entry points)
-  --sourcemap=inline        Emit the source map with an inline data URL
-  --sourcemap=external      Do not link to the source map with a comment
-  --sourcefile=...          Set the source file for the source map (for stdin)
+  --charset=utf8            Do not escape UTF-8 code points
+  --color=...               Force use of color terminal escapes (true | false)
   --error-limit=...         Maximum error count or 0 to disable (default 10)
-  --log-level=...           Disable logging (info | warning | error | silent,
-                            default info)
-  --resolve-extensions=...  A comma-separated list of implicit extensions
-                            (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
-  --metafile=...            Write metadata about the build to a JSON file
-  --pure:N                  Mark the name N as a pure function for tree shaking
+  --footer=...              Text to be appended to each output file
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports
-  --tsconfig=...            Use this tsconfig.json file instead of other ones
-  --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
+  --keep-names              Preserve "name" on functions and classes
+  --log-level=...           Disable logging (info | warning | error | silent,
+                            default info)
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
+  --metafile=...            Write metadata about the build to a JSON file
+  --out-extension:.js=.mjs  Use a custom output extension instead of ".js"
+  --outbase=...             The base path used to determine entry point output
+                            paths (for multiple entry points)
   --public-path=...         Set the base URL for the "file" loader
-  --color=...               Force use of color terminal escapes (true | false)
-  --charset=utf8            Do not escape UTF-8 code points
-  --avoid-tdz               An optimization for large bundles in Safari
-  --keep-names              Preserve "name" on functions and classes
+  --pure:N                  Mark the name N as a pure function for tree shaking
+  --resolve-extensions=...  A comma-separated list of implicit extensions
+                            (default ".tsx,.ts,.jsx,.mjs,.cjs,.js,.css,.json")
+  --sourcefile=...          Set the source file for the source map (for stdin)
+  --sourcemap=external      Do not link to the source map with a comment
+  --sourcemap=inline        Emit the source map with an inline data URL
+  --tsconfig=...            Use this tsconfig.json file instead of other ones
+  --version                 Print the current version and exit (` + esbuildVersion + `)
 
 Examples:
   # Produces dist/entry_point.js and dist/entry_point.js.map
