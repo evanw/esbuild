@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Add the `--banner` and `--footer` options ([#482](https://github.com/evanw/esbuild/issues/482))
+
+    You can now use the `--banner` and `--footer` options to insert code before and/or after the code that esbuild generates. This is usually used to insert a banner comment at the top of your bundle. However, you can also use this for other purposes such as wrapping your whole bundle in `--banner='try {'` and `--footer='} catch (e) { reportError(e) }'`. Note that since these strings can contain partial JavaScript syntax, esbuild will not do anything to ensure the result is valid JavaScript syntax. This feature was contributed by [@Gelio](https://github.com/Gelio).
+
 * Be more permissive inside TypeScript `declare` contexts
 
     These cases are now allowed by esbuild:

@@ -31,8 +31,6 @@ Options:
                         is browser and cjs when platform is node)
   --splitting           Enable code splitting (currently only for esm)
   --global-name=...     The name of the global for the IIFE format
-	--banner=...          Text to be prepended to each output file
-	--footer=...          Text to be appended to each output file
 
   --minify              Sets all --minify-* flags
   --minify-whitespace   Remove whitespace
@@ -48,6 +46,8 @@ Options:
 
 Advanced options:
   --version                 Print the current version and exit (` + esbuildVersion + `)
+  --banner=...              Text to be prepended to each output file
+  --footer=...              Text to be appended to each output file
   --outbase=...             The base path used to determine entry point output
                             paths (for multiple entry points)
   --sourcemap=inline        Emit the source map with an inline data URL
