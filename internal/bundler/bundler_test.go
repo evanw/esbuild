@@ -21,7 +21,7 @@ import (
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
-	"github.com/kylelemons/godebug/diff"
+	"github.com/evanw/esbuild/internal/test"
 )
 
 func es(version int) compat.JSFeature {
@@ -36,7 +36,7 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 		stringA := fmt.Sprintf("%v", a)
 		stringB := fmt.Sprintf("%v", b)
 		if strings.Contains(stringA, "\n") {
-			t.Fatal(diff.Diff(stringB, stringA))
+			t.Fatal(test.Diff(stringB, stringA))
 		} else {
 			t.Fatalf("%s != %s", a, b)
 		}
