@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.8
 
 * Add the `--banner` and `--footer` options ([#482](https://github.com/evanw/esbuild/issues/482))
 
