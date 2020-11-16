@@ -259,6 +259,7 @@ const knownUnixlikePackages: Record<string, string> = {
   'freebsd x64 LE': 'esbuild-freebsd-64',
   'linux arm64 LE': 'esbuild-linux-arm64',
   'linux ia32 LE': 'esbuild-linux-32',
+  'linux mips64el LE': 'esbuild-linux-mips64le',
   'linux ppc64 LE': 'esbuild-linux-ppc64le',
   'linux x64 LE': 'esbuild-linux-64',
 };

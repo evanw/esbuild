@@ -9,6 +9,7 @@
 /npm/esbuild-linux-32/bin/esbuild
 /npm/esbuild-linux-64/bin/esbuild
 /npm/esbuild-linux-arm64/bin/esbuild
+/npm/esbuild-linux-mips64le/bin/esbuild
 /npm/esbuild-linux-ppc64le/bin/esbuild
 /npm/esbuild-wasm/browser.js
 /npm/esbuild-wasm/esbuild.wasm

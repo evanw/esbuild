@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add support for the `mips64le` architecture ([#523](https://github.com/evanw/esbuild/issues/523))
+
+    You should now be able to install esbuild on the `mips64le` architecture. This build target is second-tier as it's not covered by CI, but I tested it in an emulator and it appears to work at the moment.
+
 ## 0.8.8
 
 * Add the `--banner` and `--footer` options ([#482](https://github.com/evanw/esbuild/issues/482))
