@@ -820,7 +820,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				skipResolve = true
 			}
 
-			go parseFile(parseArgs{
+			go parseFile(&parseArgs{
 				fs:                 fs,
 				log:                log,
 				res:                res,
