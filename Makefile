@@ -182,7 +182,7 @@ publish-wasm: platform-wasm
 	test -n "$(OTP)" && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
 
 publish-neutral: platform-neutral
-	cd npm/esbuild && npm publish
+	test -n "$(OTP)" && cd npm/esbuild && npm publish --otp="$(OTP)"
 
 clean:
 	rm -f esbuild
