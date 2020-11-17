@@ -31,6 +31,90 @@ console.log("hello");
 console.log("unused import");
 
 ================================================================================
+TestPackageJsonSideEffectsArrayKeepMainImplicitMain
+---------- /out.js ----------
+// /Users/user/project/node_modules/demo-pkg/index-main.js
+var require_index_main = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo2
+  });
+  const foo2 = 123;
+  console.log("this should be kept");
+});
+
+// /Users/user/project/src/entry.js
+const demo_pkg = __toModule(require_index_main());
+
+// /Users/user/project/src/require-demo-pkg.js
+require_index_main();
+
+// /Users/user/project/src/entry.js
+console.log("unused import");
+
+================================================================================
+TestPackageJsonSideEffectsArrayKeepMainImplicitModule
+---------- /out.js ----------
+// /Users/user/project/src/entry.js
+console.log("unused import");
+
+================================================================================
+TestPackageJsonSideEffectsArrayKeepMainUseMain
+---------- /out.js ----------
+// /Users/user/project/node_modules/demo-pkg/index-main.js
+console.log("this should be kept");
+
+// /Users/user/project/src/entry.js
+console.log("unused import");
+
+================================================================================
+TestPackageJsonSideEffectsArrayKeepMainUseModule
+---------- /out.js ----------
+// /Users/user/project/src/entry.js
+console.log("unused import");
+
+================================================================================
+TestPackageJsonSideEffectsArrayKeepModuleImplicitMain
+---------- /out.js ----------
+// /Users/user/project/node_modules/demo-pkg/index-main.js
+var require_index_main = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo
+  });
+  const foo = 123;
+  console.log("this should be kept");
+});
+
+// /Users/user/project/src/require-demo-pkg.js
+require_index_main();
+
+// /Users/user/project/src/entry.js
+console.log("unused import");
+
+================================================================================
+TestPackageJsonSideEffectsArrayKeepModuleImplicitModule
+---------- /out.js ----------
+// /Users/user/project/node_modules/demo-pkg/index-module.js
+console.log("this should be kept");
+
+// /Users/user/project/src/entry.js
+console.log("unused import");
+
+================================================================================
+TestPackageJsonSideEffectsArrayKeepModuleUseMain
+---------- /out.js ----------
+// /Users/user/project/src/entry.js
+console.log("unused import");
+
+================================================================================
+TestPackageJsonSideEffectsArrayKeepModuleUseModule
+---------- /out.js ----------
+// /Users/user/project/node_modules/demo-pkg/index-module.js
+console.log("this should be kept");
+
+// /Users/user/project/src/entry.js
+console.log("unused import");
+
+================================================================================
 TestPackageJsonSideEffectsArrayRemove
 ---------- /out.js ----------
 // /Users/user/project/src/entry.js

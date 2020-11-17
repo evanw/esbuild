@@ -788,7 +788,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			results = append(results, parseResult{})
 			flags := parseFlags{
 				isEntryPoint:   kind == inputKindEntryPoint,
-				ignoreIfUnused: resolveResult.IgnoreIfUnused,
+				ignoreIfUnused: resolveResult.IgnorePrimaryIfUnused,
 			}
 			remaining++
 			optionsClone := options

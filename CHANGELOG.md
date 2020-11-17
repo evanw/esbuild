@@ -6,6 +6,10 @@
 
     You should now be able to install esbuild on the `mips64le` architecture. This build target is second-tier as it's not covered by CI, but I tested it in an emulator and it appears to work at the moment.
 
+* Fix for packages with inconsistent side effect markings
+
+    Packages can have multiple entry points in their `package.json` file. Two commonly-used ones are specified using the fields `main` and `module`. Packages can also mark files in the package as not having side effects using the `sideEffects` field. Some packages have one entry point marked as having side effects and the other entry point as not having side effects. This is arguably a problem with the package itself. However, this caused an issue with esbuild's automatic entry point field selection method where it would incorrectly consider both `main` and `module` to not have side effects if one of them was marked as not having side effects. Now `main` and `module` will only be considered to not have side effects if the individual file was marked as not having side effects.
+
 ## 0.8.8
 
 * Add the `--banner` and `--footer` options ([#482](https://github.com/evanw/esbuild/issues/482))
