@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Ignore comments for character frequency analysis ([#543](https://github.com/evanw/esbuild/issues/543))
+
+    Character frequency analysis is used to derive the order of minified names for better gzip compression. The idea is to prefer using the most-used characters in the non-symbol parts of the document (keywords, strings, etc.) over characters that are less-used or absent. This is a very slight win, and is only approximate based on the input text instead of the output text because otherwise it would require minifying twice.
+
+    Right now comments are included in this character frequency histogram. This is not a correctness issue but it does mean that documents with the same code but different comments may be minified to different output files. This release fixes this difference by removing comments from the character frequency histogram.
+
 ## 0.8.9
 
 * Add support for the `mips64le` architecture ([#523](https://github.com/evanw/esbuild/issues/523))

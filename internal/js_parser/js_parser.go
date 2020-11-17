@@ -10808,6 +10808,11 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 	charFreq := &js_ast.CharFreq{}
 	charFreq.Scan(p.source.Contents, 1)
 
+	// Subtract out all comments
+	for _, comment := range p.lexer.AllOriginalComments {
+		charFreq.Scan(comment.Text, -1)
+	}
+
 	// Subtract out all symbols that will be minified
 	var visit func(*js_ast.Scope)
 	visit = func(scope *js_ast.Scope) {

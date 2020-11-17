@@ -223,6 +223,7 @@ type Lexer struct {
 	HasPureCommentBefore            bool
 	PreserveAllCommentsBefore       bool
 	CommentsToPreserveBefore        []js_ast.Comment
+	AllOriginalComments             []js_ast.Comment
 	codePoint                       rune
 	StringLiteral                   []uint16
 	Identifier                      string
@@ -2413,6 +2414,13 @@ func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (js
 func (lexer *Lexer) scanCommentText() {
 	text := lexer.source.Contents[lexer.start:lexer.end]
 	hasPreserveAnnotation := len(text) > 2 && text[2] == '!'
+
+	// Save the original comment text so we can subtract comments from the
+	// character frequency analysis used by symbol minification
+	lexer.AllOriginalComments = append(lexer.AllOriginalComments, js_ast.Comment{
+		Loc:  logger.Loc{Start: int32(lexer.start)},
+		Text: text,
+	})
 
 	for i, n := 0, len(text); i < n; i++ {
 		switch text[i] {

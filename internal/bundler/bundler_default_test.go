@@ -3502,3 +3502,33 @@ func TestKeepNamesTreeShaking(t *testing.T) {
 		},
 	})
 }
+
+func TestCharFreqIgnoreComments(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				export default function(one, two, three, four) {
+					return 'the argument names must be the same'
+				}
+			`,
+			"/b.js": `
+				export default function(one, two, three, four) {
+					return 'the argument names must be the same'
+				}
+
+				// Some comment text to change the character frequency histogram:
+				// ________________________________________________________________________________
+				// FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+				// AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+				// IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+				// LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputDir:      "/out",
+			MinifyIdentifiers: true,
+		},
+	})
+}
