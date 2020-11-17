@@ -132,7 +132,7 @@ type parseResult struct {
 	resolveResults []*resolver.ResolveResult
 }
 
-func parseFile(args parseArgs) {
+func parseFile(args *parseArgs) {
 	source := logger.Source{
 		Index:          args.sourceIndex,
 		KeyPath:        args.keyPath,
