@@ -1,0 +1,17 @@
+version = 1
+
+exclude_patterns = [
+    ".github/**",
+    "docs/**",
+    "images/**",
+    "lib/**",
+    "npm/**",
+    "scripts/**"
+]
+
+[[analyzers]]
+name = "go"
+enabled = true
+
+  [analyzers.meta]
+  import_paths = ["github.com/siddhant-deepsource/esbuild"]
