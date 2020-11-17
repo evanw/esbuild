@@ -158,6 +158,26 @@ export var Bar = class Bar {
 export var bar = 123;
 
 ================================================================================
+TestCharFreqIgnoreComments
+---------- /out/a.js ----------
+// /a.js
+function e(t, n, r, u) {
+  return "the argument names must be the same";
+}
+export {
+  e as default
+};
+
+---------- /out/b.js ----------
+// /b.js
+function e(t, n, r, u) {
+  return "the argument names must be the same";
+}
+export {
+  e as default
+};
+
+================================================================================
 TestCommonJSFromES6
 ---------- /out.js ----------
 // /foo.js
