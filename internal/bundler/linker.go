@@ -2207,7 +2207,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 								notes = append(notes, logger.RangeData(otherFile.ignoreIfUnusedData.Source, otherFile.ignoreIfUnusedData.Range, text))
 							}
 							c.log.AddRangeWarningWithNotes(&file.source, record.Range,
-								fmt.Sprintf("Ignoring this import because the file %q was marked as having no side effects",
+								fmt.Sprintf("Ignoring this import because %q was marked as having no side effects",
 									otherFile.source.PrettyPath), notes)
 						}
 						continue

@@ -183,7 +183,7 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because the file "` +
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
 			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
@@ -214,7 +214,7 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because the file "` +
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
 			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
@@ -244,7 +244,7 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because the file "` +
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
 			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
@@ -274,7 +274,7 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because the file "` +
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
 			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
@@ -691,6 +691,42 @@ func TestPackageJsonSideEffectsArrayKeepModuleImplicitMain(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+	})
+}
+
+func TestPackageJsonSideEffectsArrayGlob(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import "demo-pkg/keep/this/file"
+				import "demo-pkg/remove/this/file"
+			`,
+			"/Users/user/project/node_modules/demo-pkg/keep/this/file.js": `
+				console.log('this should be kept')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/remove/this/file.js": `
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"sideEffects": [
+						"./ke?p/*/file.js",
+						"./remove/this/file.j",
+						"./re?ve/this/file.js"
+					]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because ` +
+			`"/Users/user/project/node_modules/demo-pkg/remove/this/file.js" was marked as having no side effects
+/Users/user/project/node_modules/demo-pkg/package.json: note: It was excluded from the "sideEffects" ` +
+			`array in the enclosing "package.json" file
+`,
 	})
 }
 

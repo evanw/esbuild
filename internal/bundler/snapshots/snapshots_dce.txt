@@ -22,6 +22,12 @@ TestJSONLoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestPackageJsonSideEffectsArrayGlob
+---------- /out.js ----------
+// /Users/user/project/node_modules/demo-pkg/keep/this/file.js
+console.log("this should be kept");
+
+================================================================================
 TestPackageJsonSideEffectsArrayKeep
 ---------- /out.js ----------
 // /Users/user/project/node_modules/demo-pkg/index.js

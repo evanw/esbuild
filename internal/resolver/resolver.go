@@ -3,6 +3,7 @@ package resolver
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -262,8 +263,23 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 				if *path == result.PathPair.Primary {
 					for info := dirInfo; info != nil; info = info.parent {
 						if info.packageJSON != nil {
-							if info.packageJSON.sideEffectsMap != nil && !info.packageJSON.sideEffectsMap[path.Text] {
-								result.IgnorePrimaryIfUnused = info.packageJSON.ignoreIfUnused
+							if info.packageJSON.sideEffectsMap != nil {
+								hasSideEffects := false
+								if info.packageJSON.sideEffectsMap[path.Text] {
+									// Fast path: map lookup
+									hasSideEffects = true
+								} else {
+									// Slow path: glob tests
+									for _, re := range info.packageJSON.sideEffectsRegexps {
+										if re.MatchString(path.Text) {
+											hasSideEffects = true
+											break
+										}
+									}
+								}
+								if !hasSideEffects {
+									result.IgnorePrimaryIfUnused = info.packageJSON.ignoreIfUnusedData
+								}
 							}
 							break
 						}
@@ -486,8 +502,9 @@ type packageJSON struct {
 	// free of side effects must be included. This convention does not say
 	// anything about whether any statements within the file have side effects or
 	// not.
-	sideEffectsMap map[string]bool
-	ignoreIfUnused *IgnoreIfUnusedData
+	sideEffectsMap     map[string]bool
+	sideEffectsRegexps []*regexp.Regexp
+	ignoreIfUnusedData *IgnoreIfUnusedData
 }
 
 type dirInfo struct {
@@ -858,7 +875,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 				// Make an empty map for "sideEffects: false", which indicates all
 				// files in this module can be considered to not have side effects.
 				packageJSON.sideEffectsMap = make(map[string]bool)
-				packageJSON.ignoreIfUnused = &IgnoreIfUnusedData{
+				packageJSON.ignoreIfUnusedData = &IgnoreIfUnusedData{
 					IsSideEffectsArrayInJSON: false,
 					Source:                   &jsonSource,
 					Range:                    jsonSource.RangeOfString(sideEffectsLoc),
@@ -869,19 +886,30 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 			// The "sideEffects: []" format means all files in this module but not in
 			// the array can be considered to not have side effects.
 			packageJSON.sideEffectsMap = make(map[string]bool)
-			packageJSON.ignoreIfUnused = &IgnoreIfUnusedData{
+			packageJSON.ignoreIfUnusedData = &IgnoreIfUnusedData{
 				IsSideEffectsArrayInJSON: true,
 				Source:                   &jsonSource,
 				Range:                    jsonSource.RangeOfString(sideEffectsLoc),
 			}
 			for _, itemJson := range data.Items {
-				if item, ok := itemJson.Data.(*js_ast.EString); ok && item.Value != nil {
-					absolute := r.fs.Join(path, js_lexer.UTF16ToString(item.Value))
-					packageJSON.sideEffectsMap[absolute] = true
-				} else {
+				item, ok := itemJson.Data.(*js_ast.EString)
+				if !ok || item.Value == nil {
 					r.log.AddWarning(&jsonSource, itemJson.Loc,
 						"Expected string in array for \"sideEffects\"")
+					continue
 				}
+
+				absPattern := r.fs.Join(path, js_lexer.UTF16ToString(item.Value))
+				re, hadWildcard := globToEscapedRegexp(absPattern)
+
+				// Wildcard patterns require more expensive matching
+				if hadWildcard {
+					packageJSON.sideEffectsRegexps = append(packageJSON.sideEffectsRegexps, regexp.MustCompile(re))
+					continue
+				}
+
+				// Normal strings can be matched with a map lookup
+				packageJSON.sideEffectsMap[absPattern] = true
 			}
 
 		default:
@@ -891,6 +919,34 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 	}
 
 	return packageJSON
+}
+
+func globToEscapedRegexp(glob string) (string, bool) {
+	sb := strings.Builder{}
+	sb.WriteByte('^')
+	hadWildcard := false
+
+	for _, c := range glob {
+		switch c {
+		case '\\', '^', '$', '.', '+', '|', '(', ')', '[', ']', '{', '}':
+			sb.WriteByte('\\')
+			sb.WriteRune(c)
+
+		case '*':
+			sb.WriteString(".*")
+			hadWildcard = true
+
+		case '?':
+			sb.WriteByte('.')
+			hadWildcard = true
+
+		default:
+			sb.WriteRune(c)
+		}
+	}
+
+	sb.WriteByte('$')
+	return sb.String(), hadWildcard
 }
 
 func (r *resolver) loadAsFile(path string, extensionOrder []string) (string, bool) {

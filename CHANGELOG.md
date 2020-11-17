@@ -14,6 +14,10 @@
 
     Files in packages containing `"sideEffects": false` in the enclosing `package.json` file are intended to be automatically removed from the bundle if they aren't used. However, code containing `import './file'` is likely trying to import that file for a side effect. This is a conflict of intentions so it seems like a good idea to warn about this. It's likely a configuration error by the author of the package. The warning points to the location in `package.json` that caused this situation.
 
+* Add support for glob-style tests in `sideEffects` arrays
+
+    The `sideEffects` field in `package.json` can optionally contain an array of files that are considered to have side effects. Any file not in that list will be removed if the import isn't used. Webpack supports the `*` and `?` wildcard characters in these file strings. With this release, esbuild supports these wildcard characters too.
+
 ## 0.8.8
 
 * Add the `--banner` and `--footer` options ([#482](https://github.com/evanw/esbuild/issues/482))
