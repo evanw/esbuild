@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.9
 
 * Add support for the `mips64le` architecture ([#523](https://github.com/evanw/esbuild/issues/523))
 
