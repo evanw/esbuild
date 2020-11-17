@@ -65,6 +65,9 @@ type file struct {
 	// If true, this file was listed as not having side effects by a package.json
 	// file in one of our containing directories with a "sideEffects" field.
 	ignoreIfUnused bool
+
+	// This is optional additional information about "ignoreIfUnused" for errors
+	ignoreIfUnusedData *resolver.IgnoreIfUnusedData
 }
 
 type fileRepr interface {
@@ -105,25 +108,21 @@ type Bundle struct {
 	entryPoints []uint32
 }
 
-type parseFlags struct {
-	isEntryPoint   bool
-	ignoreIfUnused bool
-}
-
 type parseArgs struct {
-	fs              fs.FS
-	log             logger.Log
-	res             resolver.Resolver
-	keyPath         logger.Path
-	prettyPath      string
-	sourceIndex     uint32
-	importSource    *logger.Source
-	flags           parseFlags
-	importPathRange logger.Range
-	options         config.Options
-	results         chan parseResult
-	inject          chan config.InjectedFile
-	skipResolve     bool
+	fs                 fs.FS
+	log                logger.Log
+	res                resolver.Resolver
+	keyPath            logger.Path
+	prettyPath         string
+	sourceIndex        uint32
+	importSource       *logger.Source
+	ignoreIfUnused     bool
+	ignoreIfUnusedData *resolver.IgnoreIfUnusedData
+	importPathRange    logger.Range
+	options            config.Options
+	results            chan parseResult
+	inject             chan config.InjectedFile
+	skipResolve        bool
 }
 
 type parseResult struct {
@@ -189,9 +188,12 @@ func parseFile(args parseArgs) {
 
 	result := parseResult{
 		file: file{
-			source:         source,
-			loader:         loader,
-			ignoreIfUnused: args.flags.ignoreIfUnused,
+			source: source,
+			loader: loader,
+
+			// Record information from "sideEffects" in "package.json"
+			ignoreIfUnused:     args.ignoreIfUnused,
+			ignoreIfUnusedData: args.ignoreIfUnusedData,
 		},
 	}
 
@@ -786,10 +788,6 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			sourceIndex = uint32(len(results))
 			visited[visitedKey] = sourceIndex
 			results = append(results, parseResult{})
-			flags := parseFlags{
-				isEntryPoint:   kind == inputKindEntryPoint,
-				ignoreIfUnused: resolveResult.IgnorePrimaryIfUnused,
-			}
 			remaining++
 			optionsClone := options
 			if kind != inputKindStdin {
@@ -823,19 +821,20 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 			}
 
 			go parseFile(parseArgs{
-				fs:              fs,
-				log:             log,
-				res:             res,
-				keyPath:         path,
-				prettyPath:      prettyPath,
-				sourceIndex:     sourceIndex,
-				importSource:    importSource,
-				flags:           flags,
-				importPathRange: importPathRange,
-				options:         optionsClone,
-				results:         resultChannel,
-				inject:          inject,
-				skipResolve:     skipResolve,
+				fs:                 fs,
+				log:                log,
+				res:                res,
+				keyPath:            path,
+				prettyPath:         prettyPath,
+				sourceIndex:        sourceIndex,
+				importSource:       importSource,
+				ignoreIfUnused:     resolveResult.IgnorePrimaryIfUnused != nil,
+				ignoreIfUnusedData: resolveResult.IgnorePrimaryIfUnused,
+				importPathRange:    importPathRange,
+				options:            optionsClone,
+				results:            resultChannel,
+				inject:             inject,
+				skipResolve:        skipResolve,
 			})
 		}
 		return sourceIndex

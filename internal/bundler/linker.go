@@ -2194,7 +2194,22 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 
 					// Don't include this module for its side effects if it can be
 					// considered to have no side effects
-					if c.files[otherSourceIndex].ignoreIfUnused {
+					if otherFile := &c.files[otherSourceIndex]; otherFile.ignoreIfUnused {
+						if record.WasOriginallyBareImport {
+							var notes []logger.MsgData
+							if otherFile.ignoreIfUnusedData != nil {
+								var text string
+								if otherFile.ignoreIfUnusedData.IsSideEffectsArrayInJSON {
+									text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file"
+								} else {
+									text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
+								}
+								notes = append(notes, logger.RangeData(otherFile.ignoreIfUnusedData.Source, otherFile.ignoreIfUnusedData.Range, text))
+							}
+							c.log.AddRangeWarningWithNotes(&file.source, record.Range,
+								fmt.Sprintf("Ignoring this import because the file %q was marked as having no side effects",
+									otherFile.source.PrettyPath), notes)
+						}
 						continue
 					}
 

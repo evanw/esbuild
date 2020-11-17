@@ -74,17 +74,26 @@ func (pp *PathPair) HasSecondary() bool {
 	return pp.Secondary.Text != ""
 }
 
+type IgnoreIfUnusedData struct {
+	Source *logger.Source
+	Range  logger.Range
+
+	// If true, "sideEffects" was an array. If false, "sideEffects" was false.
+	IsSideEffectsArrayInJSON bool
+}
+
 type ResolveResult struct {
-	PathPair   PathPair
-	IsExternal bool
+	PathPair PathPair
 
 	// If not empty, these should override the default values
 	JSXFactory  []string // Default if empty: "React.createElement"
 	JSXFragment []string // Default if empty: "React.Fragment"
 
+	IsExternal bool
+
 	// If true, any ES6 imports to this file can be considered to have no side
 	// effects. This means they should be removed if unused.
-	IgnorePrimaryIfUnused bool
+	IgnorePrimaryIfUnused *IgnoreIfUnusedData
 
 	// If true, the class field transform should use Object.defineProperty().
 	UseDefineForClassFieldsTS bool
@@ -253,8 +262,8 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 				if *path == result.PathPair.Primary {
 					for info := dirInfo; info != nil; info = info.parent {
 						if info.packageJSON != nil {
-							if info.packageJSON.sideEffectsMap != nil {
-								result.IgnorePrimaryIfUnused = !info.packageJSON.sideEffectsMap[path.Text]
+							if info.packageJSON.sideEffectsMap != nil && !info.packageJSON.sideEffectsMap[path.Text] {
+								result.IgnorePrimaryIfUnused = info.packageJSON.ignoreIfUnused
 							}
 							break
 						}
@@ -478,6 +487,7 @@ type packageJSON struct {
 	// anything about whether any statements within the file have side effects or
 	// not.
 	sideEffectsMap map[string]bool
+	ignoreIfUnused *IgnoreIfUnusedData
 }
 
 type dirInfo struct {
@@ -841,19 +851,29 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 	}
 
 	// Read the "sideEffects" property
-	if sideEffectsJson, _, ok := getProperty(json, "sideEffects"); ok {
+	if sideEffectsJson, sideEffectsLoc, ok := getProperty(json, "sideEffects"); ok {
 		switch data := sideEffectsJson.Data.(type) {
 		case *js_ast.EBoolean:
 			if !data.Value {
 				// Make an empty map for "sideEffects: false", which indicates all
 				// files in this module can be considered to not have side effects.
 				packageJSON.sideEffectsMap = make(map[string]bool)
+				packageJSON.ignoreIfUnused = &IgnoreIfUnusedData{
+					IsSideEffectsArrayInJSON: false,
+					Source:                   &jsonSource,
+					Range:                    jsonSource.RangeOfString(sideEffectsLoc),
+				}
 			}
 
 		case *js_ast.EArray:
 			// The "sideEffects: []" format means all files in this module but not in
 			// the array can be considered to not have side effects.
 			packageJSON.sideEffectsMap = make(map[string]bool)
+			packageJSON.ignoreIfUnused = &IgnoreIfUnusedData{
+				IsSideEffectsArrayInJSON: true,
+				Source:                   &jsonSource,
+				Range:                    jsonSource.RangeOfString(sideEffectsLoc),
+			}
 			for _, itemJson := range data.Items {
 				if item, ok := itemJson.Data.(*js_ast.EString); ok && item.Value != nil {
 					absolute := r.fs.Join(path, js_lexer.UTF16ToString(item.Value))
@@ -866,7 +886,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 
 		default:
 			r.log.AddWarning(&jsonSource, sideEffectsJson.Loc,
-				"Invalid value for \"sideEffects\"")
+				"The value for \"sideEffects\" must be a boolean or an array")
 		}
 	}
 

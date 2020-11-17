@@ -61,5 +61,8 @@ type ImportRecord struct {
 	// case we shouldn't generate an error if the path could not be resolved.
 	IsInsideTryBody bool
 
+	// If true, this was originally written as a bare "import 'file'" statement
+	WasOriginallyBareImport bool
+
 	Kind ImportKind
 }

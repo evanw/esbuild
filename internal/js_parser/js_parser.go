@@ -5157,6 +5157,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.hasES6ImportSyntax = true
 		p.lexer.Next()
 		stmt := js_ast.SImport{}
+		wasOriginallyBareImport := false
 
 		// "export import foo = bar"
 		// "import foo = bar" in a namespace
@@ -5178,6 +5179,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.lexer.Unexpected()
 				return js_ast.Stmt{}
 			}
+
+			wasOriginallyBareImport = true
 
 		case js_lexer.TAsterisk:
 			// "import * as ns from 'path'"
@@ -5290,6 +5293,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		pathLoc, pathText := p.parsePath()
 		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
+		p.importRecords[stmt.ImportRecordIndex].WasOriginallyBareImport = wasOriginallyBareImport
 		p.lexer.ExpectOrInsertSemicolon()
 
 		if stmt.StarNameLoc != nil {

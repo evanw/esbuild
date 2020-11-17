@@ -183,6 +183,11 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because the file "` +
+			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+/Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
+			`in the enclosing "package.json" file
+`,
 	})
 }
 
@@ -209,6 +214,11 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because the file "` +
+			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+/Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
+			`in the enclosing "package.json" file
+`,
 	})
 }
 
@@ -234,6 +244,11 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because the file "` +
+			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+/Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
+			`in the enclosing "package.json" file
+`,
 	})
 }
 
@@ -259,6 +274,11 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because the file "` +
+			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+/Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
+			`in the enclosing "package.json" file
+`,
 	})
 }
 
