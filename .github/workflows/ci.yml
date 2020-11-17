@@ -24,7 +24,7 @@ jobs:
       id: go
 
     - name: Setup Node.js environment
-      uses: actions/setup-node@v1.4.2
+      uses: actions/setup-node@v1.4.4
       with:
         node-version: 12
 

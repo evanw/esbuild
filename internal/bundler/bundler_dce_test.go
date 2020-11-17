@@ -412,6 +412,268 @@ func TestPackageJsonSideEffectsArrayKeep(t *testing.T) {
 	})
 }
 
+func TestPackageJsonSideEffectsArrayKeepMainUseModule(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-main.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-module.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "index-main.js",
+					"module": "index-module.js",
+					"sideEffects": ["./index-main.js"]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MainFields:    []string{"module"},
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsArrayKeepMainUseMain(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-main.js": `
+				export const foo = 123
+				console.log('this should be kept')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-module.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "index-main.js",
+					"module": "index-module.js",
+					"sideEffects": ["./index-main.js"]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MainFields:    []string{"main"},
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsArrayKeepMainImplicitModule(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-main.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-module.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "index-main.js",
+					"module": "index-module.js",
+					"sideEffects": ["./index-main.js"]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsArrayKeepMainImplicitMain(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				import "./require-demo-pkg"
+				console.log('unused import')
+			`,
+			"/Users/user/project/src/require-demo-pkg.js": `
+				// This causes "index-main.js" to be selected
+				require('demo-pkg')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-main.js": `
+				export const foo = 123
+				console.log('this should be kept')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-module.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "index-main.js",
+					"module": "index-module.js",
+					"sideEffects": ["./index-main.js"]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsArrayKeepModuleUseModule(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-main.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-module.js": `
+				export const foo = 123
+				console.log('this should be kept')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "index-main.js",
+					"module": "index-module.js",
+					"sideEffects": ["./index-module.js"]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MainFields:    []string{"module"},
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsArrayKeepModuleUseMain(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-main.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-module.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "index-main.js",
+					"module": "index-module.js",
+					"sideEffects": ["./index-module.js"]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MainFields:    []string{"main"},
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsArrayKeepModuleImplicitModule(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				console.log('unused import')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-main.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-module.js": `
+				export const foo = 123
+				console.log('this should be kept')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "index-main.js",
+					"module": "index-module.js",
+					"sideEffects": ["./index-module.js"]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestPackageJsonSideEffectsArrayKeepModuleImplicitMain(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {foo} from "demo-pkg"
+				import "./require-demo-pkg"
+				console.log('unused import')
+			`,
+			"/Users/user/project/src/require-demo-pkg.js": `
+				// This causes "index-main.js" to be selected
+				require('demo-pkg')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-main.js": `
+				export const foo = 123
+				console.log('this should be kept')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index-module.js": `
+				export const foo = 123
+				console.log('TEST FAILED')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"main": "index-main.js",
+					"module": "index-module.js",
+					"sideEffects": ["./index-module.js"]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestPackageJsonSideEffectsNestedDirectoryRemove(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -84,7 +84,7 @@ type ResolveResult struct {
 
 	// If true, any ES6 imports to this file can be considered to have no side
 	// effects. This means they should be removed if unused.
-	IgnoreIfUnused bool
+	IgnorePrimaryIfUnused bool
 
 	// If true, the class field transform should use Object.defineProperty().
 	UseDefineForClassFieldsTS bool
@@ -242,13 +242,22 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 				}
 
 				// Look up this file in the "sideEffects" map in the nearest enclosing
-				// directory with a "package.json" file
-				for info := dirInfo; info != nil; info = info.parent {
-					if info.packageJSON != nil {
-						if info.packageJSON.sideEffectsMap != nil {
-							result.IgnoreIfUnused = !info.packageJSON.sideEffectsMap[path.Text]
+				// directory with a "package.json" file.
+				//
+				// Only do this for the primary path. Some packages have the primary
+				// path marked as having side effects and the secondary path marked
+				// as not having side effects. This is likely a bug in the package
+				// definition but we don't want to consider the primary path as not
+				// having side effects just because the secondary path is marked as
+				// not having side effects.
+				if *path == result.PathPair.Primary {
+					for info := dirInfo; info != nil; info = info.parent {
+						if info.packageJSON != nil {
+							if info.packageJSON.sideEffectsMap != nil {
+								result.IgnorePrimaryIfUnused = !info.packageJSON.sideEffectsMap[path.Text]
+							}
+							break
 						}
-						break
 					}
 				}
 
