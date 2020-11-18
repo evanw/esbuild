@@ -17,6 +17,7 @@ const helpText = `
 Usage:
   esbuild [options] [entry points]
 
+
 Options:
   --bundle              Bundle all dependencies into the output files
   --define:K=V          Substitute K with V while parsing
@@ -68,6 +69,8 @@ Advanced options:
   --sourcefile=...          Set the source file for the source map (for stdin)
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL
+  --tree-shaking=...        Set to "ignore-annotations" to work with packages
+                            that have incorrect tree-shaking annotations
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --version                 Print the current version and exit (` + esbuildVersion + `)
 

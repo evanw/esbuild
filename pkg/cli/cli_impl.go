@@ -87,6 +87,21 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				return fmt.Errorf("Invalid charset value: %q (valid: ascii, utf8)", name)
 			}
 
+		case strings.HasPrefix(arg, "--tree-shaking="):
+			var value *api.TreeShaking
+			if buildOpts != nil {
+				value = &buildOpts.TreeShaking
+			} else {
+				value = &transformOpts.TreeShaking
+			}
+			name := arg[len("--tree-shaking="):]
+			switch name {
+			case "ignore-annotations":
+				*value = api.TreeShakingIgnoreAnnotations
+			default:
+				return fmt.Errorf("Invalid tree shaking value: %q (valid: ignore-annotations)", name)
+			}
+
 		case arg == "--avoid-tdz":
 			if buildOpts != nil {
 				buildOpts.AvoidTDZ = true

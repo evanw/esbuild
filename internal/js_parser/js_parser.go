@@ -2765,7 +2765,7 @@ func (p *parser) parseExprWithFlags(level js_ast.L, flags exprFlag) js_ast.Expr 
 }
 
 func (p *parser) parseExprCommon(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
-	hadPureCommentBefore := p.lexer.HasPureCommentBefore
+	hadPureCommentBefore := p.lexer.HasPureCommentBefore && !p.IgnoreDCEAnnotations
 	expr := p.parsePrefix(level, errors, flags)
 
 	// There is no formal spec for "__PURE__" comments but from reverse-
@@ -8242,7 +8242,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if data.CanBeRemovedIfUnused {
 					e.CanBeRemovedIfUnused = true
 				}
-				if data.CallCanBeUnwrappedIfUnused {
+				if data.CallCanBeUnwrappedIfUnused && !p.IgnoreDCEAnnotations {
 					e.CallCanBeUnwrappedIfUnused = true
 				}
 				if data.WarnAboutLackOfDefine {
@@ -8302,7 +8302,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			Args:   args,
 
 			// Enable tree shaking
-			CanBeUnwrappedIfUnused: true,
+			CanBeUnwrappedIfUnused: !p.IgnoreDCEAnnotations,
 		}}, exprOut{}
 
 	case *js_ast.ETemplate:
@@ -9006,7 +9006,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					if define.Data.CanBeRemovedIfUnused {
 						e.CanBeRemovedIfUnused = true
 					}
-					if define.Data.CallCanBeUnwrappedIfUnused {
+					if define.Data.CallCanBeUnwrappedIfUnused && !p.IgnoreDCEAnnotations {
 						e.CallCanBeUnwrappedIfUnused = true
 					}
 					if define.Data.WarnAboutLackOfDefine {

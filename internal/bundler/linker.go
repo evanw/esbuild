@@ -2194,7 +2194,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 
 					// Don't include this module for its side effects if it can be
 					// considered to have no side effects
-					if otherFile := &c.files[otherSourceIndex]; otherFile.ignoreIfUnused {
+					if otherFile := &c.files[otherSourceIndex]; otherFile.ignoreIfUnused && !c.options.IgnoreDCEAnnotations {
 						if record.WasOriginallyBareImport {
 							var notes []logger.MsgData
 							if otherFile.ignoreIfUnusedData != nil {

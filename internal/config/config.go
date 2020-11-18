@@ -177,6 +177,7 @@ type Options struct {
 	AvoidTDZ                bool
 	ASCIIOnly               bool
 	KeepNames               bool
+	IgnoreDCEAnnotations    bool
 
 	Defines  *ProcessedDefines
 	TS       TSOptions

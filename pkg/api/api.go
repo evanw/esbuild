@@ -188,6 +188,13 @@ const (
 	CharsetUTF8
 )
 
+type TreeShaking uint8
+
+const (
+	TreeShakingDefault TreeShaking = iota
+	TreeShakingIgnoreAnnotations
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -204,6 +211,7 @@ type BuildOptions struct {
 	MinifyIdentifiers bool
 	MinifySyntax      bool
 	Charset           Charset
+	TreeShaking       TreeShaking
 
 	JSXFactory  string
 	JSXFragment string
@@ -280,6 +288,7 @@ type TransformOptions struct {
 	MinifyIdentifiers bool
 	MinifySyntax      bool
 	Charset           Charset
+	TreeShaking       TreeShaking
 
 	JSXFactory  string
 	JSXFragment string

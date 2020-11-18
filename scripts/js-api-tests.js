@@ -921,6 +921,58 @@ console.log("success");
     assert.strictEqual(require(outB), 'b')
     assert.strictEqual(require(outC), 'c')
   },
+
+  async bundleTreeShakingDefault({ esbuild }) {
+    const { outputFiles } = await esbuild.build({
+      stdin: {
+        contents: `
+          let removeMe1 = /* @__PURE__ */ fn();
+          let removeMe2 = <div/>;
+        `,
+        loader: 'jsx',
+      },
+      write: false,
+      bundle: true,
+    })
+    assert.strictEqual(outputFiles[0].text, `(() => {\n})();\n`)
+  },
+
+  async bundleTreeShakingTrue({ esbuild }) {
+    const { outputFiles } = await esbuild.build({
+      stdin: {
+        contents: `
+          let removeMe1 = /* @__PURE__ */ fn();
+          let removeMe2 = <div/>;
+        `,
+        loader: 'jsx',
+      },
+      write: false,
+      bundle: true,
+      treeShaking: true,
+    })
+    assert.strictEqual(outputFiles[0].text, `(() => {\n})();\n`)
+  },
+
+  async bundleTreeShakingIgnoreAnnotations({ esbuild }) {
+    const { outputFiles } = await esbuild.build({
+      stdin: {
+        contents: `
+          let keepMe1 = /* @__PURE__ */ fn();
+          let keepMe2 = <div/>;
+        `,
+        loader: 'jsx',
+      },
+      write: false,
+      bundle: true,
+      treeShaking: 'ignore-annotations',
+    })
+    assert.strictEqual(outputFiles[0].text, `(() => {
+  // <stdin>
+  let keepMe1 = fn();
+  let keepMe2 = React.createElement("div", null);
+})();
+`)
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {
@@ -1085,6 +1137,32 @@ let transformTests = {
       loader: 'jsx',
     })
     assert.strictEqual(code2, `/* @__PURE__ */ factory(fragment, null, /* @__PURE__ */ factory("div", null));\n`)
+  },
+
+  async treeShakingDefault({ service }) {
+    const { code } = await service.transform(`/* @__PURE__ */ fn(); <div/>`, {
+      loader: 'jsx',
+      minifySyntax: true,
+    })
+    assert.strictEqual(code, ``)
+  },
+
+  async treeShakingTrue({ service }) {
+    const { code } = await service.transform(`/* @__PURE__ */ fn(); <div/>`, {
+      loader: 'jsx',
+      minifySyntax: true,
+      treeShaking: true,
+    })
+    assert.strictEqual(code, ``)
+  },
+
+  async treeShakingIgnoreAnnotations({ service }) {
+    const { code } = await service.transform(`/* @__PURE__ */ fn(); <div/>`, {
+      loader: 'jsx',
+      minifySyntax: true,
+      treeShaking: 'ignore-annotations',
+    })
+    assert.strictEqual(code, `fn(), React.createElement("div", null);\n`)
   },
 
   async jsCharsetDefault({ service }) {

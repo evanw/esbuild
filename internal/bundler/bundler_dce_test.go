@@ -980,3 +980,44 @@ func TestTreeShakingReactElements(t *testing.T) {
 		},
 	})
 }
+
+func TestDisableTreeShaking(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"pure":    config.DefineData{CallCanBeUnwrappedIfUnused: true},
+		"some.fn": config.DefineData{CallCanBeUnwrappedIfUnused: true},
+	})
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import './remove-me'
+				function RemoveMe1() {}
+				let removeMe2 = 0
+				class RemoveMe3 {}
+
+				import './keep-me'
+				function KeepMe1() {}
+				let keepMe2 = <KeepMe1/>
+				function keepMe3() { console.log('side effects') }
+				let keepMe4 = /* @__PURE__ */ keepMe3()
+				let keepMe5 = pure()
+				let keepMe6 = some.fn()
+			`,
+			"/remove-me.js": `
+				export default 'unused'
+			`,
+			"/keep-me/index.js": `
+				console.log('side effects')
+			`,
+			"/keep-me/package.json": `
+				{ "sideEffects": false }
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:                 config.ModeBundle,
+			AbsOutputFile:        "/out.js",
+			IgnoreDCEAnnotations: true,
+			Defines:              &defines,
+		},
+	})
+}

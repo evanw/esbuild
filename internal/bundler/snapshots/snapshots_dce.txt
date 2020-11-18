@@ -10,6 +10,23 @@ TestDataURLLoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestDisableTreeShaking
+---------- /out.js ----------
+// /keep-me/index.js
+console.log("side effects");
+
+// /entry.jsx
+function KeepMe1() {
+}
+let keepMe2 = React.createElement(KeepMe1, null);
+function keepMe3() {
+  console.log("side effects");
+}
+let keepMe4 = keepMe3();
+let keepMe5 = pure();
+let keepMe6 = some.fn();
+
+================================================================================
 TestFileLoaderRemoveUnused
 ---------- /out.js ----------
 // /entry.js

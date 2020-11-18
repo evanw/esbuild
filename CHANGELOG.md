@@ -8,6 +8,14 @@
 
     Right now comments are included in this character frequency histogram. This is not a correctness issue but it does mean that documents with the same code but different comments may be minified to different output files. This release fixes this difference by removing comments from the character frequency histogram.
 
+* Add an option to ignore tree-shaking annotations ([#458](https://github.com/evanw/esbuild/issues/458))
+
+    Tree shaking is the term the JavaScript community uses for dead code elimination, a common compiler optimization that automatically removes unreachable code. Since JavaScript is a dynamic language, identifying unused code is sometimes very difficult for a compiler, so the community has developed certain annotations to help tell compilers what code should be considered unused. Currently there two forms of tree-shaking annotations that esbuild supports: inline `/* @__PURE__ */` comments before function calls and the `sideEffects` field in `package.json`.
+
+    These annotations can be problematic because the compiler depends completely on developers for accuracy and the annotations are occasionally incorrect. The `sideEffects` field is particularly error-prone because by default it causes all files in your package to be considered dead code if no imports are used. If you add a new file containing side effects and forget to update that field, your package will break when people try to bundle it.
+
+    This release adds a new flag `--tree-shaking=ignore-annotations` to allow you to bundle code that contains incorrect tree-shaking annotations with esbuild. An example of such code is [@tensorflow/tfjs](https://github.com/tensorflow/tfjs). Ideally the `--tree-shaking=ignore-annotations` flag is only a temporary workaround. You should report these issues to the maintainer of the package to get them fixed since they will trip up other people too.
+
 ## 0.8.9
 
 * Add support for the `mips64le` architecture ([#523](https://github.com/evanw/esbuild/issues/523))
