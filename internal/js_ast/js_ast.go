@@ -379,9 +379,14 @@ type EUnary struct {
 }
 
 type EBinary struct {
-	Op    OpCode
 	Left  Expr
 	Right Expr
+	Op    OpCode
+
+	// If true, this expression was originally a self-assignment of the form
+	// "x = y". This is relevant because it's used to emit a warning later on
+	// about code that accidentally does "x = x".
+	WasIdentifierAssign bool
 }
 
 type EBoolean struct{ Value bool }
@@ -503,6 +508,10 @@ type EIdentifier struct {
 	// unwrapped if the resulting value is unused. Unwrapping means discarding
 	// the call target but keeping any arguments with side effects.
 	CallCanBeUnwrappedIfUnused bool
+
+	// If true, this identifier was originally a "x as T" or "<T>x" expression.
+	// This is used to avoid warnings about "x = x as T" assignments.
+	WasTypeScriptCast bool
 }
 
 // This is similar to an EIdentifier but it represents a reference to an ES6
@@ -649,11 +658,11 @@ func (*ERequireResolve) isExpr()    {}
 func (*EImport) isExpr()            {}
 
 func Assign(a Expr, b Expr) Expr {
-	return Expr{a.Loc, &EBinary{BinOpAssign, a, b}}
+	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpAssign, Left: a, Right: b}}
 }
 
 func AssignStmt(a Expr, b Expr) Stmt {
-	return Stmt{a.Loc, &SExpr{Value: Assign(a, b)}}
+	return Stmt{Loc: a.Loc, Data: &SExpr{Value: Assign(a, b)}}
 }
 
 func Not(a Expr) Expr {
@@ -661,7 +670,7 @@ func Not(a Expr) Expr {
 	if not, ok := a.Data.(*EUnary); ok && not.Op == UnOpNot && IsBooleanValue(not.Value) {
 		return not.Value
 	}
-	return Expr{a.Loc, &EUnary{UnOpNot, a}}
+	return Expr{Loc: a.Loc, Data: &EUnary{UnOpNot, a}}
 }
 
 func IsBooleanValue(a Expr) bool {
@@ -686,7 +695,7 @@ func IsBooleanValue(a Expr) bool {
 }
 
 func JoinWithComma(a Expr, b Expr) Expr {
-	return Expr{a.Loc, &EBinary{BinOpComma, a, b}}
+	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpComma, Left: a, Right: b}}
 }
 
 func JoinAllWithComma(all []Expr) Expr {

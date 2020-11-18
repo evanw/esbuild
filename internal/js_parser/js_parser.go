@@ -1976,6 +1976,12 @@ func markExprAsParenthesized(value js_ast.Expr) {
 	}
 }
 
+func markExprAsTypeScriptCast(value js_ast.Expr) {
+	if e, ok := value.Data.(*js_ast.EIdentifier); ok {
+		e.WasTypeScriptCast = true
+	}
+}
+
 func (p *parser) convertExprToBindingAndInitializer(expr js_ast.Expr, invalidLog []logger.Loc) (js_ast.Binding, *js_ast.Expr, []logger.Loc) {
 	var initializer *js_ast.Expr
 	if assign, ok := expr.Data.(*js_ast.EBinary); ok && assign.Op == js_ast.BinOpAssign {
@@ -2650,7 +2656,9 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.lexer.Next()
 			p.skipTypeScriptType(js_ast.LLowest)
 			p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
-			return p.parsePrefix(level, errors, flags)
+			value := p.parsePrefix(level, errors, flags)
+			markExprAsTypeScriptCast(value)
+			return value
 		}
 
 		p.lexer.Unexpected()
@@ -3381,7 +3389,19 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				return left
 			}
 			p.lexer.Next()
-			left = js_ast.Assign(left, p.parseExpr(js_ast.LAssign-1))
+			right := p.parseExpr(js_ast.LAssign - 1)
+			wasIdentifierAssign := false
+			if _, ok := left.Data.(*js_ast.EIdentifier); ok {
+				if _, ok := right.Data.(*js_ast.EIdentifier); ok {
+					wasIdentifierAssign = true
+				}
+			}
+			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EBinary{
+				Op:                  js_ast.BinOpAssign,
+				Left:                left,
+				Right:               right,
+				WasIdentifierAssign: wasIdentifierAssign,
+			}}
 
 		case js_lexer.TIn:
 			if level >= js_ast.LCompare || !p.allowIn {
@@ -3421,6 +3441,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if p.TS.Parse && !p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
+				markExprAsTypeScriptCast(left)
 				continue
 			}
 
@@ -8667,6 +8688,21 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// All assignment operators below here
 
 		case js_ast.BinOpAssign:
+			// Warn if an identifier is re-assigned to itself
+			if in.assignTarget == js_ast.AssignTargetNone && e.WasIdentifierAssign && !p.SuppressWarningsAboutWeirdCode {
+				if left, ok := e.Left.Data.(*js_ast.EIdentifier); ok && !left.WasTypeScriptCast {
+					if right, ok := e.Right.Data.(*js_ast.EIdentifier); ok && !right.WasTypeScriptCast {
+						if left.Ref == right.Ref && p.symbols[left.Ref.InnerIndex].Kind != js_ast.SymbolUnbound {
+							a := js_lexer.RangeOfIdentifier(p.source, e.Left.Loc)
+							b := js_lexer.RangeOfIdentifier(p.source, e.Right.Loc)
+							r := logger.Range{Loc: a.Loc, Len: b.End() - a.Loc.Start}
+							p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("Assignment of %q to itself has no effect",
+								p.symbols[left.Ref.InnerIndex].OriginalName))
+						}
+					}
+				}
+			}
+
 			// Optionally preserve the name
 			if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
 				e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName)

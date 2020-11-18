@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add a warning about self-assignment
+
+    This release adds a warning for code that assigns an identifier to itself (e.g. `x = x`). This code is likely a mistake since doing this has no effect. This warning is not generated for assignments to global variables, since that can have side effects, and self-assignments with TypeScript casts, since those can be useful for changing the type of a variable in TypeScript. The warning is also not generated for code inside a `node_modules` folder.
+
 ## 0.8.10
 
 * Fix parsing of conditional types in TypeScript ([#541](https://github.com/evanw/esbuild/issues/541))
