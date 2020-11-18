@@ -619,11 +619,7 @@ func runOnResolvePlugins(
 	// Resolve relative to the resolve directory by default. All paths in the
 	// "file" namespace automatically have a resolve directory. Loader plugins
 	// can also configure a custom resolve directory for files in other namespaces.
-	if absResolveDir != "" {
-		return res.Resolve(absResolveDir, path, kind), false
-	}
-
-	return nil, false
+	return res.Resolve(absResolveDir, path, kind), false
 }
 
 type loaderPluginResult struct {

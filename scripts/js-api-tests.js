@@ -973,6 +973,33 @@ console.log("success");
 })();
 `)
   },
+
+  async externalWithWildcard({ esbuild }) {
+    const { outputFiles } = await esbuild.build({
+      stdin: {
+        contents: `require('/assets/file.png')`,
+      },
+      write: false,
+      bundle: true,
+      external: ['/assets/*.png'],
+    })
+    assert.strictEqual(outputFiles[0].text, `(() => {
+  // <stdin>
+  require("/assets/file.png");
+})();
+`)
+  },
+
+  async errorInvalidExternalWithTwoWildcards({ esbuild }) {
+    try {
+      await esbuild.build({ entryPoints: ['in.js'], external: ['a*b*c'], write: false, logLevel: 'silent' })
+      throw new Error('Expected build failure');
+    } catch (e) {
+      if (e.message !== 'Build failed with 1 error:\nerror: External path "a*b*c" cannot have more than one "*" wildcard') {
+        throw e;
+      }
+    }
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {

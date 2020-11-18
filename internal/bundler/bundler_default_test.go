@@ -2160,6 +2160,36 @@ func TestAutoExternal(t *testing.T) {
 	})
 }
 
+func TestExternalWithWildcard(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// Should match
+				import "/assets/images/test.jpg";
+				import "./file.png";
+
+				// Should not match
+				import "/sassets/images/test.jpg";
+				import "./file.ping";
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExternalModules: config.ExternalModules{
+				Patterns: []config.WildcardPattern{
+					{Prefix: "/assets/"},
+					{Suffix: ".png"},
+				},
+			},
+		},
+		expectedScanLog: `/entry.js: error: Could not read from file: /sassets/images/test.jpg
+/entry.js: error: Could not resolve "./file.ping"
+`,
+	})
+}
+
 // This test case makes sure many entry points don't cause a crash
 func TestManyEntryPoints(t *testing.T) {
 	default_suite.expectBundled(t, bundled{

@@ -184,9 +184,10 @@ func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
 
 func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	// Certain types of URLs default to being external for convenience
-	if
-	// "fill: url(#filter);"
-	(kind.IsFromCSS() && strings.HasPrefix(importPath, "#")) ||
+	if r.isExternalPattern(importPath) ||
+
+		// "fill: url(#filter);"
+		(kind.IsFromCSS() && strings.HasPrefix(importPath, "#")) ||
 
 		// "background: url(http://example.com/images/image.png);"
 		strings.HasPrefix(importPath, "http://") ||
@@ -206,6 +207,12 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 		}
 	}
 
+	// Fail now if there is no directory to resolve in. This can happen for
+	// virtual modules (e.g. stdin) if a resolve directory is not specified.
+	if sourceDir == "" {
+		return nil
+	}
+
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -216,6 +223,15 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 
 	// If successful, resolve symlinks using the directory info cache
 	return r.finalizeResolve(*result)
+}
+
+func (r *resolver) isExternalPattern(path string) bool {
+	for _, pattern := range r.options.ExternalModules.Patterns {
+		if strings.HasPrefix(path, pattern.Prefix) && strings.HasSuffix(path, pattern.Suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *resolver) ResolveAbs(absPath string) *ResolveResult {

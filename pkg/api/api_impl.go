@@ -248,7 +248,16 @@ func validateExternals(log logger.Log, fs fs.FS, paths []string) config.External
 		AbsPaths:    make(map[string]bool),
 	}
 	for _, path := range paths {
-		if resolver.IsPackagePath(path) {
+		if index := strings.IndexByte(path, '*'); index != -1 {
+			if strings.ContainsRune(path[index+1:], '*') {
+				log.AddError(nil, logger.Loc{}, fmt.Sprintf("External path %q cannot have more than one \"*\" wildcard", path))
+			} else {
+				result.Patterns = append(result.Patterns, config.WildcardPattern{
+					Prefix: path[:index],
+					Suffix: path[index+1:],
+				})
+			}
+		} else if resolver.IsPackagePath(path) {
 			result.NodeModules[path] = true
 		} else if absPath := validatePath(log, fs, path); absPath != "" {
 			result.AbsPaths[absPath] = true

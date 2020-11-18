@@ -136,9 +136,15 @@ type StdinInfo struct {
 	AbsResolveDir string
 }
 
+type WildcardPattern struct {
+	Prefix string
+	Suffix string
+}
+
 type ExternalModules struct {
 	NodeModules map[string]bool
 	AbsPaths    map[string]bool
+	Patterns    []WildcardPattern
 }
 
 type Mode uint8
