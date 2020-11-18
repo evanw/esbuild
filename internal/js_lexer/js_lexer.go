@@ -478,7 +478,7 @@ func (lexer *Lexer) ExpectGreaterThan(isInsideJSXElement bool) {
 }
 
 func IsIdentifier(text string) bool {
-	if len(text) == 0 {
+	if text == "" {
 		return false
 	}
 	for i, codePoint := range text {
@@ -629,7 +629,7 @@ func IsWhitespace(codePoint rune) bool {
 
 func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
 	text := source.Contents[loc.Start:]
-	if len(text) == 0 {
+	if text == "" {
 		return logger.Range{Loc: loc, Len: 0}
 	}
 

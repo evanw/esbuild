@@ -785,7 +785,7 @@ func decodeEscapesInToken(inner string) string {
 			continue
 		}
 
-		if len(inner) == 0 {
+		if inner == "" {
 			sb.WriteRune(replacementCharacter)
 			continue
 		}
