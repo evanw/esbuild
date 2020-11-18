@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix parsing of conditional types in TypeScript ([#541](https://github.com/evanw/esbuild/issues/541))
+
+    Conditional types in TypeScript take the form `A extends B ? C : D`. Parsing of conditional types in esbuild was incorrect. The `?` can only follow an `extends` clause but esbuild didn't require the `extends` clause, which potentially led to build failures or miscompilation. The parsing for this syntax has been fixed and should now match the behavior of the TypeScript compiler. This fix was contributed by [@rtsao](https://github.com/rtsao).
+
 * Ignore comments for character frequency analysis ([#543](https://github.com/evanw/esbuild/issues/543))
 
     Character frequency analysis is used to derive the order of minified names for better gzip compression. The idea is to prefer using the most-used characters in the non-symbol parts of the document (keywords, strings, etc.) over characters that are less-used or absent. This is a very slight win, and is only approximate based on the input text instead of the output text because otherwise it would require minifying twice.
