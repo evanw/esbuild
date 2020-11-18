@@ -236,6 +236,14 @@
           'foo.js': `module.exports = 123`,
         }),
         test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import * as out from './foo'; if (out.default !== null) throw 'fail'`,
+          'foo.js': `module.exports = null`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
+          'in.js': `import * as out from './foo'; if (out.default !== void 0) throw 'fail'`,
+          'foo.js': `module.exports = void 0`,
+        }),
+        test(['--bundle', 'in.js', '--outfile=node.js', '--target=' + target].concat(minify), {
           'in.js': `import * as out from './foo'; if (out.foo !== 123) throw 'fail'`,
           'foo.js': `export var foo = 123`,
         }),

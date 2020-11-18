@@ -87,7 +87,7 @@ func code(isES6 bool) string {
 		}
 		export var __exportStar = (target, module, desc) => {
 			__markAsModule(target)
-			if (typeof module === 'object' || typeof module === 'function')
+			if (module && typeof module === 'object' || typeof module === 'function')
 	`
 
 	// Avoid "let" when not using ES6
@@ -116,7 +116,7 @@ func code(isES6 bool) string {
 			if (module && module.__esModule)
 				return module
 			return __exportStar(
-				__defProp(__create(__getProtoOf(module)), 'default', { value: module, enumerable: true }),
+				__defProp(module != null ? __create(__getProtoOf(module)) : {}, 'default', { value: module, enumerable: true }),
 				module)
 		}
 
