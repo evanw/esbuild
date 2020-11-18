@@ -104,7 +104,7 @@ func (p *parser) expect(kind css_lexer.T) bool {
 	var text string
 	if kind == css_lexer.TSemicolon && p.index > 0 && p.at(p.index-1).Kind == css_lexer.TWhitespace {
 		// Have a nice error message for forgetting a trailing semicolon
-		text = fmt.Sprintf("Expected \";\"")
+		text = "Expected \";\""
 		t = p.at(p.index - 1)
 	} else {
 		switch t.Kind {
