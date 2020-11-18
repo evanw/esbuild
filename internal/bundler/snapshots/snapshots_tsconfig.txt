@@ -103,6 +103,20 @@ var baseurl_nested_default = {
 console.log(baseurl_dot_default, baseurl_nested_default);
 
 ================================================================================
+TestTsconfigJsonAbsoluteBaseUrl
+---------- /Users/user/project/out.js ----------
+// /Users/user/project/src/lib/util.js
+var require_util = __commonJS((exports, module) => {
+  module.exports = function() {
+    return 123;
+  };
+});
+
+// /Users/user/project/src/app/entry.js
+const util = __toModule(require_util());
+console.log(util.default());
+
+================================================================================
 TestTsconfigJsonBaseUrl
 ---------- /Users/user/project/out.js ----------
 // /Users/user/project/src/lib/util.js
@@ -151,7 +165,10 @@ console.log(/* @__PURE__ */ worked("div", null));
 ================================================================================
 TestTsconfigJsonExtendsThreeLevels
 ---------- /out.js ----------
-// /entry.jsx
+// /Users/user/project/src/path2/works/import.js
+console.log("works");
+
+// /Users/user/project/src/entry.jsx
 console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
 
 ================================================================================

@@ -644,7 +644,7 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 		return nil, parseErrorAlreadyLogged
 	}
 
-	if result.BaseURL != nil {
+	if result.BaseURL != nil && !r.fs.IsAbs(*result.BaseURL) {
 		*result.BaseURL = r.fs.Join(fileDir, *result.BaseURL)
 	}
 

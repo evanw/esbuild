@@ -275,6 +275,34 @@ func TestJsconfigJsonBaseUrl(t *testing.T) {
 	})
 }
 
+func TestTsconfigJsonAbsoluteBaseUrl(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/app/entry.js": `
+				import fn from 'lib/util'
+				console.log(fn())
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "/Users/user/project/src"
+					}
+				}
+			`,
+			"/Users/user/project/src/lib/util.js": `
+				module.exports = function() {
+					return 123
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/app/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestTsconfigJsonCommentAllowed(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -366,32 +394,40 @@ func TestTsconfigJsonExtends(t *testing.T) {
 func TestTsconfigJsonExtendsThreeLevels(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.jsx": `
+			"/Users/user/project/src/entry.jsx": `
+				import "test/import.js"
 				console.log(<div/>, <></>)
 			`,
-			"/tsconfig.json": `
+			"/Users/user/project/src/tsconfig.json": `
 				{
-					"extends": "./base",
+					"extends": "./path1/base",
 					"compilerOptions": {
 						"jsxFragmentFactory": "derivedFragment"
 					}
 				}
 			`,
-			"/base.json": `
+			"/Users/user/project/src/path1/base.json": `
 				{
-					"extends": "./base2"
+					"extends": "../path2/base2"
 				}
 			`,
-			"/base2.json": `
+			"/Users/user/project/src/path2/base2.json": `
 				{
 					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"test/*": ["./works/*"]
+						},
 						"jsxFactory": "baseFactory",
 						"jsxFragmentFactory": "baseFragment"
 					}
 				}
 			`,
+			"/Users/user/project/src/path2/works/import.js": `
+				console.log('works')
+			`,
 		},
-		entryPaths: []string{"/entry.jsx"},
+		entryPaths: []string{"/Users/user/project/src/entry.jsx"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
