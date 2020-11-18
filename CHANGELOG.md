@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.11
 
 * Fix parsing of casts in TypeScript followed by certain tokens
 
