@@ -173,6 +173,12 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let foo = bar\nas (null)", "let foo = bar;\nas(null);\n")
 	expectParseErrorTS(t, "let foo = (bar\nas (null))", "<stdin>: error: Expected \")\" but found \"as\"\n")
 
+	expectPrintedTS(t, "a as any ? b : c;", "a ? b : c;\n")
+	expectPrintedTS(t, "a as any ? async () => b : c;", "a ? async () => b : c;\n")
+	expectPrintedTS(t, "foo as number extends Object ? any : any;", "foo;\n")
+	expectPrintedTS(t, "foo as number extends Object ? () => void : any;", "foo;\n")
+	expectPrintedTS(t, "let a = b ? c : d as T extends T ? T extends T ? T : never : never ? e : f;", "let a = b ? c : d ? e : f;\n")
+
 	expectPrintedTS(t, "let foo: keyof Object = 'toString'", "let foo = \"toString\";\n")
 	expectPrintedTS(t, "let foo: keyof\nObject = 'toString'", "let foo = \"toString\";\n")
 	expectPrintedTS(t, "let foo: (keyof\nObject) = 'toString'", "let foo = \"toString\";\n")
