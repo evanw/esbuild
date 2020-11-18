@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.10
 
 * Fix parsing of conditional types in TypeScript ([#541](https://github.com/evanw/esbuild/issues/541))
 
