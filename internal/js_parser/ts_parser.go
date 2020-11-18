@@ -255,6 +255,9 @@ func (p *parser) skipTypeScriptTypePrefix() {
 				p.lexer.Next()
 			}
 			p.skipTypeScriptType(js_ast.LLowest)
+			if p.lexer.Token == js_lexer.TQuestion {
+				p.lexer.Next()
+			}
 			if p.lexer.Token == js_lexer.TColon {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
@@ -339,43 +342,14 @@ func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 
 		case js_lexer.TExtends:
 			// "{ x: number \n extends: boolean }" must not become a single type
-			if p.lexer.HasNewlineBefore {
+			if p.lexer.HasNewlineBefore || level >= js_ast.LConditional {
 				return
 			}
 			p.lexer.Next()
+
+			// The type following "extends" is not permitted to be another conditional type
 			p.skipTypeScriptType(js_ast.LConditional)
-			if p.lexer.Token == js_lexer.TQuestion {
-				p.lexer.Next()
-				switch p.lexer.Token {
-				// Stop now if we're parsing one of these:
-				// "(a?: b) => void"
-				// "(a?, b?) => void"
-				// "(a?) => void"
-				// "[string?]"
-				case js_lexer.TColon, js_lexer.TComma, js_lexer.TCloseParen, js_lexer.TCloseBracket:
-					return
-				}
-				p.skipTypeScriptType(js_ast.LConditional)
-				p.lexer.Expect(js_lexer.TColon)
-				p.skipTypeScriptType(js_ast.LConditional)
-			}
-
-		case js_lexer.TQuestion:
-			if level >= js_ast.LConditional {
-				return
-			}
-			p.lexer.Next()
-
-			switch p.lexer.Token {
-			// Stop now if we're parsing one of these:
-			// "(a?: b) => void"
-			// "(a?, b?) => void"
-			// "(a?) => void"
-			// "[string?]"
-			case js_lexer.TColon, js_lexer.TComma, js_lexer.TCloseParen, js_lexer.TCloseBracket:
-				return
-			}
-
+			p.lexer.Expect(js_lexer.TQuestion)
 			p.skipTypeScriptType(js_ast.LLowest)
 			p.lexer.Expect(js_lexer.TColon)
 			p.skipTypeScriptType(js_ast.LLowest)

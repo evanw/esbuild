@@ -112,6 +112,7 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: T extends number\n ? T\n : number", "let x;\n")
 	expectPrintedTS(t, "let x: {y: T extends number ? T : number}", "let x;\n")
+	expectPrintedTS(t, "let x: {y: T \n extends: number}", "let x;\n")
 	expectPrintedTS(t, "let x: {y: T \n extends?: number}", "let x;\n")
 	expectPrintedTS(t, "let x: (number | string)[]", "let x;\n")
 	expectPrintedTS(t, "let x: [string[]?]", "let x;\n")
@@ -178,6 +179,9 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "foo as number extends Object ? any : any;", "foo;\n")
 	expectPrintedTS(t, "foo as number extends Object ? () => void : any;", "foo;\n")
 	expectPrintedTS(t, "let a = b ? c : d as T extends T ? T extends T ? T : never : never ? e : f;", "let a = b ? c : d ? e : f;\n")
+	expectParseErrorTS(t, "type a = b extends c", "<stdin>: error: Expected \"?\" but found end of file\n")
+	expectParseErrorTS(t, "type a = b extends c extends d", "<stdin>: error: Expected \"?\" but found \"extends\"\n")
+	expectParseErrorTS(t, "type a = b ? c : d", "<stdin>: error: Expected \";\" but found \"?\"\n")
 
 	expectPrintedTS(t, "let foo: keyof Object = 'toString'", "let foo = \"toString\";\n")
 	expectPrintedTS(t, "let foo: keyof\nObject = 'toString'", "let foo = \"toString\";\n")
