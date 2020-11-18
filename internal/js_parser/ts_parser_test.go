@@ -177,6 +177,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "a as any ? async () => b : c;", "a ? async () => b : c;\n")
 	expectPrintedTS(t, "foo as number extends Object ? any : any;", "foo;\n")
 	expectPrintedTS(t, "foo as number extends Object ? () => void : any;", "foo;\n")
+	expectPrintedTS(t, "let a = b ? c : d as T extends T ? T extends T ? T : never : never ? e : f;", "let a = b ? c : d ? e : f;\n")
 
 	expectPrintedTS(t, "let foo: keyof Object = 'toString'", "let foo = \"toString\";\n")
 	expectPrintedTS(t, "let foo: keyof\nObject = 'toString'", "let foo = \"toString\";\n")
