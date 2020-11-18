@@ -343,7 +343,7 @@ func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 				return
 			}
 			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LCompare)
+			p.skipTypeScriptType(js_ast.LLowest)
 
 		case js_lexer.TQuestion:
 			if level >= js_ast.LConditional {
