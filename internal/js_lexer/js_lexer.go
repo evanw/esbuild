@@ -90,7 +90,7 @@ const (
 	TSlash
 	TTilde
 
-	// Assignments
+	// Assignments (keep in sync with IsAssign() below)
 	TAmpersandAmpersandEquals
 	TAmpersandEquals
 	TAsteriskAsteriskEquals
@@ -153,6 +153,10 @@ const (
 	TWhile
 	TWith
 )
+
+func (t T) IsAssign() bool {
+	return t >= TAmpersandAmpersandEquals && t <= TSlashEquals
+}
 
 var Keywords = map[string]T{
 	// Reserved words

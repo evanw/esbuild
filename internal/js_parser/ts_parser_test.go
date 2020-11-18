@@ -194,6 +194,32 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let foo: `${'a' | 'b'}-${'c' | 'd'}` = 'a-c'", "let foo = \"a-c\";\n")
 }
 
+func TestTSAsCast(t *testing.T) {
+	expectPrintedTS(t, "x as any\n(y);", "x;\ny;\n")
+	expectPrintedTS(t, "x as any\n`y`;", "x;\n`y`;\n")
+	expectPrintedTS(t, "x as any\n`${y}`;", "x;\n`${y}`;\n")
+	expectPrintedTS(t, "x as any\n--y;", "x;\n--y;\n")
+	expectPrintedTS(t, "x as any\n++y;", "x;\n++y;\n")
+	expectPrintedTS(t, "x + y as any\n(z as any) + 1;", "x + y;\nz + 1;\n")
+	expectPrintedTS(t, "x + y as any\n(z as any) = 1;", "x + y;\nz = 1;\n")
+	expectPrintedTS(t, "x = y as any\n(z as any) + 1;", "x = y;\nz + 1;\n")
+	expectPrintedTS(t, "x = y as any\n(z as any) = 1;", "x = y;\nz = 1;\n")
+	expectPrintedTS(t, "x * y as any\n['z'];", "x * y;\n[\"z\"];\n")
+	expectPrintedTS(t, "x * y as any\n.z;", "x * y;\n")
+	expectParseErrorTS(t, "x = y as any `z`;", "<stdin>: error: Expected \";\" but found \"`z`\"\n")
+	expectParseErrorTS(t, "x = y as any `${z}`;", "<stdin>: error: Expected \";\" but found \"`${\"\n")
+	expectParseErrorTS(t, "x = y as any?.z;", "<stdin>: error: Expected \";\" but found \"?.\"\n")
+	expectParseErrorTS(t, "x = y as any--;", "<stdin>: error: Expected \";\" but found \"--\"\n")
+	expectParseErrorTS(t, "x = y as any++;", "<stdin>: error: Expected \";\" but found \"++\"\n")
+	expectParseErrorTS(t, "x = y as any(z);", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseErrorTS(t, "x = y as any\n= z;", "<stdin>: error: Unexpected \"=\"\n")
+	expectParseErrorTS(t, "a, x as y `z`;", "<stdin>: error: Expected \";\" but found \"`z`\"\n")
+	expectParseErrorTS(t, "a ? b : x as y `z`;", "<stdin>: error: Expected \";\" but found \"`z`\"\n")
+	expectParseErrorTS(t, "x as any = y;", "<stdin>: error: Expected \";\" but found \"=\"\n")
+	expectParseErrorTS(t, "(x as any = y);", "<stdin>: error: Expected \")\" but found \"=\"\n")
+	expectParseErrorTS(t, "(x = y as any(z));", "<stdin>: error: Expected \")\" but found \"(\"\n")
+}
+
 func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "export default class Foo {}", "export default class Foo {\n}\n")
 	expectPrintedTS(t, "export default class Foo extends Bar<T> {}", "export default class Foo extends Bar {\n}\n")

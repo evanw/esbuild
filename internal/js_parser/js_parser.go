@@ -46,6 +46,7 @@ type parser struct {
 	hasImportMeta            bool
 	allocatedNames           []string
 	latestArrowArgLoc        logger.Loc
+	forbidSuffixAfterAsLoc   logger.Loc
 	currentScope             *js_ast.Scope
 	scopesForCurrentPart     []*js_ast.Scope
 	symbols                  []js_ast.Symbol
@@ -1846,8 +1847,8 @@ func (p *parser) parseParenExpr(loc logger.Loc, opts parenExprOpts) js_ast.Expr 
 			p.skipTypeScriptType(js_ast.LLowest)
 		}
 
-		// There may be a "=" after the type
-		if p.TS.Parse && p.lexer.Token == js_lexer.TEquals {
+		// There may be a "=" after the type (but not after an "as" cast)
+		if p.TS.Parse && p.lexer.Token == js_lexer.TEquals && p.lexer.Loc() != p.forbidSuffixAfterAsLoc {
 			p.lexer.Next()
 			item = js_ast.Assign(item, p.parseExpr(js_ast.LComma))
 		}
@@ -2831,6 +2832,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 	optionalChain := js_ast.OptionalChainNone
 
 	for {
+		// Stop now if this token is forbidden to follow a TypeScript "as" cast
+		if p.lexer.Loc() == p.forbidSuffixAfterAsLoc {
+			return left
+		}
+
 		// Reset the optional chain flag by default. That way we won't accidentally
 		// treat "c.d" as OptionalChainContinue in "a?.b + c.d".
 		oldOptionalChain := optionalChain
@@ -3438,10 +3444,28 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 		default:
 			// Handle the TypeScript "as" operator
-			if p.TS.Parse && !p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("as") {
+			if p.TS.Parse && level < js_ast.LCompare && !p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("as") {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
 				markExprAsTypeScriptCast(left)
+
+				// These tokens are not allowed to follow a cast expression. This isn't
+				// an outright error because it may be on a new line, in which case it's
+				// the start of a new expression when it's after a cast:
+				//
+				//   x = y as z
+				//   (something);
+				//
+				switch p.lexer.Token {
+				case js_lexer.TPlusPlus, js_lexer.TMinusMinus, js_lexer.TNoSubstitutionTemplateLiteral,
+					js_lexer.TTemplateHead, js_lexer.TOpenParen, js_lexer.TOpenBracket, js_lexer.TQuestionDot:
+					p.forbidSuffixAfterAsLoc = p.lexer.Loc()
+					return left
+				}
+				if p.lexer.Token.IsAssign() {
+					p.forbidSuffixAfterAsLoc = p.lexer.Loc()
+					return left
+				}
 				continue
 			}
 
