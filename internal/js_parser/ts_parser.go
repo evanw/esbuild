@@ -306,6 +306,17 @@ func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 			p.lexer.Next()
 			p.skipTypeScriptType(js_ast.LBitwiseAnd)
 
+		case js_lexer.TExclamation:
+			// A postfix "!" is allowed in JSDoc types in TypeScript, which are only
+			// present in comments. While it's not valid in a non-comment position,
+			// it's still parsed and turned into a soft error by the TypeScript
+			// compiler. It turns out parsing this is important for correctness for
+			// "as" casts because the "!" token must still be consumed.
+			if p.lexer.HasNewlineBefore {
+				return
+			}
+			p.lexer.Next()
+
 		case js_lexer.TDot:
 			p.lexer.Next()
 			if !p.lexer.IsIdentifierOrKeyword() {
