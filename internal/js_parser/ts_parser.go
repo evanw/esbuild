@@ -343,7 +343,22 @@ func (p *parser) skipTypeScriptTypeSuffix(level js_ast.L) {
 				return
 			}
 			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LLowest)
+			p.skipTypeScriptType(js_ast.LConditional)
+			if p.lexer.Token == js_lexer.TQuestion {
+				p.lexer.Next()
+				switch p.lexer.Token {
+				// Stop now if we're parsing one of these:
+				// "(a?: b) => void"
+				// "(a?, b?) => void"
+				// "(a?) => void"
+				// "[string?]"
+				case js_lexer.TColon, js_lexer.TComma, js_lexer.TCloseParen, js_lexer.TCloseBracket:
+					return
+				}
+				p.skipTypeScriptType(js_ast.LConditional)
+				p.lexer.Expect(js_lexer.TColon)
+				p.skipTypeScriptType(js_ast.LConditional)
+			}
 
 		case js_lexer.TQuestion:
 			if level >= js_ast.LConditional {
