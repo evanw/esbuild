@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -17,7 +17,7 @@ import (
 type parser struct {
 	log           logger.Log
 	source        logger.Source
-	options       config.Options
+	options       Options
 	tokens        []css_lexer.Token
 	stack         []css_lexer.T
 	index         int
@@ -26,7 +26,12 @@ type parser struct {
 	importRecords []ast.ImportRecord
 }
 
-func Parse(log logger.Log, source logger.Source, options config.Options) css_ast.AST {
+type Options struct {
+	UnsupportedCSSFeatures compat.CSSFeature
+	MangleSyntax           bool
+}
+
+func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 	p := parser{
 		log:       log,
 		source:    source,

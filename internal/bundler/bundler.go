@@ -223,7 +223,10 @@ func parseFile(args parseArgs) {
 		result.ok = ok
 
 	case config.LoaderCSS:
-		ast := css_parser.Parse(args.log, source, args.options)
+		ast := css_parser.Parse(args.log, source, css_parser.Options{
+			MangleSyntax:           args.options.MangleSyntax,
+			UnsupportedCSSFeatures: args.options.UnsupportedCSSFeatures,
+		})
 		result.file.repr = &reprCSS{ast: ast}
 		result.ok = true
 
