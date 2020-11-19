@@ -112,6 +112,10 @@ type Resolver interface {
 	Resolve(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult
 	ResolveAbs(absPath string) *ResolveResult
 	PrettyPath(path logger.Path) string
+
+	// This tries to run "Resolve" on a package path as a relative path. If
+	// successful, the user just forgot a leading "./" in front of the path.
+	ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult
 }
 
 type resolver struct {
@@ -242,6 +246,14 @@ func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 
 	// Just decorate the absolute path with information from parent directories
 	return r.finalizeResolve(ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}})
+}
+
+func (r *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+	absPath := r.fs.Join(sourceDir, importPath)
+	if pair, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
+		return r.finalizeResolve(ResolveResult{PathPair: pair})
+	}
+	return nil
 }
 
 func isInsideNodeModules(fs fs.FS, path string) bool {

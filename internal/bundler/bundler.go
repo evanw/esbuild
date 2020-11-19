@@ -403,6 +403,11 @@ func parseFile(args parseArgs) {
 						hint := ""
 						if resolver.IsPackagePath(record.Path.Text) {
 							hint = " (mark it as external to exclude it from the bundle)"
+							if pluginName == "" && !args.fs.IsAbs(record.Path.Text) {
+								if query := args.res.ProbeResolvePackageAsRelative(absResolveDir, record.Path.Text, record.Kind); query != nil {
+									hint = fmt.Sprintf(" (use %q to import %q)", "./"+record.Path.Text, args.res.PrettyPath(query.PathPair.Primary))
+								}
+							}
 						}
 						if args.options.Platform != config.PlatformNode {
 							if _, ok := resolver.BuiltInNodeModules[record.Path.Text]; ok {

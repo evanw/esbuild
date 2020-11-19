@@ -3567,3 +3567,23 @@ func TestCharFreqIgnoreComments(t *testing.T) {
 		},
 	})
 }
+
+func TestImportRelativeAsPackage(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'some/other/file'
+			`,
+			"/Users/user/project/src/some/other/file.js": `
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `/Users/user/project/src/entry.js: error: Could not resolve "some/other/file" ` +
+			`(use "./some/other/file" to import "/Users/user/project/src/some/other/file.js")
+`,
+	})
+}
