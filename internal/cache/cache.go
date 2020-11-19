@@ -32,29 +32,29 @@ import (
 //   reused even if the contents of that "package.json" file have changed.
 //
 type CacheSet struct {
-	SourceIndexCache *SourceIndexCache
-	FSCache          *FSCache
-	CSSCache         *CSSCache
-	JSONCache        *JSONCache
-	JSCache          *JSCache
+	SourceIndexCache SourceIndexCache
+	FSCache          FSCache
+	CSSCache         CSSCache
+	JSONCache        JSONCache
+	JSCache          JSCache
 }
 
-func MakeCacheSet() CacheSet {
-	return CacheSet{
-		SourceIndexCache: &SourceIndexCache{
+func MakeCacheSet() *CacheSet {
+	return &CacheSet{
+		SourceIndexCache: SourceIndexCache{
 			entries:         make(map[logger.Path]uint32),
 			nextSourceIndex: runtime.SourceIndex + 1,
 		},
-		FSCache: &FSCache{
+		FSCache: FSCache{
 			entries: make(map[string]*fsEntry),
 		},
-		CSSCache: &CSSCache{
+		CSSCache: CSSCache{
 			entries: make(map[logger.Path]*cssCacheEntry),
 		},
-		JSONCache: &JSONCache{
+		JSONCache: JSONCache{
 			entries: make(map[logger.Path]*jsonCacheEntry),
 		},
-		JSCache: &JSCache{
+		JSCache: JSCache{
 			entries: make(map[logger.Path]*jsCacheEntry),
 		},
 	}

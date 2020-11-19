@@ -113,7 +113,7 @@ type parseArgs struct {
 	fs                 fs.FS
 	log                logger.Log
 	res                resolver.Resolver
-	caches             cache.CacheSet
+	caches             *cache.CacheSet
 	keyPath            logger.Path
 	prettyPath         string
 	sourceIndex        uint32
@@ -162,7 +162,7 @@ func parseFile(args parseArgs) {
 			args.options.Plugins,
 			args.res,
 			args.fs,
-			args.caches.FSCache,
+			&args.caches.FSCache,
 			args.log,
 			&source,
 			args.importSource,
@@ -437,7 +437,7 @@ func parseFile(args parseArgs) {
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone {
 		if repr, ok := result.file.repr.(*reprJS); ok && repr.ast.SourceMapComment.Text != "" {
-			if path, contents := extractSourceMapFromComment(args.log, args.fs, args.caches.FSCache,
+			if path, contents := extractSourceMapFromComment(args.log, args.fs, &args.caches.FSCache,
 				args.res, &source, repr.ast.SourceMapComment, absResolveDir); contents != nil {
 				result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
 					KeyPath:    path,
@@ -762,7 +762,7 @@ func hashForFileName(bytes []byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes[:])[:8]
 }
 
-func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches cache.CacheSet, entryPaths []string, options config.Options) Bundle {
+func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.CacheSet, entryPaths []string, options config.Options) Bundle {
 	results := make([]parseResult, 0, caches.SourceIndexCache.LenHint())
 	visited := make(map[logger.Path]uint32)
 	resultChannel := make(chan parseResult)

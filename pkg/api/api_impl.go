@@ -476,7 +476,7 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
-func buildImpl(buildOpts BuildOptions, caches cache.CacheSet) BuildResult {
+func buildImpl(buildOpts BuildOptions, caches *cache.CacheSet) BuildResult {
 	log := logger.NewStderrLog(logger.StderrOptions{
 		IncludeSource: true,
 		ErrorLimit:    buildOpts.ErrorLimit,
@@ -713,7 +713,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			PrettyPath: "tsconfig.json",
 			Contents:   transformOpts.TsconfigRaw,
 		}
-		if result := resolver.ParseTSConfigJSON(log, source, caches.JSONCache, nil); result != nil {
+		if result := resolver.ParseTSConfigJSON(log, source, &caches.JSONCache, nil); result != nil {
 			if len(result.JSXFactory) > 0 {
 				jsx.Factory = result.JSXFactory
 			}

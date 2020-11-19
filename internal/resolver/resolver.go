@@ -122,7 +122,7 @@ type Resolver interface {
 type resolver struct {
 	fs      fs.FS
 	log     logger.Log
-	caches  cache.CacheSet
+	caches  *cache.CacheSet
 	options config.Options
 	mutex   sync.Mutex
 
@@ -155,7 +155,7 @@ type resolver struct {
 	dirCache map[string]*dirInfo
 }
 
-func NewResolver(fs fs.FS, log logger.Log, caches cache.CacheSet, options config.Options) Resolver {
+func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options config.Options) Resolver {
 	// Bundling for node implies allowing node's builtin modules
 	if options.Platform == config.PlatformNode {
 		externalNodeModules := make(map[string]bool)
@@ -605,7 +605,7 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 	}
 	fileDir := r.fs.Dir(file)
 
-	result := ParseTSConfigJSON(r.log, source, r.caches.JSONCache, func(extends string, extendsRange logger.Range) *TSConfigJSON {
+	result := ParseTSConfigJSON(r.log, source, &r.caches.JSONCache, func(extends string, extendsRange logger.Range) *TSConfigJSON {
 		if IsPackagePath(extends) {
 			// If this is a package path, try to resolve it to a "node_modules"
 			// folder. This doesn't use the normal node module resolution algorithm
