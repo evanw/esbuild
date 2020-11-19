@@ -2522,11 +2522,9 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				if p.lexer.Token == js_lexer.TComma {
 					selfErrors.invalidBindingCommaAfterSpread = p.lexer.Range()
 				}
-			} else {
+			} else if property, ok := p.parseProperty(js_ast.PropertyNormal, propertyOpts{}, &selfErrors); ok {
 				// This property may turn out to be a type in TypeScript, which should be ignored
-				if property, ok := p.parseProperty(js_ast.PropertyNormal, propertyOpts{}, &selfErrors); ok {
-					properties = append(properties, property)
-				}
+				properties = append(properties, property)
 			}
 
 			if p.lexer.Token != js_lexer.TComma {
