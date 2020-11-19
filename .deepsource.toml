@@ -14,4 +14,4 @@ name = "go"
 enabled = true
 
   [analyzers.meta]
-  import_paths = ["github.com/siddhant-deepsource/esbuild"]
+  import_paths = ["github.com/evanw/esbuild"]
