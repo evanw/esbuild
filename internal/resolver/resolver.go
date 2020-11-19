@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -121,6 +122,7 @@ type Resolver interface {
 type resolver struct {
 	fs      fs.FS
 	log     logger.Log
+	caches  cache.CacheSet
 	options config.Options
 	mutex   sync.Mutex
 
@@ -153,7 +155,7 @@ type resolver struct {
 	dirCache map[string]*dirInfo
 }
 
-func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
+func NewResolver(fs fs.FS, log logger.Log, caches cache.CacheSet, options config.Options) Resolver {
 	// Bundling for node implies allowing node's builtin modules
 	if options.Platform == config.PlatformNode {
 		externalNodeModules := make(map[string]bool)
@@ -181,6 +183,7 @@ func NewResolver(fs fs.FS, log logger.Log, options config.Options) Resolver {
 		fs:                     fs,
 		log:                    log,
 		options:                options,
+		caches:                 caches,
 		dirCache:               make(map[string]*dirInfo),
 		atImportExtensionOrder: atImportExtensionOrder,
 	}
@@ -589,7 +592,7 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 	}
 	visited[file] = true
 
-	contents, err := r.fs.ReadFile(file)
+	contents, err := r.caches.FSCache.ReadFile(r.fs, file)
 	if err != nil {
 		return nil, err
 	}
@@ -602,7 +605,7 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 	}
 	fileDir := r.fs.Dir(file)
 
-	result := ParseTSConfigJSON(r.log, source, func(extends string, extendsRange logger.Range) *TSConfigJSON {
+	result := ParseTSConfigJSON(r.log, source, r.caches.JSONCache, func(extends string, extendsRange logger.Range) *TSConfigJSON {
 		if IsPackagePath(extends) {
 			// If this is a package path, try to resolve it to a "node_modules"
 			// folder. This doesn't use the normal node module resolution algorithm
@@ -786,7 +789,7 @@ func (r *resolver) dirInfoUncached(path string) *dirInfo {
 
 func (r *resolver) parsePackageJSON(path string) *packageJSON {
 	packageJsonPath := r.fs.Join(path, "package.json")
-	contents, err := r.fs.ReadFile(packageJsonPath)
+	contents, err := r.caches.FSCache.ReadFile(r.fs, packageJsonPath)
 	if err != nil {
 		r.log.AddError(nil, logger.Loc{},
 			fmt.Sprintf("Cannot read file %q: %s",
@@ -801,7 +804,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 		Contents:   contents,
 	}
 
-	json, ok := js_parser.ParseJSON(r.log, jsonSource, js_parser.ParseJSONOptions{})
+	json, ok := r.caches.JSONCache.Parse(r.log, jsonSource, js_parser.ParseJSONOptions{})
 	if !ok {
 		return nil
 	}

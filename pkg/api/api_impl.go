@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/bundler"
+	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
@@ -606,8 +607,9 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	// Stop now if there were errors
 	if !log.HasErrors() {
 		// Scan over the bundle
-		resolver := resolver.NewResolver(realFS, log, options)
-		bundle := bundler.ScanBundle(log, realFS, resolver, entryPaths, options)
+		caches := cache.MakeCacheSet()
+		resolver := resolver.NewResolver(realFS, log, caches, options)
+		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPaths, options)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
@@ -697,13 +699,14 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Settings from "tsconfig.json" override those
+	caches := cache.MakeCacheSet()
 	if transformOpts.TsconfigRaw != "" {
 		source := logger.Source{
 			KeyPath:    logger.Path{Text: "tsconfig.json"},
 			PrettyPath: "tsconfig.json",
 			Contents:   transformOpts.TsconfigRaw,
 		}
-		if result := resolver.ParseTSConfigJSON(log, source, nil); result != nil {
+		if result := resolver.ParseTSConfigJSON(log, source, caches.JSONCache, nil); result != nil {
 			if len(result.JSXFactory) > 0 {
 				jsx.Factory = result.JSXFactory
 			}
@@ -775,8 +778,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	if !log.HasErrors() {
 		// Scan over the bundle
 		mockFS := fs.MockFS(make(map[string]string))
-		resolver := resolver.NewResolver(mockFS, log, options)
-		bundle := bundler.ScanBundle(log, mockFS, resolver, nil, options)
+		resolver := resolver.NewResolver(mockFS, log, caches, options)
+		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, nil, options)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {

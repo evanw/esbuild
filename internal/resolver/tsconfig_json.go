@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -32,6 +33,7 @@ type TSConfigJSON struct {
 func ParseTSConfigJSON(
 	log logger.Log,
 	source logger.Source,
+	jsonCache *cache.JSONCache,
 	extends func(string, logger.Range) *TSConfigJSON,
 ) *TSConfigJSON {
 	// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
@@ -42,7 +44,7 @@ func ParseTSConfigJSON(
 	// these particular files. This is likely not a completely accurate
 	// emulation of what the TypeScript compiler does (e.g. string escape
 	// behavior may also be different).
-	json, ok := js_parser.ParseJSON(log, source, js_parser.ParseJSONOptions{
+	json, ok := jsonCache.Parse(log, source, js_parser.ParseJSONOptions{
 		AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
 		AllowTrailingCommas: true,
 	})

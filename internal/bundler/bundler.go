@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
@@ -112,6 +113,7 @@ type parseArgs struct {
 	fs                 fs.FS
 	log                logger.Log
 	res                resolver.Resolver
+	caches             cache.CacheSet
 	keyPath            logger.Path
 	prettyPath         string
 	sourceIndex        uint32
@@ -160,6 +162,7 @@ func parseFile(args parseArgs) {
 			args.options.Plugins,
 			args.res,
 			args.fs,
+			args.caches.FSCache,
 			args.log,
 			&source,
 			args.importSource,
@@ -199,31 +202,31 @@ func parseFile(args parseArgs) {
 
 	switch loader {
 	case config.LoaderJS:
-		ast, ok := js_parser.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
+		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
 
 	case config.LoaderJSX:
 		args.options.JSX.Parse = true
-		ast, ok := js_parser.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
+		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
 
 	case config.LoaderTS:
 		args.options.TS.Parse = true
-		ast, ok := js_parser.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
+		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
 
 	case config.LoaderTSX:
 		args.options.TS.Parse = true
 		args.options.JSX.Parse = true
-		ast, ok := js_parser.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
+		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
 
 	case config.LoaderCSS:
-		ast := css_parser.Parse(args.log, source, css_parser.Options{
+		ast := args.caches.CSSCache.Parse(args.log, source, css_parser.Options{
 			MangleSyntax:           args.options.MangleSyntax,
 			UnsupportedCSSFeatures: args.options.UnsupportedCSSFeatures,
 		})
@@ -231,7 +234,7 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 	case config.LoaderJSON:
-		expr, ok := js_parser.ParseJSON(args.log, source, js_parser.ParseJSONOptions{})
+		expr, ok := args.caches.JSONCache.Parse(args.log, source, js_parser.ParseJSONOptions{})
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
@@ -431,7 +434,8 @@ func parseFile(args parseArgs) {
 	// Attempt to parse the source map if present
 	if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone {
 		if repr, ok := result.file.repr.(*reprJS); ok && repr.ast.SourceMapComment.Text != "" {
-			if path, contents := extractSourceMapFromComment(args.log, args.fs, args.res, &source, repr.ast.SourceMapComment, absResolveDir); contents != nil {
+			if path, contents := extractSourceMapFromComment(args.log, args.fs, args.caches.FSCache,
+				args.res, &source, repr.ast.SourceMapComment, absResolveDir); contents != nil {
 				result.file.sourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
 					KeyPath:    path,
 					PrettyPath: args.res.PrettyPath(path),
@@ -454,7 +458,15 @@ func guessMimeType(extension string, contents string) string {
 	return strings.ReplaceAll(mimeType, "; ", ";")
 }
 
-func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver, source *logger.Source, comment js_ast.Span, absResolveDir string) (logger.Path, *string) {
+func extractSourceMapFromComment(
+	log logger.Log,
+	fs fs.FS,
+	fsCache *cache.FSCache,
+	res resolver.Resolver,
+	source *logger.Source,
+	comment js_ast.Span,
+	absResolveDir string,
+) (logger.Path, *string) {
 	// Data URL
 	if strings.HasPrefix(comment.Text, "data:") {
 		if strings.HasPrefix(comment.Text, "data:application/json;") {
@@ -482,7 +494,7 @@ func extractSourceMapFromComment(log logger.Log, fs fs.FS, res resolver.Resolver
 	if absResolveDir != "" {
 		absPath := fs.Join(absResolveDir, comment.Text)
 		path := logger.Path{Text: absPath, Namespace: "file"}
-		contents, err := fs.ReadFile(absPath)
+		contents, err := fsCache.ReadFile(fs, absPath)
 		if err != nil {
 			if err == syscall.ENOENT {
 				// Don't report a warning because this is likely unactionable
@@ -640,6 +652,7 @@ func runOnLoadPlugins(
 	plugins []config.Plugin,
 	res resolver.Resolver,
 	fs fs.FS,
+	fsCache *cache.FSCache,
 	log logger.Log,
 	source *logger.Source,
 	importSource *logger.Source,
@@ -691,7 +704,7 @@ func runOnLoadPlugins(
 
 	// Read normal modules from disk
 	if source.KeyPath.Namespace == "file" {
-		if contents, err := fs.ReadFile(source.KeyPath.Text); err == nil {
+		if contents, err := fsCache.ReadFile(fs, source.KeyPath.Text); err == nil {
 			source.Contents = contents
 			return loaderPluginResult{
 				loader:        config.LoaderDefault,
@@ -746,7 +759,7 @@ func hashForFileName(bytes []byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes[:])[:8]
 }
 
-func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []string, options config.Options) Bundle {
+func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches cache.CacheSet, entryPaths []string, options config.Options) Bundle {
 	results := []parseResult{}
 	visited := make(map[logger.Path]uint32)
 	resultChannel := make(chan parseResult)
@@ -828,6 +841,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 				fs:                 fs,
 				log:                log,
 				res:                res,
+				caches:             caches,
 				keyPath:            path,
 				prettyPath:         prettyPath,
 				sourceIndex:        sourceIndex,

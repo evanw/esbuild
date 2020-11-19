@@ -16,6 +16,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
@@ -90,8 +91,9 @@ func (s *suite) expectBundled(t *testing.T, args bundled) {
 			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
 		}
 		log := logger.NewDeferLog()
-		resolver := resolver.NewResolver(fs, log, args.options)
-		bundle := ScanBundle(log, fs, resolver, args.entryPaths, args.options)
+		caches := cache.MakeCacheSet()
+		resolver := resolver.NewResolver(fs, log, caches, args.options)
+		bundle := ScanBundle(log, fs, resolver, caches, args.entryPaths, args.options)
 		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 
