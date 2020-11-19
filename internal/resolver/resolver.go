@@ -227,7 +227,9 @@ func (r *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportK
 
 func (r *resolver) isExternalPattern(path string) bool {
 	for _, pattern := range r.options.ExternalModules.Patterns {
-		if strings.HasPrefix(path, pattern.Prefix) && strings.HasSuffix(path, pattern.Suffix) {
+		if len(path) >= len(pattern.Prefix)+len(pattern.Suffix) &&
+			strings.HasPrefix(path, pattern.Prefix) &&
+			strings.HasSuffix(path, pattern.Suffix) {
 			return true
 		}
 	}

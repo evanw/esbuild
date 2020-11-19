@@ -2166,10 +2166,13 @@ func TestExternalWithWildcard(t *testing.T) {
 			"/entry.js": `
 				// Should match
 				import "/assets/images/test.jpg";
+				import "/dir/x/file.gif";
+				import "/dir//file.gif";
 				import "./file.png";
 
 				// Should not match
 				import "/sassets/images/test.jpg";
+				import "/dir/file.gif";
 				import "./file.ping";
 			`,
 		},
@@ -2181,10 +2184,12 @@ func TestExternalWithWildcard(t *testing.T) {
 				Patterns: []config.WildcardPattern{
 					{Prefix: "/assets/"},
 					{Suffix: ".png"},
+					{Prefix: "/dir/", Suffix: "/file.gif"},
 				},
 			},
 		},
 		expectedScanLog: `/entry.js: error: Could not read from file: /sassets/images/test.jpg
+/entry.js: error: Could not read from file: /dir/file.gif
 /entry.js: error: Could not resolve "./file.ping"
 `,
 	})
