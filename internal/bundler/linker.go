@@ -3425,7 +3425,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 			var text string
 			indent = "  "
 			if len(c.options.ModuleName) > 0 {
-				text = generateModuleNamePrefix(c.options)
+				text = c.generateModuleNamePrefix()
 			}
 			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 				text += "(function()" + space + "{" + newline
@@ -3740,36 +3740,36 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 	}
 }
 
-func generateModuleNamePrefix(options *config.Options) string {
+func (c *linkerContext) generateModuleNamePrefix() string {
 	var text string
-	prefix := options.ModuleName[0]
+	prefix := c.options.ModuleName[0]
 	space := " "
 	join := ";\n"
 
-	if options.RemoveWhitespace {
+	if c.options.RemoveWhitespace {
 		space = ""
 		join = ";"
 	}
 
-	if js_printer.CanQuoteIdentifier(prefix, options.UnsupportedJSFeatures, options.ASCIIOnly) {
-		if options.ASCIIOnly {
-			prefix = string(js_printer.QuoteIdentifier(nil, prefix, options.UnsupportedJSFeatures))
+	if js_printer.CanQuoteIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+		if c.options.ASCIIOnly {
+			prefix = string(js_printer.QuoteIdentifier(nil, prefix, c.options.UnsupportedJSFeatures))
 		}
 		text = fmt.Sprintf("var %s%s=%s", prefix, space, space)
 	} else {
-		prefix = fmt.Sprintf("this[%s]", js_printer.QuoteForJSON(prefix, options.ASCIIOnly))
+		prefix = fmt.Sprintf("this[%s]", js_printer.QuoteForJSON(prefix, c.options.ASCIIOnly))
 		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
 	}
 
-	for _, name := range options.ModuleName[1:] {
+	for _, name := range c.options.ModuleName[1:] {
 		oldPrefix := prefix
-		if js_printer.CanQuoteIdentifier(name, options.UnsupportedJSFeatures, options.ASCIIOnly) {
-			if options.ASCIIOnly {
-				name = string(js_printer.QuoteIdentifier(nil, name, options.UnsupportedJSFeatures))
+		if js_printer.CanQuoteIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+			if c.options.ASCIIOnly {
+				name = string(js_printer.QuoteIdentifier(nil, name, c.options.UnsupportedJSFeatures))
 			}
 			prefix = fmt.Sprintf("%s.%s", prefix, name)
 		} else {
-			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, options.ASCIIOnly))
+			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
 		}
 		text += fmt.Sprintf("%s%s||%s{}%s%s%s=%s", oldPrefix, space, space, join, prefix, space, space)
 	}
