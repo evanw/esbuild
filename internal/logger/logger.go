@@ -183,7 +183,7 @@ func (s *Source) RangeOfOperatorAfter(loc Loc, op string) Range {
 
 func (s *Source) RangeOfString(loc Loc) Range {
 	text := s.Contents[loc.Start:]
-	if len(text) == 0 {
+	if text == "" {
 		return Range{Loc: loc, Len: 0}
 	}
 
