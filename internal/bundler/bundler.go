@@ -1172,11 +1172,8 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	}
 
 	// Get the base path from the options or choose the lowest common ancestor of all entry points
-	var baseAbsPath string
-	if options.AbsOutputBase != "" {
-		baseAbsPath = options.AbsOutputBase
-	} else {
-		baseAbsPath = b.lowestCommonAncestorDirectory(options.CodeSplitting)
+	if options.AbsOutputBase == "" {
+		options.AbsOutputBase = b.lowestCommonAncestorDirectory(options.CodeSplitting)
 	}
 
 	type linkGroup struct {
@@ -1187,7 +1184,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	var resultGroups []linkGroup
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints, baseAbsPath)
+		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints)
 		resultGroups = []linkGroup{{
 			outputFiles:    c.link(),
 			reachableFiles: c.reachableFiles,
@@ -1199,7 +1196,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint uint32) {
-				c := newLinkerContext(&options, log, b.fs, b.res, b.files, []uint32{entryPoint}, baseAbsPath)
+				c := newLinkerContext(&options, log, b.fs, b.res, b.files, []uint32{entryPoint})
 				resultGroups[i] = linkGroup{
 					outputFiles:    c.link(),
 					reachableFiles: c.reachableFiles,
