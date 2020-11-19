@@ -390,6 +390,8 @@ func (fs *realFS) ReadFile(path string) (string, error) {
 }
 
 func (fs *realFS) ModKey(path string) (ModKey, error) {
+	BeforeFileOpen()
+	defer AfterFileClose()
 	return modKey(path)
 }
 
