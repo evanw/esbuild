@@ -480,7 +480,7 @@ func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 			if repr, ok := file.repr.(*reprJS); ok && repr.cssSourceIndex != nil {
 				visit(*repr.cssSourceIndex)
 			}
-			for _, record := range file.repr.importRecords() {
+			for _, record := range *file.repr.importRecords() {
 				if record.SourceIndex != nil {
 					visit(*record.SourceIndex)
 				}

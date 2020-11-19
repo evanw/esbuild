@@ -473,7 +473,7 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
-func buildImpl(buildOpts BuildOptions) BuildResult {
+func buildImpl(buildOpts BuildOptions, caches cache.CacheSet) BuildResult {
 	log := logger.NewStderrLog(logger.StderrOptions{
 		IncludeSource: true,
 		ErrorLimit:    buildOpts.ErrorLimit,
@@ -607,7 +607,6 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 	// Stop now if there were errors
 	if !log.HasErrors() {
 		// Scan over the bundle
-		caches := cache.MakeCacheSet()
 		resolver := resolver.NewResolver(realFS, log, caches, options)
 		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPaths, options)
 
@@ -676,6 +675,9 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		Errors:      convertMessagesToPublic(logger.Error, msgs),
 		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
 		OutputFiles: outputFiles,
+		Rebuild: func() BuildResult {
+			return buildImpl(buildOpts, caches)
+		},
 	}
 }
 

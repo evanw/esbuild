@@ -72,7 +72,7 @@ type file struct {
 }
 
 type fileRepr interface {
-	importRecords() []ast.ImportRecord
+	importRecords() *[]ast.ImportRecord
 }
 
 type reprJS struct {
@@ -85,8 +85,8 @@ type reprJS struct {
 	cssSourceIndex *uint32
 }
 
-func (repr *reprJS) importRecords() []ast.ImportRecord {
-	return repr.ast.ImportRecords
+func (repr *reprJS) importRecords() *[]ast.ImportRecord {
+	return &repr.ast.ImportRecords
 }
 
 type reprCSS struct {
@@ -98,8 +98,8 @@ type reprCSS struct {
 	jsSourceIndex *uint32
 }
 
-func (repr *reprCSS) importRecords() []ast.ImportRecord {
-	return repr.ast.ImportRecords
+func (repr *reprCSS) importRecords() *[]ast.ImportRecord {
+	return &repr.ast.ImportRecords
 }
 
 type Bundle struct {
@@ -343,7 +343,10 @@ func parseFile(args parseArgs) {
 	// Run the resolver on the parse thread so it's not run on the main thread.
 	// That way the main thread isn't blocked if the resolver takes a while.
 	if args.options.Mode == config.ModeBundle && !args.skipResolve {
-		records := result.file.repr.importRecords()
+		// Clone the import records because they will be mutated later
+		recordsPtr := result.file.repr.importRecords()
+		records := append([]ast.ImportRecord{}, *recordsPtr...)
+		*recordsPtr = records
 		result.resolveResults = make([]*resolver.ResolveResult, len(records))
 
 		if len(records) > 0 {
@@ -760,7 +763,7 @@ func hashForFileName(bytes []byte) string {
 }
 
 func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches cache.CacheSet, entryPaths []string, options config.Options) Bundle {
-	results := []parseResult{}
+	results := make([]parseResult, 0, caches.SourceIndexCache.LenHint())
 	visited := make(map[logger.Path]uint32)
 	resultChannel := make(chan parseResult)
 	remaining := 0
@@ -802,9 +805,23 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches cache.Ca
 		}
 		sourceIndex, ok := visited[visitedKey]
 		if !ok {
-			sourceIndex = uint32(len(results))
+			// Allocate a source index using the shared source index cache so that
+			// subsequent builds reuse the same source index and therefore use the
+			// cached parse results for increased speed.
+			sourceIndex = caches.SourceIndexCache.Get(visitedKey)
 			visited[visitedKey] = sourceIndex
-			results = append(results, parseResult{})
+
+			// Grow the results array to fit this source index
+			if newLen := int(sourceIndex) + 1; len(results) < newLen {
+				// Reallocate to a bigger array
+				if cap(results) < newLen {
+					results = append(make([]parseResult, 0, 2*newLen), results...)
+				}
+
+				// Grow in place
+				results = results[:newLen]
+			}
+
 			remaining++
 			optionsClone := options
 			if kind != inputKindStdin {
@@ -936,7 +953,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches cache.Ca
 
 		// Don't try to resolve paths if we're not bundling
 		if options.Mode == config.ModeBundle {
-			records := result.file.repr.importRecords()
+			records := *result.file.repr.importRecords()
 			for importRecordIndex := range records {
 				record := &records[importRecordIndex]
 
@@ -994,7 +1011,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches cache.Ca
 
 		// Don't try to resolve paths if we're not bundling
 		if options.Mode == config.ModeBundle {
-			records := result.file.repr.importRecords()
+			records := *result.file.repr.importRecords()
 			for importRecordIndex := range records {
 				record := &records[importRecordIndex]
 
@@ -1267,10 +1284,11 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	// If code splitting is enabled, also treat dynamic imports as entry points
 	if codeSplitting {
 		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
-			records := b.files[sourceIndex].repr.importRecords()
-			for importRecordIndex := range records {
-				if record := &records[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
-					isEntryPoint[*record.SourceIndex] = true
+			if repr := b.files[sourceIndex].repr.(*reprJS); repr != nil {
+				for importRecordIndex := range repr.ast.ImportRecords {
+					if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
+						isEntryPoint[*record.SourceIndex] = true
+					}
 				}
 			}
 		}
