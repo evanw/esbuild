@@ -16,11 +16,11 @@ func expectParseErrorTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{
+		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
-		})
+		}))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -35,11 +35,11 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
-		})
+		}))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -62,14 +62,14 @@ func expectParseErrorTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), config.Options{
+		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
 			JSX: config.JSXOptions{
 				Parse: true,
 			},
-		})
+		}))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -84,14 +84,14 @@ func expectPrintedTSX(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree, ok := Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&config.Options{
 			TS: config.TSOptions{
 				Parse: true,
 			},
 			JSX: config.JSXOptions{
 				Parse: true,
 			},
-		})
+		}))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {

@@ -199,26 +199,26 @@ func parseFile(args parseArgs) {
 
 	switch loader {
 	case config.LoaderJS:
-		ast, ok := js_parser.Parse(args.log, source, args.options)
+		ast, ok := js_parser.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
 
 	case config.LoaderJSX:
 		args.options.JSX.Parse = true
-		ast, ok := js_parser.Parse(args.log, source, args.options)
+		ast, ok := js_parser.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
 
 	case config.LoaderTS:
 		args.options.TS.Parse = true
-		ast, ok := js_parser.Parse(args.log, source, args.options)
+		ast, ok := js_parser.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
 
 	case config.LoaderTSX:
 		args.options.TS.Parse = true
 		args.options.JSX.Parse = true
-		ast, ok := js_parser.Parse(args.log, source, args.options)
+		ast, ok := js_parser.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
 
@@ -232,7 +232,7 @@ func parseFile(args parseArgs) {
 
 	case config.LoaderJSON:
 		expr, ok := js_parser.ParseJSON(args.log, source, js_parser.ParseJSONOptions{})
-		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
 		result.ok = ok
@@ -240,7 +240,7 @@ func parseFile(args parseArgs) {
 	case config.LoaderText:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(source.Contents)}}
-		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = "data:text/plain;base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
@@ -250,7 +250,7 @@ func parseFile(args parseArgs) {
 		mimeType := guessMimeType(ext, source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
-		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = "data:" + mimeType + ";base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
@@ -259,7 +259,7 @@ func parseFile(args parseArgs) {
 	case config.LoaderBinary:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(encoded)}}
-		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "__toBinary")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "__toBinary")
 		ast.URLForCSS = "data:application/octet-stream;base64," + encoded
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
@@ -270,7 +270,7 @@ func parseFile(args parseArgs) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		url := "data:" + mimeType + ";base64," + encoded
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(url)}}
-		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = url
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
@@ -288,7 +288,7 @@ func parseFile(args parseArgs) {
 
 		// Export the resulting relative path as a string
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: js_lexer.StringToUTF16(publicPath)}}
-		ast := js_parser.LazyExportAST(args.log, source, args.options, expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = publicPath
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
@@ -1060,7 +1060,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, entryPaths []st
 								Index:      sourceIndex,
 								PrettyPath: otherFile.source.PrettyPath,
 							}
-							ast := js_parser.LazyExportAST(log, source, options, js_ast.Expr{Data: &js_ast.EObject{}}, "")
+							ast := js_parser.LazyExportAST(log, source, js_parser.OptionsFromConfig(&options), js_ast.Expr{Data: &js_ast.EObject{}}, "")
 							f := file{
 								repr: &reprJS{
 									ast:            ast,
@@ -1416,7 +1416,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		constraint = 5
 	}
 	log := logger.NewDeferLog()
-	runtimeAST, ok = js_parser.Parse(log, source, config.Options{
+	runtimeAST, ok = js_parser.Parse(log, source, js_parser.OptionsFromConfig(&config.Options{
 		// These configuration options must only depend on the key
 		MangleSyntax:      key.MangleSyntax,
 		MinifyIdentifiers: key.MinifyIdentifiers,
@@ -1428,7 +1428,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code
 		Mode: config.ModeBundle,
-	})
+	}))
 	if log.HasErrors() {
 		msgs := "Internal error: failed to parse runtime:\n"
 		for _, msg := range log.Done() {

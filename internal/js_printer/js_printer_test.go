@@ -24,9 +24,9 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), config.Options{
+		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.OptionsFromConfig(&config.Options{
 			UnsupportedJSFeatures: options.UnsupportedFeatures,
-		})
+		}))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {

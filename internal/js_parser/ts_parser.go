@@ -739,7 +739,7 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 
 func (p *parser) parseTypeScriptDecorators() []js_ast.Expr {
 	var tsDecorators []js_ast.Expr
-	if p.options.TS.Parse {
+	if p.options.ts.Parse {
 		for p.lexer.Token == js_lexer.TAt {
 			p.lexer.Next()
 

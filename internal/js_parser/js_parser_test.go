@@ -19,7 +19,7 @@ func expectParseErrorCommon(t *testing.T, contents string, expected string, opti
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		Parse(log, test.SourceForTest(contents), options)
+		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -49,7 +49,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 		t.Helper()
 		log := logger.NewDeferLog()
 		options.OmitRuntimeForTests = true
-		tree, ok := Parse(log, test.SourceForTest(contents), options)
+		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
