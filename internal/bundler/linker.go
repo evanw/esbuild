@@ -3141,7 +3141,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	}
 
 	// Convert the AST to JavaScript code
-	printOptions := js_printer.PrintOptions{
+	printOptions := js_printer.Options{
 		Indent:              indent,
 		OutputFormat:        c.options.OutputFormat,
 		RemoveWhitespace:    c.options.RemoveWhitespace,
@@ -3363,7 +3363,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 			if c.options.OutputFormat == config.FormatIIFE {
 				indent++
 			}
-			printOptions := js_printer.PrintOptions{
+			printOptions := js_printer.Options{
 				Indent:           indent,
 				OutputFormat:     c.options.OutputFormat,
 				RemoveWhitespace: c.options.RemoveWhitespace,

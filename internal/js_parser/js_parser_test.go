@@ -64,7 +64,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
-		js := js_printer.Print(tree, symbols, r, js_printer.PrintOptions{
+		js := js_printer.Print(tree, symbols, r, js_printer.Options{
 			UnsupportedFeatures: options.UnsupportedJSFeatures,
 			ASCIIOnly:           options.ASCIIOnly,
 		}).JS

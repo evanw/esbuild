@@ -510,7 +510,7 @@ type printer struct {
 	symbols            js_ast.SymbolMap
 	renamer            renamer.Renamer
 	importRecords      []ast.ImportRecord
-	options            PrintOptions
+	options            Options
 	extractedComments  map[string]bool
 	needsSemicolon     bool
 	js                 []byte
@@ -3072,7 +3072,7 @@ func (p *printer) shouldIgnoreSourceMap() bool {
 	return true
 }
 
-type PrintOptions struct {
+type Options struct {
 	OutputFormat        config.Format
 	RemoveWhitespace    bool
 	MangleSyntax        bool
@@ -3130,7 +3130,7 @@ func createPrinter(
 	symbols js_ast.SymbolMap,
 	r renamer.Renamer,
 	importRecords []ast.ImportRecord,
-	options PrintOptions,
+	options Options,
 	approximateLineCount int32,
 ) *printer {
 	p := &printer{
@@ -3184,7 +3184,7 @@ type PrintResult struct {
 	FirstDeclSourceMapOffset uint32
 }
 
-func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
+func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
 	p := createPrinter(symbols, r, tree.ImportRecords, options, tree.ApproximateLineCount)
 
 	for _, part := range tree.Parts {
@@ -3212,7 +3212,7 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 	}
 }
 
-func PrintExpr(expr js_ast.Expr, symbols js_ast.SymbolMap, r renamer.Renamer, options PrintOptions) PrintResult {
+func PrintExpr(expr js_ast.Expr, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
 	p := createPrinter(symbols, r, nil, options, 0)
 
 	p.printExpr(expr, js_ast.LLowest, 0)
@@ -3232,7 +3232,7 @@ func PrintExpr(expr js_ast.Expr, symbols js_ast.SymbolMap, r renamer.Renamer, op
 	}
 }
 
-func quotedSources(tree *js_ast.AST, options *PrintOptions) []QuotedSource {
+func quotedSources(tree *js_ast.AST, options *Options) []QuotedSource {
 	if options.SourceForSourceMap == nil {
 		return nil
 	}

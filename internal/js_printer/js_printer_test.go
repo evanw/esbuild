@@ -19,7 +19,7 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	}
 }
 
-func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options PrintOptions) {
+func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options Options) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
@@ -46,33 +46,33 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, contents, expected, PrintOptions{})
+	expectPrintedCommon(t, contents, contents, expected, Options{})
 }
 
 func expectPrintedMinify(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, Options{
 		RemoveWhitespace: true,
 	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangled]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [mangled]", contents, expected, Options{
 		MangleSyntax: true,
 	})
 }
 
 func expectPrintedASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [ascii]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
 		ASCIIOnly: true,
 	})
 }
 
 func expectPrintedMinifyASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [ascii]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
 		RemoveWhitespace: true,
 		ASCIIOnly:        true,
 	})
@@ -80,7 +80,7 @@ func expectPrintedMinifyASCII(t *testing.T, contents string, expected string) {
 
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents, contents, expected, Options{
 		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
@@ -89,7 +89,7 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 
 func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [minified]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [minified]", contents, expected, Options{
 		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
@@ -99,7 +99,7 @@ func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, exp
 
 func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangled]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [mangled]", contents, expected, Options{
 		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
@@ -109,7 +109,7 @@ func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, exp
 
 func expectPrintedTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [ascii]", contents, expected, PrintOptions{
+	expectPrintedCommon(t, contents+" [ascii]", contents, expected, Options{
 		UnsupportedFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
 			compat.ES: {esVersion},
 		}),
