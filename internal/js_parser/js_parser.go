@@ -6402,9 +6402,8 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, is
 			if s.No == nil || !shouldKeepStmtInDeadControlFlow(*s.No) {
 				// We can drop the "no" branch
 				return appendIfBodyPreservingScope(stmts, s.Yes)
-			} else {
-				// We have to keep the "no" branch
 			}
+			// else we have to keep the "no" branch
 		} else {
 			// The test is false
 			if !shouldKeepStmtInDeadControlFlow(s.Yes) {
@@ -6413,9 +6412,8 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, is
 					return stmts
 				}
 				return appendIfBodyPreservingScope(stmts, *s.No)
-			} else {
-				// We have to keep the "yes" branch
 			}
+			// else we have to keep the "yes" branch
 		}
 	}
 
