@@ -1159,6 +1159,12 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
+	if options.OutputExtensionJS == "" {
+		options.OutputExtensionJS = ".js"
+	}
+	if options.OutputExtensionCSS == "" {
+		options.OutputExtensionCSS = ".css"
+	}
 
 	// The format can't be "preserve" while bundling
 	if options.Mode == config.ModeBundle && options.OutputFormat == config.FormatPreserve {

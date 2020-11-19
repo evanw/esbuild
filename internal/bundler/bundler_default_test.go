@@ -2789,9 +2789,9 @@ func TestOutputExtensionRemappingFile(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			OutputExtensions: map[string]string{".js": ".notjs"},
-			AbsOutputFile:    "/out.js",
+			Mode:              config.ModeBundle,
+			OutputExtensionJS: ".notjs",
+			AbsOutputFile:     "/out.js",
 		},
 	})
 }
@@ -2805,9 +2805,9 @@ func TestOutputExtensionRemappingDir(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			OutputExtensions: map[string]string{".js": ".notjs"},
-			AbsOutputDir:     "/out",
+			Mode:              config.ModeBundle,
+			OutputExtensionJS: ".notjs",
+			AbsOutputDir:      "/out",
 		},
 	})
 }

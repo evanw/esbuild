@@ -398,18 +398,21 @@ func validatePath(log logger.Log, fs fs.FS, relPath string) string {
 	return absPath
 }
 
-func validateOutputExtensions(log logger.Log, outExtensions map[string]string) map[string]string {
-	result := make(map[string]string)
+func validateOutputExtensions(log logger.Log, outExtensions map[string]string) (js string, css string) {
 	for key, value := range outExtensions {
-		if key != ".js" && key != ".css" {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .css, .js)", key))
-		}
 		if !isValidExtension(value) {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q", value))
 		}
-		result[key] = value
+		switch key {
+		case ".js":
+			js = value
+		case ".css":
+			css = value
+		default:
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid output extension: %q (valid: .css, .js)", key))
+		}
 	}
-	return result
+	return
 }
 
 func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
@@ -484,6 +487,7 @@ func buildImpl(buildOpts BuildOptions, caches cache.CacheSet) BuildResult {
 	// Convert and validate the buildOpts
 	realFS := fs.RealFS()
 	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
+	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	options := config.Options{
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
@@ -506,7 +510,8 @@ func buildImpl(buildOpts BuildOptions, caches cache.CacheSet) BuildResult {
 		AbsOutputDir:         validatePath(log, realFS, buildOpts.Outdir),
 		AbsOutputBase:        validatePath(log, realFS, buildOpts.Outbase),
 		AbsMetadataFile:      validatePath(log, realFS, buildOpts.Metafile),
-		OutputExtensions:     validateOutputExtensions(log, buildOpts.OutExtensions),
+		OutputExtensionJS:    outJS,
+		OutputExtensionCSS:   outCSS,
 		ExtensionToLoader:    validateLoaders(log, buildOpts.Loader),
 		ExtensionOrder:       validateResolveExtensions(log, buildOpts.ResolveExtensions),
 		ExternalModules:      validateExternals(log, realFS, buildOpts.External),

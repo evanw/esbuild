@@ -197,19 +197,20 @@ type Options struct {
 	MainFields      []string
 	ExternalModules ExternalModules
 
-	AbsOutputFile     string
-	AbsOutputDir      string
-	AbsOutputBase     string
-	OutputExtensions  map[string]string
-	ModuleName        []string
-	TsConfigOverride  string
-	ExtensionToLoader map[string]Loader
-	OutputFormat      Format
-	PublicPath        string
-	InjectAbsPaths    []string
-	InjectedFiles     []InjectedFile
-	Banner            string
-	Footer            string
+	AbsOutputFile      string
+	AbsOutputDir       string
+	AbsOutputBase      string
+	OutputExtensionJS  string
+	OutputExtensionCSS string
+	ModuleName         []string
+	TsConfigOverride   string
+	ExtensionToLoader  map[string]Loader
+	OutputFormat       Format
+	PublicPath         string
+	InjectAbsPaths     []string
+	InjectedFiles      []InjectedFile
+	Banner             string
+	Footer             string
 
 	Plugins []Plugin
 
@@ -224,13 +225,6 @@ type InjectedFile struct {
 	Path        string
 	SourceIndex uint32
 	Exports     []string
-}
-
-func (options *Options) OutputExtensionFor(key string) string {
-	if ext, ok := options.OutputExtensions[key]; ok {
-		return ext
-	}
-	return key
 }
 
 var filterMutex sync.Mutex

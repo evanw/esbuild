@@ -270,7 +270,6 @@ type chunkInfo struct {
 }
 
 type chunkRepr interface {
-	fileExt() string
 	generate(c *linkerContext, chunk *chunkInfo) func(crossChunkImportRecords []ast.ImportRecord) []OutputFile
 }
 
@@ -282,12 +281,8 @@ type chunkReprJS struct {
 	importsFromOtherChunks map[uint32]crossChunkImportItemArray
 }
 
-func (*chunkReprJS) fileExt() string { return ".js" }
-
 type chunkReprCSS struct {
 }
-
-func (*chunkReprCSS) fileExt() string { return ".css" }
 
 // Returns the path of this chunk relative to the output directory. Note:
 // this must have OS-independent path separators (i.e. '/' not '\').
@@ -576,10 +571,10 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 				if len(css) > 0 {
 					baseNameOrEmpty := chunk.baseNameOrEmpty
 					if baseNameOrEmpty != "" {
-						if js := c.options.OutputExtensionFor(".js"); strings.HasSuffix(baseNameOrEmpty, js) {
+						if js := c.options.OutputExtensionJS; strings.HasSuffix(baseNameOrEmpty, js) {
 							baseNameOrEmpty = baseNameOrEmpty[:len(baseNameOrEmpty)-len(js)]
 						}
-						baseNameOrEmpty += c.options.OutputExtensionFor(".css")
+						baseNameOrEmpty += c.options.OutputExtensionCSS
 					}
 					chunks = append(chunks, chunkInfo{
 						filesInChunkInOrder:   css,
@@ -2420,7 +2415,13 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 			// Swap the extension for the standard one
 			ext := c.fs.Ext(baseName)
-			baseName = baseName[:len(baseName)-len(ext)] + c.options.OutputExtensionFor(repr.fileExt())
+			baseName = baseName[:len(baseName)-len(ext)]
+			switch repr.(type) {
+			case *chunkReprJS:
+				baseName += c.options.OutputExtensionJS
+			case *chunkReprCSS:
+				baseName += c.options.OutputExtensionCSS
+			}
 		}
 
 		// Always use cross-platform path separators to avoid problems with Windows
@@ -3683,7 +3684,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				var sourceMapBaseName string
 				if chunk.baseNameOrEmpty == "" {
 					hash := hashForFileName(sourceMap)
-					sourceMapBaseName = "chunk." + hash + c.options.OutputExtensionFor(".js") + ".map"
+					sourceMapBaseName = "chunk." + hash + c.options.OutputExtensionJS + ".map"
 				} else {
 					sourceMapBaseName = chunk.baseNameOrEmpty + ".map"
 				}
@@ -3709,7 +3710,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		// Figure out the base name for this chunk now that the content hash is known
 		if chunk.baseNameOrEmpty == "" {
 			hash := hashForFileName(jsContents)
-			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionFor(".js")
+			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionJS
 		}
 
 		// End the metadata
@@ -3928,7 +3929,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 		// Figure out the base name for this chunk now that the content hash is known
 		if chunk.baseNameOrEmpty == "" {
 			hash := hashForFileName(cssContents)
-			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionFor(".css")
+			chunk.baseNameOrEmpty = "chunk." + hash + c.options.OutputExtensionCSS
 		}
 
 		// End the metadata
