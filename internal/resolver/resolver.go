@@ -804,7 +804,7 @@ func (r *resolver) parsePackageJSON(path string) *packageJSON {
 		Contents:   contents,
 	}
 
-	json, ok := r.caches.JSONCache.Parse(r.log, jsonSource, js_parser.ParseJSONOptions{})
+	json, ok := r.caches.JSONCache.Parse(r.log, jsonSource, js_parser.JSONOptions{})
 	if !ok {
 		return nil
 	}

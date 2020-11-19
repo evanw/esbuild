@@ -150,12 +150,12 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 	}
 }
 
-type ParseJSONOptions struct {
+type JSONOptions struct {
 	AllowComments       bool
 	AllowTrailingCommas bool
 }
 
-func ParseJSON(log logger.Log, source logger.Source, options ParseJSONOptions) (result js_ast.Expr, ok bool) {
+func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (result js_ast.Expr, ok bool) {
 	ok = true
 	defer func() {
 		r := recover()

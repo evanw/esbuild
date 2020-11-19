@@ -341,7 +341,7 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 
 		// Parse the value as JSON
 		source := logger.Source{Contents: value}
-		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(), source, js_parser.ParseJSONOptions{})
+		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(), source, js_parser.JSONOptions{})
 		if !ok {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue

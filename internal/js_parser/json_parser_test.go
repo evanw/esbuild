@@ -15,7 +15,7 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
+		ParseJSON(log, test.SourceForTest(contents), JSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -33,7 +33,7 @@ func expectPrintedJSON(t *testing.T, contents string, expected string) {
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
+		expr, ok := ParseJSON(log, test.SourceForTest(contents), JSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -55,7 +55,7 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog()
-		expr, ok := ParseJSON(log, test.SourceForTest(contents), ParseJSONOptions{})
+		expr, ok := ParseJSON(log, test.SourceForTest(contents), JSONOptions{})
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {

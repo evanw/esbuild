@@ -87,13 +87,13 @@ type JSONCache struct {
 
 type jsonCacheEntry struct {
 	source  logger.Source
-	options js_parser.ParseJSONOptions
+	options js_parser.JSONOptions
 	expr    js_ast.Expr
 	ok      bool
 	msgs    []logger.Msg
 }
 
-func (c *JSONCache) Parse(log logger.Log, source logger.Source, options js_parser.ParseJSONOptions) (js_ast.Expr, bool) {
+func (c *JSONCache) Parse(log logger.Log, source logger.Source, options js_parser.JSONOptions) (js_ast.Expr, bool) {
 	// Check the cache
 	entry := func() *jsonCacheEntry {
 		c.mutex.Lock()

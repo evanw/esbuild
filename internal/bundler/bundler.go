@@ -234,7 +234,7 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 	case config.LoaderJSON:
-		expr, ok := args.caches.JSONCache.Parse(args.log, source, js_parser.ParseJSONOptions{})
+		expr, ok := args.caches.JSONCache.Parse(args.log, source, js_parser.JSONOptions{})
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		result.file.ignoreIfUnused = true
 		result.file.repr = &reprJS{ast: ast}
