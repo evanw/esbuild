@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path"
@@ -93,6 +94,19 @@ type FS interface {
 	ReadDirectory(path string) (map[string]*Entry, error)
 	ReadFile(path string) (string, error)
 
+	// This is a key made from the information returned by "stat". It is intended
+	// to be different if the file has been edited, and to otherwise be equal if
+	// the file has not been edited. It should usually work, but no guarantees.
+	//
+	// See https://apenwarr.ca/log/20181113 for more information about why this
+	// can be broken. For example, writing to a file with mmap on WSL on Windows
+	// won't change this key. Hopefully this isn't too much of an issue.
+	//
+	// Additional reading:
+	// - https://github.com/npm/npm/pull/20027
+	// - https://github.com/golang/go/commit/7dea509703eb5ad66a35628b12a678110fbb1f72
+	ModKey(path string) (ModKey, error)
+
 	// This is part of the interface because the mock interface used for tests
 	// should not depend on file system behavior (i.e. different slashes for
 	// Windows) while the real interface should.
@@ -105,6 +119,24 @@ type FS interface {
 	Cwd() string
 	Rel(base string, target string) (string, bool)
 }
+
+type ModKey struct {
+	// What gets filled in here is OS-dependent
+	inode      uint64
+	size       int64
+	mtime_sec  int64
+	mtime_nsec int64
+	mode       uint32
+	uid        uint32
+}
+
+// Some file systems have a time resolution of only a few seconds. If a mtime
+// value is too new, we won't be able to tell if it has been recently modified
+// or not. So we only use mtimes for comparison if they are sufficiently old.
+// Apparently the FAT file system has a resolution of two seconds according to
+// this article: https://en.wikipedia.org/wiki/Stat_(system_call).
+const modKeySafetyGap = 3 // In seconds
+var modKeyUnusable = errors.New("The modification key is unusable")
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,6 +190,10 @@ func (fs *mockFS) ReadFile(path string) (string, error) {
 		return "", syscall.ENOENT
 	}
 	return contents, nil
+}
+
+func (fs *mockFS) ModKey(path string) (ModKey, error) {
+	return ModKey{}, errors.New("This is not available during tests")
 }
 
 func (*mockFS) IsAbs(p string) bool {
@@ -351,6 +387,10 @@ func (fs *realFS) ReadFile(path string) (string, error) {
 	}
 
 	return string(buffer), err
+}
+
+func (fs *realFS) ModKey(path string) (ModKey, error) {
+	return modKey(path)
 }
 
 func (*realFS) IsAbs(p string) bool {
