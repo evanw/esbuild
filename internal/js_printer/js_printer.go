@@ -3061,6 +3061,10 @@ type Options struct {
 	// This will be present if the input file had a source map. In that case we
 	// want to map all the way back to the original input file(s).
 	InputSourceMap *sourcemap.SourceMap
+
+	// Snapshot related
+	IsRuntime bool
+	FilePath  string
 }
 
 type RequireOrImportMeta struct {
@@ -3087,6 +3091,19 @@ type SourceMapChunk struct {
 	ShouldIgnore bool
 }
 
+type ValidatioErrorKind = int
+
+const (
+	Defer ValidatioErrorKind = 1 << iota
+	NoRewrite
+)
+
+type ValidationError struct {
+	Msg  string
+	Idx  int
+	Kind ValidatioErrorKind
+}
+
 type PrintResult struct {
 	JS []byte
 
@@ -3096,6 +3113,8 @@ type PrintResult struct {
 	SourceMapChunk SourceMapChunk
 
 	ExtractedComments map[string]bool
+
+	ValidationErrors []ValidationError
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
