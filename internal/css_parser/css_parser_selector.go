@@ -171,13 +171,13 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 			prefix := p.nameToken()
 			p.advance()
 			attr.NamespacedName.NamespacePrefix = &prefix
-		} else {
-			// "[|attr]" is equivalent to "[attr]". From the specification:
-			// "In keeping with the Namespaces in the XML recommendation, default
-			// namespaces do not apply to attributes, therefore attribute selectors
-			// without a namespace component apply only to attributes that have no
-			// namespace (equivalent to |attr)."
 		}
+		// "[|attr]" is equivalent to "[attr]". From the specification:
+		// "In keeping with the Namespaces in the XML recommendation, default
+		// namespaces do not apply to attributes, therefore attribute selectors
+		// without a namespace component apply only to attributes that have no
+		// namespace (equivalent to |attr)."
+
 		if !p.expect(css_lexer.TDelimBar) {
 			return
 		}
