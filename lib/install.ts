@@ -156,7 +156,7 @@ function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
 }
 
 function installUsingNPM(name: string, file: string): Buffer {
-  const installDir = path.join(__dirname, '.install');
+  const installDir = path.join(os.tmpdir(), 'esbuild', 'install', version);
   fs.mkdirSync(installDir, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
 
@@ -168,7 +168,11 @@ function installUsingNPM(name: string, file: string): Buffer {
   child_process.execSync(`npm install --loglevel=error --prefer-offline --no-audit --progress=false ${name}@${version}`,
     { cwd: installDir, stdio: 'pipe', env });
   const buffer = fs.readFileSync(path.join(installDir, 'node_modules', name, file));
-  removeRecursive(installDir);
+  try {
+    removeRecursive(installDir);
+  } catch (e) {
+    console.warn(e);
+  }
   return buffer;
 }
 
