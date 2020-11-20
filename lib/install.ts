@@ -156,7 +156,7 @@ function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
 }
 
 function installUsingNPM(name: string, file: string): Buffer {
-  const installDir = path.join(os.tmpdir(), 'esbuild', 'install', version);
+  const installDir = path.join(os.tmpdir(), 'esbuild-' + Math.random().toString(36).slice(2));
   fs.mkdirSync(installDir, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
 
@@ -171,7 +171,13 @@ function installUsingNPM(name: string, file: string): Buffer {
   try {
     removeRecursive(installDir);
   } catch (e) {
-    console.warn(e);
+    // Removing a file or directory can randomly break on Windows, returning
+    // EBUSY for an arbitrary length of time. I think this happens when some
+    // other program has that file or directory open (e.g. an anti-virus
+    // program). This is fine on Unix because the OS just unlinks the entry
+    // but keeps the reference around until it's unused. In this case we just
+    // ignore errors because this directory is in a temporary directory, so in
+    // theory it should get cleaned up eventually anyway.
   }
   return buffer;
 }

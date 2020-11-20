@@ -79,6 +79,10 @@
     server.Stop()
     ```
 
+* Install to a temporary directory for Windows ([#547](https://github.com/evanw/esbuild/issues/547))
+
+    The install script runs `npm` in a temporary directory to download the correct binary executable for the current architecture. It then removes the temporary directory after the installation. However, removing a directory is sometimes impossible on Windows. To work around this problem, the install script now installs to the system's temporary directory instead of a directory inside the project itself. That way it's not problematic if a directory is left behind by the install script. This change was contributed by [@Djaler](https://github.com/Djaler).
+
 ## 0.8.11
 
 * Fix parsing of casts in TypeScript followed by certain tokens
