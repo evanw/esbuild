@@ -700,6 +700,7 @@ func TestPackageJsonSideEffectsArrayGlob(t *testing.T) {
 			"/Users/user/project/src/entry.js": `
 				import "demo-pkg/keep/this/file"
 				import "demo-pkg/remove/this/file"
+				import "demo-pkg/remove/this/file"
 			`,
 			"/Users/user/project/node_modules/demo-pkg/keep/this/file.js": `
 				console.log('this should be kept')
