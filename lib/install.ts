@@ -156,7 +156,7 @@ function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
 }
 
 function installUsingNPM(name: string, file: string): Buffer {
-  const installDir = path.join(__dirname, '.install');
+  const installDir = path.join(os.tmpdir(), 'esbuild', 'install', version);
   fs.mkdirSync(installDir, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
 
