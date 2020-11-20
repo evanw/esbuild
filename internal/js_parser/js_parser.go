@@ -3170,6 +3170,9 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				return left
 			}
 			p.lexer.Next()
+
+			// Non-null assertions are a form of cast
+			markExprAsTypeScriptCast(left)
 			optionalChain = oldOptionalChain
 
 		case js_lexer.TMinusMinus:

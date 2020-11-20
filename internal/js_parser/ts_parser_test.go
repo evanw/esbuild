@@ -1515,4 +1515,6 @@ func TestWarningReassign(t *testing.T) {
 	expectParseErrorTS(t, "let x; x = x as any", "")
 	expectParseErrorTS(t, "let x; (<any>x) = x", "")
 	expectParseErrorTS(t, "let x; x = <any>x", "")
+	expectParseErrorTS(t, "let x; x! = x", "")
+	expectParseErrorTS(t, "let x; x = x!", "")
 }
