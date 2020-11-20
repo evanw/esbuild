@@ -1000,6 +1000,159 @@ console.log("success");
       }
     }
   },
+
+  async noRebuild({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const input = path.join(testDir, 'in.js')
+      const output = path.join(testDir, 'out.js')
+      await writeFileAsync(input, `console.log('abc')`)
+      const result1 = await toTest.build({ entryPoints: [input], outfile: output, format: 'esm', incremental: false })
+      assert.strictEqual(result1.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log("abc");\n`)
+      assert.strictEqual(result1.rebuild, void 0)
+    }
+  },
+
+  async rebuildBasic({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const input = path.join(testDir, 'in.js')
+      const output = path.join(testDir, 'out.js')
+
+      // Build 1
+      await writeFileAsync(input, `console.log('abc')`)
+      const result1 = await toTest.build({ entryPoints: [input], outfile: output, format: 'esm', incremental: true })
+      assert.strictEqual(result1.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log("abc");\n`)
+
+      // Build 2
+      await writeFileAsync(input, `console.log('xyz')`)
+      const result2 = await result1.rebuild();
+      assert.strictEqual(result2.rebuild, result1.rebuild)
+      assert.strictEqual(result2.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log("xyz");\n`)
+
+      // Build 3
+      await writeFileAsync(input, `console.log(123)`)
+      const result3 = await result1.rebuild();
+      assert.strictEqual(result3.rebuild, result1.rebuild)
+      assert.strictEqual(result3.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log(123);\n`)
+
+      // Further rebuilds should not be possible after a dispose
+      result1.rebuild.dispose()
+      try {
+        await result1.rebuild()
+        throw new Error('Expected an error to be thrown')
+      } catch (e) {
+        assert.strictEqual(e.message, 'Cannot rebuild')
+      }
+    }
+  },
+
+  async rebuildIndependent({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const inputA = path.join(testDir, 'in-a.js')
+      const inputB = path.join(testDir, 'in-b.js')
+      const outputA = path.join(testDir, 'out-a.js')
+      const outputB = path.join(testDir, 'out-b.js')
+
+      // Build 1
+      await writeFileAsync(inputA, `console.log('a')`)
+      await writeFileAsync(inputB, `console.log('b')`)
+      const resultA1 = await toTest.build({ entryPoints: [inputA], outfile: outputA, format: 'esm', incremental: true })
+      const resultB1 = await toTest.build({ entryPoints: [inputB], outfile: outputB, format: 'esm', incremental: true })
+      assert.notStrictEqual(resultA1.rebuild, resultB1.rebuild)
+      assert.strictEqual(resultA1.outputFiles, void 0)
+      assert.strictEqual(resultB1.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(outputA, 'utf8'), `console.log("a");\n`)
+      assert.strictEqual(await readFileAsync(outputB, 'utf8'), `console.log("b");\n`)
+
+      // Build 2
+      await writeFileAsync(inputA, `console.log(1)`)
+      await writeFileAsync(inputB, `console.log(2)`)
+      const promiseA = resultA1.rebuild();
+      const promiseB = resultB1.rebuild();
+      const resultA2 = await promiseA;
+      const resultB2 = await promiseB;
+      assert.strictEqual(resultA2.rebuild, resultA1.rebuild)
+      assert.strictEqual(resultB2.rebuild, resultB1.rebuild)
+      assert.strictEqual(resultA2.outputFiles, void 0)
+      assert.strictEqual(resultB2.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(outputA, 'utf8'), `console.log(1);\n`)
+      assert.strictEqual(await readFileAsync(outputB, 'utf8'), `console.log(2);\n`)
+
+      // Further rebuilds should not be possible after a dispose
+      resultA1.rebuild.dispose()
+      try {
+        await resultA1.rebuild()
+        throw new Error('Expected an error to be thrown')
+      } catch (e) {
+        assert.strictEqual(e.message, 'Cannot rebuild')
+      }
+
+      // Build 3
+      await writeFileAsync(inputB, `console.log(3)`)
+      const resultB3 = await resultB1.rebuild()
+      assert.strictEqual(resultB3.rebuild, resultB1.rebuild)
+      assert.strictEqual(resultB3.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(outputB, 'utf8'), `console.log(3);\n`)
+
+      // Further rebuilds should not be possible after a dispose
+      resultB1.rebuild.dispose()
+      try {
+        await resultB1.rebuild()
+        throw new Error('Expected an error to be thrown')
+      } catch (e) {
+        assert.strictEqual(e.message, 'Cannot rebuild')
+      }
+    }
+  },
+
+  async rebuildParallel({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const input = path.join(testDir, 'in.js')
+      const output = path.join(testDir, 'out.js')
+
+      // Build 1
+      await writeFileAsync(input, `console.log('abc')`)
+      const result1 = await toTest.build({ entryPoints: [input], outfile: output, format: 'esm', incremental: true })
+      assert.strictEqual(result1.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log("abc");\n`)
+
+      // Build 2
+      await writeFileAsync(input, `console.log('xyz')`)
+      const promise2A = result1.rebuild();
+      const promise2B = result1.rebuild();
+      const result2A = await promise2A;
+      const result2B = await promise2B;
+      assert.strictEqual(result2A.rebuild, result1.rebuild)
+      assert.strictEqual(result2B.rebuild, result1.rebuild)
+      assert.strictEqual(result2A.outputFiles, void 0)
+      assert.strictEqual(result2B.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log("xyz");\n`)
+
+      // Build 3
+      await writeFileAsync(input, `console.log(123)`)
+      const promise3A = result1.rebuild();
+      const promise3B = result1.rebuild();
+      const result3A = await promise3A;
+      const result3B = await promise3B;
+      assert.strictEqual(result3A.rebuild, result1.rebuild)
+      assert.strictEqual(result3B.rebuild, result1.rebuild)
+      assert.strictEqual(result3A.outputFiles, void 0)
+      assert.strictEqual(result3B.outputFiles, void 0)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), `console.log(123);\n`)
+
+      // Further rebuilds should not be possible after a dispose
+      result1.rebuild.dispose()
+      try {
+        await result1.rebuild()
+        throw new Error('Expected an error to be thrown')
+      } catch (e) {
+        assert.strictEqual(e.message, 'Cannot rebuild')
+      }
+    }
+  },
 }
 
 async function futureSyntax(service, js, targetBelow, targetAbove) {

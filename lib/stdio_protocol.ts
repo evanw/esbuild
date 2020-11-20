@@ -13,6 +13,7 @@ export interface BuildRequest {
   write: boolean;
   stdin: string | null;
   resolveDir: string | null;
+  incremental: boolean;
   plugins?: BuildPlugin[];
 }
 
@@ -26,11 +27,22 @@ export interface BuildResponse {
   errors: types.Message[];
   warnings: types.Message[];
   outputFiles: BuildOutputFile[];
+  rebuild?: number;
 }
 
 export interface BuildOutputFile {
   path: string;
   contents: Uint8Array;
+}
+
+export interface RebuildRequest {
+  command: 'rebuild';
+  rebuild: number;
+}
+
+export interface DisposeRequest {
+  command: 'dispose';
+  rebuild: number;
 }
 
 export interface TransformRequest {

@@ -124,7 +124,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
 }
 
 function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel):
-  [string[], boolean, types.Plugin[] | undefined, string | null, string | null] {
+  [string[], boolean, types.Plugin[] | undefined, string | null, string | null, boolean] {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   let stdinContents: string | null = null;
@@ -151,6 +151,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
   let write = getFlag(options, keys, 'write', mustBeBoolean) !== false; // Default to true if not specified
+  let incremental = getFlag(options, keys, 'incremental', mustBeBoolean) === true;
   let plugins = getFlag(options, keys, 'plugins', mustBeArray);
   checkForInvalidFlags(options, keys);
 
@@ -203,7 +204,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
     stdinContents = contents ? contents + '' : '';
   }
 
-  return [flags, write, plugins, stdinContents, stdinResolveDir];
+  return [flags, write, plugins, stdinContents, stdinResolveDir, incremental];
 }
 
 function flagsForTransformOptions(options: types.TransformOptions, isTTY: boolean, logLevelDefault: types.LogLevel): string[] {
@@ -530,18 +531,51 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         const logLevelDefault = 'info';
         try {
           let key = nextBuildKey++;
-          let [flags, write, plugins, stdin, resolveDir] = flagsForBuildOptions(options, isTTY, logLevelDefault);
-          let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir };
+          let [flags, write, plugins, stdin, resolveDir, incremental] = flagsForBuildOptions(options, isTTY, logLevelDefault);
+          let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir, incremental };
           let cleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
-          sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
-            if (cleanup) cleanup();
+
+          // Factor out response handling so it can be reused for rebuilds
+          let rebuild: types.BuildResult['rebuild'] | undefined;
+          let buildResponseToResult = (
+            error: string | null,
+            response: protocol.BuildResponse | null,
+            callback: (error: Error | null, result: types.BuildResult | null) => void,
+          ): void => {
             if (error) return callback(new Error(error), null);
             let errors = response!.errors;
             let warnings = response!.warnings;
             if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
             let result: types.BuildResult = { warnings };
-            if (!write) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
-            callback(null, result);
+            if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
+
+            // Handle incremental rebuilds
+            if (response!.rebuild !== void 0) {
+              if (!rebuild) {
+                let isDisposed = false;
+                (rebuild as any) = () => new Promise<types.BuildResult>((resolve, reject) => {
+                  if (isDisposed || isClosed) throw new Error('Cannot rebuild');
+                  sendRequest<protocol.RebuildRequest, protocol.BuildResponse>({ command: 'rebuild', rebuild: response!.rebuild! }, (error2, response2) => {
+                    buildResponseToResult(error2, response2, (error3, result3) => {
+                      if (error3) reject(error3);
+                      else resolve(result3!);
+                    });
+                  });
+                });
+                rebuild!.dispose = () => {
+                  isDisposed = true;
+                  if (cleanup) cleanup();
+                };
+              }
+              result.rebuild = rebuild;
+            }
+            return callback(null, result);
+          };
+
+          if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
+          sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
+            if (cleanup && !incremental) cleanup();
+            return buildResponseToResult(error, response!, callback);
           });
         } catch (e) {
           let flags: string[] = [];

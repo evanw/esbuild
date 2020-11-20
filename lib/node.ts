@@ -56,8 +56,20 @@ export let version = ESBUILD_VERSION;
 export let build: typeof types.build = options => {
   return startService().then(service => {
     let promise = service.build(options);
-    promise.then(service.stop, service.stop); // Kill the service afterwards
-    return promise;
+    return promise.then(result => {
+      if (result.rebuild) {
+        let old = result.rebuild.dispose;
+        result.rebuild.dispose = () => {
+          old();
+          service.stop();
+        };
+      }
+      else service.stop();
+      return result;
+    }, error => {
+      service.stop();
+      throw error;
+    }); // Kill the service afterwards
   });
 };
 

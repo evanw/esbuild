@@ -476,14 +476,28 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
-func buildImpl(buildOpts BuildOptions, caches *cache.CacheSet) BuildResult {
-	log := logger.NewStderrLog(logger.StderrOptions{
+func buildImpl(buildOpts BuildOptions) BuildResult {
+	logOptions := logger.StderrOptions{
 		IncludeSource: true,
 		ErrorLimit:    buildOpts.ErrorLimit,
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
-	})
+	}
+	realFS := fs.RealFS()
+	log := logger.NewStderrLog(logOptions)
 
+	// Do not re-evaluate plugins when rebuilding
+	plugins := loadPlugins(realFS, log, buildOpts.Plugins)
+	return rebuildImpl(buildOpts, cache.MakeCacheSet(), plugins, logOptions, log)
+}
+
+func rebuildImpl(
+	buildOpts BuildOptions,
+	caches *cache.CacheSet,
+	plugins []config.Plugin,
+	logOptions logger.StderrOptions,
+	log logger.Log,
+) BuildResult {
 	// Convert and validate the buildOpts
 	realFS := fs.RealFS()
 	jsFeatures, cssFeatures := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
@@ -523,6 +537,7 @@ func buildImpl(buildOpts BuildOptions, caches *cache.CacheSet) BuildResult {
 		InjectAbsPaths:       make([]string, len(buildOpts.Inject)),
 		Banner:               buildOpts.Banner,
 		Footer:               buildOpts.Footer,
+		Plugins:              plugins,
 	}
 	for i, path := range buildOpts.Inject {
 		options.InjectAbsPaths[i] = validatePath(log, realFS, path)
@@ -605,8 +620,6 @@ func buildImpl(buildOpts BuildOptions, caches *cache.CacheSet) BuildResult {
 		log.AddError(nil, logger.Loc{}, "Splitting currently only works with the \"esm\" format")
 	}
 
-	loadPlugins(&options, realFS, log, buildOpts.Plugins)
-
 	var outputFiles []OutputFile
 
 	// Stop now if there were errors
@@ -675,14 +688,19 @@ func buildImpl(buildOpts BuildOptions, caches *cache.CacheSet) BuildResult {
 		}
 	}
 
+	var rebuild func() BuildResult
+	if buildOpts.Incremental {
+		rebuild = func() BuildResult {
+			return rebuildImpl(buildOpts, caches, plugins, logOptions, logger.NewStderrLog(logOptions))
+		}
+	}
+
 	msgs := log.Done()
 	return BuildResult{
 		Errors:      convertMessagesToPublic(logger.Error, msgs),
 		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
 		OutputFiles: outputFiles,
-		Rebuild: func() BuildResult {
-			return buildImpl(buildOpts, caches)
-		},
+		Rebuild:     rebuild,
 	}
 }
 
@@ -911,7 +929,7 @@ func (impl *pluginImpl) OnLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 	})
 }
 
-func loadPlugins(options *config.Options, fs fs.FS, log logger.Log, plugins []Plugin) {
+func loadPlugins(fs fs.FS, log logger.Log, plugins []Plugin) (results []config.Plugin) {
 	for i, item := range plugins {
 		if item.Name == "" {
 			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Plugin at index %d is missing a name", i))
@@ -925,6 +943,7 @@ func loadPlugins(options *config.Options, fs fs.FS, log logger.Log, plugins []Pl
 		}
 
 		item.Setup(impl)
-		options.Plugins = append(options.Plugins, impl.plugin)
+		results = append(results, impl.plugin)
 	}
+	return
 }

@@ -77,8 +77,6 @@
 //
 package api
 
-import "github.com/evanw/esbuild/internal/cache"
-
 type SourceMap uint8
 
 const (
@@ -246,6 +244,7 @@ type BuildOptions struct {
 	EntryPoints []string
 	Stdin       *StdinOptions
 	Write       bool
+	Incremental bool
 	Plugins     []Plugin
 }
 
@@ -271,7 +270,7 @@ type OutputFile struct {
 }
 
 func Build(options BuildOptions) BuildResult {
-	return buildImpl(options, cache.MakeCacheSet())
+	return buildImpl(options)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

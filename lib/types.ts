@@ -49,7 +49,7 @@ export interface BuildOptions extends CommonOptions {
   outExtension?: { [ext: string]: string };
   publicPath?: string;
   inject?: string[];
-
+  incremental?: boolean;
   entryPoints?: string[];
   stdin?: StdinOptions;
   plugins?: Plugin[];
@@ -85,6 +85,7 @@ export interface OutputFile {
 export interface BuildResult {
   warnings: Message[];
   outputFiles?: OutputFile[]; // Only when "write: false"
+  rebuild?: (() => Promise<BuildResult>) & { dispose(): void }; // Only when "incremental" is true
 }
 
 export interface BuildFailure extends Error {

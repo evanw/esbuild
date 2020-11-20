@@ -24,22 +24,26 @@ import (
 )
 
 type responseCallback = func(interface{})
+type rebuildCallback = func(uint32) []byte
 
 type serviceType struct {
 	mutex           sync.Mutex
 	callbacks       map[uint32]responseCallback
+	rebuilds        map[int]rebuildCallback
 	nextID          uint32
+	nextRebuildID   int
 	outgoingPackets chan outgoingPacket
 }
 
 type outgoingPacket struct {
-	bytes   []byte
-	isFinal bool
+	bytes    []byte
+	refCount int
 }
 
 func runService() {
 	service := serviceType{
 		callbacks:       make(map[uint32]responseCallback),
+		rebuilds:        make(map[int]rebuildCallback),
 		outgoingPackets: make(chan outgoingPacket),
 	}
 	buffer := make([]byte, 16*1024)
@@ -56,8 +60,8 @@ func runService() {
 			os.Stdout.Write(packet.bytes)
 
 			// Only signal that this request is done when it has actually been written
-			if packet.isFinal {
-				waitGroup.Done()
+			if packet.refCount != 0 {
+				waitGroup.Add(packet.refCount)
 			}
 		}
 	}()
@@ -89,10 +93,12 @@ func runService() {
 			clone := append([]byte{}, packet...)
 			waitGroup.Add(1)
 			go func() {
-				if result := service.handleIncomingPacket(clone); result != nil {
-					service.outgoingPackets <- outgoingPacket{bytes: result, isFinal: true}
-				} else {
-					waitGroup.Done()
+				out := service.handleIncomingPacket(clone)
+				out.refCount--
+				if out.bytes != nil {
+					service.outgoingPackets <- out
+				} else if out.refCount != 0 {
+					waitGroup.Add(out.refCount)
 				}
 			}()
 		}
@@ -130,22 +136,24 @@ func (service *serviceType) sendRequest(request interface{}) interface{} {
 	return <-result
 }
 
-func (service *serviceType) handleIncomingPacket(bytes []byte) (result []byte) {
+func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingPacket) {
 	p, ok := decodePacket(bytes)
 	if !ok {
-		return nil
+		return outgoingPacket{}
 	}
 
 	if p.isRequest {
 		// Catch panics in the code below so they get passed to the caller
 		defer func() {
 			if r := recover(); r != nil {
-				result = encodePacket(packet{
-					id: p.id,
-					value: map[string]interface{}{
-						"error": fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack()),
-					},
-				})
+				result = outgoingPacket{
+					bytes: encodePacket(packet{
+						id: p.id,
+						value: map[string]interface{}{
+							"error": fmt.Sprintf("Panic: %v\n\n%s", r, debug.Stack()),
+						},
+					}),
+				}
 			}
 		}()
 
@@ -157,7 +165,59 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result []byte) {
 			return service.handleBuildRequest(p.id, request)
 
 		case "transform":
-			return service.handleTransformRequest(p.id, request)
+			return outgoingPacket{
+				bytes: service.handleTransformRequest(p.id, request),
+			}
+
+		case "rebuild":
+			rebuildID := request["rebuild"].(int)
+			rebuild, ok := func() (rebuildCallback, bool) {
+				service.mutex.Lock()
+				defer service.mutex.Unlock()
+				rebuild, ok := service.rebuilds[rebuildID]
+				return rebuild, ok
+			}()
+			if !ok {
+				return outgoingPacket{
+					bytes: encodePacket(packet{
+						id: p.id,
+						value: map[string]interface{}{
+							"error": "Cannot rebuild",
+						},
+					}),
+				}
+			}
+			return outgoingPacket{
+				bytes: rebuild(p.id),
+			}
+
+		case "dispose":
+			rebuildID := request["rebuild"].(int)
+
+			// Only mutate the map while inside a mutex
+			service.mutex.Lock()
+			defer service.mutex.Unlock()
+			if _, ok := service.rebuilds[rebuildID]; !ok {
+				return outgoingPacket{
+					bytes: encodePacket(packet{
+						id: p.id,
+						value: map[string]interface{}{
+							"error": "Cannot dispose",
+						},
+					}),
+				}
+			}
+			delete(service.rebuilds, rebuildID)
+			return outgoingPacket{
+				bytes: encodePacket(packet{
+					id:    p.id,
+					value: make(map[string]interface{}),
+				}),
+
+				// This build is now considered finished. This matches the +1 reference
+				// count at the return of the first build call for this rebuild chain.
+				refCount: -1,
+			}
 
 		case "error":
 			// This just exists so that errors during JavaScript API setup get printed
@@ -166,18 +226,22 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result []byte) {
 			flags := decodeStringArray(request["flags"].([]interface{}))
 			msg := decodeMessageToPrivate(request["error"].(map[string]interface{}))
 			logger.PrintMessageToStderr(flags, msg)
-			return encodePacket(packet{
-				id:    p.id,
-				value: make(map[string]interface{}),
-			})
+			return outgoingPacket{
+				bytes: encodePacket(packet{
+					id:    p.id,
+					value: make(map[string]interface{}),
+				}),
+			}
 
 		default:
-			return encodePacket(packet{
-				id: p.id,
-				value: map[string]interface{}{
-					"error": fmt.Sprintf("Invalid command: %s", command),
-				},
-			})
+			return outgoingPacket{
+				bytes: encodePacket(packet{
+					id: p.id,
+					value: map[string]interface{}{
+						"error": fmt.Sprintf("Invalid command: %s", command),
+					},
+				}),
+			}
 		}
 	}
 
@@ -190,7 +254,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result []byte) {
 	}()
 
 	callback(p.value)
-	return nil
+	return outgoingPacket{}
 }
 
 func encodeErrorPacket(id uint32, err error) []byte {
@@ -202,9 +266,10 @@ func encodeErrorPacket(id uint32, err error) []byte {
 	})
 }
 
-func (service *serviceType) handleBuildRequest(id uint32, request map[string]interface{}) []byte {
+func (service *serviceType) handleBuildRequest(id uint32, request map[string]interface{}) outgoingPacket {
 	key := request["key"].(int)
 	write := request["write"].(bool)
+	incremental := request["incremental"].(bool)
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseBuildOptions(flags)
@@ -223,7 +288,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 
 	if err != nil {
-		return encodeErrorPacket(id, err)
+		return outgoingPacket{bytes: encodeErrorPacket(id, err)}
 	}
 
 	// Optionally allow input from the stdin channel
@@ -272,13 +337,13 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 			pluginName := p["name"].(string)
 
 			if callbacks, err := filteredCallbacks(pluginName, "onResolve", p["onResolve"].([]interface{})); err != nil {
-				return encodeErrorPacket(id, err)
+				return outgoingPacket{bytes: encodeErrorPacket(id, err)}
 			} else {
 				onResolveCallbacks = append(onResolveCallbacks, callbacks...)
 			}
 
 			if callbacks, err := filteredCallbacks(pluginName, "onLoad", p["onLoad"].([]interface{})); err != nil {
-				return encodeErrorPacket(id, err)
+				return outgoingPacket{bytes: encodeErrorPacket(id, err)}
 			} else {
 				onLoadCallbacks = append(onLoadCallbacks, callbacks...)
 			}
@@ -412,22 +477,56 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		})
 	}
 
+	rebuildID := service.nextRebuildID
+	if incremental {
+		service.nextRebuildID++
+	}
+
+	resultToResponse := func(result api.BuildResult) map[string]interface{} {
+		response := map[string]interface{}{
+			"errors":   encodeMessages(result.Errors),
+			"warnings": encodeMessages(result.Warnings),
+		}
+		if !write {
+			// Pass the output files back to the caller
+			response["outputFiles"] = encodeOutputFiles(result.OutputFiles)
+		}
+		if incremental {
+			response["rebuild"] = rebuildID
+		}
+		return response
+	}
+
 	options.Write = write
+	options.Incremental = incremental
 	result := api.Build(options)
-	response := map[string]interface{}{
-		"errors":   encodeMessages(result.Errors),
-		"warnings": encodeMessages(result.Warnings),
+	response := resultToResponse(result)
+	refCount := 0
+
+	if incremental {
+		// Only mutate the map while inside a mutex
+		service.mutex.Lock()
+		defer service.mutex.Unlock()
+		service.rebuilds[rebuildID] = func(id uint32) []byte {
+			result := result.Rebuild()
+			response := resultToResponse(result)
+			return encodePacket(packet{
+				id:    id,
+				value: response,
+			})
+		}
+
+		// Make sure the build doesn't finish until "dispose" has been called
+		refCount = 1
 	}
 
-	if !write {
-		// Pass the output files back to the caller
-		response["outputFiles"] = encodeOutputFiles(result.OutputFiles)
+	return outgoingPacket{
+		bytes: encodePacket(packet{
+			id:    id,
+			value: response,
+		}),
+		refCount: refCount,
 	}
-
-	return encodePacket(packet{
-		id:    id,
-		value: response,
-	})
 }
 
 func (service *serviceType) handleTransformRequest(id uint32, request map[string]interface{}) []byte {
