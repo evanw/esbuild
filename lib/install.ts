@@ -168,7 +168,11 @@ function installUsingNPM(name: string, file: string): Buffer {
   child_process.execSync(`npm install --loglevel=error --prefer-offline --no-audit --progress=false ${name}@${version}`,
     { cwd: installDir, stdio: 'pipe', env });
   const buffer = fs.readFileSync(path.join(installDir, 'node_modules', name, file));
-  removeRecursive(installDir);
+  try {
+    removeRecursive(installDir);
+  } catch (e) {
+    console.warn(e);
+  }
   return buffer;
 }
 
