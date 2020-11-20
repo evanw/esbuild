@@ -23,7 +23,7 @@
     })
     ```
 
-    Using the API from Go is similar:
+    Using the API from Go is similar, except there is no need to manually dispose of the rebuild callback:
 
     ```go
     result := api.Build(api.BuildOptions{
@@ -35,7 +35,7 @@
     result2 := result.Rebuild()
     ```
 
-    Incremental builds are more efficient regular builds because some data is cached and can be reused if the original files haven't changed since the last build. There are currently two forms of caching used by the incremental build API:
+    Incremental builds are more efficient than regular builds because some data is cached and can be reused if the original files haven't changed since the last build. There are currently two forms of caching used by the incremental build API:
 
     * Files are stored in memory and are not re-read from the file system if the file metadata hasn't changed since the last build. This optimization only applies to file system paths. It does not apply to virtual modules created by plugins.
 
@@ -45,7 +45,7 @@
 
 * Support for a local file server ([#537](https://github.com/evanw/esbuild/issues/537))
 
-    You can now run esbuild with the `--serve` flag to start a local server that serves the output files over HTTP. This is intended to be used during development. You can point your `<script>` tag to a local server URL and your JavaScript and CSS files will be automatically built by esbuild whenever that URL is accessed. The server defaults to port 8000 but you can customize it with `--serve=...`.
+    You can now run esbuild with the `--serve` flag to start a local server that serves the output files over HTTP. This is intended to be used during development. You can point your `<script>` tag to a local server URL and your JavaScript and CSS files will be automatically built by esbuild whenever that URL is accessed. The server defaults to port 8000 but you can customize the port with `--serve=...`.
 
     There is also an equivalent API for JavaScript:
 
