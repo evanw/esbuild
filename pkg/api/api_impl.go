@@ -1188,7 +1188,13 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 	wait := make(chan error, 1)
 	result.Wait = func() error { return <-wait }
 	result.Stop = func() { server.Close() }
-	go func() { wait <- server.Serve(listener) }()
+	go func() {
+		if err := server.Serve(listener); err != http.ErrServerClosed {
+			wait <- err
+		} else {
+			wait <- nil
+		}
+	}()
 
 	// Start the first build shortly after this function returns (but not
 	// immediately so that stuff we print right after this will come first)

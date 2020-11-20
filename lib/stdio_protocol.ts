@@ -15,6 +15,21 @@ export interface BuildRequest {
   resolveDir: string | null;
   incremental: boolean;
   plugins?: BuildPlugin[];
+  serve?: ServeRequest;
+}
+
+export interface ServeRequest {
+  serveID: number;
+  port?: number;
+}
+
+export interface ServeResponse {
+  port: number;
+}
+
+export interface ServeStopRequest {
+  command: 'serve-stop';
+  serveID: number;
 }
 
 export interface BuildPlugin {
@@ -27,7 +42,7 @@ export interface BuildResponse {
   errors: types.Message[];
   warnings: types.Message[];
   outputFiles: BuildOutputFile[];
-  rebuild?: number;
+  rebuildID?: number;
 }
 
 export interface BuildOutputFile {
@@ -37,12 +52,24 @@ export interface BuildOutputFile {
 
 export interface RebuildRequest {
   command: 'rebuild';
-  rebuild: number;
+  rebuildID: number;
 }
 
-export interface DisposeRequest {
-  command: 'dispose';
-  rebuild: number;
+export interface RebuildDisposeRequest {
+  command: 'rebuild-dispose';
+  rebuildID: number;
+}
+
+export interface OnRequestRequest {
+  command: 'serve-request';
+  serveID: number;
+  args: types.ServeOnRequestArgs;
+}
+
+export interface OnWaitRequest {
+  command: 'serve-wait';
+  serveID: number;
+  error: string | null;
 }
 
 export interface TransformRequest {

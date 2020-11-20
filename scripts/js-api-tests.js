@@ -3,6 +3,7 @@ const { SourceMapConsumer } = require('source-map')
 const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
+const http = require('http')
 const fs = require('fs')
 const vm = require('vm')
 
@@ -1155,6 +1156,44 @@ console.log("success");
   },
 }
 
+let serveTests = {
+  async basic({ esbuild, service, testDir }) {
+    for (const toTest of [esbuild, service]) {
+      const input = path.join(testDir, 'in.js')
+      await writeFileAsync(input, `console.log(123)`)
+
+      let onRequest;
+      let singleRequestPromise = new Promise(resolve => {
+        onRequest = resolve;
+      });
+      const result = await toTest.serve({ onRequest }, { entryPoints: [input], format: 'esm' })
+      const buffer = await new Promise((resolve, reject) => {
+        http.get({
+          host: '127.0.0.1',
+          port: result.port,
+          path: '/in.js',
+        }, res => {
+          const chunks = []
+          res.on('data', chunk => chunks.push(chunk))
+          res.on('end', () => resolve(Buffer.concat(chunks)))
+        }).on('error', reject)
+      })
+
+      assert.strictEqual(buffer.toString(), `console.log(123);\n`);
+
+      let singleRequest = await singleRequestPromise;
+      assert.strictEqual(singleRequest.method, 'GET');
+      assert.strictEqual(singleRequest.path, '/in.js');
+      assert.strictEqual(singleRequest.status, 200);
+      assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+      assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+
+      result.stop();
+      await result.wait;
+    }
+  },
+}
+
 async function futureSyntax(service, js, targetBelow, targetAbove) {
   failure: {
     try { await service.transform(js, { target: targetBelow }) }
@@ -1883,6 +1922,7 @@ async function main() {
   }
   const tests = [
     ...Object.entries(buildTests),
+    ...Object.entries(serveTests),
     ...Object.entries(transformTests),
     ...Object.entries(syncTests),
   ]

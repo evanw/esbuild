@@ -6,19 +6,23 @@ declare let WEB_WORKER_SOURCE_CODE: string
 
 export let version = ESBUILD_VERSION;
 
-export const build: typeof types.build = options => {
+export const build: typeof types.build = () => {
   throw new Error(`The "build" API only works in node`);
 };
 
-export const transform: typeof types.transform = (input, options) => {
+export const serve: typeof types.serve = () => {
+  throw new Error(`The "serve" API only works in node`);
+};
+
+export const transform: typeof types.transform = () => {
   throw new Error(`The "transform" API only works in node`);
 };
 
-export const buildSync: typeof types.buildSync = options => {
+export const buildSync: typeof types.buildSync = () => {
   throw new Error(`The "buildSync" API only works in node`);
 };
 
-export const transformSync: typeof types.transformSync = (input, options) => {
+export const transformSync: typeof types.transformSync = () => {
   throw new Error(`The "transformSync" API only works in node`);
 };
 
@@ -66,7 +70,7 @@ export const startService: typeof types.startService = options => {
     })
 
     return {
-      build(options) {
+      build() {
         throw new Error(`The "build" API only works in node`)
       },
       transform: (input, options) =>
@@ -75,6 +79,9 @@ export const startService: typeof types.startService = options => {
             readFile(_, callback) { callback(new Error('Internal error'), null); },
             writeFile(_, callback) { callback(null); },
           }, (err, res) => err ? reject(err) : resolve(res!))),
+      serve() {
+        throw new Error(`The "serve" API only works in node`)
+      },
       stop() {
         worker.terminate()
         afterClose()

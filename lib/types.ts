@@ -93,6 +93,25 @@ export interface BuildFailure extends Error {
   warnings: Message[];
 }
 
+export interface ServeOptions {
+  port?: number;
+  onRequest?: (args: ServeOnRequestArgs) => void;
+}
+
+export interface ServeOnRequestArgs {
+  remoteAddress: string;
+  method: string;
+  path: string;
+  status: number;
+  timeInMS: number; // The time to generate the response, not to send it
+}
+
+export interface ServeResult {
+  port: number;
+  wait: Promise<void>;
+  stop: () => void;
+}
+
 export interface TransformOptions extends CommonOptions {
   tsconfigRaw?: string | {
     compilerOptions?: {
@@ -207,6 +226,7 @@ export interface Metadata {
 
 export interface Service {
   build(options: BuildOptions): Promise<BuildResult>;
+  serve(serveOptions: ServeOptions, buildOptions: BuildOptions): Promise<ServeResult>;
   transform(input: string, options?: TransformOptions): Promise<TransformResult>;
 
   // This stops the service, which kills the long-lived child process. Any
@@ -221,6 +241,13 @@ export interface Service {
 // Works in node: yes
 // Works in browser: no
 export declare function build(options: BuildOptions): Promise<BuildResult>;
+
+// This function is similar to "build" but it serves the resulting files over
+// HTTP on a localhost address with the specified port.
+//
+// Works in node: yes
+// Works in browser: no
+export declare function serve(serveOptions: ServeOptions, buildOptions: BuildOptions): Promise<ServeResult>;
 
 // This function transforms a single JavaScript file. It can be used to minify
 // JavaScript, convert TypeScript/JSX to JavaScript, or convert newer JavaScript

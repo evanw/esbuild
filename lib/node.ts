@@ -55,8 +55,7 @@ export let version = ESBUILD_VERSION;
 
 export let build: typeof types.build = options => {
   return startService().then(service => {
-    let promise = service.build(options);
-    return promise.then(result => {
+    return service.build(options).then(result => {
       if (result.rebuild) {
         let old = result.rebuild.dispose;
         result.rebuild.dispose = () => {
@@ -69,23 +68,35 @@ export let build: typeof types.build = options => {
     }, error => {
       service.stop();
       throw error;
-    }); // Kill the service afterwards
+    });
+  });
+};
+
+export let serve: typeof types.serve = (serveOptions, buildOptions) => {
+  return startService().then(service => {
+    return service.serve(serveOptions, buildOptions).then(result => {
+      result.wait.then(service.stop, service.stop);
+      return result;
+    }, error => {
+      service.stop();
+      throw error;
+    });
   });
 };
 
 export let transform: typeof types.transform = (input, options) => {
   return startService().then(service => {
     let promise = service.transform(input, options);
-    promise.then(service.stop, service.stop); // Kill the service afterwards
+    promise.then(service.stop, service.stop);
     return promise;
   });
 };
 
 export let buildSync: typeof types.buildSync = options => {
   let result: types.BuildResult;
-  runServiceSync(service => service.build(options, isTTY(), (err, res) => {
+  runServiceSync(service => service.buildOrServe(null, options, isTTY(), (err, res) => {
     if (err) throw err;
-    result = res!;
+    result = res as types.BuildResult;
   }));
   return result!;
 };
@@ -146,8 +157,15 @@ export let startService: typeof types.startService = options => {
   return Promise.resolve({
     build: options =>
       new Promise((resolve, reject) =>
-        service.build(options, isTTY(), (err, res) =>
-          err ? reject(err) : resolve(res!))),
+        service.buildOrServe(null, options, isTTY(), (err, res) =>
+          err ? reject(err) : resolve(res as types.BuildResult))),
+    serve: (serveOptions, buildOptions) => {
+      if (serveOptions === null || typeof serveOptions !== 'object')
+        throw new Error('The first argument must be an object')
+      return new Promise((resolve, reject) =>
+        service.buildOrServe(serveOptions, buildOptions, isTTY(), (err, res) =>
+          err ? reject(err) : resolve(res as types.ServeResult)))
+    },
     transform: (input, options) =>
       new Promise((resolve, reject) =>
         service.transform(input, options || {}, isTTY(), {

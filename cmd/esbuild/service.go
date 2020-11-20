@@ -25,11 +25,13 @@ import (
 
 type responseCallback = func(interface{})
 type rebuildCallback = func(uint32) []byte
+type serverStopCallback = func()
 
 type serviceType struct {
 	mutex           sync.Mutex
 	callbacks       map[uint32]responseCallback
 	rebuilds        map[int]rebuildCallback
+	serveStops      map[int]serverStopCallback
 	nextID          uint32
 	nextRebuildID   int
 	outgoingPackets chan outgoingPacket
@@ -44,6 +46,7 @@ func runService() {
 	service := serviceType{
 		callbacks:       make(map[uint32]responseCallback),
 		rebuilds:        make(map[int]rebuildCallback),
+		serveStops:      make(map[int]serverStopCallback),
 		outgoingPackets: make(chan outgoingPacket),
 	}
 	buffer := make([]byte, 16*1024)
@@ -170,7 +173,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 			}
 
 		case "rebuild":
-			rebuildID := request["rebuild"].(int)
+			rebuildID := request["rebuildID"].(int)
 			rebuild, ok := func() (rebuildCallback, bool) {
 				service.mutex.Lock()
 				defer service.mutex.Unlock()
@@ -191,32 +194,52 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) (result outgoingP
 				bytes: rebuild(p.id),
 			}
 
-		case "dispose":
-			rebuildID := request["rebuild"].(int)
-
-			// Only mutate the map while inside a mutex
-			service.mutex.Lock()
-			defer service.mutex.Unlock()
-			if _, ok := service.rebuilds[rebuildID]; !ok {
-				return outgoingPacket{
-					bytes: encodePacket(packet{
-						id: p.id,
-						value: map[string]interface{}{
-							"error": "Cannot dispose",
-						},
-					}),
+		case "serve-stop":
+			serveID := request["serveID"].(int)
+			refCount := 0
+			serveStop := func() serverStopCallback {
+				// Only mutate the map while inside a mutex
+				service.mutex.Lock()
+				defer service.mutex.Unlock()
+				if serveStop, ok := service.serveStops[serveID]; ok {
+					// This serve is now considered finished. This matches the +1 reference
+					// count at the return of the serve call.
+					refCount = -1
+					return serveStop
 				}
+				return nil
+			}()
+			if serveStop != nil {
+				serveStop()
 			}
-			delete(service.rebuilds, rebuildID)
 			return outgoingPacket{
 				bytes: encodePacket(packet{
 					id:    p.id,
 					value: make(map[string]interface{}),
 				}),
+				refCount: refCount,
+			}
 
-				// This build is now considered finished. This matches the +1 reference
-				// count at the return of the first build call for this rebuild chain.
-				refCount: -1,
+		case "rebuild-dispose":
+			rebuildID := request["rebuildID"].(int)
+			refCount := 0
+			func() {
+				// Only mutate the map while inside a mutex
+				service.mutex.Lock()
+				defer service.mutex.Unlock()
+				if _, ok := service.rebuilds[rebuildID]; !ok {
+					// This build is now considered finished. This matches the +1 reference
+					// count at the return of the first build call for this rebuild chain.
+					refCount = -1
+					delete(service.rebuilds, rebuildID)
+				}
+			}()
+			return outgoingPacket{
+				bytes: encodePacket(packet{
+					id:    p.id,
+					value: make(map[string]interface{}),
+				}),
+				refCount: refCount,
 			}
 
 		case "error":
@@ -270,6 +293,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	key := request["key"].(int)
 	write := request["write"].(bool)
 	incremental := request["incremental"].(bool)
+	serve, isServe := request["serve"].(interface{})
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseBuildOptions(flags)
@@ -283,7 +307,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	// stdout there, the public Go API we're about to call doesn't have an option
 	// for "write to stdout but don't actually write" and I don't think it should.
 	// For now let's just forbid this case because it's not even that useful.
-	if err == nil && write && options.Outfile == "" && options.Outdir == "" {
+	if err == nil && !isServe && write && options.Outfile == "" && options.Outdir == "" {
 		err = errors.New("Either provide \"outfile\" or set \"write\" to false")
 	}
 
@@ -477,6 +501,71 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		})
 	}
 
+	if isServe {
+		var serveOptions api.ServeOptions
+		serve := serve.(map[string]interface{})
+		serveID := serve["serveID"].(int)
+		if port, ok := serve["port"]; ok {
+			serveOptions.Port = uint16(port.(int))
+		}
+		serveOptions.OnRequest = func(args api.ServeOnRequestArgs) {
+			service.sendRequest(map[string]interface{}{
+				"command": "serve-request",
+				"serveID": serveID,
+				"args": map[string]interface{}{
+					"remoteAddress": args.RemoteAddress,
+					"method":        args.Method,
+					"path":          args.Path,
+					"status":        args.Status,
+					"timeInMS":      args.TimeInMS,
+				},
+			})
+		}
+		result, err := api.Serve(serveOptions, options)
+		if err != nil {
+			return outgoingPacket{bytes: encodeErrorPacket(id, err)}
+		}
+		response := map[string]interface{}{
+			"port": int(result.Port),
+		}
+
+		// Asynchronously wait for the server to stop, then fulfil the "wait" promise
+		go func() {
+			request := map[string]interface{}{
+				"command": "serve-wait",
+				"serveID": serveID,
+			}
+			if err := result.Wait(); err != nil {
+				request["error"] = err.Error()
+			} else {
+				request["error"] = nil
+			}
+			service.sendRequest(request)
+
+			// Only mutate the map while inside a mutex
+			service.mutex.Lock()
+			defer service.mutex.Unlock()
+			delete(service.serveStops, serveID)
+		}()
+
+		func() {
+			// Only mutate the map while inside a mutex
+			service.mutex.Lock()
+			defer service.mutex.Unlock()
+			service.serveStops[serveID] = result.Stop
+		}()
+
+		return outgoingPacket{
+			bytes: encodePacket(packet{
+				id:    id,
+				value: response,
+			}),
+
+			// Make sure the serve doesn't finish until "stop" has been called
+			refCount: 1,
+		}
+	}
+
 	rebuildID := service.nextRebuildID
 	if incremental {
 		service.nextRebuildID++
@@ -492,7 +581,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 			response["outputFiles"] = encodeOutputFiles(result.OutputFiles)
 		}
 		if incremental {
-			response["rebuild"] = rebuildID
+			response["rebuildID"] = rebuildID
 		}
 		return response
 	}
@@ -504,17 +593,19 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	refCount := 0
 
 	if incremental {
-		// Only mutate the map while inside a mutex
-		service.mutex.Lock()
-		defer service.mutex.Unlock()
-		service.rebuilds[rebuildID] = func(id uint32) []byte {
-			result := result.Rebuild()
-			response := resultToResponse(result)
-			return encodePacket(packet{
-				id:    id,
-				value: response,
-			})
-		}
+		func() {
+			// Only mutate the map while inside a mutex
+			service.mutex.Lock()
+			defer service.mutex.Unlock()
+			service.rebuilds[rebuildID] = func(id uint32) []byte {
+				result := result.Rebuild()
+				response := resultToResponse(result)
+				return encodePacket(packet{
+					id:    id,
+					value: response,
+				})
+			}
+		}()
 
 		// Make sure the build doesn't finish until "dispose" has been called
 		refCount = 1

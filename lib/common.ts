@@ -21,6 +21,9 @@ let mustBeRegExp = (value: RegExp | undefined): string | null =>
 let mustBeInteger = (value: number | undefined): string | null =>
   typeof value === 'number' && value === (value | 0) ? null : 'an integer';
 
+let mustBeFunction = (value: Function | undefined): string | null =>
+  typeof value === 'function' ? null : 'a function';
+
 let mustBeArray = <T>(value: T[] | undefined): string | null =>
   Array.isArray(value) ? null : 'an array';
 
@@ -245,10 +248,11 @@ export interface StreamFS {
 }
 
 export interface StreamService {
-  build(
+  buildOrServe(
+    serveOptions: types.ServeOptions | null,
     options: types.BuildOptions,
     isTTY: boolean,
-    callback: (err: Error | null, res: types.BuildResult | null) => void,
+    callback: (err: Error | null, res: types.BuildResult | types.ServeResult | null) => void,
   ): void;
 
   transform(
@@ -267,8 +271,15 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   type PluginCallback = (request: protocol.OnResolveRequest | protocol.OnLoadRequest) =>
     Promise<protocol.OnResolveResponse | protocol.OnLoadResponse>;
 
+  interface ServeCallbacks {
+    onRequest: types.ServeOptions['onRequest'];
+    onWait: (error: string | null) => void;
+  }
+
   let responseCallbacks = new Map<number, (error: string | null, response: protocol.Value) => void>();
   let pluginCallbacks = new Map<number, PluginCallback>();
+  let serveCallbacks = new Map<number, ServeCallbacks>();
+  let nextServeID = 0;
   let isClosed = false;
   let nextRequestID = 0;
   let nextBuildKey = 0;
@@ -311,6 +322,10 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       callback('The service was stopped', null);
     }
     responseCallbacks.clear();
+    for (let callbacks of serveCallbacks.values()) {
+      callbacks.onWait('The service was stopped');
+    }
+    serveCallbacks.clear();
   };
 
   let sendRequest = <Req, Res>(value: Req, callback: (error: string | null, response: Res | null) => void): void => {
@@ -325,7 +340,13 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     streamIn.writeToStdin(protocol.encodePacket({ id, isRequest: false, value }));
   };
 
-  let handleRequest = async (id: number, request: protocol.OnResolveRequest | protocol.OnLoadRequest) => {
+  type RequestType =
+    | protocol.OnResolveRequest
+    | protocol.OnLoadRequest
+    | protocol.OnRequestRequest
+    | protocol.OnWaitRequest
+
+  let handleRequest = async (id: number, request: RequestType) => {
     // Catch exceptions in the code below so they get passed to the caller
     try {
       switch (request.command) {
@@ -338,6 +359,20 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         case 'load': {
           let callback = pluginCallbacks.get(request.key);
           sendResponse(id, await callback!(request) as any);
+          break;
+        }
+
+        case 'serve-request': {
+          let callbacks = serveCallbacks.get(request.serveID);
+          sendResponse(id, {});
+          if (callbacks && callbacks.onRequest) callbacks.onRequest(request.args);
+          break;
+        }
+
+        case 'serve-wait': {
+          let callbacks = serveCallbacks.get(request.serveID);
+          sendResponse(id, {});
+          if (callbacks) callbacks.onWait(request.error);
           break;
         }
 
@@ -522,27 +557,61 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     return () => pluginCallbacks.delete(buildKey);
   };
 
+  interface ServeData {
+    wait: Promise<void>
+    stop: () => void
+  }
+
+  let buildServeData = (options: types.ServeOptions, request: protocol.BuildRequest): ServeData => {
+    let keys: OptionKeys = {};
+    let port = getFlag(options, keys, 'port', mustBeInteger);
+    let onRequest = getFlag(options, keys, 'onRequest', mustBeFunction);
+    let serveID = nextServeID++;
+    let onWait: ServeCallbacks['onWait'];
+    let wait = new Promise<void>((resolve, reject) => {
+      onWait = error => {
+        serveCallbacks.delete(serveID);
+        if (error !== null) reject(new Error(error));
+        else resolve();
+      };
+    });
+    request.serve = { serveID };
+    checkForInvalidFlags(options, keys);
+    if (port !== void 0) request.serve.port = port;
+    serveCallbacks.set(serveID, {
+      onRequest,
+      onWait: onWait!,
+    });
+    return {
+      wait,
+      stop() {
+        sendRequest<protocol.ServeStopRequest, null>({ command: 'serve-stop', serveID }, () => {
+          // We don't care about the result
+        });
+      },
+    };
+  };
+
   return {
     readFromStdout,
     afterClose,
 
     service: {
-      build(options, isTTY, callback) {
+      buildOrServe(serveOptions, options, isTTY, callback) {
         const logLevelDefault = 'info';
         try {
           let key = nextBuildKey++;
           let [flags, write, plugins, stdin, resolveDir, incremental] = flagsForBuildOptions(options, isTTY, logLevelDefault);
           let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir, incremental };
-          let cleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
+          let serve = serveOptions && buildServeData(serveOptions, request);
+          let pluginCleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
 
           // Factor out response handling so it can be reused for rebuilds
           let rebuild: types.BuildResult['rebuild'] | undefined;
           let buildResponseToResult = (
-            error: string | null,
             response: protocol.BuildResponse | null,
             callback: (error: Error | null, result: types.BuildResult | null) => void,
           ): void => {
-            if (error) return callback(new Error(error), null);
             let errors = response!.errors;
             let warnings = response!.warnings;
             if (errors.length > 0) return callback(failureErrorWithLog('Build failed', errors, warnings), null);
@@ -550,21 +619,26 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
 
             // Handle incremental rebuilds
-            if (response!.rebuild !== void 0) {
+            if (response!.rebuildID !== void 0) {
               if (!rebuild) {
                 let isDisposed = false;
                 (rebuild as any) = () => new Promise<types.BuildResult>((resolve, reject) => {
                   if (isDisposed || isClosed) throw new Error('Cannot rebuild');
-                  sendRequest<protocol.RebuildRequest, protocol.BuildResponse>({ command: 'rebuild', rebuild: response!.rebuild! }, (error2, response2) => {
-                    buildResponseToResult(error2, response2, (error3, result3) => {
-                      if (error3) reject(error3);
-                      else resolve(result3!);
+                  sendRequest<protocol.RebuildRequest, protocol.BuildResponse>({ command: 'rebuild', rebuildID: response!.rebuildID! },
+                    (error2, response2) => {
+                      if (error2) return callback(new Error(error2), null);
+                      buildResponseToResult(response2, (error3, result3) => {
+                        if (error3) reject(error3);
+                        else resolve(result3!);
+                      });
                     });
-                  });
                 });
                 rebuild!.dispose = () => {
                   isDisposed = true;
-                  if (cleanup) cleanup();
+                  if (pluginCleanup) pluginCleanup();
+                  sendRequest<protocol.RebuildDisposeRequest, null>({ command: 'rebuild-dispose', rebuildID: response!.rebuildID! }, () => {
+                    // We don't care about the result
+                  });
                 };
               }
               result.rebuild = rebuild;
@@ -574,8 +648,18 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
           if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
           sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
-            if (cleanup && !incremental) cleanup();
-            return buildResponseToResult(error, response!, callback);
+            if (error) return callback(new Error(error), null);
+            if (serve) {
+              let serveResponse = response as any as protocol.ServeResponse;
+              let result: types.ServeResult = {
+                port: serveResponse.port,
+                wait: serve.wait,
+                stop: serve.stop,
+              };
+              return callback(null, result);
+            }
+            if (pluginCleanup && !incremental) pluginCleanup();
+            return buildResponseToResult(response!, callback);
           });
         } catch (e) {
           let flags: string[] = [];
