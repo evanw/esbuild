@@ -496,6 +496,22 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *api.TransformOptio
 }
 
 func runImpl(osArgs []string) int {
+	// Special-case running a server
+	for i, arg := range osArgs {
+		if arg == "--serve" {
+			arg = "--serve=0"
+		}
+		if strings.HasPrefix(arg, "--serve=") {
+			serve := arg[len("--serve="):]
+			osArgs = append(append([]string{}, osArgs[:i]...), osArgs[i+1:]...)
+			if err := serveImpl(serve, osArgs); err != nil {
+				logger.PrintErrorToStderr(osArgs, err.Error())
+				return 1
+			}
+			return 0
+		}
+	}
+
 	buildOptions, transformOptions, err := parseOptionsForRun(osArgs)
 
 	switch {
@@ -554,4 +570,49 @@ func runImpl(osArgs []string) int {
 	}
 
 	return 0
+}
+
+func serveImpl(portText string, osArgs []string) error {
+	port, err := strconv.ParseInt(portText, 10, 16)
+	if err != nil {
+		return err
+	}
+
+	options := newBuildOptions()
+
+	// Apply defaults appropriate for the CLI
+	options.ErrorLimit = 5
+	options.LogLevel = api.LogLevelInfo
+
+	if err := parseOptionsImpl(osArgs, &options, nil); err != nil {
+		logger.PrintErrorToStderr(osArgs, err.Error())
+		return err
+	}
+
+	serveOptions := api.ServeOptions{
+		Port: uint16(port),
+		OnRequest: func(args api.ServeOnRequestArgs) {
+			logger.PrintTextToStderr(logger.LevelInfo, osArgs, func(colors logger.Colors) string {
+				statusColor := colors.Red
+				if args.Status == 200 {
+					statusColor = colors.Green
+				}
+				return fmt.Sprintf("%s%s - %q %s%d%s [%dms]%s\n",
+					colors.Dim, args.RemoteAddress, args.Method+" "+args.Path,
+					statusColor, args.Status, colors.Dim, args.TimeInMS, colors.Default)
+			})
+		},
+	}
+
+	result, err := api.Serve(serveOptions, options)
+	if err != nil {
+		return err
+	}
+
+	// Show what actually got bound if the port was 0
+	logger.PrintTextToStderr(logger.LevelInfo, osArgs, func(colors logger.Colors) string {
+		return fmt.Sprintf("%s\n > %shttp://localhost:%d/%s\n\n",
+			colors.Default, colors.Underline, result.Port, colors.Default)
+	})
+	return result.Wait()
 }

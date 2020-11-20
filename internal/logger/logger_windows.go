@@ -94,6 +94,11 @@ func writeStringWithColor(file *os.File, text string) {
 			i += len(colorResetBold)
 			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY
 
+		// Apparently underlines only work with the CJK locale on Windows :(
+		case strings.HasPrefix(text[i:], colorResetUnderline):
+			i += len(colorResetUnderline)
+			attributes = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+
 		default:
 			i++
 			continue

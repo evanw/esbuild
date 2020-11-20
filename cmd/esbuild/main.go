@@ -134,10 +134,6 @@ func main() {
 				os.Exit(1)
 			}
 
-		case arg == "--service":
-			logger.PrintErrorToStderr(osArgs, "Cannot start service: No version number from host")
-			os.Exit(1)
-
 		default:
 			// Strip any arguments that were handled above
 			osArgs[argsEnd] = arg
@@ -220,11 +216,22 @@ func main() {
 				exitCode = cli.Run(osArgs)
 			}
 		} else {
+			// Don't disable the GC if this is a long-running server process
+			isServe := false
+			for _, arg := range osArgs {
+				if arg == "--serve" || strings.HasPrefix(arg, "--serve=") {
+					isServe = true
+					break
+				}
+			}
+
 			// Disable the GC since we're just going to allocate a bunch of memory
 			// and then exit anyway. This speedup is not insignificant. Make sure to
 			// only do this here once we know that we're not going to be a long-lived
 			// process though.
-			debug.SetGCPercent(-1)
+			if !isServe {
+				debug.SetGCPercent(-1)
+			}
 
 			exitCode = cli.Run(osArgs)
 		}

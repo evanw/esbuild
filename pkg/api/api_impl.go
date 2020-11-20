@@ -3,13 +3,19 @@ package api
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
+	"mime"
+	"net"
+	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/cache"
@@ -483,8 +489,8 @@ func buildImpl(buildOpts BuildOptions) BuildResult {
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
 	}
-	realFS := fs.RealFS()
 	log := logger.NewStderrLog(logOptions)
+	realFS := fs.RealFS()
 
 	// Do not re-evaluate plugins when rebuilding
 	plugins := loadPlugins(realFS, log, buildOpts.Plugins)
@@ -946,4 +952,249 @@ func loadPlugins(fs fs.FS, log logger.Log, plugins []Plugin) (results []config.P
 		results = append(results, impl.plugin)
 	}
 	return
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Serve API
+
+type apiHandler struct {
+	mutex        sync.Mutex
+	outdir       string
+	onRequest    func(ServeOnRequestArgs)
+	rebuild      func() BuildResult
+	currentBuild *runningBuild
+}
+
+type runningBuild struct {
+	waitGroup sync.WaitGroup
+	result    BuildResult
+}
+
+func (h *apiHandler) build() BuildResult {
+	build := func() *runningBuild {
+		h.mutex.Lock()
+		defer h.mutex.Unlock()
+		if h.currentBuild == nil {
+			build := &runningBuild{}
+			build.waitGroup.Add(1)
+			h.currentBuild = build
+
+			// Build on another thread
+			go func() {
+				result := h.rebuild()
+				h.rebuild = result.Rebuild
+				build.result = result
+				build.waitGroup.Done()
+
+				// Build results stay valid for a little bit afterward since a page
+				// load may involve multiple requests and don't want to rebuild
+				// separately for each of those requests.
+				time.Sleep(250 * time.Millisecond)
+				h.mutex.Lock()
+				defer h.mutex.Unlock()
+				h.currentBuild = nil
+			}()
+		}
+		return h.currentBuild
+	}()
+	build.waitGroup.Wait()
+	return build.result
+}
+
+func escapeForHTML(text string) string {
+	text = strings.ReplaceAll(text, "&", "&amp;")
+	text = strings.ReplaceAll(text, "<", "&lt;")
+	text = strings.ReplaceAll(text, ">", "&gt;")
+	return text
+}
+
+func escapeForAttribute(text string) string {
+	text = escapeForHTML(text)
+	text = strings.ReplaceAll(text, "\"", "&quot;")
+	text = strings.ReplaceAll(text, "'", "&apos;")
+	return text
+}
+
+func (h *apiHandler) notifyRequest(duration time.Duration, req *http.Request, status int) {
+	if h.onRequest != nil {
+		h.onRequest(ServeOnRequestArgs{
+			RemoteAddress: req.RemoteAddr,
+			Method:        req.Method,
+			Path:          req.URL.Path,
+			Status:        status,
+			TimeInMS:      int(duration.Milliseconds()),
+		})
+	}
+}
+
+func errorsToString(errors []Message) string {
+	stderrOptions := logger.StderrOptions{IncludeSource: true}
+	terminalOptions := logger.TerminalInfo{}
+	sb := strings.Builder{}
+	limit := 5
+	for i, msg := range convertMessagesToInternal(nil, logger.Error, errors) {
+		if i == limit {
+			sb.WriteString(fmt.Sprintf("%d out of %d errors shown\n", limit, len(errors)))
+			break
+		}
+		sb.WriteString(msg.String(stderrOptions, terminalOptions))
+	}
+	return sb.String()
+}
+
+func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	start := time.Now()
+
+	// Handle get requests
+	if req.Method == "GET" && strings.HasPrefix(req.URL.Path, "/") {
+		res.Header().Set("Access-Control-Allow-Origin", "*")
+		queryIsDir := false
+		fileEntries := []string{}
+		dirEntries := []string{}
+		isDirEntry := make(map[string]bool)
+		queryPath := req.URL.Path[1:]
+		if strings.HasSuffix(queryPath, "/") {
+			queryPath = queryPath[:len(queryPath)-1]
+		}
+		queryDir := queryPath
+		if queryDir != "" {
+			queryDir += "/"
+		}
+		queryExt := path.Ext(queryPath)
+		result := h.build()
+
+		// Requests fail if the build had errors
+		if len(result.Errors) > 0 {
+			go h.notifyRequest(time.Since(start), req, http.StatusServiceUnavailable)
+			res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			res.WriteHeader(http.StatusServiceUnavailable)
+			res.Write([]byte(errorsToString(result.Errors)))
+			return
+		}
+
+		// Check the output files for a match
+		for _, file := range result.OutputFiles {
+			if relPath, err := filepath.Rel(h.outdir, file.Path); err == nil {
+				relPath = strings.ReplaceAll(relPath, "\\", "/")
+
+				// An exact match
+				if relPath == queryPath {
+					if contentType := mime.TypeByExtension(queryExt); contentType != "" {
+						res.Header().Set("Content-Type", contentType)
+					}
+					go h.notifyRequest(time.Since(start), req, http.StatusOK)
+					res.Write(file.Contents)
+					return
+				}
+
+				// A match inside this directory
+				if strings.HasPrefix(relPath, queryDir) {
+					entry := relPath[len(queryDir):]
+					queryIsDir = true
+					if slash := strings.IndexByte(entry, '/'); slash == -1 {
+						fileEntries = append(fileEntries, entry)
+					} else if dir := entry[:slash]; !isDirEntry[dir] {
+						dirEntries = append(dirEntries, dir)
+						isDirEntry[dir] = true
+					}
+				}
+			}
+		}
+
+		// Directory listing
+		if queryIsDir {
+			html := strings.Builder{}
+			html.WriteString(`<!DOCTYPE html>`)
+			html.WriteString(`<title>`)
+			html.WriteString(escapeForHTML(queryDir))
+			html.WriteString(`</title>`)
+			html.WriteString(`<ul>`)
+			if queryPath != "" {
+				html.WriteString(fmt.Sprintf(`<li><a href="%s">../</a></li>`, escapeForAttribute(path.Dir("/"+queryPath))))
+			}
+			sort.Strings(dirEntries)
+			for _, entry := range dirEntries {
+				html.WriteString(fmt.Sprintf(`<li><a href="/%s">%s/</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
+			}
+			sort.Strings(fileEntries)
+			for _, entry := range fileEntries {
+				html.WriteString(fmt.Sprintf(`<li><a href="/%s">%s</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
+			}
+			html.WriteString(`</ul>`)
+			res.Header().Set("Content-Type", "text/html; charset=utf-8")
+			go h.notifyRequest(time.Since(start), req, http.StatusOK)
+			res.Write([]byte(html.String()))
+			return
+		}
+	}
+
+	// Default to a 404
+	res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	go h.notifyRequest(time.Since(start), req, http.StatusNotFound)
+	res.WriteHeader(http.StatusNotFound)
+	res.Write([]byte("404 - Not Found"))
+}
+
+func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
+	// The output directory isn't actually ever written to. It just needs to be
+	// very unlikely to be used as a source file so it doesn't collide.
+	outdir := filepath.Join(os.TempDir(), strconv.FormatInt(rand.NewSource(time.Now().Unix()).Int63(), 36))
+	buildOptions.Incremental = true
+	buildOptions.Write = false
+	buildOptions.Outfile = ""
+	buildOptions.Outdir = outdir
+
+	// Pick the port
+	var listener net.Listener
+	host := "127.0.0.1"
+	if serveOptions.Port == 0 {
+		// Default to picking a "800X" port
+		for port := 8000; port <= 8009; port++ {
+			if result, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port)); err == nil {
+				listener = result
+				break
+			}
+		}
+	}
+	if listener == nil {
+		// Otherwise pick the provided port
+		if result, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, serveOptions.Port)); err != nil {
+			return ServeResult{}, err
+		} else {
+			listener = result
+		}
+	}
+
+	// Try listening on the provided port
+	addr := listener.Addr().String()
+
+	// Extract the real port in case we passed a port of "0"
+	var result ServeResult
+	if _, text, err := net.SplitHostPort(addr); err == nil {
+		if port, err := strconv.ParseInt(text, 10, 32); err == nil {
+			result.Port = uint16(port)
+		}
+	}
+
+	// The first build will just build normally
+	handler := &apiHandler{
+		outdir:    outdir,
+		onRequest: serveOptions.OnRequest,
+		rebuild:   func() BuildResult { return Build(buildOptions) },
+	}
+
+	// Start the server
+	server := &http.Server{Addr: addr, Handler: handler}
+	wait := make(chan error, 1)
+	result.Wait = func() error { return <-wait }
+	result.Stop = func() { server.Close() }
+	go func() { wait <- server.Serve(listener) }()
+
+	// Start the first build shortly after this function returns (but not
+	// immediately so that stuff we print right after this will come first)
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		handler.build()
+	}()
+	return result, nil
 }

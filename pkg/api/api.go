@@ -321,6 +321,32 @@ func Transform(input string, options TransformOptions) TransformResult {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Serve API
+
+type ServeOptions struct {
+	Port      uint16
+	OnRequest func(ServeOnRequestArgs)
+}
+
+type ServeOnRequestArgs struct {
+	RemoteAddress string
+	Method        string
+	Path          string
+	Status        int
+	TimeInMS      int // The time to generate the response, not to send it
+}
+
+type ServeResult struct {
+	Port uint16
+	Wait func() error
+	Stop func()
+}
+
+func Serve(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
+	return serveImpl(serveOptions, buildOptions)
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Plugin API
 
 type Plugin struct {

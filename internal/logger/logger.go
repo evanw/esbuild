@@ -320,7 +320,7 @@ func PrintErrorToStderr(osArgs []string, text string) {
 	PrintMessageToStderr(osArgs, Msg{Kind: Error, Data: MsgData{Text: text}})
 }
 
-func PrintMessageToStderr(osArgs []string, msg Msg) {
+func StderrOptionsForArgs(osArgs []string) StderrOptions {
 	options := StderrOptions{IncludeSource: true}
 
 	// Implement a mini argument parser so these options always work even if we
@@ -342,9 +342,50 @@ func PrintMessageToStderr(osArgs []string, msg Msg) {
 		}
 	}
 
-	log := NewStderrLog(options)
+	return options
+}
+
+func PrintMessageToStderr(osArgs []string, msg Msg) {
+	log := NewStderrLog(StderrOptionsForArgs(osArgs))
 	log.AddMsg(msg)
 	log.Done()
+}
+
+type Colors struct {
+	Default   string
+	Dim       string
+	Red       string
+	Green     string
+	Underline string
+}
+
+func PrintTextToStderr(level LogLevel, osArgs []string, callback func(Colors) string) {
+	options := StderrOptionsForArgs(osArgs)
+
+	// Skip logging these if these logs are disabled
+	if options.LogLevel > level {
+		return
+	}
+
+	var useColorEscapes bool
+	switch options.Color {
+	case ColorNever:
+		useColorEscapes = false
+	case ColorAlways:
+		useColorEscapes = SupportsColorEscapes
+	case ColorIfTerminal:
+		useColorEscapes = GetTerminalInfo(os.Stderr).UseColorEscapes
+	}
+
+	var colors Colors
+	if useColorEscapes {
+		colors.Default = colorReset
+		colors.Dim = colorResetDim
+		colors.Red = colorRed
+		colors.Green = colorGreen
+		colors.Underline = colorResetUnderline
+	}
+	writeStringWithColor(os.Stderr, callback(colors))
 }
 
 func NewDeferLog() Log {
@@ -382,6 +423,7 @@ const colorMagenta = "\033[35m"
 const colorResetDim = "\033[0;37m"
 const colorBold = "\033[1m"
 const colorResetBold = "\033[0;1m"
+const colorResetUnderline = "\033[0;4m"
 
 type StderrColor uint8
 
