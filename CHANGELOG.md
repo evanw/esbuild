@@ -1,5 +1,84 @@
 # Changelog
 
+## Unreleased
+
+* Added an API for incremental builds ([#21](https://github.com/evanw/esbuild/issues/21))
+
+    There is now an API for incremental builds. This is what using the API looks like from JavaScript:
+
+    ```js
+    require('esbuild').build({
+      entryPoints: ['app.js'],
+      bundle: true,
+      outfile: 'out.js',
+      incremental: true,
+    }).then(result => {
+      // The "rebuild" method is present if "incremental" is true. It returns a
+      // promise that resolves to the same kind of object that "build" returns.
+      // You can call "rebuild" as many times as you like.
+      result.rebuild().then(result2 => {
+        // Call "dispose" when you're done to free up resources.
+        result.rebuild.dispose()
+      })
+    })
+    ```
+
+    Using the API from Go is similar:
+
+    ```go
+    result := api.Build(api.BuildOptions{
+      EntryPoints: []string{"app.js"},
+      Bundle: true,
+      Outfile: "out.js",
+      Incremental: true,
+    })
+    result2 := result.Rebuild()
+    ```
+
+    Incremental builds are more efficient regular builds because some data is cached and can be reused if the original files haven't changed since the last build. There are currently two forms of caching used by the incremental build API:
+
+    * Files are stored in memory and are not re-read from the file system if the file metadata hasn't changed since the last build. This optimization only applies to file system paths. It does not apply to virtual modules created by plugins.
+
+    * Parsed ASTs are stored in memory and re-parsing the AST is avoided if the file contents haven't changed since the last build. This optimization applies to virtual modules created by plugins in addition to file system modules, as long as the virtual module path remains the same.
+
+    This is just the initial release of the incremental build API. Incremental build times still have room for improvement. Right now esbuild still re-resolves, re-loads, and re-links everything even if none of the input files have changed. Improvements to the incremental build mechanism will be coming in later releases.
+
+* Support for a local file server ([#537](https://github.com/evanw/esbuild/issues/537))
+
+    You can now run esbuild with the `--serve` flag to start a local server that serves the output files over HTTP. This is intended to be used during development. You can point your `<script>` tag to a local server URL and your JavaScript and CSS files will be automatically built by esbuild whenever that URL is accessed. The server defaults to port 8000 but you can customize it with `--serve=...`.
+
+    There is also an equivalent API for JavaScript:
+
+    ```js
+    require('esbuild').serve({
+      port: 8000,
+    },{
+      entryPoints: ['app.js'],
+      bundle: true,
+      outfile: 'out.js',
+      incremental: true,
+    }).then(server => {
+      // Call "stop" on the server when you're done
+      server.stop()
+    })
+    ```
+
+    and for Go:
+
+    ```go
+    server, err := api.Serve(api.ServeOptions{
+      Port: 8000,
+    }, api.BuildOptions{
+      EntryPoints: []string{"app.js"},
+      Bundle:      true,
+      Outfile:     "out.js",
+      Incremental: true,
+    })
+
+    // Call "stop" on the server when you're done
+    server.Stop()
+    ```
+
 ## 0.8.11
 
 * Fix parsing of casts in TypeScript followed by certain tokens

@@ -17,7 +17,6 @@ const helpText = `
 Usage:
   esbuild [options] [entry points]
 
-
 Options:
   --bundle              Bundle all dependencies into the output files
   --define:K=V          Substitute K with V while parsing
@@ -38,6 +37,7 @@ Options:
   --outdir=...          The output directory (for multiple entry points)
   --outfile=...         The output file (for one entry point)
   --platform=...        Platform target (browser | node, default browser)
+  --serve=...           Start a local HTTP server on this port for outputs
   --sourcemap           Emit a source map
   --splitting           Enable code splitting (currently only for esm)
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
