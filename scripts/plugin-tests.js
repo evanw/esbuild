@@ -240,6 +240,47 @@ let pluginTests = {
       'called third'
     ])
   },
+  async resolversCanUsePreviousResolvedPaths({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const nested = path.join(testDir, 'nested.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `
+      import x from 'test'
+      export default x
+    `)
+    await writeFileAsync(nested, `
+      export default 123
+    `)
+    let receivedPath
+    await esbuild.build({
+      entryPoints: [input], bundle: true, outfile: output, format: 'cjs', plugins: [
+        {
+          name: 'plugin1',
+          setup(build) {
+            build.onResolve({ filter: /^.*$/ }, () => { 
+              return {
+                path: 'correct-path'
+              }
+            })
+          },
+        },
+        {
+          name: 'plugin2',
+          setup(build) {
+            build.onResolve({ filter: /^.*$/ }, (args) => { 
+              receivedPath = args.path
+              return {
+                path: nested
+              }
+            })
+          },
+        },
+      ],
+    })
+    const result = require(output)
+    assert.strictEqual(receivedPath, 'correct-path')
+    assert.strictEqual(result.default, 123)
+  },
 
   async loadersCalledInSequence({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
