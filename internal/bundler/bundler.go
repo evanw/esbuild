@@ -1287,7 +1287,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	// If code splitting is enabled, also treat dynamic imports as entry points
 	if codeSplitting {
 		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
-			if repr := b.files[sourceIndex].repr.(*reprJS); repr != nil {
+			if repr, ok := b.files[sourceIndex].repr.(*reprJS); ok {
 				for importRecordIndex := range repr.ast.ImportRecords {
 					if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
 						isEntryPoint[*record.SourceIndex] = true
