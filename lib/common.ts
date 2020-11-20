@@ -470,89 +470,113 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       request.plugins.push(plugin);
     }
 
-    pluginCallbacks.set(buildKey, async (request) => {
-      switch (request.command) {
-        case 'resolve': {
+    pluginCallbacks.set(
+      buildKey,
+      async (request): Promise<protocol.OnResolveResponse> => {
+        if (request.command === "resolve") {
           let response: protocol.OnResolveResponse = {};
+          let result: types.OnResolveResult | undefined;
           for (let id of request.ids) {
             try {
               let callback = onResolveCallbacks[id];
-              let result = await callback({
-                path: request.path,
+              let newResult = await callback({
+                path: result?.path ?? request.path,
+                namespace: result?.namespace ?? request.namespace,
                 importer: request.importer,
-                namespace: request.namespace,
                 resolveDir: request.resolveDir,
               });
 
-              if (result != null) {
-                if (typeof result !== 'object') throw new Error('Expected resolver plugin to return an object');
-                let keys: OptionKeys = {};
-                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
-                let path = getFlag(result, keys, 'path', mustBeString);
-                let namespace = getFlag(result, keys, 'namespace', mustBeString);
-                let external = getFlag(result, keys, 'external', mustBeBoolean);
-                let errors = getFlag(result, keys, 'errors', mustBeArray);
-                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
-                checkForInvalidFlags(result, keys);
-
+              if (newResult) {
+                result = {
+                  ...newResult,
+                  errors: [...(result?.errors || []), ...(newResult.errors || [])],
+                  warnings: [...(result?.warnings || []), ...(newResult.warnings || [])],
+                }
                 response.id = id;
-                if (pluginName != null) response.pluginName = pluginName;
-                if (path != null) response.path = path;
-                if (namespace != null) response.namespace = namespace;
-                if (external != null) response.external = external;
-                if (errors != null) response.errors = sanitizeMessages(errors);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings);
-                break;
               }
             } catch (e) {
-              return { id, errors: [await extractErrorMessageV8(e, streamIn)] };
+              return {
+                id,
+                errors: [await extractErrorMessageV8(e, streamIn)],
+              };
             }
           }
-          return response;
-        }
+          if (result != null) {
+            if (typeof result !== "object")
+              throw new Error("Expected resolver plugin to return an object");
+            let keys: OptionKeys = {};
+            let pluginName = getFlag(result, keys, "pluginName", mustBeString); // TODO there can be many plugins
+            let path = getFlag(result, keys, "path", mustBeString);
+            let namespace = getFlag(result, keys, "namespace", mustBeString);
+            let external = getFlag(result, keys, "external", mustBeBoolean);
+            let errors = getFlag(result, keys, "errors", mustBeArray);
+            let warnings = getFlag(result, keys, "warnings", mustBeArray);
+            checkForInvalidFlags(result, keys);
 
-        case 'load': {
+            if (pluginName != null) response.pluginName = pluginName;
+            if (path != null) response.path = path;
+            if (namespace != null) response.namespace = namespace;
+            if (external != null) response.external = external;
+            if (errors != null) response.errors = sanitizeMessages(errors);
+            if (warnings != null)
+              response.warnings = sanitizeMessages(warnings);
+          }
+          return response;
+        } else if (request.command === "load") {
           let response: protocol.OnLoadResponse = {};
+          let result: types.OnLoadResult | undefined;
           for (let id of request.ids) {
             try {
               let callback = onLoadCallbacks[id];
-              let result = await callback({
+              let newResult = await callback({
                 path: request.path,
                 namespace: request.namespace,
               });
-
-              if (result != null) {
-                if (typeof result !== 'object') throw new Error('Expected loader plugin to return an object');
-                let keys: OptionKeys = {};
-                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
-                let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
-                let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString);
-                let loader = getFlag(result, keys, 'loader', mustBeString);
-                let errors = getFlag(result, keys, 'errors', mustBeArray);
-                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
-                checkForInvalidFlags(result, keys);
-
-                response.id = id;
-                if (pluginName != null) response.pluginName = pluginName;
-                if (contents instanceof Uint8Array) response.contents = contents;
-                else if (contents != null) response.contents = protocol.encodeUTF8(contents);
-                if (resolveDir != null) response.resolveDir = resolveDir;
-                if (loader != null) response.loader = loader;
-                if (errors != null) response.errors = sanitizeMessages(errors);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings);
-                break;
+              if (newResult) {
+                result = newResult
+                response.id = id
               }
             } catch (e) {
-              return { id, errors: [await extractErrorMessageV8(e, streamIn)] };
+              return {
+                id,
+                errors: [await extractErrorMessageV8(e, streamIn)],
+              };
             }
           }
-          return response;
-        }
 
-        default:
-          throw new Error(`Invalid command: ` + (request as any).command);
+          if (result != null) {
+            if (typeof result !== "object")
+              throw new Error("Expected loader plugin to return an object");
+            let keys: OptionKeys = {};
+            let pluginName = getFlag(result, keys, "pluginName", mustBeString);
+            let contents = getFlag(
+              result,
+              keys,
+              "contents",
+              mustBeStringOrUint8Array
+            );
+            let resolveDir = getFlag(result, keys, "resolveDir", mustBeString);
+            let loader = getFlag(result, keys, "loader", mustBeString);
+            let errors = getFlag(result, keys, "errors", mustBeArray);
+            let warnings = getFlag(result, keys, "warnings", mustBeArray);
+            checkForInvalidFlags(result, keys);
+            if (pluginName != null) response.pluginName = pluginName;
+            if (contents instanceof Uint8Array) response.contents = contents;
+            else if (contents != null)
+              response.contents = protocol.encodeUTF8(contents);
+            if (resolveDir != null) response.resolveDir = resolveDir;
+            if (loader != null) response.loader = loader;
+            if (errors != null) response.errors = sanitizeMessages(errors);
+            if (warnings != null)
+              response.warnings = sanitizeMessages(warnings);
+          }
+
+          return response;
+        } else {
+          throw new Error(`Invalid command: ` + request!.command);
+        }
       }
-    });
+    );
 
     return () => pluginCallbacks.delete(buildKey);
   };

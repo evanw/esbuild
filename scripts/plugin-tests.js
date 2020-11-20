@@ -227,7 +227,7 @@ let pluginTests = {
         {
           name: 'plugin4',
           setup(build) {
-            build.onResolve({ filter: /^.*$/ }, () => { trace.push('not called') })
+            build.onResolve({ filter: /^.*$/ }, () => { trace.push('called third') })
           },
         }
       ],
@@ -237,6 +237,7 @@ let pluginTests = {
     assert.deepStrictEqual(trace, [
       'called first',
       'called second',
+      'called third'
     ])
   },
 
@@ -278,7 +279,7 @@ let pluginTests = {
         {
           name: 'plugin4',
           setup(build) {
-            build.onLoad({ filter: /^.*$/, namespace: 'file' }, () => { trace.push('not called') })
+            build.onLoad({ filter: /^.*$/, namespace: 'file' }, () => { trace.push('called third') })
           },
         },
       ],
@@ -288,6 +289,7 @@ let pluginTests = {
     assert.deepStrictEqual(trace, [
       'called first',
       'called second',
+      'called third',
     ])
   },
 
