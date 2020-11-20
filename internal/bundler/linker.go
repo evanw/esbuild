@@ -3465,7 +3465,8 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				} else {
 					jMeta.AddString(",")
 				}
-				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
+				chunkBaseWithoutPublicPath := path.Base(record.Path.Text)
+				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, chunkBaseWithoutPublicPath)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
 					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
 			}

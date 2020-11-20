@@ -83,6 +83,10 @@
 
     The install script runs `npm` in a temporary directory to download the correct binary executable for the current architecture. It then removes the temporary directory after the installation. However, removing a directory is sometimes impossible on Windows. To work around this problem, the install script now installs to the system's temporary directory instead of a directory inside the project itself. That way it's not problematic if a directory is left behind by the install script. This change was contributed by [@Djaler](https://github.com/Djaler).
 
+* Fix the public path ending up in the metafile ([#549](https://github.com/evanw/esbuild/issues/549))
+
+    The change in version 0.8.7 to include the public path in import paths of code splitting chunks caused a regression where the public path was also included in the list of chunk imports in the metafile. This was unintentional. Now the public path setting should not affect the metafile contents.
+
 ## 0.8.11
 
 * Fix parsing of casts in TypeScript followed by certain tokens
