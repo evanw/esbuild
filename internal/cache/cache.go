@@ -42,7 +42,7 @@ type CacheSet struct {
 func MakeCacheSet() *CacheSet {
 	return &CacheSet{
 		SourceIndexCache: SourceIndexCache{
-			entries:         make(map[logger.Path]uint32),
+			entries:         make(map[sourceIndexKey]uint32),
 			nextSourceIndex: runtime.SourceIndex + 1,
 		},
 		FSCache: FSCache{
@@ -62,8 +62,20 @@ func MakeCacheSet() *CacheSet {
 
 type SourceIndexCache struct {
 	mutex           sync.Mutex
-	entries         map[logger.Path]uint32
+	entries         map[sourceIndexKey]uint32
 	nextSourceIndex uint32
+}
+
+type SourceIndexKind uint8
+
+const (
+	SourceIndexNormal SourceIndexKind = iota
+	SourceIndexJSStubForCSS
+)
+
+type sourceIndexKey struct {
+	path logger.Path
+	kind SourceIndexKind
 }
 
 func (c *SourceIndexCache) LenHint() uint32 {
@@ -75,14 +87,15 @@ func (c *SourceIndexCache) LenHint() uint32 {
 	return c.nextSourceIndex + someExtraRoom
 }
 
-func (c *SourceIndexCache) Get(path logger.Path) uint32 {
+func (c *SourceIndexCache) Get(path logger.Path, kind SourceIndexKind) uint32 {
+	key := sourceIndexKey{path: path, kind: kind}
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if sourceIndex, ok := c.entries[path]; ok {
+	if sourceIndex, ok := c.entries[key]; ok {
 		return sourceIndex
 	}
 	sourceIndex := c.nextSourceIndex
 	c.nextSourceIndex++
-	c.entries[path] = sourceIndex
+	c.entries[key] = sourceIndex
 	return sourceIndex
 }

@@ -844,23 +844,8 @@ func (s *scanner) maybeParseFile(
 		return sourceIndex
 	}
 
-	// Allocate a source index using the shared source index cache so that
-	// subsequent builds reuse the same source index and therefore use the
-	// cached parse results for increased speed.
-	sourceIndex = s.caches.SourceIndexCache.Get(visitedKey)
+	sourceIndex = s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal)
 	s.visited[visitedKey] = sourceIndex
-
-	// Grow the results array to fit this source index
-	if newLen := int(sourceIndex) + 1; len(s.results) < newLen {
-		// Reallocate to a bigger array
-		if cap(s.results) < newLen {
-			s.results = append(make([]parseResult, 0, 2*newLen), s.results...)
-		}
-
-		// Grow in place
-		s.results = s.results[:newLen]
-	}
-
 	s.remaining++
 	optionsClone := s.options
 	if kind != inputKindStdin {
@@ -910,6 +895,26 @@ func (s *scanner) maybeParseFile(
 		inject:             inject,
 		skipResolve:        skipResolve,
 	})
+
+	return sourceIndex
+}
+
+func (s *scanner) allocateSourceIndex(path logger.Path, kind cache.SourceIndexKind) uint32 {
+	// Allocate a source index using the shared source index cache so that
+	// subsequent builds reuse the same source index and therefore use the
+	// cached parse results for increased speed.
+	sourceIndex := s.caches.SourceIndexCache.Get(path, kind)
+
+	// Grow the results array to fit this source index
+	if newLen := int(sourceIndex) + 1; len(s.results) < newLen {
+		// Reallocate to a bigger array
+		if cap(s.results) < newLen {
+			s.results = append(make([]parseResult, 0, 2*newLen), s.results...)
+		}
+
+		// Grow in place
+		s.results = s.results[:newLen]
+	}
 
 	return sourceIndex
 }
@@ -1040,10 +1045,8 @@ func (s *scanner) scanAllDependencies() {
 }
 
 func (s *scanner) processScannedFiles() []file {
-	files := make([]file, len(s.results))
-
 	// Now that all files have been scanned, process the final file import records
-	for _, result := range s.results {
+	for i, result := range s.results {
 		if !result.ok {
 			continue
 		}
@@ -1134,21 +1137,26 @@ func (s *scanner) processScannedFiles() []file {
 							s.log.AddRangeError(&result.file.source, record.Range,
 								fmt.Sprintf("Cannot import %q into a JavaScript file without an output path configured", otherFile.source.PrettyPath))
 						} else if css.jsSourceIndex == nil {
-							sourceIndex := uint32(len(files))
+							stubKey := otherFile.source.KeyPath
+							if stubKey.Namespace == "file" {
+								stubKey.Text = lowerCaseAbsPathForWindows(stubKey.Text)
+							}
+							sourceIndex := s.allocateSourceIndex(stubKey, cache.SourceIndexJSStubForCSS)
 							source := logger.Source{
 								Index:      sourceIndex,
 								PrettyPath: otherFile.source.PrettyPath,
 							}
-							ast := js_parser.LazyExportAST(s.log, source, js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &js_ast.EObject{}}, "")
-							f := file{
-								repr: &reprJS{
-									ast:            ast,
-									cssSourceIndex: record.SourceIndex,
+							s.results[sourceIndex] = parseResult{
+								file: file{
+									repr: &reprJS{
+										ast: js_parser.LazyExportAST(s.log, source,
+											js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &js_ast.EObject{}}, ""),
+										cssSourceIndex: record.SourceIndex,
+									},
+									source: source,
 								},
-								source: source,
+								ok: true,
 							}
-							files = append(files, f)
-							s.results = append(s.results, parseResult{file: f})
 							css.jsSourceIndex = &sourceIndex
 						}
 						record.SourceIndex = css.jsSourceIndex
@@ -1165,10 +1173,18 @@ func (s *scanner) processScannedFiles() []file {
 			j.AddString("]\n    }")
 		}
 
-		result.file.jsonMetadataChunk = j.Done()
-		files[result.file.source.Index] = result.file
+		s.results[i].file.jsonMetadataChunk = j.Done()
 	}
 
+	// The linker operates on an array of files, so construct that now. This
+	// can't be constructed earlier because we generate new parse results for
+	// JavaScript stub files for CSS imports above.
+	files := make([]file, len(s.results))
+	for i, result := range s.results {
+		if result.ok {
+			files[i] = result.file
+		}
+	}
 	return files
 }
 
