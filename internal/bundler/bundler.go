@@ -762,144 +762,183 @@ func hashForFileName(bytes []byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes[:])[:8]
 }
 
-func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.CacheSet, entryPaths []string, options config.Options) Bundle {
-	results := make([]parseResult, 0, caches.SourceIndexCache.LenHint())
-	visited := make(map[logger.Path]uint32)
-	resultChannel := make(chan parseResult)
-	remaining := 0
+type scanner struct {
+	log     logger.Log
+	fs      fs.FS
+	res     resolver.Resolver
+	caches  *cache.CacheSet
+	options config.Options
 
+	// This is not guarded by a mutex because it's only ever modified by a single
+	// thread. Note that not all results in the "results" array are necessarily
+	// valid. Make sure to check the "ok" flag before using them.
+	results       []parseResult
+	visited       map[logger.Path]uint32
+	resultChannel chan parseResult
+	remaining     int
+}
+
+func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.CacheSet, entryPaths []string, options config.Options) Bundle {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
 
-	// Always start by parsing the runtime file
-	{
-		results = append(results, parseResult{})
-		remaining++
-		go func() {
-			source, ast, ok := globalRuntimeCache.parseRuntime(&options)
-			resultChannel <- parseResult{file: file{source: source, repr: &reprJS{ast: ast}}, ok: ok}
-		}()
+	s := scanner{
+		log:           log,
+		fs:            fs,
+		res:           res,
+		caches:        caches,
+		options:       options,
+		results:       make([]parseResult, 0, caches.SourceIndexCache.LenHint()),
+		visited:       make(map[logger.Path]uint32),
+		resultChannel: make(chan parseResult),
 	}
 
-	type inputKind uint8
+	// Always start by parsing the runtime file
+	s.results = append(s.results, parseResult{})
+	s.remaining++
+	go func() {
+		source, ast, ok := globalRuntimeCache.parseRuntime(&options)
+		s.resultChannel <- parseResult{file: file{source: source, repr: &reprJS{ast: ast}}, ok: ok}
+	}()
 
-	const (
-		inputKindNormal inputKind = iota
-		inputKindEntryPoint
-		inputKindStdin
-	)
+	s.preprocessInjectedFiles()
+	entryPoints := s.addEntryPoints(entryPaths)
+	s.scanAllDependencies()
+	files := s.processScannedFiles()
 
-	maybeParseFile := func(
-		resolveResult resolver.ResolveResult,
-		prettyPath string,
-		importSource *logger.Source,
-		importPathRange logger.Range,
-		kind inputKind,
-		inject chan config.InjectedFile,
-	) uint32 {
-		path := resolveResult.PathPair.Primary
-		visitedKey := path
-		if visitedKey.Namespace == "file" {
-			visitedKey.Text = lowerCaseAbsPathForWindows(visitedKey.Text)
-		}
-		sourceIndex, ok := visited[visitedKey]
-		if !ok {
-			// Allocate a source index using the shared source index cache so that
-			// subsequent builds reuse the same source index and therefore use the
-			// cached parse results for increased speed.
-			sourceIndex = caches.SourceIndexCache.Get(visitedKey)
-			visited[visitedKey] = sourceIndex
+	return Bundle{
+		fs:          fs,
+		res:         res,
+		files:       files,
+		entryPoints: entryPoints,
+	}
+}
 
-			// Grow the results array to fit this source index
-			if newLen := int(sourceIndex) + 1; len(results) < newLen {
-				// Reallocate to a bigger array
-				if cap(results) < newLen {
-					results = append(make([]parseResult, 0, 2*newLen), results...)
-				}
+type inputKind uint8
 
-				// Grow in place
-				results = results[:newLen]
-			}
+const (
+	inputKindNormal inputKind = iota
+	inputKindEntryPoint
+	inputKindStdin
+)
 
-			remaining++
-			optionsClone := options
-			if kind != inputKindStdin {
-				optionsClone.Stdin = nil
-			}
-			optionsClone.SuppressWarningsAboutWeirdCode = resolveResult.SuppressWarningsAboutWeirdCode
+// This returns the source index of the resulting file
+func (s *scanner) maybeParseFile(
+	resolveResult resolver.ResolveResult,
+	prettyPath string,
+	importSource *logger.Source,
+	importPathRange logger.Range,
+	kind inputKind,
+	inject chan config.InjectedFile,
+) uint32 {
+	path := resolveResult.PathPair.Primary
+	visitedKey := path
+	if visitedKey.Namespace == "file" {
+		visitedKey.Text = lowerCaseAbsPathForWindows(visitedKey.Text)
+	}
 
-			// Allow certain properties to be overridden
-			if len(resolveResult.JSXFactory) > 0 {
-				optionsClone.JSX.Factory = resolveResult.JSXFactory
-			}
-			if len(resolveResult.JSXFragment) > 0 {
-				optionsClone.JSX.Fragment = resolveResult.JSXFragment
-			}
-			if resolveResult.UseDefineForClassFieldsTS {
-				optionsClone.UseDefineForClassFields = true
-			}
-			if resolveResult.PreserveUnusedImportsTS {
-				optionsClone.PreserveUnusedImportsTS = true
-			}
-
-			// Enable bundling for injected files so we always do tree shaking. We
-			// never want to include unnecessary code from injected files since they
-			// are essentially bundled. However, if we do this we should skip the
-			// resolving step when we're not bundling. It'd be strange to get
-			// resolution errors when the top-level bundling controls are disabled.
-			skipResolve := false
-			if inject != nil && optionsClone.Mode != config.ModeBundle {
-				optionsClone.Mode = config.ModeBundle
-				skipResolve = true
-			}
-
-			go parseFile(parseArgs{
-				fs:                 fs,
-				log:                log,
-				res:                res,
-				caches:             caches,
-				keyPath:            path,
-				prettyPath:         prettyPath,
-				sourceIndex:        sourceIndex,
-				importSource:       importSource,
-				ignoreIfUnused:     resolveResult.IgnorePrimaryIfUnused != nil,
-				ignoreIfUnusedData: resolveResult.IgnorePrimaryIfUnused,
-				importPathRange:    importPathRange,
-				options:            optionsClone,
-				results:            resultChannel,
-				inject:             inject,
-				skipResolve:        skipResolve,
-			})
-		}
+	// Only parse a given file path once
+	sourceIndex, ok := s.visited[visitedKey]
+	if ok {
 		return sourceIndex
 	}
 
-	// Pre-process the injected files
-	injectedFiles := make([]config.InjectedFile, 0, len(options.InjectAbsPaths))
+	// Allocate a source index using the shared source index cache so that
+	// subsequent builds reuse the same source index and therefore use the
+	// cached parse results for increased speed.
+	sourceIndex = s.caches.SourceIndexCache.Get(visitedKey)
+	s.visited[visitedKey] = sourceIndex
+
+	// Grow the results array to fit this source index
+	if newLen := int(sourceIndex) + 1; len(s.results) < newLen {
+		// Reallocate to a bigger array
+		if cap(s.results) < newLen {
+			s.results = append(make([]parseResult, 0, 2*newLen), s.results...)
+		}
+
+		// Grow in place
+		s.results = s.results[:newLen]
+	}
+
+	s.remaining++
+	optionsClone := s.options
+	if kind != inputKindStdin {
+		optionsClone.Stdin = nil
+	}
+	optionsClone.SuppressWarningsAboutWeirdCode = resolveResult.SuppressWarningsAboutWeirdCode
+
+	// Allow certain properties to be overridden
+	if len(resolveResult.JSXFactory) > 0 {
+		optionsClone.JSX.Factory = resolveResult.JSXFactory
+	}
+	if len(resolveResult.JSXFragment) > 0 {
+		optionsClone.JSX.Fragment = resolveResult.JSXFragment
+	}
+	if resolveResult.UseDefineForClassFieldsTS {
+		optionsClone.UseDefineForClassFields = true
+	}
+	if resolveResult.PreserveUnusedImportsTS {
+		optionsClone.PreserveUnusedImportsTS = true
+	}
+
+	// Enable bundling for injected files so we always do tree shaking. We
+	// never want to include unnecessary code from injected files since they
+	// are essentially bundled. However, if we do this we should skip the
+	// resolving step when we're not bundling. It'd be strange to get
+	// resolution errors when the top-level bundling controls are disabled.
+	skipResolve := false
+	if inject != nil && optionsClone.Mode != config.ModeBundle {
+		optionsClone.Mode = config.ModeBundle
+		skipResolve = true
+	}
+
+	go parseFile(parseArgs{
+		fs:                 s.fs,
+		log:                s.log,
+		res:                s.res,
+		caches:             s.caches,
+		keyPath:            path,
+		prettyPath:         prettyPath,
+		sourceIndex:        sourceIndex,
+		importSource:       importSource,
+		ignoreIfUnused:     resolveResult.IgnorePrimaryIfUnused != nil,
+		ignoreIfUnusedData: resolveResult.IgnorePrimaryIfUnused,
+		importPathRange:    importPathRange,
+		options:            optionsClone,
+		results:            s.resultChannel,
+		inject:             inject,
+		skipResolve:        skipResolve,
+	})
+
+	return sourceIndex
+}
+
+func (s *scanner) preprocessInjectedFiles() {
+	injectedFiles := make([]config.InjectedFile, 0, len(s.options.InjectAbsPaths))
 	duplicateInjectedFiles := make(map[string]bool)
 	injectWaitGroup := sync.WaitGroup{}
-	for _, absPath := range options.InjectAbsPaths {
-		prettyPath := res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
+	for _, absPath := range s.options.InjectAbsPaths {
+		prettyPath := s.res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
 
 		if duplicateInjectedFiles[lowerAbsPath] {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate injected file %q", prettyPath))
+			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate injected file %q", prettyPath))
 			continue
 		}
 
 		duplicateInjectedFiles[lowerAbsPath] = true
-		resolveResult := res.ResolveAbs(absPath)
+		resolveResult := s.res.ResolveAbs(absPath)
 
 		if resolveResult == nil {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
+			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
 			continue
 		}
 
 		i := len(injectedFiles)
 		injectedFiles = append(injectedFiles, config.InjectedFile{})
 		channel := make(chan config.InjectedFile)
-		maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindNormal, channel)
+		s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindNormal, channel)
 
 		// Wait for the results in parallel
 		injectWaitGroup.Add(1)
@@ -909,50 +948,56 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 		}(i, prettyPath, resolveResult)
 	}
 	injectWaitGroup.Wait()
-	options.InjectedFiles = injectedFiles
+	s.options.InjectedFiles = injectedFiles
+}
 
+func (s *scanner) addEntryPoints(entryPaths []string) []uint32 {
 	entryPoints := []uint32{}
 	duplicateEntryPoints := make(map[string]bool)
 
 	// Treat stdin as an extra entry point
-	if options.Stdin != nil {
+	if s.options.Stdin != nil {
 		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: logger.Path{Text: "<stdin>"}}}
-		sourceIndex := maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, inputKindStdin, nil)
+		sourceIndex := s.maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, inputKindStdin, nil)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
 	// Add any remaining entry points
 	for _, absPath := range entryPaths {
-		prettyPath := res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
+		prettyPath := s.res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
 
 		if duplicateEntryPoints[lowerAbsPath] {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
+			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
 			continue
 		}
 
 		duplicateEntryPoints[lowerAbsPath] = true
-		resolveResult := res.ResolveAbs(absPath)
+		resolveResult := s.res.ResolveAbs(absPath)
 
 		if resolveResult == nil {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
+			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
 			continue
 		}
 
-		sourceIndex := maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindEntryPoint, nil)
+		sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindEntryPoint, nil)
 		entryPoints = append(entryPoints, sourceIndex)
 	}
 
+	return entryPoints
+}
+
+func (s *scanner) scanAllDependencies() {
 	// Continue scanning until all dependencies have been discovered
-	for remaining > 0 {
-		result := <-resultChannel
-		remaining--
+	for s.remaining > 0 {
+		result := <-s.resultChannel
+		s.remaining--
 		if !result.ok {
 			continue
 		}
 
 		// Don't try to resolve paths if we're not bundling
-		if options.Mode == config.ModeBundle {
+		if s.options.Mode == config.ModeBundle {
 			records := *result.file.repr.importRecords()
 			for importRecordIndex := range records {
 				record := &records[importRecordIndex]
@@ -966,14 +1011,14 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 				path := resolveResult.PathPair.Primary
 				if !resolveResult.IsExternal {
 					// Handle a path within the bundle
-					prettyPath := res.PrettyPath(path)
-					sourceIndex := maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, inputKindNormal, nil)
+					prettyPath := s.res.PrettyPath(path)
+					sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, &result.file.source, record.Range, inputKindNormal, nil)
 					record.SourceIndex = &sourceIndex
 				} else {
 					// If the path to the external module is relative to the source
 					// file, rewrite the path to be relative to the working directory
 					if path.Namespace == "file" {
-						if relPath, ok := fs.Rel(options.AbsOutputDir, path.Text); ok {
+						if relPath, ok := s.fs.Rel(s.options.AbsOutputDir, path.Text); ok {
 							// Prevent issues with path separators being different on Windows
 							relPath = strings.ReplaceAll(relPath, "\\", "/")
 							if resolver.IsPackagePath(relPath) {
@@ -990,12 +1035,15 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 			}
 		}
 
-		results[result.file.source.Index] = result
+		s.results[result.file.source.Index] = result
 	}
+}
+
+func (s *scanner) processScannedFiles() []file {
+	files := make([]file, len(s.results))
 
 	// Now that all files have been scanned, process the final file import records
-	files := make([]file, len(results))
-	for _, result := range results {
+	for _, result := range s.results {
 		if !result.ok {
 			continue
 		}
@@ -1004,13 +1052,13 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 		isFirstImport := true
 
 		// Begin the metadata chunk
-		if options.AbsMetadataFile != "" {
-			j.AddBytes(js_printer.QuoteForJSON(result.file.source.PrettyPath, options.ASCIIOnly))
+		if s.options.AbsMetadataFile != "" {
+			j.AddBytes(js_printer.QuoteForJSON(result.file.source.PrettyPath, s.options.ASCIIOnly))
 			j.AddString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.source.Contents)))
 		}
 
 		// Don't try to resolve paths if we're not bundling
-		if options.Mode == config.ModeBundle {
+		if s.options.Mode == config.ModeBundle {
 			records := *result.file.repr.importRecords()
 			for importRecordIndex := range records {
 				record := &records[importRecordIndex]
@@ -1035,13 +1083,13 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 					if secondaryKey.Namespace == "file" {
 						secondaryKey.Text = lowerCaseAbsPathForWindows(secondaryKey.Text)
 					}
-					if secondarySourceIndex, ok := visited[secondaryKey]; ok {
+					if secondarySourceIndex, ok := s.visited[secondaryKey]; ok {
 						record.SourceIndex = &secondarySourceIndex
 					}
 				}
 
 				// Generate metadata about each import
-				if options.AbsMetadataFile != "" {
+				if s.options.AbsMetadataFile != "" {
 					if isFirstImport {
 						isFirstImport = false
 						j.AddString("\n        ")
@@ -1049,28 +1097,28 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 						j.AddString(",\n        ")
 					}
 					j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-						js_printer.QuoteForJSON(results[*record.SourceIndex].file.source.PrettyPath, options.ASCIIOnly)))
+						js_printer.QuoteForJSON(s.results[*record.SourceIndex].file.source.PrettyPath, s.options.ASCIIOnly)))
 				}
 
 				// Importing a JavaScript file from a CSS file is not allowed.
 				switch record.Kind {
 				case ast.ImportAt:
-					otherFile := &results[*record.SourceIndex].file
+					otherFile := &s.results[*record.SourceIndex].file
 					if _, ok := otherFile.repr.(*reprJS); ok {
-						log.AddRangeError(&result.file.source, record.Range,
+						s.log.AddRangeError(&result.file.source, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.source.PrettyPath))
 					}
 
 				case ast.ImportURL:
-					otherFile := &results[*record.SourceIndex].file
+					otherFile := &s.results[*record.SourceIndex].file
 					switch otherRepr := otherFile.repr.(type) {
 					case *reprCSS:
-						log.AddRangeError(&result.file.source, record.Range,
+						s.log.AddRangeError(&result.file.source, record.Range,
 							fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
 
 					case *reprJS:
 						if otherRepr.ast.URLForCSS == "" {
-							log.AddRangeError(&result.file.source, record.Range,
+							s.log.AddRangeError(&result.file.source, record.Range,
 								fmt.Sprintf("Cannot use %q as a URL", otherFile.source.PrettyPath))
 						}
 					}
@@ -1080,10 +1128,10 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 				// JavaScript stub to ensure that JavaScript files only ever import
 				// other JavaScript files.
 				if _, ok := result.file.repr.(*reprJS); ok {
-					otherFile := &results[*record.SourceIndex].file
+					otherFile := &s.results[*record.SourceIndex].file
 					if css, ok := otherFile.repr.(*reprCSS); ok {
-						if options.WriteToStdout {
-							log.AddRangeError(&result.file.source, record.Range,
+						if s.options.WriteToStdout {
+							s.log.AddRangeError(&result.file.source, record.Range,
 								fmt.Sprintf("Cannot import %q into a JavaScript file without an output path configured", otherFile.source.PrettyPath))
 						} else if css.jsSourceIndex == nil {
 							sourceIndex := uint32(len(files))
@@ -1091,7 +1139,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 								Index:      sourceIndex,
 								PrettyPath: otherFile.source.PrettyPath,
 							}
-							ast := js_parser.LazyExportAST(log, source, js_parser.OptionsFromConfig(&options), js_ast.Expr{Data: &js_ast.EObject{}}, "")
+							ast := js_parser.LazyExportAST(s.log, source, js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &js_ast.EObject{}}, "")
 							f := file{
 								repr: &reprJS{
 									ast:            ast,
@@ -1100,7 +1148,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 								source: source,
 							}
 							files = append(files, f)
-							results = append(results, parseResult{file: f})
+							s.results = append(s.results, parseResult{file: f})
 							css.jsSourceIndex = &sourceIndex
 						}
 						record.SourceIndex = css.jsSourceIndex
@@ -1110,7 +1158,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 		}
 
 		// End the metadata chunk
-		if options.AbsMetadataFile != "" {
+		if s.options.AbsMetadataFile != "" {
 			if !isFirstImport {
 				j.AddString("\n      ")
 			}
@@ -1121,12 +1169,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 		files[result.file.source.Index] = result.file
 	}
 
-	return Bundle{
-		fs:          fs,
-		res:         res,
-		files:       files,
-		entryPoints: entryPoints,
-	}
+	return files
 }
 
 func DefaultExtensionToLoaderMap() map[string]config.Loader {
