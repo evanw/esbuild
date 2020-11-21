@@ -573,9 +573,12 @@ func runImpl(osArgs []string) int {
 }
 
 func serveImpl(portText string, osArgs []string) error {
-	port, err := strconv.ParseInt(portText, 10, 16)
+	port, err := strconv.ParseInt(portText, 10, 32)
 	if err != nil {
 		return err
+	}
+	if port < 0 || port > 0xFFFF {
+		return fmt.Errorf("Invalid port number: %s", portText)
 	}
 
 	options := newBuildOptions()
