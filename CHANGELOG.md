@@ -56,7 +56,6 @@
       entryPoints: ['app.js'],
       bundle: true,
       outfile: 'out.js',
-      incremental: true,
     }).then(server => {
       // Call "stop" on the server when you're done
       server.stop()
@@ -72,7 +71,6 @@
       EntryPoints: []string{"app.js"},
       Bundle:      true,
       Outfile:     "out.js",
-      Incremental: true,
     })
 
     // Call "stop" on the server when you're done
