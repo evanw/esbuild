@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.12
 
 * Added an API for incremental builds ([#21](https://github.com/evanw/esbuild/issues/21))
 
@@ -78,6 +78,8 @@
     // Call "stop" on the server when you're done
     server.Stop()
     ```
+
+    This is a similar use case to "watch mode" in other tools where something automatically rebuilds your code when a file has changed on disk. The difference is that you don't encounter the problem where you make an edit, switch to your browser, and reload only to load the old files because the rebuild hasn't finished yet. Using a HTTP request instead of a file system access gives the rebuild tool the ability to delay the load until the rebuild operation has finished so your build is always up to date.
 
 * Install to a temporary directory for Windows ([#547](https://github.com/evanw/esbuild/issues/547))
 
