@@ -386,11 +386,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 
 		case strings.HasPrefix(arg, "'--"):
-			fix := ""
-			if strings.ContainsRune(arg, '"') {
-				fix = " (use \\\" to escape double quotes instead)"
-			}
-			return fmt.Errorf("Unexpected single quote character before flag%s: %s", fix, arg)
+			return fmt.Errorf("Unexpected single quote character before flag (use \\\" to escape double quotes): %s", arg)
 
 		case !strings.HasPrefix(arg, "-") && buildOpts != nil:
 			buildOpts.EntryPoints = append(buildOpts.EntryPoints, arg)

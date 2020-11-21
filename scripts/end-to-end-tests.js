@@ -1818,19 +1818,11 @@
 
   // Test a special-case error message for people trying to use "'--" on Windows
   tests.push(
-    test(['in.js', `'--external:lib'`], {
-      'in.js': ``,
-    }, {
-      expectedStderr: ` > error: Unexpected single quote character before flag: '--external:lib'
-
-1 error
-`,
-    }),
     test(['in.js', `'--define:process.env.NODE_ENV="production"'`], {
       'in.js': ``,
     }, {
       expectedStderr: ` > error: Unexpected single quote character before flag (use \\" to ` +
-        `escape double quotes instead): '--define:process.env.NODE_ENV="production"'
+        `escape double quotes): '--define:process.env.NODE_ENV="production"'
 
 1 error
 `,
