@@ -563,12 +563,15 @@ func TestLocal(t *testing.T) {
 	expectParseError(t, "for (let let of x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
 	expectParseError(t, "for (const let of x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
 
+	errorText := `<stdin>: warning: This assignment will throw because "x" is a constant
+<stdin>: note: "x" was declared a constant here
+`
 	expectParseError(t, "var x = 0; x = 1", "")
 	expectParseError(t, "let x = 0; x = 1", "")
-	expectParseError(t, "const x = 0; x = 1", "<stdin>: warning: This assignment will throw because \"x\" is a constant\n")
+	expectParseError(t, "const x = 0; x = 1", errorText)
 	expectParseError(t, "var x = 0; x++", "")
 	expectParseError(t, "let x = 0; x++", "")
-	expectParseError(t, "const x = 0; x++", "<stdin>: warning: This assignment will throw because \"x\" is a constant\n")
+	expectParseError(t, "const x = 0; x++", errorText)
 }
 
 func TestArrays(t *testing.T) {

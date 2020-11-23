@@ -5847,11 +5847,13 @@ func (p *parser) pushScopeForVisitPass(kind js_ast.ScopeKind, loc logger.Loc) {
 
 type findSymbolResult struct {
 	ref               js_ast.Ref
+	declareLoc        logger.Loc
 	isInsideWithScope bool
 }
 
 func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 	var ref js_ast.Ref
+	var declareLoc logger.Loc
 	isInsideWithScope := false
 	s := p.currentScope
 
@@ -5864,6 +5866,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 		// Is the symbol a member of this scope?
 		if member, ok := s.Members[name]; ok {
 			ref = member.Ref
+			declareLoc = member.Loc
 			if p.symbols[ref.InnerIndex].Kind == js_ast.SymbolError {
 				r := js_lexer.RangeOfIdentifier(p.source, loc)
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot access %q here", name))
@@ -5876,6 +5879,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 			// Allocate an "unbound" symbol
 			p.checkForNonBMPCodePoint(loc, name)
 			ref = p.newSymbol(js_ast.SymbolUnbound, name)
+			declareLoc = loc
 			p.moduleScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: logger.Loc{Start: -1}}
 			break
 		}
@@ -5891,7 +5895,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 
 	// Track how many times we've referenced this symbol
 	p.recordUsage(ref)
-	return findSymbolResult{ref, isInsideWithScope}
+	return findSymbolResult{ref, declareLoc, isInsideWithScope}
 }
 
 func (p *parser) findLabelSymbol(loc logger.Loc, name string) (ref js_ast.Ref, isLoop bool, ok bool) {
@@ -8373,10 +8377,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		result := p.findSymbol(expr.Loc, name)
 		e.Ref = result.ref
 
-		// Warn about assigning to a constant
+		// Handle assigning to a constant
 		if in.assignTarget != js_ast.AssignTargetNone && p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolConst {
 			r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-			p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("This assignment will throw because %q is a constant", name))
+			notes := []logger.MsgData{logger.RangeData(&p.source, js_lexer.RangeOfIdentifier(p.source, result.declareLoc),
+				fmt.Sprintf("%q was declared a constant here", name))}
+
+			// Make this an error when bundling because we may need to convert this
+			// "const" into a "var" during bundling.
+			if p.options.mode == config.ModeBundle {
+				p.log.AddRangeErrorWithNotes(&p.source, r, fmt.Sprintf("Cannot assign to %q because it is a constant", name), notes)
+			} else {
+				p.log.AddRangeWarningWithNotes(&p.source, r, fmt.Sprintf("This assignment will throw because %q is a constant", name), notes)
+			}
 		}
 
 		// Substitute user-specified defines for unbound symbols

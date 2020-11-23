@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Assigning to a `const` symbol is now an error when bundling
+
+    This change was made because esbuild may need to change a `const` symbol into a non-constant symbol in certain situations. One situation is when the "avoid TDZ" option is enabled. Another situation is some potential upcoming changes to lazily-evaluate certain modules for code splitting purposes. Making this an error gives esbuild the freedom to do these code transformations without potentially causing problems where constants are mutated. This has already been a warning for a while so code that does this should already have been obvious. This warning was made an error in a patch release because the expectation is that no real code relies on this behavior outside of conformance tests.
+
 ## 0.8.12
 
 * Added an API for incremental builds ([#21](https://github.com/evanw/esbuild/issues/21))

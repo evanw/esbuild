@@ -3587,3 +3587,22 @@ func TestImportRelativeAsPackage(t *testing.T) {
 `,
 	})
 }
+
+func TestForbidConstAssignWhenBundling(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const x = 1
+				x = 2
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: Cannot assign to "x" because it is a constant
+/entry.js: note: "x" was declared a constant here
+`,
+	})
+}
