@@ -5253,7 +5253,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		case js_lexer.TConst:
 			p.markSyntaxFeature(compat.Const, p.lexer.Range())
 			p.lexer.Next()
-			decls = p.parseAndDeclareDecls(js_ast.SymbolOther, parseStmtOpts{})
+			decls = p.parseAndDeclareDecls(js_ast.SymbolConst, parseStmtOpts{})
 			init = &js_ast.Stmt{Loc: initLoc, Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: decls}}
 
 		case js_lexer.TSemicolon:
