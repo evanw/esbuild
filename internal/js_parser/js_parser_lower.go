@@ -1474,21 +1474,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		kind = classKindExportDefaultStmt
 	}
 
-	// We always lower class fields when parsing TypeScript since class fields in
-	// TypeScript don't follow the JavaScript spec. We also need to always lower
-	// TypeScript-style decorators since they don't have a JavaScript equivalent.
-	classFeatures := compat.ClassField | compat.ClassStaticField |
-		compat.ClassPrivateField | compat.ClassPrivateStaticField |
-		compat.ClassPrivateMethod | compat.ClassPrivateStaticMethod |
-		compat.ClassPrivateAccessor | compat.ClassPrivateStaticAccessor
-	if !p.options.ts.Parse && !p.options.unsupportedJSFeatures.Has(classFeatures) {
-		if kind == classKindExpr {
-			return nil, expr
-		} else {
-			return []js_ast.Stmt{stmt}, js_ast.Expr{}
-		}
-	}
-
 	var ctor *js_ast.EFunction
 	var parameterFields []js_ast.Stmt
 	var instanceMembers []js_ast.Stmt
