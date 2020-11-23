@@ -1034,8 +1034,8 @@ console.log("success");
     })
     assert.strictEqual(outputFiles[0].text, `(() => {
   // <stdin>
-  let keepMe1 = fn();
-  let keepMe2 = React.createElement("div", null);
+  var keepMe1 = fn();
+  var keepMe2 = React.createElement("div", null);
 })();
 `)
   },

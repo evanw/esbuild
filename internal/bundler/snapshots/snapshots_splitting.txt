@@ -3,7 +3,7 @@ TestSplittingAssignToLocal
 import {
   foo,
   setFoo
-} from "./chunk.6PVTQRRZ.js";
+} from "./chunk.WSWJZEET.js";
 
 // /a.js
 setFoo(123);
@@ -12,14 +12,14 @@ console.log(foo);
 ---------- /out/b.js ----------
 import {
   foo
-} from "./chunk.6PVTQRRZ.js";
+} from "./chunk.WSWJZEET.js";
 
 // /b.js
 console.log(foo);
 
----------- /out/chunk.6PVTQRRZ.js ----------
+---------- /out/chunk.WSWJZEET.js ----------
 // /shared.js
-let foo;
+var foo;
 function setFoo(value) {
   foo = value;
 }
@@ -99,7 +99,7 @@ TestSplittingCrossChunkAssignmentDependenciesRecursive
 ---------- /out/a.js ----------
 import {
   setX
-} from "./chunk.SX7Q6B5D.js";
+} from "./chunk.AKQCJJJT.js";
 
 // /a.js
 setX();
@@ -107,8 +107,8 @@ setX();
 ---------- /out/b.js ----------
 import {
   setZ
-} from "./chunk.HWV4XK3G.js";
-import "./chunk.SX7Q6B5D.js";
+} from "./chunk.TE7N3FCA.js";
+import "./chunk.AKQCJJJT.js";
 
 // /b.js
 setZ();
@@ -117,23 +117,23 @@ setZ();
 import {
   setY2,
   setZ2
-} from "./chunk.HWV4XK3G.js";
+} from "./chunk.TE7N3FCA.js";
 import {
   setX2
-} from "./chunk.SX7Q6B5D.js";
+} from "./chunk.AKQCJJJT.js";
 
 // /c.js
 setX2();
 setY2();
 setZ2();
 
----------- /out/chunk.HWV4XK3G.js ----------
+---------- /out/chunk.TE7N3FCA.js ----------
 import {
   setX
-} from "./chunk.SX7Q6B5D.js";
+} from "./chunk.AKQCJJJT.js";
 
 // /y.js
-let _y;
+var _y;
 function setY(v) {
   _y = v;
 }
@@ -143,7 +143,7 @@ function setY2(v) {
 }
 
 // /z.js
-let _z;
+var _z;
 function setZ(v) {
   _z = v;
 }
@@ -158,9 +158,9 @@ export {
   setZ2
 };
 
----------- /out/chunk.SX7Q6B5D.js ----------
+---------- /out/chunk.AKQCJJJT.js ----------
 // /x.js
-let _x;
+var _x;
 function setX(v) {
   _x = v;
 }
@@ -222,7 +222,7 @@ TestSplittingDynamicAndNotDynamicES6IntoES6
 ---------- /out/entry.js ----------
 import {
   bar
-} from "./chunk.T36DLUHD.js";
+} from "./chunk.SDIREVTJ.js";
 
 // /entry.js
 import("./foo.js").then(({bar: b}) => console.log(bar, b));
@@ -230,14 +230,14 @@ import("./foo.js").then(({bar: b}) => console.log(bar, b));
 ---------- /out/foo.js ----------
 import {
   bar
-} from "./chunk.T36DLUHD.js";
+} from "./chunk.SDIREVTJ.js";
 export {
   bar
 };
 
----------- /out/chunk.T36DLUHD.js ----------
+---------- /out/chunk.SDIREVTJ.js ----------
 // /foo.js
-let bar = 123;
+var bar = 123;
 
 export {
   bar
@@ -264,7 +264,7 @@ import("./foo.js").then(({bar}) => console.log(bar));
 
 ---------- /out/foo.js ----------
 // /foo.js
-let bar = 123;
+var bar = 123;
 export {
   bar
 };
@@ -385,7 +385,7 @@ TestSplittingReExportIssue273
 ---------- /out/a.js ----------
 import {
   a
-} from "./chunk.FXMNXTQ2.js";
+} from "./chunk.S2KAUQ7B.js";
 export {
   a
 };
@@ -393,14 +393,14 @@ export {
 ---------- /out/b.js ----------
 import {
   a
-} from "./chunk.FXMNXTQ2.js";
+} from "./chunk.S2KAUQ7B.js";
 export {
   a
 };
 
----------- /out/chunk.FXMNXTQ2.js ----------
+---------- /out/chunk.S2KAUQ7B.js ----------
 // /a.js
-const a = 1;
+var a = 1;
 
 export {
   a
@@ -414,7 +414,7 @@ import {
 } from "./chunk.LOHJC32K.js";
 
 // /a.js
-const {foo} = require_shared();
+var {foo} = require_shared();
 console.log(foo);
 
 ---------- /out/b.js ----------
@@ -423,7 +423,7 @@ import {
 } from "./chunk.LOHJC32K.js";
 
 // /b.js
-const {foo} = require_shared();
+var {foo} = require_shared();
 console.log(foo);
 
 ---------- /out/chunk.LOHJC32K.js ----------
@@ -441,7 +441,7 @@ TestSplittingSharedES6IntoES6
 ---------- /out/a.js ----------
 import {
   foo
-} from "./chunk.RCMQKSK6.js";
+} from "./chunk.FGUQNUIX.js";
 
 // /a.js
 console.log(foo);
@@ -449,14 +449,14 @@ console.log(foo);
 ---------- /out/b.js ----------
 import {
   foo
-} from "./chunk.RCMQKSK6.js";
+} from "./chunk.FGUQNUIX.js";
 
 // /b.js
 console.log(foo);
 
----------- /out/chunk.RCMQKSK6.js ----------
+---------- /out/chunk.FGUQNUIX.js ----------
 // /shared.js
-let foo = 123;
+var foo = 123;
 
 export {
   foo
@@ -468,7 +468,7 @@ TestSplittingSideEffectsWithoutDependencies
 import "./chunk.LKVKH4P2.js";
 
 // /shared.js
-let a = 1;
+var a = 1;
 
 // /a.js
 console.log(a);
@@ -477,7 +477,7 @@ console.log(a);
 import "./chunk.LKVKH4P2.js";
 
 // /shared.js
-let b = 2;
+var b = 2;
 
 // /b.js
 console.log(b);

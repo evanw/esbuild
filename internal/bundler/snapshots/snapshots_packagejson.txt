@@ -37,7 +37,7 @@ var require_node_pkg = __commonJS(() => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fn2 = require_node_pkg();
+  var fn2 = require_node_pkg();
   module.exports = function() {
     return fn2();
   };
@@ -59,7 +59,7 @@ var require_node_pkg_browser = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fn2 = require_node_pkg_browser();
+  var fn2 = require_node_pkg_browser();
   module.exports = function() {
     return fn2();
   };
@@ -81,7 +81,7 @@ var require_node_pkg_browser = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fn2 = require_node_pkg_browser();
+  var fn2 = require_node_pkg_browser();
   module.exports = function() {
     return fn2();
   };
@@ -100,7 +100,7 @@ var require_fs = __commonJS(() => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fs = require_fs();
+  var fs = require_fs();
   module.exports = function() {
     return fs.readFile();
   };
@@ -119,7 +119,7 @@ var require_util_node = __commonJS(() => {
 
 // /Users/user/project/node_modules/demo-pkg/main.js
 var require_main = __commonJS((exports, module) => {
-  const util = require_util_node();
+  var util = require_util_node();
   module.exports = function(obj) {
     return util.inspect(obj);
   };
@@ -139,7 +139,7 @@ var require_util_browser = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/main.js
 var require_main = __commonJS((exports, module) => {
-  const util = require_util_browser();
+  var util = require_util_browser();
   module.exports = function() {
     return ["main", util];
   };
@@ -159,7 +159,7 @@ var require_util_browser = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/main-browser.js
 var require_main_browser = __commonJS((exports, module) => {
-  const util = require_util_browser();
+  var util = require_util_browser();
   module.exports = function() {
     return ["main-browser", util];
   };

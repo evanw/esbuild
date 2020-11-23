@@ -3409,6 +3409,27 @@ func TestOutbase(t *testing.T) {
 	})
 }
 
+func TestAvoidTDZ(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					static foo = new Foo
+				}
+				let foo = Foo.foo
+				console.log(foo)
+				export class Bar {}
+				export let bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestAvoidTDZNoBundle(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3421,14 +3442,11 @@ func TestAvoidTDZNoBundle(t *testing.T) {
 				export class Bar {}
 				export let bar = 123
 			`,
-			"/foo.js": `
-			`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
-			AvoidTDZ:      true,
 		},
 	})
 }

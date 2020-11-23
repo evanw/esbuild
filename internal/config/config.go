@@ -180,7 +180,6 @@ type Options struct {
 	OmitRuntimeForTests     bool
 	PreserveUnusedImportsTS bool
 	UseDefineForClassFields bool
-	AvoidTDZ                bool
 	ASCIIOnly               bool
 	KeepNames               bool
 	IgnoreDCEAnnotations    bool

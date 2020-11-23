@@ -50,7 +50,7 @@ var require_entry = __commonJS((exports) => {
     foo: () => foo
   });
   var x = __toModule(require_entry());
-  const foo = 123;
+  var foo = 123;
   console.log(x);
 });
 module.exports = require_entry();
@@ -63,7 +63,7 @@ var require_entry = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo
   });
-  const foo = 123;
+  var foo = 123;
   console.log(require_entry());
 });
 module.exports = require_entry();
@@ -78,7 +78,7 @@ var require_entry = __commonJS((exports) => {
     ns: () => ns
   });
   var ns = __toModule(require_entry());
-  const foo = 123;
+  var foo = 123;
 });
 module.exports = require_entry();
 
@@ -91,7 +91,7 @@ __export(entry_exports, {
   foo: () => foo,
   ns: () => entry_exports
 });
-const foo = 123;
+var foo = 123;
 export {
   foo,
   entry_exports as ns
@@ -105,7 +105,7 @@ var require_entry = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo
   });
-  const foo = 123;
+  var foo = 123;
 });
 module.exports = require_entry();
 
@@ -123,7 +123,7 @@ module.exports = e();
 TestExportSelfES6
 ---------- /out.js ----------
 // /entry.js
-const foo = 123;
+var foo = 123;
 export {
   foo
 };
@@ -137,7 +137,7 @@ TestExportSelfIIFE
     __export(exports, {
       foo: () => foo
     });
-    const foo = 123;
+    var foo = 123;
   });
   require_entry();
 })();
@@ -151,7 +151,7 @@ __export(exports, {
 });
 
 // /foo.js
-let foo = "foo";
+var foo = "foo";
 
 ================================================================================
 TestImportDefaultNamespaceComboIssue446
@@ -266,7 +266,7 @@ __export(entry_exports, {
   foo: () => foo,
   ns: () => entry_exports
 });
-const foo = 123;
+var foo = 123;
 export {
   foo,
   entry_exports as ns
@@ -280,7 +280,7 @@ statement();
 statement();
 statement();
 statement();
-const bar = 123;
+var bar = 123;
 
 // /entry.js
 console.log(bar);
@@ -289,7 +289,7 @@ console.log(bar);
 TestImportOfExportStarOfImport
 ---------- /out.js ----------
 // /baz.js
-const value = 123;
+var value = 123;
 
 // /foo.js
 statement();
@@ -319,12 +319,12 @@ var require_foo = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo2
   });
-  const foo2 = 123;
+  var foo2 = 123;
 });
 
 // /entry.js
 var ns = __toModule(require_foo());
-const ns2 = require_foo();
+var ns2 = require_foo();
 console.log(ns.foo, ns2.foo);
 
 ================================================================================
@@ -335,10 +335,10 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.js
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports, foo, foo2);
 
 ================================================================================
@@ -351,7 +351,7 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.js
 var ns = __toModule(require_foo());
-let foo = 234;
+var foo = 234;
 console.log(ns, ns.foo, foo);
 
 ================================================================================
@@ -364,7 +364,7 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.js
 var ns = __toModule(require_foo());
-let foo2 = 234;
+var foo2 = 234;
 console.log(ns.foo, ns.foo, foo2);
 
 ================================================================================
@@ -377,7 +377,7 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.js
 var ns = __toModule(require_foo());
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -388,10 +388,10 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.js
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
@@ -402,17 +402,17 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.js
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportImportStarUnused
 ---------- /out.js ----------
 // /entry.js
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -423,10 +423,10 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.js
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
@@ -437,17 +437,17 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.js
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportStarAsUnused
 ---------- /out.js ----------
 // /entry.js
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -460,20 +460,20 @@ __export(bar_exports, {
 });
 
 // /foo.js
-const foo = 123;
+var foo = 123;
 
 // /entry.js
-let foo2 = 234;
+var foo2 = 234;
 console.log(bar_exports, foo, foo2);
 
 ================================================================================
 TestImportStarExportStarNoCapture
 ---------- /out.js ----------
 // /foo.js
-const foo = 123;
+var foo = 123;
 
 // /entry.js
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo, foo, foo2);
 
 ================================================================================
@@ -487,10 +487,10 @@ __export(common_exports, {
 });
 
 // /foo.js
-const x = 1;
+var x = 1;
 
 // /bar.js
-const z = 4;
+var z = 4;
 
 // /entry.js
 console.log(common_exports);
@@ -499,7 +499,7 @@ console.log(common_exports);
 TestImportStarExportStarUnused
 ---------- /out.js ----------
 // /entry.js
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -548,10 +548,10 @@ console.log(foo);
 TestImportStarNoCapture
 ---------- /out.js ----------
 // /foo.js
-const foo = 123;
+var foo = 123;
 
 // /entry.js
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo, foo, foo2);
 
 ================================================================================
@@ -568,7 +568,7 @@ var bar_exports = {};
 __export(bar_exports, {
   bar: () => bar
 });
-const bar = 123;
+var bar = 123;
 
 // /entry.js
 console.log(foo_exports);
@@ -577,7 +577,7 @@ console.log(foo_exports);
 TestImportStarUnused
 ---------- /out.js ----------
 // /entry.js
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -590,7 +590,7 @@ __export(folders_exports, {
 });
 
 // /folders/child/foo.js
-const foo = () => "hi there";
+var foo = () => "hi there";
 
 // /entry.js
 console.log(JSON.stringify(folders_exports));
@@ -615,7 +615,7 @@ var foo_exports = {};
 __export(foo_exports, {
   x: () => x
 });
-const x = 123;
+var x = 123;
 
 // /entry.js
 console.log(foo_exports, void 0);
@@ -630,7 +630,7 @@ __export(foo_exports, {
 });
 
 // /bar.js
-const x = 123;
+var x = 123;
 
 // /entry.js
 console.log(foo_exports, void 0);
@@ -663,7 +663,7 @@ console.log(void 0);
 TestOtherFileExportSelfAsNamespaceUnusedES6
 ---------- /out.js ----------
 // /foo.js
-const foo = 123;
+var foo = 123;
 export {
   foo
 };
@@ -672,7 +672,7 @@ export {
 TestOtherFileImportExportSelfAsNamespaceUnusedES6
 ---------- /out.js ----------
 // /foo.js
-const foo = 123;
+var foo = 123;
 export {
   foo
 };
@@ -685,7 +685,7 @@ var bar_exports = {};
 __export(bar_exports, {
   x: () => x
 });
-const x = 123;
+var x = 123;
 
 // /entry.js
 console.log(bar_exports, bar_exports.foo);
@@ -698,7 +698,7 @@ var bar_exports = {};
 __export(bar_exports, {
   x: () => x
 });
-const x = 123;
+var x = 123;
 
 // /entry.js
 console.log(bar_exports.foo);
@@ -712,7 +712,7 @@ __export(foo_exports, {
   foo: () => foo,
   ns: () => foo_exports
 });
-const foo = 123;
+var foo = 123;
 export {
   foo,
   foo_exports as ns
@@ -727,7 +727,7 @@ __export(foo_exports, {
   foo: () => foo,
   ns: () => foo_exports
 });
-const foo = 123;
+var foo = 123;
 export {
   foo,
   foo_exports as ns

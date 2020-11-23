@@ -1981,12 +1981,15 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		keepNameStmt = p.keepStmtSymbolName(name.Loc, name.Data.(*js_ast.EIdentifier).Ref, nameToKeep)
 	}
 
+	// Safari workaround: Automatically avoid TDZ issues when bundling
+	avoidTDZ := p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
+
 	// Pack the class back into a statement, with potentially some extra
 	// statements afterwards
 	var stmts []js_ast.Stmt
 	var nameForClassDecorators js_ast.LocRef
 	generatedLocalStmt := false
-	if len(class.TSDecorators) > 0 || hasPotentialShadowCaptureEscape {
+	if len(class.TSDecorators) > 0 || hasPotentialShadowCaptureEscape || avoidTDZ {
 		generatedLocalStmt = true
 		name := nameFunc()
 		nameRef := name.Data.(*js_ast.EIdentifier).Ref
@@ -1995,16 +1998,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		class = &classExpr.Class
 		init := &js_ast.Expr{Loc: classLoc, Data: &classExpr}
 
-		if len(class.TSDecorators) > 0 {
-			if shadowRef != js_ast.InvalidRef {
-				// If there are class decorators, then we actually need to mutate the
-				// immutable "const" binding that shadows everything in the class body.
-				// The official TypeScript compiler does this by rewriting all class name
-				// references in the class body to another temporary variable. This is
-				// basically what we're doing here.
-				p.mergeSymbols(shadowRef, nameRef)
-			}
-		} else if hasPotentialShadowCaptureEscape {
+		if hasPotentialShadowCaptureEscape && len(class.TSDecorators) == 0 {
 			// If something captures the shadowing name and escapes the class body,
 			// make a new constant to store the class and forward that value to a
 			// mutable alias. That way if the alias is mutated, everything bound to
@@ -2041,8 +2035,12 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			p.currentScope.Generated = append(p.currentScope.Generated, captureRef)
 			p.recordDeclaredSymbol(captureRef)
 			p.mergeSymbols(shadowRef, captureRef)
+			localKind := js_ast.LocalConst
+			if avoidTDZ {
+				localKind = js_ast.LocalVar
+			}
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
-				Kind: js_ast.LocalConst,
+				Kind: localKind,
 				Decls: []js_ast.Decl{{
 					Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: captureRef}},
 					Value:   init,
@@ -2050,10 +2048,24 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			}})
 			init = &js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: captureRef}}
 			p.recordUsage(captureRef)
+		} else {
+			// If there are class decorators, then we actually need to mutate the
+			// immutable "const" binding that shadows everything in the class body.
+			// The official TypeScript compiler does this by rewriting all class name
+			// references in the class body to another temporary variable. This is
+			// basically what we're doing here.
+			if shadowRef != js_ast.InvalidRef {
+				p.mergeSymbols(shadowRef, nameRef)
+			}
 		}
 
+		// Generate the variable statement that will represent the class statement
+		localKind := js_ast.LocalLet
+		if avoidTDZ {
+			localKind = js_ast.LocalVar
+		}
 		stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
-			Kind:     js_ast.LocalLet,
+			Kind:     localKind,
 			IsExport: kind == classKindExportStmt,
 			Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: nameRef}},

@@ -7186,6 +7186,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
 
+		// Safari workaround: Automatically avoid TDZ issues when bundling
+		if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil && s.Kind != js_ast.LocalVar {
+			s.Kind = js_ast.LocalVar
+		}
+
 	case *js_ast.SExpr:
 		s.Value = p.visitExpr(s.Value)
 

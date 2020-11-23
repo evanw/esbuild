@@ -26,7 +26,7 @@ var require_x = __commonJS((exports, module) => {
 var y_default = "eQ==";
 
 // /entry.js
-const x_b64 = require_x();
+var x_b64 = require_x();
 console.log(x_b64, y_default);
 
 ================================================================================
@@ -41,7 +41,7 @@ var require_x = __commonJS((exports, module) => {
 var y_default = "data:text/plain;charset=utf-8;base64,eQ==";
 
 // /entry.js
-const x_url = require_x();
+var x_url = require_x();
 console.log(x_url, y_default);
 
 ================================================================================
@@ -73,7 +73,7 @@ var require_x = __commonJS((exports, module) => {
 var y_default = "y.SXFQX7JJ.txt";
 
 // /entry.js
-const x_url = require_x();
+var x_url = require_x();
 console.log(x_url, y_default);
 
 ================================================================================
@@ -112,7 +112,7 @@ var small = "some small text";
 var if2 = "test keyword imports";
 
 // /entry.js
-const x_json = require_x();
+var x_json = require_x();
 console.log(x_json, y_default, small, if2);
 
 ================================================================================
@@ -193,7 +193,7 @@ var require_x = __commonJS((exports, module) => {
 var y_default = "y";
 
 // /entry.js
-const x_txt = require_x();
+var x_txt = require_x();
 console.log(x_txt, y_default);
 
 ================================================================================

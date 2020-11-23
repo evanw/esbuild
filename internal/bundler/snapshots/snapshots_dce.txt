@@ -18,13 +18,13 @@ console.log("side effects");
 // /entry.jsx
 function KeepMe1() {
 }
-let keepMe2 = React.createElement(KeepMe1, null);
+var keepMe2 = React.createElement(KeepMe1, null);
 function keepMe3() {
   console.log("side effects");
 }
-let keepMe4 = keepMe3();
-let keepMe5 = pure();
-let keepMe6 = some.fn();
+var keepMe4 = keepMe3();
+var keepMe5 = pure();
+var keepMe6 = some.fn();
 
 ================================================================================
 TestFileLoaderRemoveUnused
@@ -61,7 +61,7 @@ var require_index_main = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo2
   });
-  const foo2 = 123;
+  var foo2 = 123;
   console.log("this should be kept");
 });
 
@@ -103,7 +103,7 @@ var require_index_main = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo
   });
-  const foo = 123;
+  var foo = 123;
   console.log("this should be kept");
 });
 
@@ -164,7 +164,7 @@ var require_demo_pkg = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo
   });
-  const foo = 123;
+  var foo = 123;
   console.log("hello");
 });
 
@@ -189,7 +189,7 @@ console.log(demo_pkg.foo);
 TestPackageJsonSideEffectsFalseKeepNamedImportES6
 ---------- /out.js ----------
 // /Users/user/project/node_modules/demo-pkg/index.js
-const foo = 123;
+var foo = 123;
 console.log("hello");
 
 // /Users/user/project/src/entry.js
@@ -216,7 +216,7 @@ var demo_pkg_exports = {};
 __export(demo_pkg_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 console.log("hello");
 
 // /Users/user/project/src/entry.js
@@ -307,25 +307,25 @@ TestRemoveUnusedPureCommentCalls
 // /entry.js
 function bar() {
 }
-let bare = foo(bar);
-let at_no = /* @__PURE__ */ foo(bar());
-let new_at_no = /* @__PURE__ */ new foo(bar());
-let num_no = /* @__PURE__ */ foo(bar());
-let new_num_no = /* @__PURE__ */ new foo(bar());
-let dot_no = /* @__PURE__ */ foo(sideEffect()).dot(bar());
-let new_dot_no = /* @__PURE__ */ new foo(sideEffect()).dot(bar());
-let nested_no = [1, /* @__PURE__ */ foo(bar()), 2];
-let new_nested_no = [1, /* @__PURE__ */ new foo(bar()), 2];
-let single_at_no = /* @__PURE__ */ foo(bar());
-let new_single_at_no = /* @__PURE__ */ new foo(bar());
-let single_num_no = /* @__PURE__ */ foo(bar());
-let new_single_num_no = /* @__PURE__ */ new foo(bar());
-let bad_no = foo(bar);
-let new_bad_no = new foo(bar);
-let parens_no = foo(bar);
-let new_parens_no = new foo(bar);
-let exp_no = /* @__PURE__ */ foo() ** foo();
-let new_exp_no = /* @__PURE__ */ new foo() ** foo();
+var bare = foo(bar);
+var at_no = /* @__PURE__ */ foo(bar());
+var new_at_no = /* @__PURE__ */ new foo(bar());
+var num_no = /* @__PURE__ */ foo(bar());
+var new_num_no = /* @__PURE__ */ new foo(bar());
+var dot_no = /* @__PURE__ */ foo(sideEffect()).dot(bar());
+var new_dot_no = /* @__PURE__ */ new foo(sideEffect()).dot(bar());
+var nested_no = [1, /* @__PURE__ */ foo(bar()), 2];
+var new_nested_no = [1, /* @__PURE__ */ new foo(bar()), 2];
+var single_at_no = /* @__PURE__ */ foo(bar());
+var new_single_at_no = /* @__PURE__ */ new foo(bar());
+var single_num_no = /* @__PURE__ */ foo(bar());
+var new_single_num_no = /* @__PURE__ */ new foo(bar());
+var bad_no = foo(bar);
+var new_bad_no = new foo(bar);
+var parens_no = foo(bar);
+var new_parens_no = new foo(bar);
+var exp_no = /* @__PURE__ */ foo() ** foo();
+var new_exp_no = /* @__PURE__ */ new foo() ** foo();
 
 ================================================================================
 TestTextLoaderRemoveUnused
@@ -339,7 +339,7 @@ TestTreeShakingReactElements
 // /entry.jsx
 function Foo() {
 }
-let d = /* @__PURE__ */ React.createElement("div", null);
-let e = /* @__PURE__ */ React.createElement(Foo, null, d);
-let f = /* @__PURE__ */ React.createElement(React.Fragment, null, e);
+var d = /* @__PURE__ */ React.createElement("div", null);
+var e = /* @__PURE__ */ React.createElement(Foo, null, d);
+var f = /* @__PURE__ */ React.createElement(React.Fragment, null, e);
 console.log(f);

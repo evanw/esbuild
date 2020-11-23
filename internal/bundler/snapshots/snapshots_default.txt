@@ -146,16 +146,33 @@ import "//example.com/code.js";
 import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
 
 ================================================================================
-TestAvoidTDZNoBundle
+TestAvoidTDZ
 ---------- /out.js ----------
-var Foo = class Foo {
+// /entry.js
+var Foo = class {
   static foo = new Foo();
 };
 var foo = Foo.foo;
 console.log(foo);
-export var Bar = class Bar {
+var Bar = class {
 };
-export var bar = 123;
+var bar = 123;
+export {
+  Bar,
+  bar
+};
+
+================================================================================
+TestAvoidTDZNoBundle
+---------- /out.js ----------
+class Foo {
+  static foo = new Foo();
+}
+let foo = Foo.foo;
+console.log(foo);
+export class Bar {
+}
+export let bar = 123;
 
 ================================================================================
 TestCharFreqIgnoreComments
@@ -201,9 +218,9 @@ var require_bar = __commonJS((exports) => {
 });
 
 // /entry.js
-const {foo} = require_foo();
+var {foo} = require_foo();
 console.log(foo(), bar());
-const {bar} = require_bar();
+var {bar} = require_bar();
 
 ================================================================================
 TestConditionalImport
@@ -346,7 +363,7 @@ console.log(foo.foo(), bar.bar());
 TestExportChain
 ---------- /out.js ----------
 // /bar.js
-const c = 123;
+var c = 123;
 export {
   c as a
 };
@@ -395,30 +412,32 @@ var require_commonjs = __commonJS((exports) => {
   });
   var commonjs_default = 123;
   var v = 234;
-  let l = 234;
-  const c = 234;
+  var l = 234;
+  var c = 234;
   function Fn() {
   }
-  class Class {
-  }
+  var Class = class {
+  };
 });
 
 // /c.js
 var require_c = __commonJS((exports) => {
   __export(exports, {
-    default: () => c_default
+    default: () => c_default2
   });
-  class c_default {
-  }
+  var c_default = class {
+  };
+  var c_default2 = c_default;
 });
 
 // /d.js
 var require_d = __commonJS((exports) => {
   __export(exports, {
-    default: () => Foo
+    default: () => d_default
   });
-  class Foo {
-  }
+  var Foo = class {
+  };
+  var d_default = Foo;
   Foo.prop = 123;
 });
 
@@ -461,14 +480,14 @@ var require_h = __commonJS((exports) => {
 });
 
 // /a.js
-const abc = void 0;
+var abc = void 0;
 
 // /b.js
 var b_exports = {};
 __export(b_exports, {
   xyz: () => xyz
 });
-const xyz = null;
+var xyz = null;
 
 // /entry.js
 require_commonjs();
@@ -483,24 +502,24 @@ require_h();
 TestExportFormsES6
 ---------- /out.js ----------
 // /a.js
-const abc = void 0;
+var abc = void 0;
 
 // /b.js
 var b_exports = {};
 __export(b_exports, {
   xyz: () => xyz
 });
-const xyz = null;
+var xyz = null;
 
 // /entry.js
 var entry_default = 123;
 var v = 234;
-let l = 234;
-const c = 234;
+var l = 234;
+var c = 234;
 function Fn() {
 }
-class Class {
-}
+var Class = class {
+};
 export {
   Class as C,
   Class,
@@ -532,23 +551,23 @@ var moduleName = (() => {
     });
     var entry_default = 123;
     var v = 234;
-    let l = 234;
-    const c = 234;
+    var l = 234;
+    var c = 234;
     function Fn() {
     }
-    class Class {
-    }
+    var Class = class {
+    };
   });
 
   // /a.js
-  const abc = void 0;
+  var abc = void 0;
 
   // /b.js
   var b_exports = {};
   __export(b_exports, {
     xyz: () => xyz
   });
-  const xyz = null;
+  var xyz = null;
   return require_entry();
 })();
 
@@ -607,14 +626,14 @@ var test_exports = {};
 __export(test_exports, {
   foo: () => foo
 });
-let foo = 123;
+var foo = 123;
 
 // /bar/test.js
 var test_exports2 = {};
 __export(test_exports2, {
   bar: () => bar
 });
-let bar = 123;
+var bar = 123;
 
 // /entry.js
 console.log(exports, module.exports, test_exports, test_exports2);
@@ -625,8 +644,8 @@ TestExternalModuleExclusionPackage
 // /index.js
 import {S3} from "aws-sdk";
 import {DocumentClient} from "aws-sdk/clients/dynamodb";
-const s3 = new S3();
-const dynamodb2 = new DocumentClient();
+var s3 = new S3();
+var dynamodb2 = new DocumentClient();
 export {
   dynamodb2 as dynamodb,
   s3
@@ -654,7 +673,7 @@ TestHashbangBundle
 #!/usr/bin/env a
 
 // /code.js
-const code = 0;
+var code = 0;
 
 // /entry.js
 process.exit(code);
@@ -733,7 +752,7 @@ console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp);
 TestImportMetaCommonJS
 ---------- /out.js ----------
 // /entry.js
-const import_meta = {};
+var import_meta = {};
 console.log(import_meta.url, import_meta.path);
 
 ================================================================================
@@ -812,27 +831,27 @@ TestImportReExportES6Issue149
 ---------- /out.js ----------
 // /import.js
 import {h, render} from "preact";
-const p = "p";
+var p = "p";
 
 // /in2.jsx
-const Internal = () => /* @__PURE__ */ h(p, null, " Test 2 ");
+var Internal = () => /* @__PURE__ */ h(p, null, " Test 2 ");
 
 // /app.jsx
-const App = () => /* @__PURE__ */ h(p, null, " ", /* @__PURE__ */ h(Internal, null), " T ");
+var App = () => /* @__PURE__ */ h(p, null, " ", /* @__PURE__ */ h(Internal, null), " T ");
 render(/* @__PURE__ */ h(App, null), document.getElementById("app"));
 
 ================================================================================
 TestInject
 ---------- /out.js ----------
 // /inject.js
-let obj = {};
-let sideEffects = console.log("side effects");
+var obj = {};
+var sideEffects = console.log("side effects");
 
 // /node_modules/unused/index.js
 console.log("This is unused but still has side effects");
 
 // /replacement.js
-let replace = {
+var replace = {
   test() {
   }
 };
@@ -841,8 +860,8 @@ let replace = {
 var external_pkg = __toModule(require("external-pkg"));
 
 // /entry.js
-let sideEffects2 = console.log("this should be renamed");
-let collide = 123;
+var sideEffects2 = console.log("this should be renamed");
+var collide = 123;
 console.log(obj.prop);
 console.log(replace.test);
 console.log(collide);
@@ -882,10 +901,10 @@ console.log(/* @__PURE__ */ el("div", null));
 ================================================================================
 TestInjectNoBundle
 ---------- /out.js ----------
-let obj = {};
-let sideEffects = console.log("side effects");
+var obj = {};
+var sideEffects = console.log("side effects");
 console.log("This is unused but still has side effects");
-let replace = {
+var replace = {
   test() {
   }
 };
@@ -929,14 +948,14 @@ function fnStmtKeep() {
 }
 __name(fnStmtKeep, "fnStmtKeep");
 fnStmtKeep();
-let fnExprKeep = /* @__PURE__ */ __name(function() {
+var fnExprKeep = /* @__PURE__ */ __name(function() {
 }, "keep");
 fnExprKeep();
-class clsStmtKeep {
-}
+var clsStmtKeep = class {
+};
 __name(clsStmtKeep, "clsStmtKeep");
 new clsStmtKeep();
-let clsExprKeep = /* @__PURE__ */ __name(class {
+var clsExprKeep = /* @__PURE__ */ __name(class {
 }, "keep");
 new clsExprKeep();
 
@@ -1225,7 +1244,7 @@ console.log(shared_default);
 ================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
-var n=e(r=>{r.foo=function(){return 123}}),u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
+var n=e(r=>{r.foo=function(){return 123}}),u=e((j,t)=>{t.exports={test:!0}}),{foo:c}=n();console.log(c(),u());
 
 ================================================================================
 TestMinifiedBundleES6
@@ -1255,14 +1274,14 @@ var t = {};
 f(t, {
   foo: () => l
 });
-let l = 123;
+var l = 123;
 
 // /bar/test.js
 var r = {};
 f(r, {
   bar: () => m
 });
-let m = 123;
+var m = 123;
 
 // /entry.js
 console.log(exports, module.exports, t, r);
@@ -1370,14 +1389,14 @@ a: {
 TestMultipleEntryPointsSameNameCollision
 ---------- /out/a/entry.js ----------
 // /common.js
-let foo = 123;
+var foo = 123;
 
 // /a/entry.js
 console.log(foo);
 
 ---------- /out/b/entry.js ----------
 // /common.js
-let foo = 123;
+var foo = 123;
 
 // /b/entry.js
 console.log(foo);
@@ -1444,8 +1463,8 @@ TestNewExpressionCommonJS
 ---------- /out.js ----------
 // /foo.js
 var require_foo = __commonJS((exports, module) => {
-  class Foo {
-  }
+  var Foo = class {
+  };
   module.exports = {Foo};
 });
 
@@ -1838,7 +1857,7 @@ console.log(require_b());
 TestRequireWithoutCall
 ---------- /out.js ----------
 // /entry.js
-const req = require;
+var req = require;
 req("./entry");
 
 ================================================================================
@@ -1867,8 +1886,8 @@ TestScopedExternalModuleExclusion
 // /index.js
 import {Foo} from "@scope/foo";
 import {Bar} from "@scope/foo/bar";
-const foo2 = new Foo();
-const bar2 = new Bar();
+var foo2 = new Foo();
+var bar2 = new Bar();
 export {
   bar2 as bar,
   foo2 as foo
@@ -1885,7 +1904,7 @@ var require_foo = __commonJS((exports, module) => {
 });
 
 // /entry.js
-const fn = require_foo();
+var fn = require_foo();
 console.log(fn());
 
 ================================================================================
@@ -1933,12 +1952,12 @@ TestThisInsideFunction
 function foo(x = this) {
   console.log(this);
 }
-const obj = {
+var obj = {
   foo(x = this) {
     console.log(this);
   }
 };
-class Foo {
+var Foo = class {
   x = this;
   static y = this.z;
   foo(x = this) {
@@ -1947,7 +1966,7 @@ class Foo {
   static bar(x = this) {
     console.log(this);
   }
-}
+};
 new Foo(foo(obj));
 
 ================================================================================
@@ -1976,7 +1995,7 @@ var require_dummy = __commonJS((exports) => {
   __export(exports, {
     dummy: () => dummy3
   });
-  const dummy3 = 123;
+  var dummy3 = 123;
 });
 
 // /es6-export-star.js
@@ -2084,7 +2103,7 @@ var dummy = __toModule(require_dummy());
 console.log(void 0);
 
 // /es6-import-assign.ts
-const x = require_dummy();
+var x = require_dummy();
 console.log(void 0);
 
 // /es6-import-dynamic.js
@@ -2155,7 +2174,7 @@ console.log(void 0);
 var es6_export_assign = __toModule(require_es6_export_assign());
 
 // /es6-export-import-assign.ts
-const x2 = require_dummy();
+var x2 = require_dummy();
 console.log(void 0);
 
 // /entry.js
@@ -2312,54 +2331,54 @@ x === [];
 x === [];
 
 // /write-getter.js
-class Foo {
+var Foo = class {
   get #foo() {
   }
   foo() {
     this.#foo = 123;
   }
-}
+};
 
 // /node_modules/write-getter.js
-class Foo2 {
+var Foo2 = class {
   get #foo() {
   }
   foo() {
     this.#foo = 123;
   }
-}
+};
 
 // /read-setter.js
-class Foo3 {
+var Foo3 = class {
   set #foo(x2) {
   }
   foo() {
     return this.#foo;
   }
-}
+};
 
 // /node_modules/read-setter.js
-class Foo4 {
+var Foo4 = class {
   set #foo(x2) {
   }
   foo() {
     return this.#foo;
   }
-}
+};
 
 // /delete-super.js
-class Foo5 extends Bar {
+var Foo5 = class extends Bar {
   foo() {
     delete super.foo;
   }
-}
+};
 
 // /node_modules/delete-super.js
-class Foo6 extends Bar {
+var Foo6 = class extends Bar {
   foo() {
     delete super.foo;
   }
-}
+};
 
 ================================================================================
 TestWithStatementTaintingNoBundle

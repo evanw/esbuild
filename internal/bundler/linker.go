@@ -2833,15 +2833,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 		case *js_ast.SClass:
-			if c.options.AvoidTDZ {
-				stmt.Data = &js_ast.SLocal{
-					IsExport: s.IsExport && !shouldStripExports,
-					Decls: []js_ast.Decl{{
-						Binding: js_ast.Binding{Loc: s.Class.Name.Loc, Data: &js_ast.BIdentifier{Ref: s.Class.Name.Ref}},
-						Value:   &js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EClass{Class: s.Class}},
-					}},
-				}
-			} else if shouldStripExports && s.IsExport {
+			if shouldStripExports && s.IsExport {
 				// Be careful to not modify the original statement
 				clone := *s
 				clone.IsExport = false
@@ -2849,17 +2841,10 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			}
 
 		case *js_ast.SLocal:
-			stripExport := shouldStripExports && s.IsExport
-			avoidTDZ := c.options.AvoidTDZ && s.Kind != js_ast.LocalVar
-			if stripExport || avoidTDZ {
+			if shouldStripExports && s.IsExport {
 				// Be careful to not modify the original statement
 				clone := *s
-				if stripExport {
-					clone.IsExport = false
-				}
-				if avoidTDZ {
-					clone.Kind = js_ast.LocalVar
-				}
+				clone.IsExport = false
 				stmt.Data = &clone
 			}
 

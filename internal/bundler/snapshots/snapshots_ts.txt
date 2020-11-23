@@ -5,28 +5,28 @@ var a_exports = {};
 __export(a_exports, {
   foo: () => foo
 });
-let foo = 123;
+var foo = 123;
 
 // /b.ts
 var b_exports = {};
 __export(b_exports, {
   foo: () => foo2
 });
-let foo2 = 123;
+var foo2 = 123;
 
 // /c.ts
 var c_exports = {};
 __export(c_exports, {
   foo: () => foo3
 });
-let foo3 = 123;
+var foo3 = 123;
 
 // /d.ts
 var d_exports = {};
 __export(d_exports, {
   foo: () => foo4
 });
-let foo4 = 123;
+var foo4 = 123;
 
 // /entry.ts
 console.log(a_exports, b_exports, c_exports, d_exports);
@@ -35,111 +35,111 @@ console.log(a_exports, b_exports, c_exports, d_exports);
 TestTSDeclareClass
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSDeclareConst
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSDeclareConstEnum
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSDeclareEnum
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSDeclareFunction
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSDeclareLet
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSDeclareNamespace
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSDeclareVar
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSExportDefaultTypeIssue316
 ---------- /out.js ----------
 // /keep/declare-class.ts
 var declare_class_default = foo;
-let bar = 123;
+var bar = 123;
 
 // /keep/declare-let.ts
 var declare_let_default = foo;
-let bar2 = 123;
+var bar2 = 123;
 
 // /keep/interface-merged.ts
-const foo3 = class {
+var foo3 = class {
 };
-let foo2 = foo3;
+var foo2 = foo3;
 foo2.x = new foo3();
-let bar3 = 123;
+var bar3 = 123;
 
 // /keep/interface-nested.ts
 if (true) {
 }
 var interface_nested_default = foo;
-let bar4 = 123;
+var bar4 = 123;
 
 // /keep/type-nested.ts
 if (true) {
 }
 var type_nested_default = foo;
-let bar5 = 123;
+var bar5 = 123;
 
 // /keep/value-namespace.ts
 var foo4;
 (function(foo6) {
   foo6.num = 0;
 })(foo4 || (foo4 = {}));
-let bar6 = 123;
+var bar6 = 123;
 
 // /keep/value-namespace-merged.ts
 var foo5;
 (function(foo6) {
   foo6.num = 0;
 })(foo5 || (foo5 = {}));
-let bar7 = 123;
+var bar7 = 123;
 
 // /remove/interface.ts
-let bar8 = 123;
+var bar8 = 123;
 
 // /remove/interface-exported.ts
-let bar9 = 123;
+var bar9 = 123;
 
 // /remove/type.ts
-let bar10 = 123;
+var bar10 = 123;
 
 // /remove/type-exported.ts
-let bar11 = 123;
+var bar11 = 123;
 
 // /remove/type-only-namespace.ts
-let bar12 = 123;
+var bar12 = 123;
 
 // /remove/type-only-namespace-exported.ts
-let bar13 = 123;
+var bar13 = 123;
 
 // /entry.ts
 var entry_default = [
@@ -188,8 +188,8 @@ console.log(foo_exports);
 TestTSExportNamespace
 ---------- /out.js ----------
 // /b.ts
-class Foo {
-}
+var Foo = class {
+};
 (function(Foo2) {
   Foo2.foo = 1;
 })(Foo || (Foo = {}));
@@ -237,41 +237,41 @@ TestTSImportMissingUnusedES6
 TestTSImportTypeOnlyFile
 ---------- /out.js ----------
 // /entry.ts
-let foo = bar();
+var foo = bar();
 
 ================================================================================
 TestTSImportVsLocalCollisionAllTypes
 ---------- /out.js ----------
 // /entry.ts
-let a;
-const b = 0;
+var a;
+var b = 0;
 var c;
 function d() {
 }
-class e {
-}
+var e = class {
+};
 console.log(a, b, c, d, e);
 
 ================================================================================
 TestTSImportVsLocalCollisionMixed
 ---------- /out.js ----------
 // /other.ts
-let real = 123;
+var real = 123;
 
 // /entry.ts
-let a;
-const b = 0;
+var a;
+var b = 0;
 var c;
 function d() {
 }
-class e {
-}
+var e = class {
+};
 console.log(a, b, c, d, e, real);
 
 ================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
-var n=e(r=>{r.foo=function(){return 123}}),u=e((j,t)=>{t.exports={test:!0}});const{foo:c}=n();console.log(c(),u());
+var n=e(r=>{r.foo=function(){return 123}}),u=e((j,t)=>{t.exports={test:!0}}),{foo:c}=n();console.log(c(),u());
 
 ================================================================================
 TestTSMinifiedBundleES6
@@ -310,7 +310,7 @@ export var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||(e.Bar={}))})
 TestTypeScriptDecorators
 ---------- /out.js ----------
 // /all.ts
-let Foo = class {
+var Foo = class {
   constructor() {
     this.mDef = 1;
   }
@@ -362,7 +362,7 @@ var all_default = Foo;
 
 // /all_computed.ts
 var _a, _b, _c, _d, _e, _f, _g, _h;
-let Foo2 = class {
+var Foo2 = class {
   constructor() {
     this[_b] = 1;
     this[_d] = 2;
@@ -415,7 +415,7 @@ Foo2 = __decorate([
 var all_computed_default = Foo2;
 
 // /a.ts
-let a_class = class {
+var a_class = class {
   fn() {
     return new a_class();
   }
@@ -425,10 +425,10 @@ a_class = __decorate([
   x(() => 0),
   y(() => 1)
 ], a_class);
-let a = a_class;
+var a = a_class;
 
 // /b.ts
-let b_class = class {
+var b_class = class {
   fn() {
     return new b_class();
   }
@@ -438,10 +438,10 @@ b_class = __decorate([
   x(() => 0),
   y(() => 1)
 ], b_class);
-let b = b_class;
+var b = b_class;
 
 // /c.ts
-let c = class {
+var c = class {
   fn() {
     return new c();
   }
@@ -453,7 +453,7 @@ c = __decorate([
 ], c);
 
 // /d.ts
-let d = class {
+var d = class {
   fn() {
     return new d();
   }
@@ -465,7 +465,7 @@ d = __decorate([
 ], d);
 
 // /e.ts
-let e_default = class {
+var e_default = class {
 };
 e_default = __decorate([
   x(() => 0),
@@ -474,7 +474,7 @@ e_default = __decorate([
 var e_default2 = e_default;
 
 // /f.ts
-let f = class {
+var f = class {
   fn() {
     return new f();
   }
@@ -487,7 +487,7 @@ f = __decorate([
 var f_default = f;
 
 // /g.ts
-let g_default = class {
+var g_default = class {
 };
 g_default = __decorate([
   x(() => 0),
@@ -496,7 +496,7 @@ g_default = __decorate([
 var g_default2 = g_default;
 
 // /h.ts
-let h = class {
+var h = class {
   fn() {
     return new h();
   }
@@ -509,33 +509,34 @@ h = __decorate([
 var h_default = h;
 
 // /i.ts
-class i_class {
-}
+var i_class = class {
+};
 __decorate([
   x(() => 0),
   y(() => 1)
 ], i_class.prototype, "foo", 2);
-let i = i_class;
+var i = i_class;
 
 // /j.ts
-class j {
+var j = class {
   foo() {
   }
-}
+};
 __decorate([
   x(() => 0),
   y(() => 1)
 ], j.prototype, "foo", 1);
 
 // /k.ts
-class k_default {
+var k_default = class {
   foo(x2) {
   }
-}
+};
 __decorate([
   __param(0, x2(() => 0)),
   __param(0, y(() => 1))
 ], k_default.prototype, "foo", 1);
+var k_default2 = k_default;
 
 // /entry.js
-console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default);
+console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default2);

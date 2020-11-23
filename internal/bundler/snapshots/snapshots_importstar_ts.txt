@@ -5,12 +5,12 @@ var require_foo = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo2
   });
-  const foo2 = 123;
+  var foo2 = 123;
 });
 
 // /entry.js
 var ns = __toModule(require_foo());
-const ns2 = require_foo();
+var ns2 = require_foo();
 console.log(ns.foo, ns2.foo);
 
 ================================================================================
@@ -21,10 +21,10 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.ts
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports, foo, foo2);
 
 ================================================================================
@@ -37,7 +37,7 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.ts
 var ns = __toModule(require_foo());
-let foo = 234;
+var foo = 234;
 console.log(ns, ns.foo, foo);
 
 ================================================================================
@@ -50,14 +50,14 @@ var require_foo = __commonJS((exports) => {
 
 // /entry.ts
 var ns = __toModule(require_foo());
-let foo2 = 234;
+var foo2 = 234;
 console.log(ns.foo, ns.foo, foo2);
 
 ================================================================================
 TestTSImportStarCommonJSUnused
 ---------- /out.js ----------
 // /entry.ts
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -68,10 +68,10 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.ts
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
@@ -82,17 +82,17 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.ts
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestTSImportStarExportImportStarUnused
 ---------- /out.js ----------
 // /entry.ts
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -103,10 +103,10 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.ts
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
@@ -117,17 +117,17 @@ var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
-const foo = 123;
+var foo = 123;
 
 // /entry.ts
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestTSImportStarExportStarAsUnused
 ---------- /out.js ----------
 // /entry.ts
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -140,27 +140,27 @@ __export(bar_exports, {
 });
 
 // /foo.ts
-const foo = 123;
+var foo = 123;
 
 // /entry.ts
-let foo2 = 234;
+var foo2 = 234;
 console.log(bar_exports, foo, foo2);
 
 ================================================================================
 TestTSImportStarExportStarNoCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo = 123;
+var foo = 123;
 
 // /entry.ts
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo, foo, foo2);
 
 ================================================================================
 TestTSImportStarExportStarUnused
 ---------- /out.js ----------
 // /entry.ts
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -207,17 +207,17 @@ console.log(foo);
 TestTSImportStarNoCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo = 123;
+var foo = 123;
 
 // /entry.ts
-let foo2 = 234;
+var foo2 = 234;
 console.log(foo, foo, foo2);
 
 ================================================================================
 TestTSImportStarUnused
 ---------- /out.js ----------
 // /entry.ts
-let foo = 234;
+var foo = 234;
 console.log(foo);
 
 ================================================================================
@@ -233,7 +233,7 @@ console.log("some code");
 console.log("some code");
 
 // /values.ts
-let foo = 123;
+var foo = 123;
 
 // /entry.ts
 console.log(foo);
