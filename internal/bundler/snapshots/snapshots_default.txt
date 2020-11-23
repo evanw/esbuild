@@ -254,6 +254,56 @@ x ? require.resolve("a") : y ? require.resolve("b") : require.resolve("c");
 x ? y ? require.resolve("a") : require.resolve("b") : require.resolve(c);
 
 ================================================================================
+TestConstWithLet
+---------- /out.js ----------
+// /entry.js
+var a = 1;
+console.log(a);
+{
+  let b = 2;
+  console.log(b);
+}
+for (let c = x; ; )
+  console.log(c);
+for (let d in x)
+  console.log(d);
+for (let e of x)
+  console.log(e);
+
+================================================================================
+TestConstWithLetNoBundle
+---------- /out.js ----------
+const a = 1;
+console.log(a);
+{
+  const b = 2;
+  console.log(b);
+}
+for (const c = x; ; )
+  console.log(c);
+for (const d in x)
+  console.log(d);
+for (const e of x)
+  console.log(e);
+
+================================================================================
+TestConstWithLetNoMangle
+---------- /out.js ----------
+// /entry.js
+var a = 1;
+console.log(a);
+if (true) {
+  const b = 2;
+  console.log(b);
+}
+for (const c = x; ; )
+  console.log(c);
+for (const d in x)
+  console.log(d);
+for (const e of x)
+  console.log(e);
+
+================================================================================
 TestDeduplicateCommentsInBundle
 ---------- /out.js ----------
 console.log("in a");console.log("in b");console.log("in c");

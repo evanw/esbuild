@@ -2035,12 +2035,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			p.currentScope.Generated = append(p.currentScope.Generated, captureRef)
 			p.recordDeclaredSymbol(captureRef)
 			p.mergeSymbols(shadowRef, captureRef)
-			localKind := js_ast.LocalConst
-			if avoidTDZ {
-				localKind = js_ast.LocalVar
-			}
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
-				Kind: localKind,
+				Kind: p.selectLocalKind(js_ast.LocalConst),
 				Decls: []js_ast.Decl{{
 					Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: captureRef}},
 					Value:   init,
@@ -2060,12 +2056,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		}
 
 		// Generate the variable statement that will represent the class statement
-		localKind := js_ast.LocalLet
-		if avoidTDZ {
-			localKind = js_ast.LocalVar
-		}
 		stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
-			Kind:     localKind,
+			Kind:     p.selectLocalKind(js_ast.LocalLet),
 			IsExport: kind == classKindExportStmt,
 			Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: nameRef}},

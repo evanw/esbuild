@@ -57,6 +57,10 @@
 
     This option turns top-level `let`, `const`, and `class` statements into `var` statements to work around some severe performance issues in the JavaScript run-time environment in Safari. Previously you had to explicitly enable this option. Now this behavior will always happen, and there is no way to turn it off. This means the `--allow-tdz` option is now meaningless and no longer does anything. It will be removed in a future release.
 
+* When bundling and minifying, `const` is now converted into `let`
+
+    This was done because it's semantically equivalent but shorter. It's a valid transformation because assignment to a `const` symbol is now a compile-time error when bundling, so changing `const` to `let` should now not affect run-time behavior.
+
 ## 0.8.12
 
 * Added an API for incremental builds ([#21](https://github.com/evanw/esbuild/issues/21))

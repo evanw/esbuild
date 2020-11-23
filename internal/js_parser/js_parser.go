@@ -771,6 +771,22 @@ func hasValueForThisInCall(expr js_ast.Expr) bool {
 	}
 }
 
+func (p *parser) selectLocalKind(kind js_ast.LocalKind) js_ast.LocalKind {
+	// Safari workaround: Automatically avoid TDZ issues when bundling
+	if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil {
+		return js_ast.LocalVar
+	}
+
+	// Optimization: use "let" instead of "const" because it's shorter. This is
+	// only done when bundling because assigning to "const" is only an error when
+	// bundling.
+	if p.options.mode == config.ModeBundle && kind == js_ast.LocalConst && p.options.mangleSyntax {
+		return js_ast.LocalLet
+	}
+
+	return kind
+}
+
 func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) int {
 	parent := p.currentScope
 	scope := &js_ast.Scope{
@@ -6415,6 +6431,7 @@ func (p *parser) visitForLoopInit(stmt js_ast.Stmt, isInOrOf bool) js_ast.Stmt {
 			}
 		}
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
+		s.Kind = p.selectLocalKind(s.Kind)
 
 	default:
 		panic("Internal error")
@@ -7185,11 +7202,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
-
-		// Safari workaround: Automatically avoid TDZ issues when bundling
-		if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil && s.Kind != js_ast.LocalVar {
-			s.Kind = js_ast.LocalVar
-		}
+		s.Kind = p.selectLocalKind(s.Kind)
 
 	case *js_ast.SExpr:
 		s.Value = p.visitExpr(s.Value)
@@ -10816,7 +10829,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// all modules together anyway so such directives are meaningless.
 	if p.importMetaRef != js_ast.InvalidRef {
 		importMetaStmt := js_ast.Stmt{Data: &js_ast.SLocal{
-			Kind: js_ast.LocalConst,
+			Kind: p.selectLocalKind(js_ast.LocalConst),
 			Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: p.importMetaRef}},
 				Value:   &js_ast.Expr{Data: &js_ast.EObject{}},

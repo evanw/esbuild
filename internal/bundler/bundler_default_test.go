@@ -3624,3 +3624,62 @@ func TestForbidConstAssignWhenBundling(t *testing.T) {
 `,
 	})
 }
+
+func TestConstWithLet(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const a = 1; console.log(a)
+				if (true) { const b = 2; console.log(b) }
+				for (const c = x;;) console.log(c)
+				for (const d in x) console.log(d)
+				for (const e of x) console.log(e)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleSyntax:  true,
+		},
+	})
+}
+
+func TestConstWithLetNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const a = 1; console.log(a)
+				if (true) { const b = 2; console.log(b) }
+				for (const c = x;;) console.log(c)
+				for (const d in x) console.log(d)
+				for (const e of x) console.log(e)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleSyntax:  true,
+		},
+	})
+}
+
+func TestConstWithLetNoMangle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const a = 1; console.log(a)
+				if (true) { const b = 2; console.log(b) }
+				for (const c = x;;) console.log(c)
+				for (const d in x) console.log(d)
+				for (const e of x) console.log(e)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

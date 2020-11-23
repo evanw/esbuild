@@ -5,7 +5,6 @@
 package js_parser
 
 import (
-	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -826,13 +825,8 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 // This assumes the caller has already parsed the "import" token
 func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtOpts, defaultNameLoc logger.Loc, defaultName string) js_ast.Stmt {
 	p.lexer.Expect(js_lexer.TEquals)
-	kind := js_ast.LocalConst
 
-	// Safari workaround: Automatically avoid TDZ issues when bundling
-	if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil {
-		kind = js_ast.LocalVar
-	}
-
+	kind := p.selectLocalKind(js_ast.LocalConst)
 	name := p.lexer.Identifier
 	value := js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 	p.lexer.Expect(js_lexer.TIdentifier)
