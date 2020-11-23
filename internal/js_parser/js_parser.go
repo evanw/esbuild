@@ -2486,8 +2486,10 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		p.lexer.Next()
 		var name *js_ast.LocRef
 
+		p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
+
+		// Parse an optional class name
 		if p.lexer.Token == js_lexer.TIdentifier && !js_lexer.StrictModeReservedWords[p.lexer.Identifier] {
-			p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
 			nameLoc := p.lexer.Loc()
 			name = &js_ast.LocRef{Loc: loc, Ref: p.declareSymbol(js_ast.SymbolOther, nameLoc, p.lexer.Identifier)}
 			p.lexer.Next()
@@ -2500,10 +2502,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		class := p.parseClass(name, parseClassOpts{})
 
-		if name != nil {
-			p.popScope()
-		}
-
+		p.popScope()
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EClass{Class: class}}
 
 	case js_lexer.TNew:
@@ -4382,7 +4381,13 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 	if opts.tsDecorators != nil {
 		classOpts.tsDecorators = opts.tsDecorators.values
 	}
+	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
 	class := p.parseClass(name, classOpts)
+	if classOpts.isTypeScriptDeclare {
+		p.popAndDiscardScope(scopeIndex)
+	} else {
+		p.popScope()
+	}
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SClass{Class: class, IsExport: opts.isExport}}
 }
 
@@ -4816,7 +4821,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						defaultName = createDefaultName()
 					}
 				default:
-					defaultName = createDefaultName()
+					panic("Internal error")
 				}
 
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Stmt: &stmt}}}
@@ -7046,7 +7051,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				return stmts
 
 			case *js_ast.SClass:
-				p.visitClass(&s2.Class)
+				p.visitClass(s.Value.Stmt.Loc, &s2.Class)
 
 				// Lower class field syntax for browsers that don't support it
 				classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
@@ -7392,7 +7397,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SClass:
-		p.visitClass(&s.Class)
+		p.visitClass(stmt.Loc, &s.Class)
 
 		// Remove the export flag inside a namespace
 		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
@@ -7750,12 +7755,14 @@ func (p *parser) visitTSDecorators(tsDecorators []js_ast.Expr) []js_ast.Expr {
 	return tsDecorators
 }
 
-func (p *parser) visitClass(class *js_ast.Class) {
+func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) {
 	class.TSDecorators = p.visitTSDecorators(class.TSDecorators)
 
 	if class.Name != nil {
 		p.recordDeclaredSymbol(class.Name.Ref)
 	}
+
+	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
 
 	if class.Extends != nil {
 		*class.Extends = p.visitExpr(*class.Extends)
@@ -7786,6 +7793,8 @@ func (p *parser) visitClass(class *js_ast.Class) {
 	}
 
 	p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
+
+	p.popScope()
 }
 
 func (p *parser) visitArgs(args []js_ast.Arg) {
@@ -9748,14 +9757,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EClass:
-		name := e.Class.Name
-		if name != nil {
-			p.pushScopeForVisitPass(js_ast.ScopeClassName, expr.Loc)
-		}
-		p.visitClass(&e.Class)
-		if name != nil {
-			p.popScope()
-		}
+		p.visitClass(expr.Loc, &e.Class)
 
 		// Lower class field syntax for browsers that don't support it
 		_, expr = p.lowerClass(js_ast.Stmt{}, expr)
