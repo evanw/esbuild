@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.13
 
 * Assigning to a `const` symbol is now an error when bundling
 
