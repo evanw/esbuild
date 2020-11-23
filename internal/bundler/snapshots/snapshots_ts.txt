@@ -1,28 +1,28 @@
 TestExportTypeIssue379
 ---------- /out.js ----------
 // /a.ts
-const a_exports = {};
+var a_exports = {};
 __export(a_exports, {
   foo: () => foo
 });
 let foo = 123;
 
 // /b.ts
-const b_exports = {};
+var b_exports = {};
 __export(b_exports, {
   foo: () => foo2
 });
 let foo2 = 123;
 
 // /c.ts
-const c_exports = {};
+var c_exports = {};
 __export(c_exports, {
   foo: () => foo3
 });
 let foo3 = 123;
 
 // /d.ts
-const d_exports = {};
+var d_exports = {};
 __export(d_exports, {
   foo: () => foo4
 });
@@ -171,14 +171,14 @@ var require_b = __commonJS((exports, module) => {
 });
 
 // /a.ts
-const b = __toModule(require_b());
+var b = __toModule(require_b());
 console.log(b.default);
 
 ================================================================================
 TestTSExportMissingES6
 ---------- /out.js ----------
 // /foo.ts
-const foo_exports = {};
+var foo_exports = {};
 
 // /entry.js
 console.log(foo_exports);

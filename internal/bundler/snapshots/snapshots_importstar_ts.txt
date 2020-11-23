@@ -9,7 +9,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.js
-const ns = __toModule(require_foo());
+var ns = __toModule(require_foo());
 const ns2 = require_foo();
 console.log(ns.foo, ns2.foo);
 
@@ -17,7 +17,7 @@ console.log(ns.foo, ns2.foo);
 TestTSImportStarCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo_exports = {};
+var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
@@ -36,7 +36,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.ts
-const ns = __toModule(require_foo());
+var ns = __toModule(require_foo());
 let foo = 234;
 console.log(ns, ns.foo, foo);
 
@@ -49,7 +49,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.ts
-const ns = __toModule(require_foo());
+var ns = __toModule(require_foo());
 let foo2 = 234;
 console.log(ns.foo, ns.foo, foo2);
 
@@ -64,7 +64,7 @@ console.log(foo);
 TestTSImportStarExportImportStarCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo_exports = {};
+var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
@@ -78,7 +78,7 @@ console.log(foo_exports, foo_exports.foo, foo2);
 TestTSImportStarExportImportStarNoCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo_exports = {};
+var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
@@ -99,7 +99,7 @@ console.log(foo);
 TestTSImportStarExportStarAsCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo_exports = {};
+var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
@@ -113,7 +113,7 @@ console.log(foo_exports, foo_exports.foo, foo2);
 TestTSImportStarExportStarAsNoCapture
 ---------- /out.js ----------
 // /foo.ts
-const foo_exports = {};
+var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
@@ -134,7 +134,7 @@ console.log(foo);
 TestTSImportStarExportStarCapture
 ---------- /out.js ----------
 // /bar.ts
-const bar_exports = {};
+var bar_exports = {};
 __export(bar_exports, {
   foo: () => foo
 });

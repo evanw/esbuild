@@ -1550,7 +1550,7 @@ type Part struct {
 	CanBeRemovedIfUnused bool
 
 	// If true, this is the automatically-generated part for this file's ES6
-	// exports. It may hold the "const exports = {};" statement and also the
+	// exports. It may hold the "var exports = {};" statement and also the
 	// "__export(exports, { ... })" call to initialize the getters.
 	IsNamespaceExport bool
 

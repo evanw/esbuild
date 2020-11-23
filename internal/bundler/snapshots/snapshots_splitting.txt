@@ -198,7 +198,7 @@ import {
 } from "./chunk.FPKGPTVM.js";
 
 // /entry.js
-const foo = __toModule(require_foo());
+var foo = __toModule(require_foo());
 import("./foo.js").then(({default: {bar: b}}) => console.log(foo.bar, b));
 
 ---------- /out/foo.js ----------
@@ -331,7 +331,7 @@ TestSplittingMissingLazyExport
 import "./chunk.3I42H3S6.js";
 
 // /empty.js
-const empty_exports = {};
+var empty_exports = {};
 
 // /common.js
 function foo() {

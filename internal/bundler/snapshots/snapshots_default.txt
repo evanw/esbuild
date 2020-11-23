@@ -287,7 +287,7 @@ var require_index = __commonJS((exports) => {
 });
 
 // /entry.js
-const _ = __toModule(require_index());
+var _ = __toModule(require_index());
 console.log(_.x);
 
 ================================================================================
@@ -338,8 +338,8 @@ var require_bar = __commonJS((exports) => {
 });
 
 // /entry.js
-const foo = __toModule(require_foo());
-const bar = __toModule(require_bar());
+var foo = __toModule(require_foo());
+var bar = __toModule(require_bar());
 console.log(foo.foo(), bar.bar());
 
 ================================================================================
@@ -464,7 +464,7 @@ var require_h = __commonJS((exports) => {
 const abc = void 0;
 
 // /b.js
-const b_exports = {};
+var b_exports = {};
 __export(b_exports, {
   xyz: () => xyz
 });
@@ -486,7 +486,7 @@ TestExportFormsES6
 const abc = void 0;
 
 // /b.js
-const b_exports = {};
+var b_exports = {};
 __export(b_exports, {
   xyz: () => xyz
 });
@@ -544,7 +544,7 @@ var moduleName = (() => {
   const abc = void 0;
 
   // /b.js
-  const b_exports = {};
+  var b_exports = {};
   __export(b_exports, {
     xyz: () => xyz
   });
@@ -603,14 +603,14 @@ export * from "fs";
 TestExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // /foo/test.js
-const test_exports = {};
+var test_exports = {};
 __export(test_exports, {
   foo: () => foo
 });
 let foo = 123;
 
 // /bar/test.js
-const test_exports2 = {};
+var test_exports2 = {};
 __export(test_exports2, {
   bar: () => bar
 });
@@ -677,10 +677,10 @@ TestIIFE_ES5
 TestImportFSNodeCommonJS
 ---------- /out.js ----------
 // /entry.js
-const fs = __toModule(require("fs"));
-const fs2 = __toModule(require("fs"));
-const fs3 = __toModule(require("fs"));
-const fs4 = __toModule(require("fs"));
+var fs = __toModule(require("fs"));
+var fs2 = __toModule(require("fs"));
+var fs3 = __toModule(require("fs"));
+var fs4 = __toModule(require("fs"));
 console.log(fs2, fs4.readFileSync, fs3.default);
 
 ================================================================================
@@ -756,7 +756,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.js
-const foo = __toModule(require_foo());
+var foo = __toModule(require_foo());
 console.log(foo.default(foo.x, foo.y));
 
 ================================================================================
@@ -782,7 +782,7 @@ var require_foo = __commonJS(() => {
 });
 
 // /star-capture.js
-const ns = __toModule(require_foo());
+var ns = __toModule(require_foo());
 console.log(ns);
 
 ---------- /out/bare.js ----------
@@ -838,7 +838,7 @@ let replace = {
 };
 
 // /re-export.js
-const external_pkg = __toModule(require("external-pkg"));
+var external_pkg = __toModule(require("external-pkg"));
 
 // /entry.js
 let sideEffects2 = console.log("this should be renamed");
@@ -906,7 +906,7 @@ var require_custom_react = __commonJS((exports, module) => {
 });
 
 // /entry.jsx
-const custom_react = __toModule(require_custom_react());
+var custom_react = __toModule(require_custom_react());
 console.log(/* @__PURE__ */ custom_react.elem("div", null), /* @__PURE__ */ custom_react.elem(custom_react.frag, null, "fragment"));
 
 ================================================================================
@@ -1251,14 +1251,14 @@ Promise.resolve().then(function(){return __toModule(require("foo"))});Promise.re
 TestMinifiedExportsAndModuleFormatCommonJS
 ---------- /out.js ----------
 // /foo/test.js
-const t = {};
+var t = {};
 f(t, {
   foo: () => l
 });
 let l = 123;
 
 // /bar/test.js
-const r = {};
+var r = {};
 f(r, {
   bar: () => m
 });
@@ -1410,7 +1410,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.js
-const foo = __toModule(require_foo());
+var foo = __toModule(require_foo());
 (() => {
   console.log(foo.fn());
 })();
@@ -1463,7 +1463,7 @@ var require_demo_pkg = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_demo_pkg());
+var demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -1520,8 +1520,8 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.js
-const foo = __toModule(require_foo());
-const export_bar = foo.bar;
+var foo = __toModule(require_foo());
+var export_bar = foo.bar;
 export {
   export_bar as bar
 };
@@ -1540,7 +1540,7 @@ var require_bar = __commonJS((exports) => {
 });
 
 // /foo.js
-const bar = __toModule(require_bar());
+var bar = __toModule(require_bar());
 
 // /entry.js
 bar.default();
@@ -1553,10 +1553,10 @@ __export(exports, {
   bar: () => bar.default,
   foo: () => foo.default
 });
-const foo = __toModule(require("foo"));
+var foo = __toModule(require("foo"));
 
 // /bar.js
-const bar = __toModule(require("bar"));
+var bar = __toModule(require("bar"));
 
 ================================================================================
 TestReExportDefaultExternalES6
@@ -1597,8 +1597,8 @@ __export(exports, {
   bar: () => bar.default,
   foo: () => foo.default
 });
-const foo = __toModule(require("./foo"));
-const bar = __toModule(require("./bar"));
+var foo = __toModule(require("./foo"));
+var bar = __toModule(require("./bar"));
 
 ================================================================================
 TestReExportDefaultNoBundleES6
@@ -2077,10 +2077,10 @@ var require_es6_ns_export_abstract_class = __commonJS((exports) => {
 });
 
 // /entry.js
-const cjs = __toModule(require_cjs());
+var cjs = __toModule(require_cjs());
 
 // /es6-import-stmt.js
-const dummy = __toModule(require_dummy());
+var dummy = __toModule(require_dummy());
 console.log(void 0);
 
 // /es6-import-assign.ts
@@ -2141,33 +2141,33 @@ console.log(void 0);
 console.log(void 0);
 
 // /es6-export-clause-from.js
-const dummy2 = __toModule(require_dummy());
+var dummy2 = __toModule(require_dummy());
 console.log(void 0);
 
 // /entry.js
-const es6_export_star = __toModule(require_es6_export_star());
+var es6_export_star = __toModule(require_es6_export_star());
 
 // /es6-export-star-as.js
-const ns = __toModule(require_dummy());
+var ns = __toModule(require_dummy());
 console.log(void 0);
 
 // /entry.js
-const es6_export_assign = __toModule(require_es6_export_assign());
+var es6_export_assign = __toModule(require_es6_export_assign());
 
 // /es6-export-import-assign.ts
 const x2 = require_dummy();
 console.log(void 0);
 
 // /entry.js
-const es6_ns_export_variable = __toModule(require_es6_ns_export_variable());
-const es6_ns_export_function = __toModule(require_es6_ns_export_function());
-const es6_ns_export_async_function = __toModule(require_es6_ns_export_async_function());
-const es6_ns_export_enum = __toModule(require_es6_ns_export_enum());
-const es6_ns_export_const_enum = __toModule(require_es6_ns_export_const_enum());
-const es6_ns_export_module = __toModule(require_es6_ns_export_module());
-const es6_ns_export_namespace = __toModule(require_es6_ns_export_namespace());
-const es6_ns_export_class = __toModule(require_es6_ns_export_class());
-const es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstract_class());
+var es6_ns_export_variable = __toModule(require_es6_ns_export_variable());
+var es6_ns_export_function = __toModule(require_es6_ns_export_function());
+var es6_ns_export_async_function = __toModule(require_es6_ns_export_async_function());
+var es6_ns_export_enum = __toModule(require_es6_ns_export_enum());
+var es6_ns_export_const_enum = __toModule(require_es6_ns_export_const_enum());
+var es6_ns_export_module = __toModule(require_es6_ns_export_module());
+var es6_ns_export_namespace = __toModule(require_es6_ns_export_namespace());
+var es6_ns_export_class = __toModule(require_es6_ns_export_class());
+var es6_ns_export_abstract_class = __toModule(require_es6_ns_export_abstract_class());
 
 ================================================================================
 TestTopLevelAwaitNoBundle
@@ -2198,7 +2198,7 @@ var require_foo = __commonJS((exports) => {
 });
 
 // /entry.js
-const foo = __toModule(require_foo());
+var foo = __toModule(require_foo());
 foo.foo();
 
 ================================================================================
@@ -2284,8 +2284,8 @@ switch (x) {
 !a instanceof b;
 
 // /entry.js
-const return_asi = __toModule(require_return_asi());
-const return_asi2 = __toModule(require_return_asi2());
+var return_asi = __toModule(require_return_asi());
+var return_asi2 = __toModule(require_return_asi2());
 
 // /bad-typeof.js
 typeof x == "null";
