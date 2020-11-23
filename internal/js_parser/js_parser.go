@@ -6423,11 +6423,13 @@ func (p *parser) visitBinding(binding js_ast.Binding) {
 		for _, item := range b.Items {
 			p.visitBinding(item.Binding)
 			if item.DefaultValue != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*item.DefaultValue)
 				*item.DefaultValue = p.visitExpr(*item.DefaultValue)
 
 				// Optionally preserve the name
 				if id, ok := item.Binding.Data.(*js_ast.BIdentifier); ok {
-					*item.DefaultValue = p.maybeKeepExprSymbolName(*item.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName)
+					*item.DefaultValue = p.maybeKeepExprSymbolName(
+						*item.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 			}
 		}
@@ -6439,11 +6441,13 @@ func (p *parser) visitBinding(binding js_ast.Binding) {
 			}
 			p.visitBinding(property.Value)
 			if property.DefaultValue != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.DefaultValue)
 				*property.DefaultValue = p.visitExpr(*property.DefaultValue)
 
 				// Optionally preserve the name
 				if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok {
-					*property.DefaultValue = p.maybeKeepExprSymbolName(*property.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName)
+					*property.DefaultValue = p.maybeKeepExprSymbolName(
+						*property.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 			}
 			b.Properties[i] = property
@@ -6854,12 +6858,21 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
-func (p *parser) maybeKeepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr {
-	if p.options.keepNames {
-		switch value.Data.(type) {
-		case *js_ast.EArrow, *js_ast.EFunction, *js_ast.EClass:
-			return p.keepExprSymbolName(value, name)
-		}
+func (p *parser) isAnonymousNamedExpr(expr js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *js_ast.EArrow:
+		return true
+	case *js_ast.EFunction:
+		return e.Fn.Name == nil
+	case *js_ast.EClass:
+		return e.Class.Name == nil
+	}
+	return false
+}
+
+func (p *parser) maybeKeepExprSymbolName(value js_ast.Expr, name string, wasAnonymousNamedExpr bool) js_ast.Expr {
+	if p.options.keepNames && wasAnonymousNamedExpr {
+		return p.keepExprSymbolName(value, name)
 	}
 	return value
 }
@@ -6992,10 +7005,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		switch {
 		case s.Value.Expr != nil:
+			wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*s.Value.Expr)
 			*s.Value.Expr = p.visitExpr(*s.Value.Expr)
 
 			// Optionally preserve the name
-			*s.Value.Expr = p.maybeKeepExprSymbolName(*s.Value.Expr, "default")
+			*s.Value.Expr = p.maybeKeepExprSymbolName(*s.Value.Expr, "default", wasAnonymousNamedExpr)
 
 			// Discard type-only export default statements
 			if p.options.ts.Parse {
@@ -7116,11 +7130,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		for i, d := range s.Decls {
 			p.visitBinding(d.Binding)
 			if d.Value != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*d.Value)
 				*d.Value = p.visitExpr(*d.Value)
 
 				// Optionally preserve the name
 				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
-					*d.Value = p.maybeKeepExprSymbolName(*d.Value, p.symbols[id.Ref.InnerIndex].OriginalName)
+					*d.Value = p.maybeKeepExprSymbolName(
+						*d.Value, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 
 				// Initializing to undefined is implicit, but be careful to not
@@ -8501,6 +8517,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EBinary:
 		isCallTarget := e == p.callTarget
+		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 
 		// Pattern-match "typeof require == 'function' && ___" from browserify
@@ -8851,7 +8868,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			// Optionally preserve the name
 			if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
-				e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName)
+				e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 			}
 
 			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
@@ -9299,12 +9316,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				hasSpread = true
 			case *js_ast.EBinary:
 				if in.assignTarget != js_ast.AssignTargetNone && e2.Op == js_ast.BinOpAssign {
+					wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e2.Right)
 					e2.Left, _ = p.visitExprInOut(e2.Left, exprIn{assignTarget: js_ast.AssignTargetReplace})
 					e2.Right = p.visitExpr(e2.Right)
 
 					// Optionally preserve the name
 					if id, ok := e2.Left.Data.(*js_ast.EIdentifier); ok {
-						e2.Right = p.maybeKeepExprSymbolName(e2.Right, p.symbols[id.Ref.InnerIndex].OriginalName)
+						e2.Right = p.maybeKeepExprSymbolName(
+							e2.Right, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 					}
 				} else {
 					item, _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
@@ -9359,12 +9378,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				*property.Value, _ = p.visitExprInOut(*property.Value, exprIn{assignTarget: in.assignTarget})
 			}
 			if property.Initializer != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Initializer)
 				*property.Initializer = p.visitExpr(*property.Initializer)
 
 				// Optionally preserve the name
 				if property.Value != nil {
 					if id, ok := property.Value.Data.(*js_ast.EIdentifier); ok {
-						*property.Initializer = p.maybeKeepExprSymbolName(*property.Initializer, p.symbols[id.Ref.InnerIndex].OriginalName)
+						*property.Initializer = p.maybeKeepExprSymbolName(
+							*property.Initializer, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 					}
 				}
 			}
