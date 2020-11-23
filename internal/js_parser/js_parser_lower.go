@@ -1455,10 +1455,20 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 	var class *js_ast.Class
 	var classLoc logger.Loc
 	var defaultName js_ast.LocRef
+	var nameToKeep string
 	if stmt.Data == nil {
 		e, _ := expr.Data.(*js_ast.EClass)
 		class = &e.Class
 		kind = classKindExpr
+		if class.Name != nil {
+			symbol := &p.symbols[class.Name.Ref.InnerIndex]
+			nameToKeep = symbol.OriginalName
+
+			// Remove unused class names when minifying
+			if p.options.mangleSyntax && symbol.UseCountEstimate == 0 {
+				class.Name = nil
+			}
+		}
 	} else if s, ok := stmt.Data.(*js_ast.SClass); ok {
 		class = &s.Class
 		if s.IsExport {
@@ -1466,12 +1476,18 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		} else {
 			kind = classKindStmt
 		}
+		nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
 	} else {
 		s, _ := stmt.Data.(*js_ast.SExportDefault)
 		s2, _ := s.Value.Stmt.Data.(*js_ast.SClass)
 		class = &s2.Class
 		defaultName = s.DefaultName
 		kind = classKindExportDefaultStmt
+		if class.Name != nil {
+			nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
+		} else {
+			nameToKeep = "default"
+		}
 	}
 
 	var ctor *js_ast.EFunction
@@ -1931,7 +1947,19 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		if wrapFunc != nil {
 			expr = wrapFunc(expr)
 		}
+
+		// Optionally preserve the name
+		if p.options.keepNames && nameToKeep != "" {
+			expr = p.keepExprSymbolName(expr, nameToKeep)
+		}
 		return nil, expr
+	}
+
+	// Optionally preserve the name
+	var keepNameStmt js_ast.Stmt
+	if p.options.keepNames && nameToKeep != "" {
+		name := nameFunc()
+		keepNameStmt = p.keepStmtSymbolName(name.Loc, name.Data.(*js_ast.EIdentifier).Ref, nameToKeep)
 	}
 
 	// Pack the class back into a statement, with potentially some extra
@@ -2004,6 +2032,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 			}})
 		}
 		class.Name = nil
+	}
+	if keepNameStmt.Data != nil {
+		stmts = append(stmts, keepNameStmt)
 	}
 	return stmts, js_ast.Expr{}
 }

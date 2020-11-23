@@ -968,7 +968,7 @@
 
   // Test name preservation
   tests.push(
-    // Anonymous functions
+    // Arrow functions
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
       'in.js': `(() => { let fn = () => {}; if (fn.name !== 'fn') throw 'fail' })()`,
     }),
@@ -1085,6 +1085,18 @@
       'in.js': `import foo from './other'; if (foo.name !== 'default') throw 'fail'`,
       'other.js': `export default (class {})`,
     }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'foo') throw 'fail'`,
+      'in.js': `export default class foo {}`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
+      'in.js': `export default class {}`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
+      'in.js': `export default (class {})`,
+    }),
 
     // Lowered classes
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
@@ -1128,6 +1140,18 @@
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
       'in.js': `import foo from './other'; if (foo.name !== 'default') throw 'fail'`,
       'other.js': `export default (class { a() { return this.#b } #b() {} })`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'foo') throw 'fail'`,
+      'in.js': `export default class foo { a() { return this.#b } #b() {} }`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
+      'in.js': `export default class { a() { return this.#b } #b() {} }`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
+      'in.js': `export default (class { a() { return this.#b } #b() {} })`,
     }),
   )
 

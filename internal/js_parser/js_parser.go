@@ -6887,8 +6887,8 @@ func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr 
 	return value
 }
 
-func (p *parser) keepStmtSymbolName(stmts []js_ast.Stmt, loc logger.Loc, ref js_ast.Ref, name string) []js_ast.Stmt {
-	stmts = append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string) js_ast.Stmt {
+	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
 		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
 			{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
 			{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
@@ -6896,8 +6896,7 @@ func (p *parser) keepStmtSymbolName(stmts []js_ast.Stmt, loc logger.Loc, ref js_
 
 		// Make sure tree shaking removes this if the function is never used
 		DoesNotAffectTreeShaking: true,
-	}})
-	return stmts
+	}}
 }
 
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
@@ -7041,36 +7040,17 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 				// Optionally preserve the name
 				if p.options.keepNames && s2.Fn.Name != nil {
-					stmts = p.keepStmtSymbolName(stmts, s2.Fn.Name.Loc, s2.Fn.Name.Ref, name)
+					stmts = append(stmts, p.keepStmtSymbolName(s2.Fn.Name.Loc, s2.Fn.Name.Ref, name))
 				}
 
 				return stmts
 
 			case *js_ast.SClass:
-				// If we need to preserve the name but there is no name, generate a name
-				var name string
-				if p.options.keepNames {
-					if s2.Class.Name == nil {
-						clone := s.DefaultName
-						s2.Class.Name = &clone
-						name = "default"
-					} else {
-						name = p.symbols[s2.Class.Name.Ref.InnerIndex].OriginalName
-					}
-				}
-
 				p.visitClass(&s2.Class)
 
 				// Lower class field syntax for browsers that don't support it
 				classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
-				stmts = append(stmts, classStmts...)
-
-				// Optionally preserve the name
-				if p.options.keepNames && s2.Class.Name != nil {
-					stmts = p.keepStmtSymbolName(stmts, s2.Class.Name.Loc, s2.Class.Name.Ref, name)
-				}
-
-				return stmts
+				return append(stmts, classStmts...)
 
 			default:
 				panic("Internal error")
@@ -7407,7 +7387,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Optionally preserve the name
 		if p.options.keepNames {
-			stmts = p.keepStmtSymbolName(stmts, s.Fn.Name.Loc, s.Fn.Name.Ref, p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName)
+			stmts = append(stmts, p.keepStmtSymbolName(s.Fn.Name.Loc, s.Fn.Name.Ref, p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName))
 		}
 		return stmts
 
@@ -7423,11 +7403,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// Lower class field syntax for browsers that don't support it
 		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
 		stmts = append(stmts, classStmts...)
-
-		// Optionally preserve the name
-		if p.options.keepNames {
-			stmts = p.keepStmtSymbolName(stmts, s.Class.Name.Loc, s.Class.Name.Ref, p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName)
-		}
 
 		// Handle exporting this class from a namespace
 		if wasExportInsideNamespace {
@@ -9782,18 +9757,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.popScope()
 		}
 
-		// Remove unused class names when minifying
-		if p.options.mangleSyntax && name != nil && p.symbols[name.Ref.InnerIndex].UseCountEstimate == 0 {
-			e.Class.Name = nil
-		}
-
 		// Lower class field syntax for browsers that don't support it
 		_, expr = p.lowerClass(js_ast.Stmt{}, expr)
-
-		// Optionally preserve the name
-		if p.options.keepNames && name != nil {
-			expr = p.keepExprSymbolName(expr, p.symbols[name.Ref.InnerIndex].OriginalName)
-		}
 
 	default:
 		panic("Internal error")
