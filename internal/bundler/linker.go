@@ -91,9 +91,6 @@ type linkerContext struct {
 type fileMeta struct {
 	partMeta []partMeta
 
-	// We don't want to double-warn about ignored imports in the same file
-	alreadyWarnedAboutIgnoredImport map[logger.Path]bool
-
 	// This is the index to the automatically-generated part containing code that
 	// calls "__export(exports, { ... getters ... })". This is used to generate
 	// getters on an exports object for ES6 export statements, and is both for
@@ -2181,27 +2178,6 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 					// Don't include this module for its side effects if it can be
 					// considered to have no side effects
 					if otherFile := &c.files[otherSourceIndex]; otherFile.ignoreIfUnused && !c.options.IgnoreDCEAnnotations {
-						if record.WasOriginallyBareImport {
-							if repr.meta.alreadyWarnedAboutIgnoredImport == nil {
-								repr.meta.alreadyWarnedAboutIgnoredImport = make(map[logger.Path]bool)
-							}
-							if !repr.meta.alreadyWarnedAboutIgnoredImport[otherFile.source.KeyPath] {
-								repr.meta.alreadyWarnedAboutIgnoredImport[otherFile.source.KeyPath] = true
-								var notes []logger.MsgData
-								if otherFile.ignoreIfUnusedData != nil {
-									var text string
-									if otherFile.ignoreIfUnusedData.IsSideEffectsArrayInJSON {
-										text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file"
-									} else {
-										text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
-									}
-									notes = append(notes, logger.RangeData(otherFile.ignoreIfUnusedData.Source, otherFile.ignoreIfUnusedData.Range, text))
-								}
-								c.log.AddRangeWarningWithNotes(&file.source, record.Range,
-									fmt.Sprintf("Ignoring this import because %q was marked as having no side effects",
-										otherFile.source.PrettyPath), notes)
-							}
-						}
 						continue
 					}
 

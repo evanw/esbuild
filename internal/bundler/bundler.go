@@ -1160,6 +1160,29 @@ func (s *scanner) processScannedFiles() []file {
 							css.jsSourceIndex = &sourceIndex
 						}
 						record.SourceIndex = css.jsSourceIndex
+						if css.jsSourceIndex == nil {
+							continue
+						}
+					}
+				}
+
+				// Don't include this module for its side effects if it can be
+				// considered to have no side effects
+				if record.WasOriginallyBareImport && !s.options.IgnoreDCEAnnotations {
+					if otherFile := &s.results[*record.SourceIndex].file; otherFile.ignoreIfUnused {
+						var notes []logger.MsgData
+						if otherFile.ignoreIfUnusedData != nil {
+							var text string
+							if otherFile.ignoreIfUnusedData.IsSideEffectsArrayInJSON {
+								text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file"
+							} else {
+								text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
+							}
+							notes = append(notes, logger.RangeData(otherFile.ignoreIfUnusedData.Source, otherFile.ignoreIfUnusedData.Range, text))
+						}
+						s.log.AddRangeWarningWithNotes(&result.file.source, record.Range,
+							fmt.Sprintf("Ignoring this import because %q was marked as having no side effects",
+								otherFile.source.PrettyPath), notes)
 					}
 				}
 			}
