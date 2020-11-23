@@ -5,9 +5,9 @@ export function a(o = foo) {
   return o;
 }
 export class b {
-  fn(o = foo) {
-    var r;
-    return o;
+  fn(r = foo) {
+    var f;
+    return r;
   }
 }
 export let c = [
@@ -45,8 +45,8 @@ TestArgumentsSpecialCaseNoBundle
   ({foo(n = arguments) {
     return arguments;
   }});
-  class u {
-    foo(n = arguments) {
+  class e {
+    foo(u = arguments) {
       return arguments;
     }
   }
@@ -67,8 +67,8 @@ TestArgumentsSpecialCaseNoBundle
     var arguments;
     return arguments;
   }});
-  class e {
-    foo(n = arguments) {
+  class a {
+    foo(u = arguments) {
       var arguments;
       return arguments;
     }
@@ -559,11 +559,11 @@ export default 123;
 export var varName = 234;
 export let letName = 234;
 export const constName = 234;
-function o() {
+function s() {
 }
-class s {
+class t {
 }
-export {Class as Cls, o as Fn2, s as Cls2};
+export {Class as Cls, s as Fn2, t as Cls2};
 export function Func() {
 }
 export class Class {
@@ -1325,7 +1325,7 @@ class Foo {
   };
   get #o() {
   }
-  set #o(o) {
+  set #o(a) {
   }
 }
 class Bar {
@@ -1337,7 +1337,7 @@ class Bar {
   };
   get #o() {
   }
-  set #o(o) {
+  set #o(a) {
   }
 }
 

@@ -1433,6 +1433,79 @@
         if (setterCalls !== 0 || !foo.hasOwnProperty(key) || foo[key] !== 123) throw 'fail'
       `,
     }),
+
+    // Test class re-assignment
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          static foo() { return this.#foo }
+          static #foo = Foo
+        }
+        let old = Foo
+        Foo = class Bar {}
+        if (old.foo() !== old) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          static foo() { return this.#foo() }
+          static #foo() { return Foo }
+        }
+        let old = Foo
+        Foo = class Bar {}
+        if (old.foo() !== old) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        try {
+          class Foo {
+            static foo() { return this.#foo }
+            static #foo = Foo = class Bar {}
+          }
+          throw 'fail'
+        } catch (e) {
+          if (!(e instanceof TypeError))
+            throw e
+        }
+      `,
+    }, {
+      expectedStderr: ` > in.js: warning: This assignment will throw because "Foo" is a constant
+    5 │             static #foo = Foo = class Bar {}
+      ╵                           ~~~
+     in.js: note: "Foo" was declared a constant here
+    3 │           class Foo {
+      ╵                 ~~~
+
+1 warning
+`,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          static foo() { return this.#foo() }
+          static #foo() { Foo = class Bar{} }
+        }
+        try {
+          Foo.foo()
+          throw 'fail'
+        } catch (e) {
+          if (!(e instanceof TypeError))
+            throw e
+        }
+      `,
+    }, {
+      expectedStderr: ` > in.js: warning: This assignment will throw because "Foo" is a constant
+    4 │           static #foo() { Foo = class Bar{} }
+      ╵                           ~~~
+     in.js: note: "Foo" was declared a constant here
+    2 │         class Foo {
+      ╵               ~~~
+
+1 warning
+`,
+    }),
   )
 
   // Async lowering tests

@@ -907,6 +907,20 @@ func (p *parser) newSymbol(kind js_ast.SymbolKind, name string) js_ast.Ref {
 	return ref
 }
 
+// This is similar to "js_ast.MergeSymbols" but it works with this parser's
+// one-level symbol map instead of the linker's two-level symbol map. It also
+// doesn't handle cycles since they shouldn't come up due to the way this
+// function is used.
+func (p *parser) mergeSymbols(old js_ast.Ref, new js_ast.Ref) {
+	oldSymbol := &p.symbols[old.InnerIndex]
+	newSymbol := &p.symbols[new.InnerIndex]
+	oldSymbol.Link = new
+	newSymbol.UseCountEstimate += oldSymbol.UseCountEstimate
+	if oldSymbol.MustNotBeRenamed {
+		newSymbol.MustNotBeRenamed = true
+	}
+}
+
 type mergeResult int
 
 const (
@@ -2490,8 +2504,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		// Parse an optional class name
 		if p.lexer.Token == js_lexer.TIdentifier && !js_lexer.StrictModeReservedWords[p.lexer.Identifier] {
-			nameLoc := p.lexer.Loc()
-			name = &js_ast.LocRef{Loc: loc, Ref: p.declareSymbol(js_ast.SymbolOther, nameLoc, p.lexer.Identifier)}
+			name = &js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.newSymbol(js_ast.SymbolOther, p.lexer.Identifier)}
 			p.lexer.Next()
 		}
 
@@ -7051,10 +7064,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				return stmts
 
 			case *js_ast.SClass:
-				p.visitClass(s.Value.Stmt.Loc, &s2.Class)
+				shadowRef := p.visitClass(s.Value.Stmt.Loc, &s2.Class)
 
 				// Lower class field syntax for browsers that don't support it
-				classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
+				classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
 				return append(stmts, classStmts...)
 
 			default:
@@ -7397,7 +7410,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SClass:
-		p.visitClass(stmt.Loc, &s.Class)
+		shadowRef := p.visitClass(stmt.Loc, &s.Class)
 
 		// Remove the export flag inside a namespace
 		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
@@ -7406,7 +7419,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		// Lower class field syntax for browsers that don't support it
-		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
+		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
 		stmts = append(stmts, classStmts...)
 
 		// Handle exporting this class from a namespace
@@ -7755,7 +7768,7 @@ func (p *parser) visitTSDecorators(tsDecorators []js_ast.Expr) []js_ast.Expr {
 	return tsDecorators
 }
 
-func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) {
+func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast.Ref {
 	class.TSDecorators = p.visitTSDecorators(class.TSDecorators)
 
 	if class.Name != nil {
@@ -7763,6 +7776,21 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) {
 	}
 
 	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
+
+	// Insert a shadowing name that spans the whole class, which matches
+	// JavaScript's semantics. The class body (and extends clause) "captures" the
+	// original value of the name. This matters for class statements because the
+	// symbol can be re-assigned to something else later. The captured values
+	// must be the original value of the name, not the re-assigned value.
+	shadowRef := js_ast.InvalidRef
+	if class.Name != nil {
+		// Use "const" for this symbol to match JavaScript run-time semantics. You
+		// are not allowed to assign to this symbol (it throws a TypeError).
+		name := p.symbols[class.Name.Ref.InnerIndex].OriginalName
+		shadowRef = p.newSymbol(js_ast.SymbolConst, name)
+		p.recordDeclaredSymbol(shadowRef)
+		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: shadowRef}
+	}
 
 	if class.Extends != nil {
 		*class.Extends = p.visitExpr(*class.Extends)
@@ -7795,6 +7823,13 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) {
 	p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
 
 	p.popScope()
+
+	// Don't generate a shadowing name if one isn't needed
+	if shadowRef != js_ast.InvalidRef && p.symbols[shadowRef.InnerIndex].UseCountEstimate == 0 {
+		shadowRef = js_ast.InvalidRef
+	}
+
+	return shadowRef
 }
 
 func (p *parser) visitArgs(args []js_ast.Arg) {
@@ -9757,10 +9792,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EClass:
-		p.visitClass(expr.Loc, &e.Class)
+		shadowRef := p.visitClass(expr.Loc, &e.Class)
 
 		// Lower class field syntax for browsers that don't support it
-		_, expr = p.lowerClass(js_ast.Stmt{}, expr)
+		_, expr = p.lowerClass(js_ast.Stmt{}, expr, shadowRef)
 
 	default:
 		panic("Internal error")

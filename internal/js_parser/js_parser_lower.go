@@ -1441,7 +1441,7 @@ func (p *parser) captureKeyForObjectRest(originalKey js_ast.Expr) (finalKey js_a
 
 // Lower class fields for environments that don't support them. This either
 // takes a statement or an expression.
-func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, js_ast.Expr) {
+func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast.Ref) ([]js_ast.Stmt, js_ast.Expr) {
 	type classKind uint8
 	const (
 		classKindExpr classKind = iota
@@ -1464,7 +1464,14 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 			symbol := &p.symbols[class.Name.Ref.InnerIndex]
 			nameToKeep = symbol.OriginalName
 
-			// Remove unused class names when minifying
+			// The shadowing name inside the class expression should be the same as
+			// the class expression name itself
+			if shadowRef != js_ast.InvalidRef {
+				p.mergeSymbols(shadowRef, class.Name.Ref)
+			}
+
+			// Remove unused class names when minifying. Check this after we merge in
+			// the shadowing name above since that will adjust the use count.
 			if p.options.mangleSyntax && symbol.UseCountEstimate == 0 {
 				class.Name = nil
 			}
@@ -1544,7 +1551,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 			//   }, _a.foo = 123, _a.bar = _a.foo, _a);
 			//
 			if class.Name != nil {
-				p.symbols[class.Name.Ref.InnerIndex].Link = name.Data.(*js_ast.EIdentifier).Ref
+				p.mergeSymbols(class.Name.Ref, name.Data.(*js_ast.EIdentifier).Ref)
 				class.Name = nil
 			}
 
@@ -1554,7 +1561,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 				if kind == classKindExportDefaultStmt {
 					class.Name = &defaultName
 				} else {
-					class.Name = &js_ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "")}
+					class.Name = &js_ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "zomzomz")}
 				}
 			}
 			p.recordUsage(class.Name.Ref)
@@ -1955,6 +1962,18 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 		return nil, expr
 	}
 
+	// If this is true, we have removed some code from the class body that could
+	// potentially contain an expression that captures the shadowing class name.
+	// This could lead to incorrect behavior if the class is later re-assigned,
+	// since the removed code would no longer be in the shadowing scope.
+	hasPotentialShadowCaptureEscape := shadowRef != js_ast.InvalidRef &&
+		(computedPropertyCache.Data != nil ||
+			len(privateMembers) > 0 ||
+			len(staticMembers) > 0 ||
+			len(instanceDecorators) > 0 ||
+			len(staticDecorators) > 0 ||
+			len(class.TSDecorators) > 0)
+
 	// Optionally preserve the name
 	var keepNameStmt js_ast.Stmt
 	if p.options.keepNames && nameToKeep != "" {
@@ -1965,17 +1984,80 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 	// Pack the class back into a statement, with potentially some extra
 	// statements afterwards
 	var stmts []js_ast.Stmt
-	if len(class.TSDecorators) > 0 {
+	var nameForClassDecorators js_ast.LocRef
+	generatedLocalStmt := false
+	if len(class.TSDecorators) > 0 || hasPotentialShadowCaptureEscape {
+		generatedLocalStmt = true
 		name := nameFunc()
-		id, _ := name.Data.(*js_ast.EIdentifier)
+		nameRef := name.Data.(*js_ast.EIdentifier).Ref
+		nameForClassDecorators = js_ast.LocRef{Loc: name.Loc, Ref: nameRef}
 		classExpr := js_ast.EClass{Class: *class}
 		class = &classExpr.Class
+		init := &js_ast.Expr{Loc: classLoc, Data: &classExpr}
+
+		if len(class.TSDecorators) > 0 {
+			if shadowRef != js_ast.InvalidRef {
+				// If there are class decorators, then we actually need to mutate the
+				// immutable "const" binding that shadows everything in the class body.
+				// The official TypeScript compiler does this by rewriting all class name
+				// references in the class body to another temporary variable. This is
+				// basically what we're doing here.
+				p.mergeSymbols(shadowRef, nameRef)
+			}
+		} else if hasPotentialShadowCaptureEscape {
+			// If something captures the shadowing name and escapes the class body,
+			// make a new constant to store the class and forward that value to a
+			// mutable alias. That way if the alias is mutated, everything bound to
+			// the original constant doesn't change.
+			//
+			//   class Foo {
+			//     static foo() { return this.#foo() }
+			//     static #foo() { return Foo }
+			//   }
+			//   Foo = class Bar {}
+			//
+			// becomes:
+			//
+			//   var _foo, foo_fn;
+			//   const Foo2 = class {
+			//     static foo() {
+			//       return __privateMethod(this, _foo, foo_fn).call(this);
+			//     }
+			//   };
+			//   let Foo = Foo2;
+			//   _foo = new WeakSet();
+			//   foo_fn = function() {
+			//     return Foo2;
+			//   };
+			//   _foo.add(Foo);
+			//   Foo = class Bar {
+			//   };
+			//
+			// Generate a new symbol instead of using the shadowing name directly
+			// because the shadowing name isn't a top-level symbol and we are now
+			// making a top-level symbol. This symbol must be minified along with
+			// other top-level symbols to avoid name collisions.
+			captureRef := p.newSymbol(js_ast.SymbolOther, p.symbols[shadowRef.InnerIndex].OriginalName)
+			p.currentScope.Generated = append(p.currentScope.Generated, captureRef)
+			p.recordDeclaredSymbol(captureRef)
+			p.mergeSymbols(shadowRef, captureRef)
+			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
+				Kind: js_ast.LocalConst,
+				Decls: []js_ast.Decl{{
+					Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: captureRef}},
+					Value:   init,
+				}},
+			}})
+			init = &js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: captureRef}}
+			p.recordUsage(captureRef)
+		}
+
 		stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
 			Kind:     js_ast.LocalLet,
 			IsExport: kind == classKindExportStmt,
 			Decls: []js_ast.Decl{{
-				Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: id.Ref}},
-				Value:   &js_ast.Expr{Loc: classLoc, Data: &classExpr},
+				Binding: js_ast.Binding{Loc: name.Loc, Data: &js_ast.BIdentifier{Ref: nameRef}},
+				Value:   init,
 			}},
 		}})
 	} else {
@@ -1989,6 +2071,12 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 				DefaultName: defaultName,
 				Value:       js_ast.ExprOrStmt{Stmt: &js_ast.Stmt{Loc: classLoc, Data: &js_ast.SClass{Class: *class}}},
 			}})
+		}
+
+		// The shadowing name inside the class statement should be the same as
+		// the class statement name itself
+		if class.Name != nil && shadowRef != js_ast.InvalidRef {
+			p.mergeSymbols(shadowRef, class.Name.Ref)
 		}
 	}
 
@@ -2011,12 +2099,16 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 	}
 	if len(class.TSDecorators) > 0 {
 		stmts = append(stmts, js_ast.AssignStmt(
-			nameFunc(),
+			js_ast.Expr{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			p.callRuntime(classLoc, "__decorate", []js_ast.Expr{
 				{Loc: classLoc, Data: &js_ast.EArray{Items: class.TSDecorators}},
-				nameFunc(),
+				{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			}),
 		))
+		p.recordUsage(nameForClassDecorators.Ref)
+		p.recordUsage(nameForClassDecorators.Ref)
+	}
+	if generatedLocalStmt {
 		if kind == classKindExportDefaultStmt {
 			// Generate a new default name symbol since the current one is being used
 			// by the class. If this SExportDefault turns into a variable declaration,
@@ -2031,6 +2123,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr) ([]js_ast.Stmt, 
 				Value:       js_ast.ExprOrStmt{Expr: &name},
 			}})
 		}
+
+		// Calling "nameFunc" will set the class name, but we don't want it to have
+		// one. If the class name was necessary, we would have already split it off
+		// into a "const" symbol above. Reset it back to empty here now that we
+		// know we won't call "nameFunc" after this point.
 		class.Name = nil
 	}
 	if keepNameStmt.Data != nil {

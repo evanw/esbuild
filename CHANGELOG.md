@@ -18,6 +18,41 @@
 
     The `name` property of this class object is now `foo`.
 
+* Fix captured class names when class name is re-assigned
+
+    This fixes a corner case with class lowering to better match the JavaScript specification. In JavaScript, the body of a class statement contains an implicit constant symbol with the same name as the symbol of the class statement itself. Lowering certain class features such as private methods means moving them outside the class body, in which case the contents of the private method are no longer within the scope of the constant symbol. This can lead to a behavior change if the class is later re-assigned:
+
+    ```js
+    class Foo {
+      static test() { return this.#method() }
+      static #method() { return Foo }
+    }
+    let old = Foo
+    Foo = class Bar {}
+    console.log(old.test() === old) // This should be true
+    ```
+
+    Previously this would print `false` when transformed to ES6 by esbuild. This now prints `true`. The current transformed output looks like this:
+
+    ```js
+    var _method, method_fn;
+    const Foo2 = class {
+      static test() {
+        return __privateMethod(this, _method, method_fn).call(this);
+      }
+    };
+    let Foo = Foo2;
+    _method = new WeakSet();
+    method_fn = function() {
+      return Foo2;
+    };
+    _method.add(Foo);
+    let old = Foo;
+    Foo = class Bar {
+    };
+    console.log(old.test() === old);
+    ```
+
 ## 0.8.12
 
 * Added an API for incremental builds ([#21](https://github.com/evanw/esbuild/issues/21))

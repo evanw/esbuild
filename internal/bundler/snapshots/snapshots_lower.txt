@@ -1068,13 +1068,14 @@ _x = new WeakMap();
 TestTSLowerPrivateStaticMembers2015NoBundle
 ---------- /out.js ----------
 var _x, _y, y_get, y_set, _z, z_fn;
-class Foo {
+const Foo2 = class {
   foo() {
-    __privateSet(Foo, _x, __privateGet(Foo, _x) + 1);
-    __privateSet(Foo, _y, __privateGet(Foo, _y, y_get) + 1, y_set);
-    __privateMethod(Foo, _z, z_fn).call(Foo);
+    __privateSet(Foo2, _x, __privateGet(Foo2, _x) + 1);
+    __privateSet(Foo2, _y, __privateGet(Foo2, _y, y_get) + 1, y_set);
+    __privateMethod(Foo2, _z, z_fn).call(Foo2);
   }
-}
+};
+let Foo = Foo2;
 _x = new WeakMap();
 _y = new WeakSet();
 y_get = function() {
