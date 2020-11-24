@@ -355,8 +355,7 @@ func (r *resolver) resolveWithoutSymlinks(sourceDir string, importPath string, k
 	// Return early if this is already an absolute path
 	if r.fs.IsAbs(importPath) {
 		// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.tsConfigJSON != nil &&
-			dirInfo.tsConfigJSON.BaseURL != nil && dirInfo.tsConfigJSON.Paths != nil {
+		if dirInfo := r.dirInfoCached(sourceDir); dirInfo != nil && dirInfo.tsConfigJSON != nil && dirInfo.tsConfigJSON.Paths != nil {
 			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJSON, importPath, kind); ok {
 				return &ResolveResult{PathPair: absolute}
 			}
@@ -683,6 +682,10 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 
 	if result.BaseURL != nil && !r.fs.IsAbs(*result.BaseURL) {
 		*result.BaseURL = r.fs.Join(fileDir, *result.BaseURL)
+	}
+
+	if result.Paths != nil && !r.fs.IsAbs(result.BaseURLForPaths) {
+		result.BaseURLForPaths = r.fs.Join(fileDir, result.BaseURLForPaths)
 	}
 
 	return result, nil
@@ -1160,7 +1163,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 		if key == path {
 			for _, originalPath := range originalPaths {
 				// Load the original path relative to the "baseUrl" from tsconfig.json
-				absoluteOriginalPath := r.fs.Join(*tsConfigJSON.BaseURL, originalPath)
+				absoluteOriginalPath := r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
 				if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 					return absolute, true
 				}
@@ -1210,7 +1213,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 			originalPath = strings.Replace(originalPath, "*", matchedText, 1)
 
 			// Load the original path relative to the "baseUrl" from tsconfig.json
-			absoluteOriginalPath := r.fs.Join(*tsConfigJSON.BaseURL, originalPath)
+			absoluteOriginalPath := r.fs.Join(tsConfigJSON.BaseURLForPaths, originalPath)
 			if absolute, ok := r.loadAsFileOrDirectory(absoluteOriginalPath, kind); ok {
 				return absolute, true
 			}
@@ -1222,7 +1225,7 @@ func (r *resolver) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path string, k
 
 func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *dirInfo) (PathPair, bool) {
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-	if dirInfo.tsConfigJSON != nil && dirInfo.tsConfigJSON.BaseURL != nil {
+	if dirInfo.tsConfigJSON != nil {
 		// Try path substitutions first
 		if dirInfo.tsConfigJSON.Paths != nil {
 			if absolute, ok := r.matchTSConfigPaths(dirInfo.tsConfigJSON, path, kind); ok {
@@ -1231,9 +1234,11 @@ func (r *resolver) loadNodeModules(path string, kind ast.ImportKind, dirInfo *di
 		}
 
 		// Try looking up the path relative to the base URL
-		basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, path)
-		if absolute, ok := r.loadAsFileOrDirectory(basePath, kind); ok {
-			return absolute, true
+		if dirInfo.tsConfigJSON.BaseURL != nil {
+			basePath := r.fs.Join(*dirInfo.tsConfigJSON.BaseURL, path)
+			if absolute, ok := r.loadAsFileOrDirectory(basePath, kind); ok {
+				return absolute, true
+			}
 		}
 	}
 

@@ -15,6 +15,12 @@ type TSConfigJSON struct {
 	// The absolute path of "compilerOptions.baseUrl"
 	BaseURL *string
 
+	// This is used if "Paths" is non-nil. It's equal to "BaseURL" except if
+	// "BaseURL" is missing, in which case it is as if "BaseURL" was ".". This
+	// is to implement the "paths without baseUrl" feature from TypeScript 4.1.
+	// More info: https://github.com/microsoft/TypeScript/issues/31869
+	BaseURLForPaths string
+
 	// The verbatim values of "compilerOptions.paths". The keys are patterns to
 	// match and the values are arrays of fallback paths to search. Each key and
 	// each fallback path can optionally have a single "*" wildcard character.
@@ -110,11 +116,14 @@ func ParseTSConfigJSON(
 		}
 
 		// Parse "paths"
-		if valueJSON, valueLoc, ok := getProperty(compilerOptionsJSON, "paths"); ok {
-			if result.BaseURL == nil {
-				log.AddRangeWarning(&source, source.RangeOfString(valueLoc),
-					"Cannot use the \"paths\" property without the \"baseUrl\" property")
-			} else if paths, ok := valueJSON.Data.(*js_ast.EObject); ok {
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "paths"); ok {
+			if paths, ok := valueJSON.Data.(*js_ast.EObject); ok {
+				hasBaseURL := result.BaseURL != nil
+				if hasBaseURL {
+					result.BaseURLForPaths = *result.BaseURL
+				} else {
+					result.BaseURLForPaths = "."
+				}
 				result.Paths = make(map[string][]string)
 				for _, prop := range paths.Properties {
 					if key, ok := getString(prop.Key); ok {
@@ -146,7 +155,8 @@ func ParseTSConfigJSON(
 						if array, ok := prop.Value.Data.(*js_ast.EArray); ok {
 							for _, item := range array.Items {
 								if str, ok := getString(item); ok {
-									if isValidTSConfigPathPattern(str, log, source, item.Loc) {
+									if isValidTSConfigPathPattern(str, log, source, item.Loc) &&
+										(hasBaseURL || isValidTSConfigPathNoBaseURLPattern(str, log, source, item.Loc)) {
 										result.Paths[key] = append(result.Paths[key], str)
 									}
 								}
@@ -193,4 +203,50 @@ func isValidTSConfigPathPattern(text string, log logger.Log, source logger.Sourc
 		}
 	}
 	return true
+}
+
+func isSlash(c byte) bool {
+	return c == '/' || c == '\\'
+}
+
+func isValidTSConfigPathNoBaseURLPattern(text string, log logger.Log, source logger.Source, loc logger.Loc) bool {
+	var c0 byte
+	var c1 byte
+	var c2 byte
+	n := len(text)
+
+	if n > 0 {
+		c0 = text[0]
+		if n > 1 {
+			c1 = text[1]
+			if n > 2 {
+				c2 = text[2]
+			}
+		}
+	}
+
+	// Relative "." or ".."
+	if c0 == '.' && (n == 1 || (n == 2 && c1 == '.')) {
+		return true
+	}
+
+	// Relative "./" or "../" or ".\\" or "..\\"
+	if c0 == '.' && (isSlash(c1) || (c1 == '.' && isSlash(c2))) {
+		return true
+	}
+
+	// Absolute POSIX "/" or UNC "\\"
+	if isSlash(c0) {
+		return true
+	}
+
+	// Absolute DOS "c:/" or "c:\\"
+	if ((c0 >= 'a' && c0 <= 'z') || (c0 >= 'A' && c0 <= 'Z')) && c1 == ':' && isSlash(c2) {
+		return true
+	}
+
+	r := source.RangeOfString(loc)
+	log.AddRangeWarning(&source, r, fmt.Sprintf(
+		"Non-relative path %q is not allowed when \"baseUrl\" is not set (did you forget a leading \"./\"?)", text))
+	return false
 }
