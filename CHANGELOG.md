@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.14
 
 * Fix a concurrency bug caused by an error message change ([#556](https://github.com/evanw/esbuild/issues/556))
 
