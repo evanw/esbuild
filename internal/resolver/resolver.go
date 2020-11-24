@@ -253,6 +253,10 @@ func (r *resolver) ResolveAbs(absPath string) *ResolveResult {
 
 func (r *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	absPath := r.fs.Join(sourceDir, importPath)
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
 	if pair, ok := r.loadAsFileOrDirectory(absPath, kind); ok {
 		return r.finalizeResolve(ResolveResult{PathPair: pair})
 	}

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* Fix a concurrency bug caused by an error message change ([#556](https://github.com/evanw/esbuild/issues/556))
+
+    An improvement to the error message for path resolution was introduced in version 0.8.12. It detects when a relative path is being interpreted as a package path because you forgot to start the path with `./`:
+
+    ```
+     > src/posts/index.js: error: Could not resolve "PostCreate" (use "./PostCreate" to import "src/posts/PostCreate.js")
+        2 │ import PostCreate from 'PostCreate';
+          ╵                        ~~~~~~~~~~~~
+    ```
+
+    This is implemented by re-running path resolution for package path resolution failures as a relative path instead. Unfortunately, this second path resolution operation wasn't guarded by a mutex and could result in concurrency bugs. This issue only occurs when path resolution fails. It is fixed in this release.
+
 ## 0.8.13
 
 * Assigning to a `const` symbol is now an error when bundling
