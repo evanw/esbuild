@@ -43,6 +43,22 @@ const tests = {
     esbuild.startService().then(service => service.transform(''))
     esbuild.startService().then(service => service.transform('', {}))
   `,
+  writeFalseOutputFiles: `
+    import * as esbuild from 'esbuild'
+    esbuild.buildSync({ write: false }).outputFiles[0]
+    esbuild.build({ write: false }).then(result => result.outputFiles[0])
+    esbuild.startService().then(service => service.build({ write: false }).then(result => result.outputFiles[0]))
+  `,
+  incrementalTrueRebuild: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({ incremental: true }).then(result =>
+      result.rebuild().then(result =>
+        result.rebuild()))
+    esbuild.startService().then(service =>
+      service.build({ incremental: true }).then(result =>
+        result.rebuild().then(result =>
+          result.rebuild())))
+  `,
   allOptionsTransform: `
     export {}
     import {transform} from 'esbuild'
