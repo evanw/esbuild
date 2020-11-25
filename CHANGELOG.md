@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Improve TypeScript type definitions ([#559](https://github.com/evanw/esbuild/issues/559))
+
+    The return value of the `build` API has some optional fields that are undefined unless certain arguments are present. That meant you had to use the `!` null assertion operator to avoid a type error if you have the TypeScript `strictNullChecks` setting enabled in your project. This release adds additional type information so that if the relevant arguments are present, the TypeScript compiler can tell that these optional fields on the return value will never be undefined. This change was contributed by [@lukeed](https://github.com/lukeed).
+
 ## 0.8.15
 
 * Allow `paths` without `baseUrl` in `tsconfig.json`
