@@ -195,6 +195,11 @@ type parser struct {
 	typeofRequireEqualsFn       js_ast.E
 	typeofRequireEqualsFnTarget js_ast.E
 
+	// This helps recognize the "require.main" pattern. If this pattern is
+	// present and the output format is CommonJS, we avoid generating a warning
+	// about an unbundled use of "require".
+	cjsDotMainTarget js_ast.E
+
 	// This helps recognize calls to "require.resolve()" which may become
 	// ERequireResolve expressions.
 	resolveCallTarget js_ast.E
@@ -9255,6 +9260,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		// Pattern-match "require.main" from node
+		if p.options.outputFormat == config.FormatCommonJS && e.Name == "main" {
+			p.cjsDotMainTarget = e.Target.Data
+		}
+
 		isCallTarget := e == p.callTarget
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
@@ -9883,7 +9893,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 	}
 
 	// Warn about uses of "require" other than a direct call
-	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.fnOrArrowDataVisit.tryBodyCount == 0 {
+	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && e != p.cjsDotMainTarget && p.fnOrArrowDataVisit.tryBodyCount == 0 {
 		// "typeof require == 'function' && require"
 		if e == p.typeofRequireEqualsFnTarget {
 			// Become "false" in the browser and "require" in node

@@ -3683,3 +3683,41 @@ func TestConstWithLetNoMangle(t *testing.T) {
 		},
 	})
 }
+
+func TestRequireMainCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log('is main:', require.main === module)
+				console.log(require('./is-main'))
+			`,
+			"/is-main.js": `
+				module.exports = require.main === module
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatCommonJS,
+		},
+	})
+}
+
+func TestRequireMainIIFE(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log('is main:', require.main === module)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatIIFE,
+		},
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+`,
+	})
+}

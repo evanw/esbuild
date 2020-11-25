@@ -6,6 +6,10 @@
 
     The return value of the `build` API has some optional fields that are undefined unless certain arguments are present. That meant you had to use the `!` null assertion operator to avoid a type error if you have the TypeScript `strictNullChecks` setting enabled in your project. This release adds additional type information so that if the relevant arguments are present, the TypeScript compiler can tell that these optional fields on the return value will never be undefined. This change was contributed by [@lukeed](https://github.com/lukeed).
 
+* Omit a warning about `require.main` when targeting CommonJS ([#560](https://github.com/evanw/esbuild/issues/560))
+
+    A common pattern in code that's intended to be run in node is to check if `require.main === module`. That will be true if the current file is being run from the command line but false if the current file is being run because some other code called `require()` on it. Previously esbuild generated a warning about an unexpected use of `require`. Now this warning is no longer generated for `require.main` when the output format is `cjs`.
+
 ## 0.8.15
 
 * Allow `paths` without `baseUrl` in `tsconfig.json`
