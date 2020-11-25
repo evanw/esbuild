@@ -272,6 +272,7 @@ export declare function transform(input: string, options?: TransformOptions): Pr
 //
 // Works in node: yes
 // Works in browser: no
+export declare function buildSync(options: BuildOptions & { write: false }): BuildResult & { outputFiles: OutputFile[] };
 export declare function buildSync(options: BuildOptions): BuildResult;
 
 // A synchronous version of "transform".
