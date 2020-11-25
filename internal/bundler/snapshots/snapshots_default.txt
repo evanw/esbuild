@@ -585,7 +585,7 @@ export {
 ================================================================================
 TestExportFormsIIFE
 ---------- /out.js ----------
-var moduleName = (() => {
+var globalName = (() => {
   // /entry.js
   var entry_exports = {};
   __export(entry_exports, {

@@ -625,7 +625,7 @@ func TestExportSelfIIFEWithName(t *testing.T) {
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
-			ModuleName:    []string{"someName"},
+			GlobalName:    []string{"someName"},
 		},
 	})
 }
@@ -1228,7 +1228,7 @@ func TestReExportStarExternalIIFE(t *testing.T) {
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
-			ModuleName:    []string{"mod"},
+			GlobalName:    []string{"mod"},
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
 					"foo": true,
@@ -1292,7 +1292,7 @@ func TestReExportStarIIFENoBundle(t *testing.T) {
 			Mode:          config.ModeConvertFormat,
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
-			ModuleName:    []string{"mod"},
+			GlobalName:    []string{"mod"},
 		},
 	})
 }
@@ -1341,7 +1341,7 @@ func TestReExportStarAsExternalIIFE(t *testing.T) {
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
-			ModuleName:    []string{"mod"},
+			GlobalName:    []string{"mod"},
 			ExternalModules: config.ExternalModules{
 				NodeModules: map[string]bool{
 					"foo": true,
@@ -1405,7 +1405,7 @@ func TestReExportStarAsIIFENoBundle(t *testing.T) {
 			Mode:          config.ModeConvertFormat,
 			OutputFormat:  config.FormatIIFE,
 			AbsOutputFile: "/out.js",
-			ModuleName:    []string{"mod"},
+			GlobalName:    []string{"mod"},
 		},
 	})
 }

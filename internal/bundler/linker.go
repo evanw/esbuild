@@ -428,7 +428,7 @@ func newLinkerContext(
 		// when the global name is present, since that's the only way the exports
 		// can actually be observed externally.
 		if repr, ok := file.repr.(*reprJS); ok && repr.ast.HasES6Exports && (options.OutputFormat == config.FormatCommonJS ||
-			(options.OutputFormat == config.FormatIIFE && len(options.ModuleName) > 0)) {
+			(options.OutputFormat == config.FormatIIFE && len(options.GlobalName) > 0)) {
 			repr.ast.UsesExportsRef = true
 			repr.meta.forceIncludeExportsForEntryPoint = true
 		}
@@ -1656,7 +1656,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 				}}}}
 
 			case config.FormatIIFE:
-				if len(c.options.ModuleName) > 0 {
+				if len(c.options.GlobalName) > 0 {
 					// "return require_foo();"
 					cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
 						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
@@ -1686,7 +1686,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
 				}}}}}
 			}
-		} else if repr.meta.forceIncludeExportsForEntryPoint && c.options.OutputFormat == config.FormatIIFE && len(c.options.ModuleName) > 0 {
+		} else if repr.meta.forceIncludeExportsForEntryPoint && c.options.OutputFormat == config.FormatIIFE && len(c.options.GlobalName) > 0 {
 			// "return exports;"
 			cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}}}}
 		}
@@ -3402,8 +3402,8 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		if c.options.OutputFormat == config.FormatIIFE {
 			var text string
 			indent = "  "
-			if len(c.options.ModuleName) > 0 {
-				text = c.generateModuleNamePrefix()
+			if len(c.options.GlobalName) > 0 {
+				text = c.generateGlobalNamePrefix()
 			}
 			if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
 				text += "(function()" + space + "{" + newline
@@ -3719,9 +3719,9 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 	}
 }
 
-func (c *linkerContext) generateModuleNamePrefix() string {
+func (c *linkerContext) generateGlobalNamePrefix() string {
 	var text string
-	prefix := c.options.ModuleName[0]
+	prefix := c.options.GlobalName[0]
 	space := " "
 	join := ";\n"
 
@@ -3740,7 +3740,7 @@ func (c *linkerContext) generateModuleNamePrefix() string {
 		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
 	}
 
-	for _, name := range c.options.ModuleName[1:] {
+	for _, name := range c.options.GlobalName[1:] {
 		oldPrefix := prefix
 		if js_printer.CanQuoteIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 			if c.options.ASCIIOnly {
