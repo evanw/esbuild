@@ -10,6 +10,10 @@
 
     A common pattern in code that's intended to be run in node is to check if `require.main === module`. That will be true if the current file is being run from the command line but false if the current file is being run because some other code called `require()` on it. Previously esbuild generated a warning about an unexpected use of `require`. Now this warning is no longer generated for `require.main` when the output format is `cjs`.
 
+* Warn about defining `process.env.NODE_ENV` as an identifier ([#466](https://github.com/evanw/esbuild/issues/466))
+
+    The define feature can be used to replace an expression with either a JSON literal or an identifier. Forgetting to put quotes around a string turns it into an identifier, which is a common mistake. This release introduces a warning when you define `process.env.NODE_ENV` as an identifier instead of a string. It's very common to use define to replace `process.env.NODE_ENV` with either `"production"` or `"development"` and sometimes people accidentally replace it with `production` or `development` instead. This is worth warning about because otherwise there would be no indication that something is wrong until the code crashes when run.
+
 ## 0.8.15
 
 * Allow `paths` without `baseUrl` in `tsconfig.json`
