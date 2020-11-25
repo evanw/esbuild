@@ -1658,6 +1658,15 @@ let transformTests = {
     assert.strictEqual(code, `console.log("production");\n`)
   },
 
+  async defineWarning({ service }) {
+    const define = { 'process.env.NODE_ENV': 'production' }
+    const { code, warnings } = await service.transform(`console.log(process.env.NODE_ENV)`, { define })
+    assert.strictEqual(code, `console.log(production);\n`)
+    assert.strictEqual(warnings.length, 1)
+    assert.strictEqual(warnings[0].text,
+      `"process.env.NODE_ENV" is defined as an identifier instead of a string (surround "production" with double quotes to get a string)`)
+  },
+
   async json({ service }) {
     const { code } = await service.transform(`{ "x": "y" }`, { loader: 'json' })
     assert.strictEqual(code, `module.exports = {x: "y"};\n`)

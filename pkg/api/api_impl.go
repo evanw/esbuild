@@ -341,6 +341,12 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 						return &js_ast.EIdentifier{Ref: findSymbol(loc, name)}
 					},
 				}
+
+				// Try to be helpful for common mistakes
+				if key == "process.env.NODE_ENV" {
+					log.AddWarning(nil, logger.Loc{}, fmt.Sprintf(
+						"%q is defined as an identifier instead of a string (surround %q with double quotes to get a string)", key, value))
+				}
 				continue
 			}
 		}
