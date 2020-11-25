@@ -612,6 +612,24 @@ func TestExportSelfIIFE(t *testing.T) {
 	})
 }
 
+func TestExportSelfIIFEWithName(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export const foo = 123
+				export * from './entry'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatIIFE,
+			AbsOutputFile: "/out.js",
+			ModuleName:    []string{"someName"},
+		},
+	})
+}
+
 func TestExportSelfES6(t *testing.T) {
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{

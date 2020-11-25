@@ -45,15 +45,11 @@ var foo = __toModule(require_foo());
 TestExportSelfAndImportSelfCommonJS
 ---------- /out.js ----------
 // /entry.js
-var require_entry = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo
-  });
-  var x = __toModule(require_entry());
-  var foo = 123;
-  console.log(x);
+__export(exports, {
+  foo: () => foo
 });
-module.exports = require_entry();
+var foo = 123;
+console.log(exports);
 
 ================================================================================
 TestExportSelfAndRequireSelfCommonJS
@@ -72,15 +68,11 @@ module.exports = require_entry();
 TestExportSelfAsNamespaceCommonJS
 ---------- /out.js ----------
 // /entry.js
-var require_entry = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo,
-    ns: () => ns
-  });
-  var ns = __toModule(require_entry());
-  var foo = 123;
+__export(exports, {
+  foo: () => foo,
+  ns: () => exports
 });
-module.exports = require_entry();
+var foo = 123;
 
 ================================================================================
 TestExportSelfAsNamespaceES6
@@ -101,13 +93,10 @@ export {
 TestExportSelfCommonJS
 ---------- /out.js ----------
 // /entry.js
-var require_entry = __commonJS((exports) => {
-  __export(exports, {
-    foo: () => foo
-  });
-  var foo = 123;
+__export(exports, {
+  foo: () => foo
 });
-module.exports = require_entry();
+var foo = 123;
 
 ================================================================================
 TestExportSelfCommonJSMinified
@@ -133,13 +122,20 @@ TestExportSelfIIFE
 ---------- /out.js ----------
 (() => {
   // /entry.js
-  var require_entry = __commonJS((exports) => {
-    __export(exports, {
-      foo: () => foo
-    });
-    var foo = 123;
+  var foo = 123;
+})();
+
+================================================================================
+TestExportSelfIIFEWithName
+---------- /out.js ----------
+var someName = (() => {
+  // /entry.js
+  var entry_exports = {};
+  __export(entry_exports, {
+    foo: () => foo
   });
-  require_entry();
+  var foo = 123;
+  return entry_exports;
 })();
 
 ================================================================================
@@ -772,26 +768,24 @@ TestReExportStarAsExternalIIFE
 ---------- /out.js ----------
 var mod = (() => {
   // /entry.js
-  var require_entry = __commonJS((exports) => {
-    __export(exports, {
-      out: () => out
-    });
-    var out = __toModule(require("foo"));
+  var entry_exports = {};
+  __export(entry_exports, {
+    out: () => out
   });
-  return require_entry();
+  var out = __toModule(require("foo"));
+  return entry_exports;
 })();
 
 ================================================================================
 TestReExportStarAsIIFENoBundle
 ---------- /out.js ----------
 var mod = (() => {
-  var require_entry = __commonJS((exports) => {
-    __export(exports, {
-      out: () => out
-    });
-    var out = __toModule(require("foo"));
+  var entry_exports = {};
+  __export(entry_exports, {
+    out: () => out
   });
-  return require_entry();
+  var out = __toModule(require("foo"));
+  return entry_exports;
 })();
 
 ================================================================================

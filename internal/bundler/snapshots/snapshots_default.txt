@@ -587,26 +587,17 @@ TestExportFormsIIFE
 ---------- /out.js ----------
 var moduleName = (() => {
   // /entry.js
-  var require_entry = __commonJS((exports) => {
-    __export(exports, {
-      C: () => Class,
-      Class: () => Class,
-      Fn: () => Fn,
-      abc: () => abc,
-      b: () => b_exports,
-      c: () => c,
-      default: () => entry_default,
-      l: () => l,
-      v: () => v
-    });
-    var entry_default = 123;
-    var v = 234;
-    var l = 234;
-    var c = 234;
-    function Fn() {
-    }
-    var Class = class {
-    };
+  var entry_exports = {};
+  __export(entry_exports, {
+    C: () => Class,
+    Class: () => Class,
+    Fn: () => Fn,
+    abc: () => abc,
+    b: () => b_exports,
+    c: () => c,
+    default: () => entry_default,
+    l: () => l,
+    v: () => v
   });
 
   // /a.js
@@ -618,7 +609,17 @@ var moduleName = (() => {
     xyz: () => xyz
   });
   var xyz = null;
-  return require_entry();
+
+  // /entry.js
+  var entry_default = 123;
+  var v = 234;
+  var l = 234;
+  var c = 234;
+  function Fn() {
+  }
+  var Class = class {
+  };
+  return entry_exports;
 })();
 
 ================================================================================

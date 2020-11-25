@@ -89,8 +89,28 @@
     )
   }
 
-  // Test internal import order (see https://github.com/evanw/esbuild/issues/421)
+  let simpleCyclicImportTestCase542 = {
+    'in.js': `
+      import {Test} from './lib';
+      export function fn() {
+        return 42;
+      }
+      export const foo = [Test];
+      if (Test.method() !== 42) throw 'fail'
+    `,
+    'lib.js': `
+      import {fn} from './in';
+      export class Test {
+        static method() {
+          return fn();
+        }
+      }
+    `,
+  }
+
+  // Test internal import order
   tests.push(
+    // See https://github.com/evanw/esbuild/issues/421
     test(['--bundle', 'in.js', '--outfile=node.js'], {
       'in.js': `
         import {foo} from './cjs'
@@ -109,6 +129,11 @@
       'cjs.js': `exports.foo = 3; global.internal_import_order_test2 = 4`,
       'esm.js': `export let bar = global.internal_import_order_test2`,
     }),
+
+    // See https://github.com/evanw/esbuild/issues/542
+    test(['--bundle', 'in.js', '--outfile=node.js'], simpleCyclicImportTestCase542),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=iife'], simpleCyclicImportTestCase542),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=iife', '--global-name=someName'], simpleCyclicImportTestCase542),
   )
 
   // Test CommonJS semantics

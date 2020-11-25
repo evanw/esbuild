@@ -10,6 +10,67 @@
 
     With TypeScript 4.1, you can now omit `baseUrl` when using `paths`. When you do this, it as if you had written `"baseUrl": "."` instead for the purpose of the `paths` feature, but the `baseUrl` value is not actually set and does not affect path resolution. These `tsconfig.json` files are now supported by esbuild.
 
+* Fix evaluation order issue with import cycles and CommonJS-style output formats ([#542](https://github.com/evanw/esbuild/issues/542))
+
+    Previously entry points involved in an import cycle could cause evaluation order issues if the output format was `iife` or `cjs` instead of `esm`. This happened because this edge case was handled by treating the entry point file as a CommonJS file, which extracted the code into a CommonJS wrapper. Here's an example:
+
+    Input files:
+
+    ```js
+    // index.js
+    import { test } from './lib'
+    export function fn() { return 42 }
+    if (test() !== 42) throw 'failure'
+    ```
+
+    ```js
+    // lib.js
+    import { fn } from './index'
+    export let test = fn
+    ```
+
+    Previous output (problematic):
+
+    ```js
+    // index.js
+    var require_esbuild = __commonJS((exports) => {
+      __export(exports, {
+        fn: () => fn2
+      });
+      function fn2() {
+        return 42;
+      }
+      if (test() !== 42)
+        throw "failure";
+    });
+
+    // lib.js
+    var index = __toModule(require_esbuild());
+    var test = index.fn;
+    module.exports = require_esbuild();
+    ```
+
+    This approach changed the evaluation order because the CommonJS wrapper conflates both binding and evaluation. Binding and evaluation need to be separated to correctly handle this edge case. This edge case is now handled by inlining what would have been the contents of the CommonJS wrapper into the entry point location itself.
+
+    Current output (fixed):
+
+    ```js
+    // index.js
+    __export(exports, {
+      fn: () => fn
+    });
+
+    // lib.js
+    var test = fn;
+
+    // index.js
+    function fn() {
+      return 42;
+    }
+    if (test() !== 42)
+      throw "failure";
+    ```
+
 ## 0.8.14
 
 * Fix a concurrency bug caused by an error message change ([#556](https://github.com/evanw/esbuild/issues/556))

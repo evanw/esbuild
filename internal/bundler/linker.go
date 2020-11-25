@@ -155,6 +155,13 @@ type fileMeta struct {
 	// this module must be added as getters to the CommonJS "exports" object.
 	cjsStyleExports bool
 
+	// If true, the "__export(exports, { ... })" call will be force-included even
+	// if there are no parts that reference "exports". Otherwise this call will
+	// be removed due to the tree shaking pass. This is used when for entry point
+	// files when code related to the current output format needs to reference
+	// the "exports" variable.
+	forceIncludeExportsForEntryPoint bool
+
 	// This is set when we need to pull in the "__export" symbol in to the part
 	// at "nsExportPartIndex". This can't be done in "createExportsForFile"
 	// because of concurrent map hazards. Instead, it must be done later.
@@ -416,12 +423,14 @@ func newLinkerContext(
 		file := &c.files[sourceIndex]
 		file.isEntryPoint = true
 
-		// Entry points must be CommonJS-style if the output format doesn't support
-		// ES6 export syntax
-		if !options.OutputFormat.KeepES6ImportExportSyntax() {
-			if repr, ok := file.repr.(*reprJS); ok && repr.ast.HasES6Exports {
-				repr.meta.cjsStyleExports = true
-			}
+		// Entry points with ES6 exports must generate an exports object when
+		// targeting non-ES6 formats. Note that the IIFE format only needs this
+		// when the global name is present, since that's the only way the exports
+		// can actually be observed externally.
+		if repr, ok := file.repr.(*reprJS); ok && repr.ast.HasES6Exports && (options.OutputFormat == config.FormatCommonJS ||
+			(options.OutputFormat == config.FormatIIFE && len(options.ModuleName) > 0)) {
+			repr.ast.UsesExportsRef = true
+			repr.meta.forceIncludeExportsForEntryPoint = true
 		}
 	}
 
@@ -1239,7 +1248,8 @@ func (c *linkerContext) scanImportsAndExports() {
 	// Step 6: Bind imports to exports. This adds non-local dependencies on the
 	// parts that declare the export to all parts that use the import.
 	for _, sourceIndex := range c.reachableFiles {
-		repr, ok := c.files[sourceIndex].repr.(*reprJS)
+		file := &c.files[sourceIndex]
+		repr, ok := file.repr.(*reprJS)
 		if !ok {
 			continue
 		}
@@ -1249,8 +1259,9 @@ func (c *linkerContext) scanImportsAndExports() {
 		// actual CommonJS files from being renamed. This is purely about
 		// aesthetics and is not about correctness. This is done here because by
 		// this point, we know the CommonJS status will not change further.
-		if !repr.meta.cjsWrap && !repr.meta.cjsStyleExports {
-			name := c.files[sourceIndex].source.IdentifierName
+		if !repr.meta.cjsWrap && !repr.meta.cjsStyleExports && (!file.isEntryPoint ||
+			c.options.OutputFormat != config.FormatCommonJS) {
+			name := file.source.IdentifierName
 			c.symbols.Get(repr.ast.ExportsRef).OriginalName = name + "_exports"
 			c.symbols.Get(repr.ast.ModuleRef).OriginalName = name + "_module"
 		}
@@ -1562,7 +1573,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// Prefix this part with "var exports = {}" if this isn't a CommonJS module
 	declaredSymbols := []js_ast.DeclaredSymbol{}
 	var nsExportStmts []js_ast.Stmt
-	if !repr.meta.cjsStyleExports {
+	if !repr.meta.cjsStyleExports && (!file.isEntryPoint || c.options.OutputFormat != config.FormatCommonJS) {
 		nsExportStmts = append(nsExportStmts, js_ast.Stmt{Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
 			Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.ast.ExportsRef}},
 			Value:   &js_ast.Expr{Data: &js_ast.EObject{}},
@@ -1635,44 +1646,49 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	// If we're an entry point, call the require function at the end of the
 	// bundle right before bundle evaluation ends
 	var cjsWrapStmt js_ast.Stmt
-	if file.isEntryPoint && repr.meta.cjsWrap {
-		switch c.options.OutputFormat {
-		case config.FormatPreserve:
-			// "require_foo();"
-			cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-			}}}}
-
-		case config.FormatIIFE:
-			if len(c.options.ModuleName) > 0 {
-				// "return require_foo();"
-				cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-				}}}}
-			} else {
+	if file.isEntryPoint {
+		if repr.meta.cjsWrap {
+			switch c.options.OutputFormat {
+			case config.FormatPreserve:
 				// "require_foo();"
 				cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
 				}}}}
-			}
 
-		case config.FormatCommonJS:
-			// "module.exports = require_foo();"
-			cjsWrapStmt = js_ast.AssignStmt(
-				js_ast.Expr{Data: &js_ast.EDot{
-					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
-					Name:   "exports",
-				}},
-				js_ast.Expr{Data: &js_ast.ECall{
+			case config.FormatIIFE:
+				if len(c.options.ModuleName) > 0 {
+					// "return require_foo();"
+					cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.ECall{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+					}}}}
+				} else {
+					// "require_foo();"
+					cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+					}}}}
+				}
+
+			case config.FormatCommonJS:
+				// "module.exports = require_foo();"
+				cjsWrapStmt = js_ast.AssignStmt(
+					js_ast.Expr{Data: &js_ast.EDot{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+						Name:   "exports",
+					}},
+					js_ast.Expr{Data: &js_ast.ECall{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
+					}},
+				)
+
+			case config.FormatESModule:
+				// "export default require_foo();"
+				cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SExportDefault{Value: js_ast.ExprOrStmt{Expr: &js_ast.Expr{Data: &js_ast.ECall{
 					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-				}},
-			)
-
-		case config.FormatESModule:
-			// "export default require_foo();"
-			cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SExportDefault{Value: js_ast.ExprOrStmt{Expr: &js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.WrapperRef}},
-			}}}}}
+				}}}}}
+			}
+		} else if repr.meta.forceIncludeExportsForEntryPoint && c.options.OutputFormat == config.FormatIIFE && len(c.options.ModuleName) > 0 {
+			// "return exports;"
+			cjsWrapStmt = js_ast.Stmt{Data: &js_ast.SReturn{Value: &js_ast.Expr{Data: &js_ast.EIdentifier{Ref: repr.ast.ExportsRef}}}}
 		}
 	}
 
@@ -2216,6 +2232,11 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 				for _, partIndex := range targetRepr.ast.TopLevelSymbolToParts[targetRef] {
 					c.includePart(targetSourceIndex, partIndex, entryPointBit, distanceFromEntryPoint)
 				}
+			}
+
+			// Ensure "exports" is included if the current output format needs it
+			if repr.meta.forceIncludeExportsForEntryPoint {
+				c.includePart(sourceIndex, repr.meta.nsExportPartIndex, entryPointBit, distanceFromEntryPoint)
 			}
 		}
 
