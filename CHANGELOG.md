@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.15
 
 * Allow `paths` without `baseUrl` in `tsconfig.json`
 
