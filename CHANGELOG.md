@@ -14,6 +14,34 @@
 
     The define feature can be used to replace an expression with either a JSON literal or an identifier. Forgetting to put quotes around a string turns it into an identifier, which is a common mistake. This release introduces a warning when you define `process.env.NODE_ENV` as an identifier instead of a string. It's very common to use define to replace `process.env.NODE_ENV` with either `"production"` or `"development"` and sometimes people accidentally replace it with `production` or `development` instead. This is worth warning about because otherwise there would be no indication that something is wrong until the code crashes when run.
 
+* Allow starting a local server at a specific host address ([#563](https://github.com/evanw/esbuild/pull/563))
+
+    By default, esbuild's local HTTP server is only available on the internal loopback address. This is deliberate behavior for security reasons, since the local network environment may not be trusted. However, it can be useful to run the server on a different address when developing with esbuild inside of a virtual machine/docker container or to request development assets from a remote testing device on the same network at a different IP address. With this release, you can now optionally specify the host in addition to the port:
+
+    ```
+    esbuild --serve=192.168.0.1:8000
+    ```
+
+    ```js
+    esbuild.serve({
+      host: '192.168.0.1',
+      port: 8000,
+    }, {
+      ...
+    })
+    ```
+
+    ```go
+    server, err := api.Serve(api.ServeOptions{
+      Host: "192.168.0.1",
+      Port: 8000,
+    }, api.BuildOptions{
+      ...
+    })
+    ```
+
+    This change was contributed by [@jamalc](https://github.com/jamalc).
+
 ## 0.8.15
 
 * Allow `paths` without `baseUrl` in `tsconfig.json`
