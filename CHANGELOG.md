@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.16
 
 * Improve TypeScript type definitions ([#559](https://github.com/evanw/esbuild/issues/559))
 
