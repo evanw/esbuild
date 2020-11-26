@@ -503,7 +503,7 @@ func runImpl(osArgs []string) int {
 	// Special-case running a server
 	for i, arg := range osArgs {
 		if arg == "--serve" {
-			arg = "--serve=:0"
+			arg = "--serve=0"
 		}
 		if strings.HasPrefix(arg, "--serve=") {
 			serve := arg[len("--serve="):]
@@ -577,10 +577,19 @@ func runImpl(osArgs []string) int {
 }
 
 func serveImpl(serveText string, osArgs []string) error {
-	host, portText, err := net.SplitHostPort(serveText)
-	if err != nil {
-		return err
+	host := ""
+	portText := serveText
+
+	// Specifying the host is optional
+	if strings.ContainsRune(serveText, ':') {
+		var err error
+		host, portText, err = net.SplitHostPort(serveText)
+		if err != nil {
+			return err
+		}
 	}
+
+	// Parse the port
 	port, err := strconv.ParseInt(portText, 10, 32)
 	if err != nil {
 		return err

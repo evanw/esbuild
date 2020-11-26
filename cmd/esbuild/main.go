@@ -37,7 +37,7 @@ Options:
   --outdir=...          The output directory (for multiple entry points)
   --outfile=...         The output file (for one entry point)
   --platform=...        Platform target (browser | node, default browser)
-  --serve=...           Start a local HTTP server on this [host]:port for outputs
+  --serve=...           Start a local HTTP server on this host:port for outputs
   --sourcemap           Emit a source map
   --splitting           Enable code splitting (currently only for esm)
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,

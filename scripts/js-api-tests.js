@@ -1231,10 +1231,14 @@ let serveTests = {
       let singleRequestPromise = new Promise(resolve => {
         onRequest = resolve;
       });
+
       const result = await toTest.serve({ onRequest }, { entryPoints: [input], format: 'esm' })
+      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(typeof result.port, 'number');
+
       const buffer = await new Promise((resolve, reject) => {
         http.get({
-          host: '127.0.0.1',
+          host: result.host,
           port: result.port,
           path: '/in.js',
         }, res => {
@@ -1243,7 +1247,6 @@ let serveTests = {
           res.on('end', () => resolve(Buffer.concat(chunks)))
         }).on('error', reject)
       })
-
       assert.strictEqual(buffer.toString(), `console.log(123);\n`);
 
       let singleRequest = await singleRequestPromise;
