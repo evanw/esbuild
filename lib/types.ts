@@ -101,6 +101,7 @@ export interface BuildFailure extends Error {
 
 export interface ServeOptions {
   port?: number;
+  host?: string;
   onRequest?: (args: ServeOnRequestArgs) => void;
 }
 
@@ -114,6 +115,7 @@ export interface ServeOnRequestArgs {
 
 export interface ServeResult {
   port: number;
+  host: string;
   wait: Promise<void>;
   stop: () => void;
 }

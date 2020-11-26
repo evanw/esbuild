@@ -1151,6 +1151,9 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 	// Pick the port
 	var listener net.Listener
 	host := "127.0.0.1"
+	if serveOptions.Host != "" {
+		host = serveOptions.Host
+	}
 	if serveOptions.Port == 0 {
 		// Default to picking a "800X" port
 		for port := 8000; port <= 8009; port++ {
@@ -1174,9 +1177,10 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 
 	// Extract the real port in case we passed a port of "0"
 	var result ServeResult
-	if _, text, err := net.SplitHostPort(addr); err == nil {
+	if host, text, err := net.SplitHostPort(addr); err == nil {
 		if port, err := strconv.ParseInt(text, 10, 32); err == nil {
 			result.Port = uint16(port)
+			result.Host = host
 		}
 	}
 

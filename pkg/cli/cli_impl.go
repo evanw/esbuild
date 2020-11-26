@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"sort"
 	"strconv"
@@ -502,7 +503,7 @@ func runImpl(osArgs []string) int {
 	// Special-case running a server
 	for i, arg := range osArgs {
 		if arg == "--serve" {
-			arg = "--serve=0"
+			arg = "--serve=:0"
 		}
 		if strings.HasPrefix(arg, "--serve=") {
 			serve := arg[len("--serve="):]
@@ -575,7 +576,11 @@ func runImpl(osArgs []string) int {
 	return 0
 }
 
-func serveImpl(portText string, osArgs []string) error {
+func serveImpl(serveText string, osArgs []string) error {
+	host, portText, err := net.SplitHostPort(serveText)
+	if err != nil {
+		return err
+	}
 	port, err := strconv.ParseInt(portText, 10, 32)
 	if err != nil {
 		return err
@@ -597,6 +602,7 @@ func serveImpl(portText string, osArgs []string) error {
 
 	serveOptions := api.ServeOptions{
 		Port: uint16(port),
+		Host: host,
 		OnRequest: func(args api.ServeOnRequestArgs) {
 			logger.PrintTextToStderr(logger.LevelInfo, osArgs, func(colors logger.Colors) string {
 				statusColor := colors.Red
@@ -617,8 +623,8 @@ func serveImpl(portText string, osArgs []string) error {
 
 	// Show what actually got bound if the port was 0
 	logger.PrintTextToStderr(logger.LevelInfo, osArgs, func(colors logger.Colors) string {
-		return fmt.Sprintf("%s\n > %shttp://localhost:%d/%s\n\n",
-			colors.Default, colors.Underline, result.Port, colors.Default)
+		return fmt.Sprintf("%s\n > %shttp://%s:%d/%s\n\n",
+			colors.Default, colors.Underline, result.Host, result.Port, colors.Default)
 	})
 	return result.Wait()
 }

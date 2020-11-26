@@ -21,10 +21,12 @@ export interface BuildRequest {
 export interface ServeRequest {
   serveID: number;
   port?: number;
+  host?: string;
 }
 
 export interface ServeResponse {
   port: number;
+  host: string;
 }
 
 export interface ServeStopRequest {
