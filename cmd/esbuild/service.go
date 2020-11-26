@@ -508,6 +508,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		if port, ok := serve["port"]; ok {
 			serveOptions.Port = uint16(port.(int))
 		}
+		if host, ok := serve["host"]; ok {
+			serveOptions.Host = host.(string)
+		}
 		serveOptions.OnRequest = func(args api.ServeOnRequestArgs) {
 			service.sendRequest(map[string]interface{}{
 				"command": "serve-request",
@@ -527,6 +530,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}
 		response := map[string]interface{}{
 			"port": int(result.Port),
+			"host": result.Host,
 		}
 
 		// Asynchronously wait for the server to stop, then fulfil the "wait" promise
