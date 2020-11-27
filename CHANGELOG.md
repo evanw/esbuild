@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Get esbuild working on the Apple M1 chip via Rosetta 2 ([#564](https://github.com/evanw/esbuild/pull/564))
+
+    The Go compiler toolchain does not yet support the new Apple M1 chip. Go version 1.15 is currently in a feature freeze period so support will be added in the next version, Go 1.16, which will be [released in February](https://blog.golang.org/11years#TOC_3.).
+
+    This release changes the install script to install the executable for macOS `x64` on macOS `arm64` too. Doing this should still work because of the executable translation layer built into macOS. This change was contributed by [@sod](https://github.com/sod).
+
 ## 0.8.16
 
 * Improve TypeScript type definitions ([#559](https://github.com/evanw/esbuild/issues/559))
