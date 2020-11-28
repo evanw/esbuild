@@ -452,25 +452,13 @@ func newLinkerContext(
 	return c
 }
 
-type indexAndPath struct {
-	sourceIndex uint32
-	path        logger.Path
-}
-
-// This type is just so we can use Go's native sort function
-type indexAndPathArray []indexAndPath
-
-func (a indexAndPathArray) Len() int          { return len(a) }
-func (a indexAndPathArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
-
-func (a indexAndPathArray) Less(i int, j int) bool {
-	return a[i].path.ComesBeforeInSortedOrder(a[j].path)
-}
-
-// Find all files reachable from all entry points
+// Find all files reachable from all entry points. This order should be
+// deterministic given that the entry point order is deterministic, since the
+// returned order is the postorder of the graph traversal and import record
+// order within a given file is deterministic.
 func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 	visited := make(map[uint32]bool)
-	sorted := indexAndPathArray{}
+	var order []uint32
 	var visit func(uint32)
 
 	// Include this file and all files it imports
@@ -486,7 +474,9 @@ func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 					visit(*record.SourceIndex)
 				}
 			}
-			sorted = append(sorted, indexAndPath{sourceIndex, file.source.KeyPath})
+
+			// Each file must come after its dependencies
+			order = append(order, sourceIndex)
 		}
 	}
 
@@ -498,15 +488,7 @@ func findReachableFiles(files []file, entryPoints []uint32) []uint32 {
 		visit(entryPoint)
 	}
 
-	// Sort by absolute path for determinism
-	sort.Sort(sorted)
-
-	// Extract the source indices
-	reachableFiles := make([]uint32, len(sorted))
-	for i, item := range sorted {
-		reachableFiles[i] = item.sourceIndex
-	}
-	return reachableFiles
+	return order
 }
 
 func (c *linkerContext) addRangeError(source logger.Source, r logger.Range, text string) {

@@ -1432,22 +1432,16 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 }
 
 func (b *Bundle) generateMetadataJSON(results []OutputFile, asciiOnly bool) []byte {
-	// Sort files by key path for determinism
-	sorted := make(indexAndPathArray, 0, len(b.files))
-	for sourceIndex, file := range b.files {
-		if uint32(sourceIndex) != runtime.SourceIndex {
-			sorted = append(sorted, indexAndPath{uint32(sourceIndex), file.source.KeyPath})
-		}
-	}
-	sort.Sort(sorted)
-
 	j := js_printer.Joiner{}
 	j.AddString("{\n  \"inputs\": {")
 
 	// Write inputs
 	isFirst := true
-	for _, item := range sorted {
-		if file := &b.files[item.sourceIndex]; len(file.jsonMetadataChunk) > 0 {
+	for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
+		if sourceIndex == runtime.SourceIndex {
+			continue
+		}
+		if file := &b.files[sourceIndex]; len(file.jsonMetadataChunk) > 0 {
 			if isFirst {
 				isFirst = false
 				j.AddString("\n    ")
