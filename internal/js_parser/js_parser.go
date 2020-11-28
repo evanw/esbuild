@@ -10928,7 +10928,7 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 
 	// Defer the actual code generation until linking
 	part := js_ast.Part{
-		Stmts:      []js_ast.Stmt{js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SLazyExport{Value: expr}}},
+		Stmts:      []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SLazyExport{Value: expr}}},
 		SymbolUses: p.symbolUses,
 	}
 	p.symbolUses = nil

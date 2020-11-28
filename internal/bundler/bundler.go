@@ -1540,7 +1540,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		Platform:          key.Platform,
 		Defines:           cache.processedDefines(key.Platform),
 		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(
-			map[compat.Engine][]int{compat.ES: []int{constraint}}),
+			map[compat.Engine][]int{compat.ES: {constraint}}),
 
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code
@@ -1590,7 +1590,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 		platform = "node"
 	}
 	result := config.ProcessDefines(map[string]config.DefineData{
-		"__platform": config.DefineData{
+		"__platform": {
 			DefineFunc: func(logger.Loc, config.FindSymbol) js_ast.E {
 				return &js_ast.EString{Value: js_lexer.StringToUTF16(platform)}
 			},

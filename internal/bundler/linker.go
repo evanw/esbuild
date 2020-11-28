@@ -1365,7 +1365,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		// Link the export into the graph for tree shaking
 		partIndex := c.addPartToFile(sourceIndex, js_ast.Part{
 			Stmts:                []js_ast.Stmt{stmt},
-			SymbolUses:           map[js_ast.Ref]js_ast.SymbolUse{repr.ast.ModuleRef: js_ast.SymbolUse{CountEstimate: 1}},
+			SymbolUses:           map[js_ast.Ref]js_ast.SymbolUse{repr.ast.ModuleRef: {CountEstimate: 1}},
 			DeclaredSymbols:      []js_ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
 			CanBeRemovedIfUnused: true,
 		}, partMeta{})

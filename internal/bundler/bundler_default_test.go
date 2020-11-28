@@ -3173,7 +3173,7 @@ func TestInjectDuplicate(t *testing.T) {
 
 func TestInject(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"chain.prop": config.DefineData{
+		"chain.prop": {
 			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
 				return &js_ast.EIdentifier{Ref: findSymbol(loc, "replace")}
 			},
@@ -3240,7 +3240,7 @@ func TestInject(t *testing.T) {
 
 func TestInjectNoBundle(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"chain.prop": config.DefineData{
+		"chain.prop": {
 			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
 				return &js_ast.EIdentifier{Ref: findSymbol(loc, "replace")}
 			},
@@ -3301,7 +3301,7 @@ func TestInjectNoBundle(t *testing.T) {
 
 func TestInjectJSX(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"React.createElement": config.DefineData{
+		"React.createElement": {
 			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
 				return &js_ast.EIdentifier{Ref: findSymbol(loc, "el")}
 			},
@@ -3489,7 +3489,7 @@ func TestProcessEnvNodeEnvWarningNode(t *testing.T) {
 
 func TestProcessEnvNodeEnvWarningDefine(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"process.env.NODE_ENV": config.DefineData{
+		"process.env.NODE_ENV": {
 			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
 				return &js_ast.ENull{}
 			},

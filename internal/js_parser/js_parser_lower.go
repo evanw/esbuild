@@ -347,15 +347,15 @@ func (p *parser) lowerFunction(
 			argRef := p.newSymbol(js_ast.SymbolOther, "key")
 			p.currentScope.Generated = append(p.currentScope.Generated, *p.fnOrArrowDataVisit.superIndexRef, argRef)
 			superIndexStmt := js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SLocal{
-				Decls: []js_ast.Decl{js_ast.Decl{
+				Decls: []js_ast.Decl{{
 					Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: *p.fnOrArrowDataVisit.superIndexRef}},
 					Value: &js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EArrow{
-						Args: []js_ast.Arg{js_ast.Arg{
+						Args: []js_ast.Arg{{
 							Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}},
 						}},
 						Body: js_ast.FnBody{
 							Loc: bodyLoc,
-							Stmts: []js_ast.Stmt{js_ast.Stmt{Loc: bodyLoc, Data: &js_ast.SReturn{
+							Stmts: []js_ast.Stmt{{Loc: bodyLoc, Data: &js_ast.SReturn{
 								Value: &js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIndex{
 									Target: js_ast.Expr{Loc: bodyLoc, Data: &js_ast.ESuper{}},
 									Index:  js_ast.Expr{Loc: bodyLoc, Data: &js_ast.EIdentifier{Ref: argRef}},
