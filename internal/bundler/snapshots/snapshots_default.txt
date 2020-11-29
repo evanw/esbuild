@@ -1940,11 +1940,12 @@ TestRequireWithoutCallInsideTry
 // /entry.js
 try {
   oldLocale = globalLocale._abbr;
-  var aliasedRequire = require;
+  aliasedRequire = require;
   aliasedRequire("./locale/" + name);
   getSetGlobalLocale(oldLocale);
 } catch (e) {
 }
+var aliasedRequire;
 
 ================================================================================
 TestRuntimeNameCollisionNoBundle

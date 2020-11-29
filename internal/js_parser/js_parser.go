@@ -207,6 +207,13 @@ type parser struct {
 	// Temporary variables used for lowering
 	tempRefsToDeclare []tempRef
 	tempRefCount      int
+
+	// When bundling, hoisted top-level local variables declared with "var" in
+	// nested scopes are moved up to be declared in the top-level scope instead.
+	// The old "var" statements are turned into regular assignments instead. This
+	// makes it easier to quickly scan the top-level statements for "var" locals
+	// with the guarantee that all will be found.
+	relocatedTopLevelVars []js_ast.LocRef
 }
 
 // This is used as part of an incremental build cache key. Some of these values
@@ -7209,6 +7216,34 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
 		s.Kind = p.selectLocalKind(s.Kind)
 
+		// Relocate "var" statements in nested scopes to the top-level scope when
+		// bundling. This makes it easy to pick out all top-level declarations by
+		// only looking at the array of top-level statements.
+		if p.options.mode == config.ModeBundle && s.Kind == js_ast.LocalVar && p.currentScope != p.moduleScope {
+			scope := p.currentScope
+			for !scope.Kind.StopsHoisting() {
+				scope = scope.Parent
+			}
+			if scope == p.moduleScope {
+				wrapIdentifier := func(loc logger.Loc, ref js_ast.Ref) js_ast.Expr {
+					p.relocatedTopLevelVars = append(p.relocatedTopLevelVars, js_ast.LocRef{Loc: loc, Ref: ref})
+					p.recordUsage(ref)
+					return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
+				}
+				var value js_ast.Expr
+				for _, decl := range s.Decls {
+					binding := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
+					if decl.Value != nil {
+						value = maybeJoinWithComma(value, js_ast.Assign(binding, *decl.Value))
+					}
+				}
+				if value.Data != nil {
+					stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: value}})
+				}
+				return stmts
+			}
+		}
+
 	case *js_ast.SExpr:
 		s.Value = p.visitExpr(s.Value)
 
@@ -10325,6 +10360,33 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		Stmts:      p.visitStmtsAndPrependTempRefs(stmts, prependTempRefsOpts{}),
 		SymbolUses: p.symbolUses,
 	}
+
+	// Insert any relocated variable statements now
+	if len(p.relocatedTopLevelVars) > 0 {
+		alreadyDeclared := make(map[js_ast.Ref]bool)
+		for _, local := range p.relocatedTopLevelVars {
+			// Follow links because "var" declarations may be merged due to hoisting
+			for {
+				link := p.symbols[local.Ref.InnerIndex].Link
+				if link == js_ast.InvalidRef {
+					break
+				}
+				local.Ref = link
+			}
+
+			// Only declare a given relocated variable once
+			if !alreadyDeclared[local.Ref] {
+				alreadyDeclared[local.Ref] = true
+				part.Stmts = append(part.Stmts, js_ast.Stmt{Loc: local.Loc, Data: &js_ast.SLocal{
+					Decls: []js_ast.Decl{{
+						Binding: js_ast.Binding{Loc: local.Loc, Data: &js_ast.BIdentifier{Ref: local.Ref}},
+					}},
+				}})
+			}
+		}
+		p.relocatedTopLevelVars = nil
+	}
+
 	if len(part.Stmts) > 0 {
 		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts)
 		part.DeclaredSymbols = p.declaredSymbols
