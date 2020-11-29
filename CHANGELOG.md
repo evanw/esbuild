@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.17
 
 * Get esbuild working on the Apple M1 chip via Rosetta 2 ([#564](https://github.com/evanw/esbuild/pull/564))
 
