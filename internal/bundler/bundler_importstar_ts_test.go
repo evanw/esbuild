@@ -500,3 +500,29 @@ func TestTSReExportTypeOnlyFileES6(t *testing.T) {
 		},
 	})
 }
+
+func TestTSDuplicateExportRefs(t *testing.T) {
+	importstar_ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import * as ns from './re-export'
+				console.log(ns.Foo)
+			`,
+			"/re-export.ts": `
+				export * from './types1'
+				export * from './nested/re-export.ts'
+			`,
+			"/nested/re-export.ts": `
+				export * from '../types1'
+			`,
+			"/types1.ts": `
+				export class Foo {}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
