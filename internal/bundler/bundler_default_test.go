@@ -3721,3 +3721,45 @@ func TestRequireMainIIFE(t *testing.T) {
 `,
 	})
 }
+
+func TestExternalES6ConvertedToCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require('./a')
+				require('./b')
+				require('./c')
+				require('./d')
+				require('./e')
+			`,
+			"/a.js": `
+				import * as ns from 'x'
+				export {ns}
+			`,
+			"/b.js": `
+				import * as ns from 'x' // "ns" must be renamed to avoid collisions with "a.js"
+				export {ns}
+			`,
+			"/c.js": `
+				export * as ns from 'x'
+			`,
+			"/d.js": `
+				export {ns} from 'x'
+			`,
+			"/e.js": `
+				export * from 'x'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"x": true,
+				},
+			},
+		},
+	})
+}

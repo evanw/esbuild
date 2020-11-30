@@ -607,6 +607,40 @@ let pluginTests = {
     const result = require(output)
     assert.strictEqual(result.default, 123)
   },
+
+  async externalRequire({ esbuild, testDir }) {
+    const externalPlugin = external => ({
+      name: 'external',
+      setup(build) {
+        let escape = text => `^${text.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`
+        let filter = new RegExp(external.map(escape).join('|'))
+        build.onResolve({ filter: /.*/, namespace: 'external' }, args => ({
+          path: args.path, external: true
+        }))
+        build.onResolve({ filter }, args => ({
+          path: args.path, namespace: 'external'
+        }))
+        build.onLoad({ filter: /.*/, namespace: 'external' }, args => ({
+          contents: `import * as all from ${JSON.stringify(args.path)}; module.exports = all`
+        }))
+      },
+    })
+    const outfile = path.join(testDir, 'out', 'output.mjs')
+    await esbuild.build({
+      stdin: {
+        contents: `
+          const fs = require('fs')
+          const path = require('path')
+          export default fs.readdirSync(path.dirname(new URL(import.meta.url).pathname))
+        `,
+      },
+      bundle: true, outfile, format: 'esm', plugins: [
+        externalPlugin(['fs', 'path'])
+      ],
+    })
+    const result = await import(outfile)
+    assert.deepStrictEqual(result.default, [path.basename(outfile)])
+  },
 }
 
 async function main() {

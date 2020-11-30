@@ -1,5 +1,51 @@
 # Changelog
 
+## Unreleased
+
+* Fix a renaming bug with external imports
+
+    There was a possibility of a cross-module name collision while bundling in a certain edge case. Specifically, when multiple files both contained an `import` statement to an external module and then both of those files were imported using `require`. For example:
+
+    ```js
+    // index.js
+    console.log(require('./a.js'), require('./b.js'))
+    ```
+
+    ```js
+    // a.js
+    export {exists} from 'fs'
+    ```
+
+    ```js
+    // b.js
+    export {exists} from 'fs'
+    ```
+
+    In this case the files `a.js` and `b.js` are converted to CommonJS format so they can be imported using `require`:
+
+    ```js
+    // a.js
+    import {exists} from "fs";
+    var require_a = __commonJS((exports) => {
+      __export(exports, {
+        exists: () => exists
+      });
+    });
+
+    // b.js
+    import {exists} from "fs";
+    var require_b = __commonJS((exports) => {
+      __export(exports, {
+        exists: () => exists
+      });
+    });
+
+    // index.js
+    console.log(require_a(), require_b());
+    ```
+
+    However, the `exists` symbol has been duplicated without being renamed. This is will result in a syntax error at run-time. The reason this happens is that the statements in the files `a.js` and `b.js` are placed in a nested scope because they are inside the CommonJS closure. The `import` statements were extracted outside the closure but the symbols they declared were incorrectly not added to the outer scope. This problem has been fixed, and this edge case should no longer result in name collisions.
+
 ## 0.8.17
 
 * Get esbuild working on the Apple M1 chip via Rosetta 2 ([#564](https://github.com/evanw/esbuild/pull/564))

@@ -3245,6 +3245,45 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		// renaming code.
 		if repr.meta.cjsWrap {
 			r.AddTopLevelSymbol(repr.ast.WrapperRef)
+
+			// External import statements will be hoisted outside of the CommonJS
+			// wrapper if the output format supports import statements. We need to
+			// add those symbols to the top-level scope to avoid causing name
+			// collisions. This code special-cases only those symbols.
+			if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+				for _, part := range repr.ast.Parts {
+					for _, stmt := range part.Stmts {
+						switch s := stmt.Data.(type) {
+						case *js_ast.SImport:
+							if repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex == nil {
+								r.AddTopLevelSymbol(s.NamespaceRef)
+								if s.DefaultName != nil {
+									r.AddTopLevelSymbol(s.DefaultName.Ref)
+								}
+								if s.Items != nil {
+									for _, item := range *s.Items {
+										r.AddTopLevelSymbol(item.Name.Ref)
+									}
+								}
+							}
+
+						case *js_ast.SExportStar:
+							if repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex == nil {
+								r.AddTopLevelSymbol(s.NamespaceRef)
+							}
+
+						case *js_ast.SExportFrom:
+							if repr.ast.ImportRecords[s.ImportRecordIndex].SourceIndex == nil {
+								r.AddTopLevelSymbol(s.NamespaceRef)
+								for _, item := range s.Items {
+									r.AddTopLevelSymbol(item.Name.Ref)
+								}
+							}
+						}
+					}
+				}
+			}
+
 			nestedScopes[sourceIndex] = []*js_ast.Scope{repr.ast.ModuleScope}
 			continue
 		}

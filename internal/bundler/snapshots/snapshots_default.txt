@@ -690,6 +690,54 @@ var bar = 123;
 console.log(exports, module.exports, test_exports, test_exports2);
 
 ================================================================================
+TestExternalES6ConvertedToCommonJS
+---------- /out.js ----------
+// /a.js
+import * as ns from "x";
+var require_a = __commonJS((exports) => {
+  __export(exports, {
+    ns: () => ns
+  });
+});
+
+// /b.js
+import * as ns2 from "x";
+var require_b = __commonJS((exports) => {
+  __export(exports, {
+    ns: () => ns2
+  });
+});
+
+// /c.js
+import * as ns3 from "x";
+var require_c = __commonJS((exports) => {
+  __export(exports, {
+    ns: () => ns3
+  });
+});
+
+// /d.js
+import {ns as ns4} from "x";
+var require_d = __commonJS((exports) => {
+  __export(exports, {
+    ns: () => ns4
+  });
+});
+
+// /e.js
+import * as x_star from "x";
+var require_e = __commonJS((exports) => {
+  __exportStar(exports, x_star);
+});
+
+// /entry.js
+require_a();
+require_b();
+require_c();
+require_d();
+require_e();
+
+================================================================================
 TestExternalModuleExclusionPackage
 ---------- /out.js ----------
 // /index.js
