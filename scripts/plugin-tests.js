@@ -3,6 +3,7 @@ const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
 const util = require('util')
+const url = require('url')
 const fs = require('fs')
 
 const readFileAsync = util.promisify(fs.readFile)
@@ -630,15 +631,16 @@ let pluginTests = {
       stdin: {
         contents: `
           const fs = require('fs')
+          const url = require('url')
           const path = require('path')
-          export default fs.readdirSync(path.dirname(new URL(import.meta.url).pathname))
+          export default fs.readdirSync(path.dirname(url.fileURLToPath(import.meta.url)))
         `,
       },
       bundle: true, outfile, format: 'esm', plugins: [
-        externalPlugin(['fs', 'path'])
+        externalPlugin(['fs', 'url', 'path'])
       ],
     })
-    const result = await import(outfile)
+    const result = await import(url.pathToFileURL(outfile))
     assert.deepStrictEqual(result.default, [path.basename(outfile)])
   },
 }
