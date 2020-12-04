@@ -510,10 +510,7 @@ func TestTSDuplicateExportRefs(t *testing.T) {
 			`,
 			"/re-export.ts": `
 				export * from './types1'
-				export * from './nested/re-export.ts'
-			`,
-			"/nested/re-export.ts": `
-				export * from '../types1'
+				export { Foo } from './types1'
 			`,
 			"/types1.ts": `
 				export class Foo {}

@@ -237,3 +237,13 @@ var foo = 123;
 
 // /entry.ts
 console.log(foo);
+
+================================================================================
+TestTSDuplicateExportRefs
+---------- /out.js ----------
+// /types1.ts
+var Foo = class {
+};
+
+// /entry.ts
+console.log(Foo);
