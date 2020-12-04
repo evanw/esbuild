@@ -8314,7 +8314,8 @@ type exprIn struct {
 	//
 	// In the example above we need to store "a" as the value for "this" so we
 	// can substitute it back in when we call "_a" if "_a" is indeed present.
-	storeThisArgForParentOptionalChain func(js_ast.Expr) js_ast.Expr
+	// See also "thisArgFunc" and "thisArgWrapFunc" in "exprOut".
+	storeThisArgForParentOptionalChain bool
 
 	// Certain substitutions of identifiers are disallowed for assignment targets.
 	// For example, we shouldn't transform "undefined = 1" into "void 0 = 1". This
@@ -8327,6 +8328,27 @@ type exprOut struct {
 	// True if the child node is an optional chain node (EDot, EIndex, or ECall
 	// with an IsOptionalChain value of true)
 	childContainsOptionalChain bool
+
+	// If our parent is an ECall node with an OptionalChain value of
+	// OptionalChainContinue, then we may need to return the value for "this"
+	// from this node or one of this node's children so that the parent that is
+	// the end of the optional chain can use it.
+	//
+	// Example:
+	//
+	//   // Original
+	//   a?.b?.().c();
+	//
+	//   // Lowered
+	//   var _a;
+	//   (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.call(a).c();
+	//
+	// The value "_a" for "this" must be passed all the way up to the call to
+	// ".c()" which is where the optional chain is lowered. From there it must
+	// be substituted as the value for "this" in the call to ".b?.()". See also
+	// "storeThisArgForParentOptionalChain" in "exprIn".
+	thisArgFunc     func() js_ast.Expr
+	thisArgWrapFunc func(js_ast.Expr) js_ast.Expr
 }
 
 func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
@@ -9104,11 +9126,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
-			return p.lowerOptionalChain(expr, in, out, nil)
+			return p.lowerOptionalChain(expr, in, out)
 		}
 
 		// Potentially rewrite this property access
-		out = exprOut{childContainsOptionalChain: containsOptionalChain}
+		out = exprOut{
+			childContainsOptionalChain: containsOptionalChain,
+			thisArgFunc:                out.thisArgFunc,
+			thisArgWrapFunc:            out.thisArgWrapFunc,
+		}
+		if !in.hasChainParent {
+			out.thisArgFunc = nil
+			out.thisArgWrapFunc = nil
+		}
 		if str, ok := e.Index.Data.(*js_ast.EString); ok {
 			name := js_lexer.UTF16ToString(str.Value)
 			if value, ok := p.maybeRewritePropertyAccess(
@@ -9187,7 +9217,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Lower optional chaining if present since we're guaranteed to be the
 			// end of the chain
 			if out.childContainsOptionalChain {
-				return p.lowerOptionalChain(expr, in, out, nil)
+				return p.lowerOptionalChain(expr, in, out)
 			}
 
 			// Make sure we don't accidentally change the return value
@@ -9315,11 +9345,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
-			return p.lowerOptionalChain(expr, in, out, nil)
+			return p.lowerOptionalChain(expr, in, out)
 		}
 
 		// Potentially rewrite this property access
-		out = exprOut{childContainsOptionalChain: containsOptionalChain}
+		out = exprOut{
+			childContainsOptionalChain: containsOptionalChain,
+			thisArgFunc:                out.thisArgFunc,
+			thisArgWrapFunc:            out.thisArgWrapFunc,
+		}
+		if !in.hasChainParent {
+			out.thisArgFunc = nil
+			out.thisArgWrapFunc = nil
+		}
 		if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget, e.OptionalChain, e.Target, e.Name, e.NameLoc, isCallTarget); ok {
 			return value, out
 		}
@@ -9589,19 +9627,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}), exprOut{}
 
 	case *js_ast.ECall:
-		var storeThisArg func(js_ast.Expr) js_ast.Expr
-		var thisArgFunc func() js_ast.Expr
-		var thisArgWrapFunc func(js_ast.Expr) js_ast.Expr
 		p.callTarget = e.Target.Data
-		if e.OptionalChain == js_ast.OptionalChainStart {
-			// Signal to our child if this is an ECall at the start of an optional
-			// chain. If so, the child will need to stash the "this" context for us
-			// that we need for the ".call(this, ...args)".
-			storeThisArg = func(thisArg js_ast.Expr) js_ast.Expr {
-				thisArgFunc, thisArgWrapFunc = p.captureValueWithPossibleSideEffects(thisArg.Loc, 2, thisArg)
-				return thisArgFunc()
-			}
-		}
 
 		// Prepare to recognize "require.resolve()" calls
 		couldBeRequireResolve := false
@@ -9614,8 +9640,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		_, wasIdentifierBeforeVisit := e.Target.Data.(*js_ast.EIdentifier)
 		target, out := p.visitExprInOut(e.Target, exprIn{
-			hasChainParent:                     e.OptionalChain == js_ast.OptionalChainContinue,
-			storeThisArgForParentOptionalChain: storeThisArg,
+			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
+
+			// Signal to our child if this is an ECall at the start of an optional
+			// chain. If so, the child will need to stash the "this" context for us
+			// that we need for the ".call(this, ...args)".
+			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart,
 		})
 		e.Target = target
 		hasSpread := false
@@ -9700,11 +9730,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
-			result, out := p.lowerOptionalChain(expr, in, out, thisArgFunc)
-			if thisArgWrapFunc != nil {
-				result = thisArgWrapFunc(result)
-			}
-			return result, out
+			return p.lowerOptionalChain(expr, in, out)
 		}
 
 		// If this is a plain call expression (instead of an optional chain), lower
@@ -9780,9 +9806,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		return expr, exprOut{
+		out = exprOut{
 			childContainsOptionalChain: containsOptionalChain,
+			thisArgFunc:                out.thisArgFunc,
+			thisArgWrapFunc:            out.thisArgWrapFunc,
 		}
+		if !in.hasChainParent {
+			out.thisArgFunc = nil
+			out.thisArgWrapFunc = nil
+		}
+		return expr, out
 
 	case *js_ast.ENew:
 		e.Target = p.visitExpr(e.Target)

@@ -374,7 +374,7 @@ func (p *parser) lowerFunction(
 	}
 }
 
-func (p *parser) lowerOptionalChain(expr js_ast.Expr, in exprIn, out exprOut, thisArgFunc func() js_ast.Expr) (js_ast.Expr, exprOut) {
+func (p *parser) lowerOptionalChain(expr js_ast.Expr, in exprIn, childOut exprOut) (js_ast.Expr, exprOut) {
 	valueWhenUndefined := js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EUndefined{}}
 	endsWithPropertyAccess := false
 	containsPrivateName := false
@@ -458,12 +458,12 @@ flatten:
 	var thisArg js_ast.Expr
 	var targetWrapFunc func(js_ast.Expr) js_ast.Expr
 	if startsWithCall {
-		if thisArgFunc != nil {
+		if childOut.thisArgFunc != nil {
 			// The initial value is a nested optional chain that ended in a property
 			// access. The nested chain was processed first and has saved the
 			// appropriate value for "this". The callback here will return a
 			// reference to that saved location.
-			thisArg = thisArgFunc()
+			thisArg = childOut.thisArgFunc()
 		} else {
 			// The initial value is a normal expression. If it's a property access,
 			// strip the property off and save the target of the property access to
@@ -541,12 +541,15 @@ flatten:
 	// Step 4: Wrap the starting value by each expression in the chain. We
 	// traverse the chain in reverse because we want to go from the inside out
 	// and the chain was built from the outside in.
+	var parentThisArgFunc func() js_ast.Expr
+	var parentThisArgWrapFunc func(js_ast.Expr) js_ast.Expr
 	var privateThisFunc func() js_ast.Expr
 	var privateThisWrapFunc func(js_ast.Expr) js_ast.Expr
 	for i := len(chain) - 1; i >= 0; i-- {
 		// Save a reference to the value of "this" for our parent ECall
-		if i == 0 && in.storeThisArgForParentOptionalChain != nil && endsWithPropertyAccess {
-			result = in.storeThisArgForParentOptionalChain(result)
+		if i == 0 && in.storeThisArgForParentOptionalChain && endsWithPropertyAccess {
+			parentThisArgFunc, parentThisArgWrapFunc = p.captureValueWithPossibleSideEffects(result.Loc, 2, result)
+			result = parentThisArgFunc()
 		}
 
 		switch e := chain[i].Data.(type) {
@@ -652,7 +655,13 @@ flatten:
 	if targetWrapFunc != nil {
 		result = targetWrapFunc(result)
 	}
-	return result, exprOut{}
+	if childOut.thisArgWrapFunc != nil {
+		result = childOut.thisArgWrapFunc(result)
+	}
+	return result, exprOut{
+		thisArgFunc:     parentThisArgFunc,
+		thisArgWrapFunc: parentThisArgWrapFunc,
+	}
 }
 
 func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast.Expr, js_ast.Expr) js_ast.Expr) js_ast.Expr {

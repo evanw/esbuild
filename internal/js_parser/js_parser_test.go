@@ -2991,6 +2991,21 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2019, "a?.[b]?.(c)", `var _a;
 (_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c);
 `)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c).d", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c).d;
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c).d()", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c).d();
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c)['d']", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c)["d"];
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c)['d']()", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c)["d"]();
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c).d['e'](f)['g'].h(i)", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c).d["e"](f)["g"].h(i);
+`)
 	expectPrintedTarget(t, 2019, "123?.[b]?.(c)", `var _a;
 (_a = 123 == null ? void 0 : 123[b]) == null ? void 0 : _a.call(123, c);
 `)

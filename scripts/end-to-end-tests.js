@@ -1296,6 +1296,34 @@
     }),
   )
 
+  // Optional chain lowering tests
+  for (let [code, expected] of [
+    ['array?.map?.(x => -x).filter', '[].filter'],
+    ['array?.map?.(x => -x)["filter"]', '[].filter'],
+    ['array?.map?.(x => -x).filter(x => x < -1)', '[-2, -3]'],
+    ['array?.map?.(x => -x)["filter"](x => x < -1)', '[-2, -3]'],
+  ]) {
+    tests.push(
+      test(['in.js', '--outfile=node.js', '--target=es6', '--format=esm'], {
+        'in.js': `
+          import * as assert from 'assert';
+          let array = [1, 2, 3];
+          let result = ${code};
+          assert.deepStrictEqual(result, ${expected});
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--target=es6', '--format=esm'], {
+        'in.js': `
+          import * as assert from 'assert';
+          function test(array, result = ${code}) {
+            return result
+          }
+          assert.deepStrictEqual(test([1, 2, 3]), ${expected});
+        `,
+      }),
+    )
+  }
+
   // Class lowering tests
   tests.push(
     test(['in.js', '--outfile=node.js', '--target=es6'], {

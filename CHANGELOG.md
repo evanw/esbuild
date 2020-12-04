@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix a bug with certain complex optional chains ([#573](https://github.com/evanw/esbuild/issues/573))
+
+    The `?.` optional chaining operator only runs the right side of the operator if the left side is undefined, otherwise it returns undefined. This operator can be applied to both property accesses and function calls, and these can be combined into long chains of operators. These expressions must be transformed to a chain of `?:` operators if the `?.` operator isn't supported in the configured target environment. However, esbuild had a bug where an optional call of an optional property with a further property access afterward didn't preserve the value of `this` for the call. This bug has been fixed.
+
 * Fix a renaming bug with external imports
 
     There was a possibility of a cross-module name collision while bundling in a certain edge case. Specifically, when multiple files both contained an `import` statement to an external module and then both of those files were imported using `require`. For example:
