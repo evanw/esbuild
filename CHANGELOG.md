@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.18
 
 * Fix a bug with certain complex optional chains ([#573](https://github.com/evanw/esbuild/issues/573))
 
