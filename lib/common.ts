@@ -480,18 +480,14 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             try {
               let callback = onResolveCallbacks[id];
               let newResult = await callback({
-                path: result?.path ?? request.path,
-                namespace: result?.namespace ?? request.namespace,
+                path: request.path,
+                namespace: request.namespace,
                 importer: request.importer,
                 resolveDir: request.resolveDir,
               });
 
               if (newResult) {
-                result = {
-                  ...newResult,
-                  errors: [...(result?.errors || []), ...(newResult.errors || [])],
-                  warnings: [...(result?.warnings || []), ...(newResult.warnings || [])],
-                }
+                result = newResult;
                 response.id = id;
               }
             } catch (e) {
