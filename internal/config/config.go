@@ -89,9 +89,9 @@ const (
 	//     ... bundled code ...
 	//   })();
 	//
-	// If the optional ModuleName is configured, then we'll write out this:
+	// If the optional GlobalName is configured, then we'll write out this:
 	//
-	//   let moduleName = (() => {
+	//   let globalName = (() => {
 	//     ... bundled code ...
 	//     return exports;
 	//   })();
@@ -180,7 +180,6 @@ type Options struct {
 	OmitRuntimeForTests     bool
 	PreserveUnusedImportsTS bool
 	UseDefineForClassFields bool
-	AvoidTDZ                bool
 	ASCIIOnly               bool
 	KeepNames               bool
 	IgnoreDCEAnnotations    bool
@@ -202,7 +201,7 @@ type Options struct {
 	AbsOutputBase      string
 	OutputExtensionJS  string
 	OutputExtensionCSS string
-	ModuleName         []string
+	GlobalName         []string
 	TsConfigOverride   string
 	ExtensionToLoader  map[string]Loader
 	OutputFormat       Format

@@ -8,7 +8,7 @@ var require_demo_pkg = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_demo_pkg());
+var demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -23,10 +23,11 @@ var require_component_indexof = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/component-classes/index.js
 try {
-  var index = require_component_indexof();
+  index = require_component_indexof();
 } catch (err) {
-  var index = require_component_indexof();
+  index = require_component_indexof();
 }
+var index;
 
 ================================================================================
 TestPackageJsonBrowserMapModuleDisabled
@@ -37,14 +38,14 @@ var require_node_pkg = __commonJS(() => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fn2 = require_node_pkg();
+  var fn2 = require_node_pkg();
   module.exports = function() {
     return fn2();
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_demo_pkg());
+var demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -59,14 +60,14 @@ var require_node_pkg_browser = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fn2 = require_node_pkg_browser();
+  var fn2 = require_node_pkg_browser();
   module.exports = function() {
     return fn2();
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_demo_pkg());
+var demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -81,14 +82,14 @@ var require_node_pkg_browser = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fn2 = require_node_pkg_browser();
+  var fn2 = require_node_pkg_browser();
   module.exports = function() {
     return fn2();
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_demo_pkg());
+var demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -100,14 +101,14 @@ var require_fs = __commonJS(() => {
 
 // /Users/user/project/node_modules/demo-pkg/index.js
 var require_demo_pkg = __commonJS((exports, module) => {
-  const fs = require_fs();
+  var fs = require_fs();
   module.exports = function() {
     return fs.readFile();
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_demo_pkg());
+var demo_pkg = __toModule(require_demo_pkg());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -119,14 +120,14 @@ var require_util_node = __commonJS(() => {
 
 // /Users/user/project/node_modules/demo-pkg/main.js
 var require_main = __commonJS((exports, module) => {
-  const util = require_util_node();
+  var util = require_util_node();
   module.exports = function(obj) {
     return util.inspect(obj);
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_main());
+var demo_pkg = __toModule(require_main());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -139,14 +140,14 @@ var require_util_browser = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/main.js
 var require_main = __commonJS((exports, module) => {
-  const util = require_util_browser();
+  var util = require_util_browser();
   module.exports = function() {
     return ["main", util];
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_main());
+var demo_pkg = __toModule(require_main());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -159,14 +160,14 @@ var require_util_browser = __commonJS((exports, module) => {
 
 // /Users/user/project/node_modules/demo-pkg/main-browser.js
 var require_main_browser = __commonJS((exports, module) => {
-  const util = require_util_browser();
+  var util = require_util_browser();
   module.exports = function() {
     return ["main-browser", util];
   };
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_main_browser());
+var demo_pkg = __toModule(require_main_browser());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -180,7 +181,7 @@ var require_main = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_main());
+var demo_pkg = __toModule(require_main());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -194,7 +195,7 @@ var require_main_browser = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_main_browser());
+var demo_pkg = __toModule(require_main_browser());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -208,7 +209,7 @@ var require_browser = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_browser());
+var demo_pkg = __toModule(require_browser());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -222,7 +223,7 @@ var require_main = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_main());
+var demo_pkg = __toModule(require_main());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -248,7 +249,7 @@ var require_main_browser = __commonJS((exports, module) => {
 console.log(require_main_browser());
 
 // /Users/user/project/src/test-module.js
-const demo_pkg = __toModule(require_main_browser());
+var demo_pkg = __toModule(require_main_browser());
 console.log(demo_pkg.default);
 
 ================================================================================
@@ -266,7 +267,7 @@ var require_module = __commonJS((exports) => {
 console.log(require_module());
 
 // /Users/user/project/src/test-module.js
-const demo_pkg = __toModule(require_module());
+var demo_pkg = __toModule(require_module());
 console.log(demo_pkg.default);
 
 ================================================================================
@@ -278,7 +279,7 @@ var require_main = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_main());
+var demo_pkg = __toModule(require_main());
 console.log(demo_pkg.default, require_main());
 
 ================================================================================
@@ -293,7 +294,7 @@ var require_main = __commonJS((exports, module) => {
 console.log(require_main());
 
 // /Users/user/project/src/test-module.js
-const demo_pkg = __toModule(require_main());
+var demo_pkg = __toModule(require_main());
 console.log(demo_pkg.default);
 
 ================================================================================
@@ -327,7 +328,7 @@ var require_custom_main = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_custom_main());
+var demo_pkg = __toModule(require_custom_main());
 console.log(demo_pkg.default());
 
 ================================================================================
@@ -339,7 +340,7 @@ var require_a = __commonJS((exports, module) => {
 });
 
 // /Users/user/project/src/entry.js
-const demo_pkg = __toModule(require_a());
+var demo_pkg = __toModule(require_a());
 console.log(demo_pkg.default);
 
 ================================================================================

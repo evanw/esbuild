@@ -3,6 +3,7 @@ const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
 const util = require('util')
+const url = require('url')
 const fs = require('fs')
 
 const readFileAsync = util.promisify(fs.readFile)
@@ -649,6 +650,41 @@ let pluginTests = {
     })
     const result = require(output)
     assert.strictEqual(result.default, 123)
+  },
+
+  async externalRequire({ esbuild, testDir }) {
+    const externalPlugin = external => ({
+      name: 'external',
+      setup(build) {
+        let escape = text => `^${text.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`
+        let filter = new RegExp(external.map(escape).join('|'))
+        build.onResolve({ filter: /.*/, namespace: 'external' }, args => ({
+          path: args.path, external: true
+        }))
+        build.onResolve({ filter }, args => ({
+          path: args.path, namespace: 'external'
+        }))
+        build.onLoad({ filter: /.*/, namespace: 'external' }, args => ({
+          contents: `import * as all from ${JSON.stringify(args.path)}; module.exports = all`
+        }))
+      },
+    })
+    const outfile = path.join(testDir, 'out', 'output.mjs')
+    await esbuild.build({
+      stdin: {
+        contents: `
+          const fs = require('fs')
+          const url = require('url')
+          const path = require('path')
+          export default fs.readdirSync(path.dirname(url.fileURLToPath(import.meta.url)))
+        `,
+      },
+      bundle: true, outfile, format: 'esm', plugins: [
+        externalPlugin(['fs', 'url', 'path'])
+      ],
+    })
+    const result = await import(url.pathToFileURL(outfile))
+    assert.deepStrictEqual(result.default, [path.basename(outfile)])
   },
 }
 

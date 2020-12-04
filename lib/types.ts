@@ -82,10 +82,16 @@ export interface OutputFile {
   text: string; // "contents" as text
 }
 
+export type BuildInvalidate = () => Promise<BuildIncremental>;
+
+export interface BuildIncremental extends BuildResult {
+  rebuild: BuildInvalidate & { dispose(): void };
+}
+
 export interface BuildResult {
   warnings: Message[];
   outputFiles?: OutputFile[]; // Only when "write: false"
-  rebuild?: (() => Promise<BuildResult>) & { dispose(): void }; // Only when "incremental" is true
+  rebuild?: BuildInvalidate; // Only when "incremental" is true
 }
 
 export interface BuildFailure extends Error {
@@ -95,6 +101,7 @@ export interface BuildFailure extends Error {
 
 export interface ServeOptions {
   port?: number;
+  host?: string;
   onRequest?: (args: ServeOnRequestArgs) => void;
 }
 
@@ -108,6 +115,7 @@ export interface ServeOnRequestArgs {
 
 export interface ServeResult {
   port: number;
+  host: string;
   wait: Promise<void>;
   stop: () => void;
 }
@@ -225,6 +233,8 @@ export interface Metadata {
 }
 
 export interface Service {
+  build(options: BuildOptions & { write: false }): Promise<BuildResult & { outputFiles: OutputFile[] }>;
+  build(options: BuildOptions & { incremental: true }): Promise<BuildIncremental>;
   build(options: BuildOptions): Promise<BuildResult>;
   serve(serveOptions: ServeOptions, buildOptions: BuildOptions): Promise<ServeResult>;
   transform(input: string, options?: TransformOptions): Promise<TransformResult>;
@@ -240,6 +250,8 @@ export interface Service {
 //
 // Works in node: yes
 // Works in browser: no
+export declare function build(options: BuildOptions & { write: false }): Promise<BuildResult & { outputFiles: OutputFile[] }>;
+export declare function build(options: BuildOptions & { incremental: true }): Promise<BuildIncremental>;
 export declare function build(options: BuildOptions): Promise<BuildResult>;
 
 // This function is similar to "build" but it serves the resulting files over
@@ -262,6 +274,7 @@ export declare function transform(input: string, options?: TransformOptions): Pr
 //
 // Works in node: yes
 // Works in browser: no
+export declare function buildSync(options: BuildOptions & { write: false }): BuildResult & { outputFiles: OutputFile[] };
 export declare function buildSync(options: BuildOptions): BuildResult;
 
 // A synchronous version of "transform".

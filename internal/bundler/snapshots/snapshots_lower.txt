@@ -130,7 +130,7 @@ export default require_entry();
 TestLowerAsyncThis2016ES6
 ---------- /out.js ----------
 // /entry.js
-let foo = () => __async(void 0, null, function* () {
+var foo = () => __async(void 0, null, function* () {
   return void 0;
 });
 export {
@@ -176,33 +176,35 @@ class Foo {
 TestLowerClassFieldStrictTsconfigJson2020
 ---------- /out.js ----------
 // /loose/index.js
-class loose_default {
+var loose_default = class {
   constructor() {
     __publicField(this, "foo");
   }
-}
+};
+var loose_default2 = loose_default;
 
 // /strict/index.js
-class strict_default {
+var strict_default = class {
   constructor() {
     __publicField(this, "foo");
   }
-}
+};
+var strict_default2 = strict_default;
 
 // /entry.js
-console.log(loose_default, strict_default);
+console.log(loose_default2, strict_default2);
 
 ================================================================================
 TestLowerExportStarAsNameCollision
 ---------- /out.js ----------
 // /nested.js
 import * as foo from "path2";
-let foo2 = 123;
+var foo2 = 123;
 
 // /entry.js
 import * as ns from "path1";
 console.log(foo, foo2);
-let ns2 = 123;
+var ns2 = 123;
 export {
   ns,
   ns2 as sn
@@ -470,7 +472,7 @@ TestLowerPrivateGetterSetter2015
 ---------- /out.js ----------
 // /entry.js
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
-class Foo {
+var Foo = class {
   constructor() {
     _foo.add(this);
     _bar.add(this);
@@ -508,7 +510,7 @@ class Foo {
     __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
     (_p = __privateGet(_o = fn(), _prop, prop_get)) != null ? _p : __privateSet(_o, _prop, 1, prop_set);
   }
-}
+};
 _foo = new WeakSet();
 foo_get = function() {
   return this.foo;
@@ -530,7 +532,7 @@ TestLowerPrivateGetterSetter2019
 ---------- /out.js ----------
 // /entry.js
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
-class Foo {
+var Foo = class {
   constructor() {
     _foo.add(this);
     _bar.add(this);
@@ -568,7 +570,7 @@ class Foo {
     __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
     (_p = __privateGet(_o = fn(), _prop, prop_get)) != null ? _p : __privateSet(_o, _prop, 1, prop_set);
   }
-}
+};
 _foo = new WeakSet();
 foo_get = function() {
   return this.foo;
@@ -590,7 +592,7 @@ TestLowerPrivateGetterSetter2020
 ---------- /out.js ----------
 // /entry.js
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
-class Foo {
+var Foo = class {
   constructor() {
     _foo.add(this);
     _bar.add(this);
@@ -628,7 +630,7 @@ class Foo {
     __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
     __privateGet(_o = fn(), _prop, prop_get) ?? __privateSet(_o, _prop, 1, prop_set);
   }
-}
+};
 _foo = new WeakSet();
 foo_get = function() {
   return this.foo;
@@ -649,7 +651,7 @@ prop_set = function(val) {
 TestLowerPrivateGetterSetterNext
 ---------- /out.js ----------
 // /entry.js
-class Foo {
+var Foo = class {
   get #foo() {
     return this.foo;
   }
@@ -692,14 +694,14 @@ class Foo {
     fn().#prop ||= 1;
     fn().#prop ??= 1;
   }
-}
+};
 
 ================================================================================
 TestLowerPrivateMethod2019
 ---------- /out.js ----------
 // /entry.js
 var _field, _method, method_fn;
-class Foo {
+var Foo = class {
   constructor() {
     _field.set(this, void 0);
     _method.add(this);
@@ -730,7 +732,7 @@ class Foo {
     (_f = (_e = e()) == null ? void 0 : __privateMethod(_e, _method, method_fn)) == null ? void 0 : _f.call(_e, x);
     (_g = f()) == null ? void 0 : __privateMethod(_h = _g.foo, _method, method_fn).call(_h, x).bar();
   }
-}
+};
 _field = new WeakMap();
 _method = new WeakSet();
 method_fn = function() {
@@ -741,7 +743,7 @@ TestLowerPrivateMethod2020
 ---------- /out.js ----------
 // /entry.js
 var _field, _method, method_fn;
-class Foo {
+var Foo = class {
   constructor() {
     _field.set(this, void 0);
     _method.add(this);
@@ -771,7 +773,7 @@ class Foo {
     ((_e = e()) == null ? void 0 : __privateMethod(_e, _method, method_fn))?.(x);
     (_f = f()) == null ? void 0 : __privateMethod(_g = _f.foo, _method, method_fn).call(_g, x).bar();
   }
-}
+};
 _field = new WeakMap();
 _method = new WeakSet();
 method_fn = function() {
@@ -781,7 +783,7 @@ method_fn = function() {
 TestLowerPrivateMethodNext
 ---------- /out.js ----------
 // /entry.js
-class Foo {
+var Foo = class {
   #field;
   #method() {
   }
@@ -808,20 +810,20 @@ class Foo {
     e()?.#method?.(x);
     f()?.foo.#method(x).bar();
   }
-}
+};
 
 ================================================================================
 TestLowerPrivateMethodWithModifiers2020
 ---------- /out.js ----------
 // /entry.js
 var _g, g_fn, _a, a_fn, _ag, ag_fn, _sg, sg_fn, _sa, sa_fn, _sag, sag_fn;
-class Foo {
+var Foo = class {
   constructor() {
     _g.add(this);
     _a.add(this);
     _ag.add(this);
   }
-}
+};
 _g = new WeakSet();
 g_fn = function* () {
 };
@@ -867,18 +869,20 @@ Foo.s_foo = 123;
 TestTSLowerClassFieldStrictTsconfigJson2020
 ---------- /out.js ----------
 // /loose/index.ts
-class loose_default {
-}
+var loose_default = class {
+};
+var loose_default2 = loose_default;
 
 // /strict/index.ts
-class strict_default {
+var strict_default = class {
   constructor() {
     __publicField(this, "foo");
   }
-}
+};
+var strict_default2 = strict_default;
 
 // /entry.js
-console.log(loose_default, strict_default);
+console.log(loose_default2, strict_default2);
 
 ================================================================================
 TestTSLowerClassPrivateFieldNextNoBundle
@@ -1031,18 +1035,18 @@ TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015
 ---------- /out.js ----------
 // /entry.ts
 var _x;
-class WeakMap2 {
+var WeakMap2 = class {
   constructor() {
     _x.set(this, void 0);
   }
-}
+};
 _x = new WeakMap();
 var _y, y_fn;
-class WeakSet2 {
+var WeakSet2 = class {
   constructor() {
     _y.add(this);
   }
-}
+};
 _y = new WeakSet();
 y_fn = function() {
 };
@@ -1068,13 +1072,14 @@ _x = new WeakMap();
 TestTSLowerPrivateStaticMembers2015NoBundle
 ---------- /out.js ----------
 var _x, _y, y_get, y_set, _z, z_fn;
-class Foo {
+const Foo2 = class {
   foo() {
-    __privateSet(Foo, _x, __privateGet(Foo, _x) + 1);
-    __privateSet(Foo, _y, __privateGet(Foo, _y, y_get) + 1, y_set);
-    __privateMethod(Foo, _z, z_fn).call(Foo);
+    __privateSet(Foo2, _x, __privateGet(Foo2, _x) + 1);
+    __privateSet(Foo2, _y, __privateGet(Foo2, _y, y_get) + 1, y_set);
+    __privateMethod(Foo2, _z, z_fn).call(Foo2);
   }
-}
+};
+let Foo = Foo2;
 _x = new WeakMap();
 _y = new WeakSet();
 y_get = function() {

@@ -89,8 +89,28 @@
     )
   }
 
-  // Test internal import order (see https://github.com/evanw/esbuild/issues/421)
+  let simpleCyclicImportTestCase542 = {
+    'in.js': `
+      import {Test} from './lib';
+      export function fn() {
+        return 42;
+      }
+      export const foo = [Test];
+      if (Test.method() !== 42) throw 'fail'
+    `,
+    'lib.js': `
+      import {fn} from './in';
+      export class Test {
+        static method() {
+          return fn();
+        }
+      }
+    `,
+  }
+
+  // Test internal import order
   tests.push(
+    // See https://github.com/evanw/esbuild/issues/421
     test(['--bundle', 'in.js', '--outfile=node.js'], {
       'in.js': `
         import {foo} from './cjs'
@@ -109,6 +129,11 @@
       'cjs.js': `exports.foo = 3; global.internal_import_order_test2 = 4`,
       'esm.js': `export let bar = global.internal_import_order_test2`,
     }),
+
+    // See https://github.com/evanw/esbuild/issues/542
+    test(['--bundle', 'in.js', '--outfile=node.js'], simpleCyclicImportTestCase542),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=iife'], simpleCyclicImportTestCase542),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=iife', '--global-name=someName'], simpleCyclicImportTestCase542),
   )
 
   // Test CommonJS semantics
@@ -968,7 +993,7 @@
 
   // Test name preservation
   tests.push(
-    // Anonymous functions
+    // Arrow functions
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
       'in.js': `(() => { let fn = () => {}; if (fn.name !== 'fn') throw 'fail' })()`,
     }),
@@ -1084,6 +1109,74 @@
     test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle'], {
       'in.js': `import foo from './other'; if (foo.name !== 'default') throw 'fail'`,
       'other.js': `export default (class {})`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'foo') throw 'fail'`,
+      'in.js': `export default class foo {}`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
+      'in.js': `export default class {}`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
+      'in.js': `export default (class {})`,
+    }),
+
+    // Lowered classes
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { class foo { a() { return this.#b } #b() {} } if (foo.name !== 'foo') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let cls = class foo { a() { return this.#b } #b() {} }; if (cls.name !== 'foo') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let cls = class { a() { return this.#b } #b() {} }; if (cls.name !== 'cls') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let cls; cls = class { a() { return this.#b } #b() {} }; if (cls.name !== 'cls') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let [cls = class { a() { return this.#b } #b() {} }] = []; if (cls.name !== 'cls') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let cls; [cls = class { a() { return this.#b } #b() {} }] = []; if (cls.name !== 'cls') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let {cls = class { a() { return this.#b } #b() {} }} = {}; if (cls.name !== 'cls') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let {prop: cls = class { a() { return this.#b } #b() {} }} = {}; if (cls.name !== 'cls') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let cls; ({cls = class { a() { return this.#b } #b() {} }} = {}); if (cls.name !== 'cls') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `(() => { let cls; ({prop: cls = class { a() { return this.#b } #b() {} }} = {}); if (cls.name !== 'cls') throw 'fail' })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `import foo from './other'; if (foo.name !== 'foo') throw 'fail'`,
+      'other.js': `export default class foo { a() { return this.#b } #b() {} }`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `import foo from './other'; if (foo.name !== 'default') throw 'fail'`,
+      'other.js': `export default class { a() { return this.#b } #b() {} }`,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names', '--bundle', '--target=es6'], {
+      'in.js': `import foo from './other'; if (foo.name !== 'default') throw 'fail'`,
+      'other.js': `export default (class { a() { return this.#b } #b() {} })`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'foo') throw 'fail'`,
+      'in.js': `export default class foo { a() { return this.#b } #b() {} }`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
+      'in.js': `export default class { a() { return this.#b } #b() {} }`,
+    }),
+    test(['in.js', '--outfile=out.js', '--minify', '--keep-names', '--format=esm', '--target=es6'], {
+      'node.js': `import foo from './out.js'; if (foo.name !== 'default') throw 'fail'`,
+      'in.js': `export default (class { a() { return this.#b } #b() {} })`,
     }),
   )
 
@@ -1202,6 +1295,34 @@
       'foo.js': `export let a = 123, b = this`,
     }),
   )
+
+  // Optional chain lowering tests
+  for (let [code, expected] of [
+    ['array?.map?.(x => -x).filter', '[].filter'],
+    ['array?.map?.(x => -x)["filter"]', '[].filter'],
+    ['array?.map?.(x => -x).filter(x => x < -1)', '[-2, -3]'],
+    ['array?.map?.(x => -x)["filter"](x => x < -1)', '[-2, -3]'],
+  ]) {
+    tests.push(
+      test(['in.js', '--outfile=node.js', '--target=es6', '--format=esm'], {
+        'in.js': `
+          import * as assert from 'assert';
+          let array = [1, 2, 3];
+          let result = ${code};
+          assert.deepStrictEqual(result, ${expected});
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--target=es6', '--format=esm'], {
+        'in.js': `
+          import * as assert from 'assert';
+          function test(array, result = ${code}) {
+            return result
+          }
+          assert.deepStrictEqual(test([1, 2, 3]), ${expected});
+        `,
+      }),
+    )
+  }
 
   // Class lowering tests
   tests.push(
@@ -1364,6 +1485,79 @@
         let foo = new Foo()
         if (setterCalls !== 0 || !foo.hasOwnProperty(key) || foo[key] !== 123) throw 'fail'
       `,
+    }),
+
+    // Test class re-assignment
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          static foo() { return this.#foo }
+          static #foo = Foo
+        }
+        let old = Foo
+        Foo = class Bar {}
+        if (old.foo() !== old) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          static foo() { return this.#foo() }
+          static #foo() { return Foo }
+        }
+        let old = Foo
+        Foo = class Bar {}
+        if (old.foo() !== old) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        try {
+          class Foo {
+            static foo() { return this.#foo }
+            static #foo = Foo = class Bar {}
+          }
+          throw 'fail'
+        } catch (e) {
+          if (!(e instanceof TypeError))
+            throw e
+        }
+      `,
+    }, {
+      expectedStderr: ` > in.js: warning: This assignment will throw because "Foo" is a constant
+    5 │             static #foo = Foo = class Bar {}
+      ╵                           ~~~
+     in.js: note: "Foo" was declared a constant here
+    3 │           class Foo {
+      ╵                 ~~~
+
+1 warning
+`,
+    }),
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        class Foo {
+          static foo() { return this.#foo() }
+          static #foo() { Foo = class Bar{} }
+        }
+        try {
+          Foo.foo()
+          throw 'fail'
+        } catch (e) {
+          if (!(e instanceof TypeError))
+            throw e
+        }
+      `,
+    }, {
+      expectedStderr: ` > in.js: warning: This assignment will throw because "Foo" is a constant
+    4 │           static #foo() { Foo = class Bar{} }
+      ╵                           ~~~
+     in.js: note: "Foo" was declared a constant here
+    2 │         class Foo {
+      ╵               ~~~
+
+1 warning
+`,
     }),
   )
 
@@ -1770,7 +1964,7 @@
       ╵                              ~~~~~~~~~~~~
 
 1 error
-` ,
+`,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
         'src/entry.js/x': ``,
@@ -1815,6 +2009,19 @@
       }),
     )
   }
+
+  // Test a special-case error message for people trying to use "'--" on Windows
+  tests.push(
+    test(['in.js', `'--define:process.env.NODE_ENV="production"'`], {
+      'in.js': ``,
+    }, {
+      expectedStderr: ` > error: Unexpected single quote character before flag (use \\" to ` +
+        `escape double quotes): '--define:process.env.NODE_ENV="production"'
+
+1 error
+`,
+    }),
+  )
 
   // Test injecting banner and footer
   tests.push(

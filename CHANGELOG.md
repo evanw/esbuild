@@ -1,6 +1,252 @@
 # Changelog
 
-## Unreleased
+## 0.8.18
+
+* Fix a bug with certain complex optional chains ([#573](https://github.com/evanw/esbuild/issues/573))
+
+    The `?.` optional chaining operator only runs the right side of the operator if the left side is undefined, otherwise it returns undefined. This operator can be applied to both property accesses and function calls, and these can be combined into long chains of operators. These expressions must be transformed to a chain of `?:` operators if the `?.` operator isn't supported in the configured target environment. However, esbuild had a bug where an optional call of an optional property with a further property access afterward didn't preserve the value of `this` for the call. This bug has been fixed.
+
+* Fix a renaming bug with external imports
+
+    There was a possibility of a cross-module name collision while bundling in a certain edge case. Specifically, when multiple files both contained an `import` statement to an external module and then both of those files were imported using `require`. For example:
+
+    ```js
+    // index.js
+    console.log(require('./a.js'), require('./b.js'))
+    ```
+
+    ```js
+    // a.js
+    export {exists} from 'fs'
+    ```
+
+    ```js
+    // b.js
+    export {exists} from 'fs'
+    ```
+
+    In this case the files `a.js` and `b.js` are converted to CommonJS format so they can be imported using `require`:
+
+    ```js
+    // a.js
+    import {exists} from "fs";
+    var require_a = __commonJS((exports) => {
+      __export(exports, {
+        exists: () => exists
+      });
+    });
+
+    // b.js
+    import {exists} from "fs";
+    var require_b = __commonJS((exports) => {
+      __export(exports, {
+        exists: () => exists
+      });
+    });
+
+    // index.js
+    console.log(require_a(), require_b());
+    ```
+
+    However, the `exists` symbol has been duplicated without being renamed. This is will result in a syntax error at run-time. The reason this happens is that the statements in the files `a.js` and `b.js` are placed in a nested scope because they are inside the CommonJS closure. The `import` statements were extracted outside the closure but the symbols they declared were incorrectly not added to the outer scope. This problem has been fixed, and this edge case should no longer result in name collisions.
+
+## 0.8.17
+
+* Get esbuild working on the Apple M1 chip via Rosetta 2 ([#564](https://github.com/evanw/esbuild/pull/564))
+
+    The Go compiler toolchain does not yet support the new Apple M1 chip. Go version 1.15 is currently in a feature freeze period so support will be added in the next version, Go 1.16, which will be [released in February](https://blog.golang.org/11years#TOC_3.).
+
+    This release changes the install script to install the executable for macOS `x64` on macOS `arm64` too. Doing this should still work because of the executable translation layer built into macOS. This change was contributed by [@sod](https://github.com/sod).
+
+## 0.8.16
+
+* Improve TypeScript type definitions ([#559](https://github.com/evanw/esbuild/issues/559))
+
+    The return value of the `build` API has some optional fields that are undefined unless certain arguments are present. That meant you had to use the `!` null assertion operator to avoid a type error if you have the TypeScript `strictNullChecks` setting enabled in your project. This release adds additional type information so that if the relevant arguments are present, the TypeScript compiler can tell that these optional fields on the return value will never be undefined. This change was contributed by [@lukeed](https://github.com/lukeed).
+
+* Omit a warning about `require.main` when targeting CommonJS ([#560](https://github.com/evanw/esbuild/issues/560))
+
+    A common pattern in code that's intended to be run in node is to check if `require.main === module`. That will be true if the current file is being run from the command line but false if the current file is being run because some other code called `require()` on it. Previously esbuild generated a warning about an unexpected use of `require`. Now this warning is no longer generated for `require.main` when the output format is `cjs`.
+
+* Warn about defining `process.env.NODE_ENV` as an identifier ([#466](https://github.com/evanw/esbuild/issues/466))
+
+    The define feature can be used to replace an expression with either a JSON literal or an identifier. Forgetting to put quotes around a string turns it into an identifier, which is a common mistake. This release introduces a warning when you define `process.env.NODE_ENV` as an identifier instead of a string. It's very common to use define to replace `process.env.NODE_ENV` with either `"production"` or `"development"` and sometimes people accidentally replace it with `production` or `development` instead. This is worth warning about because otherwise there would be no indication that something is wrong until the code crashes when run.
+
+* Allow starting a local server at a specific host address ([#563](https://github.com/evanw/esbuild/pull/563))
+
+    By default, esbuild's local HTTP server is only available on the internal loopback address. This is deliberate behavior for security reasons, since the local network environment may not be trusted. However, it can be useful to run the server on a different address when developing with esbuild inside of a virtual machine/docker container or to request development assets from a remote testing device on the same network at a different IP address. With this release, you can now optionally specify the host in addition to the port:
+
+    ```
+    esbuild --serve=192.168.0.1:8000
+    ```
+
+    ```js
+    esbuild.serve({
+      host: '192.168.0.1',
+      port: 8000,
+    }, {
+      ...
+    })
+    ```
+
+    ```go
+    server, err := api.Serve(api.ServeOptions{
+      Host: "192.168.0.1",
+      Port: 8000,
+    }, api.BuildOptions{
+      ...
+    })
+    ```
+
+    This change was contributed by [@jamalc](https://github.com/jamalc).
+
+## 0.8.15
+
+* Allow `paths` without `baseUrl` in `tsconfig.json`
+
+    This feature was [recently released in TypeScript 4.1](https://devblogs.microsoft.com/typescript/announcing-typescript-4-1/#paths-without-baseurl). The `paths` feature in `tsconfig.json` allows you to do custom import path rewriting. For example, you can map paths matching `@namespace/*` to the path `./namespace/src/*` relative to the `tsconfig.json` file. Previously using the `paths` feature required you to additionally specify `baseUrl` so that the compiler could know which directory the path aliases were supposed to be relative to.
+
+    However, specifying `baseUrl` has the potentially-problematic side effect of causing all import paths to be looked up relative to the `baseUrl` directory, which could potentially cause package paths to accidentally be redirected to non-package files. Specifying `baseUrl` also causes Visual Studio Code's auto-import feature to generate paths relative to the `baseUrl` directory instead of relative to the directory containing the current file. There is more information about the problems this causes here: https://github.com/microsoft/TypeScript/issues/31869.
+
+    With TypeScript 4.1, you can now omit `baseUrl` when using `paths`. When you do this, it as if you had written `"baseUrl": "."` instead for the purpose of the `paths` feature, but the `baseUrl` value is not actually set and does not affect path resolution. These `tsconfig.json` files are now supported by esbuild.
+
+* Fix evaluation order issue with import cycles and CommonJS-style output formats ([#542](https://github.com/evanw/esbuild/issues/542))
+
+    Previously entry points involved in an import cycle could cause evaluation order issues if the output format was `iife` or `cjs` instead of `esm`. This happened because this edge case was handled by treating the entry point file as a CommonJS file, which extracted the code into a CommonJS wrapper. Here's an example:
+
+    Input files:
+
+    ```js
+    // index.js
+    import { test } from './lib'
+    export function fn() { return 42 }
+    if (test() !== 42) throw 'failure'
+    ```
+
+    ```js
+    // lib.js
+    import { fn } from './index'
+    export let test = fn
+    ```
+
+    Previous output (problematic):
+
+    ```js
+    // index.js
+    var require_esbuild = __commonJS((exports) => {
+      __export(exports, {
+        fn: () => fn2
+      });
+      function fn2() {
+        return 42;
+      }
+      if (test() !== 42)
+        throw "failure";
+    });
+
+    // lib.js
+    var index = __toModule(require_esbuild());
+    var test = index.fn;
+    module.exports = require_esbuild();
+    ```
+
+    This approach changed the evaluation order because the CommonJS wrapper conflates both binding and evaluation. Binding and evaluation need to be separated to correctly handle this edge case. This edge case is now handled by inlining what would have been the contents of the CommonJS wrapper into the entry point location itself.
+
+    Current output (fixed):
+
+    ```js
+    // index.js
+    __export(exports, {
+      fn: () => fn
+    });
+
+    // lib.js
+    var test = fn;
+
+    // index.js
+    function fn() {
+      return 42;
+    }
+    if (test() !== 42)
+      throw "failure";
+    ```
+
+## 0.8.14
+
+* Fix a concurrency bug caused by an error message change ([#556](https://github.com/evanw/esbuild/issues/556))
+
+    An improvement to the error message for path resolution was introduced in version 0.8.12. It detects when a relative path is being interpreted as a package path because you forgot to start the path with `./`:
+
+    ```
+     > src/posts/index.js: error: Could not resolve "PostCreate" (use "./PostCreate" to import "src/posts/PostCreate.js")
+        2 │ import PostCreate from 'PostCreate';
+          ╵                        ~~~~~~~~~~~~
+    ```
+
+    This is implemented by re-running path resolution for package path resolution failures as a relative path instead. Unfortunately, this second path resolution operation wasn't guarded by a mutex and could result in concurrency bugs. This issue only occurs when path resolution fails. It is fixed in this release.
+
+## 0.8.13
+
+* Assigning to a `const` symbol is now an error when bundling
+
+    This change was made because esbuild may need to change a `const` symbol into a non-constant symbol in certain situations. One situation is when the "avoid TDZ" option is enabled. Another situation is some potential upcoming changes to lazily-evaluate certain modules for code splitting purposes. Making this an error gives esbuild the freedom to do these code transformations without potentially causing problems where constants are mutated. This has already been a warning for a while so code that does this should already have been obvious. This warning was made an error in a patch release because the expectation is that no real code relies on this behavior outside of conformance tests.
+
+* Fix for the `--keep-names` option and anonymous lowered classes
+
+    This release fixes an issue where names were not preserved for anonymous classes that contained newer JavaScript syntax when targeting an older version of JavaScript. This was because that causes the class expression to be transformed into a sequence expression, which was then not recognized as a class expression. For example, the class did not have the name `foo` in the code below when the target was set to `es6`:
+
+    ```js
+    let foo = class {
+      #privateMethod() {}
+    }
+    ```
+
+    The `name` property of this class object is now `foo`.
+
+* Fix captured class names when class name is re-assigned
+
+    This fixes a corner case with class lowering to better match the JavaScript specification. In JavaScript, the body of a class statement contains an implicit constant symbol with the same name as the symbol of the class statement itself. Lowering certain class features such as private methods means moving them outside the class body, in which case the contents of the private method are no longer within the scope of the constant symbol. This can lead to a behavior change if the class is later re-assigned:
+
+    ```js
+    class Foo {
+      static test() { return this.#method() }
+      static #method() { return Foo }
+    }
+    let old = Foo
+    Foo = class Bar {}
+    console.log(old.test() === old) // This should be true
+    ```
+
+    Previously this would print `false` when transformed to ES6 by esbuild. This now prints `true`. The current transformed output looks like this:
+
+    ```js
+    var _method, method_fn;
+    const Foo2 = class {
+      static test() {
+        return __privateMethod(this, _method, method_fn).call(this);
+      }
+    };
+    let Foo = Foo2;
+    _method = new WeakSet();
+    method_fn = function() {
+      return Foo2;
+    };
+    _method.add(Foo);
+    let old = Foo;
+    Foo = class Bar {
+    };
+    console.log(old.test() === old);
+    ```
+
+* The `--allow-tdz` option is now always applied during bundling
+
+    This option turns top-level `let`, `const`, and `class` statements into `var` statements to work around some severe performance issues in the JavaScript run-time environment in Safari. Previously you had to explicitly enable this option. Now this behavior will always happen, and there is no way to turn it off. This means the `--allow-tdz` option is now meaningless and no longer does anything. It will be removed in a future release.
+
+* When bundling and minifying, `const` is now converted into `let`
+
+    This was done because it's semantically equivalent but shorter. It's a valid transformation because assignment to a `const` symbol is now a compile-time error when bundling, so changing `const` to `let` should now not affect run-time behavior.
+
+## 0.8.12
 
 * Added an API for incremental builds ([#21](https://github.com/evanw/esbuild/issues/21))
 
@@ -23,7 +269,7 @@
     })
     ```
 
-    Using the API from Go is similar:
+    Using the API from Go is similar, except there is no need to manually dispose of the rebuild callback:
 
     ```go
     result := api.Build(api.BuildOptions{
@@ -35,7 +281,7 @@
     result2 := result.Rebuild()
     ```
 
-    Incremental builds are more efficient regular builds because some data is cached and can be reused if the original files haven't changed since the last build. There are currently two forms of caching used by the incremental build API:
+    Incremental builds are more efficient than regular builds because some data is cached and can be reused if the original files haven't changed since the last build. There are currently two forms of caching used by the incremental build API:
 
     * Files are stored in memory and are not re-read from the file system if the file metadata hasn't changed since the last build. This optimization only applies to file system paths. It does not apply to virtual modules created by plugins.
 
@@ -45,7 +291,7 @@
 
 * Support for a local file server ([#537](https://github.com/evanw/esbuild/issues/537))
 
-    You can now run esbuild with the `--serve` flag to start a local server that serves the output files over HTTP. This is intended to be used during development. You can point your `<script>` tag to a local server URL and your JavaScript and CSS files will be automatically built by esbuild whenever that URL is accessed. The server defaults to port 8000 but you can customize it with `--serve=...`.
+    You can now run esbuild with the `--serve` flag to start a local server that serves the output files over HTTP. This is intended to be used during development. You can point your `<script>` tag to a local server URL and your JavaScript and CSS files will be automatically built by esbuild whenever that URL is accessed. The server defaults to port 8000 but you can customize the port with `--serve=...`.
 
     There is also an equivalent API for JavaScript:
 
@@ -56,7 +302,6 @@
       entryPoints: ['app.js'],
       bundle: true,
       outfile: 'out.js',
-      incremental: true,
     }).then(server => {
       // Call "stop" on the server when you're done
       server.stop()
@@ -72,12 +317,21 @@
       EntryPoints: []string{"app.js"},
       Bundle:      true,
       Outfile:     "out.js",
-      Incremental: true,
     })
 
     // Call "stop" on the server when you're done
     server.Stop()
     ```
+
+    This is a similar use case to "watch mode" in other tools where something automatically rebuilds your code when a file has changed on disk. The difference is that you don't encounter the problem where you make an edit, switch to your browser, and reload only to load the old files because the rebuild hasn't finished yet. Using a HTTP request instead of a file system access gives the rebuild tool the ability to delay the load until the rebuild operation has finished so your build is always up to date.
+
+* Install to a temporary directory for Windows ([#547](https://github.com/evanw/esbuild/issues/547))
+
+    The install script runs `npm` in a temporary directory to download the correct binary executable for the current architecture. It then removes the temporary directory after the installation. However, removing a directory is sometimes impossible on Windows. To work around this problem, the install script now installs to the system's temporary directory instead of a directory inside the project itself. That way it's not problematic if a directory is left behind by the install script. This change was contributed by [@Djaler](https://github.com/Djaler).
+
+* Fix the public path ending up in the metafile ([#549](https://github.com/evanw/esbuild/issues/549))
+
+    The change in version 0.8.7 to include the public path in import paths of code splitting chunks caused a regression where the public path was also included in the list of chunk imports in the metafile. This was unintentional. Now the public path setting should not affect the metafile contents.
 
 ## 0.8.11
 

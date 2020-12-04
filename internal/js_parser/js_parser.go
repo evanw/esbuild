@@ -195,6 +195,11 @@ type parser struct {
 	typeofRequireEqualsFn       js_ast.E
 	typeofRequireEqualsFnTarget js_ast.E
 
+	// This helps recognize the "require.main" pattern. If this pattern is
+	// present and the output format is CommonJS, we avoid generating a warning
+	// about an unbundled use of "require".
+	cjsDotMainTarget js_ast.E
+
 	// This helps recognize calls to "require.resolve()" which may become
 	// ERequireResolve expressions.
 	resolveCallTarget js_ast.E
@@ -202,6 +207,13 @@ type parser struct {
 	// Temporary variables used for lowering
 	tempRefsToDeclare []tempRef
 	tempRefCount      int
+
+	// When bundling, hoisted top-level local variables declared with "var" in
+	// nested scopes are moved up to be declared in the top-level scope instead.
+	// The old "var" statements are turned into regular assignments instead. This
+	// makes it easier to quickly scan the top-level statements for "var" locals
+	// with the guarantee that all will be found.
+	relocatedTopLevelVars []js_ast.LocRef
 }
 
 // This is used as part of an incremental build cache key. Some of these values
@@ -771,6 +783,22 @@ func hasValueForThisInCall(expr js_ast.Expr) bool {
 	}
 }
 
+func (p *parser) selectLocalKind(kind js_ast.LocalKind) js_ast.LocalKind {
+	// Safari workaround: Automatically avoid TDZ issues when bundling
+	if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil {
+		return js_ast.LocalVar
+	}
+
+	// Optimization: use "let" instead of "const" because it's shorter. This is
+	// only done when bundling because assigning to "const" is only an error when
+	// bundling.
+	if p.options.mode == config.ModeBundle && kind == js_ast.LocalConst && p.options.mangleSyntax {
+		return js_ast.LocalLet
+	}
+
+	return kind
+}
+
 func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) int {
 	parent := p.currentScope
 	scope := &js_ast.Scope{
@@ -905,6 +933,20 @@ func (p *parser) newSymbol(kind js_ast.SymbolKind, name string) js_ast.Ref {
 		p.tsUseCounts = append(p.tsUseCounts, 0)
 	}
 	return ref
+}
+
+// This is similar to "js_ast.MergeSymbols" but it works with this parser's
+// one-level symbol map instead of the linker's two-level symbol map. It also
+// doesn't handle cycles since they shouldn't come up due to the way this
+// function is used.
+func (p *parser) mergeSymbols(old js_ast.Ref, new js_ast.Ref) {
+	oldSymbol := &p.symbols[old.InnerIndex]
+	newSymbol := &p.symbols[new.InnerIndex]
+	oldSymbol.Link = new
+	newSymbol.UseCountEstimate += oldSymbol.UseCountEstimate
+	if oldSymbol.MustNotBeRenamed {
+		newSymbol.MustNotBeRenamed = true
+	}
 }
 
 type mergeResult int
@@ -2486,10 +2528,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		p.lexer.Next()
 		var name *js_ast.LocRef
 
+		p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
+
+		// Parse an optional class name
 		if p.lexer.Token == js_lexer.TIdentifier && !js_lexer.StrictModeReservedWords[p.lexer.Identifier] {
-			p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
-			nameLoc := p.lexer.Loc()
-			name = &js_ast.LocRef{Loc: loc, Ref: p.declareSymbol(js_ast.SymbolOther, nameLoc, p.lexer.Identifier)}
+			name = &js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.newSymbol(js_ast.SymbolOther, p.lexer.Identifier)}
 			p.lexer.Next()
 		}
 
@@ -2500,10 +2543,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		class := p.parseClass(name, parseClassOpts{})
 
-		if name != nil {
-			p.popScope()
-		}
-
+		p.popScope()
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EClass{Class: class}}
 
 	case js_lexer.TNew:
@@ -4382,7 +4422,13 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 	if opts.tsDecorators != nil {
 		classOpts.tsDecorators = opts.tsDecorators.values
 	}
+	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
 	class := p.parseClass(name, classOpts)
+	if classOpts.isTypeScriptDeclare {
+		p.popAndDiscardScope(scopeIndex)
+	} else {
+		p.popScope()
+	}
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SClass{Class: class, IsExport: opts.isExport}}
 }
 
@@ -4816,7 +4862,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						defaultName = createDefaultName()
 					}
 				default:
-					defaultName = createDefaultName()
+					panic("Internal error")
 				}
 
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: js_ast.ExprOrStmt{Stmt: &stmt}}}
@@ -5235,7 +5281,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		case js_lexer.TConst:
 			p.markSyntaxFeature(compat.Const, p.lexer.Range())
 			p.lexer.Next()
-			decls = p.parseAndDeclareDecls(js_ast.SymbolOther, parseStmtOpts{})
+			decls = p.parseAndDeclareDecls(js_ast.SymbolConst, parseStmtOpts{})
 			init = &js_ast.Stmt{Loc: initLoc, Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: decls}}
 
 		case js_lexer.TSemicolon:
@@ -5847,11 +5893,13 @@ func (p *parser) pushScopeForVisitPass(kind js_ast.ScopeKind, loc logger.Loc) {
 
 type findSymbolResult struct {
 	ref               js_ast.Ref
+	declareLoc        logger.Loc
 	isInsideWithScope bool
 }
 
 func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 	var ref js_ast.Ref
+	var declareLoc logger.Loc
 	isInsideWithScope := false
 	s := p.currentScope
 
@@ -5864,6 +5912,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 		// Is the symbol a member of this scope?
 		if member, ok := s.Members[name]; ok {
 			ref = member.Ref
+			declareLoc = member.Loc
 			if p.symbols[ref.InnerIndex].Kind == js_ast.SymbolError {
 				r := js_lexer.RangeOfIdentifier(p.source, loc)
 				p.log.AddRangeError(&p.source, r, fmt.Sprintf("Cannot access %q here", name))
@@ -5876,6 +5925,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 			// Allocate an "unbound" symbol
 			p.checkForNonBMPCodePoint(loc, name)
 			ref = p.newSymbol(js_ast.SymbolUnbound, name)
+			declareLoc = loc
 			p.moduleScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: logger.Loc{Start: -1}}
 			break
 		}
@@ -5891,7 +5941,7 @@ func (p *parser) findSymbol(loc logger.Loc, name string) findSymbolResult {
 
 	// Track how many times we've referenced this symbol
 	p.recordUsage(ref)
-	return findSymbolResult{ref, isInsideWithScope}
+	return findSymbolResult{ref, declareLoc, isInsideWithScope}
 }
 
 func (p *parser) findLabelSymbol(loc logger.Loc, name string) (ref js_ast.Ref, isLoop bool, ok bool) {
@@ -6393,6 +6443,7 @@ func (p *parser) visitForLoopInit(stmt js_ast.Stmt, isInOrOf bool) js_ast.Stmt {
 			}
 		}
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
+		s.Kind = p.selectLocalKind(s.Kind)
 
 	default:
 		panic("Internal error")
@@ -6419,11 +6470,13 @@ func (p *parser) visitBinding(binding js_ast.Binding) {
 		for _, item := range b.Items {
 			p.visitBinding(item.Binding)
 			if item.DefaultValue != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*item.DefaultValue)
 				*item.DefaultValue = p.visitExpr(*item.DefaultValue)
 
 				// Optionally preserve the name
 				if id, ok := item.Binding.Data.(*js_ast.BIdentifier); ok {
-					*item.DefaultValue = p.maybeKeepExprSymbolName(*item.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName)
+					*item.DefaultValue = p.maybeKeepExprSymbolName(
+						*item.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 			}
 		}
@@ -6435,11 +6488,13 @@ func (p *parser) visitBinding(binding js_ast.Binding) {
 			}
 			p.visitBinding(property.Value)
 			if property.DefaultValue != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.DefaultValue)
 				*property.DefaultValue = p.visitExpr(*property.DefaultValue)
 
 				// Optionally preserve the name
 				if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok {
-					*property.DefaultValue = p.maybeKeepExprSymbolName(*property.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName)
+					*property.DefaultValue = p.maybeKeepExprSymbolName(
+						*property.DefaultValue, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 			}
 			b.Properties[i] = property
@@ -6850,12 +6905,21 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
-func (p *parser) maybeKeepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr {
-	if p.options.keepNames {
-		switch value.Data.(type) {
-		case *js_ast.EArrow, *js_ast.EFunction, *js_ast.EClass:
-			return p.keepExprSymbolName(value, name)
-		}
+func (p *parser) isAnonymousNamedExpr(expr js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *js_ast.EArrow:
+		return true
+	case *js_ast.EFunction:
+		return e.Fn.Name == nil
+	case *js_ast.EClass:
+		return e.Class.Name == nil
+	}
+	return false
+}
+
+func (p *parser) maybeKeepExprSymbolName(value js_ast.Expr, name string, wasAnonymousNamedExpr bool) js_ast.Expr {
+	if p.options.keepNames && wasAnonymousNamedExpr {
+		return p.keepExprSymbolName(value, name)
 	}
 	return value
 }
@@ -6870,8 +6934,8 @@ func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr 
 	return value
 }
 
-func (p *parser) keepStmtSymbolName(stmts []js_ast.Stmt, loc logger.Loc, ref js_ast.Ref, name string) []js_ast.Stmt {
-	stmts = append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string) js_ast.Stmt {
+	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
 		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
 			{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
 			{Loc: loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(name)}},
@@ -6879,8 +6943,7 @@ func (p *parser) keepStmtSymbolName(stmts []js_ast.Stmt, loc logger.Loc, ref js_
 
 		// Make sure tree shaking removes this if the function is never used
 		DoesNotAffectTreeShaking: true,
-	}})
-	return stmts
+	}}
 }
 
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
@@ -6988,10 +7051,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		switch {
 		case s.Value.Expr != nil:
+			wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*s.Value.Expr)
 			*s.Value.Expr = p.visitExpr(*s.Value.Expr)
 
 			// Optionally preserve the name
-			*s.Value.Expr = p.maybeKeepExprSymbolName(*s.Value.Expr, "default")
+			*s.Value.Expr = p.maybeKeepExprSymbolName(*s.Value.Expr, "default", wasAnonymousNamedExpr)
 
 			// Discard type-only export default statements
 			if p.options.ts.Parse {
@@ -7023,36 +7087,17 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 				// Optionally preserve the name
 				if p.options.keepNames && s2.Fn.Name != nil {
-					stmts = p.keepStmtSymbolName(stmts, s2.Fn.Name.Loc, s2.Fn.Name.Ref, name)
+					stmts = append(stmts, p.keepStmtSymbolName(s2.Fn.Name.Loc, s2.Fn.Name.Ref, name))
 				}
 
 				return stmts
 
 			case *js_ast.SClass:
-				// If we need to preserve the name but there is no name, generate a name
-				var name string
-				if p.options.keepNames {
-					if s2.Class.Name == nil {
-						clone := s.DefaultName
-						s2.Class.Name = &clone
-						name = "default"
-					} else {
-						name = p.symbols[s2.Class.Name.Ref.InnerIndex].OriginalName
-					}
-				}
-
-				p.visitClass(&s2.Class)
+				shadowRef := p.visitClass(s.Value.Stmt.Loc, &s2.Class)
 
 				// Lower class field syntax for browsers that don't support it
-				classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
-				stmts = append(stmts, classStmts...)
-
-				// Optionally preserve the name
-				if p.options.keepNames && s2.Class.Name != nil {
-					stmts = p.keepStmtSymbolName(stmts, s2.Class.Name.Loc, s2.Class.Name.Ref, name)
-				}
-
-				return stmts
+				classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
+				return append(stmts, classStmts...)
 
 			default:
 				panic("Internal error")
@@ -7112,11 +7157,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		for i, d := range s.Decls {
 			p.visitBinding(d.Binding)
 			if d.Value != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*d.Value)
 				*d.Value = p.visitExpr(*d.Value)
 
 				// Optionally preserve the name
 				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
-					*d.Value = p.maybeKeepExprSymbolName(*d.Value, p.symbols[id.Ref.InnerIndex].OriginalName)
+					*d.Value = p.maybeKeepExprSymbolName(
+						*d.Value, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 				}
 
 				// Initializing to undefined is implicit, but be careful to not
@@ -7167,6 +7214,35 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
+		s.Kind = p.selectLocalKind(s.Kind)
+
+		// Relocate "var" statements in nested scopes to the top-level scope when
+		// bundling. This makes it easy to pick out all top-level declarations by
+		// only looking at the array of top-level statements.
+		if p.options.mode == config.ModeBundle && s.Kind == js_ast.LocalVar && p.currentScope != p.moduleScope {
+			scope := p.currentScope
+			for !scope.Kind.StopsHoisting() {
+				scope = scope.Parent
+			}
+			if scope == p.moduleScope {
+				wrapIdentifier := func(loc logger.Loc, ref js_ast.Ref) js_ast.Expr {
+					p.relocatedTopLevelVars = append(p.relocatedTopLevelVars, js_ast.LocRef{Loc: loc, Ref: ref})
+					p.recordUsage(ref)
+					return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
+				}
+				var value js_ast.Expr
+				for _, decl := range s.Decls {
+					binding := p.convertBindingToExpr(decl.Binding, wrapIdentifier)
+					if decl.Value != nil {
+						value = maybeJoinWithComma(value, js_ast.Assign(binding, *decl.Value))
+					}
+				}
+				if value.Data != nil {
+					stmts = append(stmts, js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: value}})
+				}
+				return stmts
+			}
+		}
 
 	case *js_ast.SExpr:
 		s.Value = p.visitExpr(s.Value)
@@ -7387,12 +7463,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Optionally preserve the name
 		if p.options.keepNames {
-			stmts = p.keepStmtSymbolName(stmts, s.Fn.Name.Loc, s.Fn.Name.Ref, p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName)
+			stmts = append(stmts, p.keepStmtSymbolName(s.Fn.Name.Loc, s.Fn.Name.Ref, p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName))
 		}
 		return stmts
 
 	case *js_ast.SClass:
-		p.visitClass(&s.Class)
+		shadowRef := p.visitClass(stmt.Loc, &s.Class)
 
 		// Remove the export flag inside a namespace
 		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
@@ -7401,13 +7477,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		// Lower class field syntax for browsers that don't support it
-		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{})
+		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, shadowRef)
 		stmts = append(stmts, classStmts...)
-
-		// Optionally preserve the name
-		if p.options.keepNames {
-			stmts = p.keepStmtSymbolName(stmts, s.Class.Name.Loc, s.Class.Name.Ref, p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName)
-		}
 
 		// Handle exporting this class from a namespace
 		if wasExportInsideNamespace {
@@ -7755,11 +7826,28 @@ func (p *parser) visitTSDecorators(tsDecorators []js_ast.Expr) []js_ast.Expr {
 	return tsDecorators
 }
 
-func (p *parser) visitClass(class *js_ast.Class) {
+func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast.Ref {
 	class.TSDecorators = p.visitTSDecorators(class.TSDecorators)
 
 	if class.Name != nil {
 		p.recordDeclaredSymbol(class.Name.Ref)
+	}
+
+	p.pushScopeForVisitPass(js_ast.ScopeClassName, nameScopeLoc)
+
+	// Insert a shadowing name that spans the whole class, which matches
+	// JavaScript's semantics. The class body (and extends clause) "captures" the
+	// original value of the name. This matters for class statements because the
+	// symbol can be re-assigned to something else later. The captured values
+	// must be the original value of the name, not the re-assigned value.
+	shadowRef := js_ast.InvalidRef
+	if class.Name != nil {
+		// Use "const" for this symbol to match JavaScript run-time semantics. You
+		// are not allowed to assign to this symbol (it throws a TypeError).
+		name := p.symbols[class.Name.Ref.InnerIndex].OriginalName
+		shadowRef = p.newSymbol(js_ast.SymbolConst, name)
+		p.recordDeclaredSymbol(shadowRef)
+		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: shadowRef}
 	}
 
 	if class.Extends != nil {
@@ -7791,6 +7879,15 @@ func (p *parser) visitClass(class *js_ast.Class) {
 	}
 
 	p.fnOnlyDataVisit.isThisNested = oldIsThisCaptured
+
+	p.popScope()
+
+	// Don't generate a shadowing name if one isn't needed
+	if shadowRef != js_ast.InvalidRef && p.symbols[shadowRef.InnerIndex].UseCountEstimate == 0 {
+		shadowRef = js_ast.InvalidRef
+	}
+
+	return shadowRef
 }
 
 func (p *parser) visitArgs(args []js_ast.Arg) {
@@ -8217,7 +8314,8 @@ type exprIn struct {
 	//
 	// In the example above we need to store "a" as the value for "this" so we
 	// can substitute it back in when we call "_a" if "_a" is indeed present.
-	storeThisArgForParentOptionalChain func(js_ast.Expr) js_ast.Expr
+	// See also "thisArgFunc" and "thisArgWrapFunc" in "exprOut".
+	storeThisArgForParentOptionalChain bool
 
 	// Certain substitutions of identifiers are disallowed for assignment targets.
 	// For example, we shouldn't transform "undefined = 1" into "void 0 = 1". This
@@ -8230,6 +8328,27 @@ type exprOut struct {
 	// True if the child node is an optional chain node (EDot, EIndex, or ECall
 	// with an IsOptionalChain value of true)
 	childContainsOptionalChain bool
+
+	// If our parent is an ECall node with an OptionalChain value of
+	// OptionalChainContinue, then we may need to return the value for "this"
+	// from this node or one of this node's children so that the parent that is
+	// the end of the optional chain can use it.
+	//
+	// Example:
+	//
+	//   // Original
+	//   a?.b?.().c();
+	//
+	//   // Lowered
+	//   var _a;
+	//   (_a = a == null ? void 0 : a.b) == null ? void 0 : _a.call(a).c();
+	//
+	// The value "_a" for "this" must be passed all the way up to the call to
+	// ".c()" which is where the optional chain is lowered. From there it must
+	// be substituted as the value for "this" in the call to ".b?.()". See also
+	// "storeThisArgForParentOptionalChain" in "exprIn".
+	thisArgFunc     func() js_ast.Expr
+	thisArgWrapFunc func(js_ast.Expr) js_ast.Expr
 }
 
 func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
@@ -8373,10 +8492,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		result := p.findSymbol(expr.Loc, name)
 		e.Ref = result.ref
 
-		// Warn about assigning to a constant
+		// Handle assigning to a constant
 		if in.assignTarget != js_ast.AssignTargetNone && p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolConst {
 			r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-			p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("This assignment will throw because %q is a constant", name))
+			notes := []logger.MsgData{logger.RangeData(&p.source, js_lexer.RangeOfIdentifier(p.source, result.declareLoc),
+				fmt.Sprintf("%q was declared a constant here", name))}
+
+			// Make this an error when bundling because we may need to convert this
+			// "const" into a "var" during bundling.
+			if p.options.mode == config.ModeBundle {
+				p.log.AddRangeErrorWithNotes(&p.source, r, fmt.Sprintf("Cannot assign to %q because it is a constant", name), notes)
+			} else {
+				p.log.AddRangeWarningWithNotes(&p.source, r, fmt.Sprintf("This assignment will throw because %q is a constant", name), notes)
+			}
 		}
 
 		// Substitute user-specified defines for unbound symbols
@@ -8488,6 +8616,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EBinary:
 		isCallTarget := e == p.callTarget
+		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{assignTarget: e.Op.BinaryAssignTarget()})
 
 		// Pattern-match "typeof require == 'function' && ___" from browserify
@@ -8838,7 +8967,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			// Optionally preserve the name
 			if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
-				e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName)
+				e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 			}
 
 			if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
@@ -8997,11 +9126,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
-			return p.lowerOptionalChain(expr, in, out, nil)
+			return p.lowerOptionalChain(expr, in, out)
 		}
 
 		// Potentially rewrite this property access
-		out = exprOut{childContainsOptionalChain: containsOptionalChain}
+		out = exprOut{
+			childContainsOptionalChain: containsOptionalChain,
+			thisArgFunc:                out.thisArgFunc,
+			thisArgWrapFunc:            out.thisArgWrapFunc,
+		}
+		if !in.hasChainParent {
+			out.thisArgFunc = nil
+			out.thisArgWrapFunc = nil
+		}
 		if str, ok := e.Index.Data.(*js_ast.EString); ok {
 			name := js_lexer.UTF16ToString(str.Value)
 			if value, ok := p.maybeRewritePropertyAccess(
@@ -9080,7 +9217,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Lower optional chaining if present since we're guaranteed to be the
 			// end of the chain
 			if out.childContainsOptionalChain {
-				return p.lowerOptionalChain(expr, in, out, nil)
+				return p.lowerOptionalChain(expr, in, out)
 			}
 
 			// Make sure we don't accidentally change the return value
@@ -9188,6 +9325,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		// Pattern-match "require.main" from node
+		if p.options.outputFormat == config.FormatCommonJS && e.Name == "main" {
+			p.cjsDotMainTarget = e.Target.Data
+		}
+
 		isCallTarget := e == p.callTarget
 		target, out := p.visitExprInOut(e.Target, exprIn{
 			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
@@ -9203,11 +9345,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
-			return p.lowerOptionalChain(expr, in, out, nil)
+			return p.lowerOptionalChain(expr, in, out)
 		}
 
 		// Potentially rewrite this property access
-		out = exprOut{childContainsOptionalChain: containsOptionalChain}
+		out = exprOut{
+			childContainsOptionalChain: containsOptionalChain,
+			thisArgFunc:                out.thisArgFunc,
+			thisArgWrapFunc:            out.thisArgWrapFunc,
+		}
+		if !in.hasChainParent {
+			out.thisArgFunc = nil
+			out.thisArgWrapFunc = nil
+		}
 		if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget, e.OptionalChain, e.Target, e.Name, e.NameLoc, isCallTarget); ok {
 			return value, out
 		}
@@ -9286,12 +9436,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				hasSpread = true
 			case *js_ast.EBinary:
 				if in.assignTarget != js_ast.AssignTargetNone && e2.Op == js_ast.BinOpAssign {
+					wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e2.Right)
 					e2.Left, _ = p.visitExprInOut(e2.Left, exprIn{assignTarget: js_ast.AssignTargetReplace})
 					e2.Right = p.visitExpr(e2.Right)
 
 					// Optionally preserve the name
 					if id, ok := e2.Left.Data.(*js_ast.EIdentifier); ok {
-						e2.Right = p.maybeKeepExprSymbolName(e2.Right, p.symbols[id.Ref.InnerIndex].OriginalName)
+						e2.Right = p.maybeKeepExprSymbolName(
+							e2.Right, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 					}
 				} else {
 					item, _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
@@ -9346,12 +9498,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				*property.Value, _ = p.visitExprInOut(*property.Value, exprIn{assignTarget: in.assignTarget})
 			}
 			if property.Initializer != nil {
+				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(*property.Initializer)
 				*property.Initializer = p.visitExpr(*property.Initializer)
 
 				// Optionally preserve the name
 				if property.Value != nil {
 					if id, ok := property.Value.Data.(*js_ast.EIdentifier); ok {
-						*property.Initializer = p.maybeKeepExprSymbolName(*property.Initializer, p.symbols[id.Ref.InnerIndex].OriginalName)
+						*property.Initializer = p.maybeKeepExprSymbolName(
+							*property.Initializer, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
 					}
 				}
 			}
@@ -9473,19 +9627,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}), exprOut{}
 
 	case *js_ast.ECall:
-		var storeThisArg func(js_ast.Expr) js_ast.Expr
-		var thisArgFunc func() js_ast.Expr
-		var thisArgWrapFunc func(js_ast.Expr) js_ast.Expr
 		p.callTarget = e.Target.Data
-		if e.OptionalChain == js_ast.OptionalChainStart {
-			// Signal to our child if this is an ECall at the start of an optional
-			// chain. If so, the child will need to stash the "this" context for us
-			// that we need for the ".call(this, ...args)".
-			storeThisArg = func(thisArg js_ast.Expr) js_ast.Expr {
-				thisArgFunc, thisArgWrapFunc = p.captureValueWithPossibleSideEffects(thisArg.Loc, 2, thisArg)
-				return thisArgFunc()
-			}
-		}
 
 		// Prepare to recognize "require.resolve()" calls
 		couldBeRequireResolve := false
@@ -9498,8 +9640,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		_, wasIdentifierBeforeVisit := e.Target.Data.(*js_ast.EIdentifier)
 		target, out := p.visitExprInOut(e.Target, exprIn{
-			hasChainParent:                     e.OptionalChain == js_ast.OptionalChainContinue,
-			storeThisArgForParentOptionalChain: storeThisArg,
+			hasChainParent: e.OptionalChain == js_ast.OptionalChainContinue,
+
+			// Signal to our child if this is an ECall at the start of an optional
+			// chain. If so, the child will need to stash the "this" context for us
+			// that we need for the ".call(this, ...args)".
+			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart,
 		})
 		e.Target = target
 		hasSpread := false
@@ -9584,11 +9730,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Lower optional chaining if we're the top of the chain
 		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
 		if containsOptionalChain && !in.hasChainParent {
-			result, out := p.lowerOptionalChain(expr, in, out, thisArgFunc)
-			if thisArgWrapFunc != nil {
-				result = thisArgWrapFunc(result)
-			}
-			return result, out
+			return p.lowerOptionalChain(expr, in, out)
 		}
 
 		// If this is a plain call expression (instead of an optional chain), lower
@@ -9664,9 +9806,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		return expr, exprOut{
+		out = exprOut{
 			childContainsOptionalChain: containsOptionalChain,
+			thisArgFunc:                out.thisArgFunc,
+			thisArgWrapFunc:            out.thisArgWrapFunc,
 		}
+		if !in.hasChainParent {
+			out.thisArgFunc = nil
+			out.thisArgWrapFunc = nil
+		}
+		return expr, out
 
 	case *js_ast.ENew:
 		e.Target = p.visitExpr(e.Target)
@@ -9739,27 +9888,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EClass:
-		name := e.Class.Name
-		if name != nil {
-			p.pushScopeForVisitPass(js_ast.ScopeClassName, expr.Loc)
-		}
-		p.visitClass(&e.Class)
-		if name != nil {
-			p.popScope()
-		}
-
-		// Remove unused class names when minifying
-		if p.options.mangleSyntax && name != nil && p.symbols[name.Ref.InnerIndex].UseCountEstimate == 0 {
-			e.Class.Name = nil
-		}
+		shadowRef := p.visitClass(expr.Loc, &e.Class)
 
 		// Lower class field syntax for browsers that don't support it
-		_, expr = p.lowerClass(js_ast.Stmt{}, expr)
-
-		// Optionally preserve the name
-		if p.options.keepNames && name != nil {
-			expr = p.keepExprSymbolName(expr, p.symbols[name.Ref.InnerIndex].OriginalName)
-		}
+		_, expr = p.lowerClass(js_ast.Stmt{}, expr, shadowRef)
 
 	default:
 		panic("Internal error")
@@ -9829,7 +9961,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, assignTarget js_ast.AssignTarg
 	}
 
 	// Warn about uses of "require" other than a direct call
-	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && p.fnOrArrowDataVisit.tryBodyCount == 0 {
+	if ref == p.requireRef && e != p.callTarget && e != p.typeofTarget && e != p.cjsDotMainTarget && p.fnOrArrowDataVisit.tryBodyCount == 0 {
 		// "typeof require == 'function' && require"
 		if e == p.typeofRequireEqualsFnTarget {
 			// Become "false" in the browser and "require" in node
@@ -10261,6 +10393,33 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		Stmts:      p.visitStmtsAndPrependTempRefs(stmts, prependTempRefsOpts{}),
 		SymbolUses: p.symbolUses,
 	}
+
+	// Insert any relocated variable statements now
+	if len(p.relocatedTopLevelVars) > 0 {
+		alreadyDeclared := make(map[js_ast.Ref]bool)
+		for _, local := range p.relocatedTopLevelVars {
+			// Follow links because "var" declarations may be merged due to hoisting
+			for {
+				link := p.symbols[local.Ref.InnerIndex].Link
+				if link == js_ast.InvalidRef {
+					break
+				}
+				local.Ref = link
+			}
+
+			// Only declare a given relocated variable once
+			if !alreadyDeclared[local.Ref] {
+				alreadyDeclared[local.Ref] = true
+				part.Stmts = append(part.Stmts, js_ast.Stmt{Loc: local.Loc, Data: &js_ast.SLocal{
+					Decls: []js_ast.Decl{{
+						Binding: js_ast.Binding{Loc: local.Loc, Data: &js_ast.BIdentifier{Ref: local.Ref}},
+					}},
+				}})
+			}
+		}
+		p.relocatedTopLevelVars = nil
+	}
+
 	if len(part.Stmts) > 0 {
 		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts)
 		part.DeclaredSymbols = p.declaredSymbols
@@ -10775,7 +10934,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// all modules together anyway so such directives are meaningless.
 	if p.importMetaRef != js_ast.InvalidRef {
 		importMetaStmt := js_ast.Stmt{Data: &js_ast.SLocal{
-			Kind: js_ast.LocalConst,
+			Kind: p.selectLocalKind(js_ast.LocalConst),
 			Decls: []js_ast.Decl{{
 				Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: p.importMetaRef}},
 				Value:   &js_ast.Expr{Data: &js_ast.EObject{}},
@@ -10864,7 +11023,7 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 
 	// Defer the actual code generation until linking
 	part := js_ast.Part{
-		Stmts:      []js_ast.Stmt{js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SLazyExport{Value: expr}}},
+		Stmts:      []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SLazyExport{Value: expr}}},
 		SymbolUses: p.symbolUses,
 	}
 	p.symbolUses = nil

@@ -1295,17 +1295,17 @@ func TestTSImport(t *testing.T) {
 func TestTSImportEquals(t *testing.T) {
 	expectPrintedTS(t, "import x = require('foo'); x()", "const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "import x = require('foo')\nx()", "const x = require(\"foo\");\nx();\n")
-	expectPrintedTS(t, "import x = require\nx()", "var x = require;\nx();\n")
-	expectPrintedTS(t, "import x = foo.bar; x()", "var x = foo.bar;\nx();\n")
-	expectPrintedTS(t, "import x = foo.bar\nx()", "var x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "import x = require\nx()", "const x = require;\nx();\n")
+	expectPrintedTS(t, "import x = foo.bar; x()", "const x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "import x = foo.bar\nx()", "const x = foo.bar;\nx();\n")
 	expectParseErrorTS(t, "import x = foo()", "<stdin>: error: Expected \";\" but found \"(\"\n")
 	expectParseErrorTS(t, "import x = foo<T>.bar", "<stdin>: error: Expected \";\" but found \"<\"\n")
 	expectParseErrorTS(t, "{ import x = foo.bar }", "<stdin>: error: Unexpected \"x\"\n")
 
 	expectPrintedTS(t, "export import x = require('foo'); x()", "export const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "export import x = require('foo')\nx()", "export const x = require(\"foo\");\nx();\n")
-	expectPrintedTS(t, "export import x = foo.bar; x()", "export var x = foo.bar;\nx();\n")
-	expectPrintedTS(t, "export import x = foo.bar\nx()", "export var x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "export import x = foo.bar; x()", "export const x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "export import x = foo.bar\nx()", "export const x = foo.bar;\nx();\n")
 
 	expectParseError(t, "export import foo = bar", "<stdin>: error: Unexpected \"import\"\n")
 	expectParseErrorTS(t, "export import {foo} from 'bar'", "<stdin>: error: Expected identifier but found \"{\"\n")
@@ -1315,6 +1315,12 @@ func TestTSImportEquals(t *testing.T) {
 <stdin>: note: "foo" was originally exported here
 `)
 	expectParseErrorTS(t, "{ export import foo = bar }", "<stdin>: error: Unexpected \"export\"\n")
+
+	errorText := `<stdin>: warning: This assignment will throw because "x" is a constant
+<stdin>: note: "x" was declared a constant here
+`
+	expectParseErrorTS(t, "import x = require('y'); x = require('z')", errorText)
+	expectParseErrorTS(t, "import x = y.z; x = z.y", errorText)
 }
 
 func TestTSImportEqualsInNamespace(t *testing.T) {
@@ -1322,7 +1328,7 @@ func TestTSImportEqualsInNamespace(t *testing.T) {
 	expectPrintedTS(t, "namespace ns { import foo = bar; type x = foo.x }", "")
 	expectPrintedTS(t, "namespace ns { import foo = bar.x; foo }", `var ns;
 (function(ns) {
-  var foo = bar.x;
+  const foo = bar.x;
   foo;
 })(ns || (ns = {}));
 `)
@@ -1353,15 +1359,15 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'; x", "x;\n")
 	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'\nx", "x;\n")
 
-	expectPrintedTS(t, "import type = bar; type", "var type = bar;\ntype;\n")
-	expectPrintedTS(t, "import type = foo.bar; type", "var type = foo.bar;\ntype;\n")
+	expectPrintedTS(t, "import type = bar; type", "const type = bar;\ntype;\n")
+	expectPrintedTS(t, "import type = foo.bar; type", "const type = foo.bar;\ntype;\n")
 	expectPrintedTS(t, "import type = require('type'); type", "const type = require(\"type\");\ntype;\n")
 	expectPrintedTS(t, "import type from 'bar'; type", "import type from \"bar\";\ntype;\n")
 
 	expectPrintedTS(t, "import a = b; import c = a.c", "")
 	expectPrintedTS(t, "import c = a.c; import a = b", "")
-	expectPrintedTS(t, "import a = b; import c = a.c; c()", "var a = b;\nvar c = a.c;\nc();\n")
-	expectPrintedTS(t, "import c = a.c; import a = b; c()", "var c = a.c;\nvar a = b;\nc();\n")
+	expectPrintedTS(t, "import a = b; import c = a.c; c()", "const a = b;\nconst c = a.c;\nc();\n")
+	expectPrintedTS(t, "import c = a.c; import a = b; c()", "const c = a.c;\nconst a = b;\nc();\n")
 
 	expectParseErrorTS(t, "import type", "<stdin>: error: Expected \"from\" but found end of file\n")
 	expectParseErrorTS(t, "import type * foo", "<stdin>: error: Expected \"as\" but found \"foo\"\n")

@@ -183,7 +183,7 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
+		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
 			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
@@ -214,7 +214,7 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
+		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
 			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
@@ -244,7 +244,7 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
+		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
 			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
@@ -274,7 +274,7 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
+		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
 			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
@@ -700,7 +700,6 @@ func TestPackageJsonSideEffectsArrayGlob(t *testing.T) {
 			"/Users/user/project/src/entry.js": `
 				import "demo-pkg/keep/this/file"
 				import "demo-pkg/remove/this/file"
-				import "demo-pkg/remove/this/file"
 			`,
 			"/Users/user/project/node_modules/demo-pkg/keep/this/file.js": `
 				console.log('this should be kept')
@@ -723,7 +722,7 @@ func TestPackageJsonSideEffectsArrayGlob(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because ` +
+		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because ` +
 			`"/Users/user/project/node_modules/demo-pkg/remove/this/file.js" was marked as having no side effects
 /Users/user/project/node_modules/demo-pkg/package.json: note: It was excluded from the "sideEffects" ` +
 			`array in the enclosing "package.json" file
@@ -984,8 +983,8 @@ func TestTreeShakingReactElements(t *testing.T) {
 
 func TestDisableTreeShaking(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"pure":    config.DefineData{CallCanBeUnwrappedIfUnused: true},
-		"some.fn": config.DefineData{CallCanBeUnwrappedIfUnused: true},
+		"pure":    {CallCanBeUnwrappedIfUnused: true},
+		"some.fn": {CallCanBeUnwrappedIfUnused: true},
 	})
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

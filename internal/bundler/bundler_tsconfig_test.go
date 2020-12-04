@@ -147,6 +147,203 @@ func TestTsConfigPaths(t *testing.T) {
 	})
 }
 
+func TestTsConfigPathsNoBaseURL(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.ts": `
+				import simple from './simple'
+				import extended from './extended'
+				console.log(simple, extended)
+			`,
+
+			// Tests with "baseUrl": "."
+			"/Users/user/project/simple/index.ts": `
+				import test0 from 'test0'
+				import test1 from 'test1/foo'
+				import test2 from 'test2/foo'
+				import test3 from 'test3/foo'
+				import test4 from 'test4/foo'
+				import test5 from 'test5/foo'
+				import absolute from './absolute'
+				export default {
+					test0,
+					test1,
+					test2,
+					test3,
+					test4,
+					test5,
+					absolute,
+				}
+			`,
+			"/Users/user/project/simple/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"paths": {
+							"test0": ["./test0-success.ts"],
+							"test1/*": ["./test1-success.ts"],
+							"test2/*": ["./test2-success/*"],
+							"t*t3/foo": ["./test3-succ*s.ts"],
+							"test4/*": ["./test4-first/*", "./test4-second/*"],
+							"test5/*": ["./test5-first/*", "./test5-second/*"],
+							"/virtual/*": ["./actual/*"],
+						}
+					}
+				}
+			`,
+			"/Users/user/project/simple/test0-success.ts": `
+				export default 'test0-success'
+			`,
+			"/Users/user/project/simple/test1-success.ts": `
+				export default 'test1-success'
+			`,
+			"/Users/user/project/simple/test2-success/foo.ts": `
+				export default 'test2-success'
+			`,
+			"/Users/user/project/simple/test3-success.ts": `
+				export default 'test3-success'
+			`,
+			"/Users/user/project/simple/test4-first/foo.ts": `
+				export default 'test4-success'
+			`,
+			"/Users/user/project/simple/test5-second/foo.ts": `
+				export default 'test5-success'
+			`,
+			"/Users/user/project/simple/absolute.ts": `
+				export {default} from '/virtual/test'
+			`,
+			"/Users/user/project/simple/actual/test.ts": `
+				export default 'absolute-success'
+			`,
+
+			// Tests with "baseUrl": "nested"
+			"/Users/user/project/extended/index.ts": `
+				import test0 from 'test0'
+				import test1 from 'test1/foo'
+				import test2 from 'test2/foo'
+				import test3 from 'test3/foo'
+				import test4 from 'test4/foo'
+				import test5 from 'test5/foo'
+				import absolute from './absolute'
+				export default {
+					test0,
+					test1,
+					test2,
+					test3,
+					test4,
+					test5,
+					absolute,
+				}
+			`,
+			"/Users/user/project/extended/tsconfig.json": `
+				{
+					"extends": "./nested/tsconfig.json"
+				}
+			`,
+			"/Users/user/project/extended/nested/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"paths": {
+							"test0": ["./test0-success.ts"],
+							"test1/*": ["./test1-success.ts"],
+							"test2/*": ["./test2-success/*"],
+							"t*t3/foo": ["./test3-succ*s.ts"],
+							"test4/*": ["./test4-first/*", "./test4-second/*"],
+							"test5/*": ["./test5-first/*", "./test5-second/*"],
+							"/virtual/*": ["./actual/*"],
+						}
+					}
+				}
+			`,
+			"/Users/user/project/extended/nested/test0-success.ts": `
+				export default 'test0-success'
+			`,
+			"/Users/user/project/extended/nested/test1-success.ts": `
+				export default 'test1-success'
+			`,
+			"/Users/user/project/extended/nested/test2-success/foo.ts": `
+				export default 'test2-success'
+			`,
+			"/Users/user/project/extended/nested/test3-success.ts": `
+				export default 'test3-success'
+			`,
+			"/Users/user/project/extended/nested/test4-first/foo.ts": `
+				export default 'test4-success'
+			`,
+			"/Users/user/project/extended/nested/test5-second/foo.ts": `
+				export default 'test5-success'
+			`,
+			"/Users/user/project/extended/absolute.ts": `
+				export {default} from '/virtual/test'
+			`,
+			"/Users/user/project/extended/nested/actual/test.ts": `
+				export default 'absolute-success'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigBadPathsNoBaseURL(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.ts": `
+				import "should-not-be-imported"
+			`,
+			"/Users/user/project/should-not-be-imported.ts": `
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"paths": {
+							"test": [
+								".",
+								"..",
+								"./good",
+								".\\good",
+								"../good",
+								"..\\good",
+								"/good",
+								"\\good",
+								"c:/good",
+								"c:\\good",
+								"C:/good",
+								"C:\\good",
+
+								"bad",
+								"@bad/core",
+								".*/bad",
+								"..*/bad",
+								"c*:\\bad",
+								"c:*\\bad",
+								"http://bad"
+							]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `/Users/user/project/entry.ts: error: Could not resolve "should-not-be-imported" ` +
+			`(use "./should-not-be-imported" to import "/Users/user/project/should-not-be-imported.ts")
+/Users/user/project/tsconfig.json: warning: Non-relative path "bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+/Users/user/project/tsconfig.json: warning: Non-relative path "@bad/core" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+/Users/user/project/tsconfig.json: warning: Non-relative path ".*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+/Users/user/project/tsconfig.json: warning: Non-relative path "..*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+/Users/user/project/tsconfig.json: warning: Non-relative path "c*:\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+/Users/user/project/tsconfig.json: warning: Non-relative path "c:*\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+/Users/user/project/tsconfig.json: warning: Non-relative path "http://bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+`,
+	})
+}
+
 func TestTsConfigJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

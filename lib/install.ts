@@ -156,7 +156,7 @@ function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
 }
 
 function installUsingNPM(name: string, file: string): Buffer {
-  const installDir = path.join(__dirname, '.install');
+  const installDir = path.join(os.tmpdir(), 'esbuild-' + Math.random().toString(36).slice(2));
   fs.mkdirSync(installDir, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
 
@@ -168,7 +168,17 @@ function installUsingNPM(name: string, file: string): Buffer {
   child_process.execSync(`npm install --loglevel=error --prefer-offline --no-audit --progress=false ${name}@${version}`,
     { cwd: installDir, stdio: 'pipe', env });
   const buffer = fs.readFileSync(path.join(installDir, 'node_modules', name, file));
-  removeRecursive(installDir);
+  try {
+    removeRecursive(installDir);
+  } catch (e) {
+    // Removing a file or directory can randomly break on Windows, returning
+    // EBUSY for an arbitrary length of time. I think this happens when some
+    // other program has that file or directory open (e.g. an anti-virus
+    // program). This is fine on Unix because the OS just unlinks the entry
+    // but keeps the reference around until it's unused. In this case we just
+    // ignore errors because this directory is in a temporary directory, so in
+    // theory it should get cleaned up eventually anyway.
+  }
   return buffer;
 }
 
@@ -255,6 +265,7 @@ const knownWindowsPackages: Record<string, string> = {
 };
 const knownUnixlikePackages: Record<string, string> = {
   'darwin x64 LE': 'esbuild-darwin-64',
+  'darwin arm64 LE': 'esbuild-darwin-64',
   'freebsd arm64 LE': 'esbuild-freebsd-arm64',
   'freebsd x64 LE': 'esbuild-freebsd-64',
   'linux arm64 LE': 'esbuild-linux-arm64',

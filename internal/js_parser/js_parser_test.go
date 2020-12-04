@@ -413,6 +413,30 @@ func TestFor(t *testing.T) {
 	expectPrinted(t, "for (var x = async function() { a in b };;);", "for (var x = async function() {\n  a in b;\n}; ; )\n  ;\n")
 	expectPrinted(t, "for (var x = class { [a in b]() {} };;);", "for (var x = class {\n  [a in b]() {\n  }\n}; ; )\n  ;\n")
 	expectParseError(t, "for (var x = class extends a in b {};;);", "<stdin>: error: Expected \"{\" but found \"in\"\n")
+
+	errorText := `<stdin>: warning: This assignment will throw because "x" is a constant
+<stdin>: note: "x" was declared a constant here
+`
+	expectParseError(t, "for (var x = 0; ; x = 1) ;", "")
+	expectParseError(t, "for (let x = 0; ; x = 1) ;", "")
+	expectParseError(t, "for (const x = 0; ; x = 1) ;", errorText)
+	expectParseError(t, "for (var x = 0; ; x++) ;", "")
+	expectParseError(t, "for (let x = 0; ; x++) ;", "")
+	expectParseError(t, "for (const x = 0; ; x++) ;", errorText)
+
+	expectParseError(t, "for (var x in y) x = 1", "")
+	expectParseError(t, "for (let x in y) x = 1", "")
+	expectParseError(t, "for (const x in y) x = 1", errorText)
+	expectParseError(t, "for (var x in y) x++", "")
+	expectParseError(t, "for (let x in y) x++", "")
+	expectParseError(t, "for (const x in y) x++", errorText)
+
+	expectParseError(t, "for (var x of y) x = 1", "")
+	expectParseError(t, "for (let x of y) x = 1", "")
+	expectParseError(t, "for (const x of y) x = 1", errorText)
+	expectParseError(t, "for (var x of y) x++", "")
+	expectParseError(t, "for (let x of y) x++", "")
+	expectParseError(t, "for (const x of y) x++", errorText)
 }
 
 func TestScope(t *testing.T) {
@@ -563,12 +587,15 @@ func TestLocal(t *testing.T) {
 	expectParseError(t, "for (let let of x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
 	expectParseError(t, "for (const let of x) ;", "<stdin>: error: Cannot use \"let\" as an identifier here\n")
 
+	errorText := `<stdin>: warning: This assignment will throw because "x" is a constant
+<stdin>: note: "x" was declared a constant here
+`
 	expectParseError(t, "var x = 0; x = 1", "")
 	expectParseError(t, "let x = 0; x = 1", "")
-	expectParseError(t, "const x = 0; x = 1", "<stdin>: warning: This assignment will throw because \"x\" is a constant\n")
+	expectParseError(t, "const x = 0; x = 1", errorText)
 	expectParseError(t, "var x = 0; x++", "")
 	expectParseError(t, "let x = 0; x++", "")
-	expectParseError(t, "const x = 0; x++", "<stdin>: warning: This assignment will throw because \"x\" is a constant\n")
+	expectParseError(t, "const x = 0; x++", errorText)
 }
 
 func TestArrays(t *testing.T) {
@@ -2963,6 +2990,21 @@ func TestLowerOptionalChain(t *testing.T) {
 `)
 	expectPrintedTarget(t, 2019, "a?.[b]?.(c)", `var _a;
 (_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c);
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c).d", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c).d;
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c).d()", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c).d();
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c)['d']", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c)["d"];
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c)['d']()", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c)["d"]();
+`)
+	expectPrintedTarget(t, 2019, "a?.[b]?.(c).d['e'](f)['g'].h(i)", `var _a;
+(_a = a == null ? void 0 : a[b]) == null ? void 0 : _a.call(a, c).d["e"](f)["g"].h(i);
 `)
 	expectPrintedTarget(t, 2019, "123?.[b]?.(c)", `var _a;
 (_a = 123 == null ? void 0 : 123[b]) == null ? void 0 : _a.call(123, c);

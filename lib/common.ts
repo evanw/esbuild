@@ -585,6 +585,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   let buildServeData = (options: types.ServeOptions, request: protocol.BuildRequest): ServeData => {
     let keys: OptionKeys = {};
     let port = getFlag(options, keys, 'port', mustBeInteger);
+    let host = getFlag(options, keys, 'host', mustBeString);
     let onRequest = getFlag(options, keys, 'onRequest', mustBeFunction);
     let serveID = nextServeID++;
     let onWait: ServeCallbacks['onWait'];
@@ -598,6 +599,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     request.serve = { serveID };
     checkForInvalidFlags(options, keys);
     if (port !== void 0) request.serve.port = port;
+    if (host !== void 0) request.serve.host = host;
     serveCallbacks.set(serveID, {
       onRequest,
       onWait: onWait!,
@@ -673,6 +675,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               let serveResponse = response as any as protocol.ServeResponse;
               let result: types.ServeResult = {
                 port: serveResponse.port,
+                host: serveResponse.host,
                 wait: serve.wait,
                 stop: serve.stop,
               };

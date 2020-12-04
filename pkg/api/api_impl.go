@@ -341,6 +341,12 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 						return &js_ast.EIdentifier{Ref: findSymbol(loc, name)}
 					},
 				}
+
+				// Try to be helpful for common mistakes
+				if key == "process.env.NODE_ENV" {
+					log.AddWarning(nil, logger.Loc{}, fmt.Sprintf(
+						"%q is defined as an identifier instead of a string (surround %q with double quotes to get a string)", key, value))
+				}
 				continue
 			}
 		}
@@ -523,7 +529,7 @@ func rebuildImpl(
 		MinifyIdentifiers:    buildOpts.MinifyIdentifiers,
 		ASCIIOnly:            validateASCIIOnly(buildOpts.Charset),
 		IgnoreDCEAnnotations: validateIgnoreDCEAnnotations(buildOpts.TreeShaking),
-		ModuleName:           validateGlobalName(log, buildOpts.GlobalName),
+		GlobalName:           validateGlobalName(log, buildOpts.GlobalName),
 		CodeSplitting:        buildOpts.Splitting,
 		OutputFormat:         validateFormat(buildOpts.Format),
 		AbsOutputFile:        validatePath(log, realFS, buildOpts.Outfile),
@@ -538,7 +544,6 @@ func rebuildImpl(
 		TsConfigOverride:     validatePath(log, realFS, buildOpts.Tsconfig),
 		MainFields:           buildOpts.MainFields,
 		PublicPath:           buildOpts.PublicPath,
-		AvoidTDZ:             buildOpts.AvoidTDZ,
 		KeepNames:            buildOpts.KeepNames,
 		InjectAbsPaths:       make([]string, len(buildOpts.Inject)),
 		Banner:               buildOpts.Banner,
@@ -770,14 +775,13 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		Defines:                 validateDefines(log, transformOpts.Define, transformOpts.Pure),
 		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
 		OutputFormat:            validateFormat(transformOpts.Format),
-		ModuleName:              validateGlobalName(log, transformOpts.GlobalName),
+		GlobalName:              validateGlobalName(log, transformOpts.GlobalName),
 		MangleSyntax:            transformOpts.MinifySyntax,
 		RemoveWhitespace:        transformOpts.MinifyWhitespace,
 		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,
 		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
 		IgnoreDCEAnnotations:    validateIgnoreDCEAnnotations(transformOpts.TreeShaking),
 		AbsOutputFile:           transformOpts.Sourcefile + "-out",
-		AvoidTDZ:                transformOpts.AvoidTDZ,
 		KeepNames:               transformOpts.KeepNames,
 		UseDefineForClassFields: useDefineForClassFieldsTS,
 		PreserveUnusedImportsTS: preserveUnusedImportsTS,
@@ -1147,6 +1151,9 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 	// Pick the port
 	var listener net.Listener
 	host := "127.0.0.1"
+	if serveOptions.Host != "" {
+		host = serveOptions.Host
+	}
 	if serveOptions.Port == 0 {
 		// Default to picking a "800X" port
 		for port := 8000; port <= 8009; port++ {
@@ -1170,9 +1177,10 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 
 	// Extract the real port in case we passed a port of "0"
 	var result ServeResult
-	if _, text, err := net.SplitHostPort(addr); err == nil {
+	if host, text, err := net.SplitHostPort(addr); err == nil {
 		if port, err := strconv.ParseInt(text, 10, 32); err == nil {
 			result.Port = uint16(port)
+			result.Host = host
 		}
 	}
 

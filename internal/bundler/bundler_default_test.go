@@ -229,7 +229,7 @@ func TestExportFormsIIFE(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			OutputFormat:  config.FormatIIFE,
-			ModuleName:    []string{"moduleName"},
+			GlobalName:    []string{"globalName"},
 			AbsOutputFile: "/out.js",
 		},
 	})
@@ -3173,7 +3173,7 @@ func TestInjectDuplicate(t *testing.T) {
 
 func TestInject(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"chain.prop": config.DefineData{
+		"chain.prop": {
 			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
 				return &js_ast.EIdentifier{Ref: findSymbol(loc, "replace")}
 			},
@@ -3240,7 +3240,7 @@ func TestInject(t *testing.T) {
 
 func TestInjectNoBundle(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"chain.prop": config.DefineData{
+		"chain.prop": {
 			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
 				return &js_ast.EIdentifier{Ref: findSymbol(loc, "replace")}
 			},
@@ -3301,7 +3301,7 @@ func TestInjectNoBundle(t *testing.T) {
 
 func TestInjectJSX(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"React.createElement": config.DefineData{
+		"React.createElement": {
 			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
 				return &js_ast.EIdentifier{Ref: findSymbol(loc, "el")}
 			},
@@ -3409,6 +3409,27 @@ func TestOutbase(t *testing.T) {
 	})
 }
 
+func TestAvoidTDZ(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					static foo = new Foo
+				}
+				let foo = Foo.foo
+				console.log(foo)
+				export class Bar {}
+				export let bar = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestAvoidTDZNoBundle(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3421,14 +3442,11 @@ func TestAvoidTDZNoBundle(t *testing.T) {
 				export class Bar {}
 				export let bar = 123
 			`,
-			"/foo.js": `
-			`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModePassThrough,
 			AbsOutputFile: "/out.js",
-			AvoidTDZ:      true,
 		},
 	})
 }
@@ -3471,7 +3489,7 @@ func TestProcessEnvNodeEnvWarningNode(t *testing.T) {
 
 func TestProcessEnvNodeEnvWarningDefine(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
-		"process.env.NODE_ENV": config.DefineData{
+		"process.env.NODE_ENV": {
 			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
 				return &js_ast.ENull{}
 			},
@@ -3585,5 +3603,163 @@ func TestImportRelativeAsPackage(t *testing.T) {
 		expectedScanLog: `/Users/user/project/src/entry.js: error: Could not resolve "some/other/file" ` +
 			`(use "./some/other/file" to import "/Users/user/project/src/some/other/file.js")
 `,
+	})
+}
+
+func TestForbidConstAssignWhenBundling(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const x = 1
+				x = 2
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `/entry.js: error: Cannot assign to "x" because it is a constant
+/entry.js: note: "x" was declared a constant here
+`,
+	})
+}
+
+func TestConstWithLet(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const a = 1; console.log(a)
+				if (true) { const b = 2; console.log(b) }
+				for (const c = x;;) console.log(c)
+				for (const d in x) console.log(d)
+				for (const e of x) console.log(e)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleSyntax:  true,
+		},
+	})
+}
+
+func TestConstWithLetNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const a = 1; console.log(a)
+				if (true) { const b = 2; console.log(b) }
+				for (const c = x;;) console.log(c)
+				for (const d in x) console.log(d)
+				for (const e of x) console.log(e)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			MangleSyntax:  true,
+		},
+	})
+}
+
+func TestConstWithLetNoMangle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const a = 1; console.log(a)
+				if (true) { const b = 2; console.log(b) }
+				for (const c = x;;) console.log(c)
+				for (const d in x) console.log(d)
+				for (const e of x) console.log(e)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestRequireMainCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log('is main:', require.main === module)
+				console.log(require('./is-main'))
+			`,
+			"/is-main.js": `
+				module.exports = require.main === module
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatCommonJS,
+		},
+	})
+}
+
+func TestRequireMainIIFE(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log('is main:', require.main === module)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatIIFE,
+		},
+		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+`,
+	})
+}
+
+func TestExternalES6ConvertedToCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require('./a')
+				require('./b')
+				require('./c')
+				require('./d')
+				require('./e')
+			`,
+			"/a.js": `
+				import * as ns from 'x'
+				export {ns}
+			`,
+			"/b.js": `
+				import * as ns from 'x' // "ns" must be renamed to avoid collisions with "a.js"
+				export {ns}
+			`,
+			"/c.js": `
+				export * as ns from 'x'
+			`,
+			"/d.js": `
+				export {ns} from 'x'
+			`,
+			"/e.js": `
+				export * from 'x'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+			ExternalModules: config.ExternalModules{
+				NodeModules: map[string]bool{
+					"x": true,
+				},
+			},
+		},
 	})
 }

@@ -436,6 +436,71 @@ body {
     assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 51 } })
   },
 
+  async metafileSplittingPublicPath({ esbuild, testDir }) {
+    const entry1 = path.join(testDir, 'entry1.js')
+    const entry2 = path.join(testDir, 'entry2.js')
+    const imported = path.join(testDir, 'imported.js')
+    const outdir = path.join(testDir, 'out')
+    const metafile = path.join(testDir, 'meta.json')
+    await writeFileAsync(entry1, `
+      import x, {f1} from "./${path.basename(imported)}"
+      console.log(1, x, f1())
+      export {x}
+    `)
+    await writeFileAsync(entry2, `
+      import x, {f2} from "./${path.basename(imported)}"
+      console.log('entry 2', x, f2())
+      export {x as y}
+    `)
+    await writeFileAsync(imported, `
+      export default 123
+      export function f1() {}
+      export function f2() {}
+      console.log('shared')
+    `)
+    await esbuild.build({
+      entryPoints: [entry1, entry2],
+      bundle: true,
+      outdir,
+      metafile,
+      splitting: true,
+      format: 'esm',
+      publicPath: 'public',
+    })
+
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.strictEqual(Object.keys(json.inputs).length, 3)
+    assert.strictEqual(Object.keys(json.outputs).length, 3)
+    const cwd = process.cwd()
+    const makeOutPath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
+    const makeInPath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+
+    // Check metafile
+    const inEntry1 = makeInPath(entry1);
+    const inEntry2 = makeInPath(entry2);
+    const inImported = makeInPath(imported);
+    const chunk = 'chunk.CAAA46JO.js';
+    const outEntry1 = makeOutPath(path.basename(entry1));
+    const outEntry2 = makeOutPath(path.basename(entry2));
+    const outChunk = makeOutPath(chunk);
+
+    assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported }] })
+    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported }] })
+    assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
+
+    assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outChunk].imports, [])
+
+    assert.deepStrictEqual(json.outputs[outEntry1].exports, ['x'])
+    assert.deepStrictEqual(json.outputs[outEntry2].exports, ['y'])
+    assert.deepStrictEqual(json.outputs[outChunk].exports, ['imported_default'])
+
+    assert.deepStrictEqual(json.outputs[outEntry1].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry1]: { bytesInOutput: 40 } })
+    assert.deepStrictEqual(json.outputs[outEntry2].inputs, { [inImported]: { bytesInOutput: 18 }, [inEntry2]: { bytesInOutput: 48 } })
+    assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 51 } })
+  },
+
   async metafileCJSInFormatIIFE({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const outfile = path.join(testDir, 'out.js')
@@ -969,8 +1034,8 @@ console.log("success");
     })
     assert.strictEqual(outputFiles[0].text, `(() => {
   // <stdin>
-  let keepMe1 = fn();
-  let keepMe2 = React.createElement("div", null);
+  var keepMe1 = fn();
+  var keepMe2 = React.createElement("div", null);
 })();
 `)
   },
@@ -1166,10 +1231,14 @@ let serveTests = {
       let singleRequestPromise = new Promise(resolve => {
         onRequest = resolve;
       });
+
       const result = await toTest.serve({ onRequest }, { entryPoints: [input], format: 'esm' })
+      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(typeof result.port, 'number');
+
       const buffer = await new Promise((resolve, reject) => {
         http.get({
-          host: '127.0.0.1',
+          host: result.host,
           port: result.port,
           path: '/in.js',
         }, res => {
@@ -1178,7 +1247,6 @@ let serveTests = {
           res.on('end', () => resolve(Buffer.concat(chunks)))
         }).on('error', reject)
       })
-
       assert.strictEqual(buffer.toString(), `console.log(123);\n`);
 
       let singleRequest = await singleRequestPromise;
@@ -1591,6 +1659,15 @@ let transformTests = {
     const define = { 'process.env.NODE_ENV': '"production"' }
     const { code } = await service.transform(`console.log(process.env.NODE_ENV)`, { define })
     assert.strictEqual(code, `console.log("production");\n`)
+  },
+
+  async defineWarning({ service }) {
+    const define = { 'process.env.NODE_ENV': 'production' }
+    const { code, warnings } = await service.transform(`console.log(process.env.NODE_ENV)`, { define })
+    assert.strictEqual(code, `console.log(production);\n`)
+    assert.strictEqual(warnings.length, 1)
+    assert.strictEqual(warnings[0].text,
+      `"process.env.NODE_ENV" is defined as an identifier instead of a string (surround "production" with double quotes to get a string)`)
   },
 
   async json({ service }) {

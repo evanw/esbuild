@@ -325,6 +325,7 @@ func Transform(input string, options TransformOptions) TransformResult {
 
 type ServeOptions struct {
 	Port      uint16
+	Host      string
 	OnRequest func(ServeOnRequestArgs)
 }
 
@@ -338,6 +339,7 @@ type ServeOnRequestArgs struct {
 
 type ServeResult struct {
 	Port uint16
+	Host string
 	Wait func() error
 	Stop func()
 }

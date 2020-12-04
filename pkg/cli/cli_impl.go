@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"sort"
 	"strconv"
@@ -385,6 +386,9 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.LogLevel = logLevel
 			}
 
+		case strings.HasPrefix(arg, "'--"):
+			return fmt.Errorf("Unexpected single quote character before flag (use \\\" to escape double quotes): %s", arg)
+
 		case !strings.HasPrefix(arg, "-") && buildOpts != nil:
 			buildOpts.EntryPoints = append(buildOpts.EntryPoints, arg)
 
@@ -572,10 +576,26 @@ func runImpl(osArgs []string) int {
 	return 0
 }
 
-func serveImpl(portText string, osArgs []string) error {
-	port, err := strconv.ParseInt(portText, 10, 16)
+func serveImpl(serveText string, osArgs []string) error {
+	host := ""
+	portText := serveText
+
+	// Specifying the host is optional
+	if strings.ContainsRune(serveText, ':') {
+		var err error
+		host, portText, err = net.SplitHostPort(serveText)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Parse the port
+	port, err := strconv.ParseInt(portText, 10, 32)
 	if err != nil {
 		return err
+	}
+	if port < 0 || port > 0xFFFF {
+		return fmt.Errorf("Invalid port number: %s", portText)
 	}
 
 	options := newBuildOptions()
@@ -591,6 +611,7 @@ func serveImpl(portText string, osArgs []string) error {
 
 	serveOptions := api.ServeOptions{
 		Port: uint16(port),
+		Host: host,
 		OnRequest: func(args api.ServeOnRequestArgs) {
 			logger.PrintTextToStderr(logger.LevelInfo, osArgs, func(colors logger.Colors) string {
 				statusColor := colors.Red
@@ -611,8 +632,8 @@ func serveImpl(portText string, osArgs []string) error {
 
 	// Show what actually got bound if the port was 0
 	logger.PrintTextToStderr(logger.LevelInfo, osArgs, func(colors logger.Colors) string {
-		return fmt.Sprintf("%s\n > %shttp://localhost:%d/%s\n\n",
-			colors.Default, colors.Underline, result.Port, colors.Default)
+		return fmt.Sprintf("%s\n > %shttp://%s:%d/%s\n\n",
+			colors.Default, colors.Underline, result.Host, result.Port, colors.Default)
 	})
 	return result.Wait()
 }
