@@ -53,8 +53,8 @@ let isTTY = () => tty.isatty(2);
 
 export let version = ESBUILD_VERSION;
 
-export let build: typeof types.build = options => {
-  return startService().then(service => {
+export let build: typeof types.build = (options: types.BuildOptions): Promise<any> => {
+  return startService().then<types.BuildResult>(service => {
     return service.build(options).then(result => {
       if (result.rebuild) {
         let old = result.rebuild.dispose;
@@ -92,7 +92,7 @@ export let transform: typeof types.transform = (input, options) => {
   });
 };
 
-export let buildSync: typeof types.buildSync = options => {
+export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
   let result: types.BuildResult;
   runServiceSync(service => service.buildOrServe(null, options, isTTY(), (err, res) => {
     if (err) throw err;
@@ -155,8 +155,8 @@ export let startService: typeof types.startService = options => {
 
   // Create an asynchronous Promise-based API
   return Promise.resolve({
-    build: options =>
-      new Promise((resolve, reject) =>
+    build: (options: types.BuildOptions): Promise<any> =>
+      new Promise<types.BuildResult>((resolve, reject) =>
         service.buildOrServe(null, options, isTTY(), (err, res) =>
           err ? reject(err) : resolve(res as types.BuildResult))),
     serve: (serveOptions, buildOptions) => {

@@ -59,6 +59,10 @@ jobs:
     - name: TypeScript Type Definition Tests
       run: node scripts/ts-type-tests.js
 
+    - name: JS API Type Check
+      if: matrix.os == 'ubuntu-latest'
+      run: make lib-typecheck
+
     - name: Sucrase Tests
       if: matrix.os == 'ubuntu-latest'
       run: make test-sucrase
