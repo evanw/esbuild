@@ -149,9 +149,10 @@ import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
 TestAvoidTDZ
 ---------- /out.js ----------
 // /entry.js
-var Foo = class {
-  static foo = new Foo();
+var Foo2 = class {
 };
+var Foo = Foo2;
+__publicField(Foo, "foo", new Foo2());
 var foo = Foo.foo;
 console.log(foo);
 var Bar = class {

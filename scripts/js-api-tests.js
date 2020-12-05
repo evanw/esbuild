@@ -1219,6 +1219,76 @@ console.log("success");
       }
     }
   },
+
+  async bundleAvoidTDZ({ service }) {
+    var { outputFiles } = await service.build({
+      stdin: {
+        contents: `
+          class Foo {
+            // The above line will be transformed into "var". However, the
+            // symbol "Foo" must still be defined before the class body ends.
+            static foo = new Foo
+          }
+          if (!(Foo.foo instanceof Foo))
+            throw 'fail'
+        `,
+      },
+      bundle: true,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 1)
+    new Function(outputFiles[0].text)()
+  },
+
+  async bundleTSAvoidTDZ({ service }) {
+    var { outputFiles } = await service.build({
+      stdin: {
+        contents: `
+          class Foo {
+            // The above line will be transformed into "var". However, the
+            // symbol "Foo" must still be defined before the class body ends.
+            static foo = new Foo
+          }
+          if (!(Foo.foo instanceof Foo))
+            throw 'fail'
+        `,
+        loader: 'ts',
+      },
+      bundle: true,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 1)
+    new Function(outputFiles[0].text)()
+  },
+
+  async bundleTSDecoratorAvoidTDZ({ service }) {
+    var { outputFiles } = await service.build({
+      stdin: {
+        contents: `
+          class Bar {}
+          var oldFoo
+          function swap(target) {
+            oldFoo = target
+            return Bar
+          }
+          @swap
+          class Foo {
+            bar() { return new Foo }
+            static foo = new Foo
+          }
+          if (!(oldFoo.foo instanceof oldFoo))
+            throw 'fail: foo'
+          if (!(oldFoo.foo.bar() instanceof Bar))
+            throw 'fail: bar'
+        `,
+        loader: 'ts',
+      },
+      bundle: true,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 1)
+    new Function(outputFiles[0].text)()
+  },
 }
 
 let serveTests = {
@@ -1297,46 +1367,54 @@ let transformTests = {
   },
 
   async avoidTDZ({ service }) {
-    for (const avoidTDZ of [false, true]) {
-      var { code } = await service.transform(`
-        class Foo {
-          // The above line will be transformed into "var". However, the
-          // symbol "Foo" must still be defined before the class body ends.
-          static foo = new Foo
-        }
-        if (!(Foo.foo instanceof Foo))
-          throw 'fail: avoidTDZ=${avoidTDZ}'
-      `, {
-        avoidTDZ,
-      })
-      new Function(code)()
-    }
+    var { code } = await service.transform(`
+      class Foo {
+        // The above line will be transformed into "var". However, the
+        // symbol "Foo" must still be defined before the class body ends.
+        static foo = new Foo
+      }
+      if (!(Foo.foo instanceof Foo))
+        throw 'fail'
+    `)
+    new Function(code)()
   },
 
   async tsAvoidTDZ({ service }) {
-    for (const avoidTDZ of [false, true]) {
-      var { code } = await service.transform(`
-        class Bar {}
-        var oldFoo
-        function swap(target) {
-          oldFoo = target
-          return Bar
-        }
-        @swap
-        class Foo {
-          bar() { return new Foo }
-          static foo = new Foo
-        }
-        if (!(oldFoo.foo instanceof oldFoo))
-          throw 'fail: foo, avoidTDZ=${avoidTDZ}'
-        if (!(oldFoo.foo.bar() instanceof Bar))
-          throw 'fail: bar, avoidTDZ=${avoidTDZ}'
-      `, {
-        avoidTDZ,
-        loader: 'ts',
-      })
-      new Function(code)()
-    }
+    var { code } = await service.transform(`
+      class Foo {
+        // The above line will be transformed into "var". However, the
+        // symbol "Foo" must still be defined before the class body ends.
+        static foo = new Foo
+      }
+      if (!(Foo.foo instanceof Foo))
+        throw 'fail'
+    `, {
+      loader: 'ts',
+    })
+    new Function(code)()
+  },
+
+  async tsDecoratorAvoidTDZ({ service }) {
+    var { code } = await service.transform(`
+      class Bar {}
+      var oldFoo
+      function swap(target) {
+        oldFoo = target
+        return Bar
+      }
+      @swap
+      class Foo {
+        bar() { return new Foo }
+        static foo = new Foo
+      }
+      if (!(oldFoo.foo instanceof oldFoo))
+        throw 'fail: foo'
+      if (!(oldFoo.foo.bar() instanceof Bar))
+        throw 'fail: bar'
+    `, {
+      loader: 'ts',
+    })
+    new Function(code)()
   },
 
   async transformDirectEval({ service }) {

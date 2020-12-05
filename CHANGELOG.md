@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* Fix an edge case with class body initialization
+
+    When bundling, top-level class statements are rewritten to variable declarations initialized to a class expression. This avoids a severe performance pitfall in Safari when there are a large number of class statements. However, this transformation was done incorrectly if a class contained a static field that references the class name in its own initializer:
+
+    ```js
+    class Foo {
+      static foo = new Foo
+    }
+    ```
+
+    In that specific case, the transformed code could crash when run because the class name is not yet initialized when the static field initializer is run. Only JavaScript code was affected. TypeScript code was not affected. This release fixes this bug.
+
 ## 0.8.19
 
 * Handle non-ambiguous multi-path re-exports ([#568](https://github.com/evanw/esbuild/pull/568))

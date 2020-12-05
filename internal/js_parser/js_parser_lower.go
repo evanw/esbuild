@@ -1578,6 +1578,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		}
 	}
 
+	// Safari workaround: Automatically avoid TDZ issues when bundling
+	avoidTDZ := p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
+
 	for _, prop := range class.Properties {
 		// Merge parameter decorators with method decorators
 		if p.options.ts.Parse && prop.IsMethod {
@@ -1607,8 +1610,15 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 			!p.options.useDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
-		mustLowerField := !prop.IsMethod && (!prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassField) ||
-			(prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField)))
+		mustLowerField := !prop.IsMethod &&
+			(!prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassField) ||
+				(prop.IsStatic && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField)))
+
+		// Be conservative and always lower static fields when we're doing TDZ-
+		// avoidance and the shadowing name for the class was captured somewhere.
+		if !prop.IsMethod && prop.IsStatic && avoidTDZ && shadowRef != js_ast.InvalidRef {
+			mustLowerField = true
+		}
 
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
@@ -1989,9 +1999,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, shadowRef js_ast
 		name := nameFunc()
 		keepNameStmt = p.keepStmtSymbolName(name.Loc, name.Data.(*js_ast.EIdentifier).Ref, nameToKeep)
 	}
-
-	// Safari workaround: Automatically avoid TDZ issues when bundling
-	avoidTDZ := p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
 
 	// Pack the class back into a statement, with potentially some extra
 	// statements afterwards
