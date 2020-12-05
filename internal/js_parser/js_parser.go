@@ -195,6 +195,10 @@ type parser struct {
 	typeofRequireEqualsFn       js_ast.E
 	typeofRequireEqualsFnTarget js_ast.E
 
+	// This helps recognize the "await import()" pattern. When this is present,
+	// warnings about non-string import paths will be omitted inside try blocks.
+	awaitTarget js_ast.E
+
 	// This helps recognize the "require.main" pattern. If this pattern is
 	// present and the output format is CommonJS, we avoid generating a warning
 	// about an unbundled use of "require".
@@ -9411,6 +9415,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EAwait:
+		p.awaitTarget = e.Value.Data
 		e.Value = p.visitExpr(e.Value)
 
 		// "await" expressions turn into "yield" expressions when lowering
@@ -9550,6 +9555,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EImport:
+		isAwaitTarget := e == p.awaitTarget
 		e.Expr = p.visitExpr(e.Expr)
 
 		return p.maybeTransposeIfExprChain(e.Expr, func(arg js_ast.Expr) js_ast.Expr {
@@ -9572,9 +9578,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			if p.options.mode == config.ModeBundle {
-				r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-				p.log.AddRangeWarning(&p.source, r,
-					"This dynamic import will not be bundled because the argument is not a string literal")
+				// Heuristic: omit warnings inside try/catch blocks because presumably
+				// the try/catch statement is there to handle the potential run-time
+				// error from the unbundled "await import()" call failing.
+				omitWarnings := p.fnOrArrowDataVisit.tryBodyCount != 0 && isAwaitTarget
+
+				if !omitWarnings {
+					text := "This dynamic import will not be bundled because the argument is not a string literal"
+					if isAwaitTarget {
+						text += " (surround with a try/catch to silence this warning)"
+					}
+					r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
+					p.log.AddRangeWarning(&p.source, r, text)
+				}
 			}
 
 			// We need to convert this into a call to "require()" if ES6 syntax is
@@ -9785,7 +9801,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							if !omitWarnings {
 								r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 								p.log.AddRangeWarning(&p.source, r,
-									"This call to \"require\" will not be bundled because the argument is not a string literal")
+									"This call to \"require\" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)")
 							}
 
 							// Otherwise just return a clone of the "require()" call
@@ -9797,7 +9813,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					} else if !omitWarnings {
 						r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 						p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
-							"This call to \"require\" will not be bundled because it has %d arguments", len(e.Args)))
+							"This call to \"require\" will not be bundled because it has %d arguments (surround with a try/catch to silence this warning)", len(e.Args)))
 					}
 				} else if p.options.outputFormat == config.FormatESModule && !omitWarnings {
 					r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)

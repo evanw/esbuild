@@ -175,6 +175,18 @@ export class Bar {
 export let bar = 123;
 
 ================================================================================
+TestAwaitImportInsideTry
+---------- /out.js ----------
+// /entry.js
+async function main(name) {
+  try {
+    return await import(name);
+  } catch {
+  }
+}
+main("fs");
+
+================================================================================
 TestCharFreqIgnoreComments
 ---------- /out/a.js ----------
 // /a.js
@@ -846,6 +858,18 @@ const imp = [
   }
 ];
 console.log(ns, a, c, def, def2, ns2, def3, a2, c3, imp);
+
+================================================================================
+TestImportInsideTry
+---------- /out.js ----------
+// /entry.js
+async function main(name) {
+  try {
+    return import(name);
+  } catch {
+  }
+}
+main("fs");
 
 ================================================================================
 TestImportMetaCommonJS
@@ -1798,15 +1822,24 @@ TestRequireAndDynamicImportInvalidTemplate
 // /entry.js
 require(tag`./b`);
 require(`./${b}`);
-import(tag`./b`);
-import(`./${b}`);
 try {
   require(tag`./b`);
   require(`./${b}`);
-  import(tag`./b`);
-  import(`./${b}`);
 } catch {
 }
+(async () => {
+  import(tag`./b`);
+  import(`./${b}`);
+  await import(tag`./b`);
+  await import(`./${b}`);
+  try {
+    import(tag`./b`);
+    import(`./${b}`);
+    await import(tag`./b`);
+    await import(`./${b}`);
+  } catch {
+  }
+})();
 
 ================================================================================
 TestRequireBadArgumentCount

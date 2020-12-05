@@ -44,6 +44,12 @@
 
     Previously bundling `entry.js` with esbuild would incorrectly generate an error about an ambiguous `x` export. Now this case builds successfully without an error.
 
+* Omit warnings about non-string paths in `await import()` inside a `try` block ([#574](https://github.com/evanw/esbuild/issues/574))
+
+    Bundling code that uses `require()` or `import()` with a non-string path currently generates a warning, because the target of that import will not be included in the bundle. This is helpful to warn about because other bundlers handle this case differently (e.g. Webpack bundles the entire directory tree and emulates a file system lookup) so existing code may expect the target of the import to be bundled.
+
+    You can avoid the warning with esbuild by surrounding the call to `require()` with a `try` block. The thinking is that if there is a surrounding `try` block, presumably the code is expecting the `require()` call to possibly fail and is prepared to handle the error. However, there is currently no way to avoid the warning for `import()` expressions. This release introduces an analogous behavior for `import()` expressions. You can now avoid the warning with esbuild if you use `await import()` and surround it with a `try` block.
+
 ## 0.8.18
 
 * Fix a bug with certain complex optional chains ([#573](https://github.com/evanw/esbuild/issues/573))
