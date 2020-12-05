@@ -830,3 +830,24 @@ var mod = (() => {
   });
   return require_entry();
 })();
+
+================================================================================
+TestReExportStarNameCollisionNotAmbiguousExport
+---------- /out.js ----------
+// /c.js
+var x = 1;
+var y = 2;
+export {
+  x,
+  y
+};
+
+================================================================================
+TestReExportStarNameCollisionNotAmbiguousImport
+---------- /out.js ----------
+// /c.js
+var x = 1;
+var y = 2;
+
+// /entry.js
+console.log(x, y);

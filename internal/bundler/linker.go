@@ -201,6 +201,29 @@ type importToBind struct {
 type exportData struct {
 	ref js_ast.Ref
 
+	// Export star resolution happens first before import resolution. That means
+	// it cannot yet determine if duplicate names from export star resolution are
+	// ambiguous (point to different symbols) or not (point to the same symbol).
+	// This issue can happen in the following scenario:
+	//
+	//   // entry.js
+	//   export * from './a'
+	//   export * from './b'
+	//
+	//   // a.js
+	//   export * from './c'
+	//
+	//   // b.js
+	//   export {x} from './c'
+	//
+	//   // c.js
+	//   export let x = 1, y = 2
+	//
+	// In this case "entry.js" should have two exports "x" and "y", neither of
+	// which are ambiguous. To handle this case, ambiguity resolution must be
+	// deferred until import resolution time. That is done using this array.
+	potentiallyAmbiguousExportStarRefs []importToBind
+
 	// This is the file that the named export above came from. This will be
 	// different from the file that contains this object if this is a re-export.
 	sourceIndex uint32
@@ -208,12 +231,6 @@ type exportData struct {
 	// Exports from export stars are shadowed by other exports. This flag helps
 	// implement this behavior.
 	isFromExportStar bool
-
-	// If export star resolution finds two or more symbols with the same name,
-	// then the name is a ambiguous and cannot be used. This causes the name to
-	// be silently omitted from any namespace imports and causes a compile-time
-	// failure if the name is used in an ES6 import statement.
-	isAmbiguous bool
 }
 
 // This contains linker-specific metadata corresponding to a "js_ast.Part" struct
@@ -1196,6 +1213,7 @@ func (c *linkerContext) scanImportsAndExports() {
 			// Now that all exports have been resolved, sort and filter them to create
 			// something we can iterate over later.
 			aliases := make([]string, 0, len(repr.meta.resolvedExports))
+		nextAlias:
 			for alias, export := range repr.meta.resolvedExports {
 				// The automatically-generated namespace export is just for internal binding
 				// purposes and isn't meant to end up in generated code.
@@ -1205,14 +1223,27 @@ func (c *linkerContext) scanImportsAndExports() {
 
 				// Re-exporting multiple symbols with the same name causes an ambiguous
 				// export. These names cannot be used and should not end up in generated code.
-				if export.isAmbiguous {
-					continue
+				otherRepr := c.files[export.sourceIndex].repr.(*reprJS)
+				if len(export.potentiallyAmbiguousExportStarRefs) > 0 {
+					mainRef := export.ref
+					if imported, ok := otherRepr.meta.importsToBind[export.ref]; ok {
+						mainRef = imported.ref
+					}
+					for _, ambiguousExport := range export.potentiallyAmbiguousExportStarRefs {
+						ambiguousRepr := c.files[ambiguousExport.sourceIndex].repr.(*reprJS)
+						ambiguousRef := ambiguousExport.ref
+						if imported, ok := ambiguousRepr.meta.importsToBind[ambiguousExport.ref]; ok {
+							ambiguousRef = imported.ref
+						}
+						if mainRef != ambiguousRef {
+							continue nextAlias
+						}
+					}
 				}
 
 				// Ignore re-exported imports in TypeScript files that failed to be
 				// resolved. These are probably just type-only imports so the best thing to
 				// do is to silently omit them from the export list.
-				otherRepr := c.files[export.sourceIndex].repr.(*reprJS)
 				if otherRepr.meta.isProbablyTypeScriptType[export.ref] {
 					continue
 				}
@@ -1734,6 +1765,11 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 		case matchImportProbablyTypeScriptType:
 			repr.meta.isProbablyTypeScriptType[importRef] = true
+
+		case matchImportAmbiguous:
+			namedImport := repr.ast.NamedImports[importRef]
+			c.addRangeError(file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
+				fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
 		}
 	}
 }
@@ -1755,6 +1791,9 @@ const (
 
 	// The import is missing but came from a TypeScript file
 	matchImportProbablyTypeScriptType
+
+	// The import resolved to multiple symbols via "export * from"
+	matchImportAmbiguous
 )
 
 type matchImportResult struct {
@@ -1766,6 +1805,8 @@ type matchImportResult struct {
 }
 
 func (c *linkerContext) matchImportWithExport(tracker importTracker) (result matchImportResult) {
+	var ambiguousResults []matchImportResult
+
 loop:
 	for {
 		// Make sure we avoid infinite loops trying to resolve cycles:
@@ -1787,7 +1828,7 @@ loop:
 		c.cycleDetector = append(c.cycleDetector, tracker)
 
 		// Resolve the import by one step
-		nextTracker, status := c.advanceImportTracker(tracker)
+		nextTracker, status, potentiallyAmbiguousExportStarRefs := c.advanceImportTracker(tracker)
 		switch status {
 		case importCommonJS, importCommonJSWithoutExports, importExternal, importDisabled:
 			if status == importExternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
@@ -1841,19 +1882,30 @@ loop:
 				c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
 			}
 
-		case importAmbiguous:
-			trackerFile := &c.files[tracker.sourceIndex]
-			source := trackerFile.source
-			namedImport := trackerFile.repr.(*reprJS).ast.NamedImports[tracker.importRef]
-			c.addRangeError(source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
-				fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
-
 		case importProbablyTypeScriptType:
 			// Omit this import from any namespace export code we generate for
 			// import star statements (i.e. "import * as ns from 'path'")
 			result = matchImportResult{kind: matchImportProbablyTypeScriptType}
 
 		case importFound:
+			// If there are multiple ambiguous results due to use of "export * from"
+			// statements, trace them all to see if they point to different things.
+			for _, ambiguousTracker := range potentiallyAmbiguousExportStarRefs {
+				// If this is a re-export of another import, follow the import
+				if _, ok := c.files[ambiguousTracker.sourceIndex].repr.(*reprJS).ast.NamedImports[ambiguousTracker.ref]; ok {
+					ambiguousResults = append(ambiguousResults, c.matchImportWithExport(importTracker{
+						sourceIndex: ambiguousTracker.sourceIndex,
+						importRef:   ambiguousTracker.ref,
+					}))
+				} else {
+					ambiguousResults = append(ambiguousResults, matchImportResult{
+						kind:        matchImportNormal,
+						sourceIndex: ambiguousTracker.sourceIndex,
+						ref:         ambiguousTracker.ref,
+					})
+				}
+			}
+
 			// Defer the actual binding of this import until after we generate
 			// namespace export code for all files. This has to be done for all
 			// import-to-export matches, not just the initial import to the final
@@ -1878,6 +1930,13 @@ loop:
 
 		// Stop now if we didn't explicitly "continue" above
 		break
+	}
+
+	// If there is a potential ambiguity, all results must be the same
+	for _, ambiguousResult := range ambiguousResults {
+		if ambiguousResult != result {
+			return matchImportResult{kind: matchImportAmbiguous}
+		}
 	}
 
 	return
@@ -1975,8 +2034,12 @@ func (c *linkerContext) addExportsForExportStar(
 					sourceIndex: otherSourceIndex,
 				}
 			} else if existing.sourceIndex != otherSourceIndex {
-				// Two different re-exports colliding makes it ambiguous
-				existing.isAmbiguous = true
+				// Two different re-exports colliding makes it potentially ambiguous
+				existing.potentiallyAmbiguousExportStarRefs =
+					append(existing.potentiallyAmbiguousExportStarRefs, importToBind{
+						sourceIndex: otherSourceIndex,
+						ref:         name.Ref,
+					})
 				resolvedExports[alias] = existing
 			}
 		}
@@ -2013,14 +2076,11 @@ const (
 	// The imported file is external and has unknown exports
 	importExternal
 
-	// There are multiple re-exports with the same name due to "export * from"
-	importAmbiguous
-
 	// This is a missing re-export in a TypeScript file, so it's probably a type
 	importProbablyTypeScriptType
 )
 
-func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, importStatus) {
+func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, importStatus, []importToBind) {
 	file := &c.files[tracker.sourceIndex]
 	repr := file.repr.(*reprJS)
 	namedImport := repr.ast.NamedImports[tracker.importRef]
@@ -2028,43 +2088,39 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// Is this an external file?
 	record := &repr.ast.ImportRecords[namedImport.ImportRecordIndex]
 	if record.SourceIndex == nil {
-		return importTracker{}, importExternal
+		return importTracker{}, importExternal, nil
 	}
 
 	// Is this a disabled file?
 	otherSourceIndex := *record.SourceIndex
 	if c.files[otherSourceIndex].source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
-		return importTracker{}, importDisabled
+		return importTracker{}, importDisabled, nil
 	}
 
 	// Is this a named import of a file without any exports?
 	otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
 	if namedImport.Alias != "*" && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasES6Syntax() && !otherRepr.ast.HasLazyExport {
 		// Just warn about it and replace the import with "undefined"
-		return importTracker{}, importCommonJSWithoutExports
+		return importTracker{}, importCommonJSWithoutExports, nil
 	}
 
 	// Is this a CommonJS file?
 	if otherRepr.meta.cjsStyleExports {
-		return importTracker{}, importCommonJS
+		return importTracker{}, importCommonJS, nil
 	}
 
 	// Match this import up with an export from the imported file
 	if matchingExport, ok := otherRepr.meta.resolvedExports[namedImport.Alias]; ok {
-		if matchingExport.isAmbiguous {
-			return importTracker{}, importAmbiguous
-		}
-
 		// Check to see if this is a re-export of another import
-		return importTracker{matchingExport.sourceIndex, matchingExport.ref}, importFound
+		return importTracker{matchingExport.sourceIndex, matchingExport.ref}, importFound, matchingExport.potentiallyAmbiguousExportStarRefs
 	}
 
 	// Missing re-exports in TypeScript files are indistinguishable from types
 	if file.loader.IsTypeScript() && namedImport.IsExported {
-		return importTracker{}, importProbablyTypeScriptType
+		return importTracker{}, importProbablyTypeScriptType, nil
 	}
 
-	return importTracker{}, importNoMatch
+	return importTracker{}, importNoMatch, nil
 }
 
 func (c *linkerContext) markPartsReachableFromEntryPoints() {

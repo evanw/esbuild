@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased
+
+* Handle non-ambiguous multi-path re-exports ([#568](https://github.com/evanw/esbuild/pull/568))
+
+    Wildcard re-exports using the `export * from 'path'` syntax can potentially result in name collisions that cause an export name to be ambiguous. For example, the following code would result in an ambiguous export if both `a.js` and `b.js` export a symbol with the same name:
+
+    ```js
+    export * from './a.js'
+    export * from './b.js'
+    ```
+
+    Ambiguous exports have two consequences. First, any ambiguous names are silently excluded from the set of exported names. If you use an `import * as` wildcard import, the excluded names will not be present. Second, attempting to explicitly import an ambiguous name using an `import {} from` import clause will result in a module instantiation error.
+
+    This release fixes a bug where esbuild could in certain cases consider a name ambiguous when it actually isn't. Specifically this happens with longer chains of mixed wildcard and named re-exports. Here is one such case:
+
+    ```js
+    // entry.js
+    import {x, y} from './not-ambiguous.js'
+    console.log(x, y)
+    ```
+
+    ```js
+    // /not-ambiguous.js
+    export * from './a.js'
+    export * from './b.js'
+    ```
+
+    ```js
+    // /a.js
+    export * from './c.js'
+    ```
+
+    ```js
+    // /b.js
+    export {x} from './c.js'
+    ```
+
+    ```js
+    // /c.js
+    export let x = 1, y = 2
+    ```
+
+    Previously bundling `entry.js` with esbuild would incorrectly generate an error about an ambiguous `x` export. Now this case builds successfully without an error.
+
 ## 0.8.18
 
 * Fix a bug with certain complex optional chains ([#573](https://github.com/evanw/esbuild/issues/573))

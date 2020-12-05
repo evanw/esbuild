@@ -516,6 +516,61 @@ func TestImportExportStarAmbiguousError(t *testing.T) {
 	})
 }
 
+func TestReExportStarNameCollisionNotAmbiguousImport(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {x, y} from './common'
+				console.log(x, y)
+			`,
+			"/common.js": `
+				export * from './a'
+				export * from './b'
+			`,
+			"/a.js": `
+				export * from './c'
+			`,
+			"/b.js": `
+				export {x} from './c'
+			`,
+			"/c.js": `
+				export let x = 1, y = 2
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestReExportStarNameCollisionNotAmbiguousExport(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from './a'
+				export * from './b'
+			`,
+			"/a.js": `
+				export * from './c'
+			`,
+			"/b.js": `
+				export {x} from './c'
+			`,
+			"/c.js": `
+				export let x = 1, y = 2
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestImportStarOfExportStarAs(t *testing.T) {
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
