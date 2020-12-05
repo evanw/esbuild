@@ -221,7 +221,7 @@ func (*mockFS) Join(parts ...string) string {
 }
 
 func (*mockFS) Cwd() string {
-	return ""
+	return "/"
 }
 
 func splitOnSlash(path string) (string, string) {

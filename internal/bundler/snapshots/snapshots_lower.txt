@@ -118,7 +118,7 @@ class Derived extends Base {
 ================================================================================
 TestLowerAsyncThis2016CommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var require_entry = __commonJS((exports) => {
   exports.foo = () => __async(exports, null, function* () {
     return exports;
@@ -129,7 +129,7 @@ export default require_entry();
 ================================================================================
 TestLowerAsyncThis2016ES6
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var foo = () => __async(void 0, null, function* () {
   return void 0;
 });
@@ -175,7 +175,7 @@ class Foo {
 ================================================================================
 TestLowerClassFieldStrictTsconfigJson2020
 ---------- /out.js ----------
-// /loose/index.js
+// loose/index.js
 var loose_default = class {
   constructor() {
     __publicField(this, "foo");
@@ -183,7 +183,7 @@ var loose_default = class {
 };
 var loose_default2 = loose_default;
 
-// /strict/index.js
+// strict/index.js
 var strict_default = class {
   constructor() {
     __publicField(this, "foo");
@@ -191,17 +191,17 @@ var strict_default = class {
 };
 var strict_default2 = strict_default;
 
-// /entry.js
+// entry.js
 console.log(loose_default2, strict_default2);
 
 ================================================================================
 TestLowerExportStarAsNameCollision
 ---------- /out.js ----------
-// /nested.js
+// nested.js
 import * as foo from "path2";
 var foo2 = 123;
 
-// /entry.js
+// entry.js
 import * as ns from "path1";
 console.log(foo, foo2);
 var ns2 = 123;
@@ -470,7 +470,7 @@ class Foo {
 ================================================================================
 TestLowerPrivateGetterSetter2015
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
@@ -530,7 +530,7 @@ prop_set = function(val) {
 ================================================================================
 TestLowerPrivateGetterSetter2019
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
@@ -590,7 +590,7 @@ prop_set = function(val) {
 ================================================================================
 TestLowerPrivateGetterSetter2020
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
 var Foo = class {
   constructor() {
@@ -650,7 +650,7 @@ prop_set = function(val) {
 ================================================================================
 TestLowerPrivateGetterSetterNext
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var Foo = class {
   get #foo() {
     return this.foo;
@@ -699,7 +699,7 @@ var Foo = class {
 ================================================================================
 TestLowerPrivateMethod2019
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var _field, _method, method_fn;
 var Foo = class {
   constructor() {
@@ -741,7 +741,7 @@ method_fn = function() {
 ================================================================================
 TestLowerPrivateMethod2020
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var _field, _method, method_fn;
 var Foo = class {
   constructor() {
@@ -782,7 +782,7 @@ method_fn = function() {
 ================================================================================
 TestLowerPrivateMethodNext
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var Foo = class {
   #field;
   #method() {
@@ -815,7 +815,7 @@ var Foo = class {
 ================================================================================
 TestLowerPrivateMethodWithModifiers2020
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var _g, g_fn, _a, a_fn, _ag, ag_fn, _sg, sg_fn, _sa, sa_fn, _sag, sag_fn;
 var Foo = class {
   constructor() {
@@ -868,12 +868,12 @@ Foo.s_foo = 123;
 ================================================================================
 TestTSLowerClassFieldStrictTsconfigJson2020
 ---------- /out.js ----------
-// /loose/index.ts
+// loose/index.ts
 var loose_default = class {
 };
 var loose_default2 = loose_default;
 
-// /strict/index.ts
+// strict/index.ts
 var strict_default = class {
   constructor() {
     __publicField(this, "foo");
@@ -881,7 +881,7 @@ var strict_default = class {
 };
 var strict_default2 = strict_default;
 
-// /entry.js
+// entry.js
 console.log(loose_default2, strict_default2);
 
 ================================================================================
@@ -1033,7 +1033,7 @@ for ({...x} = {}; x; x = null) {
 ================================================================================
 TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var _x;
 var WeakMap2 = class {
   constructor() {
