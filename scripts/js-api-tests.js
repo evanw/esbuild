@@ -1067,6 +1067,45 @@ console.log("success");
     }
   },
 
+  async jsBannerBuild({ service, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const outfile = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `if (!bannerDefined) throw 'fail'`)
+    await service.build({ entryPoints: [input], outfile, banner: 'const bannerDefined = true' })
+    require(outfile)
+  },
+
+  async jsFooterBuild({ service, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const outfile = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `footer()`)
+    await service.build({ entryPoints: [input], outfile, footer: 'function footer() {}' })
+    require(outfile)
+  },
+
+  async jsBannerFooterBuild({ service, testDir }) {
+    const aPath = path.join(testDir, 'a.js')
+    const bPath = path.join(testDir, 'b.js')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(aPath, `module.exports = { banner: bannerDefined, footer };`)
+    await writeFileAsync(bPath, `module.exports = { banner: bannerDefined, footer };`)
+    await service.build({ entryPoints: [aPath, bPath], outdir, banner: 'const bannerDefined = true', footer: 'function footer() {}' })
+    const a = require(path.join(outdir, path.basename(aPath)))
+    const b = require(path.join(outdir, path.basename(bPath)))
+    if (!a.banner || !b.banner) throw 'fail'
+    a.footer()
+    b.footer()
+  },
+
+  async cssBannerFooterBuild({ service, testDir }) {
+    const input = path.join(testDir, 'in.css')
+    const outfile = path.join(testDir, 'out.css')
+    await writeFileAsync(input, `div { color: red }`)
+    await service.build({ entryPoints: [input], outfile, banner: '/* banner */', footer: '/* footer */' })
+    const code = await readFileAsync(outfile, 'utf8')
+    assert.strictEqual(code, `div {\n  color: red;\n}\n`)
+  },
+
   async noRebuild({ esbuild, service, testDir }) {
     for (const toTest of [esbuild, service]) {
       const input = path.join(testDir, 'in.js')
@@ -1415,6 +1454,48 @@ let transformTests = {
       loader: 'ts',
     })
     new Function(code)()
+  },
+
+  async jsBannerTransform({ service }) {
+    var { code } = await service.transform(`
+      if (!bannerDefined) throw 'fail'
+    `, {
+      banner: 'const bannerDefined = true',
+    })
+    new Function(code)()
+  },
+
+  async jsFooterTransform({ service }) {
+    var { code } = await service.transform(`
+      footer()
+    `, {
+      footer: 'function footer() {}',
+    })
+    new Function(code)()
+    new Function(code)()
+  },
+
+  async jsBannerFooterTransform({ service }) {
+    var { code } = await service.transform(`
+      return { banner: bannerDefined, footer };
+    `, {
+      banner: 'const bannerDefined = true',
+      footer: 'function footer() {}',
+    })
+    const result = new Function(code)()
+    if (!result.banner) throw 'fail'
+    result.footer()
+  },
+
+  async cssBannerFooterTransform({ service }) {
+    var { code } = await service.transform(`
+      div { color: red }
+    `, {
+      loader: 'css',
+      banner: '/* banner */',
+      footer: '/* footer */',
+    })
+    assert.strictEqual(code, `div {\n  color: red;\n}\n`)
   },
 
   async transformDirectEval({ service }) {
