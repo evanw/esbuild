@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.19
 
 * Handle non-ambiguous multi-path re-exports ([#568](https://github.com/evanw/esbuild/pull/568))
 
