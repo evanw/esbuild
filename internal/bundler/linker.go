@@ -1709,122 +1709,178 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 
 	// Pair imports with their matching exports
 	for _, innerIndex := range sortedImportRefs {
-		importRef := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
-		tracker := importTracker{sourceIndex, importRef}
-
 		// Re-use memory for the cycle detector
 		c.cycleDetector = c.cycleDetector[:0]
-	loop:
-		for {
-			// Make sure we avoid infinite loops trying to resolve cycles:
-			//
-			//   // foo.js
-			//   export {a as b} from './foo.js'
-			//   export {b as c} from './foo.js'
-			//   export {c as a} from './foo.js'
-			//
-			// This uses a O(n^2) array scan instead of a O(n) map because the vast
-			// majority of cases have one or two elements and Go arrays are cheap to
-			// reuse without allocating.
-			for _, previousTracker := range c.cycleDetector {
-				if tracker == previousTracker {
-					namedImport := repr.ast.NamedImports[importRef]
-					c.addRangeError(file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
-						fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
-					break loop
-				}
-			}
-			c.cycleDetector = append(c.cycleDetector, tracker)
 
-			// Resolve the import by one step
-			nextTracker, status := c.advanceImportTracker(tracker)
-			switch status {
-			case importCommonJS, importCommonJSWithoutExports, importExternal, importDisabled:
-				if status == importExternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
-					// Imports from external modules should not be converted to CommonJS
-					// if the output format preserves the original ES6 import statements
-					break
-				}
-
-				// If it's a CommonJS or external file, rewrite the import to a
-				// property access. Don't do this if the namespace reference is invalid
-				// though. This is the case for star imports, where the import is the
-				// namespace.
-				namedImport := c.files[tracker.sourceIndex].repr.(*reprJS).ast.NamedImports[tracker.importRef]
-				if namedImport.NamespaceRef != js_ast.InvalidRef {
-					c.symbols.Get(importRef).NamespaceAlias = &js_ast.NamespaceAlias{
-						NamespaceRef: namedImport.NamespaceRef,
-						Alias:        namedImport.Alias,
-					}
-				}
-
-				// Warn about importing from a file that is known to not have any exports
-				if status == importCommonJSWithoutExports {
-					source := c.files[tracker.sourceIndex].source
-					symbol := c.symbols.Get(tracker.importRef)
-					symbol.ImportItemStatus = js_ast.ImportItemMissing
-					c.log.AddRangeWarning(&source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
-						fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
-				}
-
-			case importNoMatch:
-				symbol := c.symbols.Get(tracker.importRef)
-				source := c.files[tracker.sourceIndex].source
-				namedImport := c.files[tracker.sourceIndex].repr.(*reprJS).ast.NamedImports[tracker.importRef]
-				r := js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
-
-				// Report mismatched imports and exports
-				if symbol.ImportItemStatus == js_ast.ImportItemGenerated {
-					// This is a warning instead of an error because although it appears
-					// to be a named import, it's actually an automatically-generated
-					// named import that was originally a property access on an import
-					// star namespace object. Normally this property access would just
-					// resolve to undefined at run-time instead of failing at binding-
-					// time, so we emit a warning and rewrite the value to the literal
-					// "undefined" instead of emitting an error.
-					symbol.ImportItemStatus = js_ast.ImportItemMissing
-					c.log.AddRangeWarning(&source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
-				} else {
-					c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
-				}
-
-			case importAmbiguous:
-				source := c.files[tracker.sourceIndex].source
-				namedImport := c.files[tracker.sourceIndex].repr.(*reprJS).ast.NamedImports[tracker.importRef]
-				c.addRangeError(source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
-					fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
-
-			case importProbablyTypeScriptType:
-				// Omit this import from any namespace export code we generate for
-				// import star statements (i.e. "import * as ns from 'path'")
-				repr.meta.isProbablyTypeScriptType[importRef] = true
-
-			case importFound:
-				// Defer the actual binding of this import until after we generate
-				// namespace export code for all files. This has to be done for all
-				// import-to-export matches, not just the initial import to the final
-				// export, since all imports and re-exports must be merged together
-				// for correctness.
-				repr.meta.importsToBind[importRef] = importToBind{
-					sourceIndex: nextTracker.sourceIndex,
-					ref:         nextTracker.importRef,
-				}
-
-				// If this is a re-export of another import, continue for another
-				// iteration of the loop to resolve that import as well
-				if _, ok := c.files[nextTracker.sourceIndex].repr.(*reprJS).ast.NamedImports[nextTracker.importRef]; ok {
-					tracker = nextTracker
-					continue
-				}
-
-			default:
-				panic("Internal error")
+		importRef := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
+		result := c.matchImportWithExport(importTracker{sourceIndex, importRef})
+		switch result.kind {
+		case matchImportNormal:
+			repr.meta.importsToBind[importRef] = importToBind{
+				sourceIndex: result.sourceIndex,
+				ref:         result.ref,
 			}
 
-			// Stop now if we didn't explicitly "continue" above
-			break
+		case matchImportNamespace:
+			c.symbols.Get(importRef).NamespaceAlias = &js_ast.NamespaceAlias{
+				NamespaceRef: result.namespaceRef,
+				Alias:        result.alias,
+			}
+
+		case matchImportCycle:
+			namedImport := repr.ast.NamedImports[importRef]
+			c.addRangeError(file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
+				fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
+
+		case matchImportProbablyTypeScriptType:
+			repr.meta.isProbablyTypeScriptType[importRef] = true
 		}
 	}
+}
+
+type matchImportKind uint8
+
+const (
+	// The import is either external or undefined
+	matchImportIgnore matchImportKind = iota
+
+	// "sourceIndex" and "ref" are in use
+	matchImportNormal
+
+	// "namespaceRef" and "alias" are in use
+	matchImportNamespace
+
+	// The import could not be evaluated due to a cycle
+	matchImportCycle
+
+	// The import is missing but came from a TypeScript file
+	matchImportProbablyTypeScriptType
+)
+
+type matchImportResult struct {
+	kind         matchImportKind
+	namespaceRef js_ast.Ref
+	alias        string
+	sourceIndex  uint32
+	ref          js_ast.Ref
+}
+
+func (c *linkerContext) matchImportWithExport(tracker importTracker) (result matchImportResult) {
+loop:
+	for {
+		// Make sure we avoid infinite loops trying to resolve cycles:
+		//
+		//   // foo.js
+		//   export {a as b} from './foo.js'
+		//   export {b as c} from './foo.js'
+		//   export {c as a} from './foo.js'
+		//
+		// This uses a O(n^2) array scan instead of a O(n) map because the vast
+		// majority of cases have one or two elements and Go arrays are cheap to
+		// reuse without allocating.
+		for _, previousTracker := range c.cycleDetector {
+			if tracker == previousTracker {
+				result = matchImportResult{kind: matchImportCycle}
+				break loop
+			}
+		}
+		c.cycleDetector = append(c.cycleDetector, tracker)
+
+		// Resolve the import by one step
+		nextTracker, status := c.advanceImportTracker(tracker)
+		switch status {
+		case importCommonJS, importCommonJSWithoutExports, importExternal, importDisabled:
+			if status == importExternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
+				// Imports from external modules should not be converted to CommonJS
+				// if the output format preserves the original ES6 import statements
+				break
+			}
+
+			// If it's a CommonJS or external file, rewrite the import to a
+			// property access. Don't do this if the namespace reference is invalid
+			// though. This is the case for star imports, where the import is the
+			// namespace.
+			trackerFile := &c.files[tracker.sourceIndex]
+			namedImport := trackerFile.repr.(*reprJS).ast.NamedImports[tracker.importRef]
+			if namedImport.NamespaceRef != js_ast.InvalidRef {
+				result = matchImportResult{
+					kind:         matchImportNamespace,
+					namespaceRef: namedImport.NamespaceRef,
+					alias:        namedImport.Alias,
+				}
+			}
+
+			// Warn about importing from a file that is known to not have any exports
+			if status == importCommonJSWithoutExports {
+				source := trackerFile.source
+				symbol := c.symbols.Get(tracker.importRef)
+				symbol.ImportItemStatus = js_ast.ImportItemMissing
+				c.log.AddRangeWarning(&source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+					fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
+			}
+
+		case importNoMatch:
+			symbol := c.symbols.Get(tracker.importRef)
+			trackerFile := &c.files[tracker.sourceIndex]
+			source := trackerFile.source
+			namedImport := trackerFile.repr.(*reprJS).ast.NamedImports[tracker.importRef]
+			r := js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc)
+
+			// Report mismatched imports and exports
+			if symbol.ImportItemStatus == js_ast.ImportItemGenerated {
+				// This is a warning instead of an error because although it appears
+				// to be a named import, it's actually an automatically-generated
+				// named import that was originally a property access on an import
+				// star namespace object. Normally this property access would just
+				// resolve to undefined at run-time instead of failing at binding-
+				// time, so we emit a warning and rewrite the value to the literal
+				// "undefined" instead of emitting an error.
+				symbol.ImportItemStatus = js_ast.ImportItemMissing
+				c.log.AddRangeWarning(&source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+			} else {
+				c.addRangeError(source, r, fmt.Sprintf("No matching export for import %q", namedImport.Alias))
+			}
+
+		case importAmbiguous:
+			trackerFile := &c.files[tracker.sourceIndex]
+			source := trackerFile.source
+			namedImport := trackerFile.repr.(*reprJS).ast.NamedImports[tracker.importRef]
+			c.addRangeError(source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
+				fmt.Sprintf("Ambiguous import %q has multiple matching exports", namedImport.Alias))
+
+		case importProbablyTypeScriptType:
+			// Omit this import from any namespace export code we generate for
+			// import star statements (i.e. "import * as ns from 'path'")
+			result = matchImportResult{kind: matchImportProbablyTypeScriptType}
+
+		case importFound:
+			// Defer the actual binding of this import until after we generate
+			// namespace export code for all files. This has to be done for all
+			// import-to-export matches, not just the initial import to the final
+			// export, since all imports and re-exports must be merged together
+			// for correctness.
+			result = matchImportResult{
+				kind:        matchImportNormal,
+				sourceIndex: nextTracker.sourceIndex,
+				ref:         nextTracker.importRef,
+			}
+
+			// If this is a re-export of another import, continue for another
+			// iteration of the loop to resolve that import as well
+			if _, ok := c.files[nextTracker.sourceIndex].repr.(*reprJS).ast.NamedImports[nextTracker.importRef]; ok {
+				tracker = nextTracker
+				continue
+			}
+
+		default:
+			panic("Internal error")
+		}
+
+		// Stop now if we didn't explicitly "continue" above
+		break
+	}
+
+	return
 }
 
 func (c *linkerContext) isCommonJSDueToExportStar(sourceIndex uint32, visited map[uint32]bool) bool {
