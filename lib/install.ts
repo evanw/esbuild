@@ -83,7 +83,20 @@ async function installBinaryFromPackage(name: string, fromPath: string, toPath: 
 }
 
 function validateBinaryVersion(binaryPath: string): void {
-  const stdout = child_process.execFileSync(binaryPath, ['--version']).toString().trim();
+  let stdout;
+  try {
+    stdout = child_process.execFileSync(binaryPath, ['--version']).toString().trim();
+  } catch (err) {
+    if (platformKey === 'darwin arm64 LE')
+      throw new Error(`${err && err.message || err}
+
+This install script is trying to install the x64 esbuild executable because the
+arm64 esbuild executable is not available yet. Running this executable requires
+the Rosetta 2 binary translator. Please make sure you have Rosetta 2 installed
+before installing esbuild.
+`);
+    throw err;
+  }
   if (stdout !== version) {
     throw new Error(`Expected ${JSON.stringify(version)} but got ${JSON.stringify(stdout)}`);
   }
@@ -212,6 +225,7 @@ function installDirectly(name: string) {
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.unlinkSync(binPath);
     fs.symlinkSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, binPath);
+    validateBinaryVersion(process.env.ESBUILD_BIN_PATH_FOR_TESTS);
   } else {
     installBinaryFromPackage(name, 'bin/esbuild', binPath)
       .catch(e => setImmediate(() => { throw e; }));
@@ -231,6 +245,7 @@ process.exitCode = status === null ? 1 : status;
   const absToPath = path.join(__dirname, toPath);
   if (process.env.ESBUILD_BIN_PATH_FOR_TESTS) {
     fs.copyFileSync(process.env.ESBUILD_BIN_PATH_FOR_TESTS, absToPath);
+    validateBinaryVersion(process.env.ESBUILD_BIN_PATH_FOR_TESTS);
   } else {
     installBinaryFromPackage(name, fromPath, absToPath)
       .catch(e => setImmediate(() => { throw e; }));
@@ -258,7 +273,7 @@ function installOnWindows(name: string): void {
   installWithWrapper(name, "esbuild.exe", "esbuild.exe");
 }
 
-const key = `${process.platform} ${os.arch()} ${os.endianness()}`;
+const platformKey = `${process.platform} ${os.arch()} ${os.endianness()}`;
 const knownWindowsPackages: Record<string, string> = {
   'win32 ia32 LE': 'esbuild-windows-32',
   'win32 x64 LE': 'esbuild-windows-64',
@@ -276,11 +291,11 @@ const knownUnixlikePackages: Record<string, string> = {
 };
 
 // Pick a package to install
-if (key in knownWindowsPackages) {
-  installOnWindows(knownWindowsPackages[key]);
-} else if (key in knownUnixlikePackages) {
-  installOnUnix(knownUnixlikePackages[key]);
+if (platformKey in knownWindowsPackages) {
+  installOnWindows(knownWindowsPackages[platformKey]);
+} else if (platformKey in knownUnixlikePackages) {
+  installOnUnix(knownUnixlikePackages[platformKey]);
 } else {
-  console.error(`Unsupported platform: ${key}`);
+  console.error(`Unsupported platform: ${platformKey}`);
   process.exit(1);
 }
