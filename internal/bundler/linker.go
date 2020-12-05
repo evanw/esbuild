@@ -65,6 +65,9 @@ type linkerContext struct {
 	files       []file
 	hasErrors   bool
 
+	// This helps avoid an infinite loop when matching imports to exports
+	cycleDetector []importTracker
+
 	// We should avoid traversing all files in the bundle, because the linker
 	// should be able to run a linking operation on a large bundle where only
 	// a few files are needed (e.g. an incremental compilation scenario). This
@@ -1708,8 +1711,10 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 	for _, innerIndex := range sortedImportRefs {
 		importRef := js_ast.Ref{OuterIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
 		tracker := importTracker{sourceIndex, importRef}
-		cycleDetector := tracker
-		checkCycle := false
+
+		// Re-use memory for the cycle detector
+		c.cycleDetector = c.cycleDetector[:0]
+	loop:
 		for {
 			// Make sure we avoid infinite loops trying to resolve cycles:
 			//
@@ -1718,18 +1723,18 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 			//   export {b as c} from './foo.js'
 			//   export {c as a} from './foo.js'
 			//
-			if !checkCycle {
-				checkCycle = true
-			} else {
-				checkCycle = false
-				if cycleDetector == tracker {
+			// This uses a O(n^2) array scan instead of a O(n) map because the vast
+			// majority of cases have one or two elements and Go arrays are cheap to
+			// reuse without allocating.
+			for _, previousTracker := range c.cycleDetector {
+				if tracker == previousTracker {
 					namedImport := repr.ast.NamedImports[importRef]
 					c.addRangeError(file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
 						fmt.Sprintf("Detected cycle while resolving import %q", namedImport.Alias))
-					break
+					break loop
 				}
-				cycleDetector, _ = c.advanceImportTracker(cycleDetector)
 			}
+			c.cycleDetector = append(c.cycleDetector, tracker)
 
 			// Resolve the import by one step
 			nextTracker, status := c.advanceImportTracker(tracker)
