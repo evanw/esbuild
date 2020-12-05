@@ -82,10 +82,13 @@ export interface OutputFile {
   text: string; // "contents" as text
 }
 
-export type BuildInvalidate = () => Promise<BuildIncremental>;
+export interface BuildInvalidate {
+  (): Promise<BuildIncremental>;
+  dispose(): void;
+}
 
 export interface BuildIncremental extends BuildResult {
-  rebuild: BuildInvalidate & { dispose(): void };
+  rebuild: BuildInvalidate;
 }
 
 export interface BuildResult {
