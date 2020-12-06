@@ -190,13 +190,13 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   if (inject) for (let path of inject) flags.push(`--inject:${path}`);
   if (loader) {
     for (let ext in loader) {
-      if (ext.indexOf('=') >= 0) throw new Error(`Invalid extension: ${ext}`);
+      if (ext.indexOf('=') >= 0) throw new Error(`Invalid loader extension: ${ext}`);
       flags.push(`--loader:${ext}=${loader[ext]}`);
     }
   }
   if (outExtension) {
     for (let ext in outExtension) {
-      if (ext.indexOf('=') >= 0) throw new Error(`Invalid extension: ${ext}`);
+      if (ext.indexOf('=') >= 0) throw new Error(`Invalid out extension: ${ext}`);
       flags.push(`--out-extension:${ext}=${outExtension[ext]}`);
     }
   }
