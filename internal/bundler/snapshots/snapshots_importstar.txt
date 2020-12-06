@@ -1,11 +1,11 @@
 TestExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports2) => {
   exports2.foo = 123;
 });
 
-// /entry.js
+// entry.js
 __export(exports, {
   ns: () => ns
 });
@@ -14,12 +14,12 @@ var ns = __toModule(require_foo());
 ================================================================================
 TestExportOtherCommonJS
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports2) => {
   exports2.foo = 123;
 });
 
-// /entry.js
+// entry.js
 __export(exports, {
   bar: () => foo.bar
 });
@@ -28,23 +28,23 @@ var foo = __toModule(require_foo());
 ================================================================================
 TestExportOtherNestedCommonJS
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports2) => {
   exports2.foo = 123;
 });
 
-// /entry.js
+// entry.js
 __export(exports, {
   y: () => foo.x
 });
 
-// /bar.js
+// bar.js
 var foo = __toModule(require_foo());
 
 ================================================================================
 TestExportSelfAndImportSelfCommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 __export(exports, {
   foo: () => foo
 });
@@ -54,7 +54,7 @@ console.log(exports);
 ================================================================================
 TestExportSelfAndRequireSelfCommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var require_entry = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo
@@ -67,7 +67,7 @@ module.exports = require_entry();
 ================================================================================
 TestExportSelfAsNamespaceCommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 __export(exports, {
   foo: () => foo,
   ns: () => exports
@@ -77,7 +77,7 @@ var foo = 123;
 ================================================================================
 TestExportSelfAsNamespaceES6
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var entry_exports = {};
 __export(entry_exports, {
   foo: () => foo,
@@ -92,7 +92,7 @@ export {
 ================================================================================
 TestExportSelfCommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 __export(exports, {
   foo: () => foo
 });
@@ -101,7 +101,7 @@ var foo = 123;
 ================================================================================
 TestExportSelfCommonJSMinified
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var e = n((t, r) => {
   r.exports = {foo: 123};
   console.log(e());
@@ -111,7 +111,7 @@ module.exports = e();
 ================================================================================
 TestExportSelfES6
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var foo = 123;
 export {
   foo
@@ -121,7 +121,7 @@ export {
 TestExportSelfIIFE
 ---------- /out.js ----------
 (() => {
-  // /entry.js
+  // entry.js
   var foo = 123;
 })();
 
@@ -129,7 +129,7 @@ TestExportSelfIIFE
 TestExportSelfIIFEWithName
 ---------- /out.js ----------
 var someName = (() => {
-  // /entry.js
+  // entry.js
   var entry_exports = {};
   __export(entry_exports, {
     foo: () => foo
@@ -141,113 +141,113 @@ var someName = (() => {
 ================================================================================
 TestExportStarDefaultExportCommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 __export(exports, {
   foo: () => foo
 });
 
-// /foo.js
+// foo.js
 var foo = "foo";
 
 ================================================================================
 TestImportDefaultNamespaceComboIssue446
 ---------- /out/external-default2.js ----------
-// /external-default2.js
+// external-default2.js
 import def, {default as default2} from "external";
 console.log(def, default2);
 
 ---------- /out/external-ns.js ----------
-// /external-ns.js
+// external-ns.js
 import def, * as ns from "external";
 console.log(def, ns);
 
 ---------- /out/external-ns-default.js ----------
-// /external-ns-default.js
+// external-ns-default.js
 import def, * as ns from "external";
 console.log(def, ns, ns.default);
 
 ---------- /out/external-ns-def.js ----------
-// /external-ns-def.js
+// external-ns-def.js
 import def, * as ns from "external";
 console.log(def, ns, ns.def);
 
 ---------- /out/external-default.js ----------
-// /external-default.js
+// external-default.js
 import def, {
   default as default2
 } from "external";
 console.log(def, default2);
 
 ---------- /out/external-def.js ----------
-// /external-def.js
+// external-def.js
 import def, {
   def as def2
 } from "external";
 console.log(def, def2);
 
 ---------- /out/internal-default2.js ----------
-// /internal.js
+// internal.js
 var internal_default = 123;
 
-// /internal-default2.js
+// internal-default2.js
 console.log(internal_default, internal_default);
 
 ---------- /out/internal-ns.js ----------
-// /internal.js
+// internal.js
 var internal_exports = {};
 __export(internal_exports, {
   default: () => internal_default
 });
 var internal_default = 123;
 
-// /internal-ns.js
+// internal-ns.js
 console.log(internal_default, internal_exports);
 
 ---------- /out/internal-ns-default.js ----------
-// /internal.js
+// internal.js
 var internal_exports = {};
 __export(internal_exports, {
   default: () => internal_default
 });
 var internal_default = 123;
 
-// /internal-ns-default.js
+// internal-ns-default.js
 console.log(internal_default, internal_exports, internal_default);
 
 ---------- /out/internal-ns-def.js ----------
-// /internal.js
+// internal.js
 var internal_exports = {};
 __export(internal_exports, {
   default: () => internal_default
 });
 var internal_default = 123;
 
-// /internal-ns-def.js
+// internal-ns-def.js
 console.log(internal_default, internal_exports, void 0);
 
 ---------- /out/internal-default.js ----------
-// /internal.js
+// internal.js
 var internal_default = 123;
 
-// /internal-default.js
+// internal-default.js
 console.log(internal_default, internal_default);
 
 ---------- /out/internal-def.js ----------
-// /internal.js
+// internal.js
 var internal_default = 123;
 
-// /internal-def.js
+// internal-def.js
 console.log(internal_default, void 0);
 
 ================================================================================
 TestImportExportOtherAsNamespaceCommonJS
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports2) => {
   exports2.foo = 123;
 });
 
-// /entry.js
+// entry.js
 __export(exports, {
   ns: () => ns
 });
@@ -256,7 +256,7 @@ var ns = __toModule(require_foo());
 ================================================================================
 TestImportExportSelfAsNamespaceES6
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var entry_exports = {};
 __export(entry_exports, {
   foo: () => foo,
@@ -271,35 +271,35 @@ export {
 ================================================================================
 TestImportOfExportStar
 ---------- /out.js ----------
-// /bar.js
+// bar.js
 statement();
 statement();
 statement();
 statement();
 var bar = 123;
 
-// /entry.js
+// entry.js
 console.log(bar);
 
 ================================================================================
 TestImportOfExportStarOfImport
 ---------- /out.js ----------
-// /baz.js
+// baz.js
 var value = 123;
 
-// /foo.js
+// foo.js
 statement();
 statement();
 statement();
 statement();
 
-// /entry.js
+// entry.js
 console.log(value);
 
 ================================================================================
 TestImportSelfCommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var require_entry = __commonJS((exports) => {
   var entry = __toModule(require_entry());
   exports.foo = 123;
@@ -310,7 +310,7 @@ module.exports = require_entry();
 ================================================================================
 TestImportStarAndCommonJS
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports) => {
   __export(exports, {
     foo: () => foo2
@@ -318,7 +318,7 @@ var require_foo = __commonJS((exports) => {
   var foo2 = 123;
 });
 
-// /entry.js
+// entry.js
 var ns = __toModule(require_foo());
 var ns2 = require_foo();
 console.log(ns.foo, ns2.foo);
@@ -326,26 +326,26 @@ console.log(ns.foo, ns2.foo);
 ================================================================================
 TestImportStarCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
 var foo = 123;
 
-// /entry.js
+// entry.js
 var foo2 = 234;
 console.log(foo_exports, foo, foo2);
 
 ================================================================================
 TestImportStarCommonJSCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports) => {
   exports.foo = 123;
 });
 
-// /entry.js
+// entry.js
 var ns = __toModule(require_foo());
 var foo = 234;
 console.log(ns, ns.foo, foo);
@@ -353,12 +353,12 @@ console.log(ns, ns.foo, foo);
 ================================================================================
 TestImportStarCommonJSNoCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports) => {
   exports.foo = 123;
 });
 
-// /entry.js
+// entry.js
 var ns = __toModule(require_foo());
 var foo2 = 234;
 console.log(ns.foo, ns.foo, foo2);
@@ -366,12 +366,12 @@ console.log(ns.foo, ns.foo, foo2);
 ================================================================================
 TestImportStarCommonJSUnused
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports) => {
   exports.foo = 123;
 });
 
-// /entry.js
+// entry.js
 var ns = __toModule(require_foo());
 var foo = 234;
 console.log(foo);
@@ -379,122 +379,122 @@ console.log(foo);
 ================================================================================
 TestImportStarExportImportStarCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
 var foo = 123;
 
-// /entry.js
+// entry.js
 var foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportImportStarNoCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
 var foo = 123;
 
-// /entry.js
+// entry.js
 var foo2 = 234;
 console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportImportStarUnused
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var foo = 234;
 console.log(foo);
 
 ================================================================================
 TestImportStarExportStarAsCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
 var foo = 123;
 
-// /entry.js
+// entry.js
 var foo2 = 234;
 console.log(foo_exports, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportStarAsNoCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo
 });
 var foo = 123;
 
-// /entry.js
+// entry.js
 var foo2 = 234;
 console.log(foo_exports.foo, foo_exports.foo, foo2);
 
 ================================================================================
 TestImportStarExportStarAsUnused
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var foo = 234;
 console.log(foo);
 
 ================================================================================
 TestImportStarExportStarCapture
 ---------- /out.js ----------
-// /bar.js
+// bar.js
 var bar_exports = {};
 __export(bar_exports, {
   foo: () => foo
 });
 
-// /foo.js
+// foo.js
 var foo = 123;
 
-// /entry.js
+// entry.js
 var foo2 = 234;
 console.log(bar_exports, foo, foo2);
 
 ================================================================================
 TestImportStarExportStarNoCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo = 123;
 
-// /entry.js
+// entry.js
 var foo2 = 234;
 console.log(foo, foo, foo2);
 
 ================================================================================
 TestImportStarExportStarOmitAmbiguous
 ---------- /out.js ----------
-// /common.js
+// common.js
 var common_exports = {};
 __export(common_exports, {
   x: () => x,
   z: () => z
 });
 
-// /foo.js
+// foo.js
 var x = 1;
 
-// /bar.js
+// bar.js
 var z = 4;
 
-// /entry.js
+// entry.js
 console.log(common_exports);
 
 ================================================================================
 TestImportStarExportStarUnused
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var foo = 234;
 console.log(foo);
 
@@ -543,122 +543,122 @@ console.log(foo);
 ================================================================================
 TestImportStarNoCapture
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo = 123;
 
-// /entry.js
+// entry.js
 var foo2 = 234;
 console.log(foo, foo, foo2);
 
 ================================================================================
 TestImportStarOfExportStarAs
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   bar_ns: () => bar_exports
 });
 
-// /bar.js
+// bar.js
 var bar_exports = {};
 __export(bar_exports, {
   bar: () => bar
 });
 var bar = 123;
 
-// /entry.js
+// entry.js
 console.log(foo_exports);
 
 ================================================================================
 TestImportStarUnused
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 var foo = 234;
 console.log(foo);
 
 ================================================================================
 TestIssue176
 ---------- /out.js ----------
-// /folders/index.js
+// folders/index.js
 var folders_exports = {};
 __export(folders_exports, {
   foo: () => foo
 });
 
-// /folders/child/foo.js
+// folders/child/foo.js
 var foo = () => "hi there";
 
-// /entry.js
+// entry.js
 console.log(JSON.stringify(folders_exports));
 
 ================================================================================
 TestNamespaceImportMissingCommonJS
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports) => {
   exports.x = 123;
 });
 
-// /entry.js
+// entry.js
 var ns = __toModule(require_foo());
 console.log(ns, ns.foo);
 
 ================================================================================
 TestNamespaceImportMissingES6
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   x: () => x
 });
 var x = 123;
 
-// /entry.js
+// entry.js
 console.log(foo_exports, void 0);
 
 ================================================================================
 TestNamespaceImportReExportStarMissingES6
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   x: () => x
 });
 
-// /bar.js
+// bar.js
 var x = 123;
 
-// /entry.js
+// entry.js
 console.log(foo_exports, void 0);
 
 ================================================================================
 TestNamespaceImportReExportStarUnusedMissingES6
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 console.log(void 0);
 
 ================================================================================
 TestNamespaceImportUnusedMissingCommonJS
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var require_foo = __commonJS((exports) => {
   exports.x = 123;
 });
 
-// /entry.js
+// entry.js
 var ns = __toModule(require_foo());
 console.log(ns.foo);
 
 ================================================================================
 TestNamespaceImportUnusedMissingES6
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 console.log(void 0);
 
 ================================================================================
 TestOtherFileExportSelfAsNamespaceUnusedES6
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo = 123;
 export {
   foo
@@ -667,7 +667,7 @@ export {
 ================================================================================
 TestOtherFileImportExportSelfAsNamespaceUnusedES6
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo = 123;
 export {
   foo
@@ -676,33 +676,33 @@ export {
 ================================================================================
 TestReExportNamespaceImportMissingES6
 ---------- /out.js ----------
-// /bar.js
+// bar.js
 var bar_exports = {};
 __export(bar_exports, {
   x: () => x
 });
 var x = 123;
 
-// /entry.js
+// entry.js
 console.log(bar_exports, bar_exports.foo);
 
 ================================================================================
 TestReExportNamespaceImportUnusedMissingES6
 ---------- /out.js ----------
-// /bar.js
+// bar.js
 var bar_exports = {};
 __export(bar_exports, {
   x: () => x
 });
 var x = 123;
 
-// /entry.js
+// entry.js
 console.log(bar_exports.foo);
 
 ================================================================================
 TestReExportOtherFileExportSelfAsNamespaceES6
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo,
@@ -717,7 +717,7 @@ export {
 ================================================================================
 TestReExportOtherFileImportExportSelfAsNamespaceES6
 ---------- /out.js ----------
-// /foo.js
+// foo.js
 var foo_exports = {};
 __export(foo_exports, {
   foo: () => foo,
@@ -748,7 +748,7 @@ export {
 ================================================================================
 TestReExportStarAsExternalCommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 __export(exports, {
   out: () => out
 });
@@ -757,7 +757,7 @@ var out = __toModule(require("foo"));
 ================================================================================
 TestReExportStarAsExternalES6
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 import * as out from "foo";
 export {
   out
@@ -767,7 +767,7 @@ export {
 TestReExportStarAsExternalIIFE
 ---------- /out.js ----------
 var mod = (() => {
-  // /entry.js
+  // entry.js
   var entry_exports = {};
   __export(entry_exports, {
     out: () => out
@@ -801,20 +801,20 @@ export * from "foo";
 ================================================================================
 TestReExportStarExternalCommonJS
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 __exportStar(exports, __toModule(require("foo")));
 
 ================================================================================
 TestReExportStarExternalES6
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 export * from "foo";
 
 ================================================================================
 TestReExportStarExternalIIFE
 ---------- /out.js ----------
 var mod = (() => {
-  // /entry.js
+  // entry.js
   var require_entry = __commonJS((exports) => {
     __exportStar(exports, __toModule(require("foo")));
   });
@@ -830,3 +830,24 @@ var mod = (() => {
   });
   return require_entry();
 })();
+
+================================================================================
+TestReExportStarNameCollisionNotAmbiguousExport
+---------- /out.js ----------
+// c.js
+var x = 1;
+var y = 2;
+export {
+  x,
+  y
+};
+
+================================================================================
+TestReExportStarNameCollisionNotAmbiguousImport
+---------- /out.js ----------
+// c.js
+var x = 1;
+var y = 2;
+
+// entry.js
+console.log(x, y);

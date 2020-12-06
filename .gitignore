@@ -23,6 +23,8 @@
 /require/
 /scripts/.end-to-end-tests/
 /scripts/.js-api-tests/
+/scripts/.plugin-tests/
 /scripts/.test262/
+/scripts/.ts-types-test/
 /scripts/.verify-source-map/
 node_modules/

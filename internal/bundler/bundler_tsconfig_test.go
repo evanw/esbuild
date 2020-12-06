@@ -331,15 +331,15 @@ func TestTsConfigBadPathsNoBaseURL(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `/Users/user/project/entry.ts: error: Could not resolve "should-not-be-imported" ` +
-			`(use "./should-not-be-imported" to import "/Users/user/project/should-not-be-imported.ts")
-/Users/user/project/tsconfig.json: warning: Non-relative path "bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-/Users/user/project/tsconfig.json: warning: Non-relative path "@bad/core" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-/Users/user/project/tsconfig.json: warning: Non-relative path ".*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-/Users/user/project/tsconfig.json: warning: Non-relative path "..*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-/Users/user/project/tsconfig.json: warning: Non-relative path "c*:\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-/Users/user/project/tsconfig.json: warning: Non-relative path "c:*\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
-/Users/user/project/tsconfig.json: warning: Non-relative path "http://bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+		expectedScanLog: `Users/user/project/entry.ts: error: Could not resolve "should-not-be-imported" ` +
+			`(use "./should-not-be-imported" to import "Users/user/project/should-not-be-imported.ts")
+Users/user/project/tsconfig.json: warning: Non-relative path "bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: warning: Non-relative path "@bad/core" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: warning: Non-relative path ".*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: warning: Non-relative path "..*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: warning: Non-relative path "c*:\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: warning: Non-relative path "c:*\\bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/tsconfig.json: warning: Non-relative path "http://bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
 `,
 	})
 }
@@ -654,7 +654,8 @@ func TestTsconfigJsonExtendsLoop(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: "/base.json: warning: Base config file \"./tsconfig\" forms cycle\n",
+		expectedScanLog: `base.json: warning: Base config file "./tsconfig" forms cycle
+`,
 	})
 }
 
@@ -783,7 +784,8 @@ func TestTsconfigJsonOverrideInvalid(t *testing.T) {
 			AbsOutputFile:    "/out.js",
 			TsConfigOverride: "/this/file/doesn't/exist/tsconfig.json",
 		},
-		expectedScanLog: "error: Cannot find tsconfig file \"/this/file/doesn't/exist/tsconfig.json\"\n",
+		expectedScanLog: `error: Cannot find tsconfig file "this/file/doesn't/exist/tsconfig.json"
+`,
 	})
 }
 
@@ -834,7 +836,7 @@ func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `/Users/user/project/src/foo/tsconfig.json: warning: Cannot find base config file "extends for foo"
+		expectedScanLog: `Users/user/project/src/foo/tsconfig.json: warning: Cannot find base config file "extends for foo"
 `,
 	})
 }

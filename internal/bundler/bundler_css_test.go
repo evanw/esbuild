@@ -39,7 +39,7 @@ func TestCSSAtImportMissing(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.css",
 		},
-		expectedScanLog: `/entry.css: error: Could not resolve "./missing.css"
+		expectedScanLog: `entry.css: error: Could not resolve "./missing.css"
 `,
 	})
 }
@@ -124,7 +124,7 @@ func TestCSSFromJSMissingImport(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `/entry.js: error: No matching export for import "missing"
+		expectedCompileLog: `entry.js: error: No matching export for import "missing"
 `,
 	})
 }
@@ -145,7 +145,7 @@ func TestCSSFromJSMissingStarImport(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `/entry.js: warning: No matching export for import "missing"
+		expectedCompileLog: `entry.js: warning: No matching export for import "missing"
 `,
 	})
 }
@@ -195,7 +195,7 @@ func TestImportCSSFromJSWriteToStdout(t *testing.T) {
 			Mode:          config.ModeBundle,
 			WriteToStdout: true,
 		},
-		expectedScanLog: `/entry.js: error: Cannot import "/entry.css" into a JavaScript file without an output path configured
+		expectedScanLog: `entry.js: error: Cannot import "entry.css" into a JavaScript file without an output path configured
 `,
 	})
 }
@@ -215,7 +215,7 @@ func TestImportJSFromCSS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `/entry.css: error: Cannot import "/entry.js" into a CSS file
+		expectedScanLog: `entry.css: error: Cannot import "entry.js" into a CSS file
 `,
 	})
 }
@@ -235,7 +235,7 @@ func TestImportJSONFromCSS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `/entry.css: error: Cannot import "/entry.json" into a CSS file
+		expectedScanLog: `entry.css: error: Cannot import "entry.json" into a CSS file
 `,
 	})
 }
@@ -253,8 +253,8 @@ func TestMissingImportURLInCSS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `/src/entry.css: error: Could not resolve "./one.png"
-/src/entry.css: error: Could not resolve "./two.png"
+		expectedScanLog: `src/entry.css: error: Could not resolve "./one.png"
+src/entry.css: error: Could not resolve "./two.png"
 `,
 	})
 }
@@ -314,12 +314,12 @@ func TestInvalidImportURLInCSS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `/entry.css: error: Cannot use "/js.js" as a URL
-/entry.css: error: Cannot use "/jsx.jsx" as a URL
-/entry.css: error: Cannot use "/ts.ts" as a URL
-/entry.css: error: Cannot use "/tsx.tsx" as a URL
-/entry.css: error: Cannot use "/json.json" as a URL
-/entry.css: error: Cannot use "/css.css" as a URL
+		expectedScanLog: `entry.css: error: Cannot use "js.js" as a URL
+entry.css: error: Cannot use "jsx.jsx" as a URL
+entry.css: error: Cannot use "ts.ts" as a URL
+entry.css: error: Cannot use "tsx.tsx" as a URL
+entry.css: error: Cannot use "json.json" as a URL
+entry.css: error: Cannot use "css.css" as a URL
 `,
 	})
 }
@@ -517,7 +517,7 @@ func TestCSSAtImportExtensionOrderCollisionUnsupported(t *testing.T) {
 				".css": config.LoaderCSS,
 			},
 		},
-		expectedScanLog: `/entry.css: error: File could not be loaded: /test.sass
+		expectedScanLog: `entry.css: error: File could not be loaded: test.sass
 `,
 	})
 }

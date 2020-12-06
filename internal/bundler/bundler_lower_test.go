@@ -99,7 +99,8 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 			UnsupportedJSFeatures: es(2015),
 			AbsOutputFile:         "/out.js",
 		},
-		expectedScanLog: "/entry.js: error: Big integer literals are not available in the configured target environment\n",
+		expectedScanLog: `entry.js: error: Big integer literals are not available in the configured target environment
+`,
 	})
 }
 
@@ -899,14 +900,14 @@ func TestLowerAsyncES5(t *testing.T) {
 			UnsupportedJSFeatures: es(5),
 			AbsOutputFile:         "/out.js",
 		},
-		expectedScanLog: `/arrow-1.js: error: Transforming async functions to the configured target environment is not supported yet
-/arrow-2.js: error: Transforming async functions to the configured target environment is not supported yet
-/export-def-1.js: error: Transforming async functions to the configured target environment is not supported yet
-/export-def-2.js: error: Transforming async functions to the configured target environment is not supported yet
-/fn-expr.js: error: Transforming async functions to the configured target environment is not supported yet
-/fn-stmt.js: error: Transforming async functions to the configured target environment is not supported yet
-/obj-method.js: error: Transforming async functions to the configured target environment is not supported yet
-/obj-method.js: error: Transforming object literal extensions to the configured target environment is not supported yet
+		expectedScanLog: `arrow-1.js: error: Transforming async functions to the configured target environment is not supported yet
+arrow-2.js: error: Transforming async functions to the configured target environment is not supported yet
+export-def-1.js: error: Transforming async functions to the configured target environment is not supported yet
+export-def-2.js: error: Transforming async functions to the configured target environment is not supported yet
+fn-expr.js: error: Transforming async functions to the configured target environment is not supported yet
+fn-stmt.js: error: Transforming async functions to the configured target environment is not supported yet
+obj-method.js: error: Transforming async functions to the configured target environment is not supported yet
+obj-method.js: error: Transforming object literal extensions to the configured target environment is not supported yet
 `,
 	})
 }

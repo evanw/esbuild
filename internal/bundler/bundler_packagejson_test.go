@@ -86,7 +86,8 @@ func TestPackageJsonSyntaxErrorComment(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: "/Users/user/project/node_modules/demo-pkg/package.json: error: JSON does not support comments\n",
+		expectedScanLog: `Users/user/project/node_modules/demo-pkg/package.json: error: JSON does not support comments
+`,
 	})
 }
 
@@ -114,7 +115,8 @@ func TestPackageJsonSyntaxErrorTrailingComma(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: "/Users/user/project/node_modules/demo-pkg/package.json: error: JSON does not support trailing commas\n",
+		expectedScanLog: `Users/user/project/node_modules/demo-pkg/package.json: error: JSON does not support trailing commas
+`,
 	})
 }
 

@@ -51,13 +51,94 @@ const tests = {
   `,
   incrementalTrueRebuild: `
     import * as esbuild from 'esbuild'
-    esbuild.build({ incremental: true }).then(result =>
-      result.rebuild().then(result =>
-        result.rebuild()))
-    esbuild.startService().then(service =>
-      service.build({ incremental: true }).then(result =>
-        result.rebuild().then(result =>
-          result.rebuild())))
+    esbuild.build({ incremental: true }).then(result => {
+      result.rebuild().then(result => {
+        result.rebuild().then(() => {
+          result.rebuild.dispose()
+        })
+      })
+      result.rebuild.dispose()
+    })
+    esbuild.startService().then(service => {
+      service.build({ incremental: true }).then(result => {
+        result.rebuild().then(result => {
+          result.rebuild().then(() => {
+            result.rebuild.dispose()
+          })
+        })
+        result.rebuild.dispose()
+      })
+    })
+    async function a() {
+      let result = await esbuild.build({ incremental: true })
+      let result2 = await result.rebuild()
+      await result2.rebuild()
+      result2.rebuild.dispose()
+      result.rebuild.dispose()
+    }
+    async function b() {
+      let service = await esbuild.startService()
+      let result = await service.build({ incremental: true })
+      let result2 = await result.rebuild()
+      await result2.rebuild()
+      result2.rebuild.dispose()
+      result.rebuild.dispose()
+      service.stop()
+    }
+  `,
+  ifRebuild: `
+    import * as esbuild from 'esbuild'
+    let options: any
+    esbuild.build(options).then(result => {
+      if (result.rebuild) {
+        result.rebuild().then(result => {
+          if (result.rebuild) {
+            result.rebuild().then(result => {
+              result.rebuild.dispose()
+            })
+          }
+          result.rebuild.dispose()
+        })
+      }
+    })
+    esbuild.startService().then(service => {
+      service.build(options).then(result => {
+        if (result.rebuild) {
+          result.rebuild().then(result => {
+            if (result.rebuild) {
+              result.rebuild().then(result => {
+                result.rebuild.dispose()
+              })
+            }
+            result.rebuild.dispose()
+          })
+        }
+      })
+    })
+    async function a() {
+      let result = await esbuild.build(options)
+      if (result.rebuild) {
+        let result2 = await result.rebuild()
+        if (result2.rebuild) {
+          await result2.rebuild()
+          result2.rebuild.dispose()
+        }
+        result.rebuild.dispose()
+      }
+    }
+    async function b() {
+      let service = await esbuild.startService()
+      let result = await service.build(options)
+      if (result.rebuild) {
+        let result2 = await result.rebuild()
+        if (result2.rebuild) {
+          await result2.rebuild()
+          result2.rebuild.dispose()
+        }
+        result.rebuild.dispose()
+      }
+      service.stop()
+    }
   `,
   allOptionsTransform: `
     export {}

@@ -195,6 +195,10 @@ type parser struct {
 	typeofRequireEqualsFn       js_ast.E
 	typeofRequireEqualsFnTarget js_ast.E
 
+	// This helps recognize the "await import()" pattern. When this is present,
+	// warnings about non-string import paths will be omitted inside try blocks.
+	awaitTarget js_ast.E
+
 	// This helps recognize the "require.main" pattern. If this pattern is
 	// present and the output format is CommonJS, we avoid generating a warning
 	// about an unbundled use of "require".
@@ -6018,6 +6022,35 @@ func shouldKeepStmtInDeadControlFlow(stmt js_ast.Stmt) bool {
 		s.Decls = identifiers
 		return true
 
+	case *js_ast.SBlock:
+		for _, child := range s.Stmts {
+			if shouldKeepStmtInDeadControlFlow(child) {
+				return true
+			}
+		}
+		return false
+
+	case *js_ast.SIf:
+		return shouldKeepStmtInDeadControlFlow(s.Yes) || (s.No != nil && shouldKeepStmtInDeadControlFlow(*s.No))
+
+	case *js_ast.SWhile:
+		return shouldKeepStmtInDeadControlFlow(s.Body)
+
+	case *js_ast.SDoWhile:
+		return shouldKeepStmtInDeadControlFlow(s.Body)
+
+	case *js_ast.SFor:
+		return (s.Init != nil && shouldKeepStmtInDeadControlFlow(*s.Init)) || shouldKeepStmtInDeadControlFlow(s.Body)
+
+	case *js_ast.SForIn:
+		return shouldKeepStmtInDeadControlFlow(s.Init) || shouldKeepStmtInDeadControlFlow(s.Body)
+
+	case *js_ast.SForOf:
+		return shouldKeepStmtInDeadControlFlow(s.Init) || shouldKeepStmtInDeadControlFlow(s.Body)
+
+	case *js_ast.SLabel:
+		return shouldKeepStmtInDeadControlFlow(s.Stmt)
+
 	default:
 		// Everything else must be kept
 		return true
@@ -6080,6 +6113,10 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 }
 
 func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
+	// Save the current control-flow liveness. This represents if we are
+	// currently inside an "if (false) { ... }" block.
+	oldIsControlFlowDead := p.isControlFlowDead
+
 	// Visit all statements first
 	visited := make([]js_ast.Stmt, 0, len(stmts))
 	var after []js_ast.Stmt
@@ -6094,6 +6131,10 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 		}
 	}
 	visited = append(visited, after...)
+
+	// Restore the current control-flow liveness if it was changed inside the
+	// loop above. This is important because the caller will not restore it.
+	p.isControlFlowDead = oldIsControlFlowDead
 
 	// Stop now if we're not mangling
 	if !p.options.mangleSyntax {
@@ -6207,6 +6248,9 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 				}
 			}
 
+			isControlFlowDead = true
+
+		case *js_ast.SBreak, *js_ast.SContinue:
 			isControlFlowDead = true
 
 		case *js_ast.SFor:
@@ -9411,6 +9455,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EAwait:
+		p.awaitTarget = e.Value.Data
 		e.Value = p.visitExpr(e.Value)
 
 		// "await" expressions turn into "yield" expressions when lowering
@@ -9550,6 +9595,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EImport:
+		isAwaitTarget := e == p.awaitTarget
 		e.Expr = p.visitExpr(e.Expr)
 
 		return p.maybeTransposeIfExprChain(e.Expr, func(arg js_ast.Expr) js_ast.Expr {
@@ -9572,9 +9618,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			if p.options.mode == config.ModeBundle {
-				r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
-				p.log.AddRangeWarning(&p.source, r,
-					"This dynamic import will not be bundled because the argument is not a string literal")
+				// Heuristic: omit warnings inside try/catch blocks because presumably
+				// the try/catch statement is there to handle the potential run-time
+				// error from the unbundled "await import()" call failing.
+				omitWarnings := p.fnOrArrowDataVisit.tryBodyCount != 0 && isAwaitTarget
+
+				if !omitWarnings {
+					text := "This dynamic import will not be bundled because the argument is not a string literal"
+					if isAwaitTarget {
+						text += " (surround with a try/catch to silence this warning)"
+					}
+					r := js_lexer.RangeOfIdentifier(p.source, expr.Loc)
+					p.log.AddRangeWarning(&p.source, r, text)
+				}
 			}
 
 			// We need to convert this into a call to "require()" if ES6 syntax is
@@ -9785,7 +9841,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							if !omitWarnings {
 								r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 								p.log.AddRangeWarning(&p.source, r,
-									"This call to \"require\" will not be bundled because the argument is not a string literal")
+									"This call to \"require\" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)")
 							}
 
 							// Otherwise just return a clone of the "require()" call
@@ -9797,7 +9853,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					} else if !omitWarnings {
 						r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
 						p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
-							"This call to \"require\" will not be bundled because it has %d arguments", len(e.Args)))
+							"This call to \"require\" will not be bundled because it has %d arguments (surround with a try/catch to silence this warning)", len(e.Args)))
 					}
 				} else if p.options.outputFormat == config.FormatESModule && !omitWarnings {
 					r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)

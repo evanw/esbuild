@@ -1,46 +1,46 @@
 TestAutoDetectMimeTypeFromExtension
 ---------- /out.js ----------
-// /test.svg
+// test.svg
 var require_test = __commonJS((exports, module) => {
   module.exports = "data:image/svg+xml;base64,YQBigGP/ZA==";
 });
 
-// /entry.js
+// entry.js
 console.log(require_test());
 
 ================================================================================
 TestJSXSyntaxInJSWithJSXLoader
 ---------- /out.js ----------
-// /entry.js
+// entry.js
 console.log(/* @__PURE__ */ React.createElement("div", null));
 
 ================================================================================
 TestLoaderBase64CommonJSAndES6
 ---------- /out.js ----------
-// /x.b64
+// x.b64
 var require_x = __commonJS((exports, module) => {
   module.exports = "eA==";
 });
 
-// /y.b64
+// y.b64
 var y_default = "eQ==";
 
-// /entry.js
+// entry.js
 var x_b64 = require_x();
 console.log(x_b64, y_default);
 
 ================================================================================
 TestLoaderDataURLCommonJSAndES6
 ---------- /out.js ----------
-// /x.txt
+// x.txt
 var require_x = __commonJS((exports, module) => {
   module.exports = "data:text/plain;charset=utf-8;base64,eA==";
 });
 
-// /y.txt
+// y.txt
 var y_default = "data:text/plain;charset=utf-8;base64,eQ==";
 
-// /entry.js
+// entry.js
 var x_url = require_x();
 console.log(x_url, y_default);
 
@@ -49,12 +49,12 @@ TestLoaderFile
 ---------- /out/test.T3K5TRK4.svg ----------
 <svg></svg>
 ---------- /out/entry.js ----------
-// /test.svg
+// test.svg
 var require_test = __commonJS((exports, module) => {
   module.exports = "test.T3K5TRK4.svg";
 });
 
-// /entry.js
+// entry.js
 console.log(require_test());
 
 ================================================================================
@@ -64,15 +64,15 @@ y
 ---------- /x.CH3K3DWF.txt ----------
 x
 ---------- /out.js ----------
-// /x.txt
+// x.txt
 var require_x = __commonJS((exports, module) => {
   module.exports = "x.CH3K3DWF.txt";
 });
 
-// /y.txt
+// y.txt
 var y_default = "y.SXFQX7JJ.txt";
 
-// /entry.js
+// entry.js
 var x_url = require_x();
 console.log(x_url, y_default);
 
@@ -81,47 +81,47 @@ TestLoaderFileMultipleNoCollision
 ---------- /dist/test.VFFI7ZOM.txt ----------
 test
 ---------- /dist/out.js ----------
-// /a/test.txt
+// a/test.txt
 var require_test = __commonJS((exports, module) => {
   module.exports = "test.VFFI7ZOM.txt";
 });
 
-// /b/test.txt
+// b/test.txt
 var require_test2 = __commonJS((exports, module) => {
   module.exports = "test.VFFI7ZOM.txt";
 });
 
-// /entry.js
+// entry.js
 console.log(require_test(), require_test2());
 
 ================================================================================
 TestLoaderJSONCommonJSAndES6
 ---------- /out.js ----------
-// /x.json
+// x.json
 var require_x = __commonJS((exports, module) => {
   module.exports = {x: true};
 });
 
-// /y.json
+// y.json
 var y1 = true;
 var y2 = false;
 var y_default = {y1, y2};
 
-// /z.json
+// z.json
 var small = "some small text";
 var if2 = "test keyword imports";
 
-// /entry.js
+// entry.js
 var x_json = require_x();
 console.log(x_json, y_default, small, if2);
 
 ================================================================================
 TestLoaderJSONInvalidIdentifierES6
 ---------- /out.js ----------
-// /test.json
+// test.json
 var invalid_identifier = true;
 
-// /test2.json
+// test2.json
 var test2_exports = {};
 __export(test2_exports, {
   default: () => test2_default,
@@ -130,7 +130,7 @@ __export(test2_exports, {
 var invalid_identifier2 = true;
 var test2_default = {"invalid-identifier": invalid_identifier2};
 
-// /entry.js
+// entry.js
 console.log(invalid_identifier, test2_exports);
 
 ================================================================================
@@ -166,81 +166,81 @@ TestLoaderJSONNoBundleIIFE
 ================================================================================
 TestLoaderJSONSharedWithMultipleEntriesIssue413
 ---------- /out/a.js ----------
-// /data.json
+// data.json
 var test = 123;
 var data_default = {test};
 
-// /a.js
+// a.js
 console.log("a:", data_default);
 
 ---------- /out/b.js ----------
-// /data.json
+// data.json
 var test = 123;
 var data_default = {test};
 
-// /b.js
+// b.js
 console.log("b:", data_default);
 
 ================================================================================
 TestLoaderTextCommonJSAndES6
 ---------- /out.js ----------
-// /x.txt
+// x.txt
 var require_x = __commonJS((exports, module) => {
   module.exports = "x";
 });
 
-// /y.txt
+// y.txt
 var y_default = "y";
 
-// /entry.js
+// entry.js
 var x_txt = require_x();
 console.log(x_txt, y_default);
 
 ================================================================================
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
-// /test.custom
+// test.custom
 var require_test = __commonJS((exports, module) => {
   module.exports = "YQBigGP/ZA==";
 });
 
-// /entry.js
+// entry.js
 console.log(require_test());
 
 ================================================================================
 TestRequireCustomExtensionDataURL
 ---------- /out.js ----------
-// /test.custom
+// test.custom
 var require_test = __commonJS((exports, module) => {
   module.exports = "data:application/octet-stream;base64,YQBigGP/ZA==";
 });
 
-// /entry.js
+// entry.js
 console.log(require_test());
 
 ================================================================================
 TestRequireCustomExtensionPreferLongest
 ---------- /out.js ----------
-// /test.txt
+// test.txt
 var require_test = __commonJS((exports, module) => {
   module.exports = "test.txt";
 });
 
-// /test.base64.txt
+// test.base64.txt
 var require_test_base64 = __commonJS((exports, module) => {
   module.exports = "dGVzdC5iYXNlNjQudHh0";
 });
 
-// /entry.js
+// entry.js
 console.log(require_test(), require_test_base64());
 
 ================================================================================
 TestRequireCustomExtensionString
 ---------- /out.js ----------
-// /test.custom
+// test.custom
 var require_test = __commonJS((exports, module) => {
   module.exports = "#include <stdio.h>";
 });
 
-// /entry.js
+// entry.js
 console.log(require_test());

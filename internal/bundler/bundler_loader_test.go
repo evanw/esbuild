@@ -233,7 +233,8 @@ func TestLoaderJSONMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: "/entry.js: error: No matching export for import \"missing\"\n",
+		expectedCompileLog: `entry.js: error: No matching export for import "missing"
+`,
 	})
 }
 

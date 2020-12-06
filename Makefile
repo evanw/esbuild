@@ -52,6 +52,9 @@ plugin-tests: cmd/esbuild/version.go | scripts/node_modules
 ts-type-tests: | scripts/node_modules
 	node scripts/ts-type-tests.js
 
+lib-typecheck: | lib/node_modules
+	cd lib && node_modules/.bin/tsc -noEmit -p .
+
 cmd/esbuild/version.go: version.txt
 	node -e 'console.log(`package main\n\nconst esbuildVersion = "$(ESBUILD_VERSION)"`)' > cmd/esbuild/version.go
 
@@ -113,7 +116,7 @@ platform-wasm: esbuild npm/esbuild-wasm/esbuild.wasm | scripts/node_modules
 	mkdir -p npm/esbuild-wasm/lib
 	node scripts/esbuild.js ./esbuild --wasm
 
-platform-neutral: esbuild | scripts/node_modules
+platform-neutral: esbuild lib-typecheck | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
 	node scripts/esbuild.js ./esbuild
 
@@ -242,6 +245,9 @@ require/parcel2/node_modules:
 	mkdir -p require/parcel2
 	echo '{}' > require/parcel2/package.json
 	cd require/parcel2 && npm install parcel@2.0.0-nightly.420 @parcel/transformer-typescript-tsc@2.0.0-beta.1 typescript@3.9.5
+
+lib/node_modules:
+	cd lib && npm ci
 
 scripts/node_modules:
 	cd scripts && npm ci

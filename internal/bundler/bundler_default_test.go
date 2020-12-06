@@ -421,10 +421,10 @@ func TestExportInfiniteCycle1(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/entry.js: error: Detected cycle while resolving import "a"
-/entry.js: error: Detected cycle while resolving import "b"
-/entry.js: error: Detected cycle while resolving import "c"
-/entry.js: error: Detected cycle while resolving import "d"
+		expectedCompileLog: `entry.js: error: Detected cycle while resolving import "a"
+entry.js: error: Detected cycle while resolving import "b"
+entry.js: error: Detected cycle while resolving import "c"
+entry.js: error: Detected cycle while resolving import "d"
 `,
 	})
 }
@@ -446,10 +446,10 @@ func TestExportInfiniteCycle2(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/entry.js: error: Detected cycle while resolving import "a"
-/entry.js: error: Detected cycle while resolving import "c"
-/foo.js: error: Detected cycle while resolving import "b"
-/foo.js: error: Detected cycle while resolving import "d"
+		expectedCompileLog: `entry.js: error: Detected cycle while resolving import "a"
+entry.js: error: Detected cycle while resolving import "c"
+foo.js: error: Detected cycle while resolving import "b"
+foo.js: error: Detected cycle while resolving import "d"
 `,
 	})
 }
@@ -513,7 +513,7 @@ func TestJSXSyntaxInJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: Unexpected "<"
+		expectedScanLog: `entry.js: error: Unexpected "<"
 `,
 	})
 }
@@ -629,8 +629,8 @@ func TestImportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/entry.js: error: No matching export for import "default"
-/entry.js: error: No matching export for import "y"
+		expectedCompileLog: `entry.js: error: No matching export for import "default"
+entry.js: error: No matching export for import "y"
 `,
 	})
 }
@@ -650,8 +650,8 @@ func TestImportMissingUnusedES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/entry.js: error: No matching export for import "default"
-/entry.js: error: No matching export for import "y"
+		expectedCompileLog: `entry.js: error: No matching export for import "default"
+entry.js: error: No matching export for import "y"
 `,
 	})
 }
@@ -715,12 +715,12 @@ func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `/named.js: warning: Import "default" will always be undefined
-/named.js: warning: Import "x" will always be undefined
-/named.js: warning: Import "y" will always be undefined
-/star.js: warning: Import "default" will always be undefined
-/star.js: warning: Import "x" will always be undefined
-/star.js: warning: Import "y" will always be undefined
+		expectedCompileLog: `named.js: warning: Import "default" will always be undefined
+named.js: warning: Import "x" will always be undefined
+named.js: warning: Import "y" will always be undefined
+star.js: warning: Import "default" will always be undefined
+star.js: warning: Import "x" will always be undefined
+star.js: warning: Import "y" will always be undefined
 `,
 	})
 }
@@ -744,7 +744,7 @@ func TestExportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/foo.js: error: No matching export for import "nope"
+		expectedCompileLog: `foo.js: error: No matching export for import "nope"
 `,
 	})
 }
@@ -813,17 +813,29 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 			"/entry.js": `
 				require(tag` + "`./b`" + `)
 				require(` + "`./${b}`" + `)
-				import(tag` + "`./b`" + `)
-				import(` + "`./${b}`" + `)
 
 				// Try/catch should silence this warning for require()
 				try {
 					require(tag` + "`./b`" + `)
 					require(` + "`./${b}`" + `)
-					import(tag` + "`./b`" + `)
-					import(` + "`./${b}`" + `)
 				} catch {
 				}
+
+				(async () => {
+					import(tag` + "`./b`" + `)
+					import(` + "`./${b}`" + `)
+					await import(tag` + "`./b`" + `)
+					await import(` + "`./${b}`" + `)
+
+					// Try/catch should silence this warning for await import()
+					try {
+						import(tag` + "`./b`" + `)
+						import(` + "`./${b}`" + `)
+						await import(tag` + "`./b`" + `)
+						await import(` + "`./${b}`" + `)
+					} catch {
+					}
+				})()
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -831,12 +843,14 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal
-/entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal
-/entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
-/entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
-/entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
-/entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+		expectedScanLog: `entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
+entry.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
 `,
 	})
 }
@@ -958,7 +972,7 @@ func TestConditionalRequire(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `/a.js: warning: This call to "require" will not be bundled because the argument is not a string literal
+		expectedScanLog: `a.js: warning: This call to "require" will not be bundled because the argument is not a string literal (surround with a try/catch to silence this warning)
 `,
 	})
 }
@@ -985,7 +999,7 @@ func TestConditionalImport(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `/a.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+		expectedScanLog: `a.js: warning: This dynamic import will not be bundled because the argument is not a string literal
 `,
 	})
 }
@@ -1010,8 +1024,8 @@ func TestRequireBadArgumentCount(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: This call to "require" will not be bundled because it has 0 arguments
-/entry.js: warning: This call to "require" will not be bundled because it has 2 arguments
+		expectedScanLog: `entry.js: warning: This call to "require" will not be bundled because it has 0 arguments (surround with a try/catch to silence this warning)
+entry.js: warning: This call to "require" will not be bundled because it has 2 arguments (surround with a try/catch to silence this warning)
 `,
 	})
 }
@@ -1067,7 +1081,7 @@ func TestRequireBadExtension(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: File could not be loaded: /test
+		expectedScanLog: `entry.js: error: File could not be loaded: test
 `,
 	})
 }
@@ -1101,7 +1115,7 @@ func TestRequireWithoutCall(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 `,
 	})
 }
@@ -1121,7 +1135,7 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 `,
 	})
 }
@@ -1166,6 +1180,51 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
+	})
+}
+
+// Test a workaround for code using "await import()"
+func TestAwaitImportInsideTry(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				async function main(name) {
+					try {
+						return await import(name)
+					} catch {
+					}
+				}
+				main('fs')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestImportInsideTry(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				async function main(name) {
+					try {
+						return import(name)
+					} catch {
+					}
+				}
+				main('fs')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: warning: This dynamic import will not be bundled because the argument is not a string literal
+`,
 	})
 }
 
@@ -1316,14 +1375,14 @@ func TestTypeofRequireBadPatterns(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 `,
 	})
 }
@@ -1341,7 +1400,7 @@ func TestRequireFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `/entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
 `,
 	})
 }
@@ -1398,7 +1457,7 @@ func TestImportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `/entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
 `,
 	})
 }
@@ -1459,7 +1518,7 @@ func TestExportFSBrowser(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformBrowser,
 		},
-		expectedScanLog: `/entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
+		expectedScanLog: `entry.js: error: Could not resolve "fs" (set platform to "node" when building for node)
 `,
 	})
 }
@@ -2078,12 +2137,12 @@ func TestExternalModuleExclusionScopedPackage(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `/index.js: error: Could not resolve "@a1-a2" (mark it as external to exclude it from the bundle)
-/index.js: error: Could not resolve "@b1" (mark it as external to exclude it from the bundle)
-/index.js: error: Could not resolve "@b1/b2-b3" (mark it as external to exclude it from the bundle)
-/index.js: error: Could not resolve "@c1" (mark it as external to exclude it from the bundle)
-/index.js: error: Could not resolve "@c1/c2" (mark it as external to exclude it from the bundle)
-/index.js: error: Could not resolve "@c1/c2/c3-c4" (mark it as external to exclude it from the bundle)
+		expectedScanLog: `index.js: error: Could not resolve "@a1-a2" (mark it as external to exclude it from the bundle)
+index.js: error: Could not resolve "@b1" (mark it as external to exclude it from the bundle)
+index.js: error: Could not resolve "@b1/b2-b3" (mark it as external to exclude it from the bundle)
+index.js: error: Could not resolve "@c1" (mark it as external to exclude it from the bundle)
+index.js: error: Could not resolve "@c1/c2" (mark it as external to exclude it from the bundle)
+index.js: error: Could not resolve "@c1/c2/c3-c4" (mark it as external to exclude it from the bundle)
 `,
 	})
 }
@@ -2188,9 +2247,9 @@ func TestExternalWithWildcard(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `/entry.js: error: Could not read from file: /sassets/images/test.jpg
-/entry.js: error: Could not read from file: /dir/file.gif
-/entry.js: error: Could not resolve "./file.ping"
+		expectedScanLog: `entry.js: error: Could not read from file: /sassets/images/test.jpg
+entry.js: error: Could not read from file: /dir/file.gif
+entry.js: error: Could not resolve "./file.ping"
 `,
 	})
 }
@@ -2519,7 +2578,7 @@ func TestNoOverwriteInputFileError(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/",
 		},
-		expectedCompileLog: "error: Refusing to overwrite input file: /entry.js\n",
+		expectedCompileLog: "error: Refusing to overwrite input file: entry.js\n",
 	})
 }
 
@@ -2535,7 +2594,7 @@ func TestDuplicateEntryPointError(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out.js",
 		},
-		expectedScanLog: "error: Duplicate entry point \"/entry.js\"\n",
+		expectedScanLog: "error: Duplicate entry point \"entry.js\"\n",
 	})
 }
 
@@ -2825,8 +2884,8 @@ func TestTopLevelAwait(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: Top-level await is currently not supported when bundling
-/entry.js: error: Top-level await is currently not supported when bundling
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported when bundling
+entry.js: error: Top-level await is currently not supported when bundling
 `,
 	})
 }
@@ -2877,8 +2936,8 @@ func TestTopLevelAwaitNoBundleCommonJS(t *testing.T) {
 			Mode:          config.ModeConvertFormat,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: Top-level await is currently not supported with the "cjs" output format
-/entry.js: error: Top-level await is currently not supported with the "cjs" output format
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "cjs" output format
+entry.js: error: Top-level await is currently not supported with the "cjs" output format
 `,
 	})
 }
@@ -2897,8 +2956,8 @@ func TestTopLevelAwaitNoBundleIIFE(t *testing.T) {
 			Mode:          config.ModeConvertFormat,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: Top-level await is currently not supported with the "iife" output format
-/entry.js: error: Top-level await is currently not supported with the "iife" output format
+		expectedScanLog: `entry.js: error: Top-level await is currently not supported with the "iife" output format
+entry.js: error: Top-level await is currently not supported with the "iife" output format
 `,
 	})
 }
@@ -2961,22 +3020,22 @@ func TestAssignToImport(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/bad0.js: error: Cannot assign to import "x"
-/bad1.js: error: Cannot assign to import "x"
-/bad10.js: error: Cannot assign to import "y z"
-/bad11.js: error: Cannot assign to import "x"
-/bad12.js: error: Cannot assign to import "x"
-/bad13.js: error: Cannot assign to import "y"
-/bad14.js: error: Cannot assign to import "y"
-/bad15.js: error: Cannot assign to property on import "x"
-/bad2.js: error: Cannot assign to import "x"
-/bad3.js: error: Cannot assign to import "x"
-/bad4.js: error: Cannot assign to import "x"
-/bad5.js: error: Cannot assign to import "x"
-/bad6.js: error: Cannot assign to import "x"
-/bad7.js: error: Cannot assign to import "y"
-/bad8.js: error: Cannot assign to property on import "x"
-/bad9.js: error: Cannot assign to import "y"
+		expectedScanLog: `bad0.js: error: Cannot assign to import "x"
+bad1.js: error: Cannot assign to import "x"
+bad10.js: error: Cannot assign to import "y z"
+bad11.js: error: Cannot assign to import "x"
+bad12.js: error: Cannot assign to import "x"
+bad13.js: error: Cannot assign to import "y"
+bad14.js: error: Cannot assign to import "y"
+bad15.js: error: Cannot assign to property on import "x"
+bad2.js: error: Cannot assign to import "x"
+bad3.js: error: Cannot assign to import "x"
+bad4.js: error: Cannot assign to import "x"
+bad5.js: error: Cannot assign to import "x"
+bad6.js: error: Cannot assign to import "x"
+bad7.js: error: Cannot assign to import "y"
+bad8.js: error: Cannot assign to property on import "x"
+bad9.js: error: Cannot assign to import "y"
 `,
 	})
 }
@@ -3063,17 +3122,17 @@ func TestWarningsInsideNodeModules(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/bad-typeof.js: warning: The "typeof" operator will never evaluate to "null"
-/delete-super.js: warning: Attempting to delete a property of "super" will throw a ReferenceError
-/dup-case.js: warning: This case clause will never be evaluated because it duplicates an earlier case clause
-/equals-nan.js: warning: Comparison with NaN using the "===" operator here is always false
-/equals-neg-zero.js: warning: Comparison with -0 using the "===" operator will also match 0
-/equals-object.js: warning: Comparison using the "===" operator here is always false
-/not-in.js: warning: Suspicious use of the "!" operator inside the "in" operator
-/not-instanceof.js: warning: Suspicious use of the "!" operator inside the "instanceof" operator
-/read-setter.js: warning: Reading from setter-only property "#foo" will throw
-/return-asi.js: warning: The following expression is not returned because of an automatically-inserted semicolon
-/write-getter.js: warning: Writing to getter-only property "#foo" will throw
+		expectedScanLog: `bad-typeof.js: warning: The "typeof" operator will never evaluate to "null"
+delete-super.js: warning: Attempting to delete a property of "super" will throw a ReferenceError
+dup-case.js: warning: This case clause will never be evaluated because it duplicates an earlier case clause
+equals-nan.js: warning: Comparison with NaN using the "===" operator here is always false
+equals-neg-zero.js: warning: Comparison with -0 using the "===" operator will also match 0
+equals-object.js: warning: Comparison using the "===" operator here is always false
+not-in.js: warning: Suspicious use of the "!" operator inside the "in" operator
+not-instanceof.js: warning: Suspicious use of the "!" operator inside the "instanceof" operator
+read-setter.js: warning: Reading from setter-only property "#foo" will throw
+return-asi.js: warning: The following expression is not returned because of an automatically-inserted semicolon
+write-getter.js: warning: Writing to getter-only property "#foo" will throw
 `,
 	})
 }
@@ -3122,13 +3181,13 @@ func TestRequireResolve(t *testing.T) {
 				},
 			},
 		},
-		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
-/entry.js: warning: "./present-file" should be marked as external for use with "require.resolve"
-/entry.js: warning: "./missing-file" should be marked as external for use with "require.resolve"
-/entry.js: warning: "missing-pkg" should be marked as external for use with "require.resolve"
-/entry.js: warning: "@scope/missing-pkg" should be marked as external for use with "require.resolve"
+		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+entry.js: warning: "./present-file" should be marked as external for use with "require.resolve"
+entry.js: warning: "./missing-file" should be marked as external for use with "require.resolve"
+entry.js: warning: "missing-pkg" should be marked as external for use with "require.resolve"
+entry.js: warning: "@scope/missing-pkg" should be marked as external for use with "require.resolve"
 `,
 	})
 }
@@ -3166,7 +3225,7 @@ func TestInjectDuplicate(t *testing.T) {
 				"/inject.js",
 			},
 		},
-		expectedScanLog: `error: Duplicate injected file "/inject.js"
+		expectedScanLog: `error: Duplicate injected file "inject.js"
 `,
 	})
 }
@@ -3466,7 +3525,7 @@ func TestProcessEnvNodeEnvWarning(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: warning: Define "process.env.NODE_ENV" when bundling for the browser
+		expectedScanLog: `entry.js: warning: Define "process.env.NODE_ENV" when bundling for the browser
 `,
 	})
 }
@@ -3600,8 +3659,8 @@ func TestImportRelativeAsPackage(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `/Users/user/project/src/entry.js: error: Could not resolve "some/other/file" ` +
-			`(use "./some/other/file" to import "/Users/user/project/src/some/other/file.js")
+		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "some/other/file" ` +
+			`(use "./some/other/file" to import "Users/user/project/src/some/other/file.js")
 `,
 	})
 }
@@ -3619,8 +3678,8 @@ func TestForbidConstAssignWhenBundling(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.js: error: Cannot assign to "x" because it is a constant
-/entry.js: note: "x" was declared a constant here
+		expectedScanLog: `entry.js: error: Cannot assign to "x" because it is a constant
+entry.js: note: "x" was declared a constant here
 `,
 	})
 }
@@ -3717,7 +3776,7 @@ func TestRequireMainIIFE(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			OutputFormat:  config.FormatIIFE,
 		},
-		expectedScanLog: `/entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
+		expectedScanLog: `entry.js: warning: Indirect calls to "require" will not be bundled (surround with a try/catch to silence this warning)
 `,
 	})
 }

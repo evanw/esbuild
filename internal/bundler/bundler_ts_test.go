@@ -206,8 +206,8 @@ func TestTSImportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `/entry.ts: error: No matching export for import "default"
-/entry.ts: error: No matching export for import "y"
+		expectedCompileLog: `entry.ts: error: No matching export for import "default"
+entry.ts: error: No matching export for import "y"
 `,
 	})
 }
@@ -266,7 +266,7 @@ func TestTSImportMissingFile(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.ts: error: Could not resolve "./doesNotExist.ts"
+		expectedScanLog: `entry.ts: error: Could not resolve "./doesNotExist.ts"
 `,
 	})
 }
@@ -820,10 +820,10 @@ func TestTSImplicitExtensionsMissing(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/entry.ts: error: Could not resolve "./mjs.mjs"
-/entry.ts: error: Could not resolve "./cjs.cjs"
-/entry.ts: error: Could not resolve "./js.js"
-/entry.ts: error: Could not resolve "./jsx.jsx"
+		expectedScanLog: `entry.ts: error: Could not resolve "./mjs.mjs"
+entry.ts: error: Could not resolve "./cjs.cjs"
+entry.ts: error: Could not resolve "./js.js"
+entry.ts: error: Could not resolve "./jsx.jsx"
 `,
 	})
 }

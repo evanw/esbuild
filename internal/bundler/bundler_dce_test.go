@@ -183,9 +183,9 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
-			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
-/Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
+		expectedScanLog: `Users/user/project/src/entry.js: warning: Ignoring this import because "` +
+			`Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
 `,
 	})
@@ -214,9 +214,9 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
-			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
-/Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
+		expectedScanLog: `Users/user/project/src/entry.js: warning: Ignoring this import because "` +
+			`Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
 `,
 	})
@@ -244,9 +244,9 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
-			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
-/Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
+		expectedScanLog: `Users/user/project/src/entry.js: warning: Ignoring this import because "` +
+			`Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
 `,
 	})
@@ -274,9 +274,9 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because "` +
-			`/Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
-/Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
+		expectedScanLog: `Users/user/project/src/entry.js: warning: Ignoring this import because "` +
+			`Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: note: "sideEffects" is false ` +
 			`in the enclosing "package.json" file
 `,
 	})
@@ -722,9 +722,9 @@ func TestPackageJsonSideEffectsArrayGlob(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `/Users/user/project/src/entry.js: warning: Ignoring this import because ` +
-			`"/Users/user/project/node_modules/demo-pkg/remove/this/file.js" was marked as having no side effects
-/Users/user/project/node_modules/demo-pkg/package.json: note: It was excluded from the "sideEffects" ` +
+		expectedScanLog: `Users/user/project/src/entry.js: warning: Ignoring this import because ` +
+			`"Users/user/project/node_modules/demo-pkg/remove/this/file.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: note: It was excluded from the "sideEffects" ` +
 			`array in the enclosing "package.json" file
 `,
 	})
@@ -1018,6 +1018,143 @@ func TestDisableTreeShaking(t *testing.T) {
 			AbsOutputFile:        "/out.js",
 			IgnoreDCEAnnotations: true,
 			Defines:              &defines,
+		},
+	})
+}
+
+func TestDeadCodeFollowingJump(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function testReturn() {
+					if (true) return y + z()
+					if (FAIL) return FAIL
+					if (x) { var y }
+					function z() { KEEP_ME() }
+					return FAIL
+				}
+
+				function testThrow() {
+					if (true) throw y + z()
+					if (FAIL) return FAIL
+					if (x) { var y }
+					function z() { KEEP_ME() }
+					return FAIL
+				}
+
+				function testBreak() {
+					while (true) {
+						if (true) {
+							y + z()
+							break
+						}
+						if (FAIL) return FAIL
+						if (x) { var y }
+						function z() { KEEP_ME() }
+						return FAIL
+					}
+				}
+
+				function testContinue() {
+					while (true) {
+						if (true) {
+							y + z()
+							continue
+						}
+						if (FAIL) return FAIL
+						if (x) { var y }
+						function z() { KEEP_ME() }
+						return FAIL
+					}
+				}
+
+				function testStmts() {
+					return [a, b, c, d, e, f, g, h, i]
+
+					while (x) { var a }
+					while (FAIL) { let FAIL }
+
+					do { var b } while (x)
+					do { let FAIL } while (FAIL)
+
+					for (var c; ;) ;
+					for (let FAIL; ;) ;
+
+					for (var d in x) ;
+					for (let FAIL in FAIL) ;
+
+					for (var e of x) ;
+					for (let FAIL of FAIL) ;
+
+					if (x) { var f }
+					if (FAIL) { let FAIL }
+
+					if (x) ; else { var g }
+					if (FAIL) ; else { let FAIL }
+
+					{ var h }
+					{ let FAIL }
+
+					x: { var i }
+					x: { let FAIL }
+				}
+
+				testReturn()
+				testThrow()
+				testBreak()
+				testContinue()
+				testStmts()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleSyntax:  true,
+		},
+	})
+}
+
+func TestRemoveTrailingReturn(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function foo() {
+					if (a) b()
+					return
+				}
+				function bar() {
+					if (a) b()
+					return KEEP_ME
+				}
+				export default [
+					foo,
+					bar,
+					function () {
+						if (a) b()
+						return
+					},
+					function () {
+						if (a) b()
+						return KEEP_ME
+					},
+					() => {
+						if (a) b()
+						return
+					},
+					() => {
+						if (a) b()
+						return KEEP_ME
+					},
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleSyntax:  true,
+			OutputFormat:  config.FormatESModule,
 		},
 	})
 }

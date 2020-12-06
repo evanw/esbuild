@@ -1,5 +1,80 @@
 # Changelog
 
+## 0.8.20
+
+* Fix an edge case with class body initialization
+
+    When bundling, top-level class statements are rewritten to variable declarations initialized to a class expression. This avoids a severe performance pitfall in Safari when there are a large number of class statements. However, this transformation was done incorrectly if a class contained a static field that references the class name in its own initializer:
+
+    ```js
+    class Foo {
+      static foo = new Foo
+    }
+    ```
+
+    In that specific case, the transformed code could crash when run because the class name is not yet initialized when the static field initializer is run. Only JavaScript code was affected. TypeScript code was not affected. This release fixes this bug.
+
+* Remove more types of statements as dead code ([#580](https://github.com/evanw/esbuild/issues/580))
+
+    This change improves dead-code elimination in the case where unused statements follow an unconditional jump, such as a `return`:
+
+    ```js
+    if (true) return
+    if (something) thisIsDeadCode()
+    ```
+
+    These unused statements are removed in more cases than in the previous release. Some statements may still be kept that contain hoisted symbols (`var` and `function` statements) because they could potentially impact the code before the conditional jump.
+
+## 0.8.19
+
+* Handle non-ambiguous multi-path re-exports ([#568](https://github.com/evanw/esbuild/pull/568))
+
+    Wildcard re-exports using the `export * from 'path'` syntax can potentially result in name collisions that cause an export name to be ambiguous. For example, the following code would result in an ambiguous export if both `a.js` and `b.js` export a symbol with the same name:
+
+    ```js
+    export * from './a.js'
+    export * from './b.js'
+    ```
+
+    Ambiguous exports have two consequences. First, any ambiguous names are silently excluded from the set of exported names. If you use an `import * as` wildcard import, the excluded names will not be present. Second, attempting to explicitly import an ambiguous name using an `import {} from` import clause will result in a module instantiation error.
+
+    This release fixes a bug where esbuild could in certain cases consider a name ambiguous when it actually isn't. Specifically this happens with longer chains of mixed wildcard and named re-exports. Here is one such case:
+
+    ```js
+    // entry.js
+    import {x, y} from './not-ambiguous.js'
+    console.log(x, y)
+    ```
+
+    ```js
+    // /not-ambiguous.js
+    export * from './a.js'
+    export * from './b.js'
+    ```
+
+    ```js
+    // /a.js
+    export * from './c.js'
+    ```
+
+    ```js
+    // /b.js
+    export {x} from './c.js'
+    ```
+
+    ```js
+    // /c.js
+    export let x = 1, y = 2
+    ```
+
+    Previously bundling `entry.js` with esbuild would incorrectly generate an error about an ambiguous `x` export. Now this case builds successfully without an error.
+
+* Omit warnings about non-string paths in `await import()` inside a `try` block ([#574](https://github.com/evanw/esbuild/issues/574))
+
+    Bundling code that uses `require()` or `import()` with a non-string path currently generates a warning, because the target of that import will not be included in the bundle. This is helpful to warn about because other bundlers handle this case differently (e.g. Webpack bundles the entire directory tree and emulates a file system lookup) so existing code may expect the target of the import to be bundled.
+
+    You can avoid the warning with esbuild by surrounding the call to `require()` with a `try` block. The thinking is that if there is a surrounding `try` block, presumably the code is expecting the `require()` call to possibly fail and is prepared to handle the error. However, there is currently no way to avoid the warning for `import()` expressions. This release introduces an analogous behavior for `import()` expressions. You can now avoid the warning with esbuild if you use `await import()` and surround it with a `try` block.
+
 ## 0.8.18
 
 * Fix a bug with certain complex optional chains ([#573](https://github.com/evanw/esbuild/issues/573))

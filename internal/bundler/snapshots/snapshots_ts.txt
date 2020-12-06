@@ -1,147 +1,147 @@
 TestExportTypeIssue379
 ---------- /out.js ----------
-// /a.ts
+// a.ts
 var a_exports = {};
 __export(a_exports, {
   foo: () => foo
 });
 var foo = 123;
 
-// /b.ts
+// b.ts
 var b_exports = {};
 __export(b_exports, {
   foo: () => foo2
 });
 var foo2 = 123;
 
-// /c.ts
+// c.ts
 var c_exports = {};
 __export(c_exports, {
   foo: () => foo3
 });
 var foo3 = 123;
 
-// /d.ts
+// d.ts
 var d_exports = {};
 __export(d_exports, {
   foo: () => foo4
 });
 var foo4 = 123;
 
-// /entry.ts
+// entry.ts
 console.log(a_exports, b_exports, c_exports, d_exports);
 
 ================================================================================
 TestTSDeclareClass
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSDeclareConst
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSDeclareConstEnum
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSDeclareEnum
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSDeclareFunction
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSDeclareLet
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSDeclareNamespace
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSDeclareVar
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSExportDefaultTypeIssue316
 ---------- /out.js ----------
-// /keep/declare-class.ts
+// keep/declare-class.ts
 var declare_class_default = foo;
 var bar = 123;
 
-// /keep/declare-let.ts
+// keep/declare-let.ts
 var declare_let_default = foo;
 var bar2 = 123;
 
-// /keep/interface-merged.ts
+// keep/interface-merged.ts
 var foo3 = class {
 };
 var foo2 = foo3;
 foo2.x = new foo3();
 var bar3 = 123;
 
-// /keep/interface-nested.ts
+// keep/interface-nested.ts
 if (true) {
 }
 var interface_nested_default = foo;
 var bar4 = 123;
 
-// /keep/type-nested.ts
+// keep/type-nested.ts
 if (true) {
 }
 var type_nested_default = foo;
 var bar5 = 123;
 
-// /keep/value-namespace.ts
+// keep/value-namespace.ts
 var foo4;
 (function(foo6) {
   foo6.num = 0;
 })(foo4 || (foo4 = {}));
 var bar6 = 123;
 
-// /keep/value-namespace-merged.ts
+// keep/value-namespace-merged.ts
 var foo5;
 (function(foo6) {
   foo6.num = 0;
 })(foo5 || (foo5 = {}));
 var bar7 = 123;
 
-// /remove/interface.ts
+// remove/interface.ts
 var bar8 = 123;
 
-// /remove/interface-exported.ts
+// remove/interface-exported.ts
 var bar9 = 123;
 
-// /remove/type.ts
+// remove/type.ts
 var bar10 = 123;
 
-// /remove/type-exported.ts
+// remove/type-exported.ts
 var bar11 = 123;
 
-// /remove/type-only-namespace.ts
+// remove/type-only-namespace.ts
 var bar12 = 123;
 
-// /remove/type-only-namespace-exported.ts
+// remove/type-only-namespace-exported.ts
 var bar13 = 123;
 
-// /entry.ts
+// entry.ts
 var entry_default = [
   bar,
   bar2,
@@ -164,30 +164,30 @@ export {
 ================================================================================
 TestTSExportEquals
 ---------- /out.js ----------
-// /b.ts
+// b.ts
 var require_b = __commonJS((exports, module) => {
   function foo() {
   }
   module.exports = [123, foo];
 });
 
-// /a.ts
+// a.ts
 var b = __toModule(require_b());
 console.log(b.default);
 
 ================================================================================
 TestTSExportMissingES6
 ---------- /out.js ----------
-// /foo.ts
+// foo.ts
 var foo_exports = {};
 
-// /entry.js
+// entry.js
 console.log(foo_exports);
 
 ================================================================================
 TestTSExportNamespace
 ---------- /out.js ----------
-// /b.ts
+// b.ts
 var Foo = class {
 };
 (function(Foo2) {
@@ -197,34 +197,34 @@ var Foo = class {
   Foo2.bar = 2;
 })(Foo || (Foo = {}));
 
-// /a.ts
+// a.ts
 console.log(new Foo());
 
 ================================================================================
 TestTSImplicitExtensions
 ---------- /out.js ----------
-// /pick-js.js
+// pick-js.js
 console.log("correct");
 
-// /pick-ts.ts
+// pick-ts.ts
 console.log("correct");
 
-// /pick-jsx.jsx
+// pick-jsx.jsx
 console.log("correct");
 
-// /pick-tsx.tsx
+// pick-tsx.tsx
 console.log("correct");
 
-// /order-js.ts
+// order-js.ts
 console.log("correct");
 
-// /order-jsx.ts
+// order-jsx.ts
 console.log("correct");
 
 ================================================================================
 TestTSImportEmptyNamespace
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 function foo() {
 }
 foo();
@@ -236,13 +236,13 @@ TestTSImportMissingUnusedES6
 ================================================================================
 TestTSImportTypeOnlyFile
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var foo = bar();
 
 ================================================================================
 TestTSImportVsLocalCollisionAllTypes
 ---------- /out.js ----------
-// /entry.ts
+// entry.ts
 var a;
 var b = 0;
 var c;
@@ -255,10 +255,10 @@ console.log(a, b, c, d, e);
 ================================================================================
 TestTSImportVsLocalCollisionMixed
 ---------- /out.js ----------
-// /other.ts
+// other.ts
 var real = 123;
 
-// /entry.ts
+// entry.ts
 var a;
 var b = 0;
 var c;
@@ -309,7 +309,7 @@ export var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||(e.Bar={}))})
 ================================================================================
 TestTypeScriptDecorators
 ---------- /out.js ----------
-// /all.ts
+// all.ts
 var Foo = class {
   constructor() {
     this.mDef = 1;
@@ -360,7 +360,7 @@ Foo = __decorate([
 ], Foo);
 var all_default = Foo;
 
-// /all_computed.ts
+// all_computed.ts
 var _a, _b, _c, _d, _e, _f, _g, _h;
 var Foo2 = class {
   constructor() {
@@ -414,7 +414,7 @@ Foo2 = __decorate([
 ], Foo2);
 var all_computed_default = Foo2;
 
-// /a.ts
+// a.ts
 var a_class = class {
   fn() {
     return new a_class();
@@ -427,7 +427,7 @@ a_class = __decorate([
 ], a_class);
 var a = a_class;
 
-// /b.ts
+// b.ts
 var b_class = class {
   fn() {
     return new b_class();
@@ -440,7 +440,7 @@ b_class = __decorate([
 ], b_class);
 var b = b_class;
 
-// /c.ts
+// c.ts
 var c = class {
   fn() {
     return new c();
@@ -452,7 +452,7 @@ c = __decorate([
   y(() => 1)
 ], c);
 
-// /d.ts
+// d.ts
 var d = class {
   fn() {
     return new d();
@@ -464,7 +464,7 @@ d = __decorate([
   y(() => 1)
 ], d);
 
-// /e.ts
+// e.ts
 var e_default = class {
 };
 e_default = __decorate([
@@ -473,7 +473,7 @@ e_default = __decorate([
 ], e_default);
 var e_default2 = e_default;
 
-// /f.ts
+// f.ts
 var f = class {
   fn() {
     return new f();
@@ -486,7 +486,7 @@ f = __decorate([
 ], f);
 var f_default = f;
 
-// /g.ts
+// g.ts
 var g_default = class {
 };
 g_default = __decorate([
@@ -495,7 +495,7 @@ g_default = __decorate([
 ], g_default);
 var g_default2 = g_default;
 
-// /h.ts
+// h.ts
 var h = class {
   fn() {
     return new h();
@@ -508,7 +508,7 @@ h = __decorate([
 ], h);
 var h_default = h;
 
-// /i.ts
+// i.ts
 var i_class = class {
 };
 __decorate([
@@ -517,7 +517,7 @@ __decorate([
 ], i_class.prototype, "foo", 2);
 var i = i_class;
 
-// /j.ts
+// j.ts
 var j = class {
   foo() {
   }
@@ -527,7 +527,7 @@ __decorate([
   y(() => 1)
 ], j.prototype, "foo", 1);
 
-// /k.ts
+// k.ts
 var k_default = class {
   foo(x2) {
   }
@@ -538,5 +538,5 @@ __decorate([
 ], k_default.prototype, "foo", 1);
 var k_default2 = k_default;
 
-// /entry.js
+// entry.js
 console.log(all_default, all_computed_default, a, b, c, d, e_default2, f_default, g_default2, h_default, i, j, k_default2);
