@@ -1030,7 +1030,7 @@ func TestDeadCodeFollowingJump(t *testing.T) {
 					if (true) return y + z()
 					if (FAIL) return FAIL
 					if (x) { var y }
-					function z() {}
+					function z() { KEEP_ME() }
 					return FAIL
 				}
 
@@ -1038,7 +1038,7 @@ func TestDeadCodeFollowingJump(t *testing.T) {
 					if (true) throw y + z()
 					if (FAIL) return FAIL
 					if (x) { var y }
-					function z() {}
+					function z() { KEEP_ME() }
 					return FAIL
 				}
 
@@ -1050,7 +1050,7 @@ func TestDeadCodeFollowingJump(t *testing.T) {
 						}
 						if (FAIL) return FAIL
 						if (x) { var y }
-						function z() {}
+						function z() { KEEP_ME() }
 						return FAIL
 					}
 				}
@@ -1063,7 +1063,7 @@ func TestDeadCodeFollowingJump(t *testing.T) {
 						}
 						if (FAIL) return FAIL
 						if (x) { var y }
-						function z() {}
+						function z() { KEEP_ME() }
 						return FAIL
 					}
 				}

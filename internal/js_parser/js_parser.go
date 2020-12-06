@@ -6022,6 +6022,14 @@ func shouldKeepStmtInDeadControlFlow(stmt js_ast.Stmt) bool {
 		s.Decls = identifiers
 		return true
 
+	case *js_ast.SBlock:
+		for _, child := range s.Stmts {
+			if shouldKeepStmtInDeadControlFlow(child) {
+				return true
+			}
+		}
+		return false
+
 	case *js_ast.SIf:
 		return shouldKeepStmtInDeadControlFlow(s.Yes) || (s.No != nil && shouldKeepStmtInDeadControlFlow(*s.No))
 
@@ -6113,30 +6121,13 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 	visited := make([]js_ast.Stmt, 0, len(stmts))
 	var after []js_ast.Stmt
 	for _, stmt := range stmts {
-		var target *[]js_ast.Stmt
 		if _, ok := stmt.Data.(*js_ast.SExportEquals); ok {
 			// TypeScript "export = value;" becomes "module.exports = value;". This
 			// must happen at the end after everything is parsed because TypeScript
 			// moves this statement to the end when it generates code.
-			target = &after
+			after = p.visitAndAppendStmt(after, stmt)
 		} else {
-			target = &visited
-		}
-
-		// This call should only append new statements but never modify old ones
-		nextStmtIndex := len(*target)
-		*target = p.visitAndAppendStmt(*target, stmt)
-
-		// If there is a jump-like statement in the middle of this statement
-		// sequence, control flow is dead for all of the following statements.
-		// This improves dead-code elimination.
-		if p.options.mangleSyntax {
-			for _, stmt := range (*target)[nextStmtIndex:] {
-				if isJumpStatement(stmt.Data) {
-					p.isControlFlowDead = true
-					break
-				}
-			}
+			visited = p.visitAndAppendStmt(visited, stmt)
 		}
 	}
 	visited = append(visited, after...)

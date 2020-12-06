@@ -18,6 +18,7 @@ function testReturn() {
   if (x)
     var y;
   function z() {
+    KEEP_ME();
   }
 }
 function testThrow() {
@@ -25,6 +26,7 @@ function testThrow() {
   if (x)
     var y;
   function z() {
+    KEEP_ME();
   }
 }
 function testBreak() {
@@ -34,6 +36,7 @@ function testBreak() {
     if (x)
       var y;
     function z() {
+      KEEP_ME();
     }
   }
 }
@@ -44,6 +47,7 @@ function testContinue() {
     if (x)
       var y;
     function z() {
+      KEEP_ME();
     }
   }
 }
