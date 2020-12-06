@@ -45,6 +45,10 @@
     test(['--define:x=y', '--define:y=x', 'in.js', '--outfile=node.js'], {
       'in.js': `eval('var x="x",y="y"'); if (x + y !== 'yx') throw 'fail'`,
     }),
+    test(['--define:foo=[1, 2, 3]', 'in.js', '--outfile=node.js'], { 'in.js': `if (JSON.stringify(foo) != "[1,2,3]") throw 'fail'` }),
+    test(['--define:foo={"a":1, "b":2}', 'in.js', '--outfile=node.js'], {
+      'in.js': `if (JSON.stringify(foo) != "{\\"a\\":1,\\"b\\":2}") throw 'fail'`
+    }),
   )
 
   // Test recursive directory creation
