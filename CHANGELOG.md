@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.20
 
 * Fix an edge case with class body initialization
 
@@ -14,7 +14,7 @@
 
     In that specific case, the transformed code could crash when run because the class name is not yet initialized when the static field initializer is run. Only JavaScript code was affected. TypeScript code was not affected. This release fixes this bug.
 
-* Propagate control flow liveness to subsequent statements ([#580](https://github.com/evanw/esbuild/issues/580))
+* Remove more types of statements as dead code ([#580](https://github.com/evanw/esbuild/issues/580))
 
     This change improves dead-code elimination in the case where unused statements follow an unconditional jump, such as a `return`:
 
