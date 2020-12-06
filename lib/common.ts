@@ -167,9 +167,25 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   if (outbase) flags.push(`--outbase=${outbase}`);
   if (platform) flags.push(`--platform=${platform}`);
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
-  if (resolveExtensions) flags.push(`--resolve-extensions=${resolveExtensions.join(',')}`);
+  if (resolveExtensions) {
+    let values: string[] = [];
+    for (let value of resolveExtensions) {
+      value += '';
+      if (value.indexOf(',') >= 0) throw new Error(`Invalid resolve extension: ${value}`);
+      values.push(value);
+    }
+    flags.push(`--resolve-extensions=${values.join(',')}`);
+  }
   if (publicPath) flags.push(`--public-path=${publicPath}`);
-  if (mainFields) flags.push(`--main-fields=${mainFields.join(',')}`);
+  if (mainFields) {
+    let values: string[] = [];
+    for (let value of mainFields) {
+      value += '';
+      if (value.indexOf(',') >= 0) throw new Error(`Invalid main field: ${value}`);
+      values.push(value);
+    }
+    flags.push(`--main-fields=${values.join(',')}`);
+  }
   if (external) for (let name of external) flags.push(`--external:${name}`);
   if (inject) for (let path of inject) flags.push(`--inject:${path}`);
   if (loader) {
