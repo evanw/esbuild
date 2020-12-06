@@ -10,6 +10,71 @@ TestDataURLLoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestDeadCodeFollowingJump
+---------- /out.js ----------
+// entry.js
+function testReturn() {
+  return y + z();
+  if (x)
+    var y;
+  function z() {
+  }
+}
+function testThrow() {
+  throw y + z();
+  if (x)
+    var y;
+  function z() {
+  }
+}
+function testBreak() {
+  for (; ; ) {
+    y + z();
+    break;
+    if (x)
+      var y;
+    function z() {
+    }
+  }
+}
+function testContinue() {
+  for (; ; ) {
+    y + z();
+    continue;
+    if (x)
+      var y;
+    function z() {
+    }
+  }
+}
+function testStmts() {
+  return [a, b, c, d, e, f, g, h, i];
+  for (; x; )
+    var a;
+  do
+    var b;
+  while (x);
+  for (var c; ; )
+    ;
+  for (var d in x)
+    ;
+  for (var e of x)
+    ;
+  if (x)
+    var f;
+  if (!x)
+    var g;
+  var h;
+  x:
+    var i;
+}
+testReturn();
+testThrow();
+testBreak();
+testContinue();
+testStmts();
+
+================================================================================
 TestDisableTreeShaking
 ---------- /out.js ----------
 // keep-me/index.js
@@ -294,6 +359,34 @@ console.log("hello");
 
 // Users/user/project/src/entry.js
 console.log("unused import");
+
+================================================================================
+TestRemoveTrailingReturn
+---------- /out.js ----------
+// entry.js
+function foo() {
+  a && b();
+}
+function bar() {
+  return a && b(), KEEP_ME;
+}
+var entry_default = [
+  foo,
+  bar,
+  function() {
+    a && b();
+  },
+  function() {
+    return a && b(), KEEP_ME;
+  },
+  () => {
+    a && b();
+  },
+  () => (a && b(), KEEP_ME)
+];
+export {
+  entry_default as default
+};
 
 ================================================================================
 TestRemoveUnusedImportMeta
