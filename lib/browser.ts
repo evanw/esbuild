@@ -28,8 +28,14 @@ export const transformSync: typeof types.transformSync = () => {
 
 export const startService: typeof types.startService = options => {
   if (!options) throw new Error('Must provide an options object to "startService"');
-  if (!options.wasmURL) throw new Error('Must provide the "wasmURL" option');
-  return fetch(options.wasmURL).then(r => r.arrayBuffer()).then(wasm => {
+	let wasmURL = options.wasmURL;
+  if (!wasmURL) {
+		if (typeof __dirname !== 'undefined')
+			wasmURL = __dirname + '/../esbuild.wasm';
+		else
+			throw new Error('Must provide the "wasmURL" option');
+	}
+  return fetch(wasmURL).then(r => r.arrayBuffer()).then(wasm => {
     let code = `{` +
       `let global={};` +
       `for(let o=self;o;o=Object.getPrototypeOf(o))` +
