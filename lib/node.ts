@@ -149,6 +149,7 @@ export let startService: typeof types.startService = options => {
     },
     readFileSync: fs.readFileSync,
     isSync: false,
+    isBrowser: false,
   });
   child.stdout.on('data', readFromStdout);
   child.stdout.on('end', afterClose);
@@ -205,6 +206,7 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
       stdin = bytes;
     },
     isSync: true,
+    isBrowser: false,
   });
   callback(service);
   let stdout = child_process.execFileSync(command, args.concat(`--service=${ESBUILD_VERSION}`), {

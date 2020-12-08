@@ -28,8 +28,13 @@ export const transformSync: typeof types.transformSync = () => {
 
 export const startService: typeof types.startService = options => {
   if (!options) throw new Error('Must provide an options object to "startService"');
-  if (!options.wasmURL) throw new Error('Must provide the "wasmURL" option');
-  return fetch(options.wasmURL).then(r => r.arrayBuffer()).then(wasm => {
+  let wasmURL = options.wasmURL;
+  if (!wasmURL) throw new Error('Must provide the "wasmURL" option');
+  wasmURL += '';
+  return fetch(wasmURL).then(res => {
+    if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
+    return res.arrayBuffer();
+  }).then(wasm => {
     let code = `{` +
       `let global={};` +
       `for(let o=self;o;o=Object.getPrototypeOf(o))` +
@@ -67,12 +72,14 @@ export const startService: typeof types.startService = options => {
         worker.postMessage(bytes)
       },
       isSync: false,
+      isBrowser: true,
     })
 
     return {
-      build() {
-        throw new Error(`The "build" API only works in node`)
-      },
+      build: (options: types.BuildOptions): Promise<any> =>
+        new Promise<types.BuildResult>((resolve, reject) =>
+          service.buildOrServe(null, options, false, (err, res) =>
+            err ? reject(err) : resolve(res as types.BuildResult))),
       transform: (input, options) =>
         new Promise((resolve, reject) =>
           service.transform(input, options || {}, false, {

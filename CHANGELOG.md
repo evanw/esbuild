@@ -8,6 +8,10 @@
 
     To avoid making this a breaking change, there is now special behavior for entry point path resolution. If the entry point path exists relative to the current working directory and the path does not start with `./` or `../`, esbuild will now automatically insert a leading `./` at the start of the path to prevent the path from being interpreted as a `node_modules` package path. This is only done if the file actually exists to avoid introducing `./` for paths with special plugin-specific syntax.
 
+* Enable the build API in the browser ([#527](https://github.com/evanw/esbuild/issues/527))
+
+    Previously you could only use the transform API in the browser, not the build API. You can now use the build API in the browser too. There is currently no in-browser file system so the build API will not do anything by default. Using this API requires you to use plugins to provide your own file system. Instructions for running esbuild in the browser can be found here: https://esbuild.github.io/api/#running-in-the-browser.
+
 ## 0.8.20
 
 * Fix an edge case with class body initialization

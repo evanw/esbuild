@@ -126,7 +126,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (footer) flags.push(`--footer=${footer}`);
 }
 
-function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel):
+function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel, writeDefault: boolean):
   [string[], boolean, types.Plugin[] | undefined, string | null, string | null, boolean] {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
@@ -153,7 +153,7 @@ function flagsForBuildOptions(options: types.BuildOptions, isTTY: boolean, logLe
   let inject = getFlag(options, keys, 'inject', mustBeArray);
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArray);
   let stdin = getFlag(options, keys, 'stdin', mustBeObject);
-  let write = getFlag(options, keys, 'write', mustBeBoolean) !== false; // Default to true if not specified
+  let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
   let incremental = getFlag(options, keys, 'incremental', mustBeBoolean) === true;
   let plugins = getFlag(options, keys, 'plugins', mustBeArray);
   checkForInvalidFlags(options, keys);
@@ -250,6 +250,7 @@ export interface StreamIn {
   writeToStdin: (data: Uint8Array) => void;
   readFileSync?: (path: string, encoding: 'utf8') => string;
   isSync: boolean;
+  isBrowser: boolean;
 }
 
 export interface StreamOut {
@@ -619,7 +620,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         const logLevelDefault = 'info';
         try {
           let key = nextBuildKey++;
-          let [flags, write, plugins, stdin, resolveDir, incremental] = flagsForBuildOptions(options, isTTY, logLevelDefault);
+          let writeDefault = !streamIn.isBrowser;
+          let [flags, write, plugins, stdin, resolveDir, incremental] = flagsForBuildOptions(options, isTTY, logLevelDefault, writeDefault);
           let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir, incremental };
           let serve = serveOptions && buildServeData(serveOptions, request);
           let pluginCleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
@@ -664,6 +666,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
             return callback(null, result);
           };
 
+          if (write && streamIn.isBrowser) throw new Error(`Cannot enable "write" in the browser`);
           if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
           sendRequest<protocol.BuildRequest, protocol.BuildResponse>(request, (error, response) => {
             if (error) return callback(new Error(error), null);

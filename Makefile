@@ -7,13 +7,15 @@ npm/esbuild-wasm/esbuild.wasm: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.g
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" npm/esbuild-wasm/wasm_exec.js
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 
-# These tests are for development
 test:
-	make -j6 test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests ts-type-tests
+	make -j6 test-common
 
-# These tests are for release ("test-wasm" is not included in "test" because it's pretty slow)
+# These tests are for development
+test-common: test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests
+
+# These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
-	make -j7 test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests ts-type-tests test-wasm
+	make -j6 test-common ts-type-tests test-wasm-node test-wasm-browser
 
 # This includes tests of some 3rd-party libraries, which can be very slow
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
@@ -30,9 +32,12 @@ vet-go:
 fmt-go:
 	go fmt ./cmd/... ./internal/... ./pkg/...
 
-test-wasm: platform-wasm
+test-wasm-node: platform-wasm
 	PATH="$(shell go env GOROOT)/misc/wasm:$$PATH" GOOS=js GOARCH=wasm go test ./internal/...
 	npm/esbuild-wasm/bin/esbuild --version
+
+test-wasm-browser: platform-wasm | scripts/browser/node_modules
+	cd scripts/browser && node browser-tests.js
 
 verify-source-map: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
@@ -251,6 +256,9 @@ lib/node_modules:
 
 scripts/node_modules:
 	cd scripts && npm ci
+
+scripts/browser/node_modules:
+	cd scripts/browser && npm ci
 
 ################################################################################
 # This downloads the kangax compat-table and generates browser support mappings
