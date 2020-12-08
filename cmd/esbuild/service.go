@@ -15,9 +15,9 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/evanw/esbuild/internal/cli_helpers"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
-	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
@@ -488,7 +488,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 						result.Warnings = decodeMessages(value.([]interface{}))
 					}
 					if value, ok := response["loader"]; ok {
-						loader, err := helpers.ParseLoader(value.(string))
+						loader, err := cli_helpers.ParseLoader(value.(string))
 						if err != nil {
 							return api.OnLoadResult{}, err
 						}

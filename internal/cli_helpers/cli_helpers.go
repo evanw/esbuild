@@ -1,7 +1,7 @@
-// This package contains internal API-related code that must be shared with
-// other internal code outside of the API package.
+// This package contains internal CLI-related code that must be shared with
+// other internal code outside of the CLI package.
 
-package helpers
+package cli_helpers
 
 import (
 	"fmt"

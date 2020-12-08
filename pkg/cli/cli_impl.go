@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evanw/esbuild/internal/helpers"
+	"github.com/evanw/esbuild/internal/cli_helpers"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/api"
 )
@@ -212,7 +212,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				return fmt.Errorf("Missing \"=\": %q", value)
 			}
 			ext, text := value[:equals], value[equals+1:]
-			loader, err := helpers.ParseLoader(text)
+			loader, err := cli_helpers.ParseLoader(text)
 			if err != nil {
 				return err
 			}
@@ -220,7 +220,7 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 
 		case strings.HasPrefix(arg, "--loader="):
 			value := arg[len("--loader="):]
-			loader, err := helpers.ParseLoader(value)
+			loader, err := cli_helpers.ParseLoader(value)
 			if err != nil {
 				return err
 			}
