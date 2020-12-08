@@ -57,11 +57,20 @@ jobs:
       run: node scripts/plugin-tests.js
 
     - name: TypeScript Type Definition Tests
+      if: matrix.os == 'ubuntu-latest'
       run: node scripts/ts-type-tests.js
 
     - name: JS API Type Check
       if: matrix.os == 'ubuntu-latest'
       run: make lib-typecheck
+
+    - name: WebAssembly API Tests (browser)
+      if: matrix.os == 'ubuntu-latest'
+      run: make test-wasm-browser
+
+    - name: WebAssembly API Tests (node)
+      if: matrix.os == 'ubuntu-latest'
+      run: make test-wasm-node
 
     - name: Sucrase Tests
       if: matrix.os == 'ubuntu-latest'
