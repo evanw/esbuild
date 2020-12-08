@@ -580,6 +580,89 @@ let pluginTests = {
     assert.strictEqual(result.outputFiles[1].text, `// virtual-ns:input 2\nconsole.log("input 2");\n`)
   },
 
+  async stdinImporter({ esbuild, testDir }) {
+    const output = path.join(testDir, 'out.js')
+    await esbuild.build({
+      stdin: {
+        contents: `import x from "plugin"; export default x`,
+        sourcefile: 'stdin-sourcefile',
+      },
+      bundle: true, outfile: output, format: 'cjs', plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /^plugin$/ }, args => {
+            assert.strictEqual(args.namespace, '')
+            assert.strictEqual(args.importer, 'stdin-sourcefile')
+            assert.strictEqual(args.resolveDir, '')
+            assert.strictEqual(args.path, 'plugin')
+            return { path: args.path, namespace: 'worked' }
+          })
+          build.onLoad({ filter: /.*/, namespace: 'worked' }, () => {
+            return { contents: `export default 123` }
+          })
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, 123)
+  },
+
+  async stdinImporterResolveDir({ esbuild, testDir }) {
+    const output = path.join(testDir, 'out.js')
+    await esbuild.build({
+      stdin: {
+        contents: `import x from "plugin"; export default x`,
+        sourcefile: 'stdin-sourcefile',
+        resolveDir: testDir,
+      },
+      bundle: true, outfile: output, format: 'cjs', plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /^plugin$/ }, args => {
+            assert.strictEqual(args.namespace, 'file')
+            assert.strictEqual(args.importer, path.join(testDir, 'stdin-sourcefile'))
+            assert.strictEqual(args.resolveDir, testDir)
+            assert.strictEqual(args.path, 'plugin')
+            return { path: args.path, namespace: 'worked' }
+          })
+          build.onLoad({ filter: /.*/, namespace: 'worked' }, () => {
+            return { contents: `export default 123` }
+          })
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, 123)
+  },
+
+  async stdinAbsoluteImporterResolveDir({ esbuild, testDir }) {
+    const output = path.join(testDir, 'out.js')
+    await esbuild.build({
+      stdin: {
+        contents: `import x from "plugin"; export default x`,
+        sourcefile: path.join(testDir, 'stdin-sourcefile'),
+        resolveDir: testDir,
+      },
+      bundle: true, outfile: output, format: 'cjs', plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /^plugin$/ }, args => {
+            assert.strictEqual(args.namespace, 'file')
+            assert.strictEqual(args.importer, path.join(testDir, 'stdin-sourcefile'))
+            assert.strictEqual(args.resolveDir, testDir)
+            assert.strictEqual(args.path, 'plugin')
+            return { path: args.path, namespace: 'worked' }
+          })
+          build.onLoad({ filter: /.*/, namespace: 'worked' }, () => {
+            return { contents: `export default 123` }
+          })
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, 123)
+  },
+
   async stdinRelative({ esbuild, testDir }) {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({

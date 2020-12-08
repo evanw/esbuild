@@ -12,6 +12,10 @@
 
     Previously you could only use the transform API in the browser, not the build API. You can now use the build API in the browser too. There is currently no in-browser file system so the build API will not do anything by default. Using this API requires you to use plugins to provide your own file system. Instructions for running esbuild in the browser can be found here: https://esbuild.github.io/api/#running-in-the-browser.
 
+* Set the importer to `sourcefile` in on-resolve plugins for stdin
+
+    When the stdin feature is used with on-resolve plugins, the importer for any import paths in stdin is currently always set to `<stdin>`. The `sourcefile` option provides a way to set the file name of stdin but it wasn't carried through to on-resolve plugins due to an oversight. This release changes this behavior so now `sourcefile` is used instead of `<stdin>` if present. In addition, if the stdin resolve directory is also specified the importer will be placed in the `file` namespace similar to a normal file.
+
 ## 0.8.20
 
 * Fix an edge case with class body initialization

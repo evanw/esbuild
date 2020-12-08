@@ -149,9 +149,6 @@ func parseFile(args parseArgs) {
 	if stdin := args.options.Stdin; stdin != nil {
 		// Special-case stdin
 		source.Contents = stdin.Contents
-		if stdin.SourceFile != "" {
-			source.PrettyPath = stdin.SourceFile
-		}
 		loader = stdin.Loader
 		if loader == config.LoaderNone {
 			loader = config.LoaderJS
@@ -964,9 +961,19 @@ func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
 	entryPointIndices := make([]uint32, 0, len(entryPoints)+1)
 
 	// Treat stdin as an extra entry point
-	if s.options.Stdin != nil {
-		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: logger.Path{Text: "<stdin>"}}}
-		sourceIndex := s.maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, inputKindStdin, nil)
+	if stdin := s.options.Stdin; stdin != nil {
+		stdinPath := logger.Path{Text: "<stdin>"}
+		if stdin.SourceFile != "" {
+			if stdin.AbsResolveDir == "" {
+				stdinPath = logger.Path{Text: stdin.SourceFile}
+			} else if s.fs.IsAbs(stdin.SourceFile) {
+				stdinPath = logger.Path{Text: stdin.SourceFile, Namespace: "file"}
+			} else {
+				stdinPath = logger.Path{Text: s.fs.Join(stdin.AbsResolveDir, stdin.SourceFile), Namespace: "file"}
+			}
+		}
+		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: stdinPath}}
+		sourceIndex := s.maybeParseFile(resolveResult, s.res.PrettyPath(stdinPath), nil, logger.Range{}, inputKindStdin, nil)
 		entryPointIndices = append(entryPointIndices, sourceIndex)
 	}
 
