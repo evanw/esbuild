@@ -353,13 +353,14 @@ func PrintMessageToStderr(osArgs []string, msg Msg) {
 
 type Colors struct {
 	Default   string
+	Bold      string
 	Dim       string
 	Red       string
 	Green     string
 	Underline string
 }
 
-func PrintTextToStderr(level LogLevel, osArgs []string, callback func(Colors) string) {
+func PrintText(file *os.File, level LogLevel, osArgs []string, callback func(Colors) string) {
 	options := StderrOptionsForArgs(osArgs)
 
 	// Skip logging these if these logs are disabled
@@ -374,18 +375,19 @@ func PrintTextToStderr(level LogLevel, osArgs []string, callback func(Colors) st
 	case ColorAlways:
 		useColorEscapes = SupportsColorEscapes
 	case ColorIfTerminal:
-		useColorEscapes = GetTerminalInfo(os.Stderr).UseColorEscapes
+		useColorEscapes = GetTerminalInfo(file).UseColorEscapes
 	}
 
 	var colors Colors
 	if useColorEscapes {
 		colors.Default = colorReset
+		colors.Bold = colorResetBold
 		colors.Dim = colorResetDim
 		colors.Red = colorRed
 		colors.Green = colorGreen
 		colors.Underline = colorResetUnderline
 	}
-	writeStringWithColor(os.Stderr, callback(colors))
+	writeStringWithColor(file, callback(colors))
 }
 
 func NewDeferLog() Log {

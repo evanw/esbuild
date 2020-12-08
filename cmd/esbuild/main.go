@@ -13,11 +13,18 @@ import (
 	"github.com/evanw/esbuild/pkg/cli"
 )
 
-const helpText = `
-Usage:
+var helpText = func(colors logger.Colors) string {
+	return `
+` + colors.Bold + `Usage:` + colors.Default + `
   esbuild [options] [entry points]
 
-Options:
+` + colors.Bold + `Documentation:` + colors.Default + `
+  ` + colors.Underline + `https://esbuild.github.io/` + colors.Default + `
+
+` + colors.Bold + `Repository:` + colors.Default + `
+  ` + colors.Underline + `https://github.com/evanw/esbuild` + colors.Default + `
+
+` + colors.Bold + `Simple options:` + colors.Default + `
   --bundle              Bundle all dependencies into the output files
   --define:K=V          Substitute K with V while parsing
   --external:M          Exclude module M from the bundle
@@ -43,7 +50,7 @@ Options:
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
                         safari11, edge16, node10, default esnext)
 
-Advanced options:
+` + colors.Bold + `Advanced options:` + colors.Default + `
   --banner=...              Text to be prepended to each output file
   --charset=utf8            Do not escape UTF-8 code points
   --color=...               Force use of color terminal escapes (true | false)
@@ -73,19 +80,21 @@ Advanced options:
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --version                 Print the current version and exit (` + esbuildVersion + `)
 
-Examples:
-  # Produces dist/entry_point.js and dist/entry_point.js.map
+` + colors.Bold + `Examples:` + colors.Default + `
+  ` + colors.Dim + `# Produces dist/entry_point.js and dist/entry_point.js.map` + colors.Default + `
   esbuild --bundle entry_point.js --outdir=dist --minify --sourcemap
 
-  # Allow JSX syntax in .js files
+  ` + colors.Dim + `# Allow JSX syntax in .js files` + colors.Default + `
   esbuild --bundle entry_point.js --outfile=out.js --loader:.js=jsx
 
-  # Substitute the identifier RELEASE for the literal true
+  ` + colors.Dim + `# Substitute the identifier RELEASE for the literal true` + colors.Default + `
   esbuild example.js --outfile=out.js --define:RELEASE=true
 
-  # Provide input via stdin, get output via stdout
+  ` + colors.Dim + `# Provide input via stdin, get output via stdout` + colors.Default + `
   esbuild --minify --loader=ts < input.ts > output.js
+
 `
+}
 
 func main() {
 	osArgs := os.Args[1:]
@@ -100,7 +109,7 @@ func main() {
 		switch {
 		// Show help if a common help flag is provided
 		case arg == "-h", arg == "-help", arg == "--help", arg == "/?":
-			fmt.Fprintf(os.Stderr, "%s\n", helpText)
+			logger.PrintText(os.Stdout, logger.LevelSilent, os.Args, helpText)
 			os.Exit(0)
 
 		// Special-case the version flag here
@@ -149,7 +158,7 @@ func main() {
 
 	// Print help text when there are no arguments
 	if len(osArgs) == 0 && logger.GetTerminalInfo(os.Stdin).IsTTY {
-		fmt.Fprintf(os.Stderr, "%s\n", helpText)
+		logger.PrintText(os.Stdout, logger.LevelSilent, osArgs, helpText)
 		os.Exit(0)
 	}
 

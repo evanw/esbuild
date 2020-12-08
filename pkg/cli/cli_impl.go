@@ -613,7 +613,7 @@ func serveImpl(serveText string, osArgs []string) error {
 		Port: uint16(port),
 		Host: host,
 		OnRequest: func(args api.ServeOnRequestArgs) {
-			logger.PrintTextToStderr(logger.LevelInfo, osArgs, func(colors logger.Colors) string {
+			logger.PrintText(os.Stderr, logger.LevelInfo, osArgs, func(colors logger.Colors) string {
 				statusColor := colors.Red
 				if args.Status == 200 {
 					statusColor = colors.Green
@@ -631,7 +631,7 @@ func serveImpl(serveText string, osArgs []string) error {
 	}
 
 	// Show what actually got bound if the port was 0
-	logger.PrintTextToStderr(logger.LevelInfo, osArgs, func(colors logger.Colors) string {
+	logger.PrintText(os.Stderr, logger.LevelInfo, osArgs, func(colors logger.Colors) string {
 		return fmt.Sprintf("%s\n > %shttp://%s:%d/%s\n\n",
 			colors.Default, colors.Underline, result.Host, result.Port, colors.Default)
 	})
