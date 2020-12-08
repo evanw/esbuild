@@ -558,6 +558,28 @@ let pluginTests = {
     assert.strictEqual(await result.default(103, 20), 123)
   },
 
+  async virtualEntryPoints({ esbuild, testDir }) {
+    const result = await esbuild.build({
+      entryPoints: ['1', '2'],
+      bundle: true, write: false, outdir: testDir, format: 'esm', plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            return { path: `input ${args.path}`, namespace: 'virtual-ns' }
+          })
+          build.onLoad({ filter: /.*/, namespace: 'virtual-ns' }, args => {
+            return { contents: `console.log(${JSON.stringify(args.path)})` }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles.length, 2)
+    assert.strictEqual(result.outputFiles[0].path, path.join(testDir, 'input_1.js'))
+    assert.strictEqual(result.outputFiles[0].text, `// virtual-ns:input 1\nconsole.log("input 1");\n`)
+    assert.strictEqual(result.outputFiles[1].path, path.join(testDir, 'input_2.js'))
+    assert.strictEqual(result.outputFiles[1].text, `// virtual-ns:input 2\nconsole.log("input 2");\n`)
+  },
+
   async stdinRelative({ esbuild, testDir }) {
     const output = path.join(testDir, 'out.js')
     await esbuild.build({

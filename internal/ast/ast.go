@@ -26,6 +26,9 @@ const (
 
 	// A CSS "url(...)" token
 	ImportURL
+
+	// An entry point provided by the user
+	ImportEntryPoint
 )
 
 func (kind ImportKind) IsFromCSS() bool {

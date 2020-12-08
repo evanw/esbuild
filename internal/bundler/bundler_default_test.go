@@ -2594,7 +2594,25 @@ func TestDuplicateEntryPointError(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out.js",
 		},
-		expectedScanLog: "error: Duplicate entry point \"entry.js\"\n",
+		expectedScanLog: `error: Duplicate entry point "entry.js"
+`,
+	})
+}
+
+func TestRelativeEntryPointError(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(123)
+			`,
+		},
+		entryPaths: []string{"entry"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out.js",
+		},
+		expectedScanLog: `error: Could not resolve "entry" (use "./entry" to reference the file "entry.js")
+`,
 	})
 }
 
@@ -3660,7 +3678,7 @@ func TestImportRelativeAsPackage(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: error: Could not resolve "some/other/file" ` +
-			`(use "./some/other/file" to import "Users/user/project/src/some/other/file.js")
+			`(use "./some/other/file" to reference the file "Users/user/project/src/some/other/file.js")
 `,
 	})
 }

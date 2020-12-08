@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* On-resolve plugins now apply to entry points ([#546](https://github.com/evanw/esbuild/issues/546))
+
+    Previously entry points were required to already be resolved to valid file system paths. This meant that on-resolve plugins didn't run, which breaks certain workflows. Now entry point paths are resolved using normal import resolution rules.
+
+    To avoid making this a breaking change, there is now special behavior for entry point path resolution. If the entry point path exists relative to the current working directory and the path does not start with `./` or `../`, esbuild will now automatically insert a leading `./` at the start of the path to prevent the path from being interpreted as a `node_modules` package path. This is only done if the file actually exists to avoid introducing `./` for paths with special plugin-specific syntax.
+
 ## 0.8.20
 
 * Fix an edge case with class body initialization

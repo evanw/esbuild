@@ -411,7 +411,7 @@ func parseFile(args parseArgs) {
 							hint = " (mark it as external to exclude it from the bundle)"
 							if pluginName == "" && !args.fs.IsAbs(record.Path.Text) {
 								if query := args.res.ProbeResolvePackageAsRelative(absResolveDir, record.Path.Text, record.Kind); query != nil {
-									hint = fmt.Sprintf(" (use %q to import %q)", "./"+record.Path.Text, args.res.PrettyPath(query.PathPair.Primary))
+									hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+record.Path.Text, args.res.PrettyPath(query.PathPair.Primary))
 								}
 							}
 						}
@@ -540,10 +540,10 @@ func logPluginMessages(
 			if clone.Namespace == "" {
 				clone.Namespace = "file"
 			}
-			if clone.File == "" {
-				clone.File = importSource.PrettyPath
-			} else {
+			if clone.File != "" {
 				clone.File = res.PrettyPath(logger.Path{Text: clone.File, Namespace: clone.Namespace})
+			} else if importSource != nil {
+				clone.File = importSource.PrettyPath
 			}
 			msg.Data.Location = &clone
 		} else {
@@ -579,10 +579,13 @@ func runOnResolvePlugins(
 ) (*resolver.ResolveResult, bool) {
 	resolverArgs := config.OnResolveArgs{
 		Path:       path,
-		Importer:   importSource.KeyPath,
 		ResolveDir: absResolveDir,
 	}
-	applyPath := logger.Path{Text: path, Namespace: importSource.KeyPath.Namespace}
+	applyPath := logger.Path{Text: path}
+	if importSource != nil {
+		resolverArgs.Importer = importSource.KeyPath
+		applyPath.Namespace = importSource.KeyPath.Namespace
+	}
 
 	// Apply resolver plugins in order until one succeeds
 	for _, plugin := range plugins {
@@ -778,7 +781,7 @@ type scanner struct {
 	remaining     int
 }
 
-func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.CacheSet, entryPaths []string, options config.Options) Bundle {
+func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.CacheSet, entryPoints []string, options config.Options) Bundle {
 	if options.ExtensionToLoader == nil {
 		options.ExtensionToLoader = DefaultExtensionToLoaderMap()
 	}
@@ -803,7 +806,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 	}()
 
 	s.preprocessInjectedFiles()
-	entryPoints := s.addEntryPoints(entryPaths)
+	entryPointIndices := s.addEntryPoints(entryPoints)
 	s.scanAllDependencies()
 	files := s.processScannedFiles()
 
@@ -811,7 +814,7 @@ func ScanBundle(log logger.Log, fs fs.FS, res resolver.Resolver, caches *cache.C
 		fs:          fs,
 		res:         res,
 		files:       files,
-		entryPoints: entryPoints,
+		entryPoints: entryPointIndices,
 	}
 }
 
@@ -956,40 +959,99 @@ func (s *scanner) preprocessInjectedFiles() {
 	s.options.InjectedFiles = injectedFiles
 }
 
-func (s *scanner) addEntryPoints(entryPaths []string) []uint32 {
-	entryPoints := []uint32{}
-	duplicateEntryPoints := make(map[string]bool)
+func (s *scanner) addEntryPoints(entryPoints []string) []uint32 {
+	// Reserve a slot for each entry point
+	entryPointIndices := make([]uint32, 0, len(entryPoints)+1)
 
 	// Treat stdin as an extra entry point
 	if s.options.Stdin != nil {
 		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: logger.Path{Text: "<stdin>"}}}
 		sourceIndex := s.maybeParseFile(resolveResult, "<stdin>", nil, logger.Range{}, inputKindStdin, nil)
-		entryPoints = append(entryPoints, sourceIndex)
+		entryPointIndices = append(entryPointIndices, sourceIndex)
 	}
 
-	// Add any remaining entry points
-	for _, absPath := range entryPaths {
-		prettyPath := s.res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
-		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
-
-		if duplicateEntryPoints[lowerAbsPath] {
-			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
-			continue
+	// Entry point paths without a leading "./" are interpreted as package
+	// paths. This happens because they go through general path resolution
+	// like all other import paths so that plugins can run on them. Requiring
+	// a leading "./" for a relative path simplifies writing plugins because
+	// entry points aren't a special case.
+	//
+	// However, requiring a leading "./" also breaks backward compatibility
+	// and makes working with the CLI more difficult. So attempt to insert
+	// "./" automatically when needed. We don't want to unconditionally insert
+	// a leading "./" because the path may not be a file system path. For
+	// example, it may be a URL. So only insert a leading "./" when the path
+	// is an exact match for an existing file.
+	entryPointAbsResolveDir := s.fs.Cwd()
+	for i, path := range entryPoints {
+		if !s.fs.IsAbs(path) && resolver.IsPackagePath(path) {
+			absPath := s.fs.Join(entryPointAbsResolveDir, path)
+			dir := s.fs.Dir(absPath)
+			base := s.fs.Base(absPath)
+			if entries, err := s.fs.ReadDirectory(dir); err == nil {
+				if entry := entries[base]; entry != nil && entry.Kind() == fs.FileEntry {
+					entryPoints[i] = "./" + path
+				}
+			}
 		}
-
-		duplicateEntryPoints[lowerAbsPath] = true
-		resolveResult := s.res.ResolveAbs(absPath)
-
-		if resolveResult == nil {
-			s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q", prettyPath))
-			continue
-		}
-
-		sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindEntryPoint, nil)
-		entryPoints = append(entryPoints, sourceIndex)
 	}
 
-	return entryPoints
+	// Add any remaining entry points. Run resolver plugins on these entry points
+	// so plugins can alter where they resolve to. These are run in parallel in
+	// case any of these plugins block.
+	entryPointResolveResults := make([]*resolver.ResolveResult, len(entryPoints))
+	entryPointWaitGroup := sync.WaitGroup{}
+	entryPointWaitGroup.Add(len(entryPoints))
+	for i, path := range entryPoints {
+		go func(i int, path string) {
+			// Run the resolver and log an error if the path couldn't be resolved
+			resolveResult, didLogError := runOnResolvePlugins(
+				s.options.Plugins,
+				s.res,
+				s.log,
+				s.fs,
+				nil,
+				logger.Range{},
+				path,
+				ast.ImportEntryPoint,
+				entryPointAbsResolveDir,
+			)
+			if resolveResult != nil {
+				if resolveResult.IsExternal {
+					s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("The entry point %q cannot be marked as external", path))
+				} else {
+					entryPointResolveResults[i] = resolveResult
+				}
+			} else if !didLogError {
+				hint := ""
+				if !s.fs.IsAbs(path) {
+					if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, path, ast.ImportEntryPoint); query != nil {
+						hint = fmt.Sprintf(" (use %q to reference the file %q)", "./"+path, s.res.PrettyPath(query.PathPair.Primary))
+					}
+				}
+				s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Could not resolve %q%s", path, hint))
+			}
+			entryPointWaitGroup.Done()
+		}(i, path)
+	}
+	entryPointWaitGroup.Wait()
+
+	// Parse all entry points that were resolved successfully
+	duplicateEntryPoints := make(map[uint32]bool)
+	for _, resolveResult := range entryPointResolveResults {
+		if resolveResult != nil {
+			prettyPath := s.res.PrettyPath(resolveResult.PathPair.Primary)
+			sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindEntryPoint, nil)
+			if duplicateEntryPoints[sourceIndex] {
+				s.log.AddError(nil, logger.Loc{}, fmt.Sprintf("Duplicate entry point %q", prettyPath))
+				continue
+			}
+			duplicateEntryPoints[sourceIndex] = true
+			entryPointIndices = append(entryPointIndices, sourceIndex)
+		}
+	}
+
+	return entryPointIndices
 }
 
 func (s *scanner) scanAllDependencies() {

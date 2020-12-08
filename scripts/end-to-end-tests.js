@@ -1967,14 +1967,6 @@
 `,
       }),
       test(['src/entry.js', '--bundle', '--outfile=node.js'], {
-        'src/entry.js/x': ``,
-      }, {
-        expectedStderr: ` > error: Cannot read file "src/entry.js": ${errorText}
-
-1 error
-`,
-      }),
-      test(['src/entry.js', '--bundle', '--outfile=node.js'], {
         'src/entry.js': ``,
         'src/tsconfig.json': `{"extends": "./base.json"}`,
         'src/base.json/x': ``,

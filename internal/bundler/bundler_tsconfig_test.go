@@ -332,7 +332,7 @@ func TestTsConfigBadPathsNoBaseURL(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/entry.ts: error: Could not resolve "should-not-be-imported" ` +
-			`(use "./should-not-be-imported" to import "Users/user/project/should-not-be-imported.ts")
+			`(use "./should-not-be-imported" to reference the file "Users/user/project/should-not-be-imported.ts")
 Users/user/project/tsconfig.json: warning: Non-relative path "bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
 Users/user/project/tsconfig.json: warning: Non-relative path "@bad/core" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
 Users/user/project/tsconfig.json: warning: Non-relative path ".*/bad" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)

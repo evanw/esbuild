@@ -556,13 +556,10 @@ func rebuildImpl(
 	if options.PublicPath != "" && !strings.HasSuffix(options.PublicPath, "/") && !strings.HasSuffix(options.PublicPath, "\\") {
 		options.PublicPath += "/"
 	}
-	entryPaths := make([]string, len(buildOpts.EntryPoints))
-	for i, entryPoint := range buildOpts.EntryPoints {
-		entryPaths[i] = validatePath(log, realFS, entryPoint)
-	}
-	entryPathCount := len(buildOpts.EntryPoints)
+	entryPoints := append([]string{}, buildOpts.EntryPoints...)
+	entryPointCount := len(entryPoints)
 	if buildOpts.Stdin != nil {
-		entryPathCount++
+		entryPointCount++
 		options.Stdin = &config.StdinInfo{
 			Loader:        validateLoader(buildOpts.Stdin.Loader),
 			Contents:      buildOpts.Stdin.Contents,
@@ -571,7 +568,7 @@ func rebuildImpl(
 		}
 	}
 
-	if options.AbsOutputDir == "" && entryPathCount > 1 {
+	if options.AbsOutputDir == "" && entryPointCount > 1 {
 		log.AddError(nil, logger.Loc{},
 			"Must use \"outdir\" when there are multiple input files")
 	} else if options.AbsOutputDir == "" && options.CodeSplitting {
@@ -637,7 +634,7 @@ func rebuildImpl(
 	if !log.HasErrors() {
 		// Scan over the bundle
 		resolver := resolver.NewResolver(realFS, log, caches, options)
-		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPaths, options)
+		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
