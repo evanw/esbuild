@@ -44,7 +44,6 @@ Options:
                         safari11, edge16, node10, default esnext)
 
 Advanced options:
-  --avoid-tdz               An optimization for large bundles in Safari
   --banner=...              Text to be prepended to each output file
   --charset=utf8            Do not escape UTF-8 code points
   --color=...               Force use of color terminal escapes (true | false)
