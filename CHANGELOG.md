@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.21
 
 * On-resolve plugins now apply to entry points ([#546](https://github.com/evanw/esbuild/issues/546))
 
