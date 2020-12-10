@@ -235,7 +235,7 @@ require/rollup/node_modules:
 require/parcel/node_modules:
 	mkdir -p require/parcel
 	echo '{}' > require/parcel/package.json
-	cd require/parcel && npm install parcel@1.12.4
+	cd require/parcel && npm install parcel@1.12.4 typescript@4.1.2
 
 	# Fix a bug where parcel doesn't know about one specific node builtin module
 	mkdir -p require/parcel/node_modules/inspector
@@ -249,7 +249,7 @@ require/fusebox/node_modules:
 require/parcel2/node_modules:
 	mkdir -p require/parcel2
 	echo '{}' > require/parcel2/package.json
-	cd require/parcel2 && npm install parcel@2.0.0-nightly.420 @parcel/transformer-typescript-tsc@2.0.0-beta.1 typescript@3.9.5
+	cd require/parcel2 && npm install parcel@2.0.0-nightly.475 @parcel/transformer-typescript-tsc@2.0.0-nightly.477 typescript@4.1.2
 
 lib/node_modules:
 	cd lib && npm ci
@@ -631,10 +631,11 @@ bench/rome: | github/rome
 	sed "/createHook/d" bench/rome/src/@romejs/js-compiler/index.ts >> .temp
 	mv .temp bench/rome/src/@romejs/js-compiler/index.ts
 
-	# These aliases are required to fix parcel path resolution
-	echo '{ "alias": {' > bench/rome/src/package.json
-	ls bench/rome/src/@romejs | sed 's/.*/"\@romejs\/&": ".\/@romejs\/&",/g' >> bench/rome/src/package.json
-	echo '"rome": "./rome" }}' >> bench/rome/src/package.json
+	# Replace "import fs = require('fs')" with "const fs = require('fs')" because
+	# the TypeScript compiler strips these statements when targeting "esnext",
+	# which breaks Parcel 2 when scope hoisting is enabled.
+	find bench/rome/src -name '*.ts' -type f -print0 | xargs -L1 -0 sed -i '' 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
+	find bench/rome/src -name '*.tsx' -type f -print0 | xargs -L1 -0 sed -i '' 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
 
 	# Get an approximate line count
 	rm -r bench/rome/src/@romejs/js-parser/test-fixtures
@@ -705,16 +706,30 @@ bench-rome-webpack5: | require/webpack5/node_modules bench/rome bench/rome-verif
 
 ROME_PARCEL_FLAGS += --bundle-node-modules
 ROME_PARCEL_FLAGS += --no-autoinstall
-ROME_PARCEL_FLAGS += --out-dir out
+ROME_PARCEL_FLAGS += --out-dir .
 ROME_PARCEL_FLAGS += --public-url ./
 ROME_PARCEL_FLAGS += --target node
 
+ROME_PARCEL_ALIASES += "alias": {
+ROME_PARCEL_ALIASES +=   $(shell ls bench/rome/src/@romejs | sed 's/.*/"\@romejs\/&": ".\/@romejs\/&",/g')
+ROME_PARCEL_ALIASES +=   "rome": "./rome"
+ROME_PARCEL_ALIASES += }
+
 bench-rome-parcel: | require/parcel/node_modules bench/rome bench/rome-verify
-	rm -fr require/parcel/bench/rome bench/rome/parcel
-	mkdir -p require/parcel/bench/rome bench/rome/parcel
-	ln -s ../../../../bench/rome/src require/parcel/bench/rome/src
-	ln -s ../../../../bench/rome/parcel require/parcel/bench/rome/out
-	cd require/parcel/bench/rome && time -p ../../node_modules/.bin/parcel build src/entry.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
+	rm -fr bench/rome/parcel
+	cp -r bench/rome/src bench/rome/parcel
+	rm -fr bench/rome/parcel/node_modules
+	cp -RP require/parcel/node_modules bench/rome/parcel/node_modules
+
+	# Inject aliases into "package.json" to fix Parcel ignoring "tsconfig.json".
+	cat require/parcel/package.json | sed '/^\}/d' > bench/rome/parcel/package.json
+	echo ', $(ROME_PARCEL_ALIASES) }' >> bench/rome/parcel/package.json
+
+	# Work around a bug that causes the resulting bundle to crash when run.
+	# See https://github.com/parcel-bundler/parcel/issues/1762 for more info.
+	echo 'import "regenerator-runtime/runtime"; import "./entry.ts"' > bench/rome/parcel/rome.parcel.ts
+
+	cd bench/rome/parcel && time -p node_modules/.bin/parcel build rome.parcel.ts $(ROME_PARCEL_FLAGS) --out-file rome.parcel.js
 	du -h bench/rome/parcel/rome.parcel.js*
 	cd bench/rome-verify && rm -fr parcel && ROME_CACHE=0 node ../rome/parcel/rome.parcel.js bundle packages/rome parcel
 
@@ -735,25 +750,24 @@ PARCELRC +=     "*.ts": ["@parcel/transformer-typescript-tsc"]
 PARCELRC +=   }
 PARCELRC += }
 
-# Note: This is currently broken. The resulting bundle crashes when run because
-# TypeScript statements of the form "import os = require('os')" are omitted.
-# I'm not sure why this happens, and I'm also not sure if this is a bug or if
-# Parcel needs some additional configuration to use this TypeScript syntax.
 bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
-	rm -fr require/parcel2/bench/rome bench/rome/parcel2
-	mkdir -p require/parcel2/bench/rome bench/rome/parcel2
-	cp -r bench/rome/src require/parcel2/bench/rome/src # Can't use a symbolic link or ".parcelrc" breaks
-	echo '$(PARCELRC)' > require/parcel2/bench/rome/.parcelrc
+	rm -fr bench/rome/parcel2
+	cp -r bench/rome/src bench/rome/parcel2 # Can't use a symbolic link or ".parcelrc" breaks
+	rm -fr bench/rome/parcel2/node_modules
+	cp -RP require/parcel2/node_modules bench/rome/parcel2/node_modules
+	echo '$(PARCELRC)' > bench/rome/parcel2/.parcelrc
+
+	# Inject aliases into "package.json" to fix Parcel 2 ignoring "tsconfig.json".
+	# Also inject "engines": "node" to avoid Parcel 2 mangling node globals.
+	cat require/parcel2/package.json | sed '/^\}/d' > bench/rome/parcel2/package.json
+	echo ', "engines": { "node": "0.0.0" }' >> bench/rome/parcel2/package.json
+	echo ', $(ROME_PARCEL_ALIASES) }' >> bench/rome/parcel2/package.json
 
 	# Work around a bug that causes the resulting bundle to crash when run.
 	# See https://github.com/parcel-bundler/parcel/issues/1762 for more info.
-	echo 'import "regenerator-runtime/runtime"; import "./entry.ts"' > require/parcel2/bench/rome/src/rome.parcel.ts
+	echo 'import "regenerator-runtime/runtime"; import "./entry.ts"' > bench/rome/parcel2/rome.parcel.ts
 
-	# This uses --no-scope-hoist because otherwise Parcel 2 can't handle TypeScript files
-	# that re-export types. See https://github.com/parcel-bundler/parcel/issues/4796.
-	cd require/parcel2/bench/rome && time -p ../../node_modules/.bin/parcel build \
-		src/rome.parcel.ts --dist-dir ../../../../bench/rome/parcel2 --no-scope-hoist --cache-dir .cache
-
+	cd bench/rome/parcel2 && time -p node_modules/.bin/parcel build rome.parcel.ts --dist-dir . --cache-dir .cache
 	du -h bench/rome/parcel2/rome.parcel.js*
 	cd bench/rome-verify && rm -fr parcel2 && ROME_CACHE=0 node ../rome/parcel2/rome.parcel.js bundle packages/rome parcel2
 
