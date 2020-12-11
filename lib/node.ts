@@ -134,6 +134,7 @@ export let transformSync: typeof types.transformSync = (input, options) => {
 
 export let startService: typeof types.startService = options => {
   if (options) {
+    options = common.validateServiceOptions(options);
     if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
     if (options.worker) throw new Error(`The "worker" option only works in the browser`)
   }

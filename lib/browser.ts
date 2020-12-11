@@ -28,7 +28,9 @@ export const transformSync: typeof types.transformSync = () => {
 
 export const startService: typeof types.startService = options => {
   if (!options) throw new Error('Must provide an options object to "startService"');
+  options = common.validateServiceOptions(options)!;
   let wasmURL = options.wasmURL;
+  let useWorker = options.worker !== false;
   if (!wasmURL) throw new Error('Must provide the "wasmURL" option');
   wasmURL += '';
   return fetch(wasmURL).then(res => {
@@ -48,7 +50,7 @@ export const startService: typeof types.startService = options => {
       terminate: () => void
     }
 
-    if (options.worker !== false) {
+    if (useWorker) {
       // Run esbuild off the main thread
       let blob = new Blob([code], { type: 'application/javascript' })
       worker = new Worker(URL.createObjectURL(blob))

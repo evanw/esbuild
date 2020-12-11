@@ -64,6 +64,17 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys): void {
   }
 }
 
+export function validateServiceOptions(options: types.ServiceOptions): types.ServiceOptions {
+  let keys: OptionKeys = Object.create(null);
+  let wasmURL = getFlag(options, keys, 'wasmURL', mustBeString);
+  let worker = getFlag(options, keys, 'worker', mustBeBoolean);
+  checkForInvalidFlags(options, keys);
+  return {
+    wasmURL,
+    worker,
+  };
+}
+
 type CommonOptions = types.BuildOptions | types.TransformOptions;
 
 function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
