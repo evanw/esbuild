@@ -2348,8 +2348,16 @@ async function assertSourceMap(jsSourceMap, source) {
 }
 
 async function main() {
-  // Start the esbuild service
   const esbuild = installForTests(rootTestDir)
+
+  // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
+  let minutes = 0.5
+  let timeout = setTimeout(() => {
+    console.error(`❌ js api tests timed out after ${minutes} minutes, exiting...`)
+    process.exit(1)
+  }, minutes * 60 * 1000)
+
+  // Start the esbuild service
   const service = esbuild.startServiceSync()
   const syncService = await esbuild.startService({ allowSync: true })
 
@@ -2404,6 +2412,8 @@ async function main() {
     } catch (e) {
     }
   }
+
+  clearTimeout(timeout);
 }
 
 main().catch(e => setTimeout(() => { throw e }))
