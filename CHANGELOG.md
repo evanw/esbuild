@@ -12,6 +12,14 @@
 
     In the future the output file name of a virtual module will likely be completely customizable with a plugin, so it will be possible to have different behavior for this if desired. But that isn't possible quite yet.
 
+* Add `buildSync` and `transformSync` APIs to the JavaScript service object ([#590](https://github.com/evanw/esbuild/issues/590))
+
+    The service object constructed by `startService` in esbuild's JavaScript API is a performance optimization. It represents a long-lived child process that avoids the overhead of creating a new esbuild child process for every API call. For example, every call to `transform()` creates a new child process but every call to `service.transform()` reuses the existing child process inside the service object. The trade-off is that the service API is less convenient to use because you have to keep track of the extra service object.
+
+    Previously the service API only exposed asynchronous `build` and `transform` API calls because communicating with a long-lived child process is asynchronous in node. However, there's a trick that can work around this limitation: esbuild can communicate with the long-lived child process from a child thread using node's [`worker_threads`](https://nodejs.org/api/worker_threads.html) module and block the main thread using JavaScript's new [Atomics API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Atomics/wait). This was a tip from [@cspotcode](https://github.com/cspotcode).
+
+    It's now possible to use the synchronous `buildSync` and `transformSync` API calls from the service object if you pass `allowSync: true` to `startService` (this is opt-in because this slows down the _asynchronous_ API calls slightly due to the additional worker thread). A quick benchmark shows that the synchronous API calls are 1.5x to 15x faster with the service object than without the service object, so using the service object can be a substantial performance win. In addition, there is now a `startServiceSync` function that returns a service directly instead of returning a promise like `startService` does. This should help with needing to use esbuild in a purely synchronous context. All of this new synchronous functionality is node-specific (it doesn't work in the browser).
+
 ## 0.8.21
 
 * On-resolve plugins now apply to entry points ([#546](https://github.com/evanw/esbuild/issues/546))
@@ -2823,7 +2831,7 @@ Note that you can also just use `--strict` to enable strictness for all transfor
 
     * There is now an experimental browser-based API ([#172](https://github.com/evanw/esbuild/issues/172))
 
-        The `esbuild-wasm` package now has a file called `browser.js` that exposes a `createService()` API which is similar to the esbuild API available in node. You can either import the `esbuild-wasm` package using a bundler that respects the `browser` field in `package.json` or import the `esbuild-wasm/lib/browser.js` file directly.
+        The `esbuild-wasm` package now has a file called `browser.js` that exposes a `startService()` API which is similar to the esbuild API available in node. You can either import the `esbuild-wasm` package using a bundler that respects the `browser` field in `package.json` or import the `esbuild-wasm/lib/browser.js` file directly.
 
         This is what esbuild's browser API looks like:
 
@@ -2838,7 +2846,7 @@ Note that you can also just use `--strict` to enable strictness for all transfor
           stop(): void
         }
 
-        declare function createService(options: BrowserOptions): Promise<BrowserService>
+        declare function startService(options: BrowserOptions): Promise<BrowserService>
         ```
 
         You must provide the URL to the `esbuild-wasm/esbuild.wasm` file in `wasmURL`. The optional `worker` parameter can be set to `false` to load the WebAssembly module in the same thread instead of creating a worker thread. Using a worker thread is recommended because it means transforming will not block the main thread.

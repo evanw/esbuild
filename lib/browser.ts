@@ -26,12 +26,17 @@ export const transformSync: typeof types.transformSync = () => {
   throw new Error(`The "transformSync" API only works in node`);
 };
 
+export const startServiceSync: typeof types.startServiceSync = () => {
+  throw new Error(`The "startServiceSync" API only works in node`);
+};
+
 export const startService: typeof types.startService = options => {
   if (!options) throw new Error('Must provide an options object to "startService"');
   options = common.validateServiceOptions(options)!;
   let wasmURL = options.wasmURL;
   let useWorker = options.worker !== false;
   if (!wasmURL) throw new Error('Must provide the "wasmURL" option');
+  if (options.allowSync) throw new Error('Cannot use "allowSync" in the browser');
   wasmURL += '';
   return fetch(wasmURL).then(res => {
     if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
@@ -90,6 +95,12 @@ export const startService: typeof types.startService = options => {
           }, (err, res) => err ? reject(err) : resolve(res!))),
       serve() {
         throw new Error(`The "serve" API only works in node`)
+      },
+      buildSync() {
+        throw new Error(`The "buildSync" API only works in node`);
+      },
+      transformSync() {
+        throw new Error(`The "transformSync" API only works in node`);
       },
       stop() {
         worker.terminate()

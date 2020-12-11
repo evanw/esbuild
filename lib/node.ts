@@ -8,6 +8,13 @@ import fs = require('fs');
 import os = require('os');
 import tty = require('tty');
 
+// Don't crash if the "worker_threads" library isn't present
+let worker_threads: typeof import('worker_threads') | undefined;
+try {
+  worker_threads = require('worker_threads');
+} catch {
+}
+
 declare const ESBUILD_VERSION: string;
 
 // This file is used for both the "esbuild" package and the "esbuild-wasm"
@@ -132,12 +139,11 @@ export let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
-export let startService: typeof types.startService = options => {
-  if (options) {
-    options = common.validateServiceOptions(options);
-    if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
-    if (options.worker) throw new Error(`The "worker" option only works in the browser`)
-  }
+export let startServiceSync: typeof types.startServiceSync = options => {
+  options = common.validateServiceOptions(options || {});
+  if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
+  if (options.worker) throw new Error(`The "worker" option only works in the browser`)
+  if (options.allowSync) return startSyncService();
   let [command, args] = esbuildCommandAndArgs();
   let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`), {
     cwd: process.cwd(),
@@ -156,7 +162,7 @@ export let startService: typeof types.startService = options => {
   child.stdout.on('end', afterClose);
 
   // Create an asynchronous Promise-based API
-  return Promise.resolve({
+  return {
     build: (options: types.BuildOptions): Promise<any> =>
       new Promise<types.BuildResult>((resolve, reject) =>
         service.buildOrServe(null, options, isTTY(), (err, res) =>
@@ -194,8 +200,18 @@ export let startService: typeof types.startService = options => {
             }
           },
         }, (err, res) => err ? reject(err) : resolve(res!))),
+    buildSync() {
+      throw new Error(`You must set "allowSync" to true to use the "buildSync" API`);
+    },
+    transformSync() {
+      throw new Error(`You must set "allowSync" to true to use the "transformSync" API`);
+    },
     stop() { child.kill(); },
-  });
+  };
+};
+
+export let startService: typeof types.startService = options => {
+  return Promise.resolve(startServiceSync(options));
 };
 
 let runServiceSync = (callback: (service: common.StreamService) => void): void => {
@@ -228,3 +244,199 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
 let randomFileName = () => {
   return path.join(os.tmpdir(), `esbuild-${crypto.randomBytes(32).toString('hex')}`);
 };
+
+interface WorkerData {
+  sharedBuffer: SharedArrayBuffer;
+  workerToMain: import('worker_threads').MessagePort;
+}
+
+let startSyncService = (): types.Service => {
+  if (!worker_threads) throw new Error('Cannot use "allowSync" without the "worker_threads" library');
+
+  interface PromiseData {
+    resolve(value: any): void;
+    reject(error: any): void;
+  }
+
+  let { port1: mainToWorker, port2: workerToMain } = new worker_threads.MessageChannel();
+  let sharedBuffer = new SharedArrayBuffer(8);
+  let sharedBufferView = new Int32Array(sharedBuffer);
+  let workerData: WorkerData = { sharedBuffer, workerToMain };
+  let worker = new worker_threads.Worker(__filename, {
+    workerData,
+    transferList: [workerToMain],
+  });
+  let nextID = 0;
+  let pendingAsyncCalls = new Map<number, PromiseData>();
+  let wasStopped = false;
+
+  let validateBuildOptionsForAllowSync = (options: types.BuildOptions | undefined): void => {
+    if (!options) return
+    let plugins = options.plugins
+    let incremental = options.incremental
+    if (plugins && plugins.length > 0) throw new Error(`Cannot use plugins with "allowSync"`);
+    if (incremental) throw new Error(`Cannot use incremental builds with "allowSync"`);
+  };
+
+  // MessagePort doesn't copy the properties of Error objects. We still want
+  // error objects to have extra properties such as "warnings" so implement the
+  // property copying manually.
+  let applyProperties = (object: any, properties: Record<string, any>): void => {
+    for (let key in properties) {
+      object[key] = properties[key];
+    }
+  };
+
+  let runCallAsync = (command: string, args: any[]): Promise<any> => {
+    if (wasStopped) throw new Error('The service was stopped');
+    return new Promise((resolve, reject) => {
+      let id = nextID++;
+      pendingAsyncCalls.set(id, { resolve, reject });
+      worker.postMessage({ id, command, args });
+    });
+  };
+
+  let runCallSync = (command: string, args: any[]): any => {
+    if (wasStopped) throw new Error('The service was stopped');
+    let id = nextID++;
+    worker.postMessage({ id, command, args });
+
+    // Time out after 10 minutes. This should be long enough that esbuild
+    // shouldn't exceed this time but short enough that CI should fail if
+    // something went wrong with waiting. I added this because I experienced
+    // a random hang on the Windows CI machine that was presumably caused
+    // by this.
+    let timeout = 10 * 60 * 1000;
+    let status = Atomics.wait(sharedBufferView, 0, 0, timeout);
+    if (status !== 'ok') throw new Error('Internal error: Atomics.wait() failed: ' + status);
+
+    let { message: { id: id2, resolve, reject, properties } } = worker_threads!.receiveMessageOnPort(mainToWorker)!;
+    if (id !== id2) throw new Error(`Internal error: Expected id ${id} but got id ${id2}`);
+    if (reject) {
+      applyProperties(reject, properties);
+      throw reject;
+    }
+    return resolve;
+  };
+
+  worker.on('message', ({ id, resolve, reject, properties }) => {
+    let result = pendingAsyncCalls.get(id)!;
+    if (properties) {
+      applyProperties(reject, properties);
+      result.reject(reject);
+    } else {
+      result.resolve(resolve);
+    }
+  });
+
+  // Calling unref() on a worker will allow the thread to exit if it's the last
+  // only active handle in the event system.
+  worker.unref();
+
+  return {
+    build(options: any) {
+      validateBuildOptionsForAllowSync(options);
+      return runCallAsync('build', [options]);
+    },
+    serve() {
+      throw new Error('Cannot use serve with "allowSync"');
+    },
+    transform(input, options) {
+      return runCallAsync('transform', [input, options]);
+    },
+    buildSync(options: any) {
+      validateBuildOptionsForAllowSync(options);
+      return runCallSync('buildSync', [options]);
+    },
+    transformSync(input, options) {
+      return runCallSync('transformSync', [input, options]);
+    },
+    stop() {
+      // Stop the child process, then stop the worker
+      let stop = () => worker.terminate();
+      if (!wasStopped) runCallAsync('stop', []).then(stop, stop);
+      wasStopped = true;
+    },
+  };
+};
+
+let startSyncServiceWorker = () => {
+  let { sharedBuffer, workerToMain } = worker_threads!.workerData as WorkerData;
+  let sharedBufferView = new Int32Array(sharedBuffer);
+  let parentPort = worker_threads!.parentPort!;
+  let servicePromise = startService();
+
+  // MessagePort doesn't copy the properties of Error objects. We still want
+  // error objects to have extra properties such as "warnings" so implement the
+  // property copying manually.
+  let extractProperties = (object: any): Record<string, any> => {
+    let properties: Record<string, any> = {};
+    if (object && typeof object === 'object') {
+      for (let key in object) {
+        properties[key] = object[key];
+      }
+    }
+    return properties;
+  };
+
+  parentPort.on('message', ({ id, command, args }: { id: number, command: string, args: any[] }) => {
+    servicePromise.then(async (service) => {
+      switch (command) {
+        case 'build':
+          try {
+            let resolve = await service.build(args[0]);
+            parentPort.postMessage({ id, resolve });
+          } catch (reject) {
+            parentPort.postMessage({ id, reject, properties: extractProperties(reject) });
+          }
+          break;
+
+        case 'transform':
+          try {
+            let resolve = await service.transform(args[0], args[1])
+            parentPort.postMessage({ id, resolve });
+          } catch (reject) {
+            parentPort.postMessage({ id, reject, properties: extractProperties(reject) });
+          }
+          break;
+
+        case 'buildSync':
+          try {
+            let resolve = await service.build(args[0])
+            workerToMain.postMessage({ id, resolve });
+          } catch (reject) {
+            workerToMain.postMessage({ id, reject, properties: extractProperties(reject) });
+          }
+          Atomics.notify(sharedBufferView, 0, Infinity);
+          break;
+
+        case 'transformSync':
+          try {
+            let resolve = await service.transform(args[0], args[1])
+            workerToMain.postMessage({ id, resolve });
+          } catch (reject) {
+            workerToMain.postMessage({ id, reject, properties: extractProperties(reject) });
+          }
+          Atomics.notify(sharedBufferView, 0, Infinity);
+          break;
+
+        case 'stop':
+          try {
+            service.stop();
+            parentPort.postMessage({ id });
+          } catch (reject) {
+            parentPort.postMessage({ id, reject, properties: extractProperties(reject) });
+          }
+          break;
+
+        default:
+          parentPort.postMessage({ id, reject: new Error('Unexpected command: ' + command), properties: [] });
+      }
+    });
+  });
+};
+
+// If we're in the worker thread, start the worker code
+if (worker_threads && !worker_threads.isMainThread) {
+  startSyncServiceWorker();
+}

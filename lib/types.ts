@@ -242,6 +242,10 @@ export interface Service {
   serve(serveOptions: ServeOptions, buildOptions: BuildOptions): Promise<ServeResult>;
   transform(input: string, options?: TransformOptions): Promise<TransformResult>;
 
+  buildSync(options: BuildOptions & { write: false }): BuildResult & { outputFiles: OutputFile[] };
+  buildSync(options: BuildOptions): BuildResult;
+  transformSync(input: string, options?: TransformOptions): TransformResult;
+
   // This stops the service, which kills the long-lived child process. Any
   // pending requests will be aborted.
   stop(): void;
@@ -294,6 +298,12 @@ export declare function transformSync(input: string, options?: TransformOptions)
 // Works in browser: yes ("options" is required)
 export declare function startService(options?: ServiceOptions): Promise<Service>;
 
+// A synchronous version of "startService".
+//
+// Works in node: yes
+// Works in browser: no
+export declare function startServiceSync(options?: ServiceOptions): Service;
+
 export interface ServiceOptions {
   // The URL of the "esbuild.wasm" file. This must be provided when running
   // esbuild in the browser.
@@ -303,6 +313,10 @@ export interface ServiceOptions {
   // to avoid blocking the UI thread. This can be disabled by setting "worker"
   // to false.
   worker?: boolean
+
+  // If true, the "buildSync" and "transformSync" functions are enabled. This
+  // option only works in node. It does not work in the browser.
+  allowSync?: boolean
 }
 
 export let version: string;

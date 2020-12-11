@@ -66,10 +66,12 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys): void {
 
 export function validateServiceOptions(options: types.ServiceOptions): types.ServiceOptions {
   let keys: OptionKeys = Object.create(null);
+  let allowSync = getFlag(options, keys, 'allowSync', mustBeBoolean);
   let wasmURL = getFlag(options, keys, 'wasmURL', mustBeString);
   let worker = getFlag(options, keys, 'worker', mustBeBoolean);
   checkForInvalidFlags(options, keys);
   return {
+    allowSync,
     wasmURL,
     worker,
   };

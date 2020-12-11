@@ -2113,20 +2113,229 @@ let transformTests = {
   asyncGenClassExprFn: ({ service }) => futureSyntax(service, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
-let syncTests = {
+async function basicBuildHelper({ service, testDir, sync, code, options }) {
+  const input = path.join(testDir, 'in.js')
+  const output = path.join(testDir, 'out.js')
+  options = { entryPoints: [input], bundle: true, outfile: output, format: 'cjs', ...options }
+  await writeFileAsync(input, code || 'export default 123')
+  if (sync) service.buildSync(options)
+  else await service.build(options)
+  const result = require(output)
+  assert.strictEqual(result.default, 123)
+  assert.strictEqual(result.__esModule, true)
+}
+
+let buildSyncTests = {
   async buildSync({ esbuild, testDir }) {
-    const input = path.join(testDir, 'buildSync-in.js')
-    const output = path.join(testDir, 'buildSync-out.js')
-    await writeFileAsync(input, 'export default 123')
-    esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
-    const result = require(output)
-    assert.strictEqual(result.default, 123)
-    assert.strictEqual(result.__esModule, true)
+    await basicBuildHelper({ service: esbuild, testDir, sync: true })
   },
 
+  async serviceBuild({ service, testDir }) {
+    await basicBuildHelper({ service, testDir, sync: false })
+  },
+
+  async serviceBuildSync({ service, testDir }) {
+    try {
+      await basicBuildHelper({ service, testDir, sync: true })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `You must set "allowSync" to true to use the "buildSync" API`)
+    }
+  },
+
+  async syncServiceBuild({ syncService, testDir }) {
+    await basicBuildHelper({ service: syncService, testDir, sync: false })
+  },
+
+  async syncServiceBuildSync({ syncService, testDir }) {
+    await basicBuildHelper({ service: syncService, testDir, sync: true })
+  },
+
+  async buildSyncThrow({ esbuild, testDir }) {
+    try {
+      await basicBuildHelper({ service: esbuild, testDir, sync: true, code: '1+', options: { logLevel: 'silent' } })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert(error instanceof Error, 'Must be an Error object');
+      assert.strictEqual(error.message, `Build failed with 1 error:
+scripts/.js-api-tests/buildSyncThrow/in.js:1:2: error: Unexpected end of file`);
+      assert.strictEqual(error.errors.length, 1);
+      assert.strictEqual(error.warnings.length, 0);
+    }
+  },
+
+  async syncServiceBuildThrow({ syncService, testDir }) {
+    try {
+      await basicBuildHelper({ service: syncService, testDir, sync: false, code: '1+', options: { logLevel: 'silent' } })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert(error instanceof Error, 'Must be an Error object');
+      assert.strictEqual(error.message, `Build failed with 1 error:
+scripts/.js-api-tests/syncServiceBuildThrow/in.js:1:2: error: Unexpected end of file`);
+      assert.strictEqual(error.errors.length, 1);
+      assert.strictEqual(error.warnings.length, 0);
+    }
+  },
+
+  async syncServiceBuildSyncThrow({ syncService, testDir }) {
+    try {
+      await basicBuildHelper({ service: syncService, testDir, sync: true, code: '1+', options: { logLevel: 'silent' } })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert(error instanceof Error, 'Must be an Error object');
+      assert.strictEqual(error.message, `Build failed with 1 error:
+scripts/.js-api-tests/syncServiceBuildSyncThrow/in.js:1:2: error: Unexpected end of file`);
+      assert.strictEqual(error.errors.length, 1);
+      assert.strictEqual(error.warnings.length, 0);
+    }
+  },
+
+  async buildSyncPluginsThrow({ esbuild, testDir }) {
+    try {
+      await basicBuildHelper({ service: esbuild, testDir, sync: true, options: { logLevel: 'silent', plugins: [{ name: 'x', setup() { } }] } })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `Cannot use plugins in synchronous API calls`);
+    }
+  },
+
+  async syncServiceBuildPluginsThrow({ syncService, testDir }) {
+    try {
+      await basicBuildHelper({ service: syncService, testDir, sync: false, options: { plugins: [{ name: 'x', setup() { } }] } })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `Cannot use plugins with "allowSync"`);
+    }
+  },
+
+  async syncServiceBuildSyncPluginsThrow({ syncService, testDir }) {
+    try {
+      await basicBuildHelper({ service: syncService, testDir, sync: true, options: { plugins: [{ name: 'x', setup() { } }] } })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `Cannot use plugins with "allowSync"`);
+    }
+  },
+
+  async syncServiceBuildSyncAfterStopThrow({ esbuild }) {
+    let service = await esbuild.startService({ allowSync: true })
+    service.stop()
+    try {
+      service.buildSync({})
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `The service was stopped`);
+    }
+  },
+
+  async syncServiceBuildIncremental({ syncService, testDir }) {
+    try {
+      await basicBuildHelper({ service: syncService, testDir, sync: false, options: { incremental: true } })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `Cannot use incremental builds with "allowSync"`);
+    }
+  },
+
+  async syncServiceBuildSyncIncremental({ syncService, testDir }) {
+    try {
+      await basicBuildHelper({ service: syncService, testDir, sync: true, options: { incremental: true } })
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `Cannot use incremental builds with "allowSync"`);
+    }
+  },
+}
+
+let serveSyncTests = {
+  async syncServiceServe({ syncService }) {
+    try {
+      syncService.serve({}, {})
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `Cannot use serve with "allowSync"`);
+    }
+  },
+}
+
+let transformSyncTests = {
   async transformSync({ esbuild }) {
     const { code } = esbuild.transformSync(`console.log(1+2)`, {})
     assert.strictEqual(code, `console.log(1 + 2);\n`)
+  },
+
+  async serviceTransform({ service }) {
+    const { code } = await service.transform(`console.log(1+2)`, {})
+    assert.strictEqual(code, `console.log(1 + 2);\n`)
+  },
+
+  async serviceTransformSync({ service }) {
+    try {
+      service.transformSync(`console.log(1+2)`, {})
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `You must set "allowSync" to true to use the "transformSync" API`);
+    }
+  },
+
+  async syncServiceTransform({ syncService }) {
+    const { code } = await syncService.transform(`console.log(1+2)`, {})
+    assert.strictEqual(code, `console.log(1 + 2);\n`)
+  },
+
+  async syncServiceTransformSync({ syncService }) {
+    let promise = syncService.transform(`console.log(1+2)`, {})
+    const { code } = syncService.transformSync(`console.log(3+4)`, {})
+    assert.strictEqual(code, `console.log(3 + 4);\n`)
+    const { code: code2 } = await promise
+    assert.strictEqual(code2, `console.log(1 + 2);\n`)
+  },
+
+  async transformThrow({ service }) {
+    try {
+      await service.transform(`1+`)
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert(error instanceof Error, 'Must be an Error object');
+      assert.strictEqual(error.message, `Transform failed with 1 error:\n<stdin>:1:2: error: Unexpected end of file`);
+      assert.strictEqual(error.errors.length, 1);
+      assert.strictEqual(error.warnings.length, 0);
+    }
+  },
+
+  async syncServiceTransformThrow({ syncService }) {
+    try {
+      await syncService.transform(`1+`)
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert(error instanceof Error, 'Must be an Error object');
+      assert.strictEqual(error.message, `Transform failed with 1 error:\n<stdin>:1:2: error: Unexpected end of file`);
+      assert.strictEqual(error.errors.length, 1);
+      assert.strictEqual(error.warnings.length, 0);
+    }
+  },
+
+  async syncServiceTransformSyncThrow({ syncService }) {
+    try {
+      syncService.transformSync(`1+`)
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert(error instanceof Error, 'Must be an Error object');
+      assert.strictEqual(error.message, `Transform failed with 1 error:\n<stdin>:1:2: error: Unexpected end of file`);
+      assert.strictEqual(error.errors.length, 1);
+      assert.strictEqual(error.warnings.length, 0);
+    }
+  },
+
+  async syncServiceTransformSyncAfterStopThrow({ esbuild }) {
+    let service = await esbuild.startService({ allowSync: true })
+    service.stop()
+    try {
+      service.transformSync('')
+      throw new Error('Expected an error to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, `The service was stopped`);
+    }
   },
 }
 
@@ -2141,14 +2350,15 @@ async function assertSourceMap(jsSourceMap, source) {
 async function main() {
   // Start the esbuild service
   const esbuild = installForTests(rootTestDir)
-  const service = await esbuild.startService()
+  const service = esbuild.startServiceSync()
+  const syncService = await esbuild.startService({ allowSync: true })
 
   // Run all tests concurrently
   const runTest = async ([name, fn]) => {
     let testDir = path.join(rootTestDir, name)
     try {
       await mkdirAsync(testDir)
-      await fn({ esbuild, service, testDir })
+      await fn({ esbuild, service, syncService, testDir })
       rimraf.sync(testDir, { disableGlob: true })
       return true
     } catch (e) {
@@ -2160,12 +2370,15 @@ async function main() {
     ...Object.entries(buildTests),
     ...Object.entries(serveTests),
     ...Object.entries(transformTests),
-    ...Object.entries(syncTests),
+    ...Object.entries(buildSyncTests),
+    ...Object.entries(serveSyncTests),
+    ...Object.entries(transformSyncTests),
   ]
   const allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
 
   // Clean up test output
   service.stop()
+  syncService.stop()
 
   if (!allTestsPassed) {
     console.error(`❌ js api tests failed`)
