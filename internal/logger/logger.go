@@ -126,6 +126,37 @@ func (a Path) ComesBeforeInSortedOrder(b Path) bool {
 	return a.Namespace > b.Namespace || (a.Namespace == b.Namespace && a.Text < b.Text)
 }
 
+// This has a custom implementation instead of using "filepath.Dir/Base/Ext"
+// because it should work the same on Unix and Windows. These names end up in
+// the generated output and the generated output should not depend on the OS.
+func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ext string) {
+	for {
+		i := strings.LastIndexAny(path, "/\\")
+
+		// Stop if there are no more slashes
+		if i < 0 {
+			base = path
+			break
+		}
+
+		// Stop if we found a non-trailing slash
+		if i+1 != len(path) {
+			dir, base = path[:i], path[i+1:]
+			break
+		}
+
+		// Ignore trailing slashes
+		path = path[:i]
+	}
+
+	// Strip off the extension
+	if dot := strings.LastIndexByte(base, '.'); dot >= 0 {
+		base, ext = base[:dot], base[dot:]
+	}
+
+	return
+}
+
 type Source struct {
 	Index uint32
 

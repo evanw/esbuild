@@ -179,7 +179,7 @@ func parseFile(args parseArgs) {
 		pluginName = result.pluginName
 	}
 
-	_, base, ext := js_ast.PlatformIndependentPathDirBaseExt(source.KeyPath.Text)
+	_, base, ext := logger.PlatformIndependentPathDirBaseExt(source.KeyPath.Text)
 
 	// The special "default" loader determines the loader from the file path
 	if loader == config.LoaderDefault {

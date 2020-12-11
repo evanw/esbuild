@@ -560,7 +560,7 @@ let pluginTests = {
 
   async virtualEntryPoints({ esbuild, testDir }) {
     const result = await esbuild.build({
-      entryPoints: ['1', '2'],
+      entryPoints: ['1', '2', 'a<>:"|?*b', 'a/b/c.d.e'],
       bundle: true, write: false, outdir: testDir, format: 'esm', plugins: [{
         name: 'name',
         setup(build) {
@@ -573,11 +573,15 @@ let pluginTests = {
         },
       }],
     })
-    assert.strictEqual(result.outputFiles.length, 2)
-    assert.strictEqual(result.outputFiles[0].path, path.join(testDir, 'input_1.js'))
+    assert.strictEqual(result.outputFiles.length, 4)
+    assert.strictEqual(result.outputFiles[0].path, path.join(testDir, 'input 1.js'))
+    assert.strictEqual(result.outputFiles[1].path, path.join(testDir, 'input 2.js'))
+    assert.strictEqual(result.outputFiles[2].path, path.join(testDir, 'input a_b.js'))
+    assert.strictEqual(result.outputFiles[3].path, path.join(testDir, 'c.d.js'))
     assert.strictEqual(result.outputFiles[0].text, `// virtual-ns:input 1\nconsole.log("input 1");\n`)
-    assert.strictEqual(result.outputFiles[1].path, path.join(testDir, 'input_2.js'))
     assert.strictEqual(result.outputFiles[1].text, `// virtual-ns:input 2\nconsole.log("input 2");\n`)
+    assert.strictEqual(result.outputFiles[2].text, `// virtual-ns:input a<>:"|?*b\nconsole.log('input a<>:"|?*b');\n`)
+    assert.strictEqual(result.outputFiles[3].text, `// virtual-ns:input a/b/c.d.e\nconsole.log("input a/b/c.d.e");\n`)
   },
 
   async stdinImporter({ esbuild, testDir }) {

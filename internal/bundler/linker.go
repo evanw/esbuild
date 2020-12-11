@@ -2475,6 +2475,51 @@ func (c *linkerContext) includePart(sourceIndex uint32, partIndex uint32, entryP
 	c.includePartsForRuntimeSymbol(part, &repr.meta, exportStarUses, "__exportStar", entryPointBit, distanceFromEntryPoint)
 }
 
+func baseFileNameForVirtualModulePath(path string) string {
+	_, base, ext := logger.PlatformIndependentPathDirBaseExt(path)
+
+	// Convert it to a safe file name. See: https://stackoverflow.com/a/31976060
+	sb := strings.Builder{}
+	needsGap := false
+	for _, c := range base + ext {
+		switch c {
+		case 0, '/':
+			// These characters are forbidden on Unix and Windows
+
+		case '<', '>', ':', '"', '\\', '|', '?', '*':
+			// These characters are forbidden on Windows
+
+		default:
+			if c < 0x20 {
+				// These characters are forbidden on Windows
+				break
+			}
+
+			// Turn runs of invalid characters into a '_'
+			if needsGap {
+				sb.WriteByte('_')
+				needsGap = false
+			}
+
+			sb.WriteRune(c)
+			continue
+		}
+
+		if sb.Len() > 0 {
+			needsGap = true
+		}
+	}
+
+	// Make sure the name isn't empty
+	if sb.Len() == 0 {
+		return "_"
+	}
+
+	// Note: An extension will be added to this base name, so there is no need to
+	// avoid forbidden file names such as ".." since ".js" is a valid file name.
+	return sb.String()
+}
+
 func (c *linkerContext) computeChunks() []chunkInfo {
 	chunks := make(map[string]chunkInfo)
 	neverReachedKey := string(newBitSet(uint(len(c.entryPoints))).entries)
@@ -2498,7 +2543,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		} else {
 			source := file.source
 			if source.KeyPath.Namespace != "file" {
-				baseName = source.IdentifierName
+				baseName = baseFileNameForVirtualModulePath(source.KeyPath.Text)
 			} else if relPath, ok := c.fs.Rel(c.options.AbsOutputBase, source.KeyPath.Text); ok {
 				relDir = c.fs.Dir(relPath)
 				baseName = c.fs.Base(relPath)

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+* Escape fewer characters in virtual module paths ([#588](https://github.com/evanw/esbuild/issues/588))
+
+    If a module's path is not in the `file` namespace (i.e. it was created by a plugin), esbuild doesn't assume it's a file system path. The meaning of these paths is entirely up to the plugin. It could be anything including a HTTP URL, a string of code, or randomly-generated characters.
+
+    Currently esbuild generates a file name for these virtual modules using an internal "human-friendly identifier" that can also be used as a valid JavaScript identifier, which is sometimes used to for example derive the name of the default export of a bundled module. But that means virtual module paths which _do_ happen to represent file system paths could cause more characters to be escaped than necessary. For example, esbuild escapes `-` to `_` because `-` is not valid in a JavaScript identifier.
+
+    This release separates the file names derived from virtual module paths from the internal "human-friendly identifier" concept. Characters in the virtual module path that are valid in file paths are no longer escaped.
+
+    In the future the output file name of a virtual module will likely be completely customizable with a plugin, so it will be possible to have different behavior for this if desired. But that isn't possible quite yet.
+
 ## 0.8.21
 
 * On-resolve plugins now apply to entry points ([#546](https://github.com/evanw/esbuild/issues/546))

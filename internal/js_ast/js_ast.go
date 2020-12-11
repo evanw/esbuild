@@ -2,7 +2,6 @@ package js_ast
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
@@ -1629,37 +1628,6 @@ func MergeSymbols(symbols SymbolMap, old Ref, new Ref) Ref {
 	return new
 }
 
-// This has a custom implementation instead of using "filepath.Dir/Base/Ext"
-// because it should work the same on Unix and Windows. These names end up in
-// the generated output and the generated output should not depend on the OS.
-func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ext string) {
-	for {
-		i := strings.LastIndexAny(path, "/\\")
-
-		// Stop if there are no more slashes
-		if i < 0 {
-			base = path
-			break
-		}
-
-		// Stop if we found a non-trailing slash
-		if i+1 != len(path) {
-			dir, base = path[:i], path[i+1:]
-			break
-		}
-
-		// Ignore trailing slashes
-		path = path[:i]
-	}
-
-	// Strip off the extension
-	if dot := strings.LastIndexByte(base, '.'); dot >= 0 {
-		base, ext = base[:dot], base[dot:]
-	}
-
-	return
-}
-
 // For readability, the names of certain automatically-generated symbols are
 // derived from the file name. For example, instead of the CommonJS wrapper for
 // a file being called something like "require273" it can be called something
@@ -1673,14 +1641,14 @@ func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ex
 // collisions.
 func GenerateNonUniqueNameFromPath(path string) string {
 	// Get the file name without the extension
-	dir, base, _ := PlatformIndependentPathDirBaseExt(path)
+	dir, base, _ := logger.PlatformIndependentPathDirBaseExt(path)
 
 	// If the name is "index", use the directory name instead. This is because
 	// many packages in npm use the file name "index.js" because it triggers
 	// node's implicit module resolution rules that allows you to import it by
 	// just naming the directory.
 	if base == "index" {
-		_, dirBase, _ := PlatformIndependentPathDirBaseExt(dir)
+		_, dirBase, _ := logger.PlatformIndependentPathDirBaseExt(dir)
 		if dirBase != "" {
 			base = dirBase
 		}
