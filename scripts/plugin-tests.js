@@ -783,7 +783,13 @@ async function main() {
     process.exit(1)
   } else {
     console.log(`✅ plugin tests passed`)
-    rimraf.sync(rootTestDir, { disableGlob: true })
+
+    try {
+      rimraf.sync(rootTestDir, { disableGlob: true })
+    } catch (e) {
+      // This doesn't work on Windows due to "EPERM: operation not permitted"
+      // but that's ok for CI because the VM will just be thrown away anyway.
+    }
   }
 }
 

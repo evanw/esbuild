@@ -66,12 +66,10 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys): void {
 
 export function validateServiceOptions(options: types.ServiceOptions): types.ServiceOptions {
   let keys: OptionKeys = Object.create(null);
-  let allowSync = getFlag(options, keys, 'allowSync', mustBeBoolean);
   let wasmURL = getFlag(options, keys, 'wasmURL', mustBeString);
   let worker = getFlag(options, keys, 'worker', mustBeBoolean);
   checkForInvalidFlags(options, keys);
   return {
-    allowSync,
     wasmURL,
     worker,
   };
@@ -108,6 +106,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
   let banner = getFlag(options, keys, 'banner', mustBeString);
   let footer = getFlag(options, keys, 'footer', mustBeString);
+  getFlag(options as any, keys, 'workerThread', mustBeBoolean);
 
   if (target) {
     if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)

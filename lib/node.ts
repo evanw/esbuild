@@ -100,6 +100,13 @@ export let transform: typeof types.transform = (input, options) => {
 };
 
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
+  // Try using a long-lived worker thread to avoid repeated start-up overhead
+  if (worker_threads && options.workerThread) {
+    if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
+    return workerThreadService.buildSync(options);
+  }
+
+  // Otherwise, fall back to running a dedicated child process
   let result: types.BuildResult;
   runServiceSync(service => service.buildOrServe(null, options, isTTY(), (err, res) => {
     if (err) throw err;
@@ -109,6 +116,13 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
 };
 
 export let transformSync: typeof types.transformSync = (input, options) => {
+  // Try using a long-lived worker thread to avoid repeated start-up overhead
+  if (worker_threads && options && options.workerThread) {
+    if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
+    return workerThreadService.transformSync(input, options);
+  }
+
+  // Otherwise, fall back to running a dedicated child process
   let result: types.TransformResult;
   runServiceSync(service => service.transform(input, options || {}, isTTY(), {
     readFile(tempFile, callback) {
@@ -139,11 +153,10 @@ export let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
-export let startServiceSync: typeof types.startServiceSync = options => {
+export let startService: typeof types.startService = options => {
   options = common.validateServiceOptions(options || {});
   if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
   if (options.worker) throw new Error(`The "worker" option only works in the browser`)
-  if (options.allowSync) return startSyncService();
   let [command, args] = esbuildCommandAndArgs();
   let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`), {
     cwd: process.cwd(),
@@ -162,7 +175,7 @@ export let startServiceSync: typeof types.startServiceSync = options => {
   child.stdout.on('end', afterClose);
 
   // Create an asynchronous Promise-based API
-  return {
+  return Promise.resolve({
     build: (options: types.BuildOptions): Promise<any> =>
       new Promise<types.BuildResult>((resolve, reject) =>
         service.buildOrServe(null, options, isTTY(), (err, res) =>
@@ -200,18 +213,8 @@ export let startServiceSync: typeof types.startServiceSync = options => {
             }
           },
         }, (err, res) => err ? reject(err) : resolve(res!))),
-    buildSync() {
-      throw new Error(`You must set "allowSync" to true to use the "buildSync" API`);
-    },
-    transformSync() {
-      throw new Error(`You must set "allowSync" to true to use the "transformSync" API`);
-    },
     stop() { child.kill(); },
-  };
-};
-
-export let startService: typeof types.startService = options => {
-  return Promise.resolve(startServiceSync(options));
+  });
 };
 
 let runServiceSync = (callback: (service: common.StreamService) => void): void => {
@@ -250,14 +253,14 @@ interface WorkerData {
   workerToMain: import('worker_threads').MessagePort;
 }
 
-let startSyncService = (): types.Service => {
-  if (!worker_threads) throw new Error('Cannot use "allowSync" without the "worker_threads" library');
+interface WorkerThreadService {
+  buildSync(options: types.BuildOptions): types.BuildResult;
+  transformSync(input: string, options?: types.TransformOptions): types.TransformResult;
+}
 
-  interface PromiseData {
-    resolve(value: any): void;
-    reject(error: any): void;
-  }
+let workerThreadService: WorkerThreadService | null = null;
 
+let startWorkerThreadService = (worker_threads: typeof import('worker_threads')): WorkerThreadService => {
   let { port1: mainToWorker, port2: workerToMain } = new worker_threads.MessageChannel();
   let sharedBuffer = new SharedArrayBuffer(8);
   let sharedBufferView = new Int32Array(sharedBuffer);
@@ -267,15 +270,15 @@ let startSyncService = (): types.Service => {
     transferList: [workerToMain],
   });
   let nextID = 0;
-  let pendingAsyncCalls = new Map<number, PromiseData>();
   let wasStopped = false;
 
-  let validateBuildOptionsForAllowSync = (options: types.BuildOptions | undefined): void => {
+  // This forbids options which would cause structured clone errors
+  let validateBuildSyncOptions = (options: types.BuildOptions | undefined): void => {
     if (!options) return
     let plugins = options.plugins
     let incremental = options.incremental
-    if (plugins && plugins.length > 0) throw new Error(`Cannot use plugins with "allowSync"`);
-    if (incremental) throw new Error(`Cannot use incremental builds with "allowSync"`);
+    if (plugins && plugins.length > 0) throw new Error(`Cannot use plugins in synchronous API calls`);
+    if (incremental) throw new Error(`Cannot use "incremental" with a synchronous build`);
   };
 
   // MessagePort doesn't copy the properties of Error objects. We still want
@@ -285,15 +288,6 @@ let startSyncService = (): types.Service => {
     for (let key in properties) {
       object[key] = properties[key];
     }
-  };
-
-  let runCallAsync = (command: string, args: any[]): Promise<any> => {
-    if (wasStopped) throw new Error('The service was stopped');
-    return new Promise((resolve, reject) => {
-      let id = nextID++;
-      pendingAsyncCalls.set(id, { resolve, reject });
-      worker.postMessage({ id, command, args });
-    });
   };
 
   let runCallSync = (command: string, args: any[]): any => {
@@ -319,43 +313,19 @@ let startSyncService = (): types.Service => {
     return resolve;
   };
 
-  worker.on('message', ({ id, resolve, reject, properties }) => {
-    let result = pendingAsyncCalls.get(id)!;
-    if (properties) {
-      applyProperties(reject, properties);
-      result.reject(reject);
-    } else {
-      result.resolve(resolve);
-    }
-  });
-
   // Calling unref() on a worker will allow the thread to exit if it's the last
-  // only active handle in the event system.
+  // only active handle in the event system. This means node will still exit
+  // when there are no more event handlers from the main thread. So there's no
+  // need to have a "stop()" function.
   worker.unref();
 
   return {
-    build(options: any) {
-      validateBuildOptionsForAllowSync(options);
-      return runCallAsync('build', [options]);
-    },
-    serve() {
-      throw new Error('Cannot use serve with "allowSync"');
-    },
-    transform(input, options) {
-      return runCallAsync('transform', [input, options]);
-    },
-    buildSync(options: any) {
-      validateBuildOptionsForAllowSync(options);
-      return runCallSync('buildSync', [options]);
+    buildSync(options) {
+      validateBuildSyncOptions(options);
+      return runCallSync('build', [options]);
     },
     transformSync(input, options) {
-      return runCallSync('transformSync', [input, options]);
-    },
-    stop() {
-      // Stop the child process, then stop the worker
-      let stop = () => worker.terminate();
-      if (!wasStopped) runCallAsync('stop', []).then(stop, stop);
-      wasStopped = true;
+      return runCallSync('transform', [input, options]);
     },
   };
 };
@@ -384,24 +354,6 @@ let startSyncServiceWorker = () => {
       switch (command) {
         case 'build':
           try {
-            let resolve = await service.build(args[0]);
-            parentPort.postMessage({ id, resolve });
-          } catch (reject) {
-            parentPort.postMessage({ id, reject, properties: extractProperties(reject) });
-          }
-          break;
-
-        case 'transform':
-          try {
-            let resolve = await service.transform(args[0], args[1])
-            parentPort.postMessage({ id, resolve });
-          } catch (reject) {
-            parentPort.postMessage({ id, reject, properties: extractProperties(reject) });
-          }
-          break;
-
-        case 'buildSync':
-          try {
             let resolve = await service.build(args[0])
             workerToMain.postMessage({ id, resolve });
           } catch (reject) {
@@ -410,7 +362,7 @@ let startSyncServiceWorker = () => {
           Atomics.notify(sharedBufferView, 0, Infinity);
           break;
 
-        case 'transformSync':
+        case 'transform':
           try {
             let resolve = await service.transform(args[0], args[1])
             workerToMain.postMessage({ id, resolve });
@@ -419,18 +371,6 @@ let startSyncServiceWorker = () => {
           }
           Atomics.notify(sharedBufferView, 0, Infinity);
           break;
-
-        case 'stop':
-          try {
-            service.stop();
-            parentPort.postMessage({ id });
-          } catch (reject) {
-            parentPort.postMessage({ id, reject, properties: extractProperties(reject) });
-          }
-          break;
-
-        default:
-          parentPort.postMessage({ id, reject: new Error('Unexpected command: ' + command), properties: [] });
       }
     });
   });
