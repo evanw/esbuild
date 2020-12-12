@@ -106,7 +106,6 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
   let banner = getFlag(options, keys, 'banner', mustBeString);
   let footer = getFlag(options, keys, 'footer', mustBeString);
-  getFlag(options as any, keys, 'workerThread', mustBeBoolean);
 
   if (target) {
     if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)

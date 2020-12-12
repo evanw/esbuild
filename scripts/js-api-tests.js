@@ -2113,28 +2113,35 @@ let transformTests = {
   asyncGenClassExprFn: ({ service }) => futureSyntax(service, '(class { async* foo() {} })', 'es2017', 'es2018'),
 }
 
-let syncTests = workerThread => ({
-  async ['buildSync-' + workerThread]({ esbuild, testDir }) {
+let syncTests = {
+  async buildSync({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, 'export default 123')
-    esbuild.buildSync({ workerThread, entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
+    esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs' })
     const result = require(output)
     assert.strictEqual(result.default, 123)
     assert.strictEqual(result.__esModule, true)
   },
 
-  async ['transformSync-' + workerThread]({ esbuild }) {
-    const { code } = esbuild.transformSync(`console.log(1+2)`, { workerThread })
+  async transformSync({ esbuild }) {
+    const { code } = esbuild.transformSync(`console.log(1+2)`, {})
     assert.strictEqual(code, `console.log(1 + 2);\n`)
   },
 
-  async ['buildSyncThrow-' + workerThread]({ esbuild, testDir }) {
+  async transformSync100x({ esbuild }) {
+    for (let i = 0; i < 100; i++) {
+      const { code } = esbuild.transformSync(`console.log(1+${i})`, {})
+      assert.strictEqual(code, `console.log(1 + ${i});\n`)
+    }
+  },
+
+  async buildSyncThrow({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     try {
       const output = path.join(testDir, 'out.js')
       await writeFileAsync(input, '1+')
-      esbuild.buildSync({ workerThread, entryPoints: [input], bundle: true, outfile: output, format: 'cjs', logLevel: 'silent' })
+      esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', logLevel: 'silent' })
       const result = require(output)
       assert.strictEqual(result.default, 123)
       assert.strictEqual(result.__esModule, true)
@@ -2148,12 +2155,12 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
     }
   },
 
-  async ['buildSyncIncrementalThrow-' + workerThread]({ esbuild, testDir }) {
+  async buildSyncIncrementalThrow({ esbuild, testDir }) {
     try {
       const input = path.join(testDir, 'in.js')
       const output = path.join(testDir, 'out.js')
       await writeFileAsync(input, '1+')
-      esbuild.buildSync({ workerThread, entryPoints: [input], bundle: true, outfile: output, format: 'cjs', logLevel: 'silent', incremental: true })
+      esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', logLevel: 'silent', incremental: true })
       const result = require(output)
       assert.strictEqual(result.default, 123)
       assert.strictEqual(result.__esModule, true)
@@ -2166,9 +2173,9 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
     }
   },
 
-  async ['transformThrow-' + workerThread]({ service }) {
+  async transformThrow({ service }) {
     try {
-      await service.transform(`1+`, { workerThread })
+      await service.transform(`1+`, {})
       throw new Error('Expected an error to be thrown');
     } catch (error) {
       assert(error instanceof Error, 'Must be an Error object');
@@ -2177,7 +2184,7 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
       assert.strictEqual(error.warnings.length, 0);
     }
   },
-})
+}
 
 async function assertSourceMap(jsSourceMap, source) {
   const map = await new SourceMapConsumer(jsSourceMap)
@@ -2191,7 +2198,7 @@ async function main() {
   const esbuild = installForTests(rootTestDir)
 
   // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
-  let minutes = 0.5
+  let minutes = 5
   let timeout = setTimeout(() => {
     console.error(`❌ js api tests timed out after ${minutes} minutes, exiting...`)
     process.exit(1)
@@ -2217,10 +2224,7 @@ async function main() {
     ...Object.entries(buildTests),
     ...Object.entries(serveTests),
     ...Object.entries(transformTests),
-
-    // Run sync tests both without and with the worker thread
-    ...Object.entries(syncTests(false)),
-    ...Object.entries(syncTests(true)),
+    ...Object.entries(syncTests),
   ]
   const allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
 

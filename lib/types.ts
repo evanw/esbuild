@@ -30,12 +30,6 @@ interface CommonOptions {
   color?: boolean;
   logLevel?: LogLevel;
   errorLimit?: number;
-
-  // This option only applies to "buildSync" and "transformSync". Enable it for
-  // extra speed if you plan on calling these functions repeatedly. It creates
-  // a long-lived worker thread that is reused across calls and which should be
-  // automatically cleaned up when the process exits.
-  workerThread?: boolean;
 }
 
 export interface BuildOptions extends CommonOptions {

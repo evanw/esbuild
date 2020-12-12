@@ -12,13 +12,11 @@
 
     In the future the output file name of a virtual module will likely be completely customizable with a plugin, so it will be possible to have different behavior for this if desired. But that isn't possible quite yet.
 
-* Added an option to speed up the JavaScript `buildSync` and `transformSync` APIs ([#590](https://github.com/evanw/esbuild/issues/590))
+* Speed up the JavaScript `buildSync` and `transformSync` APIs ([#590](https://github.com/evanw/esbuild/issues/590))
 
     Previously the `buildSync` and `transformSync` API calls created a new child esbuild process on every call because communicating with a long-lived child process is asynchronous in node. However, there's a trick that can work around this limitation: esbuild can communicate with the long-lived child process from a child thread using node's [`worker_threads`](https://nodejs.org/api/worker_threads.html) module and block the main thread using JavaScript's new [Atomics API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Atomics/wait). This was a tip from [@cspotcode](https://github.com/cspotcode).
 
-    This approach has now been implemented. A quick benchmark shows that these synchronous API calls are now 1.5x to 15x faster than they used to be. The speedup depends on the size of the input (smaller inputs get a bigger speedup). The worker thread and child process should automatically be terminated when there are no more event handlers registered on the main thread, so there is no explicit `stop()` call like there is with a service object.
-
-    This change is experimental. You have to opt-in to this change by passing `workerThread: true` to `buildSync` or `transformSync` to get the accelerated version. Be aware that there may be issues with this approach on Windows. One of my Windows CI runs hung during JavaScript API tests, although I have been unable to reproduce it myself. I'm currently looking for feedback on this new synchronous API approach.
+    This approach has now been implemented. A quick benchmark shows that `transformSync` is now 1.5x to 15x faster than it used to be. The speedup depends on the size of the input (smaller inputs get a bigger speedup). The worker thread and child process should automatically be terminated when there are no more event handlers registered on the main thread, so there is no explicit `stop()` call like there is with a service object.
 
 ## 0.8.21
 

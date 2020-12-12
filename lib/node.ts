@@ -101,7 +101,7 @@ export let transform: typeof types.transform = (input, options) => {
 
 export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
-  if (worker_threads && options.workerThread) {
+  if (worker_threads) {
     if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
     return workerThreadService.buildSync(options);
   }
@@ -117,7 +117,7 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
 
 export let transformSync: typeof types.transformSync = (input, options) => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
-  if (worker_threads && options && options.workerThread) {
+  if (worker_threads) {
     if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
     return workerThreadService.transformSync(input, options);
   }
@@ -248,9 +248,11 @@ let randomFileName = () => {
   return path.join(os.tmpdir(), `esbuild-${crypto.randomBytes(32).toString('hex')}`);
 };
 
-interface WorkerData {
+interface MainToWorkerMessage {
   sharedBuffer: SharedArrayBuffer;
-  workerToMain: import('worker_threads').MessagePort;
+  id: number;
+  command: string;
+  args: any[];
 }
 
 interface WorkerThreadService {
@@ -261,13 +263,10 @@ interface WorkerThreadService {
 let workerThreadService: WorkerThreadService | null = null;
 
 let startWorkerThreadService = (worker_threads: typeof import('worker_threads')): WorkerThreadService => {
-  let { port1: mainToWorker, port2: workerToMain } = new worker_threads.MessageChannel();
-  let sharedBuffer = new SharedArrayBuffer(8);
-  let sharedBufferView = new Int32Array(sharedBuffer);
-  let workerData: WorkerData = { sharedBuffer, workerToMain };
+  let { port1: mainPort, port2: workerPort } = new worker_threads.MessageChannel();
   let worker = new worker_threads.Worker(__filename, {
-    workerData,
-    transferList: [workerToMain],
+    workerData: workerPort,
+    transferList: [workerPort],
   });
   let nextID = 0;
   let wasStopped = false;
@@ -293,18 +292,27 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
   let runCallSync = (command: string, args: any[]): any => {
     if (wasStopped) throw new Error('The service was stopped');
     let id = nextID++;
-    worker.postMessage({ id, command, args });
 
-    // Time out after 10 minutes. This should be long enough that esbuild
-    // shouldn't exceed this time but short enough that CI should fail if
-    // something went wrong with waiting. I added this because I experienced
-    // a random hang on the Windows CI machine that was presumably caused
-    // by this.
-    let timeout = 10 * 60 * 1000;
-    let status = Atomics.wait(sharedBufferView, 0, 0, timeout);
-    if (status !== 'ok') throw new Error('Internal error: Atomics.wait() failed: ' + status);
+    // Make a fresh shared buffer for every request. That way we can't have a
+    // race where a notification from the previous call overlaps with this call.
+    let sharedBuffer = new SharedArrayBuffer(8);
+    let sharedBufferView = new Int32Array(sharedBuffer);
 
-    let { message: { id: id2, resolve, reject, properties } } = worker_threads!.receiveMessageOnPort(mainToWorker)!;
+    // Send the message to the worker. Note that the worker could potentially
+    // complete the request before this thread returns from this call.
+    let msg: MainToWorkerMessage = { sharedBuffer, id, command, args };
+    worker.postMessage(msg);
+
+    // If the value hasn't changed (i.e. the request hasn't been completed,
+    // wait until the worker thread notifies us that the request is complete).
+    //
+    // Otherwise, if the value has changed, the request has already been
+    // completed. Don't wait in that case because the notification may never
+    // arrive if it has already been sent.
+    let status = Atomics.wait(sharedBufferView, 0, 0);
+    if (status !== 'ok' && status !== 'not-equal') throw new Error('Internal error: Atomics.wait() failed: ' + status);
+
+    let { message: { id: id2, resolve, reject, properties } } = worker_threads!.receiveMessageOnPort(mainPort)!;
     if (id !== id2) throw new Error(`Internal error: Expected id ${id} but got id ${id2}`);
     if (reject) {
       applyProperties(reject, properties);
@@ -331,8 +339,7 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
 };
 
 let startSyncServiceWorker = () => {
-  let { sharedBuffer, workerToMain } = worker_threads!.workerData as WorkerData;
-  let sharedBufferView = new Int32Array(sharedBuffer);
+  let workerPort: import('worker_threads').MessagePort = worker_threads!.workerData;
   let parentPort = worker_threads!.parentPort!;
   let servicePromise = startService();
 
@@ -349,29 +356,35 @@ let startSyncServiceWorker = () => {
     return properties;
   };
 
-  parentPort.on('message', ({ id, command, args }: { id: number, command: string, args: any[] }) => {
+  parentPort.on('message', (msg: MainToWorkerMessage) => {
     servicePromise.then(async (service) => {
-      switch (command) {
-        case 'build':
-          try {
-            let resolve = await service.build(args[0])
-            workerToMain.postMessage({ id, resolve });
-          } catch (reject) {
-            workerToMain.postMessage({ id, reject, properties: extractProperties(reject) });
-          }
-          Atomics.notify(sharedBufferView, 0, Infinity);
-          break;
+      let { sharedBuffer, id, command, args } = msg;
+      let sharedBufferView = new Int32Array(sharedBuffer);
 
-        case 'transform':
-          try {
-            let resolve = await service.transform(args[0], args[1])
-            workerToMain.postMessage({ id, resolve });
-          } catch (reject) {
-            workerToMain.postMessage({ id, reject, properties: extractProperties(reject) });
-          }
-          Atomics.notify(sharedBufferView, 0, Infinity);
-          break;
+      try {
+        if (command === 'build') {
+          workerPort.postMessage({ id, resolve: await service.build(args[0]) });
+        } else if (command === 'transform') {
+          workerPort.postMessage({ id, resolve: await service.transform(args[0], args[1]) });
+        } else {
+          throw new Error(`Invalid command: ${command}`);
+        }
+      } catch (reject) {
+        workerPort.postMessage({ id, reject, properties: extractProperties(reject) });
       }
+
+      // The message has already been posted by this point, so it should be
+      // safe to wake the main thread. The main thread should always get the
+      // message we sent above.
+
+      // First, change the shared value. That way if the main thread attempts
+      // to wait for us after this point, the wait will fail because the shared
+      // value has changed.
+      Atomics.add(sharedBufferView, 0, 1);
+
+      // Then, wake the main thread. This handles the case where the main
+      // thread was already waiting for us before the shared value was changed.
+      Atomics.notify(sharedBufferView, 0, Infinity);
     });
   });
 };
