@@ -72,6 +72,7 @@ platform-all: cmd/esbuild/version.go test-all
 		platform-freebsd-arm64 \
 		platform-linux \
 		platform-linux-32 \
+		platform-linux-arm \
 		platform-linux-arm64 \
 		platform-linux-mips64le \
 		platform-linux-ppc64le \
@@ -107,6 +108,9 @@ platform-linux:
 platform-linux-32:
 	make GOOS=linux GOARCH=386 NPMDIR=npm/esbuild-linux-32 platform-unixlike
 
+platform-linux-arm:
+	make GOOS=linux GOARCH=arm NPMDIR=npm/esbuild-linux-arm platform-unixlike
+
 platform-linux-arm64:
 	make GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
 
@@ -134,16 +138,19 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	@test "" = "`git cherry`" || (echo "Refusing to publish with unpushed commits" && false)
 	rm -fr npm && git checkout npm
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j5 \
+	@read OTP && OTP="$$OTP" make -j4 \
 		publish-windows \
 		publish-windows-32 \
-		publish-darwin \
 		publish-freebsd \
 		publish-freebsd-arm64
 	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" make -j5 \
+	@read OTP && OTP="$$OTP" make -j4 \
+		publish-darwin \
 		publish-linux \
-		publish-linux-32 \
+		publish-linux-32
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" make -j4 \
+		publish-linux-arm \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
 		publish-linux-ppc64le
@@ -177,6 +184,9 @@ publish-linux: platform-linux
 publish-linux-32: platform-linux-32
 	test -n "$(OTP)" && cd npm/esbuild-linux-32 && npm publish --otp="$(OTP)"
 
+publish-linux-arm: platform-linux-arm
+	test -n "$(OTP)" && cd npm/esbuild-linux-arm && npm publish --otp="$(OTP)"
+
 publish-linux-arm64: platform-linux-arm64
 	test -n "$(OTP)" && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
 
@@ -201,6 +211,7 @@ clean:
 	rm -rf npm/esbuild-freebsd-amd64/bin
 	rm -rf npm/esbuild-linux-32/bin
 	rm -rf npm/esbuild-linux-64/bin
+	rm -rf npm/esbuild-linux-arm/bin
 	rm -rf npm/esbuild-linux-arm64/bin
 	rm -rf npm/esbuild-linux-mips64le/bin
 	rm -rf npm/esbuild-linux-ppc64le/bin

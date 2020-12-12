@@ -18,6 +18,10 @@
 
     This approach has now been implemented. A quick benchmark shows that `transformSync` is now 1.5x to 15x faster than it used to be. The speedup depends on the size of the input (smaller inputs get a bigger speedup). The worker thread and child process should automatically be terminated when there are no more event handlers registered on the main thread, so there is no explicit `stop()` call like there is with a service object.
 
+* Distribute a 32-bit Linux ARM binary executable via npm
+
+    You should now be able to use npm to install esbuild on a 32-bit Linux ARM device. This lets you run esbuild on a Raspberry Pi. Note that this target isn't officially supported because it's not covered by any automated tests.
+
 ## 0.8.21
 
 * On-resolve plugins now apply to entry points ([#546](https://github.com/evanw/esbuild/issues/546))
