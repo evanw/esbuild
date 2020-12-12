@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.22
 
 * Escape fewer characters in virtual module paths ([#588](https://github.com/evanw/esbuild/issues/588))
 
@@ -16,7 +16,7 @@
 
     Previously the `buildSync` and `transformSync` API calls created a new child esbuild process on every call because communicating with a long-lived child process is asynchronous in node. However, there's a trick that can work around this limitation: esbuild can communicate with the long-lived child process from a child thread using node's [`worker_threads`](https://nodejs.org/api/worker_threads.html) module and block the main thread using JavaScript's new [Atomics API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Atomics/wait). This was a tip from [@cspotcode](https://github.com/cspotcode).
 
-    This approach has now been implemented. A quick benchmark shows that `transformSync` is now 1.5x to 15x faster than it used to be. The speedup depends on the size of the input (smaller inputs get a bigger speedup). The worker thread and child process should automatically be terminated when there are no more event handlers registered on the main thread, so there is no explicit `stop()` call like there is with a service object.
+    This approach has now been implemented. A quick benchmark shows that `transformSync` is now **1.5x to 15x faster** than it used to be. The speedup depends on the size of the input (smaller inputs get a bigger speedup). The worker thread and child process should automatically be terminated when there are no more event handlers registered on the main thread, so there is no explicit `stop()` call like there is with a service object.
 
 * Distribute a 32-bit Linux ARM binary executable via npm ([#528](https://github.com/evanw/esbuild/issues/528))
 
