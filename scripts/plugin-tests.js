@@ -755,8 +755,16 @@ let pluginTests = {
 }
 
 async function main() {
-  // Start the esbuild service
   const esbuild = installForTests(rootTestDir)
+
+  // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
+  let minutes = 5
+  let timeout = setTimeout(() => {
+    console.error(`❌ js api tests timed out after ${minutes} minutes, exiting...`)
+    process.exit(1)
+  }, minutes * 60 * 1000)
+
+  // Start the esbuild service
   const service = await esbuild.startService()
 
   // Run all tests concurrently
@@ -791,6 +799,8 @@ async function main() {
       // but that's ok for CI because the VM will just be thrown away anyway.
     }
   }
+
+  clearTimeout(timeout);
 }
 
 main().catch(e => setTimeout(() => { throw e }))
