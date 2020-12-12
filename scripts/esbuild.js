@@ -2,6 +2,7 @@ const childProcess = require('child_process')
 const rimraf = require('rimraf')
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
 
 const repoDir = path.dirname(__dirname)
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
@@ -120,14 +121,23 @@ exports.installForTests = dir => {
   const esbuildPath = exports.buildBinary()
   buildNativeLib(esbuildPath)
 
-  // Install the "esbuild" package
+  // Install the "esbuild" package to a temporary directory. On Windows, it's
+  // sometimes randomly impossible to delete this installation directory. My
+  // best guess is that this is because the esbuild process is kept alive until
+  // the process exits for "buildSync" and "transformSync", and that sometimes
+  // prevents Windows from deleting the directory it's in. The call in tests to
+  // "rimraf.sync()" appears to hang when this happens. Other operating systems
+  // don't have a problem with this. This has only been a problem on the Windows
+  // VM in GitHub CI. I cannot reproduce this issue myself.
+  const installDir = path.join(os.tmpdir(), 'esbuild-' + Math.random().toString(36).slice(2))
   const env = { ...process.env, ESBUILD_BIN_PATH_FOR_TESTS: esbuildPath }
-  fs.writeFileSync(path.join(dir, 'package.json'), '{}')
-  childProcess.execSync(`npm pack --silent "${npmDir}"`, { cwd: dir, stdio: 'inherit' })
-  childProcess.execSync(`npm install --silent --no-audit --progress=false esbuild-${version}.tgz`, { cwd: dir, env, stdio: 'inherit' })
+  fs.mkdirSync(installDir)
+  fs.writeFileSync(path.join(installDir, 'package.json'), '{}')
+  childProcess.execSync(`npm pack --silent "${npmDir}"`, { cwd: installDir, stdio: 'inherit' })
+  childProcess.execSync(`npm install --silent --no-audit --progress=false esbuild-${version}.tgz`, { cwd: installDir, env, stdio: 'inherit' })
 
   // Evaluate the code
-  return require(path.join(dir, 'node_modules', 'esbuild'))
+  return require(path.join(installDir, 'node_modules', 'esbuild'))
 }
 
 // This is helpful for ES6 modules which don't have access to __dirname
