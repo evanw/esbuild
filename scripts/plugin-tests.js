@@ -84,6 +84,166 @@ let pluginTests = {
     }
   },
 
+  async pluginMissingName({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: [],
+        logLevel: 'silent',
+        plugins: [{
+          setup(build) {
+          },
+        }],
+      })
+    } catch (e) {
+      assert.strictEqual(e.message, 'Plugin at index 0 is missing a name')
+    }
+  },
+
+  async pluginMissingSetup({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: [],
+        logLevel: 'silent',
+        plugins: [{
+          name: 'x',
+        }],
+      })
+    } catch (e) {
+      assert.strictEqual(e.message, '[x] Plugin is missing a setup function')
+    }
+  },
+
+  async badPluginProperty({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: [],
+        logLevel: 'silent',
+        plugins: [{
+          name: 'x',
+          someRandomProperty: void 0,
+          setup(build) {
+          },
+        }],
+      })
+    } catch (e) {
+      assert.strictEqual(e.message, `Invalid option on plugin "x": "someRandomProperty"`)
+    }
+  },
+
+  async badPluginOnResolveProperty({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        logLevel: 'silent',
+        plugins: [{
+          name: 'x',
+          setup(build) {
+            build.onResolve({ whatIsThis: void 0 }, () => {
+            })
+          },
+        }],
+      })
+    } catch (e) {
+      assert.strictEqual(e.message, `Invalid option in onResolve() call for plugin "x": "whatIsThis"`)
+    }
+
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        logLevel: 'silent',
+        write: false,
+        plugins: [{
+          name: 'x',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => {
+              return '/'
+            })
+          },
+        }],
+      })
+    } catch (e) {
+      assert(e.message.endsWith('error: [x] Expected onResolve() callback in plugin "x" to return an object'), e.message)
+    }
+
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        logLevel: 'silent',
+        write: false,
+        plugins: [{
+          name: 'x',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => {
+              return { thisIsWrong: void 0 }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+      assert(e.message.endsWith('error: [x] Invalid option from onResolve() callback in plugin "x": "thisIsWrong"'), e.message)
+    }
+  },
+
+  async badPluginOnLoadProperty({ esbuild }) {
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        logLevel: 'silent',
+        plugins: [{
+          name: 'x',
+          setup(build) {
+            build.onLoad({ whatIsThis: void 0 }, () => {
+            })
+          },
+        }],
+      })
+    } catch (e) {
+      assert.strictEqual(e.message, `Invalid option in onLoad() call for plugin "x": "whatIsThis"`)
+    }
+
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        logLevel: 'silent',
+        write: false,
+        plugins: [{
+          name: 'x',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => {
+              return { path: 'y', namespace: 'z' }
+            })
+            build.onLoad({ filter: /.*/ }, () => {
+              return ""
+            })
+          },
+        }],
+      })
+    } catch (e) {
+      assert(e.message.endsWith(`error: [x] Expected onLoad() callback in plugin "x" to return an object`), e.message)
+    }
+
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        logLevel: 'silent',
+        write: false,
+        plugins: [{
+          name: 'x',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, () => {
+              return { path: 'y', namespace: 'z' }
+            })
+            build.onLoad({ filter: /.*/ }, () => {
+              return { thisIsWrong: void 0 }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+      assert(e.message.endsWith('error: [x] Invalid option from onLoad() callback in plugin "x": "thisIsWrong"'), e.message)
+    }
+  },
+
   async basicLoader({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const custom = path.join(testDir, 'example.custom')

@@ -117,7 +117,7 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
 
   // Otherwise, fall back to running a dedicated child process
   let result: types.BuildResult;
-  runServiceSync(service => service.buildOrServe(null, options, isTTY(), (err, res) => {
+  runServiceSync(service => service.buildOrServe('buildSync', null, options, isTTY(), (err, res) => {
     if (err) throw err;
     result = res as types.BuildResult;
   }));
@@ -135,7 +135,7 @@ export let transformSync: typeof types.transformSync = (input, options) => {
 
   // Otherwise, fall back to running a dedicated child process
   let result: types.TransformResult;
-  runServiceSync(service => service.transform(input, options || {}, isTTY(), {
+  runServiceSync(service => service.transform('transformSync', input, options || {}, isTTY(), {
     readFile(tempFile, callback) {
       try {
         let contents = fs.readFileSync(tempFile, 'utf8');
@@ -189,19 +189,19 @@ export let startService: typeof types.startService = options => {
   return Promise.resolve({
     build: (options: types.BuildOptions): Promise<any> =>
       new Promise<types.BuildResult>((resolve, reject) =>
-        service.buildOrServe(null, options, isTTY(), (err, res) =>
+        service.buildOrServe('build', null, options, isTTY(), (err, res) =>
           err ? reject(err) : resolve(res as types.BuildResult))),
     serve: (serveOptions, buildOptions) => {
       if (serveOptions === null || typeof serveOptions !== 'object')
         throw new Error('The first argument must be an object')
       return new Promise((resolve, reject) =>
-        service.buildOrServe(serveOptions, buildOptions, isTTY(), (err, res) =>
+        service.buildOrServe('serve', serveOptions, buildOptions, isTTY(), (err, res) =>
           err ? reject(err) : resolve(res as types.ServeResult)))
     },
     transform: (input, options) => {
       input += '';
       return new Promise((resolve, reject) =>
-        service.transform(input, options || {}, isTTY(), {
+        service.transform('transform', input, options || {}, isTTY(), {
           readFile(tempFile, callback) {
             try {
               fs.readFile(tempFile, 'utf8', (err, contents) => {
