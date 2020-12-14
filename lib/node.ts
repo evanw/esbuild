@@ -45,6 +45,10 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
     return [pathForYarn2, []];
   }
 
+  if (process.env.ESBUILD_BINARY_PATH) {
+    return [path.resolve(process.env.ESBUILD_BINARY_PATH), []];
+  }
+
   return [path.join(__dirname, '..', 'bin', 'esbuild'), []];
 };
 

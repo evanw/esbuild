@@ -237,7 +237,10 @@ function installWithWrapper(name: string, fromPath: string, toPath: string): voi
     binPath,
     `#!/usr/bin/env node
 const path = require('path');
-const esbuild_exe = path.join(__dirname, '..', ${JSON.stringify(toPath)});
+let esbuild_exe = path.join(__dirname, '..', ${JSON.stringify(toPath)});
+if (process.env.ESBUILD_BINARY_PATH) {
+  esbuild_exe [path.resolve(process.env.ESBUILD_BINARY_PATH), []];
+}
 const child_process = require('child_process');
 const { status } = child_process.spawnSync(esbuild_exe, process.argv.slice(2), { stdio: 'inherit' });
 process.exitCode = status === null ? 1 : status;
