@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Fix non-string objects being passed to `transformSync` ([#596](https://github.com/evanw/esbuild/issues/596))
+
+    The transform function is only supposed to take a string. The type definitions also specify that the input must be a string. However, it happened to convert non-string inputs to a string and some code relied on that behavior. A change in 0.8.22 broke that behavior for `transformSync` specifically for `Uint8Array` objects, which became an array of numbers instead of a string. This release ensures that the conversion to a string is done up front to avoid something unexpected happening in the implementation. Future releases will likely enforce that the input is a string and throw an error otherwise.
+
+* Revert the speedup to `transformSync` and `buildSync` ([#595](https://github.com/evanw/esbuild/issues/595))
+
+    This speedup relies on the `worker_threads` module in node. However, when esbuild is used via `node -r` as in `node -r esbuild-register file.ts`, the worker thread created by esbuild somehow ends up being completely detached from the main thread. This may be a bug in node itself. Regardless, the approach esbuild was using to improve speed doesn't work in all cases, so it has been reverted. It's unclear if it's possible to work around this issue, so this approach for improving the speed of synchronous APIs may be a dead end.
+
 ## 0.8.22
 
 * Escape fewer characters in virtual module paths ([#588](https://github.com/evanw/esbuild/issues/588))

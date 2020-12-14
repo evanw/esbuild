@@ -137,7 +137,10 @@ exports.installForTests = dir => {
   childProcess.execSync(`npm install --silent --no-audit --progress=false esbuild-${version}.tgz`, { cwd: installDir, env, stdio: 'inherit' })
 
   // Evaluate the code
-  return require(path.join(installDir, 'node_modules', 'esbuild'))
+  const ESBUILD_PACKAGE_PATH = path.join(installDir, 'node_modules', 'esbuild')
+  const mod = require(ESBUILD_PACKAGE_PATH)
+  mod.ESBUILD_PACKAGE_PATH = ESBUILD_PACKAGE_PATH
+  return mod
 }
 
 // This is helpful for ES6 modules which don't have access to __dirname

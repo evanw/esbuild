@@ -44,6 +44,9 @@ jobs:
     - name: npm ci
       run: cd scripts && npm ci
 
+    - name: Register Test
+      run: node scripts/register-test.js
+
     - name: Verify Source Map
       run: node scripts/verify-source-map.js
 
