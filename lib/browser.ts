@@ -82,12 +82,14 @@ export const startService: typeof types.startService = options => {
         new Promise<types.BuildResult>((resolve, reject) =>
           service.buildOrServe(null, options, false, (err, res) =>
             err ? reject(err) : resolve(res as types.BuildResult))),
-      transform: (input, options) =>
-        new Promise((resolve, reject) =>
+      transform: (input, options) => {
+        input += '';
+        return new Promise((resolve, reject) =>
           service.transform(input, options || {}, false, {
             readFile(_, callback) { callback(new Error('Internal error'), null); },
             writeFile(_, callback) { callback(null); },
-          }, (err, res) => err ? reject(err) : resolve(res!))),
+          }, (err, res) => err ? reject(err) : resolve(res!)))
+      },
       serve() {
         throw new Error(`The "serve" API only works in node`)
       },

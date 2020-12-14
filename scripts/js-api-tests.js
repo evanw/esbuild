@@ -1383,6 +1383,21 @@ async function futureSyntax(service, js, targetBelow, targetAbove) {
 }
 
 let transformTests = {
+  async transformWithNonString({ esbuild, service }) {
+    for (let toTest of [esbuild, service]) {
+      try {
+        // Do not "await" here. The error should be thrown outside of the promise.
+        toTest.transform({ toString() { throw new Error('toString() error') } })
+        throw new Error('Expected an error to be thrown');
+      } catch (e) {
+        assert.strictEqual(e.message, 'toString() error')
+      }
+
+      var { code } = await toTest.transform(Buffer.from(`1+2`))
+      assert.strictEqual(code, `1 + 2;\n`)
+    }
+  },
+
   async version({ esbuild }) {
     const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
     assert.strictEqual(esbuild.version, version);
@@ -2154,6 +2169,18 @@ let syncTests = {
     const { code, map } = esbuild.transformSync(`a{b:c}`, { loader: 'css' })
     assert.strictEqual(code, `a {\n  b: c;\n}\n`)
     assert.strictEqual(map, '')
+  },
+
+  async transformSyncWithNonString({ esbuild }) {
+    try {
+      esbuild.transformSync({ toString() { throw new Error('toString() error') } })
+      throw new Error('Expected an error to be thrown');
+    } catch (e) {
+      assert.strictEqual(e.message, 'toString() error')
+    }
+
+    var { code } = await esbuild.transformSync(Buffer.from(`1+2`))
+    assert.strictEqual(code, `1 + 2;\n`)
   },
 
   async transformSync100x({ esbuild }) {

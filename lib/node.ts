@@ -100,6 +100,7 @@ export let serve: typeof types.serve = (serveOptions, buildOptions) => {
 };
 
 export let transform: typeof types.transform = (input, options) => {
+  input += '';
   return startService().then(service => {
     let promise = service.transform(input, options);
     promise.then(service.stop, service.stop);
@@ -124,6 +125,8 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
 };
 
 export let transformSync: typeof types.transformSync = (input, options) => {
+  input += '';
+
   // Try using a long-lived worker thread to avoid repeated start-up overhead
   if (worker_threads) {
     if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
@@ -195,8 +198,9 @@ export let startService: typeof types.startService = options => {
         service.buildOrServe(serveOptions, buildOptions, isTTY(), (err, res) =>
           err ? reject(err) : resolve(res as types.ServeResult)))
     },
-    transform: (input, options) =>
-      new Promise((resolve, reject) =>
+    transform: (input, options) => {
+      input += '';
+      return new Promise((resolve, reject) =>
         service.transform(input, options || {}, isTTY(), {
           readFile(tempFile, callback) {
             try {
@@ -220,7 +224,8 @@ export let startService: typeof types.startService = options => {
               callback(null);
             }
           },
-        }, (err, res) => err ? reject(err) : resolve(res!))),
+        }, (err, res) => err ? reject(err) : resolve(res!)));
+    },
     stop() { child.kill(); },
   });
 };
