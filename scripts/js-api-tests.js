@@ -2124,9 +2124,36 @@ let syncTests = {
     assert.strictEqual(result.__esModule, true)
   },
 
-  async transformSync({ esbuild }) {
-    const { code } = esbuild.transformSync(`console.log(1+2)`, {})
-    assert.strictEqual(code, `console.log(1 + 2);\n`)
+  async buildSyncOutputFiles({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'module.exports = 123')
+    let prettyPath = path.relative(process.cwd(), input).replace(/\\/g, '/')
+    let text = `// ${prettyPath}\nmodule.exports = 123;\n`
+    let result = esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', write: false })
+    assert.strictEqual(result.outputFiles.length, 1)
+    assert.strictEqual(result.outputFiles[0].path, output)
+    assert.strictEqual(result.outputFiles[0].text, text)
+    assert.deepStrictEqual(result.outputFiles[0].contents, new Uint8Array(Buffer.from(text)))
+  },
+
+  async transformSyncJSMap({ esbuild }) {
+    const { code, map } = esbuild.transformSync(`1+2`, { sourcemap: true })
+    assert.strictEqual(code, `1 + 2;\n`)
+    assert.strictEqual(map, `{
+  "version": 3,
+  "sources": ["<stdin>"],
+  "sourcesContent": ["1+2"],
+  "mappings": "AAAA,IAAE;",
+  "names": []
+}
+`)
+  },
+
+  async transformSyncCSS({ esbuild }) {
+    const { code, map } = esbuild.transformSync(`a{b:c}`, { loader: 'css' })
+    assert.strictEqual(code, `a {\n  b: c;\n}\n`)
+    assert.strictEqual(map, '')
   },
 
   async transformSync100x({ esbuild }) {
