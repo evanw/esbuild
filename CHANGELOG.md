@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.23
 
 * Fix non-string objects being passed to `transformSync` ([#596](https://github.com/evanw/esbuild/issues/596))
 
@@ -8,7 +8,7 @@
 
 * Revert the speedup to `transformSync` and `buildSync` ([#595](https://github.com/evanw/esbuild/issues/595))
 
-    This speedup relies on the `worker_threads` module in node. However, when esbuild is used via `node -r` as in `node -r esbuild-register file.ts`, the worker thread created by esbuild somehow ends up being completely detached from the main thread. This may be a bug in node itself. Regardless, the approach esbuild was using to improve speed doesn't work in all cases, so it has been reverted. It's unclear if it's possible to work around this issue, so this approach for improving the speed of synchronous APIs may be a dead end.
+    This speedup relies on the `worker_threads` module in node. However, when esbuild is used via `node -r` as in `node -r esbuild-register file.ts`, the worker thread created by esbuild somehow ends up being completely detached from the main thread. This may be a bug in node itself. Regardless, the approach esbuild was using to improve speed doesn't work in all cases so it has been reverted. It's unclear if it's possible to work around this issue. This approach for improving the speed of synchronous APIs may be a dead end.
 
 ## 0.8.22
 
