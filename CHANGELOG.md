@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Share reference-counted service instances internally ([#600](https://github.com/evanw/esbuild/issues/600))
+
+    Now calling `startService()` multiple times will share the underlying esbuild child process as long as the lifetimes of the service objects overlap (i.e. the time from `startService()` to `service.stop()`). This is just an internal change; there is no change to the public API. It should result in a faster implementation that uses less memory if your code calls `startService()` multiple times. Previously each call to `startService()` generated a separate esbuild child process.
+
 ## 0.8.23
 
 * Fix non-string objects being passed to `transformSync` ([#596](https://github.com/evanw/esbuild/issues/596))

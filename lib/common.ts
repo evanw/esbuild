@@ -920,3 +920,73 @@ function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types
     },
   }
 }
+
+export function referenceCountedService(startService: typeof types.startService): typeof types.startService {
+  interface Entry {
+    promise: Promise<types.Service>;
+    refCount: number;
+  }
+
+  let entries = new Map<string, Entry>();
+
+  return async (options) => {
+    let key = JSON.stringify(options || {});
+    let entry = entries.get(key);
+    let didStop = false;
+
+    let checkWasStopped = () => {
+      if (didStop) {
+        throw new Error('The service was stopped');
+      }
+    };
+
+    // Returns true if this was the last reference
+    let isLastStop = () => {
+      if (!didStop) {
+        didStop = true;
+        if (--entry!.refCount === 0) {
+          entries.delete(key);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (entry === void 0) {
+      // Store the promise used to create the service so that multiple
+      // concurrent calls to "startService()" will share the same promise.
+      entry = { promise: startService(JSON.parse(key)), refCount: 0 };
+      entries.set(key, entry);
+    }
+
+    ++entry.refCount;
+
+    try {
+      let service = await entry.promise;
+      return {
+        build: (options: any): any => {
+          checkWasStopped();
+          return service.build(options);
+        },
+        serve(serveOptions, buildOptions) {
+          checkWasStopped();
+          return service.serve(serveOptions, buildOptions);
+        },
+        transform(input, options) {
+          checkWasStopped();
+          return service.transform(input, options);
+        },
+        stop() {
+          if (isLastStop()) {
+            service.stop();
+          }
+        },
+      };
+    }
+
+    catch (e) {
+      isLastStop();
+      throw e;
+    }
+  };
+}
