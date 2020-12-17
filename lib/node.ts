@@ -277,9 +277,78 @@ let workerThreadService: WorkerThreadService | null = null;
 
 let startWorkerThreadService = (worker_threads: typeof import('worker_threads')): WorkerThreadService => {
   let { port1: mainPort, port2: workerPort } = new worker_threads.MessageChannel();
-  let worker = new worker_threads.Worker(__filename, {
-    workerData: workerPort,
-    transferList: [workerPort],
+  let { port1: mainWatchdogPort, port2: watchdogPort } = new worker_threads.MessageChannel();
+  const workerCode = `
+    start();
+    function start() {
+      const {workerData} = require('worker_threads');
+      if(workerData) {
+        require(workerData.mainPath).startSyncServiceWorker();
+      }
+      else setImmediate(start);
+    }
+  `;
+  const watchdogCode = `
+    start();
+    function start() {
+      const {workerData, Worker} = require('worker_threads');
+      if(!workerData) return setImmediate(start);
+      const {watchdogPort, workerPort, mainPath, workerCode, env, execArgv} = workerData;
+
+      let failed = false;
+      const buffers = new Map();
+      watchdogPort.on('message', message => {
+        const {type, id, sharedBuffer} = message;
+        switch(type) {
+          case 'start':
+            buffers.set(id, sharedBuffer);
+            if(failed) notifyFailure();
+            break;
+          case 'stop':
+            buffers.delete(id);
+          break;
+          default:
+            notifyFailure();
+        }
+      });
+
+      const worker = new Worker(workerCode, {
+        eval: true,
+        workerData: {
+          workerPort,
+          mainPath
+        },
+        transferList: [workerPort],
+        execArgv,
+        env
+      });
+      worker.on('exit', notifyFailure);
+      process.on('exit', notifyFailure);
+      function notifyFailure() {
+        failed = true;
+        for(const [id, sharedBuffer] of buffers.entries()) {
+          const sharedBufferView = new Int32Array(sharedBuffer);
+          Atomics.add(sharedBufferView, 0, 4);
+          Atomics.notify(sharedBufferView, 0, Infinity);
+          buffers.delete(id);
+        }
+      }
+      worker.unref();
+    }
+  `
+  let worker = new worker_threads.Worker(watchdogCode, {
+    eval: true,
+    execArgv: [],
+    env: {},
+    workerData: {
+      workerCode,
+      watchdogPort,
+      workerPort,
+      mainPath: __filename,
+      execArgv: process.execArgv,
+      env: {...process.env}
+    },
+    transferList: [workerPort, watchdogPort],
   });
   let nextID = 0;
   let wasStopped = false;
@@ -311,10 +380,18 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
     let sharedBuffer = new SharedArrayBuffer(8);
     let sharedBufferView = new Int32Array(sharedBuffer);
 
+    // Notify the watchdog that we are blocked.  It will wake us up if
+    // the worker_thread dies for any reason, to avoid us hanging.
+    const watchdogId = `${ worker_threads!.threadId }-${ id }`;
+    mainWatchdogPort.postMessage({
+        type: 'start',
+        id: watchdogId,
+        sharedBuffer
+    });
     // Send the message to the worker. Note that the worker could potentially
     // complete the request before this thread returns from this call.
     let msg: MainToWorkerMessage = { sharedBuffer, id, command, args };
-    worker.postMessage(msg);
+    mainPort.postMessage(msg);
 
     // If the value hasn't changed (i.e. the request hasn't been completed,
     // wait until the worker thread notifies us that the request is complete).
@@ -324,6 +401,12 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
     // arrive if it has already been sent.
     let status = Atomics.wait(sharedBufferView, 0, 0);
     if (status !== 'ok' && status !== 'not-equal') throw new Error('Internal error: Atomics.wait() failed: ' + status);
+    if (sharedBufferView[0] > 1) throw new Error('Internal error: worker_thread terminated');
+
+    watchdogPort.postMessage({
+        type: 'stop',
+        id: watchdogId
+    });
 
     let { message: { id: id2, resolve, reject, properties } } = worker_threads!.receiveMessageOnPort(mainPort)!;
     if (id !== id2) throw new Error(`Internal error: Expected id ${id} but got id ${id2}`);
@@ -351,9 +434,23 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
   };
 };
 
-let startSyncServiceWorker = () => {
-  let workerPort: import('worker_threads').MessagePort = worker_threads!.workerData;
-  let parentPort = worker_threads!.parentPort!;
+export let startSyncServiceWorker = () => {
+  let workerData = worker_threads!.workerData;
+  if(!workerData) {
+    setImmediate(startSyncServiceWorker);
+  }
+  let workerPort: import('worker_threads').MessagePort = workerData.workerPort;
+  let notifyWorkerFailedCallbacks = new Set<() => void>();
+  // Catch unexpected worker failures and notify all blocked threads to avoid hangs.
+  // TODO Also bind unhandledRejection?
+  process.on('uncaughtException', (err: any, origin: any) => {
+    for(const notifyWorkerFailedCallback of notifyWorkerFailedCallbacks) {
+      try {
+        notifyWorkerFailedCallback();
+      } catch {}
+    }
+    throw err;
+  });
   let servicePromise = startService();
 
   // MessagePort doesn't copy the properties of Error objects. We still want
@@ -369,12 +466,25 @@ let startSyncServiceWorker = () => {
     return properties;
   };
 
-  parentPort.on('message', (msg: MainToWorkerMessage) => {
-    servicePromise.then(async (service) => {
+  workerPort.on('message', onMessage);
+  // Because of potential setImmediate delay above, there may already be messages to receive.
+  while(true) {
+    const msgWrapper = worker_threads!.receiveMessageOnPort(workerPort);
+    if(msgWrapper) onMessage(msgWrapper.message as MainToWorkerMessage);
+    else break;
+  }
+  function onMessage(msg: MainToWorkerMessage) {
+    (async () => {
       let { sharedBuffer, id, command, args } = msg;
       let sharedBufferView = new Int32Array(sharedBuffer);
+      function onWorkerFailed() {
+        Atomics.add(sharedBufferView, 0, 2);
+        Atomics.notify(sharedBufferView, 0, Infinity);
+      }
+      notifyWorkerFailedCallbacks.add(onWorkerFailed);
 
       try {
+        const service = await servicePromise;
         if (command === 'build') {
           workerPort.postMessage({ id, resolve: await service.build(args[0]) });
         } else if (command === 'transform') {
@@ -398,11 +508,8 @@ let startSyncServiceWorker = () => {
       // Then, wake the main thread. This handles the case where the main
       // thread was already waiting for us before the shared value was changed.
       Atomics.notify(sharedBufferView, 0, Infinity);
-    });
-  });
-};
 
-// If we're in the worker thread, start the worker code
-if (worker_threads && !worker_threads.isMainThread) {
-  startSyncServiceWorker();
-}
+      notifyWorkerFailedCallbacks.delete(onWorkerFailed);
+    })();
+  }
+};
