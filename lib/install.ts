@@ -169,7 +169,7 @@ function extractFileFromTarGzip(buffer: Buffer, file: string): Buffer {
 }
 
 function installUsingNPM(name: string, file: string): Buffer {
-  const installDir = path.join(os.tmpdir(), 'esbuild-' + Math.random().toString(36).slice(2));
+  const installDir = path.join(os.tmpdir(), '@cspotcode-esbuild-' + Math.random().toString(36).slice(2));
   fs.mkdirSync(installDir, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}');
 
@@ -275,20 +275,20 @@ function installOnWindows(name: string): void {
 
 const platformKey = `${process.platform} ${os.arch()} ${os.endianness()}`;
 const knownWindowsPackages: Record<string, string> = {
-  'win32 ia32 LE': 'esbuild-windows-32',
-  'win32 x64 LE': 'esbuild-windows-64',
+  'win32 ia32 LE': '@cspotcode/esbuild-windows-32',
+  'win32 x64 LE': '@cspotcode/esbuild-windows-64',
 };
 const knownUnixlikePackages: Record<string, string> = {
-  'darwin x64 LE': 'esbuild-darwin-64',
-  'darwin arm64 LE': 'esbuild-darwin-64',
-  'freebsd arm64 LE': 'esbuild-freebsd-arm64',
-  'freebsd x64 LE': 'esbuild-freebsd-64',
-  'linux arm LE': 'esbuild-linux-arm',
-  'linux arm64 LE': 'esbuild-linux-arm64',
-  'linux ia32 LE': 'esbuild-linux-32',
-  'linux mips64el LE': 'esbuild-linux-mips64le',
-  'linux ppc64 LE': 'esbuild-linux-ppc64le',
-  'linux x64 LE': 'esbuild-linux-64',
+  'darwin x64 LE': '@cspotcode/esbuild-darwin-64',
+  'darwin arm64 LE': '@cspotcode/esbuild-darwin-64',
+  'freebsd arm64 LE': '@cspotcode/esbuild-freebsd-arm64',
+  'freebsd x64 LE': '@cspotcode/esbuild-freebsd-64',
+  'linux arm LE': '@cspotcode/esbuild-linux-arm',
+  'linux arm64 LE': '@cspotcode/esbuild-linux-arm64',
+  'linux ia32 LE': '@cspotcode/esbuild-linux-32',
+  'linux mips64el LE': '@cspotcode/esbuild-linux-mips64le',
+  'linux ppc64 LE': '@cspotcode/esbuild-linux-ppc64le',
+  'linux x64 LE': '@cspotcode/esbuild-linux-64',
 };
 
 // Pick a package to install

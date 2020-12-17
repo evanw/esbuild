@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'never' # formerly 'v*'
 
 jobs:
   release:

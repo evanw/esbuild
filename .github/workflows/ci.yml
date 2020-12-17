@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ '*' ]
+    branches: [ 'never' ] # formerly '*'
   pull_request:
-    branches: [ '*' ]
+    branches: [ 'never' ] # formerly '*'
 
 jobs:
 

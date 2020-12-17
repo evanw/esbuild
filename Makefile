@@ -137,9 +137,6 @@ test-otp:
 	test -n "$(OTP)" && echo publish --otp="$(OTP)"
 
 publish-all: cmd/esbuild/version.go test-prepublish
-	@test master = "`git rev-parse --abbrev-ref HEAD`" || (echo "Refusing to publish from non-master branch `git rev-parse --abbrev-ref HEAD`" && false)
-	@echo "Checking for unpushed commits..." && git fetch
-	@test "" = "`git cherry`" || (echo "Refusing to publish with unpushed commits" && false)
 	rm -fr npm && git checkout npm
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" make -j4 \

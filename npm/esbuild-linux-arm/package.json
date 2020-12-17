@@ -1,5 +1,5 @@
 {
-  "name": "esbuild-linux-arm",
+  "name": "@cspotcode/esbuild-linux-arm",
   "version": "0.8.23",
   "description": "The Linux ARM binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",

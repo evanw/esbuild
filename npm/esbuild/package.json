@@ -1,5 +1,5 @@
 {
-  "name": "esbuild",
+  "name": "@cspotcode/esbuild",
   "version": "0.8.23",
   "description": "An extremely fast JavaScript bundler and minifier.",
   "repository": "https://github.com/evanw/esbuild",
@@ -8,6 +8,8 @@
   },
   "main": "lib/main.js",
   "types": "lib/main.d.ts",
-  "bin": "bin/esbuild",
+  "bin": {
+    "esbuild": "bin/esbuild"
+  },
   "license": "MIT"
 }

@@ -1,0 +1,14 @@
+name: 'Auto-publish'
+
+on:
+  issue_comment:
+    types: ['created']
+
+jobs:
+  pr_commented:
+    name: PR comment
+    if: ${{ github.event.issue.pull_request && github.event.comment.user.login == 'cspotcode' && github.event.comment.body == '!publish' }}
+    runs-on: Ubuntu-20.04
+    steps:
+      - run: |
+          ./.github/scripts/auto-publish-fork.sh
