@@ -11,7 +11,7 @@ test:
 	make -j6 test-common
 
 # These tests are for development
-test-common: test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests register-test
+test-common: test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
@@ -38,10 +38,6 @@ test-wasm-node: platform-wasm
 
 test-wasm-browser: platform-wasm | scripts/browser/node_modules
 	cd scripts/browser && node browser-tests.js
-
-register-test: cmd/esbuild/version.go | scripts/node_modules
-	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
-	node scripts/register-test.js
 
 verify-source-map: cmd/esbuild/version.go | scripts/node_modules
 	cd npm/esbuild && npm version "$(ESBUILD_VERSION)" --allow-same-version
