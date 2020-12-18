@@ -3,6 +3,8 @@ set -euxo pipefail
 shopt -s inherit_errexit
 
 echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > .npmrc
+node --version
+npm --version
 npm whoami
 
 pr_number="$1"
