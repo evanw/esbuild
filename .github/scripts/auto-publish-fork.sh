@@ -7,7 +7,7 @@ node --version
 npm --version
 npm whoami
 
-npm install --global npm@latest
+npm install --global npm@next-7
 node --version
 npm --version
 npm whoami
