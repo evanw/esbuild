@@ -2,6 +2,8 @@
 set -euxo pipefail
 shopt -s inherit_errexit
 
+pr_number="$1"
+
 # Auto-merge latest upstream changes
 # git remote add evanw https://github.com/evanw/esbuild
 # git fetch evanw
@@ -16,6 +18,10 @@ shopt -s inherit_errexit
 git remote add cspotcode https://github.com/cspotcode/esbuild || true
 git fetch cspotcode
 git merge cspotcode/master
+
+# Merge in the pull request
+git fetch cspotcode refs/pull/$pr_number/head:PR_HEAD
+git merge PR_HEAD
 
 # Add unique datestamp suffix to version number
 echo "$(cat version.txt)-$(node -p 'new Date().toISOString().replace(/:|\./g, "-")')" > version.txt
