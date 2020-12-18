@@ -104,7 +104,7 @@ before installing esbuild.
 
 function getCachePath(name: string): string {
   const home = os.homedir();
-  const common = ['esbuild', 'bin', `${name}@${version}`];
+  const common = ['cspotcode-esbuild', 'bin', `${name}@${version}`];
   if (process.platform === 'darwin') return path.join(home, 'Library', 'Caches', ...common);
   if (process.platform === 'win32') return path.join(home, 'AppData', 'Local', 'Cache', ...common);
   return path.join(home, '.cache', ...common);

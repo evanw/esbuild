@@ -13,20 +13,20 @@ const tsconfigJson = {
 const tests = {
   emptyBuildRequire: `
     export {}
-    import esbuild = require('esbuild')
+    import esbuild = require('@cspotcode/esbuild')
     esbuild.buildSync({})
     esbuild.build({})
     esbuild.startService().then(service => service.build({}))
   `,
   emptyBuildImport: `
-    import * as esbuild from 'esbuild'
+    import * as esbuild from '@cspotcode/esbuild'
     esbuild.buildSync({})
     esbuild.build({})
     esbuild.startService().then(service => service.build({}))
   `,
   emptyTransformRequire: `
     export {}
-    import esbuild = require('esbuild')
+    import esbuild = require('@cspotcode/esbuild')
     esbuild.transformSync('')
     esbuild.transformSync('', {})
     esbuild.transform('')
@@ -35,7 +35,7 @@ const tests = {
     esbuild.startService().then(service => service.transform('', {}))
   `,
   emptyTransformImport: `
-    import * as esbuild from 'esbuild'
+    import * as esbuild from '@cspotcode/esbuild'
     esbuild.transformSync('')
     esbuild.transformSync('', {})
     esbuild.transform('')
@@ -44,13 +44,13 @@ const tests = {
     esbuild.startService().then(service => service.transform('', {}))
   `,
   writeFalseOutputFiles: `
-    import * as esbuild from 'esbuild'
+    import * as esbuild from '@cspotcode/esbuild'
     esbuild.buildSync({ write: false }).outputFiles[0]
     esbuild.build({ write: false }).then(result => result.outputFiles[0])
     esbuild.startService().then(service => service.build({ write: false }).then(result => result.outputFiles[0]))
   `,
   incrementalTrueRebuild: `
-    import * as esbuild from 'esbuild'
+    import * as esbuild from '@cspotcode/esbuild'
     esbuild.build({ incremental: true }).then(result => {
       result.rebuild().then(result => {
         result.rebuild().then(() => {
@@ -87,7 +87,7 @@ const tests = {
     }
   `,
   ifRebuild: `
-    import * as esbuild from 'esbuild'
+    import * as esbuild from '@cspotcode/esbuild'
     let options: any
     esbuild.build(options).then(result => {
       if (result.rebuild) {
@@ -142,7 +142,7 @@ const tests = {
   `,
   allOptionsTransform: `
     export {}
-    import {transform} from 'esbuild'
+    import {transform} from '@cspotcode/esbuild'
     transform('', {
       sourcemap: true,
       format: 'iife',
@@ -189,7 +189,7 @@ const tests = {
   `,
   allOptionsBuild: `
     export {}
-    import {build} from 'esbuild'
+    import {build} from '@cspotcode/esbuild'
     build({
       sourcemap: true,
       format: 'iife',
@@ -323,10 +323,10 @@ async function main() {
   fs.writeFileSync(path.join(testDir, 'tsconfig.json'), JSON.stringify(tsconfigJson))
 
   const types = fs.readFileSync(path.join(__dirname, '..', 'lib', 'types.ts'), 'utf8')
-  const esbuild_d_ts = path.join(testDir, 'node_modules', 'esbuild', 'index.d.ts')
+  const esbuild_d_ts = path.join(testDir, 'node_modules', '@cspotcode', 'esbuild', 'index.d.ts')
   fs.mkdirSync(path.dirname(esbuild_d_ts), { recursive: true })
   fs.writeFileSync(esbuild_d_ts, `
-    declare module 'esbuild' {
+    declare module '@cspotcode/esbuild' {
       ${types.replace(/export declare/g, 'export')}
     }
   `)
