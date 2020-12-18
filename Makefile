@@ -139,22 +139,22 @@ test-otp:
 
 publish-all: cmd/esbuild/version.go test-prepublish
 	rm -fr npm && git checkout npm
-	@make -j4 \
+	@make -j1 \
 		publish-windows \
 		publish-windows-32 \
 		publish-freebsd \
 		publish-freebsd-arm64
-	@make -j4 \
+	@make -j1 \
 		publish-darwin \
 		publish-linux \
 		publish-linux-32
-	@make -j4 \
+	@make -j1 \
 		publish-linux-arm \
 		publish-linux-arm64 \
 		publish-linux-mips64le \
 		publish-linux-ppc64le
 	# Do these last to avoid race conditions
-	@make -j2 \
+	@make -j1 \
 		publish-neutral \
 		publish-wasm
 	git tag "v$(ESBUILD_VERSION)"
