@@ -7,6 +7,11 @@ node --version
 npm --version
 npm whoami
 
+npm install --global npm@latest
+node --version
+npm --version
+npm whoami
+
 pr_number="$1"
 
 # Auto-merge latest upstream changes
