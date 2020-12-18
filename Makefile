@@ -1,4 +1,5 @@
 ESBUILD_VERSION = $(shell cat version.txt)
+JOBS = 1
 
 esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	go build "-ldflags=-s -w" ./cmd/esbuild
@@ -8,14 +9,14 @@ npm/esbuild-wasm/esbuild.wasm: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.g
 	GOOS=js GOARCH=wasm go build -o npm/esbuild-wasm/esbuild.wasm ./cmd/esbuild
 
 test:
-	make -j6 test-common
+	make -j$(JOBS) test-common
 
 # These tests are for development
-test-common: test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests register-test
+test-common: test-go vet-go verify-source-map end-to-end-tests js-api-tests plugin-tests
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
-	make -j6 test-common ts-type-tests test-wasm-node test-wasm-browser
+	make -j$(JOBS) test-common ts-type-tests test-wasm-node test-wasm-browser
 
 # This includes tests of some 3rd-party libraries, which can be very slow
 test-prepublish: check-go-version test-all test-preact-splitting test-sucrase bench-rome-esbuild test-esprima test-rollup
