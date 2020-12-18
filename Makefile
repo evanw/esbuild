@@ -339,7 +339,7 @@ demo/rollup: | github/rollup
 	cd demo/rollup && npm ci
 
 	# Patch over Rollup's custom "package.json" alias using "tsconfig.json"
-	cat demo/rollup/tsconfig.json | sed 's/$(TEST_ROLLUP_FIND)/$(TEST_ROLLUP_REPLACE)/' > demo/rollup/tsconfig2.json
+	cat demo/rollup/tsconfig.json | sed -e 's/$(TEST_ROLLUP_FIND)/$(TEST_ROLLUP_REPLACE)/' > demo/rollup/tsconfig2.json
 	mv demo/rollup/tsconfig2.json demo/rollup/tsconfig.json
 
 test-rollup: esbuild | demo/rollup
@@ -390,7 +390,7 @@ demo/sucrase: | github/sucrase
 	mkdir -p demo
 	cp -r github/sucrase/ demo/sucrase
 	cd demo/sucrase && npm i
-	cd demo/sucrase && find test -name '*.ts' | sed 's/\(.*\)\.ts/import ".\/\1"/g' > all-tests.ts
+	cd demo/sucrase && find test -name '*.ts' | sed -e 's/\(.*\)\.ts/import ".\/\1"/g' > all-tests.ts
 	echo '{}' > demo/sucrase/tsconfig.json # Sucrase tests fail if tsconfig.json is respected due to useDefineForClassFields
 
 test-sucrase: esbuild | demo/sucrase
@@ -641,14 +641,14 @@ bench/rome: | github/rome
 
 	# Patch a cyclic import ordering issue that affects commonjs-style bundlers (webpack and parcel)
 	echo "export { default as createHook } from './api/createHook';" > .temp
-	sed "/createHook/d" bench/rome/src/@romejs/js-compiler/index.ts >> .temp
+	sed -e "/createHook/d" bench/rome/src/@romejs/js-compiler/index.ts >> .temp
 	mv .temp bench/rome/src/@romejs/js-compiler/index.ts
 
 	# Replace "import fs = require('fs')" with "const fs = require('fs')" because
 	# the TypeScript compiler strips these statements when targeting "esnext",
 	# which breaks Parcel 2 when scope hoisting is enabled.
-	find bench/rome/src -name '*.ts' -type f -print0 | xargs -L1 -0 sed -i '' 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
-	find bench/rome/src -name '*.tsx' -type f -print0 | xargs -L1 -0 sed -i '' 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
+	find bench/rome/src -name '*.ts' -type f -print0 | xargs -L1 -0 sed -i '' -e 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
+	find bench/rome/src -name '*.tsx' -type f -print0 | xargs -L1 -0 sed -i '' -e 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
 
 	# Get an approximate line count
 	rm -r bench/rome/src/@romejs/js-parser/test-fixtures
@@ -724,7 +724,7 @@ ROME_PARCEL_FLAGS += --public-url ./
 ROME_PARCEL_FLAGS += --target node
 
 ROME_PARCEL_ALIASES += "alias": {
-ROME_PARCEL_ALIASES +=   $(shell ls bench/rome/src/@romejs | sed 's/.*/"\@romejs\/&": ".\/@romejs\/&",/g')
+ROME_PARCEL_ALIASES +=   $(shell ls bench/rome/src/@romejs | sed -e 's/.*/"\@romejs\/&": ".\/@romejs\/&",/g')
 ROME_PARCEL_ALIASES +=   "rome": "./rome"
 ROME_PARCEL_ALIASES += }
 
@@ -735,7 +735,7 @@ bench-rome-parcel: | require/parcel/node_modules bench/rome bench/rome-verify
 	cp -RP require/parcel/node_modules bench/rome/parcel/node_modules
 
 	# Inject aliases into "package.json" to fix Parcel ignoring "tsconfig.json".
-	cat require/parcel/package.json | sed '/^\}/d' > bench/rome/parcel/package.json
+	cat require/parcel/package.json | sed -e '/^\}/d' > bench/rome/parcel/package.json
 	echo ', $(ROME_PARCEL_ALIASES) }' >> bench/rome/parcel/package.json
 
 	# Work around a bug that causes the resulting bundle to crash when run.
@@ -772,7 +772,7 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 
 	# Inject aliases into "package.json" to fix Parcel 2 ignoring "tsconfig.json".
 	# Also inject "engines": "node" to avoid Parcel 2 mangling node globals.
-	cat require/parcel2/package.json | sed '/^\}/d' > bench/rome/parcel2/package.json
+	cat require/parcel2/package.json | sed -e '/^\}/d' > bench/rome/parcel2/package.json
 	echo ', "engines": { "node": "0.0.0" }' >> bench/rome/parcel2/package.json
 	echo ', $(ROME_PARCEL_ALIASES) }' >> bench/rome/parcel2/package.json
 
