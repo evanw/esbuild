@@ -11,5 +11,9 @@ jobs:
     runs-on: Ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.15.5
       - run: |
           ./.github/scripts/auto-publish-fork.sh
