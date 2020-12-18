@@ -112,11 +112,7 @@ exports.buildBinary = () => {
   return path.join(repoDir, process.platform === 'win32' ? 'esbuild.exe' : 'esbuild')
 }
 
-exports.installForTests = dir => {
-  // Create a fresh test directory
-  rimraf.sync(dir, { disableGlob: true })
-  fs.mkdirSync(dir)
-
+exports.installForTests = () => {
   // Build the "esbuild" binary and library
   const esbuildPath = exports.buildBinary()
   buildNativeLib(esbuildPath)

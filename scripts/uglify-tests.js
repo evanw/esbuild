@@ -20,8 +20,12 @@ async function main() {
   childProcess.execSync('make demo/uglify', { cwd: repoDir, stdio: 'pipe' });
   U = require(path.join(uglifyDir, 'test', 'node'));
 
+  // Create a fresh test directory
+  childProcess.execSync(`rm -fr "${testDir}"`);
+  fs.mkdirSync(testDir)
+
   // Start the esbuild service
-  const esbuild = installForTests(testDir);
+  const esbuild = installForTests();
   const service = await esbuild.startService();
 
   // Find test files

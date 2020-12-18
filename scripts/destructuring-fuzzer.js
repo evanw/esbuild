@@ -346,12 +346,8 @@ function concurrentMap(items, batch, callback) {
 }
 
 async function main() {
-  let rimraf = require('rimraf')
-  let path = require('path')
-  let installDir = path.join(__dirname, '.destructuring-fuzzer')
-
-  let es = require('./esbuild').installForTests(installDir)
-  let esbuild = async (x) => (await es.transform(x, { target: 'es6', loader: 'ts' })).js.trim()
+  let es = require('./esbuild').installForTests()
+  let esbuild = async (x) => (await es.transform(x, { target: 'es6', loader: 'ts' })).code.trim()
 
   console.log(`
 Options:
@@ -401,8 +397,6 @@ Legend:
       await verify(test, transform, testCases)
     }
   }
-
-  rimraf.sync(installDir, { disableGlob: true })
 }
 
 main().catch(e => setTimeout(() => { throw e }))

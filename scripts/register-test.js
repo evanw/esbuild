@@ -4,9 +4,12 @@ const path = require('path')
 const fs = require('fs')
 const rimraf = require('rimraf')
 const assert = require('assert')
+const esbuild = installForTests()
 
+// Create a fresh test directory
 const rootTestDir = path.join(__dirname, '.register-test')
-const esbuild = installForTests(rootTestDir)
+rimraf.sync(rootTestDir, { disableGlob: true })
+fs.mkdirSync(rootTestDir)
 
 const entry = path.join(rootTestDir, 'entry.ts')
 fs.writeFileSync(entry, `

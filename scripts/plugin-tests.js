@@ -915,7 +915,11 @@ let pluginTests = {
 }
 
 async function main() {
-  const esbuild = installForTests(rootTestDir)
+  const esbuild = installForTests()
+
+  // Create a fresh test directory
+  rimraf.sync(rootTestDir, { disableGlob: true })
+  fs.mkdirSync(rootTestDir)
 
   // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
   let minutes = 5

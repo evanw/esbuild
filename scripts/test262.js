@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const rimraf = require('rimraf');
 const jsYaml = require('js-yaml');
 const { installForTests } = require('./esbuild');
 const test262Dir = path.join(__dirname, '..', 'demo', 'test262', 'test');
@@ -38,8 +37,7 @@ function formatErrors(content, error) {
 }
 
 async function main() {
-  const testDir = path.join(__dirname, '.test262');
-  const { startService } = installForTests(testDir);
+  const { startService } = installForTests();
   const service = await startService();
   const files = findFiles();
   let runCount = 0;
@@ -145,7 +143,6 @@ async function main() {
   console.log(`minify failures: ${minifyCount}`);
 
   // Clean up after all tests finish
-  rimraf.sync(testDir, { disableGlob: true });
   service.stop();
 }
 
