@@ -228,5 +228,5 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
 };
 
 let randomFileName = () => {
-  return path.join(os.tmpdir(), `esbuild-${crypto.randomBytes(32).toString('hex')}`);
+  return path.join(os.tmpdir(), `@cspotcode-esbuild-${crypto.randomBytes(32).toString('hex')}`);
 };

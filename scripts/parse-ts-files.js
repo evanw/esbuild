@@ -47,7 +47,7 @@ if (process.argv.includes('--individual')) {
 
 // Otherwise it's much faster to do everything at once
 else {
-  const tempDir = path.join(os.tmpdir(), 'esbuild-parse-ts-files');
+  const tempDir = path.join(os.tmpdir(), '@cspotcode-esbuild-parse-ts-files');
   try {
     fs.mkdirSync(tempDir);
   } catch (e) {

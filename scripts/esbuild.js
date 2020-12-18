@@ -129,12 +129,12 @@ exports.installForTests = dir => {
   // "rimraf.sync()" appears to hang when this happens. Other operating systems
   // don't have a problem with this. This has only been a problem on the Windows
   // VM in GitHub CI. I cannot reproduce this issue myself.
-  const installDir = path.join(os.tmpdir(), 'esbuild-' + Math.random().toString(36).slice(2))
+  const installDir = path.join(os.tmpdir(), '@cspotcode-esbuild-' + Math.random().toString(36).slice(2))
   const env = { ...process.env, ESBUILD_BIN_PATH_FOR_TESTS: esbuildPath }
   fs.mkdirSync(installDir)
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}')
   childProcess.execSync(`npm pack --silent "${npmDir}"`, { cwd: installDir, stdio: 'inherit' })
-  childProcess.execSync(`npm install --silent --no-audit --progress=false esbuild-${version}.tgz`, { cwd: installDir, env, stdio: 'inherit' })
+  childProcess.execSync(`npm install --silent --no-audit --progress=false cspotcode-esbuild-${version}.tgz`, { cwd: installDir, env, stdio: 'inherit' })
 
   // Evaluate the code
   const ESBUILD_PACKAGE_PATH = path.join(installDir, 'node_modules', 'esbuild')
