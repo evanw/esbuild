@@ -14,10 +14,9 @@ pr_number="$1"
 # origin/master: hacks to publish this fork, changes package names
 # ab/worker_threads: changes to support worker_threads
 
-# Auto-merge master (still need to manually merge upstream from evanw)
+# Fetch full checkout
 git remote add cspotcode https://github.com/cspotcode/esbuild || true
 git fetch cspotcode
-git merge cspotcode/master
 
 # Merge in the pull request
 git fetch cspotcode refs/pull/$pr_number/head:PR_HEAD
