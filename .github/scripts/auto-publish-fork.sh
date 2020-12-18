@@ -2,6 +2,9 @@
 set -euxo pipefail
 shopt -s inherit_errexit
 
+echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > .npmrc
+npm whoami
+
 pr_number="$1"
 
 # Auto-merge latest upstream changes
@@ -27,8 +30,6 @@ git merge PR_HEAD
 
 # Add unique datestamp suffix to version number
 echo "$(cat version.txt)-$(node -p 'new Date().toISOString().replace(/:|\./g, "-")')" > version.txt
-
-echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > .npmrc
 
 # Test without token
 NPM_AUTOMATION_TOKEN="" make test-prepublish
