@@ -10524,7 +10524,7 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 				}
 			}
 
-		case *js_ast.SExportClause:
+		case *js_ast.SExportClause, *js_ast.SExportFrom:
 			// Exports are tracked separately, so this isn't necessary
 
 		case *js_ast.SExportDefault:
