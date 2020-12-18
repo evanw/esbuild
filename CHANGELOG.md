@@ -10,6 +10,10 @@
 
     This release fixes a regression introduced in version 0.8.19 in which an `import` of an `export {...} from` re-export of a CommonJS module does not include the CommonJS module if it has been marked as `"sideEffect": false` in its `package.json` file. This was the case with the [Ramda](https://ramdajs.com/) library, and was due to an unhandled case in the linker.
 
+* Optionally take binary executable path from environment variable ([#592](https://github.com/evanw/esbuild/issues/592))
+
+    You can now set the `ESBUILD_BINARY_PATH` environment variable to cause the JavaScript API to use a different binary executable path. This is useful if you want to substitute a modified version of the `esbuild` binary that contains some extra debugging information.
+
 ## 0.8.23
 
 * Fix non-string objects being passed to `transformSync` ([#596](https://github.com/evanw/esbuild/issues/596))

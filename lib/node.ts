@@ -15,6 +15,9 @@ declare const ESBUILD_VERSION: string;
 declare const WASM: boolean;
 
 let esbuildCommandAndArgs = (): [string, string[]] => {
+  // This feature was added to give external code a way to modify the binary
+  // path without modifying the code itself. Do not remove this because
+  // external code relies on this.
   if (process.env.ESBUILD_BINARY_PATH) {
     return [path.resolve(process.env.ESBUILD_BINARY_PATH), []];
   }
