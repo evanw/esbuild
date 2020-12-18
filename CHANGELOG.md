@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.24
 
 * Share reference-counted service instances internally ([#600](https://github.com/evanw/esbuild/issues/600))
 
