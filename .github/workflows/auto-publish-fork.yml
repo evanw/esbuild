@@ -19,3 +19,5 @@ jobs:
           go-version: 1.15.5
       - run: |
           ./.github/scripts/auto-publish-fork.sh ${{ github.event.issue.number }}
+        env:
+          NPM_AUTOMATION_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}

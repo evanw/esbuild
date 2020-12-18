@@ -27,5 +27,10 @@ git merge PR_HEAD
 
 # Add unique datestamp suffix to version number
 echo "$(cat version.txt)-$(node -p 'new Date().toISOString().replace(/:|\./g, "-")')" > version.txt
-# TODO this will fail
+
+echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > .npmrc
+
+# Test without token
+NPM_AUTOMATION_TOKEN="" make test-prepublish
+# publish with token
 make publish-all
