@@ -10,5 +10,6 @@ jobs:
     if: ${{ github.event.issue.pull_request && github.event.comment.user.login == 'cspotcode' && github.event.comment.body == '!publish' }}
     runs-on: Ubuntu-20.04
     steps:
+      - uses: actions/checkout@v2
       - run: |
           ./.github/scripts/auto-publish-fork.sh
