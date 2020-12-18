@@ -647,8 +647,8 @@ bench/rome: | github/rome
 	# Replace "import fs = require('fs')" with "const fs = require('fs')" because
 	# the TypeScript compiler strips these statements when targeting "esnext",
 	# which breaks Parcel 2 when scope hoisting is enabled.
-	find bench/rome/src -name '*.ts' -type f -print0 | xargs -L1 -0 sed -i '' -e 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
-	find bench/rome/src -name '*.tsx' -type f -print0 | xargs -L1 -0 sed -i '' -e 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
+	find bench/rome/src -name '*.ts' -type f -print0 | xargs -L1 -0 sed -i'' -e 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
+	find bench/rome/src -name '*.tsx' -type f -print0 | xargs -L1 -0 sed -i'' -e 's/import \([A-Za-z0-9_]*\) =/const \1 =/g'
 
 	# Get an approximate line count
 	rm -r bench/rome/src/@romejs/js-parser/test-fixtures
