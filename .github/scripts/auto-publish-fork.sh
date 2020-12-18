@@ -18,6 +18,9 @@ pr_number="$1"
 git remote add cspotcode https://github.com/cspotcode/esbuild || true
 git fetch cspotcode
 
+git config user.name "Committer"
+git config user.email "committer@example.com"
+
 # Merge in the pull request
 git fetch cspotcode refs/pull/$pr_number/head:PR_HEAD
 git merge PR_HEAD
