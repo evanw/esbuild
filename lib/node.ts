@@ -15,6 +15,10 @@ declare const ESBUILD_VERSION: string;
 declare const WASM: boolean;
 
 let esbuildCommandAndArgs = (): [string, string[]] => {
+  if (process.env.ESBUILD_BINARY_PATH) {
+    return [path.resolve(process.env.ESBUILD_BINARY_PATH), []];
+  }
+
   if (WASM) {
     return ['node', [path.join(__dirname, '..', 'bin', 'esbuild')]];
   }
