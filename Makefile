@@ -1,5 +1,5 @@
 ESBUILD_VERSION = $(shell cat version.txt)
-JOBS = 1
+JOBS = 6
 
 esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	go build "-ldflags=-s -w" ./cmd/esbuild
