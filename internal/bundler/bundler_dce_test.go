@@ -1158,3 +1158,32 @@ func TestRemoveTrailingReturn(t *testing.T) {
 		},
 	})
 }
+
+func TestImportReExportOfNamespaceImport(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.js": `
+				import * as ns from 'pkg'
+				console.log(ns.foo)
+			`,
+			"/Users/user/project/node_modules/pkg/index.js": `
+				export { default as foo } from './foo'
+				export { default as bar } from './bar'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/pkg/foo.js": `
+				module.exports = 123
+			`,
+			"/Users/user/project/node_modules/pkg/bar.js": `
+				module.exports = 'abc'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

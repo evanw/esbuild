@@ -1758,6 +1758,17 @@ func (c *linkerContext) matchImportsWithExportsForFile(sourceIndex uint32) {
 				Alias:        result.alias,
 			}
 
+		case matchImportNormalAndNamespace:
+			repr.meta.importsToBind[importRef] = importToBind{
+				sourceIndex: result.sourceIndex,
+				ref:         result.ref,
+			}
+
+			c.symbols.Get(importRef).NamespaceAlias = &js_ast.NamespaceAlias{
+				NamespaceRef: result.namespaceRef,
+				Alias:        result.alias,
+			}
+
 		case matchImportCycle:
 			namedImport := repr.ast.NamedImports[importRef]
 			c.addRangeError(file.source, js_lexer.RangeOfIdentifier(file.source, namedImport.AliasLoc),
@@ -1785,6 +1796,9 @@ const (
 
 	// "namespaceRef" and "alias" are in use
 	matchImportNamespace
+
+	// Both "matchImportNormal" and "matchImportNamespace"
+	matchImportNormalAndNamespace
 
 	// The import could not be evaluated due to a cycle
 	matchImportCycle
@@ -1844,10 +1858,16 @@ loop:
 			trackerFile := &c.files[tracker.sourceIndex]
 			namedImport := trackerFile.repr.(*reprJS).ast.NamedImports[tracker.importRef]
 			if namedImport.NamespaceRef != js_ast.InvalidRef {
-				result = matchImportResult{
-					kind:         matchImportNamespace,
-					namespaceRef: namedImport.NamespaceRef,
-					alias:        namedImport.Alias,
+				if result.kind == matchImportNormal {
+					result.kind = matchImportNormalAndNamespace
+					result.namespaceRef = namedImport.NamespaceRef
+					result.alias = namedImport.Alias
+				} else {
+					result = matchImportResult{
+						kind:         matchImportNamespace,
+						namespaceRef: namedImport.NamespaceRef,
+						alias:        namedImport.Alias,
+					}
 				}
 			}
 

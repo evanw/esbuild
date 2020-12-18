@@ -6,6 +6,10 @@
 
     Now calling `startService()` multiple times will share the underlying esbuild child process as long as the lifetimes of the service objects overlap (i.e. the time from `startService()` to `service.stop()`). This is just an internal change; there is no change to the public API. It should result in a faster implementation that uses less memory if your code calls `startService()` multiple times. Previously each call to `startService()` generated a separate esbuild child process.
 
+* Fix re-exports of a side-effect free CommonJS module ([#605](https://github.com/evanw/esbuild/issues/605))
+
+    This release fixes a regression introduced in version 0.8.19 in which an `import` of an `export {...} from` re-export of a CommonJS module does not include the CommonJS module if it has been marked as `"sideEffect": false` in its `package.json` file. This was the case with the [Ramda](https://ramdajs.com/) library, and was due to an unhandled case in the linker.
+
 ## 0.8.23
 
 * Fix non-string objects being passed to `transformSync` ([#596](https://github.com/evanw/esbuild/issues/596))

@@ -102,6 +102,26 @@ TestFileLoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestImportReExportOfNamespaceImport
+---------- /out.js ----------
+// Users/user/project/node_modules/pkg/foo.js
+var require_foo = __commonJS((exports, module) => {
+  module.exports = 123;
+});
+
+// Users/user/project/node_modules/pkg/bar.js
+var require_bar = __commonJS((exports, module) => {
+  module.exports = "abc";
+});
+
+// Users/user/project/node_modules/pkg/index.js
+var foo = __toModule(require_foo());
+var bar = __toModule(require_bar());
+
+// Users/user/project/entry.js
+console.log(foo.default);
+
+================================================================================
 TestJSONLoaderRemoveUnused
 ---------- /out.js ----------
 // entry.js
