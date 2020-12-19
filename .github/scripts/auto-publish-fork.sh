@@ -2,7 +2,7 @@
 set -euxo pipefail
 shopt -s inherit_errexit
 
-echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > .npmrc
+echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > ".npmrc"
 node --version
 npm --version
 npm whoami
@@ -28,8 +28,8 @@ pr_number="$1"
 git remote add cspotcode https://github.com/cspotcode/esbuild || true
 git fetch cspotcode
 
-git config user.name "Committer"
-git config user.email "committer@example.com"
+export GIT_AUTHOR_NAME="Committer"
+export GIT_AUTHOR_EMAIL="committer@example.com"
 
 # Merge in the pull request
 git fetch cspotcode refs/pull/$pr_number/head:PR_HEAD
@@ -40,5 +40,10 @@ echo "$(cat version.txt)-$(node -p 'new Date().toISOString().replace(/:|\./g, "-
 
 # Test without token
 NPM_AUTOMATION_TOKEN="" make test-prepublish
+
+for dir in npm/* ; do
+	echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > "$dir/.npmrc"
+done
+
 # publish with token
 make publish-all
