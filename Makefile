@@ -162,43 +162,43 @@ publish-all: cmd/esbuild/version.go test-prepublish
 	git push origin "v$(ESBUILD_VERSION)"
 
 publish-windows: platform-windows
-	cd npm/esbuild-windows-64 && npm publish --access=public
+	cd npm/esbuild-windows-64 && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && echo npm publish --access=public
 
 publish-windows-32: platform-windows-32
-	cd npm/esbuild-windows-32 && npm publish --access=public
+	cd npm/esbuild-windows-32 && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-darwin: platform-darwin
-	cd npm/esbuild-darwin-64 && npm publish --access=public
+	cd npm/esbuild-darwin-64 && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-freebsd: platform-freebsd
-	cd npm/esbuild-freebsd-64 && npm publish --access=public
+	cd npm/esbuild-freebsd-64 && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-freebsd-arm64: platform-freebsd-arm64
-	cd npm/esbuild-freebsd-arm64 && npm publish --access=public
+	cd npm/esbuild-freebsd-arm64 && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-linux: platform-linux
-	cd npm/esbuild-linux-64 && npm publish --access=public
+	cd npm/esbuild-linux-64 && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-linux-32: platform-linux-32
-	cd npm/esbuild-linux-32 && npm publish --access=public
+	cd npm/esbuild-linux-32 && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-linux-arm: platform-linux-arm
-	cd npm/esbuild-linux-arm && npm publish --access=public
+	cd npm/esbuild-linux-arm && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-linux-arm64: platform-linux-arm64
-	cd npm/esbuild-linux-arm64 && npm publish --access=public
+	cd npm/esbuild-linux-arm64 && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-linux-mips64le: platform-linux-mips64le
-	cd npm/esbuild-linux-mips64le && npm publish --access=public
+	cd npm/esbuild-linux-mips64le && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-linux-ppc64le: platform-linux-ppc64le
-	cd npm/esbuild-linux-ppc64le && npm publish --access=public
+	cd npm/esbuild-linux-ppc64le && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-wasm: platform-wasm
-	cd npm/esbuild-wasm && npm publish --access=public
+	cd npm/esbuild-wasm && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 publish-neutral: platform-neutral
-	cd npm/esbuild && npm publish --access=public
+	cd npm/esbuild && echo '//registry.npmjs.org/:_authToken=$${NPM_AUTOMATION_TOKEN}' > ".npmrc" && npm publish --access=public
 
 clean:
 	rm -f esbuild

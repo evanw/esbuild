@@ -43,9 +43,9 @@ echo "$(cat version.txt)-$(node -p 'new Date().toISOString().replace(/:|\./g, "-
 # Test without token
 NPM_AUTOMATION_TOKEN="" make test-prepublish
 
-for dir in npm/* ; do
-	echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > "$dir/.npmrc"
-done
+# for dir in npm/* ; do
+# 	echo '//registry.npmjs.org/:_authToken=${NPM_AUTOMATION_TOKEN}' > "$dir/.npmrc"
+# done
 
 # publish with token
 make publish-all
