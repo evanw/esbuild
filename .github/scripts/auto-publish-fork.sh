@@ -28,8 +28,10 @@ pr_number="$1"
 git remote add cspotcode https://github.com/cspotcode/esbuild || true
 git fetch cspotcode
 
-export GIT_AUTHOR_NAME="Committer"
-export GIT_AUTHOR_EMAIL="committer@example.com"
+# export GIT_AUTHOR_NAME="Committer"
+# export GIT_AUTHOR_EMAIL="committer@example.com"
+git config user.name "Committer"
+git config user.email "committer@example.com"
 
 # Merge in the pull request
 git fetch cspotcode refs/pull/$pr_number/head:PR_HEAD
