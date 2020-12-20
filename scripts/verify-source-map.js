@@ -64,6 +64,27 @@ const testCaseCommonJS = {
   `,
 }
 
+const testCaseDiscontiguous = {
+  'a.js': `
+    import {b0} from './b-dir/b.js'
+    import {c0} from './b-dir/c-dir/c.js'
+    function a0() { a1("a0") }
+    function a1() { a2("a1") }
+    function a2() { b0("a2") }
+    a0(b0, c0)
+  `,
+  'b-dir/b.js': `
+    exports.b0 = function() { b1("b0") }
+    function b1() { b2("b1") }
+    function b2() { c0("b2") }
+  `,
+  'b-dir/c-dir/c.js': `
+    export function c0() { c1("c0") }
+    function c1() { c2("c1") }
+    function c2() { throw new Error("c2") }
+  `,
+}
+
 const testCaseTypeScriptRuntime = {
   'a.ts': `
     namespace Foo {
@@ -271,6 +292,13 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       }
     }
 
+    const sources = JSON.parse(outJsMap).sources
+    for (let source of sources) {
+      if (sources.filter(s => s === source).length > 1) {
+        throw new Error(`Duplicate source ${JSON.stringify(source)} found in source map`)
+      }
+    }
+
     const outMap = await new SourceMapConsumer(outJsMap)
     checkMap(outJs, outMap, '')
 
@@ -337,6 +365,11 @@ async function main() {
           crlf,
         }),
         check('es6' + suffix, testCaseES6, toSearchBundle, {
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['a.js'],
+          crlf,
+        }),
+        check('discontiguous' + suffix, testCaseDiscontiguous, toSearchBundle, {
           flags: flags.concat('--outfile=out.js', '--bundle'),
           entryPoints: ['a.js'],
           crlf,

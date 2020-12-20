@@ -4247,32 +4247,40 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []b
 	j := js_printer.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
+	// Only write out the sources for a given source index once
+	sourceIndexToSourcesIndex := make(map[uint32]int)
+
 	// Write the sources
 	j.AddString(",\n  \"sources\": [")
-	needComma := false
+	nextSourcesIndex := 0
 	for _, result := range results {
+		if _, ok := sourceIndexToSourcesIndex[result.sourceIndex]; ok {
+			continue
+		}
+		sourceIndexToSourcesIndex[result.sourceIndex] = nextSourcesIndex
 		for _, source := range result.SourceMapChunk.QuotedSources {
-			if needComma {
+			if nextSourcesIndex != 0 {
 				j.AddString(", ")
-			} else {
-				needComma = true
 			}
 			j.AddBytes(source.QuotedPath)
+			nextSourcesIndex++
 		}
 	}
 	j.AddString("]")
 
 	// Write the sourcesContent
 	j.AddString(",\n  \"sourcesContent\": [")
-	needComma = false
+	nextSourcesIndex = 0
 	for _, result := range results {
+		if sourceIndexToSourcesIndex[result.sourceIndex] != nextSourcesIndex {
+			continue
+		}
 		for _, source := range result.SourceMapChunk.QuotedSources {
-			if needComma {
+			if nextSourcesIndex != 0 {
 				j.AddString(", ")
-			} else {
-				needComma = true
 			}
 			j.AddBytes(source.QuotedContents)
+			nextSourcesIndex++
 		}
 	}
 	j.AddString("]")
@@ -4281,10 +4289,10 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []b
 	j.AddString(",\n  \"mappings\": \"")
 	prevEndState := js_printer.SourceMapState{}
 	prevColumnOffset := 0
-	sourceMapIndex := 0
 	for _, result := range results {
 		chunk := result.SourceMapChunk
 		offset := result.generatedOffset
+		sourcesIndex := sourceIndexToSourcesIndex[result.sourceIndex]
 
 		// This should have already been checked earlier
 		if chunk.ShouldIgnore {
@@ -4299,7 +4307,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []b
 		// is done by AppendSourceMapChunk() using the source index passed
 		// here.
 		startState := js_printer.SourceMapState{
-			SourceIndex:     sourceMapIndex,
+			SourceIndex:     sourcesIndex,
 			GeneratedLine:   offset.lines,
 			GeneratedColumn: offset.columns,
 		}
@@ -4320,7 +4328,7 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []b
 
 		// Generate the relative offset to start from next time
 		prevEndState = chunk.EndState
-		prevEndState.SourceIndex += sourceMapIndex
+		prevEndState.SourceIndex += sourcesIndex
 		prevColumnOffset = chunk.FinalGeneratedColumn
 
 		// Adjust the source map if we stripped off the trailing semicolon
@@ -4334,8 +4342,6 @@ func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []b
 			prevEndState.GeneratedColumn += startState.GeneratedColumn
 			prevColumnOffset += startState.GeneratedColumn
 		}
-
-		sourceMapIndex += len(result.SourceMapChunk.QuotedSources)
 	}
 	j.AddString("\"")
 
