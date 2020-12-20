@@ -3212,26 +3212,6 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 	}
 }
 
-func PrintExpr(expr js_ast.Expr, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
-	p := createPrinter(symbols, r, nil, options, 0)
-
-	p.printExpr(expr, js_ast.LLowest, 0)
-
-	p.updateGeneratedLineAndColumn()
-
-	return PrintResult{
-		JS:                p.js,
-		ExtractedComments: p.extractedComments,
-		SourceMapChunk: SourceMapChunk{
-			Buffer:               p.sourceMap,
-			QuotedSources:        quotedSources(nil, &options),
-			EndState:             p.prevState,
-			FinalGeneratedColumn: p.generatedColumn,
-			ShouldIgnore:         p.shouldIgnoreSourceMap(),
-		},
-	}
-}
-
 func quotedSources(tree *js_ast.AST, options *Options) []QuotedSource {
 	if options.SourceForSourceMap == nil {
 		return nil

@@ -30,24 +30,7 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 // bundles, not JSON bundles.
 func expectPrintedJSON(t *testing.T, contents string, expected string) {
 	t.Helper()
-	t.Run(contents, func(t *testing.T) {
-		t.Helper()
-		log := logger.NewDeferLog()
-		expr, ok := ParseJSON(log, test.SourceForTest(contents), JSONOptions{})
-		msgs := log.Done()
-		text := ""
-		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
-		}
-		test.AssertEqual(t, text, "")
-		if !ok {
-			t.Fatal("Parse error")
-		}
-		js := js_printer.PrintExpr(expr, js_ast.SymbolMap{}, nil, js_printer.Options{
-			RemoveWhitespace: true,
-		}).JS
-		test.AssertEqual(t, string(js), expected)
-	})
+	expectPrintedJSONWithWarning(t, contents, "", expected)
 }
 
 func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string, expected string) {
@@ -65,9 +48,21 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		js := js_printer.PrintExpr(expr, js_ast.SymbolMap{}, nil, js_printer.Options{
+
+		// Insert this expression into a statement
+		tree := js_ast.AST{
+			Parts: []js_ast.Part{{Stmts: []js_ast.Stmt{{Data: &js_ast.SExpr{Value: expr}}}}},
+		}
+
+		js := js_printer.Print(tree, js_ast.SymbolMap{}, nil, js_printer.Options{
 			RemoveWhitespace: true,
 		}).JS
+
+		// Remove the trailing semicolon
+		if n := len(js); n > 1 && js[n-1] == ';' {
+			js = js[:n-1]
+		}
+
 		test.AssertEqual(t, string(js), expected)
 	})
 }
@@ -148,9 +143,9 @@ func TestJSONNumber(t *testing.T) {
 }
 
 func TestJSONObject(t *testing.T) {
-	expectPrintedJSON(t, "{\"x\":0}", "{x:0}")
-	expectPrintedJSON(t, "{\"x\":0,\"y\":1}", "{x:0,y:1}")
-	expectPrintedJSONWithWarning(t, "{\"x\":0,\"x\":1}", "<stdin>: warning: Duplicate key: \"x\"\n", "{x:0,x:1}")
+	expectPrintedJSON(t, "{\"x\":0}", "({x:0})")
+	expectPrintedJSON(t, "{\"x\":0,\"y\":1}", "({x:0,y:1})")
+	expectPrintedJSONWithWarning(t, "{\"x\":0,\"x\":1}", "<stdin>: warning: Duplicate key: \"x\"\n", "({x:0,x:1})")
 	expectParseErrorJSON(t, "{\"x\":0,}", "<stdin>: error: JSON does not support trailing commas\n")
 	expectParseErrorJSON(t, "{x:0}", "<stdin>: error: Expected string but found \"x\"\n")
 	expectParseErrorJSON(t, "{1:0}", "<stdin>: error: Expected string but found \"1\"\n")
