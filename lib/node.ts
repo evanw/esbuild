@@ -10,17 +10,10 @@ import tty = require('tty');
 
 let worker_threads: typeof import('worker_threads') | undefined;
 
-// There appears to be some some weird Windows-specific issue that non-
-// deterministically causes tests that use the "worker_threads" library to fail
-// to exit. This only happens in GitHub CI. I have not been able to reproduce
-// this myself. Let's disable this optimization on Windows for now. This means
-// synchronous API calls will potentially be ~10x slower on Windows.
-if (os.platform() !== 'win32') {
-  // Don't crash if the "worker_threads" library isn't present
-  try {
-    worker_threads = require('worker_threads');
-  } catch {
-  }
+// Don't crash if the "worker_threads" library isn't present
+try {
+  worker_threads = require('worker_threads');
+} catch {
 }
 
 declare const ESBUILD_VERSION: string;
