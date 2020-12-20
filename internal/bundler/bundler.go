@@ -102,6 +102,21 @@ func (repr *reprCSS) importRecords() *[]ast.ImportRecord {
 	return &repr.ast.ImportRecords
 }
 
+// This is data related to source maps. It's computed in parallel with linking
+// and must be ready by the time printing happens. This is beneficial because
+// it is somewhat expensive to produce.
+type dataForSourceMap struct {
+	// This data is for the printer. It maps from byte offsets in the file (which
+	// are stored at every AST node) to UTF-16 column offsets (required by source
+	// maps).
+	lineOffsetTables []js_printer.LineOffsetTable
+
+	// This contains the quoted contents of the original source file. It's what
+	// needs to be embedded in the "sourcesContent" array in the final source
+	// map. Quoting is precomputed because it's somewhat expensive.
+	quotedContents [][]byte
+}
+
 type Bundle struct {
 	fs          fs.FS
 	res         resolver.Resolver
@@ -446,6 +461,15 @@ func parseFile(args parseArgs) {
 	}
 
 	args.results <- result
+}
+
+func isASCIIOnly(text string) bool {
+	for _, c := range text {
+		if c < 0x20 || c > 0x7E {
+			return false
+		}
+	}
+	return true
 }
 
 func guessMimeType(extension string, contents string) string {
@@ -1323,9 +1347,13 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	}
 
 	// Get the base path from the options or choose the lowest common ancestor of all entry points
+	allReachableFiles := findReachableFiles(b.files, b.entryPoints)
 	if options.AbsOutputBase == "" {
-		options.AbsOutputBase = b.lowestCommonAncestorDirectory(options.CodeSplitting)
+		options.AbsOutputBase = b.lowestCommonAncestorDirectory(options.CodeSplitting, allReachableFiles)
 	}
+
+	// Compute source map data in parallel with linking
+	dataForSourceMaps := b.computeDataForSourceMapsInParallel(&options, allReachableFiles)
 
 	type linkGroup struct {
 		outputFiles    []OutputFile
@@ -1335,7 +1363,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	var resultGroups []linkGroup
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
-		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints)
+		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints, allReachableFiles, dataForSourceMaps)
 		resultGroups = []linkGroup{{
 			outputFiles:    c.link(),
 			reachableFiles: c.reachableFiles,
@@ -1347,7 +1375,9 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint uint32) {
-				c := newLinkerContext(&options, log, b.fs, b.res, b.files, []uint32{entryPoint})
+				entryPoints := []uint32{entryPoint}
+				reachableFiles := findReachableFiles(b.files, entryPoints)
+				c := newLinkerContext(&options, log, b.fs, b.res, b.files, entryPoints, reachableFiles, dataForSourceMaps)
 				resultGroups[i] = linkGroup{
 					outputFiles:    c.link(),
 					reachableFiles: c.reachableFiles,
@@ -1368,7 +1398,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	if options.AbsMetadataFile != "" {
 		outputFiles = append(outputFiles, OutputFile{
 			AbsPath:  options.AbsMetadataFile,
-			Contents: b.generateMetadataJSON(outputFiles, options.ASCIIOnly),
+			Contents: b.generateMetadataJSON(outputFiles, allReachableFiles, options.ASCIIOnly),
 		})
 	}
 
@@ -1429,7 +1459,71 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	return outputFiles
 }
 
-func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
+// This is done in parallel with linking because linking is a mostly serial
+// phase and there are extra resources for parallelism. This could also be done
+// during parsing but that would slow down parsing and delay the start of the
+// linking phase, which then delays the whole bundling process.
+//
+// However, doing this during parsing would allow it to be cached along with
+// the parsed ASTs which would then speed up incremental builds. In the future
+// it could be good to optionally have this be computed during the parsing
+// phase when incremental builds are active but otherwise still have it be
+// computed during linking for optimal speed during non-incremental builds.
+func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, reachableFiles []uint32) func() []dataForSourceMap {
+	if options.SourceMap == config.SourceMapNone {
+		return func() []dataForSourceMap {
+			return nil
+		}
+	}
+
+	var waitGroup sync.WaitGroup
+	results := make([]dataForSourceMap, len(b.files))
+
+	for _, sourceIndex := range reachableFiles {
+		if f := &b.files[sourceIndex]; f.loader.CanHaveSourceMap() {
+			if repr, ok := f.repr.(*reprJS); ok {
+				waitGroup.Add(1)
+				go func(sourceIndex uint32, f *file, repr *reprJS) {
+					result := &results[sourceIndex]
+					result.lineOffsetTables = js_printer.GenerateLineOffsetTables(f.source.Contents, repr.ast.ApproximateLineCount)
+					sm := f.sourceMap
+					if sm == nil {
+						// Simple case: no nested source map
+						result.quotedContents = [][]byte{js_printer.QuoteForJSON(f.source.Contents, options.ASCIIOnly)}
+					} else {
+						// Complex case: nested source map
+						result.quotedContents = make([][]byte, len(sm.Sources))
+						nullContents := []byte("null")
+						for i := range sm.Sources {
+							// Missing contents become a "null" literal
+							quotedContents := nullContents
+							if i < len(sm.SourcesContent) {
+								if value := sm.SourcesContent[i]; value.Quoted != "" {
+									if options.ASCIIOnly && !isASCIIOnly(value.Quoted) {
+										// Re-quote non-ASCII values if output is ASCII-only
+										quotedContents = js_printer.QuoteForJSON(js_lexer.UTF16ToString(value.Value), options.ASCIIOnly)
+									} else {
+										// Otherwise just use the value directly from the input file
+										quotedContents = []byte(value.Quoted)
+									}
+								}
+							}
+							result.quotedContents[i] = quotedContents
+						}
+					}
+					waitGroup.Done()
+				}(sourceIndex, f, repr)
+			}
+		}
+	}
+
+	return func() []dataForSourceMap {
+		waitGroup.Wait()
+		return results
+	}
+}
+
+func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool, allReachableFiles []uint32) string {
 	isEntryPoint := make(map[uint32]bool)
 	for _, entryPoint := range b.entryPoints {
 		isEntryPoint[entryPoint] = true
@@ -1437,7 +1531,7 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 
 	// If code splitting is enabled, also treat dynamic imports as entry points
 	if codeSplitting {
-		for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
+		for _, sourceIndex := range allReachableFiles {
 			if repr, ok := b.files[sourceIndex].repr.(*reprJS); ok {
 				for importRecordIndex := range repr.ast.ImportRecords {
 					if record := &repr.ast.ImportRecords[importRecordIndex]; record.SourceIndex != nil && record.Kind == ast.ImportDynamic {
@@ -1500,13 +1594,13 @@ func (b *Bundle) lowestCommonAncestorDirectory(codeSplitting bool) string {
 	return lowestAbsDir
 }
 
-func (b *Bundle) generateMetadataJSON(results []OutputFile, asciiOnly bool) []byte {
+func (b *Bundle) generateMetadataJSON(results []OutputFile, allReachableFiles []uint32, asciiOnly bool) []byte {
 	j := js_printer.Joiner{}
 	j.AddString("{\n  \"inputs\": {")
 
 	// Write inputs
 	isFirst := true
-	for _, sourceIndex := range findReachableFiles(b.files, b.entryPoints) {
+	for _, sourceIndex := range allReachableFiles {
 		if sourceIndex == runtime.SourceIndex {
 			continue
 		}

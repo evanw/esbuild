@@ -84,6 +84,11 @@ type linkerContext struct {
 
 	// We may need to refer to the CommonJS "module" symbol for exports
 	unboundModuleRef js_ast.Ref
+
+	// This represents the parallel computation of source map related data.
+	// Calling this will block until the computation is done. The resulting value
+	// is shared between threads and must be treated as immutable.
+	dataForSourceMaps func() []dataForSourceMap
 }
 
 // This contains linker-specific metadata corresponding to a "file" struct
@@ -326,17 +331,20 @@ func newLinkerContext(
 	res resolver.Resolver,
 	files []file,
 	entryPoints []uint32,
+	reachableFiles []uint32,
+	dataForSourceMaps func() []dataForSourceMap,
 ) linkerContext {
 	// Clone information about symbols and files so we don't mutate the input data
 	c := linkerContext{
-		options:        options,
-		log:            log,
-		fs:             fs,
-		res:            res,
-		entryPoints:    append([]uint32{}, entryPoints...),
-		files:          make([]file, len(files)),
-		symbols:        js_ast.NewSymbolMap(len(files)),
-		reachableFiles: findReachableFiles(files, entryPoints),
+		options:           options,
+		log:               log,
+		fs:                fs,
+		res:               res,
+		entryPoints:       append([]uint32{}, entryPoints...),
+		files:             make([]file, len(files)),
+		symbols:           js_ast.NewSymbolMap(len(files)),
+		reachableFiles:    reachableFiles,
+		dataForSourceMaps: dataForSourceMaps,
 	}
 
 	// Clone various things since we may mutate them later
@@ -3141,6 +3149,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	commonJSRef js_ast.Ref,
 	toModuleRef js_ast.Ref,
 	result *compileResultJS,
+	dataForSourceMaps []dataForSourceMap,
 ) {
 	file := &c.files[partRange.sourceIndex]
 	repr := file.repr.(*reprJS)
@@ -3236,42 +3245,13 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	}
 
 	// Only generate a source map if needed
-	var sourceForSourceMap *logger.Source
+	var addSourceMappings bool
 	var inputSourceMap *sourcemap.SourceMap
+	var lineOffsetTables []js_printer.LineOffsetTable
 	if file.loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
-		sourceClone := file.source
-		sourceForSourceMap = &sourceClone
-
-		if file.sourceMap != nil {
-			sourceMapClone := *file.sourceMap
-			inputSourceMap = &sourceMapClone
-
-			// Modify the paths to the original files to be relative to the directory
-			// containing the output file
-			if sourceClone.KeyPath.Namespace == "file" {
-				// Clone the array to avoid modifying the original array
-				sourceMapClone.Sources = append([]string{}, sourceMapClone.Sources...)
-				sourceAbsDir := c.fs.Dir(sourceClone.KeyPath.Text)
-
-				// Remap each path in the "sources" array in the source map
-				for i, oldRelPath := range sourceMapClone.Sources {
-					absPath := c.fs.Join(sourceAbsDir, oldRelPath)
-					if relPath, ok := c.fs.Rel(chunkAbsDir, absPath); ok {
-						// Make sure to always use forward slashes, even on Windows
-						sourceMapClone.Sources[i] = strings.ReplaceAll(relPath, "\\", "/")
-					}
-				}
-			}
-		}
-
-		// Modify the path to the original file to be relative to the directory
-		// containing the output file
-		if sourceClone.KeyPath.Namespace == "file" {
-			if relPath, ok := c.fs.Rel(chunkAbsDir, sourceClone.KeyPath.Text); ok {
-				// Make sure to always use forward slashes, even on Windows
-				sourceClone.PrettyPath = strings.ReplaceAll(relPath, "\\", "/")
-			}
-		}
+		addSourceMappings = true
+		inputSourceMap = file.sourceMap
+		lineOffsetTables = dataForSourceMaps[partRange.sourceIndex].lineOffsetTables
 	}
 
 	// Indent the file if everything is wrapped in an IIFE
@@ -3290,8 +3270,9 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		ToModuleRef:         toModuleRef,
 		ExtractComments:     c.options.Mode == config.ModeBundle && c.options.RemoveWhitespace,
 		UnsupportedFeatures: c.options.UnsupportedJSFeatures,
-		SourceForSourceMap:  sourceForSourceMap,
+		AddSourceMappings:   addSourceMappings,
 		InputSourceMap:      inputSourceMap,
+		LineOffsetTables:    lineOffsetTables,
 		WrapperRefForSource: func(sourceIndex uint32) js_ast.Ref {
 			return c.files[sourceIndex].repr.(*reprJS).ast.WrapperRef
 		},
@@ -3500,6 +3481,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 	toModuleRef := js_ast.FollowSymbols(c.symbols, runtimeMembers["__toModule"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunk.filesInChunkInOrder)
 	chunkAbsDir := c.fs.Join(c.options.AbsOutputDir, chunk.relDir)
+	dataForSourceMaps := c.dataForSourceMaps()
 
 	// Generate JavaScript for each file in parallel
 	waitGroup := sync.WaitGroup{}
@@ -3522,6 +3504,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 			commonJSRef,
 			toModuleRef,
 			compileResult,
+			dataForSourceMaps,
 		)
 	}
 
@@ -3842,7 +3825,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 		}
 
 		if c.options.SourceMap != config.SourceMapNone {
-			sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap)
+			sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
 
 			// Store the generated source map
 			switch c.options.SourceMap {
@@ -4243,45 +4226,92 @@ func (c *linkerContext) preventExportsFromBeingRenamed(sourceIndex uint32) {
 	}
 }
 
-func (c *linkerContext) generateSourceMapForChunk(results []compileResultJS) []byte {
+func (c *linkerContext) generateSourceMapForChunk(
+	results []compileResultJS,
+	chunkAbsDir string,
+	dataForSourceMaps []dataForSourceMap,
+) []byte {
 	j := js_printer.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
 	// Only write out the sources for a given source index once
 	sourceIndexToSourcesIndex := make(map[uint32]int)
 
-	// Write the sources
-	j.AddString(",\n  \"sources\": [")
+	// Generate the "sources" and "sourcesContent" arrays
+	type item struct {
+		path           logger.Path
+		prettyPath     string
+		quotedContents []byte
+	}
+	items := make([]item, 0, len(results))
 	nextSourcesIndex := 0
 	for _, result := range results {
 		if _, ok := sourceIndexToSourcesIndex[result.sourceIndex]; ok {
 			continue
 		}
 		sourceIndexToSourcesIndex[result.sourceIndex] = nextSourcesIndex
-		for _, source := range result.SourceMapChunk.QuotedSources {
-			if nextSourcesIndex != 0 {
-				j.AddString(", ")
-			}
-			j.AddBytes(source.QuotedPath)
-			nextSourcesIndex++
+		nextSourcesIndex++
+		file := &c.files[result.sourceIndex]
+
+		// Simple case: no nested source map
+		if file.sourceMap == nil {
+			items = append(items, item{
+				path:           file.source.KeyPath,
+				prettyPath:     file.source.PrettyPath,
+				quotedContents: dataForSourceMaps[result.sourceIndex].quotedContents[0],
+			})
+			continue
 		}
+
+		// Complex case: nested source map
+		sm := file.sourceMap
+		for i, source := range sm.Sources {
+			path := logger.Path{
+				Namespace: file.source.KeyPath.Namespace,
+				Text:      source,
+			}
+
+			// If this file is in the "file" namespace, change the relative path in
+			// the source map into an absolute path using the directory of this file
+			if path.Namespace == "file" {
+				path.Text = c.fs.Join(c.fs.Dir(file.source.KeyPath.Text), source)
+			}
+
+			items = append(items, item{
+				path:           path,
+				prettyPath:     source,
+				quotedContents: dataForSourceMaps[result.sourceIndex].quotedContents[i],
+			})
+		}
+	}
+
+	// Write the sources
+	j.AddString(",\n  \"sources\": [")
+	for i, item := range items {
+		if i != 0 {
+			j.AddString(", ")
+		}
+
+		// Modify the absolute path to the original file to be relative to the
+		// directory that will contain the output file for this chunk
+		if item.path.Namespace == "file" {
+			if relPath, ok := c.fs.Rel(chunkAbsDir, item.path.Text); ok {
+				// Make sure to always use forward slashes, even on Windows
+				item.prettyPath = strings.ReplaceAll(relPath, "\\", "/")
+			}
+		}
+
+		j.AddBytes(js_printer.QuoteForJSON(item.prettyPath, c.options.ASCIIOnly))
 	}
 	j.AddString("]")
 
 	// Write the sourcesContent
 	j.AddString(",\n  \"sourcesContent\": [")
-	nextSourcesIndex = 0
-	for _, result := range results {
-		if sourceIndexToSourcesIndex[result.sourceIndex] != nextSourcesIndex {
-			continue
+	for i, item := range items {
+		if i != 0 {
+			j.AddString(", ")
 		}
-		for _, source := range result.SourceMapChunk.QuotedSources {
-			if nextSourcesIndex != 0 {
-				j.AddString(", ")
-			}
-			j.AddBytes(source.QuotedContents)
-			nextSourcesIndex++
-		}
+		j.AddBytes(item.quotedContents)
 	}
 	j.AddString("]")
 

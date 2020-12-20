@@ -23,8 +23,8 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		return nil
 	}
 
-	var sourcesContent []*string
 	var sources []string
+	var sourcesContent []sourcemap.SourceContent
 	var mappingsRaw []uint16
 	var mappingsStart int32
 	hasVersion := false
@@ -54,6 +54,8 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
 						sources = append(sources, js_lexer.UTF16ToString(element.Value))
+					} else {
+						sources = append(sources, "")
 					}
 				}
 			}
@@ -63,10 +65,12 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				sourcesContent = nil
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
-						str := js_lexer.UTF16ToString(element.Value)
-						sourcesContent = append(sourcesContent, &str)
+						sourcesContent = append(sourcesContent, sourcemap.SourceContent{
+							Value:  element.Value,
+							Quoted: source.TextForRange(source.RangeOfString(item.Loc)),
+						})
 					} else {
-						sourcesContent = append(sourcesContent, nil)
+						sourcesContent = append(sourcesContent, sourcemap.SourceContent{})
 					}
 				}
 			}
