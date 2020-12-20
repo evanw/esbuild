@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.25
 
 * Fix a performance regression from version 0.8.4 specific to Yarn 2
 
