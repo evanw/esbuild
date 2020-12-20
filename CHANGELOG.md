@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a performance regression from version 0.8.4 specific to Yarn 2
+
+    Code using esbuild's `transformSync` function via Yarn 2 experienced a dramatic slowdown in esbuild version 0.8.4 and above. This version added a wrapper script to fix Yarn 2's incompatibility with binary packages. Some code that tries to avoid unnecessarily calling into the wrapper script contained a bug that caused it to fail, which meant that using `transformSync` with Yarn 2 called into the wrapper script unnecessarily. This launched an extra node process every time the esbuild executable was invoked which can be over 6x slower than just invoking the esbuild executable directly. This release should now invoke the esbuild executable directly without going through the wrapper script, which fixes the performance regression.
+
 ## 0.8.24
 
 * Share reference-counted service instances internally ([#600](https://github.com/evanw/esbuild/issues/600))
