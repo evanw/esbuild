@@ -2240,6 +2240,53 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
   },
 }
 
+let serialTests = {
+  async processCwdChangeTest({ esbuild, testDir }) {
+    let originalCWD = process.cwd();
+    let firstService
+    let secondService
+
+    try {
+      let aDir = path.join(testDir, 'a');
+      let bDir = path.join(testDir, 'b');
+      let aFile = path.join(aDir, 'a-in.js');
+      let bFile = path.join(bDir, 'b-in.js');
+      let aOut = path.join(aDir, 'a-out.js');
+      let bOut = path.join(bDir, 'b-out.js');
+      fs.mkdirSync(aDir);
+      fs.mkdirSync(bDir);
+      fs.writeFileSync(aFile, 'exports.x = true');
+      fs.writeFileSync(bFile, 'exports.y = true');
+
+      try {
+        process.chdir(aDir);
+        assert.strictEqual(process.cwd(), aDir);
+        firstService = await esbuild.startService();
+
+        try {
+          process.chdir(bDir);
+          assert.strictEqual(process.cwd(), bDir);
+          secondService = await esbuild.startService();
+
+          await Promise.all([
+            firstService.build({ entryPoints: [path.basename(aFile)], outfile: path.basename(aOut) }),
+            secondService.build({ entryPoints: [path.basename(bFile)], outfile: path.basename(bOut) }),
+          ]);
+
+          assert.strictEqual(require(aOut).x, true)
+          assert.strictEqual(require(bOut).y, true)
+        } finally {
+          secondService.stop();
+        }
+      } finally {
+        firstService.stop();
+      }
+    } finally {
+      process.chdir(originalCWD);
+    }
+  },
+}
+
 async function assertSourceMap(jsSourceMap, source) {
   const map = await new SourceMapConsumer(jsSourceMap)
   const original = map.originalPositionFor({ line: 1, column: 4 })
@@ -2284,10 +2331,15 @@ async function main() {
     ...Object.entries(transformTests),
     ...Object.entries(syncTests),
   ]
-  const allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
-
-  // Clean up test output
+  let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
   service.stop()
+
+  // Run some tests in serial at the end
+  for (let test of Object.entries(serialTests)) {
+    if (!await runTest(test)) {
+      allTestsPassed = false
+    }
+  }
 
   if (!allTestsPassed) {
     console.error(`❌ js api tests failed`)

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Ensure the current working directory remains unique per `startService()` call
+
+    The change in version 0.8.24 to share service instances caused problems for code that calls `process.chdir()` before calling `startService()` to be able to get a service with a different working directory. With this release, calls to `startService()` no longer share the service instance if the working directory was different at the time of creation.
+
 ## 0.8.25
 
 * Fix a performance regression from version 0.8.4 specific to Yarn 2

@@ -938,7 +938,7 @@ function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types
   }
 }
 
-export function referenceCountedService(startService: typeof types.startService): typeof types.startService {
+export function referenceCountedService(getwd: () => string, startService: typeof types.startService): typeof types.startService {
   interface Entry {
     promise: Promise<types.Service>;
     refCount: number;
@@ -947,7 +947,12 @@ export function referenceCountedService(startService: typeof types.startService)
   let entries = new Map<string, Entry>();
 
   return async (options) => {
-    let key = JSON.stringify(options || {});
+    // Mix the current working directory into the key. Some users rely on
+    // calling "process.chdir()" before calling "startService()" to set the
+    // current working directory for that service.
+    let cwd = getwd();
+    let optionsJSON = JSON.stringify(options || {});
+    let key = `${optionsJSON} ${cwd}`;
     let entry = entries.get(key);
     let didStop = false;
 
@@ -972,7 +977,7 @@ export function referenceCountedService(startService: typeof types.startService)
     if (entry === void 0) {
       // Store the promise used to create the service so that multiple
       // concurrent calls to "startService()" will share the same promise.
-      entry = { promise: startService(JSON.parse(key)), refCount: 0 };
+      entry = { promise: startService(JSON.parse(optionsJSON)), refCount: 0 };
       entries.set(key, entry);
     }
 

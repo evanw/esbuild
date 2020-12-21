@@ -26,7 +26,7 @@ export const transformSync: typeof types.transformSync = () => {
   throw new Error(`The "transformSync" API only works in node`);
 };
 
-export const startService: typeof types.startService = common.referenceCountedService(async (options) => {
+export const startService: typeof types.startService = common.referenceCountedService(() => '', async (options) => {
   if (!options) throw new Error('Must provide an options object to "startService"');
   options = common.validateServiceOptions(options)!;
   let wasmURL = options.wasmURL;
