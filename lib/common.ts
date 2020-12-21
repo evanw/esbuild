@@ -137,8 +137,20 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (footer) flags.push(`--footer=${footer}`);
 }
 
-function flagsForBuildOptions(callName: string, options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel, writeDefault: boolean):
-  [string[], boolean, types.Plugin[] | undefined, string | null, string | null, boolean] {
+function flagsForBuildOptions(
+  callName: string,
+  options: types.BuildOptions,
+  isTTY: boolean,
+  logLevelDefault: types.LogLevel,
+  writeDefault: boolean,
+): {
+  flags: string[],
+  write: boolean,
+  plugins: types.Plugin[] | undefined,
+  stdinContents: string | null,
+  stdinResolveDir: string | null,
+  incremental: boolean,
+} {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   let stdinContents: string | null = null;
@@ -234,10 +246,15 @@ function flagsForBuildOptions(callName: string, options: types.BuildOptions, isT
     stdinContents = contents ? contents + '' : '';
   }
 
-  return [flags, write, plugins, stdinContents, stdinResolveDir, incremental];
+  return { flags, write, plugins, stdinContents, stdinResolveDir, incremental };
 }
 
-function flagsForTransformOptions(callName: string, options: types.TransformOptions, isTTY: boolean, logLevelDefault: types.LogLevel): string[] {
+function flagsForTransformOptions(
+  callName: string,
+  options: types.TransformOptions,
+  isTTY: boolean,
+  logLevelDefault: types.LogLevel,
+): string[] {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   pushLogFlags(flags, options, keys, isTTY, logLevelDefault);
@@ -645,8 +662,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         try {
           let key = nextBuildKey++;
           let writeDefault = !streamIn.isBrowser;
-          let [flags, write, plugins, stdin, resolveDir, incremental] = flagsForBuildOptions(callName, options, isTTY, logLevelDefault, writeDefault);
-          let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir, incremental };
+          let { flags, write, plugins, stdinContents, stdinResolveDir, incremental } = flagsForBuildOptions(callName, options, isTTY, logLevelDefault, writeDefault);
+          let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdinContents, stdinResolveDir, incremental };
           let serve = serveOptions && buildServeData(serveOptions, request);
           let pluginCleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
 
