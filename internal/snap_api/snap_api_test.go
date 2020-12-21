@@ -179,17 +179,31 @@ __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, requ
 		})
 }
 
-func TestMissingFileRequiredOnlyWarnsDeb(t *testing.T) {
-	snapApiSuite.debugBuild(t, built{
+// @see https://github.com/evanw/esbuild/commit/918d44e7e2912fa23f9ba409e1d6623275f7b83f
+func TestNestedScopeVarsAreNotRelocated(t *testing.T) {
+	snapApiSuite.expectBuild(t, built{
 		files: map[string]string{
-			"/entry.js": `
-require('non-existent')
+			ProjectBaseDir + "/entry.js": `
+{ var obj = Object.create({}) }
 `,
 		},
-		entryPoints: []string{"/entry.js"},
-	})
+		entryPoints: []string{ProjectBaseDir + "/entry.js"},
+	},
+		buildResult{
+			files: map[string]string{
+				ProjectBaseDir + `/entry.js`: `
+__commonJS["./entry.js"] = function(exports, module, __filename, __dirname, require) {
+  {
+let obj;
+function __get_obj__() {
+  return obj = obj || (Object.create({}))
 }
-
+  }
+};`,
+			},
+		},
+	)
+}
 func TestDebug(t *testing.T) {
 	snapApiSuite.debugBuild(t, built{
 		files: map[string]string{
