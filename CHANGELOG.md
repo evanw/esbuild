@@ -6,6 +6,21 @@
 
     The change in version 0.8.24 to share service instances caused problems for code that calls `process.chdir()` before calling `startService()` to be able to get a service with a different working directory. With this release, calls to `startService()` no longer share the service instance if the working directory was different at the time of creation.
 
+* Consider import references to be side-effect free ([#613](https://github.com/evanw/esbuild/issues/613))
+
+    This change improves tree shaking for code containing top-level references to imported symbols such as the following code:
+
+    ```js
+    import {Base} from './base'
+    export class Derived extends Base {}
+    ```
+
+    Identifier references are considered side-effect free if they are locally-defined, but esbuild special-cases identifier references to imported symbols in its AST (the identifier `Base` in this example). This meant they did not trigger this check and so were not considered locally-defined and therefore side-effect free. That meant that `Derived` in this example would never be tree-shaken.
+
+    The reason for this is that the side-effect determination is made during parsing and during parsing it's not yet known if `./base` is a CommonJS module or not. If it is, then `Base` would be a dynamic run-time property access on `exports.Base` which could hypothetically be a property with a getter that has side effects. Therefore it could be considered incorrect to remove this code due to tree-shaking because there is technically a side effect.
+
+    However, this is a very unlikely edge case and not tree-shaking this code violates developer expectations. So with this release, esbuild will always consider references to imported symbols as being side-effect free. This also aligns with ECMAScript module semantics because with ECMAScript modules, it's impossible to have a user-defined getter for an imported symbol. This means esbuild will now tree-shake unused code in cases like this.
+
 * Warn about calling an import namespace object
 
     The following code is an invalid use of an import statement:

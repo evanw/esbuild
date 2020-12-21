@@ -445,6 +445,20 @@ TestTextLoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestTreeShakingImportIdentifier
+---------- /out.js ----------
+// b.js
+var Base = class {
+};
+
+// a.js
+var Keep = class extends Base {
+};
+
+// entry.js
+new Keep();
+
+================================================================================
 TestTreeShakingReactElements
 ---------- /out.js ----------
 // entry.jsx

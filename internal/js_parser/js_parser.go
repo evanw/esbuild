@@ -10654,6 +10654,25 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 			return true
 		}
 
+	case *js_ast.EImportIdentifier:
+		// References to an ES6 import item are always side-effect free in an
+		// ECMAScript environment.
+		//
+		// They could technically have side effects if the imported module is a
+		// CommonJS module and the import item was translated to a property access
+		// (which esbuild's bundler does) and the property has a getter with side
+		// effects.
+		//
+		// But this is very unlikely and respecting this edge case would mean
+		// disabling tree shaking of all code that references an export from a
+		// CommonJS module. It would also likely violate the expectations of some
+		// developers because the code *looks* like it should be able to be tree
+		// shaken.
+		//
+		// So we deliberately ignore this edge case and always treat import item
+		// references as being side-effect free.
+		return true
+
 	case *js_ast.EIf:
 		return p.exprCanBeRemovedIfUnused(e.Test) && p.exprCanBeRemovedIfUnused(e.Yes) && p.exprCanBeRemovedIfUnused(e.No)
 

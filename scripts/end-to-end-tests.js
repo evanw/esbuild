@@ -1256,6 +1256,17 @@
       'foo/index.js': `global.dce5 = 123; exports.abc = 'abc'`,
       'foo/package.json': `{ "sideEffects": true }`,
     }),
+
+    // Note: Tree shaking this could technically be considered incorrect because
+    // the import is for a property whose getter in this case has a side effect.
+    // However, this is very unlikely and the vast majority of the time people
+    // would likely rather have the code be tree-shaken. This test case enforces
+    // the technically incorrect behavior as documentation that this edge case
+    // is being ignored.
+    test(['--bundle', 'entry.js', '--outfile=node.js'], {
+      'entry.js': `import {foo, bar} from './foo'; let unused = foo; if (bar) throw 'expected "foo" to be tree-shaken'`,
+      'foo.js': `module.exports = {get foo() { module.exports.bar = 1 }, bar: 0}`,
+    }),
   )
 
   // Test obscure CommonJS symbol edge cases

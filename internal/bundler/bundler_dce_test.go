@@ -1187,3 +1187,27 @@ func TestImportReExportOfNamespaceImport(t *testing.T) {
 		},
 	})
 }
+
+func TestTreeShakingImportIdentifier(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as a from './a'
+				new a.Keep()
+			`,
+			"/a.js": `
+				import * as b from './b'
+				export class Keep extends b.Base {}
+				export class REMOVE extends b.Base {}
+			`,
+			"/b.js": `
+				export class Base {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
