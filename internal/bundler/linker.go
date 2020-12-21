@@ -3703,7 +3703,17 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 					j.AddString("\n")
 				}
 
-				text := fmt.Sprintf("%s// %s\n", indent, c.files[compileResult.sourceIndex].source.PrettyPath)
+				path := c.files[compileResult.sourceIndex].source.PrettyPath
+
+				// Make sure newlines in the path can't cause a syntax error. This does
+				// not minimize allocations because it's expected that this case never
+				// comes up in practice.
+				path = strings.ReplaceAll(path, "\r", "\\r")
+				path = strings.ReplaceAll(path, "\n", "\\n")
+				path = strings.ReplaceAll(path, "\u2028", "\\u2028")
+				path = strings.ReplaceAll(path, "\u2029", "\\u2029")
+
+				text := fmt.Sprintf("%s// %s\n", indent, path)
 				prevOffset.advanceString(text)
 				j.AddString(text)
 				prevComment = compileResult.sourceIndex
