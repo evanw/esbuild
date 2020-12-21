@@ -6,6 +6,26 @@
 
     The change in version 0.8.24 to share service instances caused problems for code that calls `process.chdir()` before calling `startService()` to be able to get a service with a different working directory. With this release, calls to `startService()` no longer share the service instance if the working directory was different at the time of creation.
 
+* Warn about calling an import namespace object
+
+    The following code is an invalid use of an import statement:
+
+    ```js
+    import * as express from "express"
+    express()
+    ```
+
+    The `express` symbol here is an import namespace object, not a function, so calling it will fail at run-time. This code should have been written like this instead:
+
+    ```js
+    import express from "express"
+    express()
+    ```
+
+    This comes up because for legacy reasons, the TypeScript compiler defaults to a compilation mode where the `import * as` statement is converted to `const express = require("express")` which means you can actually call `express()` successfully. Doing this is incompatible with standard ECMAScript module environments such as the browser, node, and esbuild because an import namespace object is never a function. The TypeScript compiler has a setting to disable this behavior called `esModuleInterop` and they highly recommend applying it both to new and existing projects to avoid these compatibility problems. See [the TypeScript documentation](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-7.html#support-for-import-d-from-cjs-from-commonjs-modules-with---esmoduleinterop) for more information.
+
+    With this release, esbuild will now issue a warning when you do this. The warning indicates that your code will crash when run and that your code should be fixed.
+
 ## 0.8.25
 
 * Fix a performance regression from version 0.8.4 specific to Yarn 2

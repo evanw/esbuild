@@ -118,7 +118,7 @@ exports.removeRecursiveSync = path => {
     // Using "rm -fr" will never work on Windows because the "rm" command
     // doesn't exist. Using the "rimraf" should be cross-platform and even
     // works on Windows some of the time.
-    rimraf.sync(testDir, { disableGlob: true })
+    rimraf.sync(path, { disableGlob: true })
   } catch (e) {
     // Removing stuff on Windows is flaky and unreliable. Don't fail tests
     // on CI if Windows is just being a pain. Common causes of flakes include
