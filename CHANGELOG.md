@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.26
 
 * Ensure the current working directory remains unique per `startService()` call
 
