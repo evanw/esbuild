@@ -1,14 +1,13 @@
-const { installForTests } = require('./esbuild')
+const { installForTests, removeRecursiveSync } = require('./esbuild')
 const child_process = require('child_process')
 const path = require('path')
 const fs = require('fs')
-const rimraf = require('rimraf')
 const assert = require('assert')
 const esbuild = installForTests()
 
 // Create a fresh test directory
 const rootTestDir = path.join(__dirname, '.register-test')
-rimraf.sync(rootTestDir, { disableGlob: true })
+removeRecursiveSync(rootTestDir)
 fs.mkdirSync(rootTestDir)
 
 const entry = path.join(rootTestDir, 'entry.ts')
@@ -49,12 +48,7 @@ async function main() {
 main().then(
   () => {
     console.log(`✅ register test passed`)
-    try {
-      rimraf.sync(rootTestDir, { disableGlob: true })
-    } catch (e) {
-      // This doesn't work on Windows due to "EPERM: operation not permitted"
-      // but that's ok for CI because the VM will just be thrown away anyway.
-    }
+    removeRecursiveSync(rootTestDir)
   },
   e => {
     console.error(`❌ register test failed: ${e && e.message || e}`)

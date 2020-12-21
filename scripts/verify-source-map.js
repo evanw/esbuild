@@ -1,7 +1,6 @@
 const { SourceMapConsumer } = require('source-map')
-const { buildBinary } = require('./esbuild')
+const { buildBinary, removeRecursiveSync } = require('./esbuild')
 const childProcess = require('child_process')
-const rimraf = require('rimraf')
 const path = require('path')
 const util = require('util')
 const fs = require('fs').promises
@@ -341,7 +340,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       checkMap(out2Js, out2Map, tempDir)
     }
 
-    if (!failed) rimraf.sync(tempDir, { disableGlob: true })
+    if (!failed) removeRecursiveSync(tempDir)
   }
 
   catch (e) {
@@ -424,7 +423,7 @@ async function main() {
     process.exit(1)
   } else {
     console.log(`✅ verify source map passed`)
-    rimraf.sync(testDir, { disableGlob: true })
+    removeRecursiveSync(testDir)
   }
 }
 

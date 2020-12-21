@@ -1,5 +1,4 @@
-const { installForTests } = require('./esbuild')
-const rimraf = require('rimraf')
+const { installForTests, removeRecursiveSync } = require('./esbuild')
 const assert = require('assert')
 const path = require('path')
 const util = require('util')
@@ -966,7 +965,7 @@ async function main() {
   const esbuild = installForTests()
 
   // Create a fresh test directory
-  rimraf.sync(rootTestDir, { disableGlob: true })
+  removeRecursiveSync(rootTestDir)
   fs.mkdirSync(rootTestDir)
 
   // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
@@ -985,7 +984,7 @@ async function main() {
     try {
       await mkdirAsync(testDir)
       await fn({ esbuild, service, testDir })
-      rimraf.sync(testDir, { disableGlob: true })
+      removeRecursiveSync(testDir)
       return true
     } catch (e) {
       console.error(`❌ ${name}: ${e && e.message || e}`)
@@ -1003,13 +1002,7 @@ async function main() {
     process.exit(1)
   } else {
     console.log(`✅ plugin tests passed`)
-
-    try {
-      rimraf.sync(rootTestDir, { disableGlob: true })
-    } catch (e) {
-      // This doesn't work on Windows due to "EPERM: operation not permitted"
-      // but that's ok for CI because the VM will just be thrown away anyway.
-    }
+    removeRecursiveSync(rootTestDir)
   }
 
   clearTimeout(timeout);

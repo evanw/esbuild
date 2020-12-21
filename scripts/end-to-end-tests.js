@@ -13,8 +13,7 @@
   }
 
   const childProcess = await import('child_process')
-  const { default: { buildBinary, dirname } } = await import('./esbuild.js')
-  const { default: rimraf } = await import('rimraf')
+  const { default: { buildBinary, dirname, removeRecursiveSync } } = await import('./esbuild.js')
   const assert = await import('assert')
   const path = await import('path')
   const util = await import('util')
@@ -2147,7 +2146,7 @@
           }
 
           // Clean up test output
-          rimraf.sync(thisTestDir, { disableGlob: true });
+          removeRecursiveSync(thisTestDir)
         }
 
         catch (e) {
@@ -2156,7 +2155,7 @@
               assert.strictEqual(e.stderr, expectedStderr);
 
               // Clean up test output
-              rimraf.sync(thisTestDir, { disableGlob: true });
+              removeRecursiveSync(thisTestDir)
               continue;
             } catch (e2) {
               e = e2;
@@ -2193,7 +2192,7 @@
         })
 
         // Clean up test output
-        rimraf.sync(thisTestDir, { disableGlob: true })
+        removeRecursiveSync(thisTestDir)
       } catch (e) {
         console.error(`❌ test failed: ${e && e.message || e}
   dir: ${path.relative(dirname, thisTestDir)}`)
@@ -2205,7 +2204,7 @@
   }
 
   // Create a fresh test directory
-  rimraf.sync(testDir, { disableGlob: true })
+  removeRecursiveSync(testDir)
   await fs.mkdir(testDir, { recursive: true })
 
   // Run all tests concurrently
@@ -2216,8 +2215,6 @@
     process.exit(1)
   } else {
     console.log(`✅ end-to-end tests passed`)
-
-    // Clean up test output
-    rimraf.sync(testDir, { disableGlob: true })
+    removeRecursiveSync(testDir)
   }
 })().catch(e => setTimeout(() => { throw e }))
