@@ -196,6 +196,9 @@ import c2 from "c";
 a();
 b2();
 c2();
+new a();
+new b2();
+new c2();
 
 ---------- /out/ts.js ----------
 import * as a from "a";
@@ -204,6 +207,9 @@ import c2 from "c";
 a();
 b2();
 c2();
+new a();
+new b2();
+new c2();
 
 ================================================================================
 TestCharFreqIgnoreComments

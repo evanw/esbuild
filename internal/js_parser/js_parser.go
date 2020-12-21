@@ -9889,6 +9889,21 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.ENew:
 		e.Target = p.visitExpr(e.Target)
+
+		// Warn about constructing an import namespace
+		if p.options.outputFormat != config.FormatPreserve {
+			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
+				r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+				hint := ""
+				if p.options.ts.Parse {
+					hint = " (make sure to enable TypeScript's \"esModuleInterop\" setting)"
+				}
+				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
+					"Cannot construct %q because it's an import namespace object, not a function%s",
+					p.symbols[id.Ref.InnerIndex].OriginalName, hint))
+			}
+		}
+
 		for i, arg := range e.Args {
 			e.Args[i] = p.visitExpr(arg)
 		}

@@ -3851,6 +3851,9 @@ func TestCallImportNamespaceWarning(t *testing.T) {
 				a()
 				b()
 				c()
+				new a()
+				new b()
+				new c()
 			`,
 			"/ts.ts": `
 				import * as a from "a"
@@ -3859,6 +3862,9 @@ func TestCallImportNamespaceWarning(t *testing.T) {
 				a()
 				b()
 				c()
+				new a()
+				new b()
+				new c()
 			`,
 		},
 		entryPaths: []string{"/js.js", "/ts.ts"},
@@ -3868,7 +3874,9 @@ func TestCallImportNamespaceWarning(t *testing.T) {
 			OutputFormat: config.FormatESModule,
 		},
 		expectedScanLog: `js.js: warning: Cannot call "a" because it's an import namespace object, not a function
+js.js: warning: Cannot construct "a" because it's an import namespace object, not a function
 ts.ts: warning: Cannot call "a" because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
+ts.ts: warning: Cannot construct "a" because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
 `,
 	})
 }
