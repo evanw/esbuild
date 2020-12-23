@@ -530,7 +530,7 @@ type printer struct {
 	lastGeneratedUpdate int
 	generatedColumn     int
 	hasPrevState        bool
-	lineOffsetTables    []lineOffsetTable
+	lineOffsetTables    []LineOffsetTable
 
 	// For splicing adjacent files together
 	finalLocalSemi           int
@@ -550,7 +550,7 @@ type printer struct {
 	coverLinesWithoutMappings bool
 }
 
-type lineOffsetTable struct {
+type LineOffsetTable struct {
 	byteOffsetToStartOfLine int32
 
 	// The source map specification is very loose and does not specify what
@@ -586,7 +586,7 @@ func (p *printer) printQuotedUTF8(text string, allowBacktick bool) {
 }
 
 func (p *printer) addSourceMapping(loc logger.Loc) {
-	if p.options.SourceForSourceMap == nil || loc == p.prevLoc {
+	if !p.options.AddSourceMappings || loc == p.prevLoc {
 		return
 	}
 	p.prevLoc = loc
@@ -686,7 +686,7 @@ func (p *printer) updateGeneratedLineAndColumn() {
 	p.lastGeneratedUpdate = len(p.js)
 }
 
-func generateLineOffsetTables(contents string, approximateLineCount int32) []lineOffsetTable {
+func GenerateLineOffsetTables(contents string, approximateLineCount int32) []LineOffsetTable {
 	var columnsForNonASCII []int32
 	byteOffsetToFirstNonASCII := int32(0)
 	lineByteOffset := 0
@@ -694,7 +694,7 @@ func generateLineOffsetTables(contents string, approximateLineCount int32) []lin
 	column := int32(0)
 
 	// Preallocate the top-level table using the approximate line count from the lexer
-	lineOffsetTables := make([]lineOffsetTable, 0, approximateLineCount)
+	lineOffsetTables := make([]LineOffsetTable, 0, approximateLineCount)
 
 	for i, c := range contents {
 		// Mark the start of the next line
@@ -726,7 +726,7 @@ func generateLineOffsetTables(contents string, approximateLineCount int32) []lin
 				}
 			}
 
-			lineOffsetTables = append(lineOffsetTables, lineOffsetTable{
+			lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
 				byteOffsetToStartOfLine:   int32(lineByteOffset),
 				byteOffsetToFirstNonASCII: byteOffsetToFirstNonASCII,
 				columnsForNonASCII:        columnsForNonASCII,
@@ -758,7 +758,7 @@ func generateLineOffsetTables(contents string, approximateLineCount int32) []lin
 		}
 	}
 
-	lineOffsetTables = append(lineOffsetTables, lineOffsetTable{
+	lineOffsetTables = append(lineOffsetTables, LineOffsetTable{
 		byteOffsetToStartOfLine:   int32(lineByteOffset),
 		byteOffsetToFirstNonASCII: byteOffsetToFirstNonASCII,
 		columnsForNonASCII:        columnsForNonASCII,
@@ -3187,10 +3187,6 @@ func (p *printer) printDebugToolExpr(expr js_ast.Expr, level js_ast.L, flags int
 func (p *printer) printDebugToolExprArg(arg js_ast.Expr) {
 	p.print(",")
 	p.printSpace()
-	opts := p.options
-	opts.RemoveWhitespace = false
-	opts.MangleSyntax = false
-	opts.Indent = 0
 
 	switch arg.Data.(type) {
 	case *js_ast.EString:
@@ -3203,8 +3199,30 @@ func (p *printer) printDebugToolExprArg(arg js_ast.Expr) {
 		p.printExpr(arg, js_ast.LComma, 0)
 
 	default:
-		js := PrintExpr(arg, p.symbols, p.renamer, opts)
-		str := strings.ReplaceAll(string(js.JS), "`", "'")
+		opts := p.options
+		opts.RemoveWhitespace = false
+		opts.MangleSyntax = false
+		opts.Indent = 0
+
+		pExpr := &printer{
+			symbols:                   p.symbols,
+			renamer:                   p.renamer,
+			importRecords:             p.importRecords,
+			options:                   opts,
+			stmtStart:                 -1,
+			exportDefaultStart:        -1,
+			arrowExprStart:            -1,
+			prevOpEnd:                 -1,
+			prevNumEnd:                -1,
+			prevRegExpEnd:             -1,
+			prevLoc:                   logger.Loc{Start: -1},
+			lineOffsetTables:          p.lineOffsetTables,
+			coverLinesWithoutMappings: false,
+		}
+
+		pExpr.printExpr(arg, js_ast.LComma, 0)
+
+		str := strings.ReplaceAll(string(pExpr.js), "`", "'")
 		p.print("[`")
 		p.print(str)
 		p.print("`,")
@@ -3258,14 +3276,15 @@ type Options struct {
 	MangleSyntax        bool
 	ASCIIOnly           bool
 	ExtractComments     bool
+	AddSourceMappings   bool
 	Indent              int
 	ToModuleRef         js_ast.Ref
 	WrapperRefForSource func(uint32) js_ast.Ref
 	UnsupportedFeatures compat.JSFeature
 
-	// This contains the contents of the input file to map back to in the source
-	// map. If it's nil that means we're not generating source maps.
-	SourceForSourceMap *logger.Source
+	// If we're writing out a source map, this table of line start indices lets
+	// us do binary search on to figure out what line a given AST node came from
+	LineOffsetTables []LineOffsetTable
 
 	// This will be present if the input file had a source map. In that case we
 	// want to map all the way back to the original input file(s).
@@ -3277,23 +3296,8 @@ type Options struct {
 	RemoveDebugTool bool
 }
 
-type QuotedSource struct {
-	// These are quoted ahead of time instead of during source map generation so
-	// the quoting happens in parallel instead of in serial
-	QuotedPath     []byte
-	QuotedContents []byte
-}
-
 type SourceMapChunk struct {
 	Buffer []byte
-
-	// There may be more than one source for this chunk if the file being printed
-	// has an associated source map. In that case the "source index" values in
-	// the buffer are 0-based indices into this array. The source index of the
-	// first mapping will be adjusted when the chunks are joined together. Since
-	// the source indices are encoded using a delta from the previous source
-	// index, none of the other source indices need to be modified while joining.
-	QuotedSources []QuotedSource
 
 	// This end state will be used to rewrite the start of the following source
 	// map chunk so that the delta-encoded VLQ numbers are preserved.
@@ -3309,49 +3313,6 @@ type SourceMapChunk struct {
 	FinalLocalSemi int
 
 	ShouldIgnore bool
-}
-
-func createPrinter(
-	symbols js_ast.SymbolMap,
-	r renamer.Renamer,
-	importRecords []ast.ImportRecord,
-	options Options,
-	approximateLineCount int32,
-) *printer {
-	p := &printer{
-		symbols:            symbols,
-		renamer:            r,
-		importRecords:      importRecords,
-		options:            options,
-		stmtStart:          -1,
-		exportDefaultStart: -1,
-		arrowExprStart:     -1,
-		prevOpEnd:          -1,
-		prevNumEnd:         -1,
-		prevRegExpEnd:      -1,
-		prevLoc:            logger.Loc{Start: -1},
-
-		// We automatically repeat the previous source mapping if we ever generate
-		// a line that doesn't start with a mapping. This helps give files more
-		// complete mapping coverage without gaps.
-		//
-		// However, we probably shouldn't do this if the input file has a nested
-		// source map that we will be remapping through. We have no idea what state
-		// that source map is in and it could be pretty scrambled.
-		//
-		// I've seen cases where blindly repeating the last mapping for subsequent
-		// lines gives very strange and unhelpful results with source maps from
-		// other tools.
-		coverLinesWithoutMappings: options.InputSourceMap == nil,
-	}
-
-	// If we're writing out a source map, prepare a table of line start indices
-	// to do binary search on to figure out what line a given AST node came from
-	if options.SourceForSourceMap != nil {
-		p.lineOffsetTables = generateLineOffsetTables(options.SourceForSourceMap.Contents, approximateLineCount)
-	}
-
-	return p
 }
 
 type PrintResult struct {
@@ -3370,7 +3331,33 @@ type PrintResult struct {
 }
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
-	p := createPrinter(symbols, r, tree.ImportRecords, options, tree.ApproximateLineCount)
+	p := &printer{
+		symbols:            symbols,
+		renamer:            r,
+		importRecords:      tree.ImportRecords,
+		options:            options,
+		stmtStart:          -1,
+		exportDefaultStart: -1,
+		arrowExprStart:     -1,
+		prevOpEnd:          -1,
+		prevNumEnd:         -1,
+		prevRegExpEnd:      -1,
+		prevLoc:            logger.Loc{Start: -1},
+		lineOffsetTables:   options.LineOffsetTables,
+
+		// We automatically repeat the previous source mapping if we ever generate
+		// a line that doesn't start with a mapping. This helps give files more
+		// complete mapping coverage without gaps.
+		//
+		// However, we probably shouldn't do this if the input file has a nested
+		// source map that we will be remapping through. We have no idea what state
+		// that source map is in and it could be pretty scrambled.
+		//
+		// I've seen cases where blindly repeating the last mapping for subsequent
+		// lines gives very strange and unhelpful results with source maps from
+		// other tools.
+		coverLinesWithoutMappings: options.InputSourceMap == nil,
+	}
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
@@ -3386,7 +3373,6 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		ExtractedComments: p.extractedComments,
 		SourceMapChunk: SourceMapChunk{
 			Buffer:               p.sourceMap,
-			QuotedSources:        quotedSources(&tree, &options),
 			EndState:             p.prevState,
 			FinalGeneratedColumn: p.generatedColumn,
 			FinalLocalSemi:       p.finalLocalSemi,
@@ -3395,52 +3381,4 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		FirstDeclByteOffset:      p.firstDeclByteOffset,
 		FirstDeclSourceMapOffset: p.firstDeclSourceMapOffset,
 	}
-}
-
-func PrintExpr(expr js_ast.Expr, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
-	p := createPrinter(symbols, r, nil, options, 0)
-
-	p.printExpr(expr, js_ast.LLowest, 0)
-
-	p.updateGeneratedLineAndColumn()
-
-	return PrintResult{
-		JS:                p.js,
-		ExtractedComments: p.extractedComments,
-		SourceMapChunk: SourceMapChunk{
-			Buffer:               p.sourceMap,
-			QuotedSources:        quotedSources(nil, &options),
-			EndState:             p.prevState,
-			FinalGeneratedColumn: p.generatedColumn,
-			ShouldIgnore:         p.shouldIgnoreSourceMap(),
-		},
-	}
-}
-
-func quotedSources(tree *js_ast.AST, options *Options) []QuotedSource {
-	if options.SourceForSourceMap == nil {
-		return nil
-	}
-
-	if sm := options.InputSourceMap; sm != nil {
-		results := make([]QuotedSource, len(sm.Sources))
-		for i, source := range sm.Sources {
-			contents := []byte("null")
-			if i < len(sm.SourcesContent) {
-				if value := sm.SourcesContent[i]; value != nil {
-					contents = QuoteForJSON(*value, options.ASCIIOnly)
-				}
-			}
-			results[i] = QuotedSource{
-				QuotedPath:     QuoteForJSON(source, options.ASCIIOnly),
-				QuotedContents: contents,
-			}
-		}
-		return results
-	}
-
-	return []QuotedSource{{
-		QuotedPath:     QuoteForJSON(options.SourceForSourceMap.PrettyPath, options.ASCIIOnly),
-		QuotedContents: QuoteForJSON(options.SourceForSourceMap.Contents, options.ASCIIOnly),
-	}}
 }

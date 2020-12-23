@@ -316,12 +316,12 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 
 	// Optionally allow input from the stdin channel
-	if stdin, ok := request["stdin"].(string); ok {
+	if stdin, ok := request["stdinContents"].(string); ok {
 		if options.Stdin == nil {
 			options.Stdin = &api.StdinOptions{}
 		}
 		options.Stdin.Contents = stdin
-		if resolveDir, ok := request["resolveDir"].(string); ok {
+		if resolveDir, ok := request["stdinResolveDir"].(string); ok {
 			options.Stdin.ResolveDir = resolveDir
 		}
 	}

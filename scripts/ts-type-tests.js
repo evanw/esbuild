@@ -1,5 +1,5 @@
+const { removeRecursiveSync } = require('./esbuild')
 const child_process = require('child_process')
-const rimraf = require('rimraf')
 const path = require('path')
 const fs = require('fs')
 
@@ -326,7 +326,7 @@ const tests = {
 
 async function main() {
   let testDir = path.join(__dirname, '.ts-types-test')
-  rimraf.sync(testDir, { disableGlob: true })
+  removeRecursiveSync(testDir)
   fs.mkdirSync(testDir, { recursive: true })
   fs.writeFileSync(path.join(testDir, 'tsconfig.json'), JSON.stringify(tsconfigJson))
 
@@ -357,7 +357,7 @@ async function main() {
     process.exit(1)
   } else {
     console.log(`✅ typescript type tests passed`)
-    rimraf.sync(testDir, { disableGlob: true })
+    removeRecursiveSync(testDir)
   }
 }
 

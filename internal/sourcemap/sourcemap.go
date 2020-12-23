@@ -15,8 +15,20 @@ type Mapping struct {
 
 type SourceMap struct {
 	Sources        []string
-	SourcesContent []*string
+	SourcesContent []SourceContent
 	Mappings       []Mapping
+}
+
+type SourceContent struct {
+	// This stores both the unquoted and the quoted values. We try to use the
+	// already-quoted value if possible so we don't need to re-quote it
+	// unnecessarily for maximum performance.
+	Quoted string
+
+	// But sometimes we need to re-quote the value, such as when it contains
+	// non-ASCII characters and we are in ASCII-only mode. In that case we quote
+	// this parsed UTF-16 value.
+	Value []uint16
 }
 
 func (sm *SourceMap) Find(line int32, column int32) *Mapping {

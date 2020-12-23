@@ -11,8 +11,8 @@ export interface BuildRequest {
   key: number;
   flags: string[];
   write: boolean;
-  stdin: string | null;
-  resolveDir: string | null;
+  stdinContents: string | null;
+  stdinResolveDir: string | null;
   incremental: boolean;
   plugins?: BuildPlugin[];
   serve?: ServeRequest;

@@ -16,8 +16,7 @@
     return
   }
 
-  const { default: { buildBinary, dirname } } = await import('./esbuild.js');
-  const { default: rimraf } = await import('rimraf');
+  const { default: { buildBinary, dirname, removeRecursiveSync } } = await import('./esbuild.js');
   const childProcess = await import('child_process');
   const util = await import('util');
   const path = await import('path');
@@ -120,11 +119,11 @@
     }
 
     // Remove data for successful tests
-    rimraf.sync(testDir, { disableGlob: true });
+    removeRecursiveSync(testDir);
   }
 
   const parentDir = path.join(dirname, '.es6-fuzzer');
-  rimraf.sync(parentDir, { disableGlob: true });
+  removeRecursiveSync(parentDir);
   fs.mkdirSync(parentDir);
 
   // Run a set number of tests in parallel
@@ -140,6 +139,6 @@
 
   // Remove everything if all tests passed
   if (failureCount === 0) {
-    rimraf.sync(parentDir, { disableGlob: true });
+    removeRecursiveSync(parentDir);
   }
 })().catch(e => setTimeout(() => { throw e }));

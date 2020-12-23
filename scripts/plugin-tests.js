@@ -1,5 +1,4 @@
-const { installForTests } = require('./esbuild')
-const rimraf = require('rimraf')
+const { installForTests, removeRecursiveSync } = require('./esbuild')
 const assert = require('assert')
 const path = require('path')
 const util = require('util')
@@ -912,13 +911,61 @@ let pluginTests = {
     const result = await import(url.pathToFileURL(outfile))
     assert.deepStrictEqual(result.default, [path.basename(outfile)])
   },
+
+  async newlineInPath({ esbuild }) {
+    // Using a path with a newline shouldn't cause a syntax error when the path is printed in a comment
+    for (let nl of ['\r', '\n', '\r\n', '\u2028', '\u2029']) {
+      let problem = `a b${nl}c d`
+      const plugin = {
+        name: 'test',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => ({
+            path: args.path, namespace: 'test',
+          }))
+          build.onLoad({ filter: /.*/, namespace: 'test' }, args => ({
+            contents: `return ${JSON.stringify(args.path)}`
+          }))
+        },
+      }
+      let result = await esbuild.build({
+        entryPoints: [problem],
+        bundle: true, write: false, format: 'cjs', plugins: [plugin],
+      })
+      let value = new Function(result.outputFiles[0].text)()
+      assert.deepStrictEqual(value, problem)
+    }
+  },
+
+  async newlineInNamespace({ esbuild }) {
+    // Using a namespace with a newline shouldn't cause a syntax error when the namespace is printed in a comment
+    for (let nl of ['\r', '\n', '\r\n', '\u2028', '\u2029']) {
+      let problem = `a b${nl}c d`
+      const plugin = {
+        name: 'test',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => ({
+            path: args.path, namespace: problem,
+          }))
+          build.onLoad({ filter: /.*/, namespace: problem }, args => ({
+            contents: `return ${JSON.stringify(args.namespace)}`
+          }))
+        },
+      }
+      let result = await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true, write: false, format: 'cjs', plugins: [plugin],
+      })
+      let value = new Function(result.outputFiles[0].text)()
+      assert.deepStrictEqual(value, problem)
+    }
+  },
 }
 
 async function main() {
   const esbuild = installForTests()
 
   // Create a fresh test directory
-  rimraf.sync(rootTestDir, { disableGlob: true })
+  removeRecursiveSync(rootTestDir)
   fs.mkdirSync(rootTestDir)
 
   // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
@@ -937,7 +984,7 @@ async function main() {
     try {
       await mkdirAsync(testDir)
       await fn({ esbuild, service, testDir })
-      rimraf.sync(testDir, { disableGlob: true })
+      removeRecursiveSync(testDir)
       return true
     } catch (e) {
       console.error(`❌ ${name}: ${e && e.message || e}`)
@@ -955,13 +1002,7 @@ async function main() {
     process.exit(1)
   } else {
     console.log(`✅ plugin tests passed`)
-
-    try {
-      rimraf.sync(rootTestDir, { disableGlob: true })
-    } catch (e) {
-      // This doesn't work on Windows due to "EPERM: operation not permitted"
-      // but that's ok for CI because the VM will just be thrown away anyway.
-    }
+    removeRecursiveSync(rootTestDir)
   }
 
   clearTimeout(timeout);

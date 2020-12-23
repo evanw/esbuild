@@ -45,9 +45,9 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
   // to if the original location is replaced by our Yarn 2 compatibility hack.
   // If it exists, we can infer that we are running within Yarn 2 and the
   // JavaScript API should invoke the binary here instead to avoid a slowdown.
-  // This is a performance improvement of about 0.1 seconds for Yarn 2 on my
-  // machine.
-  let pathForYarn2 = path.join(__dirname, 'esbuild');
+  // Calling the binary directly can be over 6x faster than calling the wrapper
+  // script instead.
+  let pathForYarn2 = path.join(__dirname, '..', 'esbuild');
   if (fs.existsSync(pathForYarn2)) {
     return [pathForYarn2, []];
   }
@@ -141,7 +141,7 @@ export let transformSync: typeof types.transformSync = (input, options) => {
   return result!;
 };
 
-export let startService: typeof types.startService = common.referenceCountedService(options => {
+export let startService: typeof types.startService = common.referenceCountedService(() => process.cwd(), options => {
   options = common.validateServiceOptions(options || {});
   if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
   if (options.worker) throw new Error(`The "worker" option only works in the browser`)

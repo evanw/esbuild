@@ -188,6 +188,30 @@ async function main(name) {
 main("fs");
 
 ================================================================================
+TestCallImportNamespaceWarning
+---------- /out/js.js ----------
+import * as a from "a";
+import {b as b2} from "b";
+import c2 from "c";
+a();
+b2();
+c2();
+new a();
+new b2();
+new c2();
+
+---------- /out/ts.js ----------
+import * as a from "a";
+import {b as b2} from "b";
+import c2 from "c";
+a();
+b2();
+c2();
+new a();
+new b2();
+new c2();
+
+================================================================================
 TestCharFreqIgnoreComments
 ---------- /out/a.js ----------
 // a.js

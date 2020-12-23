@@ -146,8 +146,20 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (removeDebugTool) flags.push('--remove-debug-tool');
 }
 
-function flagsForBuildOptions(callName: string, options: types.BuildOptions, isTTY: boolean, logLevelDefault: types.LogLevel, writeDefault: boolean):
-  [string[], boolean, types.Plugin[] | undefined, string | null, string | null, boolean] {
+function flagsForBuildOptions(
+  callName: string,
+  options: types.BuildOptions,
+  isTTY: boolean,
+  logLevelDefault: types.LogLevel,
+  writeDefault: boolean,
+): {
+  flags: string[],
+  write: boolean,
+  plugins: types.Plugin[] | undefined,
+  stdinContents: string | null,
+  stdinResolveDir: string | null,
+  incremental: boolean,
+} {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   let stdinContents: string | null = null;
@@ -243,10 +255,15 @@ function flagsForBuildOptions(callName: string, options: types.BuildOptions, isT
     stdinContents = contents ? contents + '' : '';
   }
 
-  return [flags, write, plugins, stdinContents, stdinResolveDir, incremental];
+  return { flags, write, plugins, stdinContents, stdinResolveDir, incremental };
 }
 
-function flagsForTransformOptions(callName: string, options: types.TransformOptions, isTTY: boolean, logLevelDefault: types.LogLevel): string[] {
+function flagsForTransformOptions(
+  callName: string,
+  options: types.TransformOptions,
+  isTTY: boolean,
+  logLevelDefault: types.LogLevel,
+): string[] {
   let flags: string[] = [];
   let keys: OptionKeys = Object.create(null);
   pushLogFlags(flags, options, keys, isTTY, logLevelDefault);
@@ -654,8 +671,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         try {
           let key = nextBuildKey++;
           let writeDefault = !streamIn.isBrowser;
-          let [flags, write, plugins, stdin, resolveDir, incremental] = flagsForBuildOptions(callName, options, isTTY, logLevelDefault, writeDefault);
-          let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdin, resolveDir, incremental };
+          let { flags, write, plugins, stdinContents, stdinResolveDir, incremental } = flagsForBuildOptions(callName, options, isTTY, logLevelDefault, writeDefault);
+          let request: protocol.BuildRequest = { command: 'build', key, flags, write, stdinContents, stdinResolveDir, incremental };
           let serve = serveOptions && buildServeData(serveOptions, request);
           let pluginCleanup = plugins && plugins.length > 0 && handlePlugins(plugins, request, key);
 
@@ -930,7 +947,7 @@ function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types
   }
 }
 
-export function referenceCountedService(startService: typeof types.startService): typeof types.startService {
+export function referenceCountedService(getwd: () => string, startService: typeof types.startService): typeof types.startService {
   interface Entry {
     promise: Promise<types.Service>;
     refCount: number;
@@ -939,7 +956,12 @@ export function referenceCountedService(startService: typeof types.startService)
   let entries = new Map<string, Entry>();
 
   return async (options) => {
-    let key = JSON.stringify(options || {});
+    // Mix the current working directory into the key. Some users rely on
+    // calling "process.chdir()" before calling "startService()" to set the
+    // current working directory for that service.
+    let cwd = getwd();
+    let optionsJSON = JSON.stringify(options || {});
+    let key = `${optionsJSON} ${cwd}`;
     let entry = entries.get(key);
     let didStop = false;
 
@@ -964,7 +986,7 @@ export function referenceCountedService(startService: typeof types.startService)
     if (entry === void 0) {
       // Store the promise used to create the service so that multiple
       // concurrent calls to "startService()" will share the same promise.
-      entry = { promise: startService(JSON.parse(key)), refCount: 0 };
+      entry = { promise: startService(JSON.parse(optionsJSON)), refCount: 0 };
       entries.set(key, entry);
     }
 

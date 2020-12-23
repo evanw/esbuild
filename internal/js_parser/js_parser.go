@@ -9713,6 +9713,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.Args[i] = arg
 		}
 
+		// Warn about calling an import namespace
+		if p.options.outputFormat != config.FormatPreserve {
+			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
+				r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+				hint := ""
+				if p.options.ts.Parse {
+					hint = " (make sure to enable TypeScript's \"esModuleInterop\" setting)"
+				}
+				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
+					"Cannot call %q because it's an import namespace object, not a function%s",
+					p.symbols[id.Ref.InnerIndex].OriginalName, hint))
+			}
+		}
+
 		// Recognize "require.resolve()" calls
 		if couldBeRequireResolve {
 			if dot, ok := e.Target.Data.(*js_ast.EDot); ok {
@@ -9875,6 +9889,21 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.ENew:
 		e.Target = p.visitExpr(e.Target)
+
+		// Warn about constructing an import namespace
+		if p.options.outputFormat != config.FormatPreserve {
+			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.importItemsForNamespace[id.Ref] != nil {
+				r := js_lexer.RangeOfIdentifier(p.source, e.Target.Loc)
+				hint := ""
+				if p.options.ts.Parse {
+					hint = " (make sure to enable TypeScript's \"esModuleInterop\" setting)"
+				}
+				p.log.AddRangeWarning(&p.source, r, fmt.Sprintf(
+					"Cannot construct %q because it's an import namespace object, not a function%s",
+					p.symbols[id.Ref.InnerIndex].OriginalName, hint))
+			}
+		}
+
 		for i, arg := range e.Args {
 			e.Args[i] = p.visitExpr(arg)
 		}
@@ -10624,6 +10653,25 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		if e.CanBeRemovedIfUnused || p.symbols[e.Ref.InnerIndex].Kind != js_ast.SymbolUnbound {
 			return true
 		}
+
+	case *js_ast.EImportIdentifier:
+		// References to an ES6 import item are always side-effect free in an
+		// ECMAScript environment.
+		//
+		// They could technically have side effects if the imported module is a
+		// CommonJS module and the import item was translated to a property access
+		// (which esbuild's bundler does) and the property has a getter with side
+		// effects.
+		//
+		// But this is very unlikely and respecting this edge case would mean
+		// disabling tree shaking of all code that references an export from a
+		// CommonJS module. It would also likely violate the expectations of some
+		// developers because the code *looks* like it should be able to be tree
+		// shaken.
+		//
+		// So we deliberately ignore this edge case and always treat import item
+		// references as being side-effect free.
+		return true
 
 	case *js_ast.EIf:
 		return p.exprCanBeRemovedIfUnused(e.Test) && p.exprCanBeRemovedIfUnused(e.Yes) && p.exprCanBeRemovedIfUnused(e.No)

@@ -7,6 +7,57 @@
 * Add `--debug-tool=...` enable debug tool in target ([more info](https://github.com/evanw/esbuild/blob/master/docs/debugtool.md))
 * Add `--removedebug-tool=...` remove debug tool from target([more info](https://github.com/evanw/esbuild/blob/master/docs/debugtool.md))
 
+## 0.8.26
+
+* Ensure the current working directory remains unique per `startService()` call
+
+    The change in version 0.8.24 to share service instances caused problems for code that calls `process.chdir()` before calling `startService()` to be able to get a service with a different working directory. With this release, calls to `startService()` no longer share the service instance if the working directory was different at the time of creation.
+
+* Consider import references to be side-effect free ([#613](https://github.com/evanw/esbuild/issues/613))
+
+    This change improves tree shaking for code containing top-level references to imported symbols such as the following code:
+
+    ```js
+    import {Base} from './base'
+    export class Derived extends Base {}
+    ```
+
+    Identifier references are considered side-effect free if they are locally-defined, but esbuild special-cases identifier references to imported symbols in its AST (the identifier `Base` in this example). This meant they did not trigger this check and so were not considered locally-defined and therefore side-effect free. That meant that `Derived` in this example would never be tree-shaken.
+
+    The reason for this is that the side-effect determination is made during parsing and during parsing it's not yet known if `./base` is a CommonJS module or not. If it is, then `Base` would be a dynamic run-time property access on `exports.Base` which could hypothetically be a property with a getter that has side effects. Therefore it could be considered incorrect to remove this code due to tree-shaking because there is technically a side effect.
+
+    However, this is a very unlikely edge case and not tree-shaking this code violates developer expectations. So with this release, esbuild will always consider references to imported symbols as being side-effect free. This also aligns with ECMAScript module semantics because with ECMAScript modules, it's impossible to have a user-defined getter for an imported symbol. This means esbuild will now tree-shake unused code in cases like this.
+
+* Warn about calling an import namespace object
+
+    The following code is an invalid use of an import statement:
+
+    ```js
+    import * as express from "express"
+    express()
+    ```
+
+    The `express` symbol here is an import namespace object, not a function, so calling it will fail at run-time. This code should have been written like this instead:
+
+    ```js
+    import express from "express"
+    express()
+    ```
+
+    This comes up because for legacy reasons, the TypeScript compiler defaults to a compilation mode where the `import * as` statement is converted to `const express = require("express")` which means you can actually call `express()` successfully. Doing this is incompatible with standard ECMAScript module environments such as the browser, node, and esbuild because an import namespace object is never a function. The TypeScript compiler has a setting to disable this behavior called `esModuleInterop` and they highly recommend applying it both to new and existing projects to avoid these compatibility problems. See [the TypeScript documentation](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-7.html#support-for-import-d-from-cjs-from-commonjs-modules-with---esmoduleinterop) for more information.
+
+    With this release, esbuild will now issue a warning when you do this. The warning indicates that your code will crash when run and that your code should be fixed.
+
+## 0.8.25
+
+* Fix a performance regression from version 0.8.4 specific to Yarn 2
+
+    Code using esbuild's `transformSync` function via Yarn 2 experienced a dramatic slowdown in esbuild version 0.8.4 and above. This version added a wrapper script to fix Yarn 2's incompatibility with binary packages. Some code that tries to avoid unnecessarily calling into the wrapper script contained a bug that caused it to fail, which meant that using `transformSync` with Yarn 2 called into the wrapper script unnecessarily. This launched an extra node process every time the esbuild executable was invoked which can be over 6x slower than just invoking the esbuild executable directly. This release should now invoke the esbuild executable directly without going through the wrapper script, which fixes the performance regression.
+
+* Fix a size regression from version 0.7.9 with certain source maps ([#611](https://github.com/evanw/esbuild/issues/611))
+
+    Version 0.7.9 added a new behavior to esbuild where in certain cases a JavaScript file may be split into multiple pieces during bundling. Pieces of the same input file may potentially end up in multiple discontiguous regions in the output file. This was necessary to fix an import ordering bug with CommonJS modules. However, it had the side effect of duplicating that file's information in the resulting source map. This didn't affect source map correctness but it made source maps unnecessarily large. This release corrects the problem by ensuring that a given file's information is only ever represented once in the corresponding source map.
+
 ## 0.8.24
 
 * Share reference-counted service instances internally ([#600](https://github.com/evanw/esbuild/issues/600))

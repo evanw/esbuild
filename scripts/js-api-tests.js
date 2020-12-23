@@ -1,6 +1,5 @@
-const { installForTests } = require('./esbuild')
+const { installForTests, removeRecursiveSync } = require('./esbuild')
 const { SourceMapConsumer } = require('source-map')
-const rimraf = require('rimraf')
 const assert = require('assert')
 const path = require('path')
 const http = require('http')
@@ -2277,6 +2276,53 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: error: Unexpecte
   },
 }
 
+let serialTests = {
+  async processCwdChangeTest({ esbuild, testDir }) {
+    let originalCWD = process.cwd();
+    let firstService
+    let secondService
+
+    try {
+      let aDir = path.join(testDir, 'a');
+      let bDir = path.join(testDir, 'b');
+      let aFile = path.join(aDir, 'a-in.js');
+      let bFile = path.join(bDir, 'b-in.js');
+      let aOut = path.join(aDir, 'a-out.js');
+      let bOut = path.join(bDir, 'b-out.js');
+      fs.mkdirSync(aDir);
+      fs.mkdirSync(bDir);
+      fs.writeFileSync(aFile, 'exports.x = true');
+      fs.writeFileSync(bFile, 'exports.y = true');
+
+      try {
+        process.chdir(aDir);
+        assert.strictEqual(process.cwd(), aDir);
+        firstService = await esbuild.startService();
+
+        try {
+          process.chdir(bDir);
+          assert.strictEqual(process.cwd(), bDir);
+          secondService = await esbuild.startService();
+
+          await Promise.all([
+            firstService.build({ entryPoints: [path.basename(aFile)], outfile: path.basename(aOut) }),
+            secondService.build({ entryPoints: [path.basename(bFile)], outfile: path.basename(bOut) }),
+          ]);
+
+          assert.strictEqual(require(aOut).x, true)
+          assert.strictEqual(require(bOut).y, true)
+        } finally {
+          secondService.stop();
+        }
+      } finally {
+        firstService.stop();
+      }
+    } finally {
+      process.chdir(originalCWD);
+    }
+  },
+}
+
 async function assertSourceMap(jsSourceMap, source) {
   const map = await new SourceMapConsumer(jsSourceMap)
   const original = map.originalPositionFor({ line: 1, column: 4 })
@@ -2289,7 +2335,7 @@ async function main() {
   const esbuild = installForTests()
 
   // Create a fresh test directory
-  rimraf.sync(rootTestDir, { disableGlob: true })
+  removeRecursiveSync(rootTestDir)
   fs.mkdirSync(rootTestDir)
 
   // Time out these tests after 5 minutes. This exists to help debug test hangs in CI.
@@ -2308,7 +2354,7 @@ async function main() {
     try {
       await mkdirAsync(testDir)
       await fn({ esbuild, service, testDir })
-      rimraf.sync(testDir, { disableGlob: true })
+      removeRecursiveSync(testDir)
       return true
     } catch (e) {
       console.error(`❌ ${name}: ${e && e.message || e}`)
@@ -2321,34 +2367,22 @@ async function main() {
     ...Object.entries(transformTests),
     ...Object.entries(syncTests),
   ]
-  const allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
-
-  // Clean up test output
+  let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
   service.stop()
+
+  // Run some tests in serial at the end
+  for (let test of Object.entries(serialTests)) {
+    if (!await runTest(test)) {
+      allTestsPassed = false
+    }
+  }
 
   if (!allTestsPassed) {
     console.error(`❌ js api tests failed`)
     process.exit(1)
   } else {
     console.log(`✅ js api tests passed`)
-
-    // This randomly fails with EPERM on Windows in CI (GitHub Actions):
-    //
-    //   Error: EPERM: operation not permitted: unlink 'esbuild\scripts\.js-api-tests\node_modules\esbuild\esbuild.exe'
-    //       at Object.unlinkSync (fs.js)
-    //       at fixWinEPERMSync (esbuild\scripts\node_modules\rimraf\rimraf.js)
-    //       at rimrafSync (esbuild\scripts\node_modules\rimraf\rimraf.js)
-    //
-    // From searching related issues on GitHub it looks like apparently this is
-    // just how Windows works? It's kind of hard to believe something as
-    // fundamental as file operations is broken on Windows. It sounds like the
-    // file system implementation on Windows has race conditions or something.
-    // Anyway, deleting this is not important for the success of the test so
-    // just ignore errors here.
-    try {
-      rimraf.sync(rootTestDir, { disableGlob: true })
-    } catch (e) {
-    }
+    removeRecursiveSync(rootTestDir)
   }
 
   clearTimeout(timeout);

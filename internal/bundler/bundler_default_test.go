@@ -3840,3 +3840,43 @@ func TestExternalES6ConvertedToCommonJS(t *testing.T) {
 		},
 	})
 }
+
+func TestCallImportNamespaceWarning(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/js.js": `
+				import * as a from "a"
+				import {b} from "b"
+				import c from "c"
+				a()
+				b()
+				c()
+				new a()
+				new b()
+				new c()
+			`,
+			"/ts.ts": `
+				import * as a from "a"
+				import {b} from "b"
+				import c from "c"
+				a()
+				b()
+				c()
+				new a()
+				new b()
+				new c()
+			`,
+		},
+		entryPaths: []string{"/js.js", "/ts.ts"},
+		options: config.Options{
+			Mode:         config.ModeConvertFormat,
+			AbsOutputDir: "/out",
+			OutputFormat: config.FormatESModule,
+		},
+		expectedScanLog: `js.js: warning: Cannot call "a" because it's an import namespace object, not a function
+js.js: warning: Cannot construct "a" because it's an import namespace object, not a function
+ts.ts: warning: Cannot call "a" because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
+ts.ts: warning: Cannot construct "a" because it's an import namespace object, not a function (make sure to enable TypeScript's "esModuleInterop" setting)
+`,
+	})
+}

@@ -1,4 +1,5 @@
 // This API exposes esbuild's two main operations: building and transforming.
+// This API exposes esbuild's two main operations: building and transforming.
 // It's intended for integrating esbuild into other tools as a library.
 //
 // If you are just trying to run esbuild from Go without the overhead of
@@ -148,14 +149,6 @@ type Engine struct {
 	Name    EngineName
 	Version string
 }
-
-type DebugTool uint8
-
-const (
-	NoDebugTool DebugTool = iota
-	RemoveDebugTool
-	ExpandDebugTool
-)
 
 type Location struct {
 	File      string

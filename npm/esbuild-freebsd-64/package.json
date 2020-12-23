@@ -1,6 +1,6 @@
 {
   "name": "esbuild-freebsd-64",
-  "version": "0.8.24",
+  "version": "0.8.26",
   "description": "The FreeBSD 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
