@@ -30,6 +30,9 @@ interface CommonOptions {
   color?: boolean;
   logLevel?: LogLevel;
   errorLimit?: number;
+
+  removeConsole?: boolean
+  removeDebugger?: boolean
 }
 
 export interface BuildOptions extends CommonOptions {

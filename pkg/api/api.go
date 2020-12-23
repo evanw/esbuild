@@ -149,6 +149,14 @@ type Engine struct {
 	Version string
 }
 
+type DebugTool uint8
+
+const (
+	NoDebugTool DebugTool = iota
+	RemoveDebugTool
+	ExpandDebugTool
+)
+
 type Location struct {
 	File      string
 	Namespace string
@@ -246,6 +254,9 @@ type BuildOptions struct {
 	Write       bool
 	Incremental bool
 	Plugins     []Plugin
+
+	RemoveConsole  bool
+	RemoveDebugger bool
 }
 
 type StdinOptions struct {
@@ -306,6 +317,9 @@ type TransformOptions struct {
 
 	Sourcefile string
 	Loader     Loader
+
+	RemoveConsole  bool
+	RemoveDebugger bool
 }
 
 type TransformResult struct {

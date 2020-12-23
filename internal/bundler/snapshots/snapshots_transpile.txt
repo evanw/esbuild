@@ -1,0 +1,26 @@
+TestNoRemoveConsole
+---------- /out.js ----------
+// entry.ts
+var a = 1;
+console.log(a);
+
+================================================================================
+TestNoRemoveDebbuger
+---------- /out.js ----------
+// entry.ts
+var a = 1;
+debugger;
+console.log(a);
+
+================================================================================
+TestRemoveConsole
+---------- /out.js ----------
+// entry.ts
+var a = 1;
+
+================================================================================
+TestRemoveDebbuger
+---------- /out.js ----------
+// entry.ts
+var a = 1;
+console.log(a);

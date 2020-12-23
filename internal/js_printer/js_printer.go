@@ -3000,10 +3000,12 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printNewline()
 
 	case *js_ast.SDebugger:
-		p.printIndent()
-		p.printSpaceBeforeIdentifier()
-		p.print("debugger")
-		p.printSemicolonAfterStatement()
+		if !p.options.RemoveDebugger {
+			p.printIndent()
+			p.printSpaceBeforeIdentifier()
+			p.print("debugger")
+			p.printSemicolonAfterStatement()
+		}
 
 	case *js_ast.SDirective:
 		c := p.bestQuoteCharForString(s.Value, false /* allowBacktick */)
@@ -3053,13 +3055,55 @@ func (p *printer) printStmt(stmt js_ast.Stmt) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SExpr:
-		p.printIndent()
-		p.stmtStart = len(p.js)
-		p.printExpr(s.Value, js_ast.LLowest, 0)
-		p.printSemicolonAfterStatement()
-
+		ignore := (p.options.RemoveConsole && p.isConsole(s.Value))
+		if !ignore {
+			p.printIndent()
+			p.stmtStart = len(p.js)
+			p.printExpr(s.Value, js_ast.LLowest, 0)
+			p.printSemicolonAfterStatement()
+		}
 	default:
 		panic(fmt.Sprintf("Unexpected statement of type %T", stmt.Data))
+	}
+}
+
+func (p *printer) isConsole(expr js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *js_ast.ECall:
+		switch e2 := e.Target.Data.(type) {
+		case *js_ast.EDot:
+			switch e3 := e2.Target.Data.(type) {
+			case *js_ast.EIdentifier:
+				ident := p.renamer.NameForSymbol(e3.Ref)
+				return ident == "console"
+			default:
+				return false
+			}
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+}
+
+func (p *printer) isDebugger(expr js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *js_ast.ECall:
+		switch e2 := e.Target.Data.(type) {
+		case *js_ast.EDot:
+			switch e3 := e2.Target.Data.(type) {
+			case *js_ast.EIdentifier:
+				ident := p.renamer.NameForSymbol(e3.Ref)
+				return ident == "console"
+			default:
+				return false
+			}
+		default:
+			return false
+		}
+	default:
+		return false
 	}
 }
 
@@ -3074,6 +3118,10 @@ func (p *printer) shouldIgnoreSourceMap() bool {
 
 type Options struct {
 	OutputFormat        config.Format
+	RemoveConsole       bool
+	RemoveDebugger      bool
+	DebugToolName       string
+	RemoveDebugTool     bool
 	RemoveWhitespace    bool
 	MangleSyntax        bool
 	ASCIIOnly           bool

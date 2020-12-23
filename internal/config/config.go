@@ -158,6 +158,10 @@ const (
 type Options struct {
 	Mode              Mode
 	RemoveWhitespace  bool
+	RemoveConsole     bool
+	RemoveDebugger    bool
+	DebugToolName     string
+	RemoveDebugTool   bool
 	MinifyIdentifiers bool
 	MangleSyntax      bool
 	CodeSplitting     bool

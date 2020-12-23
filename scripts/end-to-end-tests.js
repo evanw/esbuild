@@ -2088,6 +2088,26 @@
     }),
   )
 
+  // Test transpiling options
+  tests.push(
+    testStdout("console.log('a')", ['--remove-console'], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, ``)
+    }),
+    testStdout("console.log('a')", [], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, `console.log("a");\n`)
+    }),
+    testStdout("debugger", ['--remove-debugger'], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, ``)
+    }),
+    testStdout("debugger", [], async (build) => {
+      const stdout = await build()
+      assert.strictEqual(stdout, `debugger;\n`)
+    }),
+  )
+
   function test(args, files, options) {
     return async () => {
       const hasBundle = args.includes('--bundle')

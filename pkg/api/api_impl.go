@@ -549,6 +549,8 @@ func rebuildImpl(
 		Banner:               buildOpts.Banner,
 		Footer:               buildOpts.Footer,
 		Plugins:              plugins,
+		RemoveConsole:        buildOpts.RemoveConsole,
+		RemoveDebugger:       buildOpts.RemoveDebugger,
 	}
 	for i, path := range buildOpts.Inject {
 		options.InjectAbsPaths[i] = validatePath(log, realFS, path)
@@ -787,8 +789,10 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			Contents:   input,
 			SourceFile: transformOpts.Sourcefile,
 		},
-		Banner: transformOpts.Banner,
-		Footer: transformOpts.Footer,
+		Banner:         transformOpts.Banner,
+		Footer:         transformOpts.Footer,
+		RemoveConsole:  transformOpts.RemoveConsole,
+		RemoveDebugger: transformOpts.RemoveDebugger,
 	}
 	if options.SourceMap == config.SourceMapLinkedWithComment {
 		// Linked source maps don't make sense because there's no output file name

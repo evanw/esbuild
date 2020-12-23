@@ -1917,6 +1917,20 @@ let transformTests = {
     await Promise.all(promises)
   },
 
+  async transpilersPrinting({ service }) {
+    async function check(source, expected, opts) {
+      const { code } = await service.transform(source, opts)
+      assert.strictEqual(code, expected)
+    }
+    const promises = [
+      check('console.log("a")', 'console.log("a");\n', {}),
+      check('console.log("b")', '', { removeConsole: true }),
+      check('debugger', 'debugger;\n', {}),
+      check('debugger', '', { removeDebugger: true }),
+    ]
+    await Promise.all(promises)
+  },
+
   async tryCatchScopeMerge({ service }) {
     const code = `
       var x = 1
