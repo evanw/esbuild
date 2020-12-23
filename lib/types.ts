@@ -33,6 +33,8 @@ interface CommonOptions {
 
   removeConsole?: boolean
   removeDebugger?: boolean
+  debugTool?: string
+  removeDebugTool?: boolean
 }
 
 export interface BuildOptions extends CommonOptions {

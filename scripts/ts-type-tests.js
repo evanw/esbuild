@@ -173,6 +173,8 @@ const tests = {
       loader: 'ts',
       removeConsole: false,
       removeDebugger: false,
+      debugTool: '',
+      removeDebugTool: false,
     }).then(result => {
       let code: string = result.code;
       let map: string = result.map;
@@ -235,6 +237,8 @@ const tests = {
       },
       removeConsole: false,
       removeDebugger: false,
+      debugTool: '',
+      removeDebugTool: false,
       plugins: [
         {
           name: 'x',

@@ -1927,8 +1927,31 @@ let transformTests = {
       check('console.log("b")', '', { removeConsole: true }),
       check('debugger', 'debugger;\n', {}),
       check('debugger', '', { removeDebugger: true }),
+
+      check(debugToolSampleA(), debugToolSampleA(), {}),
+      check(debugToolSampleA(), debugToolExpectA1(), { debugTool: 'DEBUGTOOL' }),
+      check(debugToolSampleA(), debugToolExpectA2(), { debugTool: 'DEBUGTOOL', removeDebugTool: true }),
     ]
     await Promise.all(promises)
+    function debugToolSampleA() {
+      return `import DEBUGTOOL from "./debug";
+const a = Math.random() * 10;
+const b = Math.random() * 10;
+DEBUGTOOL.LOG(a, b);
+`
+    }
+    function debugToolExpectA1() {
+      return `import DEBUGTOOL from "./debug";
+const a = Math.random() * 10;
+const b = Math.random() * 10;
+DEBUGTOOL.LOG(null, ` + "[`a`, a], [`b`, b]);" + `
+`
+    }
+    function debugToolExpectA2() {
+      return `const a = Math.random() * 10;
+const b = Math.random() * 10;
+`
+    }
   },
 
   async tryCatchScopeMerge({ service }) {

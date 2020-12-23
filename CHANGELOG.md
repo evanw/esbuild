@@ -4,6 +4,8 @@
 
 * Add `--remove-console` option that avoids print console calls to target
 * Add `--remove-debugger` option that avoids print debugger statement to target
+* Add `--debug-tool=...` enable debug tool in target ([more info](https://github.com/evanw/esbuild/blob/master/docs/debugtool.md))
+* Add `--removedebug-tool=...` remove debug tool from target([more info](https://github.com/evanw/esbuild/blob/master/docs/debugtool.md))
 
 ## 0.8.24
 

@@ -255,8 +255,10 @@ type BuildOptions struct {
 	Incremental bool
 	Plugins     []Plugin
 
-	RemoveConsole  bool
-	RemoveDebugger bool
+	RemoveConsole   bool
+	RemoveDebugger  bool
+	DebugTool       string
+	RemoveDebugTool bool
 }
 
 type StdinOptions struct {
@@ -318,8 +320,10 @@ type TransformOptions struct {
 	Sourcefile string
 	Loader     Loader
 
-	RemoveConsole  bool
-	RemoveDebugger bool
+	RemoveConsole   bool
+	RemoveDebugger  bool
+	DebugTool       string
+	RemoveDebugTool bool
 }
 
 type TransformResult struct {

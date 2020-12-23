@@ -5,14 +5,14 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch test package",
+      "name": "Launch some test",
       "type": "go",
       "request": "launch",
       "mode": "test",
       "program": "${workspaceFolder}/internal/js_printer",
       "args": [
         "--test.run",
-        "TestRemoveDebugger"
+        "TestDebugTool"
       ]
     }
   ]

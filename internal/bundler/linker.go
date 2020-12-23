@@ -3287,7 +3287,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		RemoveWhitespace:    c.options.RemoveWhitespace,
 		RemoveConsole:       c.options.RemoveConsole,
 		RemoveDebugger:      c.options.RemoveDebugger,
-		DebugToolName:       c.options.DebugToolName,
+		DebugTool:           c.options.DebugTool,
 		RemoveDebugTool:     c.options.RemoveDebugTool,
 		MangleSyntax:        c.options.MangleSyntax,
 		ASCIIOnly:           c.options.ASCIIOnly,

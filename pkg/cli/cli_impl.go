@@ -155,6 +155,20 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 				transformOpts.RemoveDebugger = true
 			}
 
+		case arg == "--remove-debug-tool":
+			if buildOpts != nil {
+				buildOpts.RemoveDebugTool = true
+			} else {
+				transformOpts.RemoveDebugTool = true
+			}
+
+		case strings.HasPrefix(arg, "--debug-tool="):
+			if buildOpts != nil {
+				buildOpts.DebugTool = arg[len("--debug-tool="):]
+			} else {
+				transformOpts.DebugTool = arg[len("--debug-tool="):]
+			}
+
 		case strings.HasPrefix(arg, "--sourcefile="):
 			if buildOpts != nil {
 				if buildOpts.Stdin == nil {
