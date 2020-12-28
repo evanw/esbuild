@@ -296,19 +296,9 @@ func AfterFileClose() {
 }
 
 func realpath(path string) string {
-	dir := filepath.Dir(path)
-	if dir == path {
-		return path
-	}
-	dir = realpath(dir)
-	path = filepath.Join(dir, filepath.Base(path))
-	BeforeFileOpen()
-	defer AfterFileClose()
-	if link, err := os.Readlink(path); err == nil {
-		if filepath.IsAbs(link) {
-			return link
-		}
-		return filepath.Join(dir, link)
+	path, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		panic(err)
 	}
 	return path
 }
