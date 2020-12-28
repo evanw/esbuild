@@ -2,6 +2,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -298,7 +299,7 @@ func AfterFileClose() {
 func realpath(path string) string {
 	path, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("EvalSymlinks(%q) error: %v", path, err))
 	}
 	return path
 }
