@@ -357,7 +357,7 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 		source := logger.Source{Contents: value}
 		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(), source, js_parser.JSONOptions{})
 		if !ok {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value (must be valid JSON syntax): %s", value))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value (must be valid JSON syntax or a single identifier): %s", value))
 			continue
 		}
 
