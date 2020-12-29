@@ -1750,7 +1750,7 @@ func (cache *runtimeCache) processedDefines(key config.Platform) (defines *confi
 	}
 	result := config.ProcessDefines(map[string]config.DefineData{
 		"__platform": {
-			DefineFunc: func(logger.Loc, config.FindSymbol) js_ast.E {
+			DefineFunc: func(config.DefineArgs) js_ast.E {
 				return &js_ast.EString{Value: js_lexer.StringToUTF16(platform)}
 			},
 		},

@@ -5,7 +5,6 @@ import (
 
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/logger"
 )
 
 var default_suite = suite{
@@ -3251,8 +3250,8 @@ func TestInjectDuplicate(t *testing.T) {
 func TestInject(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"chain.prop": {
-			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
-				return &js_ast.EIdentifier{Ref: findSymbol(loc, "replace")}
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "replace")}
 			},
 		},
 	})
@@ -3318,8 +3317,8 @@ func TestInject(t *testing.T) {
 func TestInjectNoBundle(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"chain.prop": {
-			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
-				return &js_ast.EIdentifier{Ref: findSymbol(loc, "replace")}
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "replace")}
 			},
 		},
 	})
@@ -3379,8 +3378,8 @@ func TestInjectNoBundle(t *testing.T) {
 func TestInjectJSX(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"React.createElement": {
-			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
-				return &js_ast.EIdentifier{Ref: findSymbol(loc, "el")}
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
+				return &js_ast.EIdentifier{Ref: args.FindSymbol(args.Loc, "el")}
 			},
 		},
 	})
@@ -3567,7 +3566,7 @@ func TestProcessEnvNodeEnvWarningNode(t *testing.T) {
 func TestProcessEnvNodeEnvWarningDefine(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"process.env.NODE_ENV": {
-			DefineFunc: func(loc logger.Loc, findSymbol config.FindSymbol) js_ast.E {
+			DefineFunc: func(args config.DefineArgs) js_ast.E {
 				return &js_ast.ENull{}
 			},
 		},

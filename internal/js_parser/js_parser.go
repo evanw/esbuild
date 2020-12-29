@@ -56,7 +56,7 @@ type parser struct {
 	moduleRef                js_ast.Ref
 	importMetaRef            js_ast.Ref
 	promiseRef               js_ast.Ref
-	findSymbolHelper         config.FindSymbol
+	findSymbolHelper         func(loc logger.Loc, name string) js_ast.Ref
 	symbolUses               map[js_ast.Ref]js_ast.SymbolUse
 	declaredSymbols          []js_ast.DeclaredSymbol
 	runtimeImports           map[string]js_ast.Ref
@@ -9986,7 +9986,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 }
 
 func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget, isDeleteTarget bool, defineFunc config.DefineFunc) js_ast.Expr {
-	expr := js_ast.Expr{Loc: loc, Data: defineFunc(loc, p.findSymbolHelper)}
+	expr := js_ast.Expr{Loc: loc, Data: defineFunc(config.DefineArgs{
+		Loc:        loc,
+		FindSymbol: p.findSymbolHelper,
+	})}
 	if id, ok := expr.Data.(*js_ast.EIdentifier); ok {
 		return p.handleIdentifier(loc, assignTarget, isDeleteTarget, id)
 	}
