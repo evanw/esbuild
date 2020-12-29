@@ -7,6 +7,8 @@ export type TreeShaking = true | 'ignore-annotations';
 
 interface CommonOptions {
   sourcemap?: boolean | 'inline' | 'external';
+  sourcesContent?: boolean;
+
   format?: Format;
   globalName?: string;
   target?: string | string[];

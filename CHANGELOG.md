@@ -10,6 +10,10 @@
 
     If the working directory ended in `/`, the last path component would be incorrectly duplicated. This was the case when running esbuild with Yarn 2 (but not Yarn 1) and is problematic because some externally-facing directories reference the current working directory in plugins and in output files. The problem has now been fixed and the last path component is no longer duplicated in this case. This fix was contributed by [@remorses](https://github.com/remorses).
 
+* Add an option to omit `sourcesContent` from generated source maps ([#624](https://github.com/evanw/esbuild/issues/624))
+
+    You can now pass `--sources-content=false` to omit the `sourcesContent` field from generated source maps. The field embeds the original source code inline in the source map and is the largest part of the source map. This is useful if you don't need the original source code and would like a smaller source map (e.g. you only care about stack traces and don't need the source code for debugging).
+
 ## 0.8.26
 
 * Ensure the current working directory remains unique per `startService()` call

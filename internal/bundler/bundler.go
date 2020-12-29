@@ -1487,28 +1487,30 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 					result := &results[sourceIndex]
 					result.lineOffsetTables = js_printer.GenerateLineOffsetTables(f.source.Contents, repr.ast.ApproximateLineCount)
 					sm := f.sourceMap
-					if sm == nil {
-						// Simple case: no nested source map
-						result.quotedContents = [][]byte{js_printer.QuoteForJSON(f.source.Contents, options.ASCIIOnly)}
-					} else {
-						// Complex case: nested source map
-						result.quotedContents = make([][]byte, len(sm.Sources))
-						nullContents := []byte("null")
-						for i := range sm.Sources {
-							// Missing contents become a "null" literal
-							quotedContents := nullContents
-							if i < len(sm.SourcesContent) {
-								if value := sm.SourcesContent[i]; value.Quoted != "" {
-									if options.ASCIIOnly && !isASCIIOnly(value.Quoted) {
-										// Re-quote non-ASCII values if output is ASCII-only
-										quotedContents = js_printer.QuoteForJSON(js_lexer.UTF16ToString(value.Value), options.ASCIIOnly)
-									} else {
-										// Otherwise just use the value directly from the input file
-										quotedContents = []byte(value.Quoted)
+					if !options.ExcludeSourcesContent {
+						if sm == nil {
+							// Simple case: no nested source map
+							result.quotedContents = [][]byte{js_printer.QuoteForJSON(f.source.Contents, options.ASCIIOnly)}
+						} else {
+							// Complex case: nested source map
+							result.quotedContents = make([][]byte, len(sm.Sources))
+							nullContents := []byte("null")
+							for i := range sm.Sources {
+								// Missing contents become a "null" literal
+								quotedContents := nullContents
+								if i < len(sm.SourcesContent) {
+									if value := sm.SourcesContent[i]; value.Quoted != "" {
+										if options.ASCIIOnly && !isASCIIOnly(value.Quoted) {
+											// Re-quote non-ASCII values if output is ASCII-only
+											quotedContents = js_printer.QuoteForJSON(js_lexer.UTF16ToString(value.Value), options.ASCIIOnly)
+										} else {
+											// Otherwise just use the value directly from the input file
+											quotedContents = []byte(value.Quoted)
+										}
 									}
 								}
+								result.quotedContents[i] = quotedContents
 							}
-							result.quotedContents[i] = quotedContents
 						}
 					}
 					waitGroup.Done()

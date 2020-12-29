@@ -4266,10 +4266,14 @@ func (c *linkerContext) generateSourceMapForChunk(
 
 		// Simple case: no nested source map
 		if file.sourceMap == nil {
+			var quotedContents []byte
+			if !c.options.ExcludeSourcesContent {
+				quotedContents = dataForSourceMaps[result.sourceIndex].quotedContents[0]
+			}
 			items = append(items, item{
 				path:           file.source.KeyPath,
 				prettyPath:     file.source.PrettyPath,
-				quotedContents: dataForSourceMaps[result.sourceIndex].quotedContents[0],
+				quotedContents: quotedContents,
 			})
 			continue
 		}
@@ -4288,10 +4292,14 @@ func (c *linkerContext) generateSourceMapForChunk(
 				path.Text = c.fs.Join(c.fs.Dir(file.source.KeyPath.Text), source)
 			}
 
+			var quotedContents []byte
+			if !c.options.ExcludeSourcesContent {
+				quotedContents = dataForSourceMaps[result.sourceIndex].quotedContents[i]
+			}
 			items = append(items, item{
 				path:           path,
 				prettyPath:     source,
-				quotedContents: dataForSourceMaps[result.sourceIndex].quotedContents[i],
+				quotedContents: quotedContents,
 			})
 		}
 	}
@@ -4317,14 +4325,16 @@ func (c *linkerContext) generateSourceMapForChunk(
 	j.AddString("]")
 
 	// Write the sourcesContent
-	j.AddString(",\n  \"sourcesContent\": [")
-	for i, item := range items {
-		if i != 0 {
-			j.AddString(", ")
+	if !c.options.ExcludeSourcesContent {
+		j.AddString(",\n  \"sourcesContent\": [")
+		for i, item := range items {
+			if i != 0 {
+				j.AddString(", ")
+			}
+			j.AddBytes(item.quotedContents)
 		}
-		j.AddBytes(item.quotedContents)
+		j.AddString("]")
 	}
-	j.AddString("]")
 
 	// Write the mappings
 	j.AddString(",\n  \"mappings\": \"")

@@ -159,6 +159,7 @@ function flagsForBuildOptions(
   pushCommonFlags(flags, options, keys);
 
   let sourcemap = getFlag(options, keys, 'sourcemap', mustBeStringOrBoolean);
+  let sourcesContent = getFlag(options, keys, 'sourcesContent', mustBeBoolean);
   let bundle = getFlag(options, keys, 'bundle', mustBeBoolean);
   let splitting = getFlag(options, keys, 'splitting', mustBeBoolean);
   let metafile = getFlag(options, keys, 'metafile', mustBeString);
@@ -182,6 +183,7 @@ function flagsForBuildOptions(
   checkForInvalidFlags(options, keys, `in ${callName}() call`);
 
   if (sourcemap) flags.push(`--sourcemap${sourcemap === true ? '' : `=${sourcemap}`}`);
+  if (sourcesContent !== void 0) flags.push(`--sources-content=${sourcesContent}`);
   if (bundle) flags.push('--bundle');
   if (splitting) flags.push('--splitting');
   if (metafile) flags.push(`--metafile=${metafile}`);

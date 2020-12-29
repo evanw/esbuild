@@ -216,8 +216,10 @@ type Options struct {
 	// If present, metadata about the bundle is written as JSON here
 	AbsMetadataFile string
 
-	SourceMap SourceMap
-	Stdin     *StdinInfo
+	SourceMap             SourceMap
+	ExcludeSourcesContent bool
+
+	Stdin *StdinInfo
 }
 
 type InjectedFile struct {
