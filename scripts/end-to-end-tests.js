@@ -21,6 +21,7 @@
   const fs = (await import('fs')).promises
 
   const execFileAsync = util.promisify(childProcess.execFile)
+  const execAsync = util.promisify(childProcess.exec)
 
   const testDir = path.join(dirname, '.end-to-end-tests')
   const esbuildPath = buildBinary()
@@ -85,6 +86,29 @@
         'registry/node_modules/bar/index.js': `export const bar = 123`,
         'node_modules/foo/index.js': { symlink: `TEST_DIR_ABS_PATH/registry/node_modules/foo/index.js` },
       }),
+
+      // This is a test for https://github.com/evanw/esbuild/issues/222
+      test(['--bundle', 'src/in.js', '--outfile=out/node.js', '--metafile=out/meta.json', '--platform=node', '--format=cjs'], {
+        'a/b/src/in.js': `
+          import {metafile} from './load'
+          const assert = require('assert')
+          assert.deepStrictEqual(Object.keys(metafile.inputs), ['src/load.js', 'src/in.js'])
+          assert.strictEqual(metafile.inputs['src/in.js'].imports[0].path, 'src/load.js')
+        `,
+        'a/b/src/load.js': `
+          export var metafile
+          // Hide the import path from the bundler
+          try {
+            let path = './meta.json'
+            metafile = require(path)
+          } catch (e) {
+          }
+        `,
+        'node.js': `
+          require('./a/b/out/node')
+        `,
+        'c': { symlink: `a/b` },
+      }, { cwd: 'c' }),
     )
   }
 
@@ -2126,8 +2150,20 @@
           }
 
           // Run esbuild
-          const { stderr } = await execFileAsync(esbuildPath, modifiedArgs,
-            { cwd: thisTestDir, stdio: 'pipe' })
+          let stderr
+          if (options && options.cwd) {
+            // Use the shell to set the working directory instead of using node's
+            // "child_process" module. For some reason it looks like node doesn't
+            // handle symlinks correctly and some of these tests check esbuild's
+            // behavior in the presence of symlinks. Using the shell is the only
+            // way I could find to do this correctly.
+            const quote = arg => arg.replace(/([#!"$&'()*,:;<=>?@\[\\\]^`{|}])/g, '\\$1')
+            const cwd = path.join(thisTestDir, options.cwd)
+            const command = ['cd', quote(cwd), '&&', quote(esbuildPath)].concat(modifiedArgs.map(quote)).join(' ')
+            stderr = (await execAsync(command, { stdio: 'pipe' })).stderr
+          } else {
+            stderr = (await execFileAsync(esbuildPath, modifiedArgs, { cwd: thisTestDir, stdio: 'pipe' })).stderr
+          }
           assert.strictEqual(stderr, expectedStderr);
 
           // Run the resulting node.js file and make sure it exits cleanly. The

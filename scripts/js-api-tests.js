@@ -2284,6 +2284,53 @@ let serialTests = {
       process.chdir(originalCWD);
     }
   },
+
+  async processCwdSymlinkInfiniteLoopTest({ esbuild, testDir }) {
+    if (process.platform === 'win32') {
+      // Ignore symlink tests on Windows, which doesn't have symlinks
+      return;
+    }
+
+    let originalCWD = process.cwd();
+
+    try {
+      let service
+      let aDir = path.join(testDir, 'a');
+      fs.mkdirSync(aDir, { recursive: true })
+
+      try {
+        process.chdir(aDir);
+        assert.strictEqual(process.cwd(), aDir);
+        service = await esbuild.startService();
+
+        let bDir = path.join(testDir, 'b');
+        fs.rmdirSync(aDir)
+
+        // Create two symlinks that point to each other, forming a loop
+        fs.symlinkSync(aDir, bDir);
+        fs.symlinkSync(bDir, aDir);
+
+        try {
+          // This should not crash or hang
+          await service.build({
+            entryPoints: [path.join(aDir, 'in.js')],
+            logLevel: 'silent',
+            write: false,
+          })
+          throw new Error('Expected a build failure')
+        } catch (e) {
+          let text = e + ''
+          if (!text.startsWith('Error: Build failed with ')) {
+            throw e
+          }
+        }
+      } finally {
+        service.stop();
+      }
+    } finally {
+      process.chdir(originalCWD);
+    }
+  },
 }
 
 async function assertSourceMap(jsSourceMap, source) {
