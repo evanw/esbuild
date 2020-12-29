@@ -1885,7 +1885,8 @@ loop:
 				symbol := c.symbols.Get(tracker.importRef)
 				symbol.ImportItemStatus = js_ast.ImportItemMissing
 				c.log.AddRangeWarning(&source, js_lexer.RangeOfIdentifier(source, namedImport.AliasLoc),
-					fmt.Sprintf("Import %q will always be undefined", namedImport.Alias))
+					fmt.Sprintf("Import %q will always be undefined because the file %q has no exports",
+						namedImport.Alias, c.files[nextTracker.sourceIndex].source.PrettyPath))
 			}
 
 		case importNoMatch:
@@ -2122,19 +2123,19 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// Is this a disabled file?
 	otherSourceIndex := *record.SourceIndex
 	if c.files[otherSourceIndex].source.KeyPath.Namespace == resolver.BrowserFalseNamespace {
-		return importTracker{}, importDisabled, nil
+		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importDisabled, nil
 	}
 
 	// Is this a named import of a file without any exports?
 	otherRepr := c.files[otherSourceIndex].repr.(*reprJS)
 	if namedImport.Alias != "*" && !otherRepr.ast.UsesCommonJSExports() && !otherRepr.ast.HasES6Syntax() && !otherRepr.ast.HasLazyExport {
 		// Just warn about it and replace the import with "undefined"
-		return importTracker{}, importCommonJSWithoutExports, nil
+		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJSWithoutExports, nil
 	}
 
 	// Is this a CommonJS file?
 	if otherRepr.meta.cjsStyleExports {
-		return importTracker{}, importCommonJS, nil
+		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importCommonJS, nil
 	}
 
 	// Match this import up with an export from the imported file

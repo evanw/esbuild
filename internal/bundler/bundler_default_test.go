@@ -715,12 +715,12 @@ func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedCompileLog: `named.js: warning: Import "default" will always be undefined
-named.js: warning: Import "x" will always be undefined
-named.js: warning: Import "y" will always be undefined
-star.js: warning: Import "default" will always be undefined
-star.js: warning: Import "x" will always be undefined
-star.js: warning: Import "y" will always be undefined
+		expectedCompileLog: `named.js: warning: Import "default" will always be undefined because the file "foo.js" has no exports
+named.js: warning: Import "x" will always be undefined because the file "foo.js" has no exports
+named.js: warning: Import "y" will always be undefined because the file "foo.js" has no exports
+star.js: warning: Import "default" will always be undefined because the file "foo.js" has no exports
+star.js: warning: Import "x" will always be undefined because the file "foo.js" has no exports
+star.js: warning: Import "y" will always be undefined because the file "foo.js" has no exports
 `,
 	})
 }
