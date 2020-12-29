@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.27
 
 * Mark `import.meta` as supported in node 10.4+ ([#626](https://github.com/evanw/esbuild/issues/626))
 
