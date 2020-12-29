@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Mark `import.meta` as supported in node 10.4+ ([#626](https://github.com/evanw/esbuild/issues/626))
+
+    It was previously marked as unsupported due to a typo in esbuild's compatibility table, which meant esbuild generated a shim for `import.meta` even when it's not necessary. It should now be marked as supported in node 10.4 and above so the shim will no longer be included when using a sufficiently new target environment such as `--target=node10.4`.
+
 ## 0.8.26
 
 * Ensure the current working directory remains unique per `startService()` call

@@ -238,6 +238,7 @@ var jsTable = map[JSFeature]map[Engine][]int{
 		ES:      {2020},
 		Firefox: {62},
 		IOS:     {12},
+		Node:    {10, 4},
 		Safari:  {11, 1},
 	},
 	Let: {

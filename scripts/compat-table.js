@@ -151,7 +151,7 @@ mergeVersions('ImportMeta', {
   es2020: true,
   firefox62: true,
   ios12: true,
-  node10_4: false, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import.meta
+  node10_4: true, // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import.meta
   safari11_1: true,
 })
 
