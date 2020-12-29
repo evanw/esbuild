@@ -57,6 +57,8 @@ type parser struct {
 	importMetaRef            js_ast.Ref
 	promiseRef               js_ast.Ref
 	findSymbolHelper         func(loc logger.Loc, name string) js_ast.Ref
+	symbolForDefineHelper    func(int) js_ast.Ref
+	injectedDefineSymbols    []js_ast.Ref
 	symbolUses               map[js_ast.Ref]js_ast.SymbolUse
 	declaredSymbols          []js_ast.DeclaredSymbol
 	runtimeImports           map[string]js_ast.Ref
@@ -9987,8 +9989,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 func (p *parser) valueForDefine(loc logger.Loc, assignTarget js_ast.AssignTarget, isDeleteTarget bool, defineFunc config.DefineFunc) js_ast.Expr {
 	expr := js_ast.Expr{Loc: loc, Data: defineFunc(config.DefineArgs{
-		Loc:        loc,
-		FindSymbol: p.findSymbolHelper,
+		Loc:             loc,
+		FindSymbol:      p.findSymbolHelper,
+		SymbolForDefine: p.symbolForDefineHelper,
 	})}
 	if id, ok := expr.Data.(*js_ast.EIdentifier); ok {
 		return p.handleIdentifier(loc, assignTarget, isDeleteTarget, id)
@@ -10976,7 +10979,16 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		namedExports:            make(map[string]js_ast.NamedExport),
 	}
 
-	p.findSymbolHelper = func(loc logger.Loc, name string) js_ast.Ref { return p.findSymbol(loc, name).ref }
+	p.findSymbolHelper = func(loc logger.Loc, name string) js_ast.Ref {
+		return p.findSymbol(loc, name).ref
+	}
+
+	p.symbolForDefineHelper = func(index int) js_ast.Ref {
+		ref := p.injectedDefineSymbols[index]
+		p.recordUsage(ref)
+		return ref
+	}
+
 	p.pushScopeForParsePass(js_ast.ScopeEntry, logger.Loc{Start: locModuleScope})
 
 	return p
@@ -11058,12 +11070,20 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	for _, file := range p.options.injectedFiles {
 		exportsNoConflict := make([]string, 0, len(file.Exports))
 		symbols := make(map[string]js_ast.Ref)
-		for _, alias := range file.Exports {
-			if _, ok := p.moduleScope.Members[alias]; !ok {
-				ref := p.newSymbol(js_ast.SymbolOther, alias)
-				p.moduleScope.Members[alias] = js_ast.ScopeMember{Ref: ref}
-				symbols[alias] = ref
-				exportsNoConflict = append(exportsNoConflict, alias)
+		if file.IsDefine {
+			ref := p.newSymbol(js_ast.SymbolOther, js_ast.GenerateNonUniqueNameFromPath(file.Path))
+			p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
+			symbols["default"] = ref
+			exportsNoConflict = append(exportsNoConflict, "default")
+			p.injectedDefineSymbols = append(p.injectedDefineSymbols, ref)
+		} else {
+			for _, alias := range file.Exports {
+				if _, ok := p.moduleScope.Members[alias]; !ok {
+					ref := p.newSymbol(js_ast.SymbolOther, alias)
+					p.moduleScope.Members[alias] = js_ast.ScopeMember{Ref: ref}
+					symbols[alias] = ref
+					exportsNoConflict = append(exportsNoConflict, alias)
+				}
 			}
 		}
 		before = p.generateImportStmt(file.Path, exportsNoConflict, file.SourceIndex, before, symbols)

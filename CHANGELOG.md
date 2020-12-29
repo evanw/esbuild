@@ -18,6 +18,12 @@
 
     This release fixes an edge case where files in ECMAScript module format that are converted to CommonJS format during bundling can generate exports to non-top-level symbols when code splitting is active. These files must be converted to CommonJS format if they are referenced by a `require()` call. When that happens, the symbols in that file are placed inside the CommonJS wrapper closure and are no longer top-level symbols. This means they should no longer be considered exportable for cross-chunk export generation due to code splitting. The result of this fix is that these cases no longer generate output files with module instantiation errors.
 
+* Allow `--define` with array and object literals ([#581](https://github.com/evanw/esbuild/issues/581))
+
+    The `--define` feature allows you to replace identifiers such as `DEBUG` with literal expressions such as `false`. This is valuable because the substitution can then participate in constant folding and dead code elimination. For example, `if (DEBUG) { ... }` could become `if (false) { ... }` which would then be completely removed in minified builds. However, doing this with compound literal expressions such as array and object literals is an anti-pattern because it could easily result in many copies of the same object in the output file.
+
+    This release adds support for array and object literals with `--define` anyway, but they work differently than other `--define` expressions. In this case a separate virtual file is created and configured to be injected into all files similar to how the `--inject` feature works. This means there is only at most one copy of the value in a given output file. However, these values do not participate in constant folding and dead code elimination, since the object can now potentially be mutated at run-time.
+
 ## 0.8.26
 
 * Ensure the current working directory remains unique per `startService()` call

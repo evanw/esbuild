@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -207,6 +208,7 @@ type Options struct {
 	OutputFormat       Format
 	PublicPath         string
 	InjectAbsPaths     []string
+	InjectedDefines    []InjectedDefine
 	InjectedFiles      []InjectedFile
 	Banner             string
 	Footer             string
@@ -222,10 +224,17 @@ type Options struct {
 	Stdin *StdinInfo
 }
 
+type InjectedDefine struct {
+	Source logger.Source
+	Data   js_ast.E
+	Name   string
+}
+
 type InjectedFile struct {
 	Path        string
 	SourceIndex uint32
 	Exports     []string
+	IsDefine    bool
 }
 
 var filterMutex sync.Mutex

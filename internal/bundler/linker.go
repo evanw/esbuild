@@ -413,8 +413,7 @@ func newLinkerContext(
 			repr.meta = fileMeta{
 				cjsStyleExports: repr.ast.HasCommonJSFeatures() ||
 					(options.Mode == config.ModeBundle && repr.ast.ModuleScope.ContainsDirectEval) ||
-					(repr.ast.HasLazyExport && (c.options.Mode == config.ModePassThrough ||
-						(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax()))),
+					(repr.ast.HasLazyExport && c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax()),
 				partMeta:                 make([]partMeta, len(repr.ast.Parts)),
 				resolvedExports:          resolvedExports,
 				isProbablyTypeScriptType: make(map[js_ast.Ref]bool),
@@ -451,14 +450,21 @@ func newLinkerContext(
 		file := &c.files[sourceIndex]
 		file.isEntryPoint = true
 
-		// Entry points with ES6 exports must generate an exports object when
-		// targeting non-ES6 formats. Note that the IIFE format only needs this
-		// when the global name is present, since that's the only way the exports
-		// can actually be observed externally.
-		if repr, ok := file.repr.(*reprJS); ok && repr.ast.HasES6Exports && (options.OutputFormat == config.FormatCommonJS ||
-			(options.OutputFormat == config.FormatIIFE && len(options.GlobalName) > 0)) {
-			repr.ast.UsesExportsRef = true
-			repr.meta.forceIncludeExportsForEntryPoint = true
+		if repr, ok := file.repr.(*reprJS); ok {
+			// Lazy exports default to CommonJS-style for the transform API
+			if repr.ast.HasLazyExport && c.options.Mode == config.ModePassThrough {
+				repr.meta.cjsStyleExports = true
+			}
+
+			// Entry points with ES6 exports must generate an exports object when
+			// targeting non-ES6 formats. Note that the IIFE format only needs this
+			// when the global name is present, since that's the only way the exports
+			// can actually be observed externally.
+			if repr.ast.HasES6Exports && (options.OutputFormat == config.FormatCommonJS ||
+				(options.OutputFormat == config.FormatIIFE && len(options.GlobalName) > 0)) {
+				repr.ast.UsesExportsRef = true
+				repr.meta.forceIncludeExportsForEntryPoint = true
+			}
 		}
 	}
 

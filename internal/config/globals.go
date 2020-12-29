@@ -113,8 +113,9 @@ var knownGlobals = [][]string{
 }
 
 type DefineArgs struct {
-	Loc        logger.Loc
-	FindSymbol func(logger.Loc, string) js_ast.Ref
+	Loc             logger.Loc
+	FindSymbol      func(logger.Loc, string) js_ast.Ref
+	SymbolForDefine func(int) js_ast.Ref
 }
 
 type DefineFunc func(DefineArgs) js_ast.E

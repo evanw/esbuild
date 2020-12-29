@@ -944,9 +944,51 @@ func (s *scanner) allocateSourceIndex(path logger.Path, kind cache.SourceIndexKi
 }
 
 func (s *scanner) preprocessInjectedFiles() {
-	injectedFiles := make([]config.InjectedFile, 0, len(s.options.InjectAbsPaths))
+	injectedFiles := make([]config.InjectedFile, 0, len(s.options.InjectedDefines)+len(s.options.InjectAbsPaths))
 	duplicateInjectedFiles := make(map[string]bool)
 	injectWaitGroup := sync.WaitGroup{}
+
+	// These are virtual paths that are generated for compound "--define" values.
+	// They are special-cased and are not available for plugins to intercept.
+	for _, define := range s.options.InjectedDefines {
+		// These should be unique by construction so no need to check for collisions
+		visitedKey := logger.Path{Text: fmt.Sprintf("<define:%s>", define.Name)}
+		sourceIndex := s.allocateSourceIndex(visitedKey, cache.SourceIndexNormal)
+		s.visited[visitedKey] = sourceIndex
+		source := logger.Source{
+			Index:          sourceIndex,
+			KeyPath:        visitedKey,
+			PrettyPath:     s.res.PrettyPath(visitedKey),
+			IdentifierName: js_ast.EnsureValidIdentifier(visitedKey.Text),
+		}
+
+		// The first "len(InjectedDefine)" injected files intentionally line up
+		// with the injected defines by index. The index will be used to import
+		// references to them in the parser.
+		injectedFiles = append(injectedFiles, config.InjectedFile{
+			Path:        visitedKey.Text,
+			SourceIndex: sourceIndex,
+			IsDefine:    true,
+		})
+
+		// Generate the file inline here since it has already been parsed
+		expr := js_ast.Expr{Data: define.Data}
+		ast := js_parser.LazyExportAST(s.log, source, js_parser.OptionsFromConfig(&s.options), expr, "")
+		result := parseResult{
+			ok: true,
+			file: file{
+				source:         source,
+				loader:         config.LoaderJSON,
+				repr:           &reprJS{ast: ast},
+				ignoreIfUnused: true,
+			},
+		}
+
+		// Append to the channel on a goroutine in case it blocks due to capacity
+		s.remaining++
+		go func() { s.resultChannel <- result }()
+	}
+
 	for _, absPath := range s.options.InjectAbsPaths {
 		prettyPath := s.res.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
 		lowerAbsPath := lowerCaseAbsPathForWindows(absPath)
@@ -976,6 +1018,7 @@ func (s *scanner) preprocessInjectedFiles() {
 			injectWaitGroup.Done()
 		}(i, prettyPath, resolveResult)
 	}
+
 	injectWaitGroup.Wait()
 	s.options.InjectedFiles = injectedFiles
 }

@@ -171,6 +171,26 @@ let buildTests = {
     assert.strictEqual(require(output).result, 123)
   },
 
+  async defineObject({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js');
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'export default {abc, xyz}')
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      format: 'cjs',
+      bundle: true,
+      define: {
+        abc: '["a", "b", "c"]',
+        xyz: '{"x": 1, "y": 2, "z": 3}',
+      },
+    })
+    assert.deepStrictEqual(require(output).default, {
+      abc: ['a', 'b', 'c'],
+      xyz: { x: 1, y: 2, z: 3 },
+    })
+  },
+
   async inject({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js');
     const inject = path.join(testDir, 'inject.js')
@@ -1877,6 +1897,12 @@ let transformTests = {
     const define = { 'process.env.NODE_ENV': '"production"' }
     const { code } = await service.transform(`console.log(process.env.NODE_ENV)`, { define })
     assert.strictEqual(code, `console.log("production");\n`)
+  },
+
+  async defineArray({ service }) {
+    const define = { 'process.env.NODE_ENV': '[1,2,3]', 'something.else': '[2,3,4]' }
+    const { code } = await service.transform(`console.log(process.env.NODE_ENV)`, { define })
+    assert.strictEqual(code, `var define_process_env_NODE_ENV_default = [1, 2, 3];\nconsole.log(define_process_env_NODE_ENV_default);\n`)
   },
 
   async defineWarning({ service }) {

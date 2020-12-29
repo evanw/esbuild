@@ -1654,6 +1654,10 @@ func GenerateNonUniqueNameFromPath(path string) string {
 		}
 	}
 
+	return EnsureValidIdentifier(base)
+}
+
+func EnsureValidIdentifier(base string) string {
 	// Convert it to an ASCII identifier. Note: If you change this to a non-ASCII
 	// identifier, you're going to potentially cause trouble with non-BMP code
 	// points in target environments that don't support bracketed Unicode escapes.
