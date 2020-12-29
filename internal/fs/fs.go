@@ -295,24 +295,6 @@ func AfterFileClose() {
 	<-fileOpenLimit
 }
 
-func realpath(path string) string {
-	dir := filepath.Dir(path)
-	if dir == path {
-		return path
-	}
-	dir = realpath(dir)
-	path = filepath.Join(dir, filepath.Base(path))
-	BeforeFileOpen()
-	defer AfterFileClose()
-	if link, err := os.Readlink(path); err == nil {
-		if filepath.IsAbs(link) {
-			return link
-		}
-		return filepath.Join(dir, link)
-	}
-	return path
-}
-
 func RealFS() FS {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -326,7 +308,15 @@ func RealFS() FS {
 		// so the current working directory should be processed the same way. Not
 		// doing this causes test failures with esbuild when run from inside a
 		// symlinked directory.
-		cwd = realpath(cwd)
+		//
+		// This deliberately ignores errors due to e.g. infinite loops. If there is
+		// an error, we will just use the original working directory and likely
+		// encounter an error later anyway. And if we don't encounter an error
+		// later, then the current working directory didn't even matter and the
+		// error is unimportant.
+		if path, err := filepath.EvalSymlinks(cwd); err == nil {
+			cwd = path
+		}
 	}
 	return &realFS{
 		entries: make(map[string]entriesOrErr),
