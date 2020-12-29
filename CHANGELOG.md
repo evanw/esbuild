@@ -6,6 +6,10 @@
 
     It was previously marked as unsupported due to a typo in esbuild's compatibility table, which meant esbuild generated a shim for `import.meta` even when it's not necessary. It should now be marked as supported in node 10.4 and above so the shim will no longer be included when using a sufficiently new target environment such as `--target=node10.4`.
 
+* Fix for when the working directory ends with `/` ([#627](https://github.com/evanw/esbuild/issues/627))
+
+    If the working directory ended in `/`, the last path component would be incorrectly duplicated. This was the case when running esbuild with Yarn 2 (but not Yarn 1) and is problematic because some externally-facing directories reference the current working directory in plugins and in output files. The problem has now been fixed and the last path component is no longer duplicated in this case. This fix was contributed by [@remorses](https://github.com/remorses).
+
 ## 0.8.26
 
 * Ensure the current working directory remains unique per `startService()` call
@@ -69,7 +73,7 @@
 
 * Optionally take binary executable path from environment variable ([#592](https://github.com/evanw/esbuild/issues/592))
 
-    You can now set the `ESBUILD_BINARY_PATH` environment variable to cause the JavaScript API to use a different binary executable path. This is useful if you want to substitute a modified version of the `esbuild` binary that contains some extra debugging information.
+    You can now set the `ESBUILD_BINARY_PATH` environment variable to cause the JavaScript API to use a different binary executable path. This is useful if you want to substitute a modified version of the `esbuild` binary that contains some extra debugging information. This feature was contributed by [@remorses](https://github.com/remorses).
 
 ## 0.8.23
 
