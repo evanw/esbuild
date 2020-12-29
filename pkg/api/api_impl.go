@@ -357,7 +357,7 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 		source := logger.Source{Contents: value}
 		expr, ok := js_parser.ParseJSON(logger.NewDeferLog(), source, js_parser.JSONOptions{})
 		if !ok {
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
+			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value (must be valid JSON syntax): %s", value))
 			continue
 		}
 
@@ -377,10 +377,6 @@ func validateDefines(log logger.Log, defines map[string]string, pureFns []string
 		case *js_ast.EArray, *js_ast.EObject:
 			definesToInject = append(definesToInject, key)
 			valueToInject[key] = config.InjectedDefine{Source: source, Data: e, Name: key}
-			continue
-
-		default:
-			log.AddError(nil, logger.Loc{}, fmt.Sprintf("Invalid define value: %q", value))
 			continue
 		}
 
