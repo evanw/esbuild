@@ -794,6 +794,10 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 							if importToBind, ok := repr.meta.importsToBind[ref]; ok {
 								ref = importToBind.ref
 								symbol = c.symbols.Get(ref)
+							} else if repr.meta.cjsWrap && ref != repr.ast.WrapperRef {
+								// The only internal symbol that wrapped CommonJS files export
+								// is the wrapper itself.
+								continue
 							}
 
 							// If this is an ES6 import from a CommonJS file, it will become a

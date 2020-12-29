@@ -14,6 +14,10 @@
 
     You can now pass `--sources-content=false` to omit the `sourcesContent` field from generated source maps. The field embeds the original source code inline in the source map and is the largest part of the source map. This is useful if you don't need the original source code and would like a smaller source map (e.g. you only care about stack traces and don't need the source code for debugging).
 
+* Fix exports from ESM files converted to CJS during code splitting ([#617](https://github.com/evanw/esbuild/issues/617))
+
+    This release fixes an edge case where files in ECMAScript module format that are converted to CommonJS format during bundling can generate exports to non-top-level symbols when code splitting is active. These files must be converted to CommonJS format if they are referenced by a `require()` call. When that happens, the symbols in that file are placed inside the CommonJS wrapper closure and are no longer top-level symbols. This means they should no longer be considered exportable for cross-chunk export generation due to code splitting. The result of this fix is that these cases no longer generate output files with module instantiation errors.
+
 ## 0.8.26
 
 * Ensure the current working directory remains unique per `startService()` call

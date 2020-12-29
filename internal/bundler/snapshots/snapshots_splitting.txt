@@ -297,6 +297,76 @@ import("../node_modules/package/index.js");
 console.log("imported");
 
 ================================================================================
+TestSplittingHybridCJSAndESMIssue617
+---------- /out/a.js ----------
+import {
+  require_a
+} from "./chunk.UM5LDUBH.js";
+export default require_a();
+
+---------- /out/b.js ----------
+import {
+  __defProp,
+  __markAsModule,
+  require_a
+} from "./chunk.UM5LDUBH.js";
+
+// b.js
+var a = __toModule(require_a());
+var export_foo = a.foo;
+export {
+  export_foo as foo
+};
+
+---------- /out/chunk.UM5LDUBH.js ----------
+// a.js
+var require_a = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo
+  });
+  var foo;
+  exports.bar = 123;
+});
+
+export {
+  __defProp,
+  require_a,
+  __markAsModule
+};
+
+================================================================================
+TestSplittingHybridESMAndCJSIssue617
+---------- /out/a.js ----------
+import {
+  require_a
+} from "./chunk.YOK3FHV5.js";
+export default require_a();
+
+---------- /out/b.js ----------
+import {
+  require_a
+} from "./chunk.YOK3FHV5.js";
+
+// b.js
+var bar = require_a();
+export {
+  bar
+};
+
+---------- /out/chunk.YOK3FHV5.js ----------
+// a.js
+var require_a = __commonJS((exports) => {
+  __export(exports, {
+    foo: () => foo
+  });
+  var foo;
+});
+
+export {
+  require_a
+};
+
+================================================================================
 TestSplittingMinifyIdentifiersCrashIssue437
 ---------- /out/a.js ----------
 import {
