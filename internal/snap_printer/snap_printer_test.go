@@ -926,6 +926,24 @@ var d2 = require("not-invoked");
 `, ReplaceNone)
 }
 
+func TestReplacingOfVariablesIndexedInto(t *testing.T) {
+	expectPrinted(t, `
+var callerCache = Object.create(null);
+callerCache[" size"] = 0;
+`, `
+let callerCache;
+function __get_callerCache__() {
+  return callerCache = callerCache || (Object.create(null))
+}
+(__get_callerCache__())[" size"] = 0;
+`, ReplaceAll)
+}
+
+func TestDebug(t *testing.T) {
+	debugPrinted(t, `
+`, ReplaceAll)
+}
+
 /*
 # Incorrectly handled cases.
 

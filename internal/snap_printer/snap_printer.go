@@ -1852,7 +1852,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags int) {
 		}
 
 		_, hasDot := e.Left.Data.(*js_ast.EDot)
-		if !hasDot && e.Op.IsRightAssociative() {
+		_, isIndexing := e.Left.Data.(*js_ast.EIndex)
+		if !hasDot && !isIndexing && e.Op.IsRightAssociative() {
 			p.printExpr(e.Left, leftLevel, flags&forbidIn|forbidDefer)
 		} else {
 			p.printExpr(e.Left, leftLevel, flags&forbidIn)
