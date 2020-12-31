@@ -524,7 +524,7 @@ bench/three: | github/three
 	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/src/entry.js; done
 	echo 'Line count:' && find bench/three/src -name '*.js' | xargs wc -l | tail -n 1
 
-bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-webpack5 bench-three-parcel
+bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-webpack5 bench-three-parcel bench-three-parcel2
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
@@ -630,7 +630,7 @@ bench/rome-verify: | github/rome
 	cp -r github/rome/packages bench/rome-verify/packages
 	cp github/rome/package.json bench/rome-verify/package.json
 
-bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-parcel
+bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-webpack5 bench-rome-parcel bench-rome-parcel2
 
 bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
