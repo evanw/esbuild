@@ -256,11 +256,6 @@ require/parcel/node_modules:
 	mkdir -p require/parcel/node_modules/inspector
 	touch require/parcel/node_modules/inspector/index.js
 
-require/fusebox/node_modules:
-	mkdir -p require/fusebox
-	echo '{}' > require/fusebox/package.json
-	cd require/fusebox && npm install fuse-box@4.0.0-next.444
-
 require/parcel2/node_modules:
 	mkdir -p require/parcel2
 	echo '{}' > require/parcel2/package.json
@@ -443,7 +438,7 @@ demo/three: | github/three
 	mkdir -p demo/three
 	cp -r github/three/src demo/three/src
 
-demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-webpack5 demo-three-parcel demo-three-parcel2 demo-three-fusebox
+demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-webpack5 demo-three-parcel demo-three-parcel2
 
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
@@ -519,25 +514,6 @@ demo-three-parcel2: | require/parcel2/node_modules demo/three
 		Three.parcel2.js --dist-dir ../../../../demo/three/parcel2 --cache-dir .cache
 	du -h demo/three/parcel2/Three.parcel2.js*
 
-THREE_FUSEBOX_RUN += require('fuse-box').fusebox({
-THREE_FUSEBOX_RUN +=   target: 'browser',
-THREE_FUSEBOX_RUN +=   entry: './fusebox-entry.js',
-THREE_FUSEBOX_RUN +=   useSingleBundle: true,
-THREE_FUSEBOX_RUN +=   output: './dist',
-THREE_FUSEBOX_RUN += }).runProd({
-THREE_FUSEBOX_RUN +=   bundles: { app: './app.js' },
-THREE_FUSEBOX_RUN += });
-
-demo-three-fusebox: | require/fusebox/node_modules demo/three
-	rm -fr require/fusebox/demo/three demo/three/fusebox
-	mkdir -p require/fusebox/demo/three demo/three/fusebox
-	echo "$(THREE_FUSEBOX_RUN)" > require/fusebox/demo/three/run.js
-	ln -s ../../../../demo/three/src require/fusebox/demo/three/src
-	ln -s ../../../../demo/three/fusebox require/fusebox/demo/three/dist
-	echo 'import * as THREE from "./src/Three.js"; window.THREE = THREE' > require/fusebox/demo/three/fusebox-entry.js
-	cd require/fusebox/demo/three && time -p node run.js
-	du -h demo/three/fusebox/app.js*
-
 ################################################################################
 # three.js benchmark (measures JavaScript performance, same as three.js demo but 10x bigger)
 
@@ -548,7 +524,7 @@ bench/three: | github/three
 	for i in 1 2 3 4 5 6 7 8 9 10; do echo "import * as copy$$i from './copy$$i/Three.js'; export {copy$$i}" >> bench/three/src/entry.js; done
 	echo 'Line count:' && find bench/three/src -name '*.js' | xargs wc -l | tail -n 1
 
-bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-webpack5 bench-three-parcel bench-three-fusebox
+bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-three-webpack5 bench-three-parcel
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
@@ -604,16 +580,6 @@ bench-three-parcel2: | require/parcel2/node_modules bench/three
 	cd require/parcel2/bench/three && time -p node --max-old-space-size=4096 ../../node_modules/.bin/parcel build \
 		entry.parcel2.js --dist-dir ../../../../bench/three/parcel2 --cache-dir .cache
 	du -h bench/three/parcel2/entry.parcel2.js*
-
-bench-three-fusebox: | require/fusebox/node_modules bench/three
-	rm -fr require/fusebox/bench/three bench/three/fusebox
-	mkdir -p require/fusebox/bench/three bench/three/fusebox
-	echo "$(THREE_FUSEBOX_RUN)" > require/fusebox/bench/three/run.js
-	ln -s ../../../../bench/three/src require/fusebox/bench/three/src
-	ln -s ../../../../bench/three/fusebox require/fusebox/bench/three/dist
-	echo 'import * as THREE from "./src/entry.js"; window.THREE = THREE' > require/fusebox/bench/three/fusebox-entry.js
-	cd require/fusebox/bench/three && time -p node --max-old-space-size=8192 run.js
-	du -h bench/three/fusebox/app.js*
 
 ################################################################################
 # Rome benchmark (measures TypeScript performance)
