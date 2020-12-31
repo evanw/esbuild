@@ -48,7 +48,7 @@ func assertLog(t *testing.T, msgs []logger.Msg, expected string) {
 	t.Helper()
 	text := ""
 	for _, msg := range msgs {
-		text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+		text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 	}
 	assertEqual(t, text, expected)
 }

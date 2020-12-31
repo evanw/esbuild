@@ -30,7 +30,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
 		assertEqual(t, text, "")
 		if !ok {

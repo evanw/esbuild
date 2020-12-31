@@ -279,7 +279,7 @@ type TerminalInfo struct {
 	Width           int
 }
 
-func NewStderrLog(options StderrOptions) Log {
+func NewStderrLog(options OutputOptions) Log {
 	var mutex sync.Mutex
 	var msgs SortableMsgs
 	terminalInfo := GetTerminalInfo(os.Stderr)
@@ -351,8 +351,8 @@ func PrintErrorToStderr(osArgs []string, text string) {
 	PrintMessageToStderr(osArgs, Msg{Kind: Error, Data: MsgData{Text: text}})
 }
 
-func StderrOptionsForArgs(osArgs []string) StderrOptions {
-	options := StderrOptions{IncludeSource: true}
+func OutputOptionsForArgs(osArgs []string) OutputOptions {
+	options := OutputOptions{IncludeSource: true}
 
 	// Implement a mini argument parser so these options always work even if we
 	// haven't yet gotten to the general-purpose argument parsing code
@@ -377,7 +377,7 @@ func StderrOptionsForArgs(osArgs []string) StderrOptions {
 }
 
 func PrintMessageToStderr(osArgs []string, msg Msg) {
-	log := NewStderrLog(StderrOptionsForArgs(osArgs))
+	log := NewStderrLog(OutputOptionsForArgs(osArgs))
 	log.AddMsg(msg)
 	log.Done()
 }
@@ -392,7 +392,7 @@ type Colors struct {
 }
 
 func PrintText(file *os.File, level LogLevel, osArgs []string, callback func(Colors) string) {
-	options := StderrOptionsForArgs(osArgs)
+	options := OutputOptionsForArgs(osArgs)
 
 	// Skip logging these if these logs are disabled
 	if options.LogLevel > level {
@@ -458,22 +458,22 @@ const colorBold = "\033[1m"
 const colorResetBold = "\033[0;1m"
 const colorResetUnderline = "\033[0;4m"
 
-type StderrColor uint8
+type UseColor uint8
 
 const (
-	ColorIfTerminal StderrColor = iota
+	ColorIfTerminal UseColor = iota
 	ColorNever
 	ColorAlways
 )
 
-type StderrOptions struct {
+type OutputOptions struct {
 	IncludeSource bool
 	ErrorLimit    int
-	Color         StderrColor
+	Color         UseColor
 	LogLevel      LogLevel
 }
 
-func (msg Msg) String(options StderrOptions, terminalInfo TerminalInfo) string {
+func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	// Compute the maximum margin
 	maxMargin := 0
 	if options.IncludeSource {
@@ -515,7 +515,7 @@ func emptyMarginText(maxMargin int) string {
 	return fmt.Sprintf("    %s ╵ ", strings.Repeat(" ", maxMargin))
 }
 
-func msgString(options StderrOptions, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
+func msgString(options OutputOptions, terminalInfo TerminalInfo, kind MsgKind, data MsgData, maxMargin int) string {
 	var kindColor string
 	textColor := colorBold
 	textResetColor := colorResetBold

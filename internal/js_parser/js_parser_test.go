@@ -23,7 +23,7 @@ func expectParseErrorCommon(t *testing.T, contents string, expected string, opti
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
-			text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqual(t, text, expected)
 	})
@@ -54,7 +54,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 		text := ""
 		for _, msg := range msgs {
 			if msg.Kind != logger.Warning {
-				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+				text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 			}
 		}
 		test.AssertEqual(t, text, "")

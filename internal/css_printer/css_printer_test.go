@@ -25,7 +25,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		text := ""
 		for _, msg := range msgs {
 			if msg.Kind == logger.Error {
-				text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+				text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 			}
 		}
 		assertEqual(t, text, "")

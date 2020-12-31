@@ -1751,7 +1751,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	if log.HasErrors() {
 		msgs := "Internal error: failed to parse runtime:\n"
 		for _, msg := range log.Done() {
-			msgs += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+			msgs += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
 		panic(msgs[:len(msgs)-1])
 	}

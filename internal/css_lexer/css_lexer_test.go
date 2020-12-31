@@ -22,7 +22,7 @@ func lexerError(contents string) string {
 	Tokenize(log, test.SourceForTest(contents))
 	text := ""
 	for _, msg := range log.Done() {
-		text += msg.String(logger.StderrOptions{}, logger.TerminalInfo{})
+		text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 	}
 	return text
 }

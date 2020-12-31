@@ -70,7 +70,7 @@ func validateSourceMap(value SourceMap) config.SourceMap {
 	}
 }
 
-func validateColor(value StderrColor) logger.StderrColor {
+func validateColor(value StderrColor) logger.UseColor {
 	switch value {
 	case ColorIfTerminal:
 		return logger.ColorIfTerminal
@@ -506,7 +506,7 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 // Build API
 
 func buildImpl(buildOpts BuildOptions) BuildResult {
-	logOptions := logger.StderrOptions{
+	logOptions := logger.OutputOptions{
 		IncludeSource: true,
 		ErrorLimit:    buildOpts.ErrorLimit,
 		Color:         validateColor(buildOpts.Color),
@@ -524,7 +524,7 @@ func rebuildImpl(
 	buildOpts BuildOptions,
 	caches *cache.CacheSet,
 	plugins []config.Plugin,
-	logOptions logger.StderrOptions,
+	logOptions logger.OutputOptions,
 	log logger.Log,
 ) BuildResult {
 	// Convert and validate the buildOpts
@@ -736,7 +736,7 @@ func rebuildImpl(
 // Transform API
 
 func transformImpl(input string, transformOpts TransformOptions) TransformResult {
-	log := logger.NewStderrLog(logger.StderrOptions{
+	log := logger.NewStderrLog(logger.OutputOptions{
 		IncludeSource: true,
 		ErrorLimit:    transformOpts.ErrorLimit,
 		Color:         validateColor(transformOpts.Color),
@@ -1052,7 +1052,7 @@ func (h *apiHandler) notifyRequest(duration time.Duration, req *http.Request, st
 }
 
 func errorsToString(errors []Message) string {
-	stderrOptions := logger.StderrOptions{IncludeSource: true}
+	stderrOptions := logger.OutputOptions{IncludeSource: true}
 	terminalOptions := logger.TerminalInfo{}
 	sb := strings.Builder{}
 	limit := 5
