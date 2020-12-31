@@ -3,6 +3,7 @@ package snap_printer
 import (
 	"fmt"
 	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/snap_renamer"
 	"strings"
 )
 
@@ -31,7 +32,7 @@ func hasRequireReference(maybeRequires *[]MaybeRequireDecl) bool {
 // Extractors
 //
 func (p *printer) nameForSymbol(ref js_ast.Ref) string {
-	return p.renamer.NameForSymbol(ref)
+	return p.renamer.SnapNameForSymbol(ref, &snap_renamer.RewritingNameForSymbolOpts)
 }
 
 func (p *printer) extractRequireDeclaration(decl js_ast.Decl) (RequireDecl, bool) {

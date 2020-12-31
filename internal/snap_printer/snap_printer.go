@@ -520,7 +520,7 @@ func (p *printer) printIndent() {
 
 func (p *printer) printSymbolForbidDefer(ref js_ast.Ref) {
 	p.printSpaceBeforeIdentifier()
-	p.printIdentifier(p.renamer.SnapNameForSymbol(ref, false))
+	p.printIdentifier(p.renamer.SnapNameForSymbol(ref, &snap_renamer.NoDeferNameForSymbolOpts))
 }
 
 func (p *printer) printSymbol(ref js_ast.Ref) {
@@ -597,7 +597,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 	case *js_ast.BIdentifier:
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMappingForDecl(binding.Loc)
-		p.printSymbol(b.Ref)
+		p.printSymbolForbidDefer(b.Ref)
 
 	case *js_ast.BArray:
 		p.addSourceMappingForDecl(binding.Loc)
@@ -2860,8 +2860,13 @@ func createPrinter(
 	if options.SourceForSourceMap != nil {
 		p.lineOffsetTables = generateLineOffsetTables(options.SourceForSourceMap.Contents, approximateLineCount)
 	}
+	p.renamer.CurrentPrinterIndex = p.currentIdx
 
 	return p
+}
+
+func (p *printer) currentIdx() int {
+	return len(p.js)
 }
 
 func Print(
@@ -2897,6 +2902,8 @@ func Print(
 	}
 
 	p.updateGeneratedLineAndColumn()
+	// This has to happen before prepending top level decls as otherwise our locations are off
+	p.fixNamedBeforeReplaceds()
 	p.prependTopLevelDecls()
 
 	return PrintResult{

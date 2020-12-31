@@ -939,6 +939,55 @@ function __get_callerCache__() {
 `, ReplaceAll)
 }
 
+func TestOneLateDeclare(t *testing.T) {
+	expectPrinted(t, `
+const fs = require('fs')
+function foo() {
+	arraySlice.call(arguments, 0)
+    fs.readFileSync('hello')
+}
+var arraySlice = Array.prototype.slice;
+`, `
+let fs;
+function __get_fs__() {
+  return fs = fs || (require("fs"))
+}
+function foo() {
+  (__get_arraySlice__()).call(arguments, 0);
+  (__get_fs__()).readFileSync("hello");
+}
+
+let arraySlice;
+function __get_arraySlice__() {
+  return arraySlice = arraySlice || (Array.prototype.slice)
+}`, ReplaceAll)
+}
+
+func TestTwoLateDeclares(t *testing.T) {
+	expectPrinted(t, `
+function foo() {
+	arraySlice.call(arguments, 0)
+    fs.readFileSync('hello')
+}
+var arraySlice = Array.prototype.slice;
+const fs = require('fs')
+`, `
+function foo() {
+  (__get_arraySlice__()).call(arguments, 0);
+  (__get_fs__()).readFileSync("hello");
+}
+
+let arraySlice;
+function __get_arraySlice__() {
+  return arraySlice = arraySlice || (Array.prototype.slice)
+}
+
+let fs;
+function __get_fs__() {
+  return fs = fs || (require("fs"))
+}`, ReplaceAll)
+}
+
 func TestDebug(t *testing.T) {
 	debugPrinted(t, `
 `, ReplaceAll)
