@@ -15,6 +15,35 @@
     ⚡ Done in 43ms
     ```
 
+* Keep unused imports in TypeScript code in one specific case ([#604](https://github.com/evanw/esbuild/issues/604))
+
+    The official TypeScript compiler always removes imported symbols that aren't used as values when converting TypeScript to JavaScript. This is because these symbols could be types and not removing them could result in a run-time module instantiation failure because of missing exports. This even happens when the `tsconfig.json` setting `"importsNotUsedAsValues"` is set to `"preserve"`. Doing this just keeps the import statement itself but confusingly still removes the imports that aren't used as values.
+
+    Previously esbuild always exactly matched the behavior of the official TypeScript compiler regarding import removal. However, that is problematic when trying to use esbuild to compile a partial module such as when converting TypeScript to JavaScript inside a file written in the [Svelte](https://svelte.dev/) programming language. Here is an example:
+
+    ```html
+    <script lang="ts">
+      import Counter from './Counter.svelte';
+      export let name: string = 'world';
+    </script>
+    <main>
+      <h1>Hello {name}!</h1>
+      <Counter />
+    </main>
+    ```
+
+    The current Svelte compiler plugin for TypeScript only provides esbuild with the contents of the `<script>` tag so to esbuild, the import `Counter` appears to be unused and is removed.
+
+    In this release, esbuild deliberately deviates from the behavior of the official TypeScript compiler if all of these conditions are met:
+
+    * The `"importsNotUsedAsValues"` field in `tsconfig.json` must be present and must not be set to `"remove"`. This is necessary because this is the only case where esbuild can assume that all imports are values instead of types. Any imports that are types will cause a type error when the code is run through the TypeScript type checker. To import types when the `importsNotUsedAsValues` setting is active, you must use the TypeScript-specific `import type` syntax instead.
+
+    * You must not be using esbuild as a bundler. When bundling, esbuild needs to assume that it's not seeing a partial file because the bundling process requires renaming symbols to avoid cross-file name collisions.
+
+    * You must not have identifier minification enabled. It's useless to preserve unused imports in this case because referencing them by name won't work anyway. And keeping the unused imports would be counter-productive to minification since they would be extra unnecessary data in the output file.
+
+    This should hopefully allow esbuild to be used as a TypeScript-to-JavaScript converter for programming languages such as Svelte, at least in many cases. The build pipeline in esbuild wasn't designed for compiling partial modules and this still won't be a fully robust solution (e.g. some variables may be renamed to avoid name collisions in rare cases). But it's possible that these cases are very unlikely to come up in practice. Basically this change to keep unused imports in this case should be useful at best and harmless at worst.
+
 ## 0.8.27
 
 * Mark `import.meta` as supported in node 10.4+ ([#626](https://github.com/evanw/esbuild/issues/626))

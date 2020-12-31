@@ -274,14 +274,22 @@ var import_util = __toModule(require_util());
 console.log(import_util.default());
 
 ================================================================================
-TestTsconfigPreserveTypeImports
+TestTsconfigPreserveUnusedImportClause
+---------- /Users/user/project/out.js ----------
+import {x, y} from "./foo";
+import z from "./foo";
+import * as ns from "./foo";
+console.log(1, 2, 3);
+
+================================================================================
+TestTsconfigPreserveUnusedImports
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts
 import "./src/foo";
 console.log(1);
 
 ================================================================================
-TestTsconfigRemoveTypeImports
+TestTsconfigRemoveUnusedImports
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts
 console.log(1);

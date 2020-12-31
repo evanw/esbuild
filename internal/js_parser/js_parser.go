@@ -10150,10 +10150,70 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 	for _, stmt := range stmts {
 		switch s := stmt.Data.(type) {
 		case *js_ast.SImport:
+
+			// The official TypeScript compiler always removes unused imported
+			// symbols. However, we deliberately deviate from the official
+			// TypeScript compiler's behavior doing this in a specific scenario:
+			// we are not bundling, symbol renaming is off, and the tsconfig.json
+			// "importsNotUsedAsValues" setting is present and is not set to
+			// "remove".
+			//
+			// This exists to support the use case of compiling partial modules for
+			// compile-to-JavaScript languages such as Svelte. These languages try
+			// to reference imports in ways that are impossible for esbuild to know
+			// about when esbuild is only given a partial module to compile. Here
+			// is an example of some Svelte code that might use esbuild to convert
+			// TypeScript to JavaScript:
+			//
+			//   <script lang="ts">
+			//     import Counter from './Counter.svelte';
+			//     export let name: string = 'world';
+			//   </script>
+			//   <main>
+			//     <h1>Hello {name}!</h1>
+			//     <Counter />
+			//   </main>
+			//
+			// Tools that use esbuild to compile TypeScript code inside a Svelte
+			// file like this only give esbuild the contents of the <script> tag.
+			// These tools work around this missing import problem when using the
+			// official TypeScript compiler by hacking the TypeScript AST to
+			// remove the "unused import" flags. This isn't possible in esbuild
+			// because esbuild deliberately does not expose an AST manipulation
+			// API for performance reasons.
+			//
+			// We deviate from the TypeScript compiler's behavior in this specific
+			// case because doing so is useful for these compile-to-JavaScript
+			// languages and is benign in other cases. The rationale is as follows:
+			//
+			//   * If "importsNotUsedAsValues" is absent or set to "remove", then
+			//     we don't know if these imports are values or types. It's not
+			//     safe to keep them because if they are types, the missing imports
+			//     will cause run-time failures because there will be no matching
+			//     exports. It's only safe keep imports if "importsNotUsedAsValues"
+			//     is set to "preserve" or "error" because then we can assume that
+			//     none of the imports are types (since the TypeScript compiler
+			//     would generate an error in that case).
+			//
+			//   * If we're bundling, then we know we aren't being used to compile
+			//     a partial module. The parser is seeing the entire code for the
+			//     module so it's safe to remove unused imports. And also we don't
+			//     want the linker to generate errors about missing imports if the
+			//     imported file is also in the bundle.
+			//
+			//   * If identifier minification is enabled, then using esbuild as a
+			//     partial-module transform library wouldn't work anyway because
+			//     the names wouldn't match. And that means we're minifying so the
+			//     user is expecting the output to be as small as possible. So we
+			//     should omit unused imports.
+			//
+			keepUnusedImports := p.options.ts.Parse && p.options.preserveUnusedImportsTS &&
+				p.options.mode != config.ModeBundle && !p.options.minifyIdentifiers
+
 			// TypeScript always trims unused imports. This is important for
 			// correctness since some imports might be fake (only in the type
 			// system and used for type-only imports).
-			if p.options.mangleSyntax || p.options.ts.Parse {
+			if (p.options.mangleSyntax || p.options.ts.Parse) && !keepUnusedImports {
 				foundImports := false
 				isUnusedInTypeScript := true
 
@@ -10272,7 +10332,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result scanForIm
 					//   console.log(ns, ns.a, ns.b)
 					//
 					convertStarToClause := p.symbols[s.NamespaceRef.InnerIndex].UseCountEstimate == 0
-					if convertStarToClause {
+					if convertStarToClause && !keepUnusedImports {
 						s.StarNameLoc = nil
 					}
 
