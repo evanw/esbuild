@@ -21,9 +21,9 @@ var require_foo = __commonJS((exports2) => {
 
 // entry.js
 __export(exports, {
-  bar: () => foo.bar
+  bar: () => import_foo.bar
 });
-var foo = __toModule(require_foo());
+var import_foo = __toModule(require_foo());
 
 ================================================================================
 TestExportOtherNestedCommonJS
@@ -35,11 +35,11 @@ var require_foo = __commonJS((exports2) => {
 
 // entry.js
 __export(exports, {
-  y: () => foo.x
+  y: () => import_foo.x
 });
 
 // bar.js
-var foo = __toModule(require_foo());
+var import_foo = __toModule(require_foo());
 
 ================================================================================
 TestExportSelfAndImportSelfCommonJS
@@ -301,9 +301,9 @@ TestImportSelfCommonJS
 ---------- /out.js ----------
 // entry.js
 var require_entry = __commonJS((exports) => {
-  var entry = __toModule(require_entry());
+  var import_entry = __toModule(require_entry());
   exports.foo = 123;
-  console.log(entry.foo);
+  console.log(import_entry.foo);
 });
 module.exports = require_entry();
 

@@ -110,10 +110,10 @@ var require_foo = __commonJS((exports, module) => {
 });
 
 // Users/user/project/node_modules/pkg/index.js
-var foo = __toModule(require_foo());
+var import_foo = __toModule(require_foo());
 
 // Users/user/project/entry.js
-console.log(foo.default);
+console.log(import_foo.default);
 
 ================================================================================
 TestJSONLoaderRemoveUnused
@@ -149,7 +149,7 @@ var require_index_main = __commonJS((exports) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_index_main());
+var import_demo_pkg = __toModule(require_index_main());
 
 // Users/user/project/src/require-demo-pkg.js
 require_index_main();
@@ -265,8 +265,8 @@ var require_demo_pkg = __commonJS((exports) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_demo_pkg());
-console.log(demo_pkg.foo);
+var import_demo_pkg = __toModule(require_demo_pkg());
+console.log(import_demo_pkg.foo);
 
 ================================================================================
 TestPackageJsonSideEffectsFalseKeepNamedImportES6
@@ -366,7 +366,7 @@ var require_demo_pkg = __commonJS((exports) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_demo_pkg());
+var import_demo_pkg = __toModule(require_demo_pkg());
 console.log("unused import");
 
 ================================================================================

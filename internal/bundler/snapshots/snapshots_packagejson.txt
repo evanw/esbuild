@@ -8,8 +8,8 @@ var require_demo_pkg = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_demo_pkg());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_demo_pkg());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserMapAvoidMissing
@@ -45,8 +45,8 @@ var require_demo_pkg = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_demo_pkg());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_demo_pkg());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserMapModuleToModule
@@ -67,8 +67,8 @@ var require_demo_pkg = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_demo_pkg());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_demo_pkg());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserMapModuleToRelative
@@ -89,8 +89,8 @@ var require_demo_pkg = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_demo_pkg());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_demo_pkg());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserMapNativeModuleDisabled
@@ -108,8 +108,8 @@ var require_demo_pkg = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_demo_pkg());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_demo_pkg());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserMapRelativeDisabled
@@ -127,8 +127,8 @@ var require_main = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_main());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_main());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserMapRelativeToModule
@@ -147,8 +147,8 @@ var require_main = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_main());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_main());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserMapRelativeToRelative
@@ -167,8 +167,8 @@ var require_main_browser = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_main_browser());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_main_browser());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserOverMainNode
@@ -181,8 +181,8 @@ var require_main = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_main());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_main());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserOverModuleBrowser
@@ -195,8 +195,8 @@ var require_main_browser = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_main_browser());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_main_browser());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserString
@@ -209,8 +209,8 @@ var require_browser = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_browser());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_browser());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserWithMainNode
@@ -223,8 +223,8 @@ var require_main = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_main());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_main());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonBrowserWithModuleBrowser
@@ -249,8 +249,8 @@ var require_main_browser = __commonJS((exports, module) => {
 console.log(require_main_browser());
 
 // Users/user/project/src/test-module.js
-var demo_pkg = __toModule(require_main_browser());
-console.log(demo_pkg.default);
+var import_demo_pkg = __toModule(require_main_browser());
+console.log(import_demo_pkg.default);
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain
@@ -267,8 +267,8 @@ var require_module = __commonJS((exports) => {
 console.log(require_module());
 
 // Users/user/project/src/test-module.js
-var demo_pkg = __toModule(require_module());
-console.log(demo_pkg.default);
+var import_demo_pkg = __toModule(require_module());
+console.log(import_demo_pkg.default);
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireSameFile
@@ -279,8 +279,8 @@ var require_main = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_main());
-console.log(demo_pkg.default, require_main());
+var import_demo_pkg = __toModule(require_main());
+console.log(import_demo_pkg.default, require_main());
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireSeparateFiles
@@ -294,8 +294,8 @@ var require_main = __commonJS((exports, module) => {
 console.log(require_main());
 
 // Users/user/project/src/test-module.js
-var demo_pkg = __toModule(require_main());
-console.log(demo_pkg.default);
+var import_demo_pkg = __toModule(require_main());
+console.log(import_demo_pkg.default);
 
 ================================================================================
 TestPackageJsonDualPackageHazardImportOnly
@@ -328,8 +328,8 @@ var require_custom_main = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_custom_main());
-console.log(demo_pkg.default());
+var import_demo_pkg = __toModule(require_custom_main());
+console.log(import_demo_pkg.default());
 
 ================================================================================
 TestPackageJsonMainFieldsA
@@ -340,8 +340,8 @@ var require_a = __commonJS((exports, module) => {
 });
 
 // Users/user/project/src/entry.js
-var demo_pkg = __toModule(require_a());
-console.log(demo_pkg.default);
+var import_demo_pkg = __toModule(require_a());
+console.log(import_demo_pkg.default);
 
 ================================================================================
 TestPackageJsonMainFieldsB

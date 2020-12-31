@@ -198,8 +198,8 @@ import {
 } from "./chunk.JGDLH2UC.js";
 
 // entry.js
-var foo = __toModule(require_foo());
-import("./foo.js").then(({default: {bar: b}}) => console.log(foo.bar, b));
+var import_foo = __toModule(require_foo());
+import("./foo.js").then(({default: {bar: b}}) => console.log(import_foo.bar, b));
 
 ---------- /out/foo.js ----------
 import {
@@ -312,8 +312,8 @@ import {
 } from "./chunk.UM5LDUBH.js";
 
 // b.js
-var a = __toModule(require_a());
-var export_foo = a.foo;
+var import_a = __toModule(require_a());
+var export_foo = import_a.foo;
 export {
   export_foo as foo
 };

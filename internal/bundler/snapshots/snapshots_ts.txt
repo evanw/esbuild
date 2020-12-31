@@ -172,8 +172,8 @@ var require_b = __commonJS((exports, module) => {
 });
 
 // a.ts
-var b = __toModule(require_b());
-console.log(b.default);
+var import_b = __toModule(require_b());
+console.log(import_b.default);
 
 ================================================================================
 TestTSExportMissingES6

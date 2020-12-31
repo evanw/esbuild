@@ -4952,7 +4952,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.lexer.Next()
 				pathLoc, pathText := p.parsePath()
 				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText)
-				name := js_ast.GenerateNonUniqueNameFromPath(pathText)
+				name := "import_" + js_ast.GenerateNonUniqueNameFromPath(pathText)
 				namespaceRef := p.storeNameInRef(name)
 				p.lexer.ExpectOrInsertSemicolon()
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportFrom{
@@ -5507,7 +5507,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			stmt.NamespaceRef = p.declareSymbol(js_ast.SymbolImport, *stmt.StarNameLoc, name)
 		} else {
 			// Generate a symbol for the namespace
-			name := js_ast.GenerateNonUniqueNameFromPath(pathText)
+			name := "import_" + js_ast.GenerateNonUniqueNameFromPath(pathText)
 			stmt.NamespaceRef = p.newSymbol(js_ast.SymbolOther, name)
 			p.currentScope.Generated = append(p.currentScope.Generated, stmt.NamespaceRef)
 		}
@@ -11302,7 +11302,7 @@ func (p *parser) generateImportStmt(
 	parts []js_ast.Part,
 	symbols map[string]js_ast.Ref,
 ) []js_ast.Part {
-	namespaceRef := p.newSymbol(js_ast.SymbolOther, js_ast.GenerateNonUniqueNameFromPath(path))
+	namespaceRef := p.newSymbol(js_ast.SymbolOther, "import_"+js_ast.GenerateNonUniqueNameFromPath(path))
 	p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 	declaredSymbols := make([]js_ast.DeclaredSymbol, len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
