@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.28
 
 * Add a `--summary` flag that prints helpful information after a build ([#631](https://github.com/evanw/esbuild/issues/631))
 
