@@ -78,9 +78,21 @@ func writeStringWithColor(file *os.File, text string) {
 			i += len(colorGreen)
 			attributes = FOREGROUND_GREEN
 
+		case strings.HasPrefix(text[i:], colorBlue):
+			i += len(colorBlue)
+			attributes = FOREGROUND_BLUE
+
+		case strings.HasPrefix(text[i:], colorCyan):
+			i += len(colorCyan)
+			attributes = FOREGROUND_GREEN | FOREGROUND_BLUE
+
 		case strings.HasPrefix(text[i:], colorMagenta):
 			i += len(colorMagenta)
 			attributes = FOREGROUND_RED | FOREGROUND_BLUE
+
+		case strings.HasPrefix(text[i:], colorYellow):
+			i += len(colorYellow)
+			attributes = FOREGROUND_RED | FOREGROUND_GREEN
 
 		case strings.HasPrefix(text[i:], colorResetDim):
 			i += len(colorResetDim)

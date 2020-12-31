@@ -5,9 +5,11 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/evanw/esbuild/internal/cli_helpers"
 	"github.com/evanw/esbuild/internal/logger"
@@ -517,8 +519,12 @@ func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *api.TransformOptio
 }
 
 func runImpl(osArgs []string) int {
-	// Special-case running a server
+	shouldPrintSummary := false
+	start := time.Now()
+	end := 0
+
 	for i, arg := range osArgs {
+		// Special-case running a server
 		if arg == "--serve" {
 			arg = "--serve=0"
 		}
@@ -531,7 +537,17 @@ func runImpl(osArgs []string) int {
 			}
 			return 0
 		}
+
+		// Filter out the "--summary" flag
+		if arg == "--summary" {
+			shouldPrintSummary = true
+			continue
+		}
+
+		osArgs[end] = arg
+		end++
 	}
+	osArgs = osArgs[:end]
 
 	buildOptions, transformOptions, err := parseOptionsForRun(osArgs)
 
@@ -567,6 +583,11 @@ func runImpl(osArgs []string) int {
 			return 1
 		}
 
+		// Print a summary to stderr
+		if shouldPrintSummary {
+			printSummary(osArgs, result.OutputFiles, start)
+		}
+
 	case transformOptions != nil:
 		// Read the input from stdin
 		bytes, err := ioutil.ReadAll(os.Stdin)
@@ -585,12 +606,53 @@ func runImpl(osArgs []string) int {
 		// Write the output to stdout
 		os.Stdout.Write(result.Code)
 
+		// Print a summary to stderr
+		if shouldPrintSummary {
+			printSummary(osArgs, nil, start)
+		}
+
 	case err != nil:
 		logger.PrintErrorToStderr(osArgs, err.Error())
 		return 1
 	}
 
 	return 0
+}
+
+func printSummary(osArgs []string, outputFiles []api.OutputFile, start time.Time) {
+	var table logger.SummaryTable = make([]logger.SummaryTableEntry, len(outputFiles))
+
+	if len(outputFiles) > 0 {
+		cwd, _ := os.Getwd()
+
+		for i, file := range outputFiles {
+			path, err := filepath.Rel(cwd, file.Path)
+			if err != nil {
+				path = file.Path
+			}
+			dir, base := filepath.Split(path)
+			n := len(file.Contents)
+			var size string
+			if n < 1024 {
+				size = fmt.Sprintf("%db ", n)
+			} else if n < 1024*1024 {
+				size = fmt.Sprintf("%.1fkb", float64(n)/(1024))
+			} else if n < 1024*1024*1024 {
+				size = fmt.Sprintf("%.1fmb", float64(n)/(1024*1024))
+			} else {
+				size = fmt.Sprintf("%.1fgb", float64(n)/(1024*1024*1024))
+			}
+			table[i] = logger.SummaryTableEntry{
+				Dir:         dir,
+				Base:        base,
+				Size:        size,
+				Bytes:       n,
+				IsSourceMap: strings.HasSuffix(base, ".map"),
+			}
+		}
+	}
+
+	logger.PrintSummary(osArgs, table, start)
 }
 
 func serveImpl(serveText string, osArgs []string) error {

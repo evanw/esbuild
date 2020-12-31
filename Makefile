@@ -442,13 +442,13 @@ demo-three: demo-three-esbuild demo-three-rollup demo-three-webpack demo-three-w
 
 demo-three-esbuild: esbuild | demo/three
 	rm -fr demo/three/esbuild
-	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify demo/three/src/Three.js --outfile=demo/three/esbuild/Three.esbuild.js
+	time -p ./esbuild --bundle --summary --global-name=THREE --sourcemap --minify demo/three/src/Three.js --outfile=demo/three/esbuild/Three.esbuild.js
 	du -h demo/three/esbuild/Three.esbuild.js*
 	shasum demo/three/esbuild/Three.esbuild.js*
 
 demo-three-eswasm: npm/esbuild-wasm/esbuild.wasm | demo/three
 	rm -fr demo/three/eswasm
-	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --global-name=THREE \
+	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --summary --global-name=THREE \
 		--sourcemap --minify demo/three/src/Three.js --outfile=demo/three/eswasm/Three.eswasm.js
 	du -h demo/three/eswasm/Three.eswasm.js*
 	shasum demo/three/eswasm/Three.eswasm.js*
@@ -528,13 +528,13 @@ bench-three: bench-three-esbuild bench-three-rollup bench-three-webpack bench-th
 
 bench-three-esbuild: esbuild | bench/three
 	rm -fr bench/three/esbuild
-	time -p ./esbuild --bundle --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js
+	time -p ./esbuild --bundle --summary --global-name=THREE --sourcemap --minify bench/three/src/entry.js --outfile=bench/three/esbuild/entry.esbuild.js
 	du -h bench/three/esbuild/entry.esbuild.js*
 	shasum bench/three/esbuild/entry.esbuild.js*
 
 bench-three-eswasm: npm/esbuild-wasm/esbuild.wasm | bench/three
 	rm -fr bench/three/eswasm
-	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --global-name=THREE \
+	time -p ./npm/esbuild-wasm/bin/esbuild --bundle --summary --global-name=THREE \
 		--sourcemap --minify bench/three/src/entry.js --outfile=bench/three/eswasm/entry.eswasm.js
 	du -h bench/three/eswasm/entry.eswasm.js*
 	shasum bench/three/eswasm/entry.eswasm.js*
@@ -634,7 +634,7 @@ bench-rome: bench-rome-esbuild bench-rome-webpack bench-rome-webpack5 bench-rome
 
 bench-rome-esbuild: esbuild | bench/rome bench/rome-verify
 	rm -fr bench/rome/esbuild
-	time -p ./esbuild --bundle --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node
+	time -p ./esbuild --bundle --summary --sourcemap --minify bench/rome/src/entry.ts --outfile=bench/rome/esbuild/rome.esbuild.js --platform=node
 	du -h bench/rome/esbuild/rome.esbuild.js*
 	shasum bench/rome/esbuild/rome.esbuild.js*
 	cd bench/rome-verify && rm -fr esbuild && ROME_CACHE=0 node ../rome/esbuild/rome.esbuild.js bundle packages/rome esbuild
@@ -771,7 +771,7 @@ bench-readmin: bench-readmin-esbuild
 
 bench-readmin-esbuild: esbuild | bench/readmin
 	rm -fr bench/readmin/esbuild
-	time -p ./esbuild --bundle --minify --loader:.js=jsx --define:process.env.NODE_ENV='"production"' \
+	time -p ./esbuild --bundle --summary --minify --loader:.js=jsx --define:process.env.NODE_ENV='"production"' \
 		--define:global=window --sourcemap --outfile=bench/readmin/esbuild/main.js bench/readmin/repo/src/index.js
 	echo "$(READMIN_HTML)" > bench/readmin/esbuild/index.html
 	du -h bench/readmin/esbuild/main.js*
@@ -780,7 +780,7 @@ bench-readmin-esbuild: esbuild | bench/readmin
 bench-readmin-eswasm: npm/esbuild-wasm/esbuild.wasm | bench/readmin
 	rm -fr bench/readmin/eswasm
 	time -p ./npm/esbuild-wasm/bin/esbuild \
-		--bundle --minify --loader:.js=jsx --define:process.env.NODE_ENV='"production"' \
+		--bundle --summary --minify --loader:.js=jsx --define:process.env.NODE_ENV='"production"' \
 		--define:global=window --sourcemap --outfile=bench/readmin/eswasm/main.js bench/readmin/repo/src/index.js
 	echo "$(READMIN_HTML)" > bench/readmin/eswasm/index.html
 	du -h bench/readmin/eswasm/main.js*

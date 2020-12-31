@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+* Add a `--summary` flag that prints helpful information after a build ([#631](https://github.com/evanw/esbuild/issues/631))
+
+    Normally esbuild's CLI doesn't print anything after doing a build if nothing went wrong. This allows esbuild to be used as part of a more complex chain of tools without the output cluttering the terminal. However, sometimes it is nice to have a quick overview in your terminal of what the build just did. You can now add the `--summary` flag when using the CLI and esbuild will print a summary of what the build generated. It looks something like this:
+
+    ```
+    $ ./esbuild --summary --bundle src/Three.js --outfile=build/three.js --sourcemap
+
+      build/three.js      1.0mb ⚠️
+      build/three.js.map  1.8mb
+
+    ⚡ Done in 43ms
+    ```
+
 ## 0.8.27
 
 * Mark `import.meta` as supported in node 10.4+ ([#626](https://github.com/evanw/esbuild/issues/626))

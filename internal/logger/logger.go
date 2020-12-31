@@ -8,9 +8,11 @@ package logger
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Log struct {
@@ -383,11 +385,18 @@ func PrintMessageToStderr(osArgs []string, msg Msg) {
 }
 
 type Colors struct {
-	Default   string
-	Bold      string
-	Dim       string
-	Red       string
-	Green     string
+	Default string
+	Bold    string
+	Dim     string
+
+	Red   string
+	Green string
+	Blue  string
+
+	Cyan    string
+	Magenta string
+	Yellow  string
+
 	Underline string
 }
 
@@ -414,11 +423,209 @@ func PrintText(file *os.File, level LogLevel, osArgs []string, callback func(Col
 		colors.Default = colorReset
 		colors.Bold = colorResetBold
 		colors.Dim = colorResetDim
+
 		colors.Red = colorRed
 		colors.Green = colorGreen
+		colors.Blue = colorBlue
+
+		colors.Cyan = colorCyan
+		colors.Magenta = colorMagenta
+		colors.Yellow = colorYellow
+
 		colors.Underline = colorResetUnderline
 	}
 	writeStringWithColor(file, callback(colors))
+}
+
+type SummaryTableEntry struct {
+	Dir         string
+	Base        string
+	Size        string
+	Bytes       int
+	IsSourceMap bool
+}
+
+// This type is just so we can use Go's native sort function
+type SummaryTable []SummaryTableEntry
+
+func (t SummaryTable) Len() int          { return len(t) }
+func (t SummaryTable) Swap(i int, j int) { t[i], t[j] = t[j], t[i] }
+
+func (t SummaryTable) Less(i int, j int) bool {
+	ti := t[i]
+	tj := t[j]
+
+	// Sort source maps last
+	if !ti.IsSourceMap && tj.IsSourceMap {
+		return true
+	}
+	if ti.IsSourceMap && !tj.IsSourceMap {
+		return false
+	}
+
+	// Sort by size first
+	if ti.Bytes > tj.Bytes {
+		return true
+	}
+	if ti.Bytes < tj.Bytes {
+		return false
+	}
+
+	// Sort subdirectories first
+	if strings.HasPrefix(ti.Dir, tj.Dir) {
+		return true
+	}
+	if strings.HasPrefix(tj.Dir, ti.Dir) {
+		return false
+	}
+
+	// Sort alphabetically by directory first
+	if ti.Dir < tj.Dir {
+		return true
+	}
+	if ti.Dir > tj.Dir {
+		return false
+	}
+
+	// Then sort alphabetically by file name
+	return ti.Base < tj.Base
+}
+
+// Show a warning icon next to output files that are 1mb or larger
+const sizeWarningThreshold = 1024 * 1024
+
+func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
+	PrintText(os.Stderr, LevelInfo, osArgs, func(colors Colors) string {
+		isProbablyWindowsCommandPrompt := false
+		sb := strings.Builder{}
+
+		// Assume we are running in Windows Command Prompt if we're on Windows. If
+		// so, we can't use emoji because it won't be supported. Except we can
+		// still use emoji if the WT_SESSION environment variable is present
+		// because that means we're running in the new Windows Terminal instead.
+		if runtime.GOOS == "windows" {
+			isProbablyWindowsCommandPrompt = true
+			for _, env := range os.Environ() {
+				if strings.HasPrefix(env, "WT_SESSION=") {
+					isProbablyWindowsCommandPrompt = false
+					break
+				}
+			}
+		}
+
+		if len(table) > 0 {
+			// Compute the maximum width of the size column
+			spacingBetweenColumns := 2
+			hasSizeWarning := false
+			maxPath := 0
+			maxSize := 0
+			for _, entry := range table {
+				path := len(entry.Dir) + len(entry.Base)
+				size := len(entry.Size) + spacingBetweenColumns
+				if path > maxPath {
+					maxPath = path
+				}
+				if size > maxSize {
+					maxSize = size
+				}
+				if !entry.IsSourceMap && entry.Bytes >= sizeWarningThreshold {
+					hasSizeWarning = true
+				}
+			}
+
+			margin := "  "
+			layoutWidth := GetTerminalInfo(os.Stderr).Width - 2*len(margin)
+			if hasSizeWarning {
+				// Add space for the warning icon
+				layoutWidth -= 2
+			}
+			if layoutWidth > maxPath+maxSize {
+				layoutWidth = maxPath + maxSize
+			}
+			sort.Sort(table)
+			sb.WriteString("\n")
+
+			wasSourceMap := false
+			for i, entry := range table {
+				dir, base := entry.Dir, entry.Base
+				pathWidth := layoutWidth - maxSize
+
+				// Truncate the path with "..." to fit on one line
+				if len(dir)+len(base) > pathWidth {
+					// Trim the directory from the front, leaving the trailing slash
+					if len(dir) > 0 {
+						n := pathWidth - len(base) - 3
+						if n < 1 {
+							n = 1
+						}
+						dir = "..." + dir[len(dir)-n:]
+					}
+
+					// Trim the file name from the back
+					if len(dir)+len(base) > pathWidth {
+						n := pathWidth - len(dir) - 3
+						if n < 0 {
+							n = 0
+						}
+						base = base[:n] + "..."
+					}
+				}
+
+				spacer := layoutWidth - len(entry.Size) - len(dir) - len(base)
+				if spacer < 0 {
+					spacer = 0
+				}
+
+				// Print a boundary in between normal files and source map files if
+				// there was more than one normal file. This improves scannability.
+				if !wasSourceMap && entry.IsSourceMap && i > 1 {
+					sb.WriteString("\n")
+					wasSourceMap = true
+				}
+
+				// Put a warning next to the size if it's above a certain threshold
+				sizeColor := colors.Cyan
+				sizeWarning := ""
+				if !entry.IsSourceMap && entry.Bytes >= sizeWarningThreshold {
+					sizeColor = colors.Yellow
+
+					// Emoji don't work in Windows Command Prompt
+					if !isProbablyWindowsCommandPrompt {
+						sizeWarning = " ⚠️"
+					}
+				}
+
+				sb.WriteString(fmt.Sprintf("%s%s%s%s%s%s%s%s%s%s%s\n",
+					margin,
+					colors.Dim,
+					dir,
+					colors.Bold,
+					base,
+					colors.Default,
+					strings.Repeat(" ", spacer),
+					sizeColor,
+					entry.Size,
+					sizeWarning,
+					colors.Default,
+				))
+			}
+		}
+
+		lightningSymbol := "⚡ "
+
+		// Emoji don't work in Windows Command Prompt
+		if isProbablyWindowsCommandPrompt {
+			lightningSymbol = ""
+		}
+
+		sb.WriteString(fmt.Sprintf("\n%s%sDone in %dms%s\n\n",
+			lightningSymbol,
+			colors.Green,
+			time.Since(start).Milliseconds(),
+			colors.Default,
+		))
+		return sb.String()
+	})
 }
 
 func NewDeferLog() Log {
@@ -450,9 +657,15 @@ func NewDeferLog() Log {
 }
 
 const colorReset = "\033[0m"
+
 const colorRed = "\033[31m"
 const colorGreen = "\033[32m"
+const colorBlue = "\033[34m"
+
+const colorCyan = "\033[36m"
 const colorMagenta = "\033[35m"
+const colorYellow = "\033[33m"
+
 const colorResetDim = "\033[0;37m"
 const colorBold = "\033[1m"
 const colorResetBold = "\033[0;1m"
