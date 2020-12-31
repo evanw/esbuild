@@ -1587,8 +1587,18 @@ let transformTests = {
     assert.strictEqual(code, `export let abc=123;eval("console.log(abc)");\n`)
   },
 
-  async tsconfigRaw({ service }) {
-    const { code: code1 } = await service.transform(`import {T} from 'path'`, {
+  async tsconfigRawRemoveUnusedImportsDefault({ service }) {
+    const { code } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {},
+      },
+      loader: 'ts',
+    })
+    assert.strictEqual(code, ``)
+  },
+
+  async tsconfigRawRemoveUnusedImports({ service }) {
+    const { code } = await service.transform(`import {T} from 'path'`, {
       tsconfigRaw: {
         compilerOptions: {
           importsNotUsedAsValues: 'remove',
@@ -1596,9 +1606,11 @@ let transformTests = {
       },
       loader: 'ts',
     })
-    assert.strictEqual(code1, ``)
+    assert.strictEqual(code, ``)
+  },
 
-    const { code: code2 } = await service.transform(`import {T} from 'path'`, {
+  async tsconfigRawPreserveUnusedImports({ service }) {
+    const { code } = await service.transform(`import {T} from 'path'`, {
       tsconfigRaw: {
         compilerOptions: {
           importsNotUsedAsValues: 'preserve',
@@ -1606,10 +1618,37 @@ let transformTests = {
       },
       loader: 'ts',
     })
-    assert.strictEqual(code2, `import "path";\n`)
+    assert.strictEqual(code, `import {T} from "path";\n`)
+  },
 
+  async tsconfigRawPreserveUnusedImportsMinifyIdentifiers({ service }) {
+    const { code } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'preserve',
+        },
+      },
+      loader: 'ts',
+      minifyIdentifiers: true,
+    })
+    assert.strictEqual(code, `import "path";\n`)
+  },
+
+  async tsconfigRawPreserveUnusedImportsJS({ service }) {
+    const { code } = await service.transform(`import {T} from 'path'`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          importsNotUsedAsValues: 'preserve',
+        },
+      },
+      loader: 'js',
+    })
+    assert.strictEqual(code, `import {T} from "path";\n`)
+  },
+
+  async tsconfigRawCommentsInJSON({ service }) {
     // Can use a string, which allows weird TypeScript pseudo-JSON with comments and trailing commas
-    const { code: code3 } = await service.transform(`import {T} from 'path'`, {
+    const { code: code5 } = await service.transform(`import {T} from 'path'`, {
       tsconfigRaw: `{
         "compilerOptions": {
           "importsNotUsedAsValues": "preserve", // there is a trailing comment here
@@ -1617,7 +1656,7 @@ let transformTests = {
       }`,
       loader: 'ts',
     })
-    assert.strictEqual(code3, `import "path";\n`)
+    assert.strictEqual(code5, `import {T} from "path";\n`)
   },
 
   async tsconfigRawImportsNotUsedAsValues({ service }) {
