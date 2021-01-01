@@ -1749,6 +1749,20 @@ func TestMangleBlock(t *testing.T) {
 	expectPrintedMangle(t, "while(1) { async function* x() {} }", "for (; ; ) {\n  async function* x() {\n  }\n}\n")
 }
 
+func TestMangleNot(t *testing.T) {
+	// These can be mangled
+	expectPrintedMangle(t, "a = !(b == c)", "a = b != c;\n")
+	expectPrintedMangle(t, "a = !(b != c)", "a = b == c;\n")
+	expectPrintedMangle(t, "a = !(b === c)", "a = b !== c;\n")
+	expectPrintedMangle(t, "a = !(b !== c)", "a = b === c;\n")
+
+	// These can't be mangled due to NaN and other special cases
+	expectPrintedMangle(t, "a = !(b < c)", "a = !(b < c);\n")
+	expectPrintedMangle(t, "a = !(b > c)", "a = !(b > c);\n")
+	expectPrintedMangle(t, "a = !(b <= c)", "a = !(b <= c);\n")
+	expectPrintedMangle(t, "a = !(b >= c)", "a = !(b >= c);\n")
+}
+
 func TestMangleDoubleNot(t *testing.T) {
 	expectPrintedMangle(t, "a = !!b", "a = !!b;\n")
 

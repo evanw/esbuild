@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Minification improvements
+
+    This release contains the following minification improvements:
+
+    * Expressions of the form `!(a == b)` are now converted to `a != b`. This also applies similarly for the other three equality operators.
+
 ## 0.8.28
 
 * Add a `--summary` flag that prints helpful information after a build ([#631](https://github.com/evanw/esbuild/issues/631))
