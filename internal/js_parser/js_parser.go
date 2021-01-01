@@ -10785,6 +10785,23 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 			}
 			return true
 		}
+
+	case *js_ast.EUnary:
+		switch e.Op {
+		// These operators must not have any type conversions that can execute code
+		// such as "toString" or "valueOf". They must also never throw any exceptions.
+		case js_ast.UnOpTypeof, js_ast.UnOpVoid, js_ast.UnOpNot:
+			return p.exprCanBeRemovedIfUnused(e.Value)
+		}
+
+	case *js_ast.EBinary:
+		switch e.Op {
+		// These operators must not have any type conversions that can execute code
+		// such as "toString" or "valueOf". They must also never throw any exceptions.
+		case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpComma,
+			js_ast.BinOpLogicalOr, js_ast.BinOpLogicalAnd, js_ast.BinOpNullishCoalescing:
+			return p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
+		}
 	}
 
 	// Assume all other expression types have side effects and cannot be removed
@@ -11250,7 +11267,8 @@ func (p *parser) prepareForVisitPass() {
 	}
 
 	// Convert "import.meta" to a variable if it's not supported in the output format
-	if p.hasImportMeta && (p.options.unsupportedJSFeatures.Has(compat.ImportMeta) || (p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax())) {
+	if p.hasImportMeta && (p.options.unsupportedJSFeatures.Has(compat.ImportMeta) ||
+		(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax())) {
 		p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
 		p.moduleScope.Generated = append(p.moduleScope.Generated, p.importMetaRef)
 	} else {

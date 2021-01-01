@@ -1211,3 +1211,94 @@ func TestTreeShakingImportIdentifier(t *testing.T) {
 		},
 	})
 }
+
+func TestTreeShakingUnaryOperators(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// These operators may have side effects
+				let keep;
+				+keep;
+				-keep;
+				~keep;
+				delete keep;
+				++keep;
+				--keep;
+				keep++;
+				keep--;
+
+				// These operators never have side effects
+				let REMOVE;
+				!REMOVE;
+				void REMOVE;
+				typeof REMOVE;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTreeShakingBinaryOperators(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// These operators may have side effects
+				let keep, keep2;
+				keep + keep2;
+				keep - keep2;
+				keep * keep2;
+				keep / keep2;
+				keep % keep2;
+				keep ** keep2;
+				keep < keep2;
+				keep <= keep2;
+				keep > keep2;
+				keep >= keep2;
+				keep in keep2;
+				keep instanceof keep2;
+				keep << keep2;
+				keep >> keep2;
+				keep >>> keep2;
+				keep == keep2;
+				keep != keep2;
+				keep | keep2;
+				keep & keep2;
+				keep ^ keep2;
+				keep = keep2;
+				keep += keep2;
+				keep -= keep2;
+				keep *= keep2;
+				keep /= keep2;
+				keep %= keep2;
+				keep **= keep2;
+				keep <<= keep2;
+				keep >>= keep2;
+				keep >>>= keep2;
+				keep |= keep2;
+				keep &= keep2;
+				keep ^= keep2;
+				keep ??= keep2;
+				keep ||= keep2;
+				keep &&= keep2;
+
+				// These operators never have side effects
+				let REMOVE, REMOVE2;
+				REMOVE === REMOVE2;
+				REMOVE !== REMOVE2;
+				REMOVE, REMOVE2;
+				REMOVE ?? REMOVE2;
+				REMOVE || REMOVE2;
+				REMOVE && REMOVE2;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

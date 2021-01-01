@@ -445,6 +445,49 @@ TestTextLoaderRemoveUnused
 console.log("unused import");
 
 ================================================================================
+TestTreeShakingBinaryOperators
+---------- /out.js ----------
+// entry.js
+var keep;
+var keep2;
+keep + keep2;
+keep - keep2;
+keep * keep2;
+keep / keep2;
+keep % keep2;
+keep ** keep2;
+keep < keep2;
+keep <= keep2;
+keep > keep2;
+keep >= keep2;
+keep in keep2;
+keep instanceof keep2;
+keep << keep2;
+keep >> keep2;
+keep >>> keep2;
+keep == keep2;
+keep != keep2;
+keep | keep2;
+keep & keep2;
+keep ^ keep2;
+keep = keep2;
+keep += keep2;
+keep -= keep2;
+keep *= keep2;
+keep /= keep2;
+keep %= keep2;
+keep **= keep2;
+keep <<= keep2;
+keep >>= keep2;
+keep >>>= keep2;
+keep |= keep2;
+keep &= keep2;
+keep ^= keep2;
+keep ??= keep2;
+keep ||= keep2;
+keep &&= keep2;
+
+================================================================================
 TestTreeShakingImportIdentifier
 ---------- /out.js ----------
 // b.js
@@ -468,3 +511,17 @@ var d = /* @__PURE__ */ React.createElement("div", null);
 var e = /* @__PURE__ */ React.createElement(Foo, null, d);
 var f = /* @__PURE__ */ React.createElement(React.Fragment, null, e);
 console.log(f);
+
+================================================================================
+TestTreeShakingUnaryOperators
+---------- /out.js ----------
+// entry.js
+var keep;
++keep;
+-keep;
+~keep;
+delete keep;
+++keep;
+--keep;
+keep++;
+keep--;
