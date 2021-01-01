@@ -2,6 +2,7 @@ package js_parser
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/compat"
@@ -2271,6 +2272,202 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "a + b + 'c' + 'd'", "a + b + \"\";\n")
 	expectPrintedMangle(t, "'a' + 'b' + c + d", "\"\" + c + d;\n")
 	expectPrintedMangle(t, "(a + '') + (b + '')", "a + \"\" + (b + \"\");\n")
+}
+
+func TestMangleInlineLocals(t *testing.T) {
+	check := func(a string, b string) {
+		t.Helper()
+		expectPrintedMangle(t, "function wrapper(arg0, arg1) {"+a+"}",
+			"function wrapper(arg0, arg1) {"+strings.ReplaceAll("\n"+b, "\n", "\n  ")+"\n}\n")
+	}
+
+	check("var x = 1; return x", "var x = 1;\nreturn x;")
+	check("let x = 1; return x", "return 1;")
+	check("const x = 1; return x", "return 1;")
+
+	check("let x = 1; if (false) x++; return x", "return 1;")
+	check("let x = 1; if (true) x++; return x", "let x = 1;\nreturn x++, x;")
+	check("let x = 1; return x + x", "let x = 1;\nreturn x + x;")
+
+	// Can substitute into normal unary operators
+	check("let x = 1; return +x", "return +1;")
+	check("let x = 1; return -x", "return -1;")
+	check("let x = 1; return !x", "return !1;")
+	check("let x = 1; return ~x", "return ~1;")
+	check("let x = 1; return void x", "let x = 1;")
+	check("let x = 1; return typeof x", "return typeof 1;")
+
+	// Cannot substitute into mutating unary operators
+	check("let x = 1; ++x", "let x = 1;\n++x;")
+	check("let x = 1; --x", "let x = 1;\n--x;")
+	check("let x = 1; x++", "let x = 1;\nx++;")
+	check("let x = 1; x--", "let x = 1;\nx--;")
+	check("let x = 1; delete x", "let x = 1;\ndelete x;")
+
+	// Cannot substitute into mutating binary operators
+	check("let x = 1; x = 2", "let x = 1;\nx = 2;")
+	check("let x = 1; x += 2", "let x = 1;\nx += 2;")
+	check("let x = 1; x ||= 2", "let x = 1;\nx ||= 2;")
+
+	// Can substitute past mutating binary operators when the left operand has no side effects
+	check("let x = 1; arg0 = x", "arg0 = 1;")
+	check("let x = 1; arg0 += x", "arg0 += 1;")
+	check("let x = 1; arg0 ||= x", "arg0 ||= 1;")
+	check("let x = fn(); arg0 = x", "arg0 = fn();")
+	check("let x = fn(); arg0 += x", "arg0 += fn();")
+	check("let x = fn(); arg0 ||= x", "let x = fn();\narg0 ||= x;")
+
+	// Cannot substitute past mutating binary operators when the left operand has side effects
+	check("let x = 1; y.z = x", "let x = 1;\ny.z = x;")
+	check("let x = 1; y.z += x", "let x = 1;\ny.z += x;")
+	check("let x = 1; y.z ||= x", "let x = 1;\ny.z ||= x;")
+	check("let x = fn(); y.z = x", "let x = fn();\ny.z = x;")
+	check("let x = fn(); y.z += x", "let x = fn();\ny.z += x;")
+	check("let x = fn(); y.z ||= x", "let x = fn();\ny.z ||= x;")
+
+	// Cannot substitute code without side effects past non-mutating binary operators when the left operand has side effects
+	check("let x = 1; fn() + x", "let x = 1;\nfn() + x;")
+
+	// Cannot substitute code with side effects past non-mutating binary operators
+	check("let x = y(); arg0 + x", "let x = y();\narg0 + x;")
+
+	// Can substitute code without side effects into branches
+	check("let x = arg0; return x ? y : z;", "return arg0 ? y : z;")
+	check("let x = arg0; return arg1 ? x : y;", "return arg1 ? arg0 : y;")
+	check("let x = arg0; return arg1 ? y : x;", "return arg1 ? y : arg0;")
+	check("let x = arg0; return x || y;", "return arg0 || y;")
+	check("let x = arg0; return x && y;", "return arg0 && y;")
+	check("let x = arg0; return x ?? y;", "return arg0 ?? y;")
+	check("let x = arg0; return arg1 || x;", "return arg1 || arg0;")
+	check("let x = arg0; return arg1 && x;", "return arg1 && arg0;")
+	check("let x = arg0; return arg1 ?? x;", "return arg1 ?? arg0;")
+
+	// Can substitute code without side effects into branches past an expression with side effects
+	check("let x = arg0; return y ? x : z;", "let x = arg0;\nreturn y ? x : z;")
+	check("let x = arg0; return y ? z : x;", "let x = arg0;\nreturn y ? z : x;")
+	check("let x = arg0; return (arg1 ? 1 : 2) ? x : 3;", "return (arg1 ? 1 : 2) ? arg0 : 3;")
+	check("let x = arg0; return (arg1 ? 1 : 2) ? 3 : x;", "return (arg1 ? 1 : 2) ? 3 : arg0;")
+	check("let x = arg0; return (arg1 ? y : 1) ? x : 2;", "let x = arg0;\nreturn (arg1 ? y : 1) ? x : 2;")
+	check("let x = arg0; return (arg1 ? 1 : y) ? x : 2;", "let x = arg0;\nreturn (arg1 ? 1 : y) ? x : 2;")
+	check("let x = arg0; return (arg1 ? y : 1) ? 2 : x;", "let x = arg0;\nreturn (arg1 ? y : 1) ? 2 : x;")
+	check("let x = arg0; return (arg1 ? 1 : y) ? 2 : x;", "let x = arg0;\nreturn (arg1 ? 1 : y) ? 2 : x;")
+	check("let x = arg0; return y || x;", "let x = arg0;\nreturn y || x;")
+	check("let x = arg0; return y && x;", "let x = arg0;\nreturn y && x;")
+	check("let x = arg0; return y ?? x;", "let x = arg0;\nreturn y ?? x;")
+
+	// Cannot substitute code with side effects into branches
+	check("let x = fn(); return x ? arg0 : y;", "return fn() ? arg0 : y;")
+	check("let x = fn(); return arg0 ? x : y;", "let x = fn();\nreturn arg0 ? x : y;")
+	check("let x = fn(); return arg0 ? y : x;", "let x = fn();\nreturn arg0 ? y : x;")
+	check("let x = fn(); return x || arg0;", "return fn() || arg0;")
+	check("let x = fn(); return x && arg0;", "return fn() && arg0;")
+	check("let x = fn(); return x ?? arg0;", "return fn() ?? arg0;")
+	check("let x = fn(); return arg0 || x;", "let x = fn();\nreturn arg0 || x;")
+	check("let x = fn(); return arg0 && x;", "let x = fn();\nreturn arg0 && x;")
+	check("let x = fn(); return arg0 ?? x;", "let x = fn();\nreturn arg0 ?? x;")
+
+	// Test chaining
+	check("let x = fn(); let y = x[prop]; let z = y.val; throw z", "throw fn()[prop].val;")
+	check("let x = fn(), y = x[prop], z = y.val; throw z", "throw fn()[prop].val;")
+
+	// Can substitute an initializer with side effects
+	check("let x = 0; let y = ++x; return y",
+		"let x = 0;\nreturn ++x;")
+
+	// Can substitute an initializer without side effects past an expression without side effects
+	check("let x = 0; let y = x; return [x, y]",
+		"let x = 0;\nreturn [x, x];")
+
+	// Cannot substitute an initializer with side effects past an expression without side effects
+	check("let x = 0; let y = ++x; return [x, y]",
+		"let x = 0, y = ++x;\nreturn [x, y];")
+
+	// Cannot substitute an initializer without side effects past an expression with side effects
+	check("let x = 0; let y = {valueOf() { x = 1 }}; let z = x; return [y == 1, z]",
+		"let x = 0, y = {valueOf() {\n  x = 1;\n}}, z = x;\nreturn [y == 1, z];")
+
+	// Cannot inline past a spread operator, since that evaluates code
+	check("let x = arg0; return [...x];", "return [...arg0];")
+	check("let x = arg0; return [x, ...arg1];", "return [arg0, ...arg1];")
+	check("let x = arg0; return [...arg1, x];", "let x = arg0;\nreturn [...arg1, x];")
+	check("let x = arg0; return arg1(...x);", "return arg1(...arg0);")
+	check("let x = arg0; return arg1(x, ...arg1);", "return arg1(arg0, ...arg1);")
+	check("let x = arg0; return arg1(...arg1, x);", "let x = arg0;\nreturn arg1(...arg1, x);")
+
+	// Test various statement kinds
+	check("let x = arg0; arg1(x);", "arg1(arg0);")
+	check("let x = arg0; throw x;", "throw arg0;")
+	check("let x = arg0; return x;", "return arg0;")
+	check("let x = arg0; if (x) return 1;", "if (arg0)\n  return 1;")
+	check("let x = arg0; switch (x) { case 0: return 1; }", "switch (arg0) {\n  case 0:\n    return 1;\n}")
+	check("let x = arg0; let y = x; return y + y;", "let y = arg0;\nreturn y + y;")
+
+	// Loops must not be substituted into because they evaluate multiple times
+	check("let x = arg0; do {} while (x);", "let x = arg0;\ndo\n  ;\nwhile (x);")
+	check("let x = arg0; while (x) return 1;", "let x = arg0;\nfor (; x; )\n  return 1;")
+	check("let x = arg0; for (; x; ) return 1;", "let x = arg0;\nfor (; x; )\n  return 1;")
+
+	// Can substitute an expression without side effects into a branch due to optional chaining
+	check("let x = arg0; return arg1?.[x];", "return arg1?.[arg0];")
+	check("let x = arg0; return arg1?.(x);", "return arg1?.(arg0);")
+
+	// Cannot substitute an expression with side effects into a branch due to optional chaining,
+	// since that would change the expression with side effects from being unconditionally
+	// evaluated to being conditionally evaluated, which is a behavior change
+	check("let x = fn(); return arg1?.[x];", "let x = fn();\nreturn arg1?.[x];")
+	check("let x = fn(); return arg1?.(x);", "let x = fn();\nreturn arg1?.(x);")
+
+	// Can substitute an expression past an optional chaining operation, since it has side effects
+	check("let x = arg0; return arg1?.a === x;", "let x = arg0;\nreturn arg1?.a === x;")
+	check("let x = arg0; return arg1?.[0] === x;", "let x = arg0;\nreturn arg1?.[0] === x;")
+	check("let x = arg0; return arg1?.(0) === x;", "let x = arg0;\nreturn arg1?.(0) === x;")
+	check("let x = arg0; return arg1?.a[x];", "let x = arg0;\nreturn arg1?.a[x];")
+	check("let x = arg0; return arg1?.a(x);", "let x = arg0;\nreturn arg1?.a(x);")
+	check("let x = arg0; return arg1?.[a][x];", "let x = arg0;\nreturn arg1?.[a][x];")
+	check("let x = arg0; return arg1?.[a](x);", "let x = arg0;\nreturn arg1?.[a](x);")
+	check("let x = arg0; return arg1?.(a)[x];", "let x = arg0;\nreturn arg1?.(a)[x];")
+	check("let x = arg0; return arg1?.(a)(x);", "let x = arg0;\nreturn arg1?.(a)(x);")
+
+	// Can substitute into an object as long as there are no side effects
+	// beforehand. Note that computed properties must call "toString()" which
+	// can have side effects.
+	check("let x = arg0; return {x};", "return {x: arg0};")
+	check("let x = arg0; return {x: y, y: x};", "let x = arg0;\nreturn {x: y, y: x};")
+	check("let x = arg0; return {x: arg1, y: x};", "return {x: arg1, y: arg0};")
+	check("let x = arg0; return {[x]: 0};", "return {[arg0]: 0};")
+	check("let x = arg0; return {[y]: x};", "let x = arg0;\nreturn {[y]: x};")
+	check("let x = arg0; return {[arg1]: x};", "let x = arg0;\nreturn {[arg1]: x};")
+	check("let x = arg0; return {y() {}, x};", "return {y() {\n}, x: arg0};")
+	check("let x = arg0; return {[y]() {}, x};", "let x = arg0;\nreturn {[y]() {\n}, x};")
+	check("let x = arg0; return {...x};", "return {...arg0};")
+	check("let x = arg0; return {...x, y};", "return {...arg0, y};")
+	check("let x = arg0; return {x, ...y};", "return {x: arg0, ...y};")
+	check("let x = arg0; return {...y, x};", "let x = arg0;\nreturn {...y, x};")
+
+	// Check substitutions into template literals
+	check("let x = arg0; return `a${x}b${y}c`;", "return `a${arg0}b${y}c`;")
+	check("let x = arg0; return `a${y}b${x}c`;", "let x = arg0;\nreturn `a${y}b${x}c`;")
+	check("let x = arg0; return `a${arg1}b${x}c`;", "return `a${arg1}b${arg0}c`;")
+	check("let x = arg0; return x`y`;", "return arg0`y`;")
+	check("let x = arg0; return y`a${x}b`;", "let x = arg0;\nreturn y`a${x}b`;")
+	check("let x = arg0; return arg1`a${x}b`;", "return arg1`a${arg0}b`;")
+	check("let x = 'x'; return `a${x}b`;", "return `axb`;")
+
+	// Check substitutions into import expressions
+	check("let x = arg0; return import(x);", "return import(arg0);")
+	check("let x = arg0; return [import(y), x];", "let x = arg0;\nreturn [import(y), x];")
+	check("let x = arg0; return [import(arg1), x];", "return [import(arg1), arg0];")
+
+	// Check substitutions into await expressions
+	check("return async () => { let x = arg0; await x; };", "return async () => {\n  await arg0;\n};")
+	check("return async () => { let x = arg0; await y; return x; };", "return async () => {\n  let x = arg0;\n  return await y, x;\n};")
+	check("return async () => { let x = arg0; await arg1; return x; };", "return async () => {\n  let x = arg0;\n  return await arg1, x;\n};")
+
+	// Check substitutions into yield expressions
+	check("return function* () { let x = arg0; yield x; };", "return function* () {\n  yield arg0;\n};")
+	check("return function* () { let x = arg0; yield; return x; };", "return function* () {\n  let x = arg0;\n  return yield, x;\n};")
+	check("return function* () { let x = arg0; yield y; return x; };", "return function* () {\n  let x = arg0;\n  return yield y, x;\n};")
+	check("return function* () { let x = arg0; yield arg1; return x; };", "return function* () {\n  let x = arg0;\n  return yield arg1, x;\n};")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {

@@ -8,6 +8,22 @@
 
     * Expressions of the form `!(a == b)` are now converted to `a != b`. This also applies similarly for the other three equality operators.
 
+    * Certain single-use variables are now inlined if the use directly follows the variable:
+
+        ```js
+        // Before minification
+        let result = fn();
+        let callback = result.callback;
+        return callback.call(this);
+        ```
+
+        ```js
+        // After minification
+        return fn().callback.call(this);
+        ```
+
+        This transformation is only done when it's safe to do so. The safety conditions are complex but at a high level, an expression cannot be reordered past another expression if either of them could possibly have side effects.
+
 ## 0.8.28
 
 * Add a `--summary` flag that prints helpful information after a build ([#631](https://github.com/evanw/esbuild/issues/631))

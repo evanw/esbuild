@@ -6175,6 +6175,74 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 			continue
 		}
 
+		// Inline single-use variable declarations where possible:
+		//
+		//   // Before
+		//   let x = fn();
+		//   return x.y();
+		//
+		//   // After
+		//   return fn().y();
+		//
+		// The declaration must not be exported. We can't just check for the
+		// "export" keyword because something might do "export {id};" later on.
+		// Instead we just ignore all top-level declarations for now. That means
+		// this optimization currently only applies in nested scopes.
+		//
+		// Ignore declarations if the scope is shadowed by a direct "eval" call.
+		// The eval'd code may indirectly reference this symbol and the actual
+		// use count may be greater than 1.
+		if p.currentScope != p.moduleScope && !p.currentScope.ContainsDirectEval {
+			// Keep inlining variables until a failure or until there are none left.
+			// That handles cases like this:
+			//
+			//   // Before
+			//   let x = fn();
+			//   let y = x.prop;
+			//   return y;
+			//
+			//   // After
+			//   return fn().prop;
+			//
+			for len(result) > 0 {
+				// Ignore "var" declarations since those have function-level scope and
+				// we may not have visited all of their uses yet by this point. We
+				// should have visited all the uses of "let" and "const" declarations
+				// by now since they are scoped to this block which we just finished
+				// visiting.
+				if prevS, ok := result[len(result)-1].Data.(*js_ast.SLocal); ok && prevS.Kind != js_ast.LocalVar {
+					// The variable must be initialized, since we will be substituting
+					// the value into the usage.
+					if last := prevS.Decls[len(prevS.Decls)-1]; last.Value != nil {
+						// The binding must be an identifier that is only used once.
+						// Ignore destructuring bindings since that's not the simple case.
+						// Destructuring bindings could potentially execute side-effecting
+						// code which would invalidate reordering.
+						if id, ok := last.Binding.Data.(*js_ast.BIdentifier); ok && p.symbols[id.Ref.InnerIndex].UseCountEstimate == 1 {
+							// Try to substitute the identifier with the initializer. This will
+							// fail if something with side effects is in between the declaration
+							// and the usage.
+							if p.substituteSingleUseSymbolInStmt(stmt, id.Ref, *last.Value) {
+								// Remove the previous declaration, since the substitution was
+								// successful.
+								if len(prevS.Decls) == 1 {
+									result = result[:len(result)-1]
+								} else {
+									prevS.Decls = prevS.Decls[:len(prevS.Decls)-1]
+								}
+
+								// Loop back to try again
+								continue
+							}
+						}
+					}
+				}
+
+				// Substitution failed so stop trying
+				break
+			}
+		}
+
 		switch s := stmt.Data.(type) {
 		case *js_ast.SEmpty:
 			// Strip empty statements
@@ -6436,6 +6504,278 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 	}
 
 	return result
+}
+
+func (p *parser) substituteSingleUseSymbolInStmt(stmt js_ast.Stmt, ref js_ast.Ref, replacement js_ast.Expr) bool {
+	var expr *js_ast.Expr
+
+	switch s := stmt.Data.(type) {
+	case *js_ast.SExpr:
+		expr = &s.Value
+	case *js_ast.SThrow:
+		expr = &s.Value
+	case *js_ast.SReturn:
+		expr = s.Value
+	case *js_ast.SIf:
+		expr = &s.Test
+	case *js_ast.SSwitch:
+		expr = &s.Test
+	case *js_ast.SLocal:
+		// Only try substituting into the initializer for the first declaration
+		if first := s.Decls[0]; first.Value != nil {
+			// Make sure there isn't destructuring, which could evaluate code
+			if _, ok := first.Binding.Data.(*js_ast.BIdentifier); ok {
+				expr = first.Value
+			}
+		}
+	}
+
+	if expr != nil {
+		// Only continue trying to insert this replacement into sub-expressions
+		// after the first one if the replacement has no side effects:
+		//
+		//   // Substitution is ok
+		//   let replacement = 123;
+		//   return x + replacement;
+		//
+		//   // Substitution is not ok because "fn()" may change "x"
+		//   let replacement = fn();
+		//   return x + replacement;
+		//
+		//   // Substitution is not ok because "x == x" may change "x" due to "valueOf()" evaluation
+		//   let replacement = [x];
+		//   return (x == x) + replacement;
+		//
+		replacementCanBeRemoved := p.exprCanBeRemovedIfUnused(replacement)
+
+		if new, status := p.substituteSingleUseSymbolInExpr(*expr, ref, replacement, replacementCanBeRemoved); status == substituteSuccess {
+			*expr = new
+			return true
+		}
+	}
+
+	return false
+}
+
+type substituteStatus uint8
+
+const (
+	substituteContinue substituteStatus = iota
+	substituteSuccess
+	substituteFailure
+)
+
+func (p *parser) substituteSingleUseSymbolInExpr(
+	expr js_ast.Expr,
+	ref js_ast.Ref,
+	replacement js_ast.Expr,
+	replacementCanBeRemoved bool,
+) (js_ast.Expr, substituteStatus) {
+	switch e := expr.Data.(type) {
+	case *js_ast.EIdentifier:
+		if e.Ref == ref {
+			p.ignoreUsage(ref)
+			return replacement, substituteSuccess
+		}
+
+	case *js_ast.ESpread:
+		if value, status := p.substituteSingleUseSymbolInExpr(e.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+			e.Value = value
+			return expr, status
+		}
+
+	case *js_ast.EAwait:
+		if value, status := p.substituteSingleUseSymbolInExpr(e.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+			e.Value = value
+			return expr, status
+		}
+
+	case *js_ast.EYield:
+		if e.Value != nil {
+			if value, status := p.substituteSingleUseSymbolInExpr(*e.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.Value = &value
+				return expr, status
+			}
+		}
+
+	case *js_ast.EImport:
+		if value, status := p.substituteSingleUseSymbolInExpr(e.Expr, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+			e.Expr = value
+			return expr, status
+		}
+
+		// The "import()" expression has side effects but the side effects are
+		// always asynchronous so there is no way for the side effects to modify
+		// the replacement value. So it's ok to reorder the replacement value
+		// past the "import()" expression assuming everything else checks out.
+		if replacementCanBeRemoved && p.exprCanBeRemovedIfUnused(e.Expr) {
+			return expr, substituteContinue
+		}
+
+	case *js_ast.EUnary:
+		switch e.Op {
+		case js_ast.UnOpPreInc, js_ast.UnOpPostInc, js_ast.UnOpPreDec, js_ast.UnOpPostDec, js_ast.UnOpDelete:
+			// Do not substitute into an assignment position
+
+		default:
+			if value, status := p.substituteSingleUseSymbolInExpr(e.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.Value = value
+				return expr, status
+			}
+		}
+
+	case *js_ast.EDot:
+		if value, status := p.substituteSingleUseSymbolInExpr(e.Target, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+			e.Target = value
+			return expr, status
+		}
+
+	case *js_ast.EBinary:
+		// Do not substitute into an assignment position
+		if e.Op.BinaryAssignTarget() == js_ast.AssignTargetNone {
+			if value, status := p.substituteSingleUseSymbolInExpr(e.Left, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.Left = value
+				return expr, status
+			}
+		} else if !p.exprCanBeRemovedIfUnused(e.Left) {
+			// Do not reorder past a side effect
+			return expr, substituteFailure
+		}
+
+		// Do not substitute our unconditionally-executed value into a branching
+		// short-circuit operator unless the value itself has no side effects
+		if replacementCanBeRemoved || !e.Op.IsShortCircuit() {
+			if value, status := p.substituteSingleUseSymbolInExpr(e.Right, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.Right = value
+				return expr, status
+			}
+		}
+
+	case *js_ast.EIf:
+		if value, status := p.substituteSingleUseSymbolInExpr(e.Test, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+			e.Test = value
+			return expr, status
+		}
+
+		// Do not substitute our unconditionally-executed value into a branch
+		// unless the value itself has no side effects
+		if replacementCanBeRemoved {
+			// Unlike other branches in this function such as "a && b" or "a?.[b]",
+			// the "a ? b : c" form has potential code evaluation along both control
+			// flow paths. Handle this by allowing substitution into either branch.
+			// Side effects in one branch should not prevent the substitution into
+			// the other branch.
+
+			yesValue, yesStatus := p.substituteSingleUseSymbolInExpr(e.Yes, ref, replacement, replacementCanBeRemoved)
+			if yesStatus == substituteSuccess {
+				e.Yes = yesValue
+				return expr, yesStatus
+			}
+
+			noValue, noStatus := p.substituteSingleUseSymbolInExpr(e.No, ref, replacement, replacementCanBeRemoved)
+			if noStatus == substituteSuccess {
+				e.No = noValue
+				return expr, noStatus
+			}
+
+			// Side effects in either branch should stop us from continuing to try to
+			// substitute the replacement after the control flow branches merge again.
+			if yesStatus != substituteContinue || noStatus != substituteContinue {
+				return expr, substituteFailure
+			}
+		}
+
+	case *js_ast.EIndex:
+		if value, status := p.substituteSingleUseSymbolInExpr(e.Target, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+			e.Target = value
+			return expr, status
+		}
+
+		// Do not substitute our unconditionally-executed value into a branch
+		// unless the value itself has no side effects
+		if replacementCanBeRemoved || e.OptionalChain == js_ast.OptionalChainNone {
+			if value, status := p.substituteSingleUseSymbolInExpr(e.Index, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.Index = value
+				return expr, status
+			}
+		}
+
+	case *js_ast.ECall:
+		if value, status := p.substituteSingleUseSymbolInExpr(e.Target, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+			e.Target = value
+			return expr, status
+		}
+
+		// Do not substitute our unconditionally-executed value into a branch
+		// unless the value itself has no side effects
+		if replacementCanBeRemoved || e.OptionalChain == js_ast.OptionalChainNone {
+			for i, arg := range e.Args {
+				if value, status := p.substituteSingleUseSymbolInExpr(arg, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+					e.Args[i] = value
+					return expr, status
+				}
+			}
+		}
+
+	case *js_ast.EArray:
+		for i, item := range e.Items {
+			if value, status := p.substituteSingleUseSymbolInExpr(item, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.Items[i] = value
+				return expr, status
+			}
+		}
+
+	case *js_ast.EObject:
+		for i, property := range e.Properties {
+			// Check the key
+			if property.IsComputed {
+				if value, status := p.substituteSingleUseSymbolInExpr(property.Key, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+					e.Properties[i].Key = value
+					return expr, status
+				}
+
+				// Stop now because both computed keys and property spread have side effects
+				return expr, substituteFailure
+			}
+
+			// Check the value
+			if property.Value != nil {
+				if value, status := p.substituteSingleUseSymbolInExpr(*property.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+					e.Properties[i].Value = &value
+					return expr, status
+				}
+			}
+		}
+
+	case *js_ast.ETemplate:
+		if e.Tag != nil {
+			if value, status := p.substituteSingleUseSymbolInExpr(*e.Tag, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.Tag = &value
+				return expr, status
+			}
+		}
+
+		for i, part := range e.Parts {
+			if value, status := p.substituteSingleUseSymbolInExpr(part.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+				e.Parts[i].Value = value
+
+				// If we substituted a string, merge the string into the template
+				if _, ok := value.Data.(*js_ast.EString); ok {
+					expr = p.mangleTemplate(expr.Loc, e)
+				}
+				return expr, status
+			}
+		}
+	}
+
+	// If both the replacement and this expression have no observable side
+	// effects, then we can reorder the replacement past this expression
+	if replacementCanBeRemoved && p.exprCanBeRemovedIfUnused(expr) {
+		return expr, substituteContinue
+	}
+
+	// Otherwise we should stop trying to substitute past this point
+	return expr, substituteFailure
 }
 
 func (p *parser) visitLoopBody(stmt js_ast.Stmt) js_ast.Stmt {
@@ -8499,6 +8839,37 @@ func (p *parser) isValidAssignmentTarget(expr js_ast.Expr) bool {
 	return false
 }
 
+// "`a${'b'}c`" => "`abc`"
+func (p *parser) mangleTemplate(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr {
+	// Can't inline strings if there's a custom template tag
+	if e.Tag == nil {
+		end := 0
+		for _, part := range e.Parts {
+			if str, ok := part.Value.Data.(*js_ast.EString); ok {
+				if end == 0 {
+					e.Head = append(append(e.Head, str.Value...), part.Tail...)
+				} else {
+					prevPart := &e.Parts[end-1]
+					prevPart.Tail = append(append(prevPart.Tail, str.Value...), part.Tail...)
+				}
+			} else {
+				e.Parts[end] = part
+				end++
+			}
+		}
+		e.Parts = e.Parts[:end]
+
+		// Become a plain string if there are no substitutions
+		if len(e.Parts) == 0 {
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EString{
+				Value:          e.Head,
+				PreferTemplate: true,
+			}}
+		}
+	}
+	return js_ast.Expr{Loc: loc, Data: e}
+}
+
 // This function takes "exprIn" as input from the caller and produces "exprOut"
 // for the caller to pass along extra data. This is mostly for optional chaining.
 func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprOut) {
@@ -8641,23 +9012,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.Parts[i].Value = p.visitExpr(part.Value)
 		}
 
-		// "`a${'b'}c`" => "`abc`"
-		if p.options.mangleSyntax && e.Tag == nil {
-			end := 0
-			for _, part := range e.Parts {
-				if str, ok := part.Value.Data.(*js_ast.EString); ok {
-					if end == 0 {
-						e.Head = append(append(e.Head, str.Value...), part.Tail...)
-					} else {
-						prevPart := &e.Parts[end-1]
-						prevPart.Tail = append(append(prevPart.Tail, str.Value...), part.Tail...)
-					}
-				} else {
-					e.Parts[end] = part
-					end++
-				}
-			}
-			e.Parts = e.Parts[:end]
+		if p.options.mangleSyntax {
+			return p.mangleTemplate(expr.Loc, e), exprOut{}
 		}
 
 	case *js_ast.EBinary:
@@ -10745,6 +11101,25 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		return p.classCanBeRemovedIfUnused(e.Class)
 
 	case *js_ast.EIdentifier:
+		// Unbound identifiers cannot be removed because they can have side effects.
+		// One possible side effect is throwing a ReferenceError if they don't exist.
+		// Another one is a getter with side effects on the global object:
+		//
+		//   Object.defineProperty(globalThis, 'x', {
+		//     get() {
+		//       sideEffect();
+		//     },
+		//   });
+		//
+		// Be very careful about this possibility. It's tempting to treat all
+		// identifier expressions as not having side effects but that's wrong. We
+		// must make sure they have been declared by the code we are currently
+		// compiling before we can tell that they have no side effects.
+		//
+		// Note that we currently ignore ReferenceErrors due to TDZ access. This is
+		// incorrect but proper TDZ analysis is very complicated and would have to
+		// be very conservative, which would inhibit a lot of optimizations of code
+		// inside closures. This may need to be revisited if it proves problematic.
 		if e.CanBeRemovedIfUnused || p.symbols[e.Ref.InnerIndex].Kind != js_ast.SymbolUnbound {
 			return true
 		}

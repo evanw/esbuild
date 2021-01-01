@@ -83,6 +83,16 @@ func (op OpCode) BinaryAssignTarget() AssignTarget {
 	return AssignTargetNone
 }
 
+func (op OpCode) IsShortCircuit() bool {
+       switch op {
+       case BinOpLogicalOr, BinOpLogicalOrAssign,
+               BinOpLogicalAnd, BinOpLogicalAndAssign,
+               BinOpNullishCoalescing, BinOpNullishCoalescingAssign:
+               return true
+       }
+       return false
+}
+
 type AssignTarget uint8
 
 const (
