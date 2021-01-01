@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const defaultTerminalWidth = 80
+
 type Log struct {
 	AddMsg    func(Msg)
 	HasErrors func() bool
@@ -534,7 +536,11 @@ func PrintSummary(osArgs []string, table SummaryTable, start time.Time) {
 			}
 
 			margin := "  "
-			layoutWidth := GetTerminalInfo(os.Stderr).Width - 2*len(margin)
+			layoutWidth := GetTerminalInfo(os.Stderr).Width
+			if layoutWidth < 1 {
+				layoutWidth = defaultTerminalWidth
+			}
+			layoutWidth -= 2 * len(margin)
 			if hasSizeWarning {
 				// Add space for the warning icon
 				layoutWidth -= 2
@@ -927,7 +933,7 @@ func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDet
 	// Trim the line to fit the terminal width
 	width := terminalInfo.Width
 	if width < 1 {
-		width = 80
+		width = defaultTerminalWidth
 	}
 	width -= maxMargin + extraMarginChars
 	if width < 1 {
