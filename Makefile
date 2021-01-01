@@ -769,19 +769,24 @@ bench/readmin: | github/react-admin
 
 bench-readmin: bench-readmin-esbuild
 
+READMIN_ESBUILD_FLAGS += --bundle
+READMIN_ESBUILD_FLAGS += --define:global=window
+READMIN_ESBUILD_FLAGS += --define:process.env.NODE_ENV='"production"'
+READMIN_ESBUILD_FLAGS += --loader:.js=jsx
+READMIN_ESBUILD_FLAGS += --minify
+READMIN_ESBUILD_FLAGS += --sourcemap
+READMIN_ESBUILD_FLAGS += --summary
+
 bench-readmin-esbuild: esbuild | bench/readmin
 	rm -fr bench/readmin/esbuild
-	time -p ./esbuild --bundle --summary --minify --loader:.js=jsx --define:process.env.NODE_ENV='"production"' \
-		--define:global=window --sourcemap --outfile=bench/readmin/esbuild/main.js bench/readmin/repo/src/index.js
+	time -p ./esbuild $(READMIN_ESBUILD_FLAGS) --outfile=bench/readmin/esbuild/main.js bench/readmin/repo/src/index.js
 	echo "$(READMIN_HTML)" > bench/readmin/esbuild/index.html
 	du -h bench/readmin/esbuild/main.js*
 	shasum bench/readmin/esbuild/main.js*
 
 bench-readmin-eswasm: npm/esbuild-wasm/esbuild.wasm | bench/readmin
 	rm -fr bench/readmin/eswasm
-	time -p ./npm/esbuild-wasm/bin/esbuild \
-		--bundle --summary --minify --loader:.js=jsx --define:process.env.NODE_ENV='"production"' \
-		--define:global=window --sourcemap --outfile=bench/readmin/eswasm/main.js bench/readmin/repo/src/index.js
+	time -p ./npm/esbuild-wasm/bin/esbuild $(READMIN_ESBUILD_FLAGS) --outfile=bench/readmin/eswasm/main.js bench/readmin/repo/src/index.js
 	echo "$(READMIN_HTML)" > bench/readmin/eswasm/index.html
 	du -h bench/readmin/eswasm/main.js*
 	shasum bench/readmin/eswasm/main.js*
