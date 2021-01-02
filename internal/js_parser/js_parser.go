@@ -8136,7 +8136,15 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	case *js_ast.EString:
 		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: e.Value}} }
 	case *js_ast.EIdentifier:
-		valueFunc = func() js_ast.Expr { return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: e.Ref}} }
+		valueFunc = func() js_ast.Expr {
+			// Make sure we record this usage in the usage count so that duplicating
+			// a single-use reference means it's no longer considered a single-use
+			// reference. Otherwise the single-use reference inlining code may
+			// incorrectly inline the initializer into the first reference, leaving
+			// the second reference without a definition.
+			p.recordUsage(e.Ref)
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: e.Ref}}
+		}
 	}
 	if valueFunc != nil {
 		return valueFunc, wrapFunc
