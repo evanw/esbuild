@@ -8513,6 +8513,22 @@ func canChangeStrictToLoose(a js_ast.Expr, b js_ast.Expr) bool {
 		(js_ast.IsStringValue(a) && js_ast.IsStringValue(b))
 }
 
+func maybeSimplifyEqualityComparison(e *js_ast.EBinary, isNotEqual bool) (js_ast.Expr, bool) {
+	// "!x === true" => "!x"
+	// "!x === false" => "!!x"
+	// "!x !== true" => "!!x"
+	// "!x !== false" => "!x"
+	if boolean, ok := e.Right.Data.(*js_ast.EBoolean); ok && js_ast.IsBooleanValue(e.Left) {
+		if boolean.Value == isNotEqual {
+			return js_ast.Not(e.Left), true
+		} else {
+			return e.Left, true
+		}
+	}
+
+	return js_ast.Expr{}, false
+}
+
 func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc logger.Loc) bool {
 	if p.options.suppressWarningsAboutWeirdCode {
 		return false
@@ -9230,6 +9246,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
 					e.Right.Data = &js_ast.ENull{}
 				}
+
+				if result, ok := maybeSimplifyEqualityComparison(e, false /* isNotEqual */); ok {
+					return result, exprOut{}
+				}
 			}
 
 		case js_ast.BinOpStrictEq:
@@ -9246,6 +9266,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
 				if canChangeStrictToLoose(e.Left, e.Right) {
 					e.Op = js_ast.BinOpLooseEq
+				}
+
+				if result, ok := maybeSimplifyEqualityComparison(e, false /* isNotEqual */); ok {
+					return result, exprOut{}
 				}
 			}
 
@@ -9264,6 +9288,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
 					e.Right.Data = &js_ast.ENull{}
 				}
+
+				if result, ok := maybeSimplifyEqualityComparison(e, true /* isNotEqual */); ok {
+					return result, exprOut{}
+				}
 			}
 
 		case js_ast.BinOpStrictNe:
@@ -9280,6 +9308,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
 				if canChangeStrictToLoose(e.Left, e.Right) {
 					e.Op = js_ast.BinOpLooseNe
+				}
+
+				if result, ok := maybeSimplifyEqualityComparison(e, true /* isNotEqual */); ok {
+					return result, exprOut{}
 				}
 			}
 

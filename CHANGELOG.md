@@ -36,6 +36,18 @@
         return (x & 1) == 0;
         ```
 
+    * Equality comparisons are removed if both sides are boolean and one side is a constant:
+
+        ```js
+        // Before minification
+        return !x === true;
+        ```
+
+        ```js
+        // After minification
+        return !x;
+        ```
+
 ## 0.8.29
 
 * Allow entry points outside of the `outbase` directory ([#634](https://github.com/evanw/esbuild/issues/634))
