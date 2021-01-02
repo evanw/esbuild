@@ -2586,6 +2586,26 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			} else if relPath, ok := c.fs.Rel(c.options.AbsOutputBase, source.KeyPath.Text); ok {
 				relDir = c.fs.Dir(relPath)
 				baseName = c.fs.Base(relPath)
+				relDir = strings.ReplaceAll(relDir, "\\", "/")
+
+				// Replace leading "../" so we don't try to write outside of the output
+				// directory. This normally can't happen because "AbsOutputBase" is
+				// automatically computed to contain all entry point files, but it can
+				// happen if someone sets it manually via the "outbase" API option.
+				//
+				// Note that we can't just strip any leading "../" because that could
+				// cause two separate entry point paths to collide. For example, there
+				// could be both "src/index.js" and "../src/index.js" as entry points.
+				dotDotCount := 0
+				for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
+					dotDotCount++
+				}
+				if dotDotCount > 0 {
+					// The use of ".._" here is somewhat arbitrary but it is unlikely to
+					// collide with a folder named by a human and it works on Windows
+					// (Windows doesn't like names that end with a ".").
+					relDir = strings.Repeat(".._/", dotDotCount) + relDir[dotDotCount*3:]
+				}
 			} else {
 				baseName = c.fs.Base(source.KeyPath.Text)
 			}
@@ -2602,7 +2622,6 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		}
 
 		// Always use cross-platform path separators to avoid problems with Windows
-		relDir = strings.ReplaceAll(relDir, "\\", "/")
 		file.entryPointRelPath = path.Join(relDir, baseName)
 
 		// Create a chunk for the entry point here to ensure that the chunk is

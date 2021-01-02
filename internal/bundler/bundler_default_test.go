@@ -3879,3 +3879,21 @@ ts.ts: warning: Cannot construct "a" because it's an import namespace object, no
 `,
 	})
 }
+
+func TestBundlingFilesOutsideOfOutbase(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entry.js": `
+				console.log('test')
+			`,
+		},
+		entryPaths: []string{"/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputBase: "/some/nested/directory",
+			AbsOutputDir:  "/out",
+		},
+	})
+}

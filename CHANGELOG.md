@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Allow entry points outside of the `outbase` directory ([#634](https://github.com/evanw/esbuild/issues/634))
+
+    When esbuild generates the output path for a bundled entry point, it computes the relative path from [the `outbase` directory](https://esbuild.github.io/api/#outbase) to the input entry point file and then joins that relative path to the output directory. For example, if there are two entry points `src/pages/home/index.ts` and `src/pages/about/index.ts`, the outbase directory is `src`, and the output directory is `out`, the output directory will contain `out/pages/home/index.js` and `out/pages/about/index.js`.
+
+    However, this means that the `outbase` directory is expected to contain all entry point files (even implicit entry point files from `import()` expressions). If an entry point isn't under the outbase directory then esbuild will to try to write the output file outside of the output directory, since the path of the entry point relative to `outbase` will start with `../` which is then joined to the output directory. This is unintentional. All output files are supposed to be written inside of the output directory.
+
+    This release fixes the problem by creating a directory with the name `.._` in the output directory for output file paths of entry points that are not inside the `outbase` directory. So if the previous example was bundled with an outbase directory of `temp`, the output directory will contain `out/.._/pages/home/index.js` and `out/.._/pages/about/index.js`. Doing this instead of stripping the leading `../` off the relative path is necessary to avoid collisions between different entry points with the same path suffix.
+
 * Minification improvements
 
     This release contains the following minification improvements:

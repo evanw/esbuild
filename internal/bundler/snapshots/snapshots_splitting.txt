@@ -1,3 +1,9 @@
+TestBundlingFilesOutsideOfOutbase
+---------- /out/.._/.._/.._/src/entry.js ----------
+// src/entry.js
+console.log("test");
+
+================================================================================
 TestSplittingAssignToLocal
 ---------- /out/a.js ----------
 import {
