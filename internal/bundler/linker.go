@@ -2601,10 +2601,11 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 					dotDotCount++
 				}
 				if dotDotCount > 0 {
-					// The use of ".._" here is somewhat arbitrary but it is unlikely to
+					// The use of "_.._" here is somewhat arbitrary but it is unlikely to
 					// collide with a folder named by a human and it works on Windows
-					// (Windows doesn't like names that end with a ".").
-					relDir = strings.Repeat(".._/", dotDotCount) + relDir[dotDotCount*3:]
+					// (Windows doesn't like names that end with a "."). And not starting
+					// with a "." means that it will not be hidden on Unix.
+					relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
 				}
 			} else {
 				baseName = c.fs.Base(source.KeyPath.Text)

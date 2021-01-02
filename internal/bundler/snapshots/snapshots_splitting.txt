@@ -1,5 +1,5 @@
 TestBundlingFilesOutsideOfOutbase
----------- /out/.._/.._/.._/src/entry.js ----------
+---------- /out/_.._/_.._/_.._/src/entry.js ----------
 // src/entry.js
 console.log("test");
 
