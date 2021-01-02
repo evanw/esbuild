@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.29
 
 * Allow entry points outside of the `outbase` directory ([#634](https://github.com/evanw/esbuild/issues/634))
 
