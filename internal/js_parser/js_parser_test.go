@@ -1791,6 +1791,11 @@ func TestMangleBlock(t *testing.T) {
 	expectPrintedMangle(t, "while(1) { async function* x() {} }", "for (; ; ) {\n  async function* x() {\n  }\n}\n")
 }
 
+func TestMangleSwitch(t *testing.T) {
+	expectPrintedMangle(t, "x(); switch (y) { case z: return w; }", "switch (x(), y) {\n  case z:\n    return w;\n}\n")
+	expectPrintedMangle(t, "if (t) { x(); switch (y) { case z: return w; } }", "if (t)\n  switch (x(), y) {\n    case z:\n      return w;\n  }\n")
+}
+
 func TestMangleNot(t *testing.T) {
 	// These can be mangled
 	expectPrintedMangle(t, "a = !(b == c)", "a = b != c;\n")

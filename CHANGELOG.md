@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+* Minification improvements
+
+    * The expression before a switch statement is now folded into the value:
+
+        ```js
+        // Before minification
+        if (test) {
+          fn();
+          switch (value) {
+            ...
+          }
+        }
+
+        // After minification
+        if (test)
+          switch (fn(), value) {
+            ...
+          }
+        ```
+
 ## 0.8.29
 
 * Allow entry points outside of the `outbase` directory ([#634](https://github.com/evanw/esbuild/issues/634))

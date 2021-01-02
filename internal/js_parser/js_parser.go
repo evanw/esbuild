@@ -6283,6 +6283,16 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				}
 			}
 
+		case *js_ast.SSwitch:
+			// Absorb a previous expression statement
+			if len(result) > 0 {
+				prevStmt := result[len(result)-1]
+				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok && !js_ast.IsSuperCall(prevStmt) {
+					s.Test = js_ast.JoinWithComma(prevS.Value, s.Test)
+					result = result[:len(result)-1]
+				}
+			}
+
 		case *js_ast.SIf:
 			// Absorb a previous expression statement
 			if len(result) > 0 {
