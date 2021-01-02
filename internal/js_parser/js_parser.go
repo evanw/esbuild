@@ -7911,7 +7911,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if c.Value != nil {
 				*c.Value = p.visitExpr(*c.Value)
 				p.warnAboutEqualityCheck("case", *c.Value, c.Value.Loc)
-				p.checkForTypeofAndString(s.Test, *c.Value)
+				p.warnAboutTypeofAndString(s.Test, *c.Value)
 			}
 			c.Body = p.visitStmts(c.Body, stmtsNormal)
 
@@ -8488,7 +8488,7 @@ func (p *parser) checkForNonBMPCodePoint(loc logger.Loc, name string) {
 	}
 }
 
-func (p *parser) checkForTypeofAndString(a js_ast.Expr, b js_ast.Expr) bool {
+func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr) {
 	if typeof, ok := a.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
 		if str, ok := b.Data.(*js_ast.EString); ok {
 			value := js_lexer.UTF16ToString(str.Value)
@@ -8503,10 +8503,14 @@ func (p *parser) checkForTypeofAndString(a js_ast.Expr, b js_ast.Expr) bool {
 					p.log.AddRangeWarning(&p.source, r, fmt.Sprintf("The \"typeof\" operator will never evaluate to %q", value))
 				}
 			}
-			return true
 		}
 	}
-	return false
+}
+
+func canChangeStrictToLoose(a js_ast.Expr, b js_ast.Expr) bool {
+	return (js_ast.IsBooleanValue(a) && js_ast.IsBooleanValue(b)) ||
+		(js_ast.IsNumericValue(a) && js_ast.IsNumericValue(b)) ||
+		(js_ast.IsStringValue(a) && js_ast.IsStringValue(b))
 }
 
 func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc logger.Loc) bool {
@@ -9219,7 +9223,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("==", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("==", e.Right, afterOpLoc)
 			}
-			p.checkForTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right)
 
 			if p.options.mangleSyntax {
 				// "x == void 0" => "x == null"
@@ -9236,9 +9240,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("===", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("===", e.Right, afterOpLoc)
 			}
-			if p.checkForTypeofAndString(e.Left, e.Right) {
+			p.warnAboutTypeofAndString(e.Left, e.Right)
+
+			if p.options.mangleSyntax {
 				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
-				if p.options.mangleSyntax {
+				if canChangeStrictToLoose(e.Left, e.Right) {
 					e.Op = js_ast.BinOpLooseEq
 				}
 			}
@@ -9251,7 +9257,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("!=", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("!=", e.Right, afterOpLoc)
 			}
-			p.checkForTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right)
 
 			if p.options.mangleSyntax {
 				// "x != void 0" => "x != null"
@@ -9268,9 +9274,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("!==", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("!==", e.Right, afterOpLoc)
 			}
-			if p.checkForTypeofAndString(e.Left, e.Right) {
+			p.warnAboutTypeofAndString(e.Left, e.Right)
+
+			if p.options.mangleSyntax {
 				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
-				if p.options.mangleSyntax {
+				if canChangeStrictToLoose(e.Left, e.Right) {
 					e.Op = js_ast.BinOpLooseNe
 				}
 			}

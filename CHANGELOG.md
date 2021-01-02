@@ -14,12 +14,26 @@
             ...
           }
         }
+        ```
 
+        ```js
         // After minification
         if (test)
           switch (fn(), value) {
             ...
           }
+        ```
+
+    * Uses of `===` and `!==` are converted to `==` or `!=` if the types of both sides can easily be statically determined:
+
+        ```js
+        // Before minification
+        return (x & 1) === 0;
+        ```
+
+        ```js
+        // After minification
+        return (x & 1) == 0;
         ```
 
 ## 0.8.29
@@ -51,7 +65,9 @@
             d();
           }
         }
+        ```
 
+        ```js
         // After minification
         function fn() {
           if (!a)

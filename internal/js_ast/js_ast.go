@@ -737,20 +737,91 @@ func IsBooleanValue(a Expr) bool {
 	switch e := a.Data.(type) {
 	case *EBoolean:
 		return true
+
+	case *EIf:
+		return IsBooleanValue(e.Yes) && IsBooleanValue(e.No)
+
 	case *EUnary:
 		return e.Op == UnOpNot || e.Op == UnOpDelete
+
 	case *EBinary:
 		switch e.Op {
 		case BinOpStrictEq, BinOpStrictNe, BinOpLooseEq, BinOpLooseNe,
 			BinOpLt, BinOpGt, BinOpLe, BinOpGe,
 			BinOpInstanceof, BinOpIn:
 			return true
+
 		case BinOpLogicalOr, BinOpLogicalAnd:
 			return IsBooleanValue(e.Left) && IsBooleanValue(e.Right)
+
 		case BinOpNullishCoalescing:
 			return IsBooleanValue(e.Left)
 		}
 	}
+
+	return false
+}
+
+func IsNumericValue(a Expr) bool {
+	switch e := a.Data.(type) {
+	case *ENumber:
+		return true
+
+	case *EIf:
+		return IsNumericValue(e.Yes) && IsNumericValue(e.No)
+
+	case *EUnary:
+		switch e.Op {
+		case UnOpPos, UnOpNeg, UnOpCpl, UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc:
+			return true
+		}
+
+	case *EBinary:
+		switch e.Op {
+		case BinOpAdd:
+			return IsNumericValue(e.Left) && IsNumericValue(e.Right)
+
+		case BinOpSub, BinOpMul, BinOpDiv, BinOpRem,
+			BinOpBitwiseAnd, BinOpBitwiseOr, BinOpBitwiseXor,
+			BinOpShl, BinOpShr, BinOpUShr:
+			return true
+
+		case BinOpSubAssign, BinOpMulAssign, BinOpDivAssign, BinOpRemAssign,
+			BinOpBitwiseAndAssign, BinOpBitwiseOrAssign, BinOpBitwiseXorAssign,
+			BinOpShlAssign, BinOpShrAssign, BinOpUShrAssign:
+
+		case BinOpAssign, BinOpComma:
+			return IsNumericValue(e.Right)
+		}
+	}
+
+	return false
+}
+
+func IsStringValue(a Expr) bool {
+	switch e := a.Data.(type) {
+	case *EString:
+		return true
+
+	case *ETemplate:
+		return e.Tag == nil
+
+	case *EIf:
+		return IsStringValue(e.Yes) && IsStringValue(e.No)
+
+	case *EUnary:
+		return e.Op == UnOpTypeof
+
+	case *EBinary:
+		switch e.Op {
+		case BinOpAdd:
+			return IsStringValue(e.Left) || IsStringValue(e.Right)
+
+		case BinOpAssign, BinOpAddAssign, BinOpComma:
+			return IsNumericValue(e.Right)
+		}
+	}
+
 	return false
 }
 

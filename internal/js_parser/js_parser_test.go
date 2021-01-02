@@ -1846,6 +1846,8 @@ func TestMangleDoubleNot(t *testing.T) {
 	expectPrintedMangle(t, "a = !!(!b && !c)", "a = !b && !c;\n")
 	expectPrintedMangle(t, "a = !!(!b || !c)", "a = !b || !c;\n")
 	expectPrintedMangle(t, "a = !!(!b ?? !c)", "a = !b ?? !c;\n")
+
+	expectPrintedMangle(t, "a = !!(b, c)", "a = (b, !!c);\n")
 }
 
 func TestMangleIf(t *testing.T) {
@@ -2169,16 +2171,44 @@ func TestMangleTypeofIdentifier(t *testing.T) {
 	expectPrintedMangle(t, "typeof (false || x); var x", "typeof x;\nvar x;\n")
 }
 
-func TestMangleTypeofEquals(t *testing.T) {
+func TestMangleEquals(t *testing.T) {
 	expectPrintedMangle(t, "typeof x === y", "typeof x === y;\n")
 	expectPrintedMangle(t, "typeof x !== y", "typeof x !== y;\n")
-	expectPrintedMangle(t, "typeof x === 'string'", "typeof x == \"string\";\n")
-	expectPrintedMangle(t, "typeof x !== 'string'", "typeof x != \"string\";\n")
-
 	expectPrintedMangle(t, "y === typeof x", "y === typeof x;\n")
 	expectPrintedMangle(t, "y !== typeof x", "y !== typeof x;\n")
+
+	expectPrintedMangle(t, "typeof x === 'string'", "typeof x == \"string\";\n")
+	expectPrintedMangle(t, "typeof x !== 'string'", "typeof x != \"string\";\n")
 	expectPrintedMangle(t, "'string' === typeof x", "typeof x == \"string\";\n")
 	expectPrintedMangle(t, "'string' !== typeof x", "typeof x != \"string\";\n")
+
+	expectPrintedMangle(t, "a === 0", "a === 0;\n")
+	expectPrintedMangle(t, "a !== 0", "a !== 0;\n")
+	expectPrintedMangle(t, "(a & 1) === 0", "(a & 1) == 0;\n")
+	expectPrintedMangle(t, "(a & 1) !== 0", "(a & 1) != 0;\n")
+
+	expectPrintedMangle(t, "a === ''", "a === \"\";\n")
+	expectPrintedMangle(t, "a !== ''", "a !== \"\";\n")
+	expectPrintedMangle(t, "(a + '!') === 'a!'", "a + \"!\" == \"a!\";\n")
+	expectPrintedMangle(t, "(a + '!') !== 'a!'", "a + \"!\" != \"a!\";\n")
+
+	expectPrintedMangle(t, "a === false", "a === false;\n")
+	expectPrintedMangle(t, "a === true", "a === true;\n")
+	expectPrintedMangle(t, "a !== false", "a !== false;\n")
+	expectPrintedMangle(t, "a !== true", "a !== true;\n")
+	expectPrintedMangle(t, "!a === false", "!a == false;\n")
+	expectPrintedMangle(t, "!a === true", "!a == true;\n")
+	expectPrintedMangle(t, "!a !== false", "!a != false;\n")
+	expectPrintedMangle(t, "!a !== true", "!a != true;\n")
+
+	expectPrintedMangle(t, "a === !b", "a === !b;\n")
+	expectPrintedMangle(t, "a === !b", "a === !b;\n")
+	expectPrintedMangle(t, "a !== !b", "a !== !b;\n")
+	expectPrintedMangle(t, "a !== !b", "a !== !b;\n")
+	expectPrintedMangle(t, "!a === !b", "!a == !b;\n")
+	expectPrintedMangle(t, "!a === !b", "!a == !b;\n")
+	expectPrintedMangle(t, "!a !== !b", "!a != !b;\n")
+	expectPrintedMangle(t, "!a !== !b", "!a != !b;\n")
 }
 
 func TestMangleNestedLogical(t *testing.T) {
