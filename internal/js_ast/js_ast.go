@@ -674,12 +674,63 @@ func AssignStmt(a Expr, b Expr) Stmt {
 	return Stmt{Loc: a.Loc, Data: &SExpr{Value: Assign(a, b)}}
 }
 
-func Not(a Expr) Expr {
-	// "!!!a" => "!a"
-	if not, ok := a.Data.(*EUnary); ok && not.Op == UnOpNot && IsBooleanValue(not.Value) {
-		return not.Value
+// Wraps the provided expression in the "!" prefix operator. The expression
+// will potentially be simplified to avoid generating unnecessary extra "!"
+// operators. For example, calling this with "!!x" will return "!x" instead
+// of returning "!!!x".
+func Not(expr Expr) Expr {
+	if result, ok := MaybeSimplifyNot(expr); ok {
+		return result
 	}
-	return Expr{Loc: a.Loc, Data: &EUnary{UnOpNot, a}}
+	return Expr{Loc: expr.Loc, Data: &EUnary{Op: UnOpNot, Value: expr}}
+}
+
+// The given "expr" argument should be the operand of a "!" prefix operator
+// (i.e. the "x" in "!x"). This returns a simplified expression for the
+// whole operator (i.e. the "!x") if it can be simplified, or false if not.
+// It's separate from "Not()" above to avoid allocation on failure in case
+// that is undesired.
+func MaybeSimplifyNot(expr Expr) (Expr, bool) {
+	switch e := expr.Data.(type) {
+	case *EUnary:
+		// "!!!a" => "!a"
+		if e.Op == UnOpNot && IsBooleanValue(e.Value) {
+			return e.Value, true
+		}
+
+	case *EBinary:
+		// Make sure that these transformations are all safe for special values.
+		// For example, "!(a < b)" is not the same as "a >= b" if a and/or b are
+		// NaN (or undefined, or null, or possibly other problem cases too).
+		switch e.Op {
+		case BinOpLooseEq:
+			// "!(a == b)" => "a != b"
+			e.Op = BinOpLooseNe
+			return expr, true
+
+		case BinOpLooseNe:
+			// "!(a != b)" => "a == b"
+			e.Op = BinOpLooseEq
+			return expr, true
+
+		case BinOpStrictEq:
+			// "!(a === b)" => "a !== b"
+			e.Op = BinOpStrictNe
+			return expr, true
+
+		case BinOpStrictNe:
+			// "!(a !== b)" => "a === b"
+			e.Op = BinOpStrictEq
+			return expr, true
+
+		case BinOpComma:
+			// "!(a, b)" => "a, !b"
+			e.Right = Not(e.Right)
+			return expr, true
+		}
+	}
+
+	return Expr{}, false
 }
 
 func IsBooleanValue(a Expr) bool {

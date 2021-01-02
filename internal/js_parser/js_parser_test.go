@@ -1766,6 +1766,7 @@ func TestMangleNot(t *testing.T) {
 	expectPrintedMangle(t, "a = !(b != c)", "a = b == c;\n")
 	expectPrintedMangle(t, "a = !(b === c)", "a = b !== c;\n")
 	expectPrintedMangle(t, "a = !(b !== c)", "a = b === c;\n")
+	expectPrintedMangle(t, "if (!(a, b)) return c", "if (a, !b)\n  return c;\n")
 
 	// These can't be mangled due to NaN and other special cases
 	expectPrintedMangle(t, "a = !(b < c)", "a = !(b < c);\n")

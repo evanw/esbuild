@@ -9662,37 +9662,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !boolean}}, exprOut{}
 			}
 
-			switch e2 := e.Value.Data.(type) {
-			case *js_ast.EUnary:
-				// "!!!a" => "!a"
-				if e2.Op == js_ast.UnOpNot && js_ast.IsBooleanValue(e2.Value) {
-					return e2.Value, exprOut{}
-				}
-
-			case *js_ast.EBinary:
-				// Make sure that these transformations are all safe for special values.
-				// For example, "!(a < b)" is not the same as "a >= b" if a and/or b are
-				// NaN (or undefined, or null, or possibly other problem cases too).
-				switch e2.Op {
-				case js_ast.BinOpLooseEq:
-					// "!(a == b)" => "a != b"
-					e2.Op = js_ast.BinOpLooseNe
-					return e.Value, exprOut{}
-
-				case js_ast.BinOpLooseNe:
-					// "!(a != b)" => "a == b"
-					e2.Op = js_ast.BinOpLooseEq
-					return e.Value, exprOut{}
-
-				case js_ast.BinOpStrictEq:
-					// "!(a === b)" => "a !== b"
-					e2.Op = js_ast.BinOpStrictNe
-					return e.Value, exprOut{}
-
-				case js_ast.BinOpStrictNe:
-					// "!(a !== b)" => "a === b"
-					e2.Op = js_ast.BinOpStrictEq
-					return e.Value, exprOut{}
+			if p.options.mangleSyntax {
+				if result, ok := js_ast.MaybeSimplifyNot(e.Value); ok {
+					return result, exprOut{}
 				}
 			}
 
