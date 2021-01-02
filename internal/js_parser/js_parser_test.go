@@ -1726,7 +1726,7 @@ func TestMangleLoopJump(t *testing.T) {
 	expectPrintedMangle(t, "while (x) { y(); debugger; if (1) continue; z(); }", "for (; x; ) {\n  y();\n  debugger;\n}\n")
 	expectPrintedMangle(t, "while (x) { let y = z(); if (1) continue; z(); }", "for (; x; ) {\n  let y = z();\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) break; z() } }", "for (; x; ) {\n  debugger;\n  if (y)\n    break;\n}\n")
-	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) continue; z() } }", "for (; x; ) {\n  debugger;\n  if (y)\n    continue;\n}\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) continue; z() } }", "for (; x; ) {\n  debugger;\n  !y;\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (1) { if (1) break; z() } }", "for (; x; ) {\n  debugger;\n  break;\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (1) { if (1) continue; z() } }", "for (; x; )\n  debugger;\n")
 
@@ -1737,6 +1737,14 @@ func TestMangleLoopJump(t *testing.T) {
 		"for (; x; )\n  if (y) {\n    z();\n    continue;\n  }\n")
 	expectPrintedMangle(t, "label: while (x) while (y) { z(); continue label }",
 		"label:\n  for (; x; )\n    for (; y; ) {\n      z();\n      continue label;\n    }\n")
+
+	// Optimize implicit continue
+	expectPrintedMangle(t, "while (x) { if (y) continue; z(); }", "for (; x; )\n  y || z();\n")
+	expectPrintedMangle(t, "while (x) { if (y) continue; else z(); w(); }", "for (; x; )\n  y || (z(), w());\n")
+	expectPrintedMangle(t, "while (x) { t(); if (y) continue; z(); }", "for (; x; )\n  (t(), !y) && z();\n")
+	expectPrintedMangle(t, "while (x) { t(); if (y) continue; else z(); w(); }", "for (; x; )\n  (t(), !y) && (z(), w());\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (y) continue; z(); }", "for (; x; ) {\n  debugger;\n  y || z();\n}\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (y) continue; else z(); w(); }", "for (; x; ) {\n  debugger;\n  y || (z(), w());\n}\n")
 }
 
 func TestMangleUndefined(t *testing.T) {

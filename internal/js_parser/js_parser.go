@@ -6176,10 +6176,14 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		return visited[:end]
 	}
 
+	return p.mangleStmts(visited, kind)
+}
+
+func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	// Merge adjacent statements during mangling
-	result := make([]js_ast.Stmt, 0, len(visited))
+	result := make([]js_ast.Stmt, 0, len(stmts))
 	isControlFlowDead := false
-	for _, stmt := range visited {
+	for i, stmt := range stmts {
 		if isControlFlowDead && !shouldKeepStmtInDeadControlFlow(stmt) {
 			// Strip unnecessary statements if the control flow is dead here
 			continue
@@ -6289,20 +6293,49 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 				}
 			}
 
-			if isJumpStatement(s.Yes.Data) && s.No != nil {
-				// "if (a) return b; else if (c) return d; else return e;" => "if (a) return b; if (c) return d; return e;"
-				for {
-					result = append(result, stmt)
-					stmt = *s.No
-					s.No = nil
-					var ok bool
-					s, ok = stmt.Data.(*js_ast.SIf)
-					if !ok || !isJumpStatement(s.Yes.Data) || s.No == nil {
-						break
+			if isJumpStatement(s.Yes.Data) {
+				optimizeImplicitJump := false
+
+				// "while (x) { if (y) continue; z(); }" => "while (x) { if (!y) z(); }"
+				// "while (x) { if (y) continue; else z(); w(); }" => "while (x) { if (!y) { z(); w(); } }" => "for (; x;) !y && (z(), w());"
+				if kind == stmtsLoopBody {
+					if continueS, ok := s.Yes.Data.(*js_ast.SContinue); ok && continueS.Label == nil {
+						optimizeImplicitJump = true
 					}
 				}
-				result = appendIfBodyPreservingScope(result, stmt)
-				continue
+
+				if optimizeImplicitJump {
+					var body []js_ast.Stmt
+					if s.No != nil {
+						body = append(body, *s.No)
+					}
+					body = append(body, stmts[i+1:]...)
+					body = p.mangleStmts(body, kind)
+					bodyLoc := s.Yes.Loc
+					if len(body) > 0 {
+						bodyLoc = body[0].Loc
+					}
+					return p.mangleIf(result, stmt.Loc, &js_ast.SIf{
+						Test: js_ast.Not(s.Test),
+						Yes:  stmtsToSingleStmt(bodyLoc, body),
+					}, mangleIfOpts{})
+				}
+
+				if s.No != nil {
+					// "if (a) return b; else if (c) return d; else return e;" => "if (a) return b; if (c) return d; return e;"
+					for {
+						result = append(result, stmt)
+						stmt = *s.No
+						s.No = nil
+						var ok bool
+						s, ok = stmt.Data.(*js_ast.SIf)
+						if !ok || !isJumpStatement(s.Yes.Data) || s.No == nil {
+							break
+						}
+					}
+					result = appendIfBodyPreservingScope(result, stmt)
+					continue
+				}
 			}
 
 		case *js_ast.SReturn:
@@ -6829,14 +6862,18 @@ func (p *parser) visitSingleStmt(stmt js_ast.Stmt, kind stmtsKind) js_ast.Stmt {
 		p.popScope()
 	}
 
+	return stmtsToSingleStmt(stmt.Loc, stmts)
+}
+
+func stmtsToSingleStmt(loc logger.Loc, stmts []js_ast.Stmt) js_ast.Stmt {
 	// This statement could potentially expand to several statements
 	switch len(stmts) {
 	case 0:
-		return js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SEmpty{}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SEmpty{}}
 	case 1:
 		return stmts[0]
 	default:
-		return js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SBlock{Stmts: stmts}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SBlock{Stmts: stmts}}
 	}
 }
 
@@ -7017,10 +7054,15 @@ func appendIfBodyPreservingScope(stmts []js_ast.Stmt, body js_ast.Stmt) []js_ast
 	return append(stmts, body)
 }
 
-func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, isTestBooleanConstant bool, testBooleanValue bool) []js_ast.Stmt {
+type mangleIfOpts struct {
+	isTestBooleanConstant bool
+	testBooleanValue      bool
+}
+
+func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, opts mangleIfOpts) []js_ast.Stmt {
 	// Constant folding using the test expression
-	if isTestBooleanConstant {
-		if testBooleanValue {
+	if opts.isTestBooleanConstant {
+		if opts.testBooleanValue {
 			// The test is true
 			if s.No == nil || !shouldKeepStmtInDeadControlFlow(*s.No) {
 				// We can drop the "no" branch
@@ -7770,7 +7812,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		if p.options.mangleSyntax {
-			return p.mangleIf(stmts, stmt.Loc, s, ok, boolean)
+			return p.mangleIf(stmts, stmt.Loc, s, mangleIfOpts{
+				isTestBooleanConstant: ok,
+				testBooleanValue:      boolean,
+			})
 		}
 
 	case *js_ast.SFor:
