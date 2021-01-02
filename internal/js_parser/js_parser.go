@@ -131,6 +131,7 @@ type parser struct {
 	// syntactic constructs as appropriate.
 	callTarget        js_ast.E
 	deleteTarget      js_ast.E
+	loopBody          js_ast.S
 	moduleScope       *js_ast.Scope
 	isControlFlowDead bool
 
@@ -6061,6 +6062,7 @@ func shouldKeepStmtInDeadControlFlow(stmt js_ast.Stmt) bool {
 
 type prependTempRefsOpts struct {
 	fnBodyLoc *logger.Loc
+	kind      stmtsKind
 }
 
 func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependTempRefsOpts) []js_ast.Stmt {
@@ -6069,7 +6071,7 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 	p.tempRefsToDeclare = nil
 	p.tempRefCount = 0
 
-	stmts = p.visitStmts(stmts)
+	stmts = p.visitStmts(stmts, opts.kind)
 
 	// Prepend values for "this" and "arguments"
 	if opts.fnBodyLoc != nil {
@@ -6114,7 +6116,15 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 	return stmts
 }
 
-func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
+type stmtsKind uint8
+
+const (
+	stmtsNormal stmtsKind = iota
+	stmtsLoopBody
+	stmtsFnBody
+)
+
+func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	// Save the current control-flow liveness. This represents if we are
 	// currently inside an "if (false) { ... }" block.
 	oldIsControlFlowDead := p.isControlFlowDead
@@ -6361,6 +6371,23 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 		}
 
 		result = append(result, stmt)
+	}
+
+	// Drop a trailing unconditional jump statement if applicable
+	if len(result) > 0 {
+		switch kind {
+		case stmtsLoopBody:
+			// "while (x) { y(); continue; }" => "while (x) { y(); }"
+			if continueS, ok := result[len(result)-1].Data.(*js_ast.SContinue); ok && continueS.Label == nil {
+				result = result[:len(result)-1]
+			}
+
+		case stmtsFnBody:
+			// "function f() { x(); return; }" => "function f() { x(); }"
+			if returnS, ok := result[len(result)-1].Data.(*js_ast.SReturn); ok && returnS.Value == nil {
+				result = result[:len(result)-1]
+			}
+		}
 	}
 
 	// Merge certain statements in reverse order
@@ -6781,12 +6808,13 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 func (p *parser) visitLoopBody(stmt js_ast.Stmt) js_ast.Stmt {
 	oldIsInsideLoop := p.fnOrArrowDataVisit.isInsideLoop
 	p.fnOrArrowDataVisit.isInsideLoop = true
-	stmt = p.visitSingleStmt(stmt)
+	p.loopBody = stmt.Data
+	stmt = p.visitSingleStmt(stmt, stmtsLoopBody)
 	p.fnOrArrowDataVisit.isInsideLoop = oldIsInsideLoop
 	return stmt
 }
 
-func (p *parser) visitSingleStmt(stmt js_ast.Stmt) js_ast.Stmt {
+func (p *parser) visitSingleStmt(stmt js_ast.Stmt, kind stmtsKind) js_ast.Stmt {
 	// Introduce a fake block scope for function declarations inside if statements
 	fn, ok := stmt.Data.(*js_ast.SFunction)
 	hasIfScope := ok && fn.Fn.HasIfScope
@@ -6794,7 +6822,7 @@ func (p *parser) visitSingleStmt(stmt js_ast.Stmt) js_ast.Stmt {
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
 	}
 
-	stmts := p.visitStmts([]js_ast.Stmt{stmt})
+	stmts := p.visitStmts([]js_ast.Stmt{stmt}, kind)
 
 	// Balance the fake block scope introduced above
 	if hasIfScope {
@@ -7536,7 +7564,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		case *js_ast.SFor, *js_ast.SForIn, *js_ast.SForOf, *js_ast.SWhile, *js_ast.SDoWhile:
 			p.currentScope.LabelStmtIsLoop = true
 		}
-		s.Stmt = p.visitSingleStmt(s.Stmt)
+		s.Stmt = p.visitSingleStmt(s.Stmt, stmtsNormal)
 		p.popScope()
 
 	case *js_ast.SLocal:
@@ -7658,7 +7686,16 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	case *js_ast.SBlock:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
-		s.Stmts = p.visitStmts(s.Stmts)
+
+		// Pass the "is loop body" status on to the direct children of a block used
+		// as a loop body. This is used to enable optimizations specific to the
+		// topmost scope in a loop body block.
+		if p.loopBody == s {
+			s.Stmts = p.visitStmts(s.Stmts, stmtsLoopBody)
+		} else {
+			s.Stmts = p.visitStmts(s.Stmts, stmtsNormal)
+		}
+
 		p.popScope()
 
 		if p.options.mangleSyntax {
@@ -7674,7 +7711,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 	case *js_ast.SWith:
 		s.Value = p.visitExpr(s.Value)
 		p.pushScopeForVisitPass(js_ast.ScopeWith, s.BodyLoc)
-		s.Body = p.visitSingleStmt(s.Body)
+		s.Body = p.visitSingleStmt(s.Body, stmtsNormal)
 		p.popScope()
 
 	case *js_ast.SWhile:
@@ -7706,10 +7743,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		if ok && !boolean {
 			old := p.isControlFlowDead
 			p.isControlFlowDead = true
-			s.Yes = p.visitSingleStmt(s.Yes)
+			s.Yes = p.visitSingleStmt(s.Yes, stmtsNormal)
 			p.isControlFlowDead = old
 		} else {
-			s.Yes = p.visitSingleStmt(s.Yes)
+			s.Yes = p.visitSingleStmt(s.Yes, stmtsNormal)
 		}
 
 		// The "else" clause is optional
@@ -7718,10 +7755,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if ok && boolean {
 				old := p.isControlFlowDead
 				p.isControlFlowDead = true
-				*s.No = p.visitSingleStmt(*s.No)
+				*s.No = p.visitSingleStmt(*s.No, stmtsNormal)
 				p.isControlFlowDead = old
 			} else {
-				*s.No = p.visitSingleStmt(*s.No)
+				*s.No = p.visitSingleStmt(*s.No, stmtsNormal)
 			}
 
 			// Trim unnecessary "else" clauses
@@ -7782,7 +7819,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 	case *js_ast.STry:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
 		p.fnOrArrowDataVisit.tryBodyCount++
-		s.Body = p.visitStmts(s.Body)
+		s.Body = p.visitStmts(s.Body, stmtsNormal)
 		p.fnOrArrowDataVisit.tryBodyCount--
 		p.popScope()
 
@@ -7791,14 +7828,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if s.Catch.Binding != nil {
 				p.visitBinding(*s.Catch.Binding)
 			}
-			s.Catch.Body = p.visitStmts(s.Catch.Body)
+			s.Catch.Body = p.visitStmts(s.Catch.Body, stmtsNormal)
 			p.lowerObjectRestInCatchBinding(s.Catch)
 			p.popScope()
 		}
 
 		if s.Finally != nil {
 			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Finally.Loc)
-			s.Finally.Stmts = p.visitStmts(s.Finally.Stmts)
+			s.Finally.Stmts = p.visitStmts(s.Finally.Stmts, stmtsNormal)
 			p.popScope()
 		}
 
@@ -7813,7 +7850,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				p.warnAboutEqualityCheck("case", *c.Value, c.Value.Loc)
 				p.checkForTypeofAndString(s.Test, *c.Value)
 			}
-			c.Body = p.visitStmts(c.Body)
+			c.Body = p.visitStmts(c.Body, stmtsNormal)
 
 			// Make sure the assignment to the body above is preserved
 			s.Cases[i] = c
@@ -8018,7 +8055,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.enclosingNamespaceArgRef = &s.Arg
 		p.pushScopeForVisitPass(js_ast.ScopeEntry, stmt.Loc)
 		p.recordDeclaredSymbol(s.Arg)
-		stmtsInsideNamespace := p.visitStmtsAndPrependTempRefs(s.Stmts, prependTempRefsOpts{})
+		stmtsInsideNamespace := p.visitStmtsAndPrependTempRefs(s.Stmts, prependTempRefsOpts{kind: stmtsFnBody})
 		p.popScope()
 		p.enclosingNamespaceArgRef = oldEnclosingNamespaceArgRef
 
@@ -10294,7 +10331,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, expr.Loc)
 		p.visitArgs(e.Args)
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, e.Body.Loc)
-		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts, prependTempRefsOpts{})
+		e.Body.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Stmts, prependTempRefsOpts{kind: stmtsFnBody})
 		p.popScope()
 		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Stmts, &e.PreferExpr, &e.HasRestArg, true /* isArrow */)
 		p.popScope()
@@ -10461,7 +10498,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc) {
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionArgs, scopeLoc)
 	p.visitArgs(fn.Args)
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, fn.Body.Loc)
-	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc})
+	fn.Body.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
 	p.popScope()
 	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Stmts, nil, &fn.HasRestArg, false /* isArrow */)
 	p.popScope()

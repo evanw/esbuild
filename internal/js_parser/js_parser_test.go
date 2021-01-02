@@ -1716,6 +1716,29 @@ func TestMangleFor(t *testing.T) {
 	expectPrintedMangle(t, "for (; a;) { if (x) y(); else break; z(); }", "for (; a && x; ) {\n  y();\n  z();\n}\n")
 }
 
+func TestMangleLoopJump(t *testing.T) {
+	// Trim after jump
+	expectPrintedMangle(t, "while (x) { if (1) break; z(); }", "for (; x; )\n  break;\n")
+	expectPrintedMangle(t, "while (x) { if (1) continue; z(); }", "for (; x; )\n  ;\n")
+	expectPrintedMangle(t, "foo: while (a) while (x) { if (1) continue foo; z(); }", "foo:\n  for (; a; )\n    for (; x; )\n      continue foo;\n")
+	expectPrintedMangle(t, "while (x) { y(); if (1) break; z(); }", "for (; x; ) {\n  y();\n  break;\n}\n")
+	expectPrintedMangle(t, "while (x) { y(); if (1) continue; z(); }", "for (; x; )\n  y();\n")
+	expectPrintedMangle(t, "while (x) { y(); debugger; if (1) continue; z(); }", "for (; x; ) {\n  y();\n  debugger;\n}\n")
+	expectPrintedMangle(t, "while (x) { let y = z(); if (1) continue; z(); }", "for (; x; ) {\n  let y = z();\n}\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) break; z() } }", "for (; x; ) {\n  debugger;\n  if (y)\n    break;\n}\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) continue; z() } }", "for (; x; ) {\n  debugger;\n  if (y)\n    continue;\n}\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (1) { if (1) break; z() } }", "for (; x; ) {\n  debugger;\n  break;\n}\n")
+	expectPrintedMangle(t, "while (x) { debugger; if (1) { if (1) continue; z() } }", "for (; x; )\n  debugger;\n")
+
+	// Trim trailing continue
+	expectPrintedMangle(t, "while (x()) continue", "for (; x(); )\n  ;\n")
+	expectPrintedMangle(t, "while (x) { y(); continue }", "for (; x; )\n  y();\n")
+	expectPrintedMangle(t, "while (x) { if (y) { z(); continue } }",
+		"for (; x; )\n  if (y) {\n    z();\n    continue;\n  }\n")
+	expectPrintedMangle(t, "label: while (x) while (y) { z(); continue label }",
+		"label:\n  for (; x; )\n    for (; y; ) {\n      z();\n      continue label;\n    }\n")
+}
+
 func TestMangleUndefined(t *testing.T) {
 	// These should be transformed
 	expectPrintedMangle(t, "console.log(undefined)", "console.log(void 0);\n")
@@ -1967,6 +1990,16 @@ func TestMangleIf(t *testing.T) {
 }
 
 func TestMangleReturn(t *testing.T) {
+	expectPrintedMangle(t, "function foo() { x(); return; }", "function foo() {\n  x();\n}\n")
+	expectPrintedMangle(t, "let foo = function() { x(); return; }", "let foo = function() {\n  x();\n};\n")
+	expectPrintedMangle(t, "let foo = () => { x(); return; }", "let foo = () => {\n  x();\n};\n")
+	expectPrintedMangle(t, "function foo() { x(); return y; }", "function foo() {\n  return x(), y;\n}\n")
+	expectPrintedMangle(t, "let foo = function() { x(); return y; }", "let foo = function() {\n  return x(), y;\n};\n")
+	expectPrintedMangle(t, "let foo = () => { x(); return y; }", "let foo = () => (x(), y);\n")
+
+	// Don't trim a trailing top-level return because we may be compiling a partial module
+	expectPrintedMangle(t, "x(); return;", "x();\nreturn;\n")
+
 	expectPrintedMangle(t, "function foo() { a = b; if (a) return a; if (b) c = b; return c; }",
 		"function foo() {\n  return a = b, a || (b && (c = b), c);\n}\n")
 	expectPrintedMangle(t, "function foo() { a = b; if (a) return; if (b) c = b; return c; }",

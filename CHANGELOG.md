@@ -16,6 +16,8 @@
 
     * Expressions of the form `!(a == b)` are now converted to `a != b`. This also applies similarly for the other three equality operators.
 
+    * A trailing `continue;` statement inside the body of a loop is now removed.
+
     * Certain single-use variables are now inlined if the use directly follows the variable:
 
         ```js

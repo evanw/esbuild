@@ -154,16 +154,6 @@ func (p *parser) lowerFunction(
 	hasRestArg *bool,
 	isArrow bool,
 ) {
-	// Size optimization: trim an implicit return from the end of the function body
-	if p.options.mangleSyntax {
-		if n := len(*bodyStmts); n > 0 {
-			last := (*bodyStmts)[n-1]
-			if s, ok := last.Data.(*js_ast.SReturn); ok && s.Value == nil {
-				*bodyStmts = (*bodyStmts)[:n-1]
-			}
-		}
-	}
-
 	// Lower object rest binding patterns in function arguments
 	if p.options.unsupportedJSFeatures.Has(compat.ObjectRestSpread) {
 		var prefixStmts []js_ast.Stmt
