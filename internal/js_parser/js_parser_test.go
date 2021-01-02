@@ -1755,7 +1755,7 @@ func TestMangleUndefined(t *testing.T) {
 	expectPrintedMangle(t, "const x = undefined", "const x = void 0;\n")
 	expectPrintedMangle(t, "let x = undefined", "let x;\n")
 	expectPrintedMangle(t, "var x = undefined", "var x = void 0;\n")
-	expectPrintedMangle(t, "function foo(a) { if (!a) return undefined; a() }", "function foo(a) {\n  if (!a)\n    return;\n  a();\n}\n")
+	expectPrintedMangle(t, "function foo(a) { if (!a) return undefined; a() }", "function foo(a) {\n  !a || a();\n}\n")
 
 	// These should not be transformed
 	expectPrintedMangle(t, "delete undefined", "delete undefined;\n")
@@ -2011,7 +2011,7 @@ func TestMangleReturn(t *testing.T) {
 	expectPrintedMangle(t, "function foo() { a = b; if (a) return a; if (b) c = b; return c; }",
 		"function foo() {\n  return a = b, a || (b && (c = b), c);\n}\n")
 	expectPrintedMangle(t, "function foo() { a = b; if (a) return; if (b) c = b; return c; }",
-		"function foo() {\n  return a = b, a ? void 0 : (b && (c = b), c);\n}\n")
+		"function foo() {\n  if (a = b, !a)\n    return b && (c = b), c;\n}\n")
 	expectPrintedMangle(t, "function foo() { if (!a) return b; return c; }", "function foo() {\n  return a ? c : b;\n}\n")
 
 	expectPrintedMangle(t, "if (1) return a(); else return b()", "return a();\n")
@@ -2027,6 +2027,18 @@ func TestMangleReturn(t *testing.T) {
 	expectPrintedMangle(t, "if (!a) return b(); return c()", "return a ? c() : b();\n")
 	expectPrintedMangle(t, "if (!!a) return b(); return c()", "return a ? b() : c();\n")
 	expectPrintedMangle(t, "if (!!!a) return b(); return c()", "return a ? c() : b();\n")
+
+	// Optimize implicit return
+	expectPrintedMangle(t, "function x() { if (y) return; z(); }", "function x() {\n  y || z();\n}\n")
+	expectPrintedMangle(t, "function x() { if (y) return; else z(); w(); }", "function x() {\n  y || (z(), w());\n}\n")
+	expectPrintedMangle(t, "function x() { t(); if (y) return; z(); }", "function x() {\n  (t(), !y) && z();\n}\n")
+	expectPrintedMangle(t, "function x() { t(); if (y) return; else z(); w(); }", "function x() {\n  (t(), !y) && (z(), w());\n}\n")
+	expectPrintedMangle(t, "function x() { debugger; if (y) return; z(); }", "function x() {\n  debugger;\n  y || z();\n}\n")
+	expectPrintedMangle(t, "function x() { debugger; if (y) return; else z(); w(); }", "function x() {\n  debugger;\n  y || (z(), w());\n}\n")
+	expectPrintedMangle(t, "function x() { if (y) { if (z) return; } }",
+		"function x() {\n  !(y && z);\n}\n")
+	expectPrintedMangle(t, "function x() { if (y) { if (z) return; w(); } }",
+		"function x() {\n  if (y) {\n    if (z)\n      return;\n    w();\n  }\n}\n")
 }
 
 func TestMangleThrow(t *testing.T) {

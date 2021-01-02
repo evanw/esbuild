@@ -18,6 +18,26 @@
 
     * A trailing `continue;` statement inside the body of a loop is now removed.
 
+    * Minification can now omit certain `continue` and `return` statements when it's implied by control flow:
+
+        ```js
+        // Before minification
+        function fn() {
+          if (a) return;
+          while (b) {
+            if (c) continue;
+            d();
+          }
+        }
+
+        // After minification
+        function fn() {
+          if (!a)
+            for (; b; )
+              c || d();
+        }
+        ```
+
     * Certain single-use variables are now inlined if the use directly follows the variable:
 
         ```js

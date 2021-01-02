@@ -6304,6 +6304,14 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					}
 				}
 
+				// "let x = () => { if (y) return; z(); };" => "let x = () => { if (!y) z(); };"
+				// "let x = () => { if (y) return; else z(); w(); };" => "let x = () => { if (!y) { z(); w(); } };" => "let x = () => { !y && (z(), w()); };"
+				if kind == stmtsFnBody {
+					if returnS, ok := s.Yes.Data.(*js_ast.SReturn); ok && returnS.Value == nil {
+						optimizeImplicitJump = true
+					}
+				}
+
 				if optimizeImplicitJump {
 					var body []js_ast.Stmt
 					if s.No != nil {
