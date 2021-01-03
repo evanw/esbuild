@@ -18,6 +18,8 @@
 
     * The comma operator is now extracted from certain expressions. This means `(a, b) + c` turns into `a, b + c`.
 
+    * Minification now takes advantage of the left-associativity of certain operators. This means `a && (b && c)` turns into `a && b && c`.
+
 ## 0.8.29
 
 * Allow entry points outside of the `outbase` directory ([#634](https://github.com/evanw/esbuild/issues/634))

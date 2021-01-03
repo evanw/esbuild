@@ -825,6 +825,28 @@ func IsStringValue(a Expr) bool {
 	return false
 }
 
+// The goal of this function is to "rotate" the AST if it's possible to use the
+// left-associative property of the operator to avoid unnecessary parentheses.
+//
+// When using this, make absolutely sure that the operator is actually
+// associative. For example, the "-" operator is not associative for
+// floating-point numbers.
+func JoinWithLeftAssociativeOp(op OpCode, a Expr, b Expr) Expr {
+	// "a op (b op c)" => "(a op b) op c"
+	// "a op (b op (c op d))" => "((a op b) op c) op d"
+	if binary, ok := b.Data.(*EBinary); ok && binary.Op == op {
+		return JoinWithLeftAssociativeOp(
+			op,
+			JoinWithLeftAssociativeOp(op, a, binary.Left),
+			binary.Right,
+		)
+	}
+
+	// "a op b" => "a op b"
+	// "(a op b) op c" => "(a op b) op c"
+	return Expr{Loc: a.Loc, Data: &EBinary{Op: op, Left: a, Right: b}}
+}
+
 func JoinWithComma(a Expr, b Expr) Expr {
 	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpComma, Left: a, Right: b}}
 }

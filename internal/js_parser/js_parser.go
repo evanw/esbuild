@@ -7107,18 +7107,12 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, op
 		if s.No == nil {
 			if not, ok := s.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 				// "if (!a) b();" => "a || b();"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpLogicalOr,
-					Left:  not.Value,
-					Right: yes.Value,
-				}}}})
+				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, not.Value, yes.Value)}})
 			} else {
 				// "if (a) b();" => "a && b();"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpLogicalAnd,
-					Left:  s.Test,
-					Right: yes.Value,
-				}}}})
+				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, s.Test, yes.Value)}})
 			}
 		} else if no, ok := s.No.Data.(*js_ast.SExpr); ok {
 			// "if (a) b(); else c();" => "a ? b() : c();"
@@ -7142,18 +7136,12 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, op
 		} else if no, ok := s.No.Data.(*js_ast.SExpr); ok {
 			if not, ok := s.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 				// "if (!a) {} else b();" => "a && b();"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpLogicalAnd,
-					Left:  not.Value,
-					Right: no.Value,
-				}}}})
+				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, not.Value, no.Value)}})
 			} else {
 				// "if (a) {} else b();" => "a || b();"
-				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    js_ast.BinOpLogicalOr,
-					Left:  s.Test,
-					Right: no.Value,
-				}}}})
+				return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+					Value: js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, s.Test, no.Value)}})
 			}
 		} else {
 			// "yes" is missing and "no" is not missing (and is not an expression)
@@ -7164,7 +7152,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, op
 				s.No = nil
 			} else {
 				// "if (a) {} else throw b;" => "if (!a) throw b;"
-				s.Test = js_ast.Expr{Loc: s.Test.Loc, Data: &js_ast.EUnary{Op: js_ast.UnOpNot, Value: s.Test}}
+				s.Test = js_ast.Not(s.Test)
 				s.Yes = *s.No
 				s.No = nil
 			}
@@ -7182,11 +7170,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, op
 			// "no" is missing
 			if s2, ok := s.Yes.Data.(*js_ast.SIf); ok && s2.No == nil {
 				// "if (a) if (b) return c;" => "if (a && b) return c;"
-				s.Test.Data = &js_ast.EBinary{
-					Op:    js_ast.BinOpLogicalAnd,
-					Left:  s.Test,
-					Right: s2.Test,
-				}
+				s.Test = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, s.Test, s2.Test)
 				s.Yes = s2.Yes
 			}
 		}
@@ -7237,57 +7221,51 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	if id, ok := e.Test.Data.(*js_ast.EIdentifier); ok {
 		// "a ? a : b" => "a || b"
 		if id2, ok := e.Yes.Data.(*js_ast.EIdentifier); ok && id.Ref == id2.Ref {
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{Op: js_ast.BinOpLogicalOr, Left: e.Test, Right: e.No}}
+			return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, e.No)
 		}
 
 		// "a ? b : a" => "a && b"
 		if id2, ok := e.No.Data.(*js_ast.EIdentifier); ok && id.Ref == id2.Ref {
-			return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{Op: js_ast.BinOpLogicalAnd, Left: e.Test, Right: e.Yes}}
+			return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, e.Yes)
 		}
 	}
 
 	// "a ? b ? c : d : d" => "a && b ? c : d"
 	if yesIf, ok := e.Yes.Data.(*js_ast.EIf); ok && valuesLookTheSame(yesIf.No.Data, e.No.Data) {
-		e.Test.Data = &js_ast.EBinary{Op: js_ast.BinOpLogicalAnd, Left: e.Test, Right: yesIf.Test}
+		e.Test = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, yesIf.Test)
 		e.Yes = yesIf.Yes
 		return js_ast.Expr{Loc: loc, Data: e}
 	}
 
 	// "a ? b : c ? b : d" => "a || c ? b : d"
 	if noIf, ok := e.No.Data.(*js_ast.EIf); ok && valuesLookTheSame(e.Yes.Data, noIf.Yes.Data) {
-		e.Test.Data = &js_ast.EBinary{Op: js_ast.BinOpLogicalOr, Left: e.Test, Right: noIf.Test}
+		e.Test = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, noIf.Test)
 		e.No = noIf.No
 		return js_ast.Expr{Loc: loc, Data: e}
 	}
 
 	// "a ? c : (b, c)" => "(a || b), c"
 	if comma, ok := e.No.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma && valuesLookTheSame(e.Yes.Data, comma.Right.Data) {
-		return js_ast.JoinWithComma(js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-			Op:    js_ast.BinOpLogicalOr,
-			Left:  e.Test,
-			Right: comma.Left,
-		}}, comma.Right)
+		return js_ast.JoinWithComma(
+			js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, comma.Left),
+			comma.Right,
+		)
 	}
 
 	// "a ? (b, c) : c" => "(a && b), c"
 	if comma, ok := e.Yes.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma && valuesLookTheSame(comma.Right.Data, e.No.Data) {
-		return js_ast.JoinWithComma(js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-			Op:    js_ast.BinOpLogicalAnd,
-			Left:  e.Test,
-			Right: comma.Left,
-		}}, comma.Right)
+		return js_ast.JoinWithComma(
+			js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, comma.Left),
+			comma.Right,
+		)
 	}
 
 	// "a ? b || c : c" => "(a && b) || c"
 	if binary, ok := e.Yes.Data.(*js_ast.EBinary); ok && binary.Op == js_ast.BinOpLogicalOr &&
 		valuesLookTheSame(binary.Right.Data, e.No.Data) {
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-			Op: js_ast.BinOpLogicalOr,
-			Left: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op:    js_ast.BinOpLogicalAnd,
-				Left:  e.Test,
-				Right: binary.Left,
-			}},
+			Op:    js_ast.BinOpLogicalOr,
+			Left:  js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, binary.Left),
 			Right: binary.Right,
 		}}
 	}
@@ -7296,12 +7274,8 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 	if binary, ok := e.No.Data.(*js_ast.EBinary); ok && binary.Op == js_ast.BinOpLogicalAnd &&
 		valuesLookTheSame(e.Yes.Data, binary.Right.Data) {
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-			Op: js_ast.BinOpLogicalAnd,
-			Left: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-				Op:    js_ast.BinOpLogicalOr,
-				Left:  e.Test,
-				Right: binary.Left,
-			}},
+			Op:    js_ast.BinOpLogicalAnd,
+			Left:  js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, binary.Left),
 			Right: binary.Right,
 		}}
 	}
@@ -7353,33 +7327,23 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 			case js_ast.BinOpLooseEq:
 				// "a == null ? b : a" => "a ?? b"
 				if _, ok := binary.Right.Data.(*js_ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Left) && valuesLookTheSame(binary.Left.Data, e.No.Data) {
-					binary.Op = js_ast.BinOpNullishCoalescing
-					binary.Right = e.Yes
-					return js_ast.Expr{Loc: loc, Data: binary}
+					return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, binary.Left, e.Yes)
 				}
 
 				// "null == a ? b : a" => "a ?? b"
 				if _, ok := binary.Left.Data.(*js_ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Right) && valuesLookTheSame(binary.Right.Data, e.No.Data) {
-					binary.Op = js_ast.BinOpNullishCoalescing
-					binary.Left = binary.Right
-					binary.Right = e.Yes
-					return js_ast.Expr{Loc: loc, Data: binary}
+					return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, binary.Right, e.Yes)
 				}
 
 			case js_ast.BinOpLooseNe:
 				// "a != null ? a : b" => "a ?? b"
 				if _, ok := binary.Right.Data.(*js_ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Left) && valuesLookTheSame(binary.Left.Data, e.Yes.Data) {
-					binary.Op = js_ast.BinOpNullishCoalescing
-					binary.Right = e.No
-					return js_ast.Expr{Loc: loc, Data: binary}
+					return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, binary.Left, e.No)
 				}
 
 				// "null != a ? a : b" => "a ?? b"
 				if _, ok := binary.Left.Data.(*js_ast.ENull); ok && p.exprCanBeRemovedIfUnused(binary.Right) && valuesLookTheSame(binary.Right.Data, e.Yes.Data) {
-					binary.Op = js_ast.BinOpNullishCoalescing
-					binary.Left = binary.Right
-					binary.Right = e.No
-					return js_ast.Expr{Loc: loc, Data: binary}
+					return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, binary.Right, e.No)
 				}
 			}
 		}
@@ -9340,6 +9304,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return e.Right, exprOut{}
 			}
 
+			if p.options.mangleSyntax {
+				// "a ?? (b ?? c)" => "a ?? b ?? c"
+				if right, ok := e.Right.Data.(*js_ast.EBinary); ok && right.Op == js_ast.BinOpNullishCoalescing {
+					e.Left = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, e.Left, right.Left)
+					e.Right = right.Right
+				}
+			}
+
 			if p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) {
 				return p.lowerNullishCoalescing(expr.Loc, e.Left, e.Right), exprOut{}
 			}
@@ -9362,7 +9334,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.options.mangleSyntax {
 				// "a || (b || c)" => "a || b || c"
 				if right, ok := e.Right.Data.(*js_ast.EBinary); ok && right.Op == js_ast.BinOpLogicalOr {
-					e.Left.Data = &js_ast.EBinary{Op: js_ast.BinOpLogicalOr, Left: e.Left, Right: right.Left}
+					e.Left = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Left, right.Left)
 					e.Right = right.Right
 				}
 
@@ -9392,7 +9364,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.options.mangleSyntax {
 				// "a && (b && c)" => "a && b && c"
 				if right, ok := e.Right.Data.(*js_ast.EBinary); ok && right.Op == js_ast.BinOpLogicalAnd {
-					e.Left.Data = &js_ast.EBinary{Op: js_ast.BinOpLogicalAnd, Left: e.Left, Right: right.Left}
+					e.Left = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Left, right.Left)
 					e.Right = right.Right
 				}
 
@@ -11483,20 +11455,12 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 
 		// "foo() ? 1 : bar()" => "foo() || bar()"
 		if e.Yes.Data == nil {
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBinary{
-				Op:    js_ast.BinOpLogicalOr,
-				Left:  e.Test,
-				Right: e.No,
-			}}
+			return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, e.Test, e.No)
 		}
 
 		// "foo() ? bar() : 2" => "foo() && bar()"
 		if e.No.Data == nil {
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBinary{
-				Op:    js_ast.BinOpLogicalAnd,
-				Left:  e.Test,
-				Right: e.Yes,
-			}}
+			return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalAnd, e.Test, e.Yes)
 		}
 
 	case *js_ast.EUnary:

@@ -2004,6 +2004,13 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "a ? b.c(d + e[f]) : b.c(d + e[g])", "a ? b.c(d + e[f]) : b.c(d + e[g]);\n")
 
 	expectPrintedMangle(t, "(a, b) ? c : d", "a, b ? c : d;\n")
+
+	expectPrintedMangle(t, "return a && ((b && c) && (d && e))", "return a && b && c && d && e;\n")
+	expectPrintedMangle(t, "return a || ((b || c) || (d || e))", "return a || b || c || d || e;\n")
+	expectPrintedMangle(t, "return a ?? ((b ?? c) ?? (d ?? e))", "return a ?? b ?? c ?? d ?? e;\n")
+	expectPrintedMangle(t, "if (a) if (b) if (c) d", "a && b && c && d;\n")
+	expectPrintedMangle(t, "if (!a) if (!b) if (!c) d", "a || b || c || d;\n")
+	expectPrintedMangle(t, "let a, b, c; return a != null ? a : b != null ? b : c", "let a, b, c;\nreturn a ?? b ?? c;\n")
 }
 
 func TestMangleReturn(t *testing.T) {
