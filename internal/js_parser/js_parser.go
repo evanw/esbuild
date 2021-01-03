@@ -11466,9 +11466,20 @@ func (p *parser) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 			}}
 		}
 
+	case *js_ast.EUnary:
+		switch e.Op {
+		// These operators must not have any type conversions that can execute code
+		// such as "toString" or "valueOf". They must also never throw any exceptions.
+		case js_ast.UnOpTypeof, js_ast.UnOpVoid, js_ast.UnOpNot:
+			return p.simplifyUnusedExpr(e.Value)
+		}
+
 	case *js_ast.EBinary:
 		switch e.Op {
-		case js_ast.BinOpComma:
+		// These operators must not have any type conversions that can execute code
+		// such as "toString" or "valueOf". They must also never throw any exceptions.
+		case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpComma:
+			e.Op = js_ast.BinOpComma
 			e.Left = p.simplifyUnusedExpr(e.Left)
 			e.Right = p.simplifyUnusedExpr(e.Right)
 			if e.Left.Data == nil {

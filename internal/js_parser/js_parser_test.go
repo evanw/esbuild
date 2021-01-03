@@ -1994,7 +1994,7 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "a ? b == c : b == c", "a, b == c;\n")
 	expectPrintedMangle(t, "a ? b.c(d + e[f]) : b.c(d + e[f])", "a, b.c(d + e[f]);\n")
 
-	expectPrintedMangle(t, "a ? -b : !b", "a ? -b : !b;\n")
+	expectPrintedMangle(t, "a ? -b : !b", "a ? -b : b;\n")
 	expectPrintedMangle(t, "a ? b() : b(c)", "a ? b() : b(c);\n")
 	expectPrintedMangle(t, "a ? b(c) : b(d)", "a ? b(c) : b(d);\n")
 	expectPrintedMangle(t, "a ? b?.c : b.c", "a ? b?.c : b.c;\n")
@@ -2289,6 +2289,38 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedMangle(t, "(function() {})", "")
 	expectPrintedMangle(t, "(() => {})", "")
 	expectPrintedMangle(t, "import.meta", "")
+
+	// Unary operators
+	expectPrintedMangle(t, "+x", "+x;\n")
+	expectPrintedMangle(t, "-x", "-x;\n")
+	expectPrintedMangle(t, "!x", "x;\n")
+	expectPrintedMangle(t, "~x", "~x;\n")
+	expectPrintedMangle(t, "++x", "++x;\n")
+	expectPrintedMangle(t, "--x", "--x;\n")
+	expectPrintedMangle(t, "x++", "x++;\n")
+	expectPrintedMangle(t, "x--", "x--;\n")
+	expectPrintedMangle(t, "void x", "x;\n")
+	expectPrintedMangle(t, "typeof x", "x;\n")
+	expectPrintedMangle(t, "delete x", "delete x;\n")
+
+	// Binary operators
+	expectPrintedMangle(t, "a + b", "a + b;\n")
+	expectPrintedMangle(t, "a - b", "a - b;\n")
+	expectPrintedMangle(t, "a * b", "a * b;\n")
+	expectPrintedMangle(t, "a / b", "a / b;\n")
+	expectPrintedMangle(t, "a % b", "a % b;\n")
+	expectPrintedMangle(t, "a ** b", "a ** b;\n")
+	expectPrintedMangle(t, "a & b", "a & b;\n")
+	expectPrintedMangle(t, "a | b", "a | b;\n")
+	expectPrintedMangle(t, "a ^ b", "a ^ b;\n")
+	expectPrintedMangle(t, "a << b", "a << b;\n")
+	expectPrintedMangle(t, "a >> b", "a >> b;\n")
+	expectPrintedMangle(t, "a >>> b", "a >>> b;\n")
+	expectPrintedMangle(t, "a === b", "a, b;\n")
+	expectPrintedMangle(t, "a !== b", "a, b;\n")
+	expectPrintedMangle(t, "a == b", "a == b;\n")
+	expectPrintedMangle(t, "a != b", "a != b;\n")
+	expectPrintedMangle(t, "a, b", "a, b;\n")
 
 	// Known globals can be removed
 	expectPrintedMangle(t, "Object", "")

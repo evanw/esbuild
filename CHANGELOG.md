@@ -4,49 +4,13 @@
 
 * Minification improvements
 
-    * The expression before a switch statement is now folded into the value:
+    * The expression before a switch statement is now folded into the value. This means `fn(); switch (x) { ... }` turns into `switch (fn(), x) { ... }`.
 
-        ```js
-        // Before minification
-        if (test) {
-          fn();
-          switch (value) {
-            ...
-          }
-        }
-        ```
+    * Uses of `===` and `!==` are converted to `==` or `!=` if the types of both sides can easily be statically determined. This means `(x & 1) === 0` turns into `(x & 1) == 0`.
 
-        ```js
-        // After minification
-        if (test)
-          switch (fn(), value) {
-            ...
-          }
-        ```
+    * Equality comparisons are removed if both sides are boolean and one side is a constant. This means `!x === true` turns into `!x`.
 
-    * Uses of `===` and `!==` are converted to `==` or `!=` if the types of both sides can easily be statically determined:
-
-        ```js
-        // Before minification
-        return (x & 1) === 0;
-        ```
-
-        ```js
-        // After minification
-        return (x & 1) == 0;
-        ```
-
-    * Equality comparisons are removed if both sides are boolean and one side is a constant:
-
-        ```js
-        // Before minification
-        return !x === true;
-        ```
-
-        ```js
-        // After minification
-        return !x;
-        ```
+    * Certain unary and binary operators are now removed if unused. This means `if (a() === b()) {}` turns into `a(), b();`.
 
 ## 0.8.29
 
