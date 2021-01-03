@@ -9738,8 +9738,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: js_lexer.StringToUTF16(typeof)}}, exprOut{}
 			}
 
-			return expr, exprOut{}
-
 		case js_ast.UnOpDelete:
 			// Warn about code that tries to do "delete super.foo"
 			var superPropLoc logger.Loc
@@ -9790,60 +9788,59 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				e.Value = js_ast.JoinWithComma(js_ast.Expr{Loc: e.Value.Loc, Data: &js_ast.ENumber{}}, e.Value)
 			}
 
-			return expr, exprOut{}
-		}
+		default:
+			e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
 
-		e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
-
-		// Post-process the unary expression
-		switch e.Op {
-		case js_ast.UnOpNot:
-			if boolean, ok := toBooleanWithoutSideEffects(e.Value.Data); ok {
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !boolean}}, exprOut{}
-			}
-
-			if p.options.mangleSyntax {
-				if result, ok := js_ast.MaybeSimplifyNot(e.Value); ok {
-					return result, exprOut{}
+			// Post-process the unary expression
+			switch e.Op {
+			case js_ast.UnOpNot:
+				if boolean, ok := toBooleanWithoutSideEffects(e.Value.Data); ok {
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !boolean}}, exprOut{}
 				}
-			}
 
-		case js_ast.UnOpVoid:
-			if p.exprCanBeRemovedIfUnused(e.Value) {
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EUndefined{}}, exprOut{}
-			}
+				if p.options.mangleSyntax {
+					if result, ok := js_ast.MaybeSimplifyNot(e.Value); ok {
+						return result, exprOut{}
+					}
+				}
 
-		case js_ast.UnOpPos:
-			if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: number}}, exprOut{}
-			}
+			case js_ast.UnOpVoid:
+				if p.exprCanBeRemovedIfUnused(e.Value) {
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EUndefined{}}, exprOut{}
+				}
 
-		case js_ast.UnOpNeg:
-			if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: -number}}, exprOut{}
-			}
+			case js_ast.UnOpPos:
+				if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: number}}, exprOut{}
+				}
 
-			////////////////////////////////////////////////////////////////////////////////
-			// All assignment operators below here
+			case js_ast.UnOpNeg:
+				if number, ok := toNumberWithoutSideEffects(e.Value.Data); ok {
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: -number}}, exprOut{}
+				}
 
-		case js_ast.UnOpPreDec:
-			if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
-				return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpSub, false), exprOut{}
-			}
+				////////////////////////////////////////////////////////////////////////////////
+				// All assignment operators below here
 
-		case js_ast.UnOpPreInc:
-			if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
-				return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpAdd, false), exprOut{}
-			}
+			case js_ast.UnOpPreDec:
+				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
+					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpSub, false), exprOut{}
+				}
 
-		case js_ast.UnOpPostDec:
-			if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
-				return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpSub, true), exprOut{}
-			}
+			case js_ast.UnOpPreInc:
+				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
+					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpAdd, false), exprOut{}
+				}
 
-		case js_ast.UnOpPostInc:
-			if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
-				return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpAdd, true), exprOut{}
+			case js_ast.UnOpPostDec:
+				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
+					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpSub, true), exprOut{}
+				}
+
+			case js_ast.UnOpPostInc:
+				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
+					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpAdd, true), exprOut{}
+				}
 			}
 		}
 
