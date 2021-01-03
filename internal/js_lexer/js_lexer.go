@@ -2418,6 +2418,7 @@ func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (js
 func (lexer *Lexer) scanCommentText() {
 	text := lexer.source.Contents[lexer.start:lexer.end]
 	hasPreserveAnnotation := len(text) > 2 && text[2] == '!'
+	isMultiLineComment := text[1] == '*'
 
 	// Save the original comment text so we can subtract comments from the
 	// character frequency analysis used by symbol minification
@@ -2426,10 +2427,16 @@ func (lexer *Lexer) scanCommentText() {
 		Text: text,
 	})
 
+	// Omit the trailing "*/" from the checks below
+	endOfCommentText := len(text)
+	if isMultiLineComment {
+		endOfCommentText -= 2
+	}
+
 	for i, n := 0, len(text); i < n; i++ {
 		switch text[i] {
 		case '#':
-			rest := text[i+1:]
+			rest := text[i+1 : endOfCommentText]
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
 				lexer.HasPureCommentBefore = true
 			} else if strings.HasPrefix(rest, " sourceMappingURL=") {
@@ -2439,7 +2446,7 @@ func (lexer *Lexer) scanCommentText() {
 			}
 
 		case '@':
-			rest := text[i+1:]
+			rest := text[i+1 : endOfCommentText]
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
 				lexer.HasPureCommentBefore = true
 			} else if hasPrefixWithWordBoundary(rest, "preserve") || hasPrefixWithWordBoundary(rest, "license") {
@@ -2461,7 +2468,7 @@ func (lexer *Lexer) scanCommentText() {
 	}
 
 	if hasPreserveAnnotation || lexer.PreserveAllCommentsBefore {
-		if text[1] == '*' {
+		if isMultiLineComment {
 			text = removeMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
 		}
 

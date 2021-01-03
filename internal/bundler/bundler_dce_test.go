@@ -906,10 +906,20 @@ func TestRemoveUnusedPureCommentCalls(t *testing.T) {
 				let new_at_yes = /* @__PURE__ */ new foo(bar);
 				let new_at_no = /* @__PURE__ */ new foo(bar());
 
+				let nospace_at_yes = /*@__PURE__*/ foo(bar);
+				let nospace_at_no = /*@__PURE__*/ foo(bar());
+				let nospace_new_at_yes = /*@__PURE__*/ new foo(bar);
+				let nospace_new_at_no = /*@__PURE__*/ new foo(bar());
+
 				let num_yes = /* #__PURE__ */ foo(bar);
 				let num_no = /* #__PURE__ */ foo(bar());
 				let new_num_yes = /* #__PURE__ */ new foo(bar);
 				let new_num_no = /* #__PURE__ */ new foo(bar());
+
+				let nospace_num_yes = /*#__PURE__*/ foo(bar);
+				let nospace_num_no = /*#__PURE__*/ foo(bar());
+				let nospace_new_num_yes = /*#__PURE__*/ new foo(bar);
+				let nospace_new_num_no = /*#__PURE__*/ new foo(bar());
 
 				let dot_yes = /* @__PURE__ */ foo(sideEffect()).dot(bar);
 				let dot_no = /* @__PURE__ */ foo(sideEffect()).dot(bar());

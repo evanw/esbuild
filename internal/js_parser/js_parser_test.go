@@ -2939,17 +2939,23 @@ func TestJSX(t *testing.T) {
 
 func TestJSXPragmas(t *testing.T) {
 	expectPrintedJSX(t, "// @jsx h\n<a/>", "/* @__PURE__ */ h(\"a\", null);\n")
+	expectPrintedJSX(t, "/*@jsx h*/\n<a/>", "/* @__PURE__ */ h(\"a\", null);\n")
 	expectPrintedJSX(t, "/* @jsx h */\n<a/>", "/* @__PURE__ */ h(\"a\", null);\n")
 	expectPrintedJSX(t, "<a/>\n// @jsx h", "/* @__PURE__ */ h(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsx h*/", "/* @__PURE__ */ h(\"a\", null);\n")
 	expectPrintedJSX(t, "<a/>\n/* @jsx h */", "/* @__PURE__ */ h(\"a\", null);\n")
 	expectPrintedJSX(t, "// @jsx a.b.c\n<a/>", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
+	expectPrintedJSX(t, "/*@jsx a.b.c*/\n<a/>", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
 	expectPrintedJSX(t, "/* @jsx a.b.c */\n<a/>", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
 
 	expectPrintedJSX(t, "// @jsxFrag f\n<></>", "/* @__PURE__ */ React.createElement(f, null);\n")
+	expectPrintedJSX(t, "/*@jsxFrag f*/\n<></>", "/* @__PURE__ */ React.createElement(f, null);\n")
 	expectPrintedJSX(t, "/* @jsxFrag f */\n<></>", "/* @__PURE__ */ React.createElement(f, null);\n")
 	expectPrintedJSX(t, "<></>\n// @jsxFrag f", "/* @__PURE__ */ React.createElement(f, null);\n")
+	expectPrintedJSX(t, "<></>\n/*@jsxFrag f*/", "/* @__PURE__ */ React.createElement(f, null);\n")
 	expectPrintedJSX(t, "<></>\n/* @jsxFrag f */", "/* @__PURE__ */ React.createElement(f, null);\n")
 	expectPrintedJSX(t, "// @jsxFrag a.b.c\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
+	expectPrintedJSX(t, "/*@jsxFrag a.b.c*/\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
 	expectPrintedJSX(t, "/* @jsxFrag a.b.c */\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
 }
 

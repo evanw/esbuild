@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix `@jsx` and `@jsxFrag` comments without trailing spaces
+
+    The `--jsx-factory` and `--jsx-fragment` settings can be set on a per-file basis using `// @jsx name` or `// @jsxFrag name` comments. Comments of the form `/* @jsx name */` or `/* @jsxFrag name */` will also work. However, there was a bug where comments of the form `/* @jsx name*/` or `/* @jsxFrag name*/` (a multi-line comment without a trailing space at the end) did not work. This bug has been fixed, and you now no longer need a trailing space for multi-line comments.
+
 * Minification improvements
 
     * The expression before a switch statement is now folded into the value. This means `fn(); switch (x) { ... }` turns into `switch (fn(), x) { ... }`.
