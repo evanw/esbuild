@@ -16,6 +16,8 @@
 
     * Certain unary and binary operators are now removed if unused. This means `if (a() === b()) {}` turns into `a(), b();`.
 
+    * The comma operator is now extracted from certain expressions. This means `(a, b) + c` turns into `a, b + c`.
+
 ## 0.8.29
 
 * Allow entry points outside of the `outbase` directory ([#634](https://github.com/evanw/esbuild/issues/634))

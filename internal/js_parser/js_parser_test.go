@@ -2002,6 +2002,8 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "a ? b?.[c] : b[c]", "a ? b?.[c] : b[c];\n")
 	expectPrintedMangle(t, "a ? b == c : b != c", "a ? b == c : b != c;\n")
 	expectPrintedMangle(t, "a ? b.c(d + e[f]) : b.c(d + e[g])", "a ? b.c(d + e[f]) : b.c(d + e[g]);\n")
+
+	expectPrintedMangle(t, "(a, b) ? c : d", "a, b ? c : d;\n")
 }
 
 func TestMangleReturn(t *testing.T) {
@@ -2213,6 +2215,25 @@ func TestMangleEquals(t *testing.T) {
 	expectPrintedMangle(t, "return !a === !b", "return !a == !b;\n")
 	expectPrintedMangle(t, "return !a !== !b", "return !a != !b;\n")
 	expectPrintedMangle(t, "return !a !== !b", "return !a != !b;\n")
+}
+
+func TestMangleUnaryInsideComma(t *testing.T) {
+	expectPrintedMangle(t, "return -(a, b)", "return a, -b;\n")
+	expectPrintedMangle(t, "return +(a, b)", "return a, +b;\n")
+	expectPrintedMangle(t, "return ~(a, b)", "return a, ~b;\n")
+	expectPrintedMangle(t, "return !(a, b)", "return a, !b;\n")
+	expectPrintedMangle(t, "return void (a, b)", "return a, void b;\n")
+	expectPrintedMangle(t, "return typeof (a, b)", "return typeof (a, b);\n")
+	expectPrintedMangle(t, "return delete (a, b)", "return delete (a, b);\n")
+}
+
+func TestMangleBinaryInsideComma(t *testing.T) {
+	expectPrintedMangle(t, "(a, b) && c", "a, b && c;\n")
+	expectPrintedMangle(t, "(a, b) == c", "a, b == c;\n")
+	expectPrintedMangle(t, "(a, b) + c", "a, b + c;\n")
+	expectPrintedMangle(t, "a && (b, c)", "a && (b, c);\n")
+	expectPrintedMangle(t, "a == (b, c)", "a == (b, c);\n")
+	expectPrintedMangle(t, "a + (b, c)", "a + (b, c);\n")
 }
 
 func TestMangleNestedLogical(t *testing.T) {

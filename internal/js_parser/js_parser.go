@@ -7196,6 +7196,15 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf, op
 }
 
 func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
+	// "(a, b) ? c : d" => "a, b ? c : d"
+	if comma, ok := e.Test.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma {
+		return js_ast.JoinWithComma(comma.Left, p.mangleIfExpr(comma.Right.Loc, &js_ast.EIf{
+			Test: comma.Right,
+			Yes:  e.Yes,
+			No:   e.No,
+		}))
+	}
+
 	// "!a ? b : c" => "a ? c : b"
 	if not, ok := e.Test.Data.(*js_ast.EUnary); ok && not.Op == js_ast.UnOpNot {
 		e.Test = not.Value
@@ -9615,6 +9624,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		// "(a, b) + c" => "a, b + c"
+		if p.options.mangleSyntax && e.Op != js_ast.BinOpComma {
+			if comma, ok := e.Left.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma {
+				return js_ast.JoinWithComma(comma.Left, js_ast.Expr{
+					Loc: comma.Right.Loc,
+					Data: &js_ast.EBinary{
+						Op:    e.Op,
+						Left:  comma.Right,
+						Right: e.Right,
+					},
+				}), exprOut{}
+			}
+		}
+
 	case *js_ast.EIndex:
 		// "a['b']" => "a.b"
 		if p.options.mangleSyntax {
@@ -9841,6 +9864,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if target, loc, private := p.extractPrivateIndex(e.Value); private != nil {
 					return p.lowerPrivateSetUnOp(target, loc, private, js_ast.BinOpAdd, true), exprOut{}
 				}
+			}
+		}
+
+		// "-(a, b)" => "a, -b"
+		if p.options.mangleSyntax && e.Op != js_ast.UnOpDelete && e.Op != js_ast.UnOpTypeof {
+			if comma, ok := e.Value.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma {
+				return js_ast.JoinWithComma(comma.Left, js_ast.Expr{
+					Loc: comma.Right.Loc,
+					Data: &js_ast.EUnary{
+						Op:    e.Op,
+						Value: comma.Right,
+					},
+				}), exprOut{}
 			}
 		}
 
