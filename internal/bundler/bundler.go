@@ -1398,33 +1398,22 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	// Compute source map data in parallel with linking
 	dataForSourceMaps := b.computeDataForSourceMapsInParallel(&options, allReachableFiles)
 
-	type linkGroup struct {
-		outputFiles    []OutputFile
-		reachableFiles []uint32
-	}
-
-	var resultGroups []linkGroup
+	var resultGroups [][]OutputFile
 	if options.CodeSplitting {
 		// If code splitting is enabled, link all entry points together
 		c := newLinkerContext(&options, log, b.fs, b.res, b.files, b.entryPoints, allReachableFiles, dataForSourceMaps)
-		resultGroups = []linkGroup{{
-			outputFiles:    c.link(),
-			reachableFiles: c.reachableFiles,
-		}}
+		resultGroups = [][]OutputFile{c.link()}
 	} else {
 		// Otherwise, link each entry point with the runtime file separately
 		waitGroup := sync.WaitGroup{}
-		resultGroups = make([]linkGroup, len(b.entryPoints))
+		resultGroups = make([][]OutputFile, len(b.entryPoints))
 		for i, entryPoint := range b.entryPoints {
 			waitGroup.Add(1)
 			go func(i int, entryPoint uint32) {
 				entryPoints := []uint32{entryPoint}
 				reachableFiles := findReachableFiles(b.files, entryPoints)
 				c := newLinkerContext(&options, log, b.fs, b.res, b.files, entryPoints, reachableFiles, dataForSourceMaps)
-				resultGroups[i] = linkGroup{
-					outputFiles:    c.link(),
-					reachableFiles: c.reachableFiles,
-				}
+				resultGroups[i] = c.link()
 				waitGroup.Done()
 			}(i, entryPoint)
 		}
@@ -1434,7 +1423,7 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	// Join the results in entry point order for determinism
 	var outputFiles []OutputFile
 	for _, group := range resultGroups {
-		outputFiles = append(outputFiles, group.outputFiles...)
+		outputFiles = append(outputFiles, group...)
 	}
 
 	// Also generate the metadata file if necessary
@@ -1448,13 +1437,11 @@ func (b *Bundle) Compile(log logger.Log, options config.Options) []OutputFile {
 	if !options.WriteToStdout {
 		// Make sure an output file never overwrites an input file
 		sourceAbsPaths := make(map[string]uint32)
-		for _, group := range resultGroups {
-			for _, sourceIndex := range group.reachableFiles {
-				keyPath := b.files[sourceIndex].source.KeyPath
-				if keyPath.Namespace == "file" {
-					lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
-					sourceAbsPaths[lowerAbsPath] = sourceIndex
-				}
+		for _, sourceIndex := range allReachableFiles {
+			keyPath := b.files[sourceIndex].source.KeyPath
+			if keyPath.Namespace == "file" {
+				lowerAbsPath := lowerCaseAbsPathForWindows(keyPath.Text)
+				sourceAbsPaths[lowerAbsPath] = sourceIndex
 			}
 		}
 		for _, outputFile := range outputFiles {
