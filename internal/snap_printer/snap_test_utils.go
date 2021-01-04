@@ -24,6 +24,7 @@ type testOpts struct {
 	compareByLine        bool
 	debug                bool
 	isWrapped            bool
+	snapFilePath         string
 }
 
 func showSpaces(s string) string {
@@ -69,10 +70,15 @@ func expectPrintedCommon(
 					assertEqual(t, act, exp)
 				}
 			}
-
 		} else {
 			if testOpts.debug {
 				fmt.Println(actualTrimmed)
+				if len(testOpts.snapFilePath) != 0 {
+					err := ioutil.WriteFile(testOpts.snapFilePath, []byte(actualTrimmed), 0644)
+					if err != nil {
+						panic(err)
+					}
+				}
 			} else {
 				assertEqual(t, actualTrimmed, expectedTrimmed)
 			}
@@ -88,7 +94,7 @@ func expectPrinted(t *testing.T, contents string, expected string, shouldReplace
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire, false, false, false},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire},
 	)
 }
 
@@ -100,7 +106,7 @@ func expectByLine(t *testing.T, contents string, expected string, shouldReplaceR
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire, true, false, false},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true},
 	)
 }
 
@@ -112,7 +118,7 @@ func debugByLine(t *testing.T, contents string, expected string, shouldReplaceRe
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire, true, true, false},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true, debug: true},
 	)
 }
 
@@ -124,20 +130,54 @@ func debugPrinted(t *testing.T, contents string, shouldReplaceRequire func(strin
 		contents,
 		"",
 		PrintOptions{},
-		testOpts{shouldReplaceRequire, false, true, false},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, debug: true},
 	)
 }
 
-func debugFile(t *testing.T, path string, shouldReplaceRequire func(string) bool) {
+func debugFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(string) bool) {
 	t.Helper()
-	contents, err := ioutil.ReadFile(path)
+	contents, err := ioutil.ReadFile("./fixtures/" + fixtureName)
 	if err != nil {
 		panic(err)
 	}
-	debugPrinted(
+
+	expectPrintedCommon(
 		t,
+		fixtureName,
 		string(contents),
-		shouldReplaceRequire)
+		"",
+		PrintOptions{},
+		testOpts{
+			shouldReplaceRequire: shouldReplaceRequire,
+			debug:                true,
+			snapFilePath:         "./fixtures/snap-" + fixtureName,
+		},
+	)
 }
-func ReplaceAll(string) bool { return true }
+
+func expectFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(string) bool) {
+	t.Helper()
+	contents, err1 := ioutil.ReadFile("./fixtures/" + fixtureName)
+	if err1 != nil {
+		panic(err1)
+	}
+	expected, err2 := ioutil.ReadFile("./fixtures/snap-" + fixtureName)
+	if err2 != nil {
+		panic(err1)
+	}
+
+	expectPrintedCommon(
+		t,
+		fixtureName,
+		string(contents),
+		string(expected),
+		PrintOptions{},
+		testOpts{
+			shouldReplaceRequire: shouldReplaceRequire,
+			debug:                true,
+			snapFilePath:         "./fixtures/snap-" + fixtureName,
+		},
+	)
+}
+func ReplaceAll(string) bool  { return true }
 func ReplaceNone(string) bool { return false }
