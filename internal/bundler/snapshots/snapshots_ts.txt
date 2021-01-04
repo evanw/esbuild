@@ -222,6 +222,39 @@ console.log("correct");
 console.log("correct");
 
 ================================================================================
+TestTSImportConstEnum
+---------- /out.js ----------
+// common.ts
+var Foo;
+(function(Foo2) {
+  Foo2[Foo2["A"] = 1] = "A";
+  Foo2["B"] = "a";
+})(Foo || (Foo = {}));
+
+// entry.ts
+var usage = bar(Foo.A, Foo.B);
+
+================================================================================
+TestTSImportConstEnumInsideNamespace
+---------- /out.js ----------
+// common.ts
+var NS;
+(function(NS2) {
+  let Foo2;
+  (function(Foo3) {
+    Foo3[Foo3["A"] = 1] = "A";
+    Foo3["B"] = "a";
+    Foo3[Foo3["FromBase"] = 1] = "FromBase";
+  })(Foo2 = NS2.Foo || (NS2.Foo = {}));
+  let usageInsideNamespace = bar(1, 1, Foo2.invalid);
+})(NS || (NS = {}));
+var usageInBaseModule = bar(NS.Foo.A, NS.Foo.FromBase, NS.Foo.invalid);
+
+// entry.ts
+var usage = bar(NS.Foo.A, NS.Foo.B, Foo.FromBase);
+var noErrorsShownFor = bar(NS.invalidMember, NS.Foo.invalid);
+
+================================================================================
 TestTSImportEmptyNamespace
 ---------- /out.js ----------
 // entry.ts

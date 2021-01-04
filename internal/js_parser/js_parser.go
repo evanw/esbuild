@@ -8676,7 +8676,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
 
-		if !s.IsConst {
+		if !s.IsConst || s.IsExport {
 			// Generate statements from expressions
 			valueStmts := []js_ast.Stmt{}
 			if len(valueExprs) > 0 {

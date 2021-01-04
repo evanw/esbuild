@@ -210,6 +210,43 @@ func TestTSImportConstEnum(t *testing.T) {
 	})
 }
 
+func TestTSImportConstEnumInsideNamespace(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/common.ts": `
+				export namespace NS {
+					const enum Base {
+						A = 1,
+					}
+
+					export const enum Foo {
+						A = 1,
+						B = 'a',
+						FromBase = Base.A
+					}
+
+					let usageInsideNamespace = bar(Base.A, Foo.A, Foo.invalid)
+				}
+
+				let usageInBaseModule = bar(NS.Foo.A, NS.Foo.FromBase, NS.Foo.invalid)
+			`,
+			"/entry.ts": `
+				import { NS } from './common';
+				
+				let usage = bar(NS.Foo.A, NS.Foo.B, Foo.FromBase)
+				let noErrorsShownFor = bar(NS.invalidMember, NS.Foo.invalid)
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `common.ts: warning: Unknown member invalid on enum Foo
+`,
+	})
+}
+
 func TestTSDeclareEnum(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
