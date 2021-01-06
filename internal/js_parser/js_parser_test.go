@@ -2112,6 +2112,13 @@ func TestMangleArray(t *testing.T) {
 }
 
 func TestMangleObject(t *testing.T) {
+	expectPrintedMangle(t, "x = {['y']: z}", "x = {y: z};\n")
+	expectPrintedMangle(t, "x = {['y']() {}}", "x = {y() {\n}};\n")
+	expectPrintedMangle(t, "x = {get ['y']() {}}", "x = {get y() {\n}};\n")
+	expectPrintedMangle(t, "x = {set ['y'](z) {}}", "x = {set y(z) {\n}};\n")
+	expectPrintedMangle(t, "x = {async ['y']() {}}", "x = {async y() {\n}};\n")
+	expectPrintedMangle(t, "({['y']: z} = x)", "({y: z} = x);\n")
+
 	expectPrintedMangle(t, "x = {a, ...{}, b}", "x = {a, b};\n")
 	expectPrintedMangle(t, "x = {a, ...b, c}", "x = {a, ...b, c};\n")
 	expectPrintedMangle(t, "x = {a, ...{b}, c}", "x = {a, b, c};\n")
@@ -2295,6 +2302,20 @@ func TestMangleUnusedFunctionExpressionNames(t *testing.T) {
 	expectPrintedMangle(t, "x = function y() {}", "x = function() {\n};\n")
 	expectPrintedMangle(t, "x = function y() { return y }", "x = function y() {\n  return y;\n};\n")
 	expectPrintedMangle(t, "x = function y() { if (0) return y }", "x = function() {\n};\n")
+}
+
+func TestMangleClass(t *testing.T) {
+	expectPrintedMangle(t, "class x {['y'] = z}", "class x {\n  y = z;\n}\n")
+	expectPrintedMangle(t, "class x {['y']() {}}", "class x {\n  y() {\n  }\n}\n")
+	expectPrintedMangle(t, "class x {get ['y']() {}}", "class x {\n  get y() {\n  }\n}\n")
+	expectPrintedMangle(t, "class x {set ['y'](z) {}}", "class x {\n  set y(z) {\n  }\n}\n")
+	expectPrintedMangle(t, "class x {async ['y']() {}}", "class x {\n  async y() {\n  }\n}\n")
+
+	expectPrintedMangle(t, "x = class {['y'] = z}", "x = class {\n  y = z;\n};\n")
+	expectPrintedMangle(t, "x = class {['y']() {}}", "x = class {\n  y() {\n  }\n};\n")
+	expectPrintedMangle(t, "x = class {get ['y']() {}}", "x = class {\n  get y() {\n  }\n};\n")
+	expectPrintedMangle(t, "x = class {set ['y'](z) {}}", "x = class {\n  set y(z) {\n  }\n};\n")
+	expectPrintedMangle(t, "x = class {async ['y']() {}}", "x = class {\n  async y() {\n  }\n};\n")
 }
 
 func TestMangleUnusedClassExpressionNames(t *testing.T) {

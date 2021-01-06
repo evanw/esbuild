@@ -8335,7 +8335,15 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class) js_ast
 		if private, ok := property.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 			p.recordDeclaredSymbol(private.Ref)
 		} else {
-			class.Properties[i].Key = p.visitExpr(property.Key)
+			key := p.visitExpr(property.Key)
+			class.Properties[i].Key = key
+
+			// "class {['x'] = y}" => "class {x = y}"
+			if p.options.mangleSyntax && property.IsComputed {
+				if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
+					class.Properties[i].IsComputed = false
+				}
+			}
 		}
 		if property.Value != nil {
 			*property.Value = p.visitExpr(*property.Value)
@@ -10037,6 +10045,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							p.log.AddRangeError(&p.source, r, "Cannot specify the \"__proto__\" property more than once per object")
 						}
 						hasProto = true
+					}
+				}
+
+				// "{['x']: y}" => "{x: y}"
+				if p.options.mangleSyntax && property.IsComputed {
+					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
+						property.IsComputed = false
 					}
 				}
 			} else {
