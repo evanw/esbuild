@@ -20,9 +20,13 @@
 
     * Minification now takes advantage of the left-associativity of certain operators. This means `a && (b && c)` turns into `a && b && c`.
 
-* Fix issues with source maps ([#638][https://github.com/evanw/esbuild/issues/638])
+* Fix issues with nested source maps ([#638][https://github.com/evanw/esbuild/issues/638])
 
-    * Generated source maps were incorrect when an input file had a nested source map (i.e. contained a valid `//# sourceMappingURL=` comment) and the input source map had more than one source file. This regression was introduced by an optimization in version 0.8.25 that parallelizes the generation of certain internal source map data structures. The index into the generated `sources` array was incorrectly incremented by 1 for every input file instead of by the number of sources in the input source map. This issue has been fixed and now has test coverage.
+    A nested source map happens when an input file has a valid `//# sourceMappingURL=` comment that points to a valid source map file. In that case, esbuild will read that source map and use it to map back to the original source code from the generated file. This only happens if you enable source map generation in esbuild via `--sourcemap`. This release fixes the following issues:
+
+    * Generated source maps were incorrect when an input file had a nested source map and the input source map had more than one source file. This regression was introduced by an optimization in version 0.8.25 that parallelizes the generation of certain internal source map data structures. The index into the generated `sources` array was incorrectly incremented by 1 for every input file instead of by the number of sources in the input source map. This issue has been fixed and now has test coverage.
+
+    * Generated source maps were incorrect when an input file had a nested source map, the file starts with a local variable, the previous file ends with a local variable of that same type, and the input source map is missing a mapping at the start of the file. An optimization was added in version 0.7.18 that splices together local variable declarations from separate files when they end up adjacent to each other in the generated output file (i.e. `var a=0;var b=2;` becomes `var a=0,b=2;` when `a` and `b` are in separate files). The source map splicing was expecting a mapping at the start of the file and that isn't necessarily the case when using nested source maps. The optimization has been disabled for now to fix source map generation, and this specific case has test coverage.
 
 ## 0.8.29
 

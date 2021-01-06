@@ -241,6 +241,7 @@ const testCaseComplex = {
 }
 
 const toSearchComplex = {
+  '[object Array]': '../../node_modules/fuse.js/dist/webpack:/src/helpers/is_array.js',
   'Score average:': '../../node_modules/fuse.js/dist/webpack:/src/index.js',
   '0123456789': '../../node_modules/object-assign/index.js',
   'forceUpdate': '../../node_modules/react/cjs/react.production.min.js',
