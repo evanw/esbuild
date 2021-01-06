@@ -11,15 +11,29 @@ const esbuildPath = buildBinary()
 const testDir = path.join(__dirname, '.verify-source-map')
 let tempDirCount = 0
 
-const toSearchBundle = [
-  'a0', 'a1', 'a2',
-  'b0', 'b1', 'b2',
-  'c0', 'c1', 'c2',
-]
+const toSearchBundle = {
+  a0: 'a.js',
+  a1: 'a.js',
+  a2: 'a.js',
+  b0: 'b-dir/b.js',
+  b1: 'b-dir/b.js',
+  b2: 'b-dir/b.js',
+  c0: 'b-dir/c-dir/c.js',
+  c1: 'b-dir/c-dir/c.js',
+  c2: 'b-dir/c-dir/c.js',
+}
 
-const toSearchNoBundle = [
-  'a0', 'a1', 'a2',
-]
+const toSearchNoBundle = {
+  a0: 'a.js',
+  a1: 'a.js',
+  a2: 'a.js',
+}
+
+const toSearchNoBundleTS = {
+  a0: 'a.ts',
+  a1: 'a.ts',
+  a2: 'a.ts',
+}
 
 const testCaseES6 = {
   'a.js': `
@@ -131,9 +145,11 @@ const testCaseEmptyFile = {
   `,
 }
 
-const toSearchEmptyFile = [
-  'before', 'test', 'after',
-]
+const toSearchEmptyFile = {
+  before: 'before.js',
+  test: 'test.js',
+  after: 'after.js',
+}
 
 const testCaseNonJavaScriptFile = {
   'entry.js': `
@@ -153,9 +169,10 @@ const testCaseNonJavaScriptFile = {
   `,
 }
 
-const toSearchNonJavaScriptFile = [
-  'before', 'after',
-]
+const toSearchNonJavaScriptFile = {
+  before: 'before.js',
+  after: 'after.js',
+}
 
 const testCaseCodeSplitting = {
   'out.ts': `
@@ -171,9 +188,9 @@ const testCaseCodeSplitting = {
   `,
 }
 
-const toSearchCodeSplitting = [
-  'out',
-]
+const toSearchCodeSplitting = {
+  out: 'out.ts',
+}
 
 const testCaseUnicode = {
   'entry.js': `
@@ -188,9 +205,10 @@ const testCaseUnicode = {
   `,
 }
 
-const toSearchUnicode = [
-  'a', 'b',
-]
+const toSearchUnicode = {
+  a: 'a.js',
+  b: 'b.js',
+}
 
 const testCasePartialMappings = {
   // The "mappings" value is "A,Q,I;A,Q,I;A,Q,I;AAMA,QAAQ,IAAI;" which contains
@@ -207,9 +225,9 @@ console.log("entry");
 `,
 }
 
-const toSearchPartialMappings = [
-  'entry',
-]
+const toSearchPartialMappings = {
+  entry: 'entry.js',
+}
 
 async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
   let failed = 0
@@ -267,7 +285,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
 
     // Check the mapping of various key locations back to the original source
     const checkMap = (out, map) => {
-      for (const id of toSearch) {
+      for (const id in toSearch) {
         const outIndex = out.indexOf(`"${id}"`)
         if (outIndex < 0) throw new Error(`Failed to find "${id}" in output`)
         const outLines = out.slice(0, outIndex).split('\n')
@@ -275,7 +293,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
         const outColumn = outLines[outLines.length - 1].length
         const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
 
-        const inSource = isStdin ? '<stdin>' : files.find(x => path.basename(x).startsWith(id[0]))
+        const inSource = isStdin ? '<stdin>' : toSearch[id];
         recordCheck(source === inSource, `expected: ${inSource} observed: ${source}`)
 
         const inJs = map.sourceContentFor(source)
@@ -373,7 +391,7 @@ async function main() {
           entryPoints: ['a.js'],
           crlf,
         }),
-        check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundle, {
+        check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundleTS, {
           flags: flags.concat('--outfile=out.js'),
           entryPoints: ['a.ts'],
           crlf,
