@@ -229,6 +229,23 @@ const toSearchPartialMappings = {
   entry: 'entry.js',
 }
 
+const testCaseComplex = {
+  // "fuse.js" is included because it has a nested source map of some complexity.
+  // "react" is included after that because it's a big blob of code and helps
+  // make sure stuff after a nested source map works ok.
+  'entry.js': `
+    import Fuse from 'fuse.js'
+    import * as React from 'react'
+    console.log(Fuse, React)
+  `,
+}
+
+const toSearchComplex = {
+  'Score average:': '../../node_modules/fuse.js/dist/webpack:/src/index.js',
+  '0123456789': '../../node_modules/object-assign/index.js',
+  'forceUpdate': '../../node_modules/react/cjs/react.production.min.js',
+};
+
 async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
   let failed = 0
 
@@ -297,7 +314,8 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
         recordCheck(source === inSource, `expected: ${inSource} observed: ${source}`)
 
         const inJs = map.sourceContentFor(source)
-        const inIndex = inJs.indexOf(`"${id}"`)
+        let inIndex = inJs.indexOf(`"${id}"`)
+        if (inIndex < 0) inIndex = inJs.indexOf(`'${id}'`)
         if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
         const inLines = inJs.slice(0, inIndex).split('\n')
         const inLine = inLines.length
@@ -429,6 +447,11 @@ async function main() {
         check('banner-footer' + suffix, testCaseES6, toSearchBundle, {
           flags: flags.concat('--outfile=out.js', '--bundle', '--banner="/* LICENSE abc */"', '--footer="/* end of file banner */"'),
           entryPoints: ['a.js'],
+          crlf,
+        }),
+        check('complex' + suffix, testCaseComplex, toSearchComplex, {
+          flags: flags.concat('--outfile=out.js', '--bundle', '--define:process.env.NODE_ENV="production"'),
+          entryPoints: ['entry.js'],
           crlf,
         }),
       )

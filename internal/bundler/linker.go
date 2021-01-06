@@ -4291,7 +4291,6 @@ func (c *linkerContext) generateSourceMapForChunk(
 			continue
 		}
 		sourceIndexToSourcesIndex[result.sourceIndex] = nextSourcesIndex
-		nextSourcesIndex++
 		file := &c.files[result.sourceIndex]
 
 		// Simple case: no nested source map
@@ -4305,6 +4304,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 				prettyPath:     file.source.PrettyPath,
 				quotedContents: quotedContents,
 			})
+			nextSourcesIndex++
 			continue
 		}
 
@@ -4332,6 +4332,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 				quotedContents: quotedContents,
 			})
 		}
+		nextSourcesIndex += len(sm.Sources)
 	}
 
 	// Write the sources

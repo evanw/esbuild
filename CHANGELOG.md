@@ -20,6 +20,10 @@
 
     * Minification now takes advantage of the left-associativity of certain operators. This means `a && (b && c)` turns into `a && b && c`.
 
+* Fix issues with source maps ([#638][https://github.com/evanw/esbuild/issues/638])
+
+    * Generated source maps were incorrect when an input file had a nested source map (i.e. contained a valid `//# sourceMappingURL=` comment) and the input source map had more than one source file. This regression was introduced by an optimization in version 0.8.25 that parallelizes the generation of certain internal source map data structures. The index into the generated `sources` array was incorrectly incremented by 1 for every input file instead of by the number of sources in the input source map. This issue has been fixed and now has test coverage.
+
 ## 0.8.29
 
 * Allow entry points outside of the `outbase` directory ([#634](https://github.com/evanw/esbuild/issues/634))
