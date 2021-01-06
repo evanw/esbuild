@@ -2305,6 +2305,8 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 
 	switch repr := file.repr.(type) {
 	case *reprJS:
+		isTreeShakingEnabled := config.IsTreeShakingEnabled(c.options.Mode, c.options.OutputFormat)
+
 		// If the JavaScript stub for a CSS file is included, also include the CSS file
 		if repr.cssSourceIndex != nil {
 			c.includeFile(*repr.cssSourceIndex, entryPointBit, distanceFromEntryPoint)
@@ -2347,7 +2349,7 @@ func (c *linkerContext) includeFile(sourceIndex uint32, entryPointBit uint, dist
 			// Include all parts in this file with side effects, or just include
 			// everything if tree-shaking is disabled. Note that we still want to
 			// perform tree-shaking on the runtime even if tree-shaking is disabled.
-			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && c.options.Mode != config.ModeBundle && file.isEntryPoint) {
+			if !canBeRemovedIfUnused || (!part.ForceTreeShaking && !isTreeShakingEnabled && file.isEntryPoint) {
 				c.includePart(sourceIndex, uint32(partIndex), entryPointBit, distanceFromEntryPoint)
 			}
 		}

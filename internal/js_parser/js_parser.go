@@ -11752,7 +11752,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
-	if p.options.mode != config.ModeBundle {
+	if !config.IsTreeShakingEnabled(p.options.mode, p.options.outputFormat) {
 		// When not bundling, everything comes in a single part
 		parts = p.appendPart(parts, stmts)
 	} else {

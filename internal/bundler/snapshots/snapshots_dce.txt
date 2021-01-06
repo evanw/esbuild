@@ -506,6 +506,33 @@ var Keep = class extends Base {
 new Keep();
 
 ================================================================================
+TestTreeShakingNoBundleCJS
+---------- /out.js ----------
+function keep() {
+}
+function unused() {
+}
+keep();
+
+================================================================================
+TestTreeShakingNoBundleESM
+---------- /out.js ----------
+function keep() {
+}
+function unused() {
+}
+keep();
+
+================================================================================
+TestTreeShakingNoBundleIIFE
+---------- /out.js ----------
+(() => {
+  function keep() {
+  }
+  keep();
+})();
+
+================================================================================
 TestTreeShakingReactElements
 ---------- /out.js ----------
 // entry.jsx

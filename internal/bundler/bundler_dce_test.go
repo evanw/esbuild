@@ -1312,3 +1312,57 @@ func TestTreeShakingBinaryOperators(t *testing.T) {
 		},
 	})
 }
+
+func TestTreeShakingNoBundleESM(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function keep() {}
+				function unused() {}
+				keep()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTreeShakingNoBundleCJS(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function keep() {}
+				function unused() {}
+				keep()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTreeShakingNoBundleIIFE(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function keep() {}
+				function REMOVE() {}
+				keep()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatIIFE,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Tree-shake unused code with `--format=iife` ([#639](https://github.com/evanw/esbuild/issues/639))
+
+    When the output format is IIFE (which wraps the code in an immediately-invoked function expression), esbuild now assumes that it's safe to remove unused code. This is an assumption that esbuild always makes when bundling but that esbuild previously didn't make when not bundling. Now esbuild will remove code even when not bundling as long as the output format is IIFE.
+
+    This is only done for the IIFE output format because people are currently using the other formats to compile "partial modules", meaning they expect to be able to append code to esbuild's output and have that appended code be able to reference unused code inside esbuild's output. So it's not safe for esbuild to remove unused code in those cases. The IIFE output format wraps everything in a closure so unused code is not exposed to the module-level scope. Appended code will not be able to access unused code inside the closure so that means it's safe to remove.
+
 ## 0.8.30
 
 * Fix `@jsx` and `@jsxFrag` comments without trailing spaces

@@ -224,6 +224,10 @@ type Options struct {
 	Stdin *StdinInfo
 }
 
+func IsTreeShakingEnabled(mode Mode, outputFormat Format) bool {
+	return mode == ModeBundle || (mode == ModeConvertFormat && outputFormat == FormatIIFE)
+}
+
 type InjectedDefine struct {
 	Source logger.Source
 	Data   js_ast.E
