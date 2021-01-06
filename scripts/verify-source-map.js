@@ -266,7 +266,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
     }
 
     // Check the mapping of various key locations back to the original source
-    const checkMap = (out, map, relativeTo) => {
+    const checkMap = (out, map) => {
       for (const id of toSearch) {
         const outIndex = out.indexOf(`"${id}"`)
         if (outIndex < 0) throw new Error(`Failed to find "${id}" in output`)
@@ -299,7 +299,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
     }
 
     const outMap = await new SourceMapConsumer(outJsMap)
-    checkMap(outJs, outMap, '')
+    checkMap(outJs, outMap)
 
     // Check that every generated location has an associated original position.
     // This only works when not bundling because bundling includes runtime code.
@@ -337,7 +337,7 @@ async function check(kind, testCase, toSearch, { flags, entryPoints, crlf }) {
       const out2JsMap = await fs.readFile(path.join(tempDir, 'out2.js.map'), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2JsMap)
-      checkMap(out2Js, out2Map, tempDir)
+      checkMap(out2Js, out2Map)
     }
 
     if (!failed) removeRecursiveSync(tempDir)
