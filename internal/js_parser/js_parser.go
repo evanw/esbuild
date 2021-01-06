@@ -780,6 +780,28 @@ func valuesLookTheSame(left js_ast.E, right js_ast.E) bool {
 	return ok && equal
 }
 
+func jumpStmtsLookTheSame(left js_ast.S, right js_ast.S) bool {
+	switch a := left.(type) {
+	case *js_ast.SBreak:
+		b, ok := right.(*js_ast.SBreak)
+		return ok && (a.Label == nil) == (b.Label == nil) && (a.Label == nil || a.Label.Ref == b.Label.Ref)
+
+	case *js_ast.SContinue:
+		b, ok := right.(*js_ast.SContinue)
+		return ok && (a.Label == nil) == (b.Label == nil) && (a.Label == nil || a.Label.Ref == b.Label.Ref)
+
+	case *js_ast.SReturn:
+		b, ok := right.(*js_ast.SReturn)
+		return ok && (a.Value == nil) == (b.Value == nil) && (a.Value == nil || valuesLookTheSame(a.Value.Data, b.Value.Data))
+
+	case *js_ast.SThrow:
+		b, ok := right.(*js_ast.SThrow)
+		return ok && valuesLookTheSame(a.Value.Data, b.Value.Data)
+	}
+
+	return false
+}
+
 func hasValueForThisInCall(expr js_ast.Expr) bool {
 	switch expr.Data.(type) {
 	case *js_ast.EDot, *js_ast.EIndex:
@@ -6305,6 +6327,19 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 
 			if isJumpStatement(s.Yes.Data) {
 				optimizeImplicitJump := false
+
+				// Absorb a previous if statement
+				if len(result) > 0 {
+					prevStmt := result[len(result)-1]
+					if prevS, ok := prevStmt.Data.(*js_ast.SIf); ok && prevS.No == nil && jumpStmtsLookTheSame(prevS.Yes.Data, s.Yes.Data) {
+						// "if (a) break c; if (b) break c;" => "if (a || b) break c;"
+						// "if (a) continue c; if (b) continue c;" => "if (a || b) continue c;"
+						// "if (a) return c; if (b) return c;" => "if (a || b) return c;"
+						// "if (a) throw c; if (b) throw c;" => "if (a || b) throw c;"
+						s.Test = js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpLogicalOr, prevS.Test, s.Test)
+						result = result[:len(result)-1]
+					}
+				}
 
 				// "while (x) { if (y) continue; z(); }" => "while (x) { if (!y) z(); }"
 				// "while (x) { if (y) continue; else z(); w(); }" => "while (x) { if (!y) { z(); w(); } }" => "for (; x;) !y && (z(), w());"

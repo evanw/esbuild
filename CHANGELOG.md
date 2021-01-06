@@ -22,6 +22,8 @@
 
     * Computed properties that are strings now become no longer computed. This means `{['a']: b}` turns into `{a: b}` and `class { ['a'] = b }` turns into `class { a = b }`.
 
+    * Repeated if-jump statements are now merged. This means `if (a) break; if (b) break;` turns into `if (a || b) break;`.
+
 * Fix issues with nested source maps ([#638][https://github.com/evanw/esbuild/issues/638])
 
     A nested source map happens when an input file has a valid `//# sourceMappingURL=` comment that points to a valid source map file. In that case, esbuild will read that source map and use it to map back to the original source code from the generated file. This only happens if you enable source map generation in esbuild via `--sourcemap`. This release fixes the following issues:

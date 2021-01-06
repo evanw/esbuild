@@ -832,6 +832,12 @@ func IsStringValue(a Expr) bool {
 // associative. For example, the "-" operator is not associative for
 // floating-point numbers.
 func JoinWithLeftAssociativeOp(op OpCode, a Expr, b Expr) Expr {
+	// "(a, b) op c" => "a, b op c"
+	if comma, ok := a.Data.(*EBinary); ok && comma.Op == BinOpComma {
+		comma.Right = JoinWithLeftAssociativeOp(op, comma.Right, b)
+		return a
+	}
+
 	// "a op (b op c)" => "(a op b) op c"
 	// "a op (b op (c op d))" => "((a op b) op c) op d"
 	if binary, ok := b.Data.(*EBinary); ok && binary.Op == op {
