@@ -184,7 +184,7 @@ func TestNestedScopeVarsAreNotRelocated(t *testing.T) {
 	snapApiSuite.expectBuild(t, built{
 		files: map[string]string{
 			ProjectBaseDir + "/entry.js": `
-{ var obj = Object.create({}) }
+{ var obj = Array.from({}) }
 `,
 		},
 		entryPoints: []string{ProjectBaseDir + "/entry.js"},
@@ -196,7 +196,7 @@ __commonJS["./entry.js"] = function(exports, module, __filename, __dirname, requ
   {
 let obj;
 function __get_obj__() {
-  return obj = obj || (Object.create({}))
+  return obj = obj || (Array.from({}))
 }
   }
 };`,

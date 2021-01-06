@@ -667,43 +667,48 @@ function __get_u__() {
 // since types is defined initially, i.e. we'll never run Object.create(null)?
 // Latter excludes `Object` prototype methods.
 // Example from `esprima/esprima.js`
+// TODO: sometimes (since introducing late declare support) the let is placed incorrectly
+// Resulting in:
+// (function(root, factory) {
+//  "use strict";
+//  var typesOuter = let __get_typesOuter__;
+// {};
 func TestDeclareReplacementsMultipleUseStrict(t *testing.T) {
+
 	expectPrinted(t,
 		`
 (function (root, factory) {
   'use strict';
   var typesOuter = {}
-  if (typeof Object.create === 'function') {
-  	typesOuter = Object.create(null);
+  if (typeof Array.from === 'function') {
+    typesOuter = Array.from(null);
   }
 }(this, function (exports) {
-    'use strict';
-
-	var types = {};
-
-	if (typeof Object.create === 'function') {
-		types = Object.create(null);
-	}
+  'use strict';
+  var types = {};
+  if (typeof Array.from === 'function') {
+    types = Array.from(null);
+  }
 }))
 `, `
 (function(root, factory) {
   "use strict";
 let __get_typesOuter__;
   var typesOuter = {};
-  if (typeof Object.create === "function") {
+  if (typeof Array.from === "function") {
     
 __get_typesOuter__ = function() {
-  return typesOuter = typesOuter || (Object.create(null))
+  return typesOuter = typesOuter || (Array.from(null))
 };
   }
 })(this, function(exports) {
   "use strict";
 let __get_types__;
   var types = {};
-  if (typeof Object.create === "function") {
+  if (typeof Array.from === "function") {
     
 __get_types__ = function() {
-  return types = types || (Object.create(null))
+  return types = types || (Array.from(null))
 };
   }
 });
@@ -770,12 +775,12 @@ __get_emitter__ = function() {
 func TestGlobalRewriteAsPartOfDeclChain(t *testing.T) {
 	expectPrinted(t,
 		`
-	var o = Object, keysShim;
+	var o = Uint16Array, keysShim;
 	keysShim = 1;
 `, `
 let o;
 function __get_o__() {
-  return o = o || (Object)
+  return o = o || (Uint16Array)
 }
 var keysShim;
 keysShim = 1;
@@ -928,12 +933,12 @@ var d2 = require("not-invoked");
 
 func TestReplacingOfVariablesIndexedInto(t *testing.T) {
 	expectPrinted(t, `
-var callerCache = Object.create(null);
+var callerCache = require('cache');
 callerCache[" size"] = 0;
 `, `
 let callerCache;
 function __get_callerCache__() {
-  return callerCache = callerCache || (Object.create(null))
+  return callerCache = callerCache || (require("cache"))
 }
 (__get_callerCache__())[" size"] = 0;
 `, ReplaceAll)
@@ -986,6 +991,69 @@ let fs;
 function __get_fs__() {
   return fs = fs || (require("fs"))
 }`, ReplaceAll)
+}
+
+func TestLateDeclareUsedTwiceBefore(t *testing.T) {
+	expectPrinted(t, `
+function foo() {
+	arraySlice.call(arguments, 0)
+}
+function bar() {
+	arraySlice.call(arguments, 0)
+}
+var arraySlice = Array.prototype.slice;
+`, `
+function foo() {
+  (__get_arraySlice__()).call(arguments, 0);
+}
+function bar() {
+  (__get_arraySlice__()).call(arguments, 0);
+}
+
+let arraySlice;
+function __get_arraySlice__() {
+  return arraySlice = arraySlice || (Array.prototype.slice)
+}`, ReplaceAll)
+}
+
+func TestLateDeclareUsedTwiceBeforeAndTwiceAfter(t *testing.T) {
+	expectPrinted(t, `
+function foo() {
+	arraySlice.call(arguments, 0)
+}
+function bar() {
+	arraySlice.call(arguments, 0)
+}
+var arraySlice = Array.prototype.slice;
+
+function baz() {
+	arraySlice.call(arguments, 0)
+}
+function loo() {
+	arraySlice.call(arguments, 0)
+}
+`, `
+function foo() {
+  (__get_arraySlice__()).call(arguments, 0);
+}
+function bar() {
+  (__get_arraySlice__()).call(arguments, 0);
+}
+
+let arraySlice;
+function __get_arraySlice__() {
+  return arraySlice = arraySlice || (Array.prototype.slice)
+}
+function baz() {
+  (__get_arraySlice__()).call(arguments, 0);
+}
+function loo() {
+  (__get_arraySlice__()).call(arguments, 0);
+}`, ReplaceAll)
+}
+
+func TestLateDeclareLazyJS(t *testing.T) {
+	expectFixture(t, "late-declare.lazy.js", ReplaceAll)
 }
 
 func TestDebug(t *testing.T) {

@@ -299,8 +299,7 @@ func (p *printer) expressionHasRequireOrGlobalReference(expr *js_ast.Expr) bool 
 		if p.renamer.HasBeenReplaced(x.Ref) {
 			return true
 		}
-		// Globals except 'require'
-		if p.renamer.IsUnboundNonRequire(x.Ref) {
+		if p.renamer.GlobalNeedsDefer(x.Ref) {
 			return true
 		}
 		return false

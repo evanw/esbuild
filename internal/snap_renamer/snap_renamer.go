@@ -135,6 +135,12 @@ func (r *SnapRenamer) HasBeenReplaced(ref js_ast.Ref) bool {
 	return ok
 }
 
+func (r *SnapRenamer) IsLegalGlobal(ref js_ast.Ref) bool {
+	ref = r.resolveRefFromSymbols(ref)
+	symbol := r.symbols.Get(ref)
+	return symbol.OriginalName == "Object"
+}
+
 // Returns the Original id of the ref whose id has been Replaced before.
 // This function panics if no Replacement is found for this ref.
 func (r *SnapRenamer) GetOriginalId(ref js_ast.Ref) string {
@@ -194,11 +200,22 @@ func (r *SnapRenamer) IsModule(ref js_ast.Ref) bool {
 	return r.isModuleSymbol(symbol)
 }
 
-func (r *SnapRenamer) IsUnboundNonRequire(ref js_ast.Ref) bool {
+// TODO(thlorenz): Include more from
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects
+var VALID_GLOBALS = []string{
+	"require", "Object",
+}
+
+func (r *SnapRenamer) GlobalNeedsDefer(ref js_ast.Ref) bool {
 	ref = r.resolveRefFromSymbols(ref)
 	symbol := r.symbols.Get(ref)
 	if symbol.Kind == js_ast.SymbolUnbound {
-		return symbol.OriginalName != "require"
+		for _, v := range VALID_GLOBALS {
+			if v == symbol.OriginalName {
+				return false
+			}
+		}
+		return true
 	} else {
 		return false
 	}
