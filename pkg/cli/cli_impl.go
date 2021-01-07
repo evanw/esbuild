@@ -127,19 +127,23 @@ func parseOptionsImpl(osArgs []string, buildOpts *api.BuildOptions, transformOpt
 			}
 			hasBareSourceMapFlag = true
 
-		case arg == "--sourcemap=external":
-			if buildOpts != nil {
-				buildOpts.Sourcemap = api.SourceMapExternal
-			} else {
-				transformOpts.Sourcemap = api.SourceMapExternal
+		case strings.HasPrefix(arg, "--sourcemap="):
+			value := arg[len("--sourcemap="):]
+			var sourcemap api.SourceMap
+			switch value {
+			case "inline":
+				sourcemap = api.SourceMapInline
+			case "external":
+				sourcemap = api.SourceMapExternal
+			case "both":
+				sourcemap = api.SourceMapInlineAndExternal
+			default:
+				return fmt.Errorf("Invalid sourcemap: %q (valid: inline, external, both)", value)
 			}
-			hasBareSourceMapFlag = false
-
-		case arg == "--sourcemap=inline":
 			if buildOpts != nil {
-				buildOpts.Sourcemap = api.SourceMapInline
+				buildOpts.Sourcemap = sourcemap
 			} else {
-				transformOpts.Sourcemap = api.SourceMapInline
+				transformOpts.Sourcemap = sourcemap
 			}
 			hasBareSourceMapFlag = false
 

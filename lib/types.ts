@@ -6,7 +6,7 @@ export type Charset = 'ascii' | 'utf8';
 export type TreeShaking = true | 'ignore-annotations';
 
 interface CommonOptions {
-  sourcemap?: boolean | 'inline' | 'external';
+  sourcemap?: boolean | 'inline' | 'external' | 'both';
   sourcesContent?: boolean;
 
   format?: Format;

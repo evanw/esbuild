@@ -65,6 +65,8 @@ func validateSourceMap(value SourceMap) config.SourceMap {
 		return config.SourceMapInline
 	case SourceMapExternal:
 		return config.SourceMapExternalWithoutComment
+	case SourceMapInlineAndExternal:
+		return config.SourceMapInlineAndExternal
 	default:
 		panic("Invalid source map")
 	}

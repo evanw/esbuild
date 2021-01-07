@@ -47,6 +47,7 @@ const (
 	SourceMapInline
 	SourceMapLinkedWithComment
 	SourceMapExternalWithoutComment
+	SourceMapInlineAndExternal
 )
 
 type Loader int

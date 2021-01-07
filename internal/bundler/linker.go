@@ -3820,15 +3820,27 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 
 		if c.options.SourceMap != config.SourceMapNone {
 			sourceMap := c.generateSourceMapForChunk(compileResultsForSourceMap, chunkAbsDir, dataForSourceMaps)
-
-			// Store the generated source map
+			var writeDataURL bool
+			var writeFile bool
 			switch c.options.SourceMap {
 			case config.SourceMapInline:
+				writeDataURL = true
+			case config.SourceMapLinkedWithComment, config.SourceMapExternalWithoutComment:
+				writeFile = true
+			case config.SourceMapInlineAndExternal:
+				writeDataURL = true
+				writeFile = true
+			}
+
+			// Write the generated source map as an inline comment
+			if writeDataURL {
 				j.AddString("//# sourceMappingURL=data:application/json;base64,")
 				j.AddString(base64.StdEncoding.EncodeToString(sourceMap))
 				j.AddString("\n")
+			}
 
-			case config.SourceMapLinkedWithComment, config.SourceMapExternalWithoutComment:
+			// Write the generated source map as an external file
+			if writeFile {
 				// Optionally add metadata about the file
 				var jsonMetadataChunk []byte
 				if c.options.AbsMetadataFile != "" {

@@ -84,6 +84,7 @@ const (
 	SourceMapInline
 	SourceMapLinked
 	SourceMapExternal
+	SourceMapInlineAndExternal
 )
 
 type SourcesContent uint8

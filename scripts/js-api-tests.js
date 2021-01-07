@@ -117,6 +117,24 @@ let buildTests = {
     assert.strictEqual(json.sourcesContent[0], content)
   },
 
+  async sourceMapBoth({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    const content = 'exports.foo = 123'
+    await writeFileAsync(input, content)
+    await esbuild.build({ entryPoints: [input], outfile: output, sourcemap: 'both' })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await readFileAsync(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=data:application\/json;base64,(.*)/.exec(outputFile)
+    const json = JSON.parse(Buffer.from(match[1], 'base64').toString())
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], content)
+    const outputFileMap = await readFileAsync(output + '.map', 'utf8')
+    assert.strictEqual(Buffer.from(match[1], 'base64').toString(), outputFileMap)
+  },
+
   async sourceMapIncludeSourcesContent({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
@@ -2006,6 +2024,14 @@ let transformTests = {
     const { code, map } = await service.transform(`let       x`, { sourcemap: 'inline', sourcefile: 'afile.js' })
     assert(code.startsWith(`let x;\n//# sourceMappingURL=`))
     assert.strictEqual(map, '')
+    const base64 = code.slice(code.indexOf('base64,') + 'base64,'.length)
+    await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
+  },
+
+  async sourceMapBothWithName({ service }) {
+    const { code, map } = await service.transform(`let       x`, { sourcemap: 'both', sourcefile: 'afile.js' })
+    assert(code.startsWith(`let x;\n//# sourceMappingURL=`))
+    await assertSourceMap(map, 'afile.js')
     const base64 = code.slice(code.indexOf('base64,') + 'base64,'.length)
     await assertSourceMap(Buffer.from(base64.trim(), 'base64').toString(), 'afile.js')
   },
