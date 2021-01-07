@@ -998,6 +998,18 @@
     }),
   )
 
+  // Test certain minification transformations
+  for (const minify of [[], ['--minify-syntax']]) {
+    tests.push(
+      test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `let fn = (x) => { if (x && y) return; function y() {} throw 'fail' }; fn(fn)`,
+      }),
+      test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `let fn = (a, b) => { if (a && (x = () => y) && b) return; var x; let y = 123; if (x() !== 123) throw 'fail' }; fn(fn)`,
+      }),
+    )
+  }
+
   // Test minification of top-level symbols
   tests.push(
     test(['in.js', '--outfile=node.js', '--minify'], {

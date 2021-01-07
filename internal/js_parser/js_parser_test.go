@@ -1745,6 +1745,11 @@ func TestMangleLoopJump(t *testing.T) {
 	expectPrintedMangle(t, "while (x) { t(); if (y) continue; else z(); w(); }", "for (; x; )\n  t(), !y && (z(), w());\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (y) continue; z(); }", "for (; x; ) {\n  debugger;\n  y || z();\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (y) continue; else z(); w(); }", "for (; x; ) {\n  debugger;\n  y || (z(), w());\n}\n")
+
+	// Do not optimize implicit continue for statements that care about scope
+	expectPrintedMangle(t, "while (x) { if (y) continue; function y() {} }", "for (; x; ) {\n  if (y)\n    continue;\n  function y() {\n  }\n}\n")
+	expectPrintedMangle(t, "while (x) { if (y) continue; let y }", "for (; x; ) {\n  if (y)\n    continue;\n  let y;\n}\n")
+	expectPrintedMangle(t, "while (x) { if (y) continue; var y }", "for (; x; )\n  if (!y)\n    var y;\n")
 }
 
 func TestMangleUndefined(t *testing.T) {
@@ -2075,6 +2080,11 @@ func TestMangleReturn(t *testing.T) {
 		"function x() {\n  !(y && z);\n}\n")
 	expectPrintedMangle(t, "function x() { if (y) { if (z) return; w(); } }",
 		"function x() {\n  if (y) {\n    if (z)\n      return;\n    w();\n  }\n}\n")
+
+	// Do not optimize implicit return for statements that care about scope
+	expectPrintedMangle(t, "function x() { if (y) return; function y() {} }", "function x() {\n  if (y)\n    return;\n  function y() {\n  }\n}\n")
+	expectPrintedMangle(t, "function x() { if (y) return; let y }", "function x() {\n  if (y)\n    return;\n  let y;\n}\n")
+	expectPrintedMangle(t, "function x() { if (y) return; var y }", "function x() {\n  if (!y)\n    var y;\n}\n")
 }
 
 func TestMangleThrow(t *testing.T) {

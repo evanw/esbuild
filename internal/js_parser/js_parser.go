@@ -6363,15 +6363,39 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 						body = append(body, *s.No)
 					}
 					body = append(body, stmts[i+1:]...)
-					body = p.mangleStmts(body, kind)
-					bodyLoc := s.Yes.Loc
-					if len(body) > 0 {
-						bodyLoc = body[0].Loc
+
+					// Don't do this transformation if the branch condition could
+					// potentially access symbols declared later on on this scope below.
+					// If so, inverting the branch condition and nesting statements after
+					// this in a block would break that access which is a behavior change.
+					//
+					//   // This transformation is incorrect
+					//   if (a()) return; function a() {}
+					//   if (!a()) { function a() {} }
+					//
+					//   // This transformation is incorrect
+					//   if (a(() => b)) return; let b;
+					//   if (a(() => b)) { let b; }
+					//
+					canMoveBranchConditionOutsideScope := true
+					for _, stmt := range body {
+						if statementCaresAboutScope(stmt) {
+							canMoveBranchConditionOutsideScope = false
+							break
+						}
 					}
-					return p.mangleIf(result, stmt.Loc, &js_ast.SIf{
-						Test: js_ast.Not(s.Test),
-						Yes:  stmtsToSingleStmt(bodyLoc, body),
-					}, mangleIfOpts{})
+
+					if canMoveBranchConditionOutsideScope {
+						body = p.mangleStmts(body, kind)
+						bodyLoc := s.Yes.Loc
+						if len(body) > 0 {
+							bodyLoc = body[0].Loc
+						}
+						return p.mangleIf(result, stmt.Loc, &js_ast.SIf{
+							Test: js_ast.Not(s.Test),
+							Yes:  stmtsToSingleStmt(bodyLoc, body),
+						}, mangleIfOpts{})
+					}
 				}
 
 				if s.No != nil {
