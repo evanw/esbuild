@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.31
 
 * Fix minification issue from previous release ([#648](https://github.com/evanw/esbuild/issues/648))
 
