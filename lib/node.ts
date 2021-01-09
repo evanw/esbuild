@@ -161,7 +161,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
     isBrowser: false,
   });
 
-  const stdin: typeof child.stdin & { unref?(): void } = child.stdin
+  const stdin: typeof child.stdin & { unref?(): void } = child.stdin;
   const stdout: typeof child.stdout & { unref?(): void } = child.stdout;
 
   stdout.on('data', readFromStdout);
@@ -169,7 +169,6 @@ export let startService: typeof types.startService = common.referenceCountedServ
 
   let refCount = 0;
   child.unref();
-
   if (stdin.unref) {
     stdin.unref();
   }
