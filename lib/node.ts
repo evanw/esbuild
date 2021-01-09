@@ -151,6 +151,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'inherit'],
   });
+
   let { readFromStdout, afterClose, service } = common.createChannel({
     writeToStdin(bytes) {
       child.stdin.write(bytes);
@@ -159,59 +160,52 @@ export let startService: typeof types.startService = common.referenceCountedServ
     isSync: false,
     isBrowser: false,
   });
-  child.stdout.on('data', readFromStdout);
-  child.stdout.on('end', afterClose);
 
-  const stdin: null | typeof child.stdin & { unref?(): void } = child.stdin
-  const stdout: null | typeof child.stdout & { unref?(): void } = child.stdout;
-  if (stdin && stdin.unref) {
-    stdin.unref();
-  }
-  if (stdout && stdout.unref) {
-    stdout.unref();
-  }
+  const stdin: typeof child.stdin & { unref?(): void } = child.stdin
+  const stdout: typeof child.stdout & { unref?(): void } = child.stdout;
+
+  stdout.on('data', readFromStdout);
+  stdout.on('end', afterClose);
 
   let refCount = 0;
   child.unref();
+
+  if (stdin.unref) {
+    stdin.unref();
+  }
+  if (stdout.unref) {
+    stdout.unref();
+  }
 
   const unref = () => {
     if (--refCount === 0) {
       child.unref();
     }
-  }
+  };
 
-  const wrapPromise = <T>(promise: Promise<T>): Promise<T> => {
+  const refPromise = <T>(promise: Promise<T>): Promise<T> => {
     if (++refCount === 1) {
       child.ref();
     }
-    if (typeof promise.finally !== 'function') {
-      // Node 8 does not support Promise.prototype.finally.
-      return promise.then((value) => {
-        unref();
-        return value;
-      }).catch(e => {
-        unref();
-        throw e;
-      })
-    }
-    return promise.finally(unref)
+    promise.then(unref, unref);
+    return promise;
   }
 
   // Create an asynchronous Promise-based API
-  return wrapPromise(Promise.resolve({
+  return Promise.resolve({
     build: (options: types.BuildOptions): Promise<any> =>
-      wrapPromise(new Promise<types.BuildResult>((resolve, reject) =>
+      refPromise(new Promise<types.BuildResult>((resolve, reject) =>
         service.buildOrServe('build', null, options, isTTY(), (err, res) =>
           err ? reject(err) : resolve(res as types.BuildResult)))),
     serve: (serveOptions, buildOptions) => {
       if (serveOptions === null || typeof serveOptions !== 'object')
         throw new Error('The first argument must be an object')
-      return wrapPromise(new Promise((resolve, reject) =>
+      return refPromise(new Promise((resolve, reject) =>
         service.buildOrServe('serve', serveOptions, buildOptions, isTTY(), (err, res) => {
           if (err) {
             reject(err);
           } else {
-            (res as types.ServeResult).wait = wrapPromise((res as types.ServeResult).wait)
+            (res as types.ServeResult).wait = refPromise((res as types.ServeResult).wait)
             resolve(res as types.ServeResult);
           }
         })
@@ -219,7 +213,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
     },
     transform: (input, options) => {
       input += '';
-      return wrapPromise(new Promise((resolve, reject) =>
+      return refPromise(new Promise((resolve, reject) =>
         service.transform('transform', input, options || {}, isTTY(), {
           readFile(tempFile, callback) {
             try {
@@ -246,7 +240,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
         }, (err, res) => err ? reject(err) : resolve(res!))));
     },
     stop() { child.kill(); }
-  }));
+  });
 });
 
 let runServiceSync = (callback: (service: common.StreamService) => void): void => {
