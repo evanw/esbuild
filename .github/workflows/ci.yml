@@ -56,6 +56,9 @@ jobs:
     - name: JS API Tests
       run: node scripts/js-api-tests.js
 
+    - name: NodeJS Unref Tests
+      run: node scripts/node-unref-tests.js
+
     - name: Plugin Tests
       run: node scripts/plugin-tests.js
 
