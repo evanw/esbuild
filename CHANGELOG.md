@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Calling `stop()` on the JavaScript API is now optional ([#656](https://github.com/evanw/esbuild/pull/656))
+
+    The JavaScript implementation of esbuild's API now calls `unref()` internally so node will now exit even if the internal long-lived esbuild process is still running. You should no longer need to explicitly call `stop()` on the service returned by `startService()`, which simplifies service lifetime management. This feature was contributed by [@SalvatorePreviti](https://github.com/SalvatorePreviti).
+
 ## 0.8.31
 
 * Fix minification issue from previous release ([#648](https://github.com/evanw/esbuild/issues/648))

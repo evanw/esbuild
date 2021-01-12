@@ -15,7 +15,7 @@ async function tests() {
     assert.strictEqual(t1.code, `1 + 2;\n`)
     assert.strictEqual(t2.code, `1 + 3;\n`)
   }
-  
+
   async function testServe() {
     const server = await esbuild.serve({}, {})
     assert.strictEqual(server.host, '127.0.0.1')
@@ -48,7 +48,7 @@ function runTests() {
 function startChildProcess() {
   const child = fork(__filename, ['__forked__'], { stdio: 'inherit', env: process.env });
 
-  const timeout = setTimeout(()=> {
+  const timeout = setTimeout(() => {
     console.error('❌ node unref test timeout - child_process.unref() broken?')
     process.exit(1);
   }, 6000);
