@@ -204,7 +204,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
           if (err) {
             reject(err);
           } else {
-            (res as types.ServeResult).wait = refPromise((res as types.ServeResult).wait)
+            refPromise((res as types.ServeResult).wait)
             resolve(res as types.ServeResult);
           }
         })
@@ -238,7 +238,7 @@ export let startService: typeof types.startService = common.referenceCountedServ
           },
         }, (err, res) => err ? reject(err) : resolve(res!))));
     },
-    stop() { child.kill(); }
+    stop() { child.kill(); },
   });
 });
 
