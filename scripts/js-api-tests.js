@@ -591,17 +591,18 @@ body {
     const shared = path.join(testDir, 'shared.js')
     const outdir = path.join(testDir, 'out')
     const metafile = path.join(testDir, 'meta.json')
+    const makeImportPath = (importing, imported) => JSON.stringify('./' + path.relative(path.dirname(importing), imported).split(path.sep).join('/'))
     await mkdirAsync(importDir)
     await writeFileAsync(entry, `
-      import "./${path.relative(path.dirname(entry), shared)}"
-      import("./${path.relative(path.dirname(entry), import1)}")
-      import("./${path.relative(path.dirname(entry), import2)}")
+      import ${makeImportPath(entry, shared)}
+      import(${makeImportPath(entry, import1)})
+      import(${makeImportPath(entry, import2)})
     `)
     await writeFileAsync(import1, `
-      import "./${path.relative(path.dirname(import1), shared)}"
+      import ${makeImportPath(import1, shared)}
     `)
     await writeFileAsync(import2, `
-      import "./${path.relative(path.dirname(import2), shared)}"
+      import ${makeImportPath(import2, shared)}
     `)
     await writeFileAsync(shared, `
       console.log('side effect')
