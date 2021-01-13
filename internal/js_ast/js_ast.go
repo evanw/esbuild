@@ -391,11 +391,6 @@ type EBinary struct {
 	Left  Expr
 	Right Expr
 	Op    OpCode
-
-	// If true, this expression was originally a self-assignment of the form
-	// "x = y". This is relevant because it's used to emit a warning later on
-	// about code that accidentally does "x = x".
-	WasIdentifierAssign bool
 }
 
 type EBoolean struct{ Value bool }
@@ -517,10 +512,6 @@ type EIdentifier struct {
 	// unwrapped if the resulting value is unused. Unwrapping means discarding
 	// the call target but keeping any arguments with side effects.
 	CallCanBeUnwrappedIfUnused bool
-
-	// If true, this identifier was originally a "x as T" or "<T>x" expression.
-	// This is used to avoid warnings about "x = x as T" assignments.
-	WasTypeScriptCast bool
 }
 
 // This is similar to an EIdentifier but it represents a reference to an ES6

@@ -28,6 +28,10 @@
 
     However, since then the plugin API has been released and this behavior didn't apply if the import path was resolved by a plugin. It only applied if the import path was resolved by esbuild itself. That problem is fixed in this release. Now these warnings will be omitted from any file with `node_modules` in its path, even if the path originated from a plugin.
 
+* Remove the warning about self-assignment ([#666](https://github.com/evanw/esbuild/issues/666))
+
+    This warning was added in version 0.8.11 and warns about self-assignment such as `x = x`. The rationale is that this is likely a copy/paste error. However, it triggers too often for cross-compiled TypeScript code so the false positive rate is too high. The warning has now been removed.
+
 ## 0.8.31
 
 * Fix minification issue from previous release ([#648](https://github.com/evanw/esbuild/issues/648))

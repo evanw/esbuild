@@ -1519,17 +1519,3 @@ h();
 Foo[_b] = 1;
 `)
 }
-
-func TestWarningReassign(t *testing.T) {
-	expectParseErrorTS(t, "let x; x = x", "<stdin>: warning: Assignment of \"x\" to itself has no effect\n")
-	expectParseErrorTS(t, "let x; x = (x)", "<stdin>: warning: Assignment of \"x\" to itself has no effect\n")
-	expectParseErrorTS(t, "let x; x = (true ? x : x)", "")
-	expectParseErrorTS(t, "let x; x = (false ? x : x)", "")
-	expectParseErrorTS(t, "let x; x = (0, x)", "")
-	expectParseErrorTS(t, "let x; (x as any) = x", "")
-	expectParseErrorTS(t, "let x; x = x as any", "")
-	expectParseErrorTS(t, "let x; (<any>x) = x", "")
-	expectParseErrorTS(t, "let x; x = <any>x", "")
-	expectParseErrorTS(t, "let x; x! = x", "")
-	expectParseErrorTS(t, "let x; x = x!", "")
-}
