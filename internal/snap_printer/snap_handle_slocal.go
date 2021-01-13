@@ -218,6 +218,9 @@ func (p *printer) printRequireReferenceReplacementFunctionDeclaration(
 
 // const|let|var x = require('x')
 func (p *printer) handleSLocal(local *js_ast.SLocal) (handled bool) {
+	if !p.shouldRewrite {
+		return false
+	}
 	if p.uninvokedFunctionDepth > 0 {
 		return false
 	}

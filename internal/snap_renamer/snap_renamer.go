@@ -1,7 +1,6 @@
 package snap_renamer
 
 import (
-	"fmt"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/renamer"
 )
@@ -123,7 +122,6 @@ func (r *SnapRenamer) Replace(ref js_ast.Ref, replaceWith string) {
 
 	if hasBeenNamed {
 		res.Replace = &replace
-		fmt.Printf("Named: %v %v \n", *res.Replace, res.UnreplacedLocs)
 	}
 	r.deferredIdentifiers[ref] = replace
 }

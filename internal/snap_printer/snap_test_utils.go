@@ -56,7 +56,7 @@ func expectPrintedCommon(
 		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := snap_renamer.NewSnapRenamer(symbols)
-		js := Print(tree, symbols, &r, options, testOpts.isWrapped, testOpts.shouldReplaceRequire).JS
+		js := Print(tree, symbols, &r, options, testOpts.isWrapped, testOpts.shouldReplaceRequire, true).JS
 		actualTrimmed := strings.TrimSpace(string(js))
 		expectedTrimmed := strings.TrimSpace(expected)
 		if testOpts.compareByLine {

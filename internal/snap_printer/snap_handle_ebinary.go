@@ -87,6 +87,9 @@ func (p *printer) printBindings(
 // similar to slocal but assigning to an already declared variable
 // x = require('x')
 func (p *printer) handleEBinary(e *js_ast.EBinary) (handled bool) {
+	if !p.shouldRewrite {
+		return false
+	}
 	if p.uninvokedFunctionDepth > 0 {
 		return false
 	}
