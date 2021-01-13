@@ -259,7 +259,7 @@ require/parcel/node_modules:
 require/parcel2/node_modules:
 	mkdir -p require/parcel2
 	echo '{}' > require/parcel2/package.json
-	cd require/parcel2 && npm install parcel@2.0.0-nightly.475 @parcel/transformer-typescript-tsc@2.0.0-nightly.477 typescript@4.1.2
+	cd require/parcel2 && npm install parcel@2.0.0-nightly.527 @parcel/transformer-typescript-tsc@2.0.0-nightly.529 typescript@4.1.2
 
 lib/node_modules:
 	cd lib && npm ci
@@ -508,7 +508,10 @@ demo-three-parcel: | require/parcel/node_modules demo/three
 demo-three-parcel2: | require/parcel2/node_modules demo/three
 	rm -fr require/parcel2/demo/three demo/three/parcel2
 	mkdir -p require/parcel2/demo/three demo/three/parcel2
-	ln -s ../../../../demo/three/src require/parcel2/demo/three/src
+
+	# Copy the whole source tree since symlinks mess up Parcel's internal package lookup for "@babel/core"
+	cp -r demo/three/src require/parcel2/demo/three/src
+
 	echo 'import * as THREE from "./src/Three.js"; window.THREE = THREE' > require/parcel2/demo/three/Three.parcel2.js
 	cd require/parcel2/demo/three && time -p ../../node_modules/.bin/parcel build \
 		Three.parcel2.js --dist-dir ../../../../demo/three/parcel2 --cache-dir .cache
@@ -575,9 +578,12 @@ bench-three-parcel: | require/parcel/node_modules bench/three
 bench-three-parcel2: | require/parcel2/node_modules bench/three
 	rm -fr require/parcel2/bench/three bench/three/parcel2
 	mkdir -p require/parcel2/bench/three bench/three/parcel2
-	ln -s ../../../../bench/three/src require/parcel2/bench/three/src
+
+	# Copy the whole source tree since symlinks mess up Parcel's internal package lookup for "@babel/core"
+	cp -r bench/three/src require/parcel2/bench/three/src
+
 	echo 'import * as THREE from "./src/entry.js"; window.THREE = THREE' > require/parcel2/bench/three/entry.parcel2.js
-	cd require/parcel2/bench/three && time -p node --max-old-space-size=4096 ../../node_modules/.bin/parcel build \
+	cd require/parcel2/bench/three && time -p node ../../node_modules/.bin/parcel build \
 		entry.parcel2.js --dist-dir ../../../../bench/three/parcel2 --cache-dir .cache
 	du -h bench/three/parcel2/entry.parcel2.js*
 
