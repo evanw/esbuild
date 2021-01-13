@@ -5,6 +5,7 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/pkg/api"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -39,6 +40,15 @@ func extractArray(arr string) []string {
 	return strings.Split(arr, ",")
 }
 
+var rx = regexp.MustCompile(`^[.]?[.]?[/]`)
+func trimPathPrefix(paths []string) []string {
+	replaced := make([]string, len(paths))
+	for i, p := range paths {
+		replaced[i] = rx.ReplaceAllString(p, "")
+	}
+	return replaced
+}
+
 func SnapCmd(processArgs ProcessCmdArgs) {
 	osArgs := os.Args[1:]
 	cmdArgs := SnapCmdArgs{}
@@ -69,7 +79,7 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 			cmdArgs.Deferred = extractArray(arg[len("--deferred="):])
 
 		case strings.HasPrefix(arg, "--norewrite="):
-			cmdArgs.Norewrite = extractArray(arg[len("--norewrite="):])
+			cmdArgs.Norewrite = trimPathPrefix(extractArray(arg[len("--norewrite="):]))
 
 		case !strings.HasPrefix(arg, "-"):
 			cmdArgs.EntryPoint = arg

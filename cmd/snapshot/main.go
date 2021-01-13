@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/evanw/esbuild/internal/snap_api"
 	"github.com/evanw/esbuild/pkg/api"
+	"strings"
 )
 
 func main() {
@@ -14,12 +15,30 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 	var external []string
 
 	shouldReplaceRequire := func(mdl string) bool {
+		if args.Deferred == nil {
+			return false
+		}
 		for _, m := range args.Deferred {
 			if m == mdl {
 				return true
 			}
 		}
 		return false
+	}
+
+	shouldRewriteModule := func(mdl string) bool {
+		if args.Norewrite == nil {
+			return true
+		}
+		if len(mdl) == 0 {
+			return true
+		}
+		for _, m := range args.Norewrite {
+			if strings.HasSuffix(mdl, m) {
+				return false
+			}
+		}
+		return true
 	}
 
 	return api.Build(api.BuildOptions{
@@ -85,7 +104,8 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 
 		Snapshot: &api.SnapshotOptions{
 			CreateSnapshot:       true,
-			ShouldReplaceRequire: snap_api.CreateShouldReplaceRequire(platform, external, shouldReplaceRequire),
+			ShouldReplaceRequire: snap_api.CreateShouldReplaceRequire(platform, external, shouldReplaceRequire, shouldRewriteModule),
+			ShouldRewriteModule:  shouldRewriteModule,
 			AbsBasedir:           args.Basedir,
 		},
 
