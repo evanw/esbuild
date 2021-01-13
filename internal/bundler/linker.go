@@ -300,8 +300,13 @@ type chunkInfo struct {
 	repr chunkRepr
 }
 
+type generateContinue struct {
+	crossChunkImportRecords []ast.ImportRecord
+	crossChunkAbsPaths      []string
+}
+
 type chunkRepr interface {
-	generate(c *linkerContext, chunk *chunkInfo) func(crossChunkImportRecords []ast.ImportRecord) []OutputFile
+	generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile
 }
 
 type chunkReprJS struct {
@@ -672,15 +677,21 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo) []OutputFil
 
 			// Fill in the cross-chunk import records now that the paths are known
 			crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
+			crossChunkAbsPaths := make([]string, len(chunk.crossChunkImports))
 			for i, otherChunkIndex := range chunk.crossChunkImports {
+				relPath := chunks[otherChunkIndex].relPath()
+				crossChunkAbsPaths[i] = c.fs.Join(c.options.AbsOutputDir, relPath)
 				crossChunkImportRecords[i] = ast.ImportRecord{
 					Kind: ast.ImportStmt,
-					Path: logger.Path{Text: c.pathBetweenChunks(chunk.relDir, chunks[otherChunkIndex].relPath())},
+					Path: logger.Path{Text: c.pathBetweenChunks(chunk.relDir, relPath)},
 				}
 			}
 
 			// Generate the chunk
-			results[i] = resume(crossChunkImportRecords)
+			results[i] = resume(generateContinue{
+				crossChunkAbsPaths:      crossChunkAbsPaths,
+				crossChunkImportRecords: crossChunkImportRecords,
+			})
 
 			// Wake up any dependents now that we're done
 			for _, chunkIndex := range order.dependents {
@@ -3492,7 +3503,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	return r
 }
 
-func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
+func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile {
 	var results []OutputFile
 	compileResults := make([]compileResultJS, 0, len(chunk.partsInChunkInOrder))
 	runtimeMembers := c.files[runtime.SourceIndex].repr.(*reprJS).ast.ModuleScope.Members
@@ -3534,7 +3545,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 	}
 
 	// Wait for cross-chunk import records before continuing
-	return func(crossChunkImportRecords []ast.ImportRecord) []OutputFile {
+	return func(continueData generateContinue) []OutputFile {
 		// Also generate the cross-chunk binding code
 		var crossChunkPrefix []byte
 		var crossChunkSuffix []byte
@@ -3551,7 +3562,7 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 				MangleSyntax:     c.options.MangleSyntax,
 			}
 			crossChunkPrefix = js_printer.Print(js_ast.AST{
-				ImportRecords: crossChunkImportRecords,
+				ImportRecords: continueData.crossChunkImportRecords,
 				Parts:         []js_ast.Part{{Stmts: repr.crossChunkPrefixStmts}},
 			}, c.symbols, r, printOptions).JS
 			crossChunkSuffix = js_printer.Print(js_ast.AST{
@@ -3633,14 +3644,12 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func([]ast
 			// Print imports
 			isFirstMeta := true
 			jMeta.AddString("{\n      \"imports\": [")
-			for _, record := range crossChunkImportRecords {
+			for _, importAbsPath := range continueData.crossChunkAbsPaths {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
 					jMeta.AddString(",")
 				}
-				chunkBaseWithoutPublicPath := path.Base(record.Path.Text)
-				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, chunkBaseWithoutPublicPath)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
 					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
 			}
@@ -3955,7 +3964,7 @@ type compileResultCSS struct {
 	externalImportRecords []ast.ImportRecord
 }
 
-func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]ast.ImportRecord) []OutputFile {
+func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(generateContinue) []OutputFile {
 	var results []OutputFile
 	compileResults := make([]compileResultCSS, 0, len(chunk.filesInChunkInOrder))
 
@@ -4001,7 +4010,7 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 	}
 
 	// Wait for cross-chunk import records before continuing
-	return func(crossChunkImportRecords []ast.ImportRecord) []OutputFile {
+	return func(continueData generateContinue) []OutputFile {
 		waitGroup.Wait()
 		j := js_printer.Joiner{}
 		newlineBeforeComment := false
@@ -4043,13 +4052,12 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func([]as
 		if c.options.AbsMetadataFile != "" {
 			isFirstMeta := true
 			jMeta.AddString("{\n      \"imports\": [")
-			for _, record := range crossChunkImportRecords {
+			for _, importAbsPath := range continueData.crossChunkAbsPaths {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
 					jMeta.AddString(",")
 				}
-				importAbsPath := c.fs.Join(c.options.AbsOutputDir, chunk.relDir, record.Path.Text)
 				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
 					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
 			}

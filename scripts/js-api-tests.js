@@ -583,6 +583,77 @@ body {
     assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inImported]: { bytesInOutput: 51 } })
   },
 
+  async metafileSplittingDoubleDynamicImport({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const importDir = path.join(testDir, 'import-dir')
+    const import1 = path.join(importDir, 'import1.js')
+    const import2 = path.join(importDir, 'import2.js')
+    const shared = path.join(testDir, 'shared.js')
+    const outdir = path.join(testDir, 'out')
+    const metafile = path.join(testDir, 'meta.json')
+    await mkdirAsync(importDir)
+    await writeFileAsync(entry, `
+      import "./${path.relative(path.dirname(entry), shared)}"
+      import("./${path.relative(path.dirname(entry), import1)}")
+      import("./${path.relative(path.dirname(entry), import2)}")
+    `)
+    await writeFileAsync(import1, `
+      import "./${path.relative(path.dirname(import1), shared)}"
+    `)
+    await writeFileAsync(import2, `
+      import "./${path.relative(path.dirname(import2), shared)}"
+    `)
+    await writeFileAsync(shared, `
+      console.log('side effect')
+    `)
+    await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      outdir,
+      metafile,
+      splitting: true,
+      format: 'esm',
+    })
+
+    const json = JSON.parse(await readFileAsync(metafile))
+    assert.strictEqual(Object.keys(json.inputs).length, 4)
+    assert.strictEqual(Object.keys(json.outputs).length, 4)
+    const cwd = process.cwd()
+    const makeOutPath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
+    const makeInPath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+
+    // Check metafile
+    const inEntry = makeInPath(entry);
+    const inImport1 = makeInPath(import1);
+    const inImport2 = makeInPath(import2);
+    const inShared = makeInPath(shared);
+    const chunk = 'chunk.27QEWJHV.js';
+    const outEntry = makeOutPath(path.relative(testDir, entry));
+    const outImport1 = makeOutPath(path.relative(testDir, import1));
+    const outImport2 = makeOutPath(path.relative(testDir, import2));
+    const outChunk = makeOutPath(chunk);
+
+    assert.deepStrictEqual(json.inputs[inEntry], { bytes: 112, imports: [{ path: inShared }, { path: inImport1 }, { path: inImport2 }] })
+    assert.deepStrictEqual(json.inputs[inImport1], { bytes: 35, imports: [{ path: inShared }] })
+    assert.deepStrictEqual(json.inputs[inImport2], { bytes: 35, imports: [{ path: inShared }] })
+    assert.deepStrictEqual(json.inputs[inShared], { bytes: 38, imports: [] })
+
+    assert.deepStrictEqual(json.outputs[outEntry].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outImport1].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outImport2].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outChunk].imports, [])
+
+    assert.deepStrictEqual(json.outputs[outEntry].exports, [])
+    assert.deepStrictEqual(json.outputs[outImport1].exports, [])
+    assert.deepStrictEqual(json.outputs[outImport2].exports, [])
+    assert.deepStrictEqual(json.outputs[outChunk].exports, [])
+
+    assert.deepStrictEqual(json.outputs[outEntry].inputs, { [inEntry]: { bytesInOutput: 70 } })
+    assert.deepStrictEqual(json.outputs[outImport1].inputs, {})
+    assert.deepStrictEqual(json.outputs[outImport2].inputs, {})
+    assert.deepStrictEqual(json.outputs[outChunk].inputs, { [inShared]: { bytesInOutput: 28 } })
+  },
+
   async metafileCJSInFormatIIFE({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const outfile = path.join(testDir, 'out.js')
