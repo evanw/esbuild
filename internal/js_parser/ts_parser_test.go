@@ -133,6 +133,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: {['x']: number}", "let x;\n")
 	expectPrintedTS(t, "let x: {['x'](): void}", "let x;\n")
 	expectPrintedTS(t, "let x: {[key: string]: number}", "let x;\n")
+	expectPrintedTS(t, "let x: () => void = Foo", "let x = Foo;\n")
 	expectPrintedTS(t, "let x: new () => void = Foo", "let x = Foo;\n")
 	expectPrintedTS(t, "let x = 'x' as keyof T", "let x = \"x\";\n")
 	expectPrintedTS(t, "let x = [1] as readonly [number]", "let x = [1];\n")
@@ -194,6 +195,14 @@ func TestTSTypes(t *testing.T) {
 
 	// TypeScript 4.1
 	expectPrintedTS(t, "let foo: `${'a' | 'b'}-${'c' | 'd'}` = 'a-c'", "let foo = \"a-c\";\n")
+
+	// TypeScript 4.2
+	expectPrintedTS(t, "let x: abstract new () => void = Foo", "let x = Foo;\n")
+	expectPrintedTS(t, "let x: abstract new <T>() => Foo<T>", "let x;\n")
+	expectPrintedTS(t, "let x: abstract new <T extends object>() => Foo<T>", "let x;\n")
+	expectParseErrorTS(t, "let x: abstract () => void = Foo", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseErrorTS(t, "let x: abstract <T>() => Foo<T>", "<stdin>: error: Expected \";\" but found \"(\"\n")
+	expectParseErrorTS(t, "let x: abstract <T extends object>() => Foo<T>", "<stdin>: error: Expected \"?\" but found \">\"\n")
 }
 
 func TestTSAsCast(t *testing.T) {

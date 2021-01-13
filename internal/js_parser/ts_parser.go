@@ -222,6 +222,13 @@ func (p *parser) skipTypeScriptTypePrefix() {
 				p.lexer.Next()
 			}
 
+		// This was added in TypeScript 4.2
+		case "abstract":
+			p.lexer.Next()
+			if p.lexer.Token == js_lexer.TNew {
+				p.skipTypeScriptTypePrefix()
+			}
+
 		default:
 			p.lexer.Next()
 		}
