@@ -3,7 +3,7 @@ ESBUILD_VERSION = $(shell cat version.txt)
 esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	go build "-ldflags=-s -w" ./cmd/esbuild
 
-snapshot: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
+snapshot: cmd/esbuild/version.go cmd/esbuild/*.go cmd/snapshot/*.go pkg/*/*.go internal/*/*.go go.mod 
 	go build "-ldflags=-s -w" ./cmd/snapshot
 
 test:
