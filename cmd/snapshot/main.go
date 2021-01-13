@@ -27,15 +27,21 @@ func nodeJavaScript(args *snap_api.SnapCmdArgs) api.BuildResult {
 	}
 
 	shouldRewriteModule := func(mdl string) bool {
-		if args.Norewrite == nil {
-			return true
-		}
 		if len(mdl) == 0 {
 			return true
 		}
-		for _, m := range args.Norewrite {
-			if strings.HasSuffix(mdl, m) {
-				return false
+		if args.Norewrite != nil {
+			for _, m := range args.Norewrite {
+				if strings.HasSuffix(mdl, m) {
+					return false
+				}
+			}
+		}
+		if args.RegexMode != snap_api.RegexNone && args.NorewriteRx != nil {
+			for _, rx := range args.NorewriteRx {
+				if rx.MatchString(mdl) {
+					return args.RegexMode == snap_api.RegexNegated
+				}
 			}
 		}
 		return true

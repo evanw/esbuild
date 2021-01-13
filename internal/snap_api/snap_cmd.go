@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// TODO(thlorenz): document no rewrite regex syntax
 const helpText = `
 Usage:
   snapshot [options] entry point
@@ -26,12 +27,14 @@ Examples:
 `
 
 type SnapCmdArgs struct {
-	EntryPoint string
-	Outfile    string
-	Basedir    string
-	Metafile   string
-	Deferred   []string
-	Norewrite  []string
+	EntryPoint  string
+	Outfile     string
+	Basedir     string
+	Metafile    string
+	Deferred    []string
+	Norewrite   []string
+	NorewriteRx []*regexp.Regexp
+	RegexMode   RegexMode
 }
 
 type ProcessCmdArgs = func(args *SnapCmdArgs) api.BuildResult
@@ -41,12 +44,55 @@ func extractArray(arr string) []string {
 }
 
 var rx = regexp.MustCompile(`^[.]?[.]?[/]`)
+
 func trimPathPrefix(paths []string) []string {
 	replaced := make([]string, len(paths))
 	for i, p := range paths {
 		replaced[i] = rx.ReplaceAllString(p, "")
 	}
 	return replaced
+}
+
+func convertToRegex(paths []string) []*regexp.Regexp {
+	regexs := make([]*regexp.Regexp, len(paths))
+
+	for i, p := range paths {
+		rx = regexp.MustCompile(p)
+		regexs[i] = rx
+	}
+	return regexs
+}
+
+type RegexMode uint8
+
+const (
+	RegexNone RegexMode = iota
+	RegexNormal
+	RegexNegated
+)
+
+func extractRewriteDefs(paths []string) ([]string, []*regexp.Regexp, RegexMode) {
+	var plains []string
+	var regexs []string
+	regexMode := RegexNone
+	for _, p := range paths {
+		if strings.HasPrefix(p, "rx:") {
+			if regexMode == RegexNegated {
+				panic("Can only handle normal or negated regexes, but no mix")
+			}
+			regexMode = RegexNormal
+			regexs = append(regexs, strings.TrimSpace(p[3:]))
+		} else if strings.HasPrefix(p, "rx!:") {
+			if regexMode == RegexNormal {
+				panic("Can only handle normal or negated regexes, but no mix")
+			}
+			regexMode = RegexNegated
+			regexs = append(regexs, strings.TrimSpace(p[4:]))
+		} else {
+			plains = append(plains, p)
+		}
+	}
+	return trimPathPrefix(plains), convertToRegex(regexs), regexMode
 }
 
 func SnapCmd(processArgs ProcessCmdArgs) {
@@ -79,7 +125,10 @@ func SnapCmd(processArgs ProcessCmdArgs) {
 			cmdArgs.Deferred = extractArray(arg[len("--deferred="):])
 
 		case strings.HasPrefix(arg, "--norewrite="):
-			cmdArgs.Norewrite = trimPathPrefix(extractArray(arg[len("--norewrite="):]))
+			plains, regexs, regexMode := extractRewriteDefs(extractArray(arg[len("--norewrite="):]))
+			cmdArgs.Norewrite = plains
+			cmdArgs.NorewriteRx = regexs
+			cmdArgs.RegexMode = regexMode
 
 		case !strings.HasPrefix(arg, "-"):
 			cmdArgs.EntryPoint = arg
