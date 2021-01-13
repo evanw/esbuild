@@ -104,9 +104,6 @@ type ResolveResult struct {
 	// behavior of the "importsNotUsedAsValues" field in "tsconfig.json" when the
 	// value is not "remove".
 	PreserveUnusedImportsTS bool
-
-	// This is true if the file is inside a "node_modules" directory
-	SuppressWarningsAboutWeirdCode bool
 }
 
 type Resolver interface {
@@ -263,17 +260,22 @@ func (r *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath st
 	return nil
 }
 
-func isInsideNodeModules(fs fs.FS, path string) bool {
-	dir := fs.Dir(path)
+func IsInsideNodeModules(fs fs.FS, path string) bool {
 	for {
-		if fs.Base(dir) == "node_modules" {
-			return true
-		}
-		parent := fs.Dir(dir)
-		if dir == parent {
+		// This is written in a platform-independent manner because it's run on
+		// user-specified paths which can be arbitrary non-file-system things. So
+		// for example Windows paths may end up being used on Unix or URLs may end
+		// up being used on Windows. Be consistently agnostic to which kind of
+		// slash is used on all platforms.
+		slash := strings.LastIndexAny(path, "/\\")
+		if slash == -1 {
 			return false
 		}
-		dir = parent
+		dir, base := path[:slash], path[slash+1:]
+		if base == "node_modules" {
+			return true
+		}
+		path = dir
 	}
 }
 
@@ -282,11 +284,6 @@ func (r *resolver) finalizeResolve(result ResolveResult) *ResolveResult {
 		if path.Namespace == "file" {
 			if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
 				base := r.fs.Base(path.Text)
-
-				// Don't emit warnings for code inside a "node_modules" directory
-				if isInsideNodeModules(r.fs, path.Text) {
-					result.SuppressWarningsAboutWeirdCode = true
-				}
 
 				// Look up this file in the "sideEffects" map in the nearest enclosing
 				// directory with a "package.json" file.
@@ -668,7 +665,7 @@ func (r *resolver) parseTSConfig(file string, visited map[string]bool) (*TSConfi
 		}
 
 		// Suppress warnings about missing base config files inside "node_modules"
-		if !isInsideNodeModules(r.fs, file) {
+		if !IsInsideNodeModules(r.fs, file) {
 			r.log.AddRangeWarning(&source, extendsRange,
 				fmt.Sprintf("Cannot find base config file %q", extends))
 		}

@@ -2459,6 +2459,11 @@ var require_return_asi2 = __commonJS(() => {
   return;
 });
 
+// plugin-dir/node_modules/return-asi.js
+var require_return_asi3 = __commonJS(() => {
+  return;
+});
+
 // dup-case.js
 switch (x) {
   case 0:
@@ -2471,10 +2476,19 @@ switch (x) {
   case 0:
 }
 
+// plugin-dir/node_modules/dup-case.js
+switch (x) {
+  case 0:
+  case 0:
+}
+
 // not-in.js
 !a in b;
 
 // node_modules/not-in.js
+!a in b;
+
+// plugin-dir/node_modules/not-in.js
 !a in b;
 
 // not-instanceof.js
@@ -2483,14 +2497,21 @@ switch (x) {
 // node_modules/not-instanceof.js
 !a instanceof b;
 
+// plugin-dir/node_modules/not-instanceof.js
+!a instanceof b;
+
 // entry.js
 var import_return_asi = __toModule(require_return_asi());
 var import_return_asi2 = __toModule(require_return_asi2());
+var import_return_asi3 = __toModule(require_return_asi3());
 
 // bad-typeof.js
 typeof x == "null";
 
 // node_modules/bad-typeof.js
+typeof x == "null";
+
+// plugin-dir/node_modules/bad-typeof.js
 typeof x == "null";
 
 // equals-neg-zero.js
@@ -2499,16 +2520,25 @@ x === -0;
 // node_modules/equals-neg-zero.js
 x === -0;
 
+// plugin-dir/node_modules/equals-neg-zero.js
+x === -0;
+
 // equals-nan.js
 x === NaN;
 
 // node_modules/equals-nan.js
 x === NaN;
 
+// plugin-dir/node_modules/equals-nan.js
+x === NaN;
+
 // equals-object.js
 x === [];
 
 // node_modules/equals-object.js
+x === [];
+
+// plugin-dir/node_modules/equals-object.js
 x === [];
 
 // write-getter.js
@@ -2529,16 +2559,16 @@ var Foo2 = class {
   }
 };
 
-// read-setter.js
+// plugin-dir/node_modules/write-getter.js
 var Foo3 = class {
-  set #foo(x2) {
+  get #foo() {
   }
   foo() {
-    return this.#foo;
+    this.#foo = 123;
   }
 };
 
-// node_modules/read-setter.js
+// read-setter.js
 var Foo4 = class {
   set #foo(x2) {
   }
@@ -2547,15 +2577,40 @@ var Foo4 = class {
   }
 };
 
+// node_modules/read-setter.js
+var Foo5 = class {
+  set #foo(x2) {
+  }
+  foo() {
+    return this.#foo;
+  }
+};
+
+// plugin-dir/node_modules/read-setter.js
+var Foo6 = class {
+  set #foo(x2) {
+  }
+  foo() {
+    return this.#foo;
+  }
+};
+
 // delete-super.js
-var Foo5 = class extends Bar {
+var Foo7 = class extends Bar {
   foo() {
     delete super.foo;
   }
 };
 
 // node_modules/delete-super.js
-var Foo6 = class extends Bar {
+var Foo8 = class extends Bar {
+  foo() {
+    delete super.foo;
+  }
+};
+
+// plugin-dir/node_modules/delete-super.js
+var Foo9 = class extends Bar {
   foo() {
     delete super.foo;
   }

@@ -20,6 +20,14 @@
 
     This new syntax can now be parsed by esbuild.
 
+* Disable code warnings inside `node_modules` directories even with plugins ([#666](https://github.com/evanw/esbuild/issues/666))
+
+    Some of the warnings that esbuild generates exist to point out suspicious looking code that is likely a bug. An example is `typeof x == 'null'` since the `typeof` operator never generates the string `null`. Arguably these warnings belong in a linter instead of in esbuild since esbuild is a bundler, but I figured that some warnings about obviously broken code would still be helpful because many people don't run linters. It's part of my quest to improve software quality. And these warnings have caught real bugs in published code so they aren't meaningless. The warning must be considered very unlikely to be a false positive to be included.
+
+    A change was added in version 0.7.4 to exclude files inside `node_modules` directories from these warnings. Even if the warnings flag a real bug, the warning is frustrating as a user because it's mostly non-actionable. The only resolution other than turning off warnings is to file an issue with the package, since code in published packages is immutable.
+
+    However, since then the plugin API has been released and this behavior didn't apply if the import path was resolved by a plugin. It only applied if the import path was resolved by esbuild itself. That problem is fixed in this release. Now these warnings will be omitted from any file with `node_modules` in its path, even if the path originated from a plugin.
+
 ## 0.8.31
 
 * Fix minification issue from previous release ([#648](https://github.com/evanw/esbuild/issues/648))
@@ -1772,7 +1780,7 @@ The breaking changes are as follows:
     * [aws/aws-sdk-js#3325](https://github.com/aws/aws-sdk-js/issues/3325): Array equality bug in the Node.js XML parser
     * [olifolkerd/tabulator#2962](https://github.com/olifolkerd/tabulator/issues/2962): Nonsensical comparisons with typeof and "null"
     * [mrdoob/three.js#11183](https://github.com/mrdoob/three.js/pull/11183): Comparison with -0 in Math.js
-    * [mrdoob/three.js#11182](https://github.com/mrdoob/three.js/pull/11182): Cperator precedence bug in WWOBJLoader2.js
+    * [mrdoob/three.js#11182](https://github.com/mrdoob/three.js/pull/11182): Operator precedence bug in WWOBJLoader2.js
 
 	However, it's not esbuild's job to find bugs in other libraries, and these warnings are problematic for people using these libraries with esbuild. The only fix is to either disable all esbuild warnings and not get warnings about your own code, or to try to get the warning fixed in the affected library. This is especially annoying if the warning is a false positive as was the case in https://github.com/firebase/firebase-js-sdk/issues/3814. So these warnings are now disabled for code inside `node_modules` directories.
 

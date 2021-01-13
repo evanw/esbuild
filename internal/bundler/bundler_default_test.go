@@ -1,10 +1,13 @@
 package bundler
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/js_ast"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 var default_suite = suite{
@@ -3088,56 +3091,82 @@ func TestWarningsInsideNodeModules(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import "./dup-case.js";        import "./node_modules/dup-case.js"
-				import "./not-in.js";          import "./node_modules/not-in.js"
-				import "./not-instanceof.js";  import "./node_modules/not-instanceof.js"
-				import "./return-asi.js";      import "./node_modules/return-asi.js"
-				import "./bad-typeof.js";      import "./node_modules/bad-typeof.js"
-				import "./equals-neg-zero.js"; import "./node_modules/equals-neg-zero.js"
-				import "./equals-nan.js";      import "./node_modules/equals-nan.js"
-				import "./equals-object.js";   import "./node_modules/equals-object.js"
-				import "./write-getter.js";    import "./node_modules/write-getter.js"
-				import "./read-setter.js";     import "./node_modules/read-setter.js"
-				import "./delete-super.js";    import "./node_modules/delete-super.js"
+				import "./dup-case.js";        import "./node_modules/dup-case.js";        import "@plugin/dup-case.js"
+				import "./not-in.js";          import "./node_modules/not-in.js";          import "@plugin/not-in.js"
+				import "./not-instanceof.js";  import "./node_modules/not-instanceof.js";  import "@plugin/not-instanceof.js"
+				import "./return-asi.js";      import "./node_modules/return-asi.js";      import "@plugin/return-asi.js"
+				import "./bad-typeof.js";      import "./node_modules/bad-typeof.js";      import "@plugin/bad-typeof.js"
+				import "./equals-neg-zero.js"; import "./node_modules/equals-neg-zero.js"; import "@plugin/equals-neg-zero.js"
+				import "./equals-nan.js";      import "./node_modules/equals-nan.js";      import "@plugin/equals-nan.js"
+				import "./equals-object.js";   import "./node_modules/equals-object.js";   import "@plugin/equals-object.js"
+				import "./write-getter.js";    import "./node_modules/write-getter.js";    import "@plugin/write-getter.js"
+				import "./read-setter.js";     import "./node_modules/read-setter.js";     import "@plugin/read-setter.js"
+				import "./delete-super.js";    import "./node_modules/delete-super.js";    import "@plugin/delete-super.js"
 			`,
 
-			"/dup-case.js":              "switch (x) { case 0: case 0: }",
-			"/node_modules/dup-case.js": "switch (x) { case 0: case 0: }",
+			"/dup-case.js":                         "switch (x) { case 0: case 0: }",
+			"/node_modules/dup-case.js":            "switch (x) { case 0: case 0: }",
+			"/plugin-dir/node_modules/dup-case.js": "switch (x) { case 0: case 0: }",
 
-			"/not-in.js":              "!a in b",
-			"/node_modules/not-in.js": "!a in b",
+			"/not-in.js":                         "!a in b",
+			"/node_modules/not-in.js":            "!a in b",
+			"/plugin-dir/node_modules/not-in.js": "!a in b",
 
-			"/not-instanceof.js":              "!a instanceof b",
-			"/node_modules/not-instanceof.js": "!a instanceof b",
+			"/not-instanceof.js":                         "!a instanceof b",
+			"/node_modules/not-instanceof.js":            "!a instanceof b",
+			"/plugin-dir/node_modules/not-instanceof.js": "!a instanceof b",
 
-			"/return-asi.js":              "return\n123",
-			"/node_modules/return-asi.js": "return\n123",
+			"/return-asi.js":                         "return\n123",
+			"/node_modules/return-asi.js":            "return\n123",
+			"/plugin-dir/node_modules/return-asi.js": "return\n123",
 
-			"/bad-typeof.js":              "typeof x == 'null'",
-			"/node_modules/bad-typeof.js": "typeof x == 'null'",
+			"/bad-typeof.js":                         "typeof x == 'null'",
+			"/node_modules/bad-typeof.js":            "typeof x == 'null'",
+			"/plugin-dir/node_modules/bad-typeof.js": "typeof x == 'null'",
 
-			"/equals-neg-zero.js":              "x === -0",
-			"/node_modules/equals-neg-zero.js": "x === -0",
+			"/equals-neg-zero.js":                         "x === -0",
+			"/node_modules/equals-neg-zero.js":            "x === -0",
+			"/plugin-dir/node_modules/equals-neg-zero.js": "x === -0",
 
-			"/equals-nan.js":              "x === NaN",
-			"/node_modules/equals-nan.js": "x === NaN",
+			"/equals-nan.js":                         "x === NaN",
+			"/node_modules/equals-nan.js":            "x === NaN",
+			"/plugin-dir/node_modules/equals-nan.js": "x === NaN",
 
-			"/equals-object.js":              "x === []",
-			"/node_modules/equals-object.js": "x === []",
+			"/equals-object.js":                         "x === []",
+			"/node_modules/equals-object.js":            "x === []",
+			"/plugin-dir/node_modules/equals-object.js": "x === []",
 
-			"/write-getter.js":              "class Foo { get #foo() {} foo() { this.#foo = 123 } }",
-			"/node_modules/write-getter.js": "class Foo { get #foo() {} foo() { this.#foo = 123 } }",
+			"/write-getter.js":                         "class Foo { get #foo() {} foo() { this.#foo = 123 } }",
+			"/node_modules/write-getter.js":            "class Foo { get #foo() {} foo() { this.#foo = 123 } }",
+			"/plugin-dir/node_modules/write-getter.js": "class Foo { get #foo() {} foo() { this.#foo = 123 } }",
 
-			"/read-setter.js":              "class Foo { set #foo(x) {} foo() { return this.#foo } }",
-			"/node_modules/read-setter.js": "class Foo { set #foo(x) {} foo() { return this.#foo } }",
+			"/read-setter.js":                         "class Foo { set #foo(x) {} foo() { return this.#foo } }",
+			"/node_modules/read-setter.js":            "class Foo { set #foo(x) {} foo() { return this.#foo } }",
+			"/plugin-dir/node_modules/read-setter.js": "class Foo { set #foo(x) {} foo() { return this.#foo } }",
 
-			"/delete-super.js":              "class Foo extends Bar { foo() { delete super.foo } }",
-			"/node_modules/delete-super.js": "class Foo extends Bar { foo() { delete super.foo } }",
+			"/delete-super.js":                         "class Foo extends Bar { foo() { delete super.foo } }",
+			"/node_modules/delete-super.js":            "class Foo extends Bar { foo() { delete super.foo } }",
+			"/plugin-dir/node_modules/delete-super.js": "class Foo extends Bar { foo() { delete super.foo } }",
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
+			Plugins: []config.Plugin{{
+				OnResolve: []config.OnResolve{
+					{
+						Filter: regexp.MustCompile("^@plugin/"),
+						Callback: func(args config.OnResolveArgs) config.OnResolveResult {
+							return config.OnResolveResult{
+								Path: logger.Path{
+									Text:      strings.Replace(args.Path, "@plugin/", "/plugin-dir/node_modules/", 1),
+									Namespace: "file",
+								},
+							}
+						},
+					},
+				},
+			}},
 		},
 		expectedScanLog: `bad-typeof.js: warning: The "typeof" operator will never evaluate to "null"
 delete-super.js: warning: Attempting to delete a property of "super" will throw a ReferenceError

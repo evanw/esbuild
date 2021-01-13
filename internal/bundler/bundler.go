@@ -875,7 +875,11 @@ func (s *scanner) maybeParseFile(
 	if kind != inputKindStdin {
 		optionsClone.Stdin = nil
 	}
-	optionsClone.SuppressWarningsAboutWeirdCode = resolveResult.SuppressWarningsAboutWeirdCode
+
+	// Don't emit warnings for code inside a "node_modules" directory
+	if resolver.IsInsideNodeModules(s.fs, path.Text) {
+		optionsClone.SuppressWarningsAboutWeirdCode = true
+	}
 
 	// Allow certain properties to be overridden
 	if len(resolveResult.JSXFactory) > 0 {
