@@ -31,6 +31,27 @@ const (
 	ImportEntryPoint
 )
 
+func (kind ImportKind) StringForMetafile() string {
+	switch kind {
+	case ImportStmt:
+		return "import-statement"
+	case ImportRequire:
+		return "require-call"
+	case ImportDynamic:
+		return "dynamic-import"
+	case ImportRequireResolve:
+		return "require-resolve"
+	case ImportAt:
+		return "import-rule"
+	case ImportURL:
+		return "url-token"
+	case ImportEntryPoint:
+		return "entry-point"
+	default:
+		panic("Internal error")
+	}
+}
+
 func (kind ImportKind) IsFromCSS() bool {
 	return kind == ImportAt || kind == ImportURL
 }

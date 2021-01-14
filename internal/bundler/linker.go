@@ -3644,14 +3644,15 @@ func (repr *chunkReprJS) generate(c *linkerContext, chunk *chunkInfo) func(gener
 			// Print imports
 			isFirstMeta := true
 			jMeta.AddString("{\n      \"imports\": [")
-			for _, importAbsPath := range continueData.crossChunkAbsPaths {
+			for i, importAbsPath := range continueData.crossChunkAbsPaths {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
 					jMeta.AddString(",")
 				}
-				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
+				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
+					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly),
+					js_printer.QuoteForJSON(continueData.crossChunkImportRecords[i].Kind.StringForMetafile(), c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
@@ -4052,14 +4053,15 @@ func (repr *chunkReprCSS) generate(c *linkerContext, chunk *chunkInfo) func(gene
 		if c.options.AbsMetadataFile != "" {
 			isFirstMeta := true
 			jMeta.AddString("{\n      \"imports\": [")
-			for _, importAbsPath := range continueData.crossChunkAbsPaths {
+			for i, importAbsPath := range continueData.crossChunkAbsPaths {
 				if isFirstMeta {
 					isFirstMeta = false
 				} else {
 					jMeta.AddString(",")
 				}
-				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s\n        }",
-					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly)))
+				jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
+					js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: importAbsPath, Namespace: "file"}), c.options.ASCIIOnly),
+					js_printer.QuoteForJSON(continueData.crossChunkImportRecords[i].Kind.StringForMetafile(), c.options.ASCIIOnly)))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")

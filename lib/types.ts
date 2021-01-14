@@ -216,6 +216,17 @@ export interface PartialMessage {
   detail?: any;
 }
 
+export type MetadataImportKind =
+  // JS
+  | 'import-statement'
+  | 'require-call'
+  | 'dynamic-import'
+  | 'require-resolve'
+
+  // CSS
+  | 'import-rule'
+  | 'url-token'
+
 // This is the type information for the "metafile" JSON format
 export interface Metadata {
   inputs: {
@@ -223,6 +234,7 @@ export interface Metadata {
       bytes: number
       imports: {
         path: string
+        kind: MetadataImportKind
       }[]
     }
   }
@@ -236,6 +248,7 @@ export interface Metadata {
       }
       imports: {
         path: string
+        kind: MetadataImportKind
       }[]
       exports: string[]
     }

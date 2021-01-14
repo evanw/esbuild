@@ -404,7 +404,7 @@ body {
     const meta = path.join(testDir, 'meta.json')
     await writeFileAsync(entry, `
       import x from "./imported"
-      import y from "./text.txt"
+      const y = require("./text.txt")
       import * as z from "./example.css"
       console.log(x, y, z)
     `)
@@ -427,11 +427,11 @@ body {
     const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
 
     // Check inputs
-    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 139)
+    assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 144)
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
-      { path: makePath(imported) },
-      { path: makePath(text) },
-      { path: makePath(css) },
+      { path: makePath(imported), kind: 'import-statement' },
+      { path: makePath(css), kind: 'import-statement' },
+      { path: makePath(text), kind: 'require-call' },
     ])
     assert.deepStrictEqual(json.inputs[makePath(imported)].bytes, 18)
     assert.deepStrictEqual(json.inputs[makePath(imported)].imports, [])
@@ -501,12 +501,12 @@ body {
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
 
-    assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported }] })
-    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported }] })
+    assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported, kind: 'import-statement' }] })
+    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported, kind: 'import-statement' }] })
     assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
 
-    assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk) }])
-    assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
+    assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
     assert.deepStrictEqual(json.outputs[outChunk].imports, [])
 
     assert.deepStrictEqual(json.outputs[outEntry1].exports, ['x'])
@@ -566,12 +566,12 @@ body {
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
 
-    assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported }] })
-    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported }] })
+    assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported, kind: 'import-statement' }] })
+    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported, kind: 'import-statement' }] })
     assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
 
-    assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk) }])
-    assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
+    assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
     assert.deepStrictEqual(json.outputs[outChunk].imports, [])
 
     assert.deepStrictEqual(json.outputs[outEntry1].exports, ['x'])
@@ -634,14 +634,31 @@ body {
     const outImport2 = makeOutPath(path.relative(testDir, import2));
     const outChunk = makeOutPath(chunk);
 
-    assert.deepStrictEqual(json.inputs[inEntry], { bytes: 112, imports: [{ path: inShared }, { path: inImport1 }, { path: inImport2 }] })
-    assert.deepStrictEqual(json.inputs[inImport1], { bytes: 35, imports: [{ path: inShared }] })
-    assert.deepStrictEqual(json.inputs[inImport2], { bytes: 35, imports: [{ path: inShared }] })
+    assert.deepStrictEqual(json.inputs[inEntry], {
+      bytes: 112,
+      imports: [
+        { path: inShared, kind: 'import-statement' },
+        { path: inImport1, kind: 'dynamic-import' },
+        { path: inImport2, kind: 'dynamic-import' },
+      ]
+    })
+    assert.deepStrictEqual(json.inputs[inImport1], {
+      bytes: 35,
+      imports: [
+        { path: inShared, kind: 'import-statement' },
+      ]
+    })
+    assert.deepStrictEqual(json.inputs[inImport2], {
+      bytes: 35,
+      imports: [
+        { path: inShared, kind: 'import-statement' },
+      ]
+    })
     assert.deepStrictEqual(json.inputs[inShared], { bytes: 38, imports: [] })
 
-    assert.deepStrictEqual(json.outputs[outEntry].imports, [{ path: makeOutPath(chunk) }])
-    assert.deepStrictEqual(json.outputs[outImport1].imports, [{ path: makeOutPath(chunk) }])
-    assert.deepStrictEqual(json.outputs[outImport2].imports, [{ path: makeOutPath(chunk) }])
+    assert.deepStrictEqual(json.outputs[outEntry].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
+    assert.deepStrictEqual(json.outputs[outImport1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
+    assert.deepStrictEqual(json.outputs[outImport2].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
     assert.deepStrictEqual(json.outputs[outChunk].imports, [])
 
     assert.deepStrictEqual(json.outputs[outEntry].exports, [])
@@ -803,8 +820,13 @@ body {
     const cwd = process.cwd()
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
     const json = JSON.parse(await readFileAsync(metafile))
-    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [{ path: makePath(nested1) }, { path: makePath(nested2) }])
-    assert.deepStrictEqual(json.inputs[makePath(nested1)].imports, [{ path: makePath(nested3) }])
+    assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
+      { path: makePath(nested1), kind: 'import-statement' },
+      { path: makePath(nested2), kind: 'import-statement' },
+    ])
+    assert.deepStrictEqual(json.inputs[makePath(nested1)].imports, [
+      { path: makePath(nested3), kind: 'import-statement' },
+    ])
     assert.deepStrictEqual(json.inputs[makePath(nested2)].imports, [])
     assert.deepStrictEqual(json.inputs[makePath(nested3)].imports, [])
     assert.deepStrictEqual(json.outputs[makePath(outfile)].imports, [])
@@ -843,9 +865,9 @@ body {
     // Check inputs
     assert.deepStrictEqual(json, {
       inputs: {
-        [makePath(entry)]: { bytes: 98, imports: [{ path: makePath(imported) }] },
+        [makePath(entry)]: { bytes: 98, imports: [{ path: makePath(imported), kind: 'import-rule' }] },
         [makePath(image)]: { bytes: 8, imports: [] },
-        [makePath(imported)]: { bytes: 48, imports: [{ path: makePath(image) }] },
+        [makePath(imported)]: { bytes: 48, imports: [{ path: makePath(image), kind: 'url-token' }] },
       },
       outputs: {
         [makePath(output)]: {

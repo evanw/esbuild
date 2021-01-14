@@ -1246,8 +1246,9 @@ func (s *scanner) processScannedFiles() []file {
 					} else {
 						j.AddString(",\n        ")
 					}
-					j.AddString(fmt.Sprintf("{\n          \"path\": %s\n        }",
-						js_printer.QuoteForJSON(s.results[*record.SourceIndex].file.source.PrettyPath, s.options.ASCIIOnly)))
+					j.AddString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
+						js_printer.QuoteForJSON(s.results[*record.SourceIndex].file.source.PrettyPath, s.options.ASCIIOnly),
+						js_printer.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
 				}
 
 				// Importing a JavaScript file from a CSS file is not allowed.
