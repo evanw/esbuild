@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.32
 
 * Calling `stop()` on the JavaScript API is now optional ([#656](https://github.com/evanw/esbuild/pull/656))
 
