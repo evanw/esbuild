@@ -1052,6 +1052,21 @@ function loo() {
 }`, ReplaceAll)
 }
 
+func TestNorewrite(t *testing.T) {
+	expectPrintedNorewrite(t, `
+const path = require('path')
+let t = Math.floor(65536 * Math.random())
+function foo() {
+  console.log(t, path.extname('hello.txt'))
+}`, `
+const path = require("path");
+let t = Math.floor(65536 * Math.random());
+function foo() {
+  console.log(t, path.extname("hello.txt"));
+}
+`, ReplaceAll)
+}
+
 func TestLateDeclareLazyJS(t *testing.T) {
 	expectFixture(t, "late-declare.lazy.js", ReplaceAll)
 }

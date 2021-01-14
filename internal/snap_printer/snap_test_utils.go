@@ -24,6 +24,7 @@ type testOpts struct {
 	compareByLine        bool
 	debug                bool
 	isWrapped            bool
+	shouldRewrite        bool
 	snapFilePath         string
 }
 
@@ -56,7 +57,16 @@ func expectPrintedCommon(
 		symbols := js_ast.NewSymbolMap(1)
 		symbols.Outer[0] = tree.Symbols
 		r := snap_renamer.NewSnapRenamer(symbols)
-		js := Print(tree, symbols, &r, options, testOpts.isWrapped, testOpts.shouldReplaceRequire, true).JS
+
+		js := Print(
+			tree,
+			symbols,
+			&r,
+			options,
+			testOpts.isWrapped,
+			testOpts.shouldReplaceRequire,
+			testOpts.shouldRewrite).JS
+
 		actualTrimmed := strings.TrimSpace(string(js))
 		expectedTrimmed := strings.TrimSpace(expected)
 		if testOpts.compareByLine {
@@ -94,7 +104,19 @@ func expectPrinted(t *testing.T, contents string, expected string, shouldReplace
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, shouldRewrite: true},
+	)
+}
+
+func expectPrintedNorewrite(t *testing.T, contents string, expected string, shouldReplaceRequire func(string) bool) {
+	t.Helper()
+	expectPrintedCommon(
+		t,
+		contents,
+		contents,
+		expected,
+		PrintOptions{},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, shouldRewrite: false},
 	)
 }
 
@@ -106,7 +128,7 @@ func expectByLine(t *testing.T, contents string, expected string, shouldReplaceR
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true, shouldRewrite: true},
 	)
 }
 
@@ -118,7 +140,7 @@ func debugByLine(t *testing.T, contents string, expected string, shouldReplaceRe
 		contents,
 		expected,
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true, debug: true},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, compareByLine: true, debug: true, shouldRewrite: true},
 	)
 }
 
@@ -130,7 +152,19 @@ func debugPrinted(t *testing.T, contents string, shouldReplaceRequire func(strin
 		contents,
 		"",
 		PrintOptions{},
-		testOpts{shouldReplaceRequire: shouldReplaceRequire, debug: true},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, debug: true, shouldRewrite: true},
+	)
+}
+
+func debugPrintedNorewrite(t *testing.T, contents string, shouldReplaceRequire func(string) bool) {
+	t.Helper()
+	expectPrintedCommon(
+		t,
+		contents,
+		contents,
+		"",
+		PrintOptions{},
+		testOpts{shouldReplaceRequire: shouldReplaceRequire, debug: true, shouldRewrite: false},
 	)
 }
 
@@ -151,6 +185,7 @@ func debugFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(st
 			shouldReplaceRequire: shouldReplaceRequire,
 			debug:                true,
 			snapFilePath:         "./fixtures/snap-" + fixtureName,
+			shouldRewrite: true,
 		},
 	)
 }
@@ -176,6 +211,7 @@ func expectFixture(t *testing.T, fixtureName string, shouldReplaceRequire func(s
 			shouldReplaceRequire: shouldReplaceRequire,
 			debug:                true,
 			snapFilePath:         "./fixtures/snap-" + fixtureName,
+			shouldRewrite: true,
 		},
 	)
 }

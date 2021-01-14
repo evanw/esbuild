@@ -2897,7 +2897,9 @@ func Print(
 		panic("Need to pass a snap_renamer")
 	}
 
-	p.rewriteGlobals()
+	if shouldRewrite {
+		p.rewriteGlobals()
+	}
 
 	for _, part := range tree.Parts {
 		for _, stmt := range part.Stmts {
@@ -2906,10 +2908,12 @@ func Print(
 		}
 	}
 
-	p.updateGeneratedLineAndColumn()
-	// This has to happen before prepending top level decls as otherwise our locations are off
-	p.fixNamedBeforeReplaceds()
-	p.prependTopLevelDecls()
+	if shouldRewrite {
+		p.updateGeneratedLineAndColumn()
+		// This has to happen before prepending top level decls as otherwise our locations are off
+		p.fixNamedBeforeReplaceds()
+		p.prependTopLevelDecls()
+	}
 
 	return PrintResult{
 		JS:                p.js,
